@@ -1,23 +1,18 @@
-# @package _global_
-# Ultra-fast protein sweep - completes in ~30 seconds
-# For immediate testing with minimal timesteps
-# Use --rollout-count=2 to stop after 2 experiments
+defaults:
+  - /sweep_job
+  - _self_
 
+# Sweep configuration
 sweep:
-  parameters:
-    # Core learning parameter
-    trainer.learning_rate:
-      min: 0.001
-      max: 0.002
-      mean: 0.0015
-      scale: 1
-      distribution: log_normal
-  # Protein optimizer metadata
-  metric: reward
-  goal: maximize
+  metric:
+    name: reward
+    goal: maximize
+  num_random_samples: 10
 
-  # Ultra-fast training settings
+# Fixed overrides for all runs in this sweep
+sweep_job:
   trainer:
+    # Ultra-fast training settings
     total_timesteps: 50               # Minimal timesteps for speed
     evaluate_interval: 25             # Very frequent evaluation
     checkpoint_interval: 50           # No intermediate checkpoints
@@ -29,8 +24,11 @@ sweep:
     minibatch_size: 32                # Fixed small minibatch
     bptt_horizon: 1                   # Minimal BPTT
 
-  # Ultra-fast environment settings
   env:
     game:
       max_steps: 8                    # Ultra-short episodes
 
+  eval: ${sim}
+
+# Use the fast_30s parameter set
+sweep_params: fast_30s
