@@ -3,13 +3,8 @@ requires = ["scikit-build-core", "pybind11==2.10.4"]
 build-backend = "scikit_build_core.build"
 
 [project]
-name = "metta"
-version = "0.1"
-description = "Metta AI framework"
-readme = "README.md"
-requires-python = "==3.11.7"
-license = "MIT"
 dependencies = [
+<<<<<<< HEAD
   "boto3>=1.38.32",
   "colorama>=0.4.6",
   "cpplint>=2.0.2",
@@ -59,7 +54,12 @@ dependencies = [
   "wandb-core>=0.17.0b11",
   "pyro-ppl>=1.9.1",
   "torch>=2.7.1",
-]
+]name = "metta"
+version = "0.1"
+description = "Metta AI framework"
+readme = "README.md"
+requires-python = "==3.11.7"
+license = "MIT"
 
 [dependency-groups]
 dev = ["skypilot==0.9.3"]

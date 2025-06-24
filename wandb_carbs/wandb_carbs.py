@@ -32,6 +32,7 @@ class WandbCarbs:
             carbs (CARBS): The CARBS instance to use for suggestions.
             wandb_run (wandb.Run, optional): The wandb run to use. If None, uses the current run.
         """
+        logger.warning("WandbCarbs is deprecated, use MettaProtein instead")
         self._wandb_run = wandb_run or wandb.run
         self._sweep_id = self._wandb_run.sweep_id
         self._api = wandb.Api()
