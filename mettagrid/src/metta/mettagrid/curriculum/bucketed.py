@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from itertools import product
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from omegaconf import DictConfig, OmegaConf
 from tqdm import tqdm
@@ -21,7 +21,7 @@ class BucketedCurriculum(LowRewardCurriculum):
         self,
         env_cfg_template: str,
         buckets: Dict[str, Dict[str, Any]],
-        env_overrides: DictConfig,
+        env_overrides: Optional[DictConfig] = None,
         default_bins: int = 1,
         moving_avg_decay_rate: float = 0.01,
     ):

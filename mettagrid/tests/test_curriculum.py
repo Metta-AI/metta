@@ -95,19 +95,19 @@ def test_progressive_curriculum(monkeypatch, env_cfg):
 
 def test_bucketed_curriculum(monkeypatch, env_cfg):
     monkeypatch.setattr(
-        "metta.mettagrid.curriculum.sampling.config_from_path", lambda path, env_overrides=None: env_cfg
+        "metta.mettagrid.curriculum.bucketed.config_from_path", lambda path, env_overrides=None: env_cfg
     )
     buckets = {
         "game.map.width": {"values": [5, 10]},
         "game.map.height": {"values": [5, 10]},
     }
-    curr = BucketedCurriculum(
-        env_cfg_template="dummy",
-        buckets=buckets,
-        env_overrides=OmegaConf.create({}),
-        default_bins=1,
-        moving_avg_decay_rate=0.01,
-    )
+    curr = BucketedCurriculum("dummy", buckets=buckets)
+    #     env_cfg_template="dummy",
+    #     buckets=buckets)
+    #     env_overrides=OmegaConf.create({}),
+    #     default_bins=1,
+    #     moving_avg_decay_rate=0.01,
+    # )
     # There should be 4 tasks (2x2 grid)
     assert len(curr._id_to_curriculum) == 4
     # Sample a task
