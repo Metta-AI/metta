@@ -135,7 +135,12 @@ def main(cfg: DictConfig | ListConfig) -> int:
         total_time = train_time + eval_time
         logger.info(f"Evaluation Metric: {eval_metric}, Total Time: {total_time}")
 
-        WandbProtein._record_observation(wandb_run, eval_metric, total_time, allow_update=True)
+        # Handle case where evaluation metric is None (evaluation failed)
+        if eval_metric is None:
+            logger.warning("Evaluation metric is None - recording as failure")
+            WandbProtein._record_failure(wandb_run)
+        else:
+            WandbProtein._record_observation(wandb_run, eval_metric, total_time, allow_update=True)
 
         wandb_run.summary.update({"run_time": total_time})
         return 0
