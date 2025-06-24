@@ -460,6 +460,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
     def inventory_item_names(self) -> list[str]:
         return self._c_env.inventory_item_names()
 
+    @property
     def initial_grid_hash(self) -> int:
         """Returns the hash of the initial grid configuration."""
         return self._c_env.initial_grid_hash
