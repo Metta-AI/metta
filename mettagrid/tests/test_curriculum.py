@@ -102,12 +102,7 @@ def test_bucketed_curriculum(monkeypatch, env_cfg):
         "game.map.height": {"values": [5, 10]},
     }
     curr = BucketedCurriculum("dummy", buckets=buckets)
-    #     env_cfg_template="dummy",
-    #     buckets=buckets)
-    #     env_overrides=OmegaConf.create({}),
-    #     default_bins=1,
-    #     moving_avg_decay_rate=0.01,
-    # )
+
     # There should be 4 tasks (2x2 grid)
     assert len(curr._id_to_curriculum) == 4
     # Sample a task

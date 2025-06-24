@@ -13,7 +13,7 @@ defaults:
   - _self_
 
 trainer:
-  curriculum: /env/mettagrid/curriculum/nav_memory_sequence
+  curriculum: /env/mettagrid/curriculum/object_use
   evaluate_interval: 10
 
 policy_uri: wandb://run/dd_navigation_curriculum

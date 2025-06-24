@@ -3,10 +3,6 @@ _target_: metta.mettagrid.curriculum.bucketed.BucketedCurriculum
 env_cfg_template: /env/mettagrid/object_use/training/easy_all_objects
 
 buckets:
-  game.agent.rewards.ore.red:
-    range: [0.01, 0.1]
-  game.agent.rewards.battery.red:
-    range: [0.01, 0.5]
   game.agent.rewards.laser:
     range: [0.01, 0.5]
   game.agent.rewards.armor:
