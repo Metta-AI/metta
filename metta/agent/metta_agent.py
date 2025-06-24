@@ -1,5 +1,5 @@
 import logging
-from typing import Optional, Union
+from typing import TYPE_CHECKING, Optional, Union
 
 import gymnasium as gym
 import hydra
@@ -14,12 +14,14 @@ from metta.agent.util.debug import assert_shape
 from metta.agent.util.distribution_utils import evaluate_actions, sample_actions
 from metta.agent.util.safe_get import safe_get_from_obs_space
 from metta.util.omegaconf import convert_to_dict
-from mettagrid.mettagrid_env import MettaGridEnv
+
+if TYPE_CHECKING:
+    from metta.mettagrid.mettagrid_env import MettaGridEnv
 
 logger = logging.getLogger("metta_agent")
 
 
-def make_policy(env: MettaGridEnv, cfg: ListConfig | DictConfig):
+def make_policy(env: "MettaGridEnv", cfg: ListConfig | DictConfig):
     obs_space = gym.spaces.Dict(
         {
             "grid_obs": env.single_observation_space,
@@ -159,7 +161,9 @@ class MettaAgent(nn.Module):
         self.active_actions = list(zip(action_names, action_max_params, strict=False))
 
         # Precompute cumulative sums for faster conversion
-        self.cum_action_max_params = torch.cumsum(torch.tensor([0] + action_max_params, device=self.device), dim=0)
+        self.cum_action_max_params = torch.cumsum(
+            torch.tensor([0] + action_max_params, device=self.device, dtype=torch.long), dim=0
+        )
 
         full_action_names = []
         for action_name, max_param in self.active_actions:
@@ -301,7 +305,6 @@ class MettaAgent(nn.Module):
                 # Training: x should have shape (B, T, obs_w, obs_h, features)
                 B, T, A = action.shape
                 assert A == 2, f"Action dimensionality should be 2, got {A}"
-                # assert_shape(x, (B, T, obs_w, obs_h, features), "training_input_x")
                 # assert_shape(action, (B, T, 2), "training_input_action")
 
         # Initialize dictionary for TensorDict
@@ -434,7 +437,7 @@ class MettaAgent(nn.Module):
         if len(component_loss_tensors) > 0:
             return torch.sum(torch.stack(component_loss_tensors))
         else:
-            return torch.tensor(0.0, device=self.device)
+            return torch.tensor(0.0, device=self.device, dtype=torch.float32)
 
     def l2_init_loss(self) -> torch.Tensor:
         """L2 initialization loss is on by default although setting l2_init_coeff to 0 effectively turns it off. Adjust
@@ -444,7 +447,7 @@ class MettaAgent(nn.Module):
         if len(component_loss_tensors) > 0:
             return torch.sum(torch.stack(component_loss_tensors))
         else:
-            return torch.tensor(0.0, device=self.device)
+            return torch.tensor(0.0, device=self.device, dtype=torch.float32)
 
     def update_l2_init_weight_copy(self):
         """Update interval set by l2_init_weight_update_interval. 0 means no updating."""

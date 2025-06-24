@@ -1,7 +1,7 @@
 import numpy as np
 
-from mettagrid.mettagrid_c import MettaGrid
-from mettagrid.mettagrid_env import dtype_actions
+from metta.mettagrid.mettagrid_c import MettaGrid
+from metta.mettagrid.mettagrid_env import dtype_actions
 
 NUM_AGENTS = 2
 OBS_HEIGHT = 3
@@ -27,36 +27,38 @@ def create_minimal_mettagrid_c_env(max_steps=10, width=5, height=5):
     mid_x = width // 2
     game_map[mid_y, mid_x] = "agent.red"
 
-    env_config = {
-        "game": {
-            "max_steps": max_steps,
-            "num_agents": NUM_AGENTS,
-            "obs_width": OBS_WIDTH,
-            "obs_height": OBS_HEIGHT,
-            "num_observation_tokens": NUM_OBS_TOKENS,
-            "actions": {
-                # don't really care about the actions for this test
-                "noop": {"enabled": True},
-                "move": {"enabled": True},
-                "rotate": {"enabled": True},
-                "attack": {"enabled": False},
-                "put_items": {"enabled": False},
-                "get_items": {"enabled": False},
-                "swap": {"enabled": False},
-                "change_color": {"enabled": False},
-            },
-            "groups": {"red": {"id": 0, "props": {}}},
-            "objects": {
-                "wall": {"type_id": 1},
-                "block": {"type_id": 2},
-            },
-            "agent": {
-                "inventory_size": 0,
-            },
-        }
+    game_config = {
+        "max_steps": max_steps,
+        "num_agents": NUM_AGENTS,
+        "obs_width": OBS_WIDTH,
+        "obs_height": OBS_HEIGHT,
+        "num_observation_tokens": NUM_OBS_TOKENS,
+        "actions": {
+            # don't really care about the actions for this test
+            "noop": {"enabled": True},
+            "move": {"enabled": True},
+            "rotate": {"enabled": True},
+            "attack": {"enabled": False},
+            "put_items": {"enabled": False},
+            "get_items": {"enabled": False},
+            "swap": {"enabled": False},
+            "change_color": {"enabled": False},
+        },
+        "groups": {"red": {"id": 0, "props": {}}},
+        "objects": {
+            "wall": {"type_id": 1},
+            "block": {"type_id": 2},
+        },
+        "agent": {},
     }
 
-    return MettaGrid(env_config, game_map.tolist())
+    return MettaGrid(game_config, game_map.tolist())
+
+
+def test_grid_hash():
+    """Test grid object representation and properties."""
+    c_env = create_minimal_mettagrid_c_env()
+    assert c_env.initial_grid_hash == 8082132383455666218
 
 
 def test_truncation_at_max_steps():

@@ -1,7 +1,11 @@
 defaults:
   - common
   - wandb: metta_research
+<<<<<<< HEAD
   - agent: simple_token_to_box
+=======
+  - agent: fast
+>>>>>>> 2ae302112f4d2dc5180dd8637a2ed5508a576325
   - sim: sweep_eval
   - trainer: puffer
   - _self_

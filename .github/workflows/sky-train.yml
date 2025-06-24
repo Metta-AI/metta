@@ -13,16 +13,25 @@ on:
         required: true
         default: "env/mettagrid/simple"
         type: string
+      commit_to_run:
+        description: "The full commit hash to run the job against (required for manual runs)."
+        required: true
+        type: string
       pr_number:
-        description: "PR number (if applicable, leave empty otherwise)"
+        description: "PR number (for naming/context if running a PR's commit, leave empty otherwise)"
         required: false
         type: string
+      num_gpus:
+        description: "Number of GPUs to request (e.g., 1, 4). If empty, defaults to SkyPilot task definition (usually 1)."
+        required: false
+        type: string # Keep as string to allow empty, action handles default
   push:
     branches: [main]
 
 env:
-  TRAINER_ENV: ${{ github.event.inputs.trainer_env || 'env/mettagrid/simple' }}
-  TIMEOUT_HOURS: ${{ github.event.inputs.timeout_hours || 1 }}
+  DEFAULT_TRAINER_ENV: "env/mettagrid/simple"
+  DEFAULT_TIMEOUT_HOURS: 1
+  RUN_NAME_PREFIX: "github.sky" # Define the prefix for run names here
 
 jobs:
   launch-batch-job:
@@ -31,67 +40,95 @@ jobs:
       contents: read
 
     steps:
-      - name: Checkout code
+      - name: Checkout specific commit for dispatch
+        if: github.event_name == 'workflow_dispatch'
         uses: actions/checkout@v4
         with:
-          fetch-depth: 2 # Need at least 2 commits to detect merge commit messages
+          ref: ${{ github.event.inputs.commit_to_run }}
+          fetch-depth: 1
 
-      - name: Setup Python and uv
-        uses: ./.github/actions/setup-uv
+      - name: Checkout full history for push
+        if: github.event_name == 'push'
+        uses: actions/checkout@v4
         with:
-          include-dev: true
+          fetch-depth: 2
 
-      - name: Generate run name
+      - name: Determine PR Number for Push Events
+        id: pr_info
+        if: github.event_name == 'push'
+        shell: bash
+        run: |
+          PR_FROM_COMMIT=$(git log -1 --pretty=format:"%s" | sed -n 's/.*(#\\([0-9][0-9]*\\)).*/\\1/p')
+          echo "Extracted PR number from commit message (if any): $PR_FROM_COMMIT"
+          echo "pr_number_for_name_generation=${PR_FROM_COMMIT}" >> $GITHUB_OUTPUT
+
+      - name: Generate Run Name
         id: generate_run_name
+        shell: bash
         run: |
           set -eo pipefail
-
-          # Use PR number if available (either from manual input or extracted from merge commit)
-          PR_NUMBER="${{ github.event.inputs.pr_number }}"
-          if [ -z "$PR_NUMBER" ] && [ "${{ github.event_name }}" == "push" ]; then
-            # Try to extract PR number from the merge commit message
-            PR_NUMBER=$(git log -1 --pretty=format:"%s" | sed -n 's/.*(#\([0-9][0-9]*\)).*/\1/p')
-          fi
-
-          # Generate the run name
-          if [ -n "$PR_NUMBER" ]; then
-            RUN_NAME="github.sky.pr${PR_NUMBER}"
-            echo "Using PR #$PR_NUMBER in run name"
-          else
-            # Get branch name
-            BRANCH=$(git rev-parse --abbrev-ref HEAD | sed 's/[^a-zA-Z0-9]/_/g')
-            RUN_NAME="github.sky.$BRANCH"
-            echo "Using branch name '$BRANCH' in run name"
-          fi
-
-          # Get current timestamp in a format suitable for filenames
           TIMESTAMP=$(date -u +"%Y%m%d_%H%M%S")
+          # SHORT_COMMIT_HASH is derived from the actual checked-out HEAD.
+          # This HEAD is set by the conditional 'Checkout code' steps:
+          # - For 'push', it's the trigger commit.
+          # - For 'workflow_dispatch', it's github.event.inputs.commit_to_run.
+          SHORT_COMMIT_HASH=$(git rev-parse --short HEAD)
 
-          # Get short commit hash
-          COMMIT_HASH=$(git rev-parse --short HEAD)
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            # Manual dispatch: run name is github.sky.<short_hash>.<timestamp>
+            # The github.event.inputs.pr_number is not used for the run name itself here.
+            if [ -z "${{ github.event.inputs.commit_to_run }}" ]; then
+              echo "Error: commit_to_run is required for workflow_dispatch and was not provided."
+              exit 1
+            fi
+            # Sanity check that checked-out commit matches the input
+            INPUT_SHORT_HASH=$(echo "${{ github.event.inputs.commit_to_run }}" | cut -c1-7)
+            if [ "$SHORT_COMMIT_HASH" != "$INPUT_SHORT_HASH" ]; then
+                echo "Warning: Checked out HEAD's short hash ($SHORT_COMMIT_HASH) does not match input commit_to_run's short hash ($INPUT_SHORT_HASH). Using checked out HEAD."
+            fi
+            RUN_NAME_BASE="${{ env.RUN_NAME_PREFIX }}"
+            FINAL_RUN_NAME="$RUN_NAME_BASE.$SHORT_COMMIT_HASH.$TIMESTAMP"
+            echo "Manual dispatch: Using commit ($SHORT_COMMIT_HASH). Run name: $FINAL_RUN_NAME"
 
-          RUN_NAME="$RUN_NAME.$COMMIT_HASH.$TIMESTAMP"
+          elif [ "${{ github.event_name }}" == "push" ]; then
+            # Push event: run name includes PR number (if found) or branch name.
+            PR_NUMBER_FROM_COMMIT="${{ steps.pr_info.outputs.pr_number_for_name_generation || '' }}"
 
-          echo "Generated run name: $RUN_NAME"
-          echo "run_name=$RUN_NAME" >> $GITHUB_OUTPUT
+            if [ -n "$PR_NUMBER_FROM_COMMIT" ]; then
+              RUN_NAME_BASE="${{ env.RUN_NAME_PREFIX }}.pr${PR_NUMBER_FROM_COMMIT}"
+              echo "Push event: Using PR #$PR_NUMBER_FROM_COMMIT in run name base: $RUN_NAME_BASE"
+            else
+              BRANCH_NAME_RAW=$(git rev-parse --abbrev-ref HEAD)
+              BRANCH_NAME_SANITISED=$(echo "$BRANCH_NAME_RAW" | sed 's/[^a-zA-Z0-9_-]/-/g')
+              RUN_NAME_BASE="${{ env.RUN_NAME_PREFIX }}.${BRANCH_NAME_SANITISED}"
+              echo "Push event: Using branch name '$BRANCH_NAME_SANITISED' in run name base: $RUN_NAME_BASE (PR number not found in commit)"
+            fi
+            FINAL_RUN_NAME="$RUN_NAME_BASE.$SHORT_COMMIT_HASH.$TIMESTAMP"
+            echo "Push event: Run name: $FINAL_RUN_NAME"
+          else
+            echo "Error: Unhandled event type ${{ github.event_name }}"
+            exit 1
+          fi
 
-      - name: Set up Weights & Biases credentials
+          echo "Generated run name for SkyPilot: $FINAL_RUN_NAME"
+          echo "run_name=$FINAL_RUN_NAME" >> $GITHUB_OUTPUT
+
+      - name: Launch SkyPilot Job via Custom Action
+        id: skylaunch
+        uses: ./.github/actions/launch-skypilot-job
+        with:
+          trainer_env: ${{ github.event.inputs.trainer_env || env.DEFAULT_TRAINER_ENV }}
+          timeout_hours: ${{ github.event.inputs.timeout_hours || env.DEFAULT_TIMEOUT_HOURS }}
+          num_gpus: ${{ github.event.inputs.num_gpus || '' }}
+          run_name: ${{ steps.generate_run_name.outputs.run_name }} # Pass the fully generated name
+          git_ref_override: ${{ github.event.inputs.commit_to_run || '' }} # Pass commit_to_run for manual, default for push
+          wandb_api_key: ${{ secrets.WANDB_API_KEY }}
+          skypilot_api_url: ${{ secrets.SKYPILOT_API_URL }}
+
+      - name: Print Run Information
+        shell: bash
         run: |
-          echo "machine api.wandb.ai" > $HOME/.netrc
-          echo "login user" >> $HOME/.netrc
-          echo "password ${{ secrets.WANDB_API_KEY }}" >> $HOME/.netrc
-          chmod 600 $HOME/.netrc
-
-      - name: Configure SkyPilot API server
-        run: |
-          mkdir -p $HOME/.sky
-          echo "api_server:" > $HOME/.sky/config.yaml
-          echo "  endpoint: ${{ secrets.SKYPILOT_API_URL }}" >> $HOME/.sky/config.yaml
-
-      - name: Launch SkyPilot training job
-        run: |
-          ./devops/skypilot/launch.py \
-            --timeout-hours=$TIMEOUT_HOURS \
-            train \
-            run=${{ steps.generate_run_name.outputs.run_name }} \
-            trainer.curriculum=$TRAINER_ENV
+          echo "Workflow triggered by: ${{ github.event_name }}"
+          echo "SkyPilot Job Name / W&B Run Name: ${{ steps.generate_run_name.outputs.run_name }}"
+          echo "SkyPilot Task Name: ${{ steps.generate_run_name.outputs.run_name }}"
+          echo "To see logs for this job in SkyPilot, you might use: sky jobs logs ${{ steps.generate_run_name.outputs.run_name }} (if job was successfully submitted)"

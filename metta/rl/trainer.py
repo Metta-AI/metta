@@ -3,7 +3,7 @@ import os
 import time
 from collections import defaultdict
 from contextlib import nullcontext
-from typing import Any, Dict, Set
+from typing import Any, Set
 from uuid import UUID
 
 import einops
@@ -13,18 +13,20 @@ import torch.distributed
 import wandb
 from heavyball import ForeachMuon
 from omegaconf import DictConfig, ListConfig
-from pufferlib import unroll_nested_dict
 
 from app_backend.stats_client import StatsClient
 from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
 from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyRecord, PolicyStore
 from metta.agent.util.debug import assert_shape
+from metta.common.stopwatch import Stopwatch, with_instance_timer
 from metta.eval.eval_stats_db import EvalStatsDB
+from metta.mettagrid.curriculum.util import curriculum_from_config_path
+from metta.mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
+from metta.mettagrid.util.dict_utils import unroll_nested_dict
 from metta.rl.experience import Experience
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses
-from metta.rl.policy import PytorchAgent
 from metta.rl.torch_profiler import TorchProfiler
 from metta.rl.trainer_checkpoint import TrainerCheckpoint
 from metta.rl.vecenv import make_vecenv
@@ -32,10 +34,8 @@ from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
 from metta.sim.simulation_suite import SimulationSuite
 from metta.util.heartbeat import record_heartbeat
+from metta.util.system_monitor import SystemMonitor
 from metta.util.wandb.wandb_context import WandbRun
-from mettagrid.curriculum import curriculum_from_config_path
-from mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
-from mettagrid.util.stopwatch import Stopwatch, with_instance_timer
 
 try:
     from pufferlib import _C  # noqa: F401 - Required for torch.ops.pufferlib
@@ -90,13 +90,17 @@ class MettaTrainer:
         self.stats = defaultdict(list)
         self.wandb_run = wandb_run
         self.policy_store = policy_store
-        self._current_eval_score: float | None = None
-        self._eval_grouped_scores: Dict[str, float] = {}
-        self._eval_suite_avgs: Dict[str, float] = {}
-        self._eval_categories: Set[str] = set()
+        self.evals: dict[str, float] = {}
 
         self.timer = Stopwatch(logger)
         self.timer.start()
+
+        self.system_monitor = SystemMonitor(
+            sampling_interval_sec=1.0,  # Sample every second
+            history_size=100,  # Keep last 100 samples
+            logger=logger,
+            auto_start=True,  # Start monitoring immediately
+        )
 
         curriculum_config = trainer_cfg.get("curriculum", trainer_cfg.get("env", {}))
         env_overrides = DictConfig({"env_overrides": trainer_cfg.env_overrides})
@@ -145,7 +149,7 @@ class MettaTrainer:
 
         self._make_experience_buffer()
 
-        self.agent_step = checkpoint.agent_step
+        self.agent_step: int = checkpoint.agent_step
         self.epoch = checkpoint.epoch
 
         self._stats_epoch_start = self.epoch
@@ -166,11 +170,11 @@ class MettaTrainer:
 
         # validate that policy matches environment
         self.metta_agent: MettaAgent | DistributedMettaAgent = self.policy  # type: ignore
-        assert isinstance(self.metta_agent, (MettaAgent, DistributedMettaAgent, PytorchAgent)), self.metta_agent
         _env_shape = metta_grid_env.single_observation_space.shape
         environment_shape = tuple(_env_shape) if isinstance(_env_shape, list) else _env_shape
 
-        if isinstance(self.metta_agent, (MettaAgent, DistributedMettaAgent)):
+        # The rest of the validation logic continues to work with duck typing
+        if hasattr(self.metta_agent, "components"):
             found_match = False
             for component_name, component in self.metta_agent.components.items():
                 if hasattr(component, "_obs_shape"):
@@ -199,17 +203,32 @@ class MettaTrainer:
             )
 
         if checkpoint.agent_step > 0:
-            self.optimizer.load_state_dict(checkpoint.optimizer_state_dict)
+            try:
+                self.optimizer.load_state_dict(checkpoint.optimizer_state_dict)
+                logger.info("Successfully loaded optimizer state from checkpoint")
+            except ValueError as e:
+                if "doesn't match the size of optimizer's group" in str(e):
+                    # Extract some info about the mismatch
+                    old_params = len(checkpoint.optimizer_state_dict.get("param_groups", [{}])[0].get("params", []))
+                    new_params = sum(1 for _ in self.policy.parameters())
+                    logger.warning(
+                        f"Optimizer state dict doesn't match current model architecture. "
+                        f"Checkpoint has {old_params} parameter groups, current model has {new_params}. "
+                        "This typically happens when layers are added/removed. "
+                        "Starting with fresh optimizer state."
+                    )
+                else:
+                    # Re-raise if it's a different ValueError
+                    raise
 
         if wandb_run and self._master:
             # Define metrics (wandb x-axis values)
-            metrics = ["step", "epoch", "total_time", "train_time"]
+            metrics = ["agent_step", "epoch", "total_time", "train_time"]
             for metric in metrics:
                 wandb_run.define_metric(f"metric/{metric}")
 
             # set the default x-axis to be step count
-            for k in ["overview", "env", "losses", "performance"]:
-                wandb_run.define_metric(f"{k}/*", step_metric="metric/step")
+            wandb_run.define_metric("*", step_metric="metric/agent_step")
 
             # set up plots that do not use steps as the x-axis
             metric_overrides = [
@@ -259,7 +278,7 @@ class MettaTrainer:
 
             logger.info(
                 f"Epoch {self.epoch} - "
-                f"{steps_per_sec:.0f} steps/sec "
+                f"{steps_per_sec * self._world_size:.0f} steps/sec "
                 f"({train_pct:.0f}% train / {rollout_pct:.0f}% rollout / {stats_pct:.0f}% stats)"
             )
             record_heartbeat()
@@ -294,6 +313,7 @@ class MettaTrainer:
 
         self._checkpoint_trainer()
         self._save_policy_to_wandb()
+        self.system_monitor.stop()
 
     @with_instance_timer("_evaluate_policy", log_level=logging.INFO)
     def _evaluate_policy(self):
@@ -322,37 +342,28 @@ class MettaTrainer:
         )
         result = sim.simulate()
         stats_db = EvalStatsDB.from_sim_stats_db(result.stats_db)
-
         logger.info("Simulation complete")
 
-        self._eval_categories: Set[str] = set()
+        # Build evaluation metrics
+        self.evals = {}  # used for wandb
+        categories: Set[str] = set()
         for sim_name in self.sim_suite_config.simulations.keys():
-            self._eval_categories.add(sim_name.split("/")[0])
-        self._eval_suite_avgs = {}
+            categories.add(sim_name.split("/")[0])
 
-        # Compute scores for each evaluation category
-        for category in self._eval_categories:
+        for category in categories:
             score = stats_db.get_average_metric_by_filter("reward", self.last_pr, f"sim_name LIKE '%{category}%'")
             logger.info(f"{category} score: {score}")
             record_heartbeat()
-            # Only add the score if we got a non-None result
-            if score is not None:
-                self._eval_suite_avgs[f"{category}_score"] = score
-            else:
-                self._eval_suite_avgs[f"{category}_score"] = 0.0
+            if score is None:
+                continue
+            self.evals[f"{category}/score"] = score
 
-        # Get overall score (average of all rewards)
-        overall_score = stats_db.get_average_metric_by_filter("reward", self.last_pr)
-        self._current_eval_score = overall_score if overall_score is not None else 0.0
+        # Get detailed per-simulation scores
         all_scores = stats_db.simulation_scores(self.last_pr, "reward")
-
-        # Categorize scores by environment type
-        self._eval_grouped_scores = {}
-        # Process each score and assign to the right category
         for (_, sim_name, _), score in all_scores.items():
-            for category in self._eval_categories:
-                if category in sim_name.lower():
-                    self._eval_grouped_scores[f"{category}/{sim_name.split('/')[-1]}"] = score
+            category = sim_name.split("/")[0]
+            sim_short_name = sim_name.split("/")[-1]
+            self.evals[f"{category}/{sim_short_name}"] = score
 
     def _on_train_step(self):
         pass
@@ -381,8 +392,8 @@ class MettaTrainer:
 
             # Convert mask to tensor once
             mask = torch.as_tensor(mask)
-            num_steps = mask.sum().item()
-            self.agent_step += num_steps * self._world_size
+            num_steps = int(mask.sum().item())
+            self.agent_step += num_steps
 
             # Convert to tensors once
             o = torch.as_tensor(o).to(device, non_blocking=True)
@@ -582,11 +593,11 @@ class MettaTrainer:
                     self.agent_step, full_logprobs, newvalue, obs, teacher_lstm_state=[]
                 )
 
-                l2_reg_loss = torch.tensor(0.0, device=self.device)
+                l2_reg_loss = torch.tensor(0.0, device=self.device, dtype=torch.float32)
                 if trainer_cfg.l2_reg_loss_coef > 0:
                     l2_reg_loss = trainer_cfg.l2_reg_loss_coef * self.policy.l2_reg_loss().to(self.device)
 
-                l2_init_loss = torch.tensor(0.0, device=self.device)
+                l2_init_loss = torch.tensor(0.0, device=self.device, dtype=torch.float32)
                 if trainer_cfg.l2_init_loss_coef > 0:
                     l2_init_loss = trainer_cfg.l2_init_loss_coef * self.policy.l2_init_loss().to(self.device)
 
@@ -657,7 +668,7 @@ class MettaTrainer:
         if not self._master:
             return
 
-        self._checkpoint_policy()
+        pr = self._checkpoint_policy()
 
         extra_args = {}
         if self.kickstarter.enabled and self.kickstarter.teacher_uri is not None:
@@ -666,10 +677,9 @@ class MettaTrainer:
         checkpoint = TrainerCheckpoint(
             agent_step=self.agent_step,
             epoch=self.epoch,
-            total_agent_step=self.agent_step * torch.distributed.get_world_size()
-            if torch.distributed.is_initialized()
-            else self.agent_step,
+            total_agent_step=self.agent_step * self._world_size,
             optimizer_state_dict=self.optimizer.state_dict(),
+            policy_path=pr.uri if pr else None,
             extra_args=extra_args,
         )
         checkpoint.save(self.cfg.run_dir)
@@ -689,10 +699,24 @@ class MettaTrainer:
 
         training_time = self.timer.get_elapsed("_rollout") + self.timer.get_elapsed("_train")
 
+        category_scores_map = {key.split("/")[0]: value for key, value in self.evals.items() if key.endswith("/score")}
+
+        category_score_values = [v for k, v in category_scores_map.items()]
+        overall_score = sum(category_score_values) / len(category_score_values) if category_score_values else 0
+
+        # Handle torch.package loaded models
+        policy_to_save = self.uncompiled_policy
+        if hasattr(policy_to_save, "__class__") and policy_to_save.__class__.__module__.startswith("<torch_package"):
+            logger.info("Creating fresh instance for torch.package loaded model")
+            fresh_policy = self.policy_store.create(metta_grid_env).policy()
+            fresh_policy.activate_actions(metta_grid_env.action_names, metta_grid_env.max_action_args, self.device)
+            fresh_policy.load_state_dict(policy_to_save.state_dict(), strict=False)
+            policy_to_save = fresh_policy
+
         self.last_pr = self.policy_store.save(
             name,
             os.path.join(self.trainer_cfg.checkpoint_dir, name),
-            self.uncompiled_policy,
+            policy_to_save,
             metadata={
                 "agent_step": self.agent_step,
                 "epoch": self.epoch,
@@ -701,10 +725,11 @@ class MettaTrainer:
                 "generation": generation,
                 "initial_uri": self._initial_pr.uri,
                 "train_time": training_time,
-                "score": self._current_eval_score,
-                "eval_scores": self._eval_suite_avgs,
+                "score": overall_score,
+                "eval_scores": category_scores_map,
             },
         )
+
         # this is hacky, but otherwise the initial_pr points
         # at the same policy as the last_pr
         return self.last_pr
@@ -786,43 +811,48 @@ class MettaTrainer:
         lap_times = self.timer.lap_all(self.agent_step, exclude_global=False)
         wall_time_for_lap = lap_times.pop("global", 0)
 
-        delta_steps = self.timer.get_lap_steps()
-        if delta_steps is None:
-            delta_steps = self.agent_step
-        lap_steps_per_second = delta_steps / wall_time_for_lap if wall_time_for_lap > 0 else 0
-        steps_per_second = self.timer.get_rate(self.agent_step) if wall_time > 0 else 0
-
-        # Approximate total values by multiplying by world size
-        total_agent_steps = self.agent_step * self._world_size
-
         # X-axis values for wandb
         metric_stats = {
-            "metric/step": total_agent_steps,
+            "metric/agent_step": self.agent_step * self._world_size,
             "metric/epoch": self.epoch,
             "metric/total_time": wall_time,
             "metric/train_time": train_time,
         }
 
+        epoch_steps = self.timer.get_lap_steps()
+        if epoch_steps is None:
+            epoch_steps = self.agent_step
+        epoch_steps_per_second = epoch_steps / wall_time_for_lap if wall_time_for_lap > 0 else 0
+        steps_per_second = self.timer.get_rate(self.agent_step) if wall_time > 0 else 0
+
+        epoch_steps_per_second *= self._world_size
+        steps_per_second *= self._world_size
+
         timing_stats = {
             **{
-                f"timing_per_epoch/fraction/{op}": lap_elapsed / wall_time_for_lap if wall_time_for_lap > 0 else 0
+                f"timing_per_epoch/frac/{op}": lap_elapsed / wall_time_for_lap if wall_time_for_lap > 0 else 0
                 for op, lap_elapsed in lap_times.items()
             },
+            "timing_per_epoch/sps": epoch_steps_per_second,
             **{
-                f"timing_cumulative/fraction/{op}": elapsed / wall_time if wall_time > 0 else 0
+                f"timing_cumulative/frac/{op}": elapsed / wall_time if wall_time > 0 else 0
                 for op, elapsed in elapsed_times.items()
             },
+            "timing_cumulative/sps": steps_per_second,
         }
-        total_sps = steps_per_second * self._world_size
-        total_lap_sps = lap_steps_per_second * self._world_size
 
-        mean_reward = self.experience.get_mean_reward()
+        environment_stats = {f"env_{k.split('/')[0]}/{'/'.join(k.split('/')[1:])}": v for k, v in self.stats.items()}
+
         overview = {
-            "sps": total_sps,
-            "lap_sps": total_lap_sps,
-            "reward": mean_reward,
-            "reward_vs_total_time": mean_reward,
+            "sps": epoch_steps_per_second,
         }
+
+        # Calculate average reward from all env_task_reward entries
+        task_reward_values = [v for k, v in environment_stats.items() if k.startswith("env_task_reward")]
+        if task_reward_values:
+            mean_reward = sum(task_reward_values) / len(task_reward_values)
+            overview["reward"] = mean_reward
+            overview["reward_vs_total_time"] = mean_reward
 
         # include custom stats from trainer config
         if hasattr(self.trainer_cfg, "stats") and hasattr(self.trainer_cfg.stats, "overview"):
@@ -830,12 +860,12 @@ class MettaTrainer:
                 if k in self.stats:
                     overview[v] = self.stats[k]
 
-        for category in self._eval_categories:
-            score = self._eval_suite_avgs.get(f"{category}_score", None)
-            if score is not None:
-                overview[f"{category}_evals"] = score
+        category_scores_map = {key.split("/")[0]: value for key, value in self.evals.items() if key.endswith("/score")}
 
-        losses = self.losses.to_dict()
+        for category, score in category_scores_map.items():
+            overview[f"{category}_score"] = score
+
+        losses = self.losses.stats()
 
         # don't plot losses that are unused
         if self.trainer_cfg.l2_reg_loss_coef == 0:
@@ -846,29 +876,27 @@ class MettaTrainer:
             losses.pop("ks_action_loss")
             losses.pop("ks_value_loss")
 
-        environment_stats = {f"env_{k.split('/')[0]}/{'/'.join(k.split('/')[1:])}": v for k, v in self.stats.items()}
-
-        parameter_stats = {
-            "parameter/learning_rate": self.optimizer.param_groups[0]["lr"],
-            "parameter/delta_steps": delta_steps,
-            "parameter/num_minibatches": self.experience.num_minibatches,
+        parameters = {
+            "learning_rate": self.optimizer.param_groups[0]["lr"],
+            "epoch_steps": epoch_steps,
+            "num_minibatches": self.experience.num_minibatches,
         }
 
-        # Log everything to wandb
         self.wandb_run.log(
             {
                 **{f"overview/{k}": v for k, v in overview.items()},
                 **{f"losses/{k}": v for k, v in losses.items()},
+                **{f"experience/{k}": v for k, v in self.experience.stats().items()},
+                **{f"parameters/{k}": v for k, v in parameters.items()},
+                **{f"eval_{k}": v for k, v in self.evals.items()},
+                **{f"monitor/{k}": v for k, v in self.system_monitor.stats().items()},
                 **environment_stats,
                 **weight_stats,
-                **self._eval_grouped_scores,
-                **parameter_stats,
                 **timing_stats,
                 **metric_stats,
             }
         )
 
-        self._eval_grouped_scores = {}
         self.stats.clear()
 
     def _compute_advantage(

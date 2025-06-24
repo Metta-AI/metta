@@ -141,7 +141,7 @@ TEST_F(MettaGridCppTest, GridObjectManagement) {
   EXPECT_EQ(retrieved_agent, agent);
 
   // Verify it's at the expected location
-  auto agent_at_location = grid.object_at(GridLocation(2, 3, ObjectLayers.at(ObjectType::AgentT)));
+  auto agent_at_location = grid.object_at(GridLocation(2, 3, GridLayer::Agent_Layer));
   EXPECT_EQ(agent_at_location, agent);
 }
 
@@ -366,7 +366,7 @@ TEST_F(MettaGridCppTest, WallCreation) {
 TEST_F(MettaGridCppTest, ConverterCreation) {
   ObjectConfig converter_cfg;
   converter_cfg["input_ore.red"] = 2;
-  converter_cfg["output_battery"] = 1;
+  converter_cfg["output_battery.red"] = 1;
   converter_cfg["conversion_ticks"] = 5;
   converter_cfg["cooldown"] = 10;
   converter_cfg["initial_items"] = 0;

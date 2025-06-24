@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 _target_: mettagrid.curriculum.LowRewardCurriculum
+=======
+_target_: metta.mettagrid.curriculum.low_reward.LowRewardCurriculum
+>>>>>>> 2ae302112f4d2dc5180dd8637a2ed5508a576325
 
 tasks:
   /env/mettagrid/extended_sequence/backchain1: 1

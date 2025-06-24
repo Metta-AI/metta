@@ -26,12 +26,20 @@ game:
       heart_max: 1000
 
   map_builder:
+<<<<<<< HEAD
     _target_: mettagrid.room.multi_room.MultiRoom
+=======
+    _target_: metta.mettagrid.room.multi_room.MultiRoom
+>>>>>>> 2ae302112f4d2dc5180dd8637a2ed5508a576325
     num_rooms: ${..num_agents}
     border_width: 6
 
     room:
+<<<<<<< HEAD
       _target_: mettagrid.room.navigation.varied_terrain.VariedTerrain
+=======
+      _target_: metta.mettagrid.room.navigation.varied_terrain.VariedTerrain
+>>>>>>> 2ae302112f4d2dc5180dd8637a2ed5508a576325
       width: ${sampling:12,20,15}
       height: ${sampling:12,20,15}
       border_width: ${sampling:1,6,3}
@@ -40,12 +48,12 @@ game:
 
       objects:
         altar: ${sampling:1,2,3}
-        mine.red: 0
-        generator.red: 0
-        mine.blue: 0
-        generator.blue: 0
-        mine.green: 0
-        generator.green: 0
+        mine_red: 0
+        generator_red: 0
+        mine_blue: 0
+        generator_blue: 0
+        mine_green: 0
+        generator_green: 0
   objects:
     altar:
       cooldown: 10

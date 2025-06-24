@@ -17,29 +17,33 @@ game:
       action_failure_penalty: 0
       ore.red: ${sampling:0.005,0.1, 0.01}
       battery.red: ${sampling:0.01,0.5, 0.1}
-      battery_max: 5
+      battery.red_max: 5
       heart: 1
       heart_max: 1000
   map_builder:
+<<<<<<< HEAD
     _target_: mettagrid.room.multi_room.MultiRoom
+=======
+    _target_: metta.mettagrid.room.multi_room.MultiRoom
+>>>>>>> 2ae302112f4d2dc5180dd8637a2ed5508a576325
     num_rooms: ${..num_agents}
     border_width: 6
     room:
-      _target_: mettagrid.room.terrain_from_numpy.TerrainFromNumpy
+      _target_: metta.mettagrid.room.terrain_from_numpy.TerrainFromNumpy
       border_width: ${sampling:1,6,3}
       agents: 1
       dir: ${choose:varied_terrain/cylinder-world_small,varied_terrain/cylinder-world_medium,varied_terrain/cylinder-world_large}
       objects:
         altar: 5
-        mine.red: ${sampling:1,12,6}
-        generator.red: ${sampling:1,12,6}
+        mine_red: ${sampling:1,12,6}
+        generator_red: ${sampling:1,12,6}
   objects:
     altar:
       input_battery.red: 1
       initial_items: ${choose:0,0,0,1}
       cooldown: ${sampling:5, 20, 10}
-    generator.red:
+    generator_red:
       initial_items: ${choose:0,0,0,1}
       cooldown: ${sampling:5, 20, 10}
-    mine.red:
+    mine_red:
       cooldown: ${sampling:15, 50, 10}

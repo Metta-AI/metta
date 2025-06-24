@@ -146,3 +146,7 @@ html {
 .column .name {
   white-space: nowrap;
 }
+
+input::placeholder {
+  opacity: 0.25;
+}

@@ -11,6 +11,15 @@ inputs:
   pr_state:
     description: "The state of the pull request."
     required: true
+  author:
+    description: "The GitHub login of the PR author."
+    required: false
+  assignees:
+    description: "Comma-separated list of GitHub logins of PR assignees."
+    required: false
+  reviewers:
+    description: "Comma-separated list of GitHub logins of PR reviewers."
+    required: false
   project_id:
     description: "The Asana project ID where the task will be created."
     required: true
@@ -26,6 +35,16 @@ inputs:
   github_url_field_id:
     description: "The Asana custom field ID for the 'GitHub URL' field."
     required: true
+  roster_project_id:
+    description: "The Asana project ID containing the user roster."
+    required: true
+  gh_login_field_id:
+    description: "The Asana custom field ID for the 'GitHub Login' field in the roster project."
+    required: true
+  asana_email_field_id:
+    description: "The Asana custom field ID for the 'Asana Email' field in the roster project. This is used to map GitHub logins to Asana emails."
+    required: true
+
 
 outputs:
   task_url:
@@ -35,22 +54,29 @@ outputs:
 runs:
   using: "composite"
   steps:
-    - uses: actions/setup-python@v4
+    - name: Install uv
+      uses: astral-sh/setup-uv@v6
       with:
-        python-version: '3.x'
-    - name: Install requests library
-      run: pip install requests
-      shell: bash
+        version: "0.7.3"
+        enable-cache: true
+
     - name: Ensure Asana Task
       id: ensure-task
-      run: python ${{ github.action_path }}/main.py
+      run: uv run ${{ github.action_path }}/main.py
       shell: bash
       env:
         INPUT_TITLE: ${{ inputs.title }}
         INPUT_DESCRIPTION: ${{ inputs.description }}
         INPUT_PR_STATE: ${{ inputs.pr_state }}
+        INPUT_AUTHOR: ${{ inputs.author }}
+        INPUT_ASSIGNEES: ${{ inputs.assignees }}
+        INPUT_REVIEWERS: ${{ inputs.reviewers }}
         INPUT_PROJECT_ID: ${{ inputs.project_id }}
         INPUT_WORKSPACE_ID: ${{ inputs.workspace_id }}
         INPUT_ASANA_TOKEN: ${{ inputs.asana_token }}
         INPUT_GITHUB_URL: ${{ inputs.github_url }}
         INPUT_GITHUB_URL_FIELD_ID: ${{ inputs.github_url_field_id }}
+        INPUT_ROSTER_PROJECT_ID: ${{ inputs.roster_project_id }}
+        INPUT_GH_LOGIN_FIELD_ID: ${{ inputs.gh_login_field_id }}
+        INPUT_ASANA_EMAIL_FIELD_ID: ${{ inputs.asana_email_field_id }}
+

@@ -4,11 +4,11 @@ defaults:
 
 game:
   map_builder:
-    _target_: mettagrid.room.multi_agent.boxshare.BoxShare
+    _target_: metta.mettagrid.room.multi_agent.boxshare.BoxShare
     border_width: 0
     width: ${sampling:40,60,45}
     height: ${sampling:40,60,45}
     objects:
       altar: ${sampling:7,14,10}
-      mine.red: ${sampling:7,14,10}
-      generator.red: ${sampling:8,16,12}
+      mine_red: ${sampling:7,14,10}
+      generator_red: ${sampling:8,16,12}
