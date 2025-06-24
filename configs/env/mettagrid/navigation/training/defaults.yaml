@@ -4,7 +4,7 @@ defaults:
 
 game:
   num_agents: 4
-  max_steps: 1500
+  max_steps: 1000
   map_builder:
     _target_: metta.mettagrid.room.multi_room.MultiRoom
     num_rooms: ${..num_agents}
@@ -14,7 +14,7 @@ game:
       border_width: 3
       agents: 1
       objects:
-        altar: 10
+        altar: 12
   objects:
     altar:
       cooldown: 1000
