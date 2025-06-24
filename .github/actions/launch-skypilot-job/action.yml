@@ -20,14 +20,6 @@ inputs:
     required: false
     default: ""
 
-outputs:
-  run_name:
-    description: "The W&B run name used for the launched job."
-    value: ${{ inputs.run_name }}
-  sky_job_name:
-    description: "The name given to the SkyPilot job."
-    value: ${{ inputs.run_name }}
-
 runs:
   using: "composite"
   steps:

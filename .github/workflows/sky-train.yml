@@ -127,6 +127,6 @@ jobs:
         shell: bash
         run: |
           echo "Workflow triggered by: ${{ github.event_name }}"
-          echo "SkyPilot Job Name / W&B Run Name (from action output): ${{ steps.skylaunch.outputs.run_name }}"
-          echo "SkyPilot Task Name (from action output): ${{ steps.skylaunch.outputs.sky_job_name }}"
-          echo "To see logs for this job in SkyPilot, you might use: sky jobs logs ${{ steps.skylaunch.outputs.sky_job_name }} (if job was successfully submitted)"
+          echo "SkyPilot Job Name / W&B Run Name: ${{ steps.generate_run_name.outputs.run_name }}"
+          echo "SkyPilot Task Name: ${{ steps.generate_run_name.outputs.run_name }}"
+          echo "To see logs for this job in SkyPilot, you might use: sky jobs logs ${{ steps.generate_run_name.outputs.run_name }} (if job was successfully submitted)"
