@@ -630,7 +630,7 @@ class MettaTrainer:
         trainer_cfg = self.trainer_cfg
         device = self.device
 
-                policy = self.policy
+        policy = self.policy
         infos = defaultdict(list)
         raw_infos = []  # Collect raw info for batch processing later
         experience.reset_for_rollout()
@@ -760,7 +760,7 @@ class MettaTrainer:
         experience = self.experience
         trainer_cfg = self.trainer_cfg
 
-                self.losses.zero()
+        self.losses.zero()
 
         # Memory profiling - uncomment to enable
         if self.epoch % 5 == 0:  # Profile every 5 epochs to reduce log spam
