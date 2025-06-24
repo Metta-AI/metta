@@ -2,13 +2,13 @@ from __future__ import annotations
 
 import copy
 import logging
-from typing import Optional, Dict
+from typing import Dict, Optional
 
 from omegaconf import DictConfig, OmegaConf
 
 from metta.mettagrid.curriculum.core import Task
-from metta.mettagrid.curriculum.sampling import SamplingCurriculum
 from metta.mettagrid.curriculum.random import RandomCurriculum
+from metta.mettagrid.curriculum.sampling import SamplingCurriculum
 
 logger = logging.getLogger(__name__)
 
@@ -77,11 +77,7 @@ class ProgressiveMultiTaskCurriculum(RandomCurriculum):
 
         self._task_weights = weights
 
-<<<<<<< HEAD
-        logger.debug(
-=======
         logger.info(
->>>>>>> 2ae302112f4d2dc5180dd8637a2ed5508a576325
             f"Step {self._step_count}, progression: {progression:.3f}, "
             f"weights: {[(k, f'{v:.3f}') for k, v in weights.items()]}"
         )
