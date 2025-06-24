@@ -16,7 +16,7 @@ import time
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import TYPE_CHECKING, Any, Dict, List
 
 import numpy as np
 import torch
@@ -24,17 +24,19 @@ from einops import rearrange
 from omegaconf import OmegaConf
 
 from app_backend.stats_client import StatsClient
-from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
+from metta.agent import DistributedMettaAgent, MettaAgent
 from metta.agent.policy_state import PolicyState
-from metta.agent.policy_store import PolicyRecord, PolicyStore
-from metta.mettagrid.curriculum.sampling import SamplingCurriculum
-from metta.mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
-from metta.mettagrid.replay_writer import ReplayWriter
-from metta.mettagrid.stats_writer import StatsWriter
 from metta.rl.policy import PytorchAgent
 from metta.rl.vecenv import make_vecenv
 from metta.sim.simulation_config import SingleEnvSimulationConfig
 from metta.sim.simulation_stats_db import SimulationStatsDB
+from mettagrid.curriculum.sampling import SamplingCurriculum
+from mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
+from mettagrid.replay_writer import ReplayWriter
+from mettagrid.stats_writer import StatsWriter
+
+if TYPE_CHECKING:
+    from metta.agent.policy_store import PolicyRecord, PolicyStore
 
 logger = logging.getLogger(__name__)
 
@@ -54,8 +56,8 @@ class Simulation:
         self,
         name: str,
         config: SingleEnvSimulationConfig,
-        policy_pr: PolicyRecord,
-        policy_store: PolicyStore,
+        policy_pr: "PolicyRecord",
+        policy_store: "PolicyStore",
         device: torch.device,
         vectorization: str,
         sim_suite_name: str | None = None,
@@ -298,7 +300,7 @@ class Simulation:
     def _from_shards_and_context(self) -> SimulationStatsDB:
         """Merge all *.duckdb* shards for this simulation → one `StatsDB`."""
         # Make sure we're creating a dictionary of the right type
-        agent_map: Dict[int, PolicyRecord] = {}
+        agent_map: Dict[int, "PolicyRecord"] = {}
 
         # Add policy agents to the map
         for idx in self._policy_idxs:
@@ -315,7 +317,7 @@ class Simulation:
         )
         return db
 
-    def get_policy_ids(self, stats_client: StatsClient, policies: List[PolicyRecord]) -> Dict[str, uuid.UUID]:
+    def get_policy_ids(self, stats_client: StatsClient, policies: List["PolicyRecord"]) -> Dict[str, uuid.UUID]:
         policy_names = [policy.name for policy in policies]
         policy_ids_response = stats_client.get_policy_ids(policy_names)
         policy_ids = policy_ids_response.policy_ids

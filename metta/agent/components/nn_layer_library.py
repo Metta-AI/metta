@@ -22,7 +22,7 @@ import torch
 import torch.nn as nn
 from tensordict import TensorDict
 
-from metta.agent.lib.metta_layer import LayerBase, ParamLayer
+from metta.agent.components.metta_layer import LayerBase, ParamLayer
 
 
 class Linear(ParamLayer):

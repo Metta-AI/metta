@@ -11,7 +11,7 @@ import torch
 import torch.nn as nn
 from tensordict import TensorDict
 
-from metta.agent.lib.metta_module import MettaModule
+from metta.agent.components.metta_module import MettaModule
 
 
 class ModularNetwork(MettaModule):

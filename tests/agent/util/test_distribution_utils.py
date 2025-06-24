@@ -1,7 +1,7 @@
 import pytest
 import torch
 
-from metta.agent.util.distribution_utils import evaluate_actions, sample_actions
+from metta.agent.utils.distribution_utils import evaluate_actions, sample_actions
 
 # Global seed for reproducibility
 SEED = 42

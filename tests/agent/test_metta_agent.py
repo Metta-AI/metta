@@ -5,7 +5,7 @@ import torch
 
 # Import the actual class
 from metta.agent.metta_agent import MettaAgent
-from metta.agent.util.distribution_utils import evaluate_actions, sample_actions
+from metta.agent.utils.distribution_utils import evaluate_actions, sample_actions
 
 
 @pytest.fixture

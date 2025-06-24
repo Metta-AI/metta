@@ -2,7 +2,7 @@ import einops
 import torch
 from tensordict import TensorDict
 
-from metta.agent.lib.metta_layer import LayerBase
+from metta.agent.components.metta_layer import LayerBase
 
 
 class ObsTokenToBoxShaper(LayerBase):
