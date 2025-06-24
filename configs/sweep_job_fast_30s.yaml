@@ -6,7 +6,7 @@ defaults:
 sweep_job:
   trainer:
     # Ultra-fast training settings
-    total_timesteps: 50               # Minimal timesteps for speed
+    total_timesteps: 1000               # Minimal timesteps for speed
     evaluate_interval: 25             # Very frequent evaluation
     checkpoint_interval: 50           # No intermediate checkpoints
 

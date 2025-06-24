@@ -41,9 +41,5 @@ observatory/node_modules/
 observatory/.vite/
 
 wandb
-<<<<<<< HEAD
-uv.lock
-=======
 
 /devops/charts/**/charts
->>>>>>> b8014fa1f46cd71cf72d66ee7659b104937ef545
