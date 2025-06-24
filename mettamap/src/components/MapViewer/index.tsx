@@ -189,12 +189,7 @@ const MapViewerBrowserOnly: FC<Props> = ({
       if (!onCellSelect) return;
 
       const cell = cellFromMouseEvent(e);
-
-      if (cell && grid.object(cell)) {
-        onCellSelect(cell);
-      } else {
-        onCellSelect(undefined);
-      }
+      onCellSelect(cell);
     },
     [zoom, grid, onCellSelect, cellFromMouseEvent]
   );
