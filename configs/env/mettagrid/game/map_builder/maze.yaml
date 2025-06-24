@@ -1,6 +1,6 @@
-_target_: mettagrid.room.multi_room.RoomList
+_target_: metta.mettagrid.room.multi_room.RoomList
 rooms:
-  - _target_: mettagrid.room.maze.MazeKruskal
+  - _target_: metta.mettagrid.room.maze.MazeKruskal
     width: ${sampling:10,40,20}
     height: ${sampling:10,40,20}
     start_pos: [1, 0]
@@ -8,7 +8,7 @@ rooms:
       - ${sub:${..width},2}
       - ${sub:${..height},2}
     branching: ${sampling:0.1,0.95,0.7}
-  - _target_: mettagrid.room.maze.MazeKruskal
+  - _target_: metta.mettagrid.room.maze.MazeKruskal
     width: ${sampling:10,40,20}
     height: ${sampling:10,40,20}
     start_pos: [1, 0]
@@ -16,7 +16,7 @@ rooms:
       - ${sub:${..width},2}
       - ${sub:${..height},2}
     branching: ${sampling:0.1,0.95,0.7}
-  - _target_: mettagrid.room.maze.MazeKruskal
+  - _target_: metta.mettagrid.room.maze.MazeKruskal
     width: ${sampling:10,40,20}
     height: ${sampling:10,40,20}
     start_pos: [1, 0]
@@ -24,7 +24,7 @@ rooms:
       - ${sub:${..width},2}
       - ${sub:${..height},2}
     branching: ${sampling:0.1,0.95,0.7}
-  - _target_: mettagrid.room.maze.MazeKruskal
+  - _target_: metta.mettagrid.room.maze.MazeKruskal
     width: ${sampling:10,40,20}
     height: ${sampling:10,40,20}
     start_pos: [1, 0]

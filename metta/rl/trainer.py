@@ -18,6 +18,7 @@ from app_backend.stats_client import StatsClient
 from metta.agent import DistributedMettaAgent, MettaAgent
 from metta.agent.policy_state import PolicyState
 from metta.agent.utils.debug import assert_shape
+from metta.common.stopwatch import Stopwatch, with_instance_timer
 from metta.eval.eval_stats_db import EvalStatsDB
 from metta.rl.experience import Experience
 from metta.rl.kickstarter import Kickstarter
@@ -32,10 +33,9 @@ from metta.sim.simulation_suite import SimulationSuite
 from metta.util.heartbeat import record_heartbeat
 from metta.util.system_monitor import SystemMonitor
 from metta.util.wandb.wandb_context import WandbRun
-from mettagrid.curriculum import curriculum_from_config_path
+from mettagrid.curriculum.util import curriculum_from_config_path
 from mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
 from mettagrid.util.dict_utils import unroll_nested_dict
-from mettagrid.util.stopwatch import Stopwatch, with_instance_timer
 
 if TYPE_CHECKING:
     from metta.agent.policy_store import PolicyRecord, PolicyStore
@@ -1335,7 +1335,7 @@ class MettaTrainer:
         """Setup the vectorized environment."""
         # Import locally to avoid circular imports
         from metta.rl.vecenv import make_vecenv
-        from mettagrid.curriculum import curriculum_from_config_path
+        from mettagrid.curriculum.util import curriculum_from_config_path
 
         curriculum_config = self.trainer_cfg.get("curriculum", self.trainer_cfg.get("env", {}))
         env_overrides = DictConfig({"env_overrides": self.trainer_cfg.env_overrides})

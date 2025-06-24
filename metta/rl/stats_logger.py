@@ -7,11 +7,11 @@ from typing import TYPE_CHECKING, Any, Dict, Optional
 import numpy as np
 import wandb
 
+from metta.common.stopwatch import Stopwatch
 from metta.rl.experience import Experience
 from metta.rl.losses import Losses
 from metta.util.system_monitor import SystemMonitor
 from metta.util.wandb.wandb_context import WandbRun
-from mettagrid.util.stopwatch import Stopwatch
 
 if TYPE_CHECKING:
     from metta.agent import BaseAgent

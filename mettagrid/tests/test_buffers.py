@@ -1,8 +1,14 @@
 import numpy as np
 import pytest
 
-from mettagrid.mettagrid_c import MettaGrid
-from mettagrid.mettagrid_env import dtype_actions, dtype_observations, dtype_rewards, dtype_terminals, dtype_truncations
+from metta.mettagrid.mettagrid_c import MettaGrid
+from metta.mettagrid.mettagrid_env import (
+    dtype_actions,
+    dtype_observations,
+    dtype_rewards,
+    dtype_terminals,
+    dtype_truncations,
+)
 
 NUM_AGENTS = 2
 OBS_HEIGHT = 3
@@ -55,9 +61,7 @@ def create_minimal_mettagrid_c_env(max_steps=10, width=5, height=5, config_overr
             "wall": {"type_id": 1},
             "block": {"type_id": 2},
         },
-        "agent": {
-            "inventory_size": 0,
-        },
+        "agent": {},
     }
 
     # Apply config overrides if provided

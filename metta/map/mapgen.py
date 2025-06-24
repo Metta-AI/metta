@@ -5,7 +5,7 @@ from omegaconf import DictConfig, OmegaConf
 
 from metta.map.scene import make_scene
 from metta.map.types import MapGrid
-from mettagrid.level_builder import Level, LevelBuilder
+from metta.mettagrid.level_builder import Level, LevelBuilder
 
 from .types import SceneCfg
 

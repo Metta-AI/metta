@@ -30,7 +30,7 @@ from metta.rl.policy import PytorchAgent
 from metta.rl.vecenv import make_vecenv
 from metta.sim.simulation_config import SingleEnvSimulationConfig
 from metta.sim.simulation_stats_db import SimulationStatsDB
-from mettagrid.curriculum import SamplingCurriculum
+from mettagrid.curriculum.sampling import SamplingCurriculum
 from mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
 from mettagrid.replay_writer import ReplayWriter
 from mettagrid.stats_writer import StatsWriter

@@ -7,7 +7,7 @@ from tabulate import tabulate
 from metta.agent.policy_store import PolicyRecord
 from metta.eval.analysis_config import AnalysisConfig
 from metta.eval.eval_stats_db import EvalStatsDB
-from mettagrid.util.file import local_copy
+from metta.mettagrid.util.file import local_copy
 
 
 def analyze(policy_record: PolicyRecord, config: AnalysisConfig) -> None:
