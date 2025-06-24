@@ -132,33 +132,32 @@ class ContrastiveLearning:
             return torch.empty(0, 4, device=self.device, dtype=torch.long)
 
         # Limit the number of timesteps we sample from to reduce computation
-        # Sample from every other timestep to reduce pairs
         sample_timesteps = min(seq_len // 2, self.max_pairs_per_agent)
         if sample_timesteps < 1:
             sample_timesteps = 1
 
-        # Sample temporal distances from geometric distribution
         geometric_dist = torch.distributions.Geometric(probs=self.geometric_p)
         temporal_distances = geometric_dist.sample((batch_size, sample_timesteps)).to(self.device)
         temporal_distances = temporal_distances.long()
         temporal_distances = torch.clamp(temporal_distances, 1, self.max_temporal_distance)
 
-        # Generate positive pair indices with limited sampling
         positive_pairs = []
         for b in range(batch_size):
-            # Sample from evenly spaced timesteps
             step_size = max(1, seq_len // sample_timesteps)
             for i in range(sample_timesteps):
                 t = i * step_size
                 if t >= seq_len - 1:
                     break
-
-                # Current timestep
                 anchor_t = t
-                # Positive timestep (within sequence bounds)
                 positive_t = min(t + temporal_distances[b, i], seq_len - 1)
-                if positive_t > anchor_t:  # Ensure positive pair is valid
+                if positive_t > anchor_t:
                     positive_pairs.append([b, anchor_t, b, positive_t])
+
+        # Limit the number of positive pairs to max_pairs_per_agent * batch_size
+        max_pairs = self.max_pairs_per_agent * batch_size
+        if len(positive_pairs) > max_pairs:
+            idx = torch.randperm(len(positive_pairs), device=self.device)[:max_pairs]
+            positive_pairs = [positive_pairs[i] for i in idx.tolist()]
 
         if not positive_pairs:
             return torch.empty(0, 4, device=self.device, dtype=torch.long)
@@ -168,19 +167,13 @@ class ContrastiveLearning:
 
     def _generate_negative_pairs(self, batch_size: int, seq_len: int, num_positive_pairs: int) -> Tensor:
         """Generate negative pairs using uniform distribution with limited sampling."""
-        # Limit the number of negative pairs to reduce computation
-        num_pairs = min(num_positive_pairs, self.max_pairs_per_agent)
-
+        num_pairs = num_positive_pairs
         if num_pairs == 0:
             return torch.empty(0, 4, device=self.device, dtype=torch.long)
-
-        # Use vectorized operations for better performance
         anchor_batch = torch.randint(0, batch_size, (num_pairs,), device=self.device, dtype=torch.long)
         anchor_time = torch.randint(0, seq_len, (num_pairs,), device=self.device, dtype=torch.long)
         negative_batch = torch.randint(0, batch_size, (num_pairs,), device=self.device, dtype=torch.long)
         negative_time = torch.randint(0, seq_len, (num_pairs,), device=self.device, dtype=torch.long)
-
-        # Stack into pairs
         negative_pairs = torch.stack([anchor_batch, anchor_time, negative_batch, negative_time], dim=1)
         return negative_pairs
 
