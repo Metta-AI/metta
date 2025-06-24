@@ -796,6 +796,17 @@ class MettaTrainer:
                 ) from e
         self.stats = mean_stats
 
+        # Extract and log curriculum task probabilities
+        curriculum_stats = {}
+        if hasattr(self._curriculum, 'get_task_probs'):
+            task_probs = self._curriculum.get_task_probs()
+            if isinstance(task_probs, dict) and task_probs:
+                # Log individual task probabilities as time series
+                for task_id, prob in task_probs.items():
+                    # Clean task ID by removing path prefixes
+                    clean_task_id = task_id.split('/')[-1] if '/' in task_id else task_id
+                    curriculum_stats[f"curriculum_task_prob/{clean_task_id}"] = prob
+
         weight_stats = {}
         if self.cfg.agent.analyze_weights_interval != 0 and self.epoch % self.cfg.agent.analyze_weights_interval == 0:
             for metrics in self.policy.compute_weight_metrics():
@@ -892,6 +903,7 @@ class MettaTrainer:
                 **{f"monitor/{k}": v for k, v in self.system_monitor.stats().items()},
                 **environment_stats,
                 **weight_stats,
+                **curriculum_stats,
                 **timing_stats,
                 **metric_stats,
             }
