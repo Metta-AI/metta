@@ -64,8 +64,8 @@ class GroupConfig(BaseModelWithForbidExtra):
     sprite: Optional[int] = Field(default=None)
     # Values outside of 0 and 1 are probably mistakes, and are probably
     # unstable. If you want to use values outside this range, please update this comment!
-    group_reward_pct: float = Field(default=0, ge=0, le=1)
-    props: GroupProps = Field(default=GroupProps({}))
+    group_reward_pct: Optional[float] = Field(default=None, ge=0, le=1)
+    props: Optional[GroupProps] = None
 
 
 class ActionConfig(BaseModelWithForbidExtra):
@@ -121,10 +121,11 @@ class ConverterConfig(BaseModelWithForbidExtra):
     output_blueprint: Optional[int] = Field(default=None, alias="output_blueprint", ge=0, le=255)
 
     # Converter properties
-    max_output: int = Field(default=-1, ge=-1)
-    conversion_ticks: int = Field(default=0, ge=0)
-    cooldown: int = Field(default=0, ge=0)
-    initial_items: int = Field(default=0, ge=0)
+    # zero is valid, since it means "don't make any new items"
+    max_output: int = Field(ge=0)
+    conversion_ticks: int = Field(ge=0)
+    cooldown: int = Field(ge=0)
+    initial_items: int = Field(ge=0)
     color: Optional[int] = Field(default=None, ge=0, le=255)
 
 

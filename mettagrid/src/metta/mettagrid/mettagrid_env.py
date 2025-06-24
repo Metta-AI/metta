@@ -155,7 +155,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
         # Convert string array to list of strings for C++ compatibility
         # TODO: push the not-numpy-array higher up the stack, and consider pushing not-a-sparse-list lower.
         with self.timer("_initialize_c_env.make_c_env"):
-            self._c_env = MettaGrid(game_config.model_dump(by_alias=True, exclude_none=True), level.grid.tolist())
+            self._c_env = MettaGrid(game_config.model_dump(by_alias=True, exclude_unset=True), level.grid.tolist())
 
         self._grid_env = self._c_env
 
