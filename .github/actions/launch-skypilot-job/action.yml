@@ -70,20 +70,25 @@ runs:
     - name: Launch SkyPilot training job
       shell: bash
       run: |
-        GPU_ARG=""
-        if [ -n "${{ inputs.num_gpus }}" ]; then
-          GPU_ARG="--gpus=${{ inputs.num_gpus }}"
-        fi
+        set -x # Enable command printing for debugging
 
         chmod +x ./devops/skypilot/launch.py
 
-        COMMAND_TO_RUN="./devops/skypilot/launch.py \\
-          --timeout-hours=${{ inputs.timeout_hours }} \\
-          $GPU_ARG \\
-          --git-ref=${{ steps.determine_git_ref.outputs.GIT_REF_TO_USE }} \\
-          train \\
-          run=${{ inputs.run_name }} \\
-          trainer.curriculum=${{ inputs.trainer_env }}"
+        LAUNCH_ARGS=(
+          "--timeout-hours=${{ inputs.timeout_hours }}"
+        )
 
-        echo "Running command: $COMMAND_TO_RUN"
-        eval $COMMAND_TO_RUN
+        if [ -n "${{ inputs.num_gpus }}" ]; then
+          LAUNCH_ARGS+=( "--gpus=${{ inputs.num_gpus }}" )
+        fi
+
+        LAUNCH_ARGS+=(
+          "--git-ref=${{ steps.determine_git_ref.outputs.GIT_REF_TO_USE }}"
+          "train"
+          "run=${{ inputs.run_name }}"
+          "trainer.curriculum=${{ inputs.trainer_env }}"
+        )
+
+        ./devops/skypilot/launch.py "${LAUNCH_ARGS[@]}"
+
+        set +x # Disable command printing
