@@ -77,10 +77,13 @@ runs:
 
         chmod +x ./devops/skypilot/launch.py
 
-        ./devops/skypilot/launch.py \
-          --timeout-hours=${{ inputs.timeout_hours }} \
-          $GPU_ARG \
-          --git-ref=${{ steps.determine_git_ref.outputs.GIT_REF_TO_USE }} \
-          train \
-          run=${{ inputs.run_name }} \
-          trainer.curriculum=${{ inputs.trainer_env }}
+        COMMAND_TO_RUN="./devops/skypilot/launch.py \\
+          --timeout-hours=${{ inputs.timeout_hours }} \\
+          $GPU_ARG \\
+          --git-ref=${{ steps.determine_git_ref.outputs.GIT_REF_TO_USE }} \\
+          train \\
+          run=${{ inputs.run_name }} \\
+          trainer.curriculum=${{ inputs.trainer_env }}"
+
+        echo "Running command: $COMMAND_TO_RUN"
+        eval $COMMAND_TO_RUN
