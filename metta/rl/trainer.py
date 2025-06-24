@@ -480,6 +480,21 @@ class MettaTrainer:
                     except TypeError:
                         self.stats[k] = [self.stats[k], v]  # fallback: bundle as list
 
+        memory_info = {
+            "memory_use/worker_stats_size": get_object_size(self.stats),
+            "memory_use/worker_infos_size": get_object_size(infos),
+            "memory_use/worker_experience_size": get_object_size(self.experience),
+            "memory_use/worker_vecenv_size": get_object_size(self.vecenv),
+            "memory_use/worker_policy_size": get_object_size(self.policy),
+            "memory_use/worker_optimizer_size": get_object_size(self.optimizer),
+        }
+
+        # Add memory stats to self.stats so they get aggregated across workers
+        for k, v in memory_info.items():
+            if k not in self.stats:
+                self.stats[k] = []
+            self.stats[k].append(v)
+
         # TODO: Better way to enable multiple collects
         return self.stats, infos
 
@@ -842,6 +857,11 @@ class MettaTrainer:
             "timing_cumulative/sps": steps_per_second,
         }
 
+        memory_stats = {}
+        for k, v in self.stats.items():
+            if k.startswith("memory_use/"):
+                memory_stats[k] = self.stats.pop(k)
+
         environment_stats = {f"env_{k.split('/')[0]}/{'/'.join(k.split('/')[1:])}": v for k, v in self.stats.items()}
 
         overview = {
@@ -881,18 +901,6 @@ class MettaTrainer:
             "learning_rate": self.optimizer.param_groups[0]["lr"],
             "epoch_steps": epoch_steps,
             "num_minibatches": self.experience.num_minibatches,
-        }
-
-        memory_stats = {
-            "memory_use/self.stats": get_object_size(self.stats),
-            "memory_use/self.losses": get_object_size(self.losses),
-            "memory_use/self.experience": get_object_size(self.experience),
-            "memory_use/self.policy": get_object_size(self.policy),
-            "memory_use/self.optimizer": get_object_size(self.optimizer),
-            "memory_use/self.evals": get_object_size(self.evals),
-            "memory_use/self.vecenv": get_object_size(self.vecenv),
-            "memory_use/self.timer": get_object_size(self.timer),
-            "memory_use/self.system_monitor": get_object_size(self.system_monitor),
         }
 
         self.wandb_run.log(
