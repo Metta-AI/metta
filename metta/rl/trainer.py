@@ -1,6 +1,7 @@
 import logging
 import os
 import time
+import importlib
 from collections import defaultdict
 from contextlib import nullcontext
 from typing import Any, Set
@@ -15,6 +16,7 @@ from heavyball import ForeachMuon
 from omegaconf import DictConfig, ListConfig
 
 from app_backend.stats_client import StatsClient
+import metta.agent.metta_agent
 from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
 from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyRecord, PolicyStore
@@ -708,7 +710,10 @@ class MettaTrainer:
         policy_to_save = self.uncompiled_policy
         if hasattr(policy_to_save, "__class__") and policy_to_save.__class__.__module__.startswith("<torch_package"):
             logger.info("Creating fresh instance for torch.package loaded model")
-            fresh_policy = self.policy_store.create(metta_grid_env).policy()
+            importlib.reload(metta.agent.metta_agent)
+            from metta.agent.metta_agent import make_policy
+
+            fresh_policy = make_policy(metta_grid_env, self.cfg)
             fresh_policy.activate_actions(metta_grid_env.action_names, metta_grid_env.max_action_args, self.device)
             fresh_policy.load_state_dict(policy_to_save.state_dict(), strict=False)
             policy_to_save = fresh_policy

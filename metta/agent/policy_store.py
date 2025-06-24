@@ -15,6 +15,7 @@ import os
 import random
 import sys
 import warnings
+import importlib
 from typing import List, Optional, Union
 
 import gymnasium as gym
@@ -26,6 +27,7 @@ from omegaconf import DictConfig, ListConfig
 from torch import nn
 from torch.package import PackageExporter, PackageImporter
 
+import metta.agent.metta_agent
 from metta.agent.metta_agent import make_policy
 from metta.agent.policy_record import PolicyRecord
 from metta.rl.policy import load_pytorch_policy
@@ -164,6 +166,9 @@ class PolicyStore:
         return f"model_{epoch:04d}.pt"
 
     def create(self, env) -> PolicyRecord:
+        importlib.reload(metta.agent.metta_agent)
+        from metta.agent.metta_agent import make_policy
+
         policy = make_policy(env, self._cfg)
         name = self.make_model_name(0)
         path = os.path.join(self._cfg.trainer.checkpoint_dir, name)
