@@ -1,85 +1,13 @@
 "use client";
+import clsx from "clsx";
 import { FC, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { usePanZoom } from "@/hooks/use-pan-and-zoom";
-import { Drawer } from "@/lib/draw/Drawer";
+import { useIsMouseDown } from "@/hooks/useIsMouseDown";
 import { drawGrid } from "@/lib/draw/drawGrid";
 import { Cell, MettaGrid } from "@/lib/MettaGrid";
 
-function useDrawer(): Drawer | undefined {
-  const [drawer, setDrawer] = useState<Drawer | undefined>();
-  useEffect(() => {
-    Drawer.load().then(setDrawer);
-  }, []);
-
-  return drawer;
-}
-
-function useCallOnWindowResize(callback: () => void) {
-  useEffect(() => {
-    window.addEventListener("resize", callback);
-    return () => window.removeEventListener("resize", callback);
-  }, [callback]);
-}
-
-function useSpacePressed(): boolean {
-  const [spacePressed, setSpacePressed] = useState(false);
-
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === " ") {
-        event.preventDefault();
-        event.stopPropagation();
-        setSpacePressed(true);
-      }
-    };
-    const handleKeyUp = (event: KeyboardEvent) => {
-      if (event.key === " ") {
-        event.preventDefault();
-        event.stopPropagation();
-        setSpacePressed(false);
-      }
-    };
-    document.addEventListener("keydown", handleKeyDown);
-    document.addEventListener("keyup", handleKeyUp);
-
-    return () => {
-      document.removeEventListener("keydown", handleKeyDown);
-      document.removeEventListener("keyup", handleKeyUp);
-    };
-  }, []);
-
-  return spacePressed;
-}
-
-const DebugInfo: FC<{
-  canvas: HTMLCanvasElement | null;
-  pan: { x: number; y: number };
-  zoom: number;
-}> = ({ canvas, pan, zoom }) => {
-  if (!canvas) return null;
-
-  const round = (x: number) => Math.round(x * 100) / 100;
-
-  return (
-    <div className="absolute right-0 bottom-0 z-10 text-xs">
-      <div>
-        Canvas size: {canvas.width}x{canvas.height}
-      </div>
-      <div>
-        Client size: {canvas.clientWidth}x{canvas.clientHeight}
-      </div>
-      <div>
-        Bounding rect: {round(canvas.getBoundingClientRect().width)}x
-        {round(canvas.getBoundingClientRect().height)}
-      </div>
-      <div>
-        Pan: {round(pan.x)}x{round(pan.y)}
-      </div>
-      <div>Zoom: {round(zoom)}</div>
-    </div>
-  );
-};
+import { useCallOnWindowResize, useDrawer, useSpacePressed } from "./hooks";
 
 type CellHandler = (cell: Cell | undefined) => void;
 
@@ -103,13 +31,16 @@ const MapViewerBrowserOnly: FC<Props> = ({
   const dpr = typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
 
   const spacePressed = useSpacePressed();
+  const isMouseDown = useIsMouseDown();
+
+  const enablePan = !panOnSpace || spacePressed;
 
   const { setContainer, panZoomHandlers, setZoom, setPan, pan, zoom } =
     usePanZoom({
       minZoom: 1,
       maxZoom: 10,
       zoomSensitivity: 0.007,
-      enablePan: !panOnSpace || spacePressed,
+      enablePan,
     });
 
   const drawer = useDrawer();
@@ -272,7 +203,10 @@ const MapViewerBrowserOnly: FC<Props> = ({
         ref={canvasRef}
         onDoubleClick={recenter}
         // Canvas takes all available space.
-        className="h-full w-full cursor-grab overflow-hidden"
+        className={clsx(
+          "h-full w-full overflow-hidden",
+          enablePan && (isMouseDown ? "cursor-grabbing" : "cursor-grab")
+        )}
         onMouseMove={onMouseMove}
         onMouseLeave={() => {
           setHoveredCell(undefined);
