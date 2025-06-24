@@ -1,9 +1,10 @@
 import hydra
 from omegaconf import DictConfig, OmegaConf
 
+from metta.mettagrid.util.hydra import config_from_path
+
 from .core import Curriculum, SingleTaskCurriculum
 from .sampling import SamplingCurriculum
-from metta.mettagrid.util.hydra import config_from_path
 
 
 def curriculum_from_config_path(config_path: str, env_overrides: DictConfig) -> "Curriculum":
