@@ -1,8 +1,11 @@
 defaults:
-  - /sweep_job@_here_
+  - /sweep_job
   - _self_
 
-# Sweep configuration
+# Sweep name is required but will be overridden by command line
+sweep_name: fast_30s_test
+
+# Override sweep parameters
 sweep:
   metric:
     name: reward
@@ -28,7 +31,7 @@ sweep_job:
     game:
       max_steps: 8                    # Ultra-short episodes
 
-  eval: ${sim}
+  evals: ${sim}
 
 # Use the fast_30s parameter set
 sweep_params: fast_30s

@@ -31,9 +31,15 @@ def main(cfg: DictConfig | ListConfig) -> int:
     sweep_params = config_from_path(f"sweep/{cfg.sweep_params}", cfg.sweep_params_override)
 
     # Merge parameters into the sweep section
-    if "parameters" not in cfg.sweep:
+    if not hasattr(cfg.sweep, "parameters") or cfg.sweep.parameters is None:
+        OmegaConf.set_struct(cfg.sweep, False)
         cfg.sweep.parameters = {}
+        OmegaConf.set_struct(cfg.sweep, True)
+
+    # Disable struct mode temporarily to allow merging new parameters
+    OmegaConf.set_struct(cfg.sweep.parameters, False)
     cfg.sweep.parameters = OmegaConf.merge(cfg.sweep.parameters, sweep_params.parameters)
+    OmegaConf.set_struct(cfg.sweep.parameters, True)
 
     is_master = os.environ.get("NODE_INDEX", "0") == "0"
 
@@ -140,7 +146,7 @@ def create_run(sweep_name: str, cfg: DictConfig | ListConfig, logger: Logger) ->
     sweep_cfg = OmegaConf.load(os.path.join(cfg.sweep_dir, "config.yaml"))
 
     # Create the simulation suite config to make sure it's valid
-    SimulationSuiteConfig(**cfg.sweep_job.eval)
+    SimulationSuiteConfig(**cfg.sweep_job.evals)
 
     logger.info(f"Creating new run for sweep: {sweep_name} ({sweep_cfg.wandb_path})")
     run_name = generate_run_id_for_sweep(sweep_cfg.wandb_path, cfg.runs_dir)
@@ -207,7 +213,7 @@ def create_run(sweep_name: str, cfg: DictConfig | ListConfig, logger: Logger) ->
             if "sweep_job" in OmegaConf.to_container(cfg, resolve=False):
                 sweep_job_overrides = OmegaConf.to_container(cfg.sweep_job, resolve=True)
                 for section, overrides in sweep_job_overrides.items():
-                    if section != "eval":  # eval is handled separately in train_job
+                    if section != "evals":  # evals is handled separately in train_job
                         OmegaConf.update(train_cfg, section, overrides)
 
             logger.info(f"Protein suggestions: {suggestion}")

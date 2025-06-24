@@ -13,6 +13,7 @@ sweep_name: ???
 sweep:
   metric: reward
   num_random_samples: 10
+  parameters: {}
 
 # Configuration overrides for training jobs
 sweep_job:
