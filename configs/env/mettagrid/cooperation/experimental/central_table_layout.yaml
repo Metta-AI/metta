@@ -13,11 +13,11 @@ game:
     default_item_max: 1
     heart_max: 1000
     rewards:
-      ore.red: 0.005
-      ore.blue: 0.005
-      ore.green: 0.005
-      battery: 0.01
-      heart: 1
+      heart: 0.01
+      armor: 0.05
+      ore.red: 0.01
+      ore.blue: 0.01
+      battery.red: 0.01
 
   map_builder:
     _target_: metta.mettagrid.room.room_list.RoomList
@@ -64,7 +64,7 @@ game:
   objects:
     altar:
       cooldown: ${sampling:10,25,15}
-      input_battery: 1
+      input_battery.red: 1
       max_output: 100
       conversion_ticks: ${sampling:10,25,15}
       initial_items: 0
@@ -78,6 +78,13 @@ game:
       max_output: 100
       conversion_ticks: 1
       initial_items: 1
+    "factory":
+      conversion_ticks: 8
+      cooldown: 100000
+      max_output: 10
+      initial_items: 0
+      input_battery.red: 1
+      output_blueprint: 1
 
   reward_sharing:
     groups:
