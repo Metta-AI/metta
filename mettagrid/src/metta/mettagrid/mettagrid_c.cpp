@@ -127,13 +127,13 @@ MettaGrid::MettaGrid(py::dict cfg, py::list map) {
         _stats->incr("objects.block");
       } else if (cell.starts_with("mine")) {
         std::string m = cell;
-        if (m.find('.') == std::string::npos) {
+        if (m.find('_') == std::string::npos) {
           m = "mine_red";
         }
         converter = new Converter(r, c, cfg["objects"][py::str(m)].cast<ObjectConfig>(), ObjectType::MineT);
       } else if (cell.starts_with("generator")) {
         std::string m = cell;
-        if (m.find('.') == std::string::npos) {
+        if (m.find('_') == std::string::npos) {
           m = "generator_red";
         }
         converter = new Converter(r, c, cfg["objects"][py::str(m)].cast<ObjectConfig>(), ObjectType::GeneratorT);

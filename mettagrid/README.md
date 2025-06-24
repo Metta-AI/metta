@@ -52,9 +52,8 @@ The `Converter` object allows agents to convert their harvested resources into e
 
 The `Generator` object produces resources that agents can harvest. Agents can gather resources from generators by moving to them and taking the `use` action. Generators have a specified capacity and replenish resources over time.
 
-- Using the generator costs `generator_use_cost` (currently 0) energy
 - Using the generator once gives one resource 1
-- After the generator is used, it is unable to be used for `generator_cooldown` timesteps
+- After the generator is used, it is unable to be used for `generator.cooldown` timesteps
 
 ### Wall
 
@@ -105,7 +104,7 @@ The MettaGrid environment is highly configurable through the use of YAML configu
      - Reward value: 0.005 per unit (max 2)
      - Used to create batteries and lasers
 2. Battery
-     - Intermediate resource created from ore at a generator_ Generator turns one ore into one battery.
+     - Intermediate resource created from ore at a generator. Generator turns one ore into one battery.
      - Reward value: 0.01 per unit (max 2)
      - Used to create hearts and lasers
 3. Heart / heart altar
