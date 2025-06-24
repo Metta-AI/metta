@@ -1,35 +1,27 @@
-const objectTypes = [
-  ["agent", "A"], // 0
-  ["wall", "#"], // 1
-  ["mine", "g"], // 2
-  ["generator", "c"], // 3
-  ["altar", "a"], // 4
-  ["armory", "r"], // 5
-  ["lasery", "l"], // 6
-  ["lab", "b"], // 7
-  ["factory", "f"], // 8
-  ["temple", "t"], // 9
-  ["converter", "v"], // 10
-  // TODO - empty?
-] as const satisfies [string, string][];
+import encoding from "./encoding.json" with { type: "json" };
 
-export type ObjectName = (typeof objectTypes)[number][0] | "empty";
+const typedEncoding: Record<string, string[]> = encoding;
 
-const asciiToTypeId = Object.fromEntries(
-  objectTypes.map(([, ascii], i) => [ascii, i])
-);
+const asciiToNameCache = new Map<string, string>();
+function asciiToName(ascii: string): string {
+  if (asciiToNameCache.has(ascii)) {
+    return asciiToNameCache.get(ascii)!;
+  }
+  for (const [name, chars] of Object.entries(typedEncoding)) {
+    if (chars.includes(ascii)) {
+      asciiToNameCache.set(ascii, name);
+      return name;
+    }
+  }
+  throw new Error(`Invalid character: '${ascii}'`);
+}
 
-const objectNameToTypeId: Record<ObjectName, number> = Object.fromEntries(
-  objectTypes.map(
-    ([name]) =>
-      [name, objectTypes.findIndex(([n]) => n === name)] satisfies [
-        ObjectName,
-        number,
-      ]
-  )
-) as Record<ObjectName, number>;
-
-export type ItemObjectName = Exclude<ObjectName, "wall" | "agent" | "empty">;
+function nameToAscii(name: string): string {
+  if (!typedEncoding[name]) {
+    throw new Error(`Invalid object name: '${name}'`);
+  }
+  return typedEncoding[name][0]!;
+}
 
 export type Cell = {
   // these are intentionally `r` and `c` instead of `x` and `y` so that we don't confuse them with screen coordinates
@@ -38,12 +30,12 @@ export type Cell = {
 };
 
 export class MettaObject {
-  readonly type: number;
+  readonly name: string;
   readonly r: number;
   readonly c: number;
 
-  constructor(data: { type: number; r: number; c: number }) {
-    this.type = data.type;
+  constructor(data: { name: string; r: number; c: number }) {
+    this.name = data.name;
     this.r = data.r;
     this.c = data.c;
   }
@@ -56,38 +48,23 @@ export class MettaObject {
     if (ascii === "." || ascii === " ") {
       return undefined;
     }
-    const objectType = asciiToTypeId[ascii];
-    if (objectType === undefined) {
-      throw new Error(`Invalid character: '${ascii}' at ${r},${c}`);
-    }
-    return new MettaObject({ type: objectType, r, c });
+    const objectName = asciiToName(ascii);
+    return new MettaObject({ name: objectName, r, c });
   }
 
   static fromObjectName(
     r: number,
     c: number,
-    name: ObjectName
+    name: string
   ): MettaObject | undefined {
     if (name === "empty") {
       return undefined;
     }
-    const typeId = objectNameToTypeId[name];
-    if (typeId === undefined) {
-      throw new Error(`Invalid object name: '${name}' at ${r},${c}`);
-    }
-    return new MettaObject({
-      type: typeId,
-      r,
-      c,
-    });
-  }
-
-  get name(): ObjectName {
-    return objectTypes[this.type][0];
+    return new MettaObject({ name, r, c });
   }
 
   get ascii(): string {
-    return objectTypes[this.type][1];
+    return nameToAscii(this.name);
   }
 }
 
@@ -110,15 +87,19 @@ export class MettaGrid {
     }
   }
 
-  static empty(width: number, height: number, borderWidth = 1): MettaGrid {
+  static empty(width: number, height: number): MettaGrid {
     return new MettaGrid({
       width,
       height,
       objects: Array.from({ length: width * height }, (_, i) => {
         const r = Math.floor(i / width);
         const c = i % width;
+        const name =
+          r === 0 || r === height - 1 || c === 0 || c === width - 1
+            ? "wall"
+            : "empty";
         return new MettaObject({
-          type: 1,
+          name,
           r,
           c,
         });
@@ -165,7 +146,7 @@ export class MettaGrid {
     return this.data.objects;
   }
 
-  replaceCellByName(r: number, c: number, name: ObjectName) {
+  replaceCellByName(r: number, c: number, name: string) {
     const newObjects = this.objects
       .map((o) => {
         if (o.r === r && o.c === c) {

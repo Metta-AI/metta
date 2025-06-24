@@ -1,7 +1,7 @@
 import { TileSet, TileSetCollection, TileSetSource } from "./TileSet";
 
 const sources = [
-  "agent",
+  "agent.agent",
   "altar",
   "armory",
   "factory",
@@ -11,10 +11,11 @@ const sources = [
   "mine",
   "temple",
   "wall",
+  "block",
 ].map(
   (name) =>
     ({
-      src: `/assets/objects/${name}.png`,
+      src: `/assets/objects/${name === "agent.agent" ? "agent" : name}.png`,
       tileSize: 256,
       tiles: {
         [name]: [0, 0],

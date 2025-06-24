@@ -18,24 +18,28 @@ export async function drawGrid({
   ctx.fillRect(0, 0, grid.width, grid.height);
 
   // Draw grid lines
-  ctx.strokeStyle = "#aaa";
-  ctx.lineCap = "square";
-  ctx.lineWidth = 0.02;
+  {
+    ctx.strokeStyle = "black";
+    ctx.globalAlpha = 0.2;
+    ctx.lineCap = "square";
+    ctx.lineWidth = 0.02;
 
-  // Draw vertical grid lines
-  for (let x = 0; x <= grid.width; x++) {
-    ctx.beginPath();
-    ctx.moveTo(x, 0);
-    ctx.lineTo(x, grid.height);
-    ctx.stroke();
-  }
+    // Draw vertical grid lines
+    for (let x = 0; x <= grid.width; x++) {
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, grid.height);
+      ctx.stroke();
+    }
 
-  // Draw horizontal grid lines
-  for (let y = 0; y <= grid.height; y++) {
-    ctx.beginPath();
-    ctx.moveTo(0, y);
-    ctx.lineTo(grid.width, y);
-    ctx.stroke();
+    // Draw horizontal grid lines
+    for (let y = 0; y <= grid.height; y++) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(grid.width, y);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
   }
 
   // Draw the map

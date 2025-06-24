@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "gen:encoding": "cd ../mettagrid && uv run python -c 'import json; from mettagrid.char_encoder import NAME_TO_CHAR; print(json.dumps(NAME_TO_CHAR))' >../mettamap/src/lib/encoding.json",
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",

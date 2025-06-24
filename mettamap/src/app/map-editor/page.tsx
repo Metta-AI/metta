@@ -9,7 +9,7 @@ import { NumberInput } from "@/components/NumberInput";
 import { useIsMouseDown } from "@/hooks/useIsMouseDown";
 import { loadMettaTileSets } from "@/lib/draw/mettaTileSets";
 import { TileSetCollection } from "@/lib/draw/TileSet";
-import { Cell, MettaGrid, ObjectName } from "@/lib/MettaGrid";
+import { Cell, MettaGrid } from "@/lib/MettaGrid";
 
 const AsciiPreview: FC<{ ascii: string }> = ({ ascii }) => {
   return (
@@ -25,8 +25,8 @@ const teamColors = {
 };
 
 export const ObjectsPanel: FC<{
-  selectedEntity: ObjectName;
-  setSelectedEntity: (entity: ObjectName) => void;
+  selectedEntity: string;
+  setSelectedEntity: (entity: string) => void;
   cellSize: number;
 }> = ({ selectedEntity, setSelectedEntity, cellSize }) => {
   const [tileSets, setTileSets] = useState<TileSetCollection | null>(null);
@@ -45,7 +45,7 @@ export const ObjectsPanel: FC<{
         return (
           <button
             key={key}
-            onClick={() => setSelectedEntity(key as ObjectName)}
+            onClick={() => setSelectedEntity(key)}
             className={clsx(
               "cursor-pointer",
               selectedEntity === key
@@ -65,7 +65,7 @@ export const ObjectsPanel: FC<{
 };
 
 export default function MapEditorPage() {
-  const cellSize = 20;
+  const cellSize = 32;
 
   // Inputs
   const [gridWidth, setGridWidth] = useState(10);
@@ -76,7 +76,7 @@ export default function MapEditorPage() {
     makeGrid(gridWidth, gridHeight)
   );
 
-  const [selectedEntity, setSelectedEntity] = useState<ObjectName>("wall");
+  const [selectedEntity, setSelectedEntity] = useState("wall");
   const [confirmReset, setConfirmReset] = useState(false);
 
   const drawCell = (cell: Cell | undefined) => {
@@ -93,16 +93,16 @@ export default function MapEditorPage() {
 
   return (
     <div className="map-editor">
-      <div className="flex items-end gap-1">
+      <div className="flex items-end gap-1 p-2">
         <label>
-          Width:
+          <span className="text-sm">Width:</span>
           <NumberInput
             value={gridWidth}
             onChange={(e) => setGridWidth(+e.target.value)}
           />
         </label>
         <label>
-          Height:
+          <span className="text-sm">Height:</span>
           <NumberInput
             value={gridHeight}
             onChange={(e) => setGridHeight(+e.target.value)}

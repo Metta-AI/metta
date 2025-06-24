@@ -91,7 +91,7 @@ type Props = {
   panOnSpace?: boolean;
 };
 
-export const MapViewer: FC<Props> = ({
+const MapViewerBrowserOnly: FC<Props> = ({
   grid,
   onCellHover,
   onCellSelect,
@@ -132,8 +132,20 @@ export const MapViewer: FC<Props> = ({
     const widthBasedSize = canvas.width / grid.width;
     const heightBasedSize = canvas.height / grid.height;
 
-    setScale(Math.min(widthBasedSize, heightBasedSize));
+    const scale = Math.min(widthBasedSize, heightBasedSize);
+    setScale(scale);
+
+    // copy-paste of recenter code (it's hard to add a dependency because of hook rules)
+    setPan({
+      x: (canvas.width - grid.width * scale) / (2 * dpr),
+      y: (canvas.height - grid.height * scale) / (2 * dpr),
+    });
+    setZoom(1);
   }, [grid.width, grid.height]);
+
+  useEffect(() => {
+    initCanvas();
+  }, [initCanvas]);
 
   const recenter = useCallback(() => {
     if (!scale || !canvasRef.current) return;
@@ -144,11 +156,6 @@ export const MapViewer: FC<Props> = ({
     });
     setZoom(1);
   }, [scale, setPan, setZoom]);
-
-  useEffect(() => {
-    initCanvas();
-    recenter(); // intentionally not in the dependency array
-  }, [initCanvas]);
 
   const transform = useMemo(() => {
     if (!canvasRef.current) return new DOMMatrixReadOnly();
@@ -185,13 +192,22 @@ export const MapViewer: FC<Props> = ({
     context.lineWidth = 0.03;
 
     if (hoveredCell && grid.cellInGrid(hoveredCell)) {
-      context.strokeStyle = "red";
-      context.strokeRect(hoveredCell.c, hoveredCell.r, 1, 1);
+      context.strokeStyle = "white";
+      const margin = 0.03;
+      context.roundRect(
+        hoveredCell.c + margin,
+        hoveredCell.r + margin,
+        1 - 2 * margin,
+        1 - 2 * margin,
+        0.1
+      );
+      context.stroke();
     }
 
     if (selectedCell && grid.cellInGrid(selectedCell)) {
       context.strokeStyle = "blue";
-      context.strokeRect(selectedCell.c, selectedCell.r, 1, 1);
+      context.roundRect(selectedCell.c, selectedCell.r, 1, 1, 0.1);
+      context.stroke();
     }
   }, [drawer, grid, transform, hoveredCell, selectedCell]);
 
@@ -267,4 +283,16 @@ export const MapViewer: FC<Props> = ({
       {/* <DebugInfo canvas={canvasRef.current} pan={pan} zoom={zoom} /> */}
     </div>
   );
+};
+
+export const MapViewer: FC<Props> = (props) => {
+  if (typeof window === "undefined") {
+    return (
+      <div className="relative flex h-screen max-h-[600px] w-full overflow-hidden">
+        {" "}
+      </div>
+    );
+  }
+
+  return <MapViewerBrowserOnly {...props} />;
 };
