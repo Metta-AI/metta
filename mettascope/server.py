@@ -19,12 +19,13 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-class SelectiveNoCacheStaticFiles(StaticFiles):
-    """StaticFiles that disables caching for specific file extensions."""
+class CustomStaticFiles(StaticFiles):
+    """StaticFiles that disables caching for specific file extensions and sets custom content types."""
 
-    def __init__(self, *args, no_cache_extensions=None, **kwargs):
+    def __init__(self, *args, no_cache_extensions=None, custom_content_types=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.no_cache_extensions = no_cache_extensions or {".js", ".json"}
+        self.custom_content_types = custom_content_types or {}
 
     def file_response(
         self,
@@ -33,17 +34,22 @@ class SelectiveNoCacheStaticFiles(StaticFiles):
         scope,
         status_code: int = 200,
     ):
-        """Override file_response to selectively disable caching."""
-        # Check if file extension should be excluded from caching
-        file_ext = Path(full_path).suffix.lower()
-        if file_ext in self.no_cache_extensions:
-            # Don't cache these files - set explicit no-store headers
-            response = FileResponse(full_path, status_code=status_code, stat_result=stat_result)
-            response.headers["Cache-Control"] = "no-store"
-            return response
+        """Override file_response to selectively disable caching and set custom content types."""
+        file_path = Path(full_path)
+        file_ext = file_path.suffix.lower()
 
-        # Use normal caching behavior for other files by delegating to the base class
-        return super().file_response(full_path, stat_result, scope, status_code=status_code)
+        # Create the response
+        response = FileResponse(full_path, status_code=status_code, stat_result=stat_result)
+
+        # Handle custom content types - set header directly to avoid FastAPI overriding
+        if file_ext in self.custom_content_types:
+            response.headers["content-type"] = self.custom_content_types[file_ext]
+
+        # Handle caching
+        if file_ext in self.no_cache_extensions:
+            response.headers["Cache-Control"] = "no-store"
+
+        return response
 
 
 def clear_memory(sim: replays.Simulation, what: str, agent_id: int) -> None:
@@ -117,10 +123,12 @@ def make_app(cfg: DictConfig):
     app.mount("/data", StaticFiles(directory="mettascope/data"), name="data")
     app.mount(
         "/dist",
-        SelectiveNoCacheStaticFiles(directory="mettascope/dist", no_cache_extensions={".js", ".json", ".css"}),
+        CustomStaticFiles(directory="mettascope/dist", no_cache_extensions={".js", ".json", ".css"}),
         name="dist",
     )
-    app.mount("/local", StaticFiles(directory="mettascope/local"), name="local")
+    app.mount(
+        "/local", CustomStaticFiles(directory=".", custom_content_types={".z": "application/x-compress"}), name="local"
+    )
 
     # Direct favicon.ico to the data/ui dir.
     @app.get("/favicon.ico")
