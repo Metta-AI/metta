@@ -143,7 +143,7 @@ class MettaTrainer:
         self._make_experience_buffer()
 
         self.agent_step: int = checkpoint.agent_step
-        self.agent_step = 470000000  # delete after testing
+        self.agent_step = 490000000  # delete after testing
         self.epoch = checkpoint.epoch
 
         self._stats_epoch_start = self.epoch
