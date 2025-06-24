@@ -16,7 +16,7 @@ game:
     border_width: 3
   objects:
     altar:
-      input_battery: 1
+      input_battery.red: 1
       output_heart: 1
       max_output: 1
       conversion_ticks: 1
