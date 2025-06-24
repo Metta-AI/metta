@@ -14,7 +14,7 @@ game:
       border_width: 3
       agents: 1
       objects:
-        altar: 12
+        altar: 15
   objects:
     altar:
       cooldown: 1000
