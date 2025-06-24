@@ -167,18 +167,25 @@ class PolicyStore:
         policy = make_policy(env, self._cfg)
         name = self.make_model_name(0)
         path = os.path.join(self._cfg.trainer.checkpoint_dir, name)
-        pr = PolicyRecord(
-            self,
-            name,
-            f"file://{path}",
-            {
-                "action_names": env.action_names,
-                "agent_step": 0,
-                "epoch": 0,
-                "generation": 0,
-                "train_time": 0,
-            },
-        )
+
+        # Capture environment metadata for future reconstruction
+        metadata = {
+            "action_names": env.action_names,
+            "agent_step": 0,
+            "epoch": 0,
+            "generation": 0,
+            "train_time": 0,
+            "obs_shape": list(env.single_observation_space.shape),
+            "action_space_nvec": list(env.single_action_space.nvec)
+            if hasattr(env.single_action_space, "nvec")
+            else [len(env.action_names)]
+            if env.action_names
+            else [9, 10],
+            "feature_normalizations": getattr(env, "feature_normalizations", {}),
+            "global_features": getattr(env, "global_features", []),
+        }
+
+        pr = PolicyRecord(self, name, f"file://{path}", metadata)
         self._save_policy(path, policy, pr)
         pr._policy = policy
         return pr
@@ -192,15 +199,17 @@ class PolicyStore:
         """Save a policy and its metadata."""
         logger.info(f"Saving policy to {path}")
 
-        # Check if this is a repackaged model or if package save should be skipped
+        # Check if this is a repackaged model that needs reconstruction
         if hasattr(policy, "__module__") and "<torch_package" in policy.__module__:
-            self._save_as_checkpoint(path, policy, pr)
-        else:
-            try:
-                self._save_as_package(path, policy, pr)
-            except Exception as e:
-                logger.warning(f"Package save failed: {e}, using checkpoint format instead")
-                self._save_as_checkpoint(path, policy, pr)
+            logger.info("Detected torch-packaged model, reconstructing for clean save")
+            policy = self._reconstruct_clean_policy(policy, pr)
+
+        try:
+            self._save_as_package(path, policy, pr)
+        except Exception as e:
+            logger.error(f"Failed to save policy: {e}")
+            # If we still can't save after reconstruction, something is seriously wrong
+            raise RuntimeError(f"Failed to save policy after reconstruction: {e}") from e
 
         pr._local_path = path
         pr.uri = "file://" + path
@@ -215,39 +224,6 @@ class PolicyStore:
             exporter.save_pickle("policy_record", "data.pkl", PolicyRecord(None, pr.name, pr.uri, clean_metadata))
             exporter.save_pickle("policy", "model.pkl", policy)
         logger.info(f"Saved policy using package format to {path}")
-
-    def _save_as_checkpoint(self, path: str, policy: nn.Module, pr: PolicyRecord) -> None:
-        """Save using checkpoint format (compatible with legacy loading)."""
-        os.makedirs(os.path.dirname(path) if os.path.dirname(path) else ".", exist_ok=True)
-
-        # Get metadata
-        metadata = pr._clean_metadata_for_packaging(pr.metadata)
-
-        # Build checkpoint in legacy format but with all necessary info
-        checkpoint = {
-            # Core fields expected by legacy format
-            "model_state_dict": policy.state_dict(),
-            "agent_step": metadata.get("agent_step", 0),
-            "epoch": metadata.get("epoch", 0),
-            "generation": metadata.get("generation", 0),
-            "train_time": metadata.get("train_time", 0),
-            "action_names": metadata.get("action_names", []),
-            # Additional fields for reconstruction
-            "obs_shape": metadata.get("obs_shape", [34, 11, 11]),
-            "action_space_nvec": metadata.get("action_space_nvec", [9, 10]),
-            "feature_normalizations": metadata.get("feature_normalizations", {}),
-            "global_features": metadata.get("global_features", []),
-            # Store full metadata for future compatibility
-            "metadata": metadata,
-        }
-
-        # Add optional model attributes
-        for attr in ["config", "hparams"]:
-            if hasattr(policy, attr):
-                checkpoint[attr] = getattr(policy, attr)
-
-        torch.save(checkpoint, path)
-        logger.info(f"Saved policy using checkpoint format to {path}")
 
     def add_to_wandb_run(self, run_id: str, pr: PolicyRecord, additional_files=None):
         local_path = pr.local_path()
@@ -405,6 +381,7 @@ class PolicyStore:
         logger.info(f"Loading policy from {path}")
         self._make_codebase_backwards_compatible()
 
+        # Try package format first
         try:
             pr = self._load_as_package(path, metadata_only)
             self._cached_prs[path] = pr
@@ -412,6 +389,7 @@ class PolicyStore:
         except Exception as e:
             logger.debug(f"Package load failed: {e}")
 
+        # Fall back to legacy checkpoint format
         return self._load_legacy_checkpoint(path, metadata_only)
 
     def _load_wandb_artifact(self, qualified_name: str):
@@ -441,9 +419,51 @@ class PolicyStore:
         pr._local_path = path
 
         if not metadata_only:
-            pr._policy = pr.load(path, self._device)
+            packaged_policy = importer.load_pickle("policy", "model.pkl")
+            pr._policy = packaged_policy
+
+            # Ensure metadata has all necessary fields for potential reconstruction
+            self._enrich_metadata_from_policy(pr, packaged_policy)
 
         return pr
+
+    def _enrich_metadata_from_policy(self, pr: PolicyRecord, policy: nn.Module) -> None:
+        """Enrich metadata with information extracted from the policy model if missing."""
+        metadata = pr.metadata
+
+        # Try to infer observation shape if missing
+        if "obs_shape" not in metadata and hasattr(policy, "encoder"):
+            try:
+                # Common observation shapes
+                for shape in [[34, 11, 11], [3, 84, 84], [1, 84, 84]]:
+                    try:
+                        dummy_input = torch.zeros(1, *shape, device=self._device)
+                        with torch.no_grad():
+                            _ = policy.encoder(dummy_input)
+                        metadata["obs_shape"] = shape
+                        logger.info(f"Inferred obs_shape: {shape}")
+                        break
+                    except:
+                        continue
+            except:
+                pass
+
+        # Try to infer action space if missing
+        if "action_space_nvec" not in metadata and hasattr(policy, "decoder"):
+            try:
+                if hasattr(policy.decoder, "action_head"):
+                    action_head = policy.decoder.action_head
+                    if hasattr(action_head, "out_features"):
+                        # This is a simplified heuristic
+                        out_features = action_head.out_features
+                        if out_features == 19:  # Common case: 9 + 10
+                            metadata["action_space_nvec"] = [9, 10]
+                        else:
+                            # Single discrete action space
+                            metadata["action_space_nvec"] = [out_features]
+                        logger.info(f"Inferred action_space_nvec: {metadata['action_space_nvec']}")
+            except:
+                pass
 
     def _load_legacy_checkpoint(self, path: str, metadata_only: bool = False) -> PolicyRecord:
         logger.info(f"Loading legacy checkpoint from {path}")
@@ -494,43 +514,74 @@ class PolicyStore:
         self._cached_prs[path] = pr
         return pr
 
+    def _create_mock_environment(self, metadata: dict):
+        """Create a mock environment from metadata for policy reconstruction."""
+        from types import SimpleNamespace
+
+        # Get observation shape and action space info
+        obs_shape = metadata.get("obs_shape", [34, 11, 11])
+        action_names = metadata.get("action_names", [])
+
+        if action_names:
+            action_nvec = [len(action_names)]
+        else:
+            action_nvec = metadata.get("action_space_nvec", [9, 10])
+
+        # Create mock environment with all necessary attributes
+        return SimpleNamespace(
+            single_observation_space=gym.spaces.Box(low=0, high=255, shape=obs_shape, dtype=np.uint8),
+            obs_width=obs_shape[1] if len(obs_shape) > 1 else 11,
+            obs_height=obs_shape[2] if len(obs_shape) > 2 else 11,
+            single_action_space=gym.spaces.MultiDiscrete(action_nvec),
+            feature_normalizations=metadata.get("feature_normalizations", {}),
+            global_features=metadata.get("global_features", []),
+            action_names=action_names,
+        )
+
+    def _reconstruct_clean_policy(self, packaged_policy: nn.Module, pr: PolicyRecord) -> nn.Module:
+        """Reconstruct a policy with clean module paths from a torch-packaged policy.
+
+        This creates a new policy instance with the proper module paths and transfers
+        the state from the packaged policy, allowing it to be re-packaged cleanly.
+        """
+        # Create mock environment from metadata
+        mock_env = self._create_mock_environment(pr.metadata)
+
+        # Create a fresh policy instance with clean module paths
+        clean_policy = make_policy(mock_env, self._cfg)  # type: ignore
+
+        # Transfer the state from the packaged policy
+        clean_policy.load_state_dict(packaged_policy.state_dict())
+
+        # Transfer any additional attributes
+        for attr in ["config", "hparams"]:
+            if hasattr(packaged_policy, attr):
+                setattr(clean_policy, attr, getattr(packaged_policy, attr))
+
+        logger.info(f"Successfully reconstructed policy with clean module path: {clean_policy.__class__.__module__}")
+
+        return clean_policy
+
     def _reconstruct_policy(self, checkpoint: dict) -> nn.Module:
         """Reconstruct a policy from checkpoint data.
 
         This method handles both legacy checkpoints and new state_dict format.
         """
-        from types import SimpleNamespace
-
+        # Get metadata from checkpoint
         metadata = checkpoint.get("metadata", {})
 
-        # Get observation shape - check both in metadata and at root level (legacy)
-        obs_shape = metadata.get("obs_shape") or checkpoint.get("obs_shape", [34, 11, 11])
+        # For legacy format, build metadata from root-level fields
+        if not metadata:
+            metadata = {}
+            for key in ["obs_shape", "action_names", "action_space_nvec", "feature_normalizations", "global_features"]:
+                if key in checkpoint:
+                    metadata[key] = checkpoint[key]
 
-        # Get action names - check both locations
-        action_names = metadata.get("action_names") or checkpoint.get("action_names", [])
+        # Create mock environment from metadata
+        mock_env = self._create_mock_environment(metadata)
 
-        # Determine action space
-        if action_names:
-            action_nvec = [len(action_names)]
-        else:
-            # Check both locations for action space
-            action_nvec = metadata.get("action_space_nvec") or checkpoint.get("action_space_nvec", [9, 10])
-
-        # Create mock environment
-        mock_env = SimpleNamespace(
-            single_observation_space=gym.spaces.Box(low=0, high=255, shape=obs_shape, dtype=np.uint8),
-            obs_width=obs_shape[1] if len(obs_shape) > 1 else 11,
-            obs_height=obs_shape[2] if len(obs_shape) > 2 else 11,
-            single_action_space=gym.spaces.MultiDiscrete(action_nvec),
-            feature_normalizations=(
-                metadata.get("feature_normalizations") or checkpoint.get("feature_normalizations", {})
-            ),
-            global_features=(metadata.get("global_features") or checkpoint.get("global_features", [])),
-            action_names=action_names,
-        )
-
-        # Type ignore: mock_env is a SimpleNamespace with the required attributes, not a full MettaGridEnv
-        policy = make_policy(mock_env, self._cfg)  # type: ignore[arg-type]
+        # Create policy instance
+        policy = make_policy(mock_env, self._cfg)  # type: ignore
 
         # Find and load state dict - check multiple possible keys
         state_dict = None
