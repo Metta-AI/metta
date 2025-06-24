@@ -1,73 +1,16 @@
 "use client";
-import clsx from "clsx";
-import { FC, useEffect, useMemo, useState } from "react";
-import TextareaAutosize from "react-textarea-autosize";
+import { useMemo, useState } from "react";
 
 import { Button } from "@/components/Button";
 import { MapViewer } from "@/components/MapViewer";
 import { NumberInput } from "@/components/NumberInput";
 import { useIsMouseDown } from "@/hooks/useIsMouseDown";
-import { loadMettaTileSets } from "@/lib/draw/mettaTileSets";
-import { TileSetCollection } from "@/lib/draw/TileSet";
 import { Cell, MettaGrid } from "@/lib/MettaGrid";
 
-const AsciiPreview: FC<{ ascii: string }> = ({ ascii }) => {
-  return (
-    <TextareaAutosize readOnly value={ascii} className="w-full font-mono" />
-  );
-};
-
-const teamColors = {
-  "agent.team_1": "#d9534f",
-  "agent.team_2": "#0275d8",
-  "agent.team_3": "#5cb85c",
-  "agent.team_4": "#f0ad4e",
-};
-
-export const ObjectsPanel: FC<{
-  selectedEntity: string;
-  setSelectedEntity: (entity: string) => void;
-  cellSize: number;
-}> = ({ selectedEntity, setSelectedEntity, cellSize }) => {
-  const [tileSets, setTileSets] = useState<TileSetCollection | null>(null);
-  useEffect(() => {
-    loadMettaTileSets().then(setTileSets);
-  }, []);
-
-  if (!tileSets) {
-    return null;
-  }
-
-  return (
-    <div className="flex gap-1">
-      {Object.keys(tileSets.nameToTileSet).map((key) => {
-        const { wrapper, inner } = tileSets.css(key, cellSize);
-        return (
-          <button
-            key={key}
-            onClick={() => setSelectedEntity(key)}
-            className={clsx(
-              "cursor-pointer",
-              selectedEntity === key
-                ? "ring-2 ring-blue-500"
-                : "hover:ring-2 hover:ring-blue-300"
-            )}
-            title={key}
-          >
-            <div style={wrapper}>
-              <div style={inner} />
-            </div>
-          </button>
-        );
-      })}
-    </div>
-  );
-};
+import { AsciiPreview } from "./AsciiPreview";
+import { ObjectsPanel } from "./ObjectsPanel";
 
 export default function MapEditorPage() {
-  const cellSize = 32;
-
-  // Inputs
   const [gridWidth, setGridWidth] = useState(10);
   const [gridHeight, setGridHeight] = useState(10);
 
@@ -92,7 +35,7 @@ export default function MapEditorPage() {
   const isMouseDown = useIsMouseDown();
 
   return (
-    <div className="map-editor">
+    <div>
       <div className="flex items-end gap-1 p-2">
         <label>
           <span className="text-sm">Width:</span>
@@ -133,7 +76,6 @@ export default function MapEditorPage() {
         <ObjectsPanel
           selectedEntity={selectedEntity}
           setSelectedEntity={setSelectedEntity}
-          cellSize={cellSize}
         />
       </div>
       <div className="max-h-screen">
