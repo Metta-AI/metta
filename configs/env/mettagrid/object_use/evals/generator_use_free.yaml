@@ -5,7 +5,7 @@ defaults:
 game:
   max_steps: 80
   objects:
-    generator.red:
+    generator_red:
       initial_items: 1
       cooldown: 255
   agent:
@@ -13,4 +13,4 @@ game:
       battery.red: 1
   map_builder:
     objects:
-      generator: 1
+      generator_red: 1

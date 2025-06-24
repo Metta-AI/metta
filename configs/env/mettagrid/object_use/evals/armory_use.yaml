@@ -9,9 +9,9 @@ game:
       armor: 1
       ore.red: 0
   objects:
-    mine.red:
+    mine_red:
       initial_items: 3
-      output_ore: 3
+      output_ore.red: 3
       cooldown: 255
     armory:
       initial_items: 0
@@ -20,4 +20,4 @@ game:
   map_builder:
     objects:
       armory: 1
-      mine: 1
+      mine_red: 1
