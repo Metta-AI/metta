@@ -2,6 +2,11 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Additional Documentation
+
+@.cursor/docs.md
+@.cursor/commands.md
+
 ## Project Overview
 
 Metta AI is a reinforcement learning project focusing on the emergence of cooperation and alignment in multi-agent AI systems. It creates a model organism for complex multi-agent gridworld environments to study the impact of social dynamics (like kinship and mate selection) on learning and cooperative behaviors.
@@ -24,28 +29,7 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 
 ## Common Commands
 
-### Training and Simulation
-
-```bash
-# Train a model
-./tools/train.py run=my_experiment +hardware=macbook wandb=off
-
-# Run evaluation
-./tools/sim.py run=my_experiment +hardware=macbook wandb=off
-
-# Run interactive simulation
-./tools/play.py run=my_experiment +hardware=macbook wandb=off
-```
-
-### Evaluation
-
-```bash
-# Add a policy to the navigation evals database
-./tools/sim.py eval=navigation run=RUN_NAME eval.policy_uri=POLICY_URI +eval_db_uri=wandb://artifacts/navigation_db
-
-# Analyze results with heatmap
-./tools/analyze.py run=analyze +eval_db_uri=wandb://artifacts/navigation_db analyzer.policy_uri=POLICY_URI
-```
+For all training, simulation, analysis, and interactive commands, see the imported cursor documentation above. The cursor files provide comprehensive workflows, testing procedures, and troubleshooting guidance.
 
 ### Code Quality
 
