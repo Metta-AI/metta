@@ -3,8 +3,6 @@ from __future__ import annotations
 import logging
 import random
 
-import wandb
-
 from mettagrid.curriculum.curriculum import Task
 from mettagrid.curriculum.multi_task import MultiTaskCurriculum
 
@@ -19,10 +17,10 @@ class RandomCurriculum(MultiTaskCurriculum):
         task = self._curriculums[task_id].get_task()
         task.add_parent(self, task_id)
         logger.debug(f"Task selected: {task.name()}")
-        # Log sampling probabilities for each task to WandB
-        if wandb.run is not None:
-            total_weight = sum(self._task_weights.values())
-            if total_weight > 0:
-                task_probs = {k: v / total_weight for k, v in self._task_weights.items()}
-                wandb.run.log({"curriculum/task_probs": task_probs}, commit=False)
         return task
+
+    def get_task_probs(self):
+        total = sum(self._task_weights.values())
+        if total == 0:
+            return {k: 0.0 for k in self._task_weights}
+        return {k: v / total for k, v in self._task_weights.items()}

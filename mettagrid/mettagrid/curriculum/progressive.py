@@ -4,7 +4,6 @@ import copy
 import logging
 from typing import Optional
 
-import wandb
 from omegaconf import DictConfig, OmegaConf
 
 from .curriculum import Task
@@ -24,10 +23,6 @@ class ProgressiveCurriculum(SamplingCurriculum):
         cfg.game.map.width = self._width
         cfg.game.map.height = self._height
         OmegaConf.resolve(cfg)
-        # Log probability for the single task (always 1.0)
-        if wandb.run is not None:
-            task_id = f"sample({self._cfg_template.sampling})"
-            wandb.run.log({"curriculum/task_probs": {task_id: 1.0}}, commit=False)
         return Task(f"sample({self._cfg_template.sampling})", self, cfg)
 
     def complete_task(self, id: str, score: float):
@@ -35,3 +30,14 @@ class ProgressiveCurriculum(SamplingCurriculum):
             self._width = min(self._width * 2, 100)
             self._height = min(self._height * 2, 100)
         super().complete_task(id, score)
+
+    def get_task_probs(self):
+        # For progressive curriculum, only the current task is active (prob=1), others are 0
+        probs = {k: 0.0 for k in self._task_weights}
+        if hasattr(self, '_current_task') and self._current_task in probs:
+            probs[self._current_task] = 1.0
+        elif self._task_weights:
+            # fallback: set first task to 1.0 if _current_task is not set
+            first = next(iter(self._task_weights))
+            probs[first] = 1.0
+        return probs
