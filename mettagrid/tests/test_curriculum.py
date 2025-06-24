@@ -3,12 +3,12 @@ import random
 import pytest
 from omegaconf import OmegaConf
 
-from metta.mettagrid.curriculum.bucketed import BucketedCurriculum
+from metta.mettagrid.curriculum.bucketed import BucketedCurriculum, _expand_buckets
 from metta.mettagrid.curriculum.core import SingleTaskCurriculum
 from metta.mettagrid.curriculum.low_reward import LowRewardCurriculum
 from metta.mettagrid.curriculum.progressive import ProgressiveCurriculum
 from metta.mettagrid.curriculum.random import RandomCurriculum
-from metta.mettagrid.curriculum.sampling import SamplingCurriculum
+from metta.mettagrid.curriculum.sampling import SampledTaskCurriculum, SamplingCurriculum
 
 
 @pytest.fixture
@@ -102,15 +102,41 @@ def test_bucketed_curriculum(monkeypatch, env_cfg):
         "game.map.height": {"values": [5, 10]},
     }
     curr = BucketedCurriculum("dummy", buckets=buckets)
-    #     env_cfg_template="dummy",
-    #     buckets=buckets)
-    #     env_overrides=OmegaConf.create({}),
-    #     default_bins=1,
-    #     moving_avg_decay_rate=0.01,
-    # )
+
     # There should be 4 tasks (2x2 grid)
     assert len(curr._id_to_curriculum) == 4
     # Sample a task
     task = curr.get_task()
     assert hasattr(task, "id")
     assert any(str(w) in task.id() for w in [5, 10])
+
+
+def test_expand_buckets_values_and_range():
+    buckets = {
+        "param1": {"values": [1, 2, 3]},
+        "param2": {"range": (0, 10), "bins": 2},
+    }
+    expanded = _expand_buckets(buckets)
+    # param1 should be a direct list
+    assert expanded["param1"] == [1, 2, 3]
+    # param2 should be a list of 2 bins, each a dict with 'range' and 'want_int'
+    assert len(expanded["param2"]) == 2
+    assert expanded["param2"][0]["range"] == (0, 5)
+    assert expanded["param2"][1]["range"] == (5, 10)
+    assert all(isinstance(b, dict) and "range" in b for b in expanded["param2"])
+
+
+def test_sampled_task_curriculum():
+    # Setup: one value bucket, one range bucket (int), one range bucket (float)
+    task_id = "test_task"
+    task_cfg_template = OmegaConf.create({"param1": None, "param2": None, "param3": None})
+    bucket_parameters = ["param1", "param2", "param3"]
+    bucket_values = [42, {"range": (0, 10), "want_int": True}, {"range": (0.0, 1.0)}]
+    curr = SampledTaskCurriculum(task_id, task_cfg_template, bucket_parameters, bucket_values)
+    task = curr.get_task()
+    assert task.id() == task_id
+    cfg = task.env_cfg()
+    assert set(cfg.keys()) == {"param1", "param2", "param3"}
+    assert cfg["param1"] == 42
+    assert 0 <= cfg["param2"] < 10 and isinstance(cfg["param2"], int)
+    assert 0.0 <= cfg["param3"] < 1.0 and isinstance(cfg["param3"], float)
