@@ -78,7 +78,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
         self._curriculum = curriculum
         self._task = self._curriculum.get_task()
         self._level = level
-        self._last_level_per_task = {}
+        self._last_level_per_task: dict[str, Level] = {}
         self._renderer = None
         self._map_labels: list[str] = []
         self._stats_writer = stats_writer
@@ -217,7 +217,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
             with self.timer("_replay_writer.log_step"):
                 self._replay_writer.log_step(self._episode_id, actions, self.rewards)
 
-        infos = {}
+        infos: dict[str, Any] = {}
         if self.terminals.all() or self.truncations.all():
             if self._task.env_cfg().game.diversity_bonus.enabled:
                 self.rewards *= calculate_diversity_bonus(
@@ -236,7 +236,20 @@ class MettaGridEnv(PufferEnv, GymEnv):
 
     @override
     def close(self):
-        pass
+        """Release resources held by the environment."""
+        if self._stats_writer is not None:
+            self._stats_writer.close()
+            self._stats_writer = None
+
+        self._renderer = None
+
+        if hasattr(self, "_c_env"):
+            del self._c_env
+        self._grid_env = None
+
+        self._replay_writer = None
+
+        GymEnv.close(self)
 
     def process_episode_stats(self, infos: Dict[str, Any]):
         self.timer.start("process_episode_stats")
@@ -283,14 +296,14 @@ class MettaGridEnv(PufferEnv, GymEnv):
                     "seed": str(self._current_seed),
                     "map_w": str(self.map_width),
                     "map_h": str(self.map_height),
-                    "initial_grid_hash": self.initial_grid_hash,
+                    "initial_grid_hash": str(self.initial_grid_hash),
                 }
 
                 container = OmegaConf.to_container(self._task.env_cfg(), resolve=False)
                 for k, v in unroll_nested_dict(cast(dict[str, Any], container)):
                     attributes[f"config.{str(k).replace('/', '.')}"] = str(v)
 
-                agent_metrics = {}
+                agent_metrics: dict[int, dict[str, float]] = {}
                 for agent_idx, agent_stats in enumerate(stats["agent"]):
                     agent_metrics[agent_idx] = {}
                     agent_metrics[agent_idx]["reward"] = float(episode_rewards[agent_idx])
@@ -461,3 +474,6 @@ class MettaGridEnv(PufferEnv, GymEnv):
     def initial_grid_hash(self) -> int:
         """Returns the hash of the initial grid configuration."""
         return self._c_env.initial_grid_hash
+
+    def __del__(self) -> None:
+        self.close()
