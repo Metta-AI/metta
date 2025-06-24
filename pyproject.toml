@@ -36,6 +36,7 @@ dependencies = [
   "pybind11>=2.10.4",
   "pydantic>=2.11.5",
   "pynvml>=11.5.3",
+  "pyro-ppl>=1.9.0",
   "pyright>=1.1.401",
   "pytest>=8.3.3",
   "pytest-benchmark>=5.1.0",

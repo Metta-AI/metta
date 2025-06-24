@@ -31,7 +31,9 @@ fi
 
 # Training phase
 echo "[SWEEP:$sweep] Starting training phase..."
-cmd="./devops/train.sh dist_cfg_path=$DIST_CFG_PATH data_dir=$DATA_DIR/sweep/$sweep/runs $args"
+# Filter out sweep-specific arguments that train.sh doesn't understand
+train_args=$(echo "$args" | sed 's/sweep_params=[^ ]*//g')
+cmd="./devops/train.sh dist_cfg_path=$DIST_CFG_PATH data_dir=$DATA_DIR/sweep/$sweep/runs $train_args"
 echo "[SWEEP:$sweep] Running: $cmd"
 if ! $cmd; then
   echo "[ERROR] Training failed for sweep: $sweep"
