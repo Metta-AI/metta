@@ -276,6 +276,8 @@ class MettaGridEnv(PufferEnv, GymEnv):
             "initial_grid_hash": self.initial_grid_hash,
             "steps": self._steps,
         }
+
+        infos["attributes"] = {}
         infos["attributes"].update(attributes)
 
         replay_url = None
