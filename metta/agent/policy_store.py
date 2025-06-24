@@ -463,54 +463,31 @@ class PolicyStore:
 
     def _apply_packaging_rules(self, exporter, policy_module: Optional[str], policy_class: type) -> None:
         """Apply packaging rules to the exporter based on a configuration."""
-        # Define packaging rules using a more robust "opt-out" strategy
+        # Define packaging rules using wildcards for conciseness
         rules = [
             # Extern rules: Third-party libs and modules with pydantic dependencies
             (
                 "extern",
                 [
-                    # Core Python and ML frameworks
-                    "sys",
-                    "torch.**",
-                    "numpy.**",
-                    "scipy.**",
-                    "sklearn.**",
-                    "matplotlib.**",
-                    "gymnasium.**",
-                    "gym.**",
-                    "tensordict.**",
-                    "einops.**",
-                    "hydra.**",
-                    "omegaconf.**",
-                    # Torch extensions (no recursive glob needed)
-                    "torch_scatter",
-                    "torch_geometric",
-                    "torch_sparse",
-                    # Extern all of mettagrid and its C extensions (contains pydantic)
-                    "mettagrid.**",
-                    "metta.mettagrid.**",
-                    # Extern specific metta modules that have pydantic dependencies (opt-out)
-                    "metta.util.config",
-                    "metta.rl.vecenv",
-                    "metta.eval.dashboard_data",
-                    "metta.sim.simulation_config",
-                    # Extern PolicyStore itself (we only need PolicyRecord in the package)
+                    "sys", "torch.**", "numpy.**", "scipy.**", "sklearn.**",
+                    "matplotlib.**", "gymnasium.**", "gym.**", "tensordict.**",
+                    "einops.**", "hydra.**", "omegaconf.**",
+                    "mettagrid.**", "metta.mettagrid.**",
+                    "metta.util.config", "metta.rl.vecenv",
+                    "metta.eval.dashboard_data", "metta.sim.simulation_config",
                     "metta.agent.policy_store",
                 ],
             ),
-            # Intern rules: Only the minimal code needed for loading policies
+            # Intern rules: Essential metta code for loading policies
             (
                 "intern",
                 [
-                    # Just intern the policy record - this is all we need for loading
                     "metta.agent.policy_record",
-                    # Include other agent modules that policies might need
                     "metta.agent.lib.**",
                     "metta.agent.util.**",
                     "metta.agent.metta_agent",
                     "metta.agent.brain_policy",
                     "metta.agent.policy_state",
-                    # Include utility modules that agent code depends on
                     "metta.util.omegaconf",
                     "metta.util.runtime_configuration",
                     "metta.util.logger",
@@ -518,27 +495,13 @@ class PolicyStore:
                     "metta.util.resolvers",
                 ],
             ),
-            # Mock rules: Libraries to completely exclude from the package
+            # Mock rules: Exclude these completely
             (
                 "mock",
                 [
-                    "wandb",
-                    "wandb.**",
-                    "pufferlib",
-                    "pufferlib.**",
-                    "pydantic",
-                    "pydantic.**",
-                    "boto3",
-                    "boto3.**",
-                    "botocore",
-                    "botocore.**",
-                    "duckdb",
-                    "duckdb.**",
-                    "pandas",
-                    "pandas.**",
-                    "typing_extensions",
-                    "seaborn",
-                    "plotly",
+                    "wandb.**", "pufferlib.**", "pydantic.**",
+                    "boto3.**", "botocore.**", "duckdb.**", "pandas.**",
+                    "typing_extensions", "seaborn", "plotly",
                 ],
             ),
         ]
@@ -552,7 +515,6 @@ class PolicyStore:
         if policy_module:
             if policy_module == "__main__":
                 import inspect
-
                 try:
                     source = inspect.getsource(policy_class)
                     exporter.save_source_string("__main__", f"import torch\nimport torch.nn as nn\n\n{source}")
