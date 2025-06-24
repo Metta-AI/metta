@@ -420,7 +420,7 @@ class MettaTrainer:
                 # Store LSTM state for performance
                 lstm_state_to_store = None
                 if state.lstm_h is not None:
-                    lstm_state_to_store = {"lstm_h": state.lstm_h, "lstm_c": state.lstm_c}
+                    lstm_state_to_store = {"lstm_h": state.lstm_h.detach(), "lstm_c": state.lstm_c.detach()}
 
                 if str(self.device).startswith("cuda"):
                     torch.cuda.synchronize()
