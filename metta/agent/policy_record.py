@@ -106,6 +106,7 @@ class PolicyRecord:
 
     def _clean_metadata_for_packaging(self, metadata: dict) -> dict:
         """Clean metadata to remove non-serializable objects."""
+
         def clean_value(v):
             if hasattr(v, "__module__") and v.__module__ and "wandb" in v.__module__:
                 return None

@@ -10,7 +10,6 @@ The PolicyStore is used by the training system to manage opponent policies and c
 """
 
 import collections
-import copy
 import logging
 import os
 import random
@@ -200,9 +199,7 @@ class PolicyStore:
 
                 # Save the policy and metadata
                 clean_metadata = pr._clean_metadata_for_packaging(pr.metadata)
-                exporter.save_pickle(
-                    "policy_record", "data.pkl", PolicyRecord(None, pr.name, pr.uri, clean_metadata)
-                )
+                exporter.save_pickle("policy_record", "data.pkl", PolicyRecord(None, pr.name, pr.uri, clean_metadata))
                 exporter.save_pickle("policy", "model.pkl", policy)
 
         except Exception as e:
@@ -469,12 +466,24 @@ class PolicyStore:
             (
                 "extern",
                 [
-                    "sys", "torch.**", "numpy.**", "scipy.**", "sklearn.**",
-                    "matplotlib.**", "gymnasium.**", "gym.**", "tensordict.**",
-                    "einops.**", "hydra.**", "omegaconf.**",
-                    "mettagrid.**", "metta.mettagrid.**",
-                    "metta.util.config", "metta.rl.vecenv",
-                    "metta.eval.dashboard_data", "metta.sim.simulation_config",
+                    "sys",
+                    "torch.**",
+                    "numpy.**",
+                    "scipy.**",
+                    "sklearn.**",
+                    "matplotlib.**",
+                    "gymnasium.**",
+                    "gym.**",
+                    "tensordict.**",
+                    "einops.**",
+                    "hydra.**",
+                    "omegaconf.**",
+                    "mettagrid.**",
+                    "metta.mettagrid.**",
+                    "metta.util.config",
+                    "metta.rl.vecenv",
+                    "metta.eval.dashboard_data",
+                    "metta.sim.simulation_config",
                     "metta.agent.policy_store",
                 ],
             ),
@@ -499,9 +508,16 @@ class PolicyStore:
             (
                 "mock",
                 [
-                    "wandb.**", "pufferlib.**", "pydantic.**",
-                    "boto3.**", "botocore.**", "duckdb.**", "pandas.**",
-                    "typing_extensions", "seaborn", "plotly",
+                    "wandb.**",
+                    "pufferlib.**",
+                    "pydantic.**",
+                    "boto3.**",
+                    "botocore.**",
+                    "duckdb.**",
+                    "pandas.**",
+                    "typing_extensions",
+                    "seaborn",
+                    "plotly",
                 ],
             ),
         ]
@@ -515,6 +531,7 @@ class PolicyStore:
         if policy_module:
             if policy_module == "__main__":
                 import inspect
+
                 try:
                     source = inspect.getsource(policy_class)
                     exporter.save_source_string("__main__", f"import torch\nimport torch.nn as nn\n\n{source}")
