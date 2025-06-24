@@ -20,24 +20,16 @@ game:
     altar:
       input_battery.red: 1
       output_heart: 1
-      max_output: 5
       conversion_ticks: 1
-      cooldown: ${sampling:1, 20, 10}
       initial_items: 1
 
     mine_red:
       output_ore.red: 1
-      color: 0
-      max_output: 5
       conversion_ticks: 1
-      cooldown: ${sampling:0, 100, 50}
       initial_items: 1
 
     generator_red:
       input_ore.red: 1
       output_battery.red: 1
-      color: 0
-      max_output: 5
       conversion_ticks: 1
-      cooldown: ${sampling:0, 50, 25}
       initial_items: 1
