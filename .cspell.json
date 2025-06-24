@@ -74,6 +74,7 @@
     "fvisibility",
     "GBENCHMARK",
     "getline",
+    "getsizeof",
     "googlebenchmark",
     "googletest",
     "griddly",

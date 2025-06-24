@@ -1,9 +1,6 @@
-import logging
 import sys
 
-import pytest
-
-from metta.common.memory import get_object_size, log_object_memory
+from metta.common.memory import get_object_size
 
 
 def test_basic_memory_calculation():
@@ -46,36 +43,3 @@ def test_memory_growth():
 
     assert get_object_size(small) < get_object_size(large)
     assert get_object_size(large) > 100000  # Should be > 100KB
-
-
-def test_logging_output(caplog):
-    """Test that logging produces correct output."""
-    test_data = {"key": [1, 2, 3] * 100}
-
-    # Test with name
-    with caplog.at_level(logging.INFO):
-        log_object_memory(test_data, "test_data", logging.INFO)
-
-    assert len(caplog.records) == 1
-    assert caplog.records[0].levelno == logging.INFO
-    assert "Memory usage for 'test_data':" in caplog.text
-    assert "MB" in caplog.text
-    assert "bytes" in caplog.text
-
-    # Test without name
-    caplog.clear()
-    with caplog.at_level(logging.INFO):
-        log_object_memory(test_data)
-
-    assert f"Memory usage for 'Object_{id(test_data)}':" in caplog.text
-
-    # Test different log level
-    caplog.clear()
-    with caplog.at_level(logging.DEBUG):
-        log_object_memory(test_data, "debug_test", logging.DEBUG)
-
-    assert caplog.records[0].levelno == logging.DEBUG
-
-
-if __name__ == "__main__":
-    pytest.main([__file__, "-v"])

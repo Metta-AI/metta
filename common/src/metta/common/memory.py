@@ -1,8 +1,5 @@
-import logging
 import sys
-from typing import Any, Optional
-
-logger = logging.getLogger(__name__)
+from typing import Any
 
 
 def get_object_size(obj: Any) -> int:
@@ -22,12 +19,3 @@ def get_object_size(obj: Any) -> int:
         size += sum(sys.getsizeof(v) for v in obj.__dict__.values())
 
     return size
-
-
-def log_object_memory(obj: Any, name: Optional[str] = None, level: int = logging.INFO) -> None:
-    """Log the memory usage of a specific object."""
-    obj_name = name or f"Object_{id(obj)}"
-    size_bytes = get_object_size(obj)
-    size_mb = size_bytes / (1024 * 1024)
-
-    logger.log(level, f"Memory usage for '{obj_name}': {size_mb:.2f} MB ({size_bytes:,} bytes)")

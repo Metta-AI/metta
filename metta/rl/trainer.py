@@ -19,7 +19,7 @@ from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
 from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyRecord, PolicyStore
 from metta.agent.util.debug import assert_shape
-from metta.common.memory import log_object_memory
+from metta.common.memory import get_object_size
 from metta.common.stopwatch import Stopwatch, with_instance_timer
 from metta.eval.eval_stats_db import EvalStatsDB
 from metta.mettagrid.curriculum.util import curriculum_from_config_path
@@ -480,9 +480,6 @@ class MettaTrainer:
                     except TypeError:
                         self.stats[k] = [self.stats[k], v]  # fallback: bundle as list
 
-        log_object_memory(infos, "infos")
-        log_object_memory(self.stats, "stats")
-
         # TODO: Better way to enable multiple collects
         return self.stats, infos
 
@@ -886,6 +883,18 @@ class MettaTrainer:
             "num_minibatches": self.experience.num_minibatches,
         }
 
+        memory_stats = {
+            "memory_use/self.stats": get_object_size(self.stats),
+            "memory_use/self.losses": get_object_size(self.losses),
+            "memory_use/self.experience": get_object_size(self.experience),
+            "memory_use/self.policy": get_object_size(self.policy),
+            "memory_use/self.optimizer": get_object_size(self.optimizer),
+            "memory_use/self.evals": get_object_size(self.evals),
+            "memory_use/self.vecenv": get_object_size(self.vecenv),
+            "memory_use/self.timer": get_object_size(self.timer),
+            "memory_use/self.system_monitor": get_object_size(self.system_monitor),
+        }
+
         self.wandb_run.log(
             {
                 **{f"overview/{k}": v for k, v in overview.items()},
@@ -898,6 +907,7 @@ class MettaTrainer:
                 **weight_stats,
                 **timing_stats,
                 **metric_stats,
+                **memory_stats,
             }
         )
 
