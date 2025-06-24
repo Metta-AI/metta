@@ -12,5 +12,5 @@ game:
     heart_prob: ${sampling:0.05,0.15,0.1}
     objects:
       altar: ${sampling:5,15,10}
-      mine.red: ${sampling:5,15,10}
-      generator.red: ${sampling:5,15,10}
+      mine_red: ${sampling:5,15,10}
+      generator_red: ${sampling:5,15,10}

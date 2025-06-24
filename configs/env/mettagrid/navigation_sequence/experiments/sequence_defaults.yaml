@@ -33,16 +33,16 @@ game:
       agents: 1
       dir: ???
       objects:
-        mine.red: ${sampling:5,20,15}
-        generator.red: ${sampling:5,20,15}
+        mine_red: ${sampling:5,20,15}
+        generator_red: ${sampling:5,20,15}
         altar: 5
   objects:
     altar:
       input_battery.red: 1
       initial_items: 0
       cooldown: 1
-    generator.red:
+    generator_red:
       initial_items: 0
       cooldown: ${sampling:100,500,100}
-    mine.red:
+    mine_red:
       cooldown: ${sampling:100,500,100}

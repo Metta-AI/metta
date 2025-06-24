@@ -49,8 +49,8 @@ game:
     altar:
       initial_items: 0
       cooldown: 25
-    generator.red:
+    generator_red:
       initial_items: 0
       cooldown: 30
-    mine.red:
+    mine_red:
       cooldown: 30

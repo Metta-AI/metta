@@ -9,7 +9,6 @@ from omegaconf import OmegaConf
 
 import mettascope.server as server
 from metta.agent.policy_store import PolicyStore
-from metta.mettagrid.util.file import http_url
 from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SingleEnvSimulationConfig
 from metta.util.config import Config, setup_metta_environment
