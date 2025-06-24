@@ -6,15 +6,6 @@ import { Drawer } from "@/lib/draw/Drawer";
 import { drawGrid } from "@/lib/draw/drawGrid";
 import { Cell, MettaGrid } from "@/lib/MettaGrid";
 
-type CellHandler = (cell: Cell | undefined) => void;
-
-type Props = {
-  grid: MettaGrid;
-  onCellHover?: CellHandler;
-  selectedCell?: Cell;
-  onCellSelect?: CellHandler;
-};
-
 function useDrawer(): Drawer | undefined {
   const [drawer, setDrawer] = useState<Drawer | undefined>();
   useEffect(() => {
@@ -31,7 +22,41 @@ function useCallOnWindowResize(callback: () => void) {
   }, [callback]);
 }
 
-const DebugInfo: FC<{ canvas: HTMLCanvasElement | null }> = ({ canvas }) => {
+function useSpacePressed(): boolean {
+  const [spacePressed, setSpacePressed] = useState(false);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === " ") {
+        event.preventDefault();
+        event.stopPropagation();
+        setSpacePressed(true);
+      }
+    };
+    const handleKeyUp = (event: KeyboardEvent) => {
+      if (event.key === " ") {
+        event.preventDefault();
+        event.stopPropagation();
+        setSpacePressed(false);
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    document.addEventListener("keyup", handleKeyUp);
+
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      document.removeEventListener("keyup", handleKeyUp);
+    };
+  }, []);
+
+  return spacePressed;
+}
+
+const DebugInfo: FC<{
+  canvas: HTMLCanvasElement | null;
+  pan: { x: number; y: number };
+  zoom: number;
+}> = ({ canvas, pan, zoom }) => {
   if (!canvas) return null;
 
   const round = (x: number) => Math.round(x * 100) / 100;
@@ -48,41 +73,22 @@ const DebugInfo: FC<{ canvas: HTMLCanvasElement | null }> = ({ canvas }) => {
         Bounding rect: {round(canvas.getBoundingClientRect().width)}x
         {round(canvas.getBoundingClientRect().height)}
       </div>
+      <div>
+        Pan: {round(pan.x)}x{round(pan.y)}
+      </div>
+      <div>Zoom: {round(zoom)}</div>
     </div>
   );
 };
 
-const Overlay: FC<{
-  cellSize: number;
-  hoveredCell?: Cell;
+type CellHandler = (cell: Cell | undefined) => void;
+
+type Props = {
+  grid: MettaGrid;
+  onCellHover?: CellHandler;
   selectedCell?: Cell;
-}> = ({ cellSize, hoveredCell, selectedCell }) => {
-  return (
-    <>
-      {hoveredCell && (
-        <div
-          className="absolute border border-blue-500"
-          style={{
-            left: hoveredCell?.c * cellSize,
-            top: hoveredCell?.r * cellSize,
-            width: cellSize + 2,
-            height: cellSize + 2,
-          }}
-        ></div>
-      )}
-      {selectedCell && (
-        <div
-          className="absolute border border-red-500"
-          style={{
-            left: selectedCell?.c * cellSize,
-            top: selectedCell?.r * cellSize,
-            width: cellSize + 2,
-            height: cellSize + 2,
-          }}
-        ></div>
-      )}
-    </>
-  );
+  onCellSelect?: CellHandler;
+  panOnSpace?: boolean;
 };
 
 export const MapViewer: FC<Props> = ({
@@ -90,33 +96,27 @@ export const MapViewer: FC<Props> = ({
   onCellHover,
   onCellSelect,
   selectedCell,
+  panOnSpace,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  const dpr = window.devicePixelRatio || 1;
+  const dpr = typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
+
+  const spacePressed = useSpacePressed();
 
   const { setContainer, panZoomHandlers, setZoom, setPan, pan, zoom } =
     usePanZoom({
       minZoom: 1,
       maxZoom: 10,
       zoomSensitivity: 0.007,
+      enablePan: !panOnSpace || spacePressed,
     });
-
-  console.log("pan", pan, "zoom", zoom);
 
   const drawer = useDrawer();
 
   const [hoveredCell, setHoveredCell] = useState<Cell | undefined>();
 
   const [scale, setScale] = useState(0);
-
-  const initCanvasRef = useCallback(
-    (el: HTMLCanvasElement | null) => {
-      canvasRef.current = el;
-      setContainer(el);
-    },
-    [setContainer]
-  );
 
   // measure cell size and set canvas dimensions
   const initCanvas = useCallback(() => {
@@ -133,18 +133,32 @@ export const MapViewer: FC<Props> = ({
     const heightBasedSize = canvas.height / grid.height;
 
     setScale(Math.min(widthBasedSize, heightBasedSize));
-  }, [grid]);
+  }, [grid.width, grid.height]);
+
+  const recenter = useCallback(() => {
+    if (!scale || !canvasRef.current) return;
+    const canvas = canvasRef.current;
+    setPan({
+      x: (canvas.width - grid.width * scale) / (2 * dpr),
+      y: (canvas.height - grid.height * scale) / (2 * dpr),
+    });
+    setZoom(1);
+  }, [scale, setPan, setZoom]);
 
   useEffect(() => {
     initCanvas();
+    recenter(); // intentionally not in the dependency array
   }, [initCanvas]);
 
   const transform = useMemo(() => {
-    // Apply translation before scaling so that the pan values are not affected by the zoom factor.
-    // This keeps the point under the cursor fixed while zooming.
+    if (!canvasRef.current) return new DOMMatrixReadOnly();
+    const ox = canvasRef.current.width / 2;
+    const oy = canvasRef.current.height / 2;
     return new DOMMatrixReadOnly()
+      .translate(pan.x * dpr, pan.y * dpr)
+      .translate(ox, oy)
       .scale(zoom)
-      .translate(-pan.x * dpr, -pan.y * dpr)
+      .translate(-ox, -oy)
       .scale(scale);
   }, [zoom, pan, scale, dpr]);
 
@@ -167,7 +181,19 @@ export const MapViewer: FC<Props> = ({
       context,
       drawer,
     });
-  }, [drawer, grid, transform]);
+
+    context.lineWidth = 0.03;
+
+    if (hoveredCell && grid.cellInGrid(hoveredCell)) {
+      context.strokeStyle = "red";
+      context.strokeRect(hoveredCell.c, hoveredCell.r, 1, 1);
+    }
+
+    if (selectedCell && grid.cellInGrid(selectedCell)) {
+      context.strokeStyle = "blue";
+      context.strokeRect(selectedCell.c, selectedCell.r, 1, 1);
+    }
+  }, [drawer, grid, transform, hoveredCell, selectedCell]);
 
   useCallOnWindowResize(initCanvas);
 
@@ -178,15 +204,19 @@ export const MapViewer: FC<Props> = ({
   // useStressTest(draw, canvasRef.current);
 
   const cellFromMouseEvent = useCallback(
-    (e: React.MouseEvent<HTMLCanvasElement>): Cell | null => {
+    (e: React.MouseEvent<HTMLCanvasElement>): Cell | undefined => {
       const point = transform.inverse().transformPoint({
         x: e.nativeEvent.offsetX * dpr,
         y: e.nativeEvent.offsetY * dpr,
       });
-      return {
+      const cell = {
         r: Math.floor(point.y),
         c: Math.floor(point.x),
       };
+      if (!grid.cellInGrid(cell)) {
+        return undefined;
+      }
+      return cell;
     },
     [transform, grid]
   );
@@ -194,7 +224,6 @@ export const MapViewer: FC<Props> = ({
   const onMouseMove = useCallback(
     (e: React.MouseEvent<HTMLCanvasElement>) => {
       const cell = cellFromMouseEvent(e);
-      if (!cell) return;
 
       setHoveredCell(cell);
       onCellHover?.(cell);
@@ -207,9 +236,8 @@ export const MapViewer: FC<Props> = ({
       if (!onCellSelect) return;
 
       const cell = cellFromMouseEvent(e);
-      if (!cell) return;
 
-      if (grid.object(cell)) {
+      if (cell && grid.object(cell)) {
         onCellSelect(cell);
       } else {
         onCellSelect(undefined);
@@ -219,36 +247,24 @@ export const MapViewer: FC<Props> = ({
   );
 
   return (
-    <div className="relative flex h-screen w-full overflow-hidden">
+    <div
+      className="relative flex h-screen max-h-[600px] w-full overflow-hidden"
+      {...panZoomHandlers}
+      ref={setContainer}
+    >
       <canvas
-        ref={initCanvasRef}
-        {...panZoomHandlers}
-        onDoubleClick={() => {
-          // Reset on double click
-          setZoom(1);
-          setPan({ x: 0, y: 0 });
-        }}
+        ref={canvasRef}
+        onDoubleClick={recenter}
         // Canvas takes all available space.
         className="h-full w-full cursor-grab overflow-hidden"
-        // ref={canvasRef}
-        // onMouseMove={onMouseMove}
-        // onMouseLeave={() => {
-        //   setHoveredCell(undefined);
-        //   onCellHover?.(undefined);
-        // }}
+        onMouseMove={onMouseMove}
+        onMouseLeave={() => {
+          setHoveredCell(undefined);
+          onCellHover?.(undefined);
+        }}
         onClick={onMouseClick}
-        // className="h-full max-h-full w-full max-w-full"
       />
-      <DebugInfo canvas={canvasRef.current} />
-      {canvasRef.current && (
-        <div className="pointer-events-none absolute inset-0 z-10">
-          <Overlay
-            cellSize={canvasRef.current?.clientWidth / grid.width}
-            hoveredCell={hoveredCell}
-            selectedCell={selectedCell}
-          />
-        </div>
-      )}
+      {/* <DebugInfo canvas={canvasRef.current} pan={pan} zoom={zoom} /> */}
     </div>
   );
 };

@@ -6,6 +6,7 @@ import TextareaAutosize from "react-textarea-autosize";
 import { Button } from "@/components/Button";
 import { MapViewer } from "@/components/MapViewer";
 import { NumberInput } from "@/components/NumberInput";
+import { useIsMouseDown } from "@/hooks/useIsMouseDown";
 import { loadMettaTileSets } from "@/lib/draw/mettaTileSets";
 import { TileSetCollection } from "@/lib/draw/TileSet";
 import { Cell, MettaGrid, ObjectName } from "@/lib/MettaGrid";
@@ -88,6 +89,8 @@ export default function MapEditorPage() {
 
   const asciiPreview = useMemo(() => grid.toAscii(), [grid]);
 
+  const isMouseDown = useIsMouseDown();
+
   return (
     <div className="map-editor">
       <div className="flex items-end gap-1">
@@ -134,7 +137,16 @@ export default function MapEditorPage() {
         />
       </div>
       <div className="max-h-screen">
-        <MapViewer grid={grid} onCellSelect={drawCell} />
+        <MapViewer
+          grid={grid}
+          onCellSelect={drawCell}
+          onCellHover={(cell) => {
+            if (isMouseDown) {
+              drawCell(cell);
+            }
+          }}
+          panOnSpace
+        />
       </div>
       <AsciiPreview ascii={asciiPreview} />
     </div>

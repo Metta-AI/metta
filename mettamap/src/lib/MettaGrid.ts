@@ -181,4 +181,10 @@ export class MettaGrid {
       objects: newObjects,
     });
   }
+
+  cellInGrid(cell: Cell): boolean {
+    return (
+      cell.r >= 0 && cell.r < this.height && cell.c >= 0 && cell.c < this.width
+    );
+  }
 }
