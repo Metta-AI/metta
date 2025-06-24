@@ -101,9 +101,8 @@ class ContrastiveLearning:
     def _generate_positive_pairs(self, batch_size: int, seq_len: int) -> Tensor:
         """Generate positive pairs using geometric distribution."""
         # Sample temporal distances from geometric distribution
-        temporal_distances = torch.geometric(
-            torch.ones(batch_size, seq_len, device=self.device) * self.geometric_p
-        )
+        geometric_dist = torch.distributions.Geometric(probs=self.geometric_p)
+        temporal_distances = geometric_dist.sample((batch_size, seq_len)).to(self.device)
 
         # Clip to maximum distance
         temporal_distances = torch.clamp(temporal_distances, 1, self.max_temporal_distance)
@@ -133,9 +132,11 @@ class ContrastiveLearning:
         anchor_batch = torch.arange(batch_size, device=self.device).repeat_interleave(seq_len)
         anchor_time = torch.arange(seq_len, device=self.device).repeat(batch_size)
 
-        # Random negative batch and time indices
-        negative_batch = torch.randint(0, batch_size, (num_negatives,), device=self.device)
-        negative_time = torch.randint(0, seq_len, (num_negatives,), device=self.device)
+        # Random negative batch and time indices using uniform distribution
+        uniform_batch = torch.distributions.Uniform(0, batch_size)
+        uniform_time = torch.distributions.Uniform(0, seq_len)
+        negative_batch = uniform_batch.sample((num_negatives,)).long().to(self.device)
+        negative_time = uniform_time.sample((num_negatives,)).long().to(self.device)
 
         # Stack into pairs
         negative_pairs = torch.stack([anchor_batch, anchor_time, negative_batch, negative_time], dim=1)
