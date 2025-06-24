@@ -18,6 +18,10 @@ class Curriculum:
         """Return a list of completed task identifiers."""
         pass
 
+    def get_completion_rates(self):
+        """Return a dictionary of completion rates for each task."""
+        pass
+
 
 class Task:
     def __init__(self, id: str, curriculum: "Curriculum", env_cfg: Optional[DictConfig] = None):
