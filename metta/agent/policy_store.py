@@ -199,9 +199,9 @@ class PolicyRecord:
 
     def _apply_packaging_rules(self, exporter, policy_module: Optional[str], policy_class: type) -> None:
         """Apply packaging rules to the exporter based on a configuration."""
-        # Define packaging rules
+        # Define packaging rules using a more robust "opt-out" strategy
         rules = [
-            # Extern rules - modules we don't want to package
+            # Extern rules: Third-party libs and modules with pydantic dependencies
             (
                 "extern",
                 [
@@ -218,53 +218,38 @@ class PolicyRecord:
                     "einops.**",
                     "hydra.**",
                     "omegaconf.**",
-                    # Torch extensions (no recursive pattern needed)
+                    # Torch extensions (no recursive glob needed)
                     "torch_scatter",
                     "torch_geometric",
                     "torch_sparse",
-                    # C extensions
-                    "mettagrid",
+                    # Extern all of mettagrid and its C extensions (contains pydantic)
                     "mettagrid.**",
-                    "metta.mettagrid.mettagrid_c",
-                    # All mettagrid modules (contain pydantic dependencies)
                     "metta.mettagrid.**",
-                    # Specific metta modules with pydantic dependencies
+                    # Extern specific metta modules that have pydantic dependencies (opt-out)
                     "metta.util.config",
                     "metta.rl.vecenv",
                     "metta.eval.dashboard_data",
                     "metta.sim.simulation_config",
                 ],
             ),
-            # Intern rules - metta modules we want to package
+            # Intern rules: All our code, except for the externed modules above
             (
                 "intern",
                 [
                     "metta.agent.**",
                     "metta.map.**",
-                    "metta.rl.policy",
-                    "metta.rl.experience",
-                    "metta.rl.carbs",
-                    "metta.rl.fast_gae",
-                    "metta.rl.trainer",
-                    "metta.eval.analysis*",
-                    "metta.sim.simulation",
-                    "metta.sim.map_preview",
-                    "metta.util.omegaconf",
-                    "metta.util.runtime_configuration",
-                    "metta.util.logger",
-                    "metta.util.decorators",
-                    "metta.util.resolvers",
+                    "metta.rl.**",
+                    "metta.eval.**",
+                    "metta.sim.**",
+                    "metta.util.**",
                 ],
             ),
-            # Mock rules - modules we want to completely exclude
+            # Mock rules: Libraries to completely exclude from the package
             (
                 "mock",
                 [
                     "wandb",
-                    "wandb.*",
-                    "wandb.sdk",
-                    "wandb.sdk.**",
-                    "wandb.sdk.wandb_run",
+                    "wandb.**",
                     "pufferlib",
                     "pufferlib.**",
                     "pydantic",
@@ -284,15 +269,14 @@ class PolicyRecord:
             ),
         ]
 
-        # Apply rules
+        # Apply rules from the configuration
         for action, patterns in rules:
             for pattern in patterns:
                 getattr(exporter, action)(pattern)
 
-        # Handle special cases for the policy module
+        # Handle special cases for the policy's own module
         if policy_module:
             if policy_module == "__main__":
-                # Try to include source for __main__ modules
                 import inspect
 
                 try:
@@ -301,7 +285,7 @@ class PolicyRecord:
                 except Exception:
                     exporter.extern("__main__")
             elif "test" in policy_module:
-                # Test modules should be externed
+                # Extern test modules to prevent them from being packaged
                 exporter.extern(policy_module)
 
     def save(self, path: str, policy: nn.Module) -> "PolicyRecord":
