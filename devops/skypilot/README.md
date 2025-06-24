@@ -5,7 +5,6 @@ This script provides a convenient way to launch training jobs on AWS using SkyPi
 ## Prerequisites
 
 - AWS credentials configured with `softmax` profile
-- Access to AWS ECR in us-east-1 region
 - SkyPilot CLI installed and configured
 - Git repository with pushed commits (unless using `--skip-git-check`)
 
@@ -28,11 +27,20 @@ For a complete list of optional parameters and their descriptions, use:
 ./devops/skypilot/launch.py --help
 ```
 
+## Accessing the Dashboard
+
+There's a [web dashboard](https://skypilot-api.softmax-research.net/) that displays the status of all clusters and jobs.
+
+To sign in, you'll need user/password credentials. You can obtain these by peeking into the URL in your `~/.sky/config.yaml`, or by running `sky api info`.
+
+Warning: if you click the URL with `https://user:password@...` pair in the terminal, it will load the dashboard, but it might show up as empty. To fix this, you'll need to open a new tab with the [dashboard](https://skypilot-api.softmax-research.net/) **without** the user:password pair.
+
 ## Examples
 
 ### Basic Usage
 
 1. **Launch a training run with default parameters:**
+
    ```bash
    devops/skypilot/launch.py train run=my_experiment_001
    ```
@@ -45,11 +53,13 @@ For a complete list of optional parameters and their descriptions, use:
 ### Resource Configuration
 
 3. **Use multiple GPUs:**
+
    ```bash
    devops/skypilot/launch.py train run=gpu_experiment --gpus 4
    ```
 
 4. **Multi-node training:**
+
    ```bash
    devops/skypilot/launch.py train run=distributed_training --nodes 2 --gpus 8
    ```
@@ -62,6 +72,7 @@ For a complete list of optional parameters and their descriptions, use:
 ### Time Management
 
 6. **Quick 30-minute experiment:**
+
    ```bash
    devops/skypilot/launch.py train run=quick_test --timeout-hours 0.5
    ```
@@ -74,11 +85,13 @@ For a complete list of optional parameters and their descriptions, use:
 ### Advanced Usage
 
 8. **Launch multiple identical experiments:**
+
    ```bash
    devops/skypilot/launch.py train run=ablation_study --copies 5 --timeout-hours 2
    ```
 
 9. **Use specific git commit:**
+
    ```bash
    devops/skypilot/launch.py train run=reproducible_exp --git-ref abc123def
    ```
@@ -90,24 +103,24 @@ For a complete list of optional parameters and their descriptions, use:
 
 The `--confirm` flag displays a detailed job summary before launching:
 
-   ```sh
-   ============================================================
-   Job details:
-   ============================================================
-   Name: my_experiment_001
-   GPUs: 1x A10G
-   CPUs: 8+
-   Spot Instances: Yes
-   Auto-termination: 2h
-   Git Reference: 56e04aa725000f186ec1bb2de84b359b4f273947
-   ------------------------------------------------------------
-   Command: train
-   Task Arguments:
-   1. trainer.curriculum=env/mettagrid/curriculum/navigation
-   2. trainer.learning_rate=0.001
-   ============================================================
-   Should we launch this task? (Y/n):
-   ```
+```sh
+============================================================
+Job details:
+============================================================
+Name: my_experiment_001
+GPUs: 1x A10G
+CPUs: 8+
+Spot Instances: Yes
+Auto-termination: 2h
+Git Reference: 56e04aa725000f186ec1bb2de84b359b4f273947
+------------------------------------------------------------
+Command: train
+Task Arguments:
+1. trainer.curriculum=env/mettagrid/curriculum/navigation
+2. trainer.learning_rate=0.001
+============================================================
+Should we launch this task? (Y/n):
+```
 
 11. **Dry run:**
     ```bash
@@ -117,6 +130,7 @@ The `--confirm` flag displays a detailed job summary before launching:
 The `--dry-run` flag allows you to preview the configuration that will be used before launching.
 
 It will output the complete YAML configuration that would be used for the deployment, including:
+
 - Resource specifications (cloud provider, instance types, GPUs)
 - Docker configurations
 - Environment variables
@@ -157,6 +171,7 @@ sky jobs cancel -n "experiment_*"
 ### Job Status
 
 Jobs can have the following statuses:
+
 - `PENDING`: Waiting for resources
 - `RUNNING`: Currently executing
 - `SUCCEEDED`: Completed successfully
@@ -179,42 +194,28 @@ This script also sets `AWS_PROFILE=softmax` automatically.
 
 ### Available Aliases
 
+`source ./devops/skypilot/setup_shell.sh` to configure some convenient aliases.
+
 #### Job Queue Management
-- `jq` - List active jobs (skips finished jobs)
-  ```bash
-  jq  # Equivalent to: sky jobs queue --skip-finished
-  ```
+
+- `jj` - List active jobs (skips finished jobs)
 - `jqa` - List all jobs including finished ones
-  ```bash
-  jqa  # Equivalent to: sky jobs queue
-  ```
 
 #### Job Control
-- `jk` - Cancel a job
-  ```bash
-  jk <JOB_ID>  # Equivalent to: sky jobs cancel <JOB_ID>
-  ```
+
+- `jk <JOB_ID>` - Cancel a job
+- `jka` - Cancel all jobs
 
 #### Logs
-- `jl` - View job logs
-  ```bash
-  jl <JOB_ID>  # Equivalent to: sky jobs logs <JOB_ID>
-  ```
-- `jlc` - View controller logs (useful for debugging)
-  ```bash
-  jlc <JOB_ID>  # Equivalent to: sky jobs logs --controller <JOB_ID>
-  ```
+
+- `jl <JOB_ID>` - View job logs
+- `jlc <JOB_ID>` - View controller logs (useful for debugging)
 - `jll` - View logs for the most recent job
-  ```bash
-  jll  # Automatically gets logs for the latest running job
-  ```
 - `jllc` - View controller logs for the most recent job
-  ```bash
-  jllc  # Automatically gets controller logs for the latest running job
-  ```
 
 #### Launching
-- `lt` - Quick launch training jobs
+
+- `lt run=<NAME>` - Quick launch training jobs
   ```bash
   lt run=my_experiment_001  # Equivalent to: ./devops/skypilot/launch.py train run=my_experiment_001
   ```
@@ -277,6 +278,7 @@ sky down <cluster_name>
 ## Configuration
 
 The script uses `./devops/skypilot/config/sk_train.yaml` as the base configuration. This file defines:
+
 - Default resource requirements (CPU, GPU, memory)
 - Docker image settings
 - Environment variables
@@ -285,6 +287,7 @@ The script uses `./devops/skypilot/config/sk_train.yaml` as the base configurati
 ### Environment Variables
 
 The following environment variables are automatically set:
+
 - `METTA_RUN_ID`: The run identifier
 - `METTA_CMD`: The command being executed
 - `METTA_CMD_ARGS`: Additional command arguments
@@ -309,6 +312,7 @@ sky jobs queue -a
 ## Best Practices
 
 1. **Use descriptive run IDs**: Include date, user name, experiment type, and key parameters
+
    ```bash
    lt run=2024_01_15_bert_lr_sweep_001
    ```
