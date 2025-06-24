@@ -77,11 +77,9 @@ echo -e "\nSanity check: verifying all local deps are importable..."
 
 for dep in \
   "pufferlib" \
-  "carbs" \
   "metta.rl.fast_gae" \
   "metta.mettagrid.mettagrid_env" \
-  "metta.mettagrid.mettagrid_c" \
-  "wandb_carbs"; do
+  "metta.mettagrid.mettagrid_c"; do
   uv run python -c "import $dep; print('✅ Found {} at {}'.format('$dep', $dep.__file__))" || {
     echo "❌ Failed to import $dep"
     exit 1
