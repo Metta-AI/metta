@@ -366,7 +366,7 @@ TEST_F(MettaGridCppTest, WallCreation) {
 TEST_F(MettaGridCppTest, ConverterCreation) {
   ObjectConfig converter_cfg;
   converter_cfg["input_ore.red"] = 2;
-  converter_cfg["output_battery"] = 1;
+  converter_cfg["output_battery.red"] = 1;
   converter_cfg["conversion_ticks"] = 5;
   converter_cfg["cooldown"] = 10;
   converter_cfg["initial_items"] = 0;
