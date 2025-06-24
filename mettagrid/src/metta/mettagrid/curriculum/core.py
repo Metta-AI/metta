@@ -14,12 +14,10 @@ class Curriculum:
         # logger.info(f"Task completed: {id} -> {score:.5f}")
         pass
 
-
     @abstractmethod
     def completed_tasks(self) -> List[str]:
         """Return a list of completed task identifiers."""
         pass
-
 
 
 class Task:
