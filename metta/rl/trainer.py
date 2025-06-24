@@ -1010,19 +1010,19 @@ class MettaTrainer:
         explained_var = torch.nan if var_y == 0 else 1 - (y_true - y_pred).var() / var_y
         self.losses.explained_variance = explained_var.item() if torch.is_tensor(explained_var) else float("nan")
 
-                        # Memory profiling - uncomment to check at end of training
-                if self.epoch % 5 == 0:  # Profile every 5 epochs to reduce log spam
-                    profile_memory(locals(), prefix="TRAIN END", device=self.device)
+        # Memory profiling - uncomment to check at end of training
+        if self.epoch % 5 == 0:  # Profile every 5 epochs to reduce log spam
+            profile_memory(locals(), prefix="TRAIN END", device=self.device)
 
-                    # Check for tensors with gradients
-                    import gc
-                    grad_tensors = 0
-                    for obj in gc.get_objects():
-                        if isinstance(obj, torch.Tensor) and obj.grad is not None:
-                            grad_tensors += 1
+            # Check for tensors with gradients
+            import gc
+            grad_tensors = 0
+            for obj in gc.get_objects():
+                if isinstance(obj, torch.Tensor) and obj.grad is not None:
+                    grad_tensors += 1
 
-                    if grad_tensors > 50:  # Arbitrary threshold
-                        logger.warning(f"WARNING: {grad_tensors} tensors with gradients found after training!")
+            if grad_tensors > 50:  # Arbitrary threshold
+                logger.warning(f"WARNING: {grad_tensors} tensors with gradients found after training!")
 
     def _checkpoint_trainer(self):
         if not self._master:
