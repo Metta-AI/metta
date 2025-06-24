@@ -13,8 +13,12 @@ on:
         required: true
         default: "env/mettagrid/simple"
         type: string
+      commit_to_run:
+        description: "The full commit hash to run the job against (required for manual runs)."
+        required: true
+        type: string
       pr_number:
-        description: "PR number (if applicable, leave empty otherwise)"
+        description: "PR number (for naming/context if running a PR's commit, leave empty otherwise)"
         required: false
         type: string
       num_gpus:
@@ -57,7 +61,14 @@ jobs:
           set -eo pipefail
           PR_NUMBER_TO_USE="${{ github.event.inputs.pr_number || steps.pr_info.outputs.pr_number_for_name_generation || '' }}"
 
-          SHORT_COMMIT_HASH=$(git rev-parse --short HEAD)
+          # Use the provided commit_to_run for SHORT_COMMIT_HASH if available (manual dispatch), otherwise use HEAD
+          if [ -n "${{ github.event.inputs.commit_to_run }}" ]; then
+            SHORT_COMMIT_HASH=$(echo "${{ github.event.inputs.commit_to_run }}" | cut -c1-7)
+            echo "Using provided commit_to_run (${{ github.event.inputs.commit_to_run }}) for run name, short hash: $SHORT_COMMIT_HASH"
+          else
+            SHORT_COMMIT_HASH=$(git rev-parse --short HEAD)
+            echo "Using current HEAD's short commit hash: $SHORT_COMMIT_HASH"
+          fi
 
           if [ -n "$PR_NUMBER_TO_USE" ]; then
             RUN_NAME_BASE="${{ env.RUN_NAME_PREFIX }}.pr${PR_NUMBER_TO_USE}"
@@ -83,7 +94,7 @@ jobs:
           timeout_hours: ${{ github.event.inputs.timeout_hours || env.DEFAULT_TIMEOUT_HOURS }}
           num_gpus: ${{ github.event.inputs.num_gpus || '' }}
           run_name: ${{ steps.generate_run_name.outputs.run_name }} # Pass the fully generated name
-          # git_ref_override: '' # Default in action is current HEAD, pass only if specific override needed.
+          git_ref_override: ${{ github.event.inputs.commit_to_run || '' }} # Pass commit_to_run for manual, default for push
 
       - name: Print Run Information
         shell: bash
