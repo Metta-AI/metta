@@ -138,6 +138,12 @@ class ContrastiveLearning:
         negative_batch = uniform_batch.sample((num_negatives,)).long().to(self.device)
         negative_time = uniform_time.sample((num_negatives,)).long().to(self.device)
 
+        # Ensure all indices are long tensors for proper indexing
+        anchor_batch = anchor_batch.long()
+        anchor_time = anchor_time.long()
+        negative_batch = negative_batch.long()
+        negative_time = negative_time.long()
+
         # Stack into pairs
         negative_pairs = torch.stack([anchor_batch, anchor_time, negative_batch, negative_time], dim=1)
 
