@@ -51,9 +51,9 @@ game:
       initial_items: ${choose:0,1}
       cooldown: ${sampling:1, 20, 10}
 
-    generator.red:
+    generator_red:
       initial_items: ${choose:0,1}
       cooldown: ${sampling:5, 20, 10}
 
-    mine.red:
+    mine_red:
       cooldown: ${sampling:15, 50, 10}
