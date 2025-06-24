@@ -1,8 +1,8 @@
-name: Generate PR Summary
+name: Generate Newsletter
 
 on:
   schedule:
-    - cron: "0 1 * * 6" # F at 5 pm PST
+    - cron: "0 1 * * 6" # Saturday at 1 AM GMT (Friday at 5 PM PST)
   workflow_dispatch:
     inputs:
       days_to_scan:
@@ -23,7 +23,7 @@ on:
         type: boolean
 
 jobs:
-  generate-summary:
+  generate-newsletter:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -49,7 +49,7 @@ jobs:
         with:
           path: |
             .pr-digest-cache/
-          key: pr-cache-${{ github.repository }}-${{ hashFiles('.github/scripts/generate_pr_summary.py') }}
+          key: pr-cache-${{ github.repository }}-${{ hashFiles('.github/scripts/generate_pr_summaries.py') }}
           restore-keys: |
             pr-cache-${{ github.repository }}-
 
@@ -68,7 +68,7 @@ jobs:
           version: "0.7.3"
           enable-cache: true
 
-      - name: Generate Summary
+      - name: Generate Newsletter
         id: summary
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
@@ -77,32 +77,22 @@ jobs:
           DAYS_TO_SCAN: ${{ steps.set-days.outputs.days }}
           FORCE_REFRESH: ${{ inputs.force_refresh || 'false' }}
         run: |
-          uv run .github/scripts/generate_pr_summary.py
-
-      - name: Display Summary (Debug)
-        run: |
-          echo "## PR Summary Generated"
-          echo "Date Range: ${{ steps.pr-digest.outputs.date-range }}"
-          echo "PR Count: ${{ steps.pr-digest.outputs.pr-count }}"
-          echo "Cache Stats: ${{ steps.pr-digest.outputs.cache-stats }}"
-          echo ""
-          echo "## Summary Content:"
-          cat pr_summary_output.txt || echo "No summary generated"
+          uv run .github/scripts/generate_pr_summaries.py
 
       - name: Post to Discord
         if: ${{ !inputs.skip_discord }}
         uses: ./.github/actions/discord-webhook
         with:
           webhook-url: ${{ secrets.DISCORD_WEBHOOK_URL }}
-          content-file: pr_summary_output.txt
+          content-file: discord_summary_output.txt
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: pr-summary-${{ github.run_number }}
+          name: newsletter-${{ github.run_number }}
           path: |
-            pr_digest_output.json
-            pr_summary_output.txt
-            pr_summaries_intermediate.json
-            .pr-digest-cache/
+            discord_summary_output.txt
+            collection_summary_output.txt
+            pr_summary_data.json
+            pr-summaries/

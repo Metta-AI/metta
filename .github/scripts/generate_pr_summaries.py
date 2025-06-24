@@ -44,7 +44,6 @@ class PRSummary:
     technical_notes: str
     impact_level: str  # "minor", "moderate", "major"
     category: str  # "feature", "bugfix", "docs", "refactor", etc.
-    artifact_path: str
 
 
 class GeminiAIClient:
@@ -124,10 +123,8 @@ class GeminiAIClient:
 class PRSummaryGenerator:
     """Enhanced PR summary generator with caching and concurrency."""
 
-    def __init__(self, api_key: str, output_dir: Path = Path("pr-summaries")):
+    def __init__(self, api_key: str):
         self.ai_client = GeminiAIClient(api_key)
-        self.output_dir = output_dir
-        self.output_dir.mkdir(exist_ok=True)
 
     def categorize_pr(self, pr_data: dict) -> str:
         """Enhanced PR categorization."""
@@ -275,9 +272,6 @@ class PRSummaryGenerator:
         category = self.categorize_pr(pr_data)
         impact_level = self.estimate_impact_level(pr_data)
 
-        # Create artifact
-        artifact_path = self._create_artifact(pr_data, parsed, category, impact_level)
-
         return {
             "pr_number": pr_number,
             "title": pr_data["title"],
@@ -290,7 +284,6 @@ class PRSummaryGenerator:
             "technical_notes": parsed["technical_notes"],
             "impact_level": impact_level,
             "category": category,
-            "artifact_path": artifact_path,
         }
 
     def _create_pr_analysis_prompt(self, pr_data: dict, full_diff: str, full_description: str) -> str:
@@ -374,62 +367,6 @@ Maximum 500 words total. Be comprehensive within this limit."""
             parsed["technical_notes"] = notes_match.group(1).strip()
 
         return parsed
-
-    def _create_artifact(self, pr_data: dict, parsed_summary: dict, category: str, impact_level: str) -> str:
-        """Create detailed artifact file."""
-        pr_number = pr_data["number"]
-        artifact_filename = f"pr-{pr_number}-summary.md"
-        artifact_path = self.output_dir / artifact_filename
-
-        content = f"""# PR #{pr_number}: {pr_data["title"]}
-
-**Author:** {pr_data["author"]}
-**Merged:** {pr_data["merged_at"]}
-**Category:** {category.title()}
-**Impact Level:** {impact_level.title()}
-**GitHub URL:** {pr_data["html_url"]}
-
-## Summary
-
-{parsed_summary["summary"]}
-
-## Key Changes
-
-{chr(10).join(f"- {change}" for change in parsed_summary["key_changes"])}
-
-## Developer Impact
-
-{parsed_summary["developer_impact"]}
-
-## Technical Notes
-
-{parsed_summary.get("technical_notes", "No additional technical notes")}
-
-## Original Description
-
-{pr_data.get("body", "No description provided")}
-
-## Labels
-
-{", ".join(pr_data.get("labels", [])) if pr_data.get("labels") else "None"}
-
-<details>
-<summary>Complete Code Diff (Click to expand)</summary>
-
-```diff
-{pr_data.get("diff", "No diff available")}
-```
-
-</details>
-
----
-*Generated using {MODEL_CONFIG["phase1"]} on {datetime.now().isoformat()}*
-"""
-
-        with open(artifact_path, "w", encoding="utf-8") as f:
-            f.write(content)
-
-        return str(artifact_path)
 
     def process_prs_with_cache(self, prs: list, use_parallel: bool = True, max_workers: int = 5) -> list[PRSummary]:
         """Process PRs with caching and optional concurrency."""
@@ -660,17 +597,20 @@ def create_discord_summary(
     return "\n".join(lines)
 
 
-def save_pr_summary_file(pr_summary: PRSummary) -> str:
-    """Save individual PR summary as a simple text file."""
+def save_pr_summary_file(pr_summary: PRSummary, output_dir: Path) -> str:
+    """Save individual PR summary as a simple text file in the specified directory."""
     filename = f"pr_{pr_summary.pr_number}.txt"
+    filepath = output_dir / filename
 
-    content = f"""
-PR #{pr_summary.pr_number}: {pr_summary.title}
+    content = f"""PR #{pr_summary.pr_number}: {pr_summary.title}
+
 Author: {pr_summary.author}
 Merged: {pr_summary.merged_at}
 Category: {pr_summary.category.title()}
 Impact: {pr_summary.impact_level.title()}
 GitHub: {pr_summary.html_url}
+
+================================================================================
 
 SUMMARY
 {pr_summary.summary}
@@ -682,13 +622,16 @@ DEVELOPER IMPACT
 {pr_summary.developer_impact}
 
 TECHNICAL NOTES
-{pr_summary.technical_notes}
+{pr_summary.technical_notes if pr_summary.technical_notes else "No additional technical notes"}
+
+================================================================================
+Generated using {MODEL_CONFIG["phase1"]} on {datetime.now().isoformat()}
 """
 
-    with open(filename, "w", encoding="utf-8") as f:
+    with open(filepath, "w", encoding="utf-8") as f:
         f.write(content)
 
-    return filename
+    return str(filepath)
 
 
 def main():
@@ -701,11 +644,12 @@ def main():
     api_key = os.getenv("GEMINI_API_KEY")
     pr_digest_file = os.getenv("PR_DIGEST_FILE", "pr_digest_output.json")
     date_range = os.getenv("DATE_RANGE", "")
-    repository = os.getenv("REPOSITORY", "")
-    github_run_url = (
-        f"{os.getenv('GITHUB_SERVER_URL', '')}/{os.getenv('GITHUB_REPOSITORY', '')}"
-        f"/actions/runs/{os.getenv('GITHUB_RUN_ID', '')}"
-    )
+
+    # GitHub environment variables
+    github_repository = os.getenv("GITHUB_REPOSITORY")
+    github_server_url = os.getenv("GITHUB_SERVER_URL")
+    github_run_id = os.getenv("GITHUB_RUN_ID")
+    github_run_url = f"{github_server_url}/{github_repository}/actions/runs/{github_run_id}"
 
     if not api_key:
         print("Error: GEMINI_API_KEY not provided")
@@ -735,39 +679,41 @@ def main():
         print("No summaries generated")
         sys.exit(1)
 
-    # Save individual PR summary files
-    print("Saving individual PR summaries...")
-    for pr_summary in pr_summaries:
-        filename = save_pr_summary_file(pr_summary)
-        logging.info(f"Saved {filename}")
+    print(f"✅ Generated {len(pr_summaries)} PR summaries")
 
-    # Generate collection summary and shout outs
+    # Create output directory for individual PR files
+    pr_summaries_dir = Path("pr-summaries")
+    pr_summaries_dir.mkdir(exist_ok=True)
+
+    # Save individual PR summary files
+    print(f"Saving individual PR summaries to {pr_summaries_dir}/...")
+    for pr_summary in pr_summaries:
+        filepath = save_pr_summary_file(pr_summary, pr_summaries_dir)
+        logging.info(f"Saved {filepath}")
+
+    print(f"✅ Saved {len(pr_summaries)} individual PR summary files to {pr_summaries_dir}/")
+
+    # Save structured data for PR summary files
+    with open("pr_summary_data.json", "w") as f:
+        json.dump([asdict(pr) for pr in pr_summaries], f, indent=2)
+    print("✅ Saved pr_summary_data.json")
+
+    # Generate collection summary
     print("Generating collection summary and shout outs...")
-    collection_summary = generator.generate_collection_summary(pr_summaries, date_range, repository)
+    collection_summary = generator.generate_collection_summary(pr_summaries, date_range, github_repository)
+
+    with open("collection_summary_output.txt", "w") as f:
+        f.write(collection_summary)
+    print("✅ Saved collection_summary_output.txt")
 
     # Create Discord-formatted output
+    print("Generating discord summary...")
     discord_summary = create_discord_summary(pr_summaries, collection_summary, date_range, github_run_url)
 
     # Save Discord summary
-    with open("pr_summary_output.txt", "w") as f:
+    with open("discord_summary_output.txt", "w") as f:
         f.write(discord_summary)
-
-    # Save structured data
-    with open("pr_summary_data.json", "w") as f:
-        json.dump([asdict(pr) for pr in pr_summaries], f, indent=2)
-
-    # GitHub outputs
-    github_output = os.getenv("GITHUB_OUTPUT")
-    if github_output:
-        with open(github_output, "a") as f:
-            f.write("summary-file=pr_summary_output.txt\n")
-            f.write("data-file=pr_summary_data.json\n")
-            f.write(f"individual-summaries={len(pr_summaries)}\n")
-
-    print(f"✅ Generated {len(pr_summaries)} comprehensive summaries")
-    print(f"📄 Saved {len(pr_summaries)} individual PR files (pr_XXXX.txt)")
-    print("📊 Discord summary: pr_summary_output.txt")
-    print("📋 Structured data: pr_summary_data.json")
+    print("✅ Saved discord_summary_output.txt")
 
 
 if __name__ == "__main__":
