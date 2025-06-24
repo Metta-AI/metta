@@ -386,9 +386,9 @@ class PolicyStore:
             pr._local_path = path
 
             if not metadata_only:
-                packaged_policy = importer.load_pickle("policy", "model.pkl")
-                pr._policy = packaged_policy
-                self._enrich_metadata_from_policy(pr, packaged_policy)
+                pr._policy = pr.load(path, self._device)
+                if pr._policy is not None:
+                    self._enrich_metadata_from_policy(pr, pr._policy)
 
             self._cached_prs[path] = pr
             return pr
