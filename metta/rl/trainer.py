@@ -298,6 +298,7 @@ class MettaTrainer:
             self._stats_run_id = self._stats_client.create_training_run(name=name, attributes={}, url=url).id
 
         logger.info(f"Training on {self.device}")
+        wandb_policy_name: str | None = None
         while self.agent_step < trainer_cfg.total_timesteps:
             steps_before = self.agent_step
 
@@ -332,8 +333,8 @@ class MettaTrainer:
             # Interval periodic tasks
             self._maybe_save_policy()
             self._maybe_save_training_state()
-            self._maybe_evaluate_policy()
-            self._maybe_upload_policy_record_to_wandb()
+            wandb_policy_name = self._maybe_upload_policy_record_to_wandb()
+            self._maybe_evaluate_policy(wandb_policy_name)
             self._maybe_generate_replay()
             self._maybe_update_l2_weights()
 
@@ -733,7 +734,7 @@ class MettaTrainer:
         logger.info(f"Saved policy locally: {name}")
         return self.latest_saved_policy_record
 
-    def _maybe_upload_policy_record_to_wandb(self, force=False):
+    def _maybe_upload_policy_record_to_wandb(self, force: bool = False) -> str | None:
         """Upload policy to wandb if on wandb interval"""
         if not self._should_run(self.trainer_cfg.wandb_checkpoint_interval, force):
             return
@@ -749,8 +750,9 @@ class MettaTrainer:
             logger.warning("No wandb run name was provided")
             return
 
-        self.policy_store.add_to_wandb_run(self.wandb_run.name, self.latest_saved_policy_record)
+        result = self.policy_store.add_to_wandb_run(self.wandb_run.name, self.latest_saved_policy_record)
         logger.info(f"Uploaded policy to wandb at epoch {self.epoch}")
+        return result
 
     def _maybe_update_l2_weights(self, force=False):
         """Update L2 init weights if on update interval"""
@@ -763,7 +765,7 @@ class MettaTrainer:
             self._evaluate_policy()
 
     @with_instance_timer("_evaluate_policy", log_level=logging.INFO)
-    def _evaluate_policy(self):
+    def _evaluate_policy(self, wandb_policy_name: str | None = None):
         if self._stats_run_id is not None and self._stats_client is not None:
             self._stats_epoch_id = self._stats_client.create_epoch(
                 run_id=self._stats_run_id,
@@ -783,6 +785,7 @@ class MettaTrainer:
             stats_dir="/tmp/stats",
             stats_client=self._stats_client,
             stats_epoch_id=self._stats_epoch_id,
+            wandb_policy_name=wandb_policy_name,
         )
         result = sim.simulate()
         stats_db = EvalStatsDB.from_sim_stats_db(result.stats_db)
