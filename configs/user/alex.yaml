@@ -8,8 +8,12 @@ defaults:
   - _self_
 
 # policy_uri: pytorch:///tmp/puffer_metta.pt
-policy_uri: wandb://run/m_alexv_ks_dr_lam_001:v22
+policy_uri: wandb://run/m_alexv_ks_dr_lam_001:v22 #wandb://run/b_alex_ks_ndr_student_017:v2
 npc_policy_uri: null
+
+trainer:
+  initial_policy:
+    uri: wandb://run/b_alex_ks_ndr_student_017:v2
 
 # env_overrides:
 #   game:
@@ -34,7 +38,7 @@ wandb:
   enabled: true
   # checkpoint_interval: 1
 
-run_id: 1304
+run_id: 1358
 run: ${oc.env:USER}.local.${run_id}
 trained_policy_uri: ${run_dir}/checkpoints
 sweep_name: "${oc.env:USER}.local.sweep.${run_id}"

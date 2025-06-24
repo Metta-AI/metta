@@ -143,11 +143,17 @@ class MettaTrainer:
         self._make_experience_buffer()
 
         self.agent_step: int = checkpoint.agent_step
+        self.agent_step = 470000000  # delete after testing
         self.epoch = checkpoint.epoch
 
         self._stats_epoch_start = self.epoch
         self._stats_epoch_id: UUID | None = None
         self._stats_run_id: UUID | None = None
+
+        # Kickstarter modifications
+        self.ppo_loss_avg_duration_steps = trainer_cfg.kickstart.ppo_loss_avg_duration_steps
+        self.ppo_loss_history = checkpoint.extra_args.get("ppo_loss_history", [])
+        self.ppo_loss_avg = checkpoint.extra_args.get("ppo_loss_avg", 0.0)
 
         # Optimizer
         optimizer_type = getattr(trainer_cfg.optimizer, "type", "adam")
@@ -576,8 +582,35 @@ class MettaTrainer:
 
                 entropy_loss = entropy.mean()
 
+                # ks_action_loss, ks_value_loss = self.kickstarter.loss(
+                #     self.agent_step, full_logprobs, newvalue, obs, teacher_lstm_state=[]
+                # )
+
+                # REPLACE THE OLD KICKSTARTER CALL WITH THIS BLOCK
+                # Update PPO loss moving average before it's used by kickstarter
+                current_ppo_loss = pg_loss.item() + v_loss.item() * trainer_cfg.vf_coef
+                if torch.distributed.is_initialized():
+                    loss_tensor = torch.tensor(current_ppo_loss, device=self.device)
+                    torch.distributed.all_reduce(loss_tensor, op=torch.distributed.ReduceOp.AVG)
+                    current_ppo_loss = loss_tensor.item()
+
+                self.ppo_loss_history.append(
+                    (current_ppo_loss, minibatch["obs"].shape[0] * self.experience.bptt_horizon)
+                )
+
+                # Update moving average
+                total_steps = sum(steps for _, steps in self.ppo_loss_history)
+                while total_steps > self.ppo_loss_avg_duration_steps and len(self.ppo_loss_history) > 1:
+                    _, steps_to_remove = self.ppo_loss_history.pop(0)
+                    total_steps -= steps_to_remove
+
+                if total_steps > 0:
+                    self.ppo_loss_avg = (
+                        sum(loss * steps for loss, steps in self.ppo_loss_history) / total_steps
+                    )
+
                 ks_action_loss, ks_value_loss = self.kickstarter.loss(
-                    self.agent_step, full_logprobs, newvalue, obs, teacher_lstm_state=[]
+                    self.agent_step, full_logprobs, newvalue, obs, [], ppo_loss_avg=self.ppo_loss_avg
                 )
 
                 l2_reg_loss = torch.tensor(0.0, device=self.device)
@@ -663,6 +696,10 @@ class MettaTrainer:
         extra_args = {}
         if self.kickstarter.enabled and self.kickstarter.teacher_uri is not None:
             extra_args["teacher_pr_uri"] = self.kickstarter.teacher_uri
+
+        # Kickstarter modifications
+        extra_args["ppo_loss_history"] = self.ppo_loss_history
+        extra_args["ppo_loss_avg"] = self.ppo_loss_avg
 
         checkpoint = TrainerCheckpoint(
             agent_step=self.agent_step,
