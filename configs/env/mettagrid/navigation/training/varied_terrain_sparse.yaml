@@ -1,5 +1,5 @@
 defaults:
-  - /env/mettagrid/mettagrid/navigation/training/defaults@
+  - /env/mettagrid/navigation/training/defaults@
   - _self_
 
 sampling: 1
