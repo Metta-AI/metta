@@ -89,12 +89,12 @@ class ObjectsConfig_cpp(BaseModelWithForbidExtra):
     """Objects configuration."""
 
     altar: Optional[ConverterConfig_cpp] = None
-    mine_red: Optional[ConverterConfig_cpp] = Field(default=None, alias="mine.red")
-    mine_blue: Optional[ConverterConfig_cpp] = Field(default=None, alias="mine.blue")
-    mine_green: Optional[ConverterConfig_cpp] = Field(default=None, alias="mine.green")
-    generator_red: Optional[ConverterConfig_cpp] = Field(default=None, alias="generator.red")
-    generator_blue: Optional[ConverterConfig_cpp] = Field(default=None, alias="generator.blue")
-    generator_green: Optional[ConverterConfig_cpp] = Field(default=None, alias="generator.green")
+    mine_red: Optional[ConverterConfig_cpp] = None
+    mine_blue: Optional[ConverterConfig_cpp] = None
+    mine_green: Optional[ConverterConfig_cpp] = None
+    generator_red: Optional[ConverterConfig_cpp] = None
+    generator_blue: Optional[ConverterConfig_cpp] = None
+    generator_green: Optional[ConverterConfig_cpp] = None
     armory: Optional[ConverterConfig_cpp] = None
     lasery: Optional[ConverterConfig_cpp] = None
     lab: Optional[ConverterConfig_cpp] = None
