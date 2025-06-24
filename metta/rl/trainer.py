@@ -19,6 +19,7 @@ from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
 from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyRecord, PolicyStore
 from metta.agent.util.debug import assert_shape
+from metta.common.memory import log_object_memory
 from metta.common.stopwatch import Stopwatch, with_instance_timer
 from metta.eval.eval_stats_db import EvalStatsDB
 from metta.mettagrid.curriculum.util import curriculum_from_config_path
@@ -478,6 +479,9 @@ class MettaTrainer:
                         self.stats[k] += v
                     except TypeError:
                         self.stats[k] = [self.stats[k], v]  # fallback: bundle as list
+
+        log_object_memory(infos, "infos")
+        log_object_memory(self.stats, "stats")
 
         # TODO: Better way to enable multiple collects
         return self.stats, infos
