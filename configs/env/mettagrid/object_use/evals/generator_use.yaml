@@ -8,7 +8,7 @@ game:
     generator.red:
       initial_items: 0
       cooldown: 255
-    mine:
+    mine.red:
       cooldown: 255
   agent:
     rewards:
