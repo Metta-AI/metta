@@ -27,7 +27,6 @@ from metta.mettagrid.util.dict_utils import unroll_nested_dict
 from metta.rl.experience import Experience
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses
-from metta.rl.policy import PytorchAgent
 from metta.rl.torch_profiler import TorchProfiler
 from metta.rl.trainer_checkpoint import TrainerCheckpoint
 from metta.rl.vecenv import make_vecenv
@@ -200,16 +199,31 @@ class MettaTrainer:
         )
 
         if checkpoint and checkpoint.optimizer_state_dict:
-            logger.info("Restoring optimizer state from checkpoint")
-            self.optimizer.load_state_dict(checkpoint.optimizer_state_dict)
+            try:
+                self.optimizer.load_state_dict(checkpoint.optimizer_state_dict)
+                logger.info("Successfully loaded optimizer state from checkpoint")
+            except ValueError as e:
+                if "doesn't match the size of optimizer's group" in str(e):
+                    # Extract some info about the mismatch
+                    old_params = len(checkpoint.optimizer_state_dict.get("param_groups", [{}])[0].get("params", []))
+                    new_params = sum(1 for _ in self.policy.parameters())
+                    logger.warning(
+                        f"Optimizer state dict doesn't match current model architecture. "
+                        f"Checkpoint has {old_params} parameter groups, current model has {new_params}. "
+                        "This typically happens when layers are added/removed. "
+                        "Starting with fresh optimizer state."
+                    )
+                else:
+                    # Re-raise if it's a different ValueError
+                    raise
 
         # validate that policy matches environment
         self.metta_agent: MettaAgent | DistributedMettaAgent = self.policy  # type: ignore
-        assert isinstance(self.metta_agent, (MettaAgent, DistributedMettaAgent, PytorchAgent)), self.metta_agent
         _env_shape = metta_grid_env.single_observation_space.shape
         environment_shape = tuple(_env_shape) if isinstance(_env_shape, list) else _env_shape
 
-        if isinstance(self.metta_agent, (MettaAgent, DistributedMettaAgent)):
+        # The rest of the validation logic continues to work with duck typing
+        if hasattr(self.metta_agent, "components"):
             found_match = False
             for component_name, component in self.metta_agent.components.items():
                 if hasattr(component, "_obs_shape"):

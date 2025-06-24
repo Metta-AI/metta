@@ -15,23 +15,26 @@ class TrainerCheckpoint:
         self,
         agent_step: int = 0,
         epoch: int = 0,
+        total_agent_step: Optional[int] = None,
         optimizer_state_dict: Optional[dict[str, Any]] = None,
         policy_path: Optional[str] = None,
         stopwatch_state: Optional[dict[str, Any]] = None,
-        **kwargs,
+        extra_args: Optional[dict[str, Any]] = None,
     ):
         self.agent_step = agent_step
         self.epoch = epoch
+        self.total_agent_step = total_agent_step or agent_step
         self.optimizer_state_dict = optimizer_state_dict
         self.policy_path = policy_path
         self.stopwatch_state = stopwatch_state
-        self.extra_args = kwargs
+        self.extra_args = extra_args or {}
 
     def save(self, run_dir: str, filename: str = "trainer_state.pt") -> None:
         state = {
             "optimizer_state_dict": self.optimizer_state_dict,
             "agent_step": self.agent_step,
             "epoch": self.epoch,
+            "total_agent_step": self.total_agent_step,
             "policy_path": self.policy_path,
             "stopwatch_state": self.stopwatch_state,
             **self.extra_args,
