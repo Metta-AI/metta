@@ -1,0 +1,33 @@
+# @package __global__
+
+# User config for bullm: trains on a simple environment with contrastive loss
+
+defaults:
+  - /trainer/trainer
+  - /sim/all@evals
+  - _self_
+
+run: bullm_contrastive_simple
+
+data_dir: ${oc.env:DATA_DIR,./train_dir}
+run_dir: ${data_dir}/${run}
+
+trainer:
+  curriculum: env/mettagrid/curriculum/simple.yaml
+  evaluate_interval: 100
+  num_workers: 4
+  contrastive:
+    enabled: true
+    loss_coef: 1.0
+    reward_coef: 0.1
+    temperature: 0.1
+    geometric_p: 0.1
+    max_temporal_distance: 50
+    logsumexp_reg_coef: 1.0
+
+wandb:
+  enabled: true
+  project: metta
+  entity: metta-research
+  name: ${run}
+  tags: ["contrastive", "simple_env", "bullm"]
