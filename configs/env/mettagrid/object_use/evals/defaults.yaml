@@ -15,3 +15,21 @@ game:
     mean_distance: 6
     border_width: 3
     agents: 1
+
+  objects:
+    altar:
+      input_battery.red: 1
+      output_heart: 1
+      conversion_ticks: 1
+      initial_items: 1
+
+    mine_red:
+      output_ore.red: 1
+      conversion_ticks: 1
+      initial_items: 1
+
+    generator_red:
+      input_ore.red: 1
+      output_battery.red: 1
+      conversion_ticks: 1
+      initial_items: 1
