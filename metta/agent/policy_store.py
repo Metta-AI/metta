@@ -430,9 +430,9 @@ class PolicyStore:
                         metadata["obs_shape"] = shape
                         logger.info(f"Inferred obs_shape: {shape}")
                         break
-                    except:
+                    except Exception:
                         continue
-            except:
+            except Exception:
                 pass
 
         # Try to infer action space if missing
@@ -449,7 +449,7 @@ class PolicyStore:
                             # Single discrete action space
                             metadata["action_space_nvec"] = [out_features]
                         logger.info(f"Inferred action_space_nvec: {metadata['action_space_nvec']}")
-            except:
+            except Exception:
                 pass
 
     def _load_legacy_checkpoint(self, path: str, metadata_only: bool = False) -> PolicyRecord:
