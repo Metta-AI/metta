@@ -1,12 +1,13 @@
-import { useState } from 'react';
-import Plot from 'react-plotly.js';
-import { HeatmapData } from './repo';
+import { useState } from 'react'
+import Plot from 'react-plotly.js'
+import { HeatmapData } from './repo'
 
 interface HeatmapProps {
-  data: HeatmapData;
-  selectedMetric: string;
-  setSelectedCell: (cell: {policyUri: string, evalName: string}) => void;
-  openReplayUrl: (policyUri: string, evalName: string) => void;
+  data: HeatmapData
+  selectedMetric: string
+  setSelectedCell: (cell: { policyUri: string; evalName: string }) => void
+  openReplayUrl: (policyUri: string, evalName: string) => void
+  numPoliciesToShow: number
 }
 
 // CSS for tabs
@@ -52,76 +53,85 @@ const SUITE_TABS_CSS = `
 .suite-tab:last-child {
   margin-right: 0;
 }
-`;
+`
 
 const getShortName = (evalName: string) => {
-  if (evalName === 'Overall') return evalName;
-  return evalName.split('/').pop() || evalName;
-};
+  if (evalName === 'Overall') return evalName
+  return evalName.split('/').pop() || evalName
+}
 
 const wandb_url = (policyName: string) => {
-  const entity = "metta-research"
-  const project = "metta"
+  const entity = 'metta-research'
+  const project = 'metta'
   let policyKey = policyName
-  if (policyName.includes(":v")) {
-    policyKey = policyName.split(":v")[0]
+  if (policyName.includes(':v')) {
+    policyKey = policyName.split(':v')[0]
   }
   return `https://wandb.ai/${entity}/${project}/runs/${policyKey}`
-};
+}
 
-export function Heatmap({ data, selectedMetric, setSelectedCell, openReplayUrl }: HeatmapProps) {
-  const [lastHoveredCell, setLastHoveredCell] = useState<{policyUri: string, evalName: string} | null>(null)
+export function Heatmap({
+  data,
+  selectedMetric,
+  setSelectedCell,
+  openReplayUrl,
+  numPoliciesToShow = 20,
+}: HeatmapProps) {
+  const [lastHoveredCell, setLastHoveredCell] = useState<{
+    policyUri: string
+    evalName: string
+  } | null>(null)
 
   // Convert to heatmap format
   const policies = [...new Set(data.cells.keys())]
-  const shortNameToEvalName = new Map<string, string>();
-  data.evalNames.forEach(evalName => {
-    shortNameToEvalName.set(getShortName(evalName), evalName);
-  });
-  const sortedShortNames = [...shortNameToEvalName.keys()].sort((a, b) => a.localeCompare(b));
+  const shortNameToEvalName = new Map<string, string>()
+  data.evalNames.forEach((evalName) => {
+    shortNameToEvalName.set(getShortName(evalName), evalName)
+  })
+  const sortedShortNames = [...shortNameToEvalName.keys()].sort((a, b) => a.localeCompare(b))
 
-  const xLabels = ["overall", ...sortedShortNames];
+  const xLabels = ['overall', ...sortedShortNames]
 
   // Iterate over the policyEvalMap, and for each policy compute the average value of the evals
-  const sortedPolicies = policies.sort((a, b) => data.policyAverageScores.get(a)! - data.policyAverageScores.get(b)!);
+  const sortedPolicies = policies.sort((a, b) => data.policyAverageScores.get(a)! - data.policyAverageScores.get(b)!)
   // take last 20 of sorted policies
-  const y_labels = sortedPolicies.slice(-20)
+  const y_labels = sortedPolicies.slice(-numPoliciesToShow)
 
-
-  const z = y_labels.map(policy => 
-    [data.policyAverageScores.get(policy)!, ...sortedShortNames.map(shortName => {
+  const z = y_labels.map((policy) => [
+    data.policyAverageScores.get(policy)!,
+    ...sortedShortNames.map((shortName) => {
       const evalName = shortNameToEvalName.get(shortName)!
       const cell = data.cells.get(policy)?.get(evalName)
       if (!cell) {
         return 0
       }
       return cell.value
-    })]
-  )
+    }),
+  ])
 
-  const y_label_texts = y_labels.map(policy => {
+  const y_label_texts = y_labels.map((policy) => {
     return `<a href="${wandb_url(policy)}" target="_blank">${policy}</a>`
   })
 
   const onHover = (event: any) => {
     if (!event.points?.[0]) return
-    
+
     const shortName = event.points[0].x
     const policyUri = event.points[0].y
 
     const evalName = shortNameToEvalName.get(shortName)!
-    
+
     setLastHoveredCell({ policyUri, evalName })
-    if (!(shortName === "overall")) {
-      setSelectedCell({policyUri, evalName})
+    if (!(shortName === 'overall')) {
+      setSelectedCell({ policyUri, evalName })
     }
-  };
+  }
 
   const onDoubleClick = () => {
     if (lastHoveredCell) {
       openReplayUrl(lastHoveredCell.policyUri, lastHoveredCell.evalName)
     }
-  };
+  }
 
   const plotData: Plotly.Data = {
     z,
@@ -131,9 +141,9 @@ export function Heatmap({ data, selectedMetric, setSelectedCell, openReplayUrl }
     colorscale: 'Viridis',
     colorbar: {
       title: {
-        text: selectedMetric
-      }
-    }
+        text: selectedMetric,
+      },
+    },
   }
 
   return (
@@ -145,30 +155,30 @@ export function Heatmap({ data, selectedMetric, setSelectedCell, openReplayUrl }
           title: {
             text: `Policy Evaluation Report: ${selectedMetric}`,
             font: {
-              size: 24
-            }
+              size: 24,
+            },
           },
           height: 600,
           width: 1000,
           margin: { t: 50, b: 150, l: 200, r: 50 },
           xaxis: {
-            tickangle: -45
+            tickangle: -45,
           },
           yaxis: {
             tickangle: 0,
             automargin: true,
             ticktext: y_label_texts,
             tickvals: Array.from({ length: y_labels.length }, (_, i) => i),
-            tickmode: 'array'
-          }
+            tickmode: 'array',
+          },
         }}
         style={{
           margin: '0 auto',
-          display: 'block'
+          display: 'block',
         }}
         onHover={onHover}
         onDoubleClick={onDoubleClick}
       />
     </>
-  );
-} 
+  )
+}

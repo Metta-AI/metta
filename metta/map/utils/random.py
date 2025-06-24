@@ -38,7 +38,11 @@ def lognormal_from_90_percentile(low: float, high: float, rng: np.random.Generat
     return rng.lognormal(mean=mu, sigma=sigma)
 
 
-FloatDistribution = Union[float, tuple[Literal["uniform"], float, float]]
+FloatDistribution = Union[
+    float,
+    tuple[Literal["uniform"], float, float],
+    tuple[Literal["lognormal"], float, float, float],
+]
 
 
 def sample_float_distribution(cfg: FloatDistribution, rng: np.random.Generator) -> float:

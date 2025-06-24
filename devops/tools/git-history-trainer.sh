@@ -155,8 +155,7 @@ if [ "$SETUP_MODE" = true ]; then
   cp "$(git rev-parse --show-toplevel)/mettagrid/setup.py" "$TMP_STORAGE/mettagrid/"
   cp "$(git rev-parse --show-toplevel)/Makefile" "$TMP_STORAGE/"
   cp "$(git rev-parse --show-toplevel)/pyproject.toml" "$TMP_STORAGE/"
-  cp "$(git rev-parse --show-toplevel)/requirements_pinned.txt" "$TMP_STORAGE/"
-  cp "$(git rev-parse --show-toplevel)/requirements.txt" "$TMP_STORAGE/"
+  cp "$(git rev-parse --show-toplevel)/uv.lock" "$TMP_STORAGE/"
   cp "$(git rev-parse --show-toplevel)/setup.py" "$TMP_STORAGE/"
 
   # Copy git utilities module
@@ -331,8 +330,7 @@ for COMMIT in $COMMITS; do
   cp -f "$TMP_STORAGE/mettagrid/setup.py" "$REPO_ROOT/mettagrid/"
   cp -f "$TMP_STORAGE/Makefile" "$REPO_ROOT/"
   cp -f "$TMP_STORAGE/pyproject.toml" "$REPO_ROOT/"
-  cp -f "$TMP_STORAGE/requirements_pinned.txt" "$REPO_ROOT/"
-  cp -f "$TMP_STORAGE/requirements.txt" "$REPO_ROOT/"
+  cp -f "$TMP_STORAGE/uv.lock" "$REPO_ROOT/"
   cp -f "$TMP_STORAGE/setup.py" "$REPO_ROOT/"
 
   # Check if experience.py exists and patch it
@@ -383,8 +381,7 @@ for COMMIT in $COMMITS; do
   git add -f "$REPO_ROOT/mettagrid"
   git add -f "$REPO_ROOT/Makefile"
   git add -f "$REPO_ROOT/pyproject.toml"
-  git add -f "$REPO_ROOT/requirements_pinned.txt"
-  git add -f "$REPO_ROOT/requirements.txt"
+  git add -f "$REPO_ROOT/uv.lock"
   git add -f "$REPO_ROOT/setup.py"
 
   echo "Committing changes to test branch"
@@ -407,6 +404,7 @@ for COMMIT in $COMMITS; do
     --timeout-minutes=30 \
     --skip-validation \
     --skip-push-check \
+    --force \
     trainer.env=env/mettagrid/simple
 
   # Log job details

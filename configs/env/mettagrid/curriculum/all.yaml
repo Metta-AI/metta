@@ -1,5 +1,4 @@
-
-_target_: mettagrid.curriculum.RandomCurriculum
+_target_: metta.mettagrid.curriculum.random.RandomCurriculum
 
 tasks:
   /env/mettagrid/curriculum/simple: 5
@@ -9,4 +8,3 @@ tasks:
 env_overrides:
   game:
     num_agents: 24
-

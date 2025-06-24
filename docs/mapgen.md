@@ -7,7 +7,7 @@ To produce maps in bulk and store them in S3, use the following commands:
 ### Creating maps
 
 ```bash
-python -m tools.map.gen --output-uri=s3://BUCKET/DIR ./configs/env/mettagrid/map_builder/mapgen_auto.yaml
+./tools/map/gen.py --output-uri=s3://BUCKET/DIR ./configs/env/mettagrid/map_builder/mapgen_auto.yaml
 ```
 
 `mapgen_auto` builder is an example. You can use any YAML config that can be parsed by OmegaConf.
@@ -20,20 +20,20 @@ If `--output-uri` is not specified, the map won't be saved, only shown on screen
 
 To create maps in bulk, use `--count=N` option.
 
-See `python -m tools.map.gen --help` for more options.
+See `./tools/map/gen.py --help` for more options.
 
 ### Viewing maps
 
 You can view a single map by running:
 
 ```bash
-python -m tools.map.view s3://BUCKET/PATH/TO/MAP.yaml
+./tools/map/view.py s3://BUCKET/PATH/TO/MAP.yaml
 ```
 
 The following command will show a random map from an S3 directory:
 
 ```bash
-python -m tools.map.view s3://BUCKET/DIR
+./tools/map/view.py s3://BUCKET/DIR
 ```
 
 Same heuristics about detecting if the URI is a file apply here.
@@ -43,19 +43,3 @@ Same heuristics about detecting if the URI is a file apply here.
 You can load a random map from an S3 directory in your YAML configs by using `metta.map.load_random.LoadRandom` as a map builder.
 
 `LoadRandom` allows you to modify the map by applying additional scenes to it. Check out `configs/env/mettagrid/map_builder/load_random.yaml` for an example config that modifies the number of agents in the map.
-
-### Indexing maps
-
-Optionally, you can index your maps to make loading them faster.
-
-This is intended to speed up reading from S3. It shouldn't change any functionality, and you should skip playing with this unless you find map loading from S3 is slow.
-
-Index is a plain text file that lists URIs of all the maps. You can assemble it manually, or use the following script:
-
-```bash
-python -m tools.index_s3_maps --dir=s3://BUCKET/DIR --target=s3://BUCKET/DIR/index.txt
-```
-
-`--target` is optional. If not provided, the index will be saved to `{--dir}/index.txt`.
-
-You can then use `metta.map.load_random_from_index.LoadRandomFromIndex` to load a random map from the index.

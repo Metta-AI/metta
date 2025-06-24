@@ -5,6 +5,9 @@ on:
       review_name:
         required: true
         type: string
+      review_type:
+        required: true
+        type: string
       file_pattern:
         required: false
         type: string
@@ -13,10 +16,6 @@ on:
         required: false
         type: boolean
         default: false
-      install_packages:
-        required: false
-        type: string
-        default: ""
       tools:
         required: true
         type: string
@@ -24,72 +23,128 @@ on:
         required: true
         type: string
       pr_number:
-        required: false
-        type: string
-        default: ""
-    secrets:
-      anthropic_api_key:
         required: true
+        type: string
 
 env:
-  CLAUDE_MODEL: "claude-3-7-sonnet-20250219"
+  CLAUDE_MODEL: "claude-sonnet-4-20250514"
+  UNIVERSAL_PROMPT_PREFIX: |
+    ## GitHub PR Review Instructions - Conditional JSON Output
+
+    You are reviewing a GitHub Pull Request. Your primary goal is to find issues that need to be addressed.
+
+    **CRITICAL INSTRUCTIONS:**
+    1. First, analyze the code according to the specific review focus
+    2. If you find NO issues, suggestions, or required changes:
+       - Simply respond with "No issues found."
+       - DO NOT create any JSON file
+       - DO NOT use the Write tool
+    3. ONLY if you find issues that need to be addressed:
+       - Use the Write tool to save your analysis to 'claude-review-analysis.json'
+       - Include suggestions for improvements
+
+    When creating JSON (only if issues are found), use this structure:
+    {
+      "review_summary": "Brief overall assessment of the PR",
+      "review_status": "COMMENT|CHANGES_REQUESTED",  // Never use APPROVE
+      "suggestions": [
+        {
+          "file": "path/to/file.py",
+          "start_line": 23,
+          "end_line": 24,
+          "side": "RIGHT",
+          "severity": "minor|major|blocking|nitpick",
+          "reason": "Brief explanation of why this change improves the code",
+          "original_code": "exact code from file including any comments",
+          "suggested_code": "replacement code"
+        }
+      ],
+      "tldr": [
+        "file.py:23-24 - Remove redundant comment",
+        "README.md:12 - Update installation command"
+      ]
+    }
+
+    Remember:
+    - Only create the JSON file if you have actual suggestions
+    - Never use review_status: "APPROVE" - if there are no issues, don't create a file
+    - Focus on finding genuine improvements, not nitpicks
+
+    ---
+    Now, here are your specific review instructions:
 
 jobs:
-  review:
+  analyze:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      pull-requests: write
+      pull-requests: read
       id-token: write
+    outputs:
+      has_issues: ${{ steps.parse-analysis.outputs.found_issues }}
+      suggestion_count: ${{ steps.parse-analysis.outputs.suggestion_count }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Initialize Review Summary
-        run: |
-          echo "# 🤖 Claude Review: ${{ inputs.review_name }}" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Model:** ${{ env.CLAUDE_MODEL }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Triggered by:** ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Time:** $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-
       - name: Setup PR Context
         id: pr-context
         run: |
-          # Determine PR number and checkout if needed
-          if [ -n "${{ inputs.pr_number }}" ]; then
-            PR_NUMBER="${{ inputs.pr_number }}"
-            gh pr checkout $PR_NUMBER
-          elif [ "${{ github.event_name }}" == "pull_request" ]; then
-            PR_NUMBER="${{ github.event.pull_request.number }}"
+          PR_NUMBER="${{ inputs.pr_number }}"
+
+          # Since this workflow is called from the orchestrator which is triggered by issue_comment,
+          # we'll always need to fetch PR info using gh CLI
+
+          if [ -n "$PR_NUMBER" ]; then
+            echo "Setting up context for PR #$PR_NUMBER"
+
+            # Get PR info using gh CLI
+            PR_INFO=$(gh pr view $PR_NUMBER --json headRefName,baseRefName 2>&1)
+
+            # Check if gh command succeeded
+            if [ $? -ne 0 ]; then
+              echo "❌ Error: Failed to get PR info for PR #$PR_NUMBER"
+              echo "Error output: $PR_INFO"
+              exit 1
+            fi
+
+            BRANCH_NAME=$(echo "$PR_INFO" | jq -r '.headRefName')
+            BASE_REF=$(echo "$PR_INFO" | jq -r '.baseRefName')
+
+            # Validate we got valid values
+            if [ -z "$BASE_REF" ] || [ "$BASE_REF" = "null" ]; then
+              echo "❌ Error: Could not determine base ref for PR #$PR_NUMBER"
+              echo "PR_INFO: $PR_INFO"
+              echo "BRANCH_NAME: $BRANCH_NAME"
+              echo "BASE_REF: $BASE_REF"
+              exit 1
+            fi
+
+            echo "✅ Got PR info - base: $BASE_REF, head: $BRANCH_NAME"
+
+            # Check if we're already on the PR branch
+            CURRENT_BRANCH=$(git branch --show-current)
+            if [ "$CURRENT_BRANCH" != "$BRANCH_NAME" ]; then
+              # Only fetch and checkout if we're not already on the branch
+              git fetch origin $BRANCH_NAME:$BRANCH_NAME
+              git checkout $BRANCH_NAME
+            else
+              echo "Already on branch $BRANCH_NAME, skipping checkout"
+            fi
           else
-            echo "No PR context available"
+            echo "❌ Error: PR number is required"
             exit 1
           fi
 
+          # Output the base ref for use in later steps
           echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
-
-          # Get base ref for diff
-          if [ "${{ github.event_name }}" == "pull_request" ]; then
-            BASE_REF="${{ github.base_ref }}"
-          else
-            PR_INFO=$(gh pr view $PR_NUMBER --json baseRefName,title,author)
-            BASE_REF=$(echo "$PR_INFO" | jq -r '.baseRefName')
-            PR_TITLE=$(echo "$PR_INFO" | jq -r '.title')
-            PR_AUTHOR=$(echo "$PR_INFO" | jq -r '.author.login')
-
-            echo "## PR Information" >> $GITHUB_STEP_SUMMARY
-            echo "- **PR #$PR_NUMBER:** $PR_TITLE" >> $GITHUB_STEP_SUMMARY
-            echo "- **Author:** @$PR_AUTHOR" >> $GITHUB_STEP_SUMMARY
-            echo "- **Base branch:** $BASE_REF" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-          fi
-
           echo "base_ref=$BASE_REF" >> $GITHUB_OUTPUT
+
+          echo "✅ Setup complete - PR: $PR_NUMBER, Base: $BASE_REF"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
 
       - name: Check File Changes
         id: check-files
@@ -110,77 +165,66 @@ jobs:
 
           MATCHED_COUNT=$(echo "$MATCHED_FILES" | grep -v '^$' | wc -l || echo 0)
 
-          echo "## File Analysis" >> $GITHUB_STEP_SUMMARY
-          echo "- **Total files changed:** $TOTAL_CHANGED" >> $GITHUB_STEP_SUMMARY
-          echo "- **Pattern:** \`$PATTERN\`" >> $GITHUB_STEP_SUMMARY
-          echo "- **Files matching pattern:** $MATCHED_COUNT" >> $GITHUB_STEP_SUMMARY
-
-          if [ -n "$MATCHED_FILES" ] && [ "$MATCHED_COUNT" -le 20 ]; then
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "<details>" >> $GITHUB_STEP_SUMMARY
-            echo "<summary>Files to review</summary>" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-            echo "$MATCHED_FILES" >> $GITHUB_STEP_SUMMARY
-            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-            echo "</details>" >> $GITHUB_STEP_SUMMARY
-          fi
-          echo "" >> $GITHUB_STEP_SUMMARY
-
           if [ -n "$MATCHED_FILES" ]; then
             echo "has_relevant_changes=true" >> $GITHUB_OUTPUT
             echo "matched_count=$MATCHED_COUNT" >> $GITHUB_OUTPUT
           else
             echo "has_relevant_changes=false" >> $GITHUB_OUTPUT
             echo "matched_count=0" >> $GITHUB_OUTPUT
-            echo "**Result:** ⏭️ No relevant files to review" >> $GITHUB_STEP_SUMMARY
           fi
 
       - name: Setup Python
         if: steps.check-files.outputs.has_relevant_changes == 'true' && inputs.setup_python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
-          cache: "pip"
+          python-version: "3.11.7"
 
-      - name: Install Dependencies
-        if: steps.check-files.outputs.has_relevant_changes == 'true' && inputs.install_packages != ''
-        run: |
-          echo "## Setup" >> $GITHUB_STEP_SUMMARY
-          echo "- **Python:** $(python --version)" >> $GITHUB_STEP_SUMMARY
-          echo "- **Installing:** ${{ inputs.install_packages }}" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.7.3"
+          enable-cache: true
 
-          pip install ${{ inputs.install_packages }}
-
-      - name: Run Claude Review - ${{ inputs.review_name }}
-        id: claude-review
+      - name: Run Claude Analysis
+        id: claude-analysis
         if: steps.check-files.outputs.has_relevant_changes == 'true'
         uses: anthropics/claude-code-action@beta
         with:
-          anthropic_api_key: ${{ secrets.anthropic_api_key }}
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           anthropic_model: ${{ env.CLAUDE_MODEL }}
-          allowed_tools: ${{ inputs.tools }}
-          direct_prompt: ${{ inputs.prompt }}
+          allowed_tools: "${{ inputs.tools }},Write"
+          direct_prompt: |
+            ${{ env.UNIVERSAL_PROMPT_PREFIX }}
 
-      - name: Capture Review Results
-        if: always()
+            ${{ inputs.prompt }}
+
+            Remember: Only create the JSON file if you find actual issues to report.
+
+      - name: Parse Analysis Results
+        id: parse-analysis
+        if: steps.claude-analysis.outcome == 'success'
         run: |
-          echo "## Review Results" >> $GITHUB_STEP_SUMMARY
+          if [ -f "claude-review-analysis.json" ]; then
+            echo "found_issues=true" >> $GITHUB_OUTPUT
 
-          if [ "${{ steps.check-files.outputs.has_relevant_changes }}" != "true" ]; then
-            echo "- **Status:** ⏭️ Skipped (no matching files)" >> $GITHUB_STEP_SUMMARY
-          elif [ "${{ steps.claude-review.outcome }}" == "success" ]; then
-            echo "- **Status:** ✅ Completed successfully" >> $GITHUB_STEP_SUMMARY
-            echo "- **Files reviewed:** ${{ steps.check-files.outputs.matched_count }}" >> $GITHUB_STEP_SUMMARY
-            echo "- **Comment posted:** Check PR for suggestions" >> $GITHUB_STEP_SUMMARY
-          elif [ "${{ steps.claude-review.outcome }}" == "failure" ]; then
-            echo "- **Status:** ❌ Review failed" >> $GITHUB_STEP_SUMMARY
-            echo "- **Error:** Check logs for details" >> $GITHUB_STEP_SUMMARY
+            # Validate and extract info
+            if jq empty claude-review-analysis.json 2>/dev/null; then
+              SUGGESTION_COUNT=$(jq '.suggestions | length' claude-review-analysis.json)
+              echo "suggestion_count=$SUGGESTION_COUNT" >> $GITHUB_OUTPUT
+            else
+              echo "suggestion_count=0" >> $GITHUB_OUTPUT
+            fi
           else
-            echo "- **Status:** ⚠️ Unknown outcome" >> $GITHUB_STEP_SUMMARY
+            echo "found_issues=false" >> $GITHUB_OUTPUT
+            echo "suggestion_count=0" >> $GITHUB_OUTPUT
           fi
 
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "---" >> $GITHUB_STEP_SUMMARY
-          echo "*[View full logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})*" >> $GITHUB_STEP_SUMMARY
+      - name: Upload Analysis Artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: claude-review-${{ inputs.review_type }}-analysis
+          path: |
+            claude-review-analysis.json
+          if-no-files-found: ignore
+          retention-days: 1

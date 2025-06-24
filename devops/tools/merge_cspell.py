@@ -1,3 +1,4 @@
+#!/usr/bin/env -S uv run
 import json
 import os
 import re
@@ -156,6 +157,5 @@ def main():
         sys.exit(1)
 
 
-# python -m devops.sandbox.merge_cspell
 if __name__ == "__main__":
     main()

@@ -1,0 +1,6 @@
+_target_: metta.mettagrid.curriculum.low_reward.LowRewardCurriculum
+
+tasks:
+  /env/mettagrid/cooperation/experimental/central_table_layout: 1
+  /env/mettagrid/cooperation/experimental/confined_room_coord: 1
+  /env/mettagrid/cooperation/experimental/two_rooms_coord: 1

@@ -36,6 +36,10 @@ def bold(text):
     return colorize(text, Style.BRIGHT)
 
 
+def magenta(text):
+    return colorize(text, Fore.MAGENTA)
+
+
 def use_colors(use_colors: bool):
     global USE_COLORAMA_COLORS
     USE_COLORAMA_COLORS = use_colors

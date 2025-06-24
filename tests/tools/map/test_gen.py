@@ -19,6 +19,19 @@ def test_gen_basic():
     )
 
 
+def test_hydra():
+    subprocess.check_call(
+        [
+            "python",
+            "-m",
+            f"{MAP_MODULE}.gen",
+            "--show-mode",
+            "ascii",
+            "./configs/env/mettagrid/puffer.yaml",
+        ]
+    )
+
+
 def test_gen_missing_config():
     exit_status = subprocess.call(
         [

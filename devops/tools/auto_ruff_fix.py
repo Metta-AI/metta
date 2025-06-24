@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run
 """
 Automatically fix Ruff errors using Claude to generate patches.
 
@@ -203,7 +203,7 @@ Here's the full file content:
 {file_content}
 ```"""
 
-        prompt = f"""I need to fix a Ruff linting error in my Python code. Please help me generate a diff that only 
+        prompt = f"""I need to fix a Ruff linting error in my Python code. Please help me generate a diff that only
 contains the changes needed to fix this specific issue.
 
 File: {error.file_path}
@@ -212,8 +212,8 @@ Message: {error.message}
 
 {context_section}
 
-Please generate a unified diff that contains ONLY the minimal changes needed to fix this specific {error.error_code} 
-error. The diff should use the standard unified diff format with @@ line markers. 
+Please generate a unified diff that contains ONLY the minimal changes needed to fix this specific {error.error_code}
+error. The diff should use the standard unified diff format with @@ line markers.
 
 Important rules:
 1. The diff should change as few lines as possible - ideally just the problematic line

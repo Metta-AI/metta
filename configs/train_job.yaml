@@ -1,6 +1,6 @@
 defaults:
   - common
-  - agent: simple
+  - agent: fast
   - trainer: puffer
   - sim: all
   - wandb: metta_research

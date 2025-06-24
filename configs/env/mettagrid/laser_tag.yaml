@@ -14,42 +14,45 @@ game:
     border_width: 6
 
     root:
-      _target_: metta.map.scenes.room_grid.RoomGrid
+      type: metta.map.scenes.room_grid.RoomGrid
 
-      rows: 1
-      columns: 3
-
-      border_width: 0
+      params:
+        rows: 1
+        columns: 3
+        border_width: 0
 
       children:
         - where:
             tags:
               - room_0_0
           scene:
-            _target_: metta.map.scenes.random.Random
-            objects:
-              lasery: 4
-              armory: 4
-            agents:
-              team_1: 18
+            type: metta.map.scenes.random.Random
+            params:
+              objects:
+                lasery: 4
+                armory: 4
+              agents:
+                team_1: 18
         - where:
             tags:
               - room_0_1
           scene:
-            _target_: metta.map.scenes.random.Random
-            objects:
-              altar: 1
-              mine.red: 10
+            type: metta.map.scenes.random.Random
+            params:
+              objects:
+                altar: 1
+                mine_red: 10
         - where:
             tags:
               - room_0_2
           scene:
-            _target_: metta.map.scenes.random.Random
-            objects:
-              lasery: 4
-              armory: 4
-            agents:
-              team_2: 18
+            type: metta.map.scenes.random.Random
+            params:
+              objects:
+                lasery: 4
+                armory: 4
+              agents:
+                team_2: 18
 
   agent:
     default_item_max: ${sampling:1,10,5}
@@ -62,7 +65,7 @@ game:
 
     lasery:
       input_ore.red: 0
-      input_battery: 0
+      input_battery.red: 0
       cooldown: ${sampling:1,10,5}
       initial_items: 5
 

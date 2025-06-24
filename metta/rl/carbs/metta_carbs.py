@@ -13,6 +13,7 @@ from carbs import (
     Param,
 )
 from omegaconf import DictConfig, ListConfig, OmegaConf
+
 from wandb_carbs import Pow2WandbCarbs
 
 logger = logging.getLogger("sweep_rollout")

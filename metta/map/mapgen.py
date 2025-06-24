@@ -1,14 +1,16 @@
 from dataclasses import dataclass
 
 import numpy as np
+from omegaconf import DictConfig, OmegaConf
 
+from metta.map.scene import make_scene
 from metta.map.types import MapGrid
-from mettagrid.level_builder import Level, LevelBuilder
+from metta.mettagrid.level_builder import Level, LevelBuilder
 
-from .scene import SceneCfg, make_scene
+from .types import SceneCfg
 
 
-# Root map generator, based on nodes.
+# Root map generator, based on scenes.
 @dataclass
 class MapGen(LevelBuilder):
     width: int
@@ -18,7 +20,6 @@ class MapGen(LevelBuilder):
 
     def __post_init__(self):
         super().__init__()
-        self.root_scene = make_scene(self.root)
 
         self.grid: MapGrid = np.full(
             (self.height + 2 * self.border_width, self.width + 2 * self.border_width), "empty", dtype="<U50"
@@ -27,6 +28,11 @@ class MapGen(LevelBuilder):
         self.grid[-self.border_width :, :] = "wall"
         self.grid[:, : self.border_width] = "wall"
         self.grid[:, -self.border_width :] = "wall"
+
+        if isinstance(self.root, DictConfig):
+            self.root = OmegaConf.to_container(self.root)  # type: ignore
+
+        self.root_scene = make_scene(self.root, self.inner_grid())
 
     def inner_grid(self) -> MapGrid:
         if self.border_width > 0:
@@ -38,8 +44,6 @@ class MapGen(LevelBuilder):
             return self.grid
 
     def build(self):
-        root_node = self.root_scene.make_node(self.inner_grid())
-
-        root_node.render()
+        self.root_scene.render_with_children()
         # TODO: support labels, similarly to `mettagrid.room.room.Room`
         return Level(self.grid, [])

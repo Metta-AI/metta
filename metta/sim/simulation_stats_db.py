@@ -16,8 +16,8 @@ from typing import Dict, List, Tuple, Union
 import duckdb
 
 from metta.agent.policy_store import PolicyRecord
-from mettagrid.episode_stats_db import EpisodeStatsDB
-from mettagrid.util.file import exists, local_copy, write_file
+from metta.mettagrid.episode_stats_db import EpisodeStatsDB
+from metta.mettagrid.util.file import exists, local_copy, write_file
 
 # ------------------------------------------------------------------ #
 #   Tables & indexes                                                 #
@@ -155,7 +155,7 @@ class SimulationStatsDB(EpisodeStatsDB):
         self, policy_key: str | None = None, policy_version: int | None = None, env: str | None = None
     ) -> List[str]:
         query = """
-        SELECT e.replay_url 
+        SELECT e.replay_url
         FROM episodes e
         JOIN simulations s ON e.simulation_id = s.id
         WHERE e.replay_url IS NOT NULL
@@ -222,7 +222,7 @@ class SimulationStatsDB(EpisodeStatsDB):
         if not episode_ids:
             return
         self.con.executemany(
-            """ 
+            """
             UPDATE episodes
                SET simulation_id = ?
              WHERE id = ?

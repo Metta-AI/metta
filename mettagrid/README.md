@@ -31,7 +31,7 @@ The `Altar` object allows agents to spend energy to gain rewards. Agents can pow
 - After the heart altar is used, it is unable to be used for altar.cooldown timesteps.
 - A single use of the heart altar gives you a single unit of reward:
   if `target._type_id == ObjectType.AltarT:
-  self.env._rewards[actor_id] += 1`
+self.env._rewards[actor_id] += 1`
 
 ### Converter
 
@@ -52,7 +52,6 @@ The `Converter` object allows agents to convert their harvested resources into e
 
 The `Generator` object produces resources that agents can harvest. Agents can gather resources from generators by moving to them and taking the `use` action. Generators have a specified capacity and replenish resources over time.
 
-- Using the generator costs `generator.use_cost` (currently 0) energy
 - Using the generator once gives one resource 1
 - After the generator is used, it is unable to be used for `generator.cooldown` timesteps
 
@@ -126,21 +125,11 @@ The MettaGrid environment is highly configurable through the use of YAML configu
 
 ## Building and testing
 
-Install mettagrid into your Python environment:
-
-```sh
-pip install -e .
-```
-
-If you're using [uv](https://docs.astral.sh/uv/):
-
-```sh
-uv pip install -e .
-```
+For local development, refer to the top-level [README.md](../README.md) in this repository.
 
 ### CMake
 
-`uv pip install` will run the CMake build in an isolated environment, so if you need to run C++ tests and benchmarks, you'll need to invoke `cmake` directly.
+By default, `uv sync` will run the CMake build in an isolated environment, so if you need to run C++ tests and benchmarks, you'll need to invoke `cmake` directly.
 
 Build C++ tests and benchmarks in debug mode:
 

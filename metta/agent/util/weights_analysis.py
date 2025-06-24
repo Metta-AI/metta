@@ -78,29 +78,3 @@ def analyze_weights(weights: torch.Tensor, delta: float = 0.01) -> dict:
         metrics["effective_rank"] = effective_rank
 
     return metrics
-
-
-class WeightsMetricsHelper:
-    def __init__(self, cfg):
-        self.cfg = cfg
-        self._weight_metrics = []
-
-    def on_epoch_end(self, epoch, policy):
-        if self.cfg.agent.analyze_weights_interval != 0 and epoch % self.cfg.agent.analyze_weights_interval == 0:
-            self._weight_metrics = policy.compute_weight_metrics()
-        else:
-            # Ensure metrics are empty if not computed this epoch
-            self._weight_metrics = []
-
-    def stats(self):
-        formatted_metrics = {}
-        for metrics in self._weight_metrics:
-            name = metrics.get("name", "unknown")
-            for key, value in metrics.items():
-                if key != "name":
-                    metric_key = f"train/{key}/{name}"
-                    formatted_metrics[metric_key] = value
-        return formatted_metrics
-
-    def reset(self):
-        self._weight_metrics = []

@@ -1,18 +1,18 @@
+#!/usr/bin/env -S uv run
 import argparse
 import logging
 import os
 import random
 import signal
 import string
-import time
-from datetime import datetime
 from typing import cast, get_args
 
 import hydra
 from omegaconf import DictConfig, OmegaConf
 
 from metta.map.utils.show import ShowMode, show_map
-from metta.map.utils.storable_map import StorableMap
+from metta.map.utils.storable_map import map_builder_cfg_to_storable_map
+from metta.util.config import config_from_path
 from metta.util.resolvers import register_resolvers
 
 # Aggressively exit on ctrl+c
@@ -26,39 +26,27 @@ def make_map(cfg_path: str, overrides: DictConfig | None = None):
     # since we are not using hydra here we can't rely on the callback that normally sets up our custom resolvers
     register_resolvers()
 
-    cfg: DictConfig = cast(DictConfig, OmegaConf.merge(OmegaConf.load(cfg_path), overrides))
+    with hydra.initialize(config_path="../../configs", version_base=None):
+        hydra_cfg_path = os.path.relpath(cfg_path, "./configs")
+        if "../" in hydra_cfg_path:
+            logger.info("Config is not in the configs directory, loading with OmegaConf")
+            cfg = OmegaConf.load(cfg_path)
+        else:
+            logger.info(f"Loading hydra config from {hydra_cfg_path}")
+            cfg = config_from_path(hydra_cfg_path, overrides)
+
     if not OmegaConf.is_dict(cfg):
         raise ValueError(f"Invalid config type: {type(cfg)}")
 
-    recursive = False
+    cfg = cast(DictConfig, cfg)
+
     if cfg.get("game") and cfg.game.get("map_builder"):
-        # safe default for old room maps
-        recursive = cfg.game.get("recursive_map_builder", True)
         # Looks like env config, unwrapping the map config from it. This won't
         # work for all configs because they could rely on Hydra-specific
         # features, but it has a decent chance of working.
         cfg = cfg.game.map_builder
 
-    if "mapgen" in cfg.get("_target_"):
-        # mapgen works better with recursive=False
-        recursive = False
-
-    # Generate and measure time taken
-    start = time.time()
-    map_builder = hydra.utils.instantiate(cfg, _recursive_=recursive)
-    level = map_builder.build()
-    gen_time = time.time() - start
-    logger.info(f"Time taken to build map: {gen_time}s")
-
-    storable_map = StorableMap(
-        grid=level.grid,
-        metadata={
-            "gen_time": gen_time,
-            "timestamp": datetime.now().isoformat(),
-        },
-        config=cfg,
-    )
-    return storable_map
+    return map_builder_cfg_to_storable_map(cfg)
 
 
 # Based on heuristics, see https://github.com/Metta-AI/mettagrid/pull/108#discussion_r2054699842
@@ -68,11 +56,12 @@ def uri_is_file(uri: str) -> bool:
 
 
 def main():
+    register_resolvers()
     parser = argparse.ArgumentParser()
     parser.add_argument("--output-uri", type=str, help="Output URI")
     parser.add_argument("--show-mode", choices=get_args(ShowMode), help="Show the map in the specified mode")
     parser.add_argument("--count", type=int, default=1, help="Number of maps to generate")
-    parser.add_argument("--overrides", type=str, default="", help="OmniConf overrides for the map config")
+    parser.add_argument("--overrides", type=str, default="", help="OmegaConf overrides for the map config")
     parser.add_argument("cfg_path", type=str, help="Path to the map config file")
     args = parser.parse_args()
 

@@ -1,48 +1,66 @@
 name: "Claude Review: Einops"
 on:
-  pull_request:
-    types: [opened, reopened]
-    paths: ["**/*.py"]
-  workflow_dispatch:
+  workflow_call:
     inputs:
       pr_number:
-        description: 'Pull Request number to review'
         required: true
         type: string
-
-permissions:
-  contents: read
-  pull-requests: write
-  id-token: write
 
 jobs:
   review:
     uses: ./.github/workflows/claude-review-base.yml
+    secrets: inherit
     with:
       review_name: "Einops Suggestions"
-      file_pattern: "\.py$"
+      review_type: "einops"
+      file_pattern: "\\.py$"
       tools: "Edit,Replace,Bash(git diff HEAD~1)"
-      pr_number: ${{ inputs.pr_number || '' }}
+      pr_number: ${{ inputs.pr_number }}
       prompt: |
-        Please review the Python diff for PyTorch tensor operations that perform dimension reordering or reshaping via calls like `permute`, `transpose`, `view`, `reshape`, or `unsqueeze`.
+        Review the Python diff for PyTorch tensor operations that could be significantly improved
+        with einops.rearrange.
 
-        **IMPORTANT**: Only create a PR comment if you find tensor operations that would benefit from `einops.rearrange`. If there are no such improvements to suggest, do not comment on the PR at all.
+        **CRITICAL INSTRUCTIONS**:
+        1. If you find NO tensor operations that would clearly benefit from einops:
+           - Simply respond with "No issues found."
+           - DO NOT create any review
+        2. ONLY create a review if einops would provide substantial improvements
+        3. Do not suggest einops for simple, already-clear operations
 
-        When you find a sequence of such operations that could be expressed more clearly with `einops.rearrange`:
-        1. Create a GitHub suggestion showing how to use `einops.rearrange` to accomplish the same transformation
-        2. Explain briefly why `einops.rearrange` is preferable (e.g., more readable, self-documenting, less error-prone)
-        3. Keep suggestions concise and only modify the code needed to demonstrate the `einops.rearrange` usage
+        **When to suggest einops.rearrange**:
+        - Multiple chained tensor operations that obscure the transformation intent
+        - Complex permutations where dimension meanings are unclear
+        - Reshape operations where the semantic meaning isn't obvious
+        - Cases where dimension names would significantly clarify the transformation
+        - Operations that are error-prone due to hardcoded dimension indices
 
-        Focus particularly on:
-        - Multiple chained tensor operations that could be a single einops call
-        - Complex permutations that are hard to understand
-        - Reshape operations where the intent isn't clear from the dimensions
-        - Cases where dimension names would clarify the transformation
+        **When NOT to suggest einops**:
+        - Simple, clear operations like single transpose or reshape calls
+        - When the existing code is already readable and the intent is clear
+        - When einops wouldn't add meaningful clarity
+        - For operations where performance is critical and einops might add overhead
+        - When the codebase doesn't already use einops (don't introduce new dependencies)
 
-        Example transformations to look for:
-        - `x.permute(0, 2, 1).reshape(batch_size, -1)` → `rearrange(x, 'b h w -> b (w h)')`
-        - `x.transpose(1, 2).contiguous().view(b, -1, c)` → `rearrange(x, 'b h w c -> b (h w) c')`
+        **Good candidates for einops**:
+        ```python
+        # Complex and unclear:
+        x = x.permute(0, 2, 1).reshape(batch_size, -1)
+        # Clear with einops:
+        x = rearrange(x, 'b h w -> b (w h)')
 
-        If the code already uses einops well, or if the existing PyTorch operations are already optimal/clear, simply exit without commenting.
-    secrets:
-      anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+        # Multiple operations:
+        x = x.transpose(1, 2).contiguous().view(b, -1, c)
+        # Single einops call:
+        x = rearrange(x, 'b h w c -> b (h w) c')
+        ```
+
+        **Poor candidates for einops**:
+        ```python
+        # Already clear:
+        x = x.transpose(0, 1)  # Don't suggest einops for this
+        x = x.reshape(-1, d)   # Simple and obvious
+        ```
+
+        Only create suggestions for transformations where einops would make the code
+        substantially more readable and maintainable. The goal is quality over quantity -
+        better to suggest nothing than to suggest marginal improvements.

@@ -1,9 +1,9 @@
 import random
 
 from metta.map.load import Load
-from mettagrid.util import file as file_utils
+from metta.mettagrid.util import file as file_utils
 
-from .scene import SceneCfg
+from .types import SceneCfg
 
 
 class LoadRandomFromIndex(Load):

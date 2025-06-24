@@ -4,4 +4,4 @@ uri: ???
 
 # Optional scene to render on top of the loaded map.
 extra_root:
-  _target_: metta.map.scenes.make_connected.MakeConnected
+  type: metta.map.scenes.make_connected.MakeConnected

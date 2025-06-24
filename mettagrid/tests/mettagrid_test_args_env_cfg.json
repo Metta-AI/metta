@@ -7,11 +7,9 @@
     "obs_width": 11,
     "obs_height": 11,
     "max_steps": 1000,
-    "recursive_map_builder": true,
     "agent": {
       "default_item_max": 50,
       "freeze_duration": 10,
-      "hp": 10,
       "rewards": {
         "action_failure_penalty": 0,
         "ore.red": 0.005,
@@ -70,7 +68,6 @@
     },
     "objects": {
       "altar": {
-        "hp": 30,
         "input_battery.red": 3,
         "output_heart": 1,
         "max_output": 5,
@@ -78,8 +75,7 @@
         "cooldown": 10,
         "initial_items": 1
       },
-      "mine.red": {
-        "hp": 30,
+      "mine_red": {
         "output_ore.red": 1,
         "color": 0,
         "max_output": 5,
@@ -87,8 +83,7 @@
         "cooldown": 50,
         "initial_items": 1
       },
-      "mine.blue": {
-        "hp": 30,
+      "mine_blue": {
         "color": 1,
         "output_ore.blue": 1,
         "max_output": 5,
@@ -96,8 +91,7 @@
         "cooldown": 50,
         "initial_items": 1
       },
-      "mine.green": {
-        "hp": 30,
+      "mine_green": {
         "output_ore.green": 1,
         "color": 2,
         "max_output": 5,
@@ -105,8 +99,7 @@
         "cooldown": 50,
         "initial_items": 1
       },
-      "generator.red": {
-        "hp": 30,
+      "generator_red": {
         "input_ore.red": 1,
         "output_battery.red": 1,
         "color": 0,
@@ -115,8 +108,7 @@
         "cooldown": 25,
         "initial_items": 1
       },
-      "generator.blue": {
-        "hp": 30,
+      "generator_blue": {
         "input_ore.blue": 1,
         "output_battery.blue": 1,
         "color": 1,
@@ -125,8 +117,7 @@
         "cooldown": 25,
         "initial_items": 1
       },
-      "generator.green": {
-        "hp": 30,
+      "generator_green": {
         "input_ore.green": 1,
         "output_battery.green": 1,
         "color": 2,
@@ -136,7 +127,6 @@
         "initial_items": 1
       },
       "armory": {
-        "hp": 30,
         "input_ore.red": 3,
         "output_armor": 1,
         "max_output": 5,
@@ -145,7 +135,6 @@
         "initial_items": 1
       },
       "lasery": {
-        "hp": 30,
         "input_ore.red": 1,
         "input_battery.red": 2,
         "output_laser": 1,
@@ -155,7 +144,6 @@
         "initial_items": 1
       },
       "lab": {
-        "hp": 30,
         "input_ore.red": 3,
         "input_battery.red": 3,
         "output_blueprint": 1,
@@ -165,7 +153,6 @@
         "initial_items": 1
       },
       "factory": {
-        "hp": 30,
         "input_blueprint": 1,
         "input_ore.red": 5,
         "input_battery.red": 5,
@@ -177,7 +164,6 @@
         "initial_items": 1
       },
       "temple": {
-        "hp": 30,
         "input_heart": 1,
         "input_blueprint": 1,
         "output_heart": 5,
@@ -187,11 +173,9 @@
         "initial_items": 1
       },
       "wall": {
-        "hp": 10,
         "swappable": false
       },
       "block": {
-        "hp": 10,
         "swappable": true
       }
     },

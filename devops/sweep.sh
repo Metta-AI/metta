@@ -15,7 +15,7 @@ fi
 source ./devops/setup.env
 
 echo "[INFO] Starting continuous sweep execution: $sweep"
-mkdir -p ./train_dir/sweep/$sweep
+mkdir -p "${DATA_DIR}/sweep/$sweep"
 
 # Retry configuration
 MAX_CONSECUTIVE_FAILURES=3

@@ -1,63 +1,72 @@
 from metta.map.scenes.maze import MazeKruskal
 from metta.map.scenes.mirror import Mirror
-from tests.map.scenes.utils import assert_grid, scene_to_node
+from tests.map.scenes.utils import assert_grid, render_scene
 
 
 def test_horizontal():
-    scene = Mirror(scene=MazeKruskal(seed=123), symmetry="horizontal")
-    node = scene_to_node(scene, (9, 9))
+    scene = render_scene(
+        Mirror,
+        {"scene": lambda grid: MazeKruskal(grid=grid, params={}, seed=123), "symmetry": "horizontal"},
+        shape=(9, 9),
+    )
 
     assert_grid(
-        node,
+        scene,
         """
-           | # # # # |
-           | # # # # |
-           | #     # |
-           | ### ### |
-           | #     # |
-           | # # # # |
-           |   # #   |
-           |## ### ##|
-           |         |
+           .#.#.#.#.
+           .#.#.#.#.
+           .#.....#.
+           .###.###.
+           .#.....#.
+           .#.#.#.#.
+           ...#.#...
+           ##.###.##
+           .........
         """,
     )
 
 
 def test_vertical():
-    scene = Mirror(scene=MazeKruskal(seed=123), symmetry="vertical")
-    node = scene_to_node(scene, (9, 9))
+    scene = render_scene(
+        Mirror,
+        {"scene": lambda grid: MazeKruskal(grid=grid, params={}, seed=123), "symmetry": "vertical"},
+        shape=(9, 9),
+    )
 
     assert_grid(
-        node,
+        scene,
         """
-           |   #     |
-           |## # # # |
-           |   # # # |
-           | ##### ##|
-           |         |
-           | ##### ##|
-           |   # # # |
-           |## # # # |
-           |   #     |
+           ...#.....
+           ##.#.#.#.
+           ...#.#.#.
+           .#####.##
+           .........
+           .#####.##
+           ...#.#.#.
+           ##.#.#.#.
+           ...#.....
         """,
     )
 
 
 def test_x4():
-    scene = Mirror(scene=MazeKruskal(seed=123), symmetry="x4")
-    node = scene_to_node(scene, (9, 9))
+    scene = render_scene(
+        Mirror,
+        {"scene": lambda grid: MazeKruskal(grid=grid, params={}, seed=123), "symmetry": "x4"},
+        shape=(9, 9),
+    )
 
     assert_grid(
-        node,
+        scene,
         """
-           | # # # # |
-           | # # # # |
-           |         |
-           | ####### |
-           |         |
-           | ####### |
-           |         |
-           | # # # # |
-           | # # # # |
+           .#.#.#.#.
+           .#.#.#.#.
+           .........
+           .#######.
+           .........
+           .#######.
+           .........
+           .#.#.#.#.
+           .#.#.#.#.
         """,
     )

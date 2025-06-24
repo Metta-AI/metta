@@ -3,7 +3,6 @@ import os
 import sys
 from datetime import datetime
 
-from loguru import logger
 from rich.logging import RichHandler
 
 
@@ -15,7 +14,10 @@ def remap_io(logs_path: str):
     stderr = open(stderr_log_path, "a")
     sys.stderr = stderr
     sys.stdout = stdout
-    logger.remove()
+    # Remove all handlers from root logger when remapping IO
+    root_logger = logging.getLogger()
+    for handler in root_logger.handlers[:]:
+        root_logger.removeHandler(handler)
 
 
 def restore_io():
@@ -25,7 +27,7 @@ def restore_io():
 
 # Create a custom formatter that supports milliseconds
 class MillisecondFormatter(logging.Formatter):
-    def formatTime(self, record, datefmt=None):
+    def formatTime(self, record: logging.LogRecord, datefmt: str | None = None) -> str:
         created = datetime.fromtimestamp(record.created)
         # Convert microseconds to milliseconds (keep only 3 digits)
         msec = created.microsecond // 1000
@@ -39,13 +41,13 @@ class MillisecondFormatter(logging.Formatter):
 
 # Create a custom handler that always shows the timestamp
 class AlwaysShowTimeRichHandler(RichHandler):
-    def emit(self, record):
+    def emit(self, record: logging.LogRecord) -> None:
         # Force a unique timestamp for each record
         record.created = record.created + (record.relativeCreated % 1000) / 1000000
         super().emit(record)
 
 
-def get_log_level(provided_level=None):
+def get_log_level(provided_level: str | None = None) -> str:
     """
     Determine log level based on priority:
     1. Environment variable LOG_LEVEL
@@ -65,7 +67,7 @@ def get_log_level(provided_level=None):
     return "INFO"
 
 
-def setup_mettagrid_logger(name: str, level=None) -> logging.Logger:
+def setup_mettagrid_logger(name: str, level: str | None = None) -> logging.Logger:
     # Get the appropriate log level based on priority
     log_level = get_log_level(level)
 
@@ -82,5 +84,9 @@ def setup_mettagrid_logger(name: str, level=None) -> logging.Logger:
 
     # Set the level
     root_logger.setLevel(getattr(logging, log_level))
+
+    # set env COLUMNS if we are in a batch job
+    if os.environ.get("AWS_BATCH_JOB_ID") or os.environ.get("SKYPILOT_TASK_ID"):
+        os.environ["COLUMNS"] = "200"
 
     return logging.getLogger(name)

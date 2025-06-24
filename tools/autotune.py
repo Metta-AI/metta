@@ -1,3 +1,4 @@
+#!/usr/bin/env -S uv run
 import hydra
 import pufferlib.vector
 

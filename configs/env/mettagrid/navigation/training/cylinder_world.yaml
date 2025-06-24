@@ -1,24 +1,22 @@
-# Config: choose any style, including the new "cylinder_world"
 defaults:
-  - /env/mettagrid/mettagrid@
+  - /env/mettagrid/navigation/training/defaults@
   - _self_
-
-sampling: 1
 
 game:
   num_agents: 4
   map_builder:
-    _target_: mettagrid.room.multi_room.MultiRoom
-    num_rooms: ${..num_agents}
-    border_width: 6
-
     room:
-      _target_: mettagrid.room.navigation.cylinder_world.CylinderWorld
-      width: ${sampling:75,120,60}
-      height: ${sampling:75,120,60}
-      border_width: 1
+      _target_: metta.mettagrid.room.terrain_from_numpy.TerrainFromNumpy
+      border_width: 3
       agents: 1
-
+      dir: ${choose:varied_terrain/cylinder-world_large,varied_terrain/cylinder-world_medium,varied_terrain/cylinder-world_small}
+      objects:
+        altar: 30
   objects:
     altar:
-      cooldown: 255
+      cooldown: 1000
+      input_battery.red: 3
+      output_heart: 1
+      max_output: 5
+      conversion_ticks: 1
+      initial_items: 1

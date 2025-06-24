@@ -1,31 +1,31 @@
 {
-    "version": 3,
-    "configurePresets": [
-        {
-            "name": "debug",
-            "description": "Debug build with tests",
-            "cacheVariables": {
-                "CMAKE_BUILD_TYPE": "Debug",
-                "BUILD_TESTS": "ON"
-            },
-            "binaryDir": "${sourceDir}/build-debug"
-        },
-        {
-            "name": "release",
-            "description": "Release build with tests",
-            "cacheVariables": {
-                "CMAKE_BUILD_TYPE": "Release",
-                "BUILD_TESTS": "ON"
-            },
-            "binaryDir": "${sourceDir}/build-release"
-        },
-        {
-            "name": "release-no-tests",
-            "description": "Release build without tests",
-            "cacheVariables": {
-                "CMAKE_BUILD_TYPE": "Release",
-                "BUILD_TESTS": "OFF"
-            }
-        }
-    ]
+  "version": 3,
+  "configurePresets": [
+    {
+      "name": "debug",
+      "description": "Debug build with tests",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "BUILD_TESTS": "ON"
+      },
+      "binaryDir": "${sourceDir}/build-debug"
+    },
+    {
+      "name": "release",
+      "description": "Release build with tests",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "BUILD_TESTS": "ON"
+      },
+      "binaryDir": "${sourceDir}/build-release"
+    },
+    {
+      "name": "release-no-tests",
+      "description": "Release build without tests",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "BUILD_TESTS": "OFF"
+      }
+    }
+  ]
 }

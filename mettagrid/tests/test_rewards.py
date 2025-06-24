@@ -1,14 +1,14 @@
 import numpy as np
 
-from mettagrid.mettagrid_c import MettaGrid
-from mettagrid.mettagrid_env import (
-    np_actions_type,
-    np_observations_type,
-    np_rewards_type,
-    np_terminals_type,
-    np_truncations_type,
+from metta.mettagrid.mettagrid_c import MettaGrid
+from metta.mettagrid.mettagrid_env import (
+    dtype_actions,
+    dtype_observations,
+    dtype_rewards,
+    dtype_terminals,
+    dtype_truncations,
 )
-from mettagrid.util.actions import (
+from metta.mettagrid.util.actions import (
     Orientation,
     get_agent_position,
     move,
@@ -18,6 +18,8 @@ from mettagrid.util.actions import (
 NUM_AGENTS = 1
 OBS_HEIGHT = 3
 OBS_WIDTH = 3
+NUM_OBS_TOKENS = 100
+OBS_TOKEN_SIZE = 3
 
 
 def create_heart_reward_test_env(max_steps=50, num_agents=NUM_AGENTS):
@@ -31,44 +33,41 @@ def create_heart_reward_test_env(max_steps=50, num_agents=NUM_AGENTS):
         ["wall", "wall", "wall", "wall", "wall", "wall"],
     ]
 
-    env_config = {
-        "game": {
-            "max_steps": max_steps,
-            "num_agents": num_agents,
-            "obs_width": OBS_WIDTH,
-            "obs_height": OBS_HEIGHT,
-            "actions": {
-                "noop": {"enabled": True},
-                "get_items": {"enabled": True},
-                "move": {"enabled": True},
-                "rotate": {"enabled": True},
-                "put_items": {"enabled": True},
-                "attack": {"enabled": True},
-                "swap": {"enabled": True},
-                "change_color": {"enabled": True},
+    game_config = {
+        "max_steps": max_steps,
+        "num_agents": num_agents,
+        "obs_width": OBS_WIDTH,
+        "obs_height": OBS_HEIGHT,
+        "num_observation_tokens": NUM_OBS_TOKENS,
+        "actions": {
+            "noop": {"enabled": True},
+            "get_items": {"enabled": True},
+            "move": {"enabled": True},
+            "rotate": {"enabled": True},
+            "put_items": {"enabled": True},
+            "attack": {"enabled": True},
+            "swap": {"enabled": True},
+            "change_color": {"enabled": True},
+        },
+        "groups": {"red": {"id": 0, "props": {}}},
+        "objects": {
+            "wall": {"type_id": 1},
+            "altar": {
+                "type_id": 4,
+                "output_heart": 1,
+                "initial_items": 5,  # Start with some hearts
+                "max_output": 50,
+                "conversion_ticks": 1,  # Faster conversion
+                "cooldown": 10,  # Shorter cooldown
             },
-            "groups": {"red": {"id": 0, "props": {}}},
-            "objects": {
-                "wall": {"type_id": 1, "hp": 100},
-                "altar": {
-                    "type_id": 4,
-                    "hp": 100,
-                    "output_heart": 1,
-                    "initial_items": 5,  # Start with some hearts
-                    "max_output": 50,
-                    "conversion_ticks": 1,  # Faster conversion
-                    "cooldown": 10,  # Shorter cooldown
-                },
-            },
-            "agent": {
-                "default_item_max": 10,
-                "hp": 100,
-                "rewards": {"heart": 1.0},  # This gives 1.0 reward per heart collected
-            },
-        }
+        },
+        "agent": {
+            "default_item_max": 10,
+            "rewards": {"heart": 1.0},  # This gives 1.0 reward per heart collected
+        },
     }
 
-    return MettaGrid(env_config, game_map)
+    return MettaGrid(game_config, game_map)
 
 
 def create_reward_test_env(max_steps=10, width=5, height=5, num_agents=NUM_AGENTS):
@@ -84,35 +83,34 @@ def create_reward_test_env(max_steps=10, width=5, height=5, num_agents=NUM_AGENT
     for i in range(num_agents):
         game_map[1, i + 1] = "agent.red"
 
-    env_config = {
-        "game": {
-            "max_steps": max_steps,
-            "num_agents": num_agents,
-            "obs_width": OBS_WIDTH,
-            "obs_height": OBS_HEIGHT,
-            "actions": {
-                "noop": {"enabled": True},
-                "move": {"enabled": True},
-                "rotate": {"enabled": False},
-                "attack": {"enabled": False},
-                "put_items": {"enabled": False},
-                "get_items": {"enabled": False},
-                "swap": {"enabled": False},
-                "change_color": {"enabled": False},
-            },
-            "groups": {
-                "red": {"id": 1, "group_reward_pct": 0.1, "props": {"max_inventory": 50}},
-                "blue": {"id": 2, "group_reward_pct": 0.0, "props": {"max_inventory": 50}},
-            },
-            "objects": {
-                "wall": {"hp": 100},
-                "block": {"hp": 50},
-            },
-            "agent": {"freeze_duration": 100, "max_inventory": 50, "rewards": {"heart": 1.0}},
-        }
+    game_config = {
+        "max_steps": max_steps,
+        "num_agents": num_agents,
+        "obs_width": OBS_WIDTH,
+        "obs_height": OBS_HEIGHT,
+        "num_observation_tokens": NUM_OBS_TOKENS,
+        "actions": {
+            "noop": {"enabled": True},
+            "move": {"enabled": True},
+            "rotate": {"enabled": False},
+            "attack": {"enabled": False},
+            "put_items": {"enabled": False},
+            "get_items": {"enabled": False},
+            "swap": {"enabled": False},
+            "change_color": {"enabled": False},
+        },
+        "groups": {
+            "red": {"id": 1, "group_reward_pct": 0.1, "props": {"max_inventory": 50}},
+            "blue": {"id": 2, "group_reward_pct": 0.0, "props": {"max_inventory": 50}},
+        },
+        "objects": {
+            "wall": {},
+            "block": {},
+        },
+        "agent": {"freeze_duration": 100, "max_inventory": 50, "rewards": {"heart": 1.0}},
     }
 
-    return MettaGrid(env_config, game_map.tolist())
+    return MettaGrid(game_config, game_map.tolist())
 
 
 def perform_action(env, action_name, arg=0):
@@ -123,7 +121,7 @@ def perform_action(env, action_name, arg=0):
         raise ValueError(f"Unknown action '{action_name}'. Available actions: {available_actions}")
 
     action_idx = available_actions.index(action_name)
-    action = np.zeros((NUM_AGENTS, 2), dtype=np_actions_type)
+    action = np.zeros((NUM_AGENTS, 2), dtype=dtype_actions)
     action[0] = [action_idx, arg]
     obs, rewards, terminals, truncations, info = env.step(action)
     return obs, float(rewards[0]), env.action_success()[0]
@@ -163,11 +161,10 @@ class TestRewards:
         env = create_reward_test_env()
 
         # Create buffers
-        num_features = len(env.grid_features())
-        observations = np.zeros((NUM_AGENTS, OBS_HEIGHT, OBS_WIDTH, num_features), dtype=np_observations_type)
-        terminals = np.zeros(NUM_AGENTS, dtype=np_terminals_type)
-        truncations = np.zeros(NUM_AGENTS, dtype=np_truncations_type)
-        rewards = np.zeros(NUM_AGENTS, dtype=np_rewards_type)
+        observations = np.zeros((NUM_AGENTS, NUM_OBS_TOKENS, OBS_TOKEN_SIZE), dtype=dtype_observations)
+        terminals = np.zeros(NUM_AGENTS, dtype=dtype_terminals)
+        truncations = np.zeros(NUM_AGENTS, dtype=dtype_truncations)
+        rewards = np.zeros(NUM_AGENTS, dtype=dtype_rewards)
 
         env.set_buffers(observations, terminals, truncations, rewards)
         env.reset()
@@ -177,7 +174,7 @@ class TestRewards:
 
         # Take a step with noop actions
         noop_action_idx = env.action_names().index("noop")
-        actions = np.full((NUM_AGENTS, 2), [noop_action_idx, 0], dtype=np.int64)
+        actions = np.full((NUM_AGENTS, 2), [noop_action_idx, 0], dtype=dtype_actions)
 
         obs, step_rewards, terminals, truncations, info = env.step(actions)
 
@@ -190,11 +187,10 @@ class TestRewards:
         env = create_heart_reward_test_env()
 
         # Create buffers
-        num_features = len(env.grid_features())
-        observations = np.zeros((NUM_AGENTS, OBS_HEIGHT, OBS_WIDTH, num_features), dtype=np_observations_type)
-        terminals = np.zeros(NUM_AGENTS, dtype=np_terminals_type)
-        truncations = np.zeros(NUM_AGENTS, dtype=np_truncations_type)
-        rewards = np.zeros(NUM_AGENTS, dtype=np_rewards_type)
+        observations = np.zeros((NUM_AGENTS, NUM_OBS_TOKENS, OBS_TOKEN_SIZE), dtype=dtype_observations)
+        terminals = np.zeros(NUM_AGENTS, dtype=dtype_terminals)
+        truncations = np.zeros(NUM_AGENTS, dtype=dtype_truncations)
+        rewards = np.zeros(NUM_AGENTS, dtype=dtype_rewards)
 
         env.set_buffers(observations, terminals, truncations, rewards)
         env.reset()
@@ -219,11 +215,10 @@ class TestRewards:
         env = create_heart_reward_test_env()
 
         # Create buffers
-        num_features = len(env.grid_features())
-        observations = np.zeros((NUM_AGENTS, OBS_HEIGHT, OBS_WIDTH, num_features), dtype=np_observations_type)
-        terminals = np.zeros(NUM_AGENTS, dtype=np_truncations_type)
-        truncations = np.zeros(NUM_AGENTS, dtype=np_truncations_type)
-        rewards = np.zeros(NUM_AGENTS, dtype=np_rewards_type)
+        observations = np.zeros((NUM_AGENTS, NUM_OBS_TOKENS, OBS_TOKEN_SIZE), dtype=dtype_observations)
+        terminals = np.zeros(NUM_AGENTS, dtype=dtype_terminals)
+        truncations = np.zeros(NUM_AGENTS, dtype=dtype_truncations)
+        rewards = np.zeros(NUM_AGENTS, dtype=dtype_rewards)
 
         env.set_buffers(observations, terminals, truncations, rewards)
         env.reset()
@@ -262,11 +257,10 @@ class TestRewards:
         env = create_reward_test_env()
 
         # Create buffers
-        num_features = len(env.grid_features())
-        observations = np.zeros((NUM_AGENTS, OBS_HEIGHT, OBS_WIDTH, num_features), dtype=np_observations_type)
-        terminals = np.zeros(NUM_AGENTS, dtype=np_terminals_type)
-        truncations = np.zeros(NUM_AGENTS, dtype=np_truncations_type)
-        rewards = np.zeros(NUM_AGENTS, dtype=np_rewards_type)
+        observations = np.zeros((NUM_AGENTS, NUM_OBS_TOKENS, OBS_TOKEN_SIZE), dtype=dtype_observations)
+        terminals = np.zeros(NUM_AGENTS, dtype=dtype_terminals)
+        truncations = np.zeros(NUM_AGENTS, dtype=dtype_truncations)
+        rewards = np.zeros(NUM_AGENTS, dtype=dtype_rewards)
 
         env.set_buffers(observations, terminals, truncations, rewards)
         env.reset()
@@ -277,7 +271,7 @@ class TestRewards:
 
         # Take first step
         noop_action_idx = env.action_names().index("noop")
-        actions = np.full((NUM_AGENTS, 2), [noop_action_idx, 0], dtype=np.int64)
+        actions = np.full((NUM_AGENTS, 2), [noop_action_idx, 0], dtype=dtype_actions)
 
         obs, step_rewards_1, terminals, truncations, info = env.step(actions)
         episode_rewards_1 = env.get_episode_rewards()
@@ -310,7 +304,7 @@ class TestRewards:
 
         # Take steps
         noop_action_idx = env.action_names().index("noop")
-        actions = np.full((NUM_AGENTS, 2), [noop_action_idx, 0], dtype=np.int64)
+        actions = np.full((NUM_AGENTS, 2), [noop_action_idx, 0], dtype=dtype_actions)
 
         obs, step_rewards_1, terminals, truncations, info = env.step(actions)
         episode_rewards_1 = env.get_episode_rewards()

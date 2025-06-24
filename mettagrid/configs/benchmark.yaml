@@ -2,20 +2,23 @@
 report_stats_interval: 100
 
 sampling: 0
+desync_episodes: false
 
 game:
   num_agents: 24
+  num_observation_tokens: 100
 
   map_builder:
-    _target_: mettagrid.room.multi_room.MultiRoom
+    _target_: metta.mettagrid.room.multi_room.MultiRoom
     num_rooms: 4
     border_width: 6
 
     room:
-      _target_: mettagrid.room.random.Random
+      _target_: metta.mettagrid.room.random.Random
       width: 25
       height: 25
       border_width: 0
+      seed: 42
 
       agents: 6
 
@@ -32,8 +35,6 @@ game:
         block: 20
         wall: 20
 
-  recursive_map_builder: true
-
   obs_width: 11
   obs_height: 11
   max_steps: 1000
@@ -41,7 +42,7 @@ game:
   agent:
     default_item_max: 50
     freeze_duration: 10
-    hp: 10
+
     rewards:
       # action_failure_penalty: 0.00001
       action_failure_penalty: 0
@@ -100,11 +101,10 @@ game:
   diversity_bonus:
     enabled: false
     similarity_coef: 0.5
-    diversity_coef: 0.5 
+    diversity_coef: 0.5
 
   objects:
     altar:
-      hp: 30
       input_battery.red: 3
       output_heart: 1
       max_output: 5
@@ -112,8 +112,7 @@ game:
       cooldown: 10
       initial_items: 1
 
-    mine.red:
-      hp: 30
+    mine_red:
       output_ore.red: 1
       color: 0
       max_output: 5
@@ -121,8 +120,7 @@ game:
       cooldown: 50
       initial_items: 1
 
-    mine.blue:
-      hp: 30
+    mine_blue:
       color: 1
       output_ore.blue: 1
       max_output: 5
@@ -130,8 +128,7 @@ game:
       cooldown: 50
       initial_items: 1
 
-    mine.green:
-      hp: 30
+    mine_green:
       output_ore.green: 1
       color: 2
       max_output: 5
@@ -139,8 +136,7 @@ game:
       cooldown: 50
       initial_items: 1
 
-    generator.red:
-      hp: 30
+    generator_red:
       input_ore.red: 1
       output_battery.red: 1
       color: 0
@@ -149,8 +145,7 @@ game:
       cooldown: 25
       initial_items: 1
 
-    generator.blue:
-      hp: 30
+    generator_blue:
       input_ore.blue: 1
       output_battery.blue: 1
       color: 1
@@ -159,8 +154,7 @@ game:
       cooldown: 25
       initial_items: 1
 
-    generator.green:
-      hp: 30
+    generator_green:
       input_ore.green: 1
       output_battery.green: 1
       color: 2
@@ -170,7 +164,6 @@ game:
       initial_items: 1
 
     armory:
-      hp: 30
       input_ore.red: 3
       output_armor: 1
       max_output: 5
@@ -179,7 +172,6 @@ game:
       initial_items: 1
 
     lasery:
-      hp: 30
       input_ore.red: 1
       input_battery.red: 2
       output_laser: 1
@@ -189,7 +181,6 @@ game:
       initial_items: 1
 
     lab:
-      hp: 30
       input_ore.red: 3
       input_battery.red: 3
       output_blueprint: 1
@@ -199,7 +190,6 @@ game:
       initial_items: 1
 
     factory:
-      hp: 30
       input_blueprint: 1
       input_ore.red: 5
       input_battery.red: 5
@@ -211,7 +201,6 @@ game:
       initial_items: 1
 
     temple:
-      hp: 30
       input_heart: 1
       input_blueprint: 1
       output_heart: 5
@@ -221,11 +210,9 @@ game:
       initial_items: 1
 
     wall:
-      hp: 20
       swappable: false
 
     block:
-      hp: 20
       swappable: true
 
   actions:

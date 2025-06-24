@@ -25,18 +25,18 @@ apt-get install -y \
   ca-certificates \
   curl \
   gnupg \
-  rsyslog                     # for remote journald if you enable it later
+  rsyslog # for remote journald if you enable it later
 
 ################################################################################
 # 1.  Tailscale
 ################################################################################
-if ! command -v tailscale &>/dev/null; then
+if ! command -v tailscale &> /dev/null; then
   curl -fsSL https://tailscale.com/install.sh | sh
 fi
 
 # Make tailscaled restart automatically if it crashes or loses connectivity
 mkdir -p /etc/systemd/system/tailscaled.service.d
-cat <<'EOF' | tee /etc/systemd/system/tailscaled.service.d/10-restart.conf
+cat << 'EOF' | tee /etc/systemd/system/tailscaled.service.d/10-restart.conf
 [Service]
 Restart=always
 RestartSec=5
@@ -47,25 +47,25 @@ systemctl daemon-reload
 ################################################################################
 # 2.  Docker (engine + NVIDIA container runtime)
 ################################################################################
-if ! command -v docker &>/dev/null; then
+if ! command -v docker &> /dev/null; then
   install -m 0755 -d /etc/apt/keyrings
   curl -fsSL https://download.docker.com/linux/ubuntu/gpg \
-       -o /etc/apt/keyrings/docker.asc
+    -o /etc/apt/keyrings/docker.asc
   chmod a+r /etc/apt/keyrings/docker.asc
 
   echo "deb [arch=$(dpkg --print-architecture) \
         signed-by=/etc/apt/keyrings/docker.asc] \
         https://download.docker.com/linux/ubuntu \
         $(. /etc/os-release && echo "${UBUNTU_CODENAME:-$VERSION_CODENAME}") stable" \
-        | tee /etc/apt/sources.list.d/docker.list >/dev/null
+    | tee /etc/apt/sources.list.d/docker.list > /dev/null
 fi
 
 apt-get update -y
 apt-get install -y docker-ce docker-ce-cli containerd.io \
-                   docker-buildx-plugin docker-compose-plugin
+  docker-buildx-plugin docker-compose-plugin
 
 # NVIDIA container runtime (Debian bullseye repo still required)
- curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey \
+curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey \
   | gpg --batch --yes --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
 curl -s -L https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list \
   | sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' \
@@ -78,7 +78,7 @@ systemctl restart docker
 # 3.  NVIDIA driver (pin to a known-good version) + GPU persistence
 ################################################################################
 DRIVER_PACKAGE="nvidia-driver-570"
-if nvidia-smi &>/dev/null; then
+if nvidia-smi &> /dev/null; then
   echo "NVIDIA driver already installed, skipping."
 else
   apt-get install -y "$DRIVER_PACKAGE"
@@ -87,7 +87,7 @@ fi
 apt-mark hold "$DRIVER_PACKAGE"
 
 # Turn on persistence mode so the GPU never enters low-power states
-nvidia-smi -pm 1 || true   # ignore error on first boot (no driver yet)
+nvidia-smi -pm 1 || true # ignore error on first boot (no driver yet)
 
 # Mask systemd helpers that can race with GPUs on resume
 systemctl mask nvidia-hibernate nvidia-suspend nvidia-resume
@@ -99,7 +99,7 @@ systemctl mask sleep.target suspend.target hibernate.target hybrid-sleep.target
 
 # Ignore power button / lid close ACPI events
 sed -i 's/^#\?HandlePowerKey=.*/HandlePowerKey=ignore/' /etc/systemd/logind.conf
-sed -i 's/^#\?HandleLidSwitch=.*/HandleLidSwitch=ignore/'   /etc/systemd/logind.conf
+sed -i 's/^#\?HandleLidSwitch=.*/HandleLidSwitch=ignore/' /etc/systemd/logind.conf
 sed -i 's/^#\?HandleLidSwitchDocked=.*/HandleLidSwitchDocked=ignore/' /etc/systemd/logind.conf
 systemctl restart systemd-logind
 
@@ -108,7 +108,7 @@ systemctl restart systemd-logind
 ################################################################################
 echo "kdump-tools kdump-tools/use_kdump boolean true" \
   | debconf-set-selections
-apt-get install -y linux-crashdump          # installs kdump-tools
+apt-get install -y linux-crashdump # installs kdump-tools
 sed -i 's/^USE_KDUMP=.*/USE_KDUMP=1/' /etc/default/kdump-tools
 systemctl enable kdump-tools
 

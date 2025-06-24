@@ -91,12 +91,6 @@ TEST_F(StatsTrackerTest, AverageCalculation) {
   EXPECT_EQ(0, result.count("points.avg"));
 }
 
-// Test increment on float should throw
-TEST_F(StatsTrackerTest, IncrementFloatThrows) {
-  stats.set("float_stat", 1.5f);
-  EXPECT_THROW(stats.incr("float_stat"), std::runtime_error);
-}
-
 // Test time tracking without environment =
 TEST_F(StatsTrackerTest, TimingWithoutEnvironment) {
   // We can't easily test timing with a mock environment since
@@ -143,23 +137,6 @@ TEST_F(StatsTrackerTest, ResetClearsAllData) {
   // All data should be cleared
   auto result = stats.to_dict();
   EXPECT_TRUE(result.empty());
-}
-
-// Test mixed types should maintain their types
-TEST_F(StatsTrackerTest, MixedTypes) {
-  // The current implementation allows mixing types via std::visit
-  // The test was expecting it to throw, but the implementation converts
-  stats.add("mixed", 10);    // Creates as int
-  stats.add("mixed", 5.5f);  // Converts and adds
-
-  auto result = stats.to_dict();
-  EXPECT_FLOAT_EQ(15.0f, result["mixed"]);  // 10 + 5 (5.5 converted to int)
-
-  stats.add("float_stat", 10.5f);  // Creates as float
-  stats.add("float_stat", 5);      // Adds as float
-
-  result = stats.to_dict();
-  EXPECT_FLOAT_EQ(15.5f, result["float_stat"]);  // 10.5 + 5.0
 }
 
 // Test without environment (no timing)

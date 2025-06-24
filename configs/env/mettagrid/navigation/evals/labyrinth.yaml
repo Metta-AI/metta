@@ -6,7 +6,7 @@ game:
   max_steps: 250
 
   map_builder:
-    _target_: mettagrid.room.cognitive_evals.labyrinth.LabyrinthMaze
+    _target_: metta.mettagrid.room.cognitive_evals.labyrinth.LabyrinthMaze
     width: 35
     height: 35
     corridor_width: 3

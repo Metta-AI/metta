@@ -4,10 +4,10 @@ seed: null
 
 defaults:
   # - override /env/mettagrid@env: simple
-  - override /agent: robust_cross
+  - override /agent: simple
   - _self_
 
-policy_uri: puffer:///tmp/puffer_metta.pt
+policy_uri: pytorch:///tmp/puffer_metta.pt
 npc_policy_uri: null
 
 # env_overrides:
@@ -23,7 +23,6 @@ eval:
   npc_policy_uri: ${..npc_policy_uri}
   # eval_db_uri: ${..eval_db_uri}
   # env: /env/mettagrid/prog_3.yaml
-  # num_envs: 10
   # num_episodes: 10
   # max_time_s: 60
 
@@ -34,7 +33,7 @@ wandb:
   enabled: true
   # checkpoint_interval: 1
 
-run_id: 691
+run_id: 1200
 run: ${oc.env:USER}.local.${run_id}
 trained_policy_uri: ${run_dir}/checkpoints
 sweep_name: "${oc.env:USER}.local.sweep.${run_id}"

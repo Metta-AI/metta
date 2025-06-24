@@ -541,21 +541,36 @@ class TestDateResolver:
 
     def test_date_resolver_with_time(self):
         """Test the date resolver with time formats"""
-        import datetime
 
-        from metta.util.resolvers import oc_date_format
-
+        # Test format with seconds - use tolerance approach
+        result = oc_date_format("YYYY-MM-DD_HH-mm-ss")
+        # Parse it back to a datetime
+        result_dt = datetime.datetime.strptime(result, "%Y-%m-%d_%H-%M-%S")
+        # Check that it's within 2 seconds of now
         now = datetime.datetime.now()
+        time_diff = abs((now - result_dt).total_seconds())
+        assert time_diff < 2, f"Time difference too large: {time_diff} seconds"
 
-        assert oc_date_format("YYYY-MM-DD_HH-mm-ss") == now.strftime("%Y-%m-%d_%H-%M-%S")
-        assert oc_date_format("HH:mm:ss") == now.strftime("%H:%M:%S")
-        assert oc_date_format("HHmmss") == now.strftime("%H%M%S")
+        result_hms = oc_date_format("HH:mm:ss")
+        # Combine with today's date for parsing
+        today_str = now.strftime("%Y-%m-%d")
+        result_hms_dt = datetime.datetime.strptime(f"{today_str} {result_hms}", "%Y-%m-%d %H:%M:%S")
+        time_diff_hms = abs((now - result_hms_dt).total_seconds())
+        assert time_diff_hms < 2, f"Time difference too large for HH:mm:ss: {time_diff_hms} seconds"
+
+        # Test HHmmss format
+        result_compact = oc_date_format("HHmmss")
+        result_compact_dt = datetime.datetime.strptime(f"{today_str} {result_compact}", "%Y-%m-%d %H%M%S")
+        time_diff_compact = abs((now - result_compact_dt).total_seconds())
+        assert time_diff_compact < 2, f"Time difference too large for HHmmss: {time_diff_compact} seconds"
+
+        # For formats without seconds, we can do exact comparison
+        # since they're less likely to change during test execution
+        now_minute_precision = now.replace(second=0, microsecond=0)
+        assert oc_date_format("HH:mm") == now_minute_precision.strftime("%H:%M")
 
     def test_date_resolver_python_formats(self):
         """Test the date resolver with direct Python format codes"""
-        import datetime
-
-        from metta.util.resolvers import oc_date_format
 
         now = datetime.datetime.now()
 

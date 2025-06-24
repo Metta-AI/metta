@@ -41,8 +41,8 @@ canvas#global-canvas {
 #footer .left {
     position: absolute;
     display: flex;
-    width: 180px;
-    height: 32px;
+    width: fit-content;
+    height: fit-content;
     left: 20px;
     top: 50%;
     transform: translate(0, -16px);
@@ -54,51 +54,46 @@ canvas#global-canvas {
 }
 
 .left #rewind-to-start.hover-icon {
+    position: relative;
     display: block;
     width: 32px;
     height: 32px;
-    left: 0px;
-    top: 0px;
     background-color: rgba(0, 0, 0, 0.00);
     overflow: hidden;
 }
 
 .left #step-back.hover-icon {
+    position: relative;
     display: block;
     width: 32px;
     height: 32px;
-    left: 37px;
-    top: 0px;
     background-color: rgba(0, 0, 0, 0.00);
     overflow: hidden;
 }
 
 .left #play.hover-icon {
+    position: relative;
     display: block;
     width: 32px;
     height: 32px;
-    left: 74px;
-    top: 0px;
     background-color: rgba(0, 0, 0, 0.00);
     overflow: hidden;
 }
 
 .left #step-forward.hover-icon {
+    position: relative;
     display: block;
     width: 32px;
     height: 32px;
-    left: 111px;
-    top: 0px;
     background-color: rgba(0, 0, 0, 0.00);
     overflow: hidden;
 }
 
 .left #rewind-to-end.hover-icon {
+    position: relative;
     display: block;
     width: 32px;
     height: 32px;
-    left: 148px;
-    top: 0px;
     background-color: rgba(0, 0, 0, 0.00);
     overflow: hidden;
 }
@@ -106,8 +101,8 @@ canvas#global-canvas {
 #footer .center {
     position: absolute;
     display: flex;
-    width: 157px;
-    height: 32px;
+    width: fit-content;
+    height: fit-content;
     left: 50%;
     top: 50%;
     transform: translate(-78.50px, -16px);
@@ -119,61 +114,55 @@ canvas#global-canvas {
 }
 
 .center #speed1.hover-icon {
+    position: relative;
     display: block;
     width: 32px;
     height: 32px;
-    left: 0px;
-    top: 0px;
     background-color: rgba(0, 0, 0, 0.00);
     overflow: hidden;
 }
 
 .center #speed2.hover-icon {
+    position: relative;
     display: block;
     width: 17px;
     height: 32px;
-    left: 37px;
-    top: 0px;
     background-color: rgba(0, 0, 0, 0.00);
     overflow: hidden;
 }
 
 .center #speed3.hover-icon {
+    position: relative;
     display: block;
     width: 17px;
     height: 32px;
-    left: 59px;
-    top: 0px;
     background-color: rgba(0, 0, 0, 0.00);
     overflow: hidden;
 }
 
 .center #speed4.hover-icon {
+    position: relative;
     display: block;
     width: 17px;
     height: 32px;
-    left: 81px;
-    top: 0px;
     background-color: rgba(0, 0, 0, 0.00);
     overflow: hidden;
 }
 
 .center #speed5.hover-icon {
+    position: relative;
     display: block;
     width: 17px;
     height: 32px;
-    left: 103px;
-    top: 0px;
     background-color: rgba(0, 0, 0, 0.00);
     overflow: hidden;
 }
 
 .center #speed6.hover-icon {
+    position: relative;
     display: block;
     width: 32px;
     height: 32px;
-    left: 125px;
-    top: 0px;
     background-color: rgba(0, 0, 0, 0.00);
     overflow: hidden;
 }
@@ -181,8 +170,8 @@ canvas#global-canvas {
 #footer .right {
     position: absolute;
     display: flex;
-    width: 303px;
-    height: 32px;
+    width: fit-content;
+    height: fit-content;
     right: 20px;
     top: 50%;
     transform: translate(0, -16px);
@@ -195,126 +184,144 @@ canvas#global-canvas {
 }
 
 .right #focus-toggle.hover-icon {
+    position: relative;
     display: block;
     width: 32px;
     height: 32px;
-    left: 0px;
-    top: 0px;
     background-color: rgba(0, 0, 0, 0.00);
     overflow: hidden;
 }
 
 .right .sep1 {
+    position: relative;
     display: block;
     width: 1px;
     height: 16px;
-    left: 37px;
-    top: 8px;
     background-color: rgba(255, 255, 255, 0.10);
 }
 
 .right #minimap-toggle.hover-icon {
+    position: relative;
     display: block;
     width: 32px;
     height: 32px;
-    left: 43px;
-    top: 0px;
     background-color: rgba(0, 0, 0, 0.00);
     overflow: hidden;
 }
 
 .right #controls-toggle.hover-icon {
+    position: relative;
     display: block;
     width: 32px;
     height: 32px;
-    left: 80px;
-    top: 0px;
     background-color: rgba(0, 0, 0, 0.00);
     overflow: hidden;
 }
 
 .right #info-toggle.hover-icon {
+    position: relative;
     display: block;
     width: 32px;
     height: 32px;
-    left: 117px;
-    top: 0px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+.right #agent-panel-toggle.hover-icon {
+    position: relative;
+    display: block;
+    width: 32px;
+    height: 32px;
     background-color: rgba(0, 0, 0, 0.00);
     overflow: hidden;
 }
 
 .right .sep2 {
+    position: relative;
     display: block;
     width: 1px;
     height: 16px;
-    left: 154px;
-    top: 8px;
     background-color: rgba(255, 255, 255, 0.10);
 }
 
 .right #resources-toggle.hover-icon {
+    position: relative;
     display: block;
     width: 32px;
     height: 32px;
-    left: 160px;
-    top: 0px;
     background-color: rgba(0, 0, 0, 0.00);
     overflow: hidden;
 }
 
 .right #grid-toggle.hover-icon {
+    position: relative;
     display: block;
     width: 32px;
     height: 32px;
-    left: 197px;
-    top: 0px;
     background-color: rgba(0, 0, 0, 0.00);
     overflow: hidden;
 }
 
 .right #visual-range-toggle.hover-icon {
+    position: relative;
     display: block;
     width: 32px;
     height: 32px;
-    left: 234px;
-    top: 0px;
     background-color: rgba(0, 0, 0, 0.00);
     overflow: hidden;
 }
 
 .right #fog-of-war-toggle.hover-icon {
+    position: relative;
     display: block;
     width: 32px;
     height: 32px;
-    left: 271px;
-    top: 0px;
     background-color: rgba(0, 0, 0, 0.00);
     overflow: hidden;
 }
 
-#time-panel {
+#timeline-panel {
     position: absolute;
-    display: flex;
+    display: block;
     height: 64px;
     left: 0px;
     right: 0px;
     bottom: 64px;
-    flex-direction: column;
-    flex-wrap: nowrap;
-    gap: 16px;
-    padding: 16px 32px 16px 32px;
     background-color: rgba(29, 29, 29, 1.00);
     overflow: hidden;
 }
 
-#time-panel input#main-scrubber {
+#timeline-panel #timeline-redout {
+    position: absolute;
     display: block;
-    width: 100%;
-    height: 32px;
-    left: 32px;
-    top: 16px;
-    align-self: stretch;
-    background-color: rgba(217, 217, 217, 1.00);
+    width: 46px;
+    height: 22px;
+    left: 851px;
+    top: 5px;
+    background-color: rgba(0, 0, 0, 1.00);
+    border-radius: 8px;
+    overflow: hidden;
+    border-color: rgba(85, 85, 85, 1.00);
+    border-width: 1px;
+    border-style: solid;
+}
+
+#timeline-redout #step-counter {
+    position: absolute;
+    display: inline-block;
+    left: 0px;
+    right: 0px;
+    top: 1px;
+    bottom: 0px;
+    color: rgba(255, 255, 255, 1.00);
+    font-family: IBM Plex Mono;
+    font-style: normal;
+    font-weight: 400;
+    font-size: 14px;
+    text-align: center;
+    vertical-align: middle;
+    letter-spacing: 0px;
+    line-height: 18.20px;
 }
 
 #trace-panel {
@@ -364,19 +371,19 @@ canvas#global-canvas {
 #header #file-name {
     position: absolute;
     display: inline-block;
-    width: 701px;
-    height: 29px;
+    width: 652px;
+    height: 31px;
     left: 85px;
     top: 18px;
     color: rgba(255, 255, 255, 1.00);
-    font-family: Scout;
+    font-family: IBM Plex Sans;
     font-style: normal;
     font-weight: 400;
     font-size: 24px;
     text-align: left;
     vertical-align: top;
     letter-spacing: 0px;
-    line-height: 28.80px;
+    line-height: 31.20px;
 }
 
 #header #logo {
@@ -434,14 +441,64 @@ button#help-button.hover-icon .icon {
     overflow: hidden;
 }
 
+#header input#search-input::placeholder {
+    color: rgba(255, 255, 255, 1.00);
+    font-family: IBM Plex Sans;
+    font-style: normal;
+    font-weight: 400;
+    font-size: 16px;
+    text-align: left;
+    vertical-align: top;
+    letter-spacing: 0px;
+    line-height: 20.80px;
+}
+
+#header input#search-input {
+    position: absolute;
+    display: flex;
+    width: 336px;
+    height: 41px;
+    right: 106px;
+    top: 11px;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 10px;
+    padding: 11px 18px 11px 48px;
+    background-color: rgba(20, 27, 35, 1.00);
+    border-radius: 5px;
+    border-color: rgba(53, 53, 53, 1.00);
+    border-width: 1px;
+    border-style: solid;
+    color: rgba(255, 255, 255, 1.00);
+    font-family: IBM Plex Sans;
+    font-style: normal;
+    font-weight: 400;
+    font-size: 16px;
+    text-align: left;
+    vertical-align: top;
+    letter-spacing: 0px;
+    line-height: 20.80px;
+}
+
+#header #search-icon {
+    position: absolute;
+    display: block;
+    width: 32px;
+    height: 32px;
+    right: 401px;
+    top: 16px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
 #modal {
     position: absolute;
     display: flex;
     width: 616px;
-    height: 237px;
+    height: fit-content;
     left: 50%;
     top: 50%;
-    transform: translate(-307.50px, -118.50px);
+    transform: translate(-307.50px, -137px);
     flex-direction: column;
     flex-wrap: nowrap;
     gap: 32px;
@@ -456,49 +513,47 @@ button#help-button.hover-icon .icon {
 }
 
 #modal .header {
+    position: relative;
     display: inline-block;
     width: 100%;
-    height: auto;
-    left: 64px;
-    top: 64px;
+    height: fit-content;
     align-self: stretch;
     color: rgba(255, 255, 255, 1.00);
-    font-family: Scout;
+    font-family: IBM Plex Sans;
     font-style: normal;
     font-weight: 400;
     font-size: 40px;
     text-align: center;
     vertical-align: top;
     letter-spacing: 0px;
-    line-height: 48px;
+    line-height: 52px;
 }
 
 #modal .message {
+    position: relative;
     display: inline-block;
     width: 100%;
-    height: auto;
-    left: 64px;
-    top: 144px;
+    height: fit-content;
     align-self: stretch;
     color: rgba(255, 255, 255, 1.00);
-    font-family: Scout;
+    font-family: IBM Plex Sans;
     font-style: normal;
     font-weight: 400;
     font-size: 24px;
     text-align: center;
     vertical-align: top;
     letter-spacing: 0px;
-    line-height: 28.80px;
+    line-height: 31.20px;
 }
 
 #toast {
     position: absolute;
     display: flex;
-    width: 267px;
-    height: 49px;
+    width: fit-content;
+    height: fit-content;
     left: 50%;
     bottom: 23px;
-    transform: translate(-133.50px, 0);
+    transform: translate(-158.50px, 0);
     flex-direction: column;
     flex-wrap: nowrap;
     gap: 11px;
@@ -512,27 +567,26 @@ button#help-button.hover-icon .icon {
 }
 
 #toast .message {
+    position: relative;
     display: inline-block;
-    width: auto;
-    height: auto;
-    left: 20px;
-    top: 10px;
+    width: fit-content;
+    height: fit-content;
     color: rgba(255, 255, 255, 1.00);
-    font-family: Scout;
+    font-family: IBM Plex Sans;
     font-style: normal;
     font-weight: 400;
     font-size: 24px;
     text-align: left;
     vertical-align: top;
     letter-spacing: 0px;
-    line-height: 28.80px;
+    line-height: 31.20px;
 }
 
 #info-panel {
     position: absolute;
     display: flex;
-    width: 170px;
-    height: 257px;
+    width: 377px;
+    height: 381px;
     right: 0px;
     bottom: 192px;
     flex-direction: row;
@@ -544,11 +598,10 @@ button#help-button.hover-icon .icon {
 }
 
 #info-panel .info {
+    position: relative;
     display: inline-block;
-    width: auto;
-    height: auto;
-    left: 16px;
-    top: 16px;
+    width: fit-content;
+    height: fit-content;
     color: rgba(255, 255, 255, 1.00);
     font-family: IBM Plex Mono;
     font-style: normal;
@@ -1062,6 +1115,1320 @@ button#help-button.hover-icon .icon {
     left: 50%;
     top: 50%;
     transform: translate(-29px, -29px);
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+#agent-panel {
+    position: absolute;
+    display: flex;
+    width: 1600px;
+    height: 582px;
+    left: 0px;
+    top: 64px;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    gap: 10px;
+    padding: 10px 10px 10px 10px;
+    background-color: rgba(28, 29, 30, 0.65);
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+#agent-panel .table {
+    position: relative;
+    display: flex;
+    width: fit-content;
+    height: fit-content;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 1px;
+    padding: 1px 1px 1px 1px;
+    background-color: rgba(51, 51, 51, 1.00);
+}
+
+.table .column {
+    position: relative;
+    display: flex;
+    width: fit-content;
+    height: fit-content;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    gap: 1px;
+    background-color: rgba(0, 0, 0, 0.00);
+}
+
+.column .header-cell {
+    position: relative;
+    display: flex;
+    width: fit-content;
+    height: 38px;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 4px;
+    padding: 4px 4px 4px 4px;
+    align-items: center;
+    background-color: rgba(28, 29, 30, 1.00);
+}
+
+.header-cell .icon {
+    position: relative;
+    display: block;
+    width: 20px;
+    height: 20px;
+}
+
+.header-cell .name {
+    position: relative;
+    display: inline-block;
+    width: fit-content;
+    height: fit-content;
+    color: rgba(130, 130, 130, 1.00);
+    font-family: IBM Plex Sans;
+    font-style: normal;
+    font-weight: 400;
+    font-size: 14px;
+    text-align: left;
+    vertical-align: top;
+    letter-spacing: 0px;
+    line-height: 18.20px;
+}
+
+.header-cell .sort-icon {
+    position: relative;
+    display: block;
+    width: 20px;
+    height: 20px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+.header-cell .dropdown.show-on-hover {
+    position: relative;
+    display: flex;
+    width: fit-content;
+    height: fit-content;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 10px;
+    padding: 4px 4px 4px 4px;
+    justify-content: center;
+    align-items: center;
+    background-color: rgba(79, 79, 79, 1.00);
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.dropdown.show-on-hover .drop-down-icon {
+    position: relative;
+    display: block;
+    width: 20px;
+    height: 20px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+.column .data-cell {
+    position: relative;
+    display: flex;
+    width: 100%;
+    height: 38px;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 4px;
+    padding: 4px 4px 4px 4px;
+    align-items: center;
+    align-self: stretch;
+    background-color: rgba(28, 29, 30, 1.00);
+}
+
+.data-cell .name {
+    position: relative;
+    display: inline-block;
+    width: 100%;
+    height: fit-content;
+    flex-grow: 1.0;
+    flex-shrink: 1;
+    flex-basis: auto;
+    color: rgba(130, 130, 130, 1.00);
+    font-family: IBM Plex Mono;
+    font-style: normal;
+    font-weight: 400;
+    font-size: 14px;
+    text-align: right;
+    vertical-align: top;
+    letter-spacing: 0px;
+    line-height: 18.20px;
+}
+
+.table .new-column {
+    position: relative;
+    display: flex;
+    width: fit-content;
+    height: fit-content;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    gap: 1px;
+    background-color: rgba(0, 0, 0, 0.00);
+}
+
+.new-column .header-cell {
+    position: relative;
+    display: flex;
+    width: fit-content;
+    height: 38px;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 4px;
+    padding: 4px 4px 4px 4px;
+    align-items: center;
+    background-color: rgba(28, 29, 30, 1.00);
+}
+
+.header-cell input#new-column-input::placeholder {
+    color: rgba(255, 255, 255, 1.00);
+    font-family: IBM Plex Sans;
+    font-style: normal;
+    font-weight: 400;
+    font-size: 14px;
+    text-align: left;
+    vertical-align: top;
+    letter-spacing: 0px;
+    line-height: 18.20px;
+}
+
+.header-cell input#new-column-input {
+    position: relative;
+    display: flex;
+    width: 303px;
+    height: fit-content;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 10px;
+    padding: 6px 5px 6px 5px;
+    justify-content: center;
+    align-items: center;
+    background-color: rgba(0, 0, 0, 0.00);
+    border-radius: 2px;
+    overflow: hidden;
+    border-color: rgba(255, 255, 255, 1.00);
+    border-width: 1px;
+    border-style: solid;
+    color: rgba(255, 255, 255, 1.00);
+    font-family: IBM Plex Sans;
+    font-style: normal;
+    font-weight: 400;
+    font-size: 14px;
+    text-align: left;
+    vertical-align: top;
+    letter-spacing: 0px;
+    line-height: 18.20px;
+}
+
+.new-column .data-cell {
+    position: relative;
+    display: flex;
+    width: 100%;
+    height: 38px;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 4px;
+    padding: 4px 4px 4px 4px;
+    align-items: center;
+    align-self: stretch;
+    background-color: rgba(28, 29, 30, 1.00);
+}
+
+#scrim {
+    position: absolute;
+    display: block;
+    width: 1747px;
+    height: 1219px;
+    left: 0px;
+    top: 0px;
+    background-color: rgba(255, 255, 255, 0.01);
+}
+
+#new-column-dropdown {
+    position: absolute;
+    display: flex;
+    width: 313px;
+    height: fit-content;
+    left: 155px;
+    top: 121px;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    padding: 0px 0px 10px 0px;
+    background-color: rgba(28, 29, 30, 1.00);
+    border-radius: 10px;
+    border-color: rgba(79, 79, 79, 1.00);
+    border-width: 1px;
+    border-style: solid;
+}
+
+#new-column-dropdown .title-area {
+    position: relative;
+    display: flex;
+    width: 100%;
+    height: fit-content;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 10px;
+    padding: 6px 10px 6px 10px;
+    align-self: stretch;
+    background-color: rgba(0, 0, 0, 0.00);
+}
+
+.title-area .title {
+    position: relative;
+    display: inline-block;
+    width: fit-content;
+    height: fit-content;
+    color: rgba(189, 189, 189, 1.00);
+    font-family: IBM Plex Sans;
+    font-style: normal;
+    font-weight: 400;
+    font-size: 16px;
+    text-align: left;
+    vertical-align: top;
+    letter-spacing: 0px;
+    line-height: 20.80px;
+}
+
+#new-column-dropdown .explain {
+    position: relative;
+    display: block;
+    width: 312px;
+    height: 40px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+.explain .at_the_current_time_stamp {
+    position: absolute;
+    display: inline-block;
+    width: 116px;
+    height: 13px;
+    left: 33px;
+    top: 0px;
+    color: rgba(79, 79, 79, 1.00);
+    font-family: IBM Plex Sans;
+    font-style: normal;
+    font-weight: 400;
+    font-size: 10px;
+    text-align: left;
+    vertical-align: top;
+    letter-spacing: 0px;
+    line-height: 13px;
+}
+
+.explain .final_result_at_the_end_of_the_run {
+    position: absolute;
+    display: inline-block;
+    width: 144px;
+    height: 13px;
+    left: 55px;
+    top: 15px;
+    color: rgba(79, 79, 79, 1.00);
+    font-family: IBM Plex Sans;
+    font-style: normal;
+    font-weight: 400;
+    font-size: 10px;
+    text-align: left;
+    vertical-align: top;
+    letter-spacing: 0px;
+    line-height: 13px;
+}
+
+.explain .rectangle_346 {
+    position: absolute;
+    display: block;
+    width: 11px;
+    height: 2px;
+    left: 19px;
+    top: 6px;
+    background-color: rgba(79, 79, 79, 1.00);
+}
+
+.explain .rectangle_348 {
+    position: absolute;
+    display: block;
+    width: 11px;
+    height: 2px;
+    left: 42px;
+    top: 21px;
+    background-color: rgba(79, 79, 79, 1.00);
+}
+
+.explain .rectangle_347 {
+    position: absolute;
+    display: block;
+    width: 2px;
+    height: 33px;
+    left: 19px;
+    top: 7px;
+    background-color: rgba(79, 79, 79, 1.00);
+}
+
+.explain .rectangle_349 {
+    position: absolute;
+    display: block;
+    width: 2px;
+    height: 19px;
+    left: 42px;
+    top: 21px;
+    background-color: rgba(79, 79, 79, 1.00);
+}
+
+#new-column-dropdown .column-options {
+    position: relative;
+    display: flex;
+    width: 312px;
+    height: fit-content;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    gap: 4px;
+    padding: 10px 10px 10px 10px;
+    background-color: rgba(0, 0, 0, 0.00);
+}
+
+.column-options .column-option {
+    position: relative;
+    display: block;
+    width: 306px;
+    height: 20px;
+    background-color: rgba(0, 0, 0, 0.00);
+}
+
+.column-option .step-check {
+    position: absolute;
+    display: block;
+    width: 20px;
+    height: 20px;
+    left: 0px;
+    top: 0px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+.column-option .final-check {
+    position: absolute;
+    display: block;
+    width: 20px;
+    height: 20px;
+    left: 24px;
+    top: 0px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+.column-option .icon {
+    position: absolute;
+    display: block;
+    width: 20px;
+    height: 20px;
+    left: 48px;
+    top: 0px;
+}
+
+.column-option .name {
+    position: absolute;
+    display: inline-block;
+    width: 234px;
+    height: 20px;
+    left: 72px;
+    top: 0px;
+    color: rgba(224, 224, 224, 1.00);
+    font-family: IBM Plex Sans;
+    font-style: normal;
+    font-weight: 400;
+    font-size: 16px;
+    text-align: left;
+    vertical-align: middle;
+    letter-spacing: 0px;
+    line-height: 20.80px;
+}
+
+#new-column-dropdown .sep {
+    position: relative;
+    display: block;
+    width: 100%;
+    height: 1px;
+    align-self: stretch;
+    background-color: rgba(42, 43, 43, 1.00);
+}
+
+#new-column-dropdown .no-match-found {
+    position: relative;
+    display: block;
+    width: 312px;
+    height: 40px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+.no-match-found .message {
+    position: absolute;
+    display: inline-block;
+    width: 72px;
+    height: 13px;
+    left: 50%;
+    top: 50%;
+    transform: translate(-36px, -6px);
+    color: rgba(79, 79, 79, 1.00);
+    font-family: IBM Plex Sans;
+    font-style: normal;
+    font-weight: 400;
+    font-size: 10px;
+    text-align: left;
+    vertical-align: top;
+    letter-spacing: 0px;
+    line-height: 13px;
+}
+
+#column-menu {
+    position: absolute;
+    display: flex;
+    width: 162px;
+    height: fit-content;
+    left: 509px;
+    top: 244px;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    gap: 4px;
+    padding: 5px 0px 5px 0px;
+    background-color: rgba(28, 29, 30, 1.00);
+    border-radius: 4px;
+    overflow: hidden;
+    border-color: rgba(79, 79, 79, 1.00);
+    border-width: 1px;
+    border-style: solid;
+}
+
+#column-menu .sort-up.hover {
+    position: relative;
+    display: block;
+    width: 100%;
+    height: 36px;
+    align-self: stretch;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+.sort-up.hover .text {
+    position: absolute;
+    display: inline-block;
+    width: 124px;
+    height: 18px;
+    left: 36px;
+    top: 9px;
+    color: rgba(224, 224, 224, 1.00);
+    font-family: IBM Plex Sans;
+    font-style: normal;
+    font-weight: 400;
+    font-size: 14px;
+    text-align: left;
+    vertical-align: top;
+    letter-spacing: 0px;
+    line-height: 18.20px;
+}
+
+.sort-up.hover .icon {
+    position: absolute;
+    display: block;
+    width: 20px;
+    height: 20px;
+    left: 8px;
+    top: 8px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+#column-menu .sort-down.hover {
+    position: relative;
+    display: block;
+    width: 100%;
+    height: 36px;
+    align-self: stretch;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+.sort-down.hover .text {
+    position: absolute;
+    display: inline-block;
+    width: 124px;
+    height: 18px;
+    left: 36px;
+    top: 9px;
+    color: rgba(224, 224, 224, 1.00);
+    font-family: IBM Plex Sans;
+    font-style: normal;
+    font-weight: 400;
+    font-size: 14px;
+    text-align: left;
+    vertical-align: top;
+    letter-spacing: 0px;
+    line-height: 18.20px;
+}
+
+.sort-down.hover .icon {
+    position: absolute;
+    display: block;
+    width: 20px;
+    height: 20px;
+    left: 8px;
+    top: 8px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+#column-menu .sep {
+    position: relative;
+    display: block;
+    width: 100%;
+    height: 1px;
+    align-self: stretch;
+    background-color: rgba(53, 54, 55, 1.00);
+}
+
+#column-menu .move-left.hover {
+    position: relative;
+    display: block;
+    width: 100%;
+    height: 36px;
+    align-self: stretch;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+.move-left.hover .text {
+    position: absolute;
+    display: inline-block;
+    width: 124px;
+    height: 18px;
+    left: 36px;
+    top: 9px;
+    color: rgba(224, 224, 224, 1.00);
+    font-family: IBM Plex Sans;
+    font-style: normal;
+    font-weight: 400;
+    font-size: 14px;
+    text-align: left;
+    vertical-align: top;
+    letter-spacing: 0px;
+    line-height: 18.20px;
+}
+
+.move-left.hover .icon {
+    position: absolute;
+    display: block;
+    width: 20px;
+    height: 20px;
+    left: 8px;
+    top: 8px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+#column-menu .move-right.hover {
+    position: relative;
+    display: block;
+    width: 100%;
+    height: 36px;
+    align-self: stretch;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+.move-right.hover .text {
+    position: absolute;
+    display: inline-block;
+    width: 124px;
+    height: 18px;
+    left: 36px;
+    top: 9px;
+    color: rgba(224, 224, 224, 1.00);
+    font-family: IBM Plex Sans;
+    font-style: normal;
+    font-weight: 400;
+    font-size: 14px;
+    text-align: left;
+    vertical-align: top;
+    letter-spacing: 0px;
+    line-height: 18.20px;
+}
+
+.move-right.hover .icon {
+    position: absolute;
+    display: block;
+    width: 20px;
+    height: 20px;
+    left: 8px;
+    top: 8px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+#column-menu .sep {
+    position: relative;
+    display: block;
+    width: 100%;
+    height: 1px;
+    align-self: stretch;
+    background-color: rgba(53, 54, 55, 1.00);
+}
+
+#column-menu .hide-column.hover {
+    position: relative;
+    display: block;
+    width: 100%;
+    height: 36px;
+    align-self: stretch;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+.hide-column.hover .text {
+    position: absolute;
+    display: inline-block;
+    width: 124px;
+    height: 18px;
+    left: 36px;
+    top: 9px;
+    color: rgba(224, 224, 224, 1.00);
+    font-family: IBM Plex Sans;
+    font-style: normal;
+    font-weight: 400;
+    font-size: 14px;
+    text-align: left;
+    vertical-align: top;
+    letter-spacing: 0px;
+    line-height: 18.20px;
+}
+
+.hide-column.hover .icon {
+    position: absolute;
+    display: block;
+    width: 20px;
+    height: 20px;
+    left: 8px;
+    top: 8px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+.hover-panel {
+    position: absolute;
+    display: flex;
+    height: fit-content;
+    left: 40px;
+    top: 600px;
+    min-width: 300px;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    align-items: center;
+    width: fit-content;
+    background-color: rgba(0, 0, 0, 0.00);
+    border-radius: 20px;
+    overflow: hidden;
+}
+
+.hover-panel .panel-body {
+    position: relative;
+    display: flex;
+    height: fit-content;
+    min-width: 300px;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    gap: 10px;
+    padding: 20px 20px 20px 20px;
+    width: fit-content;
+    background-color: rgba(20, 20, 20, 0.90);
+    border-radius: 20px;
+    overflow: hidden;
+}
+
+.panel-body .params {
+    position: relative;
+    display: flex;
+    width: fit-content;
+    height: fit-content;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 10px;
+    padding: 0px 10px 0px 0px;
+    align-items: center;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+.params .pin-info-panel.hover-icon {
+    position: relative;
+    display: block;
+    width: 32px;
+    height: 32px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+.params .param {
+    position: relative;
+    display: flex;
+    width: fit-content;
+    height: fit-content;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    background-color: rgba(0, 0, 0, 0.00);
+}
+
+.param .name {
+    position: relative;
+    display: inline-block;
+    width: fit-content;
+    height: fit-content;
+    color: rgba(255, 255, 255, 1.00);
+    font-family: IBM Plex Sans;
+    font-style: normal;
+    font-weight: 400;
+    font-size: 16px;
+    text-align: left;
+    vertical-align: top;
+    letter-spacing: 0px;
+    line-height: 20.80px;
+}
+
+.param .value {
+    position: relative;
+    display: inline-block;
+    width: fit-content;
+    height: fit-content;
+    color: rgba(255, 255, 255, 1.00);
+    font-family: IBM Plex Sans;
+    font-style: normal;
+    font-weight: 400;
+    font-size: 22px;
+    text-align: left;
+    vertical-align: top;
+    letter-spacing: 0px;
+    line-height: 28.60px;
+}
+
+.panel-body .inventory-area {
+    position: relative;
+    display: flex;
+    width: 100%;
+    height: fit-content;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    gap: 10px;
+    padding: 2px 1px 2px 1px;
+    align-self: stretch;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+.inventory-area .label {
+    position: relative;
+    display: inline-block;
+    width: 100%;
+    height: fit-content;
+    align-self: stretch;
+    color: rgba(255, 255, 255, 1.00);
+    font-family: IBM Plex Sans;
+    font-style: normal;
+    font-weight: 400;
+    font-size: 16px;
+    text-align: left;
+    vertical-align: top;
+    letter-spacing: 0px;
+    line-height: 20.80px;
+}
+
+.inventory-area .inventory {
+    position: relative;
+    display: flex;
+    width: 100%;
+    height: fit-content;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 8px;
+    padding: 4px 1px 4px 1px;
+    align-items: center;
+    align-self: stretch;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+.inventory .item {
+    position: relative;
+    display: block;
+    width: 40px;
+    height: 64px;
+    background-color: rgba(20, 27, 35, 1.00);
+    border-radius: 5px;
+    overflow: hidden;
+    border-color: rgba(53, 53, 53, 1.00);
+    border-width: 1px;
+    border-style: solid;
+}
+
+.item .amount {
+    position: absolute;
+    display: inline-block;
+    width: 40px;
+    height: 25px;
+    left: 0px;
+    top: 36px;
+    color: rgba(255, 255, 255, 1.00);
+    font-family: IBM Plex Sans;
+    font-style: normal;
+    font-weight: 400;
+    font-size: 20px;
+    text-align: center;
+    vertical-align: top;
+    letter-spacing: 0px;
+    line-height: 26px;
+}
+
+.item .icon {
+    position: absolute;
+    display: block;
+    width: 32px;
+    height: 32px;
+    left: 4px;
+    top: 4px;
+}
+
+.panel-body .recipe-area {
+    position: relative;
+    display: flex;
+    width: 100%;
+    height: fit-content;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    gap: 10px;
+    padding: 2px 1px 2px 1px;
+    align-self: stretch;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+.recipe-area .label {
+    position: relative;
+    display: inline-block;
+    width: 100%;
+    height: fit-content;
+    align-self: stretch;
+    color: rgba(255, 255, 255, 1.00);
+    font-family: IBM Plex Sans;
+    font-style: normal;
+    font-weight: 400;
+    font-size: 16px;
+    text-align: left;
+    vertical-align: top;
+    letter-spacing: 0px;
+    line-height: 20.80px;
+}
+
+.recipe-area .recipe {
+    position: relative;
+    display: flex;
+    width: 100%;
+    height: fit-content;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 8px;
+    padding: 4px 1px 4px 1px;
+    align-items: center;
+    align-self: stretch;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+.recipe .item {
+    position: relative;
+    display: block;
+    width: 40px;
+    height: 64px;
+    background-color: rgba(20, 27, 35, 1.00);
+    border-radius: 5px;
+    overflow: hidden;
+    border-color: rgba(53, 53, 53, 1.00);
+    border-width: 1px;
+    border-style: solid;
+}
+
+.item .amount {
+    position: absolute;
+    display: inline-block;
+    width: 40px;
+    height: 25px;
+    left: 0px;
+    top: 36px;
+    color: rgba(255, 255, 255, 1.00);
+    font-family: IBM Plex Sans;
+    font-style: normal;
+    font-weight: 400;
+    font-size: 20px;
+    text-align: center;
+    vertical-align: top;
+    letter-spacing: 0px;
+    line-height: 26px;
+}
+
+.item .icon {
+    position: absolute;
+    display: block;
+    width: 32px;
+    height: 32px;
+    left: 4px;
+    top: 4px;
+}
+
+.recipe .arrow {
+    position: relative;
+    display: block;
+    width: 20px;
+    height: 20px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+.recipe .item {
+    position: relative;
+    display: block;
+    width: 40px;
+    height: 64px;
+    background-color: rgba(20, 27, 35, 1.00);
+    border-radius: 5px;
+    overflow: hidden;
+    border-color: rgba(53, 53, 53, 1.00);
+    border-width: 1px;
+    border-style: solid;
+}
+
+.item .amount {
+    position: absolute;
+    display: inline-block;
+    width: 40px;
+    height: 25px;
+    left: 0px;
+    top: 36px;
+    color: rgba(255, 255, 255, 1.00);
+    font-family: IBM Plex Sans;
+    font-style: normal;
+    font-weight: 400;
+    font-size: 20px;
+    text-align: center;
+    vertical-align: top;
+    letter-spacing: 0px;
+    line-height: 26px;
+}
+
+.item .icon {
+    position: absolute;
+    display: block;
+    width: 32px;
+    height: 32px;
+    left: 4px;
+    top: 4px;
+}
+
+.panel-body .actions {
+    position: relative;
+    display: flex;
+    width: fit-content;
+    height: fit-content;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 10px;
+    padding: 2px 1px 2px 1px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+.actions button.memory {
+    position: relative;
+    display: flex;
+    width: fit-content;
+    height: fit-content;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 4px;
+    padding: 8px 12px 8px 12px;
+    align-items: center;
+    background-color: rgba(20, 27, 35, 1.00);
+    border-radius: 5px;
+    overflow: hidden;
+    border-color: rgba(53, 53, 53, 1.00);
+    border-width: 1px;
+    border-style: solid;
+}
+
+button.memory .ui/brain {
+    position: relative;
+    display: block;
+    width: 20px;
+    height: 20px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+button.memory .text {
+    position: relative;
+    display: inline-block;
+    width: fit-content;
+    height: fit-content;
+    color: rgba(255, 255, 255, 1.00);
+    font-family: IBM Plex Sans;
+    font-style: normal;
+    font-weight: 400;
+    font-size: 20px;
+    text-align: center;
+    vertical-align: top;
+    letter-spacing: 0px;
+    line-height: 26px;
+}
+
+.hover-panel .tip {
+    position: relative;
+    display: block;
+    width: 32px;
+    height: 16px;
+    background-color: rgba(0, 0, 0, 0.00);
+}
+
+.hover-panel .close.hover-icon {
+    position: absolute;
+    display: block;
+    width: 32px;
+    height: 32px;
+    right: 0px;
+    top: 0px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+#object-menu {
+    position: absolute;
+    display: flex;
+    width: 162px;
+    height: fit-content;
+    left: 1196px;
+    top: 662px;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    gap: 4px;
+    padding: 5px 0px 5px 0px;
+    background-color: rgba(28, 29, 30, 1.00);
+    border-radius: 4px;
+    overflow: hidden;
+    border-color: rgba(79, 79, 79, 1.00);
+    border-width: 1px;
+    border-style: solid;
+}
+
+#object-menu .set-memory-to-0.hover {
+    position: relative;
+    display: block;
+    width: 100%;
+    height: 36px;
+    align-self: stretch;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+.set-memory-to-0.hover .text {
+    position: absolute;
+    display: inline-block;
+    width: 124px;
+    height: 18px;
+    left: 36px;
+    top: 9px;
+    color: rgba(224, 224, 224, 1.00);
+    font-family: IBM Plex Sans;
+    font-style: normal;
+    font-weight: 400;
+    font-size: 14px;
+    text-align: left;
+    vertical-align: top;
+    letter-spacing: 0px;
+    line-height: 18.20px;
+}
+
+.set-memory-to-0.hover .icon {
+    position: absolute;
+    display: block;
+    width: 20px;
+    height: 20px;
+    left: 8px;
+    top: 8px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+#object-menu .set-memory-to-1.hover {
+    position: relative;
+    display: block;
+    width: 100%;
+    height: 36px;
+    align-self: stretch;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+.set-memory-to-1.hover .text {
+    position: absolute;
+    display: inline-block;
+    width: 124px;
+    height: 18px;
+    left: 36px;
+    top: 9px;
+    color: rgba(224, 224, 224, 1.00);
+    font-family: IBM Plex Sans;
+    font-style: normal;
+    font-weight: 400;
+    font-size: 14px;
+    text-align: left;
+    vertical-align: top;
+    letter-spacing: 0px;
+    line-height: 18.20px;
+}
+
+.set-memory-to-1.hover .icon {
+    position: absolute;
+    display: block;
+    width: 20px;
+    height: 20px;
+    left: 8px;
+    top: 8px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+#object-menu .set-memory-to-random.hover {
+    position: relative;
+    display: block;
+    width: 100%;
+    height: 36px;
+    align-self: stretch;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+.set-memory-to-random.hover .text {
+    position: absolute;
+    display: inline-block;
+    width: 124px;
+    height: 18px;
+    left: 36px;
+    top: 9px;
+    color: rgba(224, 224, 224, 1.00);
+    font-family: IBM Plex Sans;
+    font-style: normal;
+    font-weight: 400;
+    font-size: 14px;
+    text-align: left;
+    vertical-align: top;
+    letter-spacing: 0px;
+    line-height: 18.20px;
+}
+
+.set-memory-to-random.hover .icon {
+    position: absolute;
+    display: block;
+    width: 20px;
+    height: 20px;
+    left: 8px;
+    top: 8px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+#object-menu .sep {
+    position: relative;
+    display: block;
+    width: 100%;
+    height: 1px;
+    align-self: stretch;
+    background-color: rgba(53, 54, 55, 1.00);
+}
+
+#object-menu .copy-memory.hover {
+    position: relative;
+    display: block;
+    width: 100%;
+    height: 36px;
+    align-self: stretch;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+.copy-memory.hover .text {
+    position: absolute;
+    display: inline-block;
+    width: 124px;
+    height: 18px;
+    left: 36px;
+    top: 9px;
+    color: rgba(224, 224, 224, 1.00);
+    font-family: IBM Plex Sans;
+    font-style: normal;
+    font-weight: 400;
+    font-size: 14px;
+    text-align: left;
+    vertical-align: top;
+    letter-spacing: 0px;
+    line-height: 18.20px;
+}
+
+.copy-memory.hover .icon {
+    position: absolute;
+    display: block;
+    width: 20px;
+    height: 20px;
+    left: 8px;
+    top: 8px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+#object-menu .paste-memory.hover {
+    position: relative;
+    display: block;
+    width: 100%;
+    height: 36px;
+    align-self: stretch;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+.paste-memory.hover .text {
+    position: absolute;
+    display: inline-block;
+    width: 124px;
+    height: 18px;
+    left: 36px;
+    top: 9px;
+    color: rgba(224, 224, 224, 1.00);
+    font-family: IBM Plex Sans;
+    font-style: normal;
+    font-weight: 400;
+    font-size: 14px;
+    text-align: left;
+    vertical-align: top;
+    letter-spacing: 0px;
+    line-height: 18.20px;
+}
+
+.paste-memory.hover .icon {
+    position: absolute;
+    display: block;
+    width: 20px;
+    height: 20px;
+    left: 8px;
+    top: 8px;
     background-color: rgba(0, 0, 0, 0.00);
     overflow: hidden;
 }

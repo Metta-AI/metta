@@ -1,7 +1,13 @@
-from metta.map.utils.storable_map import StorableMap
-from mettagrid.room.room import Room
+from typing import cast
 
-from .scene import SceneCfg, make_scene
+from omegaconf import DictConfig, OmegaConf
+
+from metta.map.scene import make_scene
+from metta.map.utils.storable_map import StorableMap
+from metta.mettagrid.level_builder import Level
+from metta.mettagrid.room.room import Room
+
+from .types import SceneCfg
 
 
 # Note that this class can't be a scene, because the width and height come from the stored data.
@@ -12,21 +18,24 @@ class Load(Room):
     See also: `FromS3Dir` for picking a random map from a directory of pregenerated maps.
     """
 
-    def __init__(self, uri: str, extra_root: SceneCfg | None = None):
+    _extra_root: dict | None = None
+
+    def __init__(self, uri: str, extra_root: SceneCfg | DictConfig | None = None):
         super().__init__()
         self._uri = uri
         self._storable_map = StorableMap.from_uri(uri)
 
-        if extra_root is not None:
-            self._root = make_scene(extra_root)
-        else:
-            self._root = None
+        if isinstance(extra_root, DictConfig):
+            extra_root = cast(dict, OmegaConf.to_container(extra_root))
+
+        if isinstance(extra_root, dict):
+            self._extra_root = extra_root
 
     def build(self):
         grid = self._storable_map.grid
 
-        if self._root is not None:
-            root_node = self._root.make_node(grid)
-            root_node.render()
+        if self._extra_root is not None:
+            root_scene = make_scene(self._extra_root, grid)
+            root_scene.render_with_children()
 
-        return grid
+        return Level(grid=grid, labels=[])

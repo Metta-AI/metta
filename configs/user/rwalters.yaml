@@ -5,14 +5,11 @@ seed: null
 defaults:
   - _self_
 
-
-num_envs: 1
-
 trainer:
   env: /env/mettagrid/simple
   evaluate_interval: 200
 
-policy_uri: puffer:///tmp/puffer_metta.pt
+policy_uri: pytorch:///tmp/puffer_metta.pt
 npc_policy_uri: null
 eval_db_uri: null
 

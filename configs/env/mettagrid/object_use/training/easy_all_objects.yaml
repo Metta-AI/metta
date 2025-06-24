@@ -13,33 +13,29 @@ game:
       # action_failure_penalty: 0.00001
       action_failure_penalty: 0
       ore.red: ${sampling:0.005,0.1, 0.01}
-      ore.blue: ${sampling:0.005,0.1, 0.01}
-      ore.green: ${sampling:0.005,0.1, 0.01}
       battery.red: ${sampling:0.01,1, 0.1}
       battery.red_max: 5
-      battery.blue: ${sampling:0.01,1, 0.1}
-      battery.blue_max: 5
-      battery.green: ${sampling:0.01,1, 0.1}
-      battery.green_max: 5
+      laser: ${sampling:0.01,1, 0.1}
+      armor: ${sampling:0.01,1, 0.1}
+      blueprint: ${sampling:0.01,1, 0.1}
       heart: 1
       heart_max: 1000
   map_builder:
-    _target_: mettagrid.room.multi_room.MultiRoom
+    _target_: metta.mettagrid.room.multi_room.MultiRoom
     num_rooms: ${..num_agents}
 
     border_width: 6
 
-
     room:
-      _target_: mettagrid.room.navigation.varied_terrain.VariedTerrain
+      _target_: metta.mettagrid.room.navigation.varied_terrain.VariedTerrain
       width: ${sampling:20,50,30}
       height: ${sampling:20,50,30}
       border_width: ${sampling:1,6,3}
       agents: 1
       style: all-sparse # ${choose:"all-sparse","balanced","dense","maze"}
       objects:
-        mine: ${sampling:1,20,10}
-        generator: ${sampling:1,10,2}
+        mine_red: ${sampling:1,5,3}
+        generator_red: ${sampling:1,5,3}
         altar: ${sampling:1,5,1}
         armory: ${sampling:1,5,1}
         lasery: ${sampling:1,5,1}
@@ -47,29 +43,17 @@ game:
         factory: ${sampling:1,5,1}
         temple: ${sampling:1,5,1}
 
-        block: ${sampling:5,50,20}
-        wall: ${sampling:5,50,20}
+        block: ${sampling:0,20,20}
+        wall: ${sampling:0,20,20}
 
   objects:
-      altar:
-        initial_items: ${choose:0,1}
-        cooldown: ${sampling:1, 20, 10}
+    altar:
+      initial_items: ${choose:0,1}
+      cooldown: ${sampling:1, 20, 10}
 
-      generator.red:
-        initial_items: ${choose:0,1}
-        cooldown: ${sampling:5, 20, 10}
+    generator_red:
+      initial_items: ${choose:0,1}
+      cooldown: ${sampling:5, 20, 10}
 
-      generator.blue:
-        cooldown: ${sampling:3, 20, 10}
-
-      generator.green:
-        cooldown: ${sampling:3, 20, 10}
-
-      mine.red:
-        cooldown: ${sampling:15, 50, 10}
-
-      mine.blue:
-        cooldown: ${sampling:15, 50, 10}
-
-      mine.green:
-        cooldown: ${sampling:15, 50, 10}
+    mine_red:
+      cooldown: ${sampling:15, 50, 10}

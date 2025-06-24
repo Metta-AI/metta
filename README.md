@@ -96,9 +96,9 @@ Design and implement a comprehensive suite of intelligence evaluations for gridw
 
 Develop tools and infrastructure for efficient management, tracking, and deployment of experiments, such as cloud cluster management, experiment tracking and visualization, and continuous integration and deployment pipelines.
 
-This readme provides only a brief overview of research explorations. Visit the [research roadmap](https://github.com/Metta-AI/metta/blob/main/roadmap.md) for more details.
+This README provides only a brief overview of research explorations. Visit the [research roadmap](https://github.com/Metta-AI/metta/blob/main/roadmap.md) for more details.
 
-# Installation
+## Installation
 
 Install uv (a fast Python package installer and resolver):
 
@@ -106,63 +106,91 @@ Install uv (a fast Python package installer and resolver):
 curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
-Then run the setup script which will create a virtual environment and install dependencies:
+Optional: run the script which will configure the development environment (the script might fail if you're not on the Metta dev team and don't have permissions):
 
 ```bash
-./devops/setup_build.sh
+./devops/setup_dev.sh
 ```
 
-# Training a Model
+After git updates, you might need to run `uv sync` to reinstall all necessary dependencies.
+
+## Training a Model
 
 ### Run the training
 
 ```
-python -m tools.train run=my_experiment +hardware=macbook wandb=off
+./tools/train.py run=my_experiment +hardware=macbook wandb=off
 ```
 
-### Run the evaluation
+`run` names your experiment and controls where checkpoints are saved under
+`train_dir/<run>`. Hardware presets such as `+hardware=macbook` tune the trainer
+for your machine. You can pass `+user=<name>` to load defaults from
+`configs/user/<name>.yaml`. Use `wandb=off` to disable Weights & Biases logging
+if you don't have access.
 
-```
-python -m tools.sim run=my_experiment +hardware=macbook wandb=off
-```
+## Visualizing a Model
 
 ### Run the interactive simulation
 
 ```
-python -m tools.play run=my_experiment +hardware=macbook wandb=off
+./tools/play.py run=my_experiment +hardware=macbook wandb=off
 ```
 
-If you're a member of `metta-research` on wandb, or you add your own wandb config in `configs/wandb`, you should be able to remove the `wandb=off` command. This is assumed for the rest of the readme.
+This launches a human-controlled session using the same configuration flags as
+training. It is useful for quickly testing maps or policies on your local
+hardware.
 
-# Evaluating a model
+### Run the terminal simulation
 
-When you run training, if you have wandb enabled, then you will be able to see in your wandb run page results for the eval suites.
+```
+./tools/renderer.py run=demo_obstacles \
+renderer_job.environment.uri="configs/env/mettagrid/maps/debug/simple_obstacles.map"
+```
+
+## Evaluating a Model
+
+When you run training, if you have WandB enabled, then you will be able to see in your WandB run page results for the eval suites.
 
 However, this will not apply for anything trained before April 8th.
 
-### Post hoc evaluation
+### Post Hoc Evaluation
 
-If you want to run evaluation post-training to compare different policies, you can do the following
+If you want to run evaluation post-training to compare different policies, you can do the following:
 
-To add your policy to the existing navigation evals db:
+To add your policy to the existing navigation evals DB:
 
 ```
-python3 -m tools.sim eval=navigation run=RUN_NAME eval.policy_uri=POLICY_URI +eval_db_uri=wandb://artifacts/navigation_db
+./tools/sim.py \
+    sim=navigation \
+    run=navigation101 \
+    policy_uri=wandb://run/YOUR_POLICY_URI \
+    sim_job.stats_db_uri=wandb://stats/navigation_db \
+    device=cpu
 ```
 
-This will run your policy through the `configs/eval/navigation` eval_suite and then save it to the `navigation_db` artifact on wandb
+This will run your policy through the `configs/eval/navigation` eval_suite and then save it to the `navigation_db` artifact on WandB.
 
 Then, to see the results in the heatmap along with the other policies in the database, you can run:
 
 ```
-python3 -m tools.analyze run=analyze +eval_db_uri=wandb://artifacts/navigation_db analyzer.policy_uri=POLICY_URI
+./tools/dashboard.py +eval_db_uri=wandb://stats/navigation_db run=navigation_db ++dashboard.output_path=s3://softmax-public/policydash/navigation.html
 ```
 
-Currently you need to pass in a policy_uri here, and need to use any policy that is in the navigation db, for example `wandb://run/b.daveey.t.8.rdr9.3`, but that shouldn't be necessary in the future, and we are working on refactoring that
+## Development Setup
 
-You can do the same process for the object-use eval artifact using: `wandb://artifacts/object_use_db`
+To run the style checks and tests locally:
 
-# Third-party Content
+```bash
+ruff format
+ruff check
+pyright metta  # optional, some stubs are missing
+pytest
+```
+
+Running these commands mirrors our CI configuration and helps keep the codebase
+consistent.
+
+## Third-party Content
 
 Some sample map patterns in `scenes/dcss` were adapted from the open-source game [Dungeon Crawl Stone Soup (DCSS)](https://github.com/crawl/crawl),
 specifically from the file [`simple.des`](https://github.com/crawl/crawl/blob/master/crawl-ref/source/dat/des/arrival/simple.des).

@@ -12,9 +12,9 @@ from metta.map.utils.pattern import (
 class TestParseAscii:
     def test_basic_parsing(self):
         source = """
-        |###|
-        |# #|
-        |###|
+            ###
+            #.#
+            ###
         """
         grid = parse_ascii_into_grid(source)
 
@@ -33,31 +33,24 @@ class TestParseAscii:
         with pytest.raises(ValueError):
             parse_ascii_into_grid("""
                 ###
-                # #
+                #.
                 ###
-            """)  # Missing | characters
-
-        with pytest.raises(ValueError):
-            parse_ascii_into_grid("""
-                |###|
-                |# |
-                |###|
             """)  # Inconsistent width
 
         with pytest.raises(ValueError):
             parse_ascii_into_grid("""
-                |123|
-                |4 5|
-                |678|
+                123
+                4 5
+                678
             """)  # Invalid characters
 
 
 class TestPattern:
     def test_basic_creation(self):
         source = """
-        |###|
-        |# #|
-        |###|
+            ###
+            #.#
+            ###
         """
         grid = parse_ascii_into_grid(source)
 
@@ -86,8 +79,8 @@ class TestPattern:
     def test_index(self):
         # Create a simple pattern and verify its index
         source = """
-        |##|
-        |##|
+            ##
+            ##
         """
         grid = parse_ascii_into_grid(source)
         pattern = Pattern(grid, 0, 0, 2)
@@ -97,8 +90,8 @@ class TestPattern:
 
         # Test another pattern
         source = """
-        |# |
-        | #|
+            #.
+            .#
         """
         grid = parse_ascii_into_grid(source)
         pattern = Pattern(grid, 0, 0, 2)
@@ -109,9 +102,9 @@ class TestPattern:
     def test_pattern_variations(self):
         # Test the variations method for different symmetry settings
         source = """
-        |#  |
-        |## |
-        | # |
+            #..
+            ##.
+            .#.
         """
         grid = parse_ascii_into_grid(source)
         pattern = Pattern(grid, 0, 0, 3)
@@ -140,8 +133,8 @@ class TestPatternsWithCounts:
     def test_nonperiodic(self):
         # Simple 2x2 grid with only one pattern
         source = """
-        |##|
-        |##|
+            ##
+            ##
         """
         patterns = ascii_to_patterns_with_counts(source, 2, periodic=False, symmetry="none")
 
@@ -155,8 +148,8 @@ class TestPatternsWithCounts:
 
     def test_periodic(self):
         source = """
-        |##|
-        |##|
+            ##
+            ##
         """
         patterns = ascii_to_patterns_with_counts(source, 2, periodic=True, symmetry="none")
 
@@ -168,9 +161,9 @@ class TestPatternsWithCounts:
     def test_multiple_patterns(self):
         # More complex source with multiple patterns
         source = """
-        |###|
-        |# #|
-        |###|
+            ###
+            #.#
+            ###
         """
         patterns = ascii_to_patterns_with_counts(source, 2, periodic=False, symmetry="none")
 
@@ -185,9 +178,9 @@ class TestPatternsWithCounts:
     def test_with_symmetry(self):
         # Test with symmetry="all"
         source = """
-        |###|
-        |# #|
-        |###|
+            ###
+            #.#
+            ###
         """
         patterns = ascii_to_patterns_with_counts(source, 2, periodic=False, symmetry="all")
         assert len(patterns) == 4
@@ -201,8 +194,8 @@ class TestWeightsOfAllPatterns:
     def test_simple_source(self):
         # Simple source with one pattern
         source = """
-        |##|
-        |##|
+            ##
+            ##
         """
         weights = ascii_to_weights_of_all_patterns(source, 2, periodic=False, symmetry="none")
 
@@ -219,9 +212,9 @@ class TestWeightsOfAllPatterns:
     def test_complex_source(self):
         # Test with a more complex source
         source = """
-        |###|
-        |# #|
-        |###|
+            ###
+            #.#
+            ###
         """
         weights = ascii_to_weights_of_all_patterns(source, 2, periodic=False, symmetry="none")
 
@@ -234,9 +227,9 @@ class TestWeightsOfAllPatterns:
     def test_with_symmetry(self):
         # Test with symmetry="all"
         source = """
-        |###|
-        |# #|
-        |###|
+            ###
+            #.#
+            ###
         """
         weights = ascii_to_weights_of_all_patterns(source, 2, periodic=False, symmetry="all")
 

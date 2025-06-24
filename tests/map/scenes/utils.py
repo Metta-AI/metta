@@ -1,28 +1,22 @@
 import numpy as np
 import pytest
 
-from metta.map.node import Node
 from metta.map.scene import Scene
-from metta.map.types import MapGrid
-from metta.map.utils.ascii_grid import add_pretty_border, bordered_text_to_lines
-from metta.map.utils.storable_map import grid_to_ascii
+from metta.map.types import ChildrenAction, MapGrid
+from metta.map.utils.ascii_grid import add_pretty_border, char_grid_to_lines
+from metta.map.utils.storable_map import grid_to_lines
 
 
-class MockScene(Scene):
-    def _render(self, node: Node):
-        pass
-
-
-def scene_to_node(scene: Scene, shape: tuple[int, int]):
+def render_scene(cls: type[Scene], params: dict, shape: tuple[int, int], children: list[ChildrenAction] | None = None):
     grid = np.full(shape, "empty", dtype="<U50")
-    node = Node(MockScene(), grid)
-    scene.render(node)
-    return node
+    scene = cls(grid=grid, params=params, children=children or [])
+    scene.render_with_children()
+    return scene
 
 
-def assert_grid(node: Node, ascii_grid: str):
-    grid_lines = grid_to_ascii(node.grid)
-    expected_lines, _, _ = bordered_text_to_lines(ascii_grid)
+def assert_grid(scene: Scene, ascii_grid: str):
+    grid_lines = grid_to_lines(scene.grid)
+    expected_lines, _, _ = char_grid_to_lines(ascii_grid)
 
     if grid_lines != expected_lines:
         expected_grid = "\n".join(add_pretty_border(expected_lines))
@@ -34,11 +28,14 @@ def is_connected(grid: MapGrid):
     """Check if all empty cells in the grid are connected."""
     height, width = grid.shape
 
+    def is_empty(cell: str) -> bool:
+        return cell == "empty" or cell.startswith("agent")
+
     # Find all empty cells
     empty_cells = set()
     for r in range(height):
         for c in range(width):
-            if grid[r, c] == "empty":
+            if is_empty(grid[r, c]):
                 empty_cells.add((r, c))
 
     if not empty_cells:
@@ -58,7 +55,7 @@ def is_connected(grid: MapGrid):
             nr, nc = r + dr, c + dc
 
             # Check bounds and if it's an empty cell we haven't visited
-            if 0 <= nr < height and 0 <= nc < width and (nr, nc) not in visited and grid[nr, nc] == "empty":
+            if 0 <= nr < height and 0 <= nc < width and (nr, nc) not in visited and is_empty(grid[nr, nc]):
                 visited.add((nr, nc))
                 queue.append((nr, nc))
 
@@ -68,4 +65,4 @@ def is_connected(grid: MapGrid):
 
 def assert_connected(grid: MapGrid):
     if not is_connected(grid):
-        pytest.fail("Grid is not connected:\n" + "\n".join(grid_to_ascii(grid, border=True)))
+        pytest.fail("Grid is not connected:\n" + "\n".join(grid_to_lines(grid, border=True)))

@@ -1,20 +1,24 @@
+#!/usr/bin/env -S uv run
 import os
 import sys
 from logging import Logger
 from typing import Optional
 
 import hydra
+import torch
 import torch.distributed as dist
 from omegaconf import DictConfig, ListConfig, OmegaConf
 from torch.distributed.elastic.multiprocessing.errors import record
 
+from app_backend.stats_client import StatsClient
 from metta.agent.policy_store import PolicyStore
 from metta.sim.simulation_config import SimulationSuiteConfig
-from metta.util.config import Config, setup_metta_environment
-from metta.util.heartbeat import start_heartbeat
+from metta.util.config import Config
+from metta.util.heartbeat import record_heartbeat
 from metta.util.logging import setup_mettagrid_logger
 from metta.util.runtime_configuration import setup_mettagrid_environment
-from metta.util.wandb.wandb_context import WandbContext
+from metta.util.stats_client_cfg import get_stats_client
+from metta.util.wandb.wandb_context import WandbContext, WandbRun
 
 
 # TODO: populate this more
@@ -24,7 +28,7 @@ class TrainJob(Config):
     map_preview_uri: Optional[str] = None
 
 
-def train(cfg, wandb_run, logger: Logger):
+def train(cfg: ListConfig | DictConfig, wandb_run: WandbRun | None, logger: Logger):
     overrides_path = os.path.join(cfg.run_dir, "train_config_overrides.yaml")
     if os.path.exists(overrides_path):
         logger.info(f"Loading train config overrides from {overrides_path}")
@@ -44,8 +48,19 @@ def train(cfg, wandb_run, logger: Logger):
 
     policy_store = PolicyStore(cfg, wandb_run)
 
+    if torch.distributed.is_initialized():
+        world_size = torch.distributed.get_world_size()
+        cfg.trainer.forward_pass_minibatch_target_size = cfg.trainer.forward_pass_minibatch_target_size // world_size
+
+    stats_client: StatsClient | None = get_stats_client(cfg, logger)
+
     trainer = hydra.utils.instantiate(
-        cfg.trainer, cfg, wandb_run, policy_store=policy_store, sim_suite_config=train_job.evals
+        cfg.trainer,
+        cfg,
+        wandb_run,
+        policy_store=policy_store,
+        sim_suite_config=train_job.evals,
+        stats_client=stats_client,
     )
     trainer.train()
     trainer.close()
@@ -54,12 +69,9 @@ def train(cfg, wandb_run, logger: Logger):
 @record
 @hydra.main(config_path="../configs", config_name="train_job", version_base=None)
 def main(cfg: ListConfig | DictConfig) -> int:
-    setup_metta_environment(cfg)
     setup_mettagrid_environment(cfg)
 
-    hb_file = os.environ.get("HEARTBEAT_FILE")
-    if hb_file:
-        start_heartbeat(hb_file)
+    record_heartbeat()
 
     logger = setup_mettagrid_logger("train")
     logger.info(f"Train job config: {OmegaConf.to_yaml(cfg, resolve=True)}")

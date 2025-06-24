@@ -1,82 +1,108 @@
+import json
 import subprocess
 
 
-def get_current_branch(repo_path=None):
+class GitError(Exception):
+    """Custom exception for git-related errors."""
+
+
+def run_git(*args: str) -> str:
+    """Run a git command and return its output."""
+    try:
+        result = subprocess.run(["git", *args], capture_output=True, text=True, check=True)
+        return result.stdout.strip()
+    except subprocess.CalledProcessError as e:
+        raise GitError(f"Git command failed ({e.returncode}): {e.stderr.strip()}") from e
+    except FileNotFoundError as e:
+        raise GitError("Git is not installed!") from e
+
+
+def run_gh(*args: str) -> str:
+    """Run a GitHub CLI command and return its output."""
+    try:
+        result = subprocess.run(["gh", *args], capture_output=True, text=True, check=True)
+        return result.stdout.strip()
+    except subprocess.CalledProcessError as e:
+        raise GitError(f"GitHub CLI command failed ({e.returncode}): {e.stderr.strip()}") from e
+    except FileNotFoundError as e:
+        raise GitError("GitHub CLI (gh) is not installed!") from e
+
+
+def get_current_branch() -> str:
     """Get the current git branch name."""
     try:
-        cmd = ["git", "symbolic-ref", "--short", "HEAD"]
-        if repo_path:
-            cmd = ["git", "-C", repo_path, "symbolic-ref", "--short", "HEAD"]
-        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-        return result.stdout.strip()
-    except subprocess.CalledProcessError:
-        return None
+        return run_git("symbolic-ref", "--short", "HEAD")
+    except GitError as e:
+        if "not a git repository" in str(e):
+            raise ValueError("Not in a git repository") from e
+        elif "HEAD is not a symbolic ref" in str(e):
+            return get_current_commit()
+        raise
 
 
-def get_current_commit(repo_path=None):
+def get_current_commit() -> str:
     """Get the current git commit hash."""
+    return run_git("rev-parse", "HEAD")
+
+
+def get_branch_commit(branch: str) -> str:
+    """Get the commit hash for a given branch."""
+    # Fetch quietly to ensure we have latest remote data
     try:
-        cmd = ["git", "rev-parse", "HEAD"]
-        if repo_path:
-            cmd = ["git", "-C", repo_path, "rev-parse", "HEAD"]
-        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-        return result.stdout.strip()
-    except subprocess.CalledProcessError:
-        return None
+        run_git("fetch", "--quiet")
+    except GitError:
+        # Fetch failure is non-fatal, continue with local data
+        pass
+
+    return run_git("rev-parse", branch)
 
 
-def is_commit_pushed(commit_hash, repo_path=None):
+def get_commit_message(commit_hash: str) -> str:
+    """Get the commit message for a given commit."""
+    return run_git("log", "-1", "--pretty=%B", commit_hash)
+
+
+def has_unstaged_changes() -> bool:
+    """Check if there are any unstaged changes."""
+    status_output = run_git("status", "--porcelain")
+    return bool(status_output)
+
+
+def is_commit_pushed(commit_hash: str) -> bool:
     """Check if a commit has been pushed to any remote branch."""
+
+    # Get all remote branches that contain this commit
+    remote_branches = run_git("branch", "-r", "--contains", commit_hash)
+    return bool(remote_branches.strip())
+
+
+def validate_git_ref(ref: str) -> str | None:
+    """Validate a git reference exists (locally or in remote)."""
     try:
-        cmd = ["git", "branch", "-r", "--contains", commit_hash]
-        if repo_path:
-            cmd = ["git", "-C", repo_path, "branch", "-r", "--contains", commit_hash]
-        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-        return bool(result.stdout.strip())
-    except subprocess.CalledProcessError:
-        return False
-
-
-def has_unstaged_changes(repo_path=None):
-    """Check if there are any unstaged changes in the git repository."""
-    try:
-        cmd = ["git", "status", "--porcelain"]
-        if repo_path:
-            cmd = ["git", "-C", repo_path, "status", "--porcelain"]
-        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-        return bool(result.stdout.strip())
-    except subprocess.CalledProcessError:
-        return False
-
-
-def get_branch_commit(branch_name, repo_path=None):
-    """Get the latest commit hash on a branch, including remote branches."""
-    try:
-        # Make sure we have the latest remote data
-        fetch_cmd = ["git", "fetch", "--quiet"]
-        if repo_path:
-            fetch_cmd = ["git", "-C", repo_path, "fetch", "--quiet"]
-        subprocess.run(fetch_cmd, check=True)
-
-        # Get the commit hash for the branch
-        rev_cmd = ["git", "rev-parse", branch_name]
-        if repo_path:
-            rev_cmd = ["git", "-C", repo_path, "rev-parse", branch_name]
-
-        result = subprocess.run(rev_cmd, capture_output=True, text=True, check=True)
-        return result.stdout.strip()
-    except subprocess.CalledProcessError:
+        commit_hash = run_git("rev-parse", "--verify", ref)
+    except GitError:
         return None
+    return commit_hash
 
 
-def get_commit_message(commit_hash):
-    """Get the commit message for a specific commit hash."""
-    try:
-        import subprocess
+def get_matched_pr(commit_hash: str) -> tuple[int, str] | None:
+    """
+    Check if a commit is the HEAD of an open PR.
 
-        result = subprocess.run(
-            ["git", "log", "-1", "--pretty=%B", commit_hash], capture_output=True, text=True, check=True
-        )
-        return result.stdout.strip()
-    except subprocess.CalledProcessError:
-        return None
+    Returns:
+        tuple(pr_number, pr_title) if commit is HEAD of an open PR, None otherwise
+    """
+
+    # Get ALL open PRs by setting a high limit
+    pr_json = run_gh("pr", "list", "--state", "open", "--limit", "999", "--json", "number,title,headRefOid")
+    prs = json.loads(pr_json)
+
+    for pr in prs:
+        # Check if this PR's HEAD commit matches our commit
+        pr_head_sha = pr.get("headRefOid", "")
+
+        # Compare commits (handle both short and full hashes)
+        if pr_head_sha.startswith(commit_hash) or commit_hash.startswith(pr_head_sha):
+            return (int(pr["number"]), pr["title"])
+
+    return None

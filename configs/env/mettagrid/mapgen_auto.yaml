@@ -8,5 +8,5 @@ game:
 
   map_builder:
     root:
-      config:
+      params:
         num_agents: 24

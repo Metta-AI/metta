@@ -1,8 +1,8 @@
 defaults:
   - common
   - wandb: metta_research
-  - agent: simple
-  - sim: navigation
+  - agent: fast
+  - sim: sweep_eval
   - trainer: puffer
   - _self_
 
@@ -19,7 +19,6 @@ trainer:
   evaluate_interval: 300
 
 sim:
-  num_envs: 5
   num_episodes: 5
 
 sweep_job:

@@ -1,53 +1,50 @@
 name: "Claude Review: README"
 on:
-  pull_request:
-    types: [opened, reopened]
-  workflow_dispatch:
+  workflow_call:
     inputs:
       pr_number:
-        description: "Pull Request number to review"
         required: true
         type: string
-
-permissions:
-  contents: read
-  pull-requests: write
-  id-token: write
 
 jobs:
   review:
     uses: ./.github/workflows/claude-review-base.yml
+    secrets: inherit
     with:
       review_name: "README Accuracy"
+      review_type: "readme"
       tools: "Edit,Replace,Bash(git diff HEAD~1),Bash(find . -name README.md)"
-      pr_number: ${{ inputs.pr_number || '' }}
+      pr_number: ${{ inputs.pr_number }}
       prompt: |
         Review the diff for this pull request and compare it to all README.md files in the repository.
 
-        **IMPORTANT**: Only create a PR comment if you find README content that needs to be updated based on the code changes. If all READMEs are already accurate and up-to-date with the changes in this PR, do not comment at all.
+        **CRITICAL INSTRUCTIONS**:
+        1. ONLY report issues if you find README content that is now INCORRECT due to the changes
+        2. If all READMEs remain accurate after these changes, respond with "No issues found."
+        3. DO NOT suggest adding new documentation - only flag outdated/incorrect content
+        4. DO NOT create suggestions for:
+           - Missing documentation that wasn't there before
+           - Improvements to existing correct documentation
+           - Additional examples or clarifications
+           - Style or formatting changes
 
-        Look for discrepancies such as:
-        - Commands or CLI usage that have changed
-        - Installation or setup instructions that are now outdated
-        - Dependencies that have been added, removed, or version-changed
-        - Configuration options or environment variables that have changed
-        - API endpoints, function signatures, or usage examples that are outdated
-        - Features that have been added or removed but not documented
-        - File paths or directory structures that have changed
-        - Import statements or module names that have been refactored
-        - Default values or behavior that have changed
+        **Only flag these specific types of issues**:
+        - Commands or CLI usage that no longer work after this PR
+        - Installation instructions that are now incorrect
+        - Dependencies that were removed but still documented
+        - Configuration options that no longer exist
+        - API endpoints or functions that were removed/renamed
+        - File paths that no longer exist
+        - Import statements that would now fail
+        - Default values that have changed
+        - Examples that would throw errors
 
-        If code or configuration changes require updates to any README:
-        1. Create GitHub suggested edits showing the necessary changes
-        2. Explain briefly why each change is needed (e.g., "Command flag --old was renamed to --new in commit X")
-        3. Focus only on changes that directly relate to the code modifications in this PR
+        **Review Process**:
+        1. Examine the code changes in the PR diff
+        2. Find all README.md files in the repository
+        3. For each README, check if any content is now WRONG (not just incomplete)
+        4. Only create suggestions for content that needs to be FIXED to remain accurate
 
-        Be thorough but selective:
-        - Check the main README.md at the repository root
-        - Check any README files in subdirectories that might be affected
-        - Consider if example code in READMEs still works with the changes
-        - Verify that any referenced file paths still exist
-
-        Summarize your recommendations in a short **TLDR** section at the end, listing each suggested change with the file path and a brief description.
-    secrets:
-      anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+        Remember: The goal is to catch documentation that would mislead users or cause errors,
+        not to improve documentation coverage. If the READMEs are still technically correct
+        (even if incomplete), then report "No issues found."

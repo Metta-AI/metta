@@ -6,11 +6,11 @@ from omegaconf import DictConfig
 from omegaconf.omegaconf import OmegaConf
 
 import mettascope.server
-from metta.map.utils.storable_map import StorableMap, grid_to_ascii
+from metta.map.utils.storable_map import StorableMap, grid_to_lines
+from metta.mettagrid.curriculum.core import SingleTaskCurriculum
+from metta.mettagrid.level_builder import Level
+from metta.mettagrid.mettagrid_env import MettaGridEnv
 from metta.sim.map_preview import write_local_map_preview
-from mettagrid.curriculum import SingleTaskCurriculum
-from mettagrid.level_builder import Level
-from mettagrid.mettagrid_env import MettaGridEnv
 
 ShowMode = Literal["mettascope", "ascii", "ascii_border", "none"]
 
@@ -38,11 +38,11 @@ def show_map(storable_map: StorableMap, mode: ShowMode | None):
             mettascope.server.run(cfg, open_url=f"?replayUrl={url_path}")
 
     elif mode == "ascii":
-        ascii_lines = grid_to_ascii(storable_map.grid)
+        ascii_lines = grid_to_lines(storable_map.grid)
         print("\n".join(ascii_lines))
 
     elif mode == "ascii_border":
-        ascii_lines = grid_to_ascii(storable_map.grid, border=True)
+        ascii_lines = grid_to_lines(storable_map.grid, border=True)
         print("\n".join(ascii_lines))
 
     else:

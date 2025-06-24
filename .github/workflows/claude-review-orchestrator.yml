@@ -1,0 +1,143 @@
+name: "Claude Review: Orchestrator"
+on:
+  workflow_call:
+    inputs:
+      pr_number:
+        required: true
+        type: string
+      run_readme:
+        required: false
+        type: boolean
+        default: true
+      run_comments:
+        required: false
+        type: boolean
+        default: true
+      run_types:
+        required: false
+        type: boolean
+        default: true
+      run_einops:
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  pull-requests: write
+  id-token: write
+
+jobs:
+  # Validate PR context
+  validate-pr:
+    runs-on: ubuntu-latest
+    outputs:
+      pr_number: ${{ steps.validate.outputs.pr_number }}
+    steps:
+      - name: Validate PR Number
+        id: validate
+        run: |
+          PR_NUMBER="${{ inputs.pr_number }}"
+
+          if [ -z "$PR_NUMBER" ] || [ "$PR_NUMBER" = "0" ]; then
+            echo "❌ Error: No valid PR number provided"
+            exit 1
+          fi
+
+          echo "✅ Valid PR number: $PR_NUMBER"
+          echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
+
+  # Run review types conditionally based on inputs (in parallel)
+  review-readme:
+    needs: validate-pr
+    if: inputs.run_readme
+    secrets: inherit
+    uses: ./.github/workflows/claude-review-readme.yml
+    with:
+      pr_number: ${{ needs.validate-pr.outputs.pr_number }}
+
+  review-comments:
+    needs: validate-pr
+    if: inputs.run_comments
+    secrets: inherit
+    uses: ./.github/workflows/claude-review-comments.yml
+    with:
+      pr_number: ${{ needs.validate-pr.outputs.pr_number }}
+
+  review-types:
+    needs: validate-pr
+    if: inputs.run_types
+    secrets: inherit
+    uses: ./.github/workflows/claude-review-types.yml
+    with:
+      pr_number: ${{ needs.validate-pr.outputs.pr_number }}
+
+  review-einops:
+    needs: validate-pr
+    if: inputs.run_einops
+    secrets: inherit
+    uses: ./.github/workflows/claude-review-einops.yml
+    with:
+      pr_number: ${{ needs.validate-pr.outputs.pr_number }}
+
+  # Consolidate all results and create a single review
+  consolidate-review:
+    needs: [validate-pr, review-readme, review-comments, review-types, review-einops]
+    runs-on: ubuntu-latest
+    if: always()
+    permissions:
+      contents: read
+      pull-requests: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11.7"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.7.3"
+          enable-cache: true
+
+      - name: Consolidate Reviews and Create GitHub Review
+        id: consolidate
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ needs.validate-pr.outputs.pr_number }}
+        run: |
+          uv run .github/scripts/claude_review.py
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "# 🤖 Claude Unified Review Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ steps.consolidate.outputs.has_any_issues }}" = "true" ]; then
+            echo "**Status**: ✅ Review completed with suggestions" >> $GITHUB_STEP_SUMMARY
+            echo "**Total suggestions**: ${{ steps.consolidate.outputs.total_suggestions }}" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "**Status**: ✅ All checks passed - no issues found" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Review Types Run" >> $GITHUB_STEP_SUMMARY
+
+          # Show which reviews were requested and their results
+          if [ "${{ inputs.run_readme }}" = "true" ]; then
+            echo "- README Accuracy: ${{ needs.review-readme.result || 'skipped' }}" >> $GITHUB_STEP_SUMMARY
+          fi
+          if [ "${{ inputs.run_comments }}" = "true" ]; then
+            echo "- Code Comments: ${{ needs.review-comments.result || 'skipped' }}" >> $GITHUB_STEP_SUMMARY
+          fi
+          if [ "${{ inputs.run_types }}" = "true" ]; then
+            echo "- Type Annotations: ${{ needs.review-types.result || 'skipped' }}" >> $GITHUB_STEP_SUMMARY
+          fi
+          if [ "${{ inputs.run_einops }}" = "true" ]; then
+            echo "- Einops Suggestions: ${{ needs.review-einops.result || 'skipped' }}" >> $GITHUB_STEP_SUMMARY
+          fi
+

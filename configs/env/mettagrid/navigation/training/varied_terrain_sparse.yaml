@@ -7,19 +7,17 @@ sampling: 1
 game:
   num_agents: 4
   map_builder:
-    _target_: mettagrid.room.multi_room.MultiRoom
+    _target_: metta.mettagrid.room.multi_room.MultiRoom
     num_rooms: ${..num_agents}
     border_width: 6
 
     room:
-      _target_: mettagrid.room.navigation.varied_terrain.VariedTerrain
-      width: ${sampling:75,120,60}
-      height: ${sampling:75,120,60}
-      border_width: ${sampling:1,6,3}
+      _target_: metta.mettagrid.room.terrain_from_numpy.TerrainFromNumpy
+      border_width: 3
       agents: 1
-      style: all-sparse # ${choose:"all-sparse","balanced","dense","maze"}
+      dir: ${choose:varied_terrain/sparse_large,varied_terrain/sparse_medium,varied_terrain/sparse_small}
       objects:
-        altar: ${sampling:30,75,50}
+        altar: 30
   objects:
     altar:
       cooldown: 1000

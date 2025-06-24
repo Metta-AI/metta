@@ -4,7 +4,6 @@ num_random_samples: 10
 resume: true
 
 eval:
-  num_envs: 100
   num_episodes: 100
   max_time_s: 600
   policy_agents_pct: 0.5

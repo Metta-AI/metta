@@ -1,51 +1,60 @@
 import pytest
 
 from metta.map.scenes.inline_ascii import InlineAscii
-from tests.map.scenes.utils import assert_grid, scene_to_node
+from tests.map.scenes.utils import assert_grid, render_scene
 
 
 def test_basic():
-    scene = InlineAscii(
-        data="""
-W A W
-W   W
+    scene = render_scene(
+        InlineAscii,
+        {
+            "data": """
+#.@.#
+#...#
 """
+        },
+        (3, 7),
     )
-    node = scene_to_node(scene, (3, 7))
 
     assert_grid(
-        node,
+        scene,
         """
-|# A #  |
-|#   #  |
-|       |
+#.@.#..
+#...#..
+.......
 """,
     )
 
 
 def test_row_column():
-    scene = InlineAscii(
-        data="W A W",
-        row=1,
-        column=2,
+    scene = render_scene(
+        InlineAscii,
+        {
+            "data": "#.@.#",
+            "row": 1,
+            "column": 2,
+        },
+        (3, 7),
     )
-    node = scene_to_node(scene, (3, 7))
 
     assert_grid(
-        node,
+        scene,
         """
-|       |
-|  # A #|
-|       |
+.......
+..#.@.#
+.......
 """,
     )
 
 
 def test_overflow():
-    scene = InlineAscii(
-        data="WWWW",
-        row=1,
-        column=2,
-    )
     with pytest.raises(ValueError):
-        scene_to_node(scene, (1, 3))
+        render_scene(
+            InlineAscii,
+            {
+                "data": "####",
+                "row": 1,
+                "column": 2,
+            },
+            (1, 3),
+        )

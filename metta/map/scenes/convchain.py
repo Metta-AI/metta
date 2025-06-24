@@ -23,17 +23,24 @@
 # software.
 
 import math
-from typing import Any, List, Optional
 
 import numpy as np
 
-from metta.map.node import Node
 from metta.map.scene import Scene
 from metta.map.utils.pattern import Pattern, Symmetry, ascii_to_weights_of_all_patterns
-from metta.map.utils.random import MaybeSeed
+from metta.util.config import Config
 
 
-class ConvChain(Scene):
+class ConvChainParams(Config):
+    pattern: str
+    pattern_size: int
+    iterations: int
+    temperature: float
+    periodic_input: bool = True
+    symmetry: Symmetry = "all"
+
+
+class ConvChain(Scene[ConvChainParams]):
     """
     ConvChain scene generator, based on https://github.com/mxgmn/ConvChain
     (ConvChainFast.cs version).
@@ -43,50 +50,32 @@ class ConvChain(Scene):
     and then generates new patterns with similar local characteristics.
     """
 
-    def __init__(
-        self,
-        pattern: str,
-        pattern_size: int,
-        iterations: int,
-        temperature: float,
-        periodic_input: bool = True,
-        symmetry: Symmetry = "all",
-        seed: MaybeSeed = None,
-        children: Optional[List[Any]] = None,
-    ):
-        super().__init__(children=children)
-        self._pattern = pattern
-        self._pattern_size = pattern_size
-        self._rng = np.random.default_rng(seed)
-
+    def post_init(self):
         self._weights = ascii_to_weights_of_all_patterns(
-            self._pattern,
-            self._pattern_size,
-            periodic=periodic_input,
-            symmetry=symmetry,
+            self.params.pattern,
+            self.params.pattern_size,
+            periodic=self.params.periodic_input,
+            symmetry=self.params.symmetry,
         )
         # Ensure all weights are positive
         self._weights = np.maximum(self._weights, 0.1)
 
-        self._iterations = iterations
-        self._temperature = temperature
-
-    def _render(self, node: Node):
+    def render(self):
         # Generate the field using the ConvChain algorithm
+
+        params = self.params
 
         # Intentionally use a list here, to avoid numpy array overhead.
         # (The code is not vectorized, so numpy is not faster here)
-        field = self._rng.choice([False, True], size=node.grid.shape).tolist()
+        field = self.rng.choice([False, True], size=self.grid.shape).tolist()
         weights = list(self._weights)
 
-        n = self._pattern_size
-        width = node.width
-        height = node.height
+        n = params.pattern_size
 
         r = 0
-        for _ in range(self._iterations * node.width * node.height):
-            x0 = self._rng.integers(0, node.width)
-            y0 = self._rng.integers(0, node.height)
+        for _ in range(params.iterations * self.width * self.height):
+            x0 = self.rng.integers(0, self.width)
+            y0 = self.rng.integers(0, self.height)
 
             # This algorithm applies some clever bitwise magic to calculate the
             # energy of the field.
@@ -101,8 +90,8 @@ class ConvChain(Scene):
                     difference = 0
                     for dy in range(n):
                         for dx in range(n):
-                            x = (sx + dx) % width
-                            y = (sy + dy) % height
+                            x = (sx + dx) % self.width
+                            y = (sy + dy) % self.height
 
                             value = field[y][x]
                             power = 1 << (dy * n + dx)
@@ -117,63 +106,45 @@ class ConvChain(Scene):
             # random number.
             # (This allows us to compare whether the output is identical to the
             # ConvChainSlow version, can be optimized later)
-            rnd = self._rng.random()
+            rnd = self.rng.random()
             if q >= 1:
                 field[y0][x0] = not field[y0][x0]
                 continue
 
-            if self._temperature != 1:
-                q = q ** (1.0 / self._temperature)
+            if self.params.temperature != 1:
+                q = q ** (1.0 / self.params.temperature)
 
             r += 1
             if q > rnd:
                 field[y0][x0] = not field[y0][x0]
 
-        # Apply the generated field to the node grid
-        for y in range(node.height):
-            for x in range(node.width):
-                node.grid[y, x] = "wall" if field[y][x] else "empty"
+        # Apply the generated field to the scene grid
+        for y in range(self.height):
+            for x in range(self.width):
+                self.grid[y, x] = "wall" if field[y][x] else "empty"
 
 
-class ConvChainSlow(Scene):
+class ConvChainSlow(Scene[ConvChainParams]):
     """
     ConvChain scene generator, naive & slow implementation.
 
     Committed to the repo for the sake of comparison, usually shouldn't be used and can be removed later.
     """
 
-    def __init__(
-        self,
-        pattern: str,
-        pattern_size: int,
-        iterations: int,
-        temperature: float,
-        periodic_input: bool = True,
-        symmetry: Symmetry = "all",
-        seed: MaybeSeed = None,
-        children: Optional[List[Any]] = None,
-    ):
-        super().__init__(children=children)
-        self._pattern = pattern
-        self._pattern_size = pattern_size
-        self._rng = np.random.default_rng(seed)
-
+    def post_init(self):
         self._weights = ascii_to_weights_of_all_patterns(
-            self._pattern,
-            self._pattern_size,
-            periodic=periodic_input,
-            symmetry=symmetry,
+            self.params.pattern,
+            self.params.pattern_size,
+            periodic=self.params.periodic_input,
+            symmetry=self.params.symmetry,
         )
         # Ensure all weights are positive
         self._weights = np.maximum(self._weights, 0.1)
 
-        self._iterations = iterations
-        self._temperature = temperature
-
-    def _render(self, node: Node):
+    def render(self):
         # Generate the field using the ConvChain algorithm
-        field = self._rng.choice([False, True], size=node.grid.shape)
-        n = self._pattern_size
+        field = self.rng.choice([False, True], size=self.grid.shape)
+        n = self.params.pattern_size
         weights = self._weights
 
         # Define energy calculation function
@@ -181,8 +152,8 @@ class ConvChainSlow(Scene):
             value = 1.0
             for y in range(j - n + 1, j + n):
                 for x in range(i - n + 1, i + n):
-                    x_wrapped = x % node.width
-                    y_wrapped = y % node.height
+                    x_wrapped = x % self.width
+                    y_wrapped = y % self.height
                     pattern = Pattern(field, x_wrapped, y_wrapped, n)
                     value *= weights[pattern.index()]
             return value
@@ -194,16 +165,16 @@ class ConvChainSlow(Scene):
             q = energy_exp(x, y)
 
             # Revert the change with some probability
-            if math.pow(q / p, 1.0 / self._temperature) < self._rng.random():
+            if math.pow(q / p, 1.0 / self.params.temperature) < self.rng.random():
                 field[y, x] = not field[y, x]  # Flip back
 
         # Run the Metropolis algorithm
-        for _ in range(self._iterations * node.width * node.height):
-            x = self._rng.integers(0, node.width, dtype=int)
-            y = self._rng.integers(0, node.height, dtype=int)
+        for _ in range(self.params.iterations * self.width * self.height):
+            x = self.rng.integers(0, self.width, dtype=int)
+            y = self.rng.integers(0, self.height, dtype=int)
             metropolis(x, y)
 
-        # Apply the generated field to the node grid
-        for y in range(node.height):
-            for x in range(node.width):
-                node.grid[y, x] = "wall" if field[y, x] else "empty"
+        # Apply the generated field to the scene grid
+        for y in range(self.height):
+            for x in range(self.width):
+                self.grid[y, x] = "wall" if field[y, x] else "empty"
