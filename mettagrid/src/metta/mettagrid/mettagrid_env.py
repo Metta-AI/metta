@@ -256,7 +256,8 @@ class MettaGridEnv(PufferEnv, GymEnv):
         for label in self._map_labels + self.labels:
             infos[f"map_reward/{label}"] = episode_rewards_mean
 
-        infos.update(get_completion_rates(self._curriculum))
+        if self._curriculum.completed_tasks() is not None:
+            infos.update(self._curriculum.get_completion_rates())
 
         with self.timer("_c_env.get_episode_stats"):
             stats = self._c_env.get_episode_stats()
@@ -464,13 +465,3 @@ class MettaGridEnv(PufferEnv, GymEnv):
     def initial_grid_hash(self) -> int:
         """Returns the hash of the initial grid configuration."""
         return self._c_env.initial_grid_hash
-
-
-def get_completion_rates(curriculum):
-    completion_rates = {}
-    completed_tasks = curriculum.completed_tasks()
-    if completed_tasks is not None and len(completed_tasks) > 0:
-        for task_id in curriculum._curricula:
-            task_completion_rate = completed_tasks.count(task_id) / len(completed_tasks)
-            completion_rates[f"task_completions/{task_id}"] = task_completion_rate
-    return completion_rates

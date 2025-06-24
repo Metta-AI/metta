@@ -168,6 +168,9 @@ class TerrainFromNumpy(Room):
         valid_positions_set = set(valid_positions[num_agents:])
 
         for obj_name, count in self._objects.items():
+            count = count - np.where(level == obj_name, 1, 0).sum()
+            if count < 0:
+                continue
             # Sample from remaining valid positions
             positions = random.sample(list(valid_positions_set), min(count, len(valid_positions_set)))
             for pos in positions:

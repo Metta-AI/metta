@@ -3,6 +3,7 @@ import random
 import pytest
 from omegaconf import OmegaConf
 
+from metta.mettagrid.curriculum.bucketed import BucketedCurriculum
 from metta.mettagrid.curriculum.core import SingleTaskCurriculum
 from metta.mettagrid.curriculum.low_reward import LowRewardCurriculum
 from metta.mettagrid.curriculum.progressive import ProgressiveCurriculum
@@ -90,3 +91,26 @@ def test_progressive_curriculum(monkeypatch, env_cfg):
     curr.complete_task(t1.id(), 0.6)
     t2 = curr.get_task()
     assert t2.env_cfg().game.map.width == 20
+
+
+def test_bucketed_curriculum(monkeypatch, env_cfg):
+    monkeypatch.setattr(
+        "metta.mettagrid.curriculum.bucketed.config_from_path", lambda path, env_overrides=None: env_cfg
+    )
+    buckets = {
+        "game.map.width": {"values": [5, 10]},
+        "game.map.height": {"values": [5, 10]},
+    }
+    curr = BucketedCurriculum("dummy", buckets=buckets)
+    #     env_cfg_template="dummy",
+    #     buckets=buckets)
+    #     env_overrides=OmegaConf.create({}),
+    #     default_bins=1,
+    #     moving_avg_decay_rate=0.01,
+    # )
+    # There should be 4 tasks (2x2 grid)
+    assert len(curr._id_to_curriculum) == 4
+    # Sample a task
+    task = curr.get_task()
+    assert hasattr(task, "id")
+    assert any(str(w) in task.id() for w in [5, 10])

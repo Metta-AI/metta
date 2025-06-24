@@ -23,18 +23,7 @@ class Random(Room):
         assert isinstance(height, int), f"height must be an int, got {type(height)}"
         self._width = width
         self._height = height
-        self._objects = {}
-
-        # if objects are colored, catch any misconfigured keys
-        for obj, count in objects.items():
-            if isinstance(objects[obj], dict):
-                color = list(objects[obj].keys())
-                count = list(objects[obj].values())[0]
-                assert len(color) == 1
-                new_key = f"{obj}.{color[0]}"
-                self._objects[new_key] = count
-            else:
-                self._objects[obj] = count
+        self._objects = objects
 
         self._agents = agents
         self.set_size_labels(width, height)

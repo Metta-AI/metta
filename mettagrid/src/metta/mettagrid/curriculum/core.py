@@ -15,7 +15,12 @@ class Curriculum:
         pass
 
     def completed_tasks(self) -> List[str]:
+        """Return a list of completed task identifiers."""
         pass
+
+    def get_completion_rates(self):
+        """Return a dictionary of completion rates for each task."""
+        return {}
 
 
 class Task:
