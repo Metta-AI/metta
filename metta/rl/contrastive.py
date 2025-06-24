@@ -86,7 +86,7 @@ class ContrastiveLearning:
         positive_pairs = self._generate_positive_pairs(batch_size, seq_len)
 
         # Generate negative pairs using uniform distribution - same number as positive
-        negative_pairs = self._generate_negative_pairs(batch_size, seq_len)
+        negative_pairs = self._generate_negative_pairs(batch_size, seq_len, len(positive_pairs))
 
         # Compute contrastive loss
         contrastive_loss = self._compute_contrastive_loss(
@@ -127,20 +127,21 @@ class ContrastiveLearning:
         positive_pairs_tensor = torch.tensor(positive_pairs, device=self.device, dtype=torch.long)
         return positive_pairs_tensor
 
-    def _generate_negative_pairs(self, batch_size: int, seq_len: int) -> Tensor:
+    def _generate_negative_pairs(self, batch_size: int, seq_len: int, num_positive_pairs: int) -> Tensor:
         """Generate negative pairs using uniform distribution."""
         # Generate exactly the same number of pairs as positive pairs
-        num_pairs = batch_size * seq_len  # Target number of pairs
+        num_pairs = num_positive_pairs
+
+        if num_pairs == 0:
+            return torch.empty(0, 4, device=self.device, dtype=torch.long)
 
         # Random batch indices
-        anchor_batch = torch.arange(batch_size, device=self.device).repeat_interleave(seq_len)
-        anchor_time = torch.arange(seq_len, device=self.device).repeat(batch_size)
+        anchor_batch = torch.randint(0, batch_size, (num_pairs,), device=self.device)
+        anchor_time = torch.randint(0, seq_len, (num_pairs,), device=self.device)
 
         # Random negative batch and time indices using uniform distribution
-        uniform_batch = torch.distributions.Uniform(0, batch_size)
-        uniform_time = torch.distributions.Uniform(0, seq_len)
-        negative_batch = uniform_batch.sample((num_pairs,)).long().to(self.device)
-        negative_time = uniform_time.sample((num_pairs,)).long().to(self.device)
+        negative_batch = torch.randint(0, batch_size, (num_pairs,), device=self.device)
+        negative_time = torch.randint(0, seq_len, (num_pairs,), device=self.device)
 
         # Ensure all indices are long tensors for proper indexing
         anchor_batch = anchor_batch.long()
@@ -150,9 +151,6 @@ class ContrastiveLearning:
 
         # Stack into pairs
         negative_pairs = torch.stack([anchor_batch, anchor_time, negative_batch, negative_time], dim=1)
-
-        # Ensure final tensor is long
-        negative_pairs = negative_pairs.long()
 
         return negative_pairs
 
