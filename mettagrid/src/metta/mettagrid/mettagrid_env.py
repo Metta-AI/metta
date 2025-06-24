@@ -275,6 +275,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
             "map_h": self.map_height,
             "initial_grid_hash": self.initial_grid_hash,
             "steps": self._steps,
+            "max_steps": self.max_steps,
         }
 
         infos["attributes"] = {}
