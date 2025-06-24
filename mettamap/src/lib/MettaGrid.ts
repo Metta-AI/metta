@@ -34,7 +34,7 @@ export class MettaObject {
   readonly r: number;
   readonly c: number;
 
-  constructor(data: { name: string; r: number; c: number }) {
+  private constructor(data: { name: string; r: number; c: number }) {
     this.name = data.name;
     this.r = data.r;
     this.c = data.c;
@@ -45,11 +45,8 @@ export class MettaObject {
     c: number,
     ascii: string
   ): MettaObject | undefined {
-    if (ascii === "." || ascii === " ") {
-      return undefined;
-    }
     const objectName = asciiToName(ascii);
-    return new MettaObject({ name: objectName, r, c });
+    return MettaObject.fromObjectName(r, c, objectName);
   }
 
   static fromObjectName(
@@ -98,12 +95,8 @@ export class MettaGrid {
           r === 0 || r === height - 1 || c === 0 || c === width - 1
             ? "wall"
             : "empty";
-        return new MettaObject({
-          name,
-          r,
-          c,
-        });
-      }),
+        return MettaObject.fromObjectName(r, c, name);
+      }).filter((o) => o !== undefined),
     });
   }
 
@@ -125,8 +118,11 @@ export class MettaGrid {
   }
 
   toAscii(): string {
+    const emptyAscii = nameToAscii("empty");
     return this.grid
-      .map((row) => row.map((cell) => cell?.ascii ?? ".").join(""))
+      .map((row) =>
+        row.map((cell) => (cell ? cell.ascii : emptyAscii)).join("")
+      )
       .join("\n");
   }
 
@@ -146,16 +142,23 @@ export class MettaGrid {
     return this.data.objects;
   }
 
-  replaceCellByName(r: number, c: number, name: string) {
+  replaceCellByName(r: number, c: number, name: string): MettaGrid {
+    const newObject = MettaObject.fromObjectName(r, c, name);
+    let replaced = false;
     const newObjects = this.objects
       .map((o) => {
         if (o.r === r && o.c === c) {
-          return MettaObject.fromObjectName(r, c, name);
+          replaced = true;
+          return newObject;
         } else {
           return o;
         }
       })
       .filter((o) => o !== undefined);
+
+    if (!replaced && newObject) {
+      newObjects.push(newObject);
+    }
 
     return new MettaGrid({
       ...this.data,

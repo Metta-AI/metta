@@ -7,7 +7,12 @@ import { useIsMouseDown } from "@/hooks/useIsMouseDown";
 import { drawGrid } from "@/lib/draw/drawGrid";
 import { Cell, MettaGrid } from "@/lib/MettaGrid";
 
-import { useCallOnWindowResize, useDrawer, useSpacePressed } from "./hooks";
+import {
+  useCallOnElementResize,
+  useCallOnWindowResize,
+  useDrawer,
+  useSpacePressed,
+} from "./hooks";
 
 type CellHandler = (cell: Cell | undefined) => void;
 
@@ -28,7 +33,7 @@ const MapViewerBrowserOnly: FC<Props> = ({
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  const dpr = typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
+  const dpr = window.devicePixelRatio;
 
   const spacePressed = useSpacePressed();
   const isMouseDown = useIsMouseDown();
@@ -81,11 +86,11 @@ const MapViewerBrowserOnly: FC<Props> = ({
   const recenter = useCallback(() => {
     if (!scale || !canvasRef.current) return;
     const canvas = canvasRef.current;
+    setZoom(1);
     setPan({
       x: (canvas.width - grid.width * scale) / (2 * dpr),
       y: (canvas.height - grid.height * scale) / (2 * dpr),
     });
-    setZoom(1);
   }, [scale, setPan, setZoom]);
 
   const transform = useMemo(() => {
@@ -143,6 +148,7 @@ const MapViewerBrowserOnly: FC<Props> = ({
   }, [drawer, grid, transform, hoveredCell, selectedCell]);
 
   useCallOnWindowResize(initCanvas);
+  useCallOnElementResize(canvasRef.current, initCanvas);
 
   // TODO - avoid rendering if not visible
   useEffect(draw, [draw]);
@@ -195,7 +201,7 @@ const MapViewerBrowserOnly: FC<Props> = ({
 
   return (
     <div
-      className="relative flex h-screen max-h-[600px] w-full overflow-hidden"
+      className="relative flex h-full w-full overflow-hidden"
       {...panZoomHandlers}
       ref={setContainer}
     >
@@ -222,8 +228,8 @@ const MapViewerBrowserOnly: FC<Props> = ({
 export const MapViewer: FC<Props> = (props) => {
   if (typeof window === "undefined") {
     return (
-      <div className="relative flex h-screen max-h-[600px] w-full overflow-hidden">
-        {" "}
+      <div className="relative flex h-full w-full overflow-hidden">
+        <canvas className="h-full w-full overflow-hidden" />
       </div>
     );
   }

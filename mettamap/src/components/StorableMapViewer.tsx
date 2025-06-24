@@ -74,7 +74,7 @@ export const StorableMapViewer: FC<{
   const grid = useMemo(() => MettaGrid.fromAscii(map.data), [map.data]);
 
   return (
-    <div className="grid grid-cols-[400px_1fr_250px] gap-8">
+    <div className="grid min-h-[600px] grid-cols-[400px_1fr_250px] gap-8">
       <div className="max-h-[80vh] overflow-auto">
         {filterable ? (
           <FilterableFrontmatterViewer frontmatter={map.frontmatter.config} />
@@ -83,9 +83,7 @@ export const StorableMapViewer: FC<{
         )}
       </div>
       <div className="flex flex-col items-center justify-start overflow-auto">
-        <div className="max-w-full">
-          <MapViewer grid={grid} />
-        </div>
+        <MapViewer grid={grid} />
       </div>
       <div className="flex flex-col gap-2">
         <CopyToClipboardButton text={map.data}>

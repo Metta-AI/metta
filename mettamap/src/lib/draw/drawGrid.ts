@@ -17,6 +17,17 @@ export async function drawGrid({
   ctx.fillStyle = BACKGROUND_COLOR;
   ctx.fillRect(0, 0, grid.width, grid.height);
 
+  // Draw the map
+  for (const object of grid.objects) {
+    if (object.name === "wall") {
+      // in mettascope, walls have many different types depending on the surrounding terrain.
+      // until we support that, we just draw a single wall type, and highlight it with color.
+      ctx.fillStyle = "#c0bcb8";
+      ctx.fillRect(object.c, object.r, 1, 1);
+    }
+    drawer.drawObject(object, ctx, object.c, object.r, 1);
+  }
+
   // Draw grid lines
   {
     ctx.strokeStyle = "black";
@@ -40,10 +51,5 @@ export async function drawGrid({
       ctx.stroke();
     }
     ctx.globalAlpha = 1;
-  }
-
-  // Draw the map
-  for (const object of grid.objects) {
-    drawer.drawObject(object, ctx, object.c, object.r, 1);
   }
 }

@@ -1,7 +1,7 @@
 import { MettaObject } from "@/lib/MettaGrid";
 
 import { loadMettaTileSets } from "./mettaTileSets";
-import { TileSetCollection } from "./TileSet";
+import { TileSetCollection } from "./TileSetCollection";
 
 export class Drawer {
   private constructor(public readonly tileSets: TileSetCollection) {}

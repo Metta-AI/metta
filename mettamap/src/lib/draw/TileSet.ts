@@ -1,9 +1,16 @@
 import { CSSProperties } from "react";
 
+type TileInfo = {
+  name: string;
+  x: number;
+  y: number;
+  modulate?: { r: number; g: number; b: number };
+};
+
 export type TileSetSource = {
   src: string;
   tileSize: number;
-  tiles: Record<string, [number, number]>;
+  tiles: TileInfo[];
 };
 
 async function loadImage(src: string) {
@@ -18,58 +25,56 @@ async function loadImage(src: string) {
 export class TileSet {
   image: HTMLImageElement;
   tileSize: number;
-  tiles: Record<string, [number, number]>;
+  tiles: Record<string, TileInfo>;
+  bitmaps: Record<string, ImageBitmap>;
 
   private constructor(
     image: HTMLImageElement,
     tileSize: number,
-    tiles: Record<string, [number, number]>
+    tiles: TileInfo[]
   ) {
     this.image = image;
     this.tileSize = tileSize;
-    this.tiles = tiles;
+    this.tiles = Object.fromEntries(tiles.map((t) => [t.name, t]));
+    this.bitmaps = {};
   }
 
-  static async load(tileSet: TileSetSource): Promise<TileSet> {
-    const img = await loadImage(tileSet.src);
-    return new TileSet(img, tileSet.tileSize, tileSet.tiles);
-  }
-
-  draw(
-    name: string,
-    ctx: CanvasRenderingContext2D,
-    x: number,
-    y: number,
-    size: number
-  ) {
-    const [tileX, tileY] = this.tiles[name];
-    ctx.drawImage(
-      this.image,
-      tileX * this.tileSize,
-      tileY * this.tileSize,
-      this.tileSize,
-      this.tileSize,
-      x,
-      y,
-      size,
-      size
-    );
-  }
-}
-
-export class TileSetCollection {
-  nameToTileSet: Record<string, TileSet> = {};
-
-  constructor(public readonly tileSets: TileSet[]) {
-    // validate that all tile sets have unique tile names
-    for (const tileSet of tileSets) {
-      for (const tileName of Object.keys(tileSet.tiles)) {
-        if (this.nameToTileSet[tileName]) {
-          throw new Error(`Tile name ${tileName} is not unique`);
+  static async load(source: TileSetSource): Promise<TileSet> {
+    const img = await loadImage(source.src);
+    const tileSet = new TileSet(img, source.tileSize, source.tiles);
+    for (const tile of source.tiles) {
+      let bitmap = await createImageBitmap(
+        img,
+        tile.x * source.tileSize,
+        tile.y * source.tileSize,
+        source.tileSize,
+        source.tileSize
+      );
+      if (tile.modulate) {
+        const tileSize = source.tileSize;
+        const offscreen = new OffscreenCanvas(tileSize, tileSize);
+        const ctx = offscreen.getContext("2d");
+        if (!ctx) {
+          throw new Error("Failed to get context");
         }
-        this.nameToTileSet[tileName] = tileSet;
+
+        ctx.drawImage(bitmap, 0, 0);
+
+        const imageData = ctx.getImageData(0, 0, tileSize, tileSize);
+
+        for (let i = 0; i < imageData.data.length; i += 4) {
+          imageData.data[i + 0] *= tile.modulate.r;
+          imageData.data[i + 1] *= tile.modulate.g;
+          imageData.data[i + 2] *= tile.modulate.b;
+        }
+
+        ctx.putImageData(imageData, 0, 0);
+        bitmap = offscreen.transferToImageBitmap();
       }
+
+      tileSet.bitmaps[tile.name] = bitmap;
     }
+    return tileSet;
   }
 
   draw(
@@ -79,22 +84,23 @@ export class TileSetCollection {
     y: number,
     size: number
   ) {
-    const tileSet = this.nameToTileSet[name];
-    if (!tileSet) {
-      throw new Error(`Tile set for ${name} not found`);
+    const tile = this.tiles[name];
+    if (!tile) {
+      throw new Error(`Tile ${name} not found in tile set`);
     }
-    tileSet.draw(name, ctx, x, y, size);
+    ctx.drawImage(this.bitmaps[name], x, y, size, size);
   }
 
-  css(name: string, size: number) {
+  css(
+    name: string,
+    size: number
+  ): { wrapper: CSSProperties; inner: CSSProperties } {
     // Written by ChatGPT, maybe possible to simplify
-
     // find the tileset & tile coords
-    const tileSet = this.nameToTileSet[name];
-    const [col, row] = tileSet.tiles[name];
+    const tile = this.tiles[name];
 
-    const tileW = tileSet.tileSize;
-    const tileH = tileSet.tileSize;
+    const tileW = this.tileSize;
+    const tileH = this.tileSize;
 
     // how much to scale the natural tile to your desired size
     const scale = size / tileW;
@@ -108,10 +114,10 @@ export class TileSetCollection {
     const inner: CSSProperties = {
       width: tileW,
       height: tileH,
-      backgroundImage: `url(${tileSet.image.src})`,
+      backgroundImage: `url(${this.image.src})`,
       backgroundRepeat: "no-repeat",
       // position the correct tile in the sheet:
-      backgroundPosition: `-${col * tileW}px -${row * tileH}px`,
+      backgroundPosition: `-${tile.x * tileW}px -${tile.y * tileH}px`,
       // then grow/shrink it to fill the wrapper:
       transform: `scale(${scale})`,
       transformOrigin: "top left",

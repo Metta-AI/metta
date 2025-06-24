@@ -18,6 +18,22 @@ export function useCallOnWindowResize(callback: () => void) {
   }, [callback]);
 }
 
+export function useCallOnElementResize(
+  element: HTMLElement | null,
+  callback: () => void
+) {
+  useEffect(() => {
+    if (!element) return;
+
+    const observer = new ResizeObserver(() => {
+      callback();
+    });
+
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [element, callback]);
+}
+
 export function useSpacePressed(): boolean {
   const [spacePressed, setSpacePressed] = useState(false);
 
