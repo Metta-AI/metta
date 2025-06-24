@@ -1,7 +1,7 @@
 export AWS_PROFILE=softmax
 
 # list jobs
-alias jj="sky jobs queue --skip-finished" # avoid conflict with jq (JSON processor)
+alias jj="sky jobs queue --skip-finished"
 alias jja="sky jobs queue"
 
 # cancel ("kill") job
