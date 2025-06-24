@@ -85,7 +85,7 @@ class ContrastiveLearning:
         # Generate positive pairs using geometric distribution
         positive_pairs = self._generate_positive_pairs(batch_size, seq_len)
 
-        # Generate negative pairs using uniform distribution
+        # Generate negative pairs using uniform distribution - same number as positive
         negative_pairs = self._generate_negative_pairs(batch_size, seq_len)
 
         # Compute contrastive loss
@@ -129,8 +129,8 @@ class ContrastiveLearning:
 
     def _generate_negative_pairs(self, batch_size: int, seq_len: int) -> Tensor:
         """Generate negative pairs using uniform distribution."""
-        # Sample random batch and timestep pairs
-        num_negatives = batch_size * seq_len  # One negative per anchor
+        # Generate exactly the same number of pairs as positive pairs
+        num_pairs = batch_size * seq_len  # Target number of pairs
 
         # Random batch indices
         anchor_batch = torch.arange(batch_size, device=self.device).repeat_interleave(seq_len)
@@ -139,8 +139,8 @@ class ContrastiveLearning:
         # Random negative batch and time indices using uniform distribution
         uniform_batch = torch.distributions.Uniform(0, batch_size)
         uniform_time = torch.distributions.Uniform(0, seq_len)
-        negative_batch = uniform_batch.sample((num_negatives,)).long().to(self.device)
-        negative_time = uniform_time.sample((num_negatives,)).long().to(self.device)
+        negative_batch = uniform_batch.sample((num_pairs,)).long().to(self.device)
+        negative_time = uniform_time.sample((num_pairs,)).long().to(self.device)
 
         # Ensure all indices are long tensors for proper indexing
         anchor_batch = anchor_batch.long()
