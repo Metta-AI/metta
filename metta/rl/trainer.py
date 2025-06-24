@@ -198,25 +198,6 @@ class MettaTrainer:
             weight_decay=trainer_cfg.optimizer.weight_decay,
         )
 
-        if checkpoint and checkpoint.optimizer_state_dict:
-            try:
-                self.optimizer.load_state_dict(checkpoint.optimizer_state_dict)
-                logger.info("Successfully loaded optimizer state from checkpoint")
-            except ValueError as e:
-                if "doesn't match the size of optimizer's group" in str(e):
-                    # Extract some info about the mismatch
-                    old_params = len(checkpoint.optimizer_state_dict.get("param_groups", [{}])[0].get("params", []))
-                    new_params = sum(1 for _ in self.policy.parameters())
-                    logger.warning(
-                        f"Optimizer state dict doesn't match current model architecture. "
-                        f"Checkpoint has {old_params} parameter groups, current model has {new_params}. "
-                        "This typically happens when layers are added/removed. "
-                        "Starting with fresh optimizer state."
-                    )
-                else:
-                    # Re-raise if it's a different ValueError
-                    raise
-
         # validate that policy matches environment
         self.metta_agent: MettaAgent | DistributedMettaAgent = self.policy  # type: ignore
         _env_shape = metta_grid_env.single_observation_space.shape
@@ -250,6 +231,25 @@ class MettaTrainer:
             self.lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
                 self.optimizer, T_max=trainer_cfg.total_timesteps // trainer_cfg.batch_size
             )
+
+        if checkpoint and checkpoint.optimizer_state_dict:
+            try:
+                self.optimizer.load_state_dict(checkpoint.optimizer_state_dict)
+                logger.info("Successfully loaded optimizer state from checkpoint")
+            except ValueError as e:
+                if "doesn't match the size of optimizer's group" in str(e):
+                    # Extract some info about the mismatch
+                    old_params = len(checkpoint.optimizer_state_dict.get("param_groups", [{}])[0].get("params", []))
+                    new_params = sum(1 for _ in self.policy.parameters())
+                    logger.warning(
+                        f"Optimizer state dict doesn't match current model architecture. "
+                        f"Checkpoint has {old_params} parameter groups, current model has {new_params}. "
+                        "This typically happens when layers are added/removed. "
+                        "Starting with fresh optimizer state."
+                    )
+                else:
+                    # Re-raise if it's a different ValueError
+                    raise
 
         if wandb_run and self._master:
             # Define metrics (wandb x-axis values)
