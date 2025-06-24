@@ -13,7 +13,7 @@ from torch.distributed.elastic.multiprocessing.errors import record
 from app_backend.stats_client import StatsClient
 from metta.agent.policy_store import PolicyStore
 from metta.sim.simulation_config import SimulationSuiteConfig
-from metta.util.config import Config, setup_metta_environment
+from metta.util.config import Config
 from metta.util.heartbeat import record_heartbeat
 from metta.util.logging import setup_mettagrid_logger
 from metta.util.runtime_configuration import setup_mettagrid_environment
@@ -69,7 +69,6 @@ def train(cfg: ListConfig | DictConfig, wandb_run: WandbRun | None, logger: Logg
 @record
 @hydra.main(config_path="../configs", config_name="train_job", version_base=None)
 def main(cfg: ListConfig | DictConfig) -> int:
-    setup_metta_environment(cfg)
     setup_mettagrid_environment(cfg)
 
     record_heartbeat()
