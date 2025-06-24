@@ -67,6 +67,13 @@ class MettaTrainer:
         self.cfg = cfg
         self.trainer_cfg = trainer_cfg = cfg.trainer
 
+        # it doesn't make sense to evaluate more often than we checkpoint since we need a saved policy to evaluate
+        if trainer_cfg.evaluate_interval != 0 and trainer_cfg.evaluate_interval < trainer_cfg.checkpoint_interval:
+            raise ValueError("evaluate_interval must be at least as large as checkpoint_interval")
+
+        if trainer_cfg.checkpoint_dir:
+            os.makedirs(trainer_cfg.checkpoint_dir, exist_ok=True)
+
         self.sim_suite_config = sim_suite_config
         self._stats_client = stats_client
 
@@ -113,19 +120,19 @@ class MettaTrainer:
             f"vecenv.driver_env type {type(metta_grid_env).__name__} is not MettaGridEnv"
         )
 
-        logger.info("Loading checkpoint")
-        os.makedirs(trainer_cfg.checkpoint_dir, exist_ok=True)
+        self.agent_step: int = 0
+        self.epoch: int = 0
 
         checkpoint = TrainerCheckpoint.load(cfg.run_dir)
-
-        self.agent_step: int = checkpoint.agent_step if checkpoint else 0
-        self.epoch: int = checkpoint.epoch if checkpoint else 0
-        if checkpoint.stopwatch_state is not None:
-            self.timer.load_state(checkpoint.stopwatch_state, resume_running=True)
-            logger.info("Restored timer state from checkpoint")
+        if checkpoint:
+            logger.info(f"Restoring from checkpoint at {checkpoint.agent_step} steps")
+            self.agent_step = checkpoint.agent_step
+            self.epoch = checkpoint.epoch
+            if checkpoint.stopwatch_state is not None:
+                logger.info("Restoring timer state from checkpoint")
+                self.timer.load_state(checkpoint.stopwatch_state, resume_running=True)
 
         policy_record = self._load_policy(checkpoint, policy_store, metta_grid_env)
-
         assert policy_record is not None, "No policy found"
 
         if self._master:
@@ -173,6 +180,10 @@ class MettaTrainer:
             weight_decay=trainer_cfg.optimizer.weight_decay,
         )
 
+        if checkpoint and checkpoint.optimizer_state_dict:
+            logger.info("Restoring optimizer state from checkpoint")
+            self.optimizer.load_state_dict(checkpoint.optimizer_state_dict)
+
         # validate that policy matches environment
         self.metta_agent: MettaAgent | DistributedMettaAgent = self.policy  # type: ignore
         assert isinstance(self.metta_agent, (MettaAgent, DistributedMettaAgent, PytorchAgent)), self.metta_agent
@@ -207,9 +218,6 @@ class MettaTrainer:
                 self.optimizer, T_max=trainer_cfg.total_timesteps // trainer_cfg.batch_size
             )
 
-        if checkpoint.agent_step > 0:
-            self.optimizer.load_state_dict(checkpoint.optimizer_state_dict)
-
         if wandb_run and self._master:
             # Define metrics (wandb x-axis values)
             metrics = ["agent_step", "epoch", "total_time", "train_time"]
@@ -233,10 +241,6 @@ class MettaTrainer:
         logger.info("Starting training")
         trainer_cfg = self.trainer_cfg
 
-        # it doesn't make sense to evaluate more often than checkpointing since we need a saved policy to evaluate
-        if trainer_cfg.evaluate_interval != 0 and trainer_cfg.evaluate_interval < trainer_cfg.checkpoint_interval:
-            raise ValueError("evaluate_interval must be at least as large as checkpoint_interval")
-
         if self._stats_client is not None:
             name = self.wandb_run.name if self.wandb_run is not None and self.wandb_run.name is not None else "unknown"
             url = self.wandb_run.url if self.wandb_run is not None else None
@@ -249,6 +253,8 @@ class MettaTrainer:
             with self.torch_profiler:
                 self._rollout()
                 self._train()
+
+            self.torch_profiler.on_epoch_end(self.epoch)
 
             # Processing stats
             self._process_stats()
@@ -273,30 +279,30 @@ class MettaTrainer:
             record_heartbeat()
 
             # Checkpointing trainer
-            if self.epoch % trainer_cfg.checkpoint_interval == 0:
+            if trainer_cfg.checkpoint_interval and self.epoch % trainer_cfg.checkpoint_interval == 0:
                 self._checkpoint_trainer()
 
-            if trainer_cfg.evaluate_interval != 0 and self.epoch % trainer_cfg.evaluate_interval == 0:
+            if trainer_cfg.evaluate_interval and self.epoch % trainer_cfg.evaluate_interval == 0:
                 self._evaluate_policy()
 
-            self.torch_profiler.on_epoch_end(self.epoch)
+            if trainer_cfg.replay_interval and self.epoch % trainer_cfg.replay_interval == 0:
+                self._generate_and_upload_replay()
 
-            if self.epoch % trainer_cfg.wandb_checkpoint_interval == 0:
+            if trainer_cfg.wandb_checkpoint_interval and self.epoch % trainer_cfg.wandb_checkpoint_interval == 0:
                 self._save_policy_to_wandb()
 
             if (
-                self.cfg.agent.l2_init_weight_update_interval != 0
+                self.cfg.agent.l2_init_weight_update_interval
                 and self.epoch % self.cfg.agent.l2_init_weight_update_interval == 0
             ):
                 self.policy.update_l2_init_weight_copy()
 
-            if trainer_cfg.replay_interval != 0 and self.epoch % trainer_cfg.replay_interval == 0:
-                self._generate_and_upload_replay()
-
             self._on_train_step()
+            # end loop over total_timesteps
 
-        timing_summary = self.timer.get_all_summaries()
         logger.info("Training complete!")
+        timing_summary = self.timer.get_all_summaries()
+
         for name, summary in timing_summary.items():
             logger.info(f"  {name}: {self.timer.format_time(summary['total_elapsed'])}")
 
