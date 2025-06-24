@@ -7,7 +7,7 @@ import { Tabs } from "@/components/Tabs";
 import { useIsMouseDown } from "@/hooks/useIsMouseDown";
 import { Cell, MettaGrid } from "@/lib/MettaGrid";
 
-import { AsciiPreview } from "./AsciiPreview";
+import { AsciiEditor } from "./AsciiEditor";
 import { ObjectsPanel } from "./ObjectsPanel";
 import { ResetGridButton } from "./ResetGridButton";
 
@@ -72,7 +72,7 @@ export default function MapEditorPage() {
             content: (
               <div className="flex h-full flex-col">
                 <div className="flex-1 overflow-auto p-4">
-                  <AsciiPreview ascii={asciiPreview} />
+                  <AsciiEditor grid={grid} setGrid={setGrid} />
                 </div>
               </div>
             ),
@@ -82,7 +82,7 @@ export default function MapEditorPage() {
         additionalTabBarContent={
           <Button
             onClick={() => {
-              navigator.clipboard.writeText(asciiPreview);
+              navigator.clipboard.writeText(grid.toAscii());
             }}
             theme="primary"
           >
