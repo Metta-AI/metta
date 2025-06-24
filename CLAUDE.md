@@ -2,11 +2,6 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Additional Documentation
-
-@.cursor/docs.md
-@.cursor/commands.md
-
 ## Project Overview
 
 Metta AI is a reinforcement learning project focusing on the emergence of cooperation and alignment in multi-agent AI systems. It creates a model organism for complex multi-agent gridworld environments to study the impact of social dynamics (like kinship and mate selection) on learning and cooperative behaviors.
@@ -29,7 +24,7 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 
 ## Common Commands
 
-For all training, simulation, analysis, and interactive commands, see the imported cursor documentation above. The cursor files provide comprehensive workflows, testing procedures, and troubleshooting guidance.
+@.cursor/commands.md
 
 ### Code Quality
 
@@ -100,6 +95,8 @@ The project uses OmegaConf for configuration, with config files organized in `co
 - `user/`: User-specific configurations
 
 ## Testing Philosophy
+
+@.cursor/docs.md
 
 - Tests should be independent and idempotent
 - Tests should be focused on testing one thing
