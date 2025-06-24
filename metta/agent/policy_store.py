@@ -179,36 +179,75 @@ class PolicyStore:
                 "train_time": 0,
             },
         )
-        self.save_policy(path, policy, pr)
+        self._save_policy(path, policy, pr)
         pr._policy = policy
         return pr
 
     def save(self, name: str, path: str, policy: nn.Module, metadata: dict) -> PolicyRecord:
         """Convenience method to create and save a policy in one step."""
         pr = PolicyRecord(self, name, "file://" + path, metadata)
-        return self.save_policy(path, policy, pr)
+        return self._save_policy(path, policy, pr)
 
-    def save_policy(self, path: str, policy: nn.Module, pr: PolicyRecord) -> PolicyRecord:
-        """Save a policy and its metadata using torch.package."""
-        logger.info(f"Saving policy to {path} using torch.package")
+    def _save_policy(self, path: str, policy: nn.Module, pr: PolicyRecord) -> PolicyRecord:
+        """Save a policy and its metadata."""
+        logger.info(f"Saving policy to {path}")
 
-        try:
-            with PackageExporter(path, debug=False) as exporter:
-                # Apply all packaging rules
-                self._apply_packaging_rules(exporter, policy.__class__.__module__, policy.__class__)
-
-                # Save the policy and metadata
-                clean_metadata = pr._clean_metadata_for_packaging(pr.metadata)
-                exporter.save_pickle("policy_record", "data.pkl", PolicyRecord(None, pr.name, pr.uri, clean_metadata))
-                exporter.save_pickle("policy", "model.pkl", policy)
-
-        except Exception as e:
-            logger.error(f"torch.package save failed: {e}")
-            raise RuntimeError(f"Failed to save policy using torch.package: {e}") from e
+        # Check if this is a repackaged model or if package save should be skipped
+        if hasattr(policy, "__module__") and "<torch_package" in policy.__module__:
+            self._save_as_checkpoint(path, policy, pr)
+        else:
+            try:
+                self._save_as_package(path, policy, pr)
+            except Exception as e:
+                logger.warning(f"Package save failed: {e}, using checkpoint format instead")
+                self._save_as_checkpoint(path, policy, pr)
 
         pr._local_path = path
         pr.uri = "file://" + path
         return pr
+
+    def _save_as_package(self, path: str, policy: nn.Module, pr: PolicyRecord) -> None:
+        """Save using torch.package format."""
+        with PackageExporter(path, debug=False) as exporter:
+            self._apply_packaging_rules(exporter, policy.__class__.__module__, policy.__class__)
+
+            clean_metadata = pr._clean_metadata_for_packaging(pr.metadata)
+            exporter.save_pickle("policy_record", "data.pkl", PolicyRecord(None, pr.name, pr.uri, clean_metadata))
+            exporter.save_pickle("policy", "model.pkl", policy)
+        logger.info(f"Saved policy using package format to {path}")
+
+    def _save_as_checkpoint(self, path: str, policy: nn.Module, pr: PolicyRecord) -> None:
+        """Save using checkpoint format (compatible with legacy loading)."""
+        os.makedirs(os.path.dirname(path) if os.path.dirname(path) else ".", exist_ok=True)
+
+        # Get metadata
+        metadata = pr._clean_metadata_for_packaging(pr.metadata)
+
+        # Build checkpoint in legacy format but with all necessary info
+        checkpoint = {
+            # Core fields expected by legacy format
+            "model_state_dict": policy.state_dict(),
+            "agent_step": metadata.get("agent_step", 0),
+            "epoch": metadata.get("epoch", 0),
+            "generation": metadata.get("generation", 0),
+            "train_time": metadata.get("train_time", 0),
+            "action_names": metadata.get("action_names", []),
+            # Additional fields for reconstruction
+            "obs_shape": metadata.get("obs_shape", [34, 11, 11]),
+            "action_space_nvec": metadata.get("action_space_nvec", [9, 10]),
+            "feature_normalizations": metadata.get("feature_normalizations", {}),
+            "global_features": metadata.get("global_features", []),
+            # Store full metadata for future compatibility
+            "metadata": metadata,
+        }
+
+        # Add optional model attributes
+        for attr in ["config", "hparams"]:
+            if hasattr(policy, attr):
+                checkpoint[attr] = getattr(policy, attr)
+
+        torch.save(checkpoint, path)
+        logger.info(f"Saved policy using checkpoint format to {path}")
 
     def add_to_wandb_run(self, run_id: str, pr: PolicyRecord, additional_files=None):
         local_path = pr.local_path()
@@ -356,34 +395,24 @@ class PolicyStore:
         return pr
 
     def _load_from_file(self, path: str, metadata_only: bool = False) -> PolicyRecord:
+        """Load a policy from file, trying multiple formats."""
         if path in self._cached_prs and (metadata_only or self._cached_prs[path]._policy is not None):
             return self._cached_prs[path]
 
         if not path.endswith(".pt") and os.path.isdir(path):
             path = os.path.join(path, os.listdir(path)[-1])
-        logger.info(f"Loading policy from {path}")
 
+        logger.info(f"Loading policy from {path}")
         self._make_codebase_backwards_compatible()
 
-        assert path.endswith(".pt"), f"Policy file {path} does not have a .pt extension"
-        with warnings.catch_warnings():
-            warnings.filterwarnings("ignore", category=FutureWarning)
-
         try:
-            importer = PackageImporter(path)
-            pr = importer.load_pickle("policy_record", "data.pkl")
-            pr._policy_store = self
-            if not metadata_only:
-                pr._policy = pr.load(path, self._device)
-            pr._local_path = path
+            pr = self._load_as_package(path, metadata_only)
             self._cached_prs[path] = pr
             return pr
         except Exception as e:
-            logger.debug(f"Not a torch.package file: {e}")
-            if "PytorchStreamReader failed locating file .data/extern_modules" in str(e):
-                logger.info("Detected old checkpoint format, loading as regular PyTorch checkpoint")
-                return self._load_legacy_checkpoint(path, metadata_only)
-            raise ValueError(f"Failed to load policy from {path}: {e}") from e
+            logger.debug(f"Package load failed: {e}")
+
+        return self._load_legacy_checkpoint(path, metadata_only)
 
     def _load_wandb_artifact(self, qualified_name: str):
         logger.info(f"Loading policy from wandb artifact {qualified_name}")
@@ -399,6 +428,21 @@ class PolicyStore:
 
         pr = self._load_from_file(os.path.join(artifact_path, "model.pt"))
         pr.metadata.update(artifact.metadata)
+        return pr
+
+    def _load_as_package(self, path: str, metadata_only: bool = False) -> PolicyRecord:
+        """Load a torch.package format file."""
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=FutureWarning)
+
+        importer = PackageImporter(path)
+        pr = importer.load_pickle("policy_record", "data.pkl")
+        pr._policy_store = self
+        pr._local_path = path
+
+        if not metadata_only:
+            pr._policy = pr.load(path, self._device)
+
         return pr
 
     def _load_legacy_checkpoint(self, path: str, metadata_only: bool = False) -> PolicyRecord:
@@ -417,46 +461,99 @@ class PolicyStore:
         if not isinstance(checkpoint, dict):
             raise ValueError(f"Unexpected checkpoint format: {type(checkpoint)}")
 
-        # Create PolicyRecord with metadata
+        # Build PolicyRecord from checkpoint data
+        # Use metadata if available, otherwise fall back to root-level fields
+        if "metadata" in checkpoint and isinstance(checkpoint["metadata"], dict):
+            # New format with metadata dict
+            metadata = checkpoint["metadata"]
+        else:
+            # Legacy format with fields at root level
+            metadata = {
+                k: checkpoint.get(k, 0 if k != "action_names" else [])
+                for k in ["action_names", "agent_step", "epoch", "generation", "train_time"]
+            }
+            # Add any additional metadata fields that might be present
+            for k in ["obs_shape", "action_space_nvec", "feature_normalizations", "global_features"]:
+                if k in checkpoint:
+                    metadata[k] = checkpoint[k]
+
         pr = PolicyRecord(
             self,
             os.path.basename(path),
             f"file://{path}",
-            {
-                k: checkpoint.get(k, 0 if k != "action_names" else [])
-                for k in ["action_names", "agent_step", "epoch", "generation", "train_time"]
-            },
+            metadata,
         )
+
+        pr._policy_store = self
         pr._local_path = path
 
         if not metadata_only:
-            try:
-                from types import SimpleNamespace
-
-                # Create mock environment
-                obs_shape = checkpoint.get("obs_shape", [34, 11, 11])
-                env = SimpleNamespace(
-                    single_observation_space=gym.spaces.Box(low=0, high=255, shape=obs_shape, dtype=np.uint8),
-                    obs_width=obs_shape[1],
-                    obs_height=obs_shape[2],
-                    single_action_space=gym.spaces.MultiDiscrete(checkpoint.get("action_space_nvec", [9, 10])),
-                    feature_normalizations=checkpoint.get("feature_normalizations", {}),
-                    global_features=[],
-                )
-
-                policy = make_policy(env, self._cfg)
-
-                # Load state dict
-                state_key = next((k for k in ["model_state_dict", "state_dict"] if k in checkpoint), None)
-                policy.load_state_dict(checkpoint.get(state_key, checkpoint))
-
-                pr._policy = policy
-                logger.info("Successfully loaded legacy checkpoint as MettaAgent")
-            except Exception as e:
-                raise ValueError(f"Cannot load legacy checkpoint as MettaAgent: {e}") from e
+            pr._policy = self._reconstruct_policy(checkpoint)
+            logger.info("Successfully loaded checkpoint")
 
         self._cached_prs[path] = pr
         return pr
+
+    def _reconstruct_policy(self, checkpoint: dict) -> nn.Module:
+        """Reconstruct a policy from checkpoint data.
+
+        This method handles both legacy checkpoints and new state_dict format.
+        """
+        from types import SimpleNamespace
+
+        metadata = checkpoint.get("metadata", {})
+
+        # Get observation shape - check both in metadata and at root level (legacy)
+        obs_shape = metadata.get("obs_shape") or checkpoint.get("obs_shape", [34, 11, 11])
+
+        # Get action names - check both locations
+        action_names = metadata.get("action_names") or checkpoint.get("action_names", [])
+
+        # Determine action space
+        if action_names:
+            action_nvec = [len(action_names)]
+        else:
+            # Check both locations for action space
+            action_nvec = metadata.get("action_space_nvec") or checkpoint.get("action_space_nvec", [9, 10])
+
+        # Create mock environment
+        mock_env = SimpleNamespace(
+            single_observation_space=gym.spaces.Box(low=0, high=255, shape=obs_shape, dtype=np.uint8),
+            obs_width=obs_shape[1] if len(obs_shape) > 1 else 11,
+            obs_height=obs_shape[2] if len(obs_shape) > 2 else 11,
+            single_action_space=gym.spaces.MultiDiscrete(action_nvec),
+            feature_normalizations=(
+                metadata.get("feature_normalizations") or checkpoint.get("feature_normalizations", {})
+            ),
+            global_features=(metadata.get("global_features") or checkpoint.get("global_features", [])),
+            action_names=action_names,
+        )
+
+        # Type ignore: mock_env is a SimpleNamespace with the required attributes, not a full MettaGridEnv
+        policy = make_policy(mock_env, self._cfg)  # type: ignore[arg-type]
+
+        # Find and load state dict - check multiple possible keys
+        state_dict = None
+        for key in ["model_state_dict", "state_dict"]:
+            if key in checkpoint:
+                state_dict = checkpoint[key]
+                break
+
+        if state_dict is None:
+            # Legacy format: checkpoint itself might be the state dict
+            if any(k.startswith(("encoder.", "core.", "decoder.")) for k in checkpoint.keys()):
+                state_dict = checkpoint
+            else:
+                raise ValueError("Could not find state dict in checkpoint")
+
+        policy.load_state_dict(state_dict)
+
+        # Restore optional attributes
+        for attr in ["config", "hparams"]:
+            if attr in checkpoint:
+                setattr(policy, attr, checkpoint[attr])
+
+        return policy
 
     def _apply_packaging_rules(self, exporter, policy_module: Optional[str], policy_class: type) -> None:
         """Apply packaging rules to the exporter based on a configuration."""
