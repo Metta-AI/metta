@@ -17,7 +17,7 @@ from omegaconf import DictConfig, ListConfig
 from app_backend.stats_client import StatsClient
 from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
 from metta.agent.policy_state import PolicyState
-from metta.agent.policy_store import PolicyStore
+from metta.agent.policy_store import PolicyRecord, PolicyStore
 from metta.agent.util.debug import assert_shape
 from metta.common.stopwatch import Stopwatch, with_instance_timer
 from metta.eval.eval_stats_db import EvalStatsDB
@@ -143,14 +143,22 @@ class MettaTrainer:
                 logger.info("Restoring timer state from checkpoint")
                 self.timer.load_state(checkpoint.stopwatch_state, resume_running=True)
 
-        policy_record = self._load_policy(checkpoint, policy_store, metta_grid_env)
-        assert policy_record is not None, "No policy found"
+        # Load or create policy with proper distributed coordination
+        policy_record = self._load_policy(checkpoint, policy_store)
+
+        if policy_record is None:
+            if self._master:
+                policy_record = self._create_policy(policy_store, metta_grid_env)
+            else:
+                policy_record = self._wait_for_policy(policy_store)
+
+        assert policy_record is not None, "Failed to obtain policy"
 
         if self._master:
             logger.info(f"MettaTrainer loaded: {policy_record.policy()}")
 
-        self._initial_pr = policy_record
-        self.last_pr = policy_record
+        self.initial_policy = policy_record
+        self.latest_saved_policy = policy_record
         self.policy = policy_record.policy().to(self.device)
         self.policy_record = policy_record
         self.uncompiled_policy = self.policy
@@ -633,7 +641,7 @@ class MettaTrainer:
             total_agent_step=self.agent_step * self._world_size,
             optimizer_state_dict=self.optimizer.state_dict(),
             stopwatch_state=self.timer.save_state(),
-            policy_path=self.last_pr.uri if self.last_pr else None,
+            policy_path=self.latest_saved_policy_uri,
             extra_args=extra_args,
         )
         checkpoint.save(self.cfg.run_dir)
@@ -656,10 +664,6 @@ class MettaTrainer:
         metta_grid_env: MettaGridEnv = self.vecenv.driver_env  # type: ignore
         assert isinstance(metta_grid_env, MettaGridEnv), "vecenv.driver_env must be a MettaGridEnv"
 
-        generation = 0
-        if self._initial_pr:
-            generation = self._initial_pr.metadata.get("generation", 0) + 1
-
         training_time = self.timer.get_elapsed("_rollout") + self.timer.get_elapsed("_train")
 
         category_scores_map = {key.split("/")[0]: value for key, value in self.evals.items() if key.endswith("/score")}
@@ -671,16 +675,16 @@ class MettaTrainer:
             "epoch": self.epoch,
             "run": self.cfg.run,
             "action_names": metta_grid_env.action_names,
-            "generation": generation,
-            "initial_uri": self._initial_pr.uri,
+            "generation": self.current_policy_generation,
+            "initial_uri": self.initial_policy_uri,
             "train_time": training_time,
             "score": overall_score,
             "eval_scores": category_scores_map,
         }
 
-        self.last_pr = self.policy_store.save(name, path, self.uncompiled_policy, metadata)
+        self.latest_saved_policy = self.policy_store.save(name, path, self.uncompiled_policy, metadata)
         logger.info(f"Saved policy locally: {name}")
-        return self.last_pr
+        return self.latest_saved_policy
 
     def maybe_evaluate_policy(self, force=False):
         """Evaluate policy if on evaluation interval"""
@@ -706,7 +710,7 @@ class MettaTrainer:
         if not force and self.epoch % self.trainer_cfg.wandb_checkpoint_interval != 0:
             return
 
-        if not self.last_pr:
+        if not self.latest_saved_policy:
             logger.warning("No policy to upload to wandb")
             return
 
@@ -714,7 +718,7 @@ class MettaTrainer:
             logger.warning("No wandb run name was provided")
             return
 
-        self.policy_store.add_to_wandb_run(self.wandb_run.name, self.last_pr)
+        self.policy_store.add_to_wandb_run(self.wandb_run.name, self.latest_saved_policy)
         logger.info(f"Uploaded policy to wandb at epoch {self.epoch}")
 
     def maybe_generate_replay(self, force=False):
@@ -754,10 +758,10 @@ class MettaTrainer:
             ).id
             self._stats_epoch_start = self.epoch + 1
 
-        logger.info(f"Simulating policy: {self.last_pr.uri} with config: {self.sim_suite_config}")
+        logger.info(f"Simulating policy: {self.latest_saved_policy_uri} with config: {self.sim_suite_config}")
         sim = SimulationSuite(
             config=self.sim_suite_config,
-            policy_pr=self.last_pr,
+            policy_pr=self.latest_saved_policy,
             policy_store=self.policy_store,
             device=self.device,
             vectorization=self.cfg.vectorization,
@@ -776,7 +780,9 @@ class MettaTrainer:
             categories.add(sim_name.split("/")[0])
 
         for category in categories:
-            score = stats_db.get_average_metric_by_filter("reward", self.last_pr, f"sim_name LIKE '%{category}%'")
+            score = stats_db.get_average_metric_by_filter(
+                "reward", self.latest_saved_policy, f"sim_name LIKE '%{category}%'"
+            )
             logger.info(f"{category} score: {score}")
             record_heartbeat()
             if score is None:
@@ -784,7 +790,7 @@ class MettaTrainer:
             self.evals[f"{category}/score"] = score
 
         # Get detailed per-simulation scores
-        all_scores = stats_db.simulation_scores(self.last_pr, "reward")
+        all_scores = stats_db.simulation_scores(self.latest_saved_policy, "reward")
         for (_, sim_name, _), score in all_scores.items():
             category = sim_name.split("/")[0]
             sim_short_name = sim_name.split("/")[-1]
@@ -802,7 +808,7 @@ class MettaTrainer:
             replay_simulator = Simulation(
                 name=f"replay_{self.epoch}",
                 config=replay_sim_config,
-                policy_pr=self.last_pr,
+                policy_pr=self.latest_saved_policy,
                 policy_store=self.policy_store,
                 device=self.device,
                 vectorization=self.cfg.vectorization,
@@ -812,7 +818,7 @@ class MettaTrainer:
 
             if self.wandb_run is not None:
                 replay_urls = results.stats_db.get_replay_urls(
-                    policy_key=self.last_pr.key(), policy_version=self.last_pr.version()
+                    policy_key=self.latest_saved_policy.key(), policy_version=self.latest_saved_policy.version()
                 )
                 if len(replay_urls) > 0:
                     replay_url = replay_urls[0]
@@ -1017,11 +1023,30 @@ class MettaTrainer:
     def close(self):
         self.vecenv.close()
 
-    def initial_pr_uri(self) -> str:
-        return self._initial_pr.uri
+    @property
+    def latest_saved_policy_uri(self) -> str | None:
+        """Get the URI of the latest saved policy, if any."""
+        if self.latest_saved_policy is None:
+            return None
+        return self.latest_saved_policy.uri
 
-    def last_pr_uri(self) -> str:
-        return self.last_pr.uri
+    @property
+    def initial_policy_uri(self) -> str | None:
+        """Get the URI of the initial policy, if any."""
+        if self.initial_policy is None:
+            return None
+        return self.initial_policy.uri
+
+    @property
+    def current_policy_generation(self) -> int:
+        """Get the generation number for new policies saved in this training run.
+
+        This is the initial policy's generation + 1, representing that we're
+        training the next generation from that starting point.
+        """
+        if self.initial_policy is None:
+            return 0
+        return self.initial_policy.metadata.get("generation", 0) + 1
 
     def _make_experience_buffer(self):
         """Create experience buffer with tensor-based storage for prioritized sampling."""
@@ -1102,31 +1127,52 @@ class MettaTrainer:
         rank = int(os.environ.get("RANK", 0))
         self.vecenv.async_reset(self.cfg.seed + rank)
 
-    def _load_policy(self, checkpoint, policy_store, metta_grid_env):
-        """Load policy from checkpoint, initial_policy.uri, or create new."""
+    def _load_policy(self, checkpoint: TrainerCheckpoint | None, policy_store) -> PolicyRecord | None:
+        """Try to load policy from checkpoint or config. Returns None if not found."""
         trainer_cfg = self.trainer_cfg
 
-        for _attempt in range(10):
-            if checkpoint.policy_path:
-                logger.info(f"Loading policy from checkpoint: {checkpoint.policy_path}")
-                return policy_store.policy(checkpoint.policy_path)
-            elif (
-                hasattr(trainer_cfg, "initial_policy") and getattr(trainer_cfg.initial_policy, "uri", None) is not None
-            ):
-                initial_uri = trainer_cfg.initial_policy.uri
-                logger.info(f"Loading initial policy URI: {initial_uri}")
-                return policy_store.policy(initial_uri)
-            else:
-                policy_path = os.path.join(trainer_cfg.checkpoint_dir, policy_store.make_model_name(0))
-                if os.path.exists(policy_path):
-                    logger.info(f"Loading policy from checkpoint: {policy_path}")
-                    return policy_store.policy(policy_path)
-                elif self._master:
-                    logger.info(f"Failed to load policy from default checkpoint: {policy_path}. Creating a new policy!")
-                    return policy_store.create(metta_grid_env)
+        # Try checkpoint first
+        if checkpoint and checkpoint.policy_path:
+            logger.info(f"Loading policy from checkpoint: {checkpoint.policy_path}")
+            return policy_store.policy(checkpoint.policy_path)
+
+        # Try initial_policy from config
+        if hasattr(trainer_cfg, "initial_policy") and getattr(trainer_cfg.initial_policy, "uri", None) is not None:
+            initial_uri = trainer_cfg.initial_policy.uri
+            logger.info(f"Loading initial policy URI: {initial_uri}")
+            return policy_store.policy(initial_uri)
+
+        # Try default checkpoint path
+        policy_path = os.path.join(trainer_cfg.checkpoint_dir, policy_store.make_model_name(0))
+        if os.path.exists(policy_path):
+            logger.info(f"Loading policy from checkpoint: {policy_path}")
+            return policy_store.policy(policy_path)
+
+        return None
+
+    def _create_policy(self, policy_store, metta_grid_env) -> PolicyRecord:
+        """Create a new policy. Only master should call this."""
+        if not self._master:
+            raise RuntimeError("Only master process should create policies")
+
+        logger.info("Creating new policy")
+        return policy_store.create(metta_grid_env)
+
+    def _wait_for_policy(self, policy_store, timeout_attempts: int = 10) -> PolicyRecord:
+        """Non-master processes wait for master to create policy."""
+        if self._master:
+            raise RuntimeError("Master process should not wait for policy")
+
+        policy_path = os.path.join(self.trainer_cfg.checkpoint_dir, policy_store.make_model_name(0))
+
+        for attempt in range(timeout_attempts):
+            if os.path.exists(policy_path):
+                logger.info(f"Found policy created by master: {policy_path}")
+                return policy_store.policy(policy_path)
+            logger.info(f"Waiting for master to create policy... attempt {attempt + 1}/{timeout_attempts}")
             time.sleep(5)
 
-        raise RuntimeError("Failed to load policy after 10 attempts")
+        raise RuntimeError(f"Timeout: Master failed to create policy at {policy_path}")
 
 
 class AbortingTrainer(MettaTrainer):
