@@ -212,9 +212,8 @@ class PolicyStore:
                 exporter.save_pickle("policy", "model.pkl", policy)
             logger.info(f"Saved policy using package format to {path}")
         except Exception as e:
-            logger.error(f"Failed to save policy: {e}")
-            # If we still can't save after reconstruction, something is seriously wrong
-            raise RuntimeError(f"Failed to save policy after reconstruction: {e}") from e
+            logger.error(f"torch.package save failed: {e}")
+            raise RuntimeError(f"Failed to save policy using torch.package: {e}") from e
 
         pr._local_path = path
         pr.uri = "file://" + path
@@ -377,12 +376,10 @@ class PolicyStore:
         self._make_codebase_backwards_compatible()
 
         assert path.endswith(".pt"), f"Policy file {path} does not have a .pt extension"
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=FutureWarning)
 
-        # Try package format first
         try:
-            with warnings.catch_warnings():
-                warnings.filterwarnings("ignore", category=FutureWarning)
-
             importer = PackageImporter(path)
             pr = importer.load_pickle("policy_record", "data.pkl")
             pr._policy_store = self
@@ -391,8 +388,6 @@ class PolicyStore:
             if not metadata_only:
                 packaged_policy = importer.load_pickle("policy", "model.pkl")
                 pr._policy = packaged_policy
-
-                # Ensure metadata has all necessary fields for potential reconstruction
                 self._enrich_metadata_from_policy(pr, packaged_policy)
 
             self._cached_prs[path] = pr
@@ -473,8 +468,7 @@ class PolicyStore:
         if not isinstance(checkpoint, dict):
             raise ValueError(f"Unexpected checkpoint format: {type(checkpoint)}")
 
-        # Build PolicyRecord from checkpoint data
-        # Use metadata if available, otherwise fall back to root-level fields
+        # Create PolicyRecord with metadata
         if "metadata" in checkpoint and isinstance(checkpoint["metadata"], dict):
             # New format with metadata dict
             metadata = checkpoint["metadata"]
