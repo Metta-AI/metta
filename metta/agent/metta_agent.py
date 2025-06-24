@@ -1,4 +1,6 @@
 import logging
+import os
+import sys
 from typing import TYPE_CHECKING, Optional, Union
 
 import gymnasium as gym
@@ -14,7 +16,9 @@ from metta.agent.util.debug import assert_shape
 from metta.agent.util.distribution_utils import evaluate_actions, sample_actions
 from metta.agent.util.safe_get import safe_get_from_obs_space
 from metta.util.omegaconf import convert_to_dict
-from mettagrid.src.metta.mettagrid.mettagrid_env import MettaGridEnv
+
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'mettagrid', 'src'))
+from metta.mettagrid.mettagrid_env import MettaGridEnv
 
 if TYPE_CHECKING:
     from metta.mettagrid.mettagrid_env import MettaGridEnv
