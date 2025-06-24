@@ -22,7 +22,7 @@ on:
         type: string
 
 env:
-  RUN_NAME_PREFIX: "weekly.validation" # Prefix for these validation runs
+  RUN_NAME_PREFIX: "dist_smoke_test" # Prefix for these validation runs
 
 jobs:
   launch-1-gpu-run:
