@@ -20,4 +20,4 @@ game:
   map_builder:
     objects:
       armory: 1
-      mine.red: 1
+      mine_red: 1

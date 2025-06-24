@@ -25,7 +25,7 @@ game:
       cooldown: ${sampling:1, 20, 10}
       initial_items: 1
 
-    mine.red:
+    mine_red:
       output_ore.red: 1
       color: 0
       max_output: 5
@@ -33,7 +33,7 @@ game:
       cooldown: ${sampling:0, 100, 50}
       initial_items: 1
 
-    generator.red:
+    generator_red:
       input_ore.red: 1
       output_battery.red: 1
       color: 0
