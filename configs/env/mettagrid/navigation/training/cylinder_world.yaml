@@ -8,12 +8,12 @@ sampling: 1
 game:
   num_agents: 4
   map_builder:
-    _target_: mettagrid.room.multi_room.MultiRoom
+    _target_: metta.mettagrid.room.multi_room.MultiRoom
     num_rooms: ${..num_agents}
     border_width: 6
 
     room:
-      _target_: mettagrid.room.navigation.cylinder_world.CylinderWorld
+      _target_: metta.mettagrid.room.navigation.cylinder_world.CylinderWorld
       width: ${sampling:75,120,60}
       height: ${sampling:75,120,60}
       border_width: 1

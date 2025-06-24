@@ -7,12 +7,12 @@ sampling: 1
 game:
   num_agents: 4
   map_builder:
-    _target_: mettagrid.room.multi_room.MultiRoom
+    _target_: metta.mettagrid.room.multi_room.MultiRoom
     num_rooms: ${..num_agents}
     border_width: 6
 
     room:
-      _target_: mettagrid.room.navigation.varied_terrain.VariedTerrain
+      _target_: metta.mettagrid.room.navigation.varied_terrain.VariedTerrain
       width: ${sampling:75,120,60}
       height: ${sampling:75,120,60}
       border_width: ${sampling:1,6,3}
