@@ -6,19 +6,9 @@ sampling: 1
 
 game:
   num_agents: 4
-  max_steps: 1000
   map_builder:
-    _target_: mettagrid.room.multi_room.MultiRoom
-    num_rooms: ${..num_agents}
-    border_width: 6
-
     room:
-      _target_: mettagrid.room.terrain_from_numpy.TerrainFromNumpy
-      border_width: 3
-      agents: 1
-      dir: ${choose:varied_terrain/sparse_medium,varied_terrain/balanced_medium,varied_terrain/maze_medium,varied_terrain/cylinder-world_medium}
-      objects:
-        altar: 30
+      dir: ${choose:varied_terrain/balanced_medium,varied_terrain/maze_medium,varied_terrain/sparse_medium,varied_terrain/cylinder-world_medium}
   objects:
     altar:
       cooldown: 1000
