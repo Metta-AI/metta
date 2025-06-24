@@ -509,13 +509,71 @@ class MettaTrainer:
                 self._rollout()
                 self._train()
 
-            # Memory tracking - uncomment to enable
+                        # Memory tracking - uncomment to enable
             if hasattr(self, 'memory_tracker'):
                 self.memory_tracker.track(f"epoch_{self.epoch}")
 
                 # Check for memory leak candidates every 50 epochs
                 if self.epoch % 50 == 0 and self.epoch > 0:
                     self.memory_tracker.get_leak_candidates(threshold_mb=50)
+
+                # Profile class attributes every 20 epochs to find growing collections
+                if self.epoch % 20 == 0 and self.epoch > 0:
+                    logger.info("\n" + "="*60)
+                    logger.info("CLASS ATTRIBUTE MEMORY PROFILE")
+                    logger.info("="*60)
+
+                    # Check common leak suspects
+                    suspects = {
+                        'self.stats': self.stats,
+                        'self.losses': self.losses,
+                        'self.evals': self.evals,
+                    }
+
+                    # Add experience buffer attributes if they exist
+                    if hasattr(self, 'experience'):
+                        suspects['experience.obs'] = getattr(self.experience, 'obs', None)
+                        suspects['experience.actions'] = getattr(self.experience, 'actions', None)
+                        suspects['experience.rewards'] = getattr(self.experience, 'rewards', None)
+                        suspects['experience.lstm_h'] = getattr(self.experience, 'lstm_h', None)
+                        suspects['experience.lstm_c'] = getattr(self.experience, 'lstm_c', None)
+
+                    for name, obj in suspects.items():
+                        if obj is None:
+                            continue
+                        size_mb = get_size_mb(obj)
+                        if isinstance(obj, dict):
+                            logger.info(f"  {name}: {len(obj)} items, {size_mb:.2f} MB")
+                            # Show sample of keys for dicts
+                            if len(obj) > 0:
+                                sample_keys = list(obj.keys())[:5]
+                                logger.info(f"    Sample keys: {sample_keys}")
+                        elif isinstance(obj, list):
+                            logger.info(f"  {name}: {len(obj)} items, {size_mb:.2f} MB")
+                        elif isinstance(obj, torch.Tensor):
+                            logger.info(f"  {name}: {size_mb:.2f} MB, shape={obj.shape}, device={obj.device}")
+                        else:
+                            logger.info(f"  {name}: {size_mb:.2f} MB, type={type(obj).__name__}")
+
+                    # Count tensors by location
+                    import gc
+                    tensor_locations = {}
+                    for obj in gc.get_objects():
+                        if isinstance(obj, torch.Tensor):
+                            # Try to find where this tensor is referenced
+                            for referrer in gc.get_referrers(obj):
+                                location = "unknown"
+                                if hasattr(referrer, '__name__'):
+                                    location = referrer.__name__
+                                elif hasattr(referrer, '__class__'):
+                                    location = referrer.__class__.__name__
+                                tensor_locations[location] = tensor_locations.get(location, 0) + 1
+
+                    logger.info("\nTensor count by location (top 10):")
+                    for location, count in sorted(tensor_locations.items(), key=lambda x: x[1], reverse=True)[:10]:
+                        logger.info(f"  {location}: {count} tensors")
+
+                    logger.info("="*60 + "\n")
 
             # Processing stats
             self._process_stats()
@@ -680,7 +738,8 @@ class MettaTrainer:
                 # Store LSTM state for performance
                 lstm_state_to_store = None
                 if state.lstm_h is not None:
-                    lstm_state_to_store = {"lstm_h": state.lstm_h, "lstm_c": state.lstm_c}
+                    # Detach LSTM states to prevent gradient accumulation
+                    lstm_state_to_store = {"lstm_h": state.lstm_h.detach(), "lstm_c": state.lstm_c.detach()}
 
                 if str(self.device).startswith("cuda"):
                     torch.cuda.synchronize()
@@ -735,6 +794,12 @@ class MettaTrainer:
         for i in raw_infos:
             for k, v in unroll_nested_dict(i):
                 infos[k].append(v)
+
+        # Debug: Check sizes of collections
+        if self.epoch % 20 == 0:
+            logger.info(f"DEBUG - raw_infos: {len(raw_infos)} items, infos: {len(infos)} keys")
+            if len(self.stats) > 1000:
+                logger.warning(f"WARNING - self.stats is growing large: {len(self.stats)} keys")
 
         # Batch process stats more efficiently
         for k, v in infos.items():
@@ -888,7 +953,7 @@ class MettaTrainer:
                     + ks_value_loss
                 )
 
-                # Update values in experience buffer
+                # Update values in experience buffer (already detached in update_values method)
                 experience.update_values(minibatch["indices"], newvalue.view(minibatch["values"].shape))
 
                 if self.losses is None:
@@ -945,9 +1010,19 @@ class MettaTrainer:
         explained_var = torch.nan if var_y == 0 else 1 - (y_true - y_pred).var() / var_y
         self.losses.explained_variance = explained_var.item() if torch.is_tensor(explained_var) else float("nan")
 
-        # Memory profiling - uncomment to check at end of training
-        if self.epoch % 5 == 0:  # Profile every 5 epochs to reduce log spam
-            profile_memory(locals(), prefix="TRAIN END", device=self.device)
+                        # Memory profiling - uncomment to check at end of training
+                if self.epoch % 5 == 0:  # Profile every 5 epochs to reduce log spam
+                    profile_memory(locals(), prefix="TRAIN END", device=self.device)
+
+                    # Check for tensors with gradients
+                    import gc
+                    grad_tensors = 0
+                    for obj in gc.get_objects():
+                        if isinstance(obj, torch.Tensor) and obj.grad is not None:
+                            grad_tensors += 1
+
+                    if grad_tensors > 50:  # Arbitrary threshold
+                        logger.warning(f"WARNING: {grad_tensors} tensors with gradients found after training!")
 
     def _checkpoint_trainer(self):
         if not self._master:
