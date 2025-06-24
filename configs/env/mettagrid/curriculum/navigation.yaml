@@ -25,4 +25,3 @@ buckets:
       ]
   game.map_builder.room.objects.altar:
     range: [10, 70]
-    bins: 3
