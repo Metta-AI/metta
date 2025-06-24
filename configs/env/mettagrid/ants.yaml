@@ -49,7 +49,7 @@ game:
 
   objects:
     altar:
-      input_battery: 0
+      input_battery.red: 0
       input_ore.red: ${sampling:1,10,2}
       output_heart: 1
       max_output: 50

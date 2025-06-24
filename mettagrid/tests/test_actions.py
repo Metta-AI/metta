@@ -40,7 +40,7 @@ def base_config():
             "change_color": {"enabled": True},
         },
         "groups": {"red": {"id": 0, "props": {}}},
-        "objects": {"wall": {"type_id": 1}, "altar": {"type_id": 4}},
+        "objects": {"wall": {}, "altar": {}},
         "agent": {},
     }
 
