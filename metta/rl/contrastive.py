@@ -202,3 +202,52 @@ class ContrastiveLearning:
         if hasattr(policy_state, 'lstm_h') and policy_state.lstm_h is not None:
             return policy_state.lstm_h
         return None
+
+    def compute_individual_contrastive_rewards(
+        self,
+        hidden_states: Tensor,
+        batch_size: int,
+        seq_len: int
+    ) -> Tensor:
+        """
+        Compute individual contrastive rewards for each agent efficiently.
+
+        Args:
+            hidden_states: LSTM hidden states of shape (batch_size, seq_len, hidden_size)
+            batch_size: Number of sequences in batch
+            seq_len: Length of each sequence
+
+        Returns:
+            Individual contrastive rewards of shape (batch_size,)
+        """
+        if seq_len < 2:
+            return torch.zeros(batch_size, device=self.device)
+
+        # Project hidden states
+        projected = self.projection_head(hidden_states)  # (batch_size, seq_len, hidden_size)
+        projected = F.normalize(projected, dim=-1)  # L2 normalize
+
+        # Compute individual rewards for each agent
+        individual_rewards = torch.zeros(batch_size, device=self.device)
+
+        for agent_idx in range(batch_size):
+            # Get this agent's projected states
+            agent_projected = projected[agent_idx:agent_idx+1]  # (1, seq_len, hidden_size)
+
+            # Generate positive pairs for this agent only
+            positive_pairs = self._generate_positive_pairs(1, seq_len)  # batch_size=1
+
+            # Generate negative pairs for this agent only
+            negative_pairs = self._generate_negative_pairs(1, seq_len, len(positive_pairs))
+
+            if len(positive_pairs) > 0:
+                # Compute contrastive loss for this agent
+                agent_loss = self._compute_contrastive_loss(
+                    agent_projected, positive_pairs, negative_pairs
+                )
+                # Reward is negative of loss (higher novelty = higher reward)
+                individual_rewards[agent_idx] = -agent_loss.detach()
+            else:
+                individual_rewards[agent_idx] = 0.0
+
+        return individual_rewards

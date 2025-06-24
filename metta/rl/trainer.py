@@ -600,7 +600,7 @@ class MettaTrainer:
                         hidden_states = experience.lstm_hidden_states  # (segments, bptt_horizon, hidden_size)
                         batch_size = hidden_states.shape[0]
                         seq_len = hidden_states.shape[1]
-                        contrastive_loss, _ = self.contrastive_learning.compute_contrastive_loss(
+                        contrastive_loss, contrastive_reward = self.contrastive_learning.compute_contrastive_loss(
                             hidden_states, batch_size, seq_len
                         )
                         contrastive_loss = contrastive_loss * contrastive_coef
@@ -1138,7 +1138,7 @@ class MettaTrainer:
         if reward_coef == 0.0:
             return
 
-        # Compute contrastive loss and reward for the full rollout
+        # Compute individual contrastive rewards for each agent
         hidden_states = experience.lstm_hidden_states  # (segments, bptt_horizon, hidden_size)
         batch_size = hidden_states.shape[0]
         seq_len = hidden_states.shape[1]
@@ -1147,16 +1147,20 @@ class MettaTrainer:
             return
 
         with torch.no_grad():
-            contrastive_loss, contrastive_reward = self.contrastive_learning.compute_contrastive_loss(
+            # Compute individual contrastive rewards for each agent efficiently
+            individual_rewards = self.contrastive_learning.compute_individual_contrastive_rewards(
                 hidden_states, batch_size, seq_len
             )
 
-            # Scale the reward
-            contrastive_reward = contrastive_reward * reward_coef
+            # Scale the rewards
+            individual_rewards = individual_rewards * reward_coef
 
-            # Add contrastive reward to all timesteps in the rollout
-            # This encourages exploration by rewarding novel situations
-            experience.rewards += contrastive_reward.unsqueeze(1).expand_as(experience.rewards)
+            # Add individual contrastive rewards to each agent's timesteps
+            # experience.rewards has shape (segments, bptt_horizon)
+            # individual_rewards has shape (segments,)
+            # We want to add each agent's reward to all their timesteps
+            for agent_idx in range(batch_size):
+                experience.rewards[agent_idx, :] += individual_rewards[agent_idx]
 
 
 class AbortingTrainer(MettaTrainer):
