@@ -1,0 +1,22 @@
+defaults:
+  - sweep_job
+  - _self_
+
+# Override sweep_job settings for fast 30-second tests
+sweep_job:
+  trainer:
+    # Ultra-fast training settings
+    total_timesteps: 50               # Minimal timesteps for speed
+    evaluate_interval: 25             # Very frequent evaluation
+    checkpoint_interval: 50           # No intermediate checkpoints
+
+    # Maximum speed optimizations
+    update_epochs: 1                  # Single update epoch
+    num_steps: 8                      # Very short rollouts
+    batch_size: 32                    # Small batches
+    minibatch_size: 32                # Fixed small minibatch
+    bptt_horizon: 1                   # Minimal BPTT
+
+  env:
+    game:
+      max_steps: 8                    # Ultra-short episodes
