@@ -41,7 +41,7 @@ class ProgressiveMultiTaskCurriculum(RandomCurriculum):
         self,
         tasks: Dict[str, float],
         env_overrides: DictConfig,
-        progression_rate: float = 0.001,
+        progression_rate: float = 0.00001,
         initial_skew: float = 5.0,
     ):
         super().__init__(tasks, env_overrides)
