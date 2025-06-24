@@ -158,8 +158,12 @@ def from_mettagrid_config(mettagrid_config: GameConfig_py) -> GameConfig_cpp:
             "max_items_per_type": dict(
                 (k[:-4], v) for k, v in merged_config.items() if k.endswith("_max") and k != "default_item_max"
             ),
-            "resource_rewards": dict((k, v) for k, v in merged_config.get("rewards", {}).items() if not k.endswith("_max")),
-            "resource_reward_max": dict((k[:-4], v) for k, v in merged_config.get("rewards", {}).items() if k.endswith("_max")),
+            "resource_rewards": dict(
+                (k, v) for k, v in merged_config.get("rewards", {}).items() if not k.endswith("_max")
+            ),
+            "resource_reward_max": dict(
+                (k[:-4], v) for k, v in merged_config.get("rewards", {}).items() if k.endswith("_max")
+            ),
             "group_reward_pct": group_config.group_reward_pct or 0,
         }
 
