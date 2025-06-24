@@ -1,5 +1,5 @@
 import logging
-from typing import Optional, Union
+from typing import TYPE_CHECKING, Optional, Union
 
 import gymnasium as gym
 import hydra
@@ -16,10 +16,13 @@ from metta.agent.util.safe_get import safe_get_from_obs_space
 from metta.util.omegaconf import convert_to_dict
 from mettagrid.src.metta.mettagrid.mettagrid_env import MettaGridEnv
 
+if TYPE_CHECKING:
+    from metta.mettagrid.mettagrid_env import MettaGridEnv
+
 logger = logging.getLogger("metta_agent")
 
 
-def make_policy(env: MettaGridEnv, cfg: ListConfig | DictConfig):
+def make_policy(env: "MettaGridEnv", cfg: ListConfig | DictConfig):
     obs_space = gym.spaces.Dict(
         {
             "grid_obs": env.single_observation_space,

@@ -34,8 +34,8 @@ game:
       agents: 1
       style: all-sparse # ${choose:"all-sparse","balanced","dense","maze"}
       objects:
-        mine: ${sampling:1,5,3}
-        generator: ${sampling:1,5,3}
+        mine_red: ${sampling:1,5,3}
+        generator_red: ${sampling:1,5,3}
         altar: ${sampling:1,5,1}
         armory: ${sampling:1,5,1}
         lasery: ${sampling:1,5,1}
@@ -51,9 +51,9 @@ game:
       initial_items: ${choose:0,1}
       cooldown: ${sampling:1, 20, 10}
 
-    generator.red:
+    generator_red:
       initial_items: ${choose:0,1}
       cooldown: ${sampling:5, 20, 10}
 
-    mine.red:
+    mine_red:
       cooldown: ${sampling:15, 50, 10}
