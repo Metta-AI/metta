@@ -1,0 +1,28 @@
+# Quick test sweep config - should complete in ~2 minutes per rollout
+# Uses direct Protein parameter format
+
+metric: "reward"
+goal: maximize
+
+# Training parameters optimized for speed
+trainer:
+  learning_rate:
+    distribution: log_normal
+    min: 0.0001
+    max: 0.001
+    mean: 0.0005
+    scale: 0.5
+
+  batch_size:
+    distribution: uniform_pow2
+    min: 512
+    max: 1024
+    mean: 512
+    scale: 0.5
+
+  total_timesteps:
+    distribution: uniform
+    min: 1000
+    max: 5000
+    mean: 2000
+    scale: 0.5
