@@ -41,8 +41,8 @@ def base_config():
             "change_color": {"enabled": True},
         },
         "groups": {"red": {"id": 0, "props": {}}},
-        "objects": {"wall": {}, "altar": {}},
-        "agent": {},
+        "objects": {"wall": {}, "altar": {"max_output": -1, "conversion_ticks": 1, "cooldown": 10, "initial_items": 0}},
+        "agent": {"rewards": {}},
     }
 
 
