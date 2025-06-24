@@ -19,8 +19,10 @@ from metta.util.wandb.sweep import generate_run_id_for_sweep, sweep_id_from_name
 from metta.util.wandb.wandb_context import WandbContext
 
 
+# TODO:
 @hydra.main(config_path="../configs", config_name="sweep_job", version_base=None)
 def main(cfg: DictConfig | ListConfig) -> int:
+    # TODO: Chech handling of configs, done in later PRß
     logger = setup_mettagrid_logger("sweep_eval")
     logger.info("Sweep configuration:")
     logger.info(yaml.dump(OmegaConf.to_container(cfg, resolve=True), default_flow_style=False))
@@ -97,23 +99,33 @@ def create_run(sweep_name: str, cfg: DictConfig | ListConfig, logger: Logger) ->
             protein = MettaProtein(cfg, wandb_run)
             logger.info("Config:")
             logger.info(OmegaConf.to_yaml(cfg))
-            _log_file(
-                run_dir,
-                wandb_run,
-                "protein_state.yaml",
-                {
-                    "generation": protein.generation,
-                    "observations": protein._observations,
-                    "params": str(protein._protein.params),
-                },
-            )
 
-            suggestion = protein.suggest()
+            # Log protein state - fix AttributeErrors
+            protein_state = {
+                "num_observations": len(protein._observations),
+                "observations": protein._observations,
+                "hyperparameters": {
+                    name: {"min": space.min, "max": space.max, "scale": space.scale, "search_center": space.mean}
+                    for name, space in protein._protein.hyperparameters.flat_spaces.items()
+                },
+            }
+            _log_file(run_dir, wandb_run, "protein_state.yaml", protein_state)
+
+            suggestion, info = protein.suggest()
             logger.info("Generated Protein suggestion: ")
             logger.info(f"\n{'-' * 10}\n{yaml.dump(suggestion, default_flow_style=False)}\n{'-' * 10}")
+            if info:
+                logger.info(f"Suggestion metadata: {info}")
             _log_file(run_dir, wandb_run, "protein_suggestion.yaml", suggestion)
 
-            train_cfg = OmegaConf.create({key: cfg[key] for key in cfg.sweep.keys()})
+            # Create training config with proper base config
+            train_cfg = OmegaConf.create(OmegaConf.to_container(cfg, resolve=False))
+            # Remove sweep-specific keys that shouldn't be in training config
+            keys_to_remove = ["sweep", "sweep_params", "sweep_params_override", "sweep_name", "sweep_dir", "runs_dir"]
+            for key in keys_to_remove:
+                if key in train_cfg:
+                    del train_cfg[key]
+
             apply_protein_suggestion(train_cfg, suggestion)
             save_path = os.path.join(run_dir, "train_config_overrides.yaml")
             OmegaConf.save(train_cfg, save_path)
