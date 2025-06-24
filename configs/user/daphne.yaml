@@ -13,7 +13,7 @@ defaults:
   - _self_
 
 trainer:
-  curriculum: /env/mettagrid/curriculum/progressive
+  curriculum: /env/mettagrid/curriculum/navigation
 
 policy_uri: wandb://run/dd_navigation_curriculum
 
