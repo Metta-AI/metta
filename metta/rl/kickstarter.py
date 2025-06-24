@@ -137,6 +137,7 @@ class Kickstarter:
         # Determine multiplier
         if agent_step < self.warmup_steps:
             multiplier = self.warmup_multiplier
+            scale_factor = 1
         else:
             # First time in annealing phase, calculate the starting ratio.
             if self.initial_ks_to_ppo_ratio is None:
@@ -160,10 +161,10 @@ class Kickstarter:
                     self.anneal_2_end_multiplier - self.anneal_1_end_multiplier
                 )
 
-        target_total_ks_loss = ppo_loss_avg * multiplier
+            target_total_ks_loss = ppo_loss_avg * multiplier
 
-        # Add epsilon to prevent division by zero
-        scale_factor = target_total_ks_loss / (raw_total_ks_loss + 1e-9)
+            # Add epsilon to prevent division by zero
+            scale_factor = target_total_ks_loss / (raw_total_ks_loss + 1e-9)
 
         final_ks_action_loss = raw_ks_action_loss * scale_factor
         final_ks_value_loss = raw_ks_value_loss * scale_factor
