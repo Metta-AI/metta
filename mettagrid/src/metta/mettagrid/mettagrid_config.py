@@ -170,7 +170,7 @@ class GameConfig(BaseModelWithForbidExtra):
     num_observation_tokens: int = Field(ge=1)
     agent: AgentConfig
     # Every agent must be in a group, so we need at least one group
-    groups: Dict[str, GroupConfig] = Field(min_items=1)
+    groups: Dict[str, GroupConfig] = Field(min_length=1)
     actions: ActionsConfig
     objects: ObjectsConfig
     reward_sharing: Optional[RewardSharingConfig] = None

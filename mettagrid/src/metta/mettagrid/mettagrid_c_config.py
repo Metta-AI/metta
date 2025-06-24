@@ -119,7 +119,7 @@ class GameConfig_cpp(BaseModelWithForbidExtra):
     """Game configuration."""
 
     num_agents: int = Field(ge=1)
-    max_steps: int = Field(ge=1)
+    max_steps: int = Field(ge=0)
     obs_width: int = Field(ge=1)
     obs_height: int = Field(ge=1)
     num_observation_tokens: int = Field(ge=1)
