@@ -43,7 +43,7 @@ def seed_everything(seed, torch_deterministic, rank: int = 0):
 
 def setup_mettagrid_environment(cfg):
     # Import mettagrid_env to ensure OmegaConf resolvers are registered before Hydra loads
-    import mettagrid.mettagrid_env  # noqa: F401
+    import metta.mettagrid.mettagrid_env  # noqa: F401
 
     # Set environment variables to run without display
     os.environ["GLFW_PLATFORM"] = "osmesa"  # Use OSMesa as the GLFW backend

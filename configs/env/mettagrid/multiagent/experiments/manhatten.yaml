@@ -4,7 +4,7 @@ defaults:
 
 game:
   map_builder:
-    _target_: mettagrid.room.multi_agent.manhatten.Manhatten
+    _target_: metta.mettagrid.room.multi_agent.manhatten.Manhatten
     width: ${sampling:60,120,90}
     height: ${sampling:60,120,90}
     corridor_spacing: ${sampling:15,40,25}

@@ -4,8 +4,8 @@ from omegaconf import DictConfig, OmegaConf
 
 from metta.map.scene import make_scene
 from metta.map.utils.storable_map import StorableMap
-from mettagrid.level_builder import Level
-from mettagrid.room.room import Room
+from metta.mettagrid.level_builder import Level
+from metta.mettagrid.room.room import Room
 
 from .types import SceneCfg
 
