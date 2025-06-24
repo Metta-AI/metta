@@ -46,18 +46,12 @@ const agentSource: TileSetSource = {
       x: 0,
       y: 0,
     },
-    {
-      name: "agent.team_1",
+    ...[1, 2, 3, 4].map((i) => ({
+      name: `agent.team_${i}`,
       x: 0,
       y: 0,
-      modulate: colorFromId(1),
-    },
-    {
-      name: "agent.team_2",
-      x: 0,
-      y: 0,
-      modulate: colorFromId(2),
-    },
+      modulate: colorFromId(i),
+    })),
   ],
 };
 
