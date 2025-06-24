@@ -76,9 +76,11 @@ kickstart:
   action_loss_coef: 0.5
   value_loss_coef: 0.5
   kickstart_warmup_steps: 500_000_000
-  kickstart_anneal_duration: 200_000_000
-  kickstart_anneal_start_multiplier: 1000.0
-  kickstart_anneal_end_multiplier: 0.1
+  kickstart_warmup_multiplier: 1000.0
+  kickstart_anneal_1_steps: 100_000_000
+  kickstart_anneal_2_steps: 100_000_000
+  kickstart_anneal_1_end_multiplier: 10.0
+  kickstart_anneal_2_end_multiplier: 0.1
   ppo_loss_avg_duration_steps: 50_000_000
   value_only_training_enabled: false
   additional_teachers:

@@ -43,20 +43,7 @@ class Kickstarter:
         self.teacher_uri = cfg.trainer.kickstart.teacher_uri
         if self.teacher_uri is not None:
             if self.teacher_cfgs is None:
-
-                self.teacher_cfgs = []
-            self.teacher_cfgs.append(
-                {
-                    "teacher_uri": self.teacher_uri,
-                    "action_loss_coef": cfg.trainer.kickstart.action_loss_coef,
-                    "value_loss_coef": cfg.trainer.kickstart.value_loss_coef,
-                }
-            )
-
-        self.enabled = True
-        if self.teacher_cfgs is None:
-            self.enabled = False
-            return
+                self.teacher_cfgs = [self.teacher_uri]
 
         self.compile = cfg.trainer.compile
         self.compile_mode = cfg.trainer.compile_mode
@@ -69,11 +56,7 @@ class Kickstarter:
     def _load_policies(self):
         self.teachers = []
         for teacher_cfg in self.teacher_cfgs:
-            policy_record = self.policy_store.policy(teacher_cfg["teacher_uri"])
-            policy = policy_record.policy()
-            policy.action_loss_coef = teacher_cfg["action_loss_coef"]
-            policy.value_loss_coef = teacher_cfg["value_loss_coef"]
-            policy.activate_actions(self.action_names, self.action_max_params, self.device)
+            policy = self.policy_store.load_policy(teacher_cfg)
             if self.compile:
                 policy = torch.compile(policy, mode=self.compile_mode)
             self.teachers.append(policy)
@@ -171,5 +154,4 @@ class Kickstarter:
         return final_ks_action_loss, final_ks_value_loss
 
     def _forward(self, teacher, o, teacher_lstm_state: PolicyState):
-        _, _, _, value, norm_logits = teacher(o, teacher_lstm_state)
-        return value, norm_logits
+        # ... existing code ...
