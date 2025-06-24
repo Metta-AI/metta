@@ -16,6 +16,6 @@ def get_object_size(obj: Any) -> int:
     # For objects with __dict__, include attribute sizes
     if hasattr(obj, "__dict__"):
         size += sys.getsizeof(obj.__dict__)
-        size += sum(sys.getsizeof(v) for v in obj.__dict__.values())
+        size += sum(get_object_size(v) for v in obj.__dict__.values())
 
     return size
