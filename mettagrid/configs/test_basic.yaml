@@ -6,7 +6,7 @@ desync_episodes: false
 game:
   num_observation_tokens: 100
   map_builder:
-    _target_: mettagrid.room.random.Random
+    _target_: metta.mettagrid.room.random.Random
     width: 25
     height: 25
     border_width: 0
@@ -15,7 +15,6 @@ game:
 
     objects:
       altar: 1
-      converter: 3
       generator: 15
       wall: 40
 
@@ -44,17 +43,13 @@ game:
       conversion_ticks: 1
       initial_items: 100
 
-    converter:
-      cooldown: 2
-
-    generator.red:
+    generator_red:
       cooldown: 5
       max_output: 100
       conversion_ticks: 1
       initial_items: 30
 
     wall: {}
-
 
   actions:
     noop:

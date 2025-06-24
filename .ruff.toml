@@ -1,0 +1,63 @@
+# Maximum line length (characters)
+line-length = 120
+# Specify the target Python version for compatibility checks
+target-version = "py311"
+
+# Exclude directories from linting
+# These are common directories that typically don't need linting
+exclude = [
+  ".git",           # Git version control
+  ".mypy_cache",    # MyPy type checking cache
+  ".ruff_cache",    # Ruff linter cache
+  ".venv",          # Virtual environment
+  "venv",           # Project virtual environment
+  "__pypackages__", # PEP 582 packages
+  "dist",           # Distribution builds
+  "node_modules",   # Node.js packages
+]
+
+[lint.isort]
+# Define import sections and their order
+known-third-party = ["wandb", "torch", "omegaconf"]
+known-first-party = ["metta", "mettagrid"]
+section-order = [
+  "future",
+  "standard-library",
+  "third-party",
+  "first-party",
+  "local-folder",
+]
+
+[lint]
+# Rules to enable for linting
+# E: pycodestyle errors
+# F: pyflakes
+# B: flake8-bugbear
+# I: isort
+# See full rule list: https://docs.astral.sh/ruff/rules/
+select = ["E", "F", "B", "I", "TID"]
+
+# Rules to explicitly ignore
+# E203: Whitespace before ':' (conflicts with Black)
+# See rule explanation: https://docs.astral.sh/ruff/rules/whitespace-before-colon/
+#
+# D rules are not applied by default, but some user reported seeing problems so disabling explicitly
+ignore = [
+  "D100", # Missing module docstring
+  "D101", # Missing class docstring
+  "D102", # Missing method docstring
+  "D103", # Missing function docstring
+  "D106", # Missing __init__ docstring
+  "D107", # Missing __init__ docstring in non-public class
+  "E203", # Whitespace before colon
+]
+
+# Allow auto-fixing for selected rule categories
+# See fixing documentation: https://docs.astral.sh/ruff/linter/#fix-mode
+fixable = ["E", "F", "B", "I"]
+unfixable = []
+
+# For more configuration options, see: https://docs.astral.sh/ruff/configuration/
+
+[lint.flake8-bugbear]
+extend-immutable-calls = ["fastapi.Depends", "fastapi.Query"]

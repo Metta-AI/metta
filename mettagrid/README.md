@@ -52,7 +52,6 @@ The `Converter` object allows agents to convert their harvested resources into e
 
 The `Generator` object produces resources that agents can harvest. Agents can gather resources from generators by moving to them and taking the `use` action. Generators have a specified capacity and replenish resources over time.
 
-- Using the generator costs `generator.use_cost` (currently 0) energy
 - Using the generator once gives one resource 1
 - After the generator is used, it is unable to be used for `generator.cooldown` timesteps
 

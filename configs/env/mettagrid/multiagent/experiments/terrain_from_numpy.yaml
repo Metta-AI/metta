@@ -27,20 +27,20 @@ game:
       heart: 1
       heart_max: 1000
   map_builder:
-    _target_: mettagrid.room.multi_room.MultiRoom
+    _target_: metta.mettagrid.room.multi_room.MultiRoom
     num_rooms: 4
     border_width: 6
     room:
-      _target_: mettagrid.room.terrain_from_numpy.TerrainFromNumpy
+      _target_: metta.mettagrid.room.terrain_from_numpy.TerrainFromNumpy
       border_width: ${sampling:1,6,3}
       agents: 8
       objects:
-        mine.red: ${sampling:1,20,10}
-        # mine.blue: ${sampling:0,5,10}
-        # mine.green: ${sampling:0,5,10}
-        generator.red: ${sampling:1,20,10}
-        # generator.blue: ${sampling:0,5,10}
-        # generator.green: ${sampling:0,5,10}
+        mine_red: ${sampling:1,20,10}
+        # mine_blue: ${sampling:0,5,10}
+        # mine_green: ${sampling:0,5,10}
+        generator_red: ${sampling:1,20,10}
+        # generator_blue: ${sampling:0,5,10}
+        # generator_green: ${sampling:0,5,10}
         altar: ${sampling:0,5,10}
         armory: ${sampling:0,5,10}
         lasery: ${sampling:0,5,10}
@@ -50,26 +50,26 @@ game:
         block: ${sampling:5,50,20}
         wall: ${sampling:5,50,20}
   objects:
-      altar:
-        # initial_items: ${choose:0,1}
-        cooldown: ${sampling:5, 50, 10}
-        input_battery: 1
+    altar:
+      # initial_items: ${choose:0,1}
+      cooldown: ${sampling:5, 50, 10}
+      input_battery: 1
 
-      generator.red:
-        # initial_items: ${choose:0,1}
-        cooldown: ${sampling:5, 50, 10}
+    generator_red:
+      # initial_items: ${choose:0,1}
+      cooldown: ${sampling:5, 50, 10}
 
-      # generator.blue:
-      #   cooldown: ${sampling:3, 20, 10}
+    # generator_blue:
+    #   cooldown: ${sampling:3, 20, 10}
 
-      # generator.green:
-      #   cooldown: ${sampling:3, 20, 10}
+    # generator_green:
+    #   cooldown: ${sampling:3, 20, 10}
 
-      mine.red:
-        cooldown: ${sampling:15, 50, 10}
+    mine_red:
+      cooldown: ${sampling:15, 50, 10}
 
-      # mine.blue:
-      #   cooldown: ${sampling:15, 50, 10}
+    # mine_blue:
+    #   cooldown: ${sampling:15, 50, 10}
 
-      # mine.green:
-      #   cooldown: ${sampling:15, 50, 10}
+    # mine_green:
+    #   cooldown: ${sampling:15, 50, 10}
