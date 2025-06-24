@@ -166,7 +166,7 @@ def from_mettagrid_config(mettagrid_config: GameConfig_py) -> GameConfig_cpp:
 
         agent_group_configs["agent." + group_name] = AgentGroupConfig_cpp(**agent_group_config)
 
-    game_config = mettagrid_config.model_dump(by_alias=True, exclude_unset=True)
+    game_config = mettagrid_config.model_dump(by_alias=True, exclude_none=True)
     game_config["agent_groups"] = agent_group_configs
     del game_config["agent"]
     del game_config["groups"]
@@ -181,4 +181,4 @@ def cpp_config_dict(game_config_dict: Dict[str, Any]) -> Dict[str, Any]:
     """
     game_config = GameConfig_py(**game_config_dict)
 
-    return from_mettagrid_config(game_config).model_dump(by_alias=True, exclude_unset=True)
+    return from_mettagrid_config(game_config).model_dump(by_alias=True, exclude_none=True)
