@@ -104,6 +104,9 @@ class ContrastiveLearning:
         geometric_dist = torch.distributions.Geometric(probs=self.geometric_p)
         temporal_distances = geometric_dist.sample((batch_size, seq_len)).to(self.device)
 
+        # Convert to long tensors for indexing
+        temporal_distances = temporal_distances.long()
+
         # Clip to maximum distance
         temporal_distances = torch.clamp(temporal_distances, 1, self.max_temporal_distance)
 
@@ -121,7 +124,8 @@ class ContrastiveLearning:
         if not positive_pairs:
             return torch.empty(0, 4, device=self.device, dtype=torch.long)
 
-        return torch.tensor(positive_pairs, device=self.device)
+        positive_pairs_tensor = torch.tensor(positive_pairs, device=self.device, dtype=torch.long)
+        return positive_pairs_tensor
 
     def _generate_negative_pairs(self, batch_size: int, seq_len: int) -> Tensor:
         """Generate negative pairs using uniform distribution."""
@@ -146,6 +150,9 @@ class ContrastiveLearning:
 
         # Stack into pairs
         negative_pairs = torch.stack([anchor_batch, anchor_time, negative_batch, negative_time], dim=1)
+
+        # Ensure final tensor is long
+        negative_pairs = negative_pairs.long()
 
         return negative_pairs
 
