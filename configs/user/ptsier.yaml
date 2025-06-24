@@ -4,9 +4,14 @@ defaults:
   - override /sim: navigation
   - _self_
 
-run: pasha_sim
+run: pasha_test_run_4
 policy_uri: wandb://run/daphne.nav_memory_sequence.baseline.06-20
 
 stats_server_uri: http://localhost:8000
-stats_user: ptsier
 
+trainer:
+  total_timesteps: 1000000
+  checkpoint_interval: 50
+  wandb_checkpoint_interval: 50
+  evaluate_interval: 50
+  num_workers: 2

@@ -2,12 +2,17 @@ from typing import Annotated, Callable
 
 from fastapi import Depends, HTTPException, Request, status
 
+from app_backend import config
 from app_backend.metta_repo import MettaRepo
 
 
-def get_user_email(request: Request) -> str:
+def get_user_email(request: Request) -> str | None:
     """Extract user email from request headers."""
-    user_email = request.headers.get("X-Auth-Request-Email")
+    return config.debug_user_email or request.headers.get("X-Auth-Request-Email")
+
+
+def get_user_email_or_raise(request: Request) -> str:
+    user_email = get_user_email(request)
     if not user_email:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="X-Auth-Request-Email header required")
     return user_email
@@ -18,7 +23,7 @@ def create_user_or_token_dependency(metta_repo: MettaRepo) -> Callable[[Request]
 
     def get_user_or_token_user(request: Request) -> str:
         # First try to get user email from header
-        user_email = request.headers.get("X-Auth-Request-Email")
+        user_email = get_user_email(request)
         if user_email:
             return user_email
 
@@ -41,4 +46,4 @@ def create_user_or_token_dependency(metta_repo: MettaRepo) -> Callable[[Request]
 
 
 # Dependency types for use in route decorators
-UserEmail = Annotated[str, Depends(get_user_email)]
+UserEmail = Annotated[str, Depends(get_user_email_or_raise)]

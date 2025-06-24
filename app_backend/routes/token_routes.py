@@ -1,6 +1,7 @@
 from typing import List
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
+from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 
 from app_backend.auth import UserEmail
@@ -40,6 +41,28 @@ def create_token_router(metta_repo: MettaRepo) -> APIRouter:
             return TokenResponse(token=token)
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to create token: {str(e)}") from e
+
+    @router.get("/cli")
+    async def create_cli_token(
+        user_email: UserEmail, callback: str = Query(..., description="Callback URL to redirect to with token")
+    ) -> RedirectResponse:
+        """Create a machine token and redirect to callback URL with token parameter."""
+        try:
+            # Validate the callback URL
+            if not callback.startswith("http://127.0.0.1"):
+                raise HTTPException(status_code=400, detail="Invalid callback URL")
+
+            # Create the machine token
+            token = metta_repo.create_machine_token(user_email, name="CLI Token")
+
+            # Build the redirect URL with token parameter
+            from urllib.parse import urlencode
+
+            redirect_url = f"{callback}?{urlencode({'token': token})}"
+            return RedirectResponse(url=redirect_url)
+
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to create CLI token: {str(e)}") from e
 
     @router.get("", response_model=TokenListResponse)
     async def list_tokens(user_email: UserEmail) -> TokenListResponse:

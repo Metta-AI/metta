@@ -98,6 +98,13 @@ MIGRATIONS = [
             """ALTER TABLE training_runs ADD CONSTRAINT training_runs_name_unique UNIQUE (user_id, name)""",
         ],
     ),
+    SqlMigration(
+        version=3,
+        description="Remove machine token name uniqueness constraint",
+        sql_statements=[
+            """ALTER TABLE machine_tokens DROP CONSTRAINT machine_tokens_user_id_name_key""",
+        ],
+    ),
 ]
 
 

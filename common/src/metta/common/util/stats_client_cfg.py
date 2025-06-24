@@ -7,10 +7,21 @@ from omegaconf import DictConfig, ListConfig
 from app_backend.stats_client import StatsClient
 
 
+def get_machine_token() -> str | None:
+    env_token = os.getenv("METTA_API_KEY")
+    if env_token is not None:
+        return env_token
+    token_file = os.path.expanduser("~/.metta/observatory_token")
+    if os.path.exists(token_file):
+        return open(token_file).read().strip()
+
+    return None
+
+
 def get_stats_client(cfg: DictConfig | ListConfig, logger: Logger) -> StatsClient | None:
     if isinstance(cfg, DictConfig):
         stats_server_uri: str | None = cfg.get("stats_server_uri", None)
-        machine_token = os.getenv("METTA_API_KEY")
+        machine_token = get_machine_token()
 
         if stats_server_uri is not None and machine_token is not None:
             logger.info(f"Using stats client at {stats_server_uri}")
