@@ -38,6 +38,7 @@ MettaGrid::MettaGrid(py::dict cfg, py::list map) {
   max_steps = cfg["max_steps"].cast<unsigned int>();
   obs_width = cfg["obs_width"].cast<unsigned short>();
   obs_height = cfg["obs_height"].cast<unsigned short>();
+  _inventory_item_names = cfg["inventory_item_names"].cast<std::vector<std::string>>();
 
   _num_observation_tokens =
       cfg.contains("num_observation_tokens") ? cfg["num_observation_tokens"].cast<unsigned int>() : 0;
@@ -52,7 +53,7 @@ MettaGrid::MettaGrid(py::dict cfg, py::list map) {
   int width = map[0].cast<py::list>().size();
 
   _grid = std::make_unique<Grid>(width, height, layer_for_type_id);
-  _obs_encoder = std::make_unique<ObservationEncoder>();
+  _obs_encoder = std::make_unique<ObservationEncoder>(_inventory_item_names);
   _feature_normalizations = _obs_encoder->feature_normalizations();
 
   _event_manager = std::make_unique<EventManager>();
@@ -84,8 +85,12 @@ MettaGrid::MettaGrid(py::dict cfg, py::list map) {
     _action_handlers.push_back(std::make_unique<Rotate>(cfg["actions"]["rotate"].cast<ActionConfig>()));
   }
   if (cfg["actions"]["attack"]["enabled"].cast<bool>()) {
-    _action_handlers.push_back(std::make_unique<Attack>(cfg["actions"]["attack"].cast<ActionConfig>()));
-    _action_handlers.push_back(std::make_unique<AttackNearest>(cfg["actions"]["attack"].cast<ActionConfig>()));
+    _action_handlers.push_back(std::make_unique<Attack>(cfg["actions"]["attack"].cast<ActionConfig>(),
+                                                        cfg["actions"]["laser_item_id"].cast<InventoryItem>(),
+                                                        cfg["actions"]["armor_item_id"].cast<InventoryItem>()));
+    _action_handlers.push_back(std::make_unique<AttackNearest>(cfg["actions"]["attack"].cast<ActionConfig>(),
+                                                               cfg["actions"]["laser_item_id"].cast<InventoryItem>(),
+                                                               cfg["actions"]["armor_item_id"].cast<InventoryItem>()));
   }
   if (cfg["actions"]["swap"]["enabled"].cast<bool>()) {
     _action_handlers.push_back(std::make_unique<Swap>(cfg["actions"]["swap"].cast<ActionConfig>()));
@@ -130,25 +135,33 @@ MettaGrid::MettaGrid(py::dict cfg, py::list map) {
         if (m.find('_') == std::string::npos) {
           m = "mine_red";
         }
-        converter = new Converter(r, c, cfg["objects"][py::str(m)].cast<ObjectConfig>(), ObjectType::MineT);
+        auto converter_cfg = _create_converter_config(cfg["objects"][py::str(m)]);
+        converter = new Converter(r, c, converter_cfg, ObjectType::MineT);
       } else if (cell.starts_with("generator")) {
         std::string m = cell;
         if (m.find('_') == std::string::npos) {
           m = "generator_red";
         }
-        converter = new Converter(r, c, cfg["objects"][py::str(m)].cast<ObjectConfig>(), ObjectType::GeneratorT);
+        auto converter_cfg = _create_converter_config(cfg["objects"][py::str(m)]);
+        converter = new Converter(r, c, converter_cfg, ObjectType::GeneratorT);
       } else if (cell == "altar") {
-        converter = new Converter(r, c, cfg["objects"]["altar"].cast<ObjectConfig>(), ObjectType::AltarT);
+        auto converter_cfg = _create_converter_config(cfg["objects"]["altar"]);
+        converter = new Converter(r, c, converter_cfg, ObjectType::AltarT);
       } else if (cell == "armory") {
-        converter = new Converter(r, c, cfg["objects"]["armory"].cast<ObjectConfig>(), ObjectType::ArmoryT);
+        auto converter_cfg = _create_converter_config(cfg["objects"]["armory"]);
+        converter = new Converter(r, c, converter_cfg, ObjectType::ArmoryT);
       } else if (cell == "lasery") {
-        converter = new Converter(r, c, cfg["objects"]["lasery"].cast<ObjectConfig>(), ObjectType::LaseryT);
+        auto converter_cfg = _create_converter_config(cfg["objects"]["lasery"]);
+        converter = new Converter(r, c, converter_cfg, ObjectType::LaseryT);
       } else if (cell == "lab") {
-        converter = new Converter(r, c, cfg["objects"]["lab"].cast<ObjectConfig>(), ObjectType::LabT);
+        auto converter_cfg = _create_converter_config(cfg["objects"]["lab"]);
+        converter = new Converter(r, c, converter_cfg, ObjectType::LabT);
       } else if (cell == "factory") {
-        converter = new Converter(r, c, cfg["objects"]["factory"].cast<ObjectConfig>(), ObjectType::FactoryT);
+        auto converter_cfg = _create_converter_config(cfg["objects"]["factory"]);
+        converter = new Converter(r, c, converter_cfg, ObjectType::FactoryT);
       } else if (cell == "temple") {
-        converter = new Converter(r, c, cfg["objects"]["temple"].cast<ObjectConfig>(), ObjectType::TempleT);
+        auto converter_cfg = _create_converter_config(cfg["objects"]["temple"]);
+        converter = new Converter(r, c, converter_cfg, ObjectType::TempleT);
       } else if (cell.starts_with("agent.")) {
         auto agent_group_cfg_py = agent_groups[py::str(cell)].cast<py::dict>();
 
@@ -529,7 +542,7 @@ py::dict MettaGrid::grid_objects() {
 
     auto features = obj->obs_features();
     for (const auto& feature : features) {
-      obj_dict[py::str(ObservationFeatureNames[feature.feature_id])] = feature.value;
+      obj_dict[py::str(_obs_encoder->feature_names().at(feature.feature_id))] = feature.value;
     }
 
     objects[py::int_(obj_id)] = obj_dict;
@@ -657,25 +670,22 @@ py::list MettaGrid::object_type_names() {
 }
 
 py::list MettaGrid::inventory_item_names() {
-  return py::cast(InventoryItemNames);
+  return py::cast(_inventory_item_names);
 }
 
 Agent* MettaGrid::create_agent(int r, int c, const py::dict& agent_group_cfg_py) {
-  unsigned char default_item_max = agent_group_cfg_py["default_item_max"].cast<unsigned char>();
   unsigned char freeze_duration = agent_group_cfg_py["freeze_duration"].cast<unsigned char>();
   float action_failure_penalty = agent_group_cfg_py["action_failure_penalty"].cast<float>();
-  std::map<std::string, unsigned int> max_items_per_type =
-      agent_group_cfg_py["max_items_per_type"].cast<std::map<std::string, unsigned int>>();
-  std::map<std::string, float> resource_rewards =
-      agent_group_cfg_py["resource_rewards"].cast<std::map<std::string, float>>();
-  std::map<std::string, float> resource_reward_max =
-      agent_group_cfg_py["resource_reward_max"].cast<std::map<std::string, float>>();
+  std::map<ObsType, uint8_t> max_items_per_type =
+      agent_group_cfg_py["max_items_per_type"].cast<std::map<ObsType, uint8_t>>();
+  std::map<ObsType, float> resource_rewards = agent_group_cfg_py["resource_rewards"].cast<std::map<ObsType, float>>();
+  std::map<ObsType, float> resource_reward_max =
+      agent_group_cfg_py["resource_reward_max"].cast<std::map<ObsType, float>>();
   std::string group_name = agent_group_cfg_py["group_name"].cast<std::string>();
   unsigned int group_id = agent_group_cfg_py["group_id"].cast<unsigned int>();
 
   return new Agent(r,
                    c,
-                   default_item_max,
                    freeze_duration,
                    action_failure_penalty,
                    max_items_per_type,
@@ -698,6 +708,17 @@ py::array_t<unsigned int> MettaGrid::get_agent_groups() const {
 unsigned int StatsTracker::get_current_step() const {
   if (!_env) return 0;
   return static_cast<MettaGrid*>(_env)->current_step;
+}
+
+ConverterConfig MettaGrid::_create_converter_config(const py::dict& converter_cfg_py) {
+  std::map<ObsType, uint8_t> recipe_input = converter_cfg_py["recipe_input"].cast<std::map<ObsType, uint8_t>>();
+  std::map<ObsType, uint8_t> recipe_output = converter_cfg_py["recipe_output"].cast<std::map<ObsType, uint8_t>>();
+  short max_output = converter_cfg_py["max_output"].cast<short>();
+  unsigned short conversion_ticks = converter_cfg_py["conversion_ticks"].cast<unsigned short>();
+  unsigned short cooldown = converter_cfg_py["cooldown"].cast<unsigned short>();
+  unsigned char initial_items = converter_cfg_py["initial_items"].cast<unsigned char>();
+  ObsType color = converter_cfg_py["color"].cast<ObsType>();
+  return ConverterConfig{recipe_input, recipe_output, max_output, conversion_ticks, cooldown, initial_items, color};
 }
 
 // Pybind11 module definition
