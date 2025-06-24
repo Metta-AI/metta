@@ -16,7 +16,7 @@ game:
       ore.red: 0.005
       ore.blue: 0.005
       ore.green: 0.005
-      battery: 0.01
+      battery.red: 0.01
       heart: 1
 
   map_builder:
