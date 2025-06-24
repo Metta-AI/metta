@@ -160,6 +160,7 @@ class MettaTrainer:
                 geometric_p=trainer_cfg.contrastive.get("geometric_p", 0.1),
                 max_temporal_distance=trainer_cfg.contrastive.get("max_temporal_distance", 50),
                 logsumexp_reg_coef=trainer_cfg.contrastive.get("logsumexp_reg_coef", 1.0),
+                max_pairs_per_agent=trainer_cfg.contrastive.get("max_pairs_per_agent", 32),
                 device=self.device,
             )
             logger.info(f"Contrastive learning enabled with hidden_size={hidden_size}")
@@ -1138,7 +1139,7 @@ class MettaTrainer:
         if reward_coef == 0.0:
             return
 
-        # Compute individual contrastive rewards for each agent
+        # Compute contrastive rewards at the policy level (reward sharing across agents)
         hidden_states = experience.lstm_hidden_states  # (segments, bptt_horizon, hidden_size)
         batch_size = hidden_states.shape[0]
         seq_len = hidden_states.shape[1]
@@ -1147,20 +1148,17 @@ class MettaTrainer:
             return
 
         with torch.no_grad():
-            # Compute individual contrastive rewards for each agent efficiently
-            individual_rewards = self.contrastive_learning.compute_individual_contrastive_rewards(
+            # Compute single contrastive loss and reward for the entire policy
+            contrastive_loss, contrastive_reward = self.contrastive_learning.compute_contrastive_loss(
                 hidden_states, batch_size, seq_len
             )
 
-            # Scale the rewards
-            individual_rewards = individual_rewards * reward_coef
+            # Scale the reward
+            policy_reward = contrastive_reward * reward_coef
 
-            # Add individual contrastive rewards to each agent's timesteps
-            # experience.rewards has shape (segments, bptt_horizon)
-            # individual_rewards has shape (segments,)
-            # We want to add each agent's reward to all their timesteps
-            for agent_idx in range(batch_size):
-                experience.rewards[agent_idx, :] += individual_rewards[agent_idx]
+            # Add the same contrastive reward to all agents in the policy
+            # This encourages exploration at the policy level
+            experience.rewards += policy_reward
 
 
 class AbortingTrainer(MettaTrainer):

@@ -24,6 +24,7 @@ trainer:
     geometric_p: 0.1
     max_temporal_distance: 50
     logsumexp_reg_coef: 1.0
+    max_pairs_per_agent: 16
 
 wandb:
   enabled: true

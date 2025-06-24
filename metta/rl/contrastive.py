@@ -30,6 +30,7 @@ class ContrastiveLearning:
         geometric_p: float = 0.1,
         max_temporal_distance: int = 50,
         logsumexp_reg_coef: float = 1.0,
+        max_pairs_per_agent: int = 32,  # Limit pairs per agent for speed
         device: torch.device = torch.device("cpu"),
     ):
         """
@@ -41,6 +42,7 @@ class ContrastiveLearning:
             geometric_p: Success probability for geometric distribution (mean = 1/p)
             max_temporal_distance: Maximum temporal distance for positive pairs
             logsumexp_reg_coef: Coefficient for LogSumExp regularization (default: 1.0)
+            max_pairs_per_agent: Maximum number of pairs to generate per agent (default: 32)
             device: Device to run computations on
         """
         self.hidden_size = hidden_size
@@ -48,6 +50,7 @@ class ContrastiveLearning:
         self.geometric_p = geometric_p
         self.max_temporal_distance = max_temporal_distance
         self.logsumexp_reg_coef = logsumexp_reg_coef
+        self.max_pairs_per_agent = max_pairs_per_agent
         self.device = device
 
         # Projection head for contrastive learning
@@ -56,6 +59,11 @@ class ContrastiveLearning:
             nn.ReLU(),
             nn.Linear(hidden_size, hidden_size)
         ).to(device)
+
+        # Cache for projected states to avoid recomputation
+        self._projected_cache = None
+        self._cache_seq_len = None
+        self._cache_batch_size = None
 
     def compute_contrastive_loss(
         self,
@@ -79,8 +87,7 @@ class ContrastiveLearning:
             return torch.tensor(0.0, device=self.device), torch.tensor(0.0, device=self.device)
 
         # Project hidden states
-        projected = self.projection_head(hidden_states)  # (batch_size, seq_len, hidden_size)
-        projected = F.normalize(projected, dim=-1)  # L2 normalize
+        projected = self._get_cached_projection(hidden_states, batch_size, seq_len)
 
         # Generate positive pairs using geometric distribution
         positive_pairs = self._generate_positive_pairs(batch_size, seq_len)
@@ -98,26 +105,58 @@ class ContrastiveLearning:
 
         return contrastive_loss, contrastive_reward
 
+    def _get_cached_projection(self, hidden_states: Tensor, batch_size: int, seq_len: int) -> Tensor:
+        """Get projected states with caching to avoid recomputation."""
+        # Check if we can use cached projection
+        if (self._projected_cache is not None and
+            self._cache_batch_size == batch_size and
+            self._cache_seq_len == seq_len and
+            self._projected_cache.shape == hidden_states.shape):
+            # Use cached projection if shapes match
+            return self._projected_cache
+
+        # Compute new projection and cache it
+        projected = self.projection_head(hidden_states)  # (batch_size, seq_len, hidden_size)
+        projected = F.normalize(projected, dim=-1)  # L2 normalize
+
+        # Cache the projection
+        self._projected_cache = projected
+        self._cache_batch_size = batch_size
+        self._cache_seq_len = seq_len
+
+        return projected
+
     def _generate_positive_pairs(self, batch_size: int, seq_len: int) -> Tensor:
-        """Generate positive pairs using geometric distribution."""
+        """Generate positive pairs using geometric distribution with limited sampling."""
+        if seq_len < 2:
+            return torch.empty(0, 4, device=self.device, dtype=torch.long)
+
+        # Limit the number of timesteps we sample from to reduce computation
+        # Sample from every other timestep to reduce pairs
+        sample_timesteps = min(seq_len // 2, self.max_pairs_per_agent)
+        if sample_timesteps < 1:
+            sample_timesteps = 1
+
         # Sample temporal distances from geometric distribution
         geometric_dist = torch.distributions.Geometric(probs=self.geometric_p)
-        temporal_distances = geometric_dist.sample((batch_size, seq_len)).to(self.device)
-
-        # Convert to long tensors for indexing
+        temporal_distances = geometric_dist.sample((batch_size, sample_timesteps)).to(self.device)
         temporal_distances = temporal_distances.long()
-
-        # Clip to maximum distance
         temporal_distances = torch.clamp(temporal_distances, 1, self.max_temporal_distance)
 
-        # Generate positive pair indices
+        # Generate positive pair indices with limited sampling
         positive_pairs = []
         for b in range(batch_size):
-            for t in range(seq_len):
+            # Sample from evenly spaced timesteps
+            step_size = max(1, seq_len // sample_timesteps)
+            for i in range(sample_timesteps):
+                t = i * step_size
+                if t >= seq_len - 1:
+                    break
+
                 # Current timestep
                 anchor_t = t
                 # Positive timestep (within sequence bounds)
-                positive_t = min(t + temporal_distances[b, t], seq_len - 1)
+                positive_t = min(t + temporal_distances[b, i], seq_len - 1)
                 if positive_t > anchor_t:  # Ensure positive pair is valid
                     positive_pairs.append([b, anchor_t, b, positive_t])
 
@@ -128,30 +167,21 @@ class ContrastiveLearning:
         return positive_pairs_tensor
 
     def _generate_negative_pairs(self, batch_size: int, seq_len: int, num_positive_pairs: int) -> Tensor:
-        """Generate negative pairs using uniform distribution."""
-        # Generate exactly the same number of pairs as positive pairs
-        num_pairs = num_positive_pairs
+        """Generate negative pairs using uniform distribution with limited sampling."""
+        # Limit the number of negative pairs to reduce computation
+        num_pairs = min(num_positive_pairs, self.max_pairs_per_agent)
 
         if num_pairs == 0:
             return torch.empty(0, 4, device=self.device, dtype=torch.long)
 
-        # Random batch indices
-        anchor_batch = torch.randint(0, batch_size, (num_pairs,), device=self.device)
-        anchor_time = torch.randint(0, seq_len, (num_pairs,), device=self.device)
-
-        # Random negative batch and time indices using uniform distribution
-        negative_batch = torch.randint(0, batch_size, (num_pairs,), device=self.device)
-        negative_time = torch.randint(0, seq_len, (num_pairs,), device=self.device)
-
-        # Ensure all indices are long tensors for proper indexing
-        anchor_batch = anchor_batch.long()
-        anchor_time = anchor_time.long()
-        negative_batch = negative_batch.long()
-        negative_time = negative_time.long()
+        # Use vectorized operations for better performance
+        anchor_batch = torch.randint(0, batch_size, (num_pairs,), device=self.device, dtype=torch.long)
+        anchor_time = torch.randint(0, seq_len, (num_pairs,), device=self.device, dtype=torch.long)
+        negative_batch = torch.randint(0, batch_size, (num_pairs,), device=self.device, dtype=torch.long)
+        negative_time = torch.randint(0, seq_len, (num_pairs,), device=self.device, dtype=torch.long)
 
         # Stack into pairs
         negative_pairs = torch.stack([anchor_batch, anchor_time, negative_batch, negative_time], dim=1)
-
         return negative_pairs
 
     def _compute_contrastive_loss(
@@ -202,52 +232,3 @@ class ContrastiveLearning:
         if hasattr(policy_state, 'lstm_h') and policy_state.lstm_h is not None:
             return policy_state.lstm_h
         return None
-
-    def compute_individual_contrastive_rewards(
-        self,
-        hidden_states: Tensor,
-        batch_size: int,
-        seq_len: int
-    ) -> Tensor:
-        """
-        Compute individual contrastive rewards for each agent efficiently.
-
-        Args:
-            hidden_states: LSTM hidden states of shape (batch_size, seq_len, hidden_size)
-            batch_size: Number of sequences in batch
-            seq_len: Length of each sequence
-
-        Returns:
-            Individual contrastive rewards of shape (batch_size,)
-        """
-        if seq_len < 2:
-            return torch.zeros(batch_size, device=self.device)
-
-        # Project hidden states
-        projected = self.projection_head(hidden_states)  # (batch_size, seq_len, hidden_size)
-        projected = F.normalize(projected, dim=-1)  # L2 normalize
-
-        # Compute individual rewards for each agent
-        individual_rewards = torch.zeros(batch_size, device=self.device)
-
-        for agent_idx in range(batch_size):
-            # Get this agent's projected states
-            agent_projected = projected[agent_idx:agent_idx+1]  # (1, seq_len, hidden_size)
-
-            # Generate positive pairs for this agent only
-            positive_pairs = self._generate_positive_pairs(1, seq_len)  # batch_size=1
-
-            # Generate negative pairs for this agent only
-            negative_pairs = self._generate_negative_pairs(1, seq_len, len(positive_pairs))
-
-            if len(positive_pairs) > 0:
-                # Compute contrastive loss for this agent
-                agent_loss = self._compute_contrastive_loss(
-                    agent_projected, positive_pairs, negative_pairs
-                )
-                # Reward is negative of loss (higher novelty = higher reward)
-                individual_rewards[agent_idx] = -agent_loss.detach()
-            else:
-                individual_rewards[agent_idx] = 0.0
-
-        return individual_rewards
