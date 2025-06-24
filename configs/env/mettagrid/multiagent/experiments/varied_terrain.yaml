@@ -15,8 +15,8 @@ game:
       ore.green_max: 3
       ore.blue_max: 3
       ore.red_max: 3
-      battery: ${sampling:0.01,0.5, 0.1}
-      battery_max: 3
+      battery.red: ${sampling:0.01,0.5, 0.1}
+      battery.red_max: 3
       laser: ${sampling:0.005,0.1, 0.01}
       laser_max: 1
       blueprint: ${sampling:0.005,0.1, 0.01}
