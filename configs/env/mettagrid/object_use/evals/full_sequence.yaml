@@ -10,14 +10,14 @@ game:
       ore.red: 0
       battery.red: 0
   objects:
-    generator.red:
+    generator_red:
       initial_items: 0
       output_battery.red: 3
       cooldown: 1
     altar:
       initial_items: 0
       cooldown: 255
-    mine.red:
+    mine_red:
       cooldown: 1
 
   map_builder:
