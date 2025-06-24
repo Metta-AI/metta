@@ -26,3 +26,7 @@ buckets:
   game.map_builder.room.objects.altar:
     range: [10, 25]
     bins: 2
+
+env_overrides:
+  game:
+    num_agents: 12
