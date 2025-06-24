@@ -858,7 +858,7 @@ class MettaTrainer:
         }
 
         memory_stats = {}
-        for k, v in self.stats.items():
+        for k in list(self.stats.keys()):
             if k.startswith("memory_use/"):
                 memory_stats[k] = self.stats.pop(k)
 
