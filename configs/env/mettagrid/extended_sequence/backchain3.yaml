@@ -29,7 +29,7 @@ game:
     border_width: 6
 
     room:
-      _target_: mettagrid.room.terrain_from_numpy.TerrainFromNumpy
+      _target_: metta.mettagrid.room.terrain_from_numpy.TerrainFromNumpy
       border_width: 3
       agents: 1
       dir: varied_terrain/sparse_small
