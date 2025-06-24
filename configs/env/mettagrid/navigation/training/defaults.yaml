@@ -4,7 +4,7 @@ defaults:
 
 game:
   num_agents: 4
-  max_steps: 2000
+  max_steps: 1000
   map_builder:
     _target_: metta.mettagrid.room.multi_room.MultiRoom
     num_rooms: ${..num_agents}
