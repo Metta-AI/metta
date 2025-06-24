@@ -43,14 +43,13 @@ game:
       conversion_ticks: 1
       initial_items: 100
 
-    generator.red:
+    generator_red:
       cooldown: 5
       max_output: 100
       conversion_ticks: 1
       initial_items: 30
 
     wall: {}
-
 
   actions:
     noop:
