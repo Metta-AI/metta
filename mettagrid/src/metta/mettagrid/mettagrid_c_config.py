@@ -1,5 +1,5 @@
 import copy
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 
 from pydantic import BaseModel, Field, RootModel
 
@@ -172,3 +172,13 @@ def from_mettagrid_config(mettagrid_config: GameConfig_py) -> GameConfig_cpp:
     del game_config["groups"]
 
     return GameConfig_cpp(**game_config)
+
+def cpp_config_dict(game_config_dict: Dict[str, Any]) -> Dict[str, Any]:
+    """Validates a config dict and returns a config_c dict.
+
+    In particular, this function converts from the style of config we have in yaml to the style of config we expect
+    in cpp; and validates along the way.
+    """
+    game_config = GameConfig_py(**game_config_dict)
+
+    return from_mettagrid_config(game_config).model_dump(by_alias=True, exclude_unset=True)
