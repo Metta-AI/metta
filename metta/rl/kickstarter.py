@@ -1,4 +1,5 @@
-from typing import List
+import math
+from typing import Callable, List
 
 import torch
 
@@ -14,15 +15,12 @@ class Kickstarter:
         This is done by adding a loss term that encourages the student's output (action logits and value) to match the
         teacher's.
 
-        The kickstarting loss is annealed over a number of steps (`kickstart_steps`).
-        The `anneal_ratio` parameter controls what fraction of the `kickstart_steps` are used for annealing.
-        The annealing is linear and only at the end. For example, if `anneal_ratio` is 0.2, the loss coefficient will
-        be 1.0 for the first 80% of `kickstart_steps`, then anneal linearly from 1.0 down to 0 over the last 20%.
+        The loss coefficients (`action_loss_coef`, `value_loss_coef`) can be defined as a fixed float or as a string
+        representing a function of the agent step `t`. For example: "max(0, 1.0 - t / 1e6)". This provides a flexible
+        way to schedule the kickstarting influence over time.
         """
         self.device = cfg.device
         self.teacher_cfgs = cfg.trainer.kickstart.additional_teachers
-        self.anneal_ratio = cfg.trainer.kickstart.anneal_ratio
-        assert 0 <= self.anneal_ratio <= 1, "Anneal_ratio must be between 0 and 1."
 
         self.teacher_uri = cfg.trainer.kickstart.teacher_uri
         if self.teacher_uri is not None:
@@ -47,16 +45,29 @@ class Kickstarter:
         self.kickstart_steps = cfg.trainer.kickstart.kickstart_steps
         self.action_names = action_names
         self.action_max_params = action_max_params
-        self.anneal_factor = 1.0
 
-        if self.anneal_ratio > 0:
-            self.anneal_duration = self.kickstart_steps * self.anneal_ratio
-            self.ramp_down_start_step = self.kickstart_steps - self.anneal_duration
-        else:
-            self.anneal_duration = 0
-            self.ramp_down_start_step = self.kickstart_steps
-
+        self._compile_schedules()
         self._load_policies()
+
+    def _compile_schedules(self):
+        """
+        Pre-compiles any schedule strings into callable functions for efficiency.
+        This uses a safe version of `eval` that only allows access to the `math` module and basic built-ins.
+        """
+        self.schedule_fns: dict[str, Callable[[float], float]] = {}
+        safe_env = {
+            "__builtins__": {"max": max, "min": min, "pow": pow, "abs": abs, "float": float},
+            "math": math,
+        }
+        for teacher_cfg in self.teacher_cfgs:
+            for coef_name in ["action_loss_coef", "value_loss_coef"]:
+                coef_val = teacher_cfg.get(coef_name)
+                if isinstance(coef_val, str):
+                    if coef_val not in self.schedule_fns:
+                        try:
+                            self.schedule_fns[coef_val] = eval(f"lambda t: float({coef_val})", safe_env)
+                        except Exception as e:
+                            raise ValueError(f"Invalid schedule string for {coef_name}: '{coef_val}'") from e
 
     def _load_policies(self):
         self.teachers = []
@@ -70,32 +81,57 @@ class Kickstarter:
                 policy = torch.compile(policy, mode=self.compile_mode)
             self.teachers.append(policy)
 
-    def loss(self, agent_step, student_normalized_logits, student_value, o, teacher_lstm_state: List[PolicyState]):
+    def loss(
+        self,
+        agent_step,
+        student_normalized_logits,
+        student_value,
+        o,
+        teacher_lstm_state: List[PolicyState],
+        importance_sampling_ratio: torch.Tensor,
+        clip_coef: float,
+    ):
         ks_value_loss = torch.tensor(0.0, device=self.device)
         ks_action_loss = torch.tensor(0.0, device=self.device)
 
         if not self.enabled or agent_step > self.kickstart_steps:
             return ks_action_loss, ks_value_loss
 
-        if self.anneal_ratio > 0 and agent_step > self.ramp_down_start_step:
-            # Ramp down
-            progress = (agent_step - self.ramp_down_start_step) / self.anneal_duration
-            self.anneal_factor = 1.0 - progress
-
-
         if len(teacher_lstm_state) == 0:
             teacher_lstm_state = [PolicyState() for _ in range(len(self.teachers))]
 
-        for i, teacher in enumerate(self.teachers):
-            teacher_value, teacher_normalized_logits = self._forward(teacher, o, teacher_lstm_state[i])
-            ks_action_loss -= (teacher_normalized_logits.exp() * student_normalized_logits).sum(dim=-1).mean()
-            ks_action_loss *= teacher.action_loss_coef * self.anneal_factor
+        # Clamp the importance sampling ratio from below, which is the PPO-style
+        # simplification for a loss/cost (equivalent to negative advantage).
+        clipped_ratio = torch.clamp(importance_sampling_ratio, 1.0 - clip_coef, None)
 
-            ks_value_loss += (
-                ((teacher_value.squeeze() - student_value) ** 2).mean() * teacher.value_loss_coef * self.anneal_factor
-            )
+        for i, teacher in enumerate(self.teachers):
+            with torch.no_grad():
+                teacher_value, teacher_normalized_logits = self._forward(teacher, o, teacher_lstm_state[i])
+
+            # The distillation cost is the negative log likelihood of the teacher's actions
+            # under the student's policy. This is equivalent to the cross-entropy term used to
+            # minimize KL(teacher || student), and is always a positive value.
+            # The cost is calculated per-item in the batch.
+            distillation_cost = -torch.sum(teacher_normalized_logits.exp() * student_normalized_logits, dim=-1)
+
+            # The final distillation loss is the mean of the clipped, ratio-weighted cost.
+            distillation_loss = (clipped_ratio.flatten() * distillation_cost).mean()
+
+            action_coef = self._get_coef(teacher.action_loss_coef, agent_step)
+            value_coef = self._get_coef(teacher.value_loss_coef, agent_step)
+
+            ks_action_loss += distillation_loss * action_coef
+
+            # Value distillation loss is unchanged.
+            ks_value_loss += ((teacher_value.squeeze() - student_value) ** 2).mean() * value_coef
 
         return ks_action_loss, ks_value_loss
+
+    def _get_coef(self, coef_val: float | str, agent_step: int) -> float:
+        """Retrieves the coefficient, evaluating it if it's a schedule string."""
+        if isinstance(coef_val, str):
+            return self.schedule_fns[coef_val](agent_step)
+        return coef_val
 
     def _forward(self, teacher, o, teacher_lstm_state: PolicyState):
         _, _, _, value, norm_logits = teacher(o, teacher_lstm_state)

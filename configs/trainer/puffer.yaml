@@ -77,13 +77,14 @@ kickstart:
   value_loss_coef: 0.5
   value_only_training_start: 500_000_000 #700_000_000
   value_only_training_end: 550_000_000 #750_000_000
-  value_only_training_enabled: true
-  anneal_ratio: 0.0 # ratio of kickstart_steps to anneal to 0 coef
-  kickstart_steps: 500_000_000
+  value_only_training_enabled: false
+  # Hard cutoff for kickstarting. The loss coefficients below should also be scheduled to go to 0.
+  kickstart_steps: 400_000_000
   additional_teachers:
     - teacher_uri: wandb://run/m_alexv_ks_dr_lam_001:v22
-      action_loss_coef: 1
-      value_loss_coef: 1
+      # Hold kickstarter loss at 1.0 for 300M steps, then linearly decay to 0 over the next 100M steps.
+      action_loss_coef: "max(0, 1.0 - max(0, t - 300e6) / 100e6)"
+      value_loss_coef: 0
     #  - teacher_uri: wandb://run/mettabox_cogeval_defaults_lowent_initialized0005:v95
     #    action_loss_coef: 1
     #    value_loss_coef: 1
