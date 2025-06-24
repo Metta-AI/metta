@@ -197,6 +197,113 @@ class PolicyRecord:
 
         return clean_value(copy.deepcopy(metadata))
 
+    def _apply_packaging_rules(self, exporter, policy_module: Optional[str], policy_class: type) -> None:
+        """Apply packaging rules to the exporter based on a configuration."""
+        # Define packaging rules
+        rules = [
+            # Extern rules - modules we don't want to package
+            (
+                "extern",
+                [
+                    # Core Python and ML frameworks
+                    "sys",
+                    "torch.**",
+                    "numpy.**",
+                    "scipy.**",
+                    "sklearn.**",
+                    "matplotlib.**",
+                    "gymnasium.**",
+                    "gym.**",
+                    "tensordict.**",
+                    "einops.**",
+                    "hydra.**",
+                    "omegaconf.**",
+                    # Torch extensions (no recursive pattern needed)
+                    "torch_scatter",
+                    "torch_geometric",
+                    "torch_sparse",
+                    # C extensions
+                    "mettagrid",
+                    "mettagrid.**",
+                    "metta.mettagrid.mettagrid_c",
+                    # All mettagrid modules (contain pydantic dependencies)
+                    "metta.mettagrid.**",
+                    # Specific metta modules with pydantic dependencies
+                    "metta.util.config",
+                    "metta.rl.vecenv",
+                    "metta.eval.dashboard_data",
+                    "metta.sim.simulation_config",
+                ],
+            ),
+            # Intern rules - metta modules we want to package
+            (
+                "intern",
+                [
+                    "metta.agent.**",
+                    "metta.map.**",
+                    "metta.rl.policy",
+                    "metta.rl.experience",
+                    "metta.rl.carbs",
+                    "metta.rl.fast_gae",
+                    "metta.rl.trainer",
+                    "metta.eval.analysis*",
+                    "metta.sim.simulation",
+                    "metta.sim.map_preview",
+                    "metta.util.omegaconf",
+                    "metta.util.runtime_configuration",
+                    "metta.util.logger",
+                    "metta.util.decorators",
+                    "metta.util.resolvers",
+                ],
+            ),
+            # Mock rules - modules we want to completely exclude
+            (
+                "mock",
+                [
+                    "wandb",
+                    "wandb.*",
+                    "wandb.sdk",
+                    "wandb.sdk.**",
+                    "wandb.sdk.wandb_run",
+                    "pufferlib",
+                    "pufferlib.**",
+                    "pydantic",
+                    "pydantic.**",
+                    "boto3",
+                    "boto3.**",
+                    "botocore",
+                    "botocore.**",
+                    "duckdb",
+                    "duckdb.**",
+                    "pandas",
+                    "pandas.**",
+                    "typing_extensions",
+                    "seaborn",
+                    "plotly",
+                ],
+            ),
+        ]
+
+        # Apply rules
+        for action, patterns in rules:
+            for pattern in patterns:
+                getattr(exporter, action)(pattern)
+
+        # Handle special cases for the policy module
+        if policy_module:
+            if policy_module == "__main__":
+                # Try to include source for __main__ modules
+                import inspect
+
+                try:
+                    source = inspect.getsource(policy_class)
+                    exporter.save_source_string("__main__", f"import torch\nimport torch.nn as nn\n\n{source}")
+                except Exception:
+                    exporter.extern("__main__")
+            elif "test" in policy_module:
+                # Test modules should be externed
+                exporter.extern(policy_module)
+
     def save(self, path: str, policy: nn.Module) -> "PolicyRecord":
         logger.info(f"Saving policy to {path} using torch.package")
         self._local_path = path
@@ -204,109 +311,10 @@ class PolicyRecord:
 
         try:
             with PackageExporter(path, debug=False) as exporter:
-                # Define module lists for cleaner organization
-                PYDANTIC_DEPS = [
-                    "metta.util.config",
-                    "metta.rl.vecenv",
-                    "metta.eval.dashboard_data",
-                    "metta.sim.simulation_config",
-                    "metta.mettagrid.**",
-                ]
+                # Apply all packaging rules
+                self._apply_packaging_rules(exporter, policy.__class__.__module__, policy.__class__)
 
-                C_EXTENSIONS = [
-                    "metta.mettagrid.mettagrid_c",
-                    "mettagrid",
-                    "mettagrid.**",
-                ]
-
-                INTERN_MODULES = [
-                    "metta.agent.**",
-                    "metta.rl.policy",
-                    "metta.rl.experience",
-                    "metta.rl.carbs",
-                    "metta.rl.fast_gae",
-                    "metta.rl.trainer",
-                    "metta.util.omegaconf",
-                    "metta.util.runtime_configuration",
-                    "metta.util.logger",
-                    "metta.util.decorators",
-                    "metta.util.resolvers",
-                    "metta.map.**",
-                    "metta.eval.analysis",
-                    "metta.eval.analysis_config",
-                    "metta.sim.simulation",
-                    "metta.sim.map_preview",
-                ]
-
-                EXTERN_PACKAGES = [
-                    "torch",
-                    "numpy",
-                    "scipy",
-                    "sklearn",
-                    "matplotlib",
-                    "gymnasium",
-                    "gym",
-                    "tensordict",
-                    "einops",
-                    "hydra",
-                    "omegaconf",
-                    "torch_scatter",
-                    "torch_geometric",
-                    "torch_sparse",
-                    "sys",
-                ]
-
-                MOCK_PACKAGES = [
-                    "wandb",
-                    "pufferlib",
-                    "pydantic",
-                    "boto3",
-                    "botocore",
-                    "duckdb",
-                    "pandas",
-                    "typing_extensions",
-                    "seaborn",
-                    "plotly",
-                ]
-
-                # Apply extern rules
-                for module in PYDANTIC_DEPS + C_EXTENSIONS:
-                    exporter.extern(module)
-
-                # Apply intern rules
-                for module in INTERN_MODULES:
-                    exporter.intern(module)
-
-                # Handle __main__ module and test modules
-                policy_module = policy.__class__.__module__
-                if policy_module == "__main__":
-                    import inspect
-
-                    try:
-                        source = inspect.getsource(policy.__class__)
-                        exporter.save_source_string("__main__", f"import torch\nimport torch.nn as nn\n\n{source}")
-                    except Exception:
-                        exporter.extern("__main__")
-                elif policy_module and (policy_module.startswith("test") or "test" in policy_module):
-                    # Handle test modules by externing them
-                    exporter.extern(policy_module)
-
-                # Extern standard packages
-                for pkg in EXTERN_PACKAGES:
-                    exporter.extern(pkg)
-                    if pkg not in ["sys", "torch_scatter", "torch_geometric", "torch_sparse"]:
-                        exporter.extern(f"{pkg}.**")
-
-                # Mock packages we don't want to include
-                for pkg in MOCK_PACKAGES:
-                    exporter.mock(pkg)
-                    if pkg == "wandb":
-                        # Special handling for wandb patterns
-                        for pattern in ["wandb.*", "wandb.sdk", "wandb.sdk.**", "wandb.sdk.wandb_run"]:
-                            exporter.mock(pattern)
-                    elif pkg not in ["typing_extensions", "seaborn", "plotly"]:
-                        exporter.mock(f"{pkg}.**")
-
+                # Save the policy and metadata
                 clean_metadata = self._clean_metadata_for_packaging(self.metadata)
                 exporter.save_pickle(
                     "policy_record", "data.pkl", PolicyRecord(None, self.name, self.uri, clean_metadata)
