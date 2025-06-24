@@ -4,14 +4,17 @@ defaults:
 
 game:
   num_agents: 4
-  max_steps: 1500
+  max_steps: 1000
   map_builder:
     _target_: metta.mettagrid.room.multi_room.MultiRoom
     num_rooms: ${..num_agents}
     border_width: 6
     room:
+      _target_: metta.mettagrid.room.terrain_from_numpy.TerrainFromNumpy
+      border_width: 3
       agents: 1
-      border_width: 2
+      objects:
+        altar: ${sampling:10, 70, 30}
   objects:
     altar:
       cooldown: 1000
