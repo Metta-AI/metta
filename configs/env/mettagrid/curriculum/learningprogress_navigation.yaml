@@ -1,4 +1,4 @@
-_target_: metta.mettagrid.curriculum.LearningProgressCurriculum
+_target_: mettagrid.src.metta.mettagrid.curriculum.LearningProgressCurriculum
 
 tasks:
   /env/mettagrid/navigation/training/terrain_from_numpy: 1
