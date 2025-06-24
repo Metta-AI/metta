@@ -23,14 +23,14 @@ class MiniscopeRenderer:
         "agent.predator": "🦁",  # Predator agent (AP)
         # Resources and Items
         "mine": "💎",  # Generic mine (m) - using gem instead of pickaxe
-        "mine.red": "🔺",  # Red mine (r)
-        "mine.blue": "🔷",  # Blue mine (b)
-        "mine.green": "💚",  # Green mine (g)
+        "mine_red": "🔺",  # Red mine (r)
+        "mine_blue": "🔷",  # Blue mine (b)
+        "mine_green": "💚",  # Green mine (g)
         # Generators/Converters
         "generator": "⚡",  # Generic generator (n)
-        "generator.red": "🔋",  # Red generator (R)
-        "generator.blue": "🔌",  # Blue generator (B)
-        "generator.green": "🌿",  # Green generator (G)
+        "generator_red": "🔋",  # Red generator (R)
+        "generator_blue": "🔌",  # Blue generator (B)
+        "generator_green": "🌿",  # Green generator (G)
         "converter": "🔄",  # Converter (c)
         # Special Objects
         "altar": "🎯",  # Altar/shrine (a) - using target instead of torii
