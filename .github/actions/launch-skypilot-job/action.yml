@@ -19,6 +19,12 @@ inputs:
     description: "Specific git ref (commit/branch/tag) to use. If empty, uses current HEAD."
     required: false
     default: ""
+  wandb_api_key:
+    description: "Weights & Biases API Key"
+    required: true
+  skypilot_api_url:
+    description: "SkyPilot API URL"
+    required: true
 
 runs:
   using: "composite"
@@ -47,19 +53,19 @@ runs:
       run: |
         echo "machine api.wandb.ai" > $HOME/.netrc
         echo "login user" >> $HOME/.netrc
-        echo "password ${{ secrets.WANDB_API_KEY }}" >> $HOME/.netrc
+        echo "password ${{ inputs.wandb_api_key }}" >> $HOME/.netrc
         chmod 600 $HOME/.netrc
       env:
-        WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
+        WANDB_API_KEY: ${{ inputs.wandb_api_key }}
 
     - name: Configure SkyPilot API server
       shell: bash
       run: |
         mkdir -p $HOME/.sky
         echo "api_server:" > $HOME/.sky/config.yaml
-        echo "  endpoint: ${{ secrets.SKYPILOT_API_URL }}" >> $HOME/.sky/config.yaml
+        echo "  endpoint: ${{ inputs.skypilot_api_url }}" >> $HOME/.sky/config.yaml
       env:
-        SKYPILOT_API_URL: ${{ secrets.SKYPILOT_API_URL }}
+        SKYPILOT_API_URL: ${{ inputs.skypilot_api_url }}
 
     - name: Launch SkyPilot training job
       shell: bash
