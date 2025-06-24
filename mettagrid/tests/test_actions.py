@@ -13,6 +13,7 @@ from metta.mettagrid.util.actions import (
     get_agent_position,
     move,
 )
+from metta.mettagrid.mettagrid_config import GameConfig
 
 OBS_WIDTH = 3  # should be odd
 OBS_HEIGHT = 3  # should be odd
@@ -88,7 +89,7 @@ def configured_env(base_config):
         if config_overrides:
             game_config.update(config_overrides)
 
-        env = MettaGrid(game_config, game_map)
+        env = MettaGrid(GameConfig(**game_config).model_dump(by_alias=True, exclude_none=True), game_map)
 
         # Set up buffers
         observations = np.zeros((1, NUM_OBS_TOKENS, OBS_TOKEN_SIZE), dtype=dtype_observations)
