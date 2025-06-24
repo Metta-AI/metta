@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
-import { GroupHeatmapMetric, HeatmapData, Repo } from "./repo";
-import { MapViewer } from "./MapViewer";
-import { Heatmap } from "./Heatmap";
+import { useEffect, useState } from 'react'
+import { GroupHeatmapMetric, HeatmapData, Repo } from './repo'
+import { MapViewer } from './MapViewer'
+import { Heatmap } from './Heatmap'
 
 // CSS for dashboard
 const DASHBOARD_CSS = `
@@ -47,74 +47,72 @@ const DASHBOARD_CSS = `
 .suite-tab:last-child {
   margin-right: 0;
 }
-`;
+`
 
 interface DashboardProps {
-  repo: Repo;
+  repo: Repo
 }
 
 export function Dashboard({ repo }: DashboardProps) {
   // Data state
-  const [heatmapData, setHeatmapData] = useState<HeatmapData | null>(null);
-  const [metrics, setMetrics] = useState<string[]>([]);
-  const [suites, setSuites] = useState<string[]>([]);
+  const [heatmapData, setHeatmapData] = useState<HeatmapData | null>(null)
+  const [metrics, setMetrics] = useState<string[]>([])
+  const [suites, setSuites] = useState<string[]>([])
 
   // UI state
-  const [selectedMetric, setSelectedMetric] = useState<string>("reward");
-  const [selectedSuite, setSelectedSuite] = useState<string>("navigation");
-  const [isViewLocked, setIsViewLocked] = useState(false);
+  const [selectedMetric, setSelectedMetric] = useState<string>('reward')
+  const [selectedSuite, setSelectedSuite] = useState<string>('navigation')
+  const [isViewLocked, setIsViewLocked] = useState(false)
   const [selectedCell, setSelectedCell] = useState<{
-    policyUri: string;
-    evalName: string;
-  } | null>(null);
-  const [availableGroupMetrics, setAvailableGroupMetrics] = useState<string[]>(
-    []
-  );
-  const [selectedGroupMetric, setSelectedGroupMetric] = useState<string>("");
-  const [numPoliciesToShow, setNumPoliciesToShow] = useState(20);
+    policyUri: string
+    evalName: string
+  } | null>(null)
+  const [availableGroupMetrics, setAvailableGroupMetrics] = useState<string[]>([])
+  const [selectedGroupMetric, setSelectedGroupMetric] = useState<string>('')
+  const [numPoliciesToShow, setNumPoliciesToShow] = useState(20)
 
   const parseGroupMetric = (label: string): GroupHeatmapMetric => {
-    if (label.includes(" - ")) {
-      const [group1, group2] = label.split(" - ");
-      return { group_1: group1, group_2: group2 };
+    if (label.includes(' - ')) {
+      const [group1, group2] = label.split(' - ')
+      return { group_1: group1, group_2: group2 }
     } else {
-      return label;
+      return label
     }
-  };
+  }
 
   useEffect(() => {
     const loadData = async () => {
-      const suitesData = await repo.getSuites();
-      setSuites(suitesData);
-      setSelectedSuite(suitesData[0]);
-    };
+      const suitesData = await repo.getSuites()
+      setSuites(suitesData)
+      setSelectedSuite(suitesData[0])
+    }
 
-    loadData();
-  }, []);
+    loadData()
+  }, [])
 
   useEffect(() => {
     const loadData = async () => {
       const [metricsData, groupIdsData] = await Promise.all([
         repo.getMetrics(selectedSuite),
         repo.getGroupIds(selectedSuite),
-      ]);
-      setMetrics(metricsData);
+      ])
+      setMetrics(metricsData)
 
-      const groupDiffs: string[] = [];
+      const groupDiffs: string[] = []
       for (const groupId1 of groupIdsData) {
         for (const groupId2 of groupIdsData) {
           if (groupId1 !== groupId2) {
-            groupDiffs.push(`${groupId1} - ${groupId2}`);
+            groupDiffs.push(`${groupId1} - ${groupId2}`)
           }
         }
       }
 
-      const groupMetrics: string[] = ["", ...groupIdsData, ...groupDiffs];
-      setAvailableGroupMetrics(groupMetrics);
-    };
+      const groupMetrics: string[] = ['', ...groupIdsData, ...groupDiffs]
+      setAvailableGroupMetrics(groupMetrics)
+    }
 
-    loadData();
-  }, [selectedSuite]);
+    loadData()
+  }, [selectedSuite])
 
   useEffect(() => {
     const loadData = async () => {
@@ -122,93 +120,89 @@ export function Dashboard({ repo }: DashboardProps) {
         selectedMetric,
         selectedSuite,
         parseGroupMetric(selectedGroupMetric)
-      );
-      setHeatmapData(heatmapData);
-    };
+      )
+      setHeatmapData(heatmapData)
+    }
 
-    loadData();
-  }, [selectedSuite, selectedMetric, selectedGroupMetric]);
+    loadData()
+  }, [selectedSuite, selectedMetric, selectedGroupMetric])
 
   if (!heatmapData) {
-    return <div>Loading...</div>;
+    return <div>Loading...</div>
   }
 
   // Component functions
 
   const setSelectedCellIfNotLocked = (cell: {
-    policyUri: string;
-    evalName: string;
+    policyUri: string
+    evalName: string
   }) => {
     if (!isViewLocked) {
-      setSelectedCell(cell);
+      setSelectedCell(cell)
     }
-  };
+  }
 
   const openReplayUrl = (policyUri: string, evalName: string) => {
-    const evalData = heatmapData?.cells.get(policyUri)?.get(evalName);
-    if (!evalData?.replayUrl) return;
+    const evalData = heatmapData?.cells.get(policyUri)?.get(evalName)
+    if (!evalData?.replayUrl) return
 
-    const replay_url_prefix = "https://metta-ai.github.io/metta/?replayUrl=";
-    window.open(replay_url_prefix + evalData.replayUrl, "_blank");
-  };
+    const replay_url_prefix = 'https://metta-ai.github.io/metta/?replayUrl='
+    window.open(replay_url_prefix + evalData.replayUrl, '_blank')
+  }
 
   const toggleLock = () => {
-    setIsViewLocked(!isViewLocked);
-  };
+    setIsViewLocked(!isViewLocked)
+  }
 
   const handleReplayClick = () => {
     if (selectedCell) {
-      openReplayUrl(selectedCell.policyUri, selectedCell.evalName);
+      openReplayUrl(selectedCell.policyUri, selectedCell.evalName)
     }
-  };
+  }
 
   const selectedCellData = selectedCell
     ? heatmapData.cells.get(selectedCell.policyUri)?.get(selectedCell.evalName)
-    : null;
-  const selectedEval = selectedCellData?.evalName ?? null;
-  const selectedReplayUrl = selectedCellData?.replayUrl ?? null;
+    : null
+  const selectedEval = selectedCellData?.evalName ?? null
+  const selectedReplayUrl = selectedCellData?.replayUrl ?? null
 
   return (
     <div
       style={{
-        fontFamily: "Arial, sans-serif",
+        fontFamily: 'Arial, sans-serif',
         margin: 0,
-        padding: "20px",
-        background: "#f8f9fa",
+        padding: '20px',
+        background: '#f8f9fa',
       }}
     >
       <style>{DASHBOARD_CSS}</style>
       <div
         style={{
-          maxWidth: "1200px",
-          margin: "0 auto",
-          background: "#fff",
-          padding: "20px",
-          borderRadius: "5px",
-          boxShadow: "0 2px 4px rgba(0,0,0,.1)",
+          maxWidth: '1200px',
+          margin: '0 auto',
+          background: '#fff',
+          padding: '20px',
+          borderRadius: '5px',
+          boxShadow: '0 2px 4px rgba(0,0,0,.1)',
         }}
       >
         <h1
           style={{
-            color: "#333",
-            borderBottom: "1px solid #ddd",
-            paddingBottom: "10px",
-            marginBottom: "20px",
+            color: '#333',
+            borderBottom: '1px solid #ddd',
+            paddingBottom: '10px',
+            marginBottom: '20px',
           }}
         >
           Policy Evaluation Dashboard
         </h1>
 
         <div className="suite-tabs">
-          <div
-            style={{ fontSize: "18px", marginTop: "5px", marginRight: "10px" }}
-          >
-            Eval Suite:
-          </div>
+          <div style={{ fontSize: '18px', marginTop: '5px', marginRight: '10px' }}>Eval Suite:</div>
           {suites.map((suite) => (
             <button
               key={suite}
-              className={`suite-tab ${selectedSuite === suite ? "active" : ""}`}
+              className={`suite-tab ${selectedSuite === suite ? 'active' : ''}`}
               onClick={() => setSelectedSuite(suite)}
             >
               {suite}
@@ -227,26 +221,26 @@ export function Dashboard({ repo }: DashboardProps) {
 
         <div
           style={{
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
-            marginTop: "20px",
-            marginBottom: "30px",
-            gap: "12px",
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            marginTop: '20px',
+            marginBottom: '30px',
+            gap: '12px',
           }}
         >
-          <div style={{ color: "#666", fontSize: "14px" }}>Heatmap Metric</div>
+          <div style={{ color: '#666', fontSize: '14px' }}>Heatmap Metric</div>
           <select
             value={selectedMetric}
             onChange={(e) => setSelectedMetric(e.target.value)}
             style={{
-              padding: "8px 12px",
-              borderRadius: "4px",
-              border: "1px solid #ddd",
-              fontSize: "14px",
-              minWidth: "200px",
-              backgroundColor: "#fff",
-              cursor: "pointer",
+              padding: '8px 12px',
+              borderRadius: '4px',
+              border: '1px solid #ddd',
+              fontSize: '14px',
+              minWidth: '200px',
+              backgroundColor: '#fff',
+              cursor: 'pointer',
             }}
           >
             {metrics.map((metric) => (
@@ -259,31 +253,31 @@ export function Dashboard({ repo }: DashboardProps) {
 
         <div
           style={{
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
-            marginTop: "20px",
-            marginBottom: "30px",
-            gap: "12px",
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            marginTop: '20px',
+            marginBottom: '30px',
+            gap: '12px',
           }}
         >
-          <div style={{ color: "#666", fontSize: "14px" }}>Group Metric</div>
+          <div style={{ color: '#666', fontSize: '14px' }}>Group Metric</div>
           <select
             value={selectedGroupMetric}
             onChange={(e) => setSelectedGroupMetric(e.target.value)}
             style={{
-              padding: "8px 12px",
-              borderRadius: "4px",
-              border: "1px solid #ddd",
-              fontSize: "14px",
-              minWidth: "200px",
-              backgroundColor: "#fff",
-              cursor: "pointer",
+              padding: '8px 12px',
+              borderRadius: '4px',
+              border: '1px solid #ddd',
+              fontSize: '14px',
+              minWidth: '200px',
+              backgroundColor: '#fff',
+              cursor: 'pointer',
             }}
           >
             {availableGroupMetrics.map((groupMetric) => (
               <option key={groupMetric} value={groupMetric}>
-                {groupMetric === "" ? "Total" : groupMetric}
+                {groupMetric === '' ? 'Total' : groupMetric}
               </option>
             ))}
           </select>
@@ -291,26 +285,24 @@ export function Dashboard({ repo }: DashboardProps) {
 
         <div
           style={{
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
-            marginTop: "20px",
-            marginBottom: "30px",
-            gap: "12px",
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            marginTop: '20px',
+            marginBottom: '30px',
+            gap: '12px',
           }}
         >
-          <div style={{ color: "#666", fontSize: "14px" }}>
-            Number of policies to show:
-          </div>
+          <div style={{ color: '#666', fontSize: '14px' }}>Number of policies to show:</div>
           <input
             type="number"
             value={numPoliciesToShow}
             onChange={(e) => setNumPoliciesToShow(parseInt(e.target.value))}
             style={{
-              padding: "8px 12px",
-              borderRadius: "4px",
-              border: "1px solid #ddd",
-              fontSize: "14px",
+              padding: '8px 12px',
+              borderRadius: '4px',
+              border: '1px solid #ddd',
+              fontSize: '14px',
             }}
           />
         </div>
@@ -324,5 +316,5 @@ export function Dashboard({ repo }: DashboardProps) {
         />
       </div>
     </div>
-  );
+  )
 }

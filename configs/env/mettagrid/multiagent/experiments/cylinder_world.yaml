@@ -6,8 +6,8 @@ sampling: 1
 
 game:
   map_builder:
-    _target_: mettagrid.room.navigation.cylinder_world_sequence.CylinderWorldSequence
+    _target_: metta.mettagrid.room.navigation.cylinder_world_sequence.CylinderWorldSequence
     objects:
       altar: ${sampling:15,25,20}
-      mine.red: ${sampling:15,25,20}
-      generator.red: ${sampling:15,25,20}
+      mine_red: ${sampling:15,25,20}
+      generator_red: ${sampling:15,25,20}

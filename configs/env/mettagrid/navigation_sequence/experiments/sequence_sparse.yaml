@@ -5,4 +5,4 @@ defaults:
 game:
   map_builder:
     room:
-      style: all-sparse
+      dir: ${choose:varied_terrain/sparse_small,varied_terrain/sparse_medium,varied_terrain/sparse_large}

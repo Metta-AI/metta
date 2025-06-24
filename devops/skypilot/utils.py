@@ -7,7 +7,7 @@ import sky.jobs
 import sky.server.common
 
 from metta.util.colorama import blue, bold, cyan, green, magenta, red, yellow
-from metta.util.git import has_unstaged_changes, is_commit_pushed
+from metta.util.git import get_commit_message, get_matched_pr, has_unstaged_changes, is_commit_pushed
 
 
 def print_tip(text: str):
@@ -34,10 +34,10 @@ def launch_task(task: sky.Task, dry_run=False):
 
     short_request_id = request_id.split("-")[0]
 
-    print(f"- Check logs with: {bold(f'sky api logs {short_request_id}')}")
-    print(f"- Or, visit: {bold(f'{dashboard_url()}/api/stream?request_id={short_request_id}')}")
-    print("  - To sign in, use credentials from your ~/.skypilot/config.yaml file.")
-    print(f"- To cancel the request, run: {bold(f'sky api cancel {short_request_id}')}")
+    print(f"- Check logs with: {magenta(f'sky api logs {short_request_id}')}")
+    print(f"- Or, visit: {yellow(f'{dashboard_url()}/api/stream?request_id={short_request_id}')}")
+    print(f"  - To sign in, use credentials from your {cyan('~/.sky/config.yaml')} file.")
+    print(f"- To cancel the request, run: {magenta(f'sky api cancel {short_request_id}')}")
 
 
 def check_git_state(commit_hash: str) -> str | None:
@@ -112,8 +112,8 @@ def display_job_summary(
     job_name: str,
     cmd: str,
     task_args: list[str],
+    commit_hash: str,
     git_ref: str | None = None,
-    commit_message: str | None = None,
     timeout_hours: float | None = None,
     task: sky.Task | None = None,
     **kwargs,
@@ -178,15 +178,26 @@ def display_job_summary(
     else:
         print(f"{bold('Auto-termination:')} {yellow('None')}")
 
-    # Display git information
     if git_ref:
         print(f"{bold('Git Reference:')} {yellow(git_ref)}")
-        if commit_message:
-            first_line = commit_message.split("\n")[0]
-            print(f"{bold('Commit Message:')} {yellow(first_line)}")
+
+    print(f"{bold('Commit Hash:')} {yellow(commit_hash)}")
+
+    commit_message = get_commit_message(commit_hash)
+    if commit_message:
+        first_line = commit_message.split("\n")[0]
+        print(f"{bold('Commit Message:')} {yellow(first_line)}")
+
+    pr_info = get_matched_pr(commit_hash)
+    if pr_info:
+        pr_number, pr_title = pr_info
+        first_line = pr_title.split("\n")[0]
+        print(f"{bold('PR:')} {yellow(f'#{pr_number} - {first_line}')}")
+    else:
+        print(f"{bold('PR:')} {red('Not an open PR HEAD')}")
 
     print(blue("-" * divider_length))
-    print(f"{bold('Command:')} {magenta(cmd)}")
+    print(f"\n{bold('Command:')} {yellow(cmd)}")
 
     if task_args:
         print(bold("Task Arguments:"))
@@ -198,14 +209,3 @@ def display_job_summary(
                 print(f"  {i + 1}. {yellow(arg)}")
 
     print(f"\n{divider}")
-
-
-def get_user_confirmation(prompt: str = "Should we proceed?") -> bool:
-    """Get user confirmation before proceeding with an action."""
-
-    response = input(f"{prompt} (Y/n): ").strip().lower()
-    if response not in ["", "y", "yes"]:
-        print(yellow("Action cancelled by user."))
-        return False
-
-    return True

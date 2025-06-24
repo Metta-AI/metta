@@ -5,4 +5,4 @@ defaults:
 game:
   map_builder:
     room:
-      style: balanced
+      dir: varied_terrain/balanced_small

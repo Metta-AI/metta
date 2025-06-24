@@ -23,8 +23,8 @@ from typing import Dict, Optional
 import pandas as pd
 
 from metta.agent.policy_store import PolicyRecord
+from metta.mettagrid.util.file import local_copy
 from metta.sim.simulation_stats_db import SimulationStatsDB
-from mettagrid.util.file import local_copy
 
 # --------------------------------------------------------------------------- #
 #   Views                                                                     #
@@ -243,7 +243,7 @@ class EvalStatsDB(SimulationStatsDB):
     # ------------------------------------------------------------------ #
     #   Per‑simulation breakdown                                         #
     # ------------------------------------------------------------------ #
-    def simulation_scores(self, policy_record: PolicyRecord, metric: str) -> Dict[tuple, float]:
+    def simulation_scores(self, policy_record: PolicyRecord, metric: str) -> Dict[tuple[str, str, str], float]:
         """Return { (suite,name,env) : normalised mean(metric) }."""
         pk, pv = policy_record.key_and_version()
         sim_rows = self.query(f"""
@@ -252,7 +252,7 @@ class EvalStatsDB(SimulationStatsDB):
              WHERE policy_key     = '{pk}'
                AND policy_version =  {pv}
         """)
-        scores: Dict[tuple, float] = {}
+        scores: Dict[tuple[str, str, str], float] = {}
         for _, row in sim_rows.iterrows():
             cond = f"sim_suite = '{row.sim_suite}' AND sim_name  = '{row.sim_name}'  AND sim_env   = '{row.sim_env}'"
             val = self._normalised_value(pk, pv, metric, "AVG", cond)

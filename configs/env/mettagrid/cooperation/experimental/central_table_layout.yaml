@@ -20,11 +20,11 @@ game:
       heart: 1
 
   map_builder:
-    _target_: mettagrid.room.room_list.RoomList
+    _target_: metta.mettagrid.room.room_list.RoomList
     border_width: 6
 
     rooms:
-      - _target_: mettagrid.room.cooperation.central_table_layout.CentralTableLayout
+      - _target_: metta.mettagrid.room.cooperation.central_table_layout.CentralTableLayout
         width: ${sampling:5,10,5}
         height: ${sampling:5,10,5}
         num_generators: ${sampling:1,4,2}
@@ -33,7 +33,7 @@ game:
         agents:
           team_1: 2
         border_width: 3
-      - _target_: mettagrid.room.cooperation.central_table_layout.CentralTableLayout
+      - _target_: metta.mettagrid.room.cooperation.central_table_layout.CentralTableLayout
         width: ${sampling:5,10,5}
         height: ${sampling:5,10,5}
         num_generators: ${sampling:1,4,2}
@@ -42,7 +42,7 @@ game:
         agents:
           team_2: 2
         border_width: 3
-      - _target_: mettagrid.room.cooperation.central_table_layout.CentralTableLayout
+      - _target_: metta.mettagrid.room.cooperation.central_table_layout.CentralTableLayout
         width: ${sampling:5,10,5}
         height: ${sampling:5,10,5}
         num_generators: ${sampling:1,4,2}
@@ -51,7 +51,7 @@ game:
         agents:
           team_3: 2
         border_width: 3
-      - _target_: mettagrid.room.cooperation.central_table_layout.CentralTableLayout
+      - _target_: metta.mettagrid.room.cooperation.central_table_layout.CentralTableLayout
         width: ${sampling:5,10,5}
         height: ${sampling:5,10,5}
         num_generators: ${sampling:1,4,2}
@@ -73,7 +73,7 @@ game:
       max_output: 100
       conversion_ticks: ${sampling:10,25,15}
       initial_items: 0
-    mine:
+    mine_red:
       cooldown: ${sampling:10,25,15}
       max_output: 100
       conversion_ticks: 1

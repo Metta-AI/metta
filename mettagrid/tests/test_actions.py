@@ -1,14 +1,14 @@
 import numpy as np
 import pytest
 
-from mettagrid.mettagrid_c import MettaGrid
-from mettagrid.mettagrid_env import (
+from metta.mettagrid.mettagrid_c import MettaGrid
+from metta.mettagrid.mettagrid_env import (
     dtype_observations,
     dtype_rewards,
     dtype_terminals,
     dtype_truncations,
 )
-from mettagrid.util.actions import (
+from metta.mettagrid.util.actions import (
     Orientation,
     get_agent_position,
     move,
@@ -28,7 +28,6 @@ def base_config():
         "num_agents": 1,
         "obs_width": OBS_WIDTH,
         "obs_height": OBS_HEIGHT,
-        "use_observation_tokens": True,
         "num_observation_tokens": NUM_OBS_TOKENS,
         "actions": {
             "noop": {"enabled": True},
@@ -41,8 +40,8 @@ def base_config():
             "change_color": {"enabled": True},
         },
         "groups": {"red": {"id": 0, "props": {}}},
-        "objects": {"wall": {"type_id": 1, "hp": 100}, "altar": {"type_id": 4, "hp": 100}},
-        "agent": {"inventory_size": 10, "hp": 100},
+        "objects": {"wall": {"type_id": 1}, "altar": {"type_id": 4}},
+        "agent": {},
     }
 
 
@@ -85,12 +84,11 @@ def configured_env(base_config):
     """Factory fixture that creates a configured MettaGrid environment."""
 
     def _create_env(game_map, config_overrides=None):
-        config = base_config.copy()
+        game_config = base_config.copy()
         if config_overrides:
-            config.update(config_overrides)
+            game_config.update(config_overrides)
 
-        env_config = {"game": config}
-        env = MettaGrid(env_config, game_map)
+        env = MettaGrid(game_config, game_map)
 
         # Set up buffers
         observations = np.zeros((1, NUM_OBS_TOKENS, OBS_TOKEN_SIZE), dtype=dtype_observations)

@@ -22,27 +22,25 @@ game:
       heart: 1
       heart_max: 1000
   map_builder:
-    _target_: mettagrid.room.multi_room.MultiRoom
-    num_rooms: 4
+    _target_: metta.mettagrid.room.multi_room.MultiRoom
+    num_rooms: ${..num_agents}
     border_width: 6
     room:
-      _target_: mettagrid.room.navigation.varied_terrain.VariedTerrain
-      width: ${sampling:15,60,25}
-      height: ${sampling:15,60,25}
+      _target_: metta.mettagrid.room.terrain_from_numpy.TerrainFromNumpy
       border_width: 3
-      agents: ${div:${...num_agents},${..num_rooms}}
-      style: ??? # ${choose:"sparse-altars-dense-objects","all-sparse","all-dense","balanced","dense-altars-sparse-objects"}
+      agents: 1
+      dir: ${choose:varied_terrain/sparse_small,varied_terrain/balanced_small,varied_terrain/dense_small,varied_terrain/maze_small}
       objects:
-        mine.red: ${sampling:2,10,5}
-        generator.red: ${sampling:2,10,5}
+        mine_red: ${sampling:2,10,5}
+        generator_red: ${sampling:2,10,5}
         altar: 5
   objects:
     altar:
       input_battery.red: 1
       initial_items: ${choose:0,0,0,1}
       cooldown: ${sampling:1, 20, 10}
-    generator.red:
+    generator_red:
       initial_items: ${choose:0,0,0,1}
       cooldown: ${sampling:5, 20, 10}
-    mine.red:
+    mine_red:
       cooldown: ${sampling:15, 50, 10}

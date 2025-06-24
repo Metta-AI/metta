@@ -16,24 +16,24 @@ game:
       heart: 1
       heart_max: 1000
   map_builder:
-    _target_: mettagrid.room.multi_room.MultiRoom
-    num_rooms: 4
+    _target_: metta.mettagrid.room.multi_room.MultiRoom
+    num_rooms: ${..num_agents}
     border_width: 6
     room:
-      _target_: mettagrid.room.terrain_from_numpy.TerrainFromNumpy
+      _target_: metta.mettagrid.room.terrain_from_numpy.TerrainFromNumpy
       border_width: ${sampling:1,6,3}
-      agents: ${div:${...num_agents},${..num_rooms}}
+      agents: 1
       objects:
-        mine.red: ${sampling:3,15,2}
-        generator.red: ${sampling:3,15,2}
+        mine_red: ${sampling:3,15,2}
+        generator_red: ${sampling:3,15,2}
         altar: 5
   objects:
     altar:
       input_battery.red: 1
       initial_items: ${choose:0,0,0,1}
       cooldown: ${sampling:5, 20, 10}
-    generator.red:
+    generator_red:
       initial_items: ${choose:0,0,0,1}
       cooldown: ${sampling:5, 20, 10}
-    mine.red:
+    mine_red:
       cooldown: ${sampling:15, 50, 10}

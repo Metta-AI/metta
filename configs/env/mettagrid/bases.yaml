@@ -6,7 +6,7 @@ game:
   num_agents: 24
 
   map_builder:
-    _target_: mettagrid.room.room_scene.RoomScene
+    _target_: metta.mettagrid.room.room_scene.RoomScene
     border_width: 6
 
     layout:
@@ -18,7 +18,7 @@ game:
 
     rooms:
       base:
-        _target_: mettagrid.room.random.Random
+        _target_: metta.mettagrid.room.random.Random
         width: ${sampling:10,50,10}
         height: ${sampling:10,50,10}
         border_width: 0
@@ -35,7 +35,7 @@ game:
           wall: ${sampling:0,10,5}
 
       wild:
-        _target_: mettagrid.room.random.Random
+        _target_: metta.mettagrid.room.random.Random
         width: ${sampling:10,50,20}
         height: ${sampling:10,50,20}
         border_width: 0
@@ -46,7 +46,7 @@ game:
           wall: ${sampling:0,20,5}
 
       center:
-        _target_: mettagrid.room.random.Random
+        _target_: metta.mettagrid.room.random.Random
         width: ${sampling:10,50,10}
         height: ${sampling:10,50,10}
         border_width: 0

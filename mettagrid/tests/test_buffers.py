@@ -1,8 +1,14 @@
 import numpy as np
 import pytest
 
-from mettagrid.mettagrid_c import MettaGrid
-from mettagrid.mettagrid_env import dtype_actions, dtype_observations, dtype_rewards, dtype_terminals, dtype_truncations
+from metta.mettagrid.mettagrid_c import MettaGrid
+from metta.mettagrid.mettagrid_env import (
+    dtype_actions,
+    dtype_observations,
+    dtype_rewards,
+    dtype_terminals,
+    dtype_truncations,
+)
 
 NUM_AGENTS = 2
 OBS_HEIGHT = 3
@@ -18,7 +24,6 @@ def create_minimal_mettagrid_c_env(max_steps=10, width=5, height=5, config_overr
         max_steps: Maximum steps before truncation
         width: Map width
         height: Map height
-        use_observation_tokens: Whether to use observation tokens
         config_override: Dictionary to override/merge with default config
     """
     # Define a simple map: empty with walls around perimeter
@@ -34,35 +39,29 @@ def create_minimal_mettagrid_c_env(max_steps=10, width=5, height=5, config_overr
     mid_x = width // 2
     game_map[mid_y, mid_x] = "agent.red"
 
-    env_config = {
-        "game": {
-            "max_steps": max_steps,
-            "num_agents": NUM_AGENTS,
-            "obs_width": OBS_WIDTH,
-            "obs_height": OBS_HEIGHT,
-            "use_observation_tokens": True,
-            "num_observation_tokens": NUM_OBS_TOKENS,
-            "actions": {
-                # don't really care about the actions for this test
-                "noop": {"enabled": True},
-                "move": {"enabled": True},
-                "rotate": {"enabled": True},
-                "attack": {"enabled": False},
-                "put_items": {"enabled": False},
-                "get_items": {"enabled": False},
-                "swap": {"enabled": False},
-                "change_color": {"enabled": False},
-            },
-            "groups": {"red": {"id": 0, "props": {}}},
-            "objects": {
-                "wall": {"type_id": 1, "hp": 100},
-                "block": {"type_id": 2, "hp": 100},
-            },
-            "agent": {
-                "inventory_size": 0,
-                "hp": 100,
-            },
-        }
+    game_config = {
+        "max_steps": max_steps,
+        "num_agents": NUM_AGENTS,
+        "obs_width": OBS_WIDTH,
+        "obs_height": OBS_HEIGHT,
+        "num_observation_tokens": NUM_OBS_TOKENS,
+        "actions": {
+            # don't really care about the actions for this test
+            "noop": {"enabled": True},
+            "move": {"enabled": True},
+            "rotate": {"enabled": True},
+            "attack": {"enabled": False},
+            "put_items": {"enabled": False},
+            "get_items": {"enabled": False},
+            "swap": {"enabled": False},
+            "change_color": {"enabled": False},
+        },
+        "groups": {"red": {"id": 0, "props": {}}},
+        "objects": {
+            "wall": {"type_id": 1},
+            "block": {"type_id": 2},
+        },
+        "agent": {},
     }
 
     # Apply config overrides if provided
@@ -76,9 +75,9 @@ def create_minimal_mettagrid_c_env(max_steps=10, width=5, height=5, config_overr
                 else:
                     base_dict[key] = value
 
-        deep_merge(env_config, config_override)
+        deep_merge(game_config, config_override)
 
-    return MettaGrid(env_config, game_map.tolist())
+    return MettaGrid(game_config, game_map.tolist())
 
 
 class TestBuffers:
@@ -286,7 +285,7 @@ class TestBuffers:
     def test_truncations_on_max_steps(self):
         """Test that truncations are set when max_steps is reached."""
         # Create environment with max_steps = 1
-        c_env = create_minimal_mettagrid_c_env(config_override={"game": {"max_steps": 1}})
+        c_env = create_minimal_mettagrid_c_env(config_override={"max_steps": 1})
 
         # Set up buffers
         observations = np.zeros((NUM_AGENTS, NUM_OBS_TOKENS, OBS_TOKEN_SIZE), dtype=np.uint8)

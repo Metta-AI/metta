@@ -1,13 +1,14 @@
 import asyncio
 import logging
 import webbrowser
+from pathlib import Path
 
 import hydra
 import numpy as np
 import torch as th
 import uvicorn
 from fastapi import FastAPI, HTTPException, WebSocket
-from fastapi.responses import HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from omegaconf import DictConfig
 
@@ -16,6 +17,39 @@ import mettascope.replays as replays
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+
+class CustomStaticFiles(StaticFiles):
+    """StaticFiles that disables caching for specific file extensions and sets custom content types."""
+
+    def __init__(self, *args, no_cache_extensions=None, custom_content_types=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.no_cache_extensions = no_cache_extensions or {".js", ".json"}
+        self.custom_content_types = custom_content_types or {}
+
+    def file_response(
+        self,
+        full_path,
+        stat_result,
+        scope,
+        status_code: int = 200,
+    ):
+        """Override file_response to selectively disable caching and set custom content types."""
+        file_path = Path(full_path)
+        file_ext = file_path.suffix.lower()
+
+        # Create the response
+        response = FileResponse(full_path, status_code=status_code, stat_result=stat_result)
+
+        # Handle custom content types - set header directly to avoid FastAPI overriding
+        if file_ext in self.custom_content_types:
+            response.headers["content-type"] = self.custom_content_types[file_ext]
+
+        # Handle caching
+        if file_ext in self.no_cache_extensions:
+            response.headers["Cache-Control"] = "no-store"
+
+        return response
 
 
 def clear_memory(sim: replays.Simulation, what: str, agent_id: int) -> None:
@@ -87,8 +121,19 @@ def make_app(cfg: DictConfig):
 
     # Mount a directory for static files
     app.mount("/data", StaticFiles(directory="mettascope/data"), name="data")
-    app.mount("/dist", StaticFiles(directory="mettascope/dist"), name="dist")
-    app.mount("/local", StaticFiles(directory="mettascope/local"), name="local")
+    app.mount(
+        "/dist",
+        CustomStaticFiles(directory="mettascope/dist", no_cache_extensions={".js", ".json", ".css"}),
+        name="dist",
+    )
+    app.mount(
+        "/local", CustomStaticFiles(directory=".", custom_content_types={".z": "application/x-compress"}), name="local"
+    )
+
+    # Direct favicon.ico to the data/ui dir.
+    @app.get("/favicon.ico")
+    async def get_favicon():
+        return FileResponse("mettascope/data/ui/logo@2x.png")
 
     @app.websocket("/ws")
     async def websocket_endpoint(

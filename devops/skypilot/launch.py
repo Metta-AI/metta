@@ -6,15 +6,15 @@ import sys
 
 import sky
 
+from common.src.metta.common.fs import cd_repo_root
 from devops.skypilot.utils import (
     check_config_files,
     check_git_state,
     display_job_summary,
-    get_user_confirmation,
     launch_task,
 )
+from metta.util.cli import get_user_confirmation
 from metta.util.colorama import red
-from metta.util.fs import cd_repo_root
 from metta.util.git import get_current_commit, validate_git_ref
 
 
@@ -157,7 +157,8 @@ def main():
             job_name=run_id,
             cmd=args.cmd,
             task_args=cmd_args,
-            git_ref=commit_hash,
+            commit_hash=commit_hash,
+            git_ref=args.git_ref,
             timeout_hours=args.timeout_hours,
             task=task,
             **extra_details,

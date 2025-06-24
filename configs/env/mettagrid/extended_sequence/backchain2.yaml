@@ -5,6 +5,7 @@ defaults:
 sampling: 1
 
 game:
+  max_steps: 200
   num_agents: 4
   agent:
     ore.red_max: 1
@@ -25,26 +26,26 @@ game:
       heart_max: 1000
 
   map_builder:
-    _target_: mettagrid.room.multi_room.MultiRoom
-    num_rooms: 4
+    _target_: metta.mettagrid.room.multi_room.MultiRoom
+    num_rooms: ${..num_agents}
     border_width: 6
 
     room:
-      _target_: mettagrid.room.navigation.varied_terrain.VariedTerrain
-      width: ${sampling:12,25,15}
-      height: ${sampling:12,25,15}
+      _target_: metta.mettagrid.room.navigation.varied_terrain.VariedTerrain
+      width: ${sampling:12,20,15}
+      height: ${sampling:12,20,15}
       border_width: ${sampling:1,6,3}
       agents: 1
       style: all-sparse
 
       objects:
         altar: ${sampling:1,2,3}
-        mine.red: 0
-        generator.red: ${sampling:1,2,3}
-        mine.blue: 0
-        generator.blue: 0
-        mine.green: 0
-        generator.green: 0
+        mine_red: 0
+        generator_red: ${sampling:1,2,3}
+        mine_blue: 0
+        generator_blue: 0
+        mine_green: 0
+        generator_green: 0
   objects:
     altar:
       cooldown: 10
@@ -52,11 +53,10 @@ game:
       output_heart: 1
       max_output: 1
       conversion_ticks: 1
-      initial_items: ${choose:0,0,0,0,0,0,0,0,0,0,1}
-    generator.red:
+      initial_items: 0
+    generator_red:
       cooldown: ${sampling:6,20,3}
-      input_ore.red: 0
       output_battery.red: 1
       max_output: 1
       conversion_ticks: 1
-      initial_items: 0
+      initial_items: 1

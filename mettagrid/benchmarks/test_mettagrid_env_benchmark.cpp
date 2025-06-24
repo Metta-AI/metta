@@ -24,7 +24,6 @@ namespace py = pybind11;
 
 // Helper functions for creating configuration and map
 py::dict CreateBenchmarkConfig(int num_agents) {
-  py::dict cfg;
   py::dict game_cfg;
 
   // Basic game configuration
@@ -32,7 +31,7 @@ py::dict CreateBenchmarkConfig(int num_agents) {
   game_cfg["max_steps"] = 10000;
   game_cfg["obs_width"] = 11;
   game_cfg["obs_height"] = 11;
-  game_cfg["use_observation_tokens"] = false;
+  game_cfg["num_observation_tokens"] = 100;
 
   // Actions configuration
   py::dict actions_cfg;
@@ -83,16 +82,14 @@ py::dict CreateBenchmarkConfig(int num_agents) {
 
   objects_cfg["wall"] = wall_cfg;
   objects_cfg["block"] = block_cfg;
-  objects_cfg["mine.red"] = mine_cfg;
-  objects_cfg["generator.red"] = generator_cfg;
+  objects_cfg["mine_red"] = mine_cfg;
+  objects_cfg["generator_red"] = generator_cfg;
   objects_cfg["altar"] = altar_cfg;
 
   game_cfg["objects"] = objects_cfg;
   game_cfg["agent"] = agent_cfg;
 
-  cfg["game"] = game_cfg;
-
-  return cfg;
+  return game_cfg;
 }
 
 py::list CreateDefaultMap(int num_agents_per_team = 2) {

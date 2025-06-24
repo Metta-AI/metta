@@ -22,7 +22,9 @@ class ObservationNormalizer(LayerBase):
         super().__init__(**cfg)
 
     def _initialize(self):
-        obs_norm = torch.tensor(self._feature_normalizations, dtype=torch.float32)
+        obs_norm = torch.ones(max(self._feature_normalizations.keys()) + 1, dtype=torch.float32)
+        for i, val in self._feature_normalizations.items():
+            obs_norm[i] = val
         obs_norm = obs_norm.view(1, len(self._feature_normalizations), 1, 1)
 
         self.register_buffer("obs_norm", obs_norm)

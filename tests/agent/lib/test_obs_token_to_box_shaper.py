@@ -9,7 +9,7 @@ def test_obs_token_to_box_shaper_forward():
     obs_shape = (128, 3)  # 128 tokens, 3 bytes each
     obs_width = 11
     obs_height = 11
-    feature_normalizations = [1, 2, 3]  # 3 layers
+    feature_normalizations = {0: 1, 1: 2, 2: 3}  # 3 layers
     batch_size = 2
 
     # Create the shaper

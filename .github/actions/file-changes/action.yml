@@ -23,115 +23,19 @@ outputs:
 runs:
   using: "composite"
   steps:
+    - name: Install uv
+      uses: astral-sh/setup-uv@v6
+      with:
+        version: "0.7.3"
+        enable-cache: true
+
     - name: Check for file changes
       id: check_files
-      uses: actions/github-script@v6
-      with:
-        github-token: ${{ inputs.github-token }}
-        script: |
-          const eventName = context.eventName;
-          console.log(`Event type: ${eventName}`);
-
-          // Parse the comma-separated patterns
-          const patterns = '${{ inputs.patterns }}'.split(',').map(p => p.trim()).filter(p => p !== '');
-          console.log(`Parsed ${patterns.length} patterns to check: ${patterns.join(', ')}`);
-
-          // Parse specific files to check
-          const specificFiles = '${{ inputs.specific_files }}'.split(',').map(f => f.trim()).filter(f => f !== '');
-          console.log(`Parsed ${specificFiles.length} specific files to check`);
-
-          // Parse directory paths to check
-          const directoryPaths = '${{ inputs.directory_paths }}'.split(',').map(d => d.trim()).filter(d => d !== '');
-          console.log(`Parsed ${directoryPaths.length} directory paths to check`);
-
-          let changedFiles = [];
-
-          try {
-            // Different approach based on event type
-            if (eventName === 'pull_request') {
-              console.log(`Fetching changed files for PR #${context.payload.pull_request.number}...`);
-              const { data: prFiles } = await github.rest.pulls.listFiles({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                pull_number: context.payload.pull_request.number,
-              });
-              changedFiles = prFiles;
-            }
-            else if (eventName === 'push') {
-              console.log('Push event detected. Fetching commit information...');
-              // For push events, get the list of files from the latest commit
-              const { data: commits } = await github.rest.repos.compareCommits({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                base: context.payload.before,
-                head: context.payload.after,
-              });
-              changedFiles = commits.files || [];
-            }
-            else if (eventName === 'workflow_dispatch') {
-              console.log('Manual workflow dispatch. Assuming relevant files have changed.');
-              core.setOutput('has_relevant_changes', true);
-              return;
-            }
-
-            console.log(`Found ${changedFiles.length} changed files in total`);
-
-            // Log all changed files for debugging
-            changedFiles.forEach(file => {
-              const filename = file.filename || file.path || '';
-              console.log(`Changed file: ${filename}`);
-            });
-
-            const hasRelevantChanges = changedFiles.some(file => {
-              const filename = file.filename || file.path || '';
-              if (!filename) return false;
-
-              // Check if the file matches any specific file
-              if (specificFiles.some(specificFile => filename === specificFile)) {
-                console.log(`File ${filename} matched specific file check`);
-                return true;
-              }
-
-              // Check if the file matches any directory path
-              if (directoryPaths.some(directory => filename.includes(directory))) {
-                console.log(`File ${filename} matched directory path check`);
-                return true;
-              }
-
-              // Check if the file matches any of our patterns
-              return patterns.some(pattern => {
-                // Handle glob-like patterns with * (simple implementation)
-                if (pattern.includes('*')) {
-                  const regexPattern = pattern
-                    .replace(/\./g, '\\.')    // Escape dots
-                    .replace(/\*/g, '.*');    // Convert * to regex equivalent
-
-                  const regex = new RegExp(regexPattern);
-                  const result = regex.test(filename);
-
-                  if (result) {
-                    console.log(`File ${filename} matched pattern ${pattern}`);
-                  }
-
-                  return result;
-                } else {
-                  // Simple substring match
-                  const result = filename.includes(pattern);
-
-                  if (result) {
-                    console.log(`File ${filename} matched pattern ${pattern}`);
-                  }
-
-                  return result;
-                }
-              });
-            });
-
-            console.log('Has relevant changes matching pattern: ' + hasRelevantChanges);
-            core.setOutput('has_relevant_changes', hasRelevantChanges);
-
-          } catch (error) {
-            console.log('Error occurred while checking files:');
-            console.log(error);
-            core.setFailed(`Action failed with error: ${error}`);
-          }
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        PATTERNS: ${{ inputs.patterns }}
+        SPECIFIC_FILES: ${{ inputs.specific_files }}
+        DIRECTORY_PATHS: ${{ inputs.directory_paths }}
+      run: |
+        uv run ${{ github.action_path }}/file_changes.py
