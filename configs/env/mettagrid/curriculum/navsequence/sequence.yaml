@@ -19,11 +19,11 @@ buckets:
         "varied_terrain/cylinder-world_large",
       ]
 
-  game.map_builder.room.objects.mine.red:
+  game.map_builder.room.objects.mine_red:
     range: [3, 25]
     bins: 2
-  game.map_builder.room.objects.generator.red:
+  game.map_builder.room.objects.generator_red:
     range: [3, 25]
     bins: 2
-  game.objects.generator.red.initial_items:
+  game.objects.generator_red.initial_items:
     values: [0, 1]

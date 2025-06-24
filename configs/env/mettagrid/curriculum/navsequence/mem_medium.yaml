@@ -11,15 +11,15 @@ buckets:
         "varied_terrain/dense_small",
       ]
 
-  game.map_builder.room.objects.mine.red:
+  game.map_builder.room.objects.mine_red:
     range: [1, 10]
-  game.map_builder.room.objects.generator.red:
+  game.map_builder.room.objects.generator_red:
     range: [1, 10]
   game.objects.altar.cooldown:
     range: [5, 20]
-  game.objects.generator.red.cooldown:
+  game.objects.generator_red.cooldown:
     range: [5, 20]
-  game.objects.mine.red.cooldown:
+  game.objects.mine_red.cooldown:
     range: [5, 20]
-  game.objects.generator.red.initial_items:
+  game.objects.generator_red.initial_items:
     values: [0, 1]

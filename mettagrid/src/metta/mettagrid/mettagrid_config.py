@@ -133,6 +133,12 @@ class ObjectsConfig(BaseModelWithForbidExtra):
     """Objects configuration."""
 
     altar: Optional[ConverterConfig] = None
+    mine_red: Optional[ConverterConfig] = None
+    mine_blue: Optional[ConverterConfig] = None
+    mine_green: Optional[ConverterConfig] = None
+    generator_red: Optional[ConverterConfig] = None
+    generator_blue: Optional[ConverterConfig] = None
+    generator_green: Optional[ConverterConfig] = None
     armory: Optional[ConverterConfig] = None
     lasery: Optional[ConverterConfig] = None
     lab: Optional[ConverterConfig] = None
