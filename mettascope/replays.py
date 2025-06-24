@@ -66,8 +66,6 @@ def create_simulation(cfg):
 
         sim_name = sim_config.env.split("/")[-1]
         replay_dir = f"{cfg.replay_job.replay_dir}/{cfg.run}"
-        if cfg.trainer.get("replay_dry_run", False):
-            replay_dir = None
 
         sim = Simulation(
             sim_name,
