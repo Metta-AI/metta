@@ -21,17 +21,12 @@ def main():
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
-        bufsize=1
+        bufsize=1,
     )
 
     # Start the frontend dev server in mettamap directory
     frontend_process = subprocess.Popen(
-        ["pnpm", "dev"],
-        cwd=mettamap_dir,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-        bufsize=1
+        ["pnpm", "dev"], cwd=mettamap_dir, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1
     )
 
     print("Both servers started. Press Ctrl+C to stop both.")
