@@ -256,7 +256,8 @@ class MettaGridEnv(PufferEnv, GymEnv):
         for label in self._map_labels + self.labels:
             infos[f"map_reward/{label}"] = episode_rewards_mean
 
-        infos.update(self._curriculum.get_completion_rates())
+        if self._curriculum.completed_tasks() is not None:
+            infos.update(self._curriculum.get_completion_rates())
 
         with self.timer("_c_env.get_episode_stats"):
             stats = self._c_env.get_episode_stats()
