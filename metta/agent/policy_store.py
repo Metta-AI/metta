@@ -168,7 +168,6 @@ class PolicyStore:
         name = self.make_model_name(0)
         path = os.path.join(self._cfg.trainer.checkpoint_dir, name)
 
-        # Capture environment metadata for future reconstruction
         metadata = {
             "action_names": env.action_names,
             "agent_step": 0,
@@ -205,7 +204,13 @@ class PolicyStore:
             policy = self._reconstruct_clean_policy(policy, pr)
 
         try:
-            self._save_as_package(path, policy, pr)
+            with PackageExporter(path, debug=False) as exporter:
+                self._apply_packaging_rules(exporter, policy.__class__.__module__, policy.__class__)
+
+                clean_metadata = pr._clean_metadata_for_packaging(pr.metadata)
+                exporter.save_pickle("policy_record", "data.pkl", PolicyRecord(None, pr.name, pr.uri, clean_metadata))
+                exporter.save_pickle("policy", "model.pkl", policy)
+            logger.info(f"Saved policy using package format to {path}")
         except Exception as e:
             logger.error(f"Failed to save policy: {e}")
             # If we still can't save after reconstruction, something is seriously wrong
@@ -214,16 +219,6 @@ class PolicyStore:
         pr._local_path = path
         pr.uri = "file://" + path
         return pr
-
-    def _save_as_package(self, path: str, policy: nn.Module, pr: PolicyRecord) -> None:
-        """Save using torch.package format."""
-        with PackageExporter(path, debug=False) as exporter:
-            self._apply_packaging_rules(exporter, policy.__class__.__module__, policy.__class__)
-
-            clean_metadata = pr._clean_metadata_for_packaging(pr.metadata)
-            exporter.save_pickle("policy_record", "data.pkl", PolicyRecord(None, pr.name, pr.uri, clean_metadata))
-            exporter.save_pickle("policy", "model.pkl", policy)
-        logger.info(f"Saved policy using package format to {path}")
 
     def add_to_wandb_run(self, run_id: str, pr: PolicyRecord, additional_files=None):
         local_path = pr.local_path()
@@ -381,9 +376,25 @@ class PolicyStore:
         logger.info(f"Loading policy from {path}")
         self._make_codebase_backwards_compatible()
 
+        assert path.endswith(".pt"), f"Policy file {path} does not have a .pt extension"
+
         # Try package format first
         try:
-            pr = self._load_as_package(path, metadata_only)
+            with warnings.catch_warnings():
+                warnings.filterwarnings("ignore", category=FutureWarning)
+
+            importer = PackageImporter(path)
+            pr = importer.load_pickle("policy_record", "data.pkl")
+            pr._policy_store = self
+            pr._local_path = path
+
+            if not metadata_only:
+                packaged_policy = importer.load_pickle("policy", "model.pkl")
+                pr._policy = packaged_policy
+
+                # Ensure metadata has all necessary fields for potential reconstruction
+                self._enrich_metadata_from_policy(pr, packaged_policy)
+
             self._cached_prs[path] = pr
             return pr
         except Exception as e:
@@ -406,25 +417,6 @@ class PolicyStore:
 
         pr = self._load_from_file(os.path.join(artifact_path, "model.pt"))
         pr.metadata.update(artifact.metadata)
-        return pr
-
-    def _load_as_package(self, path: str, metadata_only: bool = False) -> PolicyRecord:
-        """Load a torch.package format file."""
-        with warnings.catch_warnings():
-            warnings.filterwarnings("ignore", category=FutureWarning)
-
-        importer = PackageImporter(path)
-        pr = importer.load_pickle("policy_record", "data.pkl")
-        pr._policy_store = self
-        pr._local_path = path
-
-        if not metadata_only:
-            packaged_policy = importer.load_pickle("policy", "model.pkl")
-            pr._policy = packaged_policy
-
-            # Ensure metadata has all necessary fields for potential reconstruction
-            self._enrich_metadata_from_policy(pr, packaged_policy)
-
         return pr
 
     def _enrich_metadata_from_policy(self, pr: PolicyRecord, policy: nn.Module) -> None:
