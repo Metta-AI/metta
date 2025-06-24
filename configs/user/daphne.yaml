@@ -17,6 +17,6 @@ trainer:
 
 policy_uri: wandb://run/dd_navigation_curriculum
 
-run_id: 6
+run_id: 1
 run: ${oc.env:USER}.local.${run_id}
 trained_policy_uri: ${run_dir}/checkpoints
