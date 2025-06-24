@@ -3,8 +3,8 @@ from typing import Dict
 
 from omegaconf import DictConfig
 
-from .core import Curriculum
-from .util import curriculum_from_config_path
+from metta.project.lib.core import Curriculum
+from metta.project.lib.util import curriculum_from_config_path
 
 logger = logging.getLogger(__name__)
 

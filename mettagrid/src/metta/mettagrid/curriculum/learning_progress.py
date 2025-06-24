@@ -7,7 +7,7 @@ import numpy as np
 from gymnasium.spaces import Discrete
 from omegaconf import DictConfig
 
-from .random import RandomCurriculum
+from metta.project.lib.random import RandomCurriculum
 
 logger = logging.getLogger(__name__)
 

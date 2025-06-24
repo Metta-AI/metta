@@ -1,10 +1,10 @@
-from .core import Curriculum, SingleTaskCurriculum, Task
-from .learning_progress import LearningProgressCurriculum
-from .low_reward import LowRewardCurriculum
-from .multi_task import MultiTaskCurriculum
-from .progressive import ProgressiveCurriculum
-from .random import RandomCurriculum
-from .sampling import SamplingCurriculum
+from metta.project.lib.core import Curriculum, SingleTaskCurriculum, Task
+from metta.project.lib.learning_progress import LearningProgressCurriculum
+from metta.project.lib.low_reward import LowRewardCurriculum
+from metta.project.lib.multi_task import MultiTaskCurriculum
+from metta.project.lib.progressive import ProgressiveCurriculum
+from metta.project.lib.random import RandomCurriculum
+from metta.project.lib.sampling import SamplingCurriculum
 
 __all__ = [
     "Curriculum",

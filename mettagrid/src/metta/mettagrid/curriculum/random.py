@@ -3,8 +3,8 @@ from __future__ import annotations
 import logging
 import random
 
-from .core import Task
-from .multi_task import MultiTaskCurriculum
+from metta.project.lib.core import Task
+from metta.project.lib.multi_task import MultiTaskCurriculum
 
 logger = logging.getLogger(__name__)
 
