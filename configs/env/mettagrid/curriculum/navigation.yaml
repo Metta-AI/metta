@@ -9,6 +9,5 @@ tasks:
   /env/mettagrid/navigation/training/varied_terrain_dense: 1
 
 env_overrides:
-
   game:
-    num_agents: 12
+    num_agents: 4
