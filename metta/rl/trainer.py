@@ -684,11 +684,6 @@ class MettaTrainer:
         logger.info(f"Saved policy locally: {name}")
         return self.latest_saved_policy
 
-    def _maybe_evaluate_policy(self, force=False):
-        """Evaluate policy if on evaluation interval"""
-        if self._should_run(self.trainer_cfg.evaluate_interval, force):
-            self._evaluate_policy()
-
     def _maybe_upload_policy_to_wandb(self, force=False):
         """Upload policy to wandb if on wandb interval"""
         if not self._should_run(self.trainer_cfg.wandb_checkpoint_interval, force):
@@ -708,21 +703,18 @@ class MettaTrainer:
         self.policy_store.add_to_wandb_run(self.wandb_run.name, self.latest_saved_policy)
         logger.info(f"Uploaded policy to wandb at epoch {self.epoch}")
 
-    def _maybe_generate_replay(self, force=False):
-        """Generate replay if on replay interval"""
-        if self._should_run(self.trainer_cfg.replay_interval, force):
-            self._generate_and_upload_replay()
-
     def _maybe_update_l2_weights(self, force=False):
         """Update L2 init weights if on update interval"""
         if self._should_run(self.cfg.agent.l2_init_weight_update_interval, force):
             self.policy.update_l2_init_weight_copy()
 
+    def _maybe_evaluate_policy(self, force=False):
+        """Evaluate policy if on evaluation interval"""
+        if self._should_run(self.trainer_cfg.evaluate_interval, force):
+            self._evaluate_policy()
+
     @with_instance_timer("_evaluate_policy", log_level=logging.INFO)
     def _evaluate_policy(self):
-        if not self._master:
-            return
-
         if self._stats_run_id is not None and self._stats_client is not None:
             self._stats_epoch_id = self._stats_client.create_epoch(
                 run_id=self._stats_run_id,
@@ -770,37 +762,41 @@ class MettaTrainer:
             sim_short_name = sim_name.split("/")[-1]
             self.evals[f"{category}/{sim_short_name}"] = score
 
+    def _maybe_generate_replay(self, force=False):
+        """Generate replay if on replay interval"""
+        if self._should_run(self.trainer_cfg.replay_interval, force):
+            self._generate_and_upload_replay()
+
     @with_instance_timer("_generate_and_upload_replay", log_level=logging.INFO)
     def _generate_and_upload_replay(self):
-        if self._master:
-            replay_sim_config = SingleEnvSimulationConfig(
-                env="/env/mettagrid/mettagrid",
-                num_episodes=1,
-                env_overrides=self._curriculum.get_task().env_cfg(),
-            )
+        replay_sim_config = SingleEnvSimulationConfig(
+            env="/env/mettagrid/mettagrid",
+            num_episodes=1,
+            env_overrides=self._curriculum.get_task().env_cfg(),
+        )
 
-            replay_simulator = Simulation(
-                name=f"replay_{self.epoch}",
-                config=replay_sim_config,
-                policy_pr=self.latest_saved_policy,
-                policy_store=self.policy_store,
-                device=self.device,
-                vectorization=self.cfg.vectorization,
-                replay_dir=self.trainer_cfg.replay_dir,
-            )
-            results = replay_simulator.simulate()
+        replay_simulator = Simulation(
+            name=f"replay_{self.epoch}",
+            config=replay_sim_config,
+            policy_pr=self.latest_saved_policy,
+            policy_store=self.policy_store,
+            device=self.device,
+            vectorization=self.cfg.vectorization,
+            replay_dir=self.trainer_cfg.replay_dir,
+        )
+        results = replay_simulator.simulate()
 
-            if self.wandb_run is not None:
-                replay_urls = results.stats_db.get_replay_urls(
-                    policy_key=self.latest_saved_policy.key(), policy_version=self.latest_saved_policy.version()
-                )
-                if len(replay_urls) > 0:
-                    replay_url = replay_urls[0]
-                    player_url = "https://metta-ai.github.io/metta/?replayUrl=" + replay_url
-                    link_summary = {
-                        "replays/link": wandb.Html(f'<a href="{player_url}">MetaScope Replay (Epoch {self.epoch})</a>')
-                    }
-                    self.wandb_run.log(link_summary)
+        if self.wandb_run is not None:
+            replay_urls = results.stats_db.get_replay_urls(
+                policy_key=self.latest_saved_policy.key(), policy_version=self.latest_saved_policy.version()
+            )
+            if len(replay_urls) > 0:
+                replay_url = replay_urls[0]
+                player_url = "https://metta-ai.github.io/metta/?replayUrl=" + replay_url
+                link_summary = {
+                    "replays/link": wandb.Html(f'<a href="{player_url}">MetaScope Replay (Epoch {self.epoch})</a>')
+                }
+                self.wandb_run.log(link_summary)
 
     @with_instance_timer("_process_stats")
     def _process_stats(self):
