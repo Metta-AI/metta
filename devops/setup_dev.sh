@@ -72,10 +72,6 @@ fi
 echo -e "\nInstalling Metta..."
 uv sync
 
-# Install local packages in editable mode for development
-uv run pip install -e ./mettagrid
-uv run pip install -e ./common
-
 # ========== SANITY CHECK ==========
 echo -e "\nSanity check: verifying all local deps are importable..."
 
