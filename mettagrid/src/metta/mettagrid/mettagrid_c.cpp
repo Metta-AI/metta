@@ -102,7 +102,7 @@ MettaGrid::MettaGrid(py::dict cfg, py::list map) {
     auto group = value.cast<py::dict>();
     unsigned int id = group["id"].cast<unsigned int>();
     _group_sizes[id] = 0;
-    _group_reward_pct[id] = group.contains("group_reward_pct") ? group["group_reward_pct"].cast<float>() : 0.0f;
+    _group_reward_pct[id] = group["group_reward_pct"].cast<float>();
   }
 
   // Initialize objects from map

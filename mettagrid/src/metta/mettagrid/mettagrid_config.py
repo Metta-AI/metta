@@ -64,8 +64,8 @@ class GroupConfig(BaseModelWithForbidExtra):
     sprite: Optional[int] = Field(default=None)
     # Values outside of 0 and 1 are probably mistakes, and are probably
     # unstable. If you want to use values outside this range, please update this comment!
-    group_reward_pct: Optional[float] = Field(default=None, ge=0, le=1)
-    props: Optional[GroupProps] = None
+    group_reward_pct: float = Field(default=0, ge=0, le=1)
+    props: GroupProps = Field(default=GroupProps({}))
 
 
 class ActionConfig(BaseModelWithForbidExtra):
