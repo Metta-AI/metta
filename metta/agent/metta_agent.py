@@ -17,7 +17,9 @@ from metta.agent.util.distribution_utils import evaluate_actions, sample_actions
 from metta.agent.util.safe_get import safe_get_from_obs_space
 from metta.util.omegaconf import convert_to_dict
 
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'mettagrid', 'src'))
+# Add mettagrid/src to Python path for imports
+mettagrid_src_path = os.path.join(os.path.dirname(__file__), '..', '..', 'mettagrid', 'src')
+sys.path.insert(0, mettagrid_src_path)
 from metta.mettagrid.mettagrid_env import MettaGridEnv
 
 if TYPE_CHECKING:
