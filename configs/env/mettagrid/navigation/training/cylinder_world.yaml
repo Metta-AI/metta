@@ -11,7 +11,7 @@ game:
       agents: 1
       dir: ${choose:varied_terrain/cylinder-world_large,varied_terrain/cylinder-world_medium,varied_terrain/cylinder-world_small}
       objects:
-        altar: 30
+        altar: 10
   objects:
     altar:
       cooldown: 1000
