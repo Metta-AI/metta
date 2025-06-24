@@ -87,6 +87,7 @@ class TrainerCheckpoint:
             missing_keys = required_keys - state_keys
             if missing_keys:
                 raise ValueError(f"Checkpoint is missing required keys: {missing_keys}")
+
             unexpected_keys = state_keys - required_keys
             if unexpected_keys:
                 logger.warning(
@@ -94,4 +95,11 @@ class TrainerCheckpoint:
                     f"These will be stored in extra_args."
                 )
 
-            return TrainerCheckpoint(**state)
+            # Extract only known parameters for the constructor
+            constructor_kwargs = {key: state[key] for key in required_keys}
+
+            # Store unexpected keys in extra_args
+            if unexpected_keys:
+                constructor_kwargs["extra_args"] = {key: state[key] for key in unexpected_keys}
+
+            return TrainerCheckpoint(**constructor_kwargs)
