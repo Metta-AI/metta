@@ -172,6 +172,7 @@ def from_mettagrid_config(mettagrid_config: GameConfig_py) -> GameConfig_cpp:
 
     return GameConfig_cpp(**game_config)
 
+
 def cpp_config_dict(game_config_dict: Dict[str, Any]) -> Dict[str, Any]:
     """Validates a config dict and returns a config_c dict.
 
