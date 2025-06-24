@@ -52,9 +52,8 @@ def create_heart_reward_test_env(max_steps=50, num_agents=NUM_AGENTS):
         },
         "groups": {"red": {"id": 0, "props": {}}},
         "objects": {
-            "wall": {"type_id": 1},
+            "wall": {},
             "altar": {
-                "type_id": 4,
                 "output_heart": 1,
                 "initial_items": 5,  # Start with some hearts
                 "max_output": 50,
