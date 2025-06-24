@@ -12,7 +12,6 @@ game:
   objects:
     generator_red:
       initial_items: 0
-      output_battery.red: 3
       cooldown: 1
     altar:
       initial_items: 0
