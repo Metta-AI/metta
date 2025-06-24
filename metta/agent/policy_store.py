@@ -21,7 +21,6 @@ import gymnasium as gym
 import numpy as np
 import torch
 import wandb
-import wandb.sdk.wandb_run
 from omegaconf import DictConfig, ListConfig
 from torch import nn
 from torch.package import PackageExporter, PackageImporter
@@ -174,14 +173,6 @@ class PolicyStore:
             "epoch": 0,
             "generation": 0,
             "train_time": 0,
-            "obs_shape": list(env.single_observation_space.shape),
-            "action_space_nvec": list(env.single_action_space.nvec)
-            if hasattr(env.single_action_space, "nvec")
-            else [len(env.action_names)]
-            if env.action_names
-            else [9, 10],
-            "feature_normalizations": getattr(env, "feature_normalizations", {}),
-            "global_features": getattr(env, "global_features", []),
         }
 
         pr = PolicyRecord(self, name, f"file://{path}", metadata)
@@ -201,7 +192,7 @@ class PolicyStore:
         # Check if this is a repackaged model that needs reconstruction
         if hasattr(policy, "__module__") and "<torch_package" in policy.__module__:
             logger.info("Detected torch-packaged model, reconstructing for clean save")
-            policy = self._reconstruct_clean_policy(policy, pr)
+            policy = self._reconstruct_policy(policy, pr)
 
         try:
             with PackageExporter(path, debug=False) as exporter:
@@ -414,44 +405,6 @@ class PolicyStore:
         pr.metadata.update(artifact.metadata)
         return pr
 
-    def _enrich_metadata_from_policy(self, pr: PolicyRecord, policy: nn.Module) -> None:
-        """Enrich metadata with information extracted from the policy model if missing."""
-        metadata = pr.metadata
-
-        # Try to infer observation shape if missing
-        if "obs_shape" not in metadata and hasattr(policy, "encoder"):
-            try:
-                # Common observation shapes
-                for shape in [[34, 11, 11], [3, 84, 84], [1, 84, 84]]:
-                    try:
-                        dummy_input = torch.zeros(1, *shape, device=self._device)
-                        with torch.no_grad():
-                            _ = policy.encoder(dummy_input)
-                        metadata["obs_shape"] = shape
-                        logger.info(f"Inferred obs_shape: {shape}")
-                        break
-                    except Exception:
-                        continue
-            except Exception:
-                pass
-
-        # Try to infer action space if missing
-        if "action_space_nvec" not in metadata and hasattr(policy, "decoder"):
-            try:
-                if hasattr(policy.decoder, "action_head"):
-                    action_head = policy.decoder.action_head
-                    if hasattr(action_head, "out_features"):
-                        # This is a simplified heuristic
-                        out_features = action_head.out_features
-                        if out_features == 19:  # Common case: 9 + 10
-                            metadata["action_space_nvec"] = [9, 10]
-                        else:
-                            # Single discrete action space
-                            metadata["action_space_nvec"] = [out_features]
-                        logger.info(f"Inferred action_space_nvec: {metadata['action_space_nvec']}")
-            except Exception:
-                pass
-
     def _load_legacy_checkpoint(self, path: str, metadata_only: bool = False) -> PolicyRecord:
         logger.info(f"Loading legacy checkpoint from {path}")
         checkpoint = torch.load(path, map_location=self._device, weights_only=False)
@@ -468,20 +421,11 @@ class PolicyStore:
         if not isinstance(checkpoint, dict):
             raise ValueError(f"Unexpected checkpoint format: {type(checkpoint)}")
 
-        # Create PolicyRecord with metadata
-        if "metadata" in checkpoint and isinstance(checkpoint["metadata"], dict):
-            # New format with metadata dict
-            metadata = checkpoint["metadata"]
-        else:
-            # Legacy format with fields at root level
-            metadata = {
-                k: checkpoint.get(k, 0 if k != "action_names" else [])
-                for k in ["action_names", "agent_step", "epoch", "generation", "train_time"]
-            }
-            # Add any additional metadata fields that might be present
-            for k in ["obs_shape", "action_space_nvec", "feature_normalizations", "global_features"]:
-                if k in checkpoint:
-                    metadata[k] = checkpoint[k]
+        # Legacy format with fields at root level
+        metadata = {
+            k: checkpoint.get(k, 0 if k != "action_names" else [])
+            for k in ["action_names", "agent_step", "epoch", "generation", "train_time"]
+        }
 
         pr = PolicyRecord(
             self,
@@ -500,18 +444,18 @@ class PolicyStore:
         self._cached_prs[path] = pr
         return pr
 
-    def _create_mock_environment(self, metadata: dict):
-        """Create a mock environment from metadata for policy reconstruction."""
+    def _create_mock_environment(self, checkpoint: dict):
+        """Create a mock environment from checkpoint for policy reconstruction."""
         from types import SimpleNamespace
 
         # Get observation shape and action space info
-        obs_shape = metadata.get("obs_shape", [34, 11, 11])
-        action_names = metadata.get("action_names", [])
+        obs_shape = checkpoint.get("obs_shape", [34, 11, 11])
+        action_names = checkpoint.get("action_names", [])
 
         if action_names:
             action_nvec = [len(action_names)]
         else:
-            action_nvec = metadata.get("action_space_nvec", [9, 10])
+            action_nvec = checkpoint.get("action_space_nvec", [9, 10])
 
         # Create mock environment with all necessary attributes
         return SimpleNamespace(
@@ -519,78 +463,96 @@ class PolicyStore:
             obs_width=obs_shape[1] if len(obs_shape) > 1 else 11,
             obs_height=obs_shape[2] if len(obs_shape) > 2 else 11,
             single_action_space=gym.spaces.MultiDiscrete(action_nvec),
-            feature_normalizations=metadata.get("feature_normalizations", {}),
-            global_features=metadata.get("global_features", []),
+            feature_normalizations=checkpoint.get("feature_normalizations", {}),
+            global_features=checkpoint.get("global_features", []),
             action_names=action_names,
         )
 
-    def _reconstruct_clean_policy(self, packaged_policy: nn.Module, pr: PolicyRecord) -> nn.Module:
-        """Reconstruct a policy with clean module paths from a torch-packaged policy.
+    def _reconstruct_policy(self, source, pr: PolicyRecord = None) -> nn.Module:
+        """Unified method to reconstruct a policy from various sources.
 
-        This creates a new policy instance with the proper module paths and transfers
-        the state from the packaged policy, allowing it to be re-packaged cleanly.
+        Args:
+            source: Can be a checkpoint dict or a torch-packaged policy
+            pr: PolicyRecord containing metadata (required for torch-packaged policies)
+
+        Returns:
+            A clean policy instance with proper module paths
         """
-        # Create mock environment from metadata
-        mock_env = self._create_mock_environment(pr.metadata)
+        # Handle torch-packaged policies that need clean reconstruction
+        if isinstance(source, nn.Module) and hasattr(source, "__module__") and "<torch_package" in source.__module__:
+            if pr is None:
+                raise ValueError("PolicyRecord required for reconstructing torch-packaged policies")
 
-        # Create a fresh policy instance with clean module paths
-        clean_policy = make_policy(mock_env, self._cfg)  # type: ignore
+            logger.info("Detected torch-packaged model, reconstructing with clean module paths")
 
-        # Transfer the state from the packaged policy
-        clean_policy.load_state_dict(packaged_policy.state_dict())
+            # Create mock environment from metadata
+            mock_env = self._create_mock_environment(pr.metadata)
 
-        # Transfer any additional attributes
-        for attr in ["config", "hparams"]:
-            if hasattr(packaged_policy, attr):
-                setattr(clean_policy, attr, getattr(packaged_policy, attr))
+            # Create a fresh policy instance with clean module paths
+            clean_policy = make_policy(mock_env, self._cfg)
 
-        logger.info(f"Successfully reconstructed policy with clean module path: {clean_policy.__class__.__module__}")
+            # Transfer the state from the packaged policy
+            clean_policy.load_state_dict(source.state_dict())
 
-        return clean_policy
+            # Transfer any additional attributes
+            for attr in ["config", "hparams"]:
+                if hasattr(source, attr):
+                    setattr(clean_policy, attr, getattr(source, attr))
 
-    def _reconstruct_policy(self, checkpoint: dict) -> nn.Module:
-        """Reconstruct a policy from checkpoint data.
+            logger.info(
+                f"Successfully reconstructed policy with clean module path: {clean_policy.__class__.__module__}"
+            )
+            return clean_policy
 
-        This method handles both legacy checkpoints and new state_dict format.
-        """
-        # Get metadata from checkpoint
-        metadata = checkpoint.get("metadata", {})
+        # Handle checkpoint dictionaries (legacy format)
+        elif isinstance(source, dict):
+            # Get metadata from checkpoint
+            metadata = source.get("metadata", {})
 
-        # For legacy format, build metadata from root-level fields
-        if not metadata:
-            metadata = {}
-            for key in ["obs_shape", "action_names", "action_space_nvec", "feature_normalizations", "global_features"]:
-                if key in checkpoint:
-                    metadata[key] = checkpoint[key]
+            # For legacy format, build metadata from root-level fields
+            if not metadata:
+                metadata = {}
+                for key in [
+                    "obs_shape",
+                    "action_names",
+                    "action_space_nvec",
+                    "feature_normalizations",
+                    "global_features",
+                ]:
+                    if key in source:
+                        metadata[key] = source[key]
 
-        # Create mock environment from metadata
-        mock_env = self._create_mock_environment(metadata)
+            # Create mock environment from metadata
+            mock_env = self._create_mock_environment(metadata)
 
-        # Create policy instance
-        policy = make_policy(mock_env, self._cfg)  # type: ignore
+            # Create policy instance
+            policy = make_policy(mock_env, self._cfg)
 
-        # Find and load state dict - check multiple possible keys
-        state_dict = None
-        for key in ["model_state_dict", "state_dict"]:
-            if key in checkpoint:
-                state_dict = checkpoint[key]
-                break
+            # Find and load state dict - check multiple possible keys
+            state_dict = None
+            for key in ["model_state_dict", "state_dict"]:
+                if key in source:
+                    state_dict = source[key]
+                    break
 
-        if state_dict is None:
-            # Legacy format: checkpoint itself might be the state dict
-            if any(k.startswith(("encoder.", "core.", "decoder.")) for k in checkpoint.keys()):
-                state_dict = checkpoint
-            else:
-                raise ValueError("Could not find state dict in checkpoint")
+            if state_dict is None:
+                # Legacy format: checkpoint itself might be the state dict
+                if any(k.startswith(("encoder.", "core.", "decoder.")) for k in source.keys()):
+                    state_dict = source
+                else:
+                    raise ValueError("Could not find state dict in checkpoint")
 
-        policy.load_state_dict(state_dict)
+            policy.load_state_dict(state_dict)
 
-        # Restore optional attributes
-        for attr in ["config", "hparams"]:
-            if attr in checkpoint:
-                setattr(policy, attr, checkpoint[attr])
+            # Restore optional attributes
+            for attr in ["config", "hparams"]:
+                if attr in source:
+                    setattr(policy, attr, source[attr])
 
-        return policy
+            return policy
+
+        else:
+            raise ValueError(f"Unsupported source type for policy reconstruction: {type(source)}")
 
     def _apply_packaging_rules(self, exporter, policy_module: Optional[str], policy_class: type) -> None:
         """Apply packaging rules to the exporter based on a configuration."""
