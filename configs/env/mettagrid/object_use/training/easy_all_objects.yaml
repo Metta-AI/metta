@@ -34,8 +34,8 @@ game:
       agents: 1
       style: all-sparse # ${choose:"all-sparse","balanced","dense","maze"}
       objects:
-        mine: ${sampling:1,5,3}
-        generator: ${sampling:1,5,3}
+        mine.red: ${sampling:1,5,3}
+        generator.red: ${sampling:1,5,3}
         altar: ${sampling:1,5,1}
         armory: ${sampling:1,5,1}
         lasery: ${sampling:1,5,1}
