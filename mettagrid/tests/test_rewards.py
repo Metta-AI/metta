@@ -100,14 +100,14 @@ def create_reward_test_env(max_steps=10, width=5, height=5, num_agents=NUM_AGENT
             "change_color": {"enabled": False},
         },
         "groups": {
-            "red": {"id": 1, "group_reward_pct": 0.1, "props": {"max_inventory": 50}},
-            "blue": {"id": 2, "group_reward_pct": 0.0, "props": {"max_inventory": 50}},
+            "red": {"id": 1, "group_reward_pct": 0.1},
+            "blue": {"id": 2, "group_reward_pct": 0.0},
         },
         "objects": {
             "wall": {},
             "block": {},
         },
-        "agent": {"freeze_duration": 100, "max_inventory": 50, "rewards": {"heart": 1.0}},
+        "agent": {"freeze_duration": 100, "rewards": {"heart": 1.0}},
     }
 
     return MettaGrid(cpp_config_dict(game_config), game_map.tolist())
