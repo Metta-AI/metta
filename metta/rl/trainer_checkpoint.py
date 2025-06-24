@@ -62,7 +62,6 @@ class TrainerCheckpoint:
     @staticmethod
     def load(run_dir: str, filename: str = "trainer_state.pt") -> Optional["TrainerCheckpoint"]:
         checkpoint_path = Path(run_dir) / filename
-
         if not checkpoint_path.exists():
             logger.info(f"[TrainerCheckpoint] No trainer state found at {checkpoint_path}. Assuming a new run!")
             return None
@@ -74,5 +73,25 @@ class TrainerCheckpoint:
             # handle backward compatibility
             if "stopwatch_state" not in state:
                 state["stopwatch_state"] = None
+
+            # Validate keys
+            required_keys = {
+                "agent_step",
+                "epoch",
+                "total_agent_step",
+                "optimizer_state_dict",
+                "policy_path",
+                "stopwatch_state",
+            }
+            state_keys = set(state.keys())
+            missing_keys = required_keys - state_keys
+            if missing_keys:
+                raise ValueError(f"Checkpoint is missing required keys: {missing_keys}")
+            unexpected_keys = state_keys - required_keys
+            if unexpected_keys:
+                logger.warning(
+                    f"Loaded checkpoint contains unexpected keys: {unexpected_keys}. "
+                    f"These will be stored in extra_args."
+                )
 
             return TrainerCheckpoint(**state)
