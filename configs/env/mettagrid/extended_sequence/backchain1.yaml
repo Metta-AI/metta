@@ -29,13 +29,12 @@ game:
     border_width: 6
 
     room:
-      _target_: mettagrid.room.terrain_from_numpy.TerrainFromNumpy
+      _target_: metta.mettagrid.room.terrain_from_numpy.TerrainFromNumpy
       border_width: 1
       agents: 1
       dir: varied_terrain/sparse_small
       objects:
         altar: 2
-        mine.red: 0
   objects:
     altar:
       cooldown: 10

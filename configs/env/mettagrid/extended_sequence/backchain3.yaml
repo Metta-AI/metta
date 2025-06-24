@@ -36,8 +36,8 @@ game:
 
       objects:
         altar: 2
-        mine.red: 3
-        generator.red: 3
+        mine_red: 3
+        generator_red: 3
   objects:
     altar:
       cooldown: 50
@@ -46,13 +46,13 @@ game:
       max_output: 1
       conversion_ticks: 1
       initial_items: 0
-    mine.red:
+    mine_red:
       cooldown: 10
       output_ore.red: 1
       max_output: 1
       conversion_ticks: 1
       initial_items: 1
-    generator.red:
+    generator_red:
       cooldown: 50
       input_ore.red: 1
       output_battery.red: 1

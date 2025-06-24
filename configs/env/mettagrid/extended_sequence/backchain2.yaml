@@ -35,8 +35,8 @@ game:
       dir: varied_terrain/sparse_small
       objects:
         altar: 2
-        mine.red: 0
-        generator.red: 2
+        mine_red: 0
+        generator_red: 2
   objects:
     altar:
       cooldown: 50
@@ -45,7 +45,7 @@ game:
       max_output: 1
       conversion_ticks: 1
       initial_items: 0
-    generator.red:
+    generator_red:
       cooldown: 6
       output_battery.red: 1
       max_output: 1

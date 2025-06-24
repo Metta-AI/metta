@@ -30,15 +30,15 @@ game:
       dir: ${choose:varied_terrain/cylinder-world_small,varied_terrain/cylinder-world_medium,varied_terrain/cylinder-world_large}
       objects:
         altar: 5
-        mine.red: ${sampling:1,12,6}
-        generator.red: ${sampling:1,12,6}
+        mine_red: ${sampling:1,12,6}
+        generator_red: ${sampling:1,12,6}
   objects:
     altar:
       input_battery.red: 1
       initial_items: ${choose:0,0,0,1}
       cooldown: ${sampling:5, 20, 10}
-    generator.red:
+    generator_red:
       initial_items: ${choose:0,0,0,1}
       cooldown: ${sampling:5, 20, 10}
-    mine.red:
+    mine_red:
       cooldown: ${sampling:15, 50, 10}

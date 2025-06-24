@@ -73,7 +73,7 @@ game:
       max_output: 100
       conversion_ticks: ${sampling:10,25,15}
       initial_items: 0
-    mine.red:
+    mine_red:
       cooldown: ${sampling:10,25,15}
       max_output: 100
       conversion_ticks: 1

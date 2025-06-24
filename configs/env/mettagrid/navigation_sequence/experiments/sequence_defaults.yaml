@@ -31,16 +31,16 @@ game:
       agents: 1
       dir: ???
       objects:
-        mine.red: 15
-        generator.red: 15
+        mine_red: 15
+        generator_red: 15
         altar: 5
   objects:
     altar:
       input_battery.red: 1
       initial_items: 0
       cooldown: 1000
-    generator.red:
+    generator_red:
       initial_items: 0
       cooldown: 1000
-    mine.red:
+    mine_red:
       cooldown: 1000
