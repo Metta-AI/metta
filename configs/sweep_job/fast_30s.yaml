@@ -1,18 +1,6 @@
-defaults:
-  - /sweep_job
-  - _self_
+# Ultra-fast training overrides for 30-second sweep tests
+# These settings prioritize speed over performance
 
-# Sweep name is required but will be overridden by command line
-sweep_name: fast_30s_test
-
-# Override sweep parameters
-sweep:
-  metric:
-    name: reward
-    goal: maximize
-  num_random_samples: 10
-
-# Fixed overrides for all runs in this sweep
 sweep_job:
   trainer:
     # Ultra-fast training settings
@@ -30,8 +18,3 @@ sweep_job:
   env:
     game:
       max_steps: 8                    # Ultra-short episodes
-
-  evals: ${sim}
-
-# Use the fast_30s parameter set
-sweep_params: fast_30s
