@@ -17,7 +17,7 @@ from omegaconf import DictConfig, ListConfig
 from app_backend.stats_client import StatsClient
 from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
 from metta.agent.policy_state import PolicyState
-from metta.agent.policy_store import PolicyRecord, PolicyStore
+from metta.agent.policy_store import PolicyStore
 from metta.agent.util.debug import assert_shape
 from metta.common.stopwatch import Stopwatch, with_instance_timer
 from metta.eval.eval_stats_db import EvalStatsDB
@@ -70,6 +70,17 @@ class MettaTrainer:
         # it doesn't make sense to evaluate more often than we checkpoint since we need a saved policy to evaluate
         if trainer_cfg.evaluate_interval != 0 and trainer_cfg.evaluate_interval < trainer_cfg.checkpoint_interval:
             raise ValueError("evaluate_interval must be at least as large as checkpoint_interval")
+
+        # Validate that we save policies locally at least as often as we upload to wandb
+        if (
+            trainer_cfg.wandb_checkpoint_interval != 0
+            and trainer_cfg.checkpoint_interval != 0
+            and trainer_cfg.wandb_checkpoint_interval < trainer_cfg.checkpoint_interval
+        ):
+            raise ValueError(
+                "wandb_checkpoint_interval must be at least as large as checkpoint_interval "
+                "to ensure policies exist locally before uploading to wandb"
+            )
 
         if trainer_cfg.checkpoint_dir:
             os.makedirs(trainer_cfg.checkpoint_dir, exist_ok=True)
@@ -278,24 +289,13 @@ class MettaTrainer:
             )
             record_heartbeat()
 
-            # Checkpointing trainer
-            if trainer_cfg.checkpoint_interval and self.epoch % trainer_cfg.checkpoint_interval == 0:
-                self._checkpoint_trainer()
-
-            if trainer_cfg.evaluate_interval and self.epoch % trainer_cfg.evaluate_interval == 0:
-                self._evaluate_policy()
-
-            if trainer_cfg.replay_interval and self.epoch % trainer_cfg.replay_interval == 0:
-                self._generate_and_upload_replay()
-
-            if trainer_cfg.wandb_checkpoint_interval and self.epoch % trainer_cfg.wandb_checkpoint_interval == 0:
-                self._save_policy_to_wandb()
-
-            if (
-                self.cfg.agent.l2_init_weight_update_interval
-                and self.epoch % self.cfg.agent.l2_init_weight_update_interval == 0
-            ):
-                self.policy.update_l2_init_weight_copy()
+            # Interval periodic tasks
+            self.maybe_save_policy()
+            self.maybe_save_training_state()
+            self.maybe_evaluate_policy()
+            self.maybe_upload_policy_to_wandb()
+            self.maybe_generate_replay()
+            self.maybe_update_l2_weights()
 
             self._on_train_step()
             # end loop over total_timesteps
@@ -306,59 +306,12 @@ class MettaTrainer:
         for name, summary in timing_summary.items():
             logger.info(f"  {name}: {self.timer.format_time(summary['total_elapsed'])}")
 
-        self._checkpoint_trainer()
-        self._save_policy_to_wandb()
+        # Force final saves
+        self.maybe_save_policy(force=True)
+        self.maybe_save_training_state(force=True)
+        self.maybe_upload_policy_to_wandb(force=True)
+
         self.system_monitor.stop()
-
-    @with_instance_timer("_evaluate_policy", log_level=logging.INFO)
-    def _evaluate_policy(self):
-        if not self._master:
-            return
-
-        if self._stats_run_id is not None and self._stats_client is not None:
-            self._stats_epoch_id = self._stats_client.create_epoch(
-                run_id=self._stats_run_id,
-                start_training_epoch=self._stats_epoch_start,
-                end_training_epoch=self.epoch,
-                attributes={},
-            ).id
-            self._stats_epoch_start = self.epoch + 1
-
-        logger.info(f"Simulating policy: {self.last_pr.uri} with config: {self.sim_suite_config}")
-        sim = SimulationSuite(
-            config=self.sim_suite_config,
-            policy_pr=self.last_pr,
-            policy_store=self.policy_store,
-            device=self.device,
-            vectorization=self.cfg.vectorization,
-            stats_dir="/tmp/stats",
-            stats_client=self._stats_client,
-            stats_epoch_id=self._stats_epoch_id,
-        )
-        result = sim.simulate()
-        stats_db = EvalStatsDB.from_sim_stats_db(result.stats_db)
-        logger.info("Simulation complete")
-
-        # Build evaluation metrics
-        self.evals = {}  # used for wandb
-        categories: Set[str] = set()
-        for sim_name in self.sim_suite_config.simulations.keys():
-            categories.add(sim_name.split("/")[0])
-
-        for category in categories:
-            score = stats_db.get_average_metric_by_filter("reward", self.last_pr, f"sim_name LIKE '%{category}%'")
-            logger.info(f"{category} score: {score}")
-            record_heartbeat()
-            if score is None:
-                continue
-            self.evals[f"{category}/score"] = score
-
-        # Get detailed per-simulation scores
-        all_scores = stats_db.simulation_scores(self.last_pr, "reward")
-        for (_, sim_name, _), score in all_scores.items():
-            category = sim_name.split("/")[0]
-            sim_short_name = sim_name.split("/")[-1]
-            self.evals[f"{category}/{sim_short_name}"] = score
 
     def _on_train_step(self):
         pass
@@ -659,11 +612,16 @@ class MettaTrainer:
         explained_var = torch.nan if var_y == 0 else 1 - (y_true - y_pred).var() / var_y
         self.losses.explained_variance = explained_var.item() if torch.is_tensor(explained_var) else float("nan")
 
-    def _checkpoint_trainer(self):
+    def maybe_save_training_state(self, force=False):
+        """Save training state if on checkpoint interval"""
         if not self._master:
             return
 
-        self._checkpoint_policy()
+        if not self.trainer_cfg.checkpoint_interval:
+            return
+
+        if not force and self.epoch % self.trainer_cfg.checkpoint_interval != 0:
+            return
 
         extra_args = {}
         if self.kickstarter.enabled and self.kickstarter.teacher_uri is not None:
@@ -675,18 +633,28 @@ class MettaTrainer:
             total_agent_step=self.agent_step * self._world_size,
             optimizer_state_dict=self.optimizer.state_dict(),
             stopwatch_state=self.timer.save_state(),
+            policy_path=self.last_pr.uri if self.last_pr else None,
             extra_args=extra_args,
         )
         checkpoint.save(self.cfg.run_dir)
+        logger.info(f"Saved training state at epoch {self.epoch}")
 
-    def _checkpoint_policy(self) -> PolicyRecord | None:
+    def maybe_save_policy(self, force=False):
+        """Save policy locally if on checkpoint interval"""
         if not self._master:
             return
 
-        metta_grid_env: MettaGridEnv = self.vecenv.driver_env  # type: ignore
-        assert isinstance(metta_grid_env, MettaGridEnv), "vecenv.driver_env must be a MettaGridEnv for checkpointing"
+        if not self.trainer_cfg.checkpoint_interval:
+            return
+
+        if not force and self.epoch % self.trainer_cfg.checkpoint_interval != 0:
+            return
 
         name = self.policy_store.make_model_name(self.epoch)
+        path = os.path.join(self.trainer_cfg.checkpoint_dir, name)
+
+        metta_grid_env: MettaGridEnv = self.vecenv.driver_env  # type: ignore
+        assert isinstance(metta_grid_env, MettaGridEnv), "vecenv.driver_env must be a MettaGridEnv"
 
         generation = 0
         if self._initial_pr:
@@ -695,40 +663,132 @@ class MettaTrainer:
         training_time = self.timer.get_elapsed("_rollout") + self.timer.get_elapsed("_train")
 
         category_scores_map = {key.split("/")[0]: value for key, value in self.evals.items() if key.endswith("/score")}
-
         category_score_values = [v for k, v in category_scores_map.items()]
         overall_score = sum(category_score_values) / len(category_score_values) if category_score_values else 0
 
-        self.last_pr = self.policy_store.save(
-            name,
-            os.path.join(self.trainer_cfg.checkpoint_dir, name),
-            self.uncompiled_policy,
-            metadata={
-                "agent_step": self.agent_step,
-                "epoch": self.epoch,
-                "run": self.cfg.run,
-                "action_names": metta_grid_env.action_names,
-                "generation": generation,
-                "initial_uri": self._initial_pr.uri,
-                "train_time": training_time,
-                "score": overall_score,
-                "eval_scores": category_scores_map,
-            },
-        )
+        metadata = {
+            "agent_step": self.agent_step,
+            "epoch": self.epoch,
+            "run": self.cfg.run,
+            "action_names": metta_grid_env.action_names,
+            "generation": generation,
+            "initial_uri": self._initial_pr.uri,
+            "train_time": training_time,
+            "score": overall_score,
+            "eval_scores": category_scores_map,
+        }
 
-        # this is hacky, but otherwise the initial_pr points
-        # at the same policy as the last_pr
+        self.last_pr = self.policy_store.save(name, path, self.uncompiled_policy, metadata)
+        logger.info(f"Saved policy locally: {name}")
         return self.last_pr
 
-    def _save_policy_to_wandb(self):
+    def maybe_evaluate_policy(self, force=False):
+        """Evaluate policy if on evaluation interval"""
         if not self._master:
             return
 
-        if self.wandb_run is None:
+        if not self.trainer_cfg.evaluate_interval:
             return
 
-        pr = self._checkpoint_policy()
-        self.policy_store.add_to_wandb_run(self.wandb_run.name, pr)
+        if not force and self.epoch % self.trainer_cfg.evaluate_interval != 0:
+            return
+
+        self._evaluate_policy()
+
+    def maybe_upload_policy_to_wandb(self, force=False):
+        """Upload policy to wandb if on wandb interval"""
+        if not self._master or not self.wandb_run:
+            return
+
+        if not self.trainer_cfg.wandb_checkpoint_interval:
+            return
+
+        if not force and self.epoch % self.trainer_cfg.wandb_checkpoint_interval != 0:
+            return
+
+        if not self.last_pr:
+            logger.warning("No policy to upload to wandb")
+            return
+
+        if not self.wandb_run.name:
+            logger.warning("No wandb run name was provided")
+            return
+
+        self.policy_store.add_to_wandb_run(self.wandb_run.name, self.last_pr)
+        logger.info(f"Uploaded policy to wandb at epoch {self.epoch}")
+
+    def maybe_generate_replay(self, force=False):
+        """Generate replay if on replay interval"""
+        if not self._master:
+            return
+
+        if not self.trainer_cfg.replay_interval:
+            return
+
+        if not force and self.epoch % self.trainer_cfg.replay_interval != 0:
+            return
+
+        self._generate_and_upload_replay()
+
+    def maybe_update_l2_weights(self, force=False):
+        """Update L2 init weights if on update interval"""
+        if not self.cfg.agent.l2_init_weight_update_interval:
+            return
+
+        if not force and self.epoch % self.cfg.agent.l2_init_weight_update_interval != 0:
+            return
+
+        self.policy.update_l2_init_weight_copy()
+
+    @with_instance_timer("_evaluate_policy", log_level=logging.INFO)
+    def _evaluate_policy(self):
+        if not self._master:
+            return
+
+        if self._stats_run_id is not None and self._stats_client is not None:
+            self._stats_epoch_id = self._stats_client.create_epoch(
+                run_id=self._stats_run_id,
+                start_training_epoch=self._stats_epoch_start,
+                end_training_epoch=self.epoch,
+                attributes={},
+            ).id
+            self._stats_epoch_start = self.epoch + 1
+
+        logger.info(f"Simulating policy: {self.last_pr.uri} with config: {self.sim_suite_config}")
+        sim = SimulationSuite(
+            config=self.sim_suite_config,
+            policy_pr=self.last_pr,
+            policy_store=self.policy_store,
+            device=self.device,
+            vectorization=self.cfg.vectorization,
+            stats_dir="/tmp/stats",
+            stats_client=self._stats_client,
+            stats_epoch_id=self._stats_epoch_id,
+        )
+        result = sim.simulate()
+        stats_db = EvalStatsDB.from_sim_stats_db(result.stats_db)
+        logger.info("Simulation complete")
+
+        # Build evaluation metrics
+        self.evals = {}  # used for wandb
+        categories: Set[str] = set()
+        for sim_name in self.sim_suite_config.simulations.keys():
+            categories.add(sim_name.split("/")[0])
+
+        for category in categories:
+            score = stats_db.get_average_metric_by_filter("reward", self.last_pr, f"sim_name LIKE '%{category}%'")
+            logger.info(f"{category} score: {score}")
+            record_heartbeat()
+            if score is None:
+                continue
+            self.evals[f"{category}/score"] = score
+
+        # Get detailed per-simulation scores
+        all_scores = stats_db.simulation_scores(self.last_pr, "reward")
+        for (_, sim_name, _), score in all_scores.items():
+            category = sim_name.split("/")[0]
+            sim_short_name = sim_name.split("/")[-1]
+            self.evals[f"{category}/{sim_short_name}"] = score
 
     @with_instance_timer("_generate_and_upload_replay", log_level=logging.INFO)
     def _generate_and_upload_replay(self):
