@@ -1,20 +1,19 @@
-# Ultra-fast training overrides for 30-second sweep tests
-# These settings prioritize speed over performance
+# This file contains overrides to be applied when using fast_30s sweep params
+# To use: sweep_params_override=@configs/sweep_job/fast_30s.yaml
 
-sweep_job:
-  trainer:
-    # Ultra-fast training settings
-    total_timesteps: 50               # Minimal timesteps for speed
-    evaluate_interval: 25             # Very frequent evaluation
-    checkpoint_interval: 50           # No intermediate checkpoints
+trainer:
+  # Ultra-fast training settings
+  total_timesteps: 50               # Minimal timesteps for speed
+  evaluate_interval: 25             # Very frequent evaluation
+  checkpoint_interval: 50           # No intermediate checkpoints
 
-    # Maximum speed optimizations
-    update_epochs: 1                  # Single update epoch
-    num_steps: 8                      # Very short rollouts
-    batch_size: 32                    # Small batches
-    minibatch_size: 32                # Fixed small minibatch
-    bptt_horizon: 1                   # Minimal BPTT
+  # Maximum speed optimizations
+  update_epochs: 1                  # Single update epoch
+  num_steps: 8                      # Very short rollouts
+  batch_size: 32                    # Small batches
+  minibatch_size: 32                # Fixed small minibatch
+  bptt_horizon: 1                   # Minimal BPTT
 
-  env:
-    game:
-      max_steps: 8                    # Ultra-short episodes
+env:
+  game:
+    max_steps: 8                    # Ultra-short episodes
