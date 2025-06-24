@@ -818,6 +818,20 @@ class MettaTrainer:
 
         environment_stats = {f"env_{k.split('/')[0]}/{'/'.join(k.split('/')[1:])}": v for k, v in self.stats.items()}
 
+        # Process curriculum task probabilities
+        curriculum_stats = {}
+        if 'curriculum_task_probs' in self.stats:
+            try:
+                # The curriculum_task_probs is a dict, so we need to flatten it for logging
+                task_probs = self.stats['curriculum_task_probs']
+                if isinstance(task_probs, dict):
+                    for task_id, prob in task_probs.items():
+                        # Clean up task_id for wandb logging (replace slashes with dots)
+                        clean_task_id = task_id.replace('/', '.')
+                        curriculum_stats[f"curriculum/task_probs/{clean_task_id}"] = prob
+            except Exception as e:
+                logger.warning(f"Failed to process curriculum task probabilities: {e}")
+
         overview = {
             "sps": epoch_steps_per_second,
         }
@@ -869,6 +883,7 @@ class MettaTrainer:
                 **weight_stats,
                 **timing_stats,
                 **metric_stats,
+                **curriculum_stats,
             }
         )
 
