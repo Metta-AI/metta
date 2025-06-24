@@ -34,7 +34,7 @@ private:
         total_output += this->inventory[i];
       }
     }
-    if (total_output >= this->max_output) {
+    if (this->max_output >= 0 && total_output >= this->max_output) {
       stats.incr("blocked.output_full");
       return;
     }
@@ -65,7 +65,8 @@ public:
   // The converter won't convert if its output already has this many things of
   // the type it produces. This may be clunky in some cases, but the main usage
   // is to make Mines (etc) have a maximum output.
-  unsigned short max_output;
+  // -1 means no limit
+  short max_output;
   unsigned char conversion_ticks;  // Time to produce output
   unsigned char cooldown;          // Time to wait after producing before starting again
   bool converting;                 // Currently in production phase

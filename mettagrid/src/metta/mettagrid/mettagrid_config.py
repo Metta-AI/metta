@@ -121,11 +121,10 @@ class ConverterConfig(BaseModelWithForbidExtra):
     output_blueprint: Optional[int] = Field(default=None, alias="output_blueprint", ge=0, le=255)
 
     # Converter properties
-    # zero is valid, since it means "don't make any new items"
-    max_output: int = Field(ge=0)
-    conversion_ticks: int = Field(ge=0)
-    cooldown: int = Field(ge=0)
-    initial_items: int = Field(ge=0)
+    max_output: int = Field(default=-1, ge=-1)
+    conversion_ticks: int = Field(default=0, ge=0)
+    cooldown: int = Field(default=0, ge=0)
+    initial_items: int = Field(default=0, ge=0)
     color: Optional[int] = Field(default=None, ge=0, le=255)
 
 
