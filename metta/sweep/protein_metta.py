@@ -2,8 +2,8 @@ import logging
 
 from omegaconf import DictConfig, ListConfig, OmegaConf
 
-from metta.rl.protein import Protein
-from metta.rl.protein_opt.wandb_protein import WandbProtein
+from .protein import Protein
+from .protein_wandb import WandbProtein
 
 logger = logging.getLogger("metta_protein")
 

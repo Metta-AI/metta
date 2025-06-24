@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 
 import wandb
 
-from metta.rl.protein import Protein
+from .protein import Protein
 
 logger = logging.getLogger("wandb_protein")
 

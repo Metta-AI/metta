@@ -78,7 +78,7 @@ def init_run():
 
 ### MettaProtein Class
 ```python
-from metta.rl.protein_opt.metta_protein import MettaProtein
+from metta.sweep.protein_metta import MettaProtein
 
 # Initialize with config and WandB run
 protein = MettaProtein(cfg, wandb_run)
@@ -346,7 +346,7 @@ To support new parameter distributions, modify:
 ### Custom Protein Variants
 Extend `WandbProtein` for specialized optimizers:
 ```python
-from metta.rl.protein_opt.wandb_protein import WandbProtein
+from metta.sweep.protein_wandb import WandbProtein
 
 class CustomProtein(WandbProtein):
     def suggest(self):
