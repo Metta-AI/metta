@@ -110,6 +110,9 @@ class Experience:
             self.lstm_h[i] = torch.zeros(num_lstm_layers, batch_size, hidden_size, device=self.device)
             self.lstm_c[i] = torch.zeros(num_lstm_layers, batch_size, hidden_size, device=self.device)
 
+        # Store LSTM hidden states for contrastive learning
+        self.lstm_hidden_states = torch.zeros(self.segments, bptt_horizon, hidden_size, device=self.device)
+
         # Minibatch configuration
         self.minibatch_size: int = min(minibatch_size, max_minibatch_size)
         self.accumulate_minibatches = max(1, minibatch_size // max_minibatch_size)
@@ -191,6 +194,16 @@ class Experience:
         if lstm_state is not None and env_id.start in self.lstm_h:
             self.lstm_h[env_id.start] = lstm_state["lstm_h"]
             self.lstm_c[env_id.start] = lstm_state["lstm_c"]
+
+            # Store LSTM hidden states for contrastive learning
+            # Take the last layer's hidden state
+            lstm_h = lstm_state["lstm_h"]
+            if lstm_h.dim() == 3:  # (num_layers, batch_size, hidden_size)
+                last_layer_h = lstm_h[-1]  # (batch_size, hidden_size)
+                # Store for each agent in the batch
+                for i, agent_idx in enumerate(range(env_id.start, env_id.stop)):
+                    if agent_idx < self.segments:
+                        self.lstm_hidden_states[agent_idx, episode_length] = last_layer_h[i]
 
         return int(num_steps)
 
