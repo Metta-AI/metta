@@ -1,8 +1,9 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 
 import { Button } from "@/components/Button";
 import { MapViewer } from "@/components/MapViewer";
+import { useSpacePressed } from "@/components/MapViewer/hooks";
 import { Tabs } from "@/components/Tabs";
 import { useIsMouseDown } from "@/hooks/useIsMouseDown";
 import { Cell, MettaGrid } from "@/lib/MettaGrid";
@@ -15,17 +16,17 @@ export default function MapEditorPage() {
   const [grid, setGrid] = useState<MettaGrid>(() => MettaGrid.empty(10, 10));
 
   const [selectedEntity, setSelectedEntity] = useState("wall");
+
+  const isMouseDown = useIsMouseDown();
+  const isSpacePressed = useSpacePressed();
+
   const drawCell = (cell: Cell | undefined) => {
-    if (!cell) return;
+    if (!cell || isSpacePressed) return;
     setGrid((g) => {
       const newG = g.replaceCellByName(cell.r, cell.c, selectedEntity);
       return newG;
     });
   };
-
-  const asciiPreview = useMemo(() => grid.toAscii(), [grid]);
-
-  const isMouseDown = useIsMouseDown();
 
   return (
     <div className="flex h-screen">
@@ -80,14 +81,20 @@ export default function MapEditorPage() {
         ]}
         defaultTab="map"
         additionalTabBarContent={
-          <Button
-            onClick={() => {
-              navigator.clipboard.writeText(grid.toAscii());
-            }}
-            theme="primary"
-          >
-            Copy ASCII
-          </Button>
+          <div className="flex items-center gap-4">
+            <Button
+              onClick={() => {
+                navigator.clipboard.writeText(grid.toAscii());
+              }}
+              theme="primary"
+              size="sm"
+            >
+              Copy ASCII
+            </Button>
+            <div className="text-xs text-gray-700">
+              Tip: hold down "Space" to pan. Double-click to reset zoom and pan.
+            </div>
+          </div>
         }
       />
     </div>
