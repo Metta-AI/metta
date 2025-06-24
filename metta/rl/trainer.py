@@ -142,6 +142,28 @@ class MettaTrainer:
 
         self.kickstarter = Kickstarter(cfg, policy_store, actions_names, actions_max_params)
 
+        # Initialize contrastive learning if enabled
+        self.contrastive_learning = None
+        if hasattr(trainer_cfg, "contrastive") and trainer_cfg.contrastive.get("enabled", False):
+            from metta.rl.contrastive import ContrastiveLearning
+
+            # Get LSTM hidden size from policy
+            hidden_size = getattr(self.policy, "hidden_size", 256)
+            if hasattr(self.policy, "components") and "_core_" in self.policy.components:
+                core_component = self.policy.components["_core_"]
+                if hasattr(core_component, "_net") and hasattr(core_component._net, "hidden_size"):
+                    hidden_size = core_component._net.hidden_size
+
+            self.contrastive_learning = ContrastiveLearning(
+                hidden_size=hidden_size,
+                temperature=trainer_cfg.contrastive.get("temperature", 0.1),
+                geometric_p=trainer_cfg.contrastive.get("geometric_p", 0.1),
+                max_temporal_distance=trainer_cfg.contrastive.get("max_temporal_distance", 50),
+                logsumexp_reg_coef=trainer_cfg.contrastive.get("logsumexp_reg_coef", 1.0),
+                device=self.device,
+            )
+            logger.info(f"Contrastive learning enabled with hidden_size={hidden_size}")
+
         if torch.distributed.is_initialized():
             logger.info(f"Initializing DistributedDataParallel on device {self.device}")
             self._original_policy = self.policy
@@ -480,6 +502,7 @@ class MettaTrainer:
                         self.stats[k] = [self.stats[k], v]  # fallback: bundle as list
 
         # TODO: Better way to enable multiple collects
+        self._compute_contrastive_rewards()
         return self.stats, infos
 
     @with_instance_timer("_train")
@@ -566,6 +589,22 @@ class MettaTrainer:
                 adv = self._normalize_advantage_distributed(adv)
                 adv = minibatch["prio_weights"] * adv
 
+                # Contrastive auxiliary loss
+                contrastive_loss = torch.tensor(0.0, device=self.device)
+                contrastive_coef = 0.0
+                if self.contrastive_learning is not None:
+                    contrastive_cfg = trainer_cfg.contrastive
+                    contrastive_coef = contrastive_cfg.get("loss_coef", 0.0)
+                    if contrastive_coef > 0.0:
+                        # Use the LSTM hidden states from the experience buffer
+                        hidden_states = experience.lstm_hidden_states  # (segments, bptt_horizon, hidden_size)
+                        batch_size = hidden_states.shape[0]
+                        seq_len = hidden_states.shape[1]
+                        contrastive_loss, _ = self.contrastive_learning.compute_contrastive_loss(
+                            hidden_states, batch_size, seq_len
+                        )
+                        contrastive_loss = contrastive_loss * contrastive_coef
+
                 # Policy loss
                 pg_loss1 = -adv * importance_sampling_ratio
                 pg_loss2 = -adv * torch.clamp(
@@ -609,6 +648,7 @@ class MettaTrainer:
                     + l2_init_loss
                     + ks_action_loss
                     + ks_value_loss
+                    + contrastive_loss
                 )
 
                 # Update values in experience buffer
@@ -627,6 +667,7 @@ class MettaTrainer:
                 self.losses.l2_init_loss_sum += l2_init_loss.item() if torch.is_tensor(l2_init_loss) else l2_init_loss
                 self.losses.ks_action_loss_sum += ks_action_loss.item()
                 self.losses.ks_value_loss_sum += ks_value_loss.item()
+                self.losses.contrastive_loss_sum += contrastive_loss.item() if torch.is_tensor(contrastive_loss) else contrastive_loss
                 self.losses.importance_sum += importance_sampling_ratio.mean().item()
                 self.losses.minibatches_processed += 1
 
@@ -1081,6 +1122,41 @@ class MettaTrainer:
             time.sleep(5)
 
         raise RuntimeError("Failed to load policy after 10 attempts")
+
+    def _compute_contrastive_rewards(self):
+        """Compute contrastive rewards and add them to the experience buffer."""
+        if self.contrastive_learning is None:
+            return
+
+        experience = self.experience
+        trainer_cfg = self.trainer_cfg
+
+        # Get contrastive configuration
+        contrastive_cfg = trainer_cfg.contrastive
+        reward_coef = contrastive_cfg.get("reward_coef", 0.0)
+
+        if reward_coef == 0.0:
+            return
+
+        # Compute contrastive loss and reward for the full rollout
+        hidden_states = experience.lstm_hidden_states  # (segments, bptt_horizon, hidden_size)
+        batch_size = hidden_states.shape[0]
+        seq_len = hidden_states.shape[1]
+
+        if seq_len < 2:
+            return
+
+        with torch.no_grad():
+            contrastive_loss, contrastive_reward = self.contrastive_learning.compute_contrastive_loss(
+                hidden_states, batch_size, seq_len
+            )
+
+            # Scale the reward
+            contrastive_reward = contrastive_reward * reward_coef
+
+            # Add contrastive reward to all timesteps in the rollout
+            # This encourages exploration by rewarding novel situations
+            experience.rewards += contrastive_reward.unsqueeze(1).expand_as(experience.rewards)
 
 
 class AbortingTrainer(MettaTrainer):
