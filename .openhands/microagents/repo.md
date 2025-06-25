@@ -2,69 +2,82 @@
 
 ## Overview
 
-Metta AI is a reinforcement learning codebase focusing on the emergence of cooperation and alignment in multi-agent AI systems. It's a simulation environment (game) designed to train AI agents capable of meta-learning general intelligence through social dynamics and kinship structures.
+Metta AI is an open-source research project investigating the emergence of cooperation and alignment in multi-agent AI systems. The project creates a model organism for complex multi-agent gridworld environments to study the impact of social dynamics, such as kinship and mate selection, on learning and cooperative behaviors of AI agents.
 
-## Architecture
+The core hypothesis is that social dynamics, akin to love in biological systems, play a crucial role in the development of cooperative AGI and AI alignment. The project introduces a novel reward-sharing mechanism mimicking familial bonds and mate selection, allowing researchers to observe the evolution of complex social behaviors and cooperation among AI agents.
 
-This is a multi-language repository with the following main components:
+## Repository Structure
 
-### Core Components
-- **Python (Primary)**: Main framework and RL training infrastructure
-- **C++**: High-performance simulation engine (mettagrid)
-- **TypeScript/JavaScript**: Web-based visualization and map editing tools
+The repository is organized into several key components:
 
-### Key Modules
-- `metta/`: Core Python package containing:
-  - `agent/`: Agent architectures and policy management
-  - `rl/`: Reinforcement learning components (trainers, losses, experience)
-  - `sim/`: Simulation environment and configuration
-  - `map/`: Map generation and loading utilities
-  - `eval/`: Evaluation and analysis tools
-  - `util/`: Utility functions and helpers
-
-- `mettagrid/`: C++ simulation engine with Python bindings
-- `app_backend/`: FastAPI backend for web services
-- `mettascope/`: Web-based replay viewer
-- `mettamap/`: Next.js map editor interface
-- `observatory/`: Visualization dashboard
+- **metta/**: Core library containing agent architectures, evaluation tools, simulation components, and utilities
+- **mettagrid/**: Grid-based environment implementation
+- **mettamap/**: Map visualization and editing tools
+- **mettascope/**: Visualization and analysis tools for agent behaviors
+- **tools/**: Command-line tools for training, evaluation, and visualization
+- **configs/**: Configuration files for environments, agents, and training
+- **scenes/**: Pre-defined environment scenes and maps
+- **tests/**: Test suite for the codebase
 
 ## Installation
 
-### Prerequisites
-- Python 3.11.7 (exact version required)
-- uv package manager
+1. Install uv (a fast Python package installer and resolver):
 
-### Setup
 ```bash
-# Install uv
 curl -LsSf https://astral.sh/uv/install.sh | sh
-
-# Install dependencies
-uv sync
-
-# Optional: Setup development environment (requires team permissions)
-./devops/setup_dev.sh
 ```
+
+2. Clone the repository and install dependencies:
+
+```bash
+git clone https://github.com/Metta-AI/metta.git
+cd metta
+uv sync
+```
+
+Note: The project requires Python 3.11.7 specifically, as specified in the pyproject.toml file.
 
 ## Running the Code
 
 ### Training a Model
+
+To train a model:
+
 ```bash
 ./tools/train.py run=my_experiment +hardware=macbook wandb=off
 ```
 
-### Interactive Simulation
+Parameters:
+- `run`: Names your experiment and controls where checkpoints are saved under `train_dir/<run>`
+- `+hardware=<preset>`: Tunes the trainer for your machine (options include macbook, desktop, etc.)
+- `+user=<n>`: Loads defaults from `configs/user/<n>.yaml`
+- `wandb=off`: Disables Weights & Biases logging if you don't have access
+
+### Visualizing a Model
+
+To run the interactive simulation:
+
 ```bash
 ./tools/play.py run=my_experiment +hardware=macbook wandb=off
 ```
 
-### Terminal Simulation
+This launches a human-controlled session using the same configuration flags as training. It's useful for quickly testing maps or policies on your local hardware.
+
+To run the terminal simulation:
+
 ```bash
 ./tools/renderer.py run=demo_obstacles \
 renderer_job.environment.uri="configs/env/mettagrid/maps/debug/simple_obstacles.map"
 ```
 
-### Evaluation
+### Evaluating a Model
+
+When you run training with WandB enabled, you'll see results for the eval suites in your WandB run page.
+
+For post-training evaluation to compare different policies:
+
+1. Add your policy to the existing navigation evals DB:
+
 ```bash
 ./tools/sim.py \
     sim=navigation \
@@ -74,58 +87,47 @@ renderer_job.environment.uri="configs/env/mettagrid/maps/debug/simple_obstacles.
     device=cpu
 ```
 
-### Dashboard
+2. View the results in a heatmap along with other policies in the database:
+
 ```bash
-./tools/dashboard.py +eval_db_uri=wandb://stats/navigation_db run=navigation_db
+./tools/dashboard.py +eval_db_uri=wandb://stats/navigation_db run=navigation_db ++dashboard.output_path=s3://softmax-public/policydash/navigation.html
 ```
 
-## Development
+## Development Setup
 
-### Code Quality
+To run style checks and tests locally:
+
 ```bash
-ruff format          # Format code
-ruff check           # Lint code
-pyright metta        # Type checking (optional)
-pytest               # Run tests
+ruff format
+ruff check
+pyright metta  # optional, some stubs are missing
+pytest
 ```
 
-### Testing
-- Test framework: pytest
-- Coverage: pytest-cov
-- Test location: `tests/` directory
-- Configuration: `pyproject.toml`
+These commands mirror the CI configuration and help keep the codebase consistent.
 
-### Key Features
-- Multi-agent gridworld environment
-- Kinship and social dynamics simulation
-- Reward sharing mechanisms
-- Energy management and resource systems
-- Combat and cooperation mechanics
-- Map generation and procedural content
-- Distributed training infrastructure
-- Web-based visualization tools
+## Key Features
 
-## Project Structure
-```
-metta/
-├── metta/              # Core Python package
-├── mettagrid/          # C++ simulation engine
-├── tests/              # Test suite
-├── tools/              # CLI tools and scripts
-├── configs/            # Configuration files
-├── app_backend/        # FastAPI backend
-├── mettascope/         # Replay viewer
-├── mettamap/           # Map editor
-├── observatory/        # Dashboard
-├── devops/             # Infrastructure and deployment
-└── docs/               # Documentation
-```
+1. **Multi-agent Gridworld Environment**: A flexible environment where agents can interact, compete, and cooperate
+2. **Resource Management**: Agents harvest diamonds, convert them to energy, and use energy for various actions
+3. **Combat and Defense**: Agents can attack others or defend themselves with shields
+4. **Cooperation Mechanisms**: Agents can share energy or resources and use markers to communicate
+5. **Kinship Structures**: Flexible kinship structure simulating relationships from close kin to strangers
+6. **Visualization Tools**: Tools for visualizing agent behaviors and environment dynamics
 
-## Research Focus
-The project investigates how social dynamics (kinship, mate selection) can lead to:
-- Emergence of cooperation in AI systems
-- Development of general intelligence
-- AI alignment through social mechanisms
-- Complex multi-agent behaviors
+## Research Applications
 
-This is an active research project exploring the hypothesis that "love" (social bonds) plays a crucial role in developing cooperative AGI.
+The project is designed for research in:
+
+1. **Environment Development**: Creating rich gridworld environments with complex dynamics
+2. **Agent Architecture Research**: Incorporating techniques like dense learning signals and exploration strategies
+3. **Scalable Training Infrastructure**: Investigating distributed reinforcement learning approaches
+4. **Intelligence Evaluations**: Designing comprehensive intelligence tests for gridworld agents
+5. **Cooperation and Alignment**: Studying the emergence of cooperative behaviors in multi-agent systems
+
+## Community and Resources
+
+- **Discord**: https://discord.gg/mQzrgwqmwy
+- **Short (5m) Talk**: https://www.youtube.com/watch?v=bt6hV73VA8I
+- **Talk**: https://foresight.org/summary/david-bloomin-metta-learning-love-is-all-you-need/
+- **Interactive Demo**: https://metta-ai.github.io/metta/?replayUrl=https%3A%2F%2Fsoftmax-public.s3.us-east-1.amazonaws.com%2Freplays%2Fandre_pufferbox_33%2Freplay.77200.json.z&play=true
