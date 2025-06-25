@@ -656,7 +656,8 @@ class MettaTrainer:
             # contrastive_reward has shape (batch_size,) where batch_size = segments * bptt_horizon
             # We need to reshape it to (segments, bptt_horizon) to match experience.rewards
             segments, bptt_horizon = experience.rewards.shape
-            contrastive_reward_reshaped = contrastive_reward.view(segments, bptt_horizon)
+            # Reshape to (segments, bptt_horizon) and broadcast to all timesteps
+            contrastive_reward_reshaped = contrastive_reward.unsqueeze(1).expand(-1, bptt_horizon)
 
             # Add reward to all agents (reward sharing)
             experience.rewards += contrastive_reward_reshaped * reward_coef
