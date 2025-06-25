@@ -16,7 +16,7 @@ game:
       ore.red: 0.005
       ore.blue: 0.005
       ore.green: 0.005
-      battery: 0.01
+      battery.red: 0.01
       heart: 1
 
   map_builder:
@@ -65,7 +65,7 @@ game:
   objects:
     altar:
       cooldown: ${sampling:10,25,15}
-      input_battery: 1
+      input_battery.red: 1
       max_output: 100
       conversion_ticks: ${sampling:10,25,15}
       initial_items: 0
