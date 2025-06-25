@@ -77,7 +77,7 @@ class ProgressiveMultiTaskCurriculum(RandomCurriculum):
 
         self._task_weights = weights
 
-        logger.info(
+        logger.debug(
             f"Step {self._step_count}, progression: {progression:.3f}, "
             f"weights: {[(k, f'{v:.3f}') for k, v in weights.items()]}"
         )
