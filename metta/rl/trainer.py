@@ -171,7 +171,7 @@ class MettaTrainer:
         # TODO: Remove this workaround when checkpointing refactor is complete
         logger.info("Creating a fresh policy instance for torch.package to save")
         fresh_policy = self.policy_store.create(metta_grid_env).policy()
-        fresh_policy.activate_actions(action_names, max_action_args, self.device)
+        fresh_policy.activate_actions(actions_names, actions_max_params, self.device)
         fresh_policy.load_state_dict(self.policy.state_dict(), strict=False)
         self.policy_record = fresh_policy
 
