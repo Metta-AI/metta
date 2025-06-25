@@ -26,6 +26,11 @@ function hasInventory(obj: any) {
   return false
 }
 
+/** Focus the screen on a specific area of the map. */
+export function focusMap(x: number, y: number, w: number, h: number) {
+  ui.mapPanel.focusPos(x, y, Math.min(ui.mapPanel.width / w, ui.mapPanel.height / h))
+}
+
 /** Makes the panel focus on the full map; used at the start of the replay. */
 export function focusFullMap(panel: PanelInfo) {
   if (state.replay === null) {
@@ -33,7 +38,7 @@ export function focusFullMap(panel: PanelInfo) {
   }
   const width = state.replay.map_size[0] * Common.TILE_SIZE
   const height = state.replay.map_size[1] * Common.TILE_SIZE
-  panel.focusPos(width / 2, height / 2, Math.min(panel.width / width, panel.height / height))
+  focusMap(width / 2, height / 2, width, height)
 }
 
 /** Draws the floor. */
