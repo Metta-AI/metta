@@ -163,7 +163,7 @@ Parameters:
 - `run=my_experiment` - Names your experiment and controls where checkpoints are saved under `train_dir/<run>`
 - `+hardware=macbook` - Loads hardware-specific settings from `configs/hardware/macbook.yaml`
 - `wandb=off` - Disables Weights & Biases logging
-- `+user=<n>` - Loads your personal settings from `configs/user/<n>.yaml`
+- `+user=<name>` - Loads your personal settings from `configs/user/<name>.yaml`
 
 ### Setting up Weights & Biases for Personal Use
 
