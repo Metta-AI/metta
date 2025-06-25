@@ -50,7 +50,11 @@ public:
     this->inventory.resize(InventoryItem::InventoryItemCount);
     this->max_items_per_type.resize(InventoryItem::InventoryItemCount);
     for (int i = 0; i < InventoryItem::InventoryItemCount; i++) {
-      this->max_items_per_type[i] = max_items_per_type_[InventoryItemNames[i]];
+      if (max_items_per_type_.find(InventoryItemNames[i]) != max_items_per_type_.end()) {
+        this->max_items_per_type[i] = max_items_per_type_[InventoryItemNames[i]];
+      } else {
+        this->max_items_per_type[i] = default_item_max;
+      }
     }
     this->resource_rewards.resize(InventoryItem::InventoryItemCount);
     for (int i = 0; i < InventoryItem::InventoryItemCount; i++) {
