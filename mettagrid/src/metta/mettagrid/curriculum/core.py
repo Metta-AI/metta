@@ -24,6 +24,7 @@ class Curriculum:
 
     def get_task_probs(self) -> dict[str, float]:
         """Return the current task probabilities for logging purposes."""
+        return {}
 
 
 class Task:
