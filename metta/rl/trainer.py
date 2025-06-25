@@ -601,9 +601,7 @@ class MettaTrainer:
 
                 if in_value_phase:
                     loss = v_loss * trainer_cfg.vf_coef
-
-                # for testing (delete later) zero the loss
-                loss = torch.tensor(0.0, device=self.device)
+                    print("In value phase")
 
                 # Update values in experience buffer
                 experience.update_values(minibatch["indices"], newvalue.view(minibatch["values"].shape))
