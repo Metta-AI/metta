@@ -37,8 +37,8 @@ lr_scheduler:
 max_grad_norm: 0.5
 vf_clip_coef: 0.1
 vf_coef: 0.44
-l2_reg_loss_coef: 0.0001
-l2_init_loss_coef: 0.0001
+l2_reg_loss_coef: 0
+l2_init_loss_coef: 0
 
 # Prioritized experience replay parameters
 prioritized_experience_replay:
