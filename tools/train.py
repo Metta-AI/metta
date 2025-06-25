@@ -11,7 +11,6 @@ import torch.distributed as dist
 from omegaconf import DictConfig, ListConfig, OmegaConf
 from torch.distributed.elastic.multiprocessing.errors import record
 
-from app_backend.stats_client import StatsClient
 from metta.agent.metta_agent import DistributedMettaAgent
 from metta.agent.policy_store import PolicyStore
 from metta.common.stopwatch import Stopwatch
@@ -66,10 +65,10 @@ def functional_train(cfg: ListConfig | DictConfig, wandb_run: WandbRun | None, l
         with open(os.path.join(cfg.run_dir, "config.yaml"), "w") as f:
             OmegaConf.save(cfg, f)
 
-    train_job = TrainJob(cfg.train_job)
+    TrainJob(cfg.train_job)
 
     policy_store = PolicyStore(cfg, wandb_run)
-    stats_client: StatsClient | None = get_stats_client(cfg, logger)
+    get_stats_client(cfg, logger)
 
     # Extract trainer config
     trainer_cfg = cfg.trainer
@@ -156,6 +155,9 @@ def functional_train(cfg: ListConfig | DictConfig, wandb_run: WandbRun | None, l
     actions_max_params = metta_grid_env.max_action_args
     policy.activate_actions(actions_names, actions_max_params, device)
 
+    # Store uncompiled policy reference for saving
+    uncompiled_policy = policy
+
     # Compile policy if requested
     if trainer_cfg.compile:
         logger.info("Compiling policy")
@@ -167,7 +169,7 @@ def functional_train(cfg: ListConfig | DictConfig, wandb_run: WandbRun | None, l
     # Handle distributed training
     if torch.distributed.is_initialized():
         logger.info(f"Initializing DistributedDataParallel on device {device}")
-        policy = DistributedMettaAgent(policy, device)
+        policy = DistributedMettaAgent(uncompiled_policy, device)
 
     # Create experience buffer
     obs_space = vecenv.single_observation_space
@@ -226,6 +228,13 @@ def functional_train(cfg: ListConfig | DictConfig, wandb_run: WandbRun | None, l
         except ValueError as e:
             logger.warning(f"Failed to load optimizer state: {e}")
 
+    # Create lr_scheduler if enabled
+    lr_scheduler = None
+    if hasattr(trainer_cfg, "lr_scheduler") and getattr(trainer_cfg.lr_scheduler, "enabled", False):
+        lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+            optimizer, T_max=trainer_cfg.total_timesteps // trainer_cfg.batch_size
+        )
+
     # Create losses tracker
     losses = Losses()
 
@@ -243,15 +252,19 @@ def functional_train(cfg: ListConfig | DictConfig, wandb_run: WandbRun | None, l
         steps_before = agent_step
 
         with timer("rollout"):
-            agent_step, stats = rollout(policy, vecenv, experience, device, agent_step)
+            agent_step, stats = rollout(policy, vecenv, experience, device, agent_step, timer)
 
         with timer("train"):
-            train_ppo(
+            epoch = train_ppo(
                 policy=policy,
                 optimizer=optimizer,
                 experience=experience,
                 device=device,
                 losses=losses,
+                epoch=epoch,
+                cfg=cfg,
+                lr_scheduler=lr_scheduler,
+                timer=timer,
                 gamma=trainer_cfg.gamma,
                 gae_lambda=trainer_cfg.gae_lambda,
                 clip_coef=trainer_cfg.clip_coef,
@@ -271,11 +284,10 @@ def functional_train(cfg: ListConfig | DictConfig, wandb_run: WandbRun | None, l
                 prio_alpha=trainer_cfg.prioritized_experience_replay.get("prio_alpha", 0.0),
                 prio_beta0=trainer_cfg.prioritized_experience_replay.get("prio_beta0", 0.6),
                 total_timesteps=trainer_cfg.total_timesteps,
+                batch_size=trainer_cfg.batch_size,
                 vtrace_rho_clip=trainer_cfg.vtrace.get("vtrace_rho_clip", 1.0),
                 vtrace_c_clip=trainer_cfg.vtrace.get("vtrace_c_clip", 1.0),
             )
-
-        epoch += 1
 
         # Calculate timing
         rollout_time = timer.get_last_elapsed("rollout")
@@ -296,7 +308,7 @@ def functional_train(cfg: ListConfig | DictConfig, wandb_run: WandbRun | None, l
 
         # Log to wandb
         if wandb_run and is_master and stats:
-            # Process stats
+            # Process stats - convert lists to means
             mean_stats = {}
             for k, v in stats.items():
                 try:
@@ -320,12 +332,15 @@ def functional_train(cfg: ListConfig | DictConfig, wandb_run: WandbRun | None, l
                 }
             )
 
-        # Checkpointing
+            # Checkpointing
         if epoch % trainer_cfg.checkpoint_interval == 0 and is_master:
             logger.info("Saving checkpoint...")
             # Save policy
             name = policy_store.make_model_name(epoch)
-            pr = policy_store.save(policy, name, metadata={"epoch": epoch, "agent_step": agent_step})
+            path = os.path.join(trainer_cfg.checkpoint_dir, name)
+            pr = policy_store.save(
+                name=name, path=path, policy=uncompiled_policy, metadata={"epoch": epoch, "agent_step": agent_step}
+            )
 
             # Save trainer checkpoint
             checkpoint = TrainerCheckpoint(
@@ -347,7 +362,10 @@ def functional_train(cfg: ListConfig | DictConfig, wandb_run: WandbRun | None, l
     # Final checkpoint
     if is_master:
         name = policy_store.make_model_name(epoch)
-        pr = policy_store.save(policy, name, metadata={"epoch": epoch, "agent_step": agent_step})
+        path = os.path.join(trainer_cfg.checkpoint_dir, name)
+        pr = policy_store.save(
+            name=name, path=path, policy=uncompiled_policy, metadata={"epoch": epoch, "agent_step": agent_step}
+        )
 
         checkpoint = TrainerCheckpoint(
             agent_step=agent_step,
@@ -365,7 +383,7 @@ def functional_train(cfg: ListConfig | DictConfig, wandb_run: WandbRun | None, l
 def _load_policy(checkpoint, policy_store, metta_grid_env):
     """Load policy from checkpoint or create new one."""
     if checkpoint.policy_path:
-        return policy_store.load(checkpoint.policy_path)
+        return policy_store.load_from_uri(checkpoint.policy_path)
     else:
         # Create new policy
         return policy_store.create(metta_grid_env)
