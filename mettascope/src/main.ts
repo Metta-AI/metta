@@ -745,8 +745,6 @@ if (localStorage.hasOwnProperty('showTraces')) {
 }
 toggleOpacity(html.tracesToggle, state.showTraces)
 
-
-
 initHighDpiMode()
 initActionButtons()
 initAgentTable()
