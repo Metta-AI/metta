@@ -184,9 +184,9 @@ TEST_F(MettaGridCppTest, AttackAction) {
 
   // Give target some items
   target->update_inventory(TestItems::ORE, 2);
-  target->update_inventory(TestItems::ARMOR, 3);
+  target->update_inventory(TestItems::HEART, 3);
   EXPECT_EQ(target->inventory[TestItems::ORE], 2);
-  EXPECT_EQ(target->inventory[TestItems::ARMOR], 3);
+  EXPECT_EQ(target->inventory[TestItems::HEART], 3);
 
   // Verify attacker orientation
   EXPECT_EQ(attacker->orientation, Orientation::Up);
@@ -208,9 +208,9 @@ TEST_F(MettaGridCppTest, AttackAction) {
 
   // Verify target's inventory was stolen
   EXPECT_EQ(target->inventory[TestItems::ORE], 0);
-  EXPECT_EQ(target->inventory[TestItems::ARMOR], 0);
+  EXPECT_EQ(target->inventory[TestItems::HEART], 0);
   EXPECT_EQ(attacker->inventory[TestItems::ORE], 2);
-  EXPECT_EQ(attacker->inventory[TestItems::ARMOR], 3);
+  EXPECT_EQ(attacker->inventory[TestItems::HEART], 3);
 }
 
 TEST_F(MettaGridCppTest, PutRecipeItems) {
