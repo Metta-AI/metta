@@ -3,7 +3,7 @@ import os
 import time
 from collections import defaultdict
 from contextlib import nullcontext
-from typing import Any, Set
+from typing import Any
 from uuid import UUID
 
 import einops
@@ -13,11 +13,13 @@ import torch.distributed
 import wandb
 from heavyball import ForeachMuon
 from omegaconf import DictConfig, ListConfig
+from typing_extensions import override
 
 from app_backend.stats_client import StatsClient
 from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
+from metta.agent.policy_record import PolicyRecord
 from metta.agent.policy_state import PolicyState
-from metta.agent.policy_store import PolicyRecord, PolicyStore
+from metta.agent.policy_store import PolicyStore
 from metta.agent.util.debug import assert_shape
 from metta.common.stopwatch import Stopwatch, with_instance_timer
 from metta.eval.eval_stats_db import EvalStatsDB
@@ -86,7 +88,7 @@ class MettaTrainer:
             )
 
         self.torch_profiler = TorchProfiler(self._master, cfg.run_dir, trainer_cfg.profiler_interval_epochs, wandb_run)
-        self.losses = Losses()
+        self.losses: Losses | None = Losses()
         self.stats = defaultdict(list)
         self.wandb_run = wandb_run
         self.policy_store = policy_store
@@ -346,7 +348,7 @@ class MettaTrainer:
 
         # Build evaluation metrics
         self.evals = {}  # used for wandb
-        categories: Set[str] = set()
+        categories: set[str] = set()
         for sim_name in self.sim_suite_config.simulations.keys():
             categories.add(sim_name.split("/")[0])
 
@@ -701,7 +703,7 @@ class MettaTrainer:
 
         category_scores_map = {key.split("/")[0]: value for key, value in self.evals.items() if key.endswith("/score")}
 
-        category_score_values = [v for k, v in category_scores_map.items()]
+        category_score_values = list(category_scores_map.values())
         overall_score = sum(category_score_values) / len(category_score_values) if category_score_values else 0
 
         # Handle torch.package loaded models
@@ -1087,6 +1089,7 @@ class AbortingTrainer(MettaTrainer):
     def __init__(self, *args: Any, **kwargs: Any):
         super().__init__(*args, **kwargs)
 
+    @override
     def _on_train_step(self):
         if self.wandb_run is None:
             return

@@ -2,7 +2,6 @@
 import os
 import sys
 from logging import Logger
-from typing import Optional
 
 import hydra
 import torch
@@ -25,7 +24,7 @@ from metta.util.wandb.wandb_context import WandbContext, WandbRun
 class TrainJob(Config):
     __init__ = Config.__init__
     evals: SimulationSuiteConfig
-    map_preview_uri: Optional[str] = None
+    map_preview_uri: str | None = None
 
 
 def train(cfg: ListConfig | DictConfig, wandb_run: WandbRun | None, logger: Logger):
