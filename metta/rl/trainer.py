@@ -558,6 +558,9 @@ class MettaTrainer:
                     # Count tensors by location
                     import gc
                     tensor_locations = {}
+                    list_tensors = 0
+                    dict_tensors = 0
+
                     for obj in gc.get_objects():
                         if isinstance(obj, torch.Tensor):
                             # Try to find where this tensor is referenced
@@ -569,9 +572,31 @@ class MettaTrainer:
                                     location = referrer.__class__.__name__
                                 tensor_locations[location] = tensor_locations.get(location, 0) + 1
 
+                                # Check if tensor is in a list or dict
+                                if isinstance(referrer, list):
+                                    list_tensors += 1
+                                elif isinstance(referrer, dict):
+                                    dict_tensors += 1
+
                     logger.info("\nTensor count by location (top 10):")
                     for location, count in sorted(tensor_locations.items(), key=lambda x: x[1], reverse=True)[:10]:
                         logger.info(f"  {location}: {count} tensors")
+
+                    # Additional debugging for tensors in collections
+                    if list_tensors > 50 or dict_tensors > 50:
+                        logger.warning(f"\n⚠️  HIGH TENSOR COUNT IN COLLECTIONS:")
+                        logger.warning(f"  Tensors in lists: {list_tensors}")
+                        logger.warning(f"  Tensors in dicts: {dict_tensors}")
+
+                        # Sample some tensors to see what they are
+                        sample_count = 0
+                        for obj in gc.get_objects():
+                            if isinstance(obj, torch.Tensor) and sample_count < 5:
+                                for referrer in gc.get_referrers(obj):
+                                    if isinstance(referrer, (list, dict)):
+                                        logger.warning(f"  Sample tensor: shape={obj.shape}, dtype={obj.dtype}, device={obj.device}")
+                                        sample_count += 1
+                                        break
 
                     logger.info("="*60 + "\n")
 
@@ -793,6 +818,9 @@ class MettaTrainer:
         # Batch process info dictionaries after rollout
         for i in raw_infos:
             for k, v in unroll_nested_dict(i):
+                # Convert tensors to scalars before storing
+                if isinstance(v, torch.Tensor):
+                    v = v.detach().cpu().item() if v.numel() == 1 else v.detach().cpu().tolist()
                 infos[k].append(v)
 
         # Debug: Check sizes of collections
@@ -807,8 +835,19 @@ class MettaTrainer:
                 v = v.tolist()
 
             if isinstance(v, list):
-                self.stats.setdefault(k, []).extend(v)
+                # Convert any tensors in the list to Python scalars
+                v_converted = []
+                for item in v:
+                    if isinstance(item, torch.Tensor):
+                        v_converted.append(item.detach().cpu().item() if item.numel() == 1 else item.detach().cpu().tolist())
+                    else:
+                        v_converted.append(item)
+                self.stats.setdefault(k, []).extend(v_converted)
             else:
+                # Convert tensor to scalar/list before storing
+                if isinstance(v, torch.Tensor):
+                    v = v.detach().cpu().item() if v.numel() == 1 else v.detach().cpu().tolist()
+
                 if k not in self.stats:
                     self.stats[k] = v
                 else:
@@ -816,6 +855,9 @@ class MettaTrainer:
                         self.stats[k] += v
                     except TypeError:
                         self.stats[k] = [self.stats[k], v]  # fallback: bundle as list
+
+        # Clear raw_infos to prevent memory accumulation
+        raw_infos.clear()
 
         # TODO: Better way to enable multiple collects
         return self.stats, infos
