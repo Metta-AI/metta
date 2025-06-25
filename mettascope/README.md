@@ -8,15 +8,34 @@ This advanced WebGPU viewer allows you to watch and replay any metta replay. It 
 <a href="https://metta-ai.github.io/metta/?replayUrl=https%3A%2F%2Fsoftmax-public.s3.us-east-1.amazonaws.com%2Freplays%2Fandre_pufferbox_33%2Freplay.77200.json.z&play=true">Interactive demo</a>
 </p>
 
+
+## Installation
+
+Ensure you have Node.js version 23.11.0 or higher installed. You can check your version with: `node --version`.
+
+Then, install and build mettascope:
+```bash
+./mettascope/install.sh
+```
+
 ## Usage
 
+### Running the server
+From within the metta/mettascope/ directory:
+```bash
+python -m http.server 2000
+```
+
+Then open the browser and go to `http://localhost:2000` to see the player.
+
+### Viewing replays
 You can either drag and drop a replay file or pass a url parameter to the player.
 
 `?replayUrl=...the replay file...`
 
 Most tools dealing with replays will provide a full link.
 
-## Here are some replays to try out:
+Here are some replays to try out:
 
 * [Simple Environment](https://metta-ai.github.io/metta/?replayUrl=https://softmax-public.s3.us-east-1.amazonaws.com/replays/andre_pufferbox_33/replay.77200.json.z)
 
@@ -28,19 +47,6 @@ Most tools dealing with replays will provide a full link.
 
 * [The 280 Agents](https://metta-ai.github.io/metta/?replayUrl=https%3A%2F%2Fsoftmax-public.s3.us-east-1.amazonaws.com%2Freplays%2Fdaveey.na.240.1x4%2Freplay.8100.json.z)
 
-## Installation
-
-You need to install Node.js (v23.11.0) and typescript (Version 5.8.3), this might be different for different operating systems.
-
-```bash
-cd mettascope
-npm install
-tsc
-python tools/gen_atlas.py
-python -m http.server 2000
-```
-
-Then open the browser and go to `http://localhost:2000` to see the player.
 
 ## Development
 
