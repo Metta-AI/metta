@@ -1,7 +1,7 @@
 import random
 
 import pytest
-from omegaconf import OmegaConf
+from omegaconf import DictConfig, OmegaConf
 
 from metta.mettagrid.curriculum.bucketed import BucketedCurriculum, _expand_buckets
 from metta.mettagrid.curriculum.core import SingleTaskCurriculum
@@ -18,12 +18,10 @@ def env_cfg():
 
 
 def fake_curriculum_from_config_path(path, env_overrides=None):
-    return SingleTaskCurriculum(
-        path,
-        task_cfg=OmegaConf.merge(
-            OmegaConf.create({"game": {"num_agents": 5, "map": {"width": 10, "height": 10}}}), env_overrides
-        ),
-    )
+    base_config = OmegaConf.create({"game": {"num_agents": 5, "map": {"width": 10, "height": 10}}})
+    task_cfg = OmegaConf.merge(base_config, env_overrides or {})
+    assert isinstance(task_cfg, DictConfig)
+    return SingleTaskCurriculum(path, task_cfg=task_cfg)
 
 
 def test_single_task_curriculum(env_cfg):
