@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import copy
 import logging
-from typing import Optional
+from typing import Any, Dict, List, Optional
 
+import numpy as np
 from omegaconf import DictConfig, OmegaConf
 
 from metta.mettagrid.curriculum.core import Curriculum, Task
@@ -20,3 +21,37 @@ class SamplingCurriculum(Curriculum):
         cfg = OmegaConf.create(copy.deepcopy(self._cfg_template))
         OmegaConf.resolve(cfg)
         return Task(f"sample({self._cfg_template.sampling})", self, cfg)
+
+
+class SampledTaskCurriculum(Curriculum):
+    """Curriculum that contains a single task, but the task is sampled from a distribution."""
+
+    def __init__(
+        self,
+        task_id: str,
+        task_cfg_template: str,
+        bucket_parameters: Dict[str, Dict[str, Any]],
+        bucket_values: List[Any],
+    ):
+        self._task_id = task_id
+        self._task_cfg_template = task_cfg_template
+        self._bucket_values = bucket_values
+        self._bucket_parameters = bucket_parameters
+        self._completed_tasks = None
+
+    def get_task(self) -> Task:
+        cfg = self._task_cfg_template.copy()
+        override = dict(zip(self._bucket_parameters, self._bucket_values, strict=False))
+        for k, v in override.items():
+            OmegaConf.update(cfg, k, _sample(v), merge=False)
+        return Task(self._task_id, self, cfg)
+
+
+def _sample(choice: Any) -> Any:
+    if isinstance(choice, dict) and "range" in choice:
+        lo, hi = choice["range"]
+        value = np.random.uniform(lo, hi)
+        if choice.get("want_int", False):
+            value = int(value)
+        return value
+    return choice
