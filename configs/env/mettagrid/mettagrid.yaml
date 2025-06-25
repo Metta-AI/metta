@@ -8,6 +8,20 @@ game:
   num_observation_tokens: 200
   max_steps: 1000
 
+  # We could figure this out implicitly, but being explicit reduces the risk of people accidentally configuring
+  # inventory they didn't intend (e.g., "ore" instead of "ore.red").
+  inventory_item_names:
+    - ore.red
+    - ore.blue
+    - ore.green
+    - battery.red
+    - battery.blue
+    - battery.green
+    - heart
+    - armor
+    - laser
+    - blueprint
+
   diversity_bonus:
     enabled: false
     similarity_coef: 0.5 # Coefficient for within-group similarity
