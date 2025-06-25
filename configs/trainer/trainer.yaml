@@ -5,7 +5,7 @@ env_overrides:
   desync_episodes: true
 
 initial_policy:
-  uri: wandb://run/b_alex_ks_ndr_student_017:v2 #null delete this uri
+  uri: null #wandb://run/b_alex_ks_ndr_student_017:v2 #null delete this uri
   type: top
   range: 1
   metric: epoch
