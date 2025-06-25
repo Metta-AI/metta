@@ -40,7 +40,7 @@ class ProgressiveMultiTaskCurriculum(RandomCurriculum):
     def __init__(
         self,
         tasks: Dict[str, float],
-        env_overrides: DictConfig,
+        env_overrides: Optional[DictConfig] = None,
         performance_threshold: float = 0.8,
         smoothing: float = 0.1,
         progression_rate: float = 0.01,
@@ -48,6 +48,8 @@ class ProgressiveMultiTaskCurriculum(RandomCurriculum):
         blending_smoothness: float = 0.5,
         blending_mode: str = "logistic",
     ):
+        if env_overrides is None:
+            env_overrides = DictConfig({})
         super().__init__(tasks, env_overrides)
         if progression_mode not in ["time", "perf"]:
             raise ValueError("progression_mode must be either 'time' or 'perf'")
