@@ -523,7 +523,11 @@ class MettaTrainer:
         # Training loop
         for minibatch_idx in range(experience.num_minibatches):
             minibatch = experience.sample_minibatch(
-                advantages, trainer_cfg.priority_alpha, trainer_cfg.priority_beta, minibatch_idx, experience.num_minibatches
+                advantages,
+                trainer_cfg.get("priority_alpha", 0.0),
+                trainer_cfg.get("priority_beta", 0.6),
+                minibatch_idx,
+                experience.num_minibatches
             )
 
             obs = minibatch["obs"]
