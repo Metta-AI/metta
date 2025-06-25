@@ -46,5 +46,6 @@
     "outputs": true,
     "train_dir": true,
     "wandb": true
-  }
+  },
+  "python.languageServer": "None"
 }
