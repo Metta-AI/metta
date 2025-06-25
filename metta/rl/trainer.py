@@ -676,21 +676,13 @@ class MettaTrainer:
 
                     # Sample some tensors to see what they are
                     sample_count = 0
-                    lstm_count = 0
                     for obj in gc.get_objects():
                         if isinstance(obj, torch.Tensor) and sample_count < 5:
                             for referrer in gc.get_referrers(obj):
                                 if isinstance(referrer, (list, dict)):
                                     logger.warning(f"  Sample tensor: shape={obj.shape}, dtype={obj.dtype}, device={obj.device}")
-                                    # Check if it's an LSTM state
-                                    if len(obj.shape) == 3 and obj.shape[0] == 2 and obj.shape[1] == 1920 and obj.shape[2] == 128:
-                                        lstm_count += 1
                                     sample_count += 1
                                     break
-
-                    if lstm_count > 0:
-                        logger.warning(f"  LSTM states found: {lstm_count} out of {sample_count} samples")
-                        logger.warning("  This indicates LSTM states are leaking into collections!")
 
                 logger.info("="*60 + "\n")
 
@@ -851,9 +843,8 @@ class MettaTrainer:
                 # Use LSTM state access for performance
                 lstm_h, lstm_c = experience.get_lstm_state(training_env_id.start)
                 if lstm_h is not None:
-                    # Clone to prevent reference accumulation
-                    state.lstm_h = lstm_h.clone()
-                    state.lstm_c = lstm_c.clone()
+                    state.lstm_h = lstm_h
+                    state.lstm_c = lstm_c
 
                 # Use pre-moved tensor
                 actions, selected_action_log_probs, _, value, _ = policy(o, state)
@@ -888,10 +879,6 @@ class MettaTrainer:
                 lstm_state=lstm_state_to_store,
             )
 
-            # Clear PolicyState to prevent any lingering references
-            state.lstm_h = None
-            state.lstm_c = None
-
             # At this point, infos contains lists of values collected across:
             # 1. Multiple vectorized environments managed by this GPU's vecenv
             # 2. Multiple rollout steps (until experience buffer is full)
@@ -908,17 +895,14 @@ class MettaTrainer:
             with self.timer("_rollout.env"):
                 self.vecenv.send(actions.cpu().numpy().astype(dtype_actions))
 
-            # Explicit cleanup to prevent LSTM state accumulation
-            del state, lstm_h, lstm_c
-            if lstm_state_to_store is not None:
-                del lstm_state_to_store
-
-            # Force cleanup every 100 steps when memory growth detected
-            if self.agent_step % 100 == 0:
-                import gc
-                gc.collect()
-                if str(self.device).startswith("cuda"):
-                    torch.cuda.empty_cache()
+            # Memory profiling - uncomment to track memory growth per step
+            # Enable detailed profiling if we detect rapid memory growth
+            if hasattr(self, 'memory_tracker') and self.memory_tracker.history:
+                if len(self.memory_tracker.history) >= 2:
+                    recent_growth = self.memory_tracker.history[-1]['rss_mb'] - self.memory_tracker.history[-2]['rss_mb']
+                    if recent_growth > 100:  # More than 100MB growth in one epoch
+                        if self.agent_step % 100 == 0:  # Check every 100 steps when leak detected
+                            profile_memory(locals(), prefix=f"LEAK DETECTED - ROLLOUT STEP {self.agent_step}", device=self.device)
 
         # Memory profiling - uncomment to check at end of rollout
         if self.epoch % 5 == 0:  # Profile every 5 epochs to reduce log spam

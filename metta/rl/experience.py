@@ -189,9 +189,6 @@ class Experience:
 
         # Update LSTM states if provided
         if lstm_state is not None and env_id.start in self.lstm_h:
-            # Explicitly delete old references before storing new ones
-            del self.lstm_h[env_id.start]
-            del self.lstm_c[env_id.start]
             self.lstm_h[env_id.start] = lstm_state["lstm_h"]
             self.lstm_c[env_id.start] = lstm_state["lstm_c"]
 
