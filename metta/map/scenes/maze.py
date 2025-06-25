@@ -2,7 +2,7 @@ from typing import List, Literal, Tuple, Union
 
 from metta.map.scene import Scene
 from metta.map.utils.random import IntDistribution, sample_int_distribution
-from metta.util.config import Config
+from common.src.metta.util.config import Config
 
 Anchor = Union[
     Literal["top-left"],

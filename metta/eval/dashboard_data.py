@@ -7,7 +7,7 @@ from pydantic import BaseModel
 
 from metta.mettagrid.util.file import write_data
 from metta.sim.simulation_stats_db import SimulationStatsDB
-from metta.util.config import Config
+from common.src.metta.util.config import Config
 
 logger = logging.getLogger(__name__)
 

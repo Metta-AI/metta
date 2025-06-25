@@ -8,12 +8,12 @@ from typing_extensions import TypedDict
 
 from metta.map.utils.storable_map import StorableMap, StorableMapDict, StorableMapIndex, map_builder_cfg_to_storable_map
 from metta.mettagrid.util.file import read
-from metta.util.mettagrid_cfgs import (
+from common.src.metta.util.mettagrid_cfgs import (
     CfgKind,
     MettagridCfgFile,
     MettagridCfgFileMetadata,
 )
-from metta.util.resolvers import register_resolvers
+from common.src.metta.util.resolvers import register_resolvers
 
 
 def make_app():

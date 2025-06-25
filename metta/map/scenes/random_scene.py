@@ -2,7 +2,7 @@ import numpy as np
 
 from metta.map.scene import Scene
 from metta.map.types import ChildrenAction, SceneCfg
-from metta.util.config import Config
+from common.src.metta.util.config import Config
 
 
 class RandomSceneCandidate(Config):

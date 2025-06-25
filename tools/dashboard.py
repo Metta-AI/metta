@@ -6,8 +6,8 @@ from omegaconf import DictConfig, OmegaConf
 
 from metta.eval.dashboard_data import DashboardConfig, write_dashboard_data
 from metta.mettagrid.util.file import http_url
-from metta.util.logging import setup_mettagrid_logger
-from metta.util.runtime_configuration import setup_mettagrid_environment
+from common.src.metta.util.logging import setup_mettagrid_logger
+from common.src.metta.util.runtime_configuration import setup_mettagrid_environment
 
 DASHBOARD_URL = "https://metta-ai.github.io/metta/observatory/"
 

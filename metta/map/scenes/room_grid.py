@@ -1,7 +1,7 @@
 from typing import Optional
 
 from metta.map.scene import Scene
-from metta.util.config import Config
+from common.src.metta.util.config import Config
 
 
 class RoomGridParams(Config):

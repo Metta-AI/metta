@@ -10,9 +10,9 @@ from metta.agent.metta_agent import MettaAgent
 from metta.agent.policy_store import PolicyStore
 from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SingleEnvSimulationConfig
-from metta.util.logging import setup_mettagrid_logger
-from metta.util.runtime_configuration import setup_mettagrid_environment
-from metta.util.wandb.wandb_context import WandbContext
+from common.src.metta.util.logging import setup_mettagrid_logger
+from common.src.metta.util.runtime_configuration import setup_mettagrid_environment
+from common.src.metta.util.wandb.wandb_context import WandbContext
 
 
 class FakeAgent(MettaAgent):

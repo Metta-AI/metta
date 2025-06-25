@@ -28,7 +28,7 @@ import numpy as np
 
 from metta.map.scene import Scene
 from metta.map.utils.pattern import Pattern, Symmetry, ascii_to_weights_of_all_patterns
-from metta.util.config import Config
+from common.src.metta.util.config import Config
 
 
 class ConvChainParams(Config):

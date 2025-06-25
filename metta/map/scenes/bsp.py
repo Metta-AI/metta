@@ -5,7 +5,7 @@ import numpy as np
 
 from metta.map.scene import Scene
 from metta.map.types import MapGrid
-from metta.util.config import Config
+from common.src.metta.util.config import Config
 
 logger = logging.getLogger(__name__)
 

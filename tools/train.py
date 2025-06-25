@@ -13,12 +13,12 @@ from torch.distributed.elastic.multiprocessing.errors import record
 from app_backend.stats_client import StatsClient
 from metta.agent.policy_store import PolicyStore
 from metta.sim.simulation_config import SimulationSuiteConfig
-from metta.util.config import Config
-from metta.util.heartbeat import record_heartbeat
-from metta.util.logging import setup_mettagrid_logger
-from metta.util.runtime_configuration import setup_mettagrid_environment
-from metta.util.stats_client_cfg import get_stats_client
-from metta.util.wandb.wandb_context import WandbContext, WandbRun
+from common.src.metta.util.config import Config
+from common.src.metta.util.heartbeat import record_heartbeat
+from common.src.metta.util.logging import setup_mettagrid_logger
+from common.src.metta.util.runtime_configuration import setup_mettagrid_environment
+from common.src.metta.util.stats_client_cfg import get_stats_client
+from common.src.metta.util.wandb.wandb_context import WandbContext, WandbRun
 
 
 # TODO: populate this more

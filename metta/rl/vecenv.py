@@ -9,7 +9,7 @@ from metta.mettagrid.curriculum.core import Curriculum
 from metta.mettagrid.mettagrid_env import MettaGridEnv
 from metta.mettagrid.replay_writer import ReplayWriter
 from metta.mettagrid.stats_writer import StatsWriter
-from metta.util.resolvers import register_resolvers
+from common.src.metta.util.resolvers import register_resolvers
 
 logger = logging.getLogger("vecenv")
 

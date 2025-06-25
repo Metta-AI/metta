@@ -5,7 +5,7 @@ from metta.map.config import scenes_root
 from metta.map.scene import Scene
 from metta.map.scenes.random_scene import RandomScene, RandomSceneCandidate
 from metta.map.types import ChildrenAction
-from metta.util.config import Config
+from common.src.metta.util.config import Config
 
 
 class RandomSceneFromDirParams(Config):

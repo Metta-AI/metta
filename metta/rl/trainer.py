@@ -33,9 +33,9 @@ from metta.rl.vecenv import make_vecenv
 from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
 from metta.sim.simulation_suite import SimulationSuite
-from metta.util.heartbeat import record_heartbeat
-from metta.util.system_monitor import SystemMonitor
-from metta.util.wandb.wandb_context import WandbRun
+from common.src.metta.util.heartbeat import record_heartbeat
+from common.src.metta.util.system_monitor import SystemMonitor
+from common.src.metta.util.wandb.wandb_context import WandbRun
 
 try:
     from pufferlib import _C  # noqa: F401 - Required for torch.ops.pufferlib

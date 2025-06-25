@@ -10,7 +10,7 @@ from metta.map.scenes.random_scene import RandomScene, RandomSceneCandidate
 from metta.map.scenes.room_grid import RoomGrid
 from metta.map.types import AreaWhere, ChildrenAction, MapGrid
 from metta.map.utils.random import FloatDistribution, IntDistribution, sample_int_distribution
-from metta.util.config import Config
+from common.src.metta.util.config import Config
 
 
 class AutoParamsLayout(Config):

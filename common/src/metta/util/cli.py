@@ -5,7 +5,7 @@ Common utilities for CLI scripts.
 import subprocess
 import sys
 
-from metta.util.colorama import yellow
+from common.src.metta.util.colorama import yellow
 
 
 def get_user_confirmation(prompt: str = "Should we proceed?") -> bool:

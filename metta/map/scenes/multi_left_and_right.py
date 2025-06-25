@@ -4,7 +4,7 @@ from metta.map.scene import Scene
 from metta.map.scenes.random import Random
 from metta.map.scenes.room_grid import RoomGrid
 from metta.map.types import AreaWhere, ChildrenAction
-from metta.util.config import Config
+from common.src.metta.util.config import Config
 
 
 class MultiLeftAndRightParams(Config):

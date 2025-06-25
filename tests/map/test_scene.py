@@ -3,7 +3,7 @@ import pytest
 
 from metta.map.scene import Scene
 from metta.map.types import AreaQuery, AreaWhere
-from metta.util.config import Config
+from common.src.metta.util.config import Config
 
 # Set a global seed for reproducibility
 SEED = 42

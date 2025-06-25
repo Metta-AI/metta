@@ -6,7 +6,7 @@ import hydra
 from omegaconf import DictConfig, OmegaConf
 from typing_extensions import TypedDict
 
-from metta.util.config import config_from_path
+from common.src.metta.util.config import config_from_path
 
 METTAGRID_CFG_ROOT = "env/mettagrid"
 

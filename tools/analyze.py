@@ -7,8 +7,8 @@ from omegaconf import DictConfig, OmegaConf
 from metta.agent.policy_store import PolicyStore
 from metta.eval.analysis import analyze
 from metta.eval.analysis_config import AnalysisConfig
-from metta.util.logging import setup_mettagrid_logger
-from metta.util.runtime_configuration import setup_mettagrid_environment
+from common.src.metta.util.logging import setup_mettagrid_logger
+from common.src.metta.util.runtime_configuration import setup_mettagrid_environment
 
 
 @hydra.main(version_base=None, config_path="../configs", config_name="analyze_job")

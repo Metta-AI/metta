@@ -3,7 +3,7 @@ import subprocess
 
 import pytest
 
-from metta.util.git import (
+from common.src.metta.util.git import (
     GitError,
     get_branch_commit,
     get_commit_message,

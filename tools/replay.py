@@ -11,10 +11,10 @@ import mettascope.server as server
 from metta.agent.policy_store import PolicyStore
 from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SingleEnvSimulationConfig
-from metta.util.config import Config
-from metta.util.logging import setup_mettagrid_logger
-from metta.util.runtime_configuration import setup_mettagrid_environment
-from metta.util.wandb.wandb_context import WandbContext
+from common.src.metta.util.config import Config
+from common.src.metta.util.logging import setup_mettagrid_logger
+from common.src.metta.util.runtime_configuration import setup_mettagrid_environment
+from common.src.metta.util.wandb.wandb_context import WandbContext
 
 
 # TODO: This job can be replaced with sim now that Simulations create replays
