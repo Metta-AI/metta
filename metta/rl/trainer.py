@@ -15,9 +15,9 @@ from heavyball import ForeachMuon
 from omegaconf import DictConfig, ListConfig
 
 from app_backend.stats_client import StatsClient
-from common.metta.util.heartbeat import record_heartbeat
-from common.metta.util.system_monitor import SystemMonitor
-from common.metta.util.wandb.wandb_context import WandbRun
+from metta.common.util.heartbeat import record_heartbeat
+from metta.common.util.system_monitor import SystemMonitor
+from metta.common.util.wandb.wandb_context import WandbRun
 from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
 from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyRecord, PolicyStore

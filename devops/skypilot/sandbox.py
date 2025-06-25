@@ -6,7 +6,7 @@ import subprocess
 import sky
 import sky.cli
 
-from common.metta.util.colorama import blue, green, yellow
+from metta.common.util.colorama import blue, green, yellow
 
 
 def get_existing_clusters():
