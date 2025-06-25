@@ -290,7 +290,7 @@ class MemoryTracker:
             if current.get('children_rss_mb', 0) > 0:
                 logger.warning(f"   Children: {current['children_rss_mb']:.1f} MB")
 
-            # Try to identify what's using memory
+                        # Try to identify what's using memory
             try:
                 import psutil
                 # Get top 5 memory-consuming processes
@@ -310,6 +310,8 @@ class MemoryTracker:
                 logger.warning("\n   Top memory-consuming processes:")
                 for pid, name, mem_gb in processes[:5]:
                     logger.warning(f"   PID {pid}: {name} - {mem_gb:.1f} GB")
+            except Exception:
+                pass  # If psutil fails, continue without process list
 
         # Show recent trend
         if len(self.history) > 5:
@@ -556,7 +558,7 @@ class MettaTrainer:
             url = self.wandb_run.url if self.wandb_run is not None else None
             self._stats_run_id = self._stats_client.create_training_run(name=name, attributes={}, url=url).id
 
-                logger.info(f"Training on {self.device}")
+        logger.info(f"Training on {self.device}")
         logger.info(f"Configuration: num_workers={trainer_cfg.num_workers}, async_factor={trainer_cfg.async_factor}")
         logger.info(f"Total environments: {self.vecenv.num_envs if hasattr(self, 'vecenv') else 'unknown'}")
         logger.info(f"Distributed training: {'YES' if torch.distributed.is_initialized() else 'NO'}, world_size={self._world_size}")
@@ -568,96 +570,96 @@ class MettaTrainer:
                 self._rollout()
                 self._train()
 
-                        # Memory tracking - uncomment to enable
+            # Memory tracking - uncomment to enable
             if hasattr(self, 'memory_tracker'):
                 self.memory_tracker.track(f"epoch_{self.epoch}")
 
-                # Check for memory leak candidates every 50 epochs
-                if self.epoch % 50 == 0 and self.epoch > 0:
-                    self.memory_tracker.get_leak_candidates(threshold_mb=50)
+            # Check for memory leak candidates every 50 epochs
+            if self.epoch % 50 == 0 and self.epoch > 0:
+                self.memory_tracker.get_leak_candidates(threshold_mb=50)
 
-                # Profile class attributes every 20 epochs to find growing collections
-                if self.epoch % 20 == 0 and self.epoch > 0:
-                    logger.info("\n" + "="*60)
-                    logger.info("CLASS ATTRIBUTE MEMORY PROFILE")
-                    logger.info("="*60)
+            # Profile class attributes every 20 epochs to find growing collections
+            if self.epoch % 20 == 0 and self.epoch > 0:
+                logger.info("\n" + "="*60)
+                logger.info("CLASS ATTRIBUTE MEMORY PROFILE")
+                logger.info("="*60)
 
-                    # Check common leak suspects
-                    suspects = {
-                        'self.stats': self.stats,
-                        'self.losses': self.losses,
-                        'self.evals': self.evals,
-                    }
+                # Check common leak suspects
+                suspects = {
+                    'self.stats': self.stats,
+                    'self.losses': self.losses,
+                    'self.evals': self.evals,
+                }
 
-                    # Add experience buffer attributes if they exist
-                    if hasattr(self, 'experience'):
-                        suspects['experience.obs'] = getattr(self.experience, 'obs', None)
-                        suspects['experience.actions'] = getattr(self.experience, 'actions', None)
-                        suspects['experience.rewards'] = getattr(self.experience, 'rewards', None)
-                        suspects['experience.lstm_h'] = getattr(self.experience, 'lstm_h', None)
-                        suspects['experience.lstm_c'] = getattr(self.experience, 'lstm_c', None)
+                # Add experience buffer attributes if they exist
+                if hasattr(self, 'experience'):
+                    suspects['experience.obs'] = getattr(self.experience, 'obs', None)
+                    suspects['experience.actions'] = getattr(self.experience, 'actions', None)
+                    suspects['experience.rewards'] = getattr(self.experience, 'rewards', None)
+                    suspects['experience.lstm_h'] = getattr(self.experience, 'lstm_h', None)
+                    suspects['experience.lstm_c'] = getattr(self.experience, 'lstm_c', None)
 
-                    for name, obj in suspects.items():
-                        if obj is None:
-                            continue
-                        size_mb = get_size_mb(obj)
-                        if isinstance(obj, dict):
-                            logger.info(f"  {name}: {len(obj)} items, {size_mb:.2f} MB")
-                            # Show sample of keys for dicts
-                            if len(obj) > 0:
-                                sample_keys = list(obj.keys())[:5]
-                                logger.info(f"    Sample keys: {sample_keys}")
-                        elif isinstance(obj, list):
-                            logger.info(f"  {name}: {len(obj)} items, {size_mb:.2f} MB")
-                        elif isinstance(obj, torch.Tensor):
-                            logger.info(f"  {name}: {size_mb:.2f} MB, shape={obj.shape}, device={obj.device}")
-                        else:
-                            logger.info(f"  {name}: {size_mb:.2f} MB, type={type(obj).__name__}")
+                for name, obj in suspects.items():
+                    if obj is None:
+                        continue
+                    size_mb = get_size_mb(obj)
+                    if isinstance(obj, dict):
+                        logger.info(f"  {name}: {len(obj)} items, {size_mb:.2f} MB")
+                        # Show sample of keys for dicts
+                        if len(obj) > 0:
+                            sample_keys = list(obj.keys())[:5]
+                            logger.info(f"    Sample keys: {sample_keys}")
+                    elif isinstance(obj, list):
+                        logger.info(f"  {name}: {len(obj)} items, {size_mb:.2f} MB")
+                    elif isinstance(obj, torch.Tensor):
+                        logger.info(f"  {name}: {size_mb:.2f} MB, shape={obj.shape}, device={obj.device}")
+                    else:
+                        logger.info(f"  {name}: {size_mb:.2f} MB, type={type(obj).__name__}")
 
-                    # Count tensors by location
-                    import gc
-                    tensor_locations = {}
-                    list_tensors = 0
-                    dict_tensors = 0
+                # Count tensors by location
+                import gc
+                tensor_locations = {}
+                list_tensors = 0
+                dict_tensors = 0
 
+                for obj in gc.get_objects():
+                    if isinstance(obj, torch.Tensor):
+                        # Try to find where this tensor is referenced
+                        for referrer in gc.get_referrers(obj):
+                            location = "unknown"
+                            if hasattr(referrer, '__name__'):
+                                location = referrer.__name__
+                            elif hasattr(referrer, '__class__'):
+                                location = referrer.__class__.__name__
+                            tensor_locations[location] = tensor_locations.get(location, 0) + 1
+
+                            # Check if tensor is in a list or dict
+                            if isinstance(referrer, list):
+                                list_tensors += 1
+                            elif isinstance(referrer, dict):
+                                dict_tensors += 1
+
+                logger.info("\nTensor count by location (top 10):")
+                for location, count in sorted(tensor_locations.items(), key=lambda x: x[1], reverse=True)[:10]:
+                    logger.info(f"  {location}: {count} tensors")
+
+                # Additional debugging for tensors in collections
+                if list_tensors > 50 or dict_tensors > 50:
+                    logger.warning(f"\n⚠️  HIGH TENSOR COUNT IN COLLECTIONS:")
+                    logger.warning(f"  Tensors in lists: {list_tensors}")
+                    logger.warning(f"  Tensors in dicts: {dict_tensors}")
+
+                    # Sample some tensors to see what they are
+                    sample_count = 0
                     for obj in gc.get_objects():
-                        if isinstance(obj, torch.Tensor):
-                            # Try to find where this tensor is referenced
+                        if isinstance(obj, torch.Tensor) and sample_count < 5:
                             for referrer in gc.get_referrers(obj):
-                                location = "unknown"
-                                if hasattr(referrer, '__name__'):
-                                    location = referrer.__name__
-                                elif hasattr(referrer, '__class__'):
-                                    location = referrer.__class__.__name__
-                                tensor_locations[location] = tensor_locations.get(location, 0) + 1
+                                if isinstance(referrer, (list, dict)):
+                                    logger.warning(f"  Sample tensor: shape={obj.shape}, dtype={obj.dtype}, device={obj.device}")
+                                    sample_count += 1
+                                    break
 
-                                # Check if tensor is in a list or dict
-                                if isinstance(referrer, list):
-                                    list_tensors += 1
-                                elif isinstance(referrer, dict):
-                                    dict_tensors += 1
-
-                    logger.info("\nTensor count by location (top 10):")
-                    for location, count in sorted(tensor_locations.items(), key=lambda x: x[1], reverse=True)[:10]:
-                        logger.info(f"  {location}: {count} tensors")
-
-                    # Additional debugging for tensors in collections
-                    if list_tensors > 50 or dict_tensors > 50:
-                        logger.warning(f"\n⚠️  HIGH TENSOR COUNT IN COLLECTIONS:")
-                        logger.warning(f"  Tensors in lists: {list_tensors}")
-                        logger.warning(f"  Tensors in dicts: {dict_tensors}")
-
-                        # Sample some tensors to see what they are
-                        sample_count = 0
-                        for obj in gc.get_objects():
-                            if isinstance(obj, torch.Tensor) and sample_count < 5:
-                                for referrer in gc.get_referrers(obj):
-                                    if isinstance(referrer, (list, dict)):
-                                        logger.warning(f"  Sample tensor: shape={obj.shape}, dtype={obj.dtype}, device={obj.device}")
-                                        sample_count += 1
-                                        break
-
-                    logger.info("="*60 + "\n")
+                logger.info("="*60 + "\n")
 
             # Processing stats
             self._process_stats()
