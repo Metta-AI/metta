@@ -102,7 +102,3 @@ wandb_carbs = { workspace = true }
 app_backend = { workspace = true }
 metta-mettagrid = { workspace = true }
 metta-common = { workspace = true }
-
-[tool.pyright]
-# Suppress warnings on editable C++ sources, see https://github.com/Metta-AI/metta/pull/852
-reportMissingModuleSource = false
