@@ -33,11 +33,11 @@ buckets:
   objects.altar.cooldown:
     range: [10, 60]
     bins: 2
-  objects.generator.red.initial_items:
+  objects.generator_red.initial_items:
     range: [0, 1]
-  objects.generator.red.cooldown:
+  objects.generator_red.cooldown:
     range: [10, 60]
     bins: 2
-  objects.mine.red.cooldown:
+  objects.mine_red.cooldown:
     range: [10, 60]
     bins: 2
