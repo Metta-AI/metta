@@ -93,6 +93,7 @@ export const state = {
   fullScreen: false,
 
   // What to show?
+  showUi: true,
   showResources: true,
   showGrid: true,
   showVisualRanges: true,
@@ -100,7 +101,7 @@ export const state = {
   showMiniMap: false,
   showInfo: false,
   showTraces: true,
-  showControls: false,
+  showActionButtons: false,
   showAgentPanel: false,
   showAttackMode: false,
 
