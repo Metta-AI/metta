@@ -24,8 +24,17 @@ export HEARTBEAT_FILE
 
 # System configuration
 if [ -z "$NUM_CPUS" ]; then
-  NUM_CPUS=$(lscpu | grep "CPU(s)" | awk '{print $NF}' | head -n1)
-  NUM_CPUS=$((NUM_CPUS / 2))
+  if command -v lscpu &> /dev/null; then
+    # Linux
+    NUM_CPUS=$(lscpu | grep "CPU(s)" | awk '{print $NF}' | head -n1)
+    NUM_CPUS=$((NUM_CPUS / 2))
+  elif command -v sysctl &> /dev/null; then
+    # macOS
+    NUM_CPUS=$(sysctl -n hw.ncpu)
+    NUM_CPUS=$((NUM_CPUS / 2))
+  else
+    NUM_CPUS=1  # fallback
+  fi
 fi
 
 # Auto-detect GPUs if not set
