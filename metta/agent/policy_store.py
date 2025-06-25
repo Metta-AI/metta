@@ -591,11 +591,20 @@ class PolicyStore:
                 # Extern test modules to prevent them from being packaged
                 exporter.extern(policy_module)
 
-    def _restore_original_classes(self, obj):
+    def _restore_original_classes(self, obj, visited=None):
         """
         Recursively restore torch_package_ prefixed classes to their original module locations.
         """
         import importlib
+
+        if visited is None:
+            visited = set()
+
+        # Avoid infinite recursion
+        obj_id = id(obj)
+        if obj_id in visited:
+            return obj
+        visited.add(obj_id)
 
         if hasattr(obj, "__class__"):
             original_module = self._get_original_module_name(obj.__class__.__module__)
@@ -605,23 +614,50 @@ class PolicyStore:
                     module = importlib.import_module(original_module)
                     original_class = getattr(module, obj.__class__.__name__)
 
-                    # Create a new instance with the original class
-                    # This is tricky - we need to transfer the state
-                    if hasattr(obj, "__dict__"):
-                        # For most objects, we can try to change the class
-                        obj.__class__ = original_class
-                        logger.info(f"Restored class {obj.__class__.__name__} to module {original_module}")
+                    # For most objects, we can try to change the class
+                    obj.__class__ = original_class
+                    logger.debug(f"Restored class {obj.__class__.__name__} to module {original_module}")
 
                 except (ImportError, AttributeError) as e:
                     logger.warning(f"Could not restore original class for {obj.__class__}: {e}")
 
-            # Recursively restore nested objects
+            # Handle torch.nn.Module internal storage explicitly
+            if hasattr(obj, "_modules") and obj._modules:
+                for name, module in obj._modules.items():
+                    if module is not None and module is not obj:
+                        obj._modules[name] = self._restore_original_classes(module, visited)
+
+            if hasattr(obj, "_parameters") and obj._parameters:
+                for _, param in obj._parameters.items():
+                    if param is not None and hasattr(param, "__class__"):
+                        self._restore_original_classes(param, visited)
+
+            if hasattr(obj, "_buffers") and obj._buffers:
+                for _, buffer in obj._buffers.items():
+                    if buffer is not None and hasattr(buffer, "__class__"):
+                        self._restore_original_classes(buffer, visited)
+
+            # Recursively restore nested objects in __dict__
             if hasattr(obj, "__dict__"):
-                for _attr_name, attr_value in obj.__dict__.items():
+                for _, attr_value in obj.__dict__.items():
                     if hasattr(attr_value, "__class__") and not isinstance(
-                        attr_value, (str, int, float, bool, type(None))
+                        attr_value, (str, int, float, bool, type(None), type)
                     ):
-                        self._restore_original_classes(attr_value)
+                        self._restore_original_classes(attr_value, visited)
+
+            # Also check common container types
+            if isinstance(obj, (list, tuple)):
+                for i, item in enumerate(obj):
+                    if hasattr(item, "__class__") and not isinstance(item, (str, int, float, bool, type(None), type)):
+                        if isinstance(obj, list):
+                            obj[i] = self._restore_original_classes(item, visited)
+                        else:  # tuple - just restore in place since we can't modify
+                            self._restore_original_classes(item, visited)
+
+            elif isinstance(obj, dict):
+                for key, value in obj.items():
+                    if hasattr(value, "__class__") and not isinstance(value, (str, int, float, bool, type(None), type)):
+                        obj[key] = self._restore_original_classes(value, visited)
 
         return obj
 
