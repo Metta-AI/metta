@@ -11,12 +11,17 @@ This directory contains setup scripts that automatically configure the Metta AI 
 
 The `setup.sh` script performs the following actions:
 
-1. **Installs uv package manager** if not already present
-2. **Installs Python dependencies** using `uv sync`
-3. **Builds C++ extensions** required by Metta
-4. **Verifies installation** by testing critical imports
-5. **Configures git** with OpenHands defaults
-6. **Displays helpful information** about available commands
+1. **Configures git** with OpenHands defaults
+2. **Installs uv package manager** if not already present
+3. **Runs the official setup script** (`devops/setup_dev.sh`) which:
+   - Installs all Python dependencies using `uv sync`
+   - Builds C++ extensions required by Metta
+   - Performs comprehensive sanity checks
+   - Sets up the complete development environment
+4. **Verifies installation** by testing core module imports
+5. **Displays helpful information** about available commands
+
+The script leverages the existing `devops/setup_dev.sh` infrastructure rather than duplicating setup logic.
 
 ## Manual setup
 

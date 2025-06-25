@@ -20,7 +20,12 @@ if [ ! -f "pyproject.toml" ] || [ ! -f "CMakeLists.txt" ]; then
     exit 1
 fi
 
-# Install uv if not present
+# Set up git configuration for OpenHands first
+echo "🔧 Configuring git..."
+git config --global user.name "openhands" 2>/dev/null || true
+git config --global user.email "openhands@all-hands.dev" 2>/dev/null || true
+
+# Install uv if not present (required by setup_dev.sh)
 if ! command -v uv &> /dev/null; then
     echo "📦 Installing uv package manager..."
     curl -LsSf https://astral.sh/uv/install.sh | sh
@@ -38,77 +43,44 @@ else
     echo "✅ uv already available"
 fi
 
-# Check Python version requirement
-echo "🐍 Checking Python version..."
-REQUIRED_PYTHON="3.11.7"
-if command -v python3.11 &> /dev/null; then
-    PYTHON_CMD="python3.11"
-elif command -v python3 &> /dev/null; then
-    PYTHON_CMD="python3"
+# Use the existing comprehensive setup script
+echo "🛠️  Running Metta development setup script..."
+echo "ℹ️  This will install all dependencies and configure the environment"
+
+# Set environment variable to indicate we're in Docker/container (OpenHands environment)
+export IS_DOCKER=1
+
+# Run the official setup script
+if bash devops/setup_dev.sh; then
+    echo "✅ Development setup completed successfully"
 else
-    PYTHON_CMD="python"
+    echo "⚠️  Setup script completed with warnings (this may be normal)"
 fi
 
-PYTHON_VERSION=$($PYTHON_CMD --version 2>&1 | cut -d' ' -f2)
-echo "Found Python version: $PYTHON_VERSION"
-
-# Install dependencies with uv
-echo "📦 Installing Python dependencies..."
-uv sync
-
-# Verify critical imports (quick check)
-echo "🔍 Verifying installation..."
-if uv run python -c "
-import sys
-critical_imports = ['metta', 'numpy', 'torch', 'fastapi', 'wandb']
-failed = []
-for imp in critical_imports:
-    try:
-        __import__(imp)
-        print(f'✅ {imp}')
-    except ImportError:
-        print(f'⚠️  {imp} (may be expected if not yet built)')
-        failed.append(imp)
-if len(failed) > 2:
-    print(f'⚠️  Multiple imports failed: {failed}')
-    sys.exit(1)
-" 2>/dev/null; then
-    echo "✅ Core dependencies verified"
-else
-    echo "⚠️  Some dependencies may need attention"
-fi
-
-# Try to build C++ extensions
-echo "🔨 Building C++ extensions..."
-if uv run python -c "import metta.rl.fast_gae" 2>/dev/null; then
-    echo "✅ C++ extensions already built"
-else
-    echo "🔨 Building C++ extensions (this may take a moment)..."
-    # The C++ extensions should be built automatically by uv sync due to scikit-build-core
-    # If they're not, we can try to trigger a rebuild
-    uv sync --reinstall-package metta 2>/dev/null || echo "⚠️  C++ build may need manual attention"
-fi
-
-# Set up git configuration for OpenHands
-echo "🔧 Configuring git..."
-git config --global user.name "openhands" 2>/dev/null || true
-git config --global user.email "openhands@all-hands.dev" 2>/dev/null || true
-
-# Create useful aliases and environment setup
-echo "🛠️  Setting up development environment..."
-
-# Check if we can import the main modules
-echo "🧪 Final verification..."
-if uv run python -c "
+# Quick verification
+echo "🧪 Verifying installation..."
+uv run python -c "
 try:
     import metta
-    import metta.mettagrid
-    print('✅ Core Metta modules imported successfully')
+    print('✅ Core metta package imported successfully')
+    try:
+        import metta.mettagrid
+        print('✅ Metta mettagrid module imported successfully')
+    except ImportError as e:
+        print(f'⚠️  Mettagrid module import issue: {e}')
+    
+    try:
+        import metta.rl.fast_gae
+        print('✅ C++ extensions (fast_gae) imported successfully')
+    except ImportError as e:
+        print(f'⚠️  C++ extensions import issue: {e}')
+        
+    print('✅ Setup verification completed - Metta is ready to use!')
 except ImportError as e:
-    print(f'⚠️  Some modules may need building: {e}')
-"; then
-    echo "✅ Setup verification passed"
-fi
+    print(f'❌ Critical error - Metta package not found: {e}')
+    print('Setup may have failed. Please check the output above for errors.')
+    exit 1
+" 2>/dev/null
 
 # Display helpful information
 echo ""
