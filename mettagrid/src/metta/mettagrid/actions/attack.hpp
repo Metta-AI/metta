@@ -13,8 +13,11 @@
 
 class Attack : public ActionHandler {
 public:
-  explicit Attack(const ActionConfig& cfg, const std::string& action_name = "attack")
-      : ActionHandler(cfg, action_name) {
+  explicit Attack(const ActionConfig& cfg,
+                  InventoryItem laser_item_id,
+                  InventoryItem armor_item_id,
+                  const std::string& action_name = "attack")
+      : ActionHandler(cfg, action_name), _laser_item_id(laser_item_id), _armor_item_id(armor_item_id) {
     priority = 1;
   }
 
@@ -23,12 +26,15 @@ public:
   }
 
 protected:
+  InventoryItem _laser_item_id;
+  InventoryItem _armor_item_id;
+
   bool _handle_action(Agent* actor, ActionArg arg) override {
     if (arg > 9 || arg < 1) {
       return false;
     }
 
-    if (actor->update_inventory(InventoryItem::laser, -1) == 0) {
+    if (actor->update_inventory(_laser_item_id, -1) == 0) {
       return false;
     }
 
@@ -62,7 +68,7 @@ protected:
 
       was_frozen = agent_target->frozen > 0;
 
-      if (agent_target->update_inventory(InventoryItem::armor, -1)) {
+      if (agent_target->update_inventory(_armor_item_id, -1)) {
         actor->stats.incr("attack.blocked." + agent_target->group_name);
         actor->stats.incr("attack.blocked." + agent_target->group_name + "." + actor->group_name);
       } else {

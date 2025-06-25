@@ -33,6 +33,14 @@ py::dict CreateBenchmarkConfig(int num_agents) {
   game_cfg["obs_height"] = 11;
   game_cfg["num_observation_tokens"] = 100;
 
+  // Inventory item names configuration
+  py::list inventory_item_names;
+  inventory_item_names.append("ore");
+  inventory_item_names.append("heart");
+  inventory_item_names.append("armor");
+  inventory_item_names.append("laser");
+  game_cfg["inventory_item_names"] = inventory_item_names;
+
   // Actions configuration
   py::dict actions_cfg;
   py::dict noop_cfg, move_cfg, rotate_cfg, attack_cfg, swap_cfg, put_cfg, get_cfg, change_color_cfg;
@@ -54,6 +62,8 @@ py::dict CreateBenchmarkConfig(int num_agents) {
   actions_cfg["put_items"] = put_cfg;
   actions_cfg["get_items"] = get_cfg;
   actions_cfg["change_color"] = change_color_cfg;
+  actions_cfg["armor_item_id"] = 2;
+  actions_cfg["laser_item_id"] = 3;
 
   game_cfg["actions"] = actions_cfg;
 
@@ -61,7 +71,6 @@ py::dict CreateBenchmarkConfig(int num_agents) {
   py::dict agent_groups;
   py::dict agent_group1, agent_group2;
 
-  agent_group1["default_item_max"] = 0;
   agent_group1["freeze_duration"] = 0;
   agent_group1["action_failure_penalty"] = 0;
   agent_group1["max_items_per_type"] = py::dict();
@@ -71,7 +80,6 @@ py::dict CreateBenchmarkConfig(int num_agents) {
   agent_group1["group_id"] = 0;
   agent_group1["group_reward_pct"] = 0.0f;
 
-  agent_group2["default_item_max"] = 0;
   agent_group2["freeze_duration"] = 0;
   agent_group2["action_failure_penalty"] = 0;
   agent_group2["max_items_per_type"] = py::dict();
