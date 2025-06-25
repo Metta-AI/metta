@@ -4,6 +4,7 @@ import { GroupHeatmapMetric, HeatmapData, Repo, SavedDashboard, SavedDashboardCr
 import { MapViewer } from "./MapViewer";
 import { Heatmap } from "./Heatmap";
 import { SaveDashboardModal } from "./SaveDashboardModal";
+import { MultiSelectDropdown } from "./MultiSelectDropdown";
 
 // CSS for dashboard
 const DASHBOARD_CSS = `
@@ -76,6 +77,54 @@ const DASHBOARD_CSS = `
 .btn-secondary:hover {
   background: #545b62;
 }
+
+/* Policy selector styles */
+.policy-selector {
+  margin: 20px 0;
+  padding: 20px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  border: 1px solid #e9ecef;
+}
+
+.policy-selector-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+}
+
+.policy-selector-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #333;
+  margin: 0;
+}
+
+.policy-selector-controls {
+  display: flex;
+  gap: 10px;
+}
+
+.policy-selector-btn {
+  padding: 6px 12px;
+  border: 1px solid #ddd;
+  background: #fff;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: all 0.2s ease;
+}
+
+.policy-selector-btn:hover {
+  background: #f8f8f8;
+}
+
+.policy-selector-btn.active {
+  background: #007bff;
+  color: #fff;
+  border-color: #007bff;
+}
 `;
 
 interface DashboardProps {
@@ -101,6 +150,7 @@ export function Dashboard({ repo }: DashboardProps) {
   );
   const [selectedGroupMetric, setSelectedGroupMetric] = useState<string>("");
   const [numPoliciesToShow, setNumPoliciesToShow] = useState(20);
+  const [selectedPolicies, setSelectedPolicies] = useState<Set<string>>(new Set());
 
   // Save dashboard state
   const [showSaveModal, setShowSaveModal] = useState(false);
@@ -137,6 +187,7 @@ export function Dashboard({ repo }: DashboardProps) {
           setSelectedMetric(state.metric || "reward");
           setSelectedGroupMetric(state.group_metric || "");
           setNumPoliciesToShow(state.num_policies_to_show || 20);
+          setSelectedPolicies(new Set(state.selected_policies || []));
           setSavedId(savedIdParam);
           setSavedDashboard(dashboard);
         } catch (err) {
@@ -205,6 +256,7 @@ export function Dashboard({ repo }: DashboardProps) {
           metric: selectedMetric,
           group_metric: selectedGroupMetric,
           num_policies_to_show: numPoliciesToShow,
+          selected_policies: Array.from(selectedPolicies),
         },
       };
 
@@ -261,6 +313,53 @@ export function Dashboard({ repo }: DashboardProps) {
     : null;
   const selectedEval = selectedCellData?.evalName ?? null;
   const selectedReplayUrl = selectedCellData?.replayUrl ?? null;
+
+  // Policy selection functions
+  const selectAllPolicies = () => {
+    const allPolicies = Object.keys(heatmapData.cells);
+    setSelectedPolicies(new Set(allPolicies));
+  };
+
+  const clearPolicySelection = () => {
+    setSelectedPolicies(new Set());
+  };
+
+  const selectTopPolicies = () => {
+    const sortedPolicies = Object.keys(heatmapData.cells).sort(
+      (a, b) => heatmapData.policyAverageScores[b] - heatmapData.policyAverageScores[a]
+    );
+    const topPolicies = sortedPolicies.slice(0, numPoliciesToShow);
+    setSelectedPolicies(new Set(topPolicies));
+  };
+
+  // Filter heatmap data based on selected policies
+  const filteredHeatmapData = selectedPolicies.size > 0 ? {
+    ...heatmapData,
+    cells: Object.fromEntries(
+      Object.entries(heatmapData.cells).filter(([policyUri]) =>
+        selectedPolicies.has(policyUri)
+      )
+    ),
+    policyAverageScores: Object.fromEntries(
+      Object.entries(heatmapData.policyAverageScores).filter(([policyUri]) =>
+        selectedPolicies.has(policyUri)
+      )
+    ),
+  } : heatmapData;
+
+  // Get sorted policies for display
+  const sortedPolicies = Object.keys(heatmapData.cells).sort(
+    (a, b) => heatmapData.policyAverageScores[b] - heatmapData.policyAverageScores[a]
+  );
+
+  // Convert policies to options for MultiSelectDropdown
+  const policyOptions = sortedPolicies.map(policyUri => ({
+    value: policyUri,
+    label: policyUri,
+    metadata: {
+      score: heatmapData.policyAverageScores[policyUri]
+    }
+  }));
 
   return (
     <div
@@ -342,9 +441,9 @@ export function Dashboard({ repo }: DashboardProps) {
           isUpdate={!!savedId}
         />
 
-        {heatmapData && (
+        {filteredHeatmapData && (
           <Heatmap
-            data={heatmapData}
+            data={filteredHeatmapData}
             selectedMetric={selectedMetric}
             setSelectedCell={setSelectedCellIfNotLocked}
             openReplayUrl={openReplayUrl}
@@ -352,94 +451,167 @@ export function Dashboard({ repo }: DashboardProps) {
           />
         )}
 
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
-            marginTop: "20px",
-            marginBottom: "30px",
-            gap: "12px",
-          }}
-        >
-          <div style={{ color: "#666", fontSize: "14px" }}>Heatmap Metric</div>
-          <select
-            value={selectedMetric}
-            onChange={(e) => setSelectedMetric(e.target.value)}
-            style={{
-              padding: "8px 12px",
-              borderRadius: "4px",
-              border: "1px solid #ddd",
-              fontSize: "14px",
-              minWidth: "200px",
-              backgroundColor: "#fff",
-              cursor: "pointer",
-            }}
-          >
-            {metrics.map((metric) => (
-              <option key={metric} value={metric}>
-                {metric}
-              </option>
-            ))}
-          </select>
-        </div>
+        {/* Controls Section - Two Column Layout */}
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr",
+          gap: "20px",
+          marginTop: "30px",
+          marginBottom: "30px"
+        }}>
+          {/* Left Column - Heatmap Controls */}
+          <div style={{
+            background: "#f8f9fa",
+            padding: "20px",
+            borderRadius: "8px",
+            border: "1px solid #e9ecef"
+          }}>
+            <h3 style={{
+              margin: "0 0 15px 0",
+              fontSize: "16px",
+              fontWeight: "600",
+              color: "#333"
+            }}>
+              Heatmap Controls
+            </h3>
 
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
-            marginTop: "20px",
-            marginBottom: "30px",
-            gap: "12px",
-          }}
-        >
-          <div style={{ color: "#666", fontSize: "14px" }}>Group Metric</div>
-          <select
-            value={selectedGroupMetric}
-            onChange={(e) => setSelectedGroupMetric(e.target.value)}
-            style={{
-              padding: "8px 12px",
-              borderRadius: "4px",
-              border: "1px solid #ddd",
-              fontSize: "14px",
-              minWidth: "200px",
-              backgroundColor: "#fff",
-              cursor: "pointer",
-            }}
-          >
-            {availableGroupMetrics.map((groupMetric) => (
-              <option key={groupMetric} value={groupMetric}>
-                {groupMetric === "" ? "Total" : groupMetric}
-              </option>
-            ))}
-          </select>
-        </div>
+            <div style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: "15px"
+            }}>
+              <div style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "12px"
+              }}>
+                <div style={{ color: "#666", fontSize: "14px", minWidth: "120px" }}>Heatmap Metric</div>
+                <select
+                  value={selectedMetric}
+                  onChange={(e) => setSelectedMetric(e.target.value)}
+                  style={{
+                    padding: "8px 12px",
+                    borderRadius: "4px",
+                    border: "1px solid #ddd",
+                    fontSize: "14px",
+                    flex: "1",
+                    backgroundColor: "#fff",
+                    cursor: "pointer",
+                  }}
+                >
+                  {metrics.map((metric) => (
+                    <option key={metric} value={metric}>
+                      {metric}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
-            marginTop: "20px",
-            marginBottom: "30px",
-            gap: "12px",
-          }}
-        >
-          <div style={{ color: "#666", fontSize: "14px" }}>
-            Number of policies to show:
+              <div style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "12px"
+              }}>
+                <div style={{ color: "#666", fontSize: "14px", minWidth: "120px" }}>Group Metric</div>
+                <select
+                  value={selectedGroupMetric}
+                  onChange={(e) => setSelectedGroupMetric(e.target.value)}
+                  style={{
+                    padding: "8px 12px",
+                    borderRadius: "4px",
+                    border: "1px solid #ddd",
+                    fontSize: "14px",
+                    flex: "1",
+                    backgroundColor: "#fff",
+                    cursor: "pointer",
+                  }}
+                >
+                  {availableGroupMetrics.map((groupMetric) => (
+                    <option key={groupMetric} value={groupMetric}>
+                      {groupMetric === "" ? "Total" : groupMetric}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "12px"
+              }}>
+                <div style={{ color: "#666", fontSize: "14px", minWidth: "120px" }}>
+                  Number of policies:
+                </div>
+                <input
+                  type="number"
+                  value={numPoliciesToShow}
+                  onChange={(e) => setNumPoliciesToShow(parseInt(e.target.value))}
+                  style={{
+                    padding: "8px 12px",
+                    borderRadius: "4px",
+                    border: "1px solid #ddd",
+                    fontSize: "14px",
+                    flex: "1"
+                  }}
+                />
+              </div>
+            </div>
           </div>
-          <input
-            type="number"
-            value={numPoliciesToShow}
-            onChange={(e) => setNumPoliciesToShow(parseInt(e.target.value))}
-            style={{
-              padding: "8px 12px",
-              borderRadius: "4px",
-              border: "1px solid #ddd",
-              fontSize: "14px",
-            }}
-          />
+
+          {/* Right Column - Policy Selection */}
+          <div style={{
+            background: "#f8f9fa",
+            padding: "20px",
+            borderRadius: "8px",
+            border: "1px solid #e9ecef"
+          }}>
+            <div style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginBottom: "15px"
+            }}>
+              <h3 style={{
+                margin: 0,
+                fontSize: "16px",
+                fontWeight: "600",
+                color: "#333"
+              }}>
+                Policy Selection ({selectedPolicies.size} selected)
+              </h3>
+              <div style={{
+                display: "flex",
+                gap: "8px"
+              }}>
+                <button
+                  className="policy-selector-btn"
+                  onClick={selectAllPolicies}
+                >
+                  Select All
+                </button>
+                <button
+                  className="policy-selector-btn"
+                  onClick={clearPolicySelection}
+                >
+                  Clear All
+                </button>
+                <button
+                  className="policy-selector-btn"
+                  onClick={selectTopPolicies}
+                >
+                  Select Top {numPoliciesToShow}
+                </button>
+              </div>
+            </div>
+            <MultiSelectDropdown
+              options={policyOptions}
+              selectedValues={selectedPolicies}
+              onSelectionChange={setSelectedPolicies}
+              placeholder="Select policies"
+              searchPlaceholder="Search policies..."
+              width="100%"
+            />
+          </div>
         </div>
 
         <MapViewer
