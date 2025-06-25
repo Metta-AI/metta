@@ -19,7 +19,7 @@ from metta.common.stopwatch import Stopwatch, with_instance_timer
 from metta.mettagrid.curriculum.core import Curriculum
 from metta.mettagrid.level_builder import Level
 from metta.mettagrid.mettagrid_c import MettaGrid
-from metta.mettagrid.mettagrid_config import GameConfig
+from metta.mettagrid.mettagrid_c_config import cpp_config_dict
 from metta.mettagrid.replay_writer import ReplayWriter
 from metta.mettagrid.stats_writer import StatsWriter
 from metta.mettagrid.util.dict_utils import unroll_nested_dict
@@ -140,22 +140,21 @@ class MettaGridEnv(PufferEnv, GymEnv):
             del game_config_dict["map_builder"]
         if "diversity_bonus" in game_config_dict:
             del game_config_dict["diversity_bonus"]
-        game_config = GameConfig(**game_config_dict)
 
         # During training, we run a lot of envs in parallel, and it's better if they are not
         # all synced together. The desync_episodes flag is used to desync the episodes.
         # Ideally vecenv would have a way to desync the episodes, but it doesn't.
         if self._num_episodes == 0 and task.env_cfg().desync_episodes:
-            max_steps = game_config.max_steps
-            game_config.max_steps = int(np.random.randint(1, max_steps + 1))
-            logger.info(f"Desync episode with max_steps {game_config.max_steps}")
+            max_steps = game_config_dict["max_steps"]
+            game_config_dict["max_steps"] = int(np.random.randint(1, max_steps + 1))
+            logger.info(f"Desync episode with max_steps {game_config_dict['max_steps']}")
 
         self._map_labels = level.labels
 
         # Convert string array to list of strings for C++ compatibility
         # TODO: push the not-numpy-array higher up the stack, and consider pushing not-a-sparse-list lower.
         with self.timer("_initialize_c_env.make_c_env"):
-            self._c_env = MettaGrid(game_config.model_dump(by_alias=True, exclude_unset=True), level.grid.tolist())
+            self._c_env = MettaGrid(cpp_config_dict(game_config_dict), level.grid.tolist())
 
         self._grid_env = self._c_env
 
@@ -231,6 +230,9 @@ class MettaGridEnv(PufferEnv, GymEnv):
             self._should_reset = True
             self._task.complete(self._c_env.get_episode_rewards().mean())
 
+            # Add curriculum task probabilities to infos for distributed logging
+            infos["curriculum_task_probs"] = self._curriculum.get_task_probs()
+
         self.timer.start("thread_idle")
         return self.observations, self.rewards, self.terminals, self.truncations, infos
 
@@ -256,6 +258,8 @@ class MettaGridEnv(PufferEnv, GymEnv):
         for label in self._map_labels + self.labels:
             infos[f"map_reward/{label}"] = episode_rewards_mean
 
+        infos.update(self._curriculum.get_completion_rates())
+
         with self.timer("_c_env.get_episode_stats"):
             stats = self._c_env.get_episode_stats()
 
@@ -279,12 +283,13 @@ class MettaGridEnv(PufferEnv, GymEnv):
             with self.timer("_stats_writer"):
                 assert self._episode_id is not None, "Episode ID must be set before writing stats"
 
-                attributes: dict[str, str] = {
-                    "seed": str(self._current_seed),
-                    "map_w": str(self.map_width),
-                    "map_h": str(self.map_height),
-                    "initial_grid_hash": self.initial_grid_hash,
-                }
+                # not using this for now as it is breaking things
+                attributes: dict[str, str] = {}
+                #     "seed": str(self._current_seed),
+                #     "map_w": str(self.map_width),
+                #     "map_h": str(self.map_height),
+                #     "initial_grid_hash": self.initial_grid_hash,
+                # }
 
                 container = OmegaConf.to_container(self._task.env_cfg(), resolve=False)
                 for k, v in unroll_nested_dict(cast(dict[str, Any], container)):

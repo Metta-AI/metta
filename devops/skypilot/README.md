@@ -2,11 +2,18 @@
 
 This script provides a convenient way to launch training jobs on AWS using SkyPilot.
 
-## Prerequisites
+## Installation
 
 - AWS credentials configured with `softmax` profile
-- SkyPilot CLI installed and configured
-- Git repository with pushed commits (unless using `--skip-git-check`)
+- SkyPilot CLI installed and configured. This results in a ~/.sky/config.yaml
+
+If you have successfully run  `./devops/skypilot/install.sh` or the appropriate setup_machine script for your operating system, these should be handled.
+
+You can run this command to confirm your connectivity to the Softmax skypilot server, its health, and if you are authenticated.
+
+```bash
+sky api info
+```
 
 ## Usage
 
@@ -27,13 +34,20 @@ For a complete list of optional parameters and their descriptions, use:
 ./devops/skypilot/launch.py --help
 ```
 
+Note that launching jobs requires a repo with pushed commits (unless using `--skip-git-check`)
+
 ## Accessing the Dashboard
 
 There's a [web dashboard](https://skypilot-api.softmax-research.net/) that displays the status of all clusters and jobs.
 
-To sign in, you'll need user/password credentials. You can obtain these by peeking into the URL in your `~/.sky/config.yaml`, or by running `sky api info`.
+You will be prompted for username/password credentials. These can be extracted from your Skypilot config with this command:
 
-Warning: if you click the URL with `https://user:password@...` pair in the terminal, it will load the dashboard, but it might show up as empty. To fix this, you'll need to open a new tab with the [dashboard](https://skypilot-api.softmax-research.net/) **without** the user:password pair.
+```bash
+grep -o 'https://[^:]*:[^@]*@' ~/.sky/config.yaml | sed 's|https://||; s|@||' | sed 's|:| |' | while read username password; do
+  echo "Username: $username"
+  echo "Password: $password"
+done
+```
 
 ## Examples
 
@@ -180,21 +194,27 @@ Jobs can have the following statuses:
 
 ## Shell Aliases
 
-To streamline your workflow, we provide convenient shell aliases for common SkyPilot operations.
+To streamline your workflow, we provide a script to set shell aliases for common SkyPilot operations. It also sets `AWS_PROFILE=softmax` automatically.
 
-### Setup
-
-Source the shell setup script to load all aliases:
-
+To add these aliases temporarily:
 ```bash
 source ./devops/skypilot/setup_shell.sh
 ```
 
-This script also sets `AWS_PROFILE=softmax` automatically.
+To add them permanently, add the source command to your shell profile:
+
+```bash
+# For bash users:
+echo "source /path/to/your/project/devops/skypilot/setup_shell.sh" >> ~/.bashrc
+
+# For zsh users:
+echo "source /path/to/your/project/devops/skypilot/setup_shell.sh" >> ~/.zshrc
+
+# For fish users:
+echo "source /path/to/your/project/devops/skypilot/setup_shell.sh" >> ~/.config/fish/config.fish
+
 
 ### Available Aliases
-
-`source ./devops/skypilot/setup_shell.sh` to configure some convenient aliases.
 
 #### Job Queue Management
 
@@ -220,20 +240,6 @@ This script also sets `AWS_PROFILE=softmax` automatically.
   lt run=my_experiment_001  # Equivalent to: ./devops/skypilot/launch.py train run=my_experiment_001
   ```
 
-### Adding to Your Shell Profile
-
-To make these aliases permanent, add the source command to your shell profile:
-
-```bash
-# For bash users:
-echo "source /path/to/your/project/devops/skypilot/setup_shell.sh" >> ~/.bashrc
-
-# For zsh users:
-echo "source /path/to/your/project/devops/skypilot/setup_shell.sh" >> ~/.zshrc
-
-# For fish users:
-echo "source /path/to/your/project/devops/skypilot/setup_shell.sh" >> ~/.config/fish/config.fish
-```
 
 ## Sandboxes
 

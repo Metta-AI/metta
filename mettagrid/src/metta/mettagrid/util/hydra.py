@@ -8,7 +8,9 @@ from omegaconf import DictConfig, ListConfig, OmegaConf
 from metta.common.fs import cd_repo_root
 
 
-def config_from_path(config_path: str, overrides: Optional[DictConfig | ListConfig] = None) -> DictConfig | ListConfig:
+def config_from_path(
+    config_path: str, overrides: Optional[DictConfig | ListConfig | dict] = None
+) -> DictConfig | ListConfig:
     """
     Load configuration from a path, with better error handling
 

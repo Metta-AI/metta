@@ -6,13 +6,6 @@ from metta.mettagrid.room.room import Room
 
 
 class CylinderWorld(Room):
-    STYLE_PARAMETERS = {
-        "cylinder_world": {
-            "hearts_count": 0,  # altars are inside cylinders
-            "cylinders": {"count": 999},  # ignored; we fill until no room
-        },
-    }
-
     def __init__(
         self,
         width: int,

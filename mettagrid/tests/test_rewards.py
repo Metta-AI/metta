@@ -1,6 +1,7 @@
 import numpy as np
 
 from metta.mettagrid.mettagrid_c import MettaGrid
+from metta.mettagrid.mettagrid_c_config import cpp_config_dict
 from metta.mettagrid.mettagrid_env import (
     dtype_actions,
     dtype_observations,
@@ -51,9 +52,8 @@ def create_heart_reward_test_env(max_steps=50, num_agents=NUM_AGENTS):
         },
         "groups": {"red": {"id": 0, "props": {}}},
         "objects": {
-            "wall": {"type_id": 1},
+            "wall": {},
             "altar": {
-                "type_id": 4,
                 "output_heart": 1,
                 "initial_items": 5,  # Start with some hearts
                 "max_output": 50,
@@ -67,7 +67,7 @@ def create_heart_reward_test_env(max_steps=50, num_agents=NUM_AGENTS):
         },
     }
 
-    return MettaGrid(game_config, game_map)
+    return MettaGrid(cpp_config_dict(game_config), game_map)
 
 
 def create_reward_test_env(max_steps=10, width=5, height=5, num_agents=NUM_AGENTS):
@@ -100,17 +100,17 @@ def create_reward_test_env(max_steps=10, width=5, height=5, num_agents=NUM_AGENT
             "change_color": {"enabled": False},
         },
         "groups": {
-            "red": {"id": 1, "group_reward_pct": 0.1, "props": {"max_inventory": 50}},
-            "blue": {"id": 2, "group_reward_pct": 0.0, "props": {"max_inventory": 50}},
+            "red": {"id": 1, "group_reward_pct": 0.1},
+            "blue": {"id": 2, "group_reward_pct": 0.0},
         },
         "objects": {
             "wall": {},
             "block": {},
         },
-        "agent": {"freeze_duration": 100, "max_inventory": 50, "rewards": {"heart": 1.0}},
+        "agent": {"freeze_duration": 100, "rewards": {"heart": 1.0}},
     }
 
-    return MettaGrid(game_config, game_map.tolist())
+    return MettaGrid(cpp_config_dict(game_config), game_map.tolist())
 
 
 def perform_action(env, action_name, arg=0):
