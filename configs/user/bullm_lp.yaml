@@ -1,7 +1,7 @@
 # @package __global__
 
-# Learning Progress Training Configuration
-# Uses the learning progress navigation curriculum defined in env/mettagrid/curriculum/learningprogress_navigation.yaml
+# Progressive Performance-Based Curriculum Training Configuration
+# Uses the new logistic-blended, performance-based progression curriculum
 
 defaults:
   - /trainer/trainer
@@ -14,7 +14,21 @@ data_dir: ${oc.env:DATA_DIR,./train_dir}
 run_dir: ${data_dir}/${run}
 
 trainer:
-  curriculum: env/mettagrid/curriculum/learningprogress_navigation
+  curriculum:
+    _target_: metta.mettagrid.curriculum.progressive.ProgressiveMultiTaskCurriculum
+    tasks:
+      /env/mettagrid/curriculum/navigation: 1
+      /env/mettagrid/curriculum/object_use: 1
+      /env/mettagrid/curriculum/memory: 1
+    performance_threshold: 0.8
+    smoothing: 0.1
+    progression_increment: 0.01
+    progression_rate: 0.00001
+    progression_mode: "perf"
+    blending_mode: "logistic"
+    blending_smoothness: 1.0
+    transition_width: 0.5
+    initial_skew: 5.0
   evaluate_interval: 100
   #total_timesteps: 1000000
   #gamma: 0.99
@@ -25,7 +39,6 @@ trainer:
   #minibatch_size: 256
   #bptt_horizon: 8
   #learning_rate: 3e-4
-  #evaluate_interval: 100
   num_workers: 4
 
 wandb:
@@ -33,4 +46,4 @@ wandb:
   project: metta
   entity: metta-research
   name: ${run}
-  tags: ["msb_nav_lp_comparison"]
+  tags: ["msb_progressive_curriculum"]
