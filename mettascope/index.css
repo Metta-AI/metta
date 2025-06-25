@@ -98,6 +98,32 @@ canvas#global-canvas {
     overflow: hidden;
 }
 
+.left .sep1 {
+    position: relative;
+    display: block;
+    width: 1px;
+    height: 16px;
+    background-color: rgba(255, 255, 255, 0.10);
+}
+
+.left #demo-mode-toggle.hover-icon {
+    position: relative;
+    display: block;
+    width: 32px;
+    height: 32px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+.left #full-screen-toggle.hover-icon {
+    position: relative;
+    display: block;
+    width: 32px;
+    height: 32px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
 #footer .center {
     position: absolute;
     display: flex;
