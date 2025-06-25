@@ -142,34 +142,37 @@ class MettaTrainer:
                 logger.info("Restoring timer state from checkpoint")
                 self.timer.load_state(checkpoint.stopwatch_state, resume_running=True)
 
-        # Load or create policy with proper distributed coordination
-        policy_record = self._load_policy(checkpoint, policy_store)
-
-        if policy_record is None:
-            if self._master:
-                policy_record = self._create_policy(policy_store, metta_grid_env)
-            else:
-                policy_record = self._wait_for_policy(policy_store)
-
-        assert policy_record is not None, "Failed to obtain policy"
-
         # Note that these fields are specific to MettaGridEnv, which is why we can't keep
         # self.vecenv.driver_env as just the parent class pufferlib.PufferEnv
         actions_names = metta_grid_env.action_names
         actions_max_params = metta_grid_env.max_action_args
 
-        # Models loaded via torch.package have modified class names (prefixed with <torch_package_N>)
-        # which prevents them from being saved again. We work around this by creating a fresh
-        # instance of the policy class and copying the state dict, allowing successful re-saving.
-        # TODO: Remove this workaround when checkpointing refactor is complete
-        logger.info("Creating a fresh policy instance for torch.package to save")
-        fresh_policy = policy_store.create(metta_grid_env).policy().to(self.device)
-        if not hasattr(fresh_policy, "activate_actions"):
-            raise AttributeError(f"Policy object {type(fresh_policy).__name__} does not have 'activate_actions' method")
-        fresh_policy.activate_actions(actions_names, actions_max_params, self.device)
-        fresh_policy.load_state_dict(policy_record.policy().state_dict(), strict=False)
-        self.policy = fresh_policy
+        # Load or create policy with proper distributed coordination
+        policy_record = self._load_policy(checkpoint, policy_store)
 
+        if policy_record is not None:
+            # Models loaded via torch.package have modified class names (prefixed with <torch_package_N>)
+            # which prevents them from being saved again. We work around this by creating a fresh
+            # instance of the policy class and copying the state dict, allowing successful re-saving.
+            # TODO: Remove this workaround when checkpointing refactor is complete
+
+            loaded_policy = policy_record.policy()
+            loaded_policy.activate_actions(actions_names, actions_max_params, self.device)
+            logger.info("Creating a fresh policy instance from the loaded policy")
+            fresh_policy = policy_store.create(metta_grid_env).policy()
+            fresh_policy.load_state_dict(loaded_policy.state_dict(), strict=False)
+            self.policy = fresh_policy
+
+        else:
+            if self._master:
+                policy_record = self._create_policy(policy_store, metta_grid_env)
+            else:
+                policy_record = self._wait_for_policy(policy_store)
+            self.policy = policy_record.policy()
+
+        assert self.policy is not None, "Failed to obtain policy"
+
+        self.policy.activate_actions(actions_names, actions_max_params, self.device)
         self.initial_policy = self.policy
         self.latest_saved_policy = self.policy
 
