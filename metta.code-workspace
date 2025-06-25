@@ -114,7 +114,8 @@
 			"bitset": "cpp",
 			"deque": "cpp",
 			"regex": "cpp",
-			"memory": "cpp"
+			"memory": "cpp",
+			"iostream": "cpp"
 		}
 	}
 }

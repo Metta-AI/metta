@@ -1,4 +1,4 @@
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field, RootModel
 
@@ -128,25 +128,6 @@ class ConverterConfig(BaseModelWithForbidExtra):
     color: Optional[int] = Field(default=None, ge=0, le=255)
 
 
-class ObjectsConfig(BaseModelWithForbidExtra):
-    """Objects configuration."""
-
-    altar: Optional[ConverterConfig] = None
-    mine_red: Optional[ConverterConfig] = None
-    mine_blue: Optional[ConverterConfig] = None
-    mine_green: Optional[ConverterConfig] = None
-    generator_red: Optional[ConverterConfig] = None
-    generator_blue: Optional[ConverterConfig] = None
-    generator_green: Optional[ConverterConfig] = None
-    armory: Optional[ConverterConfig] = None
-    lasery: Optional[ConverterConfig] = None
-    lab: Optional[ConverterConfig] = None
-    factory: Optional[ConverterConfig] = None
-    temple: Optional[ConverterConfig] = None
-    wall: Optional[WallConfig] = None
-    block: Optional[WallConfig] = None
-
-
 class RewardSharingGroup(RootModel[Dict[str, float]]):
     """Reward sharing configuration for a group."""
 
@@ -162,6 +143,7 @@ class RewardSharingConfig(BaseModelWithForbidExtra):
 class GameConfig(BaseModelWithForbidExtra):
     """Game configuration."""
 
+    inventory_item_names: List[str]
     num_agents: int = Field(ge=1)
     # zero means "no limit"
     max_steps: int = Field(ge=0)
@@ -172,5 +154,5 @@ class GameConfig(BaseModelWithForbidExtra):
     # Every agent must be in a group, so we need at least one group
     groups: Dict[str, GroupConfig] = Field(min_length=1)
     actions: ActionsConfig
-    objects: ObjectsConfig
+    objects: Dict[str, ConverterConfig | WallConfig]
     reward_sharing: Optional[RewardSharingConfig] = None

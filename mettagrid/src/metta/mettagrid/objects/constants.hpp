@@ -79,58 +79,34 @@ constexpr std::array<const char*, ObjectTypeCount> ObjectTypeNamesArray = {
 
 const std::vector<std::string> ObjectTypeNames(ObjectTypeNamesArray.begin(), ObjectTypeNamesArray.end());
 
-enum InventoryItem {
-  // These are "ore.red", etc everywhere else. They're differently named here because
-  // of enum naming limitations.
-  ore_red = 0,
-  ore_blue = 1,
-  ore_green = 2,
-  battery_red = 3,
-  battery_blue = 4,
-  battery_green = 5,
-  heart = 6,
-  armor = 7,
-  laser = 8,
-  blueprint = 9,
-  InventoryItemCount
-};
-
-constexpr std::array<const char*, InventoryItemCount> InventoryItemNamesArray = {{"ore.red",
-                                                                                  "ore.blue",
-                                                                                  "ore.green",
-                                                                                  "battery.red",
-                                                                                  "battery.blue",
-                                                                                  "battery.green",
-                                                                                  "heart",
-                                                                                  "armor",
-                                                                                  "laser",
-                                                                                  "blueprint"}};
+// TODO: We now have this available in the config, so we should use that instead. We haven't done this yet
+// because we need to pass through the configuration. For now, this means things are unstable.
+constexpr std::array<const char*, 10> InventoryItemNamesArray = {{"ore.red",
+                                                                  "ore.blue",
+                                                                  "ore.green",
+                                                                  "battery.red",
+                                                                  "battery.blue",
+                                                                  "battery.green",
+                                                                  "heart",
+                                                                  "armor",
+                                                                  "laser",
+                                                                  "blueprint"}};
 
 const std::vector<std::string> InventoryItemNames(InventoryItemNamesArray.begin(), InventoryItemNamesArray.end());
 
-constexpr std::array<const char*, ObservationFeature::ObservationFeatureCount> ObservationFeatureNamesArray = {
-    {"type_id",
-     "agent:group",
-     "hp",
-     "agent:frozen",
-     "agent:orientation",
-     "agent:color",
-     "converting",
-     "swappable",
-     "episode_completion_pct",
-     "last_action",
-     "last_action_arg",
-     "last_reward"}};
-
-const std::vector<std::string> ObservationFeatureNames = []() {
-  std::vector<std::string> names;
-  names.reserve(ObservationFeatureNamesArray.size() + InventoryItemNamesArray.size());
-  names.insert(names.end(), ObservationFeatureNamesArray.begin(), ObservationFeatureNamesArray.end());
-  for (const auto& name : InventoryItemNames) {
-    names.push_back("inv:" + name);
-  }
-  return names;
-}();
+const std::map<uint8_t, std::string> FeatureNames = {
+    {ObservationFeature::TypeId, "type_id"},
+    {ObservationFeature::Group, "agent:group"},
+    {ObservationFeature::Hp, "hp"},
+    {ObservationFeature::Frozen, "agent:frozen"},
+    {ObservationFeature::Orientation, "agent:orientation"},
+    {ObservationFeature::Color, "agent:color"},
+    {ObservationFeature::ConvertingOrCoolingDown, "converting"},
+    {ObservationFeature::Swappable, "swappable"},
+    {ObservationFeature::EpisodeCompletionPct, "episode_completion_pct"},
+    {ObservationFeature::LastAction, "last_action"},
+    {ObservationFeature::LastActionArg, "last_action_arg"},
+    {ObservationFeature::LastReward, "last_reward"}};
 
 // ##ObservationNormalization
 // These are approximate maximum values for each feature. Ideally they would be defined closer to their source,
@@ -149,19 +125,10 @@ const std::map<uint8_t, float> FeatureNormalizations = {
     {ObservationFeature::Color, 255.0},
     {ObservationFeature::ConvertingOrCoolingDown, 1.0},
     {ObservationFeature::Swappable, 1.0},
-    {InventoryFeatureOffset + InventoryItem::ore_red, 100.0},
-    {InventoryFeatureOffset + InventoryItem::ore_blue, 100.0},
-    {InventoryFeatureOffset + InventoryItem::ore_green, 100.0},
-    {InventoryFeatureOffset + InventoryItem::battery_red, 100.0},
-    {InventoryFeatureOffset + InventoryItem::battery_blue, 100.0},
-    {InventoryFeatureOffset + InventoryItem::battery_green, 100.0},
-    {InventoryFeatureOffset + InventoryItem::heart, 100.0},
-    {InventoryFeatureOffset + InventoryItem::laser, 100.0},
-    {InventoryFeatureOffset + InventoryItem::armor, 100.0},
-    {InventoryFeatureOffset + InventoryItem::blueprint, 100.0},
 };
 
 const float DEFAULT_NORMALIZATION = 1.0;
+const float DEFAULT_INVENTORY_NORMALIZATION = 100.0;
 
 const std::map<TypeId, GridLayer> ObjectLayers = {{ObjectType::AgentT, GridLayer::Agent_Layer},
                                                   {ObjectType::WallT, GridLayer::Object_Layer},
