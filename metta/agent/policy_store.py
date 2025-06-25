@@ -379,10 +379,8 @@ class PolicyStore:
             importer = PackageImporter(path)
             pr = importer.load_pickle("policy_record", "data.pkl")
             pr._policy_store = self
-
             if not metadata_only:
                 pr._policy = pr.load(path, self._device)
-
             pr._local_path = path
             self._cached_prs[path] = pr
             return pr

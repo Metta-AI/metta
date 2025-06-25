@@ -160,7 +160,6 @@ class MettaTrainer:
         self.latest_saved_policy = policy_record
         self.policy = policy_record.policy().to(self.device)
         self.policy_record = policy_record
-        self.uncompiled_policy = self.policy
 
         # Note that these fields are specific to MettaGridEnv, which is why we can't keep
         # self.vecenv.driver_env as just the parent class pufferlib.PufferEnv
@@ -694,7 +693,19 @@ class MettaTrainer:
             "eval_scores": category_scores_map,
         }
 
-        self.latest_saved_policy = self.policy_store.save(name, path, self.uncompiled_policy, metadata)
+        policy_to_save = self.policy
+
+        # Models loaded via torch.package have modified class names (prefixed with <torch_package_N>)
+        # which prevents them from being saved again. We work around this by creating a fresh
+        # instance of the policy class and copying the state dict, allowing successful re-saving.
+        # TODO: Remove this workaround when checkpointing refactor is complete
+        if hasattr(self.policy, "__class__") and self.policy.__class__.__module__.startswith("<torch_package"):
+            logger.info("Creating a fresh instance for a torch.package loaded model")
+            policy_to_save = self.policy_store.create(metta_grid_env).policy()
+            policy_to_save.activate_actions(metta_grid_env.action_names, metta_grid_env.max_action_args, self.device)
+            policy_to_save.load_state_dict(self.policy.state_dict(), strict=False)
+
+        self.latest_saved_policy = self.policy_store.save(name, path, policy_to_save, metadata)
         logger.info(f"Saved policy locally: {name}")
         return self.latest_saved_policy
 
