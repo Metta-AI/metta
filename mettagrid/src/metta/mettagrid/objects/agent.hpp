@@ -16,6 +16,9 @@ public:
   unsigned char frozen;
   unsigned char freeze_duration;
   unsigned char orientation;
+  // inventory is a map of item to amount.
+  // keys should be deleted when the amount is 0, to keep iteration faster.
+  // however, this should not be relied on for correctness.
   std::map<InventoryItem, uint8_t> inventory;
   std::map<InventoryItem, float> resource_rewards;
   std::map<InventoryItem, float> resource_reward_max;
