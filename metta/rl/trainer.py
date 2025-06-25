@@ -463,12 +463,6 @@ class MettaTrainer:
             for k, v in unroll_nested_dict(i):
                 infos[k].append(v)
 
-        # Extract curriculum task probabilities from infos for distributed logging
-        for i in raw_infos:
-            if "curriculum_task_probs" in i:
-                for task_id, prob in i["curriculum_task_probs"].items():
-                    self.stats[f"curriculum_task_prob/{task_id.split('/')[-1]}"] = prob
-
         # Batch process stats more efficiently
         for k, v in infos.items():
             if isinstance(v, np.ndarray):
@@ -801,9 +795,6 @@ class MettaTrainer:
                     f"Error: {e}"
                 ) from e
         self.stats = mean_stats
-
-        # Extract and log curriculum task probabilities
-        curriculum_stats = {}
 
         weight_stats = {}
         if self.cfg.agent.analyze_weights_interval != 0 and self.epoch % self.cfg.agent.analyze_weights_interval == 0:
