@@ -1064,6 +1064,8 @@ class MettaTrainer:
         """
         if self.initial_policy is None:
             return 0
+        if self.initial_policy.metadata is None:
+            return 0
         return self.initial_policy.metadata.get("generation", 0) + 1
 
     def _make_experience_buffer(self):
