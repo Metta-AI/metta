@@ -1,5 +1,5 @@
 import logging
-from typing import Optional
+from typing import List, Optional
 
 from omegaconf import DictConfig
 
@@ -14,18 +14,26 @@ class Curriculum:
         # logger.info(f"Task completed: {id} -> {score:.5f}")
         pass
 
+    def completed_tasks(self) -> List[str]:
+        """Return a list of completed task identifiers."""
+        return []
+
+    def get_completion_rates(self):
+        """Return a dictionary of completion rates for each task."""
+        return {}
+
 
 class Task:
     def __init__(self, id: str, curriculum: "Curriculum", env_cfg: Optional[DictConfig] = None):
         self._id = id
         self._is_complete = False
-        self._curriculums = [(curriculum, id)]
+        self._curricula = [(curriculum, id)]
         self._env_cfg = env_cfg
         self._name = self._id
 
     def complete(self, score: float):
         assert not self._is_complete, "Task is already complete"
-        for curriculum, id in self._curriculums:
+        for curriculum, id in self._curricula:
             curriculum.complete_task(id, score)
         self._is_complete = True
         # logger.info(f"Task completed: {self.name()} -> {score:.5f}")
@@ -47,7 +55,7 @@ class Task:
         return self._name.split("/")[-1]
 
     def add_parent(self, parent_curriculum: "Curriculum", parent_id: str):
-        self._curriculums.append((parent_curriculum, parent_id))
+        self._curricula.append((parent_curriculum, parent_id))
         self._name = f"{parent_id}:{self._name}"
 
 
