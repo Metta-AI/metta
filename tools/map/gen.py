@@ -10,7 +10,7 @@ from typing import cast, get_args
 import hydra
 from omegaconf import DictConfig, OmegaConf
 
-from metta.common.util.uv_check import enforce_uv
+from metta.common.uv_check import enforce_uv
 from metta.map.utils.show import ShowMode, show_map
 from metta.map.utils.storable_map import map_builder_cfg_to_storable_map
 from metta.util.config import config_from_path

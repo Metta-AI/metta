@@ -11,7 +11,7 @@ import subprocess
 import hydra
 from omegaconf import DictConfig
 
-from metta.common.util.uv_check import enforce_uv
+from metta.common.uv_check import enforce_uv
 from metta.eval.eval_stats_db import EvalStatsDB
 from metta.mettagrid.util.file import local_copy
 from metta.util.logging import setup_mettagrid_logger

@@ -2,7 +2,7 @@
 import hydra
 import pufferlib.vector
 
-from metta.common.util.uv_check import enforce_uv
+from metta.common.uv_check import enforce_uv
 
 
 def make_env():

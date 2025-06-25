@@ -5,7 +5,7 @@ import hydra
 from omegaconf import DictConfig, OmegaConf
 
 from metta.agent.policy_store import PolicyStore
-from metta.common.util.uv_check import enforce_uv
+from metta.common.uv_check import enforce_uv
 from metta.eval.analysis import analyze
 from metta.eval.analysis_config import AnalysisConfig
 from metta.util.logging import setup_mettagrid_logger

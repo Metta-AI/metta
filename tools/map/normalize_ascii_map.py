@@ -2,7 +2,7 @@
 import argparse
 from pathlib import Path
 
-from metta.common.util.uv_check import enforce_uv
+from metta.common.uv_check import enforce_uv
 from metta.mettagrid.char_encoder import normalize_grid_char
 
 

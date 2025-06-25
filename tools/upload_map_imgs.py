@@ -7,7 +7,7 @@ from pathlib import Path
 import boto3
 from botocore.exceptions import ClientError
 
-from metta.common.util.uv_check import enforce_uv
+from metta.common.uv_check import enforce_uv
 
 
 def is_image_file(filename):

@@ -2,7 +2,7 @@
 import argparse
 import os
 
-from metta.common.util.uv_check import enforce_uv
+from metta.common.uv_check import enforce_uv
 
 
 def dump_files(paths, extensions):

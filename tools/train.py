@@ -12,7 +12,7 @@ from torch.distributed.elastic.multiprocessing.errors import record
 
 from app_backend.stats_client import StatsClient
 from metta.agent.policy_store import PolicyStore
-from metta.common.util.uv_check import enforce_uv
+from metta.common.uv_check import enforce_uv
 from metta.sim.simulation_config import SimulationSuiteConfig
 from metta.util.config import Config
 from metta.util.heartbeat import record_heartbeat

@@ -19,7 +19,7 @@ from omegaconf import DictConfig, OmegaConf
 
 from app_backend.stats_client import StatsClient
 from metta.agent.policy_store import PolicyStore
-from metta.common.util.uv_check import enforce_uv
+from metta.common.uv_check import enforce_uv
 from metta.sim.simulation_config import SimulationSuiteConfig
 from metta.sim.simulation_suite import SimulationSuite
 from metta.util.config import Config
