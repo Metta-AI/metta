@@ -131,7 +131,6 @@ class TerrainFromNumpy(Room):
 
     def _build(self):
         level = safe_load(f"{self.dir}/{self.uri}")
-
         height, width = level.shape
         self.set_size_labels(width, height)
 
