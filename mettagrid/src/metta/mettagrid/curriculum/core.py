@@ -28,6 +28,7 @@ class Curriculum:
 
 class Task:
     def __init__(self, id: str, curriculum: "Curriculum", env_cfg: Optional[DictConfig] = None):
+        self._id = id
         self._is_complete = False
         self._curricula = [(curriculum, id)]
         self._env_cfg = env_cfg
