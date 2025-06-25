@@ -76,7 +76,7 @@ export function doDemoMode() {
   // Is the current shot over?
   if (shot == null || shot.startTime + shot.duration < epochTime()) {
     if (Math.random() < 0.1) {
-      // Create a show that just shows the overall view.
+      // Create a shot that just shows the overall view.
       shot = new Shot(
         ShotType.SHOW_OVERALL_VIEW,
         0,
@@ -129,11 +129,7 @@ export function doDemoMode() {
 
   let t = (epochTime() - shot.startTime) / shot.duration
   if (shot != null) {
-    if (shot.type == ShotType.SHOW_OVERALL_VIEW) {
-      ui.mapPanel.zoomLevel = (shot.zoomLevel - shot.zooming) + shot.zooming * easeInOut(t)
-    } else {
-      ui.mapPanel.zoomLevel = (shot.zoomLevel - shot.zooming) + shot.zooming * easeInOut(t)
-    }
+    ui.mapPanel.zoomLevel = (shot.zoomLevel - shot.zooming) + shot.zooming * easeInOut(t)
   }
 
   requestFrame()
