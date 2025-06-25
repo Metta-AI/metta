@@ -106,3 +106,5 @@ metta-common = { workspace = true }
 [tool.pyright]
 # Suppress warnings on editable C++ sources, see https://github.com/Metta-AI/metta/pull/852
 reportMissingModuleSource = false
+reportUnannotatedClassAttribute = false
+reportExplicitAny = false
