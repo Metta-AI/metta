@@ -8,7 +8,7 @@ sampling: 1
 game:
   agent:
     ore.red_max: 1
-    battery_max: 1
+    battery.red_max: 1
     heart_max: 1000
 
   max_steps: 1000
