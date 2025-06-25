@@ -52,6 +52,18 @@ const agentSource: TileSetSource = {
       y: 0,
       modulate: colorFromId(i),
     })),
+    {
+      name: "agent.prey",
+      x: 0,
+      y: 0,
+      modulate: { r: 0, g: 1, b: 0 },
+    },
+    {
+      name: "agent.predator",
+      x: 0,
+      y: 0,
+      modulate: { r: 1, g: 0, b: 0 },
+    },
   ],
 };
 
