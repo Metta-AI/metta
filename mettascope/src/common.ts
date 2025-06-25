@@ -93,6 +93,7 @@ export const state = {
   fullScreen: false,
 
   // What to show?
+  showUi: true,
   showResources: true,
   showGrid: true,
   showVisualRanges: true,
