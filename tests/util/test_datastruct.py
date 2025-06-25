@@ -1,6 +1,5 @@
 """Tests for metta.util.datastruct module."""
 
-import pytest
 from omegaconf import DictConfig, ListConfig
 
 from metta.util.datastruct import flatten_config
@@ -18,18 +17,8 @@ class TestFlattenConfig:
 
     def test_flatten_nested_dict(self):
         """Test flattening a nested dictionary."""
-        input_dict = {
-            "foo": {
-                "bar": 1,
-                "baz": 2
-            },
-            "qux": 3
-        }
-        expected = {
-            "foo.bar": 1,
-            "foo.baz": 2,
-            "qux": 3
-        }
+        input_dict = {"foo": {"bar": 1, "baz": 2}, "qux": 3}
+        expected = {"foo.bar": 1, "foo.baz": 2, "qux": 3}
         result = flatten_config(input_dict)
         assert result == expected
 
@@ -42,31 +31,15 @@ class TestFlattenConfig:
 
     def test_flatten_list_with_dicts(self):
         """Test flattening a list containing dictionaries."""
-        input_list = [
-            {"a": 1},
-            {"b": 2}
-        ]
-        expected = {
-            "0.a": 1,
-            "1.b": 2
-        }
+        input_list = [{"a": 1}, {"b": 2}]
+        expected = {"0.a": 1, "1.b": 2}
         result = flatten_config(input_list)
         assert result == expected
 
     def test_flatten_dict_with_list(self):
         """Test flattening a dictionary containing a list."""
-        input_dict = {
-            "foo": {
-                "bar": [
-                    {"a": 1},
-                    {"b": 2}
-                ]
-            }
-        }
-        expected = {
-            "foo.bar.0.a": 1,
-            "foo.bar.1.b": 2
-        }
+        input_dict = {"foo": {"bar": [{"a": 1}, {"b": 2}]}}
+        expected = {"foo.bar.0.a": 1, "foo.bar.1.b": 2}
         result = flatten_config(input_dict)
         assert result == expected
 
@@ -75,17 +48,11 @@ class TestFlattenConfig:
         input_data = {
             "level1": {
                 "level2": {
-                    "items": [
-                        {"name": "item1", "value": 10},
-                        {"name": "item2", "value": 20}
-                    ],
-                    "config": {
-                        "enabled": True,
-                        "settings": [1, 2, 3]
-                    }
+                    "items": [{"name": "item1", "value": 10}, {"name": "item2", "value": 20}],
+                    "config": {"enabled": True, "settings": [1, 2, 3]},
                 }
             },
-            "simple": "value"
+            "simple": "value",
         }
         expected = {
             "level1.level2.items.0.name": "item1",
@@ -96,7 +63,7 @@ class TestFlattenConfig:
             "level1.level2.config.settings.0": 1,
             "level1.level2.config.settings.1": 2,
             "level1.level2.config.settings.2": 3,
-            "simple": "value"
+            "simple": "value",
         }
         result = flatten_config(input_data)
         assert result == expected
@@ -129,15 +96,8 @@ class TestFlattenConfig:
 
     def test_flatten_with_custom_separator(self):
         """Test flattening with a custom separator."""
-        input_dict = {
-            "foo": {
-                "bar": [1, 2]
-            }
-        }
-        expected = {
-            "foo_bar_0": 1,
-            "foo_bar_1": 2
-        }
+        input_dict = {"foo": {"bar": [1, 2]}}
+        expected = {"foo_bar_0": 1, "foo_bar_1": 2}
         result = flatten_config(input_dict, sep="_")
         assert result == expected
 
@@ -150,29 +110,15 @@ class TestFlattenConfig:
 
     def test_flatten_omegaconf_dictconfig(self):
         """Test flattening an OmegaConf DictConfig."""
-        input_config = DictConfig({
-            "foo": {
-                "bar": 1,
-                "baz": 2
-            }
-        })
-        expected = {
-            "foo.bar": 1,
-            "foo.baz": 2
-        }
+        input_config = DictConfig({"foo": {"bar": 1, "baz": 2}})
+        expected = {"foo.bar": 1, "foo.baz": 2}
         result = flatten_config(input_config)
         assert result == expected
 
     def test_flatten_omegaconf_listconfig(self):
         """Test flattening an OmegaConf ListConfig."""
-        input_config = ListConfig([
-            {"a": 1},
-            {"b": 2}
-        ])
-        expected = {
-            "0.a": 1,
-            "1.b": 2
-        }
+        input_config = ListConfig([{"a": 1}, {"b": 2}])
+        expected = {"0.a": 1, "1.b": 2}
         result = flatten_config(input_config)
         assert result == expected
 
@@ -182,7 +128,7 @@ class TestFlattenConfig:
             "native_dict": {"a": 1},
             "omega_dict": DictConfig({"b": 2}),
             "native_list": [3, 4],
-            "omega_list": ListConfig([5, 6])
+            "omega_list": ListConfig([5, 6]),
         }
         expected = {
             "native_dict.a": 1,
@@ -190,21 +136,14 @@ class TestFlattenConfig:
             "native_list.0": 3,
             "native_list.1": 4,
             "omega_list.0": 5,
-            "omega_list.1": 6
+            "omega_list.1": 6,
         }
         result = flatten_config(input_data)
         assert result == expected
 
     def test_flatten_nested_empty_structures(self):
         """Test flattening structures containing empty nested structures."""
-        input_data = {
-            "empty_dict": {},
-            "empty_list": [],
-            "nested": {
-                "also_empty": {},
-                "list_empty": []
-            }
-        }
+        input_data = {"empty_dict": {}, "empty_list": [], "nested": {"also_empty": {}, "list_empty": []}}
         expected = {}
         result = flatten_config(input_data)
         assert result == expected
@@ -217,9 +156,7 @@ class TestFlattenConfig:
             "float": 3.14,
             "boolean": True,
             "none": None,
-            "nested": {
-                "list_of_mixed": ["string", 123, False, None]
-            }
+            "nested": {"list_of_mixed": ["string", 123, False, None]},
         }
         expected = {
             "string": "hello",
@@ -230,48 +167,21 @@ class TestFlattenConfig:
             "nested.list_of_mixed.0": "string",
             "nested.list_of_mixed.1": 123,
             "nested.list_of_mixed.2": False,
-            "nested.list_of_mixed.3": None
+            "nested.list_of_mixed.3": None,
         }
         result = flatten_config(input_data)
         assert result == expected
 
     def test_flatten_deeply_nested_structure(self):
         """Test flattening a deeply nested structure."""
-        input_data = {
-            "level1": {
-                "level2": {
-                    "level3": {
-                        "level4": {
-                            "level5": [
-                                {
-                                    "deep_value": "found"
-                                }
-                            ]
-                        }
-                    }
-                }
-            }
-        }
-        expected = {
-            "level1.level2.level3.level4.level5.0.deep_value": "found"
-        }
+        input_data = {"level1": {"level2": {"level3": {"level4": {"level5": [{"deep_value": "found"}]}}}}}
+        expected = {"level1.level2.level3.level4.level5.0.deep_value": "found"}
         result = flatten_config(input_data)
         assert result == expected
 
     def test_flatten_list_of_lists(self):
         """Test flattening a list containing other lists."""
-        input_data = [
-            [1, 2],
-            [3, 4],
-            {"nested": [5, 6]}
-        ]
-        expected = {
-            "0.0": 1,
-            "0.1": 2,
-            "1.0": 3,
-            "1.1": 4,
-            "2.nested.0": 5,
-            "2.nested.1": 6
-        }
+        input_data = [[1, 2], [3, 4], {"nested": [5, 6]}]
+        expected = {"0.0": 1, "0.1": 2, "1.0": 3, "1.1": 4, "2.nested.0": 5, "2.nested.1": 6}
         result = flatten_config(input_data)
         assert result == expected
