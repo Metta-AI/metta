@@ -5,7 +5,7 @@ Train Doxascope Network
 Simple script to train the doxascope neural network on LSTM memory vectors.
 """
 
-import sys
+import argparse
 from pathlib import Path
 
 from .doxascope_network import train_doxascope
@@ -13,30 +13,40 @@ from .doxascope_network import train_doxascope
 
 def main():
     """Main CLI entrypoint."""
-    if len(sys.argv) < 2:
-        print("Usage: python -m doxascope.doxascope_train <policy_name> [num_future_timesteps]")
-        sys.exit(1)
+    parser = argparse.ArgumentParser(description="Train the doxascope neural network.")
+    parser.add_argument("policy_name", type=str, help="Name of the policy to train on.")
+    parser.add_argument(
+        "num_future_timesteps",
+        type=int,
+        nargs="?",
+        default=1,
+        help="Number of future timesteps to predict.",
+    )
+    parser.add_argument("--lr", type=float, default=0.0007, help="Learning rate for the optimizer.")
+    parser.add_argument("--batch-size", type=int, default=32, help="Batch size for training.")
+    parser.add_argument("--num-epochs", type=int, default=100, help="Number of training epochs.")
+    args = parser.parse_args()
 
-    policy_name = sys.argv[1]
-    num_future_timesteps = int(sys.argv[2]) if len(sys.argv) > 2 else 1
-
-    print(f"Using policy: {policy_name}")
-    if num_future_timesteps > 1:
-        print(f"Predicting {num_future_timesteps} steps into the future.")
+    print(f"Using policy: {args.policy_name}")
+    if args.num_future_timesteps > 1:
+        print(f"Predicting {args.num_future_timesteps} steps into the future.")
 
     # Define paths
-    raw_data_dir = Path(f"doxascope/data/raw_data/{policy_name}")
-    results_dir = Path(f"doxascope/data/results/{policy_name}")
+    raw_data_dir = Path(f"doxascope/data/raw_data/{args.policy_name}")
+    results_dir = Path(f"doxascope/data/results/{args.policy_name}")
     results_dir.mkdir(parents=True, exist_ok=True)
 
     # Preprocess data, then train the network
-    trainer, test_accuracy = train_doxascope(
+    results = train_doxascope(
         raw_data_dir=raw_data_dir,
         output_dir=results_dir,
-        num_future_timesteps=num_future_timesteps,
+        num_future_timesteps=args.num_future_timesteps,
+        lr=args.lr,
+        batch_size=args.batch_size,
+        num_epochs=args.num_epochs,
     )
 
-    if trainer is None:
+    if results is None:
         print("❌ Training failed.")
         return
 

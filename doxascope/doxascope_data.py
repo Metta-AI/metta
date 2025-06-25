@@ -3,11 +3,9 @@
 Doxascope Data Module
 
 This module provides functionality for:
-1. Logging LSTM memory vectors and agent positions during simulation
+1. Logging LSTM memory vectors and agent positions during simulation using the DoxascopeLogger class.
 2. Preprocessing the logged data for neural network training
 
-The goal is to train a "doxascope" neural network that can predict agent movement
-from their internal memory state.
 """
 
 import json
@@ -22,16 +20,24 @@ from metta.agent.policy_state import PolicyState
 
 logger = logging.getLogger(__name__)
 
+AGENT_TYPE = 0
+MOVEMENT_MAP = {
+    (0, 0): 0,  # stay
+    (-1, 0): 1,  # up
+    (1, 0): 2,  # down
+    (0, -1): 3,  # left
+    (0, 1): 4,  # right
+}
+
 
 class DoxascopeLogger:
     """Logs memory vectors and position data for training doxascope networks."""
 
-    def __init__(self, doxascope_config, simulation_id: str, policy_name: str = "default_policy"):
+    def __init__(self, doxascope_config, simulation_id: str, policy_name: str):
         self.enabled = doxascope_config.get("enabled", False)
         if not self.enabled:
             return
 
-        # Use the new directory structure with policy_name
         base_dir = Path(doxascope_config.get("output_dir", "./doxascope/data/raw_data/"))
         self.output_dir = base_dir / policy_name
         self.output_dir.mkdir(parents=True, exist_ok=True)
@@ -54,11 +60,7 @@ class DoxascopeLogger:
 
         timestep_data = {"timestep": self.timestep, "agents": []}
 
-        # Process policy agents
         if policy_state.lstm_h is not None and policy_state.lstm_c is not None:
-            # Concatenate hidden and cell states along dimension 0 to match expected shape
-            # LSTM states are (num_layers, batch_size, hidden_size)
-            # We want (2 * num_layers, batch_size, hidden_size)
             memory_vectors = torch.cat([policy_state.lstm_h, policy_state.lstm_c], dim=0)
 
             # Create a mapping from policy indices to agent IDs
@@ -71,8 +73,6 @@ class DoxascopeLogger:
 
             for i, agent_idx in enumerate(policy_idxs):
                 agent_idx_int = int(agent_idx.item())
-                # Get all layers for this agent and flatten to 1D
-                # Shape: (2 * num_layers, hidden_size) -> (2 * num_layers * hidden_size,)
                 memory_vector = memory_vectors[:, i].flatten().cpu()
 
                 # Get agent position from grid objects using the mapping
@@ -124,7 +124,11 @@ def preprocess_doxascope_data(
         num_future_timesteps: The number of future steps to predict
 
     Returns:
-        Tuple of (X, y) arrays where X is memory vectors and y is movement classes
+        A tuple containing two NumPy arrays:
+        - X: The input data, with shape (num_samples, memory_vector_dim). Each row is a
+          flattened LSTM memory vector.
+        - y: The target data, with shape (num_samples, num_future_timesteps). Each row
+          contains the sequence of future movement classes to be predicted.
     """
     output_file = preprocessed_dir / output_filename
 
@@ -143,67 +147,60 @@ def preprocess_doxascope_data(
         with open(json_file, "r") as f:
             data = json.load(f)
 
-        # Get all unique agent IDs in this file
-        agent_ids = set()
+        # Group data by agent ID to build trajectories
+        agent_trajectories = {}
         for timestep_data in data:
             for agent in timestep_data["agents"]:
-                agent_ids.add(agent["agent_id"])
+                agent_id = agent["agent_id"]
+                if agent_id not in agent_trajectories:
+                    agent_trajectories[agent_id] = []
 
-        # Process each agent separately
-        for agent_id in agent_ids:
-            # Extract trajectory for this specific agent
-            trajectory = []
-            for timestep_data in data:
-                for agent in timestep_data["agents"]:
-                    if agent["agent_id"] == agent_id:
-                        memory = np.array(agent["memory_vector"], dtype=np.float32)
-                        # Set expected dimension from first memory vector if not set
-                        if expected_dim is None:
-                            expected_dim = memory.shape[0]
-                        # Skip if memory vector has wrong dimension
-                        elif memory.shape[0] != expected_dim:
-                            logger.warning(
-                                f"Skipping memory vector with dimension {memory.shape[0]} (expected {expected_dim})"
-                            )
-                            continue
-                        position = agent["position"]
-                        trajectory.append((memory, position))
-                        break
+                memory = np.array(agent["memory_vector"], dtype=np.float32)
 
-            # Create training pairs from consecutive timesteps
+                # Set and check expected memory dimension
+                if expected_dim is None:
+                    expected_dim = memory.shape[0]
+                elif memory.shape[0] != expected_dim:
+                    logger.warning(
+                        f"Skipping memory vector for agent {agent_id} with dimension {memory.shape[0]} (expected {expected_dim})"
+                    )
+                    continue
+
+                position = agent["position"]
+                agent_trajectories[agent_id].append((memory, position))
+
+        # Process each agent's trajectory to create training pairs
+        for agent_id, trajectory in agent_trajectories.items():
+            if len(trajectory) <= num_future_timesteps:
+                continue
+
+            # Create training pairs from the trajectory
             for i in range(len(trajectory) - num_future_timesteps):
-                current_memory, start_pos = trajectory[i]
+                current_memory, prev_pos = trajectory[i]
                 future_movements = []
 
-                # Previous position starts as the agent's current position at time `i`
-                prev_pos = start_pos
-
-                # Look ahead k steps
+                # Look ahead k steps to calculate the sequence of moves.
+                # Each move is relative to the agent's position in the preceding timestep.
                 for k in range(1, num_future_timesteps + 1):
                     _, next_pos = trajectory[i + k]
 
-                    # Calculate relative movement from the PREVIOUS step
+                    # Calculate relative movement from the previous step
                     dr = next_pos[0] - prev_pos[0]  # row delta
                     dc = next_pos[1] - prev_pos[1]  # col delta
 
                     # Update previous position for the next iteration
                     prev_pos = next_pos
 
-                    # Convert to movement class
-                    if dr == 0 and dc == 0:
-                        movement = 0  # stay
-                    elif dr == -1 and dc == 0:
-                        movement = 1  # up
-                    elif dr == 1 and dc == 0:
-                        movement = 2  # down
-                    elif dr == 0 and dc == -1:
-                        movement = 3  # left
-                    elif dr == 0 and dc == 1:
-                        movement = 4  # right
-                    else:
-                        # This case can happen if the agent teleports or moves > 1 cell
-                        logger.warning(f"Unexpected movement: dr={dr}, dc={dc}. Defaulting to 'stay'.")
-                        movement = 0  # default to 'stay'
+                    # Convert (dr, dc) to a movement class
+                    movement = MOVEMENT_MAP.get((dr, dc))
+
+                    if movement is None:
+                        # This can happen if the agent teleports or moves > 1 cell
+                        logger.warning(
+                            f"Unexpected movement for agent {agent_id}: dr={dr}, dc={dc}. Defaulting to 'stay'."
+                        )
+                        movement = 0
+
                     future_movements.append(movement)
 
                 memory_vectors.append(current_memory)
@@ -213,6 +210,7 @@ def preprocess_doxascope_data(
         logger.warning("No training data created")
         return None, None
 
+    # Attempt to convert lists to NumPy arrays and save to a compressed file.
     try:
         X = np.array(memory_vectors, dtype=np.float32)
         y = np.array(movements, dtype=np.int64)
@@ -222,9 +220,8 @@ def preprocess_doxascope_data(
         logger.info(f"Successfully saved {len(X)} samples to {output_file}")
         return X, y
     except ValueError as e:
-        logger.error(f"Failed to create arrays: {e}. The requested array has an inhomogeneous shape.")
-        # Log detected shapes for debugging
+        logger.error(f"Failed to create NumPy arrays due to inconsistent shapes: {e}")
         if memory_vectors:
-            dims = {mv.shape[0] for mv in memory_vectors if hasattr(mv, "shape")}
-            logger.error(f"Found memory vectors with dimensions: {dims}")
+            unique_dims = {mv.shape for mv in memory_vectors}
+            logger.error(f"Found memory vectors with the following shapes: {unique_dims}")
         return None, None

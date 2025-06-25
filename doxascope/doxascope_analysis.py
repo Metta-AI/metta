@@ -6,44 +6,43 @@ Comprehensive analysis of trained doxascope networks.
 Provides insights into what patterns the network learned.
 """
 
+import argparse
 import json
-import sys
 from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
 from sklearn.decomposition import PCA
-from torch.utils.data import DataLoader
 
-from .doxascope_network import DoxascopeDataset, DoxascopeNet
+from .doxascope_network import DoxascopeNet
 
 
 def inspect_data(policy_name: str):
     """Loads and analyzes the preprocessed NPZ data."""
     results_dir = Path(f"doxascope/data/results/{policy_name}")
-    data_path = results_dir / "training_data.npz"
+    data_path = results_dir / "preprocessed_data" / "train_data.npz"
 
     if not data_path.exists():
-        print(f"❌ File not found: {data_path}")
+        print(f"File not found: {data_path}")
         return
 
-    print(f"📊 Loading data from: {data_path}")
+    print(f"Loading data from: {data_path}")
     data = np.load(data_path)
     X, y = data["X"], data["y"]
 
-    print("\n🔍 **Data Overview:**")
+    print("\n**Data Overview:**")
     print(f"  - Samples: {X.shape[0]}")
     print(f"  - Features: {X.shape[1]}")
     print(f"  - Data types: X={X.dtype}, y={y.dtype}")
 
-    print("\n🧠 **Memory Vector Stats:**")
+    print("\n**Memory Vector Stats:**")
     print(f"  - Range: [{X.min():.3f}, {X.max():.3f}]")
     print(f"  - Mean: {X.mean():.3f}, Std: {X.std():.3f}")
     if np.isnan(X).any() or np.isinf(X).any():
         print("  - WARNING: Contains NaN or Inf values.")
 
-    print("\n🎯 **Movement Class Distribution:**")
+    print("\n**Movement Class Distribution:**")
     movement_names = ["Stay", "Up", "Down", "Left", "Right"]
     unique_classes, counts = np.unique(y, return_counts=True)
     for cls, count in zip(unique_classes, counts, strict=False):
@@ -102,7 +101,7 @@ def analyze_memory_encoding(policy_name: str):
         print(f"   python -m doxascope.doxascope_train {policy_name}")
         return
 
-    data_path = results_dir / "training_data.npz"
+    data_path = results_dir / "preprocessed_data" / "training_data.npz"
     model_path = results_dir / "best_model.pth"
 
     if not data_path.exists() or not model_path.exists():
@@ -114,8 +113,9 @@ def analyze_memory_encoding(policy_name: str):
     X, y = data["X"], data["y"]
 
     # Load the trained model
-    model = DoxascopeNet(input_dim=X.shape[1], num_classes=len(np.unique(y)))
-    model.load_state_dict(torch.load(model_path))
+    checkpoint = torch.load(model_path)
+    model = DoxascopeNet(**checkpoint["config"])
+    model.load_state_dict(checkpoint["state_dict"])
     model.eval()
 
     movement_names = ["Stay", "Up", "Down", "Left", "Right"]
@@ -161,12 +161,6 @@ def analyze_memory_structure(X, y, movement_names):
         print(f"  Hidden state mean: {np.mean(h_mean):.4f} (std: {np.std(h_mean):.4f})")
         print(f"  Cell state mean: {np.mean(c_mean):.4f} (std: {np.std(c_mean):.4f})")
 
-    # Test dataset for predictions
-    dataset = DoxascopeDataset(X, y)
-    test_loader = DataLoader(dataset, batch_size=64, shuffle=False)
-
-    return test_loader
-
 
 def analyze_prediction_confidence(model, X, y, movement_names):
     """Analyze model prediction confidence."""
@@ -175,9 +169,11 @@ def analyze_prediction_confidence(model, X, y, movement_names):
 
     with torch.no_grad():
         inputs = torch.FloatTensor(X)
-        outputs, _ = model(inputs)
-        probabilities = torch.softmax(outputs, dim=1)
-        predictions = torch.argmax(outputs, dim=1)
+        outputs = model(inputs)
+        # We only analyze the first timestep's prediction for confidence
+        output_t1 = outputs[0]
+        probabilities = torch.softmax(output_t1, dim=1)
+        predictions = torch.argmax(output_t1, dim=1)
 
     # Overall confidence
     max_probs = torch.max(probabilities, dim=1)[0]
@@ -240,19 +236,6 @@ def analyze_pca_components(X, y, movement_names):
         centroid = np.mean(movement_pca, axis=0)
 
         print(f"{movement}: centroid at ({centroid[0]:.2f}, {centroid[1]:.2f}, {centroid[2]:.2f})")
-
-
-def create_additional_visualizations(policy_name: str):
-    """Create additional visualizations for deeper analysis."""
-
-    output_dir = Path(f"doxascope/data/results/{policy_name}")
-
-    # 1. Memory magnitude by movement type
-    # 2. Activation patterns
-    # 3. Feature importance
-    # ... additional analysis plots
-
-    print("\n📊 Additional visualizations saved to:", output_dir)
 
 
 def analyze_sweep_results(results_path: Path):
@@ -323,36 +306,31 @@ def analyze_parameter_importance(results):
                 print(f"   - Could not analyze parameter '{param}' (likely non-numeric values).")
 
 
-def print_usage():
-    """Prints usage instructions."""
-    print("Usage: python -m doxascope.doxascope_analysis <command> <path>")
-    print("\nCommands:")
-    print("  inspect <policy_name>  Inspect the preprocessed data for a policy.")
-    print("  model <policy_name>    Analyze a trained model for a specific policy.")
-    print("  sweep <results_path>   Analyze sweep results from a JSON file.")
-
-
 def main():
-    """Main CLI entrypoint."""
-    args = sys.argv[1:]
-    if len(args) < 2:
-        print_usage()
-        sys.exit(1)
+    """Main CLI entrypoint for analysis."""
+    parser = argparse.ArgumentParser(description="Doxascope Analysis Tools")
+    subparsers = parser.add_subparsers(dest="command", required=True)
 
-    command = args[0]
-    path_arg = args[1]
+    # 'inspect' command
+    parser_inspect = subparsers.add_parser("inspect", help="Inspect preprocessed data.")
+    parser_inspect.add_argument("policy_name", help="Name of the policy to inspect.")
 
-    if command == "inspect":
-        inspect_data(path_arg)
-    elif command == "model":
-        analyze_memory_encoding(path_arg)
-        create_additional_visualizations(path_arg)
-    elif command == "sweep":
-        analyze_sweep_results(Path(path_arg))
-    else:
-        print(f"❌ Unknown command: {command}")
-        print_usage()
-        sys.exit(1)
+    # 'encoding' command
+    parser_encoding = subparsers.add_parser("encoding", help="Analyze memory encoding.")
+    parser_encoding.add_argument("policy_name", help="Name of the policy to analyze.")
+
+    # 'sweep' command
+    parser_sweep = subparsers.add_parser("sweep", help="Analyze sweep results.")
+    parser_sweep.add_argument("results_path", type=Path, help="Path to the sweep results JSON file.")
+
+    args = parser.parse_args()
+
+    if args.command == "inspect":
+        inspect_data(args.policy_name)
+    elif args.command == "encoding":
+        analyze_memory_encoding(args.policy_name)
+    elif args.command == "sweep":
+        analyze_sweep_results(args.results_path)
 
 
 if __name__ == "__main__":
