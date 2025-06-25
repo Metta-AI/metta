@@ -158,10 +158,12 @@ class MettaTrainer:
             loaded_policy = policy_record.policy()
             loaded_policy.activate_actions(actions_names, actions_max_params, self.device)
 
-            fresh_policy = policy_store.create(metta_grid_env).policy()
+            fresh_policy_record = policy_store.create(metta_grid_env)
+            fresh_policy = fresh_policy_record.policy()
             fresh_policy.activate_actions(actions_names, actions_max_params, self.device)
             fresh_policy.load_state_dict(loaded_policy.state_dict(), strict=False)
 
+            self.initial_policy_record = fresh_policy_record
             self.policy = fresh_policy
 
         else:
@@ -169,14 +171,13 @@ class MettaTrainer:
                 policy_record = self._create_policy(policy_store, metta_grid_env)
             else:
                 policy_record = self._wait_for_policy(policy_store)
+            self.initial_policy_record = policy_record
             self.policy = policy_record.policy()
+            self.policy.activate_actions(actions_names, actions_max_params, self.device)
 
         assert self.policy is not None, "Failed to obtain policy"
 
-        self.policy.activate_actions(actions_names, actions_max_params, self.device)
-
-        self.initial_policy = self.policy
-        self.latest_saved_policy = self.policy
+        self.latest_saved_policy_record = self.initial_policy_record
 
         if self._master:
             logger.info(f"MettaTrainer loaded: {self.policy}")
@@ -332,7 +333,7 @@ class MettaTrainer:
             self._maybe_save_policy()
             self._maybe_save_training_state()
             self._maybe_evaluate_policy()
-            self._maybe_upload_policy_to_wandb()
+            self._maybe_upload_policy_record_to_wandb()
             self._maybe_generate_replay()
             self._maybe_update_l2_weights()
 
@@ -348,7 +349,7 @@ class MettaTrainer:
         # Force final saves
         self._maybe_save_policy(force=True)
         self._maybe_save_training_state(force=True)
-        self._maybe_upload_policy_to_wandb(force=True)
+        self._maybe_upload_policy_record_to_wandb(force=True)
 
         self.system_monitor.stop()
 
@@ -728,11 +729,11 @@ class MettaTrainer:
         fresh_policy.load_state_dict(self.policy.state_dict(), strict=False)
         policy_to_save = fresh_policy
 
-        self.latest_saved_policy = self.policy_store.save(name, path, policy_to_save, metadata)
+        self.latest_saved_policy_record = self.policy_store.save(name, path, policy_to_save, metadata)
         logger.info(f"Saved policy locally: {name}")
-        return self.latest_saved_policy
+        return self.latest_saved_policy_record
 
-    def _maybe_upload_policy_to_wandb(self, force=False):
+    def _maybe_upload_policy_record_to_wandb(self, force=False):
         """Upload policy to wandb if on wandb interval"""
         if not self._should_run(self.trainer_cfg.wandb_checkpoint_interval, force):
             return
@@ -740,15 +741,15 @@ class MettaTrainer:
         if not self.wandb_run:
             return
 
-        if not self.latest_saved_policy:
-            logger.warning("No policy to upload to wandb")
+        if not self.latest_saved_policy_record:
+            logger.warning("No policy record to upload to wandb")
             return
 
         if not self.wandb_run.name:
             logger.warning("No wandb run name was provided")
             return
 
-        self.policy_store.add_to_wandb_run(self.wandb_run.name, self.latest_saved_policy)
+        self.policy_store.add_to_wandb_run(self.wandb_run.name, self.latest_saved_policy_record)
         logger.info(f"Uploaded policy to wandb at epoch {self.epoch}")
 
     def _maybe_update_l2_weights(self, force=False):
@@ -775,7 +776,7 @@ class MettaTrainer:
         logger.info(f"Simulating policy: {self.latest_saved_policy_uri} with config: {self.sim_suite_config}")
         sim = SimulationSuite(
             config=self.sim_suite_config,
-            policy_pr=self.latest_saved_policy,
+            policy_pr=self.latest_saved_policy_record,
             policy_store=self.policy_store,
             device=self.device,
             vectorization=self.cfg.vectorization,
@@ -795,7 +796,7 @@ class MettaTrainer:
 
         for category in categories:
             score = stats_db.get_average_metric_by_filter(
-                "reward", self.latest_saved_policy, f"sim_name LIKE '%{category}%'"
+                "reward", self.latest_saved_policy_record, f"sim_name LIKE '%{category}%'"
             )
             logger.info(f"{category} score: {score}")
             record_heartbeat()
@@ -804,7 +805,7 @@ class MettaTrainer:
             self.evals[f"{category}/score"] = score
 
         # Get detailed per-simulation scores
-        all_scores = stats_db.simulation_scores(self.latest_saved_policy, "reward")
+        all_scores = stats_db.simulation_scores(self.latest_saved_policy_record, "reward")
         for (_, sim_name, _), score in all_scores.items():
             category = sim_name.split("/")[0]
             sim_short_name = sim_name.split("/")[-1]
@@ -826,7 +827,7 @@ class MettaTrainer:
         replay_simulator = Simulation(
             name=f"replay_{self.epoch}",
             config=replay_sim_config,
-            policy_pr=self.latest_saved_policy,
+            policy_pr=self.latest_saved_policy_record,
             policy_store=self.policy_store,
             device=self.device,
             vectorization=self.cfg.vectorization,
@@ -836,7 +837,8 @@ class MettaTrainer:
 
         if self.wandb_run is not None:
             replay_urls = results.stats_db.get_replay_urls(
-                policy_key=self.latest_saved_policy.key(), policy_version=self.latest_saved_policy.version()
+                policy_key=self.latest_saved_policy_record.key(),
+                policy_version=self.latest_saved_policy_record.version(),
             )
             if len(replay_urls) > 0:
                 replay_url = replay_urls[0]
@@ -1044,29 +1046,26 @@ class MettaTrainer:
     @property
     def latest_saved_policy_uri(self) -> str | None:
         """Get the URI of the latest saved policy, if any."""
-        if self.latest_saved_policy is None:
+        if self.latest_saved_policy_record is None:
             return None
-        return self.latest_saved_policy.uri
+        return self.latest_saved_policy_record.uri
 
     @property
     def initial_policy_uri(self) -> str | None:
         """Get the URI of the initial policy, if any."""
-        if self.initial_policy is None:
+        if self.initial_policy_record is None:
             return None
-        return self.initial_policy.uri
+        return self.initial_policy_record.uri
 
     @property
     def current_policy_generation(self) -> int:
         """Get the generation number for new policies saved in this training run.
-
         This is the initial policy's generation + 1, representing that we're
         training the next generation from that starting point.
         """
-        if self.initial_policy is None:
+        if self.initial_policy_record is None:
             return 0
-        if self.initial_policy.metadata is None:
-            return 0
-        return self.initial_policy.metadata.get("generation", 0) + 1
+        return self.initial_policy_record.metadata.get("generation", 0) + 1
 
     def _make_experience_buffer(self):
         """Create experience buffer with tensor-based storage for prioritized sampling."""
