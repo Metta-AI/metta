@@ -4,7 +4,7 @@ import logging
 import threading
 import time
 from contextlib import contextmanager
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from typing import Any, Callable, ContextManager, Final, Tuple, TypedDict, TypeVar, cast
 
 F = TypeVar("F", bound=Callable[..., Any])
@@ -38,6 +38,19 @@ class Timer:
 
     def is_running(self) -> bool:
         return self.start_time is not None
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "Timer":
+        """Create a Timer instance from a dictionary created using .asdict()."""
+        return cls(
+            name=data["name"],
+            start_time=data.get("start_time"),
+            total_elapsed=data.get("total_elapsed", 0.0),
+            last_elapsed=data.get("last_elapsed", 0.0),
+            checkpoints=data.get("checkpoints", {}),
+            lap_counter=data.get("lap_counter", 0),
+            references=data.get("references", []),
+        )
 
 
 def _capture_caller_info(extra_skip_frames: int = 0) -> Tuple[str, int]:
@@ -635,3 +648,71 @@ class Stopwatch:
                 return "multifile"
 
         return first_file
+
+    @with_lock
+    def save_state(self) -> dict[str, Any]:
+        """Save the complete state of all timers to a serializable dictionary.
+
+        Returns:
+            Dictionary containing all timer states that can be serialized with pickle/json
+        """
+        state = {
+            "version": "1.0",  # Version for future compatibility
+            "timers": {},
+        }
+
+        current_time = time.time()
+
+        for name, timer in self._timers.items():
+            # Convert timer to dict using dataclass asdict
+            timer_dict = asdict(timer)
+
+            if timer.is_running() and timer.start_time is not None:
+                # Calculate elapsed time up to this point
+                elapsed_since_start = current_time - timer.start_time
+                timer_dict["total_elapsed"] += elapsed_since_start
+                # Store how long it was running when saved
+                timer_dict["_was_running_for"] = elapsed_since_start
+                # Mark that it was running
+                timer_dict["_was_running"] = True
+                # Clear start_time in the saved state since we've added the elapsed time
+                timer_dict["start_time"] = None
+            else:
+                timer_dict["_was_running"] = False
+
+            state["timers"][name] = timer_dict
+
+        return state
+
+    @with_lock
+    def load_state(self, state: dict[str, Any], resume_running: bool = True):
+        """Load timer state from a dictionary.
+
+        Args:
+            state: Dictionary containing timer state (from save_state())
+            resume_running: If True, timers that were running when saved will be resumed
+        """
+
+        current_time = time.time()
+
+        if not isinstance(state, dict) or "timers" not in state:
+            raise ValueError("Invalid state format")
+
+        # Clear current timers
+        self._timers.clear()
+
+        # Restore each timer
+        for name, timer_data in state["timers"].items():
+            timer = Timer.from_dict(timer_data)
+
+            # Handle timers that were running when saved
+            if resume_running and timer_data.get("_was_running", False):
+                # Resume the timer
+                timer.start_time = current_time
+                # No need to adjust total_elapsed - it already includes time up to save point
+
+            self._timers[name] = timer
+
+        # Ensure global timer exists
+        if self.GLOBAL_TIMER_NAME not in self._timers:
+            self._timers[self.GLOBAL_TIMER_NAME] = self._create_timer(self.GLOBAL_TIMER_NAME)
