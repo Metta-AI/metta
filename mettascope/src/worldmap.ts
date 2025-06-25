@@ -783,6 +783,7 @@ export function drawMap(panel: PanelInfo) {
   drawTrajectory()
   drawObjects()
   drawActions()
+  drawSelection()
   drawInventory()
   drawRewards()
   drawVisibility()
@@ -798,6 +799,9 @@ export function drawMap(panel: PanelInfo) {
       state.replay.map_size[1] * Common.TILE_SIZE,
       [0, 0, 0, 0.80]
     )
+
+    drawSelection()
+
     // Draw matching objects on top of the overlay.
     for (const gridObject of state.replay.grid_objects) {
       const typeName = state.replay.object_types[getAttr(gridObject, 'type')]
@@ -820,7 +824,7 @@ export function drawMap(panel: PanelInfo) {
     drawInventory(true)
   }
 
-  drawSelection()
+
 
   if (state.showAttackMode) {
     drawAttackMode()
