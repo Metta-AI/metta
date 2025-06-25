@@ -33,10 +33,9 @@ class MultiTaskCurriculum(Curriculum):
         return self._completed_tasks
 
     def get_completion_rates(self):
-        completion_rates = {}
+        completions = {f"task_completions/{task_id}": 0.0 for task_id in self._curricula}
         completed_tasks = self.completed_tasks()
-        if len(completed_tasks) > 0:
-            for task_id in self._curricula:
-                task_completion_rate = completed_tasks.count(task_id) / len(completed_tasks)
-                completion_rates[f"task_completions/{task_id}"] = task_completion_rate
+        for task in completed_tasks:
+            completions[f"task_completions/{task}"] += 1
+        completion_rates = {k: v / len(completed_tasks) for k, v in completions.items()}
         return completion_rates

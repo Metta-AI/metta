@@ -6,6 +6,7 @@ from omegaconf import OmegaConf
 from metta.mettagrid.curriculum.bucketed import BucketedCurriculum, _expand_buckets
 from metta.mettagrid.curriculum.core import SingleTaskCurriculum
 from metta.mettagrid.curriculum.low_reward import LowRewardCurriculum
+from metta.mettagrid.curriculum.multi_task import MultiTaskCurriculum
 from metta.mettagrid.curriculum.progressive import ProgressiveCurriculum
 from metta.mettagrid.curriculum.random import RandomCurriculum
 from metta.mettagrid.curriculum.sampling import SampledTaskCurriculum, SamplingCurriculum
@@ -140,3 +141,29 @@ def test_sampled_task_curriculum():
     assert cfg["param1"] == 42
     assert 0 <= cfg["param2"] < 10 and isinstance(cfg["param2"], int)
     assert 0.0 <= cfg["param3"] < 1.0 and isinstance(cfg["param3"], float)
+
+
+def test_multi_task_curriculum_completion_rates(env_cfg):
+    # Dummy curriculum that returns a task with env_cfg
+    class DummyCurriculum:
+        def get_task(self):
+            class DummyTask:
+                def env_cfg(self):
+                    return env_cfg
+
+            return DummyTask()
+
+        def complete_task(self, id, score):
+            pass
+
+    curricula = {"a": DummyCurriculum(), "b": DummyCurriculum(), "c": DummyCurriculum()}
+    curr = MultiTaskCurriculum(curricula)
+    # Simulate completions: a, a, b
+    curr.complete_task("a", 1.0)
+    curr.complete_task("a", 1.0)
+    curr.complete_task("b", 1.0)
+    rates = curr.get_completion_rates()
+    # There are 3 completions, so a:2/3, b:1/3, c:0/3
+    assert abs(rates["task_completions/a"] - 2 / 3) < 1e-6
+    assert abs(rates["task_completions/b"] - 1 / 3) < 1e-6
+    assert abs(rates["task_completions/c"] - 0.0) < 1e-6
