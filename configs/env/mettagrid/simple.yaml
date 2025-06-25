@@ -5,3 +5,46 @@ defaults:
 
 game:
   num_agents: 24
+
+  map_builder:
+    room:
+      objects:
+        mine: 5
+        generator: 4
+        altar: 5
+        armory: 0
+        lasery: 0
+        block: 20
+        wall: 20
+
+        temple: 0
+        lab: 0
+        factory: 0
+
+  objects:
+    altar:
+      initial_items: 0
+
+    mine_red:
+      initial_items: 1
+
+    generator_red:
+      initial_items: 1
+
+  actions:
+    noop:
+      enabled: true
+    move:
+      enabled: true
+    rotate:
+      enabled: true
+    put_items:
+      enabled: true
+    get_items:
+      enabled: true
+    attack:
+      enabled: false
+    swap:
+      enabled: false
+    change_color:
+      enabled: false

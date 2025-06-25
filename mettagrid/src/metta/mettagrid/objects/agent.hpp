@@ -101,7 +101,7 @@ public:
       }
       new_reward += this->resource_rewards[item] * max_val;
     }
-    *this->reward += (new_reward - this->current_resource_reward);
+    *this->reward += std::abs(new_reward - this->current_resource_reward);
     this->current_resource_reward = new_reward;
   }
 
