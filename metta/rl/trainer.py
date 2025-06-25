@@ -145,6 +145,16 @@ class MettaTrainer:
         # Load or create policy with proper distributed coordination
         policy_record = self._load_policy(checkpoint, policy_store)
 
+        # Models loaded via torch.package have modified class names (prefixed with <torch_package_N>)
+        # which prevents them from being saved again. We work around this by creating a fresh
+        # instance of the policy class and copying the state dict, allowing successful re-saving.
+        # TODO: Remove this workaround when checkpointing refactor is complete
+        logger.info("Creating a fresh policy instance for torch.package to save")
+        fresh_policy = self.policy_store.create(metta_grid_env).policy()
+        fresh_policy.activate_actions(metta_grid_env.action_names, metta_grid_env.max_action_args, self.device)
+        fresh_policy.load_state_dict(policy_record.state_dict(), strict=False)
+        policy_record = fresh_policy
+
         if policy_record is None:
             if self._master:
                 policy_record = self._create_policy(policy_store, metta_grid_env)
@@ -710,11 +720,11 @@ class MettaTrainer:
         # which prevents them from being saved again. We work around this by creating a fresh
         # instance of the policy class and copying the state dict, allowing successful re-saving.
         # TODO: Remove this workaround when checkpointing refactor is complete
-
-        logger.info("Creating a fresh instance for a torch.package loaded model")
-        policy_to_save = self.policy_store.create(metta_grid_env).policy()
-        policy_to_save.activate_actions(metta_grid_env.action_names, metta_grid_env.max_action_args, self.device)
-        policy_to_save.load_state_dict(self.policy.state_dict(), strict=False)
+        logger.info("Creating a fresh policy instance for torch.package to save")
+        fresh_policy = self.policy_store.create(metta_grid_env).policy()
+        fresh_policy.activate_actions(metta_grid_env.action_names, metta_grid_env.max_action_args, self.device)
+        fresh_policy.load_state_dict(self.policy.state_dict(), strict=False)
+        policy_to_save = fresh_policy
 
         self.latest_saved_policy = self.policy_store.save(name, path, policy_to_save, metadata)
         logger.info(f"Saved policy locally: {name}")

@@ -194,8 +194,8 @@ class PolicyStore:
 
         policy_class_name = policy.__class__.__module__
         if "torch_package_" in policy_class_name:
-            logger.warning("Policy class name with torch_package_ prefixes! Did you forget to rebuild the agent?")
-            logger.warning("Skipping save to prevent pickle errors.")
+            logger.error("Policy class name with torch_package_ prefixes! Did you forget to rebuild the agent?")
+            logger.error("Skipping save to prevent pickle errors.")
             return pr
 
         try:
