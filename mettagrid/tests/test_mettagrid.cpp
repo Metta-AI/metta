@@ -100,7 +100,8 @@ TEST_F(MettaGridCppTest, AgentInventoryUpdate) {
   // Test hitting zero
   delta = agent->update_inventory(InventoryItem::heart, -10);
   EXPECT_EQ(delta, -3);  // Should only remove what's available
-  EXPECT_EQ(agent->inventory[InventoryItem::heart], 0);
+  // check that the item is not in the inventory
+  EXPECT_EQ(agent->inventory.find(InventoryItem::heart), agent->inventory.end());
 
   // Test hitting max_items_per_type limit
   agent->update_inventory(InventoryItem::heart, 30);
