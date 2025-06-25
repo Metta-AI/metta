@@ -601,7 +601,7 @@ class MettaTrainer:
 
                 if in_value_phase:
                     loss = v_loss * trainer_cfg.vf_coef
-                    print("In value phase")
+                    print(f"In value phase. Agent step is {self.agent_step}")
 
                 # Update values in experience buffer
                 experience.update_values(minibatch["indices"], newvalue.view(minibatch["values"].shape))
