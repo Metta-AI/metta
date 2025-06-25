@@ -1,5 +1,5 @@
 defaults:
-  - /env/mettagrid/mettagrid@
+  - /env/mettagrid/navigation/training/defaults@
   - _self_
 
 sampling: 1
@@ -7,17 +7,8 @@ sampling: 1
 game:
   num_agents: 4
   map_builder:
-    _target_: metta.mettagrid.room.multi_room.MultiRoom
-    num_rooms: ${..num_agents}
-    border_width: 6
-
     room:
-      _target_: metta.mettagrid.room.terrain_from_numpy.TerrainFromNumpy
-      border_width: 3
-      agents: 1
       dir: ${choose:varied_terrain/maze_large,varied_terrain/maze_medium,varied_terrain/maze_small}
-      objects:
-        altar: 10
   objects:
     altar:
       cooldown: 1000

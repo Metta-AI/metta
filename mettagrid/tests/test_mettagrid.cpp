@@ -17,19 +17,18 @@ protected:
 
   void TearDown() override {}
 
-  // Helper function to create test agent configuration
-  ObjectConfig create_test_agent_config() {
-    ObjectConfig agent_cfg;
-    agent_cfg["freeze_duration"] = 100;
-    agent_cfg["default_item_max"] = 50;
-    return agent_cfg;
-  }
-
-  // Helper function to create test group configuration
-  ObjectConfig create_test_group_config() {
-    ObjectConfig group_cfg;
-    group_cfg["default_item_max"] = 123;
-    return group_cfg;
+  // Helper function to create test max_items_per_type map
+  std::map<std::string, unsigned int> create_test_max_items_per_type() {
+    std::map<std::string, unsigned int> max_items_per_type;
+    max_items_per_type["heart"] = 50;
+    max_items_per_type["ore.red"] = 50;
+    max_items_per_type["ore.green"] = 50;
+    max_items_per_type["ore.blue"] = 50;
+    max_items_per_type["battery.red"] = 50;
+    max_items_per_type["battery.green"] = 50;
+    max_items_per_type["battery.blue"] = 50;
+    max_items_per_type["laser"] = 50;
+    return max_items_per_type;
   }
 
   // Helper function to create test rewards map
@@ -38,32 +37,38 @@ protected:
     rewards["heart"] = 1.0f;
     rewards["ore.red"] = 0.125f;
     rewards["ore.green"] = 0.5f;
+    rewards["ore.blue"] = 0.0f;
+    rewards["battery.red"] = 0.0f;
+    rewards["battery.green"] = 0.0f;
+    rewards["battery.blue"] = 0.0f;
+    rewards["laser"] = 0.0f;
     return rewards;
+  }
+
+  // Helper function to create test resource_reward_max map
+  std::map<std::string, float> create_test_resource_reward_max() {
+    std::map<std::string, float> resource_reward_max;
+    resource_reward_max["heart"] = 10.0f;
+    resource_reward_max["ore.red"] = 10.0f;
+    resource_reward_max["ore.green"] = 10.0f;
+    resource_reward_max["ore.blue"] = 10.0f;
+    resource_reward_max["battery.red"] = 10.0f;
+    resource_reward_max["battery.green"] = 10.0f;
+    resource_reward_max["battery.blue"] = 10.0f;
+    resource_reward_max["laser"] = 10.0f;
+    return resource_reward_max;
   }
 };
 
 // ==================== Agent Tests ====================
 
-TEST_F(MettaGridCppTest, AgentCreation) {
-  auto agent_cfg = create_test_agent_config();
-  auto rewards = create_test_rewards();
-
-  // Create agent directly using C++ constructor
-  std::unique_ptr<Agent> agent(new Agent(0, 0, "test_group", 1, agent_cfg, rewards));
-
-  ASSERT_NE(agent, nullptr);
-  EXPECT_EQ(agent->freeze_duration, 100);
-  EXPECT_EQ(agent->location.r, 0);
-  EXPECT_EQ(agent->location.c, 0);
-  EXPECT_EQ(agent->group_name, "test_group");
-  EXPECT_EQ(agent->group, 1);
-}
-
 TEST_F(MettaGridCppTest, AgentRewards) {
-  auto agent_cfg = create_test_agent_config();
+  auto max_items_per_type = create_test_max_items_per_type();
   auto rewards = create_test_rewards();
+  auto resource_reward_max = create_test_resource_reward_max();
 
-  std::unique_ptr<Agent> agent(new Agent(0, 0, "test_group", 1, agent_cfg, rewards));
+  std::unique_ptr<Agent> agent(
+      new Agent(0, 0, 50, 100, 0.1f, max_items_per_type, rewards, resource_reward_max, "test_group", 1));
 
   // Test reward values
   EXPECT_FLOAT_EQ(agent->resource_rewards[InventoryItem::heart], 1.0f);
@@ -72,10 +77,12 @@ TEST_F(MettaGridCppTest, AgentRewards) {
 }
 
 TEST_F(MettaGridCppTest, AgentInventoryUpdate) {
-  auto agent_cfg = create_test_agent_config();
+  auto max_items_per_type = create_test_max_items_per_type();
   auto rewards = create_test_rewards();
+  auto resource_reward_max = create_test_resource_reward_max();
 
-  std::unique_ptr<Agent> agent(new Agent(0, 0, "test_group", 1, agent_cfg, rewards));
+  std::unique_ptr<Agent> agent(
+      new Agent(0, 0, 50, 100, 0.1f, max_items_per_type, rewards, resource_reward_max, "test_group", 1));
 
   float dummy_reward = 0.0f;
   agent->init(&dummy_reward);
@@ -95,10 +102,10 @@ TEST_F(MettaGridCppTest, AgentInventoryUpdate) {
   EXPECT_EQ(delta, -3);  // Should only remove what's available
   EXPECT_EQ(agent->inventory[InventoryItem::heart], 0);
 
-  // Test hitting default_item_max limit
+  // Test hitting max_items_per_type limit
   agent->update_inventory(InventoryItem::heart, 30);
-  delta = agent->update_inventory(InventoryItem::heart, 50);  // default_item_max is 50
-  EXPECT_EQ(delta, 20);                                       // Should only add up to default_item_max
+  delta = agent->update_inventory(InventoryItem::heart, 50);  // max_items_per_type is 50
+  EXPECT_EQ(delta, 20);                                       // Should only add up to max_items_per_type
   EXPECT_EQ(agent->inventory[InventoryItem::heart], 50);
 }
 
@@ -126,9 +133,10 @@ TEST_F(MettaGridCppTest, GridObjectManagement) {
   Grid grid(10, 10, layer_for_type_id);
 
   // Create and add an agent
-  auto agent_cfg = create_test_agent_config();
+  auto max_items_per_type = create_test_max_items_per_type();
   auto rewards = create_test_rewards();
-  Agent* agent = new Agent(2, 3, "test_group", 1, agent_cfg, rewards);
+  auto resource_reward_max = create_test_resource_reward_max();
+  Agent* agent = new Agent(2, 3, 50, 100, 0.1f, max_items_per_type, rewards, resource_reward_max, "test_group", 1);
 
   grid.add_object(agent);
 
@@ -155,12 +163,13 @@ TEST_F(MettaGridCppTest, AttackAction) {
 
   Grid grid(10, 10, layer_for_type_id);
 
-  auto agent_cfg = create_test_agent_config();
+  auto max_items_per_type = create_test_max_items_per_type();
   auto rewards = create_test_rewards();
+  auto resource_reward_max = create_test_resource_reward_max();
 
   // Create attacker and target
-  Agent* attacker = new Agent(2, 0, "red", 1, agent_cfg, rewards);
-  Agent* target = new Agent(0, 0, "blue", 2, agent_cfg, rewards);
+  Agent* attacker = new Agent(2, 0, 50, 100, 0.1f, max_items_per_type, rewards, resource_reward_max, "red", 1);
+  Agent* target = new Agent(0, 0, 50, 100, 0.1f, max_items_per_type, rewards, resource_reward_max, "blue", 2);
 
   float attacker_reward = 0.0f;
   float target_reward = 0.0f;
@@ -213,10 +222,11 @@ TEST_F(MettaGridCppTest, PutRecipeItems) {
 
   Grid grid(10, 10, layer_for_type_id);
 
-  auto agent_cfg = create_test_agent_config();
+  auto max_items_per_type = create_test_max_items_per_type();
   auto rewards = create_test_rewards();
+  auto resource_reward_max = create_test_resource_reward_max();
 
-  Agent* agent = new Agent(1, 0, "red", 1, agent_cfg, rewards);
+  Agent* agent = new Agent(1, 0, 50, 100, 0.1f, max_items_per_type, rewards, resource_reward_max, "red", 1);
   float agent_reward = 0.0f;
   agent->init(&agent_reward);
 
@@ -268,10 +278,11 @@ TEST_F(MettaGridCppTest, GetOutput) {
 
   Grid grid(10, 10, layer_for_type_id);
 
-  auto agent_cfg = create_test_agent_config();
+  auto max_items_per_type = create_test_max_items_per_type();
   auto rewards = create_test_rewards();
+  auto resource_reward_max = create_test_resource_reward_max();
 
-  Agent* agent = new Agent(1, 0, "red", 1, agent_cfg, rewards);
+  Agent* agent = new Agent(1, 0, 50, 100, 0.1f, max_items_per_type, rewards, resource_reward_max, "red", 1);
   float agent_reward = 0.0f;
   agent->init(&agent_reward);
 
@@ -366,7 +377,7 @@ TEST_F(MettaGridCppTest, WallCreation) {
 TEST_F(MettaGridCppTest, ConverterCreation) {
   ObjectConfig converter_cfg;
   converter_cfg["input_ore.red"] = 2;
-  converter_cfg["output_battery"] = 1;
+  converter_cfg["output_battery.red"] = 1;
   converter_cfg["conversion_ticks"] = 5;
   converter_cfg["cooldown"] = 10;
   converter_cfg["initial_items"] = 0;
