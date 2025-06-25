@@ -73,11 +73,6 @@ class ContrastiveLearning:
     def __init__(
         self,
         hidden_size: int,
-        temperature: float = 0.1,  # Kept for compatibility, not used
-        geometric_p: float = 0.1,  # Kept for compatibility, not used
-        max_temporal_distance: int = 50,  # Kept for compatibility, not used
-        logsumexp_reg_coef: float = 1.0,  # Kept for compatibility, not used
-        max_pairs_per_agent: int = 32,  # Kept for compatibility, not used
         device: torch.device = torch.device("cpu"),
     ):
         """
@@ -85,11 +80,6 @@ class ContrastiveLearning:
 
         Args:
             hidden_size: Dimension of LSTM hidden states (not used in computation)
-            temperature: Temperature parameter (kept for compatibility)
-            geometric_p: Geometric distribution parameter (kept for compatibility)
-            max_temporal_distance: Max temporal distance (kept for compatibility)
-            logsumexp_reg_coef: LogSumExp regularization coefficient (kept for compatibility)
-            max_pairs_per_agent: Max pairs per agent (kept for compatibility)
             device: Device to run computations on
         """
         self.hidden_size = hidden_size
