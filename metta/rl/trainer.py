@@ -163,7 +163,7 @@ class MettaTrainer:
         # instance of the policy class and copying the state dict, allowing successful re-saving.
         # TODO: Remove this workaround when checkpointing refactor is complete
         logger.info("Creating a fresh policy instance for torch.package to save")
-        fresh_policy = policy_store.create(metta_grid_env).policy()
+        fresh_policy = policy_store.create(metta_grid_env).policy().to(self.device)
         if not hasattr(fresh_policy, "activate_actions"):
             raise AttributeError(f"Policy object {type(fresh_policy).__name__} does not have 'activate_actions' method")
         fresh_policy.activate_actions(actions_names, actions_max_params, self.device)
