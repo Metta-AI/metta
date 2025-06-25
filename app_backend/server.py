@@ -34,7 +34,7 @@ def create_app(stats_repo: MettaRepo) -> fastapi.FastAPI:
     @app.get("/whoami")
     def whoami(request: fastapi.Request):  # type: ignore
         user_id = user_from_header_or_token(request, stats_repo)
-        return {"user_email": user_id}
+        return {"user_email": user_id or "unknown"}
 
     return app
 

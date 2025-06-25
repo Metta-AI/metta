@@ -74,7 +74,7 @@ def get_group_data(con: Connection, suite: str, metric: str, group: str) -> List
                 eam.*,
                 CAST ((e.attributes->'agent_groups')[eam.agent_id] AS INTEGER) as group_id
             FROM episode_agent_metrics eam
-            JOIN episodes e ON e.id = eam.episode_id
+            JOIN episode_view e ON e.id = eam.episode_id
             WHERE e.simulation_suite = %s AND eam.metric = %s
         ),
         latest_epoch_per_training_run AS (
@@ -109,7 +109,7 @@ def get_group_data(con: Connection, suite: str, metric: str, group: str) -> List
           COUNT(*) AS num_agents,
           SUM(eam.value) AS total_value
         FROM episode_agent_metrics_with_group_id eam
-        JOIN episodes e ON e.id = eam.episode_id
+        JOIN episode_view e ON e.id = eam.episode_id
         JOIN relevant_policies p ON e.primary_policy_id = p.id
         {}
         GROUP BY p.name, e.eval_name
@@ -154,7 +154,7 @@ def create_dashboard_router(metta_repo: MettaRepo) -> APIRouter:
     ) -> HeatmapData:
         """Get heatmap data for a given suite, metric, and group metric."""
         with metta_repo.connect() as con:
-            eval_rows = con.execute("SELECT DISTINCT eval_name FROM episodes WHERE simulation_suite = %s", (suite,))
+            eval_rows = con.execute("SELECT DISTINCT eval_name FROM episode_view WHERE simulation_suite = %s", (suite,))
             all_eval_names: list[str] = [row[0] for row in eval_rows]
 
             if isinstance(group_metric.group_metric, GroupDiff):

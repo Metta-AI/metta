@@ -157,14 +157,20 @@ class TestTokenSystem:
         assert response.status_code == 200
 
     def test_no_authentication_fails(self, test_client: TestClient) -> None:
-        """Test that requests without authentication fail."""
-        response = test_client.get("/dashboard/suites")
+        """Test that write requests without authentication fail."""
+        # Test a write operation (POST) without authentication
+        response = test_client.post(
+            "/tokens",
+            json={"name": "test_token"},
+        )
         assert response.status_code == 401
 
     def test_invalid_token_fails(self, test_client: TestClient) -> None:
-        """Test that invalid tokens fail authentication."""
-        response = test_client.get(
-            "/dashboard/suites",
+        """Test that invalid tokens fail authentication for write operations."""
+        # Test a write operation (POST) with invalid token
+        response = test_client.post(
+            "/tokens",
+            json={"name": "test_token"},
             headers={"X-Auth-Token": "invalid_token"},
         )
         assert response.status_code == 401

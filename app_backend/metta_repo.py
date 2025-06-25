@@ -120,6 +120,17 @@ MIGRATIONS = [
                 updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
             )""",
             """CREATE INDEX idx_saved_dashboards_user_id ON saved_dashboards(user_id)""",
+            """CREATE VIEW episode_view AS
+                SELECT id,
+                  split_part(eval_name, '/', 1) as simulation_suite,
+                  split_part(eval_name, '/', 2) as eval_name,
+                  replay_url,
+                  primary_policy_id,
+                  stats_epoch,
+                  attributes
+                FROM episodes
+                WHERE split_part(eval_name, '/', 1) IS NOT NULL AND split_part(eval_name, '/', 2) IS NOT NULL
+            """,
         ],
     ),
 ]
@@ -284,8 +295,7 @@ class MettaRepo:
         with self.connect() as con:
             result = con.execute("""
                 SELECT DISTINCT simulation_suite
-                FROM episodes
-                WHERE simulation_suite IS NOT NULL
+                FROM episode_view
                 ORDER BY simulation_suite
             """)
             return [row[0] for row in result]
@@ -296,7 +306,7 @@ class MettaRepo:
             result = con.execute(
                 """
                 SELECT DISTINCT eam.metric
-                FROM episodes e
+                FROM episode_view e
                 JOIN episode_agent_metrics eam ON e.id = eam.episode_id
                 WHERE e.simulation_suite = %s
                 ORDER BY eam.metric
@@ -311,7 +321,7 @@ class MettaRepo:
             result = con.execute(
                 """
                 SELECT DISTINCT jsonb_object_keys(e.attributes->'agent_groups') as group_id
-                FROM episodes e
+                FROM episode_view e
                 WHERE e.simulation_suite = %s
                 ORDER BY group_id
             """,
