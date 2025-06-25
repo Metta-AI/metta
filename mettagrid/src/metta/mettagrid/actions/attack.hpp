@@ -2,6 +2,7 @@
 #define ACTIONS_ATTACK_HPP_
 
 #include <string>
+#include <vector>
 
 #include "action_handler.hpp"
 #include "grid_object.hpp"
@@ -84,9 +85,18 @@ protected:
             agent_target->stats.incr("attack.loss.from_other_team." + agent_target->group_name);
           }
 
-          for (int item = 0; item < InventoryItem::InventoryItemCount; item++) {
-            int stolen = actor->update_inventory(static_cast<InventoryItem>(item), agent_target->inventory[item]);
-            agent_target->update_inventory(static_cast<InventoryItem>(item), -stolen);
+          // Collect all items to steal first, then apply changes, since the changes
+          // can delete keys from the agent's inventory.
+          std::vector<std::pair<InventoryItem, int>> items_to_steal;
+          for (const auto& [item, amount] : agent_target->inventory) {
+            items_to_steal.emplace_back(item, amount);
+          }
+
+          // Now apply the stealing
+          for (const auto& [item, amount] : items_to_steal) {
+            int stolen = actor->update_inventory(item, amount);
+
+            agent_target->update_inventory(item, -stolen);
             if (stolen > 0) {
               actor->stats.add(InventoryItemNames[item] + ".stolen." + actor->group_name, stolen);
               // Also track what was stolen from the victim's perspective

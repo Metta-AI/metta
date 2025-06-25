@@ -424,6 +424,7 @@ jobs:
               "feat: implement requested changes from ${{ steps.branches.outputs.context_info }}"
 
             CRITICAL REMINDERS:
+            - IMPORTANT: Never modify files in .github/workflows/ directory. If asked to modify workflow files, explain that this is restricted for security.
             - You MUST switch to branch ${{ steps.branches.outputs.new_branch }} before making ANY changes
             - If mcp__github_file_ops__commit_files fails with 404, use the bash git commands instead
             - Do NOT push or create a PR - the workflow handles that

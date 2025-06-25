@@ -40,12 +40,11 @@ game:
                 team_1: 36
 
   agent:
-    max_inventory: ${sampling:2,6,4}
     rewards:
       heart: 1
       heart_max: 1000
       ore.red: 0.005
-      ore_max: 1000
+      ore.red_max: 1000
 
   objects:
     altar:

@@ -348,7 +348,7 @@ class MettaTrainer:
         )
 
         curriculum_config = trainer_cfg.get("curriculum", trainer_cfg.get("env", {}))
-        env_overrides = DictConfig({"env_overrides": trainer_cfg.env_overrides})
+        env_overrides = DictConfig(trainer_cfg.env_overrides)
         self._curriculum = curriculum_from_config_path(curriculum_config, env_overrides)
         self._make_vecenv()
 
