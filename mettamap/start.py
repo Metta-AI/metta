@@ -3,7 +3,7 @@
 import subprocess
 from pathlib import Path
 
-from metta.util.fs import cd_repo_root
+from metta.common.fs import cd_repo_root
 
 
 def main():
