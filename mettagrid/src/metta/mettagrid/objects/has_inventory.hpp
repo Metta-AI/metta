@@ -10,11 +10,7 @@
 
 class HasInventory : public MettaObject {
 public:
-  vector<unsigned char> inventory;
-
-  void init_has_inventory(ObjectConfig cfg) {
-    this->inventory.resize(InventoryItem::InventoryItemCount);
-  }
+  std::map<InventoryItem, uint8_t> inventory;
 
   // Whether the inventory is accessible to an agent.
   virtual bool inventory_is_accessible() {
@@ -25,7 +21,11 @@ public:
     int initial_amount = this->inventory[item];
     int new_amount = initial_amount + amount;
     new_amount = std::clamp(new_amount, 0, 255);
-    this->inventory[item] = new_amount;
+    if (new_amount == 0) {
+      this->inventory.erase(item);
+    } else {
+      this->inventory[item] = new_amount;
+    }
     return new_amount - initial_amount;
   }
 };
