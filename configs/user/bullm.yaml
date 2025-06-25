@@ -1,0 +1,32 @@
+# @package __global__
+
+# User config for running progressive curriculum on navigation tasks
+
+defaults:
+  - /trainer/trainer
+  - /sim/all@evals  # Use navigation-only evaluation suite
+  - _self_
+
+# Basic run configuration
+run: bullm_progressive_nav
+
+data_dir: ${oc.env:DATA_DIR,./train_dir}
+run_dir: ${data_dir}/${run}
+
+trainer:
+  curriculum:
+    _target_: metta.mettagrid.curriculum.progressive.ProgressiveMultiTaskCurriculum
+    tasks:
+      /env/mettagrid/navigation/training/small: 1
+      /env/mettagrid/navigation/training/medium: 1
+      /env/mettagrid/navigation/training/large: 1
+      /env/mettagrid/navigation/training/terrain_from_numpy: 1
+    performance_threshold: 0.8
+    smoothing: 0.1
+    progression_rate: 0.01
+    progression_mode: "perf"
+    blending_smoothness: 0.5
+    blending_mode: "logistic"
+  evaluate_interval: 100
+
+# Add any other user-specific overrides below
