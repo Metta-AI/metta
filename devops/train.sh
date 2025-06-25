@@ -33,7 +33,7 @@ if [ -z "$NUM_CPUS" ]; then
     NUM_CPUS=$(sysctl -n hw.ncpu)
     NUM_CPUS=$((NUM_CPUS / 2))
   else
-    NUM_CPUS=8  # fallback
+    NUM_CPUS=1  # fallback
   fi
 fi
 
