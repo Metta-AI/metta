@@ -1,0 +1,7 @@
+_target_: metta.mettagrid.curriculum.progressive.ProgressiveMultiTaskCurriculum
+
+tasks:
+  /env/mettagrid/navigation/training/small: 1
+  /env/mettagrid/navigation/training/medium: 1
+  /env/mettagrid/navigation/training/large: 1
+  /env/mettagrid/navigation/training/terrain_from_numpy: 1

@@ -16,16 +16,18 @@ class Curriculum:
 
     def completed_tasks(self) -> List[str]:
         """Return a list of completed task identifiers."""
-        pass
+        return []
 
     def get_completion_rates(self):
         """Return a dictionary of completion rates for each task."""
         return {}
 
+    def get_task_probs(self) -> dict[str, float]:
+        """Return the current task probabilities for logging purposes."""
+
 
 class Task:
     def __init__(self, id: str, curriculum: "Curriculum", env_cfg: Optional[DictConfig] = None):
-        self._id = id
         self._is_complete = False
         self._curricula = [(curriculum, id)]
         self._env_cfg = env_cfg

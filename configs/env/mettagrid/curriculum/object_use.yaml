@@ -3,48 +3,42 @@ _target_: metta.mettagrid.curriculum.bucketed.BucketedCurriculum
 env_cfg_template: /env/mettagrid/object_use/training/easy_all_objects
 
 buckets:
-  game.agent.rewards.laser:
-    range: [0.01, 0.5]
-  game.agent.rewards.armor:
-    range: [0.01, 0.5]
-  game.agent.rewards.blueprint:
-    range: [0.01, 0.5]
   game.map_builder.room.width:
-    range: [15, 50]
+    range: [20, 60]
     bins: 2
   game.map_builder.room.height:
-    range: [15, 50]
+    range: [20, 60]
     bins: 2
   game.map_builder.room.objects.altar:
-    range: [1, 5]
-  game.map_builder.room.objects.generator_red:
-    range: [1, 5]
-  game.map_builder.room.objects.mine_red:
-    range: [1, 5]
+    range: [1, 3]
+  game.map_builder.room.objects.generator.red:
+    range: [1, 3]
+  game.map_builder.room.objects.mine.red:
+    range: [1, 3]
   game.map_builder.room.objects.wall:
-    range: [1, 20]
+    range: [1, 3]
   game.map_builder.room.objects.block:
-    range: [1, 20]
+    range: [1, 3]
   game.map_builder.room.objects.lasery:
-    range: [1, 5]
+    range: [1, 3]
   game.map_builder.room.objects.lab:
-    range: [1, 5]
+    range: [1, 3]
   game.map_builder.room.objects.factory:
-    range: [1, 5]
+    range: [1, 3]
   game.map_builder.room.objects.temple:
-    range: [1, 5]
+    range: [1, 3]
 
   objects.altar.initial_items:
-    values: [0, 1]
+    range: [0, 1]
   objects.altar.cooldown:
     range: [10, 60]
     bins: 2
-  objects.generator_red.initial_items:
+  objects.generator.red.initial_items:
     range: [0, 1]
-  objects.generator_red.cooldown:
+  objects.generator.red.cooldown:
     range: [10, 60]
     bins: 2
-  objects.mine_red.cooldown:
+  objects.mine.red.cooldown:
     range: [10, 60]
     bins: 2
 env_overrides:

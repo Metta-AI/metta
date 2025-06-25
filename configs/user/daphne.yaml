@@ -13,11 +13,10 @@ defaults:
   - _self_
 
 trainer:
-  curriculum: /env/mettagrid/curriculum/object_use
-  evaluate_interval: 10
+  curriculum: /env/mettagrid/curriculum/navigation/bucketed
 
 policy_uri: wandb://run/dd_navigation_curriculum
 
-run_id: 20
+run_id: 1
 run: ${oc.env:USER}.local.${run_id}
 trained_policy_uri: ${run_dir}/checkpoints

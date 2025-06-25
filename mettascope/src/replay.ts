@@ -1,7 +1,7 @@
 import * as Common from './common.js'
 import { ui, state, html, ctx } from './common.js'
-import { focusFullMap, requestFrame } from './worldmap.js'
-import { onResize, updateStep } from './main.js'
+import { focusFullMap } from './worldmap.js'
+import { onResize, updateStep, requestFrame } from './main.js'
 import { updateAgentTable } from './agentpanel.js'
 
 /** Gets an attribute from a grid object, respecting the current step. */

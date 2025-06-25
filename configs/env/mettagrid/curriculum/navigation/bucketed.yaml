@@ -25,4 +25,6 @@ buckets:
       ]
   game.map_builder.room.objects.altar:
     range: [10, 50]
-    bins: 3
+
+env_overrides:
+  sampling: 0

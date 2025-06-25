@@ -16,7 +16,7 @@ game:
       action_failure_penalty: 0
       ore.red: ${sampling:0.005,0.1, 0.01}
       battery.red: ${sampling:0.01,0.5, 0.1}
-      battery_max: 5
+      battery.red_max: 5
       heart: 1
       heart_max: 1000
   map_builder:
