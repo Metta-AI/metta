@@ -4,7 +4,7 @@
 #Currently objects are only altars, mines, and generators, of single color.
 
 defaults:
-  - /env/mettagrid/mettagrid_deterministic@
+  - /env/mettagrid/mettagrid@
   - _self_
 
 labels:

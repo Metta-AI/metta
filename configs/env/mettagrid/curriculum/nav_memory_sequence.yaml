@@ -7,7 +7,3 @@ tasks:
   /env/mettagrid/curriculum/sequence: 1
   /env/mettagrid/curriculum/navigation: 1
   /env/mettagrid/curriculum/object_use: 1
-
-env_overrides:
-  game:
-    num_agents: 12

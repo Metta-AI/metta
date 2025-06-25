@@ -41,6 +41,3 @@ buckets:
   objects.mine.red.cooldown:
     range: [10, 60]
     bins: 2
-env_overrides:
-  game:
-    num_agents: 24
