@@ -198,14 +198,20 @@ class MettaTrainer:
         )
 
         # validate that policy matches environment
-        self.metta_agent: MettaAgent | DistributedMettaAgent = self.policy  # type: ignore
+        if isinstance(self.policy, MettaAgent):
+            agent = self.policy
+        elif isinstance(self.policy, DistributedMettaAgent):
+            agent = self.policy.module
+        else:
+            raise ValueError(f"Policy must be of type MettaAgent or DistributedMettaAgent, got {type(self.policy)}")
+
         _env_shape = metta_grid_env.single_observation_space.shape
         environment_shape = tuple(_env_shape) if isinstance(_env_shape, list) else _env_shape
 
         # The rest of the validation logic continues to work with duck typing
-        if hasattr(self.metta_agent, "components"):
+        if hasattr(agent, "components"):
             found_match = False
-            for component_name, component in self.metta_agent.components.items():
+            for component_name, component in agent.components.items():
                 if hasattr(component, "_obs_shape"):
                     found_match = True
                     component_shape = (
@@ -693,7 +699,12 @@ class MettaTrainer:
             "eval_scores": category_scores_map,
         }
 
-        policy_to_save = self.policy
+        if isinstance(self.policy, MettaAgent):
+            policy_to_save = self.policy
+        elif isinstance(self.policy, DistributedMettaAgent):
+            policy_to_save = self.policy.module
+        else:
+            raise ValueError(f"Policy must be of type MettaAgent or DistributedMettaAgent, got {type(self.policy)}")
 
         # Models loaded via torch.package have modified class names (prefixed with <torch_package_N>)
         # which prevents them from being saved again. We work around this by creating a fresh
