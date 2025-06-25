@@ -43,7 +43,7 @@ class Linear(ParamLayer):
     def _forward(self, td: TensorDict):
         x = td[self._sources[0]["name"]]
         if self._name == "critic_1" and td.get("value_only_training", False):
-            x.detach()
+            x = x.detach()
         td[self._name] = self._net(x)
         return td
 
