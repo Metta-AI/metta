@@ -119,11 +119,6 @@ Choose the appropriate setup method for your platform:
 ./devops/macos/setup_machine.py
 ```
 
-**Linux:**
-```bash
-./devops/mettabox/setup_machine.sh
-```
-
 **Other platforms or manual setup:**
 Install the packages listed in `devops/macos/Brewfile`.
 
