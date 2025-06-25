@@ -89,6 +89,8 @@ export const state = {
   isPlaying: false,
   partialStep: 0,
   playbackSpeed: 0.1,
+  demoMode: false,
+  fullScreen: false,
 
   // What to show?
   showResources: true,
@@ -111,44 +113,46 @@ export const html = {
   globalCanvas: find('#global-canvas') as HTMLCanvasElement,
 
   // Header area
-  fileName: find('#file-name') as HTMLDivElement,
-  helpButton: find('#help-button') as HTMLButtonElement,
-  shareButton: find('#share-button') as HTMLButtonElement,
+  fileName: find('#file-name'),
+  helpButton: find('#help-button'),
+  shareButton: find('#share-button'),
 
-  rewindToStartButton: find('#rewind-to-start') as HTMLImageElement,
-  stepBackButton: find('#step-back') as HTMLImageElement,
-  playButton: find('#play') as HTMLButtonElement,
-  stepForwardButton: find('#step-forward') as HTMLImageElement,
-  rewindToEndButton: find('#rewind-to-end') as HTMLImageElement,
+  rewindToStartButton: find('#rewind-to-start'),
+  stepBackButton: find('#step-back'),
+  playButton: find('#play'),
+  stepForwardButton: find('#step-forward'),
+  rewindToEndButton: find('#rewind-to-end'),
+  demoModeToggle: find('#demo-mode-toggle'),
+  fullScreenToggle: find('#full-screen-toggle'),
 
   actionButtons: find('#action-buttons'),
 
   speedButtons: [
-    find('#speed1') as HTMLImageElement,
-    find('#speed2') as HTMLImageElement,
-    find('#speed3') as HTMLImageElement,
-    find('#speed4') as HTMLImageElement,
-    find('#speed5') as HTMLImageElement,
-    find('#speed6') as HTMLImageElement,
+    find('#speed1'),
+    find('#speed2'),
+    find('#speed3'),
+    find('#speed4'),
+    find('#speed5'),
+    find('#speed6'),
   ],
 
-  focusToggle: find('#focus-toggle') as HTMLImageElement,
+  focusToggle: find('#focus-toggle'),
 
-  minimapToggle: find('#minimap-toggle') as HTMLImageElement,
-  controlsToggle: find('#controls-toggle') as HTMLImageElement,
-  infoToggle: find('#info-toggle') as HTMLImageElement,
-  agentPanelToggle: find('#agent-panel-toggle') as HTMLImageElement,
+  minimapToggle: find('#minimap-toggle'),
+  controlsToggle: find('#controls-toggle'),
+  infoToggle: find('#info-toggle'),
+  agentPanelToggle: find('#agent-panel-toggle'),
 
-  resourcesToggle: find('#resources-toggle') as HTMLImageElement,
-  gridToggle: find('#grid-toggle') as HTMLImageElement,
-  visualRangeToggle: find('#visual-range-toggle') as HTMLImageElement,
-  fogOfWarToggle: find('#fog-of-war-toggle') as HTMLImageElement,
+  resourcesToggle: find('#resources-toggle'),
+  gridToggle: find('#grid-toggle'),
+  visualRangeToggle: find('#visual-range-toggle'),
+  fogOfWarToggle: find('#fog-of-war-toggle'),
 
-  stepCounter: find('#step-counter') as HTMLSpanElement,
+  stepCounter: find('#step-counter'),
 
   // Utility
-  modal: find('#modal') as HTMLDivElement,
-  toast: find('#toast') as HTMLDivElement,
+  modal: find('#modal'),
+  toast: find('#toast'),
 }
 
 /** Sets the follow selection state. You can pass null to leave a state unchanged. */
