@@ -78,6 +78,7 @@ export function onResize() {
     // Have the map panel take up the trace panel's space.
     ui.mapPanel.height = screenHeight - ui.mapPanel.y - Common.FOOTER_HEIGHT
     ui.miniMapPanel.y = ui.mapPanel.y + ui.mapPanel.height - ui.miniMapPanel.height
+    ui.infoPanel.y = ui.mapPanel.y + ui.mapPanel.height - 300
     html.actionButtons.style.top = ui.mapPanel.y + ui.mapPanel.height - 148 + 'px'
   }
 
