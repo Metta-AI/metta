@@ -2,10 +2,10 @@ from pathlib import Path
 
 import pytest
 from hydra import compose, initialize_config_dir
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig
 from pydantic import ValidationError
 
-from metta.rl.trainer_config import MettaTrainerConfig, OptimizerConfig
+from metta.rl.trainer_config import OptimizerConfig, TrainerConfig, parse_trainer_config
 
 valid_optimizer_config = {
     "type": "adam",
@@ -84,9 +84,10 @@ class TestTypedConfigs:
             "bptt_horizon": 32,
             "update_epochs": 1,
             "forward_pass_minibatch_target_size": 512,
+            "env": "/env/mettagrid/simple",  # Required field
         }
 
-        trainer = MettaTrainerConfig.model_validate(minimal_config)
+        trainer = parse_trainer_config(DictConfig(minimal_config))
 
         # Defaults
         assert trainer.optimizer.beta1 == 0.9
@@ -97,6 +98,73 @@ class TestTypedConfigs:
         # Specified
         assert isinstance(trainer.optimizer, OptimizerConfig)
         assert trainer.optimizer.learning_rate == 0.001
+
+    def test_trainer_config_to_dictconfig_conversion(self):
+        """Test that TrainerConfig fields can be converted back to DictConfig without issues.
+
+        This is important because in some parts of the codebase we need to create new DictConfig
+        objects from subparts of a validated TrainerConfig (e.g., when passing env_overrides
+        to environment constructors or when using hydra.utils.instantiate).
+        """
+        # Create a test config with env_overrides
+        test_config = DictConfig(
+            {
+                "_target_": "metta.rl.trainer.MettaTrainer",
+                "batch_size": 1024,
+                "minibatch_size": 256,
+                "total_timesteps": 1000000,
+                "optimizer": valid_optimizer_config,
+                "clip_coef": 0.1,
+                "ent_coef": 0.01,
+                "gae_lambda": 0.95,
+                "gamma": 0.99,
+                "max_grad_norm": 0.5,
+                "vf_coef": 0.5,
+                "bptt_horizon": 32,
+                "update_epochs": 1,
+                "forward_pass_minibatch_target_size": 512,
+                "env": "/env/mettagrid/simple",
+                "env_overrides": {
+                    "desync_episodes": True,
+                    "max_steps": 1000,
+                    "num_agents": 4,
+                },
+                "kickstart": {
+                    "teacher_uri": None,
+                    "action_loss_coef": 1.0,
+                    "value_loss_coef": 1.0,
+                    "anneal_ratio": 0.65,
+                    "kickstart_steps": 1_000_000_000,
+                    "additional_teachers": [],
+                },
+            }
+        )
+
+        validated_config = parse_trainer_config(test_config)
+
+        # Test that env_overrides can be converted to DictConfig
+        env_overrides_dict = DictConfig(validated_config.env_overrides)
+        assert isinstance(env_overrides_dict, DictConfig)
+        assert env_overrides_dict.desync_episodes is True
+        assert env_overrides_dict.max_steps == 1000
+        assert env_overrides_dict.num_agents == 4
+
+        # Test that we can convert the entire config back to dict for hydra.utils.instantiate
+        config_dict = validated_config.model_dump(by_alias=True)
+        assert config_dict["_target_"] == "metta.rl.trainer.MettaTrainer"
+        assert config_dict["batch_size"] == 1024
+        assert config_dict["env_overrides"]["desync_episodes"] is True
+        assert config_dict["env_overrides"]["max_steps"] == 1000
+
+        # Test that nested configs also work
+        assert isinstance(validated_config.optimizer, OptimizerConfig)
+        assert validated_config.optimizer.type == "adam"
+        assert validated_config.optimizer.learning_rate == 0.001
+
+        # Test that the kickstart config works
+        assert isinstance(validated_config.kickstart.additional_teachers, list)
+        assert validated_config.kickstart.teacher_uri is None
+        assert validated_config.kickstart.anneal_ratio == 0.65
 
 
 configs_dir = str(Path(__file__).parent.parent.parent / "configs" / "trainer")
@@ -125,9 +193,8 @@ class TestRealTypedConfigs:
         trainer_cfg = cfg.trainer  # Access trainer config directly
 
         # Test three ideally-equivalent ways to work with the config
-        configs: list[MettaTrainerConfig | DictConfig] = [
-            MettaTrainerConfig.model_validate(OmegaConf.to_container(trainer_cfg, resolve=True)),
-            MettaTrainerConfig.model_validate(trainer_cfg),
+        configs: list[TrainerConfig | DictConfig] = [
+            parse_trainer_config(trainer_cfg),
             trainer_cfg,
         ]
 
@@ -159,7 +226,7 @@ class TestRealTypedConfigs:
                 # train.sh to provide it as a command-line argument.
                 cfg = load_config_with_hydra(config_name, overrides=["trainer.num_workers=1"])
 
-                validated_config = MettaTrainerConfig.model_validate(cfg.trainer)
+                validated_config = parse_trainer_config(cfg.trainer)
 
                 # Verify some basic fields and  constraints
                 assert validated_config.batch_size > 0

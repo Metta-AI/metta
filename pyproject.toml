@@ -108,3 +108,4 @@ metta-common = { workspace = true }
 reportMissingModuleSource = false
 reportUnannotatedClassAttribute = false
 reportExplicitAny = false
+reportAny = false

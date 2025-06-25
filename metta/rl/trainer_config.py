@@ -1,5 +1,6 @@
 from typing import Any, Literal
 
+from omegaconf import DictConfig, ListConfig
 from pydantic import Field, model_validator
 
 from metta.util.typed_config import BaseModelWithForbidExtra
@@ -54,7 +55,7 @@ class InitialPolicyConfig(BaseModelWithForbidExtra):
     filters: dict[str, Any] = Field(default_factory=dict)
 
 
-class BaseTrainerConfig(BaseModelWithForbidExtra):
+class TrainerConfig(BaseModelWithForbidExtra):
     # Target for hydra instantiation
     target: str = Field(alias="_target_")
 
@@ -120,8 +121,8 @@ class BaseTrainerConfig(BaseModelWithForbidExtra):
     # Base trainer fields
     num_workers: int | None = None
     num_steps: int = Field(gt=0, default=32)  # Number of environment steps
-    env: str = "/env/mettagrid/simple"  # Environment config path
-    curriculum: str = "/env/mettagrid/curriculum/simple"
+    env: str | None = None  # Environment config path
+    curriculum: str | None = None
     env_overrides: dict[str, Any] = Field(default_factory=lambda: {"desync_episodes": True})
     initial_policy: InitialPolicyConfig = Field(default_factory=InitialPolicyConfig)
 
@@ -144,21 +145,26 @@ class BaseTrainerConfig(BaseModelWithForbidExtra):
     )
 
     @model_validator(mode="after")
-    def validate_batch_sizes(self) -> "BaseTrainerConfig":
-        """Ensure batch size relationships are valid."""
+    def validate_fields(self) -> "TrainerConfig":
         if self.minibatch_size > self.batch_size:
             raise ValueError("minibatch_size must be <= batch_size")
         if self.batch_size % self.minibatch_size != 0:
             raise ValueError("batch_size must be divisible by minibatch_size")
+
+        if not self.curriculum and not self.env:
+            raise ValueError("curriculum or env must be set")
         return self
 
 
-class MettaTrainerConfig(BaseTrainerConfig):
+class MettaTrainerConfig(TrainerConfig):
     target: str = Field(default="metta.rl.trainer.MettaTrainer", alias="_target_")
 
 
-class PufferTrainerConfig(MettaTrainerConfig):
-    pass
+def parse_trainer_config(cfg: DictConfig | ListConfig) -> TrainerConfig:
+    if isinstance(cfg, ListConfig):
+        raise ValueError("ListConfig is not supported")
 
+    if cfg._target_ == "metta.rl.trainer.MettaTrainer":
+        return MettaTrainerConfig.model_validate(cfg)
 
-TrainerConfig = MettaTrainerConfig | PufferTrainerConfig
+    raise ValueError(f"Unsupported trainer config: {cfg._target_}")

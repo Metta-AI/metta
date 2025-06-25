@@ -29,7 +29,7 @@ from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses
 from metta.rl.torch_profiler import TorchProfiler
 from metta.rl.trainer_checkpoint import TrainerCheckpoint
-from metta.rl.trainer_config import MettaTrainerConfig
+from metta.rl.trainer_config import TrainerConfig
 from metta.rl.vecenv import make_vecenv
 from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
@@ -57,7 +57,7 @@ logger = logging.getLogger(f"trainer-{rank}-{local_rank}")
 class MettaTrainer:
     def __init__(
         self,
-        trainer_cfg: MettaTrainerConfig,
+        trainer_cfg: TrainerConfig,
         cfg: DictConfig | ListConfig,
         wandb_run: WandbRun | None,
         policy_store: PolicyStore,
@@ -104,7 +104,7 @@ class MettaTrainer:
             auto_start=True,  # Start monitoring immediately
         )
 
-        curriculum_config = trainer_cfg.curriculum
+        curriculum_config: str = trainer_cfg.curriculum or trainer_cfg.env
         env_overrides = DictConfig(trainer_cfg.env_overrides)
         self._curriculum = curriculum_from_config_path(curriculum_config, env_overrides)
         self._make_vecenv()
@@ -142,7 +142,7 @@ class MettaTrainer:
             logger.info("Compiling policy")
             self.policy = torch.compile(self.policy, mode=trainer_cfg.compile_mode)
 
-        self.kickstarter = Kickstarter(trainer_cfg, policy_store, actions_names, actions_max_params, self.device)
+        self.kickstarter = Kickstarter(cfg, trainer_cfg, policy_store, actions_names, actions_max_params)
 
         if torch.distributed.is_initialized():
             logger.info(f"Initializing DistributedDataParallel on device {self.device}")
