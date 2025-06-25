@@ -213,8 +213,6 @@ echo "source /path/to/your/project/devops/skypilot/setup_shell.sh" >> ~/.zshrc
 # For fish users:
 echo "source /path/to/your/project/devops/skypilot/setup_shell.sh" >> ~/.config/fish/config.fish
 
-Source the shell setup script to load all aliases:
-
 
 ### Available Aliases
 
