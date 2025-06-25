@@ -153,13 +153,6 @@ class MettaTrainer:
 
         assert policy_record is not None, "Failed to obtain policy"
 
-        if self._master:
-            logger.info(f"MettaTrainer loaded: {policy_record.policy()}")
-
-        self.initial_policy = policy_record
-        self.latest_saved_policy = policy_record
-        self.policy = policy_record.policy().to(self.device)
-
         # Note that these fields are specific to MettaGridEnv, which is why we can't keep
         # self.vecenv.driver_env as just the parent class pufferlib.PufferEnv
         actions_names = metta_grid_env.action_names
@@ -170,10 +163,16 @@ class MettaTrainer:
         # instance of the policy class and copying the state dict, allowing successful re-saving.
         # TODO: Remove this workaround when checkpointing refactor is complete
         logger.info("Creating a fresh policy instance for torch.package to save")
-        fresh_policy = self.policy_store.create(metta_grid_env).policy()
+        fresh_policy = policy_store.create(metta_grid_env).policy()
         fresh_policy.activate_actions(actions_names, actions_max_params, self.device)
-        fresh_policy.load_state_dict(self.policy.state_dict(), strict=False)
-        self.policy_record = fresh_policy
+        fresh_policy.load_state_dict(policy_record.policy().state_dict(), strict=False)
+        self.policy = fresh_policy
+
+        self.initial_policy = self.policy
+        self.latest_saved_policy = self.policy
+
+        if self._master:
+            logger.info(f"MettaTrainer loaded: {self.policy}")
 
         if trainer_cfg.compile:
             logger.info("Compiling policy")
@@ -183,7 +182,6 @@ class MettaTrainer:
 
         if torch.distributed.is_initialized():
             logger.info(f"Initializing DistributedDataParallel on device {self.device}")
-            self._original_policy = self.policy
             self.policy = DistributedMettaAgent(self.policy, self.device)
 
         self._make_experience_buffer()
