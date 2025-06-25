@@ -7,13 +7,12 @@ sampling: 1
 game:
   num_agents: 32
   agent:
-    max_inventory: 10
     rewards:
       action_failure_penalty: 0
       ore.red: ${sampling:0.005,0.1, 0.01}
       ore.red_max: 3
-      battery: ${sampling:0.01,0.5, 0.1}
-      battery_max: 5
+      battery.red: ${sampling:0.01,0.5, 0.1}
+      battery.red_max: 5
       heart: 1
       heart_max: 1000
   map_builder:
@@ -24,12 +23,12 @@ game:
     agents: 32
     objects: ???
   objects:
-      altar:
-        input_battery: 1
-        initial_items: ${choose:0,0,0,1}
-        cooldown: ${sampling:5, 20, 10}
-      generator.red:
-        initial_items: ${choose:0,0,0,1}
-        cooldown: ${sampling:5, 20, 10}
-      mine.red:
-        cooldown: ${sampling:15, 50, 10}
+    altar:
+      input_battery.red: 1
+      initial_items: ${choose:0,0,0,1}
+      cooldown: ${sampling:5, 20, 10}
+    generator_red:
+      initial_items: ${choose:0,0,0,1}
+      cooldown: ${sampling:5, 20, 10}
+    mine_red:
+      cooldown: ${sampling:15, 50, 10}

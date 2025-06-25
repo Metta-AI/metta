@@ -121,8 +121,7 @@ class ConverterConfig(BaseModelWithForbidExtra):
     output_blueprint: Optional[int] = Field(default=None, alias="output_blueprint", ge=0, le=255)
 
     # Converter properties
-    # zero is valid, since it means "don't make any new items"
-    max_output: int = Field(ge=0)
+    max_output: int = Field(ge=-1)
     conversion_ticks: int = Field(ge=0)
     cooldown: int = Field(ge=0)
     initial_items: int = Field(ge=0)
@@ -133,12 +132,12 @@ class ObjectsConfig(BaseModelWithForbidExtra):
     """Objects configuration."""
 
     altar: Optional[ConverterConfig] = None
-    mine_red: Optional[ConverterConfig] = Field(default=None, alias="mine.red")
-    mine_blue: Optional[ConverterConfig] = Field(default=None, alias="mine.blue")
-    mine_green: Optional[ConverterConfig] = Field(default=None, alias="mine.green")
-    generator_red: Optional[ConverterConfig] = Field(default=None, alias="generator.red")
-    generator_blue: Optional[ConverterConfig] = Field(default=None, alias="generator.blue")
-    generator_green: Optional[ConverterConfig] = Field(default=None, alias="generator.green")
+    mine_red: Optional[ConverterConfig] = None
+    mine_blue: Optional[ConverterConfig] = None
+    mine_green: Optional[ConverterConfig] = None
+    generator_red: Optional[ConverterConfig] = None
+    generator_blue: Optional[ConverterConfig] = None
+    generator_green: Optional[ConverterConfig] = None
     armory: Optional[ConverterConfig] = None
     lasery: Optional[ConverterConfig] = None
     lab: Optional[ConverterConfig] = None
@@ -171,7 +170,7 @@ class GameConfig(BaseModelWithForbidExtra):
     num_observation_tokens: int = Field(ge=1)
     agent: AgentConfig
     # Every agent must be in a group, so we need at least one group
-    groups: Dict[str, GroupConfig] = Field(min_items=1)
+    groups: Dict[str, GroupConfig] = Field(min_length=1)
     actions: ActionsConfig
     objects: ObjectsConfig
     reward_sharing: Optional[RewardSharingConfig] = None

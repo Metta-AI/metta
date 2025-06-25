@@ -16,9 +16,12 @@ public:
   unsigned char frozen;
   unsigned char freeze_duration;
   unsigned char orientation;
-  std::vector<unsigned char> inventory;
-  std::vector<float> resource_rewards;
-  std::vector<float> resource_reward_max;
+  // inventory is a map of item to amount.
+  // keys should be deleted when the amount is 0, to keep iteration faster.
+  // however, this should not be relied on for correctness.
+  std::map<InventoryItem, uint8_t> inventory;
+  std::map<InventoryItem, float> resource_rewards;
+  std::map<InventoryItem, float> resource_reward_max;
   float action_failure_penalty;
   std::string group_name;
   unsigned char color;
@@ -29,40 +32,42 @@ public:
 
   Agent(GridCoord r,
         GridCoord c,
+        unsigned char default_item_max,
+        unsigned char freeze_duration,
+        float action_failure_penalty,
+        std::map<std::string, unsigned int> max_items_per_type_,
+        std::map<std::string, float> resource_rewards_,
+        std::map<std::string, float> resource_reward_max_,
         std::string group_name,
-        unsigned char group_id,
-        ObjectConfig cfg,
-        // Configuration -- rewards that the agent will get for certain
-        // actions or inventory changes.
-        std::map<std::string, float> rewards) {
+        unsigned char group_id)
+      : freeze_duration(freeze_duration),
+        action_failure_penalty(action_failure_penalty),
+        group(group_id),
+        group_name(group_name),
+        color(0),
+        current_resource_reward(0) {
     GridObject::init(ObjectType::AgentT, GridLocation(r, c, GridLayer::Agent_Layer));
 
-    this->group_name = group_name;
-    this->group = group_id;
     this->frozen = 0;
-    this->freeze_duration = cfg["freeze_duration"];
     this->orientation = 0;
-    this->inventory.resize(InventoryItem::InventoryItemCount);
-    unsigned char default_item_max = cfg["default_item_max"];
-    this->max_items_per_type.resize(InventoryItem::InventoryItemCount);
+
     for (int i = 0; i < InventoryItem::InventoryItemCount; i++) {
-      if (cfg.find(InventoryItemNames[i] + "_max") != cfg.end()) {
-        this->max_items_per_type[i] = cfg[InventoryItemNames[i] + "_max"];
+      if (max_items_per_type_.count(InventoryItemNames[i]) > 0) {
+        this->max_items_per_type[static_cast<InventoryItem>(i)] = max_items_per_type_[InventoryItemNames[i]];
       } else {
-        this->max_items_per_type[i] = default_item_max;
+        this->max_items_per_type[static_cast<InventoryItem>(i)] = default_item_max;
       }
     }
-    this->resource_rewards.resize(InventoryItem::InventoryItemCount);
     for (int i = 0; i < InventoryItem::InventoryItemCount; i++) {
-      this->resource_rewards[i] = rewards[InventoryItemNames[i]];
+      if (resource_rewards_.count(InventoryItemNames[i]) > 0) {
+        this->resource_rewards[static_cast<InventoryItem>(i)] = resource_rewards_[InventoryItemNames[i]];
+      }
     }
-    this->resource_reward_max.resize(InventoryItem::InventoryItemCount);
     for (int i = 0; i < InventoryItem::InventoryItemCount; i++) {
-      this->resource_reward_max[i] = rewards[InventoryItemNames[i] + "_max"];
+      if (resource_reward_max_.count(InventoryItemNames[i]) > 0) {
+        this->resource_reward_max[static_cast<InventoryItem>(i)] = resource_reward_max_[InventoryItemNames[i]];
+      }
     }
-    this->action_failure_penalty = rewards["action_failure_penalty"];
-    this->color = 0;
-    this->current_resource_reward = 0;
     this->reward = nullptr;
   }
 
@@ -76,7 +81,11 @@ public:
     new_amount = std::clamp(new_amount, 0, static_cast<int>(this->max_items_per_type[item]));
 
     int delta = new_amount - current_amount;
-    this->inventory[item] = new_amount;
+    if (new_amount > 0) {
+      this->inventory[item] = new_amount;
+    } else {
+      this->inventory.erase(item);
+    }
 
     if (delta > 0) {
       this->stats.add(InventoryItemNames[item] + ".gained", delta);
@@ -89,18 +98,24 @@ public:
     return delta;
   }
 
+  // Recalculates resource rewards for the agent.
+  // item -- the item that was added or removed from the inventory, triggering the reward recalculation.
   inline void compute_resource_reward(InventoryItem item) {
-    if (this->resource_rewards[item] == 0) {
+    if (this->resource_rewards.count(item) == 0) {
+      // If the item is not in the resource_rewards map, we don't need to recalculate the reward.
       return;
     }
 
+    // Recalculate resource rewards. Note that we're recalculating our total reward, not just the reward for the
+    // item that was added or removed.
+    // TODO: consider doing this only once per step, and not every time the inventory changes.
     float new_reward = 0;
-    for (int i = 0; i < InventoryItem::InventoryItemCount; i++) {
-      float max_val = static_cast<float>(this->inventory[i]);
-      if (max_val > this->resource_reward_max[i]) {
-        max_val = this->resource_reward_max[i];
+    for (const auto& [item, amount] : this->inventory) {
+      float max_val = static_cast<float>(amount);
+      if (this->resource_reward_max.count(item) > 0 && max_val > this->resource_reward_max[item]) {
+        max_val = this->resource_reward_max[item];
       }
-      new_reward += this->resource_rewards[i] * max_val;
+      new_reward += this->resource_rewards[item] * max_val;
     }
     *this->reward += (new_reward - this->current_resource_reward);
     this->current_resource_reward = new_reward;
@@ -112,22 +127,22 @@ public:
 
   virtual vector<PartialObservationToken> obs_features() const override {
     vector<PartialObservationToken> features;
-    features.reserve(5 + InventoryItem::InventoryItemCount);
+    features.reserve(5 + this->inventory.size());
     features.push_back({ObservationFeature::TypeId, _type_id});
     features.push_back({ObservationFeature::Group, group});
     features.push_back({ObservationFeature::Frozen, frozen});
     features.push_back({ObservationFeature::Orientation, orientation});
     features.push_back({ObservationFeature::Color, color});
-    for (int i = 0; i < InventoryItem::InventoryItemCount; i++) {
-      if (inventory[i] > 0) {
-        features.push_back({static_cast<uint8_t>(InventoryFeatureOffset + i), inventory[i]});
-      }
+    for (const auto& [item, amount] : this->inventory) {
+      // inventory should only contain non-zero amounts
+      assert(amount > 0);
+      features.push_back({static_cast<uint8_t>(InventoryFeatureOffset + item), amount});
     }
     return features;
   }
 
 private:
-  std::vector<unsigned char> max_items_per_type;
+  std::map<ObsType, uint8_t> max_items_per_type;
 };
 
 #endif  // OBJECTS_AGENT_HPP_

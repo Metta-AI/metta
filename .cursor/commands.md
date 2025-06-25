@@ -104,6 +104,30 @@ grep -r "agent_raw" train_dir/test_$TEST_ID/wandb || echo "✓ No agent_raw metr
 4. **Smoke test failures**: Check that agent_raw metrics are filtered from wandb
 5. **Wrong directory picked up**: Always use the same TEST_ID across all commands
 
+## Interactive Tools
+
+### Exploration and Debugging
+
+```bash
+# Interactive simulation for manual testing and exploration
+./tools/play.py run=my_experiment +hardware=macbook wandb=off
+
+# Interactive play with specific policy
+./tools/play.py run=play_$TEST_ID policy_uri=file://./train_dir/test_$TEST_ID/checkpoints +hardware=macbook
+```
+
+## Navigation Evaluation Database
+
+### Adding Policies to Evaluation Database
+
+```bash
+# Add a policy to the navigation evals database
+./tools/sim.py eval=navigation run=RUN_NAME eval.policy_uri=POLICY_URI +eval_db_uri=wandb://artifacts/navigation_db
+
+# Analyze results with heatmap
+./tools/analyze.py run=analyze +eval_db_uri=wandb://artifacts/navigation_db analyzer.policy_uri=POLICY_URI
+```
+
 ## Smoke Test Mode
 
 When `+smoke_test=true` is added:

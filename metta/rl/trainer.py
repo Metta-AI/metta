@@ -27,7 +27,6 @@ from metta.mettagrid.util.dict_utils import unroll_nested_dict
 from metta.rl.experience import Experience
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses
-from metta.rl.policy import PytorchAgent
 from metta.rl.torch_profiler import TorchProfiler
 from metta.rl.trainer_checkpoint import TrainerCheckpoint
 from metta.rl.vecenv import make_vecenv
@@ -104,7 +103,7 @@ class MettaTrainer:
         )
 
         curriculum_config = trainer_cfg.get("curriculum", trainer_cfg.get("env", {}))
-        env_overrides = DictConfig({"env_overrides": trainer_cfg.env_overrides})
+        env_overrides = DictConfig(trainer_cfg.env_overrides)
         self._curriculum = curriculum_from_config_path(curriculum_config, env_overrides)
         self._make_vecenv()
 
@@ -171,11 +170,11 @@ class MettaTrainer:
 
         # validate that policy matches environment
         self.metta_agent: MettaAgent | DistributedMettaAgent = self.policy  # type: ignore
-        assert isinstance(self.metta_agent, (MettaAgent, DistributedMettaAgent, PytorchAgent)), self.metta_agent
         _env_shape = metta_grid_env.single_observation_space.shape
         environment_shape = tuple(_env_shape) if isinstance(_env_shape, list) else _env_shape
 
-        if isinstance(self.metta_agent, (MettaAgent, DistributedMettaAgent)):
+        # The rest of the validation logic continues to work with duck typing
+        if hasattr(self.metta_agent, "components"):
             found_match = False
             for component_name, component in self.metta_agent.components.items():
                 if hasattr(component, "_obs_shape"):
@@ -204,7 +203,23 @@ class MettaTrainer:
             )
 
         if checkpoint.agent_step > 0:
-            self.optimizer.load_state_dict(checkpoint.optimizer_state_dict)
+            try:
+                self.optimizer.load_state_dict(checkpoint.optimizer_state_dict)
+                logger.info("Successfully loaded optimizer state from checkpoint")
+            except ValueError as e:
+                if "doesn't match the size of optimizer's group" in str(e):
+                    # Extract some info about the mismatch
+                    old_params = len(checkpoint.optimizer_state_dict.get("param_groups", [{}])[0].get("params", []))
+                    new_params = sum(1 for _ in self.policy.parameters())
+                    logger.warning(
+                        f"Optimizer state dict doesn't match current model architecture. "
+                        f"Checkpoint has {old_params} parameter groups, current model has {new_params}. "
+                        "This typically happens when layers are added/removed. "
+                        "Starting with fresh optimizer state."
+                    )
+                else:
+                    # Re-raise if it's a different ValueError
+                    raise
 
         if wandb_run and self._master:
             # Define metrics (wandb x-axis values)
@@ -405,7 +420,7 @@ class MettaTrainer:
                 # Store LSTM state for performance
                 lstm_state_to_store = None
                 if state.lstm_h is not None:
-                    lstm_state_to_store = {"lstm_h": state.lstm_h, "lstm_c": state.lstm_c}
+                    lstm_state_to_store = {"lstm_h": state.lstm_h.detach(), "lstm_c": state.lstm_c.detach()}
 
                 if str(self.device).startswith("cuda"):
                     torch.cuda.synchronize()
@@ -653,7 +668,7 @@ class MettaTrainer:
         if not self._master:
             return
 
-        self._checkpoint_policy()
+        pr = self._checkpoint_policy()
 
         extra_args = {}
         if self.kickstarter.enabled and self.kickstarter.teacher_uri is not None:
@@ -664,6 +679,7 @@ class MettaTrainer:
             epoch=self.epoch,
             total_agent_step=self.agent_step * self._world_size,
             optimizer_state_dict=self.optimizer.state_dict(),
+            policy_path=pr.uri if pr else None,
             extra_args=extra_args,
         )
         checkpoint.save(self.cfg.run_dir)
@@ -688,10 +704,19 @@ class MettaTrainer:
         category_score_values = [v for k, v in category_scores_map.items()]
         overall_score = sum(category_score_values) / len(category_score_values) if category_score_values else 0
 
+        # Handle torch.package loaded models
+        policy_to_save = self.uncompiled_policy
+        if hasattr(policy_to_save, "__class__") and policy_to_save.__class__.__module__.startswith("<torch_package"):
+            logger.info("Creating fresh instance for torch.package loaded model")
+            fresh_policy = self.policy_store.create(metta_grid_env).policy()
+            fresh_policy.activate_actions(metta_grid_env.action_names, metta_grid_env.max_action_args, self.device)
+            fresh_policy.load_state_dict(policy_to_save.state_dict(), strict=False)
+            policy_to_save = fresh_policy
+
         self.last_pr = self.policy_store.save(
             name,
             os.path.join(self.trainer_cfg.checkpoint_dir, name),
-            self.uncompiled_policy,
+            policy_to_save,
             metadata={
                 "agent_step": self.agent_step,
                 "epoch": self.epoch,
