@@ -10,9 +10,16 @@ source .venv/bin/activate
 
 # Start heartbeat monitor if available
 HEARTBEAT_FILE=${HEARTBEAT_FILE:-$WANDB_DIR/heartbeat.txt}
-python -m metta.util.heartbeat monitor "$HEARTBEAT_FILE" --pid $$ --timeout 600 &
-HEARTBEAT_PID=$!
-trap 'kill $HEARTBEAT_PID 2>/dev/null || true' EXIT
+HEARTBEAT_TIMEOUT=${HEARTBEAT_TIMEOUT:-600} # Read from env or default to 600
+
+if [ "$HEARTBEAT_TIMEOUT" -ne 0 ]; then
+  echo "[INFO] Starting heartbeat monitor with timeout ${HEARTBEAT_TIMEOUT}s for file $HEARTBEAT_FILE"
+  python -m metta.util.heartbeat monitor "$HEARTBEAT_FILE" --pid $$ --timeout "$HEARTBEAT_TIMEOUT" &
+  HEARTBEAT_PID=$!
+  trap 'kill $HEARTBEAT_PID 2>/dev/null || true' EXIT
+else
+  echo "[INFO] Heartbeat monitor deactivated (timeout is 0)."
+fi
 export HEARTBEAT_FILE
 
 # System configuration
