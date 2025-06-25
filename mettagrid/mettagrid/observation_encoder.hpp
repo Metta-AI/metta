@@ -1,1 +1,0 @@
-../src/metta/mettagrid/observation_encoder.hpp

@@ -1,1 +1,0 @@
-../../src/metta/mettagrid/room/multi_room.py

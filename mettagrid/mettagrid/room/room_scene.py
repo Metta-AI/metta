@@ -1,1 +1,0 @@
-../../src/metta/mettagrid/room/room_scene.py

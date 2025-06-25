@@ -1,1 +1,0 @@
-../src/metta/mettagrid/char_encoder.py

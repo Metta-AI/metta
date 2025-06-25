@@ -1,1 +1,0 @@
-../../src/metta/mettagrid/room/maze.py

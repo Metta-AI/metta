@@ -1,1 +1,0 @@
-../../src/metta/mettagrid/room/terrain_from_numpy.py
