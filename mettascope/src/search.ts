@@ -4,7 +4,7 @@
  */
 
 import { find, onEvent } from './htmlutils.js'
-import { requestFrame } from './worldmap.js'
+import { requestFrame } from './main.js'
 
 /** The search state. */
 export const search = {

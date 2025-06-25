@@ -65,12 +65,7 @@ public:
   py::list object_type_names();
   py::list inventory_item_names();
   py::array_t<unsigned int> get_agent_groups() const;
-  static Agent* create_agent(int r,
-                             int c,
-                             const std::string& group_name,
-                             unsigned int group_id,
-                             const py::dict& group_cfg_py,
-                             const py::dict& agent_cfg_py);
+  static Agent* create_agent(int r, int c, const py::dict& agent_group_cfg_py);
 
   uint64_t initial_grid_hash;
 

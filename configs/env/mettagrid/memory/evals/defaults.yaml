@@ -10,13 +10,13 @@ game:
     rewards:
       heart: 1
       ore.red: 0
-      battery: 0
+      battery.red: 0
   map_builder:
     _target_: metta.mettagrid.room.ascii.Ascii
     border_width: 3
   objects:
     altar:
-      input_battery: 1
+      input_battery.red: 1
       output_heart: 1
       max_output: 1
       conversion_ticks: 1
@@ -31,7 +31,7 @@ game:
       initial_items: 1
     generator_red:
       input_ore.red: 1
-      output_battery: 3
+      output_battery.red: 1
       color: 0
       max_output: 1
       conversion_ticks: 1

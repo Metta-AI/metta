@@ -2,15 +2,31 @@ import { Vec2f, Mat3f } from './vector_math.js'
 import * as Common from './common.js'
 import { ui, state, html, ctx, setFollowSelection } from './common.js'
 import { fetchReplay, getAttr, initWebSocket, readFile, sendAction } from './replay.js'
-import { focusFullMap, drawMap, requestFrame } from './worldmap.js'
+import { focusFullMap, drawMap } from './worldmap.js'
 import { drawTrace } from './traces.js'
 import { drawMiniMap } from './minimap.js'
 import { processActions, initActionButtons } from './actions.js'
 import { initAgentTable, updateAgentTable } from './agentpanel.js'
-import { localStorageSetNumber, onEvent, initHighDpiMode } from './htmlutils.js'
+import { localStorageSetNumber, onEvent, initHighDpiMode, find } from './htmlutils.js'
 import { updateReadout, hideHoverPanel } from './hoverpanels.js'
 import { initObjectMenu } from './objmenu.js'
 import { drawTimeline, initTimeline, updateTimeline, onScrubberChange } from './timeline.js'
+import { initDemoMode, startDemoMode, stopDemoMode, doDemoMode } from './demomode.js'
+
+
+/** A flag to prevent multiple calls to requestAnimationFrame. */
+let frameRequested = false
+
+/** A function to safely request an animation frame. */
+export function requestFrame() {
+  if (!frameRequested) {
+    frameRequested = true
+    requestAnimationFrame((time) => {
+      frameRequested = false
+      onFrame()
+    })
+  }
+}
 
 /** Handles resize events. */
 export function onResize() {
@@ -47,10 +63,19 @@ export function onResize() {
   ui.infoPanel.height = 300
 
   // Trace panel is always on the bottom of the screen.
-  ui.tracePanel.x = 0
-  ui.tracePanel.y = ui.mapPanel.y + ui.mapPanel.height
-  ui.tracePanel.width = screenWidth
-  ui.tracePanel.height = screenHeight - ui.tracePanel.y - Common.FOOTER_HEIGHT
+  if (state.showTraces) {
+    ui.tracePanel.x = 0
+    ui.tracePanel.y = ui.mapPanel.y + ui.mapPanel.height
+    ui.tracePanel.width = screenWidth
+    ui.tracePanel.height = screenHeight - ui.tracePanel.y - Common.FOOTER_HEIGHT
+  } else {
+    ui.tracePanel.x = 0
+    ui.tracePanel.y = 0
+    ui.tracePanel.width = 0
+    ui.tracePanel.height = 0
+    // Have the map panel take up the trace panel's space.
+    ui.mapPanel.height = screenHeight - ui.mapPanel.y - Common.FOOTER_HEIGHT
+  }
 
   // Timeline panel is always on the bottom of the screen.
   ui.timelinePanel.x = 0
@@ -333,6 +358,8 @@ export function onFrame() {
     return
   }
 
+  doDemoMode()
+
   // Make sure the canvas is the size of the window.
   html.globalCanvas.width = window.innerWidth
   html.globalCanvas.height = window.innerHeight
@@ -353,8 +380,13 @@ export function onFrame() {
     ui.miniMapPanel.div.classList.add('hidden')
   }
 
-  ctx.useMesh('trace')
-  drawTrace(ui.tracePanel)
+  if (state.showTraces) {
+    ui.tracePanel.div.classList.remove('hidden')
+    ctx.useMesh('trace')
+    drawTrace(ui.tracePanel)
+  } else {
+    ui.tracePanel.div.classList.add('hidden')
+  }
 
   ctx.useMesh('timeline')
   drawTimeline(ui.timelinePanel)
@@ -475,6 +507,10 @@ async function parseUrlParams() {
     ui.mapPanel.zoomLevel = parseFloat(urlParams.get('mapZoom') || '1')
   }
 
+  if (urlParams.get('demo') !== null) {
+    startDemoMode()
+  }
+
   requestFrame()
 }
 
@@ -498,11 +534,11 @@ function setIsPlaying(isPlaying: boolean) {
 }
 
 /** Toggles the opacity of a button. */
-function toggleOpacity(button: HTMLImageElement, show: boolean) {
+function toggleOpacity(button: HTMLElement, show: boolean) {
   if (show) {
-    button.style.opacity = '1'
+    button.classList.remove('transparent')
   } else {
-    button.style.opacity = '0.2'
+    button.classList.add('transparent')
   }
 }
 
@@ -576,6 +612,27 @@ onEvent('click', '#rewind-to-end', () => {
   setIsPlaying(false)
   updateStep(state.replay.max_steps - 1)
 })
+onEvent('click', '#demo-mode-toggle', () => {
+  if (state.demoMode) {
+    stopDemoMode()
+  } else {
+    startDemoMode()
+  }
+  toggleOpacity(html.demoModeToggle, state.demoMode)
+  requestFrame()
+})
+toggleOpacity(html.demoModeToggle, state.demoMode)
+
+onEvent('click', '#full-screen-toggle', () => {
+  state.fullScreen = !state.fullScreen
+  if (state.fullScreen) {
+    document.documentElement.requestFullscreen()
+  } else {
+    document.exitFullscreen()
+  }
+  toggleOpacity(html.fullScreenToggle, state.fullScreen)
+})
+toggleOpacity(html.fullScreenToggle, state.fullScreen)
 
 // Speed buttons
 for (let i = 0; i < html.speedButtons.length; i++) {
@@ -676,11 +733,24 @@ if (localStorage.hasOwnProperty('showAgentPanel')) {
 }
 toggleOpacity(html.agentPanelToggle, state.showAgentPanel)
 
+onEvent('click', '#traces-toggle', () => {
+  state.showTraces = !state.showTraces
+  localStorage.setItem('showTraces', state.showTraces.toString())
+  toggleOpacity(html.tracesToggle, state.showTraces)
+  onResize()
+  requestFrame()
+})
+if (localStorage.hasOwnProperty('showTraces')) {
+  state.showTraces = localStorage.getItem('showTraces') === 'true'
+}
+toggleOpacity(html.tracesToggle, state.showTraces)
+
 initHighDpiMode()
 initActionButtons()
 initAgentTable()
 initObjectMenu()
 initTimeline()
+initDemoMode()
 
 window.addEventListener('load', async () => {
 
