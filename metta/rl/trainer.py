@@ -563,6 +563,12 @@ class MettaTrainer:
         logger.info(f"Total environments: {self.vecenv.num_envs if hasattr(self, 'vecenv') else 'unknown'}")
         logger.info(f"Distributed training: {'YES' if torch.distributed.is_initialized() else 'NO'}, world_size={self._world_size}")
 
+        # Warn about memory usage with multiple workers
+        if trainer_cfg.num_workers > 1:
+            estimated_memory_gb = trainer_cfg.num_workers * 7  # ~7GB per worker based on logs
+            logger.warning(f"⚠️  Multiple workers detected: {trainer_cfg.num_workers} workers × ~7GB = ~{estimated_memory_gb}GB RAM")
+            logger.warning("   Consider reducing num_workers if running out of memory")
+
         while self.agent_step < trainer_cfg.total_timesteps:
             steps_before = self.agent_step
 
@@ -663,6 +669,13 @@ class MettaTrainer:
 
             # Processing stats
             self._process_stats()
+
+            # Force garbage collection every 100 epochs to free memory
+            if self.epoch % 100 == 0:
+                import gc
+                gc.collect()
+                if str(self.device).startswith("cuda"):
+                    torch.cuda.empty_cache()
 
             rollout_time = self.timer.get_last_elapsed("_rollout")
             train_time = self.timer.get_last_elapsed("_train")
@@ -882,6 +895,12 @@ class MettaTrainer:
                 # Convert tensors to scalars before storing
                 if isinstance(v, torch.Tensor):
                     v = v.detach().cpu().item() if v.numel() == 1 else v.detach().cpu().tolist()
+                elif isinstance(v, np.ndarray):
+                    v = v.tolist()
+                # Double-check we're not storing any tensor-like objects
+                elif hasattr(v, 'detach') or hasattr(v, 'cpu'):
+                    logger.warning(f"Found tensor-like object in infos[{k}]: {type(v)}")
+                    continue
                 infos[k].append(v)
 
         # Debug: Check sizes of collections
@@ -919,6 +938,9 @@ class MettaTrainer:
 
         # Clear raw_infos to prevent memory accumulation
         raw_infos.clear()
+
+        # Clear infos to prevent memory accumulation
+        infos.clear()
 
         # TODO: Better way to enable multiple collects
         return self.stats, infos
