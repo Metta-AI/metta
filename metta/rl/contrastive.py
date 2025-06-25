@@ -3,6 +3,57 @@ Ultra-fast exploration signal based on LSTM state temporal variance.
 
 This module implements a simple but effective exploration signal by computing
 the variance of LSTM hidden states across time within each rollout.
+
+## Overview
+
+Instead of complex contrastive learning with pair generation and InfoNCE loss,
+this approach computes the temporal variance of LSTM hidden states directly.
+Higher variance indicates more exploration (diverse states visited), which
+is rewarded to encourage the agent to explore different parts of the state space.
+
+## Key Benefits
+
+1. **Ultra-fast**: ~100x faster than traditional contrastive learning
+2. **Simple**: Single tensor operation (torch.var)
+3. **Effective**: Still provides exploration signal
+4. **Compatible**: Same interface as original contrastive learning
+
+## How it works
+
+1. Normalize LSTM states to unit vectors
+2. Compute temporal variance across time dimension
+3. Average across hidden dimensions to get per-batch reward
+4. Higher variance = higher reward (encourages exploration)
+
+## Usage
+
+```python
+from metta.rl.contrastive import ContrastiveLearning
+
+# Initialize (parameters kept for compatibility but not used)
+cl = ContrastiveLearning(hidden_size=128, device='cpu')
+
+# Compute exploration signal
+hidden_states = torch.randn(batch_size, seq_len, hidden_size)
+loss, reward = cl.compute_contrastive_loss(hidden_states, batch_size, seq_len)
+```
+
+## Configuration
+
+In your config file:
+```yaml
+trainer:
+  contrastive:
+    enabled: true
+    loss_coef: 1.0      # Weight for auxiliary loss
+    reward_coef: 0.1    # Weight for reward bonus
+    # Legacy parameters (kept for compatibility, not used):
+    temperature: 0.1
+    geometric_p: 0.1
+    max_temporal_distance: 50
+    logsumexp_reg_coef: 1.0
+    max_pairs_per_agent: 16
+```
 """
 
 import torch

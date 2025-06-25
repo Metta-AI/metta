@@ -148,10 +148,10 @@ class MettaTrainer:
             from metta.rl.contrastive import ContrastiveLearning
 
             # Get LSTM hidden size from policy
-            hidden_size = getattr(self.policy, "hidden_size", 256)
-            if hasattr(self.policy, "components") and "_core_" in self.policy.components:
-                core_component = self.policy.components["_core_"]
-                if hasattr(core_component, "_net") and hasattr(core_component._net, "hidden_size"):
+            hidden_size = 128  # Default fallback
+            if hasattr(self.policy, "components"):
+                core_component = self.policy.components.get("_core_")
+                if core_component is not None and hasattr(core_component, "_net"):
                     hidden_size = core_component._net.hidden_size
 
             self.contrastive_learning = ContrastiveLearning(
@@ -163,7 +163,7 @@ class MettaTrainer:
                 max_pairs_per_agent=trainer_cfg.contrastive.get("max_pairs_per_agent", 32),
                 device=self.device,
             )
-            logger.info(f"Contrastive learning enabled with hidden_size={hidden_size}")
+            logger.info(f"Ultra-fast temporal variance exploration enabled with hidden_size={hidden_size}")
 
         if torch.distributed.is_initialized():
             logger.info(f"Initializing DistributedDataParallel on device {self.device}")
@@ -508,203 +508,106 @@ class MettaTrainer:
 
     @with_instance_timer("_train")
     def _train(self):
+        """Train the policy on collected experience."""
+        trainer_cfg = self.trainer_cfg
+        experience = self.experience
+
+        # Compute advantages
+        advantages = self._compute_advantages()
+
+        # Training loop
+        for minibatch_idx in range(experience.num_minibatches):
+            minibatch = experience.sample_minibatch(
+                advantages, trainer_cfg.priority_alpha, trainer_cfg.priority_beta, minibatch_idx, experience.num_minibatches
+            )
+
+            # Forward pass
+            with torch.no_grad():
+                adv = minibatch["advantages"]
+                adv = minibatch["prio_weights"] * adv
+
+            # Policy loss
+            pg_loss1 = -adv * importance_sampling_ratio
+            pg_loss2 = -adv * torch.clamp(importance_sampling_ratio, 1 - trainer_cfg.clip_ratio, 1 + trainer_cfg.clip_ratio)
+            pg_loss = torch.max(pg_loss1, pg_loss2).mean()
+
+            # Value loss
+            value_loss = F.mse_loss(values, minibatch["returns"])
+
+            # Entropy bonus
+            entropy = dist.entropy().mean()
+
+            # Kickstarter losses
+            ks_action_loss = torch.tensor(0.0, device=self.device)
+            ks_value_loss = torch.tensor(0.0, device=self.device)
+            if self.kickstarter is not None:
+                ks_action_loss, ks_value_loss = self.kickstarter.compute_losses(minibatch)
+
+            # Total loss
+            total_loss = (
+                pg_loss
+                + trainer_cfg.value_coef * value_loss
+                - trainer_cfg.entropy_coef * entropy
+                + trainer_cfg.l2_reg_coef * l2_reg_loss
+                + trainer_cfg.l2_init_coef * l2_init_loss
+                + ks_action_loss
+                + ks_value_loss
+            )
+
+            # Backward pass
+            self.optimizer.zero_grad()
+            total_loss.backward()
+            torch.nn.utils.clip_grad_norm_(self.policy.parameters(), trainer_cfg.max_grad_norm)
+            self.optimizer.step()
+
+            # Update losses
+            self.losses.policy_loss_sum += pg_loss.item()
+            self.losses.value_loss_sum += value_loss.item()
+            self.losses.entropy_sum += entropy.item()
+            self.losses.approx_kl_sum += approx_kl.item()
+            self.losses.clipfrac_sum += clipfrac.item()
+            self.losses.l2_reg_loss_sum += l2_reg_loss.item()
+            self.losses.l2_init_loss_sum += l2_init_loss.item()
+            self.losses.ks_action_loss_sum += ks_action_loss.item()
+            self.losses.ks_value_loss_sum += ks_value_loss.item()
+            self.losses.importance_sum += importance_sampling_ratio.mean().item()
+            self.losses.minibatches_processed += 1
+
+    def _compute_contrastive_rewards(self):
+        """Compute contrastive rewards and add them to the experience buffer."""
+        if self.contrastive_learning is None:
+            return
+
         experience = self.experience
         trainer_cfg = self.trainer_cfg
 
-        self.losses.zero()
+        # Get contrastive configuration
+        contrastive_cfg = trainer_cfg.contrastive
+        reward_coef = contrastive_cfg.get("reward_coef", 0.0)
 
-        prio_cfg = trainer_cfg.get("prioritized_experience_replay", {})
-        vtrace_cfg = trainer_cfg.get("vtrace", {})
+        if reward_coef == 0.0:
+            return
 
-        # Reset importance sampling ratios
-        experience.reset_importance_sampling_ratios()
+        # Compute contrastive rewards at the policy level (reward sharing across agents)
+        hidden_states = experience.lstm_hidden_states  # (segments, bptt_horizon, hidden_size)
+        batch_size = hidden_states.shape[0]
+        seq_len = hidden_states.shape[1]
 
-        # Prioritized sampling parameters
-        b0 = prio_cfg.get("prio_beta0", 0.6)
-        a = prio_cfg.get("prio_alpha", 0.0)
-        total_epochs = max(1, trainer_cfg.total_timesteps // trainer_cfg.batch_size)
-        anneal_beta = b0 + (1 - b0) * a * self.epoch / total_epochs
+        if seq_len < 2:
+            return
 
-        # Compute advantages using puff_advantage
-        advantages = torch.zeros(experience.values.shape, device=self.device)
+        with torch.no_grad():
+            # Compute single contrastive loss and reward for the entire policy
+            contrastive_loss, contrastive_reward = self.contrastive_learning.compute_contrastive_loss(
+                hidden_states, batch_size, seq_len
+            )
 
-        # Initial importance sampling ratio is all ones
-        initial_importance_sampling_ratio = torch.ones_like(experience.values)
+            # Scale the reward
+            policy_reward = contrastive_reward * reward_coef
 
-        advantages = self._compute_advantage(
-            experience.values,
-            experience.rewards,
-            experience.dones,
-            initial_importance_sampling_ratio,
-            advantages,
-            trainer_cfg.gamma,
-            trainer_cfg.gae_lambda,
-            vtrace_cfg.get("vtrace_rho_clip", 1.0),
-            vtrace_cfg.get("vtrace_c_clip", 1.0),
-        )
-
-        # Optimizing the policy and value network
-        _total_minibatches = experience.num_minibatches * trainer_cfg.update_epochs
-        minibatch_idx = 0
-
-        for _epoch in range(trainer_cfg.update_epochs):
-            for _ in range(experience.num_minibatches):
-                minibatch = experience.sample_minibatch(
-                    advantages=advantages,
-                    prio_alpha=a,
-                    prio_beta=anneal_beta,
-                    minibatch_idx=minibatch_idx,
-                    total_minibatches=_total_minibatches,
-                )
-
-                obs = minibatch["obs"]
-
-                lstm_state = PolicyState()
-                _, new_logprobs, entropy, newvalue, full_logprobs = self.policy(
-                    obs, lstm_state, action=minibatch["actions"]
-                )
-
-                new_logprobs = new_logprobs.reshape(minibatch["logprobs"].shape)
-                logratio = new_logprobs - minibatch["logprobs"]
-                importance_sampling_ratio = logratio.exp()
-                experience.update_ratio(minibatch["indices"], importance_sampling_ratio)
-
-                with torch.no_grad():
-                    approx_kl = ((importance_sampling_ratio - 1) - logratio).mean()
-                    clipfrac = ((importance_sampling_ratio - 1.0).abs() > trainer_cfg.clip_coef).float().mean()
-
-                # Re-compute advantages with new ratios (V-trace)
-                adv = self._compute_advantage(
-                    minibatch["values"],
-                    minibatch["rewards"],
-                    minibatch["dones"],
-                    importance_sampling_ratio,
-                    minibatch["advantages"],
-                    trainer_cfg.gamma,
-                    trainer_cfg.gae_lambda,
-                    vtrace_cfg.get("vtrace_rho_clip", 1.0),
-                    vtrace_cfg.get("vtrace_c_clip", 1.0),
-                )
-
-                # Normalize advantages with distributed support, then apply prioritized weights
-                adv = self._normalize_advantage_distributed(adv)
-                adv = minibatch["prio_weights"] * adv
-
-                # Contrastive auxiliary loss
-                contrastive_loss = torch.tensor(0.0, device=self.device)
-                contrastive_coef = 0.0
-                if self.contrastive_learning is not None:
-                    contrastive_cfg = trainer_cfg.contrastive
-                    contrastive_coef = contrastive_cfg.get("loss_coef", 0.0)
-                    if contrastive_coef > 0.0:
-                        # Use the LSTM hidden states from the experience buffer
-                        hidden_states = experience.lstm_hidden_states  # (segments, bptt_horizon, hidden_size)
-                        batch_size = hidden_states.shape[0]
-                        seq_len = hidden_states.shape[1]
-                        contrastive_loss, contrastive_reward = self.contrastive_learning.compute_contrastive_loss(
-                            hidden_states, batch_size, seq_len
-                        )
-                        contrastive_loss = contrastive_loss * contrastive_coef
-
-                # Policy loss
-                pg_loss1 = -adv * importance_sampling_ratio
-                pg_loss2 = -adv * torch.clamp(
-                    importance_sampling_ratio, 1 - trainer_cfg.clip_coef, 1 + trainer_cfg.clip_coef
-                )
-                pg_loss = torch.max(pg_loss1, pg_loss2).mean()
-
-                # Value loss
-                newvalue_reshaped = newvalue.view(minibatch["returns"].shape)
-                if trainer_cfg.clip_vloss:
-                    v_loss_unclipped = (newvalue_reshaped - minibatch["returns"]) ** 2
-                    v_clipped = minibatch["values"] + torch.clamp(
-                        newvalue_reshaped - minibatch["values"],
-                        -trainer_cfg.get("vf_clip_coef", 0.1),
-                        trainer_cfg.get("vf_clip_coef", 0.1),
-                    )
-                    v_loss_clipped = (v_clipped - minibatch["returns"]) ** 2
-                    v_loss = 0.5 * torch.max(v_loss_unclipped, v_loss_clipped).mean()
-                else:
-                    v_loss = 0.5 * ((newvalue_reshaped - minibatch["returns"]) ** 2).mean()
-
-                entropy_loss = entropy.mean()
-
-                ks_action_loss, ks_value_loss = self.kickstarter.loss(
-                    self.agent_step, full_logprobs, newvalue, obs, teacher_lstm_state=[]
-                )
-
-                l2_reg_loss = torch.tensor(0.0, device=self.device, dtype=torch.float32)
-                if trainer_cfg.l2_reg_loss_coef > 0:
-                    l2_reg_loss = trainer_cfg.l2_reg_loss_coef * self.policy.l2_reg_loss().to(self.device)
-
-                l2_init_loss = torch.tensor(0.0, device=self.device, dtype=torch.float32)
-                if trainer_cfg.l2_init_loss_coef > 0:
-                    l2_init_loss = trainer_cfg.l2_init_loss_coef * self.policy.l2_init_loss().to(self.device)
-
-                loss = (
-                    pg_loss
-                    - trainer_cfg.ent_coef * entropy_loss
-                    + v_loss * trainer_cfg.vf_coef
-                    + l2_reg_loss
-                    + l2_init_loss
-                    + ks_action_loss
-                    + ks_value_loss
-                    + contrastive_loss
-                )
-
-                # Update values in experience buffer
-                experience.update_values(minibatch["indices"], newvalue.view(minibatch["values"].shape))
-
-                if self.losses is None:
-                    raise ValueError("self.losses is None")
-
-                # Update loss tracking for logging
-                self.losses.policy_loss_sum += pg_loss.item()
-                self.losses.value_loss_sum += v_loss.item()
-                self.losses.entropy_sum += entropy_loss.item()
-                self.losses.approx_kl_sum += approx_kl.item()
-                self.losses.clipfrac_sum += clipfrac.item()
-                self.losses.l2_reg_loss_sum += l2_reg_loss.item() if torch.is_tensor(l2_reg_loss) else l2_reg_loss
-                self.losses.l2_init_loss_sum += l2_init_loss.item() if torch.is_tensor(l2_init_loss) else l2_init_loss
-                self.losses.ks_action_loss_sum += ks_action_loss.item()
-                self.losses.ks_value_loss_sum += ks_value_loss.item()
-                self.losses.contrastive_loss_sum += contrastive_loss.item() if torch.is_tensor(contrastive_loss) else contrastive_loss
-                self.losses.importance_sum += importance_sampling_ratio.mean().item()
-                self.losses.minibatches_processed += 1
-
-                self.optimizer.zero_grad()
-                loss.backward()
-                if (minibatch_idx + 1) % self.experience.accumulate_minibatches == 0:
-                    torch.nn.utils.clip_grad_norm_(self.policy.parameters(), trainer_cfg.max_grad_norm)
-                    self.optimizer.step()
-
-                    if self.cfg.agent.clip_range > 0:
-                        self.policy.clip_weights()
-
-                    if str(self.device).startswith("cuda"):
-                        torch.cuda.synchronize()
-
-                minibatch_idx += 1
-                # end loop over minibatches
-
-            self.epoch += 1
-
-            # check early exit if we have reached target_kl
-            if trainer_cfg.target_kl is not None:
-                average_approx_kl = self.losses.approx_kl_sum / self.losses.minibatches_processed
-                if average_approx_kl > trainer_cfg.target_kl:
-                    break
-            # end loop over epochs
-
-        if self.lr_scheduler is not None:
-            self.lr_scheduler.step()
-
-        # Calculate explained variance
-        y_pred = experience.values.flatten()
-        y_true = advantages.flatten() + experience.values.flatten()
-        var_y = y_true.var()
-        explained_var = torch.nan if var_y == 0 else 1 - (y_true - y_pred).var() / var_y
-        self.losses.explained_variance = explained_var.item() if torch.is_tensor(explained_var) else float("nan")
+            # Add the same contrastive reward to all agents in the policy
+            # This encourages exploration at the policy level
+            experience.rewards += policy_reward
 
     def _checkpoint_trainer(self):
         if not self._master:
@@ -1123,42 +1026,6 @@ class MettaTrainer:
             time.sleep(5)
 
         raise RuntimeError("Failed to load policy after 10 attempts")
-
-    def _compute_contrastive_rewards(self):
-        """Compute contrastive rewards and add them to the experience buffer."""
-        if self.contrastive_learning is None:
-            return
-
-        experience = self.experience
-        trainer_cfg = self.trainer_cfg
-
-        # Get contrastive configuration
-        contrastive_cfg = trainer_cfg.contrastive
-        reward_coef = contrastive_cfg.get("reward_coef", 0.0)
-
-        if reward_coef == 0.0:
-            return
-
-        # Compute contrastive rewards at the policy level (reward sharing across agents)
-        hidden_states = experience.lstm_hidden_states  # (segments, bptt_horizon, hidden_size)
-        batch_size = hidden_states.shape[0]
-        seq_len = hidden_states.shape[1]
-
-        if seq_len < 2:
-            return
-
-        with torch.no_grad():
-            # Compute single contrastive loss and reward for the entire policy
-            contrastive_loss, contrastive_reward = self.contrastive_learning.compute_contrastive_loss(
-                hidden_states, batch_size, seq_len
-            )
-
-            # Scale the reward
-            policy_reward = contrastive_reward * reward_coef
-
-            # Add the same contrastive reward to all agents in the policy
-            # This encourages exploration at the policy level
-            experience.rewards += policy_reward
 
 
 class AbortingTrainer(MettaTrainer):

@@ -1,13 +1,13 @@
 # @package __global__
 
-# User config for bullm: trains on a simple environment with contrastive loss
+# User config for bullm: trains on a simple environment with ultra-fast exploration signal
 
 defaults:
   - /trainer/trainer
   - /sim/all@evals
   - _self_
 
-run: bullm_contrastive_simple
+run: bullm_temporal_variance
 
 data_dir: ${oc.env:DATA_DIR,./train_dir}
 run_dir: ${data_dir}/${run}
@@ -17,9 +17,10 @@ trainer:
   evaluate_interval: 100
   num_workers: 4
   contrastive:
-    enabled: true
+    enabled: true  # Ultra-fast temporal variance exploration
     loss_coef: 1.0
     reward_coef: 0.1
+    # Legacy parameters (kept for compatibility, not used in computation)
     temperature: 0.1
     geometric_p: 0.1
     max_temporal_distance: 50
@@ -31,4 +32,4 @@ wandb:
   project: metta
   entity: metta-research
   name: ${run}
-  tags: ["contrastive", "simple_env", "bullm"]
+  tags: ["temporal_variance", "ultra_fast", "simple_env", "bullm"]
