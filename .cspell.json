@@ -180,6 +180,7 @@
     "timestep",
     "timesteps",
     "torchrl",
+    "torchrun",
     "torchscript",
     "tqdm",
     "truncateds",

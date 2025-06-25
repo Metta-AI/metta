@@ -1024,11 +1024,19 @@ class MettaTrainer:
         num_agents = self._curriculum.get_task().env_cfg().game.num_agents
 
         self.target_batch_size = trainer_cfg.forward_pass_minibatch_target_size // num_agents
-        if self.target_batch_size < 2:  # pufferlib bug requires batch size >= 2
-            self.target_batch_size = 2
+        if self.target_batch_size < max(2, trainer_cfg.num_workers):  # pufferlib bug requires batch size >= 2
+            self.target_batch_size = trainer_cfg.num_workers
+
+        logger.info(
+            f"target_batch_size: {self.target_batch_size} = "
+            f"min ({trainer_cfg.forward_pass_minibatch_target_size} // {num_agents} , {trainer_cfg.num_workers})"
+        )
 
         self.batch_size = (self.target_batch_size // trainer_cfg.num_workers) * trainer_cfg.num_workers
-        logger.info(f"forward_pass_batch_size: {self.batch_size}")
+        logger.info(
+            f"forward_pass_batch_size: {self.batch_size} = "
+            f"({self.target_batch_size} // {trainer_cfg.num_workers}) * {trainer_cfg.num_workers}"
+        )
 
         num_envs = self.batch_size * trainer_cfg.async_factor
         logger.info(f"num_envs: {num_envs}")
