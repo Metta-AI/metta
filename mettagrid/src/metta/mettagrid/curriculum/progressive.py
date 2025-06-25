@@ -60,7 +60,7 @@ class ProgressiveMultiTaskCurriculum(RandomCurriculum):
         self._progression_mode = progression_mode
         self._blending_smoothness = blending_smoothness
         self._blending_mode = blending_mode
-        self._progress = 0.0  # [0, 1]
+        self._progress = 0.0  # initialization of the progress value parameterizing the trajectory
         self._smoothed_performance = 0.0
         self._step_count = 0
         self._last_score = None
@@ -133,3 +133,15 @@ class ProgressiveMultiTaskCurriculum(RandomCurriculum):
         self._advance_progression()
         self._update_progressive_weights()
         super().complete_task(id, score)
+
+    def get_curriculum_stats(self) -> Dict[str, float]:
+        """Return curriculum statistics for logging purposes."""
+        stats = {
+            "smoothed_performance": self._smoothed_performance,
+            "progress": self._progress,
+        }
+        # Add task probabilities
+        task_probs = self.get_task_probs()
+        for task_id, prob in task_probs.items():
+            stats[f"task_prob/{task_id}"] = prob
+        return stats

@@ -260,6 +260,11 @@ class MettaGridEnv(PufferEnv, GymEnv):
 
         infos.update(self._curriculum.get_completion_rates())
 
+        # Add curriculum-specific stats
+        curriculum_stats = self._curriculum.get_curriculum_stats()
+        for key, value in curriculum_stats.items():
+            infos[f"curriculum/{key}"] = value
+
         with self.timer("_c_env.get_episode_stats"):
             stats = self._c_env.get_episode_stats()
 
