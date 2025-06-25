@@ -17,7 +17,7 @@ enum ShotType {
   SHOW_OVERALL_VIEW = 'show_overall_view',
 }
 
-/** Unix epoch seconds sense 1970-01-01 00:00:00 UTC. */
+/** Unix epoch seconds since 1970-01-01 00:00:00 UTC. */
 function epochTime() {
   return Date.now() / 1000
 }
