@@ -93,6 +93,7 @@ export function doDemoMode() {
       var agentId = Math.floor(Math.random() * state.replay.agents.length)
       for (let i = 0; i < state.replay.agents.length; i++) {
         let agent = state.replay.agents[i]
+        let actionFound = false
         for (let j = 0; j < 10; j++) {
           let action = getAttr(agent, 'action', state.step + j)
           if (action == null || action[0] == null || action[1] == null) {
@@ -109,8 +110,12 @@ export function doDemoMode() {
             actionSuccess
           ) {
             agentId = i
+            actionFound = true
             break
           }
+        }
+        if (actionFound) {
+          break
         }
       }
 
