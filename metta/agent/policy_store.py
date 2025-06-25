@@ -395,15 +395,35 @@ class PolicyStore:
             importer = PackageImporter(path)
             pr = importer.load_pickle("policy_record", "data.pkl")
             pr._policy_store = self
+
             if not metadata_only:
                 pr._policy = pr.load(path, self._device)
+
+                # Debug: Check classes before restoration
+                problematic_before = []
+                if hasattr(pr._policy, "named_modules"):
+                    for name, module in pr._policy.named_modules():
+                        if "torch_package_" in module.__class__.__module__:
+                            problematic_before.append(f"{name}: {module.__class__.__module__}")
+                logger.info(f"Before restoration: Found {len(problematic_before)} problematic classes")
 
                 # Restore original classes to prevent torch_package_ issues on re-save
                 try:
                     pr._policy = self._restore_original_classes(pr._policy)
-                    logger.debug("Successfully restored original classes for loaded policy")
+                    logger.info("Successfully restored original classes for loaded policy")
                 except Exception as e:
                     logger.warning(f"Could not fully restore original classes: {e}")
+
+                # Debug: Check classes after restoration
+                problematic_after = []
+                if hasattr(pr._policy, "named_modules"):
+                    for name, module in pr._policy.named_modules():
+                        if "torch_package_" in module.__class__.__module__:
+                            problematic_after.append(f"{name}: {module.__class__.__module__}")
+                logger.info(f"After restoration: Found {len(problematic_after)} problematic classes")
+                if problematic_after:
+                    for cls in problematic_after[:3]:
+                        logger.info(f"  Still problematic: {cls}")
 
             pr._local_path = path
             self._cached_prs[path] = pr
