@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 from urllib.parse import unquote
 
@@ -15,6 +16,8 @@ from metta.common.util.mettagrid_cfgs import (
 from metta.common.util.resolvers import register_resolvers
 from metta.map.utils.storable_map import StorableMap, StorableMapDict, StorableMapIndex, map_builder_cfg_to_storable_map
 from metta.mettagrid.util.file import read
+
+logger = logging.getLogger("metta.map.server")
 
 
 def make_app():
@@ -105,6 +108,7 @@ def make_app():
             storable_map = map_builder_cfg_to_storable_map(map_cfg)
             return storable_map.to_dict()
         except Exception as e:
+            logger.error(f"Error getting map for {path}: {e}", exc_info=True)
             return {
                 "error": str(e),
             }
