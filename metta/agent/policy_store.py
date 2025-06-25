@@ -193,11 +193,25 @@ class PolicyStore:
         logger.info(f"Saving policy to {path} using torch.package")
 
         policy_class_name = policy.__class__.__module__
+        problematic_classes = []
+
+        # Check main policy class
         if "torch_package_" in policy_class_name:
-            logger.warning(
-                f"Detected torch_package naming conflict in module '{policy_class_name}'."
-                + "Skipping save to prevent pickle errors."
-            )
+            problematic_classes.append(f"main: {policy_class_name}.{policy.__class__.__name__}")
+
+        # Check all nested modules for torch_package_ prefixes
+        if hasattr(policy, "named_modules"):
+            for name, module in policy.named_modules():
+                if "torch_package_" in module.__class__.__module__:
+                    problematic_classes.append(f"{name}: {module.__class__.__module__}.{module.__class__.__name__}")
+
+        if problematic_classes:
+            logger.warning(f"Found {len(problematic_classes)} modules with torch_package_ prefixes:")
+            for cls in problematic_classes[:5]:  # Show first 5
+                logger.warning(f"  {cls}")
+            if len(problematic_classes) > 5:
+                logger.warning(f"  ... and {len(problematic_classes) - 5} more")
+            logger.warning("Skipping save to prevent pickle errors.")
             return pr
 
         try:
