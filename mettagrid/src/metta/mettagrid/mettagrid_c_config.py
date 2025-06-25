@@ -167,6 +167,11 @@ def from_mettagrid_config(mettagrid_config: GameConfig_py) -> GameConfig_cpp:
             "group_reward_pct": group_config.group_reward_pct or 0,
         }
 
+        # these defaults should be moved elsewhere!
+        for k in agent_group_config["resource_rewards"]:
+            if k not in agent_group_config["resource_reward_max"]:
+                agent_group_config["resource_reward_max"][k] = 1000
+
         agent_group_configs["agent." + group_name] = AgentGroupConfig_cpp(**agent_group_config)
 
     game_config = mettagrid_config.model_dump(by_alias=True, exclude_none=True)
