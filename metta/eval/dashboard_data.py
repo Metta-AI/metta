@@ -5,7 +5,7 @@ from typing import Dict, List
 
 from pydantic import BaseModel
 
-from common.metta.util.config import Config
+from metta.common.util.config import Config
 from metta.mettagrid.util.file import write_data
 from metta.sim.simulation_stats_db import SimulationStatsDB
 

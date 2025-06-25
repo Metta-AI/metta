@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import cast
 
-from common.metta.util.config import Config
+from metta.common.util.config import Config
 from metta.map.config import scenes_root
 from metta.map.scene import Scene
 from metta.map.scenes.random_scene import RandomScene, RandomSceneCandidate

@@ -7,7 +7,7 @@ from typing import cast, get_args
 
 from omegaconf import DictConfig, OmegaConf
 
-from common.metta.util.resolvers import register_resolvers
+from metta.common.util.resolvers import register_resolvers
 from metta.map.utils.show import ShowMode, show_map
 from tools.map.gen import map_builder_cfg_to_storable_map
 

@@ -7,7 +7,7 @@ import subprocess
 
 import sky.jobs
 
-from common.metta.util.colorama import bold
+from metta.common.util.colorama import bold
 
 
 def get_jobs_controller_name():

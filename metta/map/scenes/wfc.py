@@ -29,7 +29,7 @@ from typing import Literal
 
 import numpy as np
 
-from common.metta.util.config import Config
+from metta.common.util.config import Config
 from metta.map.scene import Scene
 from metta.map.utils.pattern import Symmetry, ascii_to_patterns_with_counts
 

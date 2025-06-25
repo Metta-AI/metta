@@ -6,7 +6,7 @@ import numpy as np
 from hydra.experimental.callback import Callback
 from omegaconf import DictConfig, OmegaConf
 
-from common.metta.util.logging import setup_mettagrid_logger
+from metta.common.util.logging import setup_mettagrid_logger
 
 T = TypeVar("T")  # For generic conditional function
 Numeric = Union[int, float]  # Type alias for numeric types

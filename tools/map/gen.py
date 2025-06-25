@@ -10,8 +10,8 @@ from typing import cast, get_args
 import hydra
 from omegaconf import DictConfig, OmegaConf
 
-from common.metta.util.config import config_from_path
-from common.metta.util.resolvers import register_resolvers
+from metta.common.util.config import config_from_path
+from metta.common.util.resolvers import register_resolvers
 from metta.map.utils.show import ShowMode, show_map
 from metta.map.utils.storable_map import map_builder_cfg_to_storable_map
 

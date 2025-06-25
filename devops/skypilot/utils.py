@@ -6,8 +6,8 @@ import sky
 import sky.jobs
 import sky.server.common
 
-from common.metta.util.colorama import blue, bold, cyan, green, magenta, red, yellow
-from common.metta.util.git import get_commit_message, get_matched_pr, has_unstaged_changes, is_commit_pushed
+from metta.common.util.colorama import blue, bold, cyan, green, magenta, red, yellow
+from metta.common.util.git import get_commit_message, get_matched_pr, has_unstaged_changes, is_commit_pushed
 
 
 def print_tip(text: str):

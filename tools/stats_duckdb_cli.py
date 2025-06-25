@@ -11,8 +11,8 @@ import subprocess
 import hydra
 from omegaconf import DictConfig
 
-from common.metta.util.logging import setup_mettagrid_logger
-from common.metta.util.runtime_configuration import setup_mettagrid_environment
+from metta.common.util.logging import setup_mettagrid_logger
+from metta.common.util.runtime_configuration import setup_mettagrid_environment
 from metta.eval.eval_stats_db import EvalStatsDB
 from metta.mettagrid.util.file import local_copy
 

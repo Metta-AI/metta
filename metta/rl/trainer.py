@@ -15,14 +15,14 @@ from heavyball import ForeachMuon
 from omegaconf import DictConfig, ListConfig
 
 from app_backend.stats_client import StatsClient
-from metta.common.util.heartbeat import record_heartbeat
-from metta.common.util.system_monitor import SystemMonitor
-from metta.common.util.wandb.wandb_context import WandbRun
 from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
 from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyRecord, PolicyStore
 from metta.agent.util.debug import assert_shape
 from metta.common.stopwatch import Stopwatch, with_instance_timer
+from metta.common.util.heartbeat import record_heartbeat
+from metta.common.util.system_monitor import SystemMonitor
+from metta.common.util.wandb.wandb_context import WandbRun
 from metta.eval.eval_stats_db import EvalStatsDB
 from metta.mettagrid.curriculum.util import curriculum_from_config_path
 from metta.mettagrid.mettagrid_env import MettaGridEnv, dtype_actions

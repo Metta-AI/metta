@@ -1,6 +1,6 @@
 import numpy as np
 
-from common.metta.util.config import Config
+from metta.common.util.config import Config
 from metta.map.scene import Scene
 from metta.map.types import ChildrenAction, SceneCfg
 
