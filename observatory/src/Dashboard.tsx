@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
-import { GroupHeatmapMetric, HeatmapData, Repo, SavedDashboard, SavedDashboardCreate } from "./repo";
+import { GroupHeatmapMetric, HeatmapData, PolicySelector, Repo, SavedDashboard, SavedDashboardCreate } from "./repo";
 import { MapViewer } from "./MapViewer";
 import { Heatmap } from "./Heatmap";
 import { SaveDashboardModal } from "./SaveDashboardModal";
@@ -151,6 +151,7 @@ export function Dashboard({ repo }: DashboardProps) {
   const [selectedGroupMetric, setSelectedGroupMetric] = useState<string>("");
   const [numPoliciesToShow, setNumPoliciesToShow] = useState(20);
   const [selectedPolicies, setSelectedPolicies] = useState<Set<string>>(new Set());
+  const [policySelector, setPolicySelector] = useState<PolicySelector>("latest");
 
   // Save dashboard state
   const [showSaveModal, setShowSaveModal] = useState(false);
@@ -188,6 +189,7 @@ export function Dashboard({ repo }: DashboardProps) {
           setSelectedGroupMetric(state.group_metric || "");
           setNumPoliciesToShow(state.num_policies_to_show || 20);
           setSelectedPolicies(new Set(state.selected_policies || []));
+          setPolicySelector(state.policy_selector || "latest");
           setSavedId(savedIdParam);
           setSavedDashboard(dashboard);
         } catch (err) {
@@ -231,7 +233,7 @@ export function Dashboard({ repo }: DashboardProps) {
     loadSuiteData();
   }, [selectedSuite, repo]);
 
-  // Load heatmap data when suite, metric, or group metric changes
+  // Load heatmap data when suite, metric, group metric, or policy selector changes
   useEffect(() => {
     const loadHeatmapData = async () => {
       if (!selectedSuite || !selectedMetric) return;
@@ -239,13 +241,14 @@ export function Dashboard({ repo }: DashboardProps) {
       const heatmapData = await repo.getHeatmapData(
         selectedMetric,
         selectedSuite,
-        parseGroupMetric(selectedGroupMetric)
+        parseGroupMetric(selectedGroupMetric),
+        policySelector
       );
       setHeatmapData(heatmapData);
     };
 
     loadHeatmapData();
-  }, [selectedSuite, selectedMetric, selectedGroupMetric, repo]);
+  }, [selectedSuite, selectedMetric, selectedGroupMetric, policySelector, repo]);
 
   const handleSaveDashboard = async (dashboardData: SavedDashboardCreate) => {
     try {
@@ -257,6 +260,7 @@ export function Dashboard({ repo }: DashboardProps) {
           group_metric: selectedGroupMetric,
           num_policies_to_show: numPoliciesToShow,
           selected_policies: Array.from(selectedPolicies),
+          policy_selector: policySelector,
         },
       };
 
@@ -322,14 +326,6 @@ export function Dashboard({ repo }: DashboardProps) {
 
   const clearPolicySelection = () => {
     setSelectedPolicies(new Set());
-  };
-
-  const selectTopPolicies = () => {
-    const sortedPolicies = Object.keys(heatmapData.cells).sort(
-      (a, b) => heatmapData.policyAverageScores[b] - heatmapData.policyAverageScores[a]
-    );
-    const topPolicies = sortedPolicies.slice(0, numPoliciesToShow);
-    setSelectedPolicies(new Set(topPolicies));
   };
 
   // Filter heatmap data based on selected policies
@@ -595,12 +591,6 @@ export function Dashboard({ repo }: DashboardProps) {
                 >
                   Clear All
                 </button>
-                <button
-                  className="policy-selector-btn"
-                  onClick={selectTopPolicies}
-                >
-                  Select Top {numPoliciesToShow}
-                </button>
               </div>
             </div>
             <MultiSelectDropdown
@@ -611,6 +601,38 @@ export function Dashboard({ repo }: DashboardProps) {
               searchPlaceholder="Search policies..."
               width="100%"
             />
+
+            <div style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: "15px",
+              marginTop: "15px"
+            }}>
+              <div style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "12px"
+              }}>
+                <div style={{ color: "#666", fontSize: "14px", minWidth: "120px" }}>Training Run Policy Selection</div>
+                <select
+                  value={policySelector}
+                  onChange={(e) => setPolicySelector(e.target.value as PolicySelector)}
+                  style={{
+                    padding: "8px 12px",
+                    borderRadius: "4px",
+                    border: "1px solid #ddd",
+                    fontSize: "14px",
+                    flex: "1",
+                    backgroundColor: "#fff",
+                    cursor: "pointer",
+                  }}
+                >
+                  <option value="latest">Latest</option>
+                  <option value="best">Best</option>
+                </select>
+              </div>
+            </div>
+
           </div>
         </div>
 

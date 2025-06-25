@@ -9,6 +9,8 @@ export type GroupDiff = {
   group_2: string;
 }
 
+export type PolicySelector = "latest" | "best";
+
 export type GroupHeatmapMetric = GroupDiff | string
 
 export type HeatmapData = {
@@ -72,7 +74,7 @@ export interface Repo {
   getMetrics(suite: string): Promise<string[]>;
   getGroupIds(suite: string): Promise<string[]>;
 
-  getHeatmapData(metric: string, suite: string, groupMetric: GroupHeatmapMetric): Promise<HeatmapData>;
+  getHeatmapData(metric: string, suite: string, groupMetric: GroupHeatmapMetric, policySelector?: PolicySelector): Promise<HeatmapData>;
 
   // Token management methods
   createToken(tokenData: TokenCreate): Promise<TokenResponse>;
@@ -151,11 +153,11 @@ export class ServerRepo implements Repo {
     return this.apiCall<string[]>(`/dashboard/suites/${encodeURIComponent(suite)}/group-ids`);
   }
 
-  async getHeatmapData(metric: string, suite: string, groupMetric: GroupHeatmapMetric): Promise<HeatmapData> {
+  async getHeatmapData(metric: string, suite: string, groupMetric: GroupHeatmapMetric, policySelector: PolicySelector = "latest"): Promise<HeatmapData> {
     // Use POST endpoint for GroupDiff
     const apiData = await this.apiCallWithBody<HeatmapData>(
       `/dashboard/suites/${encodeURIComponent(suite)}/metrics/${encodeURIComponent(metric)}/heatmap`,
-      { group_metric: groupMetric }
+      { group_metric: groupMetric, policy_selector: policySelector }
     );
     return apiData;
   }

@@ -1,5 +1,6 @@
+from collections import defaultdict
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, DefaultDict, Dict, List, Literal, Optional, Set, Tuple
 
 from fastapi import APIRouter, Depends, HTTPException
 from psycopg import Connection
@@ -33,6 +34,7 @@ class GroupDiff(BaseModel):
 
 class GroupHeatmapMetric(BaseModel):
     group_metric: str | GroupDiff
+    policy_selector: Literal["latest", "best"] = "latest"
 
 
 class SavedDashboardCreate(BaseModel):
@@ -64,9 +66,14 @@ class GroupDataRow:
     replay_url: str | None
     num_agents: int
     total_value: float
+    run_id: str | None = None
+    end_training_epoch: int | None = None
 
 
-def get_group_data(con: Connection, suite: str, metric: str, group: str) -> List[GroupDataRow]:
+def get_group_data(
+    con: Connection, suite: str, metric: str, group: str, policy_selector: str = "latest"
+) -> List[GroupDataRow]:
+    # Single SQL query that gets all policies with their training run information
     query_template: SQL = SQL("""
         WITH
         episode_agent_metrics_with_group_id AS (
@@ -77,27 +84,20 @@ def get_group_data(con: Connection, suite: str, metric: str, group: str) -> List
             JOIN episode_view e ON e.id = eam.episode_id
             WHERE e.simulation_suite = %s AND eam.metric = %s
         ),
-        latest_epoch_per_training_run AS (
+        all_policies_with_runs AS (
           SELECT
-              run_id,
-              id as epoch_id
-          FROM epochs e1
-          WHERE end_training_epoch = (
-              SELECT MAX(end_training_epoch)
-              FROM epochs e2
-              WHERE e2.run_id = e1.run_id
-          )
-        ),
-        relevant_policies AS (
-          SELECT
-            p1.id,
-            p1.name
-          FROM policies p1
-          JOIN latest_epoch_per_training_run e ON p1.epoch_id = e.epoch_id
+            p.id,
+            p.name,
+            ep.run_id,
+            ep.end_training_epoch
+          FROM policies p
+          JOIN epochs ep ON p.epoch_id = ep.id
           UNION
           SELECT
             p2.id,
-            p2.name
+            p2.name,
+            NULL as run_id,
+            NULL as end_training_epoch
           FROM policies p2
           WHERE p2.epoch_id IS NULL
         )
@@ -107,12 +107,15 @@ def get_group_data(con: Connection, suite: str, metric: str, group: str) -> List
           e.eval_name,
           ANY_VALUE(e.replay_url) as replay_url,
           COUNT(*) AS num_agents,
-          SUM(eam.value) AS total_value
+          SUM(eam.value) AS total_value,
+          p.run_id,
+          p.end_training_epoch
         FROM episode_agent_metrics_with_group_id eam
         JOIN episode_view e ON e.id = eam.episode_id
-        JOIN relevant_policies p ON e.primary_policy_id = p.id
+        JOIN all_policies_with_runs p ON e.primary_policy_id = p.id
         {}
-        GROUP BY p.name, e.eval_name
+        GROUP BY p.name, e.eval_name, p.run_id, p.end_training_epoch
+        ORDER BY p.run_id, p.end_training_epoch DESC
     """)
 
     where_clause = SQL("")
@@ -124,7 +127,129 @@ def get_group_data(con: Connection, suite: str, metric: str, group: str) -> List
 
     with con.cursor(row_factory=class_row(GroupDataRow)) as cursor:
         cursor.execute(query, params)
-        return cursor.fetchall()
+        rows = cursor.fetchall()
+
+        return _apply_policy_selector(rows, policy_selector, suite, con)
+
+
+def _apply_policy_selector(
+    rows: List[GroupDataRow], policy_selector: str, suite: str, con: Connection
+) -> List[GroupDataRow]:
+    """
+    Apply the specified policy selection strategy to the rows.
+    """
+    if policy_selector == "latest":
+        return _select_latest_policies_per_run(rows)
+    elif policy_selector == "best":
+        return _select_best_policies_per_run(rows, suite, con)
+    else:
+        raise ValueError(f"Invalid policy_selector: {policy_selector}")
+
+
+def _select_latest_policies_per_run(rows: List[GroupDataRow]) -> List[GroupDataRow]:
+    """
+    Select the latest policy per training run based on end_training_epoch.
+    For policies with no run_id (epoch_id is NULL), include them as-is.
+    """
+    # Group rows by run_id
+    run_policies: DefaultDict[str, List[GroupDataRow]] = defaultdict(list)
+    no_run_rows: List[GroupDataRow] = []
+
+    for row in rows:
+        if row.run_id is None:
+            no_run_rows.append(row)
+        else:
+            run_policies[row.run_id].append(row)
+
+    selected_rows: List[GroupDataRow] = []
+
+    # For each training run, select the policy with the highest end_training_epoch
+    for _run_id, run_rows in run_policies.items():
+        if not run_rows:
+            continue
+
+        # Group by policy to find the latest epoch for each policy
+        policy_latest_epoch: Dict[str, int] = {}
+        for row in run_rows:
+            policy_uri = row.policy_uri
+            epoch = row.end_training_epoch or 0
+            if policy_uri not in policy_latest_epoch or epoch > policy_latest_epoch[policy_uri]:
+                policy_latest_epoch[policy_uri] = epoch
+
+        # Find the policy with the highest epoch
+        latest_policy = max(policy_latest_epoch, key=policy_latest_epoch.get)  # type: ignore
+        latest_epoch = policy_latest_epoch[latest_policy]
+
+        # Add all rows for the latest policy
+        for row in run_rows:
+            if row.policy_uri == latest_policy and row.end_training_epoch == latest_epoch:
+                selected_rows.append(row)
+
+    # Add policies without run_id
+    selected_rows.extend(no_run_rows)
+
+    return selected_rows
+
+
+def _select_best_policies_per_run(rows: List[GroupDataRow], suite: str, con: Connection) -> List[GroupDataRow]:
+    """
+    Select the best policy per training run based on average score across all evaluations.
+    For policies with no run_id (epoch_id is NULL), include them as-is.
+    Ties are broken by selecting the latest policy (highest end_training_epoch).
+    """
+    # Group rows by run_id and policy_uri
+    run_policies: DefaultDict[str, DefaultDict[str, List[GroupDataRow]]] = defaultdict(lambda: defaultdict(list))
+    no_run_rows: List[GroupDataRow] = []
+
+    for row in rows:
+        if row.run_id is None:
+            no_run_rows.append(row)
+        else:
+            run_policies[row.run_id][row.policy_uri].append(row)
+
+    # Get all eval_names for this suite to handle missing evaluations
+    eval_rows = con.execute("SELECT DISTINCT eval_name FROM episode_view WHERE simulation_suite = %s", (suite,))
+    all_eval_names: Set[str] = {row[0] for row in eval_rows}
+
+    selected_rows: List[GroupDataRow] = []
+
+    # Process each training run
+    for _run_id, policies_dict in run_policies.items():
+        best_avg_score = float("-inf")
+        best_policy_epoch = float("-inf")
+        best_policy_rows: List[GroupDataRow] = []
+
+        # Calculate average score for each policy in this run
+        for _policy_uri, policy_rows in policies_dict.items():
+            # Create a map of eval_name -> average score for this policy
+            eval_scores: Dict[str, float] = {}
+            policy_epoch = policy_rows[0].end_training_epoch or 0
+
+            for row in policy_rows:
+                avg_score = row.total_value / row.num_agents if row.num_agents > 0 else 0.0
+                eval_scores[row.eval_name] = avg_score
+
+            # Calculate average across all evaluations (missing ones default to 0)
+            total_score = 0.0
+            for eval_name in all_eval_names:
+                total_score += eval_scores.get(eval_name, 0.0)
+
+            avg_score = total_score / len(all_eval_names) if all_eval_names else 0.0
+
+            # Select best policy, with ties broken by latest epoch
+            if avg_score > best_avg_score or (avg_score == best_avg_score and policy_epoch > best_policy_epoch):
+                best_avg_score = avg_score
+                best_policy_epoch = policy_epoch
+                best_policy_rows = policy_rows
+
+        # Add the best policy's rows to selected_rows
+        if best_policy_rows:
+            selected_rows.extend(best_policy_rows)
+
+    # Add policies without run_id
+    selected_rows.extend(no_run_rows)
+
+    return selected_rows
 
 
 def create_dashboard_router(metta_repo: MettaRepo) -> APIRouter:
@@ -155,16 +280,22 @@ def create_dashboard_router(metta_repo: MettaRepo) -> APIRouter:
         """Get heatmap data for a given suite, metric, and group metric."""
         with metta_repo.connect() as con:
             eval_rows = con.execute("SELECT DISTINCT eval_name FROM episode_view WHERE simulation_suite = %s", (suite,))
-            all_eval_names: list[str] = [row[0] for row in eval_rows]
+            all_eval_names: List[str] = [row[0] for row in eval_rows]
 
             if isinstance(group_metric.group_metric, GroupDiff):
-                group1_rows = get_group_data(con, suite, metric, group_metric.group_metric.group_1)
-                group2_rows = get_group_data(con, suite, metric, group_metric.group_metric.group_2)
+                group1_rows = get_group_data(
+                    con, suite, metric, group_metric.group_metric.group_1, group_metric.policy_selector
+                )
+                group2_rows = get_group_data(
+                    con, suite, metric, group_metric.group_metric.group_2, group_metric.policy_selector
+                )
             else:
-                group1_rows = get_group_data(con, suite, metric, group_metric.group_metric)
+                group1_rows = get_group_data(
+                    con, suite, metric, group_metric.group_metric, group_metric.policy_selector
+                )
                 group2_rows: List[GroupDataRow] = []
 
-            all_policy_uris: set[str] = set()
+            all_policy_uris: Set[str] = set()
             for row in group1_rows:
                 all_policy_uris.add(row.policy_uri)
             for row in group2_rows:
@@ -179,7 +310,7 @@ def create_dashboard_router(metta_repo: MettaRepo) -> APIRouter:
 
             cells: Dict[str, Dict[str, HeatmapCell]] = {}
             for policy_uri in all_policy_uris:
-                cells[policy_uri] = {}
+                cells[policy_uri] = {}  # Dict[str, HeatmapCell]
                 for eval_name in all_eval_names:
                     group_1_value = group_1_values.get((policy_uri, eval_name), (0, None))
                     group_2_value = group_2_values.get((policy_uri, eval_name), (0, None))
