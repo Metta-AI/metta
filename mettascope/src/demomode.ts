@@ -1,5 +1,5 @@
 /**
- * Demo mode is aimed to show cool thing about the replay without the any user interaction.
+ * Demo mode is aimed to show cool thing about the replay without any user interaction.
  * It could be used on a big TV to just play mettagrid in a loop.
  * The mode:
  * - Zooms in and out.
