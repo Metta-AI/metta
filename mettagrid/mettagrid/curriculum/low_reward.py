@@ -1,0 +1,1 @@
+../../src/metta/mettagrid/curriculum/low_reward.py
