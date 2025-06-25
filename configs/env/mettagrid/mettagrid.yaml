@@ -1,4 +1,4 @@
-sampling: 0
+sampling: 1
 desync_episodes: false
 replay_level_prob: 0.2
 game:
