@@ -262,6 +262,15 @@ canvas#global-canvas {
     overflow: hidden;
 }
 
+.right #traces-toggle.hover-icon {
+    position: relative;
+    display: block;
+    width: 32px;
+    height: 32px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
 .right .sep2 {
     position: relative;
     display: block;
