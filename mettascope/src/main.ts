@@ -63,10 +63,19 @@ export function onResize() {
   ui.infoPanel.height = 300
 
   // Trace panel is always on the bottom of the screen.
-  ui.tracePanel.x = 0
-  ui.tracePanel.y = ui.mapPanel.y + ui.mapPanel.height
-  ui.tracePanel.width = screenWidth
-  ui.tracePanel.height = screenHeight - ui.tracePanel.y - Common.FOOTER_HEIGHT
+  if (state.showTraces) {
+    ui.tracePanel.x = 0
+    ui.tracePanel.y = ui.mapPanel.y + ui.mapPanel.height
+    ui.tracePanel.width = screenWidth
+    ui.tracePanel.height = screenHeight - ui.tracePanel.y - Common.FOOTER_HEIGHT
+  } else {
+    ui.tracePanel.x = 0
+    ui.tracePanel.y = 0
+    ui.tracePanel.width = 0
+    ui.tracePanel.height = 0
+    // Have the map panel take up the trace panel's space.
+    ui.mapPanel.height = screenHeight - ui.mapPanel.y - Common.FOOTER_HEIGHT
+  }
 
   // Timeline panel is always on the bottom of the screen.
   ui.timelinePanel.x = 0
@@ -371,8 +380,13 @@ export function onFrame() {
     ui.miniMapPanel.div.classList.add('hidden')
   }
 
-  ctx.useMesh('trace')
-  drawTrace(ui.tracePanel)
+  if (state.showTraces) {
+    ui.tracePanel.div.classList.remove('hidden')
+    ctx.useMesh('trace')
+    drawTrace(ui.tracePanel)
+  } else {
+    ui.tracePanel.div.classList.add('hidden')
+  }
 
   ctx.useMesh('timeline')
   drawTimeline(ui.timelinePanel)
@@ -522,9 +536,9 @@ function setIsPlaying(isPlaying: boolean) {
 /** Toggles the opacity of a button. */
 function toggleOpacity(button: HTMLElement, show: boolean) {
   if (show) {
-    button.style.opacity = '1'
+    button.classList.remove('transparent')
   } else {
-    button.style.opacity = '0.2'
+    button.classList.add('transparent')
   }
 }
 
@@ -718,6 +732,18 @@ if (localStorage.hasOwnProperty('showAgentPanel')) {
   state.showAgentPanel = localStorage.getItem('showAgentPanel') === 'true'
 }
 toggleOpacity(html.agentPanelToggle, state.showAgentPanel)
+
+onEvent('click', '#traces-toggle', () => {
+  state.showTraces = !state.showTraces
+  localStorage.setItem('showTraces', state.showTraces.toString())
+  toggleOpacity(html.tracesToggle, state.showTraces)
+  onResize()
+  requestFrame()
+})
+if (localStorage.hasOwnProperty('showTraces')) {
+  state.showTraces = localStorage.getItem('showTraces') === 'true'
+}
+toggleOpacity(html.tracesToggle, state.showTraces)
 
 initHighDpiMode()
 initActionButtons()
