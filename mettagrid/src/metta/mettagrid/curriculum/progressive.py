@@ -43,12 +43,9 @@ class ProgressiveMultiTaskCurriculum(RandomCurriculum):
         env_overrides: DictConfig,
         performance_threshold: float = 0.8,
         smoothing: float = 0.1,
-        progression_increment: float = 0.01,
-        progression_rate: float = 0.00001,
+        progression_rate: float = 0.01,
         progression_mode: str = "perf",
-        initial_skew: float = 5.0,
-        blending_smoothness: float = 1.0,
-        transition_width: float = 0.5,
+        blending_smoothness: float = 0.5,
         blending_mode: str = "logistic",
     ):
         super().__init__(tasks, env_overrides)
@@ -59,12 +56,9 @@ class ProgressiveMultiTaskCurriculum(RandomCurriculum):
         self._task_order = list(tasks.keys())
         self._performance_threshold = performance_threshold
         self._smoothing = smoothing
-        self._progression_increment = progression_increment
         self._progression_rate = progression_rate
         self._progression_mode = progression_mode
-        self._initial_skew = initial_skew
         self._blending_smoothness = blending_smoothness
-        self._transition_width = transition_width
         self._blending_mode = blending_mode
         self._progress = 0.0  # [0, 1]
         self._smoothed_performance = 0.0
@@ -84,7 +78,7 @@ class ProgressiveMultiTaskCurriculum(RandomCurriculum):
     def _advance_progression(self):
         if self._progression_mode == "perf":
             if self._smoothed_performance >= self._performance_threshold:
-                self._progress = min(1.0, self._progress + self._progression_increment)
+                self._progress = min(1.0, self._progress + self._progression_rate)
         elif self._progression_mode == "time":
             self._step_count += 1
             self._progress = min(1.0, self._step_count * self._progression_rate)
@@ -105,44 +99,33 @@ class ProgressiveMultiTaskCurriculum(RandomCurriculum):
     def _update_progressive_weights(self):
         num_tasks = len(self._task_order)
 
-        if self._progress == 0.0:
-            # Apply initial skew toward early tasks
-            weights = {}
-            for i, task_id in enumerate(self._task_order):
-                position = i / (num_tasks - 1) if num_tasks > 1 else 0
-                weight = self._initial_skew * (1 - position)  # Higher for early tasks
-                weights[task_id] = max(0.01, weight)
-            self._task_weights = weights
+        # Use the gating mechanism for all progress values
+        # Scale progress to task space (0 to num_tasks-1)
+        p = self._progress * (num_tasks - 1)
+
+        # Task positions (0, 1, 2, ..., num_tasks-1)
+        task_positions = np.arange(num_tasks)
+
+        # Create gating matrix: tasks x progress points
+        gating = np.zeros(num_tasks)
+
+        for i, task_pos in enumerate(task_positions):
+            # Double gating: activation and deactivation
+            activation = self._blending_function(p, task_pos - self._blending_smoothness, growing=True)
+            deactivation = self._blending_function(p, task_pos + self._blending_smoothness, growing=False)
+            gating[i] = activation * deactivation
+
+        # Normalize to get probabilities
+        if np.sum(gating) > 0:
+            probs = gating / np.sum(gating)
         else:
-            # Use the new gating mechanism
-            # Scale progress to task space (0 to num_tasks-1)
-            p = self._progress * (num_tasks - 1)
+            # Fallback to uniform distribution if all gates are zero
+            probs = np.ones(num_tasks) / num_tasks
 
-            # Task positions (0, 1, 2, ..., num_tasks-1)
-            task_positions = np.arange(num_tasks)
-
-            # Create gating matrix: tasks x progress points
-            # For simplicity, we'll compute gating at the current progress point
-            gating = np.zeros(num_tasks)
-
-            for i, task_pos in enumerate(task_positions):
-                # Double gating: activation and deactivation
-                activation = self._blending_function(p, task_pos - self._transition_width, growing=True)
-                deactivation = self._blending_function(p, task_pos + self._transition_width, growing=False)
-                gating[i] = activation * deactivation
-
-            # Normalize to get probabilities
-            if np.sum(gating) > 0:
-                probs = gating / np.sum(gating)
-            else:
-                # Fallback to uniform distribution if all gates are zero
-                probs = np.ones(num_tasks) / num_tasks
-
-            self._task_weights = {task_id: float(probs[i]) for i, task_id in enumerate(self._task_order)}
+        self._task_weights = {task_id: float(probs[i]) for i, task_id in enumerate(self._task_order)}
 
         logger.debug(
-            f"Progress: {self._progress:.3f}, smoothed_perf: {self._smoothed_performance:.3f}, weights: {[(k, f'{v:.3f}') for k, v in self._task_weights.items()]}"
-        )
+            f"Progress: {self._progress:.3f}, smoothed_perf: {self._smoothed_performance:.3f}, weights: {[(k, f'{v:.3f}') for k, v in self._task_weights.items()]}")
 
     def complete_task(self, id: str, score: float):
         # Assume score is between 0 and 1
