@@ -841,10 +841,7 @@ class MettaTrainer:
             "timing_cumulative/sps": steps_per_second,
         }
 
-        environment_stats = {
-            f"env_{k.split('/')[0]}/{'/'.join(k.split('/')[1:])}": v
-            for k, v in self.stats.items()
-        }
+        environment_stats = {f"env_{k.split('/')[0]}/{'/'.join(k.split('/')[1:])}": v for k, v in self.stats.items()}
 
         overview = {
             "sps": epoch_steps_per_second,
