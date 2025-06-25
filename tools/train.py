@@ -12,6 +12,7 @@ from torch.distributed.elastic.multiprocessing.errors import record
 
 from app_backend.stats_client import StatsClient
 from metta.agent.policy_store import PolicyStore
+from metta.rl.trainer_config import MettaTrainerConfig
 from metta.sim.simulation_config import SimulationSuiteConfig
 from metta.util.config import Config
 from metta.util.heartbeat import record_heartbeat
@@ -55,7 +56,7 @@ def train(cfg: ListConfig | DictConfig, wandb_run: WandbRun | None, logger: Logg
     stats_client: StatsClient | None = get_stats_client(cfg, logger)
 
     trainer = hydra.utils.instantiate(
-        cfg.trainer,
+        MettaTrainerConfig.model_validate(cfg.trainer),
         cfg,
         wandb_run,
         policy_store=policy_store,

@@ -4,7 +4,8 @@ defaults:
   - puffer
   - _self_
 
-learning_rate: 0.0005570885525880004
+optimizer:
+  learning_rate: 0.0005570885525880004
 gamma: 0.9738787277083967
 gae_lambda: 0.857851827593042
 update_epochs: 2

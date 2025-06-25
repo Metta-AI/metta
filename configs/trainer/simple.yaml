@@ -5,7 +5,8 @@ defaults:
 ent_coef: 0.00209
 gae_lambda: 0.818
 gamma: 0.986
-learning_rate: 0.00141
+optimizer:
+  learning_rate: 0.00141
 vf_coef: 0.480
 
 batch_size: 524288

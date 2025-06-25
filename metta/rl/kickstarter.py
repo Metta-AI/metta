@@ -4,10 +4,13 @@ import torch
 from torch import Tensor, nn
 
 from metta.agent.policy_state import PolicyState
+from metta.rl.trainer_config import MettaTrainerConfig
 
 
 class Kickstarter:
-    def __init__(self, cfg, policy_store, action_names, action_max_params):
+    def __init__(
+        self, trainer_cfg: MettaTrainerConfig, policy_store, action_names, action_max_params, device: torch.device
+    ):
         """
         Kickstarting is a technique to initialize a student policy with the knowledge of one or more teacher policies.
         This is done by adding a loss term that encourages the student's output (action logits and value) to match the
@@ -21,20 +24,20 @@ class Kickstarter:
         Linear annealing is used because cosine's rapid dropping phase can come when the policy transition is unstable
         although this hunch hasn't been tested yet.
         """
-        self.device = cfg.device
-        self.teacher_cfgs = cfg.trainer.kickstart.additional_teachers
-        self.anneal_ratio = cfg.trainer.kickstart.anneal_ratio
+        self.device = device
+        self.teacher_cfgs = trainer_cfg.kickstart.additional_teachers
+        self.anneal_ratio = trainer_cfg.kickstart.anneal_ratio
         assert 0 <= self.anneal_ratio <= 1, "Anneal_ratio must be between 0 and 1."
 
-        self.teacher_uri = cfg.trainer.kickstart.teacher_uri
+        self.teacher_uri = trainer_cfg.kickstart.teacher_uri
         if self.teacher_uri is not None:
             if self.teacher_cfgs is None:
                 self.teacher_cfgs = []
             self.teacher_cfgs.append(
                 {
                     "teacher_uri": self.teacher_uri,
-                    "action_loss_coef": cfg.trainer.kickstart.action_loss_coef,
-                    "value_loss_coef": cfg.trainer.kickstart.value_loss_coef,
+                    "action_loss_coef": trainer_cfg.kickstart.action_loss_coef,
+                    "value_loss_coef": trainer_cfg.kickstart.value_loss_coef,
                 }
             )
 
@@ -43,10 +46,10 @@ class Kickstarter:
             self.enabled = False
             return
 
-        self.compile: bool = cfg.trainer.compile
-        self.compile_mode: str = cfg.trainer.compile_mode
+        self.compile: bool = trainer_cfg.compile
+        self.compile_mode: str = trainer_cfg.compile_mode
         self.policy_store = policy_store
-        self.kickstart_steps: int = cfg.trainer.kickstart.kickstart_steps
+        self.kickstart_steps: int = trainer_cfg.kickstart.kickstart_steps
         self.action_names: list[str] = action_names
         self.action_max_params: list[int] = action_max_params
         self.anneal_factor = 1.0
