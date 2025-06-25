@@ -6,7 +6,6 @@ set -e
 args="${@:1}"
 
 source ./devops/setup.env
-source .venv/bin/activate
 
 # Start heartbeat monitor if available
 HEARTBEAT_FILE=${HEARTBEAT_FILE:-$WANDB_DIR/heartbeat.txt}
@@ -17,8 +16,17 @@ export HEARTBEAT_FILE
 
 # System configuration
 if [ -z "$NUM_CPUS" ]; then
-  NUM_CPUS=$(lscpu | grep "CPU(s)" | awk '{print $NF}' | head -n1)
-  NUM_CPUS=$((NUM_CPUS / 2))
+  if command -v lscpu &> /dev/null; then
+    # Linux
+    NUM_CPUS=$(lscpu | grep "CPU(s)" | awk '{print $NF}' | head -n1)
+    NUM_CPUS=$((NUM_CPUS / 2))
+  elif command -v sysctl &> /dev/null; then
+    # macOS
+    NUM_CPUS=$(sysctl -n hw.ncpu)
+    NUM_CPUS=$((NUM_CPUS / 2))
+  else
+    NUM_CPUS=8  # fallback
+  fi
 fi
 
 # Auto-detect GPUs if not set
@@ -47,7 +55,7 @@ echo "  - Arguments: $args"
 
 echo "[INFO] Starting distributed training..."
 
-PYTHONPATH=$PYTHONPATH:. torchrun \
+PYTHONPATH=$PYTHONPATH:. uv run torchrun \
   --nnodes=$NUM_NODES \
   --nproc-per-node=$NUM_GPUS \
   --master-addr=$MASTER_ADDR \
