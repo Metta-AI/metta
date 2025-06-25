@@ -2,15 +2,31 @@ import { Vec2f, Mat3f } from './vector_math.js'
 import * as Common from './common.js'
 import { ui, state, html, ctx, setFollowSelection } from './common.js'
 import { fetchReplay, getAttr, initWebSocket, readFile, sendAction } from './replay.js'
-import { focusFullMap, drawMap, requestFrame } from './worldmap.js'
+import { focusFullMap, drawMap } from './worldmap.js'
 import { drawTrace } from './traces.js'
 import { drawMiniMap } from './minimap.js'
 import { processActions, initActionButtons } from './actions.js'
 import { initAgentTable, updateAgentTable } from './agentpanel.js'
-import { localStorageSetNumber, onEvent, initHighDpiMode } from './htmlutils.js'
+import { localStorageSetNumber, onEvent, initHighDpiMode, find } from './htmlutils.js'
 import { updateReadout, hideHoverPanel } from './hoverpanels.js'
 import { initObjectMenu } from './objmenu.js'
 import { drawTimeline, initTimeline, updateTimeline, onScrubberChange } from './timeline.js'
+import { initDemoMode, startDemoMode, stopDemoMode, doDemoMode } from './demomode.js'
+
+
+/** A flag to prevent multiple calls to requestAnimationFrame. */
+let frameRequested = false
+
+/** A function to safely request an animation frame. */
+export function requestFrame() {
+  if (!frameRequested) {
+    frameRequested = true
+    requestAnimationFrame((time) => {
+      frameRequested = false
+      onFrame()
+    })
+  }
+}
 
 /** Handles resize events. */
 export function onResize() {
@@ -333,6 +349,8 @@ export function onFrame() {
     return
   }
 
+  doDemoMode()
+
   // Make sure the canvas is the size of the window.
   html.globalCanvas.width = window.innerWidth
   html.globalCanvas.height = window.innerHeight
@@ -475,6 +493,10 @@ async function parseUrlParams() {
     ui.mapPanel.zoomLevel = parseFloat(urlParams.get('mapZoom') || '1')
   }
 
+  if (urlParams.get('demo') !== null) {
+    startDemoMode()
+  }
+
   requestFrame()
 }
 
@@ -498,7 +520,7 @@ function setIsPlaying(isPlaying: boolean) {
 }
 
 /** Toggles the opacity of a button. */
-function toggleOpacity(button: HTMLImageElement, show: boolean) {
+function toggleOpacity(button: HTMLElement, show: boolean) {
   if (show) {
     button.style.opacity = '1'
   } else {
@@ -576,6 +598,27 @@ onEvent('click', '#rewind-to-end', () => {
   setIsPlaying(false)
   updateStep(state.replay.max_steps - 1)
 })
+onEvent('click', '#demo-mode-toggle', () => {
+  if (state.demoMode) {
+    stopDemoMode()
+  } else {
+    startDemoMode()
+  }
+  toggleOpacity(html.demoModeToggle, state.demoMode)
+  requestFrame()
+})
+toggleOpacity(html.demoModeToggle, state.demoMode)
+
+onEvent('click', '#full-screen-toggle', () => {
+  state.fullScreen = !state.fullScreen
+  if (state.fullScreen) {
+    document.documentElement.requestFullscreen()
+  } else {
+    document.exitFullscreen()
+  }
+  toggleOpacity(html.fullScreenToggle, state.fullScreen)
+})
+toggleOpacity(html.fullScreenToggle, state.fullScreen)
 
 // Speed buttons
 for (let i = 0; i < html.speedButtons.length; i++) {
@@ -681,6 +724,7 @@ initActionButtons()
 initAgentTable()
 initObjectMenu()
 initTimeline()
+initDemoMode()
 
 window.addEventListener('load', async () => {
 
