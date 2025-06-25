@@ -464,12 +464,10 @@ class MettaTrainer:
                 infos[k].append(v)
 
         # Extract curriculum task probabilities from infos for distributed logging
-        curriculum_stats = {}
         for i in raw_infos:
             if "curriculum_task_probs" in i:
                 for task_id, prob in i["curriculum_task_probs"].items():
-                    curriculum_stats[f"curriculum_task_prob/{task_id.split('/')[-1]}"] = prob
-        self.stats.update(curriculum_stats)
+                    self.stats[f"curriculum_task_prob/{task_id.split('/')[-1]}"] = prob
 
         # Batch process stats more efficiently
         for k, v in infos.items():
@@ -852,11 +850,9 @@ class MettaTrainer:
             "timing_cumulative/sps": steps_per_second,
         }
 
-        # Build environment_stats, excluding curriculum_task_prob keys
         environment_stats = {
             f"env_{k.split('/')[0]}/{'/'.join(k.split('/')[1:])}": v
             for k, v in self.stats.items()
-            if not k.startswith("curriculum_task_prob/")
         }
 
         overview = {
@@ -908,7 +904,6 @@ class MettaTrainer:
                 **{f"monitor/{k}": v for k, v in self.system_monitor.stats().items()},
                 **environment_stats,
                 **weight_stats,
-                **curriculum_stats,
                 **timing_stats,
                 **metric_stats,
             }
