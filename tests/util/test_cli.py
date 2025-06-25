@@ -205,3 +205,4 @@ class TestCliIntegration:
 
         # Verify the die function was called
         mock_exit.assert_called_once_with(1)
+
