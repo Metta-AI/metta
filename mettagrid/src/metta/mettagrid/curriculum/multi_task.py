@@ -41,3 +41,12 @@ class MultiTaskCurriculum(Curriculum):
                 completion_rates[f"task_completions/{task}"] += 1
             completion_rates = {k: v / num_completed_tasks for k, v in completion_rates.items()}
         return completion_rates
+
+    def get_task_probs(self) -> dict[str, float]:
+        """Return the current task probabilities for logging purposes."""
+        total = sum(self._task_weights.values())
+        if total == 0:
+            # Avoid division by zero, assign uniform probability
+            n = len(self._task_weights)
+            return {k: 1.0 / n for k in self._task_weights}
+        return {k: v / total for k, v in self._task_weights.items()}

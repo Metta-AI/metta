@@ -40,7 +40,7 @@ private:
     }
     // Check if the converter has enough input.
     for (const auto& [item, input_amount] : this->recipe_input) {
-      if (this->inventory.count(item) > 0 && this->inventory.at(item) < input_amount) {
+      if (this->inventory.count(item) == 0 || this->inventory.at(item) < input_amount) {
         stats.incr("blocked.insufficient_input");
         return;
       }
