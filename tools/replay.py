@@ -9,6 +9,7 @@ from omegaconf import OmegaConf
 
 import mettascope.server as server
 from metta.agent.policy_store import PolicyStore
+from metta.common.util.uv_check import enforce_uv
 from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SingleEnvSimulationConfig
 from metta.util.config import Config
@@ -71,4 +72,5 @@ def main(cfg):
 
 
 if __name__ == "__main__":
+    enforce_uv()
     main()

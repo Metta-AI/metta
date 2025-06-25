@@ -10,6 +10,7 @@ import hydra
 import numpy as np
 from omegaconf import DictConfig, OmegaConf
 
+from metta.common.util.uv_check import enforce_uv
 from metta.mettagrid.curriculum.core import SingleTaskCurriculum
 from metta.mettagrid.mettagrid_env import (
     MettaGridEnv,
@@ -336,4 +337,5 @@ def main(cfg: DictConfig) -> None:
 
 
 if __name__ == "__main__":
+    enforce_uv()
     main()

@@ -5,6 +5,7 @@ from pathlib import Path
 import yaml
 from omegaconf import OmegaConf
 
+from metta.common.util.uv_check import enforce_uv
 from metta.map.utils.ascii_grid import char_grid_to_lines
 from metta.mettagrid.char_encoder import normalize_grid_char
 
@@ -52,4 +53,5 @@ def main():
 
 
 if __name__ == "__main__":
+    enforce_uv()
     main()

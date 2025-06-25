@@ -2,6 +2,8 @@
 import hydra
 import pufferlib.vector
 
+from metta.common.util.uv_check import enforce_uv
+
 
 def make_env():
     global env_config
@@ -23,4 +25,5 @@ def main(cfg):
 
 
 if __name__ == "__main__":
+    enforce_uv()
     main()
