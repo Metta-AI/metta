@@ -584,6 +584,25 @@ class MettaTrainer:
             if self.epoch % 50 == 0 and self.epoch > 0:
                 self.memory_tracker.get_leak_candidates(threshold_mb=50)
 
+                # Check optimizer state size
+                import sys
+                opt_state = self.optimizer.state_dict()
+                opt_size = sys.getsizeof(opt_state)
+                param_groups = opt_state.get('param_groups', [])
+                state_keys = opt_state.get('state', {})
+                logger.info(f"\nOptimizer state size: {opt_size / (1024*1024):.2f} MB")
+                logger.info(f"  Parameter groups: {len(param_groups)}")
+                logger.info(f"  State keys: {len(state_keys)}")
+
+                # Count tensors in optimizer state
+                opt_tensor_count = 0
+                for param_id, state in state_keys.items():
+                    if isinstance(state, dict):
+                        for k, v in state.items():
+                            if isinstance(v, torch.Tensor):
+                                opt_tensor_count += 1
+                logger.info(f"  Tensors in optimizer state: {opt_tensor_count}")
+
             # Profile class attributes every 20 epochs to find growing collections
             if self.epoch % 20 == 0 and self.epoch > 0:
                 logger.info("\n" + "="*60)
@@ -1168,6 +1187,13 @@ class MettaTrainer:
             extra_args=extra_args,
         )
         checkpoint.save(self.cfg.run_dir)
+
+        # Clear references and force garbage collection after checkpointing
+        import gc
+        del checkpoint
+        gc.collect()
+        if str(self.device).startswith("cuda"):
+            torch.cuda.empty_cache()
 
     def _checkpoint_policy(self) -> PolicyRecord | None:
         if not self._master:
