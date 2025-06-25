@@ -160,22 +160,20 @@ class MettaTrainer:
         self.latest_saved_policy = policy_record
         self.policy = policy_record.policy().to(self.device)
 
+        # Note that these fields are specific to MettaGridEnv, which is why we can't keep
+        # self.vecenv.driver_env as just the parent class pufferlib.PufferEnv
+        actions_names = metta_grid_env.action_names
+        actions_max_params = metta_grid_env.max_action_args
+
         # Models loaded via torch.package have modified class names (prefixed with <torch_package_N>)
         # which prevents them from being saved again. We work around this by creating a fresh
         # instance of the policy class and copying the state dict, allowing successful re-saving.
         # TODO: Remove this workaround when checkpointing refactor is complete
         logger.info("Creating a fresh policy instance for torch.package to save")
         fresh_policy = self.policy_store.create(metta_grid_env).policy()
-        fresh_policy.activate_actions(metta_grid_env.action_names, metta_grid_env.max_action_args, self.device)
+        fresh_policy.activate_actions(action_names, max_action_args, self.device)
         fresh_policy.load_state_dict(self.policy.state_dict(), strict=False)
         self.policy_record = fresh_policy
-
-        # Note that these fields are specific to MettaGridEnv, which is why we can't keep
-        # self.vecenv.driver_env as just the parent class pufferlib.PufferEnv
-        actions_names = metta_grid_env.action_names
-        actions_max_params = metta_grid_env.max_action_args
-
-        self.policy.activate_actions(actions_names, actions_max_params, self.device)
 
         if trainer_cfg.compile:
             logger.info("Compiling policy")
