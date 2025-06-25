@@ -13,7 +13,7 @@ defaults:
   - _self_
 
 trainer:
-  curriculum: /env/mettagrid/curriculum/navigation/bucketed
+  curriculum: /env/mettagrid/curriculum/nav_memory_sequence
 
 policy_uri: wandb://run/dd_navigation_curriculum
 
