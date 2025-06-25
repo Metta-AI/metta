@@ -148,13 +148,13 @@ class DoxascopeSweep:
             train_time = time.time() - start_time
 
             # Evaluate on the test set
-            _, test_acc, test_acc_per_step, _, _ = trainer.evaluate(test_loader, nn.CrossEntropyLoss())
+            _, test_acc_avg, test_acc_per_step, _, _ = trainer.evaluate(test_loader, nn.CrossEntropyLoss())
 
             return {
                 "config": config,
                 "best_val_acc": best_val_acc,
-                "test_acc_t1": test_acc,
-                "test_acc_all_steps": test_acc_per_step,
+                "test_acc_avg": test_acc_avg,
+                "test_acc_per_step": test_acc_per_step,
                 "train_time": train_time,
                 "success": True,
             }
@@ -174,10 +174,12 @@ class DoxascopeSweep:
             print(f"\n⚡ [{i + 1}/{len(configs)}] Testing Config: {config}")
             result = self.run_single_config(config, max_epochs=max_epochs)
             if result["success"]:
-                print(f"   ✅ Val Acc: {result['best_val_acc']:.2f}%, Test Acc (t+1): {result['test_acc_t1']:.2f}%")
-                # Optionally print accuracy for a later step if it exists
-                if len(result["test_acc_all_steps"]) >= 20:
-                    print(f"      Test Acc (t+20): {result['test_acc_all_steps'][19]:.2f}%")
+                print(f"   ✅ Val Acc: {result['best_val_acc']:.2f}%, Test Acc (avg): {result['test_acc_avg']:.2f}%")
+                if result.get("test_acc_per_step"):
+                    print(f"      t+1: {result['test_acc_per_step'][0]:.2f}%")
+                    if len(result["test_acc_per_step"]) > 1:
+                        k = len(result["test_acc_per_step"])
+                        print(f"      t+{k}: {result['test_acc_per_step'][-1]:.2f}%")
             self.results.append(result)
 
         self.save_results()
@@ -215,7 +217,9 @@ class DoxascopeSweep:
             print("\n🏆 Best Configuration (by Validation Accuracy):")
             print(f"   Config: {best_run['config']}")
             print(f"   Validation Accuracy: {best_run['best_val_acc']:.2f}%")
-            print(f"   Test Accuracy (t+1): {best_run['test_acc_t1']:.2f}%")
+            print(f"   Test Accuracy (avg): {best_run['test_acc_avg']:.2f}%")
+            if best_run.get("test_acc_per_step"):
+                print(f"   Test Accuracy (t+1): {best_run['test_acc_per_step'][0]:.2f}%")
 
 
 def main():

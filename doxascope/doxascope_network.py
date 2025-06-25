@@ -328,36 +328,25 @@ class DoxascopeTrainer:
         # Restore the best model
         best_model_checkpoint = torch.load(self.output_dir / "best_model.pth")
         self.model.load_state_dict(best_model_checkpoint["state_dict"])
-        print(f"🎯 Training completed! Best validation accuracy: {best_val_acc:.2f}%")
+        print("🎯 Training completed!")
         return best_val_acc
 
-    def analyze_results(self, test_loader, timesteps_to_analyze=(1,)):
-        """Analyze and visualize results."""
-        # Get predictions
-        _, test_acc, test_acc_per_step, all_preds_per_step, all_targets_per_step = self.evaluate(
-            test_loader, nn.CrossEntropyLoss()
-        )
+    def analyze_results(self, all_preds_per_step, all_targets_per_step, timesteps_to_analyze=(1,)):
+        """Analyzes model results, including confusion matrices for specified timesteps."""
         movement_names = ["Stay", "Up", "Down", "Left", "Right"]
 
-        # Generate plots
-        self.plot_training_curves()
-
-        # Generate confusion matrix for specified timesteps
-        for t in timesteps_to_analyze:
-            # Ensure the requested timestep is valid
-            if 1 <= t <= len(all_preds_per_step):
-                preds = all_preds_per_step[t - 1]
-                targets = all_targets_per_step[t - 1]
-                self.plot_confusion_matrix(targets, preds, movement_names, timestep=t)
-
-        self.plot_multistep_accuracy(test_acc_per_step)
-
-        print(f"Final Test Accuracy (t+1): {test_acc:.2f}%")
-
-        return test_acc
+        for timestep in timesteps_to_analyze:
+            if timestep > 0 and timestep <= len(all_preds_per_step):
+                idx = timestep - 1
+                self.plot_confusion_matrix(
+                    all_targets_per_step[idx],
+                    all_preds_per_step[idx],
+                    movement_names,
+                    timestep,
+                )
 
     def plot_training_curves(self):
-        """Plot training and validation loss/accuracy curves."""
+        """Plots training and validation loss and accuracy curves."""
         plt.figure(figsize=(12, 5))
 
         plt.subplot(1, 2, 1)
@@ -507,8 +496,8 @@ def train_doxascope(
 
     # Analyze specific timesteps for confusion matrix
     timesteps_to_analyze = [1]
-    if num_future_timesteps >= 20:
-        timesteps_to_analyze.append(20)
+    if num_future_timesteps > 1:
+        timesteps_to_analyze.append(num_future_timesteps)
 
     (
         test_loss,
@@ -519,15 +508,22 @@ def train_doxascope(
     ) = trainer.evaluate(test_loader, nn.CrossEntropyLoss())
 
     trainer.analyze_results(
-        test_loader,
+        all_preds_per_step,
+        all_targets_per_step,
         timesteps_to_analyze=timesteps_to_analyze,
     )
     trainer.plot_multistep_accuracy(test_acc_per_step)
 
     end_time = time.time()
     print(f"\n✅ Training and analysis complete in {end_time - start_time:.2f} seconds.")
-    print(f"📈 Final Test Accuracy: {test_acc:.2f}%")
-    print(f"📈 Best Validation Accuracy: {best_val_acc:.2f}%")
+    print(f"📈 Best Validation Accuracy (avg): {best_val_acc:.2f}%")
+
+    print("📈 Final Test Accuracies:")
+    if test_acc_per_step:
+        print(f"  - Average (all steps): {test_acc:.2f}%")
+        print(f"  - Step t+1: {test_acc_per_step[0]:.2f}%")
+        if len(test_acc_per_step) > 1:
+            print(f"  - Step t+{len(test_acc_per_step)}: {test_acc_per_step[-1]:.2f}%")
 
     # Return for potential further use, e.g., in automated scripts
     return best_val_acc, test_acc
