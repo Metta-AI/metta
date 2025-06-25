@@ -152,7 +152,6 @@
     "repr",
     "representer",
     "richcmp",
-    "rmsprop",
     "prio",
     "vtrace",
     "autotune",

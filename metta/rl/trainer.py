@@ -104,7 +104,7 @@ class MettaTrainer:
             auto_start=True,  # Start monitoring immediately
         )
 
-        curriculum_config: str = trainer_cfg.curriculum or trainer_cfg.env
+        curriculum_config: str = trainer_cfg.curriculum or trainer_cfg.env  # type: ignore
         env_overrides = DictConfig(trainer_cfg.env_overrides)
         self._curriculum = curriculum_from_config_path(curriculum_config, env_overrides)
         self._make_vecenv()
@@ -160,9 +160,7 @@ class MettaTrainer:
 
         # Optimizer
         optimizer_type = trainer_cfg.optimizer.type
-        assert optimizer_type in ("adam", "muon", "sgd", "rmsprop"), (
-            f"Optimizer type must be 'adam', 'muon', 'sgd', or 'rmsprop', got {optimizer_type}"
-        )
+        assert optimizer_type in ("adam", "muon"), f"Optimizer type must be 'adam' or 'muon', got {optimizer_type}"
         opt_cls = torch.optim.Adam if optimizer_type == "adam" else ForeachMuon
         self.optimizer = opt_cls(
             self.policy.parameters(),
@@ -581,7 +579,7 @@ class MettaTrainer:
                 newvalue_reshaped = newvalue.view(minibatch["returns"].shape)
                 if trainer_cfg.clip_vloss:
                     v_loss_unclipped = (newvalue_reshaped - minibatch["returns"]) ** 2
-                    vf_clip_coef = trainer_cfg.vf_clip_coef if trainer_cfg.vf_clip_coef is not None else 0.1
+                    vf_clip_coef = trainer_cfg.vf_clip_coef
                     v_clipped = minibatch["values"] + torch.clamp(
                         newvalue_reshaped - minibatch["values"],
                         -vf_clip_coef,

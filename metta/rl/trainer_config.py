@@ -7,7 +7,7 @@ from metta.util.typed_config import BaseModelWithForbidExtra
 
 
 class OptimizerConfig(BaseModelWithForbidExtra):
-    type: Literal["adam", "muon", "sgd", "rmsprop"] = "adam"
+    type: Literal["adam", "muon"] = "adam"
     learning_rate: float = Field(gt=0, le=1.0)
     beta1: float = Field(ge=0, le=1.0, default=0.9)
     beta2: float = Field(ge=0, le=1.0, default=0.999)
@@ -76,7 +76,7 @@ class TrainerConfig(BaseModelWithForbidExtra):
 
     # Training parameters
     max_grad_norm: float = Field(gt=0)
-    vf_clip_coef: float | None = Field(ge=0, default=None)
+    vf_clip_coef: float = Field(ge=0, default=0.1)
     vf_coef: float = Field(ge=0)
     l2_reg_loss_coef: float = Field(ge=0, default=0)
     l2_init_loss_coef: float = Field(ge=0, default=0)
