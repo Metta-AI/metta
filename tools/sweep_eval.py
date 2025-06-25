@@ -9,6 +9,7 @@ import yaml
 from omegaconf import DictConfig, ListConfig, OmegaConf
 
 from metta.agent.policy_store import PolicyStore
+from metta.common.uv_check import enforce_uv
 from metta.eval.eval_stats_db import EvalStatsDB
 from metta.sim.simulation_config import SimulationSuiteConfig
 from metta.sim.simulation_suite import SimulationSuite
@@ -142,4 +143,5 @@ def main(cfg: DictConfig | ListConfig) -> int:
 
 
 if __name__ == "__main__":
+    enforce_uv()
     sys.exit(main())
