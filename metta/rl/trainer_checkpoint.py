@@ -70,35 +70,36 @@ class TrainerCheckpoint:
             warnings.filterwarnings("ignore", category=FutureWarning)
             state = torch.load(checkpoint_path, weights_only=False)
 
-            # handle backward compatibility
-            if "stopwatch_state" not in state:
-                state["stopwatch_state"] = None
-
-            # Validate keys
             required_keys = {
                 "agent_step",
                 "epoch",
                 "total_agent_step",
                 "optimizer_state_dict",
                 "policy_path",
-                "stopwatch_state",
             }
-            state_keys = set(state.keys())
-            missing_keys = required_keys - state_keys
-            if missing_keys:
-                raise ValueError(f"Checkpoint is missing required keys: {missing_keys}")
 
-            unexpected_keys = state_keys - required_keys
+            # Validate all required keys are present
+            for k in required_keys:
+                if k not in state:
+                    raise ValueError(f"Checkpoint is missing required key: {k}")
+
+            additional_known_keys_map = {"stopwatch_state": None}
+
+            for k, v in additional_known_keys_map.items():
+                if k not in state:
+                    state[k] = v
+
+            # Handle unexpected keys
+            state_keys = set(state.keys())
+            all_known_keys = required_keys | set(additional_known_keys_map.keys())
+            unexpected_keys = state_keys - all_known_keys
             if unexpected_keys:
                 logger.warning(
                     f"Loaded checkpoint contains unexpected keys: {unexpected_keys}. "
                     f"These will be stored in extra_args."
                 )
 
-            # Extract only known parameters for the constructor
-            constructor_kwargs = {key: state[key] for key in required_keys}
-
-            # Store unexpected keys in extra_args
+            constructor_kwargs = {key: state[key] for key in all_known_keys}
             if unexpected_keys:
                 constructor_kwargs["extra_args"] = {key: state[key] for key in unexpected_keys}
 
