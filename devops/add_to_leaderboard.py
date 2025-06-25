@@ -111,7 +111,7 @@ Examples:
         f"run={args.run}",
         f"policy_uri={wandb_path}",
         "+eval_db_uri=wandb://stats/navigation_db",
-        "+analysis.output_path=s3://softmax-public/policydash/dashboard.html",
+        "+analysis.output_path=s3://softmax-public/policydash/results.html",
         '+analysis.num_output_policies="all"',
     ] + additional_args
 
@@ -122,7 +122,12 @@ Examples:
     print("✅ Analysis completed successfully")
 
     print(f"\n🎉 Successfully added policy for {wandb_path} to leaderboard and updated dashboard!")
-    print("📈 Dashboard URL: https://softmax-public.s3.amazonaws.com/policydash/dashboard.html")
+
+    dashboard_url = """
+https://metta-ai.github.io/metta/observatory/?data=https://s3.amazonaws.com/softmax-public/policydash/results.html
+"""
+
+    print(f"📈 Dashboard URL: {dashboard_url}")
 
 
 if __name__ == "__main__":
