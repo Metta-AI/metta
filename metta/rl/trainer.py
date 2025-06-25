@@ -155,12 +155,13 @@ class MettaTrainer:
             # which prevents them from being saved again. We work around this by creating a fresh
             # instance of the policy class and copying the state dict, allowing successful re-saving.
             # TODO: Remove this workaround when checkpointing refactor is complete
-
             loaded_policy = policy_record.policy()
             loaded_policy.activate_actions(actions_names, actions_max_params, self.device)
-            logger.info("Creating a fresh policy instance from the loaded policy")
+
             fresh_policy = policy_store.create(metta_grid_env).policy()
+            fresh_policy.activate_actions(actions_names, actions_max_params, self.device)
             fresh_policy.load_state_dict(loaded_policy.state_dict(), strict=False)
+
             self.policy = fresh_policy
 
         else:
@@ -173,6 +174,7 @@ class MettaTrainer:
         assert self.policy is not None, "Failed to obtain policy"
 
         self.policy.activate_actions(actions_names, actions_max_params, self.device)
+
         self.initial_policy = self.policy
         self.latest_saved_policy = self.policy
 
