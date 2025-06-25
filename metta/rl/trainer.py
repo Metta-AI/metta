@@ -652,8 +652,14 @@ class MettaTrainer:
                 hidden_states, hidden_states.shape[0], hidden_states.shape[1]
             )
 
+            # Reshape contrastive reward to match experience buffer format
+            # contrastive_reward has shape (batch_size,) where batch_size = segments * bptt_horizon
+            # We need to reshape it to (segments, bptt_horizon) to match experience.rewards
+            segments, bptt_horizon = experience.rewards.shape
+            contrastive_reward_reshaped = contrastive_reward.view(segments, bptt_horizon)
+
             # Add reward to all agents (reward sharing)
-            experience.rewards += contrastive_reward * reward_coef
+            experience.rewards += contrastive_reward_reshaped * reward_coef
 
     def _checkpoint_trainer(self):
         if not self._master:
