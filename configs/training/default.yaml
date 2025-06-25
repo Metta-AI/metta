@@ -1,0 +1,36 @@
+# Training and Experience Configuration
+
+# Total training steps
+total_timesteps: 50_000_000_000
+
+# Batch sizes
+batch_size: 262144
+minibatch_size: 16384
+bptt_horizon: 64  # Backpropagation through time horizon
+
+# Environment batching
+forward_pass_minibatch_target_size: 2048
+async_factor: 2
+
+# Experience buffer
+cpu_offload: false  # Whether to offload experience to CPU
+zero_copy: true     # Use zero-copy for environment data
+require_contiguous_env_ids: false
+
+# Model compilation
+compile: false
+compile_mode: reduce-overhead
+
+# Checkpointing
+checkpoint_interval: 60
+wandb_checkpoint_interval: 300
+evaluate_interval: 300
+replay_interval: 300
+
+# Profiling
+profiler_interval_epochs: 10000
+verbose: true
+
+# Average reward settings
+average_reward: false  # Set to true to use average reward optimization
+average_reward_alpha: 0.01  # Smoothing factor for 100k step average (ln(2)/100000)

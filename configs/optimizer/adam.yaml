@@ -1,0 +1,13 @@
+# Adam Optimizer Configuration
+
+type: adam
+learning_rate: 0.0004573146765703167
+beta1: 0.9
+beta2: 0.999
+eps: 1e-12
+weight_decay: 0
+
+# Learning rate scheduler
+lr_scheduler:
+  enabled: false
+  anneal_lr: false

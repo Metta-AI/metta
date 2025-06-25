@@ -1,0 +1,14 @@
+# Kickstarter (Imitation Learning) Configuration
+
+teacher_uri: null  # URI of the teacher policy
+action_loss_coef: 1  # Coefficient for action imitation loss
+value_loss_coef: 1  # Coefficient for value imitation loss
+anneal_ratio: 0.65  # Ratio of kickstart_steps to anneal to 0 coefficient
+kickstart_steps: 1_000_000_000  # Number of steps to use kickstarter
+
+# Additional teachers for multi-teacher imitation
+additional_teachers: []
+  # Example:
+  # - teacher_uri: wandb://run/teacher_model:v1
+  #   action_loss_coef: 0.5
+  #   value_loss_coef: 0.6

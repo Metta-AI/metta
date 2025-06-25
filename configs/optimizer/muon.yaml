@@ -1,0 +1,13 @@
+# Muon Optimizer Configuration
+
+type: muon
+learning_rate: 0.000238167
+beta1: 0.943
+beta2: 0.9997
+eps: 1.82e-13
+weight_decay: 0
+
+# Learning rate scheduler
+lr_scheduler:
+  enabled: false
+  anneal_lr: false

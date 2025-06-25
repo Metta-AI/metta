@@ -1,0 +1,22 @@
+# Environment and VecEnv Configuration
+
+# Number of parallel workers for environment execution
+num_workers: ???  # Must be specified
+
+# Curriculum configuration
+curriculum: /env/mettagrid/curriculum/simple
+
+# Environment overrides
+env_overrides:
+  desync_episodes: true
+
+# Initial policy configuration
+initial_policy:
+  uri: null
+  type: top
+  range: 1
+  metric: epoch
+  filters: {}
+
+# Replay settings
+replay_dir: s3://softmax-public/replays/${run}

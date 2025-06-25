@@ -2,6 +2,11 @@ defaults:
   - common
   - agent: fast
   - trainer: puffer
+  - ppo: default
+  - optimizer: adam
+  - training: default
+  - environment: default
+  - kickstarter: default
   - sim: all
   - wandb: metta_research
   - _self_
