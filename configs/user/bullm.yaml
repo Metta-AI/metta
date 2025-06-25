@@ -3,6 +3,7 @@
 # User config for running progressive curriculum on navigation tasks
 
 defaults:
+  - /common
   - /agent/fast
   - /trainer/puffer
   - /sim/all@evals  # Use navigation-only evaluation suite
@@ -16,8 +17,6 @@ run_dir: ${data_dir}/${run}
 
 trainer:
   curriculum: /env/mettagrid/curriculum/navigation/progressive
-  env_overrides:
-    desync_episodes: true
   num_workers: 4
   evaluate_interval: 100
   total_timesteps: 10_000_000  # Shorter run for testing
