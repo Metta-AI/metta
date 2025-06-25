@@ -93,15 +93,16 @@ export const state = {
   fullScreen: false,
 
   // What to show?
+  showUi: true,
   showResources: true,
   showGrid: true,
   showVisualRanges: true,
   showFogOfWar: false,
   showMiniMap: false,
   showInfo: false,
+  showTraces: true,
   showControls: false,
   showAgentPanel: false,
-
   showAttackMode: false,
 
   // Playing over a WebSocket
@@ -124,6 +125,7 @@ export const html = {
   rewindToEndButton: find('#rewind-to-end'),
   demoModeToggle: find('#demo-mode-toggle'),
   fullScreenToggle: find('#full-screen-toggle'),
+  tracesToggle: find('#traces-toggle'),
 
   actionButtons: find('#action-buttons'),
 
