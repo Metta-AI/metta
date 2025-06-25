@@ -222,6 +222,11 @@ class Experience:
         self.ep_indices = self._range_tensor % self.segments
         self.ep_lengths.zero_()
 
+        for key in list(self.lstm_h.keys()):
+            if key in self.lstm_h:
+                self.lstm_h[key] = self.lstm_h[key].detach()
+                self.lstm_c[key] = self.lstm_c[key].detach()
+
     def reset_importance_sampling_ratios(self) -> None:
         """Reset the importance sampling ratio to 1.0."""
         self.ratio.fill_(1.0)
