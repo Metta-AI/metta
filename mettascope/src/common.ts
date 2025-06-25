@@ -100,7 +100,7 @@ export const state = {
   showMiniMap: false,
   showInfo: false,
   showTraces: true,
-  showControls: false,
+  showActionButtons: false,
   showAgentPanel: false,
   showAttackMode: false,
 

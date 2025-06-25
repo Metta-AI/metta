@@ -68,6 +68,8 @@ export function onResize() {
     ui.tracePanel.y = ui.mapPanel.y + ui.mapPanel.height
     ui.tracePanel.width = screenWidth
     ui.tracePanel.height = screenHeight - ui.tracePanel.y - Common.FOOTER_HEIGHT
+
+    html.actionButtons.style.top = ui.tracePanel.y - 148 + 'px'
   } else {
     ui.tracePanel.x = 0
     ui.tracePanel.y = 0
@@ -75,6 +77,8 @@ export function onResize() {
     ui.tracePanel.height = 0
     // Have the map panel take up the trace panel's space.
     ui.mapPanel.height = screenHeight - ui.mapPanel.y - Common.FOOTER_HEIGHT
+    ui.miniMapPanel.y = ui.mapPanel.y + ui.mapPanel.height - ui.miniMapPanel.height
+    html.actionButtons.style.top = ui.mapPanel.y + ui.mapPanel.height - 148 + 'px'
   }
 
   // Timeline panel is always on the bottom of the screen.
@@ -89,7 +93,7 @@ export function onResize() {
   ui.agentPanel.width = screenWidth
   ui.agentPanel.height = ui.agentPanelSplit * screenHeight
 
-  html.actionButtons.style.top = ui.tracePanel.y - 148 + 'px'
+
 
   ui.mapPanel.updateDiv()
   ui.miniMapPanel.updateDiv()
@@ -398,7 +402,7 @@ export function onFrame() {
     ui.infoPanel.div.classList.add('hidden')
   }
 
-  if (state.showControls) {
+  if (state.showActionButtons) {
     html.actionButtons.classList.remove('hidden')
   } else {
     html.actionButtons.classList.add('hidden')
@@ -701,15 +705,15 @@ if (localStorage.hasOwnProperty('showMiniMap')) {
 toggleOpacity(html.minimapToggle, state.showMiniMap)
 
 onEvent('click', '#controls-toggle', () => {
-  state.showControls = !state.showControls
-  localStorage.setItem('showControls', state.showControls.toString())
-  toggleOpacity(html.controlsToggle, state.showControls)
+  state.showActionButtons = !state.showActionButtons
+  localStorage.setItem('showActionButtons', state.showActionButtons.toString())
+  toggleOpacity(html.controlsToggle, state.showActionButtons)
   requestFrame()
 })
-if (localStorage.hasOwnProperty('showControls')) {
-  state.showControls = localStorage.getItem('showControls') === 'true'
+if (localStorage.hasOwnProperty('showActionButtons')) {
+  state.showActionButtons = localStorage.getItem('showActionButtons') === 'true'
 }
-toggleOpacity(html.controlsToggle, state.showControls)
+toggleOpacity(html.controlsToggle, state.showActionButtons)
 
 onEvent('click', '#info-toggle', () => {
   state.showInfo = !state.showInfo
@@ -744,6 +748,42 @@ if (localStorage.hasOwnProperty('showTraces')) {
   state.showTraces = localStorage.getItem('showTraces') === 'true'
 }
 toggleOpacity(html.tracesToggle, state.showTraces)
+
+onEvent('click', '#info-panel .close', () => {
+  state.showInfo = false
+  localStorage.setItem('showInfo', state.showInfo.toString())
+  toggleOpacity(html.infoToggle, state.showInfo)
+  requestFrame()
+})
+
+onEvent('click', '#minimap-panel .close', () => {
+  state.showMiniMap = false
+  localStorage.setItem('showMiniMap', state.showMiniMap.toString())
+  toggleOpacity(html.minimapToggle, state.showMiniMap)
+  requestFrame()
+})
+
+onEvent('click', '#agent-panel .close', () => {
+  state.showAgentPanel = false
+  localStorage.setItem('showAgentPanel', state.showAgentPanel.toString())
+  toggleOpacity(html.agentPanelToggle, state.showAgentPanel)
+  requestFrame()
+})
+
+onEvent('click', '#trace-panel .close', () => {
+  state.showTraces = false
+  localStorage.setItem('showTraces', state.showTraces.toString())
+  toggleOpacity(html.tracesToggle, state.showTraces)
+  onResize()
+  requestFrame()
+})
+
+onEvent('click', '#action-buttons .close', () => {
+  state.showActionButtons = false
+  localStorage.setItem('showActionButtons', state.showActionButtons.toString())
+  toggleOpacity(html.controlsToggle, state.showActionButtons)
+  requestFrame()
+})
 
 initHighDpiMode()
 initActionButtons()
