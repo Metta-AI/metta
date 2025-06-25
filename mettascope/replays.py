@@ -6,13 +6,13 @@ import time
 import hydra
 import torch
 
+from common.metta.util.logging import setup_mettagrid_logger
+from common.metta.util.runtime_configuration import setup_mettagrid_environment
+from common.metta.util.wandb.wandb_context import WandbContext
 from metta.agent.metta_agent import MettaAgent
 from metta.agent.policy_store import PolicyStore
 from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SingleEnvSimulationConfig
-from metta.util.logging import setup_mettagrid_logger
-from metta.util.runtime_configuration import setup_mettagrid_environment
-from metta.util.wandb.wandb_context import WandbContext
 
 
 class FakeAgent(MettaAgent):

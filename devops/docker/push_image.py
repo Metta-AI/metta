@@ -7,9 +7,9 @@ import argparse
 import subprocess
 import sys
 
+from common.metta.util.cli import get_user_confirmation, sh
+from common.metta.util.colorama import bold
 from common.src.metta.common.fs import cd_repo_root
-from metta.util.cli import get_user_confirmation, sh
-from metta.util.colorama import bold
 
 
 def main():

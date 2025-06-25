@@ -1,8 +1,8 @@
-"""Tests for metta.util.datastruct module."""
+"""Tests for common.metta.util.datastruct module."""
 
 from omegaconf import DictConfig, ListConfig
 
-from metta.util.datastruct import flatten_config
+from common.metta.util.datastruct import flatten_config
 
 
 class TestFlattenConfig:

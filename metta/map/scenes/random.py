@@ -1,7 +1,7 @@
 import numpy as np
 
+from common.metta.util.config import Config
 from metta.map.scene import Scene
-from metta.util.config import Config
 
 
 class RandomParams(Config):

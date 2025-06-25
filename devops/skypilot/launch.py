@@ -6,6 +6,9 @@ import sys
 
 import sky
 
+from common.metta.util.cli import get_user_confirmation
+from common.metta.util.colorama import red
+from common.metta.util.git import get_current_commit, validate_git_ref
 from common.src.metta.common.fs import cd_repo_root
 from devops.skypilot.utils import (
     check_config_files,
@@ -13,9 +16,6 @@ from devops.skypilot.utils import (
     display_job_summary,
     launch_task,
 )
-from metta.util.cli import get_user_confirmation
-from metta.util.colorama import red
-from metta.util.git import get_current_commit, validate_git_ref
 
 
 def patch_task(

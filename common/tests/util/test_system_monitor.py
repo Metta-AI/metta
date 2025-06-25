@@ -9,7 +9,7 @@ import psutil
 import pytest
 import torch
 
-from metta.util.system_monitor import SystemMonitor
+from common.metta.util.system_monitor import SystemMonitor
 
 # Platform detection helpers
 IS_MACOS = platform.system() == "Darwin"

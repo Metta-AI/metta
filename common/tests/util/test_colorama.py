@@ -1,8 +1,8 @@
-"""Tests for metta.util.colorama module."""
+"""Tests for common.metta.util.colorama module."""
 
 from colorama import Fore, Style
 
-from metta.util.colorama import (
+from common.metta.util.colorama import (
     blue,
     bold,
     colorize,

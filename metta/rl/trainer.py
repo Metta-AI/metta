@@ -15,6 +15,9 @@ from heavyball import ForeachMuon
 from omegaconf import DictConfig, ListConfig
 
 from app_backend.stats_client import StatsClient
+from common.metta.util.heartbeat import record_heartbeat
+from common.metta.util.system_monitor import SystemMonitor
+from common.metta.util.wandb.wandb_context import WandbRun
 from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
 from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyRecord, PolicyStore
@@ -33,9 +36,6 @@ from metta.rl.vecenv import make_vecenv
 from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
 from metta.sim.simulation_suite import SimulationSuite
-from metta.util.heartbeat import record_heartbeat
-from metta.util.system_monitor import SystemMonitor
-from metta.util.wandb.wandb_context import WandbRun
 
 try:
     from pufferlib import _C  # noqa: F401 - Required for torch.ops.pufferlib
