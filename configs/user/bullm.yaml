@@ -27,6 +27,7 @@ trainer:
     progression_mode: "perf"
     blending_smoothness: 0.5
     blending_mode: "logistic"
+  num_workers: 4
   evaluate_interval: 100
 
 # Add any other user-specific overrides below
