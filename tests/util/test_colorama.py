@@ -1,6 +1,5 @@
 """Tests for metta.util.colorama module."""
 
-import pytest
 from colorama import Fore, Style
 
 from metta.util.colorama import (
@@ -106,7 +105,7 @@ class TestColoramaUtils:
     def test_color_functions_with_empty_string(self):
         """Test color functions with empty string."""
         empty_text = ""
-        
+
         assert red(empty_text) == f"{Fore.RED}{empty_text}{Style.RESET_ALL}"
         assert green(empty_text) == f"{Fore.GREEN}{empty_text}{Style.RESET_ALL}"
         assert yellow(empty_text) == f"{Fore.YELLOW}{empty_text}{Style.RESET_ALL}"
@@ -118,7 +117,7 @@ class TestColoramaUtils:
     def test_color_functions_with_special_characters(self):
         """Test color functions with special characters."""
         special_text = "!@#$%^&*()_+-=[]{}|;':\",./<>?"
-        
+
         result = red(special_text)
         expected = f"{Fore.RED}{special_text}{Style.RESET_ALL}"
         assert result == expected
@@ -126,7 +125,7 @@ class TestColoramaUtils:
     def test_color_functions_with_unicode(self):
         """Test color functions with unicode characters."""
         unicode_text = "Hello 世界 🌍"
-        
+
         result = green(unicode_text)
         expected = f"{Fore.GREEN}{unicode_text}{Style.RESET_ALL}"
         assert result == expected
@@ -134,7 +133,7 @@ class TestColoramaUtils:
     def test_color_functions_with_multiline_text(self):
         """Test color functions with multiline text."""
         multiline_text = "Line 1\nLine 2\nLine 3"
-        
+
         result = blue(multiline_text)
         expected = f"{Fore.BLUE}{multiline_text}{Style.RESET_ALL}"
         assert result == expected
@@ -143,7 +142,7 @@ class TestColoramaUtils:
         """Test all color functions return plain text when colors are disabled."""
         use_colors(False)
         text = "test message"
-        
+
         assert red(text) == text
         assert green(text) == text
         assert yellow(text) == text
@@ -155,17 +154,17 @@ class TestColoramaUtils:
     def test_use_colors_toggle(self):
         """Test toggling colors on and off multiple times."""
         text = "test"
-        
+
         # Start with colors enabled
         use_colors(True)
         colored_result = red(text)
         assert colored_result == f"{Fore.RED}{text}{Style.RESET_ALL}"
-        
+
         # Disable colors
         use_colors(False)
         plain_result = red(text)
         assert plain_result == text
-        
+
         # Re-enable colors
         use_colors(True)
         colored_again = red(text)
@@ -174,11 +173,11 @@ class TestColoramaUtils:
     def test_colorize_with_different_styles(self):
         """Test colorize function with different color and style combinations."""
         text = "test"
-        
+
         # Test with foreground colors
         assert colorize(text, Fore.RED) == f"{Fore.RED}{text}{Style.RESET_ALL}"
         assert colorize(text, Fore.GREEN) == f"{Fore.GREEN}{text}{Style.RESET_ALL}"
-        
+
         # Test with styles
         assert colorize(text, Style.BRIGHT) == f"{Style.BRIGHT}{text}{Style.RESET_ALL}"
         assert colorize(text, Style.DIM) == f"{Style.DIM}{text}{Style.RESET_ALL}"
