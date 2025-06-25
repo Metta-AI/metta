@@ -46,9 +46,16 @@ private:
       }
     }
     // produce.
+    // Get the amounts to consume from input, so we don't update the inventory
+    // while iterating over it.
+    std::map<InventoryItem, uint8_t> amounts_to_consume;
     for (const auto& [item, input_amount] : this->recipe_input) {
-      this->update_inventory(item, -input_amount);
-      stats.add(InventoryItemNames[item] + ".consumed", input_amount);
+      amounts_to_consume[item] = input_amount;
+    }
+
+    for (const auto& [item, amount] : amounts_to_consume) {
+      this->update_inventory(item, -amount);
+      stats.add(InventoryItemNames[item] + ".consumed", amount);
     }
     // All the previous returns were "we don't start converting".
     // This one is us starting to convert.
