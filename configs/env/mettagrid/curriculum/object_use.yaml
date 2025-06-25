@@ -11,9 +11,9 @@ buckets:
     bins: 2
   game.map_builder.room.objects.altar:
     range: [1, 3]
-  game.map_builder.room.objects.generator.red:
+  game.map_builder.room.objects.generator_red:
     range: [1, 3]
-  game.map_builder.room.objects.mine.red:
+  game.map_builder.room.objects.mine_red:
     range: [1, 3]
   game.map_builder.room.objects.wall:
     range: [1, 3]

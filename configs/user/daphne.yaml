@@ -13,10 +13,10 @@ defaults:
   - _self_
 
 trainer:
-  curriculum: /env/mettagrid/navigation/evals/emptyspace_withinsight
+  curriculum: /env/mettagrid/curriculum/object_use
 
 policy_uri: wandb://run/daphne.navigation.bucketed.sky.8agents.06-25
 
-run_id: 2
+run_id: 3
 run: ${oc.env:USER}.local.${run_id}
 trained_policy_uri: ${run_dir}/checkpoints
