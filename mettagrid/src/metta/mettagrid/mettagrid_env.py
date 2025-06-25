@@ -231,8 +231,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
             self._task.complete(self._c_env.get_episode_rewards().mean())
 
             # Add curriculum task probabilities to infos for distributed logging
-            if hasattr(self._curriculum, "get_task_probs"):
-                infos["curriculum_task_probs"] = self._curriculum.get_task_probs()
+            infos["curriculum_task_probs"] = self._curriculum.get_task_probs()
 
         self.timer.start("thread_idle")
         return self.observations, self.rewards, self.terminals, self.truncations, infos
