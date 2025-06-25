@@ -37,18 +37,15 @@ protected:
     // Actions is only successful if we take at least one item.
     bool items_taken = false;
 
-    for (size_t i = 0; i < InventoryItem::InventoryItemCount; i++) {
-      if (converter->recipe_output[i] == 0) {
-        // We only want to take things the converter can produce. Otherwise it's a pain to
-        // collect resources from a converter that's in the middle of processing a queue.
+    for (const auto& [item, amount] : converter->recipe_output) {
+      if (converter->inventory.count(item) == 0) {
         continue;
       }
-
-      int taken = actor->update_inventory(static_cast<InventoryItem>(i), converter->inventory[i]);
+      int taken = actor->update_inventory(item, converter->inventory[item]);
 
       if (taken > 0) {
-        actor->stats.add(InventoryItemNames[i] + ".get", taken);
-        converter->update_inventory(static_cast<InventoryItem>(i), -taken);
+        actor->stats.add(InventoryItemNames[item] + ".get", taken);
+        converter->update_inventory(item, -taken);
         items_taken = true;
       }
     }
