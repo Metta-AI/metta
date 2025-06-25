@@ -32,7 +32,10 @@ protected:
 
     bool success = false;
     for (const auto& [item, amount] : converter->recipe_input) {
-      int max_to_put = std::min(amount, actor->inventory.count(item) > 0 ? actor->inventory.at(item) : 0);
+      if (actor->inventory.count(item) == 0) {
+        continue;
+      }
+      int max_to_put = std::min(amount, actor->inventory.at(item));
       if (max_to_put > 0) {
         int put = converter->update_inventory(item, max_to_put);
         if (put > 0) {
