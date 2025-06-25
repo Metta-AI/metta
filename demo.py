@@ -1,27 +1,33 @@
 #!/usr/bin/env python3
 """
-Functional Training Demo for Metta
+Functional Training Demo for Metta - No Hydra, Pure Python
 
 This demonstrates how to train a Metta agent using a functional approach,
-without the MettaTrainer class. All training logic is exposed as a simple
-while loop that calls rollout and train_ppo functions.
+creating all objects directly in Python without any framework magic.
 """
 
+# Add metta to path for demo purposes
 import sys
 import time
 from pathlib import Path
+from typing import Any
 
-import hydra
 import numpy as np
 import torch
-from omegaconf import DictConfig
+from pydantic import BaseModel
 
-# Add metta to path for demo purposes
 sys.path.insert(0, str(Path(__file__).parent))
 
+from metta.agent.lib.action import ActionEmbedding
+from metta.agent.lib.actor import MettaActorSingleHead
+from metta.agent.lib.lstm import LSTM
+from metta.agent.lib.nn_layer_library import Conv2d, Flatten, Linear, ReLU
+from metta.agent.lib.obs_token_to_box_shaper import ObsTokenToBoxShaper
+from metta.agent.lib.observation_normalizer import ObservationNormalizer
+from metta.agent.metta_agent import MettaAgent
 from metta.agent.policy_store import PolicyStore
 from metta.common.stopwatch import Stopwatch
-from metta.mettagrid.curriculum.util import curriculum_from_config_path
+from metta.mettagrid.curriculum.util import SamplingCurriculum
 from metta.mettagrid.mettagrid_env import MettaGridEnv
 from metta.rl.experience import Experience
 from metta.rl.functional_trainer import rollout, train_ppo
@@ -29,6 +35,7 @@ from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses
 from metta.rl.trainer_checkpoint import TrainerCheckpoint
 from metta.rl.vecenv import make_vecenv
+from metta.util.config import config_from_path
 from metta.util.logging import setup_mettagrid_logger
 
 # Ensure pufferlib is available
@@ -40,376 +47,377 @@ except ImportError:
 torch.set_float32_matmul_precision("high")
 
 
-class FunctionalTrainingDemo:
-    """A demo class that shows how to do functional training."""
+# Pydantic models for configuration
+class PPOConfig(BaseModel):
+    """PPO algorithm configuration."""
 
-    def __init__(self, cfg: DictConfig):
-        self.cfg = cfg
-        self.logger = setup_mettagrid_logger("demo")
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.logger.info(f"Using device: {self.device}")
+    gamma: float = 0.99
+    gae_lambda: float = 0.95
+    clip_coef: float = 0.2
+    ent_coef: float = 0.01
+    vf_coef: float = 0.5
+    max_grad_norm: float = 0.5
+    norm_adv: bool = True
+    clip_vloss: bool = True
+    vf_clip_coef: float = 0.1
+    update_epochs: int = 4
+    target_kl: float | None = None
+    l2_reg_loss_coef: float = 0.0
+    l2_init_loss_coef: float = 0.0
+    vtrace_rho_clip: float = 1.0
+    vtrace_c_clip: float = 1.0
 
-        # Timer for performance tracking
-        self.timer = Stopwatch(self.logger)
-        self.timer.start()
 
-    def setup_environment(self):
-        """Create the vectorized environment."""
-        self.logger.info("Setting up environment...")
+class TrainingConfig(BaseModel):
+    """Training configuration."""
 
-        # Create curriculum from config
-        curriculum_config = "/env/mettagrid/curriculum/simple"
-        env_overrides = DictConfig({"desync_episodes": True})
-        curriculum = curriculum_from_config_path(curriculum_config, env_overrides)
+    total_timesteps: int = 100000
+    batch_size: int = 2048
+    minibatch_size: int = 256
+    bptt_horizon: int = 64
+    learning_rate: float = 0.0003
+    checkpoint_interval: int = 10
+    seed: int = 42
+    device: str = "cuda" if torch.cuda.is_available() else "cpu"
 
-        # Environment parameters
-        num_workers = 1
-        num_agents = curriculum.get_task().env_cfg().game.num_agents
-        batch_size = 128 // num_agents  # Target batch size per agent
-        num_envs = batch_size * 2  # async_factor = 2
 
-        self.logger.info(f"Creating {num_envs} environments with {num_agents} agents each")
+class EnvironmentConfig(BaseModel):
+    """Environment configuration."""
 
-        # Create vectorized environment
-        self.vecenv = make_vecenv(
-            curriculum,
-            "multiprocessing",
-            num_envs=num_envs,
-            batch_size=batch_size,
-            num_workers=num_workers,
-            zero_copy=True,
-        )
+    num_envs: int = 8
+    num_workers: int = 1
+    env_config_path: str = "configs/env/mettagrid/curriculum/simple.yaml"
+    desync_episodes: bool = True
 
-        # Reset with seed
-        seed = self.cfg.get("seed", 42)
-        self.vecenv.async_reset(seed)
 
-        # Get driver environment
-        self.metta_grid_env = self.vecenv.driver_env
-        assert isinstance(self.metta_grid_env, MettaGridEnv)
+def create_agent(device: torch.device) -> MettaAgent:
+    """Create a MettaAgent directly with all components."""
+    # Create component instances directly
+    components = {
+        "_obs_": ObsTokenToBoxShaper(name="_obs_"),
+        "obs_normalizer": ObservationNormalizer(name="obs_normalizer", sources=[{"name": "_obs_"}]),
+        "cnn1": Conv2d(
+            name="cnn1",
+            sources=[{"name": "obs_normalizer"}],
+            nn_params={"out_channels": 32, "kernel_size": 3, "stride": 1},
+        ),
+        "obs_flattener": Flatten(name="obs_flattener", sources=[{"name": "cnn1"}]),
+        "fc1": Linear(name="fc1", sources=[{"name": "obs_flattener"}], nn_params={"out_features": 128}),
+        "_core_": LSTM(name="_core_", sources=[{"name": "fc1"}], output_size=128, nn_params={"num_layers": 2}),
+        "core_relu": ReLU(name="core_relu", sources=[{"name": "_core_"}]),
+        "critic_1": Linear(
+            name="critic_1", sources=[{"name": "core_relu"}], nn_params={"out_features": 256}, nonlinearity="nn.Tanh"
+        ),
+        "_value_": Linear(
+            name="_value_", sources=[{"name": "critic_1"}], nn_params={"out_features": 1}, nonlinearity=None
+        ),
+        "actor_1": Linear(name="actor_1", sources=[{"name": "core_relu"}], nn_params={"out_features": 256}),
+        "_action_embeds_": ActionEmbedding(
+            name="_action_embeds_", nn_params={"num_embeddings": 100, "embedding_dim": 16}
+        ),
+        "_action_": MettaActorSingleHead(name="_action_", sources=[{"name": "actor_1"}, {"name": "_action_embeds_"}]),
+    }
 
-        return self.vecenv
+    # Create agent with components
+    agent = MettaAgent(
+        obs_space=None,  # Will be set later
+        obs_width=11,
+        obs_height=11,
+        action_space=None,  # Will be set later
+        feature_normalizations={},
+        device=str(device),
+        analyze_weights_interval=0,
+        clip_range=0,
+        l2_init_weight_update_interval=0,
+        observations={"obs_key": "grid_obs"},
+        components=components,
+    )
 
-    def setup_policy(self):
-        """Create and initialize the policy."""
-        self.logger.info("Setting up policy...")
+    return agent
 
-        # Create policy store
-        self.policy_store = PolicyStore(self.cfg, wandb_run=None)
 
-        # Load or create policy
-        checkpoint_dir = Path("./demo_checkpoints")
-        checkpoint_dir.mkdir(exist_ok=True)
+def create_environment(env_config: EnvironmentConfig):
+    """Create the vectorized environment directly."""
+    # Load environment configuration
+    env_cfg = config_from_path(env_config.env_config_path)
 
-        checkpoint = TrainerCheckpoint.load(str(checkpoint_dir.parent))
+    # Create curriculum
+    env_overrides = {"desync_episodes": env_config.desync_episodes}
+    curriculum = SamplingCurriculum(env_config.env_config_path, env_overrides)
 
-        if checkpoint.policy_path:
-            policy_record = self.policy_store.load_from_uri(checkpoint.policy_path)
-            self.logger.info(f"Loaded existing policy from {checkpoint.policy_path}")
-        else:
-            policy_record = self.policy_store.create(self.metta_grid_env)
-            self.logger.info("Created new policy")
+    # Get environment parameters
+    task_cfg = curriculum.get_task().env_cfg()
+    num_agents = task_cfg.game.num_agents
+    batch_size = env_config.num_envs // num_agents
 
-        self.policy = policy_record.policy().to(self.device)
+    # Create vectorized environment
+    vecenv = make_vecenv(
+        curriculum,
+        "multiprocessing",
+        num_envs=env_config.num_envs,
+        batch_size=batch_size,
+        num_workers=env_config.num_workers,
+        zero_copy=True,
+    )
 
-        # Activate actions
-        self.policy.activate_actions(self.metta_grid_env.action_names, self.metta_grid_env.max_action_args, self.device)
+    return vecenv, curriculum
 
-        return self.policy, checkpoint
 
-    def setup_training(self, checkpoint):
-        """Set up training components."""
-        self.logger.info("Setting up training components...")
+def functional_train_loop(
+    agent: MettaAgent,
+    vecenv: Any,
+    ppo_config: PPOConfig,
+    training_config: TrainingConfig,
+    checkpoint_dir: Path,
+    logger: Any,
+):
+    """Pure functional training loop."""
+    device = torch.device(training_config.device)
 
-        # Experience buffer
-        self.experience = Experience(
-            total_agents=self.vecenv.num_agents,
-            batch_size=128,
-            bptt_horizon=64,
-            minibatch_size=64,
-            max_minibatch_size=64,
-            obs_space=self.vecenv.single_observation_space,
-            atn_space=self.vecenv.single_action_space,
-            device=self.device,
-            hidden_size=getattr(self.policy, "hidden_size", 128),
-            cpu_offload=False,
-            num_lstm_layers=2,
-            agents_per_batch=getattr(self.vecenv, "agents_per_batch", None),
-        )
+    # Reset environment with seed
+    vecenv.async_reset(training_config.seed)
 
-        # Optimizer
-        self.optimizer = torch.optim.Adam(
-            self.policy.parameters(),
-            lr=0.0003,
-            betas=(0.9, 0.999),
-            eps=1e-8,
-        )
+    # Get driver environment
+    metta_grid_env = vecenv.driver_env
+    assert isinstance(metta_grid_env, MettaGridEnv)
 
-        # Load optimizer state if available
-        if checkpoint.agent_step > 0:
-            try:
-                self.optimizer.load_state_dict(checkpoint.optimizer_state_dict)
-                self.logger.info("Loaded optimizer state from checkpoint")
-            except Exception as e:
-                self.logger.warning(f"Could not load optimizer state: {e}")
+    # Now we can properly initialize the agent with environment info
+    import gymnasium as gym
 
-        # Loss tracker
-        self.losses = Losses()
-
-        # Kickstarter (for imitation learning, optional)
-        self.kickstarter = Kickstarter(
-            self.cfg, self.policy_store, self.metta_grid_env.action_names, self.metta_grid_env.max_action_args
-        )
-
-        # Training state
-        self.agent_step = checkpoint.agent_step
-        self.epoch = checkpoint.epoch
-
-        return checkpoint
-
-    def train_loop(self, num_epochs: int = 10):
-        """Main functional training loop."""
-        self.logger.info(f"Starting training for {num_epochs} epochs...")
-
-        # PPO hyperparameters
-        ppo_config = {
-            "gamma": 0.99,
-            "gae_lambda": 0.95,
-            "clip_coef": 0.2,
-            "ent_coef": 0.01,
-            "vf_coef": 0.5,
-            "max_grad_norm": 0.5,
-            "norm_adv": True,
-            "clip_vloss": True,
-            "vf_clip_coef": 0.1,
-            "update_epochs": 4,
-            "target_kl": None,
-            "l2_reg_loss_coef": 0.0,
-            "l2_init_loss_coef": 0.0,
-            "clip_range": 0.0,
-            "prio_alpha": 0.0,
-            "prio_beta0": 0.6,
-            "total_timesteps": 100000,
-            "batch_size": 128,
-            "vtrace_rho_clip": 1.0,
-            "vtrace_c_clip": 1.0,
+    obs_space = gym.spaces.Dict(
+        {
+            "grid_obs": metta_grid_env.single_observation_space,
+            "global_vars": gym.spaces.Box(low=-np.inf, high=np.inf, shape=[0], dtype=np.int32),
         }
+    )
 
-        for epoch_idx in range(num_epochs):
-            epoch_start_time = time.time()
-            steps_before = self.agent_step
+    # Reinitialize agent with proper spaces
+    agent.obs_space = obs_space
+    agent.action_space = metta_grid_env.single_action_space
+    agent.feature_normalizations = metta_grid_env.feature_normalizations
 
-            # ========== ROLLOUT PHASE ==========
-            self.logger.info(f"Epoch {self.epoch}: Starting rollout...")
-            with self.timer("rollout"):
-                self.agent_step, stats = rollout(
-                    policy=self.policy,
-                    vecenv=self.vecenv,
-                    experience=self.experience,
-                    device=self.device,
-                    agent_step=self.agent_step,
-                    timer=self.timer,
-                )
+    # Setup components (this finalizes the agent initialization)
+    agent._setup_components(agent.components["_value_"])
+    agent._setup_components(agent.components["_action_"])
 
-            # Log rollout stats
-            steps_collected = self.agent_step - steps_before
-            self.logger.info(f"  Collected {steps_collected} steps")
+    # Move to device and activate actions
+    agent = agent.to(device)
+    agent.activate_actions(metta_grid_env.action_names, metta_grid_env.max_action_args, device)
 
-            if stats and "episode/reward" in stats:
-                mean_reward = np.mean(stats["episode/reward"])
-                self.logger.info(f"  Mean episode reward: {mean_reward:.2f}")
+    # Create experience buffer
+    experience = Experience(
+        total_agents=vecenv.num_agents,
+        batch_size=training_config.batch_size,
+        bptt_horizon=training_config.bptt_horizon,
+        minibatch_size=training_config.minibatch_size,
+        max_minibatch_size=training_config.minibatch_size,
+        obs_space=vecenv.single_observation_space,
+        atn_space=vecenv.single_action_space,
+        device=device,
+        hidden_size=agent.hidden_size,
+        cpu_offload=False,
+        num_lstm_layers=2,
+        agents_per_batch=getattr(vecenv, "agents_per_batch", None),
+    )
 
-            # ========== TRAINING PHASE ==========
-            self.logger.info(f"Epoch {self.epoch}: Starting PPO training...")
-            with self.timer("train"):
-                self.epoch = train_ppo(
-                    policy=self.policy,
-                    optimizer=self.optimizer,
-                    experience=self.experience,
-                    device=self.device,
-                    losses=self.losses,
-                    epoch=self.epoch,
-                    cfg=self.cfg,
-                    lr_scheduler=None,
-                    timer=self.timer,
-                    kickstarter=self.kickstarter,
-                    agent_step=self.agent_step,
-                    **ppo_config,
-                )
+    # Create optimizer
+    optimizer = torch.optim.Adam(
+        agent.parameters(),
+        lr=training_config.learning_rate,
+        betas=(0.9, 0.999),
+        eps=1e-8,
+    )
 
-            # Log training stats
-            loss_stats = self.losses.stats()
-            self.logger.info(f"  Policy loss: {loss_stats.get('policy_loss', 0):.4f}")
-            self.logger.info(f"  Value loss: {loss_stats.get('value_loss', 0):.4f}")
-            self.logger.info(f"  Entropy: {loss_stats.get('entropy', 0):.4f}")
+    # Load checkpoint if exists
+    checkpoint = TrainerCheckpoint.load(str(checkpoint_dir.parent))
+    agent_step = checkpoint.agent_step
+    epoch = checkpoint.epoch
 
-            # Calculate timing
-            epoch_time = time.time() - epoch_start_time
-            steps_per_sec = steps_collected / epoch_time if epoch_time > 0 else 0
+    if checkpoint.agent_step > 0:
+        try:
+            optimizer.load_state_dict(checkpoint.optimizer_state_dict)
+            logger.info("Loaded optimizer state from checkpoint")
+        except Exception as e:
+            logger.warning(f"Could not load optimizer state: {e}")
 
-            rollout_time = self.timer.get_last_elapsed("rollout")
-            train_time = self.timer.get_last_elapsed("train")
-            total_time = rollout_time + train_time
+    # Create losses tracker and timer
+    losses = Losses()
+    timer = Stopwatch(logger)
+    timer.start()
 
-            train_pct = (train_time / total_time) * 100 if total_time > 0 else 0
-            rollout_pct = (rollout_time / total_time) * 100 if total_time > 0 else 0
+    # Minimal policy store and kickstarter (required by train_ppo)
+    minimal_cfg = {"run_dir": str(checkpoint_dir.parent), "device": training_config.device}
+    policy_store = PolicyStore(minimal_cfg, wandb_run=None)
+    kickstarter = Kickstarter(minimal_cfg, policy_store, metta_grid_env.action_names, metta_grid_env.max_action_args)
 
-            self.logger.info(
-                f"Epoch {self.epoch} complete - "
-                f"{steps_per_sec:.0f} steps/sec "
-                f"({train_pct:.0f}% train / {rollout_pct:.0f}% rollout)"
+    logger.info("Starting pure functional training loop...")
+
+    # Main training loop - pure functional
+    while agent_step < training_config.total_timesteps:
+        epoch_start_time = time.time()
+        steps_before = agent_step
+
+        # ========== ROLLOUT ==========
+        with timer("rollout"):
+            agent_step, stats = rollout(
+                policy=agent,
+                vecenv=vecenv,
+                experience=experience,
+                device=device,
+                agent_step=agent_step,
+                timer=timer,
             )
 
-            # Save checkpoint every 5 epochs
-            if self.epoch % 5 == 0:
-                self.save_checkpoint()
+        # ========== TRAIN ==========
+        with timer("train"):
+            epoch = train_ppo(
+                policy=agent,
+                optimizer=optimizer,
+                experience=experience,
+                device=device,
+                losses=losses,
+                epoch=epoch,
+                cfg=minimal_cfg,  # Minimal config for clip_range
+                lr_scheduler=None,
+                timer=timer,
+                kickstarter=kickstarter,
+                agent_step=agent_step,
+                # PPO parameters
+                gamma=ppo_config.gamma,
+                gae_lambda=ppo_config.gae_lambda,
+                clip_coef=ppo_config.clip_coef,
+                ent_coef=ppo_config.ent_coef,
+                vf_coef=ppo_config.vf_coef,
+                max_grad_norm=ppo_config.max_grad_norm,
+                norm_adv=ppo_config.norm_adv,
+                clip_vloss=ppo_config.clip_vloss,
+                vf_clip_coef=ppo_config.vf_clip_coef,
+                update_epochs=ppo_config.update_epochs,
+                target_kl=ppo_config.target_kl,
+                l2_reg_loss_coef=ppo_config.l2_reg_loss_coef,
+                l2_init_loss_coef=ppo_config.l2_init_loss_coef,
+                clip_range=0.0,
+                vtrace_rho_clip=ppo_config.vtrace_rho_clip,
+                vtrace_c_clip=ppo_config.vtrace_c_clip,
+                # Training parameters
+                total_timesteps=training_config.total_timesteps,
+                batch_size=training_config.batch_size,
+                prio_alpha=0.0,
+                prio_beta0=0.6,
+            )
 
-        self.logger.info("Training complete!")
+        # Calculate and log metrics
+        steps_collected = agent_step - steps_before
+        epoch_time = time.time() - epoch_start_time
+        steps_per_sec = steps_collected / epoch_time if epoch_time > 0 else 0
 
-    def save_checkpoint(self):
-        """Save model checkpoint."""
-        checkpoint_dir = Path("./demo_checkpoints")
-        checkpoint_dir.mkdir(exist_ok=True)
+        rollout_time = timer.get_last_elapsed("rollout")
+        train_time = timer.get_last_elapsed("train")
+        total_time = rollout_time + train_time
 
-        # Save policy
-        name = f"model_{self.epoch:04d}.pt"
-        path = str(checkpoint_dir / name)
+        train_pct = (train_time / total_time) * 100 if total_time > 0 else 0
+        rollout_pct = (rollout_time / total_time) * 100 if total_time > 0 else 0
 
-        pr = self.policy_store.save(
-            name=name, path=path, policy=self.policy, metadata={"epoch": self.epoch, "agent_step": self.agent_step}
+        # Log stats
+        loss_stats = losses.stats()
+        logger.info(
+            f"Step {agent_step}/{training_config.total_timesteps} | "
+            f"Epoch {epoch} | "
+            f"{steps_per_sec:.0f} steps/sec "
+            f"({train_pct:.0f}% train / {rollout_pct:.0f}% rollout)"
         )
 
-        # Save trainer checkpoint
-        checkpoint = TrainerCheckpoint(
-            agent_step=self.agent_step,
-            epoch=self.epoch,
-            total_agent_step=self.agent_step,
-            optimizer_state_dict=self.optimizer.state_dict(),
-            policy_path=pr.uri if pr else None,
-            extra_args={},
+        if stats and "episode/reward" in stats:
+            mean_reward = np.mean(stats["episode/reward"])
+            logger.info(f"  Mean reward: {mean_reward:.2f}")
+
+        logger.info(
+            f"  Losses - Policy: {loss_stats.get('policy_loss', 0):.4f}, "
+            f"Value: {loss_stats.get('value_loss', 0):.4f}, "
+            f"Entropy: {loss_stats.get('entropy', 0):.4f}"
         )
-        checkpoint.save(str(checkpoint_dir.parent))
 
-        self.logger.info(f"Saved checkpoint at epoch {self.epoch}")
+        # Save checkpoint
+        if epoch % training_config.checkpoint_interval == 0:
+            save_checkpoint(agent, optimizer, epoch, agent_step, checkpoint_dir, policy_store, logger)
 
-    def cleanup(self):
-        """Clean up resources."""
-        if hasattr(self, "vecenv"):
-            self.vecenv.close()
+    logger.info("Training complete!")
+    vecenv.close()
 
 
-@hydra.main(version_base=None, config_path="configs", config_name="demo")
-def main(cfg: DictConfig) -> None:
-    """Main entry point for the demo."""
+def save_checkpoint(agent, optimizer, epoch, agent_step, checkpoint_dir, policy_store, logger):
+    """Save a checkpoint."""
+    checkpoint_dir.mkdir(exist_ok=True)
+
+    # Save policy
+    name = f"model_{epoch:04d}.pt"
+    path = str(checkpoint_dir / name)
+
+    pr = policy_store.save(name=name, path=path, policy=agent, metadata={"epoch": epoch, "agent_step": agent_step})
+
+    # Save trainer checkpoint
+    checkpoint = TrainerCheckpoint(
+        agent_step=agent_step,
+        epoch=epoch,
+        total_agent_step=agent_step,
+        optimizer_state_dict=optimizer.state_dict(),
+        policy_path=pr.uri if pr else None,
+        extra_args={},
+    )
+    checkpoint.save(str(checkpoint_dir.parent))
+
+    logger.info(f"Saved checkpoint at epoch {epoch}")
+
+
+def main():
+    """Main entry point - no hydra, pure Python."""
     print("=" * 70)
-    print("METTA FUNCTIONAL TRAINING DEMO")
+    print("METTA PURE FUNCTIONAL TRAINING DEMO")
     print("=" * 70)
     print()
-    print("This demo shows how to train a Metta agent using a functional approach.")
-    print("All training logic is exposed as simple function calls in a loop.")
+    print("This demo creates all objects directly in Python without Hydra.")
+    print("Training is a simple while loop calling functional rollout/train_ppo.")
     print()
 
-    # Create demo instance
-    demo = FunctionalTrainingDemo(cfg)
+    # Setup logging
+    logger = setup_mettagrid_logger("functional_demo")
 
-    try:
-        # Setup components
-        demo.setup_environment()
-        policy, checkpoint = demo.setup_policy()
-        demo.setup_training(checkpoint)
+    # Load configurations (you could also just create these directly)
+    ppo_config = PPOConfig()
+    training_config = TrainingConfig()
+    env_config = EnvironmentConfig()
 
-        # Run training
-        demo.train_loop(num_epochs=10)
+    # If you want to load from YAML:
+    # with open("configs/demo_ppo.yaml") as f:
+    #     ppo_config = PPOConfig(**yaml.safe_load(f))
 
-    finally:
-        # Cleanup
-        demo.cleanup()
+    device = torch.device(training_config.device)
+    logger.info(f"Using device: {device}")
+
+    # Create environment
+    logger.info("Creating environment...")
+    vecenv, curriculum = create_environment(env_config)
+
+    # Create agent
+    logger.info("Creating agent...")
+    agent = create_agent(device)
+
+    # Setup checkpoint directory
+    checkpoint_dir = Path("./demo_checkpoints")
+
+    # Run functional training loop
+    functional_train_loop(
+        agent=agent,
+        vecenv=vecenv,
+        ppo_config=ppo_config,
+        training_config=training_config,
+        checkpoint_dir=checkpoint_dir,
+        logger=logger,
+    )
 
     print()
     print("Demo complete! Check ./demo_checkpoints for saved models.")
 
 
 if __name__ == "__main__":
-    # If no config exists, create a minimal one
-    demo_config_path = Path("configs/demo.yaml")
-    if not demo_config_path.exists():
-        demo_config_path.parent.mkdir(exist_ok=True)
-        with open(demo_config_path, "w") as f:
-            f.write("""# Demo configuration
-run: demo_functional_training
-device: cpu
-seed: 42
-
-agent:
-  _target_: metta.agent.metta_agent.MettaAgent
-  observations:
-    obs_key: grid_obs
-  clip_range: 0
-  analyze_weights_interval: 0
-  l2_init_weight_update_interval: 0
-  components:
-    _obs_:
-      _target_: metta.agent.lib.obs_token_to_box_shaper.ObsTokenToBoxShaper
-      sources: null
-    obs_normalizer:
-      _target_: metta.agent.lib.observation_normalizer.ObservationNormalizer
-      sources:
-      - name: _obs_
-    cnn1:
-      _target_: metta.agent.lib.nn_layer_library.Conv2d
-      sources:
-      - name: obs_normalizer
-      nn_params:
-        out_channels: 32
-        kernel_size: 3
-        stride: 1
-    obs_flattener:
-      _target_: metta.agent.lib.nn_layer_library.Flatten
-      sources:
-      - name: cnn1
-    fc1:
-      _target_: metta.agent.lib.nn_layer_library.Linear
-      sources:
-      - name: obs_flattener
-      nn_params:
-        out_features: 128
-    _core_:
-      _target_: metta.agent.lib.lstm.LSTM
-      sources:
-      - name: fc1
-      output_size: 128
-      nn_params:
-        num_layers: 2
-    critic_1:
-      _target_: metta.agent.lib.nn_layer_library.Linear
-      sources:
-      - name: _core_
-      nn_params:
-        out_features: 256
-    _value_:
-      _target_: metta.agent.lib.nn_layer_library.Linear
-      sources:
-      - name: critic_1
-      nn_params:
-        out_features: 1
-      nonlinearity: null
-    actor_1:
-      _target_: metta.agent.lib.nn_layer_library.Linear
-      sources:
-      - name: _core_
-      nn_params:
-        out_features: 256
-    _action_embeds_:
-      _target_: metta.agent.lib.action.ActionEmbedding
-      sources: null
-      nn_params:
-        num_embeddings: 100
-        embedding_dim: 16
-    _action_:
-      _target_: metta.agent.lib.actor.MettaActorSingleHead
-      sources:
-      - name: actor_1
-      - name: _action_embeds_
-""")
-
     main()
