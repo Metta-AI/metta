@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
+import { Routes, Route, Link, useLocation, useNavigate } from "react-router-dom";
 import { ServerRepo, Repo } from "./repo";
 import { Dashboard } from "./Dashboard";
 import { TokenManager } from "./TokenManager";
+import { SavedDashboards } from "./SavedDashboards";
 import { config } from "./config";
 
 // CSS for navigation
@@ -59,7 +61,7 @@ const NAV_CSS = `
 function App() {
   // Data loading state
   type DefaultState = {
-    type: "default";
+    type: "error";
     error: string | null;
   };
   type LoadingState = {
@@ -68,11 +70,13 @@ function App() {
   type RepoState = {
     type: "repo";
     repo: Repo;
+    currentUser: string;
   };
   type State = DefaultState | LoadingState | RepoState;
 
   const [state, setState] = useState<State>({ type: "loading" });
-  const [currentPage, setCurrentPage] = useState<"dashboard" | "tokens">("dashboard");
+  const location = useLocation();
+  const navigate = useNavigate();
 
   useEffect(() => {
     const initializeRepo = async () => {
@@ -83,10 +87,14 @@ function App() {
         // Test the connection by calling getSuites
         await repo.getSuites();
 
-        setState({ type: "repo", repo });
+        // Get current user
+        const userInfo = await repo.whoami();
+        const currentUser = userInfo.user_email;
+
+        setState({ type: "repo", repo, currentUser });
       } catch (err: any) {
         setState({
-          type: "default",
+          type: "error",
           error: `Failed to connect to server: ${
             err.message
           }. Make sure the server is running at ${serverUrl}`,
@@ -95,9 +103,13 @@ function App() {
     };
 
     initializeRepo();
-  }, []);
+  }, [navigate]);
 
-  if (state.type === "default") {
+  const handleDashboardPageChange = () => {
+    navigate('/dashboard');
+  };
+
+  if (state.type === "error") {
     return (
       <div
         style={{
@@ -181,34 +193,52 @@ function App() {
         <style>{NAV_CSS}</style>
         <nav className="nav-container">
           <div className="nav-content">
-            <a href="#" className="nav-brand" onClick={(e) => { e.preventDefault(); setCurrentPage("dashboard"); }}>
+            <Link to="/dashboard" className="nav-brand" onClick={handleDashboardPageChange}>
               Policy Evaluation Dashboard
-            </a>
+            </Link>
             <div className="nav-tabs">
-              <a
-                href="#"
-                className={`nav-tab ${currentPage === "dashboard" ? "active" : ""}`}
-                onClick={(e) => { e.preventDefault(); setCurrentPage("dashboard"); }}
+              <Link
+                to="/dashboard"
+                className={`nav-tab ${location.pathname === "/dashboard" ? "active" : ""}`}
+                onClick={handleDashboardPageChange}
               >
                 Dashboard
-              </a>
-              <a
-                href="#"
-                className={`nav-tab ${currentPage === "tokens" ? "active" : ""}`}
-                onClick={(e) => { e.preventDefault(); setCurrentPage("tokens"); }}
+              </Link>
+              <Link
+                to="/saved"
+                className={`nav-tab ${location.pathname === "/saved" ? "active" : ""}`}
+              >
+                Saved Dashboards
+              </Link>
+              <Link
+                to="/tokens"
+                className={`nav-tab ${location.pathname === "/tokens" ? "active" : ""}`}
               >
                 Token Management
-              </a>
+              </Link>
             </div>
           </div>
         </nav>
 
         <div className="page-container">
-          {currentPage === "dashboard" ? (
-            <Dashboard repo={state.repo} />
-          ) : (
-            <TokenManager repo={state.repo} />
-          )}
+          <Routes>
+            <Route
+              path="/dashboard"
+              element={<Dashboard repo={state.repo} />}
+            />
+            <Route
+              path="/saved"
+              element={<SavedDashboards repo={state.repo} currentUser={state.currentUser} />}
+            />
+            <Route
+              path="/tokens"
+              element={<TokenManager repo={state.repo} />}
+            />
+            <Route
+              path="/"
+              element={<Dashboard repo={state.repo} />}
+            />
+          </Routes>
         </div>
       </div>
     );

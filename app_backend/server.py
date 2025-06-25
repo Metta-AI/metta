@@ -4,6 +4,7 @@ import fastapi
 import uvicorn
 from fastapi.middleware.cors import CORSMiddleware
 
+from app_backend.auth import user_from_header_or_token
 from app_backend.metta_repo import MettaRepo
 from app_backend.routes import dashboard_routes, stats_routes, token_routes
 
@@ -32,19 +33,8 @@ def create_app(stats_repo: MettaRepo) -> fastapi.FastAPI:
 
     @app.get("/whoami")
     def whoami(request: fastapi.Request):  # type: ignore
-        # Get the user data from headers
-        user_email = request.headers.get("X-Auth-Request-Email")
-        if user_email:
-            return {"user_email": user_email}
-
-        # If no email, try to validate token
-        token = request.headers.get("X-Auth-Token")
-        if token:
-            user_id = stats_repo.validate_machine_token(token)
-            if user_id:
-                return {"user_email": user_id}
-
-        return {"user_email": "unknown"}
+        user_id = user_from_header_or_token(request, stats_repo)
+        return {"user_email": user_id}
 
     return app
 

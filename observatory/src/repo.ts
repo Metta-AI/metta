@@ -39,6 +39,28 @@ export type TokenListResponse = {
   tokens: TokenInfo[];
 }
 
+export type SavedDashboard = {
+  id: string;
+  name: string;
+  description: string | null;
+  type: string;
+  dashboard_state: Record<string, any>;
+  created_at: string;
+  updated_at: string;
+  user_id: string;
+}
+
+export type SavedDashboardCreate = {
+  name: string;
+  description?: string;
+  type: string;
+  dashboard_state: Record<string, any>;
+}
+
+export type SavedDashboardListResponse = {
+  dashboards: SavedDashboard[];
+}
+
 /**
  * Interface for data fetching.
  *
@@ -56,6 +78,16 @@ export interface Repo {
   createToken(tokenData: TokenCreate): Promise<TokenResponse>;
   listTokens(): Promise<TokenListResponse>;
   deleteToken(tokenId: string): Promise<void>;
+
+  // Saved dashboard methods
+  listSavedDashboards(): Promise<SavedDashboardListResponse>;
+  getSavedDashboard(dashboardId: string): Promise<SavedDashboard>;
+  createSavedDashboard(dashboardData: SavedDashboardCreate): Promise<SavedDashboard>;
+  updateSavedDashboard(dashboardId: string, dashboardData: SavedDashboardCreate): Promise<SavedDashboard>;
+  deleteSavedDashboard(dashboardId: string): Promise<void>;
+
+  // User methods
+  whoami(): Promise<{ user_email: string }>;
 }
 
 export class ServerRepo implements Repo {
@@ -73,6 +105,20 @@ export class ServerRepo implements Repo {
   private async apiCallWithBody<T>(endpoint: string, body: any): Promise<T> {
     const response = await fetch(`${this.baseUrl}${endpoint}`, {
       method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) {
+      throw new Error(`API call failed: ${response.status} ${response.statusText}`);
+    }
+    return response.json();
+  }
+
+  private async apiCallWithBodyPut<T>(endpoint: string, body: any): Promise<T> {
+    const response = await fetch(`${this.baseUrl}${endpoint}`, {
+      method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
       },
@@ -125,6 +171,32 @@ export class ServerRepo implements Repo {
 
   async deleteToken(tokenId: string): Promise<void> {
     return this.apiCallDelete(`/tokens/${tokenId}`);
+  }
+
+  // Saved dashboard methods
+  async listSavedDashboards(): Promise<SavedDashboardListResponse> {
+    return this.apiCall<SavedDashboardListResponse>("/dashboard/saved");
+  }
+
+  async getSavedDashboard(dashboardId: string): Promise<SavedDashboard> {
+    return this.apiCall<SavedDashboard>(`/dashboard/saved/${encodeURIComponent(dashboardId)}`);
+  }
+
+  async createSavedDashboard(dashboardData: SavedDashboardCreate): Promise<SavedDashboard> {
+    return this.apiCallWithBody<SavedDashboard>("/dashboard/saved", dashboardData);
+  }
+
+  async updateSavedDashboard(dashboardId: string, dashboardData: SavedDashboardCreate): Promise<SavedDashboard> {
+    return this.apiCallWithBodyPut<SavedDashboard>(`/dashboard/saved/${encodeURIComponent(dashboardId)}`, dashboardData);
+  }
+
+  async deleteSavedDashboard(dashboardId: string): Promise<void> {
+    return this.apiCallDelete(`/dashboard/saved/${encodeURIComponent(dashboardId)}`);
+  }
+
+  // User methods
+  async whoami(): Promise<{ user_email: string }> {
+    return this.apiCall<{ user_email: string }>("/whoami");
   }
 }
 

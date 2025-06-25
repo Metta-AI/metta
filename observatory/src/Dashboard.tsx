@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
-import { GroupHeatmapMetric, HeatmapData, Repo } from "./repo";
+import { useLocation } from "react-router-dom";
+import { GroupHeatmapMetric, HeatmapData, Repo, SavedDashboard, SavedDashboardCreate } from "./repo";
 import { MapViewer } from "./MapViewer";
 import { Heatmap } from "./Heatmap";
+import { SaveDashboardModal } from "./SaveDashboardModal";
 
 // CSS for dashboard
 const DASHBOARD_CSS = `
@@ -47,6 +49,33 @@ const DASHBOARD_CSS = `
 .suite-tab:last-child {
   margin-right: 0;
 }
+
+.btn {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.2s ease;
+}
+
+.btn-primary {
+  background: #007bff;
+  color: #fff;
+}
+
+.btn-primary:hover {
+  background: #0056b3;
+}
+
+.btn-secondary {
+  background: #6c757d;
+  color: #fff;
+}
+
+.btn-secondary:hover {
+  background: #545b62;
+}
 `;
 
 interface DashboardProps {
@@ -73,6 +102,13 @@ export function Dashboard({ repo }: DashboardProps) {
   const [selectedGroupMetric, setSelectedGroupMetric] = useState<string>("");
   const [numPoliciesToShow, setNumPoliciesToShow] = useState(20);
 
+  // Save dashboard state
+  const [showSaveModal, setShowSaveModal] = useState(false);
+  const [savedId, setSavedId] = useState<string | null>(null);
+  const [savedDashboard, setSavedDashboard] = useState<SavedDashboard | null>(null);
+
+  const location = useLocation();
+
   const parseGroupMetric = (label: string): GroupHeatmapMetric => {
     if (label.includes(" - ")) {
       const [group1, group2] = label.split(" - ");
@@ -82,18 +118,46 @@ export function Dashboard({ repo }: DashboardProps) {
     }
   };
 
+  // Initialize data and load saved dashboard if provided
   useEffect(() => {
-    const loadData = async () => {
+    const initializeData = async () => {
+      const urlParams = new URLSearchParams(location.search);
+      const savedIdParam = urlParams.get('saved_id');
+
+      // Load suites first
       const suitesData = await repo.getSuites();
       setSuites(suitesData);
-      setSelectedSuite(suitesData[0]);
+
+      if (savedIdParam) {
+        // Load saved dashboard
+        try {
+          const dashboard = await repo.getSavedDashboard(savedIdParam);
+          const state = dashboard.dashboard_state;
+          setSelectedSuite(state.suite || suitesData[0]);
+          setSelectedMetric(state.metric || "reward");
+          setSelectedGroupMetric(state.group_metric || "");
+          setNumPoliciesToShow(state.num_policies_to_show || 20);
+          setSavedId(savedIdParam);
+          setSavedDashboard(dashboard);
+        } catch (err) {
+          console.error("Failed to load shared dashboard:", err);
+          // Fallback to first suite if saved dashboard fails
+          setSelectedSuite(suitesData[0]);
+        }
+      } else {
+        // No saved dashboard, use first suite
+        setSelectedSuite(suitesData[0]);
+      }
     };
 
-    loadData();
-  }, []);
+    initializeData();
+  }, [location.search, repo]);
 
+  // Load metrics and group metrics when suite changes
   useEffect(() => {
-    const loadData = async () => {
+    const loadSuiteData = async () => {
+      if (!selectedSuite) return;
+
       const [metricsData, groupIdsData] = await Promise.all([
         repo.getMetrics(selectedSuite),
         repo.getGroupIds(selectedSuite),
@@ -113,11 +177,14 @@ export function Dashboard({ repo }: DashboardProps) {
       setAvailableGroupMetrics(groupMetrics);
     };
 
-    loadData();
-  }, [selectedSuite]);
+    loadSuiteData();
+  }, [selectedSuite, repo]);
 
+  // Load heatmap data when suite, metric, or group metric changes
   useEffect(() => {
-    const loadData = async () => {
+    const loadHeatmapData = async () => {
+      if (!selectedSuite || !selectedMetric) return;
+
       const heatmapData = await repo.getHeatmapData(
         selectedMetric,
         selectedSuite,
@@ -126,8 +193,35 @@ export function Dashboard({ repo }: DashboardProps) {
       setHeatmapData(heatmapData);
     };
 
-    loadData();
-  }, [selectedSuite, selectedMetric, selectedGroupMetric]);
+    loadHeatmapData();
+  }, [selectedSuite, selectedMetric, selectedGroupMetric, repo]);
+
+  const handleSaveDashboard = async (dashboardData: SavedDashboardCreate) => {
+    try {
+      const fullDashboardData: SavedDashboardCreate = {
+        ...dashboardData,
+        dashboard_state: {
+          suite: selectedSuite,
+          metric: selectedMetric,
+          group_metric: selectedGroupMetric,
+          num_policies_to_show: numPoliciesToShow,
+        },
+      };
+
+      if (savedId) {
+        // Update existing dashboard
+        const updatedDashboard = await repo.updateSavedDashboard(savedId, fullDashboardData);
+        setSavedDashboard(updatedDashboard);
+      } else {
+        // Create new dashboard
+        const newDashboard = await repo.createSavedDashboard(fullDashboardData);
+        setSavedId(newDashboard.id);
+        setSavedDashboard(newDashboard);
+      }
+    } catch (err: any) {
+      throw new Error(err.message || "Failed to save dashboard");
+    }
+  };
 
   if (!heatmapData) {
     return <div>Loading...</div>;
@@ -187,6 +281,33 @@ export function Dashboard({ repo }: DashboardProps) {
           boxShadow: "0 2px 4px rgba(0,0,0,.1)",
         }}
       >
+        {savedDashboard && (
+          <div style={{
+            textAlign: "center",
+            marginBottom: "20px",
+            paddingBottom: "20px",
+            borderBottom: "1px solid #eee"
+          }}>
+            <h1 style={{
+              margin: 0,
+              color: "#333",
+              fontSize: "24px",
+              fontWeight: "600"
+            }}>
+              {savedDashboard.name}
+            </h1>
+            {savedDashboard.description && (
+              <p style={{
+                margin: "8px 0 0 0",
+                color: "#666",
+                fontSize: "16px"
+              }}>
+                {savedDashboard.description}
+              </p>
+            )}
+          </div>
+        )}
+
         <div className="suite-tabs">
           <div
             style={{ fontSize: "18px", marginTop: "5px", marginRight: "10px" }}
@@ -202,7 +323,25 @@ export function Dashboard({ repo }: DashboardProps) {
               {suite}
             </button>
           ))}
+          <div style={{ marginLeft: "auto" }}>
+            <button
+              className="btn btn-secondary"
+              onClick={() => setShowSaveModal(true)}
+            >
+              {savedId ? "Update Dashboard" : "Save Dashboard"}
+            </button>
+          </div>
         </div>
+
+        <SaveDashboardModal
+          isOpen={showSaveModal}
+          onClose={() => setShowSaveModal(false)}
+          onSave={handleSaveDashboard}
+          initialName={savedDashboard?.name || ""}
+          initialDescription={savedDashboard?.description || ""}
+          isUpdate={!!savedId}
+        />
+
         {heatmapData && (
           <Heatmap
             data={heatmapData}

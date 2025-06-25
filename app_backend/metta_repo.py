@@ -105,6 +105,23 @@ MIGRATIONS = [
             """ALTER TABLE machine_tokens DROP CONSTRAINT machine_tokens_user_id_name_key""",
         ],
     ),
+    SqlMigration(
+        version=4,
+        description="Add saved dashboards table",
+        sql_statements=[
+            """CREATE TABLE saved_dashboards (
+                id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                user_id TEXT NOT NULL,
+                name TEXT NOT NULL,
+                description TEXT,
+                type TEXT NOT NULL,
+                dashboard_state JSONB,
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )""",
+            """CREATE INDEX idx_saved_dashboards_user_id ON saved_dashboards(user_id)""",
+        ],
+    ),
 ]
 
 
@@ -384,3 +401,124 @@ class MettaRepo:
             if result:
                 return result[0]
             return None
+
+    def create_saved_dashboard(
+        self,
+        user_id: str,
+        name: str,
+        description: str | None,
+        dashboard_type: str,
+        dashboard_state: Dict[str, Any],
+    ) -> uuid.UUID:
+        """Create a new saved dashboard (no upsert, always insert)."""
+        with self.connect() as con:
+            result = con.execute(
+                """
+                INSERT INTO saved_dashboards (
+                    user_id, name, description, type, dashboard_state
+                ) VALUES (%s, %s, %s, %s, %s)
+                RETURNING id
+                """,
+                (user_id, name, description, dashboard_type, Jsonb(dashboard_state)),
+            ).fetchone()
+            if result is None:
+                raise RuntimeError("Failed to create saved dashboard")
+            return result[0]
+
+    def list_saved_dashboards(self) -> List[Dict[str, Any]]:
+        """List all saved dashboards."""
+        with self.connect() as con:
+            result = con.execute(
+                """
+                SELECT id, name, description, type, dashboard_state, created_at, updated_at, user_id
+                FROM saved_dashboards
+                ORDER BY updated_at DESC
+                """
+            )
+            return [
+                {
+                    "id": str(row[0]),
+                    "name": row[1],
+                    "description": row[2],
+                    "type": row[3],
+                    "dashboard_state": row[4],
+                    "created_at": row[5],
+                    "updated_at": row[6],
+                    "user_id": row[7],
+                }
+                for row in result
+            ]
+
+    def get_saved_dashboard(self, dashboard_id: str) -> Dict[str, Any] | None:
+        """Get a specific saved dashboard by ID."""
+        try:
+            dashboard_uuid = uuid.UUID(dashboard_id)
+        except ValueError:
+            return None
+
+        with self.connect() as con:
+            result = con.execute(
+                """
+                SELECT id, name, description, type, dashboard_state, created_at, updated_at, user_id
+                FROM saved_dashboards
+                WHERE id = %s
+                """,
+                (dashboard_uuid,),
+            ).fetchone()
+
+            if result is None:
+                return None
+
+            return {
+                "id": str(result[0]),
+                "name": result[1],
+                "description": result[2],
+                "type": result[3],
+                "dashboard_state": result[4],
+                "created_at": result[5],
+                "updated_at": result[6],
+                "user_id": result[7],
+            }
+
+    def delete_saved_dashboard(self, user_id: str, dashboard_id: str) -> bool:
+        """Delete a saved dashboard."""
+        try:
+            dashboard_uuid = uuid.UUID(dashboard_id)
+        except ValueError:
+            return False
+
+        with self.connect() as con:
+            result = con.execute(
+                """
+                DELETE FROM saved_dashboards
+                WHERE id = %s AND user_id = %s
+                """,
+                (dashboard_uuid, user_id),
+            )
+            return result.rowcount > 0
+
+    def update_saved_dashboard(
+        self,
+        user_id: str,
+        dashboard_id: str,
+        name: str,
+        description: str | None,
+        dashboard_type: str,
+        dashboard_state: Dict[str, Any],
+    ) -> bool:
+        """Update an existing saved dashboard."""
+        try:
+            dashboard_uuid = uuid.UUID(dashboard_id)
+        except ValueError:
+            return False
+
+        with self.connect() as con:
+            result = con.execute(
+                """
+                UPDATE saved_dashboards
+                SET name = %s, description = %s, type = %s, dashboard_state = %s, updated_at = CURRENT_TIMESTAMP
+                WHERE id = %s AND user_id = %s
+                """,
+                (name, description, dashboard_type, Jsonb(dashboard_state), dashboard_uuid, user_id),
+            )
+            return result.rowcount > 0

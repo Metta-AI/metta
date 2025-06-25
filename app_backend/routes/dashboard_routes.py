@@ -1,7 +1,7 @@
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from psycopg import Connection
 from psycopg.rows import class_row
 from psycopg.sql import SQL
@@ -33,6 +33,28 @@ class GroupDiff(BaseModel):
 
 class GroupHeatmapMetric(BaseModel):
     group_metric: str | GroupDiff
+
+
+class SavedDashboardCreate(BaseModel):
+    name: str
+    description: Optional[str] = None
+    type: str
+    dashboard_state: Dict[str, Any]
+
+
+class SavedDashboardResponse(BaseModel):
+    id: str
+    name: str
+    description: Optional[str]
+    type: str
+    dashboard_state: Dict[str, Any]
+    created_at: str
+    updated_at: str
+    user_id: str
+
+
+class SavedDashboardListResponse(BaseModel):
+    dashboards: List[SavedDashboardResponse]
 
 
 @dataclass
@@ -113,15 +135,15 @@ def create_dashboard_router(metta_repo: MettaRepo) -> APIRouter:
     user_or_token = Depends(create_user_or_token_dependency(metta_repo))
 
     @router.get("/suites")
-    async def get_suites(user: str = user_or_token) -> List[str]:
+    async def get_suites() -> List[str]:
         return metta_repo.get_suites()
 
     @router.get("/suites/{suite}/metrics")
-    async def get_metrics(suite: str, user: str = user_or_token) -> List[str]:
+    async def get_metrics(suite: str) -> List[str]:
         return metta_repo.get_metrics(suite)
 
     @router.get("/suites/{suite}/group-ids")
-    async def get_group_ids(suite: str, user: str = user_or_token) -> List[str]:
+    async def get_group_ids(suite: str) -> List[str]:
         return metta_repo.get_group_ids(suite)
 
     @router.post("/suites/{suite}/metrics/{metric}/heatmap")
@@ -129,7 +151,6 @@ def create_dashboard_router(metta_repo: MettaRepo) -> APIRouter:
         suite: str,
         metric: str,
         group_metric: GroupHeatmapMetric,
-        user: str = user_or_token,
     ) -> HeatmapData:
         """Get heatmap data for a given suite, metric, and group metric."""
         with metta_repo.connect() as con:
@@ -183,5 +204,116 @@ def create_dashboard_router(metta_repo: MettaRepo) -> APIRouter:
                 evalAverageScores={},
                 evalMaxScores={},
             )
+
+    @router.get("/saved")
+    async def list_saved_dashboards() -> SavedDashboardListResponse:
+        """List all saved dashboards."""
+        dashboards = metta_repo.list_saved_dashboards()
+        return SavedDashboardListResponse(
+            dashboards=[
+                SavedDashboardResponse(
+                    id=dashboard["id"],
+                    name=dashboard["name"],
+                    description=dashboard["description"],
+                    type=dashboard["type"],
+                    dashboard_state=dashboard["dashboard_state"],
+                    created_at=dashboard["created_at"].isoformat(),
+                    updated_at=dashboard["updated_at"].isoformat(),
+                    user_id=dashboard["user_id"],
+                )
+                for dashboard in dashboards
+            ]
+        )
+
+    @router.get("/saved/{dashboard_id}")
+    async def get_saved_dashboard(dashboard_id: str) -> SavedDashboardResponse:
+        """Get a specific saved dashboard by ID."""
+        dashboard = metta_repo.get_saved_dashboard(dashboard_id)
+        if not dashboard:
+            raise HTTPException(status_code=404, detail="Dashboard not found")
+
+        return SavedDashboardResponse(
+            id=dashboard["id"],
+            name=dashboard["name"],
+            description=dashboard["description"],
+            type=dashboard["type"],
+            dashboard_state=dashboard["dashboard_state"],
+            created_at=dashboard["created_at"].isoformat(),
+            updated_at=dashboard["updated_at"].isoformat(),
+            user_id=dashboard["user_id"],
+        )
+
+    @router.post("/saved")
+    async def create_saved_dashboard(
+        dashboard_data: SavedDashboardCreate,
+        user_or_token: str = user_or_token,
+    ) -> SavedDashboardResponse:
+        """Create a new saved dashboard (always creates a new row, even if name is duplicate)."""
+        dashboard_id = metta_repo.create_saved_dashboard(
+            user_id=user_or_token,
+            name=dashboard_data.name,
+            description=dashboard_data.description,
+            dashboard_type=dashboard_data.type,
+            dashboard_state=dashboard_data.dashboard_state,
+        )
+
+        # Fetch the created dashboard to return
+        dashboard = metta_repo.get_saved_dashboard(str(dashboard_id))
+        if not dashboard:
+            raise HTTPException(status_code=500, detail="Failed to create dashboard")
+
+        return SavedDashboardResponse(
+            id=dashboard["id"],
+            name=dashboard["name"],
+            description=dashboard["description"],
+            type=dashboard["type"],
+            dashboard_state=dashboard["dashboard_state"],
+            created_at=dashboard["created_at"].isoformat(),
+            updated_at=dashboard["updated_at"].isoformat(),
+            user_id=dashboard["user_id"],
+        )
+
+    @router.put("/saved/{dashboard_id}")
+    async def update_saved_dashboard(
+        dashboard_id: str,
+        dashboard_data: SavedDashboardCreate,
+        user_or_token: str = user_or_token,
+    ) -> SavedDashboardResponse:
+        """Update an existing saved dashboard."""
+        success = metta_repo.update_saved_dashboard(
+            user_id=user_or_token,
+            dashboard_id=dashboard_id,
+            name=dashboard_data.name,
+            description=dashboard_data.description,
+            dashboard_type=dashboard_data.type,
+            dashboard_state=dashboard_data.dashboard_state,
+        )
+
+        if not success:
+            raise HTTPException(status_code=404, detail="Dashboard not found")
+
+        # Fetch the updated dashboard to return
+        dashboard = metta_repo.get_saved_dashboard(dashboard_id)
+        if not dashboard:
+            raise HTTPException(status_code=500, detail="Failed to fetch updated dashboard")
+
+        return SavedDashboardResponse(
+            id=dashboard["id"],
+            name=dashboard["name"],
+            description=dashboard["description"],
+            type=dashboard["type"],
+            dashboard_state=dashboard["dashboard_state"],
+            created_at=dashboard["created_at"].isoformat(),
+            updated_at=dashboard["updated_at"].isoformat(),
+            user_id=dashboard["user_id"],
+        )
+
+    @router.delete("/saved/{dashboard_id}")
+    async def delete_saved_dashboard(dashboard_id: str, user_or_token: str = user_or_token) -> Dict[str, str]:
+        """Delete a saved dashboard."""
+        success = metta_repo.delete_saved_dashboard(user_or_token, dashboard_id)
+        if not success:
+            raise HTTPException(status_code=404, detail="Dashboard not found")
+        return {"message": "Dashboard deleted successfully"}
 
     return router
