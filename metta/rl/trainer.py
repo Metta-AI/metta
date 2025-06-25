@@ -190,6 +190,23 @@ class MemoryTracker:
         rss_mb = mem_info.rss / (1024 * 1024)
         vms_mb = mem_info.vms / (1024 * 1024)
 
+        # Get memory for ALL child processes
+        children_rss = 0
+        try:
+            for child in process.children(recursive=True):
+                try:
+                    children_rss += child.memory_info().rss / (1024 * 1024)
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    pass
+        except:
+            pass
+
+        # Get system-wide memory
+        system_mem = psutil.virtual_memory()
+        system_used_gb = system_mem.used / (1024**3)
+        system_total_gb = system_mem.total / (1024**3)
+        system_percent = system_mem.percent
+
         # Get GPU memory if available
         gpu_allocated = 0
         gpu_reserved = 0
@@ -207,6 +224,11 @@ class MemoryTracker:
             'name': step_name,
             'rss_mb': rss_mb,
             'vms_mb': vms_mb,
+            'children_rss_mb': children_rss,
+            'total_process_mb': rss_mb + children_rss,
+            'system_used_gb': system_used_gb,
+            'system_total_gb': system_total_gb,
+            'system_percent': system_percent,
             'gpu_allocated_mb': gpu_allocated,
             'gpu_reserved_mb': gpu_reserved,
             'gc_objects': sum(gc_counts),
@@ -247,7 +269,11 @@ class MemoryTracker:
         logger.info(f"\n{'='*60}")
         logger.info(f"Memory Growth Summary (Step {current['step']} - {current['name']})")
         logger.info(f"{'='*60}")
-        logger.info(f"RSS Memory: {start['rss_mb']:.1f} MB → {current['rss_mb']:.1f} MB ({rss_growth:+.1f} MB)")
+        logger.info(f"Process RSS: {start['rss_mb']:.1f} MB → {current['rss_mb']:.1f} MB ({rss_growth:+.1f} MB)")
+        if current.get('children_rss_mb', 0) > 0:
+            logger.info(f"Children RSS: {current['children_rss_mb']:.1f} MB")
+            logger.info(f"Total Process: {current['total_process_mb']:.1f} MB")
+        logger.info(f"SYSTEM MEMORY: {current['system_used_gb']:.1f}/{current['system_total_gb']:.1f} GB ({current['system_percent']:.1f}%)")
         logger.info(f"GPU Memory: {start['gpu_allocated_mb']:.1f} MB → {current['gpu_allocated_mb']:.1f} MB ({gpu_growth:+.1f} MB)")
         logger.info(f"Tensor Count: {start['tensor_count']} → {current['tensor_count']} ({tensor_growth:+d})")
         logger.info(f"Growth Rate: RSS={rss_rate:.3f} MB/step, GPU={gpu_rate:.3f} MB/step")
@@ -255,6 +281,35 @@ class MemoryTracker:
         # Check for potential leak
         if rss_rate > 1.0:  # More than 1MB per step
             logger.warning(f"⚠️  High memory growth rate detected: {rss_rate:.3f} MB/step")
+
+        # Check system memory usage
+        if current.get('system_percent', 0) > 80:
+            logger.warning(f"⚠️  CRITICAL: System memory usage at {current['system_percent']:.1f}%!")
+            logger.warning(f"   System: {current['system_used_gb']:.1f}/{current['system_total_gb']:.1f} GB")
+            logger.warning(f"   This process: {current['rss_mb']:.1f} MB")
+            if current.get('children_rss_mb', 0) > 0:
+                logger.warning(f"   Children: {current['children_rss_mb']:.1f} MB")
+
+            # Try to identify what's using memory
+            try:
+                import psutil
+                # Get top 5 memory-consuming processes
+                processes = []
+                for proc in psutil.process_iter(['pid', 'name', 'memory_info']):
+                    try:
+                        proc_info = proc.info
+                        processes.append((
+                            proc_info['pid'],
+                            proc_info['name'],
+                            proc_info['memory_info'].rss / (1024**3)  # GB
+                        ))
+                    except (psutil.NoSuchProcess, psutil.AccessDenied):
+                        pass
+
+                processes.sort(key=lambda x: x[2], reverse=True)
+                logger.warning("\n   Top memory-consuming processes:")
+                for pid, name, mem_gb in processes[:5]:
+                    logger.warning(f"   PID {pid}: {name} - {mem_gb:.1f} GB")
 
         # Show recent trend
         if len(self.history) > 5:
@@ -501,7 +556,11 @@ class MettaTrainer:
             url = self.wandb_run.url if self.wandb_run is not None else None
             self._stats_run_id = self._stats_client.create_training_run(name=name, attributes={}, url=url).id
 
-        logger.info(f"Training on {self.device}")
+                logger.info(f"Training on {self.device}")
+        logger.info(f"Configuration: num_workers={trainer_cfg.num_workers}, async_factor={trainer_cfg.async_factor}")
+        logger.info(f"Total environments: {self.vecenv.num_envs if hasattr(self, 'vecenv') else 'unknown'}")
+        logger.info(f"Distributed training: {'YES' if torch.distributed.is_initialized() else 'NO'}, world_size={self._world_size}")
+
         while self.agent_step < trainer_cfg.total_timesteps:
             steps_before = self.agent_step
 
