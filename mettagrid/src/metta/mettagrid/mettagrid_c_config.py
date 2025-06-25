@@ -1,13 +1,14 @@
 import copy
 from typing import Annotated, Any, Dict, List, Optional
 
-from pydantic import AfterValidator, BaseModel, Field, RootModel
+from pydantic import AfterValidator, BaseModel, Field, RootModel, conint
 
 from metta.mettagrid.mettagrid_config import ConverterConfig as ConverterConfig_py
 from metta.mettagrid.mettagrid_config import GameConfig as GameConfig_py
 from metta.mettagrid.mettagrid_config import WallConfig as WallConfig_py
 
-Byte = Annotated[int, AfterValidator(lambda v: 0 <= v <= 255)]
+
+Byte = conint(ge=0, le=255)
 FeatureId = Byte
 
 

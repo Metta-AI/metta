@@ -68,7 +68,6 @@ def create_heart_reward_test_env(max_steps=50, num_agents=NUM_AGENTS):
         },
     }
 
-    print(cpp_config_dict(game_config))
     return MettaGrid(cpp_config_dict(game_config), game_map)
 
 
