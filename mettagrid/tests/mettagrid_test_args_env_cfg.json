@@ -7,6 +7,18 @@
     "obs_width": 11,
     "obs_height": 11,
     "max_steps": 1000,
+    "inventory_items": [
+      "ore.red",
+      "ore.blue",
+      "ore.green",
+      "battery.red",
+      "battery.blue",
+      "battery.green",
+      "heart",
+      "armor",
+      "laser",
+      "blueprint"
+    ],
     "agent": {
       "default_item_max": 50,
       "freeze_duration": 10,

@@ -7,7 +7,7 @@
  * - Shows overall view.
  */
 
-import { requestFrame } from './main.js'
+import { requestFrame, setIsPlaying } from './main.js'
 import { focusFullMap } from './worldmap.js'
 import { ui, state } from './common.js'
 import { getAttr } from './replay.js'
@@ -54,6 +54,7 @@ export function startDemoMode() {
 
 export function stopDemoMode() {
   state.demoMode = false
+  setIsPlaying(false)
   requestFrame()
 }
 
@@ -128,7 +129,7 @@ export function doDemoMode() {
       )
       state.selectedGridObject = state.replay.agents[shot.agentId]
       state.followSelection = true
-      ui.mapPanel.zoomLevel = 0.3
+      ui.mapPanel.zoomLevel = 0.15
     }
   }
 

@@ -26,6 +26,7 @@ class ActionHandler;
 class Agent;
 class ObservationEncoder;
 class GridObject;
+class ConverterConfig;
 
 namespace py = pybind11;
 
@@ -71,6 +72,7 @@ public:
 
 private:
   // Member variables
+  std::vector<std::string> _inventory_item_names;
   std::map<unsigned int, float> _group_reward_pct;
   std::map<unsigned int, unsigned int> _group_sizes;
   std::unique_ptr<Grid> _grid;
@@ -116,6 +118,7 @@ private:
   void _step(py::array_t<ActionType, py::array::c_style> actions);
 
   void _handle_invalid_action(size_t agent_idx, const std::string& stat, ActionType type, ActionArg arg);
+  ConverterConfig _create_converter_config(const py::dict& converter_cfg_py);
 };
 
 #endif  // METTAGRID_C_HPP_
