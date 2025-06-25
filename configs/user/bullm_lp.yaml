@@ -14,7 +14,7 @@ data_dir: ${oc.env:DATA_DIR,./train_dir}
 run_dir: ${data_dir}/${run}
 
 trainer:
-  curriculum: env/mettagrid/curriculum/navigation
+  curriculum: env/mettagrid/curriculum/navigation/bucketed
   evaluate_interval: 100
   #total_timesteps: 1000000
   #gamma: 0.99
