@@ -145,16 +145,6 @@ class MettaTrainer:
         # Load or create policy with proper distributed coordination
         policy_record = self._load_policy(checkpoint, policy_store)
 
-        # Models loaded via torch.package have modified class names (prefixed with <torch_package_N>)
-        # which prevents them from being saved again. We work around this by creating a fresh
-        # instance of the policy class and copying the state dict, allowing successful re-saving.
-        # TODO: Remove this workaround when checkpointing refactor is complete
-        logger.info("Creating a fresh policy instance for torch.package to save")
-        fresh_policy = self.policy_store.create(metta_grid_env).policy()
-        fresh_policy.activate_actions(metta_grid_env.action_names, metta_grid_env.max_action_args, self.device)
-        fresh_policy.load_state_dict(policy_record.state_dict(), strict=False)
-        policy_record = fresh_policy
-
         if policy_record is None:
             if self._master:
                 policy_record = self._create_policy(policy_store, metta_grid_env)
@@ -169,7 +159,16 @@ class MettaTrainer:
         self.initial_policy = policy_record
         self.latest_saved_policy = policy_record
         self.policy = policy_record.policy().to(self.device)
-        self.policy_record = policy_record
+
+        # Models loaded via torch.package have modified class names (prefixed with <torch_package_N>)
+        # which prevents them from being saved again. We work around this by creating a fresh
+        # instance of the policy class and copying the state dict, allowing successful re-saving.
+        # TODO: Remove this workaround when checkpointing refactor is complete
+        logger.info("Creating a fresh policy instance for torch.package to save")
+        fresh_policy = self.policy_store.create(metta_grid_env).policy()
+        fresh_policy.activate_actions(metta_grid_env.action_names, metta_grid_env.max_action_args, self.device)
+        fresh_policy.load_state_dict(self.policy.state_dict(), strict=False)
+        self.policy_record = fresh_policy
 
         # Note that these fields are specific to MettaGridEnv, which is why we can't keep
         # self.vecenv.driver_env as just the parent class pufferlib.PufferEnv
