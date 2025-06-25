@@ -37,7 +37,7 @@ protected:
     // Actions is only successful if we take at least one item.
     bool items_taken = false;
 
-    for (const auto& [item, amount] : converter->recipe_output) {
+    for (const auto& [item, _] : converter->recipe_output) {
       if (converter->inventory.count(item) == 0) {
         continue;
       }

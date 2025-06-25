@@ -22,6 +22,10 @@ class Curriculum:
         """Return a dictionary of completion rates for each task."""
         return {}
 
+    def get_task_probs(self) -> dict[str, float]:
+        """Return the current task probabilities for logging purposes."""
+        return {}
+
 
 class Task:
     def __init__(self, id: str, curriculum: "Curriculum", env_cfg: Optional[DictConfig] = None):
