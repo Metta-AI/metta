@@ -96,13 +96,13 @@ MettaGrid::MettaGrid(py::dict cfg, py::list map) {
   }
   init_action_handlers();
 
-  auto groups = cfg["groups"].cast<py::dict>();
+  auto agent_groups = cfg["agent_groups"].cast<py::dict>();
 
-  for (const auto& [key, value] : groups) {
-    auto group = value.cast<py::dict>();
-    unsigned int id = group["id"].cast<unsigned int>();
+  for (const auto& [key, value] : agent_groups) {
+    auto agent_group = value.cast<py::dict>();
+    unsigned int id = agent_group["group_id"].cast<unsigned int>();
     _group_sizes[id] = 0;
-    _group_reward_pct[id] = group.contains("group_reward_pct") ? group["group_reward_pct"].cast<float>() : 0.0f;
+    _group_reward_pct[id] = agent_group["group_reward_pct"].cast<float>();
   }
 
   // Initialize objects from map
@@ -150,16 +150,14 @@ MettaGrid::MettaGrid(py::dict cfg, py::list map) {
       } else if (cell == "temple") {
         converter = new Converter(r, c, cfg["objects"]["temple"].cast<ObjectConfig>(), ObjectType::TempleT);
       } else if (cell.starts_with("agent.")) {
-        std::string group_name = cell.substr(6);
-        auto group_cfg_py = groups[py::str(group_name)]["props"].cast<py::dict>();
-        auto agent_cfg_py = cfg["agent"].cast<py::dict>();
-        unsigned int group_id = groups[py::str(group_name)]["id"].cast<unsigned int>();
-        Agent* agent = MettaGrid::create_agent(r, c, group_name, group_id, group_cfg_py, agent_cfg_py);
+        auto agent_group_cfg_py = agent_groups[py::str(cell)].cast<py::dict>();
+
+        Agent* agent = MettaGrid::create_agent(r, c, agent_group_cfg_py);
         _grid->add_object(agent);
         agent->agent_id = _agents.size();
         agent->stats.set_environment(this);
         add_agent(agent);
-        _group_sizes[group_id] += 1;
+        _group_sizes[agent->group] += 1;
       }
       if (converter != nullptr) {
         _stats->incr("objects." + cell);
@@ -662,56 +660,29 @@ py::list MettaGrid::inventory_item_names() {
   return py::cast(InventoryItemNames);
 }
 
-Agent* MettaGrid::create_agent(int r,
-                               int c,
-                               const std::string& group_name,
-                               unsigned int group_id,
-                               const py::dict& group_cfg_py,
-                               const py::dict& agent_cfg_py) {
-  // Rewards default to 0 for inventory unless overridden.
-  // But we should be rewarding these all the time, e.g., for hearts.
-  std::map<std::string, float> rewards;
-  for (const auto& inv_item : InventoryItemNames) {
-    // TODO: We shouldn't need to populate this with 0, since that's
-    // the default anyways. Confirm that we don't care about the keys
-    // and simplify.
-    auto it = rewards.find(inv_item);
-    if (it == rewards.end()) {
-      rewards.insert(std::make_pair(inv_item, 0));
-    }
-    it = rewards.find(inv_item + "_max");
-    if (it == rewards.end()) {
-      rewards.insert(std::make_pair(inv_item + "_max", 1000));
-    }
-  }
-  if (agent_cfg_py.contains("rewards")) {
-    py::dict rewards_py = agent_cfg_py["rewards"];
-    for (const auto& [key, value] : rewards_py) {
-      rewards[key.cast<std::string>()] = value.cast<float>();
-    }
-  }
-  if (group_cfg_py.contains("rewards")) {
-    py::dict rewards_py = group_cfg_py["rewards"];
-    for (const auto& [key, value] : rewards_py) {
-      rewards[key.cast<std::string>()] = value.cast<float>();
-    }
-  }
+Agent* MettaGrid::create_agent(int r, int c, const py::dict& agent_group_cfg_py) {
+  unsigned char default_item_max = agent_group_cfg_py["default_item_max"].cast<unsigned char>();
+  unsigned char freeze_duration = agent_group_cfg_py["freeze_duration"].cast<unsigned char>();
+  float action_failure_penalty = agent_group_cfg_py["action_failure_penalty"].cast<float>();
+  std::map<std::string, unsigned int> max_items_per_type =
+      agent_group_cfg_py["max_items_per_type"].cast<std::map<std::string, unsigned int>>();
+  std::map<std::string, float> resource_rewards =
+      agent_group_cfg_py["resource_rewards"].cast<std::map<std::string, float>>();
+  std::map<std::string, float> resource_reward_max =
+      agent_group_cfg_py["resource_reward_max"].cast<std::map<std::string, float>>();
+  std::string group_name = agent_group_cfg_py["group_name"].cast<std::string>();
+  unsigned int group_id = agent_group_cfg_py["group_id"].cast<unsigned int>();
 
-  ObjectConfig agent_cfg;
-  for (const auto& [key, value] : agent_cfg_py) {
-    if (key.cast<std::string>() == "rewards") {
-      continue;
-    }
-    agent_cfg[key.cast<std::string>()] = value.cast<int>();
-  }
-  for (const auto& [key, value] : group_cfg_py) {
-    if (key.cast<std::string>() == "rewards") {
-      continue;
-    }
-    agent_cfg[key.cast<std::string>()] = value.cast<int>();
-  }
-
-  return new Agent(r, c, group_name, group_id, agent_cfg, rewards);
+  return new Agent(r,
+                   c,
+                   default_item_max,
+                   freeze_duration,
+                   action_failure_penalty,
+                   max_items_per_type,
+                   resource_rewards,
+                   resource_reward_max,
+                   group_name,
+                   group_id);
 }
 
 py::array_t<unsigned int> MettaGrid::get_agent_groups() const {
