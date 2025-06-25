@@ -7,7 +7,10 @@
       "type": "debugpy",
       "request": "launch",
       "module": "tools.train",
-      "args": ["+hardware=macbook", "+user=${env:USER}"],
+      "args": [
+        "+hardware=macbook",
+        "+user=${env:USER}"
+      ],
       "preLaunchTask": "${defaultBuildTask}"
     },
     {
@@ -52,7 +55,11 @@
       "type": "debugpy",
       "request": "launch",
       "module": "tools.sim",
-      "args": ["+user=${env:USER}", "+hardware=macbook", "cmd=sim"],
+      "args": [
+        "+user=${env:USER}",
+        "+hardware=macbook",
+        "cmd=sim"
+      ],
       "preLaunchTask": "${defaultBuildTask}"
     },
     {
@@ -60,7 +67,10 @@
       "type": "debugpy",
       "request": "launch",
       "module": "tools.dashboard",
-      "args": ["+user=${env:USER}", "+hardware=macbook"],
+      "args": [
+        "+user=${env:USER}",
+        "+hardware=macbook"
+      ],
       "preLaunchTask": "${defaultBuildTask}"
     },
     {
@@ -68,7 +78,11 @@
       "type": "debugpy",
       "request": "launch",
       "module": "tools.analyze",
-      "args": ["+user=${env:USER}", "+hardware=macbook", "cmd=analyze"],
+      "args": [
+        "+user=${env:USER}",
+        "+hardware=macbook",
+        "cmd=analyze"
+      ],
       "preLaunchTask": "${defaultBuildTask}"
     },
     {
@@ -76,7 +90,10 @@
       "type": "debugpy",
       "request": "launch",
       "module": "tools.replay",
-      "args": ["+user=${env:USER}", "+hardware=macbook"],
+      "args": [
+        "+user=${env:USER}",
+        "+hardware=macbook"
+      ],
       "preLaunchTask": "${defaultBuildTask}"
     },
     {
@@ -84,7 +101,10 @@
       "type": "debugpy",
       "request": "launch",
       "module": "tools.play",
-      "args": ["+user=${env:USER}", "+hardware=macbook"],
+      "args": [
+        "+user=${env:USER}",
+        "+hardware=macbook"
+      ],
       "preLaunchTask": "${defaultBuildTask}"
     },
     {
@@ -92,7 +112,11 @@
       "type": "debugpy",
       "request": "launch",
       "module": "pytest",
-      "args": ["-v", "-s", "./tests"],
+      "args": [
+        "-v",
+        "-s",
+        "./tests"
+      ],
       "preLaunchTask": "${defaultBuildTask}"
     },
     {
