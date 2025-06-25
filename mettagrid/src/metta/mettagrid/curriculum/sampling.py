@@ -22,6 +22,11 @@ class SamplingCurriculum(Curriculum):
         OmegaConf.resolve(cfg)
         return Task(f"sample({self._cfg_template.sampling})", self, cfg)
 
+    def get_task_probs(self) -> dict[str, float]:
+        """Return the current task probability for logging purposes."""
+        task_name = f"sample({self._cfg_template.sampling})"
+        return {task_name: 1.0}
+
 
 class SampledTaskCurriculum(Curriculum):
     """Curriculum that contains a single task, but the task is sampled from a distribution."""
