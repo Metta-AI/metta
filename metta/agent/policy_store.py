@@ -193,24 +193,8 @@ class PolicyStore:
         logger.info(f"Saving policy to {path} using torch.package")
 
         policy_class_name = policy.__class__.__module__
-        problematic_classes = []
-
-        # Check main policy class
         if "torch_package_" in policy_class_name:
-            problematic_classes.append(f"main: {policy_class_name}.{policy.__class__.__name__}")
-
-        # Check all nested modules for torch_package_ prefixes
-        if hasattr(policy, "named_modules"):
-            for name, module in policy.named_modules():
-                if "torch_package_" in module.__class__.__module__:
-                    problematic_classes.append(f"{name}: {module.__class__.__module__}.{module.__class__.__name__}")
-
-        if problematic_classes:
-            logger.warning(f"Found {len(problematic_classes)} modules with torch_package_ prefixes:")
-            for cls in problematic_classes[:5]:  # Show first 5
-                logger.warning(f"  {cls}")
-            if len(problematic_classes) > 5:
-                logger.warning(f"  ... and {len(problematic_classes) - 5} more")
+            logger.warning("Policy class name with torch_package_ prefixes! Did you forget to rebuild the agent?")
             logger.warning("Skipping save to prevent pickle errors.")
             return pr
 
@@ -399,32 +383,6 @@ class PolicyStore:
             if not metadata_only:
                 pr._policy = pr.load(path, self._device)
 
-                # Debug: Check classes before restoration
-                problematic_before = []
-                if hasattr(pr._policy, "named_modules"):
-                    for name, module in pr._policy.named_modules():
-                        if "torch_package_" in module.__class__.__module__:
-                            problematic_before.append(f"{name}: {module.__class__.__module__}")
-                logger.info(f"Before restoration: Found {len(problematic_before)} problematic classes")
-
-                # Restore original classes to prevent torch_package_ issues on re-save
-                try:
-                    pr._policy = self._restore_original_classes(pr._policy)
-                    logger.info("Successfully restored original classes for loaded policy")
-                except Exception as e:
-                    logger.warning(f"Could not fully restore original classes: {e}")
-
-                # Debug: Check classes after restoration
-                problematic_after = []
-                if hasattr(pr._policy, "named_modules"):
-                    for name, module in pr._policy.named_modules():
-                        if "torch_package_" in module.__class__.__module__:
-                            problematic_after.append(f"{name}: {module.__class__.__module__}")
-                logger.info(f"After restoration: Found {len(problematic_after)} problematic classes")
-                if problematic_after:
-                    for cls in problematic_after[:3]:
-                        logger.info(f"  Still problematic: {cls}")
-
             pr._local_path = path
             self._cached_prs[path] = pr
             return pr
@@ -590,93 +548,3 @@ class PolicyStore:
             elif "test" in policy_module:
                 # Extern test modules to prevent them from being packaged
                 exporter.extern(policy_module)
-
-    def _restore_original_classes(self, obj, visited=None):
-        """
-        Recursively restore torch_package_ prefixed classes to their original module locations.
-        """
-        import importlib
-
-        if visited is None:
-            visited = set()
-
-        # Avoid infinite recursion
-        obj_id = id(obj)
-        if obj_id in visited:
-            return obj
-        visited.add(obj_id)
-
-        if hasattr(obj, "__class__"):
-            original_module = self._get_original_module_name(obj.__class__.__module__)
-            if original_module != obj.__class__.__module__:
-                try:
-                    # Import the original module and get the class
-                    module = importlib.import_module(original_module)
-                    original_class = getattr(module, obj.__class__.__name__)
-
-                    # For most objects, we can try to change the class
-                    obj.__class__ = original_class
-                    logger.debug(f"Restored class {obj.__class__.__name__} to module {original_module}")
-
-                except (ImportError, AttributeError) as e:
-                    logger.warning(f"Could not restore original class for {obj.__class__}: {e}")
-
-            # Handle torch.nn.Module internal storage explicitly
-            if hasattr(obj, "_modules") and obj._modules:
-                for name, module in obj._modules.items():
-                    if module is not None and module is not obj:
-                        obj._modules[name] = self._restore_original_classes(module, visited)
-
-            if hasattr(obj, "_parameters") and obj._parameters:
-                for _, param in obj._parameters.items():
-                    if param is not None and hasattr(param, "__class__"):
-                        self._restore_original_classes(param, visited)
-
-            if hasattr(obj, "_buffers") and obj._buffers:
-                for _, buffer in obj._buffers.items():
-                    if buffer is not None and hasattr(buffer, "__class__"):
-                        self._restore_original_classes(buffer, visited)
-
-            # Recursively restore nested objects in __dict__
-            if hasattr(obj, "__dict__"):
-                for _, attr_value in obj.__dict__.items():
-                    if hasattr(attr_value, "__class__") and not isinstance(
-                        attr_value, (str, int, float, bool, type(None), type)
-                    ):
-                        self._restore_original_classes(attr_value, visited)
-
-            # Also check common container types
-            if isinstance(obj, (list, tuple)):
-                for i, item in enumerate(obj):
-                    if hasattr(item, "__class__") and not isinstance(item, (str, int, float, bool, type(None), type)):
-                        if isinstance(obj, list):
-                            obj[i] = self._restore_original_classes(item, visited)
-                        else:  # tuple - just restore in place since we can't modify
-                            self._restore_original_classes(item, visited)
-
-            elif isinstance(obj, dict):
-                for key, value in obj.items():
-                    if hasattr(value, "__class__") and not isinstance(value, (str, int, float, bool, type(None), type)):
-                        obj[key] = self._restore_original_classes(value, visited)
-
-        return obj
-
-    def _get_original_module_name(self, module_name: str) -> str:
-        """
-        Extract the original module name from a torch_package_ prefixed name.
-
-        Example: '<torch_package_0>.metta.agent.metta_agent' -> 'metta.agent.metta_agent'
-        """
-        if not isinstance(module_name, str):
-            return module_name
-
-        # Pattern: <torch_package_N>.original.module.name
-        if module_name.startswith("<torch_package_") and ">." in module_name:
-            # Find the end of the torch_package prefix
-            end_bracket = module_name.find(">.")
-            if end_bracket != -1:
-                original_name = module_name[end_bracket + 2 :]  # Skip '>.'
-                logger.debug(f"Extracted original module name: {module_name} -> {original_name}")
-                return original_name
-
-        return module_name
