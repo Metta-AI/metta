@@ -131,7 +131,7 @@ export function doDemoMode() {
       state.selectedGridObject = state.replay.agents[shot.agentId]
       state.followSelection = true
       focusMap(0, 0, 11 * Common.TILE_SIZE, 11 * Common.TILE_SIZE)
-      ui.mapPanel.zoomLevel = ui.mapPanel.zoomLevel
+      shot.zoomLevel = ui.mapPanel.zoomLevel * 1.5
     }
   }
 
