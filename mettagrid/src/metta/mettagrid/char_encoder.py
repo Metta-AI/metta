@@ -11,8 +11,7 @@ NAME_TO_CHAR: dict[str, list[str]] = {
     "empty": [".", " "],
     "block": ["s"],
     # mines
-    "mine": ["m"],
-    "mine_red": ["r"],
+    "mine_red": ["m", "r"],
     "mine_blue": ["b"],
     "mine_green": ["g"],
     # generators

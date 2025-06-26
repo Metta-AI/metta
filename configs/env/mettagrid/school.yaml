@@ -84,7 +84,7 @@ game:
             height: ${sampling:5,20,10}
             agents: 1
             objects:
-              generator: 1
+              generator_red: 1
               wall: ${..width}
           - _target_: metta.mettagrid.room.random.Random
             border_width: 1

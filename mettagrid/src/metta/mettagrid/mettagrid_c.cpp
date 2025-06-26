@@ -130,14 +130,24 @@ MettaGrid::MettaGrid(py::dict cfg, py::list map) {
         Wall* block = new Wall(r, c, cfg["objects"]["block"].cast<ObjectConfig>());
         _grid->add_object(block);
         _stats->incr("objects.block");
-      } else if (cell.starts_with("mine")) {
-        std::string m = cell;
-        auto converter_cfg = _create_converter_config(cfg["objects"][py::str(m)]);
-        converter = new Converter(r, c, converter_cfg, ObjectType::MineT);
-      } else if (cell.starts_with("generator")) {
-        std::string m = cell;
-        auto converter_cfg = _create_converter_config(cfg["objects"][py::str(m)]);
-        converter = new Converter(r, c, converter_cfg, ObjectType::GeneratorT);
+      } else if (cell == "mine_red") {
+        auto converter_cfg = _create_converter_config(cfg["objects"]["mine_red"]);
+        converter = new Converter(r, c, converter_cfg, ObjectType::MineRedT);
+      } else if (cell == "mine_blue") {
+        auto converter_cfg = _create_converter_config(cfg["objects"]["mine_blue"]);
+        converter = new Converter(r, c, converter_cfg, ObjectType::MineBlueT);
+      } else if (cell == "mine_green") {
+        auto converter_cfg = _create_converter_config(cfg["objects"]["mine_green"]);
+        converter = new Converter(r, c, converter_cfg, ObjectType::MineGreenT);
+      } else if (cell == "generator_red") {
+        auto converter_cfg = _create_converter_config(cfg["objects"]["generator_red"]);
+        converter = new Converter(r, c, converter_cfg, ObjectType::GeneratorRedT);
+      } else if (cell == "generator_blue") {
+        auto converter_cfg = _create_converter_config(cfg["objects"]["generator_blue"]);
+        converter = new Converter(r, c, converter_cfg, ObjectType::GeneratorBlueT);
+      } else if (cell == "generator_green") {
+        auto converter_cfg = _create_converter_config(cfg["objects"]["generator_green"]);
+        converter = new Converter(r, c, converter_cfg, ObjectType::GeneratorGreenT);
       } else if (cell == "altar") {
         auto converter_cfg = _create_converter_config(cfg["objects"]["altar"]);
         converter = new Converter(r, c, converter_cfg, ObjectType::AltarT);
