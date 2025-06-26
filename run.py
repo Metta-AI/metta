@@ -34,7 +34,7 @@ import sys
 import torch
 from omegaconf import DictConfig, OmegaConf
 
-from config import build_common_config, build_train_config
+import metta
 
 # Import basic requirements first
 from metta.common.util.logging import setup_mettagrid_logger
@@ -49,6 +49,70 @@ from metta.rl.functional_trainer import (
 from metta.rl.losses import Losses
 from metta.rl.objectives import ClipPPOLoss
 from metta.rl.vecenv import make_vecenv
+
+
+def build_common_config(args):
+    """Build the common configuration that all tools share."""
+    data_dir = os.environ.get("DATA_DIR", "./train_dir")
+
+    cfg = {
+        "run": getattr(args, "run", "default_run"),
+        "data_dir": data_dir,
+        "run_dir": f"{data_dir}/{getattr(args, 'run', 'default_run')}",
+        "policy_uri": f"file://{data_dir}/{getattr(args, 'run', 'default_run')}/checkpoints",
+        "torch_deterministic": True,
+        "vectorization": getattr(args, "vectorization", "multiprocessing"),
+        "seed": getattr(args, "seed", 0),
+        "device": getattr(args, "device", "cuda" if torch.cuda.is_available() else "cpu"),
+        "stats_user": os.environ.get("USER", "unknown"),
+        "dist_cfg_path": None,
+        # Hydra config for compatibility
+        "hydra": {"callbacks": {"resolver_callback": {"_target_": "metta.common.util.resolvers.ResolverRegistrar"}}},
+    }
+
+    return DictConfig(cfg)
+
+
+def build_train_config(args):
+    """Build configuration for training using the new metta API."""
+    cfg = build_common_config(args)
+
+    # Get configurations from metta factory functions
+    cfg["env"] = DictConfig(
+        metta.create_env(
+            num_agents=getattr(args, "num_agents", 2),
+        )
+    )
+
+    cfg["agent"] = DictConfig(metta.create_agent())
+
+    # Build trainer config with command line overrides
+    trainer_config = metta.create_trainer(
+        total_timesteps=getattr(args, "total_timesteps", 10_000),
+        batch_size=getattr(args, "batch_size", 256),
+        checkpoint_dir=f"{cfg.run_dir}/checkpoints",
+        num_workers=getattr(args, "num_workers", 1),
+        replay_dir=f"s3://softmax-public/replays/{cfg.run}",
+    )
+
+    # Convert to dict and add extra fields not in TrainerConfig
+    trainer_dict = trainer_config.model_dump(by_alias=True)
+    trainer_dict["resume"] = False
+    trainer_dict["use_e3b"] = False
+    trainer_dict["replay_uri"] = None
+
+    cfg["trainer"] = DictConfig(trainer_dict)
+    cfg["sim"] = DictConfig(metta.create_sim_suite())
+    cfg["wandb"] = DictConfig(metta.create_wandb())
+
+    # Train job configuration
+    cfg["train_job"] = DictConfig({"map_preview_uri": None, "evals": cfg.sim})
+    cfg["cmd"] = "train"
+
+    # Set serial vectorization for local
+    cfg["vectorization"] = getattr(args, "vectorization", "serial")
+
+    return cfg
 
 
 def train_command(args):
