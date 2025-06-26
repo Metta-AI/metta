@@ -24,7 +24,7 @@ env_overrides:
 
 performance_threshold: 0.8
 smoothing: 0.1
-progression_rate: 0.01
-progression_mode: "perf"
+progression_rate: 0.0001
+progression_mode: "time" #'time' or 'perf'
 blending_smoothness: 0.5
 blending_mode: "logistic"

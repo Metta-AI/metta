@@ -20,7 +20,7 @@ trainer:
   curriculum: /env/mettagrid/curriculum/navigation/progressive
   num_workers: 4
   evaluate_interval: 100
-  total_timesteps: 10_000_000  # Shorter run for testing
+  total_timesteps: 100_000_000  # Shorter run for testing
 
 # Add any other user-specific overrides below
 wandb:
