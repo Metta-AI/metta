@@ -164,7 +164,14 @@ function fixReplay() {
   // Example: 1 -> ["objects/unknown.png", "objects/unknown.item.png", "objects/unknown.color.png"]
   state.replay.object_images = []
   for (let i = 0; i < state.replay.object_types.length; i++) {
-    const typeName = state.replay.object_types[i]
+    let typeName = state.replay.object_types[i]
+    // Remove known color suffixes.
+    for (const color of Common.COLORS) {
+      if (typeName.endsWith('_' + color[0])) {
+        typeName = typeName.slice(0, -color[0].length - 1)
+        break
+      }
+    }
     var image = 'objects/' + typeName + '.png'
     var imageItem = 'objects/' + typeName + '.item.png'
     var imageColor = 'objects/' + typeName + '.color.png'
@@ -321,6 +328,15 @@ export function loadReplayStep(replayStep: any) {
   updateStep(step)
 
   requestFrame()
+}
+
+/** Get object config. */
+export function getObjectConfig(object: any) {
+  let typeName = state.replay.object_types[object.type]
+  if (state.replay.config == null) {
+    return null
+  }
+  return state.replay.config.game.objects[typeName]
 }
 
 /** Initializes the WebSocket connection. */

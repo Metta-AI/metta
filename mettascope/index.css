@@ -1683,6 +1683,8 @@ button#help-button.hover-icon .icon {
     display: block;
     width: 20px;
     height: 20px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
 }
 
 .header-cell .name {
@@ -2047,6 +2049,8 @@ button#help-button.hover-icon .icon {
     height: 20px;
     left: 48px;
     top: 0px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
 }
 
 .column-option .name {
@@ -2516,6 +2520,8 @@ button#help-button.hover-icon .icon {
     height: 32px;
     left: 4px;
     top: 4px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
 }
 
 .panel-body .recipe-area {
@@ -2602,6 +2608,8 @@ button#help-button.hover-icon .icon {
     height: 32px;
     left: 4px;
     top: 4px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
 }
 
 .recipe .arrow {
@@ -2651,6 +2659,8 @@ button#help-button.hover-icon .icon {
     height: 32px;
     left: 4px;
     top: 4px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
 }
 
 .panel-body .actions {
