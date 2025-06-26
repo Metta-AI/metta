@@ -19,6 +19,7 @@ from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
 from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyRecord, PolicyStore
 from metta.agent.util.debug import assert_shape
+from metta.common.memory_monitor import MemoryMonitor
 from metta.common.stopwatch import Stopwatch, with_instance_timer
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.system_monitor import SystemMonitor
@@ -113,7 +114,9 @@ class MettaTrainer:
         self.timer = Stopwatch(logger)
         self.timer.start()
 
-        self.system_monitor = SystemMonitor(
+        self._memory_monitor = MemoryMonitor()
+
+        self._system_monitor = SystemMonitor(
             sampling_interval_sec=1.0,  # Sample every second
             history_size=100,  # Keep last 100 samples
             logger=logger,
@@ -286,6 +289,8 @@ class MettaTrainer:
             for metric_name, step_metric in metric_overrides:
                 wandb_run.define_metric(metric_name, step_metric=step_metric)
 
+        self._memory_monitor.add(self)
+
         logger.info(f"MettaTrainer initialization complete on device: {self.device}")
 
     def train(self) -> None:
@@ -351,7 +356,7 @@ class MettaTrainer:
         self._maybe_save_training_state(force=True)
         self._maybe_upload_policy_record_to_wandb(force=True)
 
-        self.system_monitor.stop()
+        self._system_monitor.stop()
 
     def _on_train_step(self):
         pass
@@ -961,7 +966,8 @@ class MettaTrainer:
                 **{f"experience/{k}": v for k, v in self.experience.stats().items()},
                 **{f"parameters/{k}": v for k, v in parameters.items()},
                 **{f"eval_{k}": v for k, v in self.evals.items()},
-                **{f"monitor/{k}": v for k, v in self.system_monitor.stats().items()},
+                **{f"monitor/{k}": v for k, v in self._system_monitor.stats().items()},
+                **{f"trainer_memory/{k}": v for k, v in self._memory_monitor.stats().items()},
                 **environment_stats,
                 **weight_stats,
                 **timing_stats,
@@ -1042,6 +1048,7 @@ class MettaTrainer:
 
     def close(self):
         self.vecenv.close()
+        self._memory_monitor.clear()
 
     @property
     def latest_saved_policy_uri(self) -> str | None:
@@ -1146,6 +1153,8 @@ class MettaTrainer:
             zero_copy=trainer_cfg.zero_copy,
             is_training=True,
         )
+
+        self._memory_monitor.add(self.vecenv)
 
         if self.cfg.seed is None:
             self.cfg.seed = np.random.randint(0, 1000000)
