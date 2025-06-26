@@ -11,6 +11,7 @@ import yaml
 from omegaconf import DictConfig, ListConfig, OmegaConf
 
 import wandb_carbs
+from metta.common.uv_check import enforce_uv
 from metta.rl.carbs.metta_carbs import MettaCarbs, carbs_params_from_cfg
 from metta.sim.simulation_config import SimulationSuiteConfig
 from metta.util.config import config_from_path
@@ -194,4 +195,5 @@ def sweep_space(space, min_val, max_val, center=None, *, _root_):
 
 
 if __name__ == "__main__":
+    enforce_uv()
     sys.exit(main())

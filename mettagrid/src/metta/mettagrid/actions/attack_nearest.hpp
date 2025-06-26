@@ -10,7 +10,8 @@
 
 class AttackNearest : public Attack {
 public:
-  explicit AttackNearest(const ActionConfig& cfg) : Attack(cfg, "attack_nearest") {}
+  explicit AttackNearest(const ActionConfig& cfg, InventoryItem laser_item_id, InventoryItem armor_item_id)
+      : Attack(cfg, laser_item_id, armor_item_id, "attack_nearest") {}
 
   unsigned char max_arg() const override {
     return 0;
@@ -18,7 +19,7 @@ public:
 
 protected:
   bool _handle_action(Agent* actor, ActionArg arg) override {
-    if (actor->update_inventory(InventoryItem::laser, -1) == 0) {
+    if (actor->update_inventory(_laser_item_id, -1) == 0) {
       return false;
     }
 

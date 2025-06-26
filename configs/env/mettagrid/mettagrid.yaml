@@ -8,17 +8,31 @@ game:
   num_observation_tokens: 200
   max_steps: 1000
 
+  # We could figure this out implicitly, but being explicit reduces the risk of people accidentally configuring
+  # inventory they didn't intend (e.g., "ore" instead of "ore.red").
+  inventory_item_names:
+    - ore.red
+    - ore.blue
+    - ore.green
+    - battery.red
+    - battery.blue
+    - battery.green
+    - heart
+    - armor
+    - laser
+    - blueprint
+
   diversity_bonus:
     enabled: false
     similarity_coef: 0.5 # Coefficient for within-group similarity
     diversity_coef: 0.5 # Coefficient for between-group diversity
 
   agent:
-    default_item_max: ${sampling:0, 100, 50}
+    default_item_max: 50
     # the agent should be able to pick up as many hearts as they want, even if
     # "normal" item limits are lower
     heart_max: 255
-    freeze_duration: ${sampling:0, 200, 10}
+    freeze_duration: 10
     rewards:
       # action_failure_penalty: 0.00001
       action_failure_penalty: 0
@@ -84,7 +98,7 @@ game:
       output_heart: 1
       max_output: 5
       conversion_ticks: 1
-      cooldown: ${sampling:1, 20, 10}
+      cooldown: 10
       initial_items: 1
 
     mine_red:
@@ -92,7 +106,7 @@ game:
       color: 0
       max_output: 5
       conversion_ticks: 1
-      cooldown: ${sampling:0, 100, 50}
+      cooldown: 50
       initial_items: 1
 
     mine_blue:
@@ -100,7 +114,7 @@ game:
       output_ore.blue: 1
       max_output: 5
       conversion_ticks: 1
-      cooldown: ${sampling:0, 100, 50}
+      cooldown: 50
       initial_items: 1
 
     mine_green:
@@ -108,7 +122,7 @@ game:
       color: 2
       max_output: 5
       conversion_ticks: 1
-      cooldown: ${sampling:0, 100, 50}
+      cooldown: 50
       initial_items: 1
 
     generator_red:
@@ -117,7 +131,7 @@ game:
       color: 0
       max_output: 5
       conversion_ticks: 1
-      cooldown: ${sampling:0, 50, 25}
+      cooldown: 25
       initial_items: 1
 
     generator_blue:
@@ -126,7 +140,7 @@ game:
       color: 1
       max_output: 5
       conversion_ticks: 1
-      cooldown: ${sampling:0, 50, 25}
+      cooldown: 25
       initial_items: 1
 
     generator_green:
@@ -135,7 +149,7 @@ game:
       color: 2
       max_output: 5
       conversion_ticks: 1
-      cooldown: ${sampling:0, 50, 25}
+      cooldown: 25
       initial_items: 1
 
     armory:
@@ -143,7 +157,7 @@ game:
       output_armor: 1
       max_output: 5
       conversion_ticks: 1
-      cooldown: ${sampling:0, 20, 10}
+      cooldown: 10
       initial_items: 1
 
     lasery:
@@ -152,7 +166,7 @@ game:
       output_laser: 1
       max_output: 5
       conversion_ticks: 1
-      cooldown: ${sampling:0, 20, 10}
+      cooldown: 10
       initial_items: 1
 
     lab:
@@ -161,7 +175,7 @@ game:
       output_blueprint: 1
       max_output: 5
       conversion_ticks: 1
-      cooldown: ${sampling:0, 10, 5}
+      cooldown: 5
       initial_items: 1
 
     factory:
@@ -172,7 +186,7 @@ game:
       output_laser: 5
       max_output: 5
       conversion_ticks: 1
-      cooldown: ${sampling:0, 10, 5}
+      cooldown: 5
       initial_items: 1
 
     temple:
@@ -181,7 +195,7 @@ game:
       output_heart: 5
       max_output: 5
       conversion_ticks: 1
-      cooldown: ${sampling:0, 10, 5}
+      cooldown: 5
       initial_items: 1
 
     wall:
