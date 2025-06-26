@@ -4,7 +4,7 @@
 # Uses the learning progress navigation curriculum defined in env/mettagrid/curriculum/learningprogress_navigation.yaml
 
 defaults:
-  - /trainer/common
+  - /trainer/trainer
   - /sim/all@evals  # Use navigation-only evaluation suite
   - _self_
 

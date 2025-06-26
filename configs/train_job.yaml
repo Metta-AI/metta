@@ -1,7 +1,7 @@
 defaults:
   - common
   - agent: fast
-  - trainer: common
+  - trainer: trainer
   - sim: all
   - wandb: metta_research
   - _self_
