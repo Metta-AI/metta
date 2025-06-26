@@ -1,4 +1,5 @@
 sampling: 0
+replay_level_prob: 0.2
 game:
   num_agents: ???
   obs_width: 11
@@ -35,15 +36,15 @@ game:
       # action_failure_penalty: 0.00001
       action_failure_penalty: 0
 
-      ore.red: 0
-      ore.blue: 0
-      ore.green: 0
+      ore.red: 0.005
+      ore.blue: 0.005
+      ore.green: 0.005
       ore.red_max: 4
       ore.blue_max: 4
       ore.green_max: 4
-      battery.red: 0
-      battery.blue: 0
-      battery.green: 0
+      battery.red: 0.01
+      battery.blue: 0.01
+      battery.green: 0.01
       battery.red_max: 5
       battery.blue_max: 5
       battery.green_max: 5
@@ -97,7 +98,7 @@ game:
       max_output: 5
       conversion_ticks: 1
       cooldown: 10
-      initial_items: 0
+      initial_items: 1
 
     mine_red:
       output_ore.red: 1
@@ -105,7 +106,7 @@ game:
       max_output: 5
       conversion_ticks: 1
       cooldown: 50
-      initial_items: 0
+      initial_items: 1
 
     mine_blue:
       color: 1
@@ -113,7 +114,7 @@ game:
       max_output: 5
       conversion_ticks: 1
       cooldown: 50
-      initial_items: 0
+      initial_items: 1
 
     mine_green:
       output_ore.green: 1
@@ -121,7 +122,7 @@ game:
       max_output: 5
       conversion_ticks: 1
       cooldown: 50
-      initial_items: 0
+      initial_items: 1
 
     generator_red:
       input_ore.red: 1
@@ -130,7 +131,7 @@ game:
       max_output: 5
       conversion_ticks: 1
       cooldown: 25
-      initial_items: 0
+      initial_items: 1
 
     generator_blue:
       input_ore.blue: 1
@@ -139,7 +140,7 @@ game:
       max_output: 5
       conversion_ticks: 1
       cooldown: 25
-      initial_items: 0
+      initial_items: 1
 
     generator_green:
       input_ore.green: 1
@@ -148,7 +149,7 @@ game:
       max_output: 5
       conversion_ticks: 1
       cooldown: 25
-      initial_items: 0
+      initial_items: 1
 
     armory:
       input_ore.red: 3
@@ -156,7 +157,7 @@ game:
       max_output: 5
       conversion_ticks: 1
       cooldown: 10
-      initial_items: 0
+      initial_items: 1
 
     lasery:
       input_ore.red: 1
@@ -165,7 +166,7 @@ game:
       max_output: 5
       conversion_ticks: 1
       cooldown: 10
-      initial_items: 0
+      initial_items: 1
 
     lab:
       input_ore.red: 3
@@ -174,7 +175,7 @@ game:
       max_output: 5
       conversion_ticks: 1
       cooldown: 5
-      initial_items: 0
+      initial_items: 1
 
     factory:
       input_blueprint: 1
@@ -185,7 +186,7 @@ game:
       max_output: 5
       conversion_ticks: 1
       cooldown: 5
-      initial_items: 0
+      initial_items: 1
 
     temple:
       input_heart: 1
@@ -194,7 +195,7 @@ game:
       max_output: 5
       conversion_ticks: 1
       cooldown: 5
-      initial_items: 0
+      initial_items: 1
 
     wall:
       swappable: false
