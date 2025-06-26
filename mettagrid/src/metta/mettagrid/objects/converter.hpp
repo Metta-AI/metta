@@ -14,13 +14,14 @@
 #include "metta_object.hpp"
 
 struct ConverterConfig {
-  std::map<ObsType, uint8_t> recipe_input;
-  std::map<ObsType, uint8_t> recipe_output;
+  std::map<InventoryItem, uint8_t> recipe_input;
+  std::map<InventoryItem, uint8_t> recipe_output;
   short max_output;
   unsigned short conversion_ticks;
   unsigned short cooldown;
   unsigned char initial_items;
   ObsType color;
+  std::vector<std::string> inventory_item_names;
 };
 
 class Converter : public HasInventory {
@@ -70,7 +71,7 @@ private:
       if (this->inventory[item] == 0) {
         this->inventory.erase(item);
       }
-      stats.add(InventoryItemNames[item] + ".consumed", amount);
+      stats.add(stats.inventory_item_name(item) + ".consumed", amount);
     }
     // All the previous returns were "we don't start converting".
     // This one is us starting to convert.
@@ -101,7 +102,8 @@ public:
         max_output(cfg.max_output),
         conversion_ticks(cfg.conversion_ticks),
         cooldown(cfg.cooldown),
-        color(cfg.color) {
+        color(cfg.color),
+        stats(cfg.inventory_item_names) {
     GridObject::init(type_id, GridLocation(r, c, GridLayer::Object_Layer));
     this->converting = false;
     this->cooling_down = false;
@@ -124,7 +126,7 @@ public:
     // Add output to inventory
     for (const auto& [item, amount] : this->recipe_output) {
       HasInventory::update_inventory(item, amount);
-      stats.add(InventoryItemNames[item] + ".produced", amount);
+      stats.add(stats.inventory_item_name(item) + ".produced", amount);
     }
 
     if (this->cooldown > 0) {
@@ -152,9 +154,9 @@ public:
     int delta = HasInventory::update_inventory(item, amount);
     if (delta != 0) {
       if (delta > 0) {
-        stats.add(InventoryItemNames[item] + ".added", delta);
+        stats.add(stats.inventory_item_name(item) + ".added", delta);
       } else {
-        stats.add(InventoryItemNames[item] + ".removed", -delta);
+        stats.add(stats.inventory_item_name(item) + ".removed", -delta);
       }
     }
     this->maybe_start_converting();

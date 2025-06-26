@@ -42,7 +42,7 @@ protected:
           // We should be able to put this many items into the converter. If not, something is wrong.
           int delta = actor->update_inventory(item, -put);
           assert(delta == -put);
-          actor->stats.add(InventoryItemNames[item] + ".put", put);
+          actor->stats.add(actor->stats.inventory_item_name(item) + ".put", put);
           success = true;
         }
       }
