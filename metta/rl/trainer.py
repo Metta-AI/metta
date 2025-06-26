@@ -469,6 +469,10 @@ class MettaTrainer:
         prio_cfg = trainer_cfg.get("prioritized_experience_replay", {})
         vtrace_cfg = trainer_cfg.get("vtrace", {})
 
+        if self._master:
+            critic_weights_before = self.policy.components["critic_1"].weight_net.weight.data.clone()
+            action_weights_before = self.policy.components["_action_"].W.data.clone()
+
         # Reset importance sampling ratios
         experience.reset_importance_sampling_ratios()
 
@@ -646,6 +650,14 @@ class MettaTrainer:
                     break
             # end loop over epochs
 
+        if self._master:
+            critic_change = (
+                (self.policy.components["critic_1"].weight_net.weight.data - critic_weights_before).abs().sum()
+            )
+            action_change = (self.policy.components["_action_"].W.data - action_weights_before).abs().sum()
+            self.stats["weight_change/critic"] = [critic_change.item()]
+            self.stats["weight_change/action"] = [action_change.item()]
+
         if self.lr_scheduler is not None:
             self.lr_scheduler.step()
 
@@ -780,6 +792,10 @@ class MettaTrainer:
                 ) from e
         self.stats = mean_stats
 
+        weight_change_stats = {k: v for k, v in self.stats.items() if k.startswith("weight_change/")}
+        for k in weight_change_stats.keys():
+            self.stats.pop(k, None)
+
         weight_stats = {}
         if self.cfg.agent.analyze_weights_interval != 0 and self.epoch % self.cfg.agent.analyze_weights_interval == 0:
             for metrics in self.policy.compute_weight_metrics():
@@ -877,6 +893,7 @@ class MettaTrainer:
                 **weight_stats,
                 **timing_stats,
                 **metric_stats,
+                **{k: v for k, v in self.stats.items() if "weight_change" in k},
             }
         )
 
