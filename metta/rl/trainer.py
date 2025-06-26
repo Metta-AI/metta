@@ -71,6 +71,9 @@ class MettaTrainer:
         if trainer_cfg.evaluate_interval != 0 and trainer_cfg.evaluate_interval < trainer_cfg.checkpoint_interval:
             raise ValueError("evaluate_interval must be at least as large as checkpoint_interval")
 
+        if trainer_cfg.evaluate_interval != 0 and trainer_cfg.evaluate_interval < trainer_cfg.wandb_checkpoint_interval:
+            raise ValueError("evaluate_interval must be at least as large as wandb_checkpoint_interval")
+
         # Validate that we save policies locally at least as often as we upload to wandb
         if (
             trainer_cfg.wandb_checkpoint_interval != 0
@@ -107,6 +110,7 @@ class MettaTrainer:
         self.torch_profiler = TorchProfiler(self._master, cfg.run_dir, trainer_cfg.profiler_interval_epochs, wandb_run)
         self.losses = Losses()
         self.stats = defaultdict(list)
+        self.grad_stats = {}
         self.wandb_run = wandb_run
         self.policy_store = policy_store
         self.evals: dict[str, float] = {}
@@ -304,6 +308,7 @@ class MettaTrainer:
             self._stats_run_id = self._stats_client.create_training_run(name=name, attributes={}, url=url).id
 
         logger.info(f"Training on {self.device}")
+        wandb_policy_name: str | None = None
         while self.agent_step < trainer_cfg.total_timesteps:
             steps_before = self.agent_step
 
@@ -338,10 +343,11 @@ class MettaTrainer:
             # Interval periodic tasks
             self._maybe_save_policy()
             self._maybe_save_training_state()
-            self._maybe_evaluate_policy()
-            self._maybe_upload_policy_record_to_wandb()
+            wandb_policy_name = self._maybe_upload_policy_record_to_wandb()
+            self._maybe_evaluate_policy(wandb_policy_name)
             self._maybe_generate_replay()
             self._maybe_update_l2_weights()
+            self._maybe_compute_grad_stats()
 
             self._on_train_step()
             # end loop over total_timesteps
@@ -740,7 +746,7 @@ class MettaTrainer:
         logger.info(f"Saved policy locally: {name}")
         return self.latest_saved_policy_record
 
-    def _maybe_upload_policy_record_to_wandb(self, force=False):
+    def _maybe_upload_policy_record_to_wandb(self, force: bool = False) -> str | None:
         """Upload policy to wandb if on wandb interval"""
         if not self._should_run(self.trainer_cfg.wandb_checkpoint_interval, force):
             return
@@ -756,21 +762,22 @@ class MettaTrainer:
             logger.warning("No wandb run name was provided")
             return
 
-        self.policy_store.add_to_wandb_run(self.wandb_run.name, self.latest_saved_policy_record)
+        result = self.policy_store.add_to_wandb_run(self.wandb_run.name, self.latest_saved_policy_record)
         logger.info(f"Uploaded policy to wandb at epoch {self.epoch}")
+        return result
 
     def _maybe_update_l2_weights(self, force=False):
         """Update L2 init weights if on update interval"""
         if self._should_run(self.cfg.agent.l2_init_weight_update_interval, force):
             self.policy.update_l2_init_weight_copy()
 
-    def _maybe_evaluate_policy(self, force=False):
+    def _maybe_evaluate_policy(self, wandb_policy_name: str | None = None, force: bool = False):
         """Evaluate policy if on evaluation interval"""
         if self._should_run(self.trainer_cfg.evaluate_interval, force):
-            self._evaluate_policy()
+            self._evaluate_policy(wandb_policy_name)
 
     @with_instance_timer("_evaluate_policy", log_level=logging.INFO)
-    def _evaluate_policy(self):
+    def _evaluate_policy(self, wandb_policy_name: str | None = None):
         if self._stats_run_id is not None and self._stats_client is not None:
             self._stats_epoch_id = self._stats_client.create_epoch(
                 run_id=self._stats_run_id,
@@ -790,6 +797,7 @@ class MettaTrainer:
             stats_dir="/tmp/stats",
             stats_client=self._stats_client,
             stats_epoch_id=self._stats_epoch_id,
+            wandb_policy_name=wandb_policy_name,
         )
         result = sim.simulate()
         stats_db = EvalStatsDB.from_sim_stats_db(result.stats_db)
@@ -974,10 +982,12 @@ class MettaTrainer:
                 **weight_stats,
                 **timing_stats,
                 **metric_stats,
+                **self.grad_stats,
             }
         )
 
         self.stats.clear()
+        self.grad_stats.clear()
 
     def _compute_advantage(
         self,
@@ -1212,6 +1222,41 @@ class MettaTrainer:
             time.sleep(5)
 
         raise RuntimeError(f"Timeout: Master failed to create policy at {policy_path}")
+
+    def _maybe_compute_grad_stats(self, force=False):
+        """Compute and store gradient statistics if on interval."""
+        interval = self.trainer_cfg.get("grad_mean_variance_interval", 0)
+        if not self._should_run(interval, force):
+            return
+
+        with self.timer("grad_stats"):
+            all_gradients = []
+            for param in self.policy.parameters():
+                if param.grad is not None:
+                    all_gradients.append(param.grad.view(-1))
+
+            if not all_gradients:
+                logger.warning("No gradients found to compute stats.")
+                self.grad_stats = {}
+                return
+
+            all_gradients_tensor = torch.cat(all_gradients).to(torch.float32)
+
+            grad_mean = all_gradients_tensor.mean()
+            grad_variance = all_gradients_tensor.var()
+            grad_norm = all_gradients_tensor.norm(2)
+
+            self.grad_stats = {
+                "grad/mean": grad_mean.item(),
+                "grad/variance": grad_variance.item(),
+                "grad/norm": grad_norm.item(),
+            }
+            logger.info(
+                f"Computed gradient stats at epoch {self.epoch}: "
+                f"mean={self.grad_stats['grad/mean']:.2e}, "
+                f"var={self.grad_stats['grad/variance']:.2e}, "
+                f"norm={self.grad_stats['grad/norm']:.2e}"
+            )
 
 
 class AbortingTrainer(MettaTrainer):

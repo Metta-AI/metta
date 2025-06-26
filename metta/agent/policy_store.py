@@ -15,7 +15,7 @@ import os
 import random
 import sys
 import warnings
-from typing import List, Optional, Union
+from typing import Any, List, Optional, Union
 
 import gymnasium as gym
 import numpy as np
@@ -514,19 +514,21 @@ class PolicyStore:
     def save(self, name: str, path: str, policy: nn.Module, metadata: dict):
         return PolicyRecord(self, name, "file://" + path, metadata).save(path, policy)
 
-    def add_to_wandb_run(self, run_id: str, pr: PolicyRecord, additional_files=None):
+    def add_to_wandb_run(self, run_id: str, pr: PolicyRecord, additional_files: list[str] | None = None) -> str:
         local_path = pr.local_path()
         if local_path is None:
             raise ValueError("PolicyRecord has no local path")
         return self.add_to_wandb_artifact(run_id, "model", pr.metadata, local_path, additional_files)
 
-    def add_to_wandb_sweep(self, sweep_name: str, pr: PolicyRecord, additional_files=None):
+    def add_to_wandb_sweep(self, sweep_name: str, pr: PolicyRecord, additional_files: list[str] | None = None) -> str:
         local_path = pr.local_path()
         if local_path is None:
             raise ValueError("PolicyRecord has no local path")
         return self.add_to_wandb_artifact(sweep_name, "sweep_model", pr.metadata, local_path, additional_files)
 
-    def add_to_wandb_artifact(self, name: str, type: str, metadata: dict, local_path: str, additional_files=None):
+    def add_to_wandb_artifact(
+        self, name: str, type: str, metadata: dict[str, Any], local_path: str, additional_files: list[str] | None = None
+    ) -> str:
         if self._wandb_run is None:
             raise ValueError("PolicyStore was not initialized with a wandb run")
 
@@ -540,6 +542,7 @@ class PolicyStore:
         artifact.wait()
         logger.info(f"Added artifact {artifact.qualified_name}")
         self._wandb_run.log_artifact(artifact)
+        return artifact.qualified_name
 
     def _prs_from_path(self, path: str) -> List[PolicyRecord]:
         paths = []

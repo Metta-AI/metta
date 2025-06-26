@@ -16,7 +16,7 @@ import time
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 
 import numpy as np
 import torch
@@ -61,11 +61,21 @@ class Simulation:
         replay_dir: str | None = None,
         stats_client: StatsClient | None = None,
         stats_epoch_id: uuid.UUID | None = None,
+        wandb_policy_name: str | None = None,
     ):
         self._name = name
         self._sim_suite_name = sim_suite_name
         self._config = config
         self._id = uuid.uuid4().hex[:12]
+
+        self._wandb_policy_name: str | None = None
+        self._wandb_uri: str | None = None
+        if wandb_policy_name is not None:
+            # wandb_policy_name is a qualified name like 'entity/project/artifact:version'
+            # we store the uris as 'wandb://project/artifact:version', so need to strip 'entity'
+            arr = wandb_policy_name.split("/")
+            self._wandb_policy_name = arr[2]
+            self._wandb_uri = "wandb://" + arr[1] + "/" + arr[2]
 
         # ---------------- env config ----------------------------------- #
         logger.info(f"config.env {config.env}")
@@ -327,30 +337,36 @@ class Simulation:
         )
         return db
 
-    def get_policy_ids(self, stats_client: StatsClient, policies: List[PolicyRecord]) -> Dict[str, uuid.UUID]:
-        policy_names = [policy.name for policy in policies]
+    def get_policy_ids(self, stats_client: StatsClient, policies: List[Tuple[str, str]]) -> Dict[str, uuid.UUID]:
+        policy_names = [policy[0] for policy in policies]
         policy_ids_response = stats_client.get_policy_ids(policy_names)
         policy_ids = policy_ids_response.policy_ids
 
         for policy in policies:
-            if policy.name not in policy_ids:
-                policy_response = stats_client.create_policy(
-                    policy.name, None, policy.uri, epoch_id=self._stats_epoch_id
-                )
-                policy_ids[policy.name] = policy_response.id
+            if policy[0] not in policy_ids:
+                policy_response = stats_client.create_policy(policy[0], None, policy[1], epoch_id=self._stats_epoch_id)
+                policy_ids[policy[0]] = policy_response.id
         return policy_ids
+
+    def _get_policy_name(self) -> str:
+        return self._wandb_policy_name if self._wandb_policy_name is not None else self._policy_pr.name
+
+    def _get_policy_uri(self) -> str:
+        return self._wandb_uri if self._wandb_uri is not None else self._policy_pr.uri
 
     def _write_remote_stats(self, stats_db: SimulationStatsDB) -> None:
         """Write stats to the remote stats database."""
         if self._stats_client is not None:
-            policies = [self._policy_pr]
+            policy_name = self._get_policy_name()
+            policy_uri = self._get_policy_uri()
+            policies = [(policy_name, policy_uri)]
             if self._npc_pr is not None:
-                policies.append(self._npc_pr)
+                policies.append((self._npc_pr.name, self._npc_pr.uri))
             policy_ids = self.get_policy_ids(self._stats_client, policies)
 
             agent_map: Dict[int, uuid.UUID] = {}
             for idx in self._policy_idxs:
-                agent_map[int(idx.item())] = policy_ids[self._policy_pr.name]
+                agent_map[int(idx.item())] = policy_ids[policy_name]
 
             if self._npc_pr is not None:
                 for idx in self._npc_idxs:
@@ -389,7 +405,7 @@ class Simulation:
                     self._stats_client.record_episode(
                         agent_policies=agent_map,
                         agent_metrics=agent_metrics,
-                        primary_policy_id=policy_ids[self._policy_pr.name],
+                        primary_policy_id=policy_ids[policy_name],
                         stats_epoch=self._stats_epoch_id,
                         eval_name=self._name,
                         simulation_suite="" if self._sim_suite_name is None else self._sim_suite_name,
