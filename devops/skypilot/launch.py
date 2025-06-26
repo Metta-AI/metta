@@ -104,6 +104,9 @@ def main():
     parser.add_argument("-c", "--confirm", action="store_true", help="Show confirmation prompt")
     (args, cmd_args) = parser.parse_known_args(filtered_args)
 
+    if not args.cmd or not args.cmd.strip():
+        parser.error("cmd argument cannot be empty!")
+
     if run_id is None:
         parser.error("run= parameter is required")
 
