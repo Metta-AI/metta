@@ -32,6 +32,7 @@ def get_stats_client(cfg: DictConfig | ListConfig, logger: Logger) -> StatsClien
                 logger.warning("No stats server URI provided, running without stats collection")
             if machine_token is None:
                 logger.warning(
-                    "No machine token provided, running without stats collection. You can set METTA_API_KEY or ~/.metta/observatory_token to enable stats collection."
+                    "No machine token provided, running without stats collection. "
+                    + "You can set METTA_API_KEY or ~/.metta/observatory_token to enable stats collection."
                 )
     return None
