@@ -112,7 +112,6 @@ const std::map<uint8_t, float> FeatureNormalizations = {
     {ObservationFeature::Swappable, 1.0},
 };
 
-const float DEFAULT_NORMALIZATION = 1.0;
 const float DEFAULT_INVENTORY_NORMALIZATION = 100.0;
 
 const std::map<TypeId, GridLayer> ObjectLayers = {{ObjectType::AgentT, GridLayer::Agent_Layer},
