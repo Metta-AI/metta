@@ -27,11 +27,7 @@
 
 // Forked because the original code had bugs. In particular, its useForceUpdate function used a boolean instead of a number,
 // which is not compatible with the way modern React batches state updates.
-import {
-  useCallback,
-  useMemo,
-  useRef,
-} from "react";
+import { useCallback, useMemo, useRef } from "react";
 
 import { useForceUpdate } from "./use-force-update";
 import { useGetSet } from "./use-get-set";

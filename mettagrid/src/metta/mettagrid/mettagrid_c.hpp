@@ -26,6 +26,7 @@ class ActionHandler;
 class Agent;
 class ObservationEncoder;
 class GridObject;
+class ConverterConfig;
 
 namespace py = pybind11;
 
@@ -39,6 +40,8 @@ public:
 
   unsigned int current_step;
   unsigned int max_steps;
+
+  std::vector<std::string> inventory_item_names;
 
   // Python API methods
   py::tuple reset();
@@ -63,9 +66,9 @@ public:
   py::list action_success();
   py::list max_action_args();
   py::list object_type_names();
-  py::list inventory_item_names();
+  py::list inventory_item_names_py();
   py::array_t<unsigned int> get_agent_groups() const;
-  static Agent* create_agent(int r, int c, const py::dict& agent_group_cfg_py);
+  Agent* create_agent(int r, int c, const py::dict& agent_group_cfg_py);
 
   uint64_t initial_grid_hash;
 
@@ -116,6 +119,7 @@ private:
   void _step(py::array_t<ActionType, py::array::c_style> actions);
 
   void _handle_invalid_action(size_t agent_idx, const std::string& stat, ActionType type, ActionArg arg);
+  ConverterConfig _create_converter_config(const py::dict& converter_cfg_py);
 };
 
 #endif  // METTAGRID_C_HPP_

@@ -17,11 +17,7 @@ const YamlKey: FC<{
 
 const YamlScalar: FC<{
   value: string | number | boolean;
-  path: string;
-}> = ({ value, path }) => {
-  const { isSelected, onSelectLine } = use(YamlContext);
-  const isActive = isSelected?.(path, String(value));
-
+}> = ({ value }) => {
   const multiline = typeof value === "string" && value.includes("\n");
 
   let url = "";
@@ -44,6 +40,14 @@ const YamlScalar: FC<{
       filename = `mettagrid/${filename}`;
     }
     url = `cursor://file${repoRoot}/${filename}`;
+  }
+
+  if (
+    typeof value === "string" &&
+    value.startsWith("configs/env/mettagrid/maps/") &&
+    value.endsWith(".map")
+  ) {
+    url = `cursor://file${repoRoot}/${value}`;
   }
 
   let valueEl: ReactNode =
@@ -102,7 +106,7 @@ const YamlKeyValue: FC<{
         onClick={onClick}
       >
         <YamlKey name={yamlKey} />
-        <YamlScalar value={value} path={fullKey} />
+        <YamlScalar value={value} />
       </div>
     );
   }
@@ -171,7 +175,7 @@ const YamlAny: FC<{
     typeof value === "number" ||
     typeof value === "string"
   ) {
-    return <YamlScalar value={value} path={path} />;
+    return <YamlScalar value={value} />;
   }
 
   throw new Error(`Unknown value type: ${typeof value}`);

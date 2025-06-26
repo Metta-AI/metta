@@ -370,6 +370,17 @@ canvas#global-canvas {
     overflow: hidden;
 }
 
+#trace-panel .close.hover-icon {
+    position: absolute;
+    display: block;
+    width: 32px;
+    height: 32px;
+    right: 0px;
+    top: 0px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
 #worldmap-panel {
     position: absolute;
     display: block;
@@ -648,6 +659,17 @@ button#help-button.hover-icon .icon {
     line-height: 13px;
 }
 
+#info-panel .close.hover-icon {
+    position: absolute;
+    display: block;
+    width: 32px;
+    height: 32px;
+    right: 0px;
+    top: 0px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
 #minimap-panel {
     position: absolute;
     display: block;
@@ -656,6 +678,16 @@ button#help-button.hover-icon .icon {
     left: 0px;
     top: 849px;
     background-color: rgba(0, 0, 0, 1.00);
+}
+
+#minimap-panel .close.hover-icon {
+    position: absolute;
+    display: block;
+    width: 32px;
+    height: 32px;
+    right: -16px;
+    top: -16px;
+    background-color: rgba(0, 0, 0, 0.00);
     overflow: hidden;
 }
 
@@ -709,6 +741,39 @@ button#help-button.hover-icon .icon {
     overflow: hidden;
 }
 
+.west .key {
+    position: absolute;
+    display: flex;
+    width: fit-content;
+    height: fit-content;
+    left: 0px;
+    top: 0px;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 10px;
+    padding: 2px 5px 2px 5px;
+    justify-content: center;
+    align-items: center;
+    background-color: rgba(226, 116, 45, 1.00);
+    border-radius: 3px;
+}
+
+.key .a {
+    position: relative;
+    display: inline-block;
+    width: fit-content;
+    height: fit-content;
+    color: rgba(255, 255, 255, 1.00);
+    font-family: IBM Plex Mono;
+    font-style: bold;
+    font-weight: 700;
+    font-size: 12px;
+    text-align: center;
+    vertical-align: middle;
+    letter-spacing: 0px;
+    line-height: 15.60px;
+}
+
 #action-buttons .north {
     position: absolute;
     display: block;
@@ -747,6 +812,39 @@ button#help-button.hover-icon .icon {
     overflow: hidden;
 }
 
+.north .key {
+    position: absolute;
+    display: flex;
+    width: fit-content;
+    height: fit-content;
+    left: 0px;
+    top: 0px;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 10px;
+    padding: 2px 5px 2px 5px;
+    justify-content: center;
+    align-items: center;
+    background-color: rgba(226, 116, 45, 1.00);
+    border-radius: 3px;
+}
+
+.key .w {
+    position: relative;
+    display: inline-block;
+    width: fit-content;
+    height: fit-content;
+    color: rgba(255, 255, 255, 1.00);
+    font-family: IBM Plex Mono;
+    font-style: bold;
+    font-weight: 700;
+    font-size: 12px;
+    text-align: center;
+    vertical-align: middle;
+    letter-spacing: 0px;
+    line-height: 15.60px;
+}
+
 #action-buttons .forward {
     position: absolute;
     display: block;
@@ -781,6 +879,39 @@ button#help-button.hover-icon .icon {
     top: 3px;
     background-color: rgba(0, 0, 0, 0.00);
     overflow: hidden;
+}
+
+.forward .key {
+    position: absolute;
+    display: flex;
+    width: fit-content;
+    height: fit-content;
+    left: 0px;
+    top: 0px;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 10px;
+    padding: 2px 5px 2px 5px;
+    justify-content: center;
+    align-items: center;
+    background-color: rgba(226, 116, 45, 1.00);
+    border-radius: 3px;
+}
+
+.key .f {
+    position: relative;
+    display: inline-block;
+    width: fit-content;
+    height: fit-content;
+    color: rgba(255, 255, 255, 1.00);
+    font-family: IBM Plex Mono;
+    font-style: bold;
+    font-weight: 700;
+    font-size: 12px;
+    text-align: center;
+    vertical-align: middle;
+    letter-spacing: 0px;
+    line-height: 15.60px;
 }
 
 #action-buttons .attack-nearest {
@@ -820,6 +951,39 @@ button#help-button.hover-icon .icon {
     overflow: hidden;
 }
 
+.attack-nearest .key {
+    position: absolute;
+    display: flex;
+    width: fit-content;
+    height: fit-content;
+    left: 0px;
+    top: 0px;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 10px;
+    padding: 2px 5px 2px 5px;
+    justify-content: center;
+    align-items: center;
+    background-color: rgba(226, 116, 45, 1.00);
+    border-radius: 3px;
+}
+
+.key .z {
+    position: relative;
+    display: inline-block;
+    width: fit-content;
+    height: fit-content;
+    color: rgba(255, 255, 255, 1.00);
+    font-family: IBM Plex Mono;
+    font-style: bold;
+    font-weight: 700;
+    font-size: 12px;
+    text-align: center;
+    vertical-align: middle;
+    letter-spacing: 0px;
+    line-height: 15.60px;
+}
+
 #action-buttons .south {
     position: absolute;
     display: block;
@@ -854,6 +1018,39 @@ button#help-button.hover-icon .icon {
     top: 3px;
     background-color: rgba(0, 0, 0, 0.00);
     overflow: hidden;
+}
+
+.south .key {
+    position: absolute;
+    display: flex;
+    width: fit-content;
+    height: fit-content;
+    left: 0px;
+    top: 0px;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 10px;
+    padding: 2px 5px 2px 5px;
+    justify-content: center;
+    align-items: center;
+    background-color: rgba(226, 116, 45, 1.00);
+    border-radius: 3px;
+}
+
+.key .s {
+    position: relative;
+    display: inline-block;
+    width: fit-content;
+    height: fit-content;
+    color: rgba(255, 255, 255, 1.00);
+    font-family: IBM Plex Mono;
+    font-style: bold;
+    font-weight: 700;
+    font-size: 12px;
+    text-align: center;
+    vertical-align: middle;
+    letter-spacing: 0px;
+    line-height: 15.60px;
 }
 
 #action-buttons .backward {
@@ -894,6 +1091,39 @@ button#help-button.hover-icon .icon {
     overflow: hidden;
 }
 
+.backward .key {
+    position: absolute;
+    display: flex;
+    width: fit-content;
+    height: fit-content;
+    left: 0px;
+    top: 0px;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 10px;
+    padding: 2px 5px 2px 5px;
+    justify-content: center;
+    align-items: center;
+    background-color: rgba(226, 116, 45, 1.00);
+    border-radius: 3px;
+}
+
+.key .r {
+    position: relative;
+    display: inline-block;
+    width: fit-content;
+    height: fit-content;
+    color: rgba(255, 255, 255, 1.00);
+    font-family: IBM Plex Mono;
+    font-style: bold;
+    font-weight: 700;
+    font-size: 12px;
+    text-align: center;
+    vertical-align: middle;
+    letter-spacing: 0px;
+    line-height: 15.60px;
+}
+
 #action-buttons .attack {
     position: absolute;
     display: block;
@@ -929,6 +1159,39 @@ button#help-button.hover-icon .icon {
     transform: translate(-29px, -29px);
     background-color: rgba(0, 0, 0, 0.00);
     overflow: hidden;
+}
+
+.attack .key {
+    position: absolute;
+    display: flex;
+    width: fit-content;
+    height: fit-content;
+    left: 0px;
+    top: 44px;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 10px;
+    padding: 2px 5px 2px 5px;
+    justify-content: center;
+    align-items: center;
+    background-color: rgba(226, 116, 45, 1.00);
+    border-radius: 3px;
+}
+
+.key .z {
+    position: relative;
+    display: inline-block;
+    width: fit-content;
+    height: fit-content;
+    color: rgba(255, 255, 255, 1.00);
+    font-family: IBM Plex Mono;
+    font-style: bold;
+    font-weight: 700;
+    font-size: 12px;
+    text-align: center;
+    vertical-align: middle;
+    letter-spacing: 0px;
+    line-height: 15.60px;
 }
 
 #action-buttons .east {
@@ -969,6 +1232,39 @@ button#help-button.hover-icon .icon {
     overflow: hidden;
 }
 
+.east .key {
+    position: absolute;
+    display: flex;
+    width: fit-content;
+    height: fit-content;
+    left: 0px;
+    top: 0px;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 10px;
+    padding: 2px 5px 2px 5px;
+    justify-content: center;
+    align-items: center;
+    background-color: rgba(226, 116, 45, 1.00);
+    border-radius: 3px;
+}
+
+.key .d {
+    position: relative;
+    display: inline-block;
+    width: fit-content;
+    height: fit-content;
+    color: rgba(255, 255, 255, 1.00);
+    font-family: IBM Plex Mono;
+    font-style: bold;
+    font-weight: 700;
+    font-size: 12px;
+    text-align: center;
+    vertical-align: middle;
+    letter-spacing: 0px;
+    line-height: 15.60px;
+}
+
 #action-buttons .put-recipe-items {
     position: absolute;
     display: block;
@@ -1004,6 +1300,39 @@ button#help-button.hover-icon .icon {
     transform: translate(-29px, -29px);
     background-color: rgba(0, 0, 0, 0.00);
     overflow: hidden;
+}
+
+.put-recipe-items .key {
+    position: absolute;
+    display: flex;
+    width: fit-content;
+    height: fit-content;
+    left: 0px;
+    top: 0px;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 10px;
+    padding: 2px 5px 2px 5px;
+    justify-content: center;
+    align-items: center;
+    background-color: rgba(226, 116, 45, 1.00);
+    border-radius: 3px;
+}
+
+.key .q {
+    position: relative;
+    display: inline-block;
+    width: fit-content;
+    height: fit-content;
+    color: rgba(255, 255, 255, 1.00);
+    font-family: IBM Plex Mono;
+    font-style: bold;
+    font-weight: 700;
+    font-size: 12px;
+    text-align: center;
+    vertical-align: middle;
+    letter-spacing: 0px;
+    line-height: 15.60px;
 }
 
 #action-buttons .swap {
@@ -1043,6 +1372,39 @@ button#help-button.hover-icon .icon {
     overflow: hidden;
 }
 
+.swap .key {
+    position: absolute;
+    display: flex;
+    width: fit-content;
+    height: fit-content;
+    left: 0px;
+    top: 0px;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 10px;
+    padding: 2px 5px 2px 5px;
+    justify-content: center;
+    align-items: center;
+    background-color: rgba(226, 116, 45, 1.00);
+    border-radius: 3px;
+}
+
+.key .g {
+    position: relative;
+    display: inline-block;
+    width: fit-content;
+    height: fit-content;
+    color: rgba(255, 255, 255, 1.00);
+    font-family: IBM Plex Mono;
+    font-style: bold;
+    font-weight: 700;
+    font-size: 12px;
+    text-align: center;
+    vertical-align: middle;
+    letter-spacing: 0px;
+    line-height: 15.60px;
+}
+
 #action-buttons .get-output {
     position: absolute;
     display: block;
@@ -1078,6 +1440,39 @@ button#help-button.hover-icon .icon {
     transform: translate(-29px, -29px);
     background-color: rgba(0, 0, 0, 0.00);
     overflow: hidden;
+}
+
+.get-output .key {
+    position: absolute;
+    display: flex;
+    width: fit-content;
+    height: fit-content;
+    left: 0px;
+    top: 0px;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 10px;
+    padding: 2px 5px 2px 5px;
+    justify-content: center;
+    align-items: center;
+    background-color: rgba(226, 116, 45, 1.00);
+    border-radius: 3px;
+}
+
+.key .e {
+    position: relative;
+    display: inline-block;
+    width: fit-content;
+    height: fit-content;
+    color: rgba(255, 255, 255, 1.00);
+    font-family: IBM Plex Mono;
+    font-style: bold;
+    font-weight: 700;
+    font-size: 12px;
+    text-align: center;
+    vertical-align: middle;
+    letter-spacing: 0px;
+    line-height: 15.60px;
 }
 
 #action-buttons .change-color {
@@ -1117,6 +1512,39 @@ button#help-button.hover-icon .icon {
     overflow: hidden;
 }
 
+.change-color .key {
+    position: absolute;
+    display: flex;
+    width: fit-content;
+    height: fit-content;
+    left: 0px;
+    top: 0px;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 10px;
+    padding: 2px 5px 2px 5px;
+    justify-content: center;
+    align-items: center;
+    background-color: rgba(226, 116, 45, 1.00);
+    border-radius: 3px;
+}
+
+.key .c {
+    position: relative;
+    display: inline-block;
+    width: fit-content;
+    height: fit-content;
+    color: rgba(255, 255, 255, 1.00);
+    font-family: IBM Plex Mono;
+    font-style: bold;
+    font-weight: 700;
+    font-size: 12px;
+    text-align: center;
+    vertical-align: middle;
+    letter-spacing: 0px;
+    line-height: 15.60px;
+}
+
 #action-buttons .noop {
     position: absolute;
     display: block;
@@ -1150,6 +1578,50 @@ button#help-button.hover-icon .icon {
     left: 50%;
     top: 50%;
     transform: translate(-29px, -29px);
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+.noop .key {
+    position: absolute;
+    display: flex;
+    width: fit-content;
+    height: fit-content;
+    left: 0px;
+    top: 0px;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 10px;
+    padding: 2px 5px 2px 5px;
+    justify-content: center;
+    align-items: center;
+    background-color: rgba(226, 116, 45, 1.00);
+    border-radius: 3px;
+}
+
+.key .x {
+    position: relative;
+    display: inline-block;
+    width: fit-content;
+    height: fit-content;
+    color: rgba(255, 255, 255, 1.00);
+    font-family: IBM Plex Mono;
+    font-style: bold;
+    font-weight: 700;
+    font-size: 12px;
+    text-align: center;
+    vertical-align: middle;
+    letter-spacing: 0px;
+    line-height: 15.60px;
+}
+
+#action-buttons .close.hover-icon {
+    position: absolute;
+    display: block;
+    width: 32px;
+    height: 32px;
+    right: 0px;
+    top: 0px;
     background-color: rgba(0, 0, 0, 0.00);
     overflow: hidden;
 }
@@ -1372,6 +1844,17 @@ button#help-button.hover-icon .icon {
     align-items: center;
     align-self: stretch;
     background-color: rgba(28, 29, 30, 1.00);
+}
+
+#agent-panel .close.hover-icon {
+    position: absolute;
+    display: block;
+    width: 32px;
+    height: 32px;
+    right: 0px;
+    top: 0px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
 }
 
 #scrim {
@@ -1857,7 +2340,7 @@ button#help-button.hover-icon .icon {
     position: absolute;
     display: flex;
     height: fit-content;
-    left: 40px;
+    left: 226px;
     top: 600px;
     min-width: 300px;
     flex-direction: column;
