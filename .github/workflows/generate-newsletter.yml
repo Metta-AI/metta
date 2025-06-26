@@ -1,8 +1,8 @@
-name: Generate PR Summary
+name: Generate Newsletter
 
 on:
   schedule:
-    - cron: "0 1 * * 6" # F at 5 pm PST
+    - cron: "0 1 * * 6" # Saturday at 1 AM GMT (Friday at 5 PM PST)
   workflow_dispatch:
     inputs:
       days_to_scan:
@@ -23,7 +23,7 @@ on:
         type: boolean
 
 jobs:
-  generate-summary:
+  generate-newsletter:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -49,18 +49,9 @@ jobs:
         with:
           path: |
             .pr-digest-cache/
-          key: pr-cache-${{ github.repository }}-${{ hashFiles('.github/scripts/generate_pr_summary.py') }}
+          key: pr-cache-${{ github.repository }}-${{ hashFiles('.github/scripts/gemini_*.py') }}
           restore-keys: |
             pr-cache-${{ github.repository }}-
-
-      - name: Fetch PR Digest
-        id: pr-digest
-        uses: ./.github/actions/pr-digest
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          repository: "Metta-AI/metta"
-          days: ${{ steps.set-days.outputs.days }}
-          force-refresh: ${{ inputs.force_refresh || 'false' }}
 
       - name: Install uv
         uses: astral-sh/setup-uv@v6
@@ -68,41 +59,68 @@ jobs:
           version: "0.7.3"
           enable-cache: true
 
-      - name: Generate Summary
+      - name: Create PR Digest
+        id: pr-digest
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          DATE_RANGE: "${{ steps.set-days.outputs.days }} days ago to now"
+          PR_DIGEST_FILE: "pr_digest_output.json"
+        run: |
+          echo "Creating PR digest for last ${{ steps.set-days.outputs.days }} days..."
+          uv run .github/scripts/create_pr_digest.py
+
+          # Output digest info for next step
+          if [ -f "pr_digest_output.json" ]; then
+            PR_COUNT=$(jq length pr_digest_output.json)
+            echo "pr-count=$PR_COUNT" >> $GITHUB_OUTPUT
+            echo "digest-file=pr_digest_output.json" >> $GITHUB_OUTPUT
+            echo "date-range=${{ steps.set-days.outputs.days }} days ago to now" >> $GITHUB_OUTPUT
+            echo "✅ Created PR digest with $PR_COUNT PRs"
+          else
+            echo "❌ Failed to create PR digest"
+            exit 1
+          fi
+
+      - name: Generate Newsletter
         id: summary
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           PR_DIGEST_FILE: ${{ steps.pr-digest.outputs.digest-file }}
           DATE_RANGE: ${{ steps.pr-digest.outputs.date-range }}
-          DAYS_TO_SCAN: ${{ steps.set-days.outputs.days }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_SERVER_URL: ${{ github.server_url }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
           FORCE_REFRESH: ${{ inputs.force_refresh || 'false' }}
         run: |
-          uv run .github/scripts/generate_pr_summary.py
+          echo "Analyzing ${{ steps.pr-digest.outputs.pr-count }} PRs with AI..."
+          uv run .github/scripts/gemini_analyze_pr_digest.py
 
-      - name: Display Summary (Debug)
-        run: |
-          echo "## PR Summary Generated"
-          echo "Date Range: ${{ steps.pr-digest.outputs.date-range }}"
-          echo "PR Count: ${{ steps.pr-digest.outputs.pr-count }}"
-          echo "Cache Stats: ${{ steps.pr-digest.outputs.cache-stats }}"
-          echo ""
-          echo "## Summary Content:"
-          cat pr_summary_output.txt || echo "No summary generated"
+          # Verify outputs were created
+          if [ -f "discord_summary_output.txt" ] && [ -f "collection_summary_output.txt" ]; then
+            echo "✅ Newsletter generation completed successfully"
+            echo "Generated files:"
+            ls -la *.txt *.json pr-summaries/ 2>/dev/null || true
+          else
+            echo "❌ Newsletter generation failed - missing output files"
+            exit 1
+          fi
 
       - name: Post to Discord
         if: ${{ !inputs.skip_discord }}
         uses: ./.github/actions/discord-webhook
         with:
           webhook-url: ${{ secrets.DISCORD_WEBHOOK_URL }}
-          content-file: pr_summary_output.txt
+          content-file: discord_summary_output.txt
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: pr-summary-${{ github.run_number }}
+          name: newsletter-${{ github.run_number }}
           path: |
+            discord_summary_output.txt
+            collection_summary_output.txt
+            pr_summary_data.json
+            pr-summaries/
             pr_digest_output.json
-            pr_summary_output.txt
-            pr_summaries_intermediate.json
-            .pr-digest-cache/
