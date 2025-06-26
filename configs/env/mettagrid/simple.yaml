@@ -11,4 +11,5 @@ game:
 
   map_builder:
     room:
-      altar: 5
+      objects:
+        altar: 5
