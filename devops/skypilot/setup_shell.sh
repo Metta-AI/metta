@@ -1,26 +1,14 @@
 #!/bin/bash
 
 cd_repo_root() {
-    local current_dir="$(pwd)"
-    local search_dir="$current_dir"
-
-    # Search current directory and all parent directories
-    while [[ "$search_dir" != "/" ]]; do
-        if [[ -d "$search_dir/.git" ]]; then
-            cd "$search_dir"
-            return 0
-        fi
-        search_dir="$(dirname "$search_dir")"
+    while [[ "$PWD" != "/" && ! -d ".git" ]]; do
+        cd ..
     done
 
-    # Check root directory as well
-    if [[ -d "/.git" ]]; then
-        cd "/"
-        return 0
+    if [[ ! -d ".git" ]]; then
+        echo "Repository root not found - no .git directory in current path or parent directories" >&2
+        return 1
     fi
-
-    echo "Repository root not found - no .git directory in current path or parent directories" >&2
-    return 1
 }
 
 export AWS_PROFILE=softmax
