@@ -11,6 +11,7 @@ defaults:
 
 # Basic run configuration
 run: bullm_progressive_nav
+cmd: train
 
 data_dir: ${oc.env:DATA_DIR,./train_dir}
 run_dir: ${data_dir}/${run}
@@ -26,5 +27,9 @@ wandb:
   enabled: true
   project: metta
   entity: metta-research
+  group: ${run}
   name: ${run}
+  run_id: ${run}
+  data_dir: ${run_dir}
+  job_type: ${cmd}
   tags: ["msb_nav_ProgressiveLearning_comparison"]
