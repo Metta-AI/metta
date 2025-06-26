@@ -24,6 +24,7 @@ valid_trainer_config = {
     "total_timesteps": 1000000,
     "optimizer": valid_optimizer_config,
     "clip_coef": 0.1,
+    "grad_mean_variance_interval": 0,
     "ent_coef": 0.01,
     "gae_lambda": 0.95,
     "gamma": 0.99,
