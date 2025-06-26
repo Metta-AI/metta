@@ -5,9 +5,6 @@
 #include <string>
 
 #include "../grid_object.hpp"
-
-typedef std::map<std::string, int> ObjectConfig;
-
 class MettaObject : public GridObject {
 public:
   virtual bool swappable() const {

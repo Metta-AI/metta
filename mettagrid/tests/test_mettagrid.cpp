@@ -367,7 +367,7 @@ TEST_F(MettaGridCppTest, ObjectTypes) {
 // ==================== Wall/Block Tests ====================
 
 TEST_F(MettaGridCppTest, WallCreation) {
-  ObjectConfig wall_cfg;
+  WallConfig wall_cfg;
 
   std::unique_ptr<Wall> wall(new Wall(2, 3, wall_cfg));
 
