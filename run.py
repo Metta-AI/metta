@@ -41,6 +41,15 @@ from metta.mettagrid.curriculum.core import SingleTaskCurriculum
 from metta.rl.experience import Experience
 from metta.rl.functional_trainer import rollout, train_ppo
 from metta.rl.losses import Losses
+from metta.rl.trainer_config import (
+    InitialPolicyConfig,
+    KickstartConfig,
+    LRSchedulerConfig,
+    OptimizerConfig,
+    PrioritizedExperienceReplayConfig,
+    TrainerConfig,
+    VTraceConfig,
+)
 from metta.rl.vecenv import make_vecenv
 
 
@@ -230,65 +239,110 @@ def build_train_config(args):
     # Add env configuration to main config first
     cfg["env"] = DictConfig(env_config)
 
-    # Trainer configuration (local-friendly defaults)
-    trainer_config = {
-        "_target_": "metta.rl.trainer.MettaTrainer",
-        "resume": False,
-        "use_e3b": False,
-        "total_timesteps": getattr(args, "total_timesteps", 10_000),
-        "clip_coef": 0.1,
-        "ent_coef": 0.0021,
-        "gae_lambda": 0.916,
-        "gamma": 0.977,
-        "optimizer": {
-            "type": "adam",
-            "beta1": 0.9,
-            "beta2": 0.999,
-            "eps": 1e-12,
-            "learning_rate": 0.0004573146765703167,
-            "weight_decay": 0,
-        },
-        "lr_scheduler": {"enabled": False, "anneal_lr": False},
-        "max_grad_norm": 0.5,
-        "vf_clip_coef": 0.1,
-        "vf_coef": 0.44,
-        "l2_reg_loss_coef": 0,
-        "l2_init_loss_coef": 0,
-        "prioritized_experience_replay": {"prio_alpha": 0.0, "prio_beta0": 0.6},
-        "norm_adv": True,
-        "clip_vloss": True,
-        "target_kl": None,
-        "vtrace": {"vtrace_rho_clip": 1.0, "vtrace_c_clip": 1.0},
-        "zero_copy": True,
-        "require_contiguous_env_ids": False,
-        "verbose": True,
-        "batch_size": getattr(args, "batch_size", 256),
-        "minibatch_size": 32,
-        "bptt_horizon": 8,
-        "update_epochs": 1,
-        "cpu_offload": False,
-        "compile": False,
-        "compile_mode": "reduce-overhead",
-        "profiler_interval_epochs": 10000,
-        "forward_pass_minibatch_target_size": 32,
-        "async_factor": 1,
-        "kickstart": {
-            "teacher_uri": None,
-            "action_loss_coef": 1,
-            "value_loss_coef": 1,
-            "anneal_ratio": 0.65,
-            "kickstart_steps": 1_000_000_000,
-            "additional_teachers": [],
-        },
-        "env_overrides": {},
-        "num_workers": getattr(args, "num_workers", 1),
-        "checkpoint_dir": f"{cfg.run_dir}/checkpoints",
-        "checkpoint_interval": 100,
-        "evaluate_interval": 0,
-        "replay_interval": 0,
-        "wandb_checkpoint_interval": 1000,
-        "replay_uri": None,
-    }
+    # Trainer configuration using typed configs
+    optimizer_config = OptimizerConfig(
+        type="adam",
+        learning_rate=0.0004573146765703167,
+        beta1=0.9,
+        beta2=0.999,
+        eps=1e-12,
+        weight_decay=0,
+    )
+
+    lr_scheduler_config = LRSchedulerConfig(
+        enabled=False,
+        anneal_lr=False,
+        warmup_steps=None,
+        schedule_type=None,
+    )
+
+    prioritized_replay_config = PrioritizedExperienceReplayConfig(
+        prio_alpha=0.0,
+        prio_beta0=0.6,
+    )
+
+    vtrace_config = VTraceConfig(
+        vtrace_rho_clip=1.0,
+        vtrace_c_clip=1.0,
+    )
+
+    kickstart_config = KickstartConfig(
+        teacher_uri=None,
+        action_loss_coef=1,
+        value_loss_coef=1,
+        anneal_ratio=0.65,
+        kickstart_steps=1_000_000_000,
+        additional_teachers=None,
+    )
+
+    initial_policy_config = InitialPolicyConfig(
+        uri=None,
+        type="latest",
+        range=10,
+        metric="epoch",
+        filters={},
+    )
+
+    # Calculate appropriate minibatch_size based on batch_size
+    batch_size = getattr(args, "batch_size", 256)
+    minibatch_size = min(32, batch_size)  # Default to 32 but cap at batch_size
+    # Ensure batch_size is divisible by minibatch_size
+    while batch_size % minibatch_size != 0 and minibatch_size > 1:
+        minibatch_size -= 1
+
+    # Create the main trainer config
+    trainer_config = TrainerConfig(
+        target="metta.rl.trainer.MettaTrainer",
+        total_timesteps=getattr(args, "total_timesteps", 10_000),
+        clip_coef=0.1,
+        ent_coef=0.0021,
+        gae_lambda=0.916,
+        gamma=0.977,
+        optimizer=optimizer_config,
+        lr_scheduler=lr_scheduler_config,
+        max_grad_norm=0.5,
+        vf_clip_coef=0.1,
+        vf_coef=0.44,
+        l2_reg_loss_coef=0,
+        l2_init_loss_coef=0,
+        prioritized_experience_replay=prioritized_replay_config,
+        norm_adv=True,
+        clip_vloss=True,
+        target_kl=None,
+        vtrace=vtrace_config,
+        zero_copy=True,
+        require_contiguous_env_ids=False,
+        verbose=True,
+        batch_size=batch_size,
+        minibatch_size=minibatch_size,
+        bptt_horizon=8,
+        update_epochs=1,
+        cpu_offload=False,
+        compile=False,
+        compile_mode="reduce-overhead",
+        profiler_interval_epochs=10000,
+        forward_pass_minibatch_target_size=32,
+        async_factor=1,
+        kickstart=kickstart_config,
+        env_overrides={},
+        num_workers=getattr(args, "num_workers", 1),
+        env=None,  # Will be set by curriculum
+        curriculum="simple_task",  # Dummy curriculum name
+        initial_policy=initial_policy_config,
+        checkpoint_dir=f"{cfg.run_dir}/checkpoints",
+        evaluate_interval=10000,  # Set to high value to effectively disable
+        checkpoint_interval=100,
+        wandb_checkpoint_interval=1000,
+        replay_interval=10000,  # Set to high value to effectively disable
+        replay_dir=f"s3://softmax-public/replays/{cfg.run}",
+        grad_mean_variance_interval=0,
+    )
+
+    # Convert to dict and add extra fields not in TrainerConfig
+    trainer_dict = trainer_config.model_dump(by_alias=True)
+    trainer_dict["resume"] = False
+    trainer_dict["use_e3b"] = False
+    trainer_dict["replay_uri"] = None
 
     # Simulation suite configuration for evals
     sim_config = {
@@ -302,7 +356,7 @@ def build_train_config(args):
 
     # Add configurations to main config
     cfg["agent"] = DictConfig(agent_config)
-    cfg["trainer"] = DictConfig(trainer_config)
+    cfg["trainer"] = DictConfig(trainer_dict)
     cfg["sim"] = DictConfig(sim_config)
 
     # WandB configuration
