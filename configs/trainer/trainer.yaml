@@ -42,7 +42,7 @@ gamma: 0.977
 #   weight_decay: 0
 
 optimizer:
-  type: adam
+  type: muon
   beta1: 0.9
   beta2: 0.999
   eps: 1e-12
@@ -61,8 +61,8 @@ l2_init_loss_coef: 0
 
 # Prioritized experience replay parameters
 prioritized_experience_replay:
-  prio_alpha: 0.0  # Default to uniform sampling (0.0 = uniform, >0 = prioritized)
-  prio_beta0: 0.6  # Initial importance sampling correction
+  prio_alpha: 0.0 # Default to uniform sampling (0.0 = uniform, >0 = prioritized)
+  prio_beta0: 0.6 # Initial importance sampling correction
 
 norm_adv: true
 clip_vloss: true
@@ -70,8 +70,8 @@ target_kl: null
 
 # V-trace clipping parameters (for off-policy corrections)
 vtrace:
-  vtrace_rho_clip: 1.0  # Default: on-policy (no off-policy correction)
-  vtrace_c_clip: 1.0    # Default: on-policy bootstrapping
+  vtrace_rho_clip: 1.0 # Default: on-policy (no off-policy correction)
+  vtrace_c_clip: 1.0 # Default: on-policy bootstrapping
 
 zero_copy: true
 require_contiguous_env_ids: false
