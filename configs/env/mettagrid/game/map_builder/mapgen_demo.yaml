@@ -74,8 +74,8 @@ root:
         # Note that for the maze rooms, Random scene will take existing walls into account.
         params:
           objects:
-            mine: 1
-            generator: 2
+            mine_red: 1
+            generator_red: 2
 
     # What if we want to draw a custom scene in one room, but that room shouldn't have a maze? Let's use a lock.
     #
