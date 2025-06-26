@@ -21,6 +21,9 @@ from metta.agent.policy_store import PolicyRecord, PolicyStore
 from metta.agent.util.debug import assert_shape
 from metta.common.memory import get_object_size
 from metta.common.stopwatch import Stopwatch, with_instance_timer
+from metta.common.util.heartbeat import record_heartbeat
+from metta.common.util.system_monitor import SystemMonitor
+from metta.common.util.wandb.wandb_context import WandbRun
 from metta.eval.eval_stats_db import EvalStatsDB
 from metta.mettagrid.curriculum.util import curriculum_from_config_path
 from metta.mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
@@ -34,9 +37,6 @@ from metta.rl.vecenv import make_vecenv
 from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
 from metta.sim.simulation_suite import SimulationSuite
-from metta.util.heartbeat import record_heartbeat
-from metta.util.system_monitor import SystemMonitor
-from metta.util.wandb.wandb_context import WandbRun
 
 try:
     from pufferlib import _C  # noqa: F401 - Required for torch.ops.pufferlib

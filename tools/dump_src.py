@@ -2,8 +2,6 @@
 import argparse
 import os
 
-from metta.common.uv_check import enforce_uv
-
 
 def dump_files(paths, extensions):
     for path in paths:
@@ -18,7 +16,6 @@ def dump_files(paths, extensions):
 
 
 if __name__ == "__main__":
-    enforce_uv()
     parser = argparse.ArgumentParser(description="Dump files with specified extensions from given paths.")
     parser.add_argument("paths", type=str, nargs="+", help="Paths to search for files.")
     parser.add_argument("--extensions", type=str, nargs="+", help="List of file extensions to include.")

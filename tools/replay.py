@@ -9,13 +9,12 @@ from omegaconf import OmegaConf
 
 import mettascope.server as server
 from metta.agent.policy_store import PolicyStore
-from metta.common.uv_check import enforce_uv
+from metta.common.util.config import Config
+from metta.common.util.logging import setup_mettagrid_logger
+from metta.common.util.runtime_configuration import setup_mettagrid_environment
+from metta.common.util.wandb.wandb_context import WandbContext
 from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SingleEnvSimulationConfig
-from metta.util.config import Config
-from metta.util.logging import setup_mettagrid_logger
-from metta.util.runtime_configuration import setup_mettagrid_environment
-from metta.util.wandb.wandb_context import WandbContext
 
 
 # TODO: This job can be replaced with sim now that Simulations create replays
@@ -72,5 +71,4 @@ def main(cfg):
 
 
 if __name__ == "__main__":
-    enforce_uv()
     main()

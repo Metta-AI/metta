@@ -11,11 +11,10 @@ import subprocess
 import hydra
 from omegaconf import DictConfig
 
-from metta.common.uv_check import enforce_uv
+from metta.common.util.logging import setup_mettagrid_logger
+from metta.common.util.runtime_configuration import setup_mettagrid_environment
 from metta.eval.eval_stats_db import EvalStatsDB
 from metta.mettagrid.util.file import local_copy
-from metta.util.logging import setup_mettagrid_logger
-from metta.util.runtime_configuration import setup_mettagrid_environment
 
 
 def launch_duckdb_cli(file_path):
@@ -79,5 +78,4 @@ def main(cfg: DictConfig) -> int:
 
 
 if __name__ == "__main__":
-    enforce_uv()
     exit(main())
