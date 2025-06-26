@@ -5,6 +5,8 @@
 
 #include <algorithm>
 #include <cmath>
+#include <numeric>
+#include <random>
 
 #include "action_handler.hpp"
 #include "actions/attack.hpp"
@@ -195,6 +197,8 @@ MettaGrid::MettaGrid(py::dict cfg, py::list map) {
   auto rewards = py::array_t<float, py::array::c_style>({static_cast<ssize_t>(num_agents)}, {sizeof(float)});
 
   set_buffers(observations, terminals, truncations, rewards);
+
+  _g = std::mt19937(_rd());
 }
 
 MettaGrid::~MettaGrid() = default;
@@ -351,11 +355,16 @@ void MettaGrid::_step(py::array_t<ActionType, py::array::c_style> actions) {
   current_step++;
   _event_manager->process_events(current_step);
 
+  // Create and shuffle agent indices for randomized action order
+  std::vector<size_t> agent_indices(_agents.size());
+  std::iota(agent_indices.begin(), agent_indices.end(), 0);
+  std::shuffle(agent_indices.begin(), agent_indices.end(), _g);
+
   // Process actions by priority levels (highest to lowest)
   for (unsigned char offset = 0; offset <= _max_action_priority; offset++) {
     unsigned char current_priority = _max_action_priority - offset;
 
-    for (size_t agent_idx = 0; agent_idx < _agents.size(); agent_idx++) {
+    for (const auto& agent_idx : agent_indices) {
       ActionType action = actions_view(agent_idx, 0);
       ActionArg arg = actions_view(agent_idx, 1);
 
