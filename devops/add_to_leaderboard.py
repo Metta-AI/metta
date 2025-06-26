@@ -9,8 +9,6 @@ from typing import List
 import wandb
 from wandb.errors import CommError
 
-from metta.common.uv_check import enforce_uv
-
 
 def check_policy_exists(run_name: str) -> bool:
     """
@@ -131,5 +129,4 @@ https://metta-ai.github.io/metta/observatory/?data=https://s3.amazonaws.com/soft
 
 
 if __name__ == "__main__":
-    enforce_uv()
     main()
