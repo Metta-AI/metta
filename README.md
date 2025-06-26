@@ -128,6 +128,27 @@ for your machine. You can pass `+user=<name>` to load defaults from
 `configs/user/<name>.yaml`. Use `wandb=off` to disable Weights & Biases logging
 if you don't have access.
 
+### Setting up Weights & Biases for Personal Use
+
+To use WandB with your personal account:
+
+1. Get your WandB API key from [wandb.ai](https://wandb.ai) (click your profile → API keys)
+2. Add it to your `~/.netrc` file:
+   ```
+   machine api.wandb.ai
+     login user
+     password YOUR_API_KEY_HERE
+   ```
+3. Edit `configs/wandb/user.yaml` and replace `???` with your WandB username:
+   ```yaml
+   entity: ???  # Replace with your WandB username
+   ```
+
+Now you can run training with your personal WandB config:
+```
+./tools/train.py run=local.yourname.123 +hardware=macbook wandb=user
+```
+
 ## Visualizing a Model
 
 ### Run the interactive simulation
