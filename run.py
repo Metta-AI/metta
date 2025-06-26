@@ -39,8 +39,13 @@ from metta.common.util.logging import setup_mettagrid_logger
 from metta.common.util.runtime_configuration import setup_mettagrid_environment
 from metta.mettagrid.curriculum.core import SingleTaskCurriculum
 from metta.rl.experience import Experience
-from metta.rl.functional_trainer import rollout, train_ppo
+from metta.rl.functional_trainer import (
+    compute_initial_advantages,
+    perform_rollout_step,
+    process_rollout_infos,
+)
 from metta.rl.losses import Losses
+from metta.rl.objectives import ClipPPOLoss
 from metta.rl.trainer_config import (
     InitialPolicyConfig,
     KickstartConfig,
@@ -382,6 +387,8 @@ def build_train_config(args):
 
 def train_command(args):
     """Execute training using functional trainer API."""
+    from contextlib import nullcontext
+
     import torch
     from hydra.utils import instantiate
 
@@ -462,7 +469,7 @@ def train_command(args):
         )
         policy.activate_actions(actions_names, actions_max_params, device)
         logger.info("Creating experience buffer...")
-        bptt_horizon = trainer_cfg.get("bptt_horizon", 8)
+        bptt_horizon = trainer_cfg.bptt_horizon
         total_agents = vecenv.num_agents
         world_size = 1
         batch_size = trainer_cfg.batch_size // world_size
@@ -475,7 +482,7 @@ def train_command(args):
             batch_size=batch_size,
             bptt_horizon=bptt_horizon,
             minibatch_size=minibatch_size,
-            max_minibatch_size=trainer_cfg.get("forward_pass_minibatch_target_size", 2048),
+            max_minibatch_size=trainer_cfg.forward_pass_minibatch_target_size,
             obs_space=metta_grid_env.single_observation_space,
             atn_space=metta_grid_env.single_action_space,
             device=device,
@@ -492,51 +499,110 @@ def train_command(args):
         logger.info("Starting training loop...")
         agent_step = 0
         epoch = 0
+
+        optimizer = torch.optim.Adam(
+            policy.parameters(),
+            lr=trainer_cfg.optimizer.learning_rate,
+            betas=(trainer_cfg.optimizer.beta1, trainer_cfg.optimizer.beta2),
+            eps=trainer_cfg.optimizer.eps,
+            weight_decay=trainer_cfg.optimizer.weight_decay,
+        )
+        losses = Losses()
+        loss_module = ClipPPOLoss(
+            policy=policy,
+            vf_coef=trainer_cfg.vf_coef,
+            ent_coef=trainer_cfg.ent_coef,
+            clip_coef=trainer_cfg.clip_coef,
+            vf_clip_coef=trainer_cfg.vf_clip_coef,
+            norm_adv=trainer_cfg.norm_adv,
+            clip_vloss=trainer_cfg.clip_vloss,
+            gamma=trainer_cfg.gamma,
+            gae_lambda=trainer_cfg.gae_lambda,
+            vtrace_rho_clip=trainer_cfg.vtrace.vtrace_rho_clip,
+            vtrace_c_clip=trainer_cfg.vtrace.vtrace_c_clip,
+            l2_reg_loss_coef=trainer_cfg.l2_reg_loss_coef,
+            l2_init_loss_coef=trainer_cfg.l2_init_loss_coef,
+        )
+
         while agent_step < total_timesteps:
             steps_before = agent_step
+            # --- Rollout Phase ---
             with timer("rollout"):
-                agent_step, rollout_stats = rollout(
-                    policy=policy,
-                    vecenv=vecenv,
-                    experience=experience,
-                    device=device,
-                    agent_step=agent_step,
-                    timer=timer,
-                )
+                raw_infos = []
+                experience.reset_for_rollout()
+                timer_ctx = timer if timer else nullcontext()
+
+                while not experience.ready_for_training:
+                    num_steps, info, _ = perform_rollout_step(policy, vecenv, experience, device, timer_ctx)
+                    agent_step += num_steps
+                    if info:
+                        raw_infos.extend(info)
+                _rollout_stats = process_rollout_infos(raw_infos)
+
+            # --- Train Phase ---
             with timer("train"):
-                if epoch == 0:
-                    optimizer = torch.optim.Adam(
-                        policy.parameters(),
-                        lr=trainer_cfg.optimizer.learning_rate,
-                        betas=(trainer_cfg.optimizer.beta1, trainer_cfg.optimizer.beta2),
-                        eps=trainer_cfg.optimizer.eps,
-                        weight_decay=trainer_cfg.optimizer.weight_decay,
-                    )
-                    losses = Losses()
-                epoch = train_ppo(
-                    policy=policy,
-                    optimizer=optimizer,
-                    experience=experience,
-                    device=device,
-                    losses=losses,
-                    epoch=epoch,
-                    cfg=cfg,
-                    gamma=trainer_cfg.gamma,
-                    gae_lambda=trainer_cfg.gae_lambda,
-                    clip_coef=trainer_cfg.clip_coef,
-                    ent_coef=trainer_cfg.ent_coef,
-                    vf_coef=trainer_cfg.vf_coef,
-                    max_grad_norm=trainer_cfg.max_grad_norm,
-                    norm_adv=trainer_cfg.norm_adv,
-                    clip_vloss=trainer_cfg.clip_vloss,
-                    vf_clip_coef=trainer_cfg.vf_clip_coef,
-                    update_epochs=trainer_cfg.update_epochs,
-                    agent_step=agent_step,
-                    total_timesteps=total_timesteps,
-                    batch_size=batch_size,
-                    vtrace_rho_clip=trainer_cfg.vtrace.vtrace_rho_clip,
-                    vtrace_c_clip=trainer_cfg.vtrace.vtrace_c_clip,
+                losses.zero()
+                experience.reset_importance_sampling_ratios()
+                prio_alpha = trainer_cfg.prioritized_experience_replay.prio_alpha
+                prio_beta0 = trainer_cfg.prioritized_experience_replay.prio_beta0
+                total_epochs = max(1, total_timesteps // batch_size)
+                anneal_beta = prio_beta0 + (1 - prio_beta0) * prio_alpha * epoch / total_epochs
+
+                advantages = compute_initial_advantages(
+                    experience,
+                    trainer_cfg.gamma,
+                    trainer_cfg.gae_lambda,
+                    trainer_cfg.vtrace.vtrace_rho_clip,
+                    trainer_cfg.vtrace.vtrace_c_clip,
+                    device,
                 )
+
+                _total_minibatches = experience.num_minibatches * trainer_cfg.update_epochs
+                minibatch_idx = 0
+
+                for _ in range(trainer_cfg.update_epochs):
+                    for _j in range(experience.num_minibatches):
+                        minibatch = experience.sample_minibatch(
+                            advantages=advantages,
+                            prio_alpha=prio_alpha,
+                            prio_beta=anneal_beta,
+                            minibatch_idx=minibatch_idx,
+                            total_minibatches=_total_minibatches,
+                        )
+
+                        loss = loss_module(
+                            minibatch=minibatch,
+                            experience=experience,
+                            losses=losses,
+                            agent_step=agent_step,
+                            device=device,
+                        )
+                        losses.minibatches_processed += 1
+
+                        optimizer.zero_grad()
+                        loss.backward()
+
+                        if (minibatch_idx + 1) % experience.accumulate_minibatches == 0:
+                            torch.nn.utils.clip_grad_norm_(policy.parameters(), trainer_cfg.max_grad_norm)
+                            optimizer.step()
+                            if hasattr(policy, "clip_weights"):
+                                policy.clip_weights()
+                            if str(device).startswith("cuda"):
+                                torch.cuda.synchronize()
+
+                        minibatch_idx += 1
+
+                    if trainer_cfg.target_kl is not None:
+                        average_approx_kl = losses.approx_kl_sum / losses.minibatches_processed
+                        if average_approx_kl > trainer_cfg.target_kl:
+                            break
+
+                y_pred = experience.values.flatten()
+                y_true = advantages.flatten() + experience.values.flatten()
+                var_y = y_true.var()
+                explained_var = torch.nan if var_y == 0 else 1 - (y_true - y_pred).var() / var_y
+                losses.explained_variance = explained_var.item() if torch.is_tensor(explained_var) else float("nan")
+
             steps_in_epoch = agent_step - steps_before
             rollout_time = timer.get_last_elapsed("rollout")
             train_time = timer.get_last_elapsed("train")
