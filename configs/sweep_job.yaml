@@ -3,26 +3,50 @@ defaults:
   - wandb: metta_research
   - agent: fast
   - sim: sweep_eval
-  - trainer: trainer
+  - trainer: puffer
+  - sweep: quick
   - _self_
 
 cmd: sweep
 sweep_name: ???
-sweep_params: "sweep/full"
-sweep_params_override: {}
-sweep: ???
 
-metric: reward
-num_random_samples: 10
+# Override device for macOS (no CUDA support)
+device: cpu
 
 trainer:
-  evaluate_interval: 300
+  # Ultra-fast training for sweep tests
+  total_timesteps: 1000  # Minimal training
+  evaluate_interval: 1000  # Very frequent evaluation
+  batch_size: 3200  # Must be >= 2 agents * 64 bptt_horizon = 128
+  minibatch_size: 1600
+  checkpoint_interval: 1000  # No checkpointing during short runs
+  curriculum: /env/mettagrid/curriculum/simple  # Use proper curriculum path
+  num_workers: 1  # Single worker
+  envs_per_worker: 1  # Single environment per worker
+  forward_pass_minibatch_target_size: 2  # Minimal batch size for 2 agents
+  async_factor: 1
+  env_overrides:
+    env_overrides:  # Double nesting required
+      game:
+        max_steps: 10  # Very short episodes
+        num_agents: 2  # Minimal agents
 
+# TODO Check what sim is about.
 sim:
-  num_episodes: 5
+  name: sweep_eval  # Required field
+  num_episodes: 1  # Single episode for ultra-fast evaluation
+  max_time_s: 60
+  env_overrides: {}
+  simulations:
+    simple:
+      env: env/mettagrid/simple
 
 sweep_job:
   evals: ${sim}
+  trainer: ${trainer}
+  agent: ${agent}
+  sweep: ${sweep}
+  device: cpu  # Override cuda default for macOS
 
 sweep_dir: "${.data_dir}/sweep/${.sweep_name}"
 runs_dir: "${.sweep_dir}/runs"
