@@ -124,6 +124,7 @@ jobs:
           git_ref_override: ${{ github.event.inputs.commit_to_run || '' }} # Pass commit_to_run for manual, default for push
           wandb_api_key: ${{ secrets.WANDB_API_KEY }}
           skypilot_api_url: ${{ secrets.SKYPILOT_API_URL }}
+          observatory_token: ${{ secrets.OBSERVATORY_TOKEN }}
 
       - name: Print Run Information
         shell: bash
