@@ -12,8 +12,8 @@ game:
         mine: 5
         generator: 4
         altar: 5
-        armory: 5
-        lasery: 5
+        # armory: 5
+        # lasery: 5
         block: 20
         wall: 20
 
