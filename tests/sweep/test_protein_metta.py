@@ -144,34 +144,6 @@ class TestMettaProtein:
                 # Check that interpolation was resolved
                 assert protein_config["trainer"]["optimizer"]["learning_rate"]["mean"] == 32
 
-    def test_metta_protein_missing_parameters_section(self):
-        """Test behavior when parameters section is missing."""
-        config = OmegaConf.create(
-            {
-                "sweep": {
-                    "protein": {},
-                    # No parameters section
-                }
-            }
-        )
-
-        mock_wandb_run = Mock()
-
-        with patch("metta.sweep.protein_metta.Protein") as mock_protein:
-            mock_protein_instance = Mock()
-            mock_protein.return_value = mock_protein_instance
-
-            with patch("metta.sweep.protein_metta.WandbProtein.__init__", return_value=None):
-                # Should still work with empty parameters
-                metta_protein = MettaProtein(config, mock_wandb_run)
-
-                mock_protein.assert_called_once()
-                args, kwargs = mock_protein.call_args
-                protein_config = args[0]
-
-                # Should be empty dict
-                assert protein_config == {}
-
     def test_transform_suggestion(self):
         """Test the _transform_suggestion method."""
         config = OmegaConf.create({"sweep": {"protein": {}, "parameters": {"metric": "reward", "goal": "maximize"}}})
