@@ -52,7 +52,7 @@ optimizer:
 
 lr_scheduler:
   enabled: false
-  anneal_lr: false
+  anneal_lr: true
 
 max_grad_norm: 0.5
 vf_clip_coef: 0.1
