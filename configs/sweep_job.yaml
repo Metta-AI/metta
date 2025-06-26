@@ -8,7 +8,6 @@ defaults:
   - _self_
 
 cmd: sweep
-sweep_name: ???
 
 # Override device for macOS (no CUDA support)
 device: cpu
@@ -48,5 +47,5 @@ sweep_job:
   sweep: ${sweep}
   device: cpu  # Override cuda default for macOS
 
-sweep_dir: "${.data_dir}/sweep/${.sweep_name}"
+sweep_dir: "${.data_dir}/sweep/${.run}"
 runs_dir: "${.sweep_dir}/runs"
