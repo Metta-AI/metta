@@ -58,7 +58,7 @@ class MemoryMonitor:
             initial_size = get_object_size(obj)
 
             try:
-                weak_ref = weakref.ref(obj, lambda ref: self._tracked_objects.pop(name, None))
+                weak_ref = weakref.ref(obj, lambda ref, key=name: self._tracked_objects.pop(key, None))
                 self._tracked_objects[name] = {
                     "object_ref": weak_ref,
                     "initial_size": initial_size,
@@ -80,7 +80,7 @@ class MemoryMonitor:
                         attr_initial_size = get_object_size(attr_value)
                         try:
                             attr_weak_ref = weakref.ref(
-                                attr_value, lambda ref: self._tracked_objects.pop(attr_key, None)
+                                attr_value, lambda ref, key=attr_key: self._tracked_objects.pop(key, None)
                             )
                             self._tracked_objects[attr_key] = {
                                 "object_ref": attr_weak_ref,
