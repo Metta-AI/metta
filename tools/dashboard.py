@@ -6,6 +6,7 @@ from omegaconf import DictConfig, OmegaConf
 
 from metta.common.util.logging import setup_mettagrid_logger
 from metta.common.util.runtime_configuration import setup_mettagrid_environment
+from metta.common.uv_check import enforce_uv
 from metta.eval.dashboard_data import DashboardConfig, write_dashboard_data
 from metta.mettagrid.util.file import http_url
 
@@ -35,4 +36,5 @@ def main(cfg: DictConfig) -> None:
 
 
 if __name__ == "__main__":
+    enforce_uv()
     main()

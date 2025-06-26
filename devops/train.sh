@@ -6,7 +6,6 @@ set -e
 args="${@:1}"
 
 source ./devops/setup.env
-source .venv/bin/activate
 
 # Start heartbeat monitor if available
 HEARTBEAT_FILE=${HEARTBEAT_FILE:-$WANDB_DIR/heartbeat.txt}
@@ -63,7 +62,7 @@ echo "  - Arguments: $args"
 
 echo "[INFO] Starting distributed training..."
 
-PYTHONPATH=$PYTHONPATH:. torchrun \
+PYTHONPATH=$PYTHONPATH:. uv run torchrun \
   --nnodes=$NUM_NODES \
   --nproc-per-node=$NUM_GPUS \
   --master-addr=$MASTER_ADDR \

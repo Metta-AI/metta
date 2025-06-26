@@ -13,6 +13,7 @@ from omegaconf import DictConfig
 
 from metta.common.util.logging import setup_mettagrid_logger
 from metta.common.util.runtime_configuration import setup_mettagrid_environment
+from metta.common.uv_check import enforce_uv
 from metta.eval.eval_stats_db import EvalStatsDB
 from metta.mettagrid.util.file import local_copy
 
@@ -78,4 +79,5 @@ def main(cfg: DictConfig) -> int:
 
 
 if __name__ == "__main__":
+    enforce_uv()
     exit(main())
