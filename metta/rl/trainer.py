@@ -769,10 +769,10 @@ class MettaTrainer:
         if self._should_run(self.cfg.agent.l2_init_weight_update_interval, force):
             self.policy.update_l2_init_weight_copy()
 
-    def _maybe_evaluate_policy(self, force=False):
+    def _maybe_evaluate_policy(self, wandb_policy_name: str | None = None, force: bool = False):
         """Evaluate policy if on evaluation interval"""
         if self._should_run(self.trainer_cfg.evaluate_interval, force):
-            self._evaluate_policy()
+            self._evaluate_policy(wandb_policy_name)
 
     @with_instance_timer("_evaluate_policy", log_level=logging.INFO)
     def _evaluate_policy(self, wandb_policy_name: str | None = None):
