@@ -1,0 +1,705 @@
+"""
+Clean API for Metta - provides direct instantiation without Hydra.
+"""
+
+import os
+from typing import Any, Dict, Optional
+
+import torch
+from omegaconf import DictConfig
+
+# Direct instantiation functions
+
+
+def make_agent(
+    obs_space,
+    action_space,
+    obs_width: int,
+    obs_height: int,
+    feature_normalizations: Dict[int, float],
+    global_features: list,
+    device: torch.device,
+    obs_key: str = "grid_obs",
+    clip_range: float = 0,
+    analyze_weights_interval: int = 300,
+    l2_init_weight_update_interval: int = 0,
+):
+    """Create a Metta agent instance directly."""
+    from metta.agent.metta_agent import MettaAgent
+
+    # Create agent config directly
+    config = {
+        "_target_": "metta.agent.metta_agent.MettaAgent",
+        "observations": {"obs_key": obs_key},
+        "clip_range": clip_range,
+        "analyze_weights_interval": analyze_weights_interval,
+        "l2_init_weight_update_interval": l2_init_weight_update_interval,
+        "components": {
+            "_obs_": {"_target_": "metta.agent.lib.obs_token_to_box_shaper.ObsTokenToBoxShaper", "sources": None},
+            "obs_normalizer": {
+                "_target_": "metta.agent.lib.observation_normalizer.ObservationNormalizer",
+                "sources": [{"name": "_obs_"}],
+            },
+            "cnn1": {
+                "_target_": "metta.agent.lib.nn_layer_library.Conv2d",
+                "sources": [{"name": "obs_normalizer"}],
+                "nn_params": {"out_channels": 64, "kernel_size": 5, "stride": 3},
+            },
+            "cnn2": {
+                "_target_": "metta.agent.lib.nn_layer_library.Conv2d",
+                "sources": [{"name": "cnn1"}],
+                "nn_params": {"out_channels": 64, "kernel_size": 3, "stride": 1},
+            },
+            "obs_flattener": {"_target_": "metta.agent.lib.nn_layer_library.Flatten", "sources": [{"name": "cnn2"}]},
+            "fc1": {
+                "_target_": "metta.agent.lib.nn_layer_library.Linear",
+                "sources": [{"name": "obs_flattener"}],
+                "nn_params": {"out_features": 128},
+            },
+            "encoded_obs": {
+                "_target_": "metta.agent.lib.nn_layer_library.Linear",
+                "sources": [{"name": "fc1"}],
+                "nn_params": {"out_features": 128},
+            },
+            "_core_": {
+                "_target_": "metta.agent.lib.lstm.LSTM",
+                "sources": [{"name": "encoded_obs"}],
+                "output_size": 128,
+                "nn_params": {"num_layers": 2},
+            },
+            "core_relu": {"_target_": "metta.agent.lib.nn_layer_library.ReLU", "sources": [{"name": "_core_"}]},
+            "critic_1": {
+                "_target_": "metta.agent.lib.nn_layer_library.Linear",
+                "sources": [{"name": "core_relu"}],
+                "nn_params": {"out_features": 1024},
+                "nonlinearity": "nn.Tanh",
+                "effective_rank": True,
+            },
+            "_value_": {
+                "_target_": "metta.agent.lib.nn_layer_library.Linear",
+                "sources": [{"name": "critic_1"}],
+                "nn_params": {"out_features": 1},
+                "nonlinearity": None,
+            },
+            "actor_1": {
+                "_target_": "metta.agent.lib.nn_layer_library.Linear",
+                "sources": [{"name": "core_relu"}],
+                "nn_params": {"out_features": 512},
+            },
+            "_action_embeds_": {
+                "_target_": "metta.agent.lib.action.ActionEmbedding",
+                "sources": None,
+                "nn_params": {"num_embeddings": 100, "embedding_dim": 16},
+            },
+            "_action_": {
+                "_target_": "metta.agent.lib.actor.MettaActorSingleHead",
+                "sources": [{"name": "actor_1"}, {"name": "_action_embeds_"}],
+            },
+        },
+    }
+
+    return MettaAgent(
+        obs_space=obs_space,
+        obs_width=obs_width,
+        obs_height=obs_height,
+        action_space=action_space,
+        feature_normalizations=feature_normalizations,
+        global_features=global_features,
+        device=device,
+        **config,
+    )
+
+
+def make_optimizer(
+    parameters,
+    learning_rate: float = 0.0004573146765703167,
+    beta1: float = 0.9,
+    beta2: float = 0.999,
+    eps: float = 1e-12,
+    weight_decay: float = 0,
+    type: str = "adam",
+) -> torch.optim.Optimizer:
+    """Create an optimizer directly."""
+    if type == "adam":
+        return torch.optim.Adam(
+            parameters,
+            lr=learning_rate,
+            betas=(beta1, beta2),
+            eps=eps,
+            weight_decay=weight_decay,
+        )
+    else:
+        raise ValueError(f"Unsupported optimizer type: {type}")
+
+
+def make_experience_buffer(
+    total_agents: int,
+    batch_size: int,
+    bptt_horizon: int,
+    minibatch_size: int,
+    max_minibatch_size: int,
+    obs_space,
+    atn_space,
+    device: torch.device,
+    hidden_size: int,
+    cpu_offload: bool = False,
+    num_lstm_layers: int = 2,
+    agents_per_batch: Optional[int] = None,
+):
+    """Create an experience buffer directly."""
+    from metta.rl.experience import Experience
+
+    return Experience(
+        total_agents=total_agents,
+        batch_size=batch_size,
+        bptt_horizon=bptt_horizon,
+        minibatch_size=minibatch_size,
+        max_minibatch_size=max_minibatch_size,
+        obs_space=obs_space,
+        atn_space=atn_space,
+        device=device,
+        hidden_size=hidden_size,
+        cpu_offload=cpu_offload,
+        num_lstm_layers=num_lstm_layers,
+        agents_per_batch=agents_per_batch,
+    )
+
+
+def make_loss_module(
+    policy: torch.nn.Module,
+    vf_coef: float = 0.44,
+    ent_coef: float = 0.0021,
+    clip_coef: float = 0.1,
+    vf_clip_coef: float = 0.1,
+    norm_adv: bool = True,
+    clip_vloss: bool = True,
+    gamma: float = 0.977,
+    gae_lambda: float = 0.916,
+    vtrace_rho_clip: float = 1.0,
+    vtrace_c_clip: float = 1.0,
+    l2_reg_loss_coef: float = 0.0,
+    l2_init_loss_coef: float = 0.0,
+    kickstarter: Optional[Any] = None,
+):
+    """Create a PPO loss module directly."""
+    from metta.rl.objectives import ClipPPOLoss
+
+    return ClipPPOLoss(
+        policy=policy,
+        vf_coef=vf_coef,
+        ent_coef=ent_coef,
+        clip_coef=clip_coef,
+        vf_clip_coef=vf_clip_coef,
+        norm_adv=norm_adv,
+        clip_vloss=clip_vloss,
+        gamma=gamma,
+        gae_lambda=gae_lambda,
+        vtrace_rho_clip=vtrace_rho_clip,
+        vtrace_c_clip=vtrace_c_clip,
+        l2_reg_loss_coef=l2_reg_loss_coef,
+        l2_init_loss_coef=l2_init_loss_coef,
+        kickstarter=kickstarter,
+    )
+
+
+def make_vecenv(
+    env_config: Dict[str, Any],
+    num_envs: int = 16,
+    num_workers: int = 1,
+    batch_size: Optional[int] = None,
+    device: str = "cpu",
+    zero_copy: bool = True,
+    vectorization: str = "serial",
+):
+    """Create a vectorized environment directly."""
+    from metta.mettagrid.curriculum.core import SingleTaskCurriculum
+    from metta.rl.vecenv import make_vecenv
+
+    curriculum = SingleTaskCurriculum("task", DictConfig(env_config))
+
+    return make_vecenv(
+        curriculum=curriculum,
+        vectorization=vectorization,
+        num_envs=num_envs,
+        batch_size=batch_size,
+        num_workers=num_workers,
+        zero_copy=zero_copy,
+        is_training=True,
+    )
+
+
+def env(
+    num_agents: int = 2,
+    width: int = 15,
+    height: int = 10,
+    max_steps: int = 1000,
+    obs_width: int = 11,
+    obs_height: int = 11,
+) -> Dict[str, Any]:
+    """Create a default MetaGrid environment configuration."""
+    return {
+        "sampling": 0,
+        "desync_episodes": False,
+        "replay_level_prob": 0.0,
+        "game": {
+            "num_agents": num_agents,
+            "obs_width": obs_width,
+            "obs_height": obs_height,
+            "num_observation_tokens": 200,
+            "max_steps": max_steps,
+            "inventory_item_names": [
+                "ore.red",
+                "battery.red",
+                "heart",
+                "laser",
+                "armor",
+            ],
+            "diversity_bonus": {"enabled": False, "similarity_coef": 0.5, "diversity_coef": 0.5},
+            "agent": {
+                "default_item_max": 50,
+                "heart_max": 255,
+                "freeze_duration": 10,
+                "rewards": {
+                    "action_failure_penalty": 0,
+                    "ore.red": 0.01,
+                    "battery.red": 0.02,
+                    "heart": 1,
+                    "heart_max": 1000,
+                },
+            },
+            "groups": {"agent": {"id": 0, "sprite": 0, "props": {}}},
+            "objects": {
+                "altar": {
+                    "input_battery.red": 1,
+                    "output_heart": 1,
+                    "max_output": 5,
+                    "conversion_ticks": 1,
+                    "cooldown": 10,
+                    "initial_items": 1,
+                },
+                "mine_red": {
+                    "output_ore.red": 1,
+                    "color": 0,
+                    "max_output": 5,
+                    "conversion_ticks": 1,
+                    "cooldown": 50,
+                    "initial_items": 1,
+                },
+                "generator_red": {
+                    "input_ore.red": 1,
+                    "output_battery.red": 1,
+                    "color": 0,
+                    "max_output": 5,
+                    "conversion_ticks": 1,
+                    "cooldown": 50,
+                    "initial_items": 1,
+                },
+                "wall": {"swappable": False},
+                "block": {"swappable": True},
+            },
+            "actions": {
+                "noop": {"enabled": True},
+                "move": {"enabled": True},
+                "rotate": {"enabled": True},
+                "put_items": {"enabled": True},
+                "get_items": {"enabled": True},
+                "attack": {"enabled": False},
+                "swap": {"enabled": True},
+                "change_color": {"enabled": False},
+            },
+            "reward_sharing": {"groups": {}},
+            "map_builder": {
+                "_target_": "metta.mettagrid.room.random.Random",
+                "width": width,
+                "height": height,
+                "border_width": 2,
+                "agents": num_agents,
+                "objects": {"mine_red": 2, "generator_red": 1, "altar": 1, "wall": 5, "block": 3},
+            },
+        },
+    }
+
+
+def build_runtime_config(
+    run: str = "default_run",
+    data_dir: Optional[str] = None,
+    device: Optional[str] = None,
+    seed: int = 0,
+    vectorization: str = "serial",
+) -> Dict[str, Any]:
+    """Build the runtime configuration for Metta."""
+    if data_dir is None:
+        data_dir = os.environ.get("DATA_DIR", "./train_dir")
+
+    if device is None:
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+
+    return {
+        "run": run,
+        "data_dir": data_dir,
+        "run_dir": f"{data_dir}/{run}",
+        "policy_uri": f"file://{data_dir}/{run}/checkpoints",
+        "torch_deterministic": True,
+        "vectorization": vectorization,
+        "seed": seed,
+        "device": device,
+        "stats_user": os.environ.get("USER", "unknown"),
+        "dist_cfg_path": None,
+        "hydra": {"callbacks": {"resolver_callback": {"_target_": "metta.common.util.resolvers.ResolverRegistrar"}}},
+    }
+
+
+def setup_metta_environment(config: Dict[str, Any]) -> None:
+    """Setup the Metta environment with the given configuration."""
+    from metta.common.util.runtime_configuration import setup_mettagrid_environment
+
+    setup_mettagrid_environment(DictConfig(config))
+
+
+def get_logger(name: str):
+    """Get a configured logger for Metta."""
+    from metta.common.util.logging import setup_mettagrid_logger
+
+    return setup_mettagrid_logger(name)
+
+
+# High-level convenience functions
+
+
+def quick_train(
+    run_name: str = "default_run",
+    timesteps: int = 100_000,
+    batch_size: int = 256,
+    num_agents: int = 2,
+    num_workers: int = 1,
+    learning_rate: float = 3e-4,
+    checkpoint_interval: int = 100,
+    device: str = "cuda",
+    vectorization: str = "serial",
+    env_width: int = 15,
+    env_height: int = 10,
+    logger=None,
+) -> str:
+    """Quick training function with sensible defaults.
+
+    Args:
+        run_name: Name of the training run
+        timesteps: Total timesteps to train
+        batch_size: Batch size for training
+        num_agents: Number of agents per environment
+        num_workers: Number of workers
+        learning_rate: Learning rate
+        checkpoint_interval: How often to save checkpoints
+        device: Device to use
+        vectorization: Vectorization mode
+        env_width: Environment width
+        env_height: Environment height
+        logger: Optional logger instance
+
+    Returns:
+        Path to the final checkpoint
+    """
+    import os
+
+    import gymnasium as gym
+    import numpy as np
+
+    from metta.common.stopwatch import Stopwatch
+    from metta.rl.functional_trainer import (
+        compute_initial_advantages,
+        perform_rollout_step,
+        process_rollout_infos,
+    )
+    from metta.rl.losses import Losses
+
+    if logger is None:
+        logger = get_logger("quick_train")
+
+    # Setup directories
+    checkpoint_dir = f"./train_dir/{run_name}/checkpoints"
+    os.makedirs(checkpoint_dir, exist_ok=True)
+
+    # Create environment
+    env_config = env(
+        num_agents=num_agents,
+        width=env_width,
+        height=env_height,
+        max_steps=1000,
+    )
+
+    # Calculate environment count for batch size
+    target_batch_size = 32 // num_agents  # Aim for 32 agents total (reasonable default)
+    if target_batch_size < num_workers:
+        target_batch_size = num_workers
+    num_envs = target_batch_size
+
+    # Create vectorized environment
+    vecenv = make_vecenv(
+        env_config=env_config,
+        num_envs=num_envs,
+        num_workers=num_workers,
+        batch_size=None if num_workers == 1 else num_envs,
+        device=device,
+        vectorization=vectorization,
+    )
+
+    env_info = vecenv.driver_env
+
+    # Create observation space
+    obs_space = gym.spaces.Dict(
+        {
+            "grid_obs": env_info.single_observation_space,
+            "global_vars": gym.spaces.Box(low=-np.inf, high=np.inf, shape=[0], dtype=np.int32),
+        }
+    )
+
+    # Create agent
+    device_obj = torch.device(device)
+    policy = make_agent(
+        obs_space=obs_space,
+        action_space=env_info.single_action_space,
+        obs_width=env_info.obs_width,
+        obs_height=env_info.obs_height,
+        feature_normalizations=env_info.feature_normalizations,
+        global_features=env_info.global_features,
+        device=device_obj,
+    )
+    policy.activate_actions(env_info.action_names, env_info.max_action_args, device_obj)
+
+    # Create experience buffer
+    minibatch_size = min(32, batch_size)
+    while batch_size % minibatch_size != 0 and minibatch_size > 1:
+        minibatch_size -= 1
+
+    experience = make_experience_buffer(
+        total_agents=vecenv.num_agents,
+        batch_size=batch_size,
+        bptt_horizon=8,
+        minibatch_size=minibatch_size,
+        max_minibatch_size=32,
+        obs_space=env_info.single_observation_space,
+        atn_space=env_info.single_action_space,
+        device=device_obj,
+        hidden_size=policy.hidden_size,
+        num_lstm_layers=policy.core_num_layers,
+        agents_per_batch=getattr(vecenv, "agents_per_batch", None),
+    )
+
+    # Create optimizer and loss module
+    optimizer = make_optimizer(policy.parameters(), learning_rate=learning_rate)
+    loss_module = make_loss_module(policy=policy)
+    losses = Losses()
+
+    # Training setup
+    timer = Stopwatch(logger)
+    timer.start()
+
+    logger.info("Starting training...")
+    vecenv.async_reset(seed=0)
+
+    agent_step = 0
+    epoch = 0
+
+    # Training loop
+    while agent_step < timesteps:
+        steps_before = agent_step
+
+        # Rollout
+        with timer("rollout"):
+            raw_infos = []
+            experience.reset_for_rollout()
+
+            while not experience.ready_for_training:
+                num_steps, info, _ = perform_rollout_step(policy, vecenv, experience, device_obj, timer)
+                agent_step += num_steps
+                if info:
+                    raw_infos.extend(info)
+
+            rollout_stats = process_rollout_infos(raw_infos)
+
+        # Train
+        with timer("train"):
+            losses.zero()
+            experience.reset_importance_sampling_ratios()
+
+            # Compute advantages
+            advantages = compute_initial_advantages(experience, 0.977, 0.916, 1.0, 1.0, device_obj)
+
+            # Train minibatches
+            for mb_idx in range(experience.num_minibatches):
+                minibatch = experience.sample_minibatch(
+                    advantages=advantages,
+                    prio_alpha=0.0,
+                    prio_beta=0.6,
+                    minibatch_idx=mb_idx,
+                    total_minibatches=experience.num_minibatches,
+                )
+
+                loss = loss_module(
+                    minibatch=minibatch,
+                    experience=experience,
+                    losses=losses,
+                    agent_step=agent_step,
+                    device=device_obj,
+                )
+                losses.minibatches_processed += 1
+
+                optimizer.zero_grad()
+                loss.backward()
+
+                if (mb_idx + 1) % experience.accumulate_minibatches == 0:
+                    torch.nn.utils.clip_grad_norm_(policy.parameters(), 0.5)
+                    optimizer.step()
+                    if hasattr(policy, "clip_weights"):
+                        policy.clip_weights()
+
+        # Log progress
+        steps_in_epoch = agent_step - steps_before
+        rollout_time = timer.get_last_elapsed("rollout")
+        train_time = timer.get_last_elapsed("train")
+        steps_per_sec = steps_in_epoch / (rollout_time + train_time)
+
+        loss_stats = losses.stats()
+        logger.info(
+            f"Epoch {epoch} - Steps: {agent_step}/{timesteps} - "
+            f"{steps_per_sec:.0f} sps - "
+            f"Policy loss: {loss_stats['policy_loss']:.4f} - "
+            f"Value loss: {loss_stats['value_loss']:.4f}"
+        )
+
+        # Save checkpoint
+        if epoch % checkpoint_interval == 0:
+            checkpoint_path = f"{checkpoint_dir}/policy_epoch_{epoch}.pt"
+            torch.save(policy.state_dict(), checkpoint_path)
+            logger.info(f"Saved checkpoint: {checkpoint_path}")
+
+        epoch += 1
+
+    # Save final checkpoint
+    final_checkpoint = f"{checkpoint_dir}/policy_final.pt"
+    torch.save(policy.state_dict(), final_checkpoint)
+
+    vecenv.close()
+    return final_checkpoint
+
+
+def quick_eval(
+    checkpoint_path: str,
+    num_episodes: int = 10,
+    num_envs: int = 32,
+    num_agents: int = 2,
+    device: str = "cuda",
+    vectorization: str = "multiprocessing",
+    env_width: int = 15,
+    env_height: int = 10,
+    logger=None,
+) -> Dict[str, Any]:
+    """Quick evaluation function.
+
+    Args:
+        checkpoint_path: Path to checkpoint to evaluate
+        num_episodes: Number of episodes to run
+        num_envs: Number of parallel environments
+        num_agents: Number of agents per environment
+        device: Device to use
+        vectorization: Vectorization mode
+        env_width: Environment width
+        env_height: Environment height
+        logger: Optional logger instance
+
+    Returns:
+        Dictionary with evaluation results
+    """
+    import gymnasium as gym
+    import numpy as np
+
+    if logger is None:
+        logger = get_logger("quick_eval")
+
+    # Create environment
+    env_config = env(
+        num_agents=num_agents,
+        width=env_width,
+        height=env_height,
+        max_steps=1000,
+    )
+
+    # Create vectorized environment
+    vecenv = make_vecenv(
+        env_config=env_config,
+        num_envs=num_envs,
+        num_workers=1,
+        device=device,
+        vectorization=vectorization,
+    )
+
+    env_info = vecenv.driver_env
+
+    # Create observation space
+    obs_space = gym.spaces.Dict(
+        {
+            "grid_obs": env_info.single_observation_space,
+            "global_vars": gym.spaces.Box(low=-np.inf, high=np.inf, shape=[0], dtype=np.int32),
+        }
+    )
+
+    # Create agent
+    device_obj = torch.device(device)
+    policy = make_agent(
+        obs_space=obs_space,
+        action_space=env_info.single_action_space,
+        obs_width=env_info.obs_width,
+        obs_height=env_info.obs_height,
+        feature_normalizations=env_info.feature_normalizations,
+        global_features=env_info.global_features,
+        device=device_obj,
+    )
+    policy.activate_actions(env_info.action_names, env_info.max_action_args, device_obj)
+
+    # Load checkpoint
+    policy.load_state_dict(torch.load(checkpoint_path, map_location=device))
+    policy.eval()
+
+    logger.info(f"Loaded checkpoint: {checkpoint_path}")
+
+    # Run evaluation
+    rewards = []
+    episode_lengths = []
+    episodes_completed = 0
+
+    obs = vecenv.reset(seed=42)
+    hidden = policy.initial_hidden(vecenv.num_agents)
+
+    while episodes_completed < num_episodes:
+        with torch.no_grad():
+            actions, hidden = policy.forward(obs, hidden)
+
+        obs, reward, done, info = vecenv.step(actions)
+
+        # Process episode completions
+        for i, inf in enumerate(info):
+            if inf and "episode_return" in inf:
+                rewards.append(inf["episode_return"])
+                if "episode_length" in inf:
+                    episode_lengths.append(inf["episode_length"])
+                episodes_completed += 1
+
+                if episodes_completed >= num_episodes:
+                    break
+
+    vecenv.close()
+
+    # Compute results
+    results = {
+        "num_episodes": len(rewards),
+        "avg_reward": np.mean(rewards) if rewards else 0.0,
+        "std_reward": np.std(rewards) if rewards else 0.0,
+        "min_reward": np.min(rewards) if rewards else 0.0,
+        "max_reward": np.max(rewards) if rewards else 0.0,
+    }
+
+    if episode_lengths:
+        results["avg_episode_length"] = np.mean(episode_lengths)
+        results["episode_lengths"] = episode_lengths
+
+    return results
