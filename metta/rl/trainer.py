@@ -338,7 +338,7 @@ class MettaTrainer:
             self._maybe_generate_replay()
             self._maybe_update_l2_weights()
             self._maybe_compute_grad_stats()
-            
+
             self._on_train_step()
             # end loop over total_timesteps
 
