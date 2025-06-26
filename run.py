@@ -4,15 +4,25 @@ Universal entry point for Metta - Alternative to tools/* scripts without Hydra
 
 This script demonstrates how to use Metta as a library without relying on Hydra
 configuration. It replicates the functionality of:
-- tools/train.py
+- tools/train.py (default)
 - tools/sim.py
 - tools/analyze.py
 - tools/dashboard.py
 
 Usage:
+    # Train with default settings
+    python run.py
+
+    # Train with custom settings
     python run.py train --run my_experiment --total-timesteps 1000000
-    python run.py sim --run my_experiment --policy-uri file://./checkpoints
-    python run.py analyze --policy-uri file://./checkpoints/policy_v1.pt
+
+    # Evaluate a policy
+    python run.py sim --run my_experiment --policy-uri file://./train_dir/my_experiment/checkpoints
+
+    # Analyze a policy
+    python run.py analyze --policy-uri file://./train_dir/my_experiment/checkpoints/policy_v1.pt
+
+    # Generate dashboard
     python run.py dashboard --output-path ./dashboard_data.json
 """
 
@@ -34,10 +44,10 @@ def build_common_config(args):
     data_dir = os.environ.get("DATA_DIR", "./train_dir")
 
     cfg = {
-        "run": args.run if hasattr(args, "run") else "default_run",
+        "run": getattr(args, "run", "default_run"),
         "data_dir": data_dir,
-        "run_dir": f"{data_dir}/{args.run if hasattr(args, 'run') else 'default_run'}",
-        "policy_uri": f"file://{data_dir}/{args.run if hasattr(args, 'run') else 'default_run'}/checkpoints",
+        "run_dir": f"{data_dir}/{getattr(args, 'run', 'default_run')}",
+        "policy_uri": f"file://{data_dir}/{getattr(args, 'run', 'default_run')}/checkpoints",
         "torch_deterministic": True,
         "vectorization": getattr(args, "vectorization", "multiprocessing"),
         "seed": getattr(args, "seed", 0),
@@ -55,13 +65,13 @@ def build_train_config(args):
     """Build configuration for training."""
     cfg = build_common_config(args)
 
-    # Environment configuration - simplified version of configs/env/mettagrid/simple.yaml
+    # Environment configuration - using Python format that will be converted by MettaGridEnv
     env_config = {
         "sampling": 0,
         "desync_episodes": False,
-        "replay_level_prob": 0.2,
+        "replay_level_prob": 0.0,  # Set to 0 for simpler initial testing
         "game": {
-            "num_agents": args.num_agents if hasattr(args, "num_agents") else 24,
+            "num_agents": getattr(args, "num_agents", 2),  # Start with just 2 agents
             "obs_width": 11,
             "obs_height": 11,
             "num_observation_tokens": 200,
@@ -73,24 +83,17 @@ def build_train_config(args):
                 "freeze_duration": 10,
                 "rewards": {
                     "action_failure_penalty": 0,
-                    "ore.red": 0.005,
-                    "ore.blue": 0.005,
-                    "ore.green": 0.005,
-                    "battery.red": 0.01,
-                    "battery.blue": 0.01,
-                    "battery.green": 0.01,
+                    "ore.red": 0.01,
+                    "battery.red": 0.02,
                     "heart": 1,
                     "heart_max": 1000,
                 },
             },
-            "groups": {
-                "agent": {"id": 0, "sprite": 0, "props": {}},
-                "team_1": {"id": 1, "sprite": 1, "group_reward_pct": 0.5, "props": {}},
-                "team_2": {"id": 2, "sprite": 4, "group_reward_pct": 0.5, "props": {}},
-            },
+            # Groups in Python format - MettaGridEnv will convert to agent_groups
+            "groups": {"agent": {"id": 0, "sprite": 0, "props": {}}},
             "objects": {
                 "altar": {
-                    "input_battery.red": 3,
+                    "input_battery.red": 1,
                     "output_heart": 1,
                     "max_output": 5,
                     "conversion_ticks": 1,
@@ -106,7 +109,7 @@ def build_train_config(args):
                     "initial_items": 1,
                 },
                 "generator_red": {
-                    "input_ore.red": 3,
+                    "input_ore.red": 1,
                     "output_battery.red": 1,
                     "color": 0,
                     "max_output": 5,
@@ -123,25 +126,20 @@ def build_train_config(args):
                 "rotate": {"enabled": True},
                 "put_items": {"enabled": True},
                 "get_items": {"enabled": True},
-                "attack": {"enabled": True},
+                "attack": {"enabled": False},  # Disabled for simpler testing
                 "swap": {"enabled": True},
-                "change_color": {"enabled": True},
+                "change_color": {"enabled": False},
             },
             "reward_sharing": {
-                "groups": {"agent": {"agent": 0.0}, "team_1": {"team_1": 0.5}, "team_2": {"team_2": 0.5}}
+                "groups": {}  # Empty for single agent group
             },
             "map_builder": {
-                "_target_": "metta.mettagrid.room.multi_room.MultiRoom",
-                "num_rooms": 4,
-                "border_width": 6,
-                "room": {
-                    "_target_": "metta.mettagrid.room.random.Random",
-                    "width": 25,
-                    "height": 25,
-                    "border_width": 0,
-                    "agents": 6,
-                    "objects": {"mine": 10, "generator": 2, "altar": 1, "wall": 20, "block": 20},
-                },
+                "_target_": "metta.mettagrid.room.random.Random",
+                "width": 15,
+                "height": 10,
+                "border_width": 2,
+                "agents": getattr(args, "num_agents", 2),
+                "objects": {"mine_red": 2, "generator_red": 1, "altar": 1, "wall": 5, "block": 3},
             },
         },
     }
@@ -149,11 +147,11 @@ def build_train_config(args):
     # Agent configuration
     agent_config = {
         "_target_": "metta.agent.metta_agent.MettaAgent",
-        "hidden_size": 256,
-        "rl_layer": {"_target_": "metta.agent.lib.rl_layer.SimpleLSTMRLLayer", "hidden_size": 256, "num_layers": 1},
+        "hidden_size": 128,  # Reduced for faster testing
+        "rl_layer": {"_target_": "metta.agent.lib.rl_layer.SimpleLSTMRLLayer", "hidden_size": 128, "num_layers": 1},
         "torso": {
             "_target_": "metta.agent.lib.torso.SimpleTorso",
-            "hidden_size": 256,
+            "hidden_size": 128,
             "resnet_channels": 32,
             "num_resnet_blocks": 2,
             "num_heads": 0,
@@ -161,13 +159,13 @@ def build_train_config(args):
         "heads": {
             "actor": {
                 "_target_": "metta.agent.lib.head.LinearHead",
-                "input_size": 256,
+                "input_size": 128,
                 "output_size": "???",
                 "num_layers": 0,
             },
             "critic": {
                 "_target_": "metta.agent.lib.head.LinearHead",
-                "input_size": 256,
+                "input_size": 128,
                 "output_size": 1,
                 "num_layers": 0,
             },
@@ -178,28 +176,31 @@ def build_train_config(args):
         "normalize_observations": False,
     }
 
+    # Add env configuration to main config first
+    cfg["env"] = DictConfig(env_config)
+
     # Trainer configuration (based on configs/trainer/puffer.yaml)
     trainer_config = {
         "_target_": "metta.rl.trainer.MettaTrainer",
-        "resume": True,
+        "resume": False,  # Start fresh for testing
         "use_e3b": False,
-        "total_timesteps": getattr(args, "total_timesteps", 1_000_000),
+        "total_timesteps": getattr(args, "total_timesteps", 10_000),  # Small default for testing
         "clip_coef": 0.1,
-        "ent_coef": 0.0021,
-        "gae_lambda": 0.916,
-        "gamma": 0.977,
+        "ent_coef": 0.01,  # Increased for exploration
+        "gae_lambda": 0.95,
+        "gamma": 0.99,
         "optimizer": {
             "type": "adam",
             "beta1": 0.9,
             "beta2": 0.999,
-            "eps": 1e-12,
-            "learning_rate": 0.0004573,
+            "eps": 1e-8,
+            "learning_rate": 3e-4,
             "weight_decay": 0,
         },
         "lr_scheduler": {"enabled": False, "anneal_lr": False},
         "max_grad_norm": 0.5,
-        "vf_clip_coef": 0.1,
-        "vf_coef": 0.44,
+        "vf_clip_coef": None,
+        "vf_coef": 0.5,
         "l2_reg_loss_coef": 0,
         "l2_init_loss_coef": 0,
         "prioritized_experience_replay": {"prio_alpha": 0.0, "prio_beta0": 0.6},
@@ -210,16 +211,16 @@ def build_train_config(args):
         "zero_copy": True,
         "require_contiguous_env_ids": False,
         "verbose": True,
-        "batch_size": getattr(args, "batch_size", 16384),
-        "minibatch_size": 2048,
-        "bptt_horizon": 16,
+        "batch_size": getattr(args, "batch_size", 32),  # Smaller, aligned batch
+        "minibatch_size": 16,  # Half of batch
+        "bptt_horizon": 8,  # Smaller horizon
         "update_epochs": 1,
         "cpu_offload": False,
         "compile": False,
         "compile_mode": "reduce-overhead",
         "profiler_interval_epochs": 10000,
-        "forward_pass_minibatch_target_size": 2048,
-        "async_factor": 2,
+        "forward_pass_minibatch_target_size": 32,  # Same as batch_size
+        "async_factor": 1,  # Single async factor for simplicity
         "kickstart": {
             "teacher_uri": None,
             "action_loss_coef": 1,
@@ -228,20 +229,28 @@ def build_train_config(args):
             "kickstart_steps": 1_000_000_000,
             "additional_teachers": [],
         },
+        # Required fields
+        "env_overrides": {},  # No overrides needed
+        "num_workers": getattr(args, "num_workers", 1),  # Single worker for simplicity
+        "checkpoint_dir": f"{cfg.run_dir}/checkpoints",
+        "checkpoint_interval": 100,
+        "evaluate_interval": 0,  # Disable evaluation for now
+        "replay_interval": 0,  # Disable replay generation
+        "wandb_checkpoint_interval": 1000,
+        "replay_uri": None,
     }
 
     # Simulation suite configuration for evals
     sim_config = {
         "_target_": "metta.sim.simulation_config.SimulationSuiteConfig",
         "name": "all",
-        "num_envs": 32,
-        "num_episodes": 10,
+        "num_envs": 4,  # Small for testing
+        "num_episodes": 2,
         "map_preview_limit": 32,
         "suites": [],
     }
 
     # Add configurations to main config
-    cfg["env"] = DictConfig(env_config)
     cfg["agent"] = DictConfig(agent_config)
     cfg["trainer"] = DictConfig(trainer_config)
     cfg["sim"] = DictConfig(sim_config)
@@ -265,18 +274,77 @@ def build_train_config(args):
 
 
 def train_command(args):
-    """Execute training."""
+    """Execute training using functional trainer API."""
     # Import training dependencies only when needed
+    import torch
+    from hydra.utils import instantiate
+
     from metta.agent.policy_store import PolicyStore
+    from metta.common.stopwatch import Stopwatch
+
+    # Add debugging wrapper for cpp_config_dict
+    # Add debugging wrapper for MettaGridEnv
+    from metta.mettagrid import mettagrid_c_config, mettagrid_env
     from metta.mettagrid.curriculum.core import SingleTaskCurriculum
-    from metta.rl.trainer import MettaTrainer
+    from metta.rl.experience import Experience
+    from metta.rl.functional_trainer import rollout, train_ppo
+    from metta.rl.vecenv import make_vecenv
+
+    original_init = mettagrid_env.MettaGridEnv.__init__
+
+    def debug_init(
+        self, curriculum, render_mode, level=None, buf=None, stats_writer=None, replay_writer=None, **kwargs
+    ):
+        logger.info("DEBUG: MettaGridEnv.__init__ called")
+        logger.info(f"  curriculum type: {type(curriculum)}")
+        logger.info(f"  curriculum: {curriculum}")
+        try:
+            task = curriculum.get_task()
+            logger.info(f"  task type: {type(task)}")
+            env_cfg = task.env_cfg()
+            logger.info(f"  env_cfg type: {type(env_cfg)}")
+            logger.info(f"  env_cfg keys: {list(env_cfg.keys()) if hasattr(env_cfg, 'keys') else 'N/A'}")
+            if hasattr(env_cfg, "game"):
+                logger.info("  env_cfg.game exists: True")
+                logger.info(f"  env_cfg.game type: {type(env_cfg.game)}")
+                # Don't convert yet, just check structure
+                if hasattr(env_cfg.game, "groups"):
+                    logger.info("  env_cfg.game has 'groups' attribute")
+        except Exception as e:
+            logger.error(f"  Error accessing curriculum/task: {e}")
+
+        return original_init(self, curriculum, render_mode, level, buf, stats_writer, replay_writer, **kwargs)
+
+    mettagrid_env.MettaGridEnv.__init__ = debug_init
+
+    original_cpp_config_dict = mettagrid_c_config.cpp_config_dict
+
+    def debug_cpp_config_dict(game_config_dict):
+        logger.info("DEBUG: cpp_config_dict called")
+        logger.info(f"  Input type: {type(game_config_dict)}")
+        logger.info(f"  Has 'groups'? {'groups' in game_config_dict}")
+        try:
+            result = original_cpp_config_dict(game_config_dict)
+            logger.info("  ✓ cpp_config_dict succeeded")
+            return result
+        except KeyError as e:
+            logger.error(f"  ✗ cpp_config_dict failed with KeyError: {e}")
+            logger.error(
+                f"  Input keys: {list(game_config_dict.keys()) if hasattr(game_config_dict, 'keys') else 'N/A'}"
+            )
+            raise
+
+    mettagrid_c_config.cpp_config_dict = debug_cpp_config_dict
 
     cfg = build_train_config(args)
+
+    # Force serial vectorization for debugging
+    cfg.vectorization = "serial"
 
     setup_mettagrid_environment(cfg)
     logger = setup_mettagrid_logger("train")
 
-    print(f"Training configuration:\n{OmegaConf.to_yaml(cfg, resolve=False)}")
+    logger.info(f"Training configuration:\n{OmegaConf.to_yaml(cfg, resolve=False)[:500]}...")
 
     # Create output directories
     os.makedirs(cfg.run_dir, exist_ok=True)
@@ -285,44 +353,126 @@ def train_command(args):
     # Initialize policy store
     policy_store = PolicyStore(cfg, None)
 
-    # Create curriculum
+    # Create curriculum directly
     curriculum = SingleTaskCurriculum("simple_task", cfg.env)
 
     try:
-        # Create trainer
-        trainer = MettaTrainer(
-            cfg=cfg, wandb_run=None, policy_store=policy_store, sim_suite_config=cfg.train_job.evals, stats_client=None
+        # Training parameters from config
+        trainer_cfg = cfg.trainer
+        device = torch.device(cfg.device)
+        batch_size = trainer_cfg.batch_size
+        minibatch_size = trainer_cfg.minibatch_size
+        total_timesteps = trainer_cfg.total_timesteps
+
+        # Create vectorized environment
+        logger.info("Creating vectorized environment...")
+        vecenv = make_vecenv(
+            curriculum=curriculum,
+            vectorization=cfg.vectorization,
+            num_envs=trainer_cfg.batch_size // trainer_cfg.num_workers,
+            num_workers=trainer_cfg.num_workers,
+            batch_size=trainer_cfg.batch_size,
+            render_mode=None,
         )
 
-        # Run training
-        trainer.train()
-        trainer.close()
+        # Get environment info from driver env
+        metta_grid_env = vecenv.driver_env
+        actions_names = metta_grid_env.action_names
+        actions_max_params = metta_grid_env.max_action_args
 
-        logger.info(f"Training complete. Checkpoints saved to {cfg.run_dir}/checkpoints")
-    except KeyError as e:
-        if "'groups'" in str(e):
-            logger.error("=" * 60)
-            logger.error("Configuration Error Detected!")
-            logger.error("=" * 60)
-            logger.error("")
-            logger.error("There's a bug in mettagrid_env.py line 157 where it calls")
-            logger.error("cpp_config_dict() on the configuration before passing it to MettaGrid.")
-            logger.error("")
-            logger.error("The MettaGrid C++ constructor expects the original Python config")
-            logger.error("format with 'groups', not the converted format with 'agent_groups'.")
-            logger.error("")
-            logger.error("To fix this issue:")
-            logger.error("1. Edit mettagrid/src/metta/mettagrid/mettagrid_env.py line 157")
-            logger.error("2. Change:")
-            logger.error("   self._c_env = MettaGrid(cpp_config_dict(game_config_dict), level.grid.tolist())")
-            logger.error("3. To:")
-            logger.error("   self._c_env = MettaGrid(game_config_dict, level.grid.tolist())")
-            logger.error("")
-            logger.error("For now, please use tools/train.py with Hydra configuration.")
-            logger.error("=" * 60)
-            sys.exit(1)
-        else:
-            raise
+        # Create agent/policy - instantiate from config
+        logger.info("Creating agent...")
+        agent_config = dict(cfg.agent)
+        agent_config["device"] = device
+        policy = instantiate(agent_config, _convert_="all")
+
+        # Activate actions on the policy
+        policy.activate_actions(actions_names, actions_max_params, device)
+
+        # Create experience buffer
+        logger.info("Creating experience buffer...")
+        experience = Experience(
+            batch_size=batch_size,
+            minibatch_size=minibatch_size,
+            device=device,
+            lstm=policy.lstm if hasattr(policy, "lstm") else None,
+        )
+
+        # Create timer
+        timer = Stopwatch(logger)
+        timer.start()
+
+        # Training loop
+        logger.info("Starting training loop...")
+        agent_step = 0
+        epoch = 0
+
+        while agent_step < total_timesteps:
+            steps_before = agent_step
+
+            # ROLLOUT: Collect experience
+            with timer("rollout"):
+                agent_step, rollout_stats = rollout(
+                    policy=policy,
+                    vecenv=vecenv,
+                    experience=experience,
+                    device=device,
+                    agent_step=agent_step,
+                    timer=timer,
+                )
+
+            # TRAIN: Update policy using PPO
+            with timer("train"):
+                losses = train_ppo(
+                    policy=policy,
+                    experience=experience,
+                    device=device,
+                    learning_rate=trainer_cfg.optimizer.learning_rate,
+                    clip_coef=trainer_cfg.clip_coef,
+                    value_coef=trainer_cfg.vf_coef,
+                    entropy_coef=trainer_cfg.ent_coef,
+                    max_grad_norm=trainer_cfg.max_grad_norm,
+                    batch_size=batch_size,
+                    minibatch_size=minibatch_size,
+                    update_epochs=trainer_cfg.update_epochs,
+                    norm_adv=trainer_cfg.norm_adv,
+                    clip_vloss=trainer_cfg.clip_vloss,
+                    timer=timer,
+                )
+
+            # Log progress
+            steps_in_epoch = agent_step - steps_before
+            rollout_time = timer.get_last_elapsed("rollout")
+            train_time = timer.get_last_elapsed("train")
+            total_time = rollout_time + train_time
+            steps_per_sec = steps_in_epoch / total_time if total_time > 0 else 0
+
+            logger.info(
+                f"Epoch {epoch} - Agent steps: {agent_step}/{total_timesteps} - "
+                f"{steps_per_sec:.0f} steps/sec - "
+                f"Loss: {losses.loss:.4f}"
+            )
+
+            # Save checkpoint periodically
+            if epoch % trainer_cfg.checkpoint_interval == 0:
+                checkpoint_path = f"{cfg.run_dir}/checkpoints/policy_epoch_{epoch}.pt"
+                torch.save(policy.state_dict(), checkpoint_path)
+                logger.info(f"Saved checkpoint to {checkpoint_path}")
+
+            epoch += 1
+
+        # Save final checkpoint
+        final_checkpoint = f"{cfg.run_dir}/checkpoints/policy_final.pt"
+        torch.save(policy.state_dict(), final_checkpoint)
+        logger.info(f"Training complete! Final checkpoint saved to {final_checkpoint}")
+
+        # Clean up
+        vecenv.close()
+
+    except Exception as e:
+        logger.error(f"Training failed with error: {e}")
+        logger.exception("Full traceback:")
+        sys.exit(1)
 
 
 def sim_command(args):
@@ -355,7 +505,7 @@ def sim_command(args):
     setup_mettagrid_environment(cfg)
     logger = setup_mettagrid_logger("sim")
 
-    print(f"Simulation configuration:\n{OmegaConf.to_yaml(cfg, resolve=False)}")
+    logger.info(f"Simulation configuration:\n{OmegaConf.to_yaml(cfg, resolve=False)}")
 
     # Create output directories
     os.makedirs(sim_job_config["stats_dir"], exist_ok=True)
@@ -440,7 +590,7 @@ def analyze_command(args):
     setup_mettagrid_environment(cfg)
     logger = setup_mettagrid_logger("analyze")
 
-    print(f"Analysis configuration:\n{OmegaConf.to_yaml(cfg, resolve=False)}")
+    logger.info(f"Analysis configuration:\n{OmegaConf.to_yaml(cfg, resolve=False)}")
 
     # Create output directory
     os.makedirs(analysis_config["output_dir"], exist_ok=True)
@@ -485,7 +635,7 @@ def dashboard_command(args):
     setup_mettagrid_environment(cfg)
     logger = setup_mettagrid_logger("dashboard")
 
-    print(f"Dashboard configuration:\n{OmegaConf.to_yaml(cfg, resolve=False)}")
+    logger.info(f"Dashboard configuration:\n{OmegaConf.to_yaml(cfg, resolve=False)}")
 
     # Generate dashboard data
     write_dashboard_data(DashboardConfig(cfg.dashboard))
@@ -506,7 +656,10 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Train a new policy
+  # Train with default settings (default command)
+  python run.py
+
+  # Train with custom settings
   python run.py train --run my_experiment --total-timesteps 1000000
 
   # Evaluate a policy
@@ -517,9 +670,6 @@ Examples:
 
   # Generate dashboard
   python run.py dashboard --output-path ./dashboard_data.json
-
-Note: There's currently a known issue with MettaGridEnv initialization outside of Hydra.
-      See the error message for details on the fix.
         """,
     )
 
@@ -527,11 +677,11 @@ Note: There's currently a known issue with MettaGridEnv initialization outside o
 
     # Train command
     train_parser = subparsers.add_parser("train", help="Train a policy")
-    train_parser.add_argument("--run", required=True, help="Experiment name")
-    train_parser.add_argument("--total-timesteps", type=int, default=1_000_000, help="Total training timesteps")
-    train_parser.add_argument("--batch-size", type=int, default=16384, help="Batch size")
-    train_parser.add_argument("--num-agents", type=int, default=24, help="Number of agents")
-    train_parser.add_argument("--device", default="cuda", help="Device to use")
+    train_parser.add_argument("--run", default="default_run", help="Experiment name")
+    train_parser.add_argument("--total-timesteps", type=int, default=10_000, help="Total training timesteps")
+    train_parser.add_argument("--batch-size", type=int, default=32, help="Batch size")
+    train_parser.add_argument("--num-agents", type=int, default=2, help="Number of agents")
+    train_parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu", help="Device to use")
     train_parser.add_argument("--seed", type=int, default=0, help="Random seed")
     train_parser.add_argument("--vectorization", default="multiprocessing", help="Vectorization backend")
 
@@ -563,9 +713,17 @@ Note: There's currently a known issue with MettaGridEnv initialization outside o
 
     args = parser.parse_args()
 
+    # Default to train command if no command specified
     if not args.command:
-        parser.print_help()
-        sys.exit(1)
+        args.command = "train"
+        # Create a namespace with default train arguments
+        args.run = "default_run"
+        args.total_timesteps = 10_000
+        args.batch_size = 32
+        args.num_agents = 2
+        args.device = "cuda" if torch.cuda.is_available() else "cpu"
+        args.seed = 0
+        args.vectorization = "multiprocessing"
 
     # Execute the appropriate command
     if args.command == "train":
