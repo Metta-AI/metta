@@ -13,72 +13,15 @@ class MettaProtein(WandbProtein):
         self,
         cfg: DictConfig | ListConfig,
         wandb_run=None,
-        max_suggestion_cost=3600,
-        resample_frequency=0,
-        num_random_samples=50,
-        global_search_scale=1,
-        random_suggestions=1024,
-        suggestions_per_pareto=256,
     ):
-        # Extract the sweep config dictionary - ensure we get just the sweep part
-        if isinstance(cfg, (DictConfig, ListConfig)):
-            if hasattr(cfg, "sweep") and cfg.sweep != "???":  # Check for unresolved value
-                sweep_config = OmegaConf.to_container(cfg.sweep, resolve=True)
-            else:
-                sweep_config = OmegaConf.to_container(cfg, resolve=True)
-        else:
-            sweep_config = dict(cfg.get("sweep", cfg) if hasattr(cfg, "get") else cfg)
-
-        # Handle case where sweep_config still has nested sweep structure
-        if isinstance(sweep_config, dict) and "sweep" in sweep_config and isinstance(sweep_config["sweep"], dict):
-            sweep_config = sweep_config["sweep"]
-
-        if not isinstance(sweep_config, dict) or sweep_config is None:
-            raise ValueError("Sweep config must be a dict.")
-
-        # Extract metadata from protein namespace if it exists
-        protein_metadata = {}
-        if "protein" in sweep_config:
-            protein_metadata = sweep_config["protein"]
-            # Remove protein metadata from sweep_config to avoid conflicts
-            sweep_config = {k: v for k, v in sweep_config.items() if k != "protein"}
-
-        # Add default metadata if not provided
-        if "metric" not in protein_metadata:
-            protein_metadata["metric"] = "reward"
-        if "goal" not in protein_metadata:
-            protein_metadata["goal"] = "maximize"
-
-        # Override num_random_samples if specified in protein metadata
-        if "num_random_samples" in protein_metadata:
-            num_random_samples = protein_metadata["num_random_samples"]
-
-        # Extract parameters from nested structure if present
-        if "parameters" in sweep_config:
-            # Structure: parameters.param_name (extract parameters from nested structure)
-            parameters = sweep_config["parameters"]
-        else:
-            # Structure: param_name (parameters at top level)
-            # Filter out metadata keys
-            metadata_keys = {"metric", "goal", "protein"}
-            parameters = {k: v for k, v in sweep_config.items() if k not in metadata_keys}
-
-        # Create clean config for Protein with parameters + metadata
-        clean_config = dict(parameters)  # Copy actual parameters only
-        clean_config["metric"] = protein_metadata["metric"]
-        clean_config["goal"] = protein_metadata["goal"]
-
-        sweep_config = clean_config
-
-        # Create Protein instance with cleaned config
         protein = Protein(
-            sweep_config,
-            max_suggestion_cost,
-            resample_frequency,
-            num_random_samples,
-            global_search_scale,
-            random_suggestions,
-            suggestions_per_pareto,
+            OmegaConf.to_container(cfg.sweep.parameters, resolve=True),
+            cfg.sweep.protein.get("max_suggestion_cost", 3600),
+            cfg.sweep.protein.get("resample_frequency", 0),
+            cfg.sweep.protein.get("num_random_samples", 50),
+            cfg.sweep.protein.get("global_search_scale", 1),
+            cfg.sweep.protein.get("random_suggestions", 1024),
+            cfg.sweep.protein.get("suggestions_per_pareto", 256),
         )
 
         # Initialize WandbProtein with the created Protein instance
