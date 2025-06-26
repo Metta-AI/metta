@@ -583,6 +583,17 @@ py::dict MettaGrid::feature_normalizations() {
   return py::cast(_feature_normalizations);
 }
 
+py::dict MettaGrid::feature_spec() {
+  py::dict feature_spec;
+  for (const auto& feature : _obs_encoder->feature_names()) {
+    py::str feature_name = feature.second;
+    feature_spec[feature_name] = py::dict();
+    feature_spec[feature_name]["normalization"] = py::float_(_feature_normalizations[feature.first]);
+    feature_spec[feature_name]["id"] = py::int_(feature.first);
+  }
+  return feature_spec;
+}
+
 unsigned int MettaGrid::num_agents() {
   return _agents.size();
 }
@@ -757,6 +768,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def("action_success", &MettaGrid::action_success)
       .def("max_action_args", &MettaGrid::max_action_args)
       .def("object_type_names", &MettaGrid::object_type_names)
+      .def("feature_spec", &MettaGrid::feature_spec)
       .def_readonly("obs_width", &MettaGrid::obs_width)
       .def_readonly("obs_height", &MettaGrid::obs_height)
       .def_readonly("max_steps", &MettaGrid::max_steps)
