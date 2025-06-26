@@ -407,10 +407,6 @@ export function onFrame() {
 
   doDemoMode()
 
-  // Make sure the canvas is the size of the window.
-  html.globalCanvas.width = window.innerWidth
-  html.globalCanvas.height = window.innerHeight
-
   ctx.clear()
 
   ui.mapPanel.updatePanAndZoom()
