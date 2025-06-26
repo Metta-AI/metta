@@ -1,8 +1,8 @@
 import pytest
 
+from metta.common.util.mettagrid_cfgs import MettagridCfgFileMetadata
+from metta.common.util.resolvers import register_resolvers
 from metta.map.utils.storable_map import map_builder_cfg_to_storable_map
-from metta.util.mettagrid_cfgs import MettagridCfgFileMetadata
-from metta.util.resolvers import register_resolvers
 
 register_resolvers()
 
