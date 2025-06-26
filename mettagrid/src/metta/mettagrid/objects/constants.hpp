@@ -131,19 +131,4 @@ const std::map<uint8_t, float> FeatureNormalizations = {
 
 const float DEFAULT_INVENTORY_NORMALIZATION = 100.0;
 
-const std::map<TypeId, GridLayer> ObjectLayers = {{ObjectType::AgentT, GridLayer::Agent_Layer},
-                                                  {ObjectType::WallT, GridLayer::Object_Layer},
-                                                  {ObjectType::MineRedT, GridLayer::Object_Layer},
-                                                  {ObjectType::MineBlueT, GridLayer::Object_Layer},
-                                                  {ObjectType::MineGreenT, GridLayer::Object_Layer},
-                                                  {ObjectType::GeneratorRedT, GridLayer::Object_Layer},
-                                                  {ObjectType::GeneratorBlueT, GridLayer::Object_Layer},
-                                                  {ObjectType::GeneratorGreenT, GridLayer::Object_Layer},
-                                                  {ObjectType::AltarT, GridLayer::Object_Layer},
-                                                  {ObjectType::ArmoryT, GridLayer::Object_Layer},
-                                                  {ObjectType::LaseryT, GridLayer::Object_Layer},
-                                                  {ObjectType::LabT, GridLayer::Object_Layer},
-                                                  {ObjectType::FactoryT, GridLayer::Object_Layer},
-                                                  {ObjectType::TempleT, GridLayer::Object_Layer}};
-
 #endif  // OBJECTS_CONSTANTS_HPP_
