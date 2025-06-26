@@ -1,11 +1,6 @@
 sampling: 0
-<<<<<<< HEAD
-desync_episodes: false
 replay_level_prob: 0
 
-=======
-replay_level_prob: 0.2
->>>>>>> origin/main
 game:
   num_agents: ???
   obs_width: 11
