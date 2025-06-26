@@ -139,7 +139,7 @@ To use WandB with your personal account:
      login user
      password YOUR_API_KEY_HERE
    ```
-3. Edit `configs/wandb/user.yaml` and replace `???` with your WandB username:
+3. Edit `configs/wandb/external_user.yaml` and replace `???` with your WandB username:
    ```yaml
    entity: ???  # Replace with your WandB username
    ```
