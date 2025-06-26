@@ -10,6 +10,17 @@ import sys
 from typing import Optional
 
 
+def is_vscode_debugger():
+    """Check if we're running under VS Code debugger"""
+    # Check for debugpy in the command line or modules
+    return (
+        "debugpy" in sys.modules
+        or any("debugpy" in arg for arg in sys.argv)
+        or "VSCODE_PID" in os.environ
+        or sys.gettrace() is not None  # Generic debugger detection
+    )
+
+
 def is_running_under_uv() -> bool:
     """
     Check if the current Python process is running under uv.
@@ -123,7 +134,9 @@ def enforce_uv() -> None:
 
     Equivalent to calling require_uv_execution() with no arguments.
     """
-    require_uv_execution()
+
+    if not is_vscode_debugger():
+        require_uv_execution()
 
 
 if __name__ == "__main__":
