@@ -1,4 +1,4 @@
-sampling: 0
+sampling: 1
 replay_level_prob: 0.2
 game:
   num_agents: ???
