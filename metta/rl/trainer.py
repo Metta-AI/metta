@@ -99,9 +99,8 @@ class MettaTrainer:
         if torch.distributed.is_initialized():
             self._master = int(os.environ["RANK"]) == 0
             self._world_size = torch.distributed.get_world_size()
-
-            self._batch_size = trainer_cfg.batch_size // self._world_size
-            self._minibatch_size = trainer_cfg.minibatch_size // self._world_size
+            if trainer_cfg.scale_batches_by_world_size:
+                self._batch_size = trainer_cfg.batch_size // self._world_size
 
             logger.info(
                 f"Rank: {os.environ['RANK']}, Local rank: {os.environ['LOCAL_RANK']}, World size: {self._world_size}"
