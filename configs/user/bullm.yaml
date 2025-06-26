@@ -5,7 +5,7 @@
 defaults:
   - /common
   - /agent/fast
-  - /trainer/puffer
+  - /trainer/trainer
   - /sim/all@evals  # Use navigation-only evaluation suite
   - _self_
 
