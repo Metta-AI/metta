@@ -8,7 +8,6 @@ from typing import cast, get_args
 from omegaconf import DictConfig, OmegaConf
 
 from metta.common.util.resolvers import register_resolvers
-from metta.common.uv_check import enforce_uv
 from metta.map.utils.show import ShowMode, show_map
 from tools.map.gen import map_builder_cfg_to_storable_map
 
@@ -64,5 +63,4 @@ def main():
 
 
 if __name__ == "__main__":
-    enforce_uv()
     main()

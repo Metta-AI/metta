@@ -4,7 +4,6 @@ import logging
 from typing import get_args
 
 from metta.common.util.resolvers import register_resolvers
-from metta.common.uv_check import enforce_uv
 from metta.map.load_random import get_random_map_uri
 from metta.map.utils.show import ShowMode, show_map
 from metta.map.utils.storable_map import StorableMap
@@ -40,5 +39,4 @@ def main():
 
 
 if __name__ == "__main__":
-    enforce_uv()
     main()
