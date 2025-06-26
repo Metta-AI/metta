@@ -37,6 +37,11 @@ from omegaconf import DictConfig, OmegaConf
 # Import basic requirements first
 from metta.common.util.logging import setup_mettagrid_logger
 from metta.common.util.runtime_configuration import setup_mettagrid_environment
+from metta.mettagrid.curriculum.core import SingleTaskCurriculum
+from metta.rl.experience import Experience
+from metta.rl.functional_trainer import rollout, train_ppo
+from metta.rl.losses import Losses
+from metta.rl.vecenv import make_vecenv
 
 
 def build_common_config(args):
@@ -225,28 +230,28 @@ def build_train_config(args):
     # Add env configuration to main config first
     cfg["env"] = DictConfig(env_config)
 
-    # Trainer configuration (based on configs/trainer/puffer.yaml)
+    # Trainer configuration (local-friendly defaults)
     trainer_config = {
         "_target_": "metta.rl.trainer.MettaTrainer",
-        "resume": False,  # Start fresh for testing
+        "resume": False,
         "use_e3b": False,
-        "total_timesteps": getattr(args, "total_timesteps", 10_000),  # Small default for testing
+        "total_timesteps": getattr(args, "total_timesteps", 10_000),
         "clip_coef": 0.1,
-        "ent_coef": 0.0021,  # From trainer.yaml
-        "gae_lambda": 0.916,  # From trainer.yaml
-        "gamma": 0.977,  # From trainer.yaml
+        "ent_coef": 0.0021,
+        "gae_lambda": 0.916,
+        "gamma": 0.977,
         "optimizer": {
             "type": "adam",
             "beta1": 0.9,
             "beta2": 0.999,
-            "eps": 1e-12,  # From trainer.yaml
-            "learning_rate": 0.0004573146765703167,  # From trainer.yaml
+            "eps": 1e-12,
+            "learning_rate": 0.0004573146765703167,
             "weight_decay": 0,
         },
         "lr_scheduler": {"enabled": False, "anneal_lr": False},
         "max_grad_norm": 0.5,
-        "vf_clip_coef": 0.1,  # From trainer.yaml
-        "vf_coef": 0.44,  # From trainer.yaml
+        "vf_clip_coef": 0.1,
+        "vf_coef": 0.44,
         "l2_reg_loss_coef": 0,
         "l2_init_loss_coef": 0,
         "prioritized_experience_replay": {"prio_alpha": 0.0, "prio_beta0": 0.6},
@@ -257,16 +262,16 @@ def build_train_config(args):
         "zero_copy": True,
         "require_contiguous_env_ids": False,
         "verbose": True,
-        "batch_size": getattr(args, "batch_size", 262144),  # From trainer.yaml
-        "minibatch_size": 16384,  # From trainer.yaml
-        "bptt_horizon": 64,  # From trainer.yaml
+        "batch_size": getattr(args, "batch_size", 256),
+        "minibatch_size": 32,
+        "bptt_horizon": 8,
         "update_epochs": 1,
         "cpu_offload": False,
         "compile": False,
         "compile_mode": "reduce-overhead",
         "profiler_interval_epochs": 10000,
-        "forward_pass_minibatch_target_size": 2048,  # From trainer.yaml
-        "async_factor": 2,  # From trainer.yaml
+        "forward_pass_minibatch_target_size": 32,
+        "async_factor": 1,
         "kickstart": {
             "teacher_uri": None,
             "action_loss_coef": 1,
@@ -275,13 +280,12 @@ def build_train_config(args):
             "kickstart_steps": 1_000_000_000,
             "additional_teachers": [],
         },
-        # Required fields
-        "env_overrides": {},  # No overrides needed
-        "num_workers": getattr(args, "num_workers", 1),  # Single worker for simplicity
+        "env_overrides": {},
+        "num_workers": getattr(args, "num_workers", 1),
         "checkpoint_dir": f"{cfg.run_dir}/checkpoints",
         "checkpoint_interval": 100,
-        "evaluate_interval": 0,  # Disable evaluation for now
-        "replay_interval": 0,  # Disable replay generation
+        "evaluate_interval": 0,
+        "replay_interval": 0,
         "wandb_checkpoint_interval": 1000,
         "replay_uri": None,
     }
@@ -316,26 +320,19 @@ def build_train_config(args):
 
     cfg["cmd"] = "train"
 
+    # Set serial vectorization for local
+    cfg["vectorization"] = getattr(args, "vectorization", "serial")
+
     return cfg
 
 
 def train_command(args):
     """Execute training using functional trainer API."""
-    # Import training dependencies only when needed
     import torch
     from hydra.utils import instantiate
 
     from metta.agent.policy_store import PolicyStore
     from metta.common.stopwatch import Stopwatch
-
-    # Add debugging wrapper for cpp_config_dict
-    # Add debugging wrapper for MettaGridEnv
-    from metta.mettagrid import mettagrid_c_config, mettagrid_env
-    from metta.mettagrid.curriculum.core import SingleTaskCurriculum
-    from metta.rl.experience import Experience
-    from metta.rl.functional_trainer import rollout, train_ppo
-    from metta.rl.losses import Losses
-    from metta.rl.vecenv import make_vecenv
 
     # Import pufferlib C extensions for torch.ops.pufferlib
     try:
@@ -346,102 +343,34 @@ def train_command(args):
             "try installing with --no-build-isolation"
         ) from None
 
-    original_init = mettagrid_env.MettaGridEnv.__init__
-
-    def debug_init(
-        self, curriculum, render_mode, level=None, buf=None, stats_writer=None, replay_writer=None, **kwargs
-    ):
-        logger.info("DEBUG: MettaGridEnv.__init__ called")
-        logger.info(f"  curriculum type: {type(curriculum)}")
-        logger.info(f"  curriculum: {curriculum}")
-        try:
-            task = curriculum.get_task()
-            logger.info(f"  task type: {type(task)}")
-            env_cfg = task.env_cfg()
-            logger.info(f"  env_cfg type: {type(env_cfg)}")
-            logger.info(f"  env_cfg keys: {list(env_cfg.keys()) if hasattr(env_cfg, 'keys') else 'N/A'}")
-            if hasattr(env_cfg, "game"):
-                logger.info("  env_cfg.game exists: True")
-                logger.info(f"  env_cfg.game type: {type(env_cfg.game)}")
-                # Don't convert yet, just check structure
-                if hasattr(env_cfg.game, "groups"):
-                    logger.info("  env_cfg.game has 'groups' attribute")
-        except Exception as e:
-            logger.error(f"  Error accessing curriculum/task: {e}")
-
-        return original_init(self, curriculum, render_mode, level, buf, stats_writer, replay_writer, **kwargs)
-
-    mettagrid_env.MettaGridEnv.__init__ = debug_init
-
-    original_cpp_config_dict = mettagrid_c_config.cpp_config_dict
-
-    def debug_cpp_config_dict(game_config_dict):
-        logger.info("DEBUG: cpp_config_dict called")
-        logger.info(f"  Input type: {type(game_config_dict)}")
-        logger.info(f"  Has 'groups'? {'groups' in game_config_dict}")
-        try:
-            result = original_cpp_config_dict(game_config_dict)
-            logger.info("  ✓ cpp_config_dict succeeded")
-            return result
-        except KeyError as e:
-            logger.error(f"  ✗ cpp_config_dict failed with KeyError: {e}")
-            logger.error(
-                f"  Input keys: {list(game_config_dict.keys()) if hasattr(game_config_dict, 'keys') else 'N/A'}"
-            )
-            raise
-
-    mettagrid_c_config.cpp_config_dict = debug_cpp_config_dict
-
     cfg = build_train_config(args)
-
-    # Force serial vectorization for debugging
-    cfg.vectorization = "serial"
-
     setup_mettagrid_environment(cfg)
     logger = setup_mettagrid_logger("train")
-
     logger.info(f"Training configuration:\n{OmegaConf.to_yaml(cfg, resolve=False)[:500]}...")
-
-    # Create output directories
     os.makedirs(cfg.run_dir, exist_ok=True)
     os.makedirs(f"{cfg.run_dir}/checkpoints", exist_ok=True)
-
-    # Initialize policy store
     policy_store = PolicyStore(cfg, None)
-
-    # Create curriculum directly
     curriculum = SingleTaskCurriculum("simple_task", cfg.env)
 
     try:
-        # Training parameters from config
         trainer_cfg = cfg.trainer
         device = torch.device(cfg.device)
         total_timesteps = trainer_cfg.total_timesteps
-
         logger.info(
             f"Original trainer config: batch_size={trainer_cfg.batch_size}, minibatch_size={trainer_cfg.minibatch_size}, bptt_horizon={trainer_cfg.bptt_horizon}"
         )
-
-        # Create vectorized environment
         logger.info("Creating vectorized environment...")
-
-        # Calculate batch size for forward pass
         num_agents = curriculum.get_task().env_cfg().game.num_agents
         target_batch_size = trainer_cfg.forward_pass_minibatch_target_size // num_agents
-        if target_batch_size < max(2, trainer_cfg.num_workers):  # pufferlib bug requires batch size >= 2
+        if target_batch_size < max(2, trainer_cfg.num_workers):
             target_batch_size = trainer_cfg.num_workers
-
         forward_batch_size = (target_batch_size // trainer_cfg.num_workers) * trainer_cfg.num_workers
         num_envs = forward_batch_size * trainer_cfg.async_factor
-
         logger.info(
             f"Creating {num_envs} environments (forward_batch_size={forward_batch_size}, "
             f"async_factor={trainer_cfg.async_factor}, num_workers={trainer_cfg.num_workers})"
         )
-
-        # For serial execution with num_workers=1, let pufferlib determine batch_size
         vecenv_batch_size = None if trainer_cfg.num_workers == 1 else forward_batch_size
-
         vecenv = make_vecenv(
             curriculum=curriculum,
             vectorization=cfg.vectorization,
@@ -451,16 +380,10 @@ def train_command(args):
             zero_copy=trainer_cfg.zero_copy,
             is_training=True,
         )
-
-        # Get environment info from driver env
         metta_grid_env = vecenv.driver_env
         actions_names = metta_grid_env.action_names
         actions_max_params = metta_grid_env.max_action_args
-
-        # Create agent/policy with environment parameters
         logger.info("Creating agent...")
-
-        # Create observation space (matching make_policy in metta_agent.py)
         import gymnasium as gym
         import numpy as np
 
@@ -470,8 +393,6 @@ def train_command(args):
                 "global_vars": gym.spaces.Box(low=-np.inf, high=np.inf, shape=[0], dtype=np.int32),
             }
         )
-
-        # Instantiate agent with all required parameters
         agent_config = dict(cfg.agent)
         policy = instantiate(
             agent_config,
@@ -485,28 +406,16 @@ def train_command(args):
             _recursive_=False,
             _convert_="all",
         )
-
-        # Activate actions on the policy
         policy.activate_actions(actions_names, actions_max_params, device)
-
-        # Create experience buffer
         logger.info("Creating experience buffer...")
-        # Get some default values from trainer config
         bptt_horizon = trainer_cfg.get("bptt_horizon", 8)
-
-        # Calculate total agents from vecenv
         total_agents = vecenv.num_agents
-
-        # For distributed training, batch_size is divided by world_size
-        # Since we're not using distributed training, world_size = 1
         world_size = 1
         batch_size = trainer_cfg.batch_size // world_size
         minibatch_size = trainer_cfg.minibatch_size // world_size
-
         logger.info(
             f"Creating experience buffer with batch_size={batch_size}, minibatch_size={minibatch_size}, total_agents={total_agents}"
         )
-
         experience = Experience(
             total_agents=total_agents,
             batch_size=batch_size,
@@ -521,25 +430,16 @@ def train_command(args):
             num_lstm_layers=policy.core_num_layers,
             agents_per_batch=getattr(vecenv, "agents_per_batch", None),
         )
-
-        # Create timer
         timer = Stopwatch(logger)
         timer.start()
-
-        # Reset environments before starting
         logger.info("Resetting environments...")
         seed = cfg.get("seed", 42)
         vecenv.async_reset(seed)
-
-        # Training loop
         logger.info("Starting training loop...")
         agent_step = 0
         epoch = 0
-
         while agent_step < total_timesteps:
             steps_before = agent_step
-
-            # ROLLOUT: Collect experience
             with timer("rollout"):
                 agent_step, rollout_stats = rollout(
                     policy=policy,
@@ -549,10 +449,7 @@ def train_command(args):
                     agent_step=agent_step,
                     timer=timer,
                 )
-
-            # TRAIN: Update policy using PPO
             with timer("train"):
-                # Create optimizer if not exists
                 if epoch == 0:
                     optimizer = torch.optim.Adam(
                         policy.parameters(),
@@ -562,7 +459,6 @@ def train_command(args):
                         weight_decay=trainer_cfg.optimizer.weight_decay,
                     )
                     losses = Losses()
-
                 epoch = train_ppo(
                     policy=policy,
                     optimizer=optimizer,
@@ -587,15 +483,11 @@ def train_command(args):
                     vtrace_rho_clip=trainer_cfg.vtrace.vtrace_rho_clip,
                     vtrace_c_clip=trainer_cfg.vtrace.vtrace_c_clip,
                 )
-
-            # Log progress
             steps_in_epoch = agent_step - steps_before
             rollout_time = timer.get_last_elapsed("rollout")
             train_time = timer.get_last_elapsed("train")
             total_time = rollout_time + train_time
             steps_per_sec = steps_in_epoch / total_time if total_time > 0 else 0
-
-            # Get loss stats
             loss_stats = losses.stats()
             logger.info(
                 f"Epoch {epoch} - Agent steps: {agent_step}/{total_timesteps} - "
@@ -603,23 +495,15 @@ def train_command(args):
                 f"Policy loss: {loss_stats['policy_loss']:.4f} - "
                 f"Value loss: {loss_stats['value_loss']:.4f}"
             )
-
-            # Save checkpoint periodically
             if epoch % trainer_cfg.checkpoint_interval == 0:
                 checkpoint_path = f"{cfg.run_dir}/checkpoints/policy_epoch_{epoch}.pt"
                 torch.save(policy.state_dict(), checkpoint_path)
                 logger.info(f"Saved checkpoint to {checkpoint_path}")
-
             epoch += 1
-
-        # Save final checkpoint
         final_checkpoint = f"{cfg.run_dir}/checkpoints/policy_final.pt"
         torch.save(policy.state_dict(), final_checkpoint)
         logger.info(f"Training complete! Final checkpoint saved to {final_checkpoint}")
-
-        # Clean up
         vecenv.close()
-
     except Exception as e:
         logger.error(f"Training failed with error: {e}")
         logger.exception("Full traceback:")
@@ -830,11 +714,14 @@ Examples:
     train_parser = subparsers.add_parser("train", help="Train a policy")
     train_parser.add_argument("--run", default="default_run", help="Experiment name")
     train_parser.add_argument("--total-timesteps", type=int, default=10_000, help="Total training timesteps")
-    train_parser.add_argument("--batch-size", type=int, default=262144, help="Batch size")
+    train_parser.add_argument("--batch-size", type=int, default=256, help="Batch size")
     train_parser.add_argument("--num-agents", type=int, default=2, help="Number of agents")
     train_parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu", help="Device to use")
     train_parser.add_argument("--seed", type=int, default=0, help="Random seed")
-    train_parser.add_argument("--vectorization", default="multiprocessing", help="Vectorization backend")
+    train_parser.add_argument(
+        "--vectorization", default="serial", help="Vectorization mode (serial/multiprocessing/ray)"
+    )
+    train_parser.add_argument("--num-workers", type=int, default=1, help="Number of workers")
 
     # Sim command
     sim_parser = subparsers.add_parser("sim", help="Simulate/evaluate a policy")
@@ -870,11 +757,12 @@ Examples:
         # Create a namespace with default train arguments
         args.run = "default_run"
         args.total_timesteps = 10_000
-        args.batch_size = 32
+        args.batch_size = 256
         args.num_agents = 2
         args.device = "cuda" if torch.cuda.is_available() else "cpu"
         args.seed = 0
-        args.vectorization = "multiprocessing"
+        args.vectorization = "serial"
+        args.num_workers = 1
 
     # Execute the appropriate command
     if args.command == "train":
