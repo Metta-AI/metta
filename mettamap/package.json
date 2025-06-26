@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "gen:encoding": "cd ../mettagrid && uv run python -c 'import json; from mettagrid.char_encoder import NAME_TO_CHAR; print(json.dumps(NAME_TO_CHAR))' >../mettamap/src/lib/encoding.json",
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
@@ -10,12 +11,14 @@
   },
   "dependencies": {
     "clsx": "^2.1.1",
+    "framer-motion": "^12.19.1",
     "js-yaml": "^4.1.0",
     "next": "15.3.1",
     "nuqs": "^2.4.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-select": "^5.10.1",
+    "react-textarea-autosize": "^8.5.9",
     "use-pan-and-zoom": "^0.6.5",
     "zod": "^3.24.3"
   },
