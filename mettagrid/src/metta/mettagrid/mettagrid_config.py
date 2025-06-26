@@ -1,10 +1,8 @@
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, Field, RootModel
+from pydantic import Field, RootModel
 
-
-class BaseModelWithForbidExtra(BaseModel):
-    model_config = dict(extra="forbid")
+from metta.common.util.typed_config import BaseModelWithForbidExtra
 
 
 class AgentRewards(BaseModelWithForbidExtra):

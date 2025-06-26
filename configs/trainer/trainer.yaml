@@ -17,14 +17,10 @@ checkpoint_dir: ${run_dir}/checkpoints
 evaluate_interval: 300
 checkpoint_interval: 60
 wandb_checkpoint_interval: 300
+grad_mean_variance_interval: 0 # 0 to disable
 replay_interval: ${trainer.evaluate_interval}
 replay_dir: s3://softmax-public/replays/${run}
 
-average_reward: false # Set to true to use average reward optimization
-average_reward_alpha: 0.01 # Smoothing factor for 100k step average (ln(2)/100000)
-
-resume: true
-use_e3b: false
 
 total_timesteps: 50_000_000_000
 
@@ -52,6 +48,8 @@ optimizer:
 lr_scheduler:
   enabled: false
   anneal_lr: false
+  warmup_steps: null
+  schedule_type: null
 
 max_grad_norm: 0.5
 vf_clip_coef: 0.1
