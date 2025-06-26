@@ -44,7 +44,7 @@ game:
         border_width: 0
 
         objects:
-          generator: ${sampling:1,20,10}
+          generator_red: ${sampling:1,20,10}
           wall: ${sampling:10,60,10}
 
       converters:
