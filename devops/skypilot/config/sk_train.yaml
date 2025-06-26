@@ -56,6 +56,7 @@ run: |
 file_mounts:
   # Wandb Credentials
   ~/.netrc: ~/.netrc
+  ~/.metta: ~/.metta
 
   /mnt/s3/softmax-public:
     source: s3://softmax-public

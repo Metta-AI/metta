@@ -3,7 +3,7 @@
 # Serial vectorization configuration for CPU training
 #
 # This setup uses a single CPU core with serial execution,
-# which is simpler but typically has lower throughput (SPS) 
+# which is simpler but typically has lower throughput (SPS)
 # compared to multiprocessing configurations.
 
 device: cpu

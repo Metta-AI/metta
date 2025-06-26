@@ -18,7 +18,7 @@ root:
         type: metta.map.scenes.random.Random
         params:
           objects:
-            generator: 3
+            generator_red: 3
             altar: 3
 
     - limit: 3

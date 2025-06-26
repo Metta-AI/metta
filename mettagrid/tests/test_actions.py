@@ -30,6 +30,7 @@ def base_config():
         "obs_width": OBS_WIDTH,
         "obs_height": OBS_HEIGHT,
         "num_observation_tokens": NUM_OBS_TOKENS,
+        "inventory_item_names": ["laser", "armor"],
         "actions": {
             "noop": {"enabled": True},
             "move": {"enabled": True},
@@ -88,6 +89,8 @@ def configured_env(base_config):
         game_config = base_config.copy()
         if config_overrides:
             game_config.update(config_overrides)
+
+        print(cpp_config_dict(game_config))
 
         env = MettaGrid(cpp_config_dict(game_config), game_map)
 

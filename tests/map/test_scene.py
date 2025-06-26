@@ -1,9 +1,9 @@
 import numpy as np
 import pytest
 
+from metta.common.util.config import Config
 from metta.map.scene import Scene
 from metta.map.types import AreaQuery, AreaWhere
-from metta.util.config import Config
 
 # Set a global seed for reproducibility
 SEED = 42

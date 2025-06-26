@@ -776,3 +776,296 @@ class TestStopwatchIntegration:
         obj2 = CustomTimerClass()
         with pytest.raises(AttributeError):
             obj2.method_with_missing_custom_attr()
+
+
+class TestStopwatchSaveLoad:
+    """Test save/load functionality of Stopwatch."""
+
+    def test_save_load_basic(self, stopwatch):
+        """Test basic save and load functionality."""
+        # Create some timer state
+        stopwatch.start("timer1")
+        time.sleep(0.1)
+        stopwatch.stop("timer1")
+
+        stopwatch.start("timer2")
+        time.sleep(0.05)
+        stopwatch.checkpoint(100, "checkpoint1", "timer2")
+        stopwatch.stop("timer2")
+
+        # Save state
+        state = stopwatch.save_state()
+
+        # Verify state structure
+        assert "version" in state
+        assert state["version"] == "1.0"
+        assert "timers" in state
+        assert len(state["timers"]) >= 2  # At least timer1, timer2 (and global)
+
+        # Create new stopwatch and load state
+        new_stopwatch = Stopwatch()
+        new_stopwatch.load_state(state)
+
+        # Verify timers were restored
+        assert new_stopwatch.get_elapsed("timer1") == pytest.approx(stopwatch.get_elapsed("timer1"), abs=0.001)
+        assert new_stopwatch.get_elapsed("timer2") == pytest.approx(stopwatch.get_elapsed("timer2"), abs=0.001)
+
+        # Verify checkpoint was restored
+        timer2 = new_stopwatch._get_timer("timer2")
+        assert "checkpoint1" in timer2.checkpoints
+        assert timer2.checkpoints["checkpoint1"]["steps"] == 100
+
+    def test_save_load_running_timers(self, stopwatch):
+        """Test saving and loading with running timers."""
+        # Start multiple timers
+        stopwatch.start("running1")
+        time.sleep(0.1)
+
+        stopwatch.start("running2")
+        time.sleep(0.05)
+
+        stopwatch.start("stopped1")
+        time.sleep(0.05)
+        stopwatch.stop("stopped1")
+
+        # Get original elapsed times for running timers
+        orig_elapsed1 = stopwatch.get_elapsed("running1")
+        orig_elapsed2 = stopwatch.get_elapsed("running2")
+
+        # Save state while timers are running
+        state = stopwatch.save_state()
+
+        # Verify running timers are marked
+        assert state["timers"]["running1"]["_was_running"] is True
+        assert state["timers"]["running2"]["_was_running"] is True
+        assert state["timers"]["stopped1"]["_was_running"] is False
+
+        # Load with resume_running=True (default)
+        new_stopwatch = Stopwatch()
+        new_stopwatch.load_state(state, resume_running=True)
+
+        # Verify timers are running
+        assert new_stopwatch._get_timer("running1").is_running()
+        assert new_stopwatch._get_timer("running2").is_running()
+        assert not new_stopwatch._get_timer("stopped1").is_running()
+
+        # Let them run a bit more
+        time.sleep(0.1)
+
+        # Stop and check elapsed times are greater than original
+        new_stopwatch.stop("running1")
+        new_stopwatch.stop("running2")
+
+        assert new_stopwatch.get_elapsed("running1") > orig_elapsed1 + 0.09
+        assert new_stopwatch.get_elapsed("running2") > orig_elapsed2 + 0.09
+
+    def test_save_load_no_resume(self, stopwatch):
+        """Test loading with resume_running=False."""
+        # Start a timer
+        stopwatch.start("test_timer")
+        time.sleep(0.1)
+
+        # Save state
+        state = stopwatch.save_state()
+
+        # Load without resuming
+        new_stopwatch = Stopwatch()
+        new_stopwatch.load_state(state, resume_running=False)
+
+        # Timer should not be running
+        assert not new_stopwatch._get_timer("test_timer").is_running()
+
+        # Elapsed time should match what was saved
+        saved_elapsed = state["timers"]["test_timer"]["total_elapsed"]
+        assert new_stopwatch.get_elapsed("test_timer") == pytest.approx(saved_elapsed, abs=0.001)
+
+    def test_save_load_complex_state(self, stopwatch):
+        """Test saving/loading complex timer state with multiple features."""
+        # Create complex state
+        stopwatch.start("complex_timer")
+        time.sleep(0.05)
+        stopwatch.checkpoint(100, "check1", "complex_timer")
+        time.sleep(0.05)
+        stopwatch.checkpoint(200, "check2", "complex_timer")
+        time.sleep(0.05)
+        # Don't use lap() as it creates an auto checkpoint
+        stopwatch.stop("complex_timer")
+
+        # Add references manually for testing
+        timer = stopwatch._get_timer("complex_timer")
+        # Note: start() already added one reference, so we'll have 3 total
+        timer.references.append({"filename": "test1.py", "lineno": 10})
+        timer.references.append({"filename": "test2.py", "lineno": 20})
+
+        # Save state
+        state = stopwatch.save_state()
+
+        # Load into new stopwatch
+        new_stopwatch = Stopwatch()
+        new_stopwatch.load_state(state)
+
+        # Verify all aspects were preserved
+        new_timer = new_stopwatch._get_timer("complex_timer")
+
+        # Check elapsed time
+        assert new_stopwatch.get_elapsed("complex_timer") == pytest.approx(
+            stopwatch.get_elapsed("complex_timer"), abs=0.001
+        )
+
+        # Check checkpoints
+        assert len(new_timer.checkpoints) == 2  # check1, check2
+        assert "check1" in new_timer.checkpoints
+        assert "check2" in new_timer.checkpoints
+        assert new_timer.checkpoints["check1"]["steps"] == 100
+        assert new_timer.checkpoints["check2"]["steps"] == 200
+
+        # Check lap counter
+        assert new_timer.lap_counter == timer.lap_counter
+
+        # Check references - should have 3 (1 from start + 2 manual)
+        assert len(new_timer.references) == 3
+        # The first reference is from start(), check the manually added ones
+        assert new_timer.references[1]["filename"] == "test1.py"
+        assert new_timer.references[2]["filename"] == "test2.py"
+
+    def test_save_load_empty_state(self):
+        """Test saving/loading empty stopwatch."""
+        sw = Stopwatch()
+
+        # Save empty state (only has global timer)
+        state = sw.save_state()
+
+        # Load into new stopwatch
+        new_sw = Stopwatch()
+        new_sw.load_state(state)
+
+        # Should have global timer
+        assert new_sw.GLOBAL_TIMER_NAME in new_sw._timers
+        assert len(new_sw._timers) >= 1
+
+    def test_load_invalid_state(self, stopwatch):
+        """Test loading invalid state formats."""
+        # Test completely invalid state
+        with pytest.raises(ValueError, match="Invalid state format"):
+            stopwatch.load_state("not a dict")
+
+        # Test missing timers key
+        with pytest.raises(ValueError, match="Invalid state format"):
+            stopwatch.load_state({"version": "1.0"})
+
+        # Test empty dict
+        with pytest.raises(ValueError, match="Invalid state format"):
+            stopwatch.load_state({})
+
+    def test_save_load_preserves_global_timer(self, stopwatch):
+        """Test that global timer is always preserved."""
+        # Start global timer
+        stopwatch.start()
+        time.sleep(0.1)
+        stopwatch.stop()
+
+        # Save and load
+        state = stopwatch.save_state()
+        new_stopwatch = Stopwatch()
+        new_stopwatch.load_state(state)
+
+        # Check global timer exists and has correct elapsed time
+        assert new_stopwatch.GLOBAL_TIMER_NAME in new_stopwatch._timers
+        assert new_stopwatch.get_elapsed() == pytest.approx(stopwatch.get_elapsed(), abs=0.001)
+
+    def test_elapsed_time_accuracy_with_running_timers(self, stopwatch):
+        """Test that elapsed time is accurately preserved for running timers."""
+        # Start timer and let it run
+        stopwatch.start("accuracy_test")
+        time.sleep(0.2)
+
+        # Get elapsed before save
+        elapsed_before_save = stopwatch.get_elapsed("accuracy_test")
+
+        # Save while running
+        state = stopwatch.save_state()
+
+        # The saved state should include elapsed time up to save point
+        saved_elapsed = state["timers"]["accuracy_test"]["total_elapsed"]
+        assert saved_elapsed > 0.19
+        assert saved_elapsed == pytest.approx(elapsed_before_save, abs=0.01)
+
+        # Load immediately
+        new_stopwatch = Stopwatch()
+        new_stopwatch.load_state(state, resume_running=True)
+
+        # Stop immediately and check elapsed time
+        new_stopwatch.stop("accuracy_test")
+
+        # Total elapsed should be close to saved elapsed (plus tiny bit for stop operation)
+        assert new_stopwatch.get_elapsed("accuracy_test") == pytest.approx(saved_elapsed, abs=0.01)
+
+    def test_multiple_save_load_cycles(self, stopwatch):
+        """Test multiple save/load cycles maintain accuracy."""
+        # Initial timer
+        stopwatch.start("cycle_test")
+        time.sleep(0.1)
+        stopwatch.checkpoint(100, "checkpoint1", "cycle_test")
+
+        # Get elapsed after first checkpoint
+        elapsed1 = stopwatch.get_elapsed("cycle_test")
+
+        # First save/load cycle
+        state1 = stopwatch.save_state()
+        sw2 = Stopwatch()
+        sw2.load_state(state1, resume_running=True)
+
+        time.sleep(0.1)
+        sw2.checkpoint(200, "checkpoint2", "cycle_test")
+
+        # Get elapsed after second checkpoint
+        elapsed2 = sw2.get_elapsed("cycle_test")
+        assert elapsed2 > elapsed1 + 0.09
+
+        # Second save/load cycle
+        state2 = sw2.save_state()
+        sw3 = Stopwatch()
+        sw3.load_state(state2, resume_running=True)
+
+        time.sleep(0.1)
+        sw3.stop("cycle_test")
+
+        # Final timer should have all checkpoints and correct elapsed time
+        timer = sw3._get_timer("cycle_test")
+        assert len(timer.checkpoints) == 2
+        assert "checkpoint1" in timer.checkpoints
+        assert "checkpoint2" in timer.checkpoints
+
+        # Total elapsed should be at least 0.3 seconds
+        final_elapsed = sw3.get_elapsed("cycle_test")
+        assert final_elapsed > 0.29
+
+    def test_load_clears_existing_timers(self, stopwatch):
+        """Test that loading state clears existing timers."""
+        # Create initial timers
+        stopwatch.start("existing1")
+        time.sleep(0.05)
+        stopwatch.stop("existing1")
+
+        stopwatch.start("existing2")
+        time.sleep(0.05)
+        stopwatch.stop("existing2")
+
+        # Create new state with different timers
+        new_sw = Stopwatch()
+        new_sw.start("new1")
+        time.sleep(0.05)
+        new_sw.stop("new1")
+
+        state = new_sw.save_state()
+
+        # Load new state into original stopwatch
+        stopwatch.load_state(state)
+
+        # Old timers should be gone
+        assert "existing1" not in stopwatch._timers
+        assert "existing2" not in stopwatch._timers
+
+        # New timer should exist
+        assert "new1" in stopwatch._timers
+        assert stopwatch.get_elapsed("new1") > 0.04

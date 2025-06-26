@@ -28,6 +28,7 @@ class SimulationSuite:
         replay_dir: str | None = None,
         stats_client: StatsClient | None = None,
         stats_epoch_id: uuid.UUID | None = None,
+        wandb_policy_name: str | None = None,
     ):
         self._config = config
         self._policy_pr = policy_pr
@@ -39,6 +40,7 @@ class SimulationSuite:
         self.name = config.name
         self._stats_client = stats_client
         self._stats_epoch_id = stats_epoch_id
+        self._wandb_policy_name = wandb_policy_name
 
     def simulate(self) -> SimulationResults:
         """Run every simulation, merge their DBs/replay dicts, and return a single `SimulationResults`."""
@@ -64,6 +66,7 @@ class SimulationSuite:
                     replay_dir=self._replay_dir,
                     stats_client=self._stats_client,
                     stats_epoch_id=self._stats_epoch_id,
+                    wandb_policy_name=self._wandb_policy_name,
                 )
                 logger.info("=== Simulation '%s' ===", name)
                 sim_result = sim.simulate()
