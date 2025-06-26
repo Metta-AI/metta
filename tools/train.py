@@ -15,6 +15,7 @@ from metta.agent.policy_store import PolicyStore
 from metta.common.util.config import Config
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.logging import setup_mettagrid_logger
+from metta.common.util.resolvers import register_resolvers
 from metta.common.util.runtime_configuration import setup_mettagrid_environment
 from metta.common.util.stats_client_cfg import get_stats_client
 from metta.common.util.wandb.wandb_context import WandbContext, WandbRun
@@ -69,6 +70,7 @@ def train(cfg: ListConfig | DictConfig, wandb_run: WandbRun | None, logger: Logg
 @record
 @hydra.main(config_path="../configs", config_name="train_job", version_base=None)
 def main(cfg: ListConfig | DictConfig) -> int:
+    register_resolvers()
     setup_mettagrid_environment(cfg)
 
     record_heartbeat()

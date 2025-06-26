@@ -453,7 +453,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
             "inv:blueprint",
         ]
 
-        normalizations = self.feature_normalizations()
+        normalizations = self.feature_normalizations
         features = {}
 
         # Categorical features (discrete values with semantic meaning)

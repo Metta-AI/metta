@@ -54,6 +54,7 @@ class PolicyRecord:
 
     def policy(self) -> nn.Module:
         if self._policy is None:
+            logger.debug(f"PolicyRecord._policy is None, loading from {self.uri}")
             pr = self._policy_store.load_from_uri(self.uri)
             self._policy = pr.policy()
             self._local_path = pr.local_path()
@@ -199,7 +200,7 @@ class PolicyRecord:
         return clean_value(copy.deepcopy(metadata))
 
     def save(self, path: str, policy: nn.Module) -> "PolicyRecord":
-        logger.info(f"Saving policy to {path} using torch.package")
+        logger.info(f"Saving policy to {path}")
         self._local_path = path
         self.uri = "file://" + path
 
@@ -209,6 +210,28 @@ class PolicyRecord:
             feature_embeddings = policy.get_feature_embeddings_for_checkpoint()
             if feature_embeddings:
                 logger.info(f"Saving {len(feature_embeddings)} feature embeddings to checkpoint")
+
+        # Use simple torch.save for now to avoid torch.package issues
+        use_simple_save = True
+
+        if use_simple_save:
+            # Simple save using torch.save
+            checkpoint = {
+                "policy_state_dict": policy.state_dict(),
+                "policy_record": PolicyRecord(None, self.name, self.uri, self.metadata),
+                "feature_embeddings": feature_embeddings,
+                "metadata": self.metadata,
+            }
+            torch.save(checkpoint, path)
+
+            # Verify the file was created
+            if not os.path.exists(path):
+                raise RuntimeError(f"Failed to create policy file at {path}")
+
+            file_size = os.path.getsize(path)
+            logger.debug(f"Successfully created policy file at {path} ({file_size} bytes)")
+
+            return self
 
         try:
             with PackageExporter(path, debug=False) as exporter:
@@ -273,6 +296,13 @@ class PolicyRecord:
         except Exception as e:
             logger.error(f"torch.package save failed: {e}")
             raise RuntimeError(f"Failed to save policy using torch.package: {e}") from e
+
+        # Verify the file was created
+        if not os.path.exists(path):
+            raise RuntimeError(f"Failed to create policy file at {path}")
+
+        file_size = os.path.getsize(path)
+        logger.debug(f"Successfully created policy file at {path} ({file_size} bytes)")
 
         return self
 
@@ -643,6 +673,47 @@ class PolicyStore:
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", category=FutureWarning)
 
+        # Try loading as simple checkpoint first
+        try:
+            checkpoint = torch.load(path, map_location=self._device, weights_only=False)
+            if isinstance(checkpoint, dict) and "policy_record" in checkpoint:
+                # This is our simple save format
+                pr = checkpoint["policy_record"]
+                pr._policy_store = self
+                pr._local_path = path
+
+                if not metadata_only:
+                    # Create a new policy and load the state dict
+                    from metta.mettagrid.mettagrid_env import MettaGridEnv
+                    # We need a dummy env to create the policy structure
+                    # This is a bit hacky but works for now
+                    env = type('DummyEnv', (), {
+                        'single_observation_space': gym.spaces.Box(low=0, high=255, shape=(34, 11, 11), dtype=np.uint8),
+                        'obs_width': 11,
+                        'obs_height': 11,
+                        'single_action_space': gym.spaces.MultiDiscrete([9, 10]),
+                        'action_names': checkpoint.get("metadata", {}).get("action_names", []),
+                        'max_action_args': [10] * 9,  # Dummy values
+                        'feature_normalizations': {},
+                        'global_features': [],
+                    })()
+
+                    policy = make_policy(env, self._cfg)
+                    policy.load_state_dict(checkpoint["policy_state_dict"], strict=False)
+
+                    # Restore feature embeddings if available
+                    if "feature_embeddings" in checkpoint and hasattr(policy, "restore_feature_embeddings_from_checkpoint"):
+                        policy.restore_feature_embeddings_from_checkpoint(checkpoint["feature_embeddings"])
+                        logger.info(f"Restored {len(checkpoint['feature_embeddings'])} feature embeddings from checkpoint")
+
+                    pr._policy = policy
+
+                self._cached_prs[path] = pr
+                return pr
+        except Exception as e:
+            logger.debug(f"Not a simple checkpoint: {e}")
+
+        # Try loading as torch.package
         try:
             importer = PackageImporter(path)
             pr = importer.load_pickle("policy_record", "data.pkl")
