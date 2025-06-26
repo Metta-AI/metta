@@ -70,6 +70,9 @@ class MettaTrainer:
         if trainer_cfg.evaluate_interval != 0 and trainer_cfg.evaluate_interval < trainer_cfg.checkpoint_interval:
             raise ValueError("evaluate_interval must be at least as large as checkpoint_interval")
 
+        if trainer_cfg.evaluate_interval != 0 and trainer_cfg.evaluate_interval < trainer_cfg.wandb_checkpoint_interval:
+            raise ValueError("evaluate_interval must be at least as large as wandb_checkpoint_interval")
+
         # Validate that we save policies locally at least as often as we upload to wandb
         if (
             trainer_cfg.wandb_checkpoint_interval != 0
