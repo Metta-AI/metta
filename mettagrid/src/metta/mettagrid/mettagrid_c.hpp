@@ -58,6 +58,7 @@ public:
   unsigned int map_width();
   unsigned int map_height();
   py::dict feature_normalizations();
+  py::dict feature_spec();
   unsigned int num_agents();
   py::array_t<float> get_episode_rewards();
   py::dict get_episode_stats();
