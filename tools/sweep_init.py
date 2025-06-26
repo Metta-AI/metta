@@ -23,49 +23,41 @@ def main(cfg: DictConfig | ListConfig) -> int:
     # TODO: Check: logger should be sweep_init?
     logger = setup_mettagrid_logger("sweep_eval")
 
-    # TODO: Check where run is coming from
-    if OmegaConf.is_missing(cfg, "run"):
-        logger.error("Run ID is missing, please set it in the config")
-        return 1
+    # Extract sweep base name from CLI sweep_run parameter (e.g., "simple_sweep")
+    # Individual training runs will be "simple_sweep.r.0", etc.
+    cfg.sweep_job.sweep_run = cfg.sweep_run  # Store in sweep_job for other scripts to use
 
-    # Derive sweep_name from the CLI run parameter (e.g., "simple_sweep")
-    # The run parameter is the sweep base name, individual runs will be "simple_sweep.r.0", etc.
-    sweep_name = cfg.run
-    cfg.sweep_name = sweep_name  # Set for config interpolations like sweep_dir
-
-    logger.info("Sweep configuration:")
-    logger.info(yaml.dump(OmegaConf.to_container(cfg, resolve=True), default_flow_style=False))
-    cfg.wandb.name = sweep_name
+    cfg.wandb.name = cfg.sweep_run
 
     is_master = os.environ.get("NODE_INDEX", "0") == "0"
 
-    run_once(lambda: create_sweep(sweep_name, cfg, logger))
+    run_once(lambda: create_sweep(cfg, logger))
 
     if is_master:
-        create_run(sweep_name, cfg, logger)
+        create_run(cfg, logger)
     else:
-        wait_for_run(sweep_name, cfg, cfg.dist_cfg_path, logger)
+        wait_for_run(cfg, cfg.dist_cfg_path, logger)
 
     return 0
 
 
-def create_sweep(sweep_name: str, cfg: DictConfig | ListConfig, logger: Logger) -> None:
+def create_sweep(cfg: DictConfig | ListConfig, logger: Logger) -> None:
     """
     Create a new sweep with the given name.
     """
-    sweep_id = sweep_id_from_name(cfg.wandb.project, cfg.wandb.entity, sweep_name)
+    sweep_id = sweep_id_from_name(cfg.wandb.project, cfg.wandb.entity, cfg.sweep_run)
     if sweep_id is not None:
-        logger.info(f"Sweep already exists, skipping creation for: {sweep_name}")
+        logger.info(f"Sweep already exists, skipping creation for: {cfg.sweep_run}")
         return
 
     logger.info(f"Creating new sweep: {cfg.sweep_dir}")
     os.makedirs(cfg.runs_dir, exist_ok=True)
 
     # TODO: If think "sweep: cfg.sweep_job.sweep" is the right way to do this.
-    sweep_id = MettaProtein.create_sweep(sweep_name, cfg.wandb.entity, cfg.wandb.project, cfg.sweep_job.sweep)
+    sweep_id = MettaProtein.create_sweep(cfg.sweep_run, cfg.wandb.entity, cfg.wandb.project, cfg.sweep_job.sweep)
     OmegaConf.save(
         {
-            "sweep": sweep_name,
+            "sweep": cfg.sweep_run,
             "wandb_sweep_id": sweep_id,
             "wandb_path": f"{cfg.wandb.entity}/{cfg.wandb.project}/{sweep_id}",
         },
@@ -73,7 +65,7 @@ def create_sweep(sweep_name: str, cfg: DictConfig | ListConfig, logger: Logger) 
     )
 
 
-def create_run(sweep_name: str, cfg: DictConfig | ListConfig, logger: Logger) -> str:
+def create_run(cfg: DictConfig | ListConfig, logger: Logger) -> str:
     """
     Create a new run for an existing sweep.
     Returns the run ID.
@@ -87,13 +79,17 @@ def create_run(sweep_name: str, cfg: DictConfig | ListConfig, logger: Logger) ->
     SimulationSuiteConfig(**eval_config)
 
     run_name = generate_run_id_for_sweep(sweep_cfg.wandb_path, cfg.runs_dir)
-    logger.info(f"Creating new run for sweep: {sweep_name} ({sweep_cfg.wandb_path})")
+    logger.info(f"Creating new run for sweep: {cfg.sweep_run} ({sweep_cfg.wandb_path})")
     logger.info(f"Sweep run ID: {run_name}")
 
     run_dir = os.path.join(cfg.runs_dir, run_name)
     os.makedirs(run_dir, exist_ok=True)
-    cfg.run = run_name
-    cfg.run_dir = run_dir
+    cfg.run = run_name  # Top-level for training scripts
+    cfg.run_dir = run_dir  # Top-level for training scripts
+
+    # Now log the resolved configuration
+    logger.info("Sweep configuration (resolved):")
+    logger.info(yaml.dump(OmegaConf.to_container(cfg, resolve=True), default_flow_style=False))
 
     def init_run():
         with WandbContext(cfg.wandb, cfg) as wandb_run:
@@ -102,7 +98,7 @@ def create_run(sweep_name: str, cfg: DictConfig | ListConfig, logger: Logger) ->
             wandb_run.name = run_name
             if not wandb_run.tags:
                 wandb_run.tags = ()
-            wandb_run.tags += (f"sweep_id:{sweep_cfg.wandb_sweep_id}", f"sweep_name:{sweep_cfg.sweep}")
+            wandb_run.tags += (f"sweep_id:{sweep_cfg.wandb_sweep_id}", f"sweep_run:{sweep_cfg.sweep}")
 
             protein = MettaProtein(cfg, wandb_run)
             logger.info("Config:")
@@ -160,14 +156,14 @@ def create_run(sweep_name: str, cfg: DictConfig | ListConfig, logger: Logger) ->
     return run_name
 
 
-def wait_for_run(sweep_name: str, cfg: DictConfig | ListConfig, path: str, logger: Logger) -> None:
+def wait_for_run(cfg: DictConfig | ListConfig, path: str, logger: Logger) -> None:
     """
     Wait for a run to exist.
     """
     for _ in range(10):
         if os.path.exists(path):
             break
-        logger.info(f"Waiting for run for sweep: {sweep_name}")
+        logger.info(f"Waiting for run for sweep: {cfg.sweep_run}")
         time.sleep(5)
 
     run = OmegaConf.load(path).run
