@@ -1,61 +1,114 @@
 import sys
-from typing import Any
+import weakref
+from typing import Any, Set
 
 
-def get_object_size(obj: Any) -> int:
-    """Get the deep memory usage of an object in bytes."""
-    # For simple objects, use sys.getsizeof
-    size = sys.getsizeof(obj)
+def get_object_size(obj: Any, visited: Set[int] = None) -> int:
+    """Get the deep memory usage of an object in bytes, handling circular references."""
+    if visited is None:
+        visited = set()
 
-    # For containers, try to get deep size
-    if isinstance(obj, dict):
-        size += sum(sys.getsizeof(k) + sys.getsizeof(v) for k, v in obj.items())
-    elif isinstance(obj, (list, tuple, set)):
-        size += sum(sys.getsizeof(item) for item in obj)
+    obj_id = id(obj)
+    if obj_id in visited:
+        return 0
 
-    # For objects with __dict__, include attribute sizes
-    if hasattr(obj, "__dict__"):
-        size += sys.getsizeof(obj.__dict__)
-        size += sum(get_object_size(v) for v in obj.__dict__.values())
+    visited.add(obj_id)
+
+    try:
+        size = sys.getsizeof(obj)
+
+        if isinstance(obj, dict):
+            for key, value in obj.items():
+                size += get_object_size(key, visited)
+                size += get_object_size(value, visited)
+        elif isinstance(obj, (list, tuple, set, frozenset)):
+            for item in obj:
+                size += get_object_size(item, visited)
+
+        if hasattr(obj, "__dict__") and obj.__dict__:
+            size += get_object_size(obj.__dict__, visited)
+
+        if hasattr(obj, "__slots__"):
+            for slot in obj.__slots__:
+                if hasattr(obj, slot):
+                    size += get_object_size(getattr(obj, slot), visited)
+
+    except (TypeError, RecursionError, AttributeError):
+        pass
+
+    finally:
+        visited.discard(obj_id)
 
     return size
 
 
 class MemoryMonitor:
-    """Monitor memory usage of tracked objects."""
+    """Monitor memory usage of tracked objects using weak references."""
 
     def __init__(self):
         self._tracked_objects: dict[str, dict[str, Any]] = {}
 
-    def add(self, object: Any, name: str | None = None) -> None:
-        """Add object and its attributes to monitor."""
+    def add(self, obj: Any, name: str | None = None) -> None:
+        """Add object and its attributes to monitor using weak references."""
         if name is None:
-            name = self._generate_name(object)
+            name = self._generate_name(obj)
 
-        # Track the main object
-        self._tracked_objects[name] = {
-            "object": object,
-            "initial_size": get_object_size(object),
-        }
+        try:
+            # Track the main object
+            initial_size = get_object_size(obj)
 
-        # Track each attribute separately
-        if hasattr(object, "__dict__"):
-            for attr_name, attr_value in object.__dict__.items():
-                attr_key = f"{name}.{attr_name}"
-                self._tracked_objects[attr_key] = {
-                    "object": attr_value,
-                    "initial_size": get_object_size(attr_value),
+            try:
+                weak_ref = weakref.ref(obj, lambda ref: self._tracked_objects.pop(name, None))
+                self._tracked_objects[name] = {
+                    "object_ref": weak_ref,
+                    "initial_size": initial_size,
+                    "is_weak": True,
                 }
+            except TypeError:
+                # Store direct reference for objects that don't support weak references
+                self._tracked_objects[name] = {
+                    "object_ref": obj,
+                    "initial_size": initial_size,
+                    "is_weak": False,
+                }
+
+            # Track each attribute separately
+            if hasattr(obj, "__dict__"):
+                for attr_name, attr_value in obj.__dict__.items():
+                    attr_key = f"{name}.{attr_name}"
+                    try:
+                        attr_initial_size = get_object_size(attr_value)
+                        try:
+                            attr_weak_ref = weakref.ref(
+                                attr_value, lambda ref: self._tracked_objects.pop(attr_key, None)
+                            )
+                            self._tracked_objects[attr_key] = {
+                                "object_ref": attr_weak_ref,
+                                "initial_size": attr_initial_size,
+                                "is_weak": True,
+                            }
+                        except TypeError:
+                            # Store direct reference for attributes that don't support weak references
+                            self._tracked_objects[attr_key] = {
+                                "object_ref": attr_value,
+                                "initial_size": attr_initial_size,
+                                "is_weak": False,
+                            }
+                    except Exception:
+                        # Skip attributes that can't be measured
+                        pass
+
+        except Exception as e:
+            print(f"Warning: Could not track object {name}: {e}")
 
     def _generate_name(self, obj: Any) -> str:
         """Generate a name for an object based on its type and id."""
         obj_type = type(obj).__name__
-        obj_id = str(id(obj))[-6:]  # Last 6 digits of memory address
+        obj_id = str(id(obj))[-6:]
 
-        # Try to get a more descriptive name
         if hasattr(obj, "__name__"):
             return f"{obj.__name__}_{obj_type}"
-        elif hasattr(obj, "name"):
+        elif hasattr(obj, "name") and isinstance(obj.name, str):
             return f"{obj.name}_{obj_type}"
         else:
             return f"{obj_type}_{obj_id}"
@@ -81,9 +134,21 @@ class MemoryMonitor:
 
     def get(self, name: str) -> dict[str, Any]:
         """Get stats for a specific tracked object."""
-        if name in self._tracked_objects:
-            info = self._tracked_objects[name]
-            current_size = get_object_size(info["object"])
+        if name not in self._tracked_objects:
+            return {}
+
+        info = self._tracked_objects[name]
+
+        # Get object - either from weak ref or direct ref
+        if info["is_weak"]:
+            obj = info["object_ref"]()
+            if obj is None:
+                return {"status": "garbage_collected"}
+        else:
+            obj = info["object_ref"]
+
+        try:
+            current_size = get_object_size(obj)
             initial_size = info["initial_size"]
             size_change = current_size - initial_size
 
@@ -93,8 +158,10 @@ class MemoryMonitor:
                 "initial_size": initial_size,
                 "size_change": size_change,
                 "size_change_mb": round(size_change / (1024 * 1024), 3),
+                "is_weak": info["is_weak"],
             }
-        return {}
+        except Exception:
+            return {"status": "error"}
 
     def stats(self) -> dict[str, float]:
         """Get statistics for all tracked objects."""
@@ -103,8 +170,8 @@ class MemoryMonitor:
 
         object_stats = {}
         for name in self._tracked_objects.keys():
-            size_mb = self.get(name)["current_size_mb"]
-            if size_mb > 0.1:
-                object_stats[f"{name}.size_mb"] = size_mb
+            obj_info = self.get(name)
+            if "current_size_mb" in obj_info and obj_info["current_size_mb"] > 0.001:
+                object_stats[name] = obj_info["current_size_mb"]
 
         return object_stats

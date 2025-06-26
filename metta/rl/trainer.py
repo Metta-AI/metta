@@ -1048,6 +1048,7 @@ class MettaTrainer:
 
     def close(self):
         self.vecenv.close()
+        self._memory_monitor.clear()
 
     @property
     def latest_saved_policy_uri(self) -> str | None:
