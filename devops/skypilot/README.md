@@ -61,7 +61,7 @@ done
 
 2. **Launch with custom hyperparameters:**
    ```bash
-   devops/skypilot/launch.py train run=my_experiment_002 trainer.learning_rate=0.001 trainer.batch_size=32
+   devops/skypilot/launch.py train run=my_experiment_002 trainer.optimizer.learning_rate=0.001 trainer.batch_size=32
    ```
 
 ### Resource Configuration
