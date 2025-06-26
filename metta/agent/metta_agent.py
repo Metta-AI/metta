@@ -61,9 +61,6 @@ class DistributedMettaAgent(DistributedDataParallel):
     ) -> None:
         return self.module.initialize_to_environment(features, action_names, action_max_params, device)
 
-    def activate_actions(self, action_names: list[str], action_max_params: list[int], device: torch.device) -> None:
-        return self.module.activate_actions(action_names, action_max_params, device)
-
 
 class MettaAgent(nn.Module):
     def __init__(
@@ -223,7 +220,7 @@ class MettaAgent(nn.Module):
         for action_name, max_param in self.active_actions:
             for i in range(max_param + 1):
                 full_action_names.append(f"{action_name}_{i}")
-        self.components["_action_embeds_"].activate_actions(full_action_names, self.device)
+        self.components["_action_embeds_"]._initialize_actions(full_action_names, self.device)
 
         # Create action_index tensor
         action_index = []
@@ -233,11 +230,6 @@ class MettaAgent(nn.Module):
 
         self.action_index_tensor = torch.tensor(action_index, device=self.device, dtype=torch.int32)
         logger.info(f"Agent actions initialized with: {self.active_actions}")
-
-    def activate_actions(self, action_names: list[str], action_max_params: list[int], device):
-        """Legacy method for backward compatibility. Use initialize_to_environment instead."""
-        logger.warning("activate_actions is deprecated. Use initialize_to_environment instead.")
-        self._initialize_actions(action_names, action_max_params, device)
 
     def get_feature_embeddings_for_checkpoint(self) -> dict[str, torch.Tensor]:
         """
