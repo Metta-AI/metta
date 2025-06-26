@@ -7,6 +7,7 @@ import sys
 import sky
 
 from devops.skypilot.utils import (
+    calculate_adjusted_timeout,
     check_config_files,
     check_git_state,
     display_job_summary,
@@ -14,7 +15,7 @@ from devops.skypilot.utils import (
 )
 from metta.common.fs import cd_repo_root
 from metta.common.util.cli import get_user_confirmation
-from metta.common.util.colorama import red
+from metta.common.util.colorama import red, yellow
 from metta.common.util.git import get_current_commit, validate_git_ref
 
 
@@ -144,8 +145,18 @@ def main():
     task.name = run_id
     task.validate_name()
 
+    adjusted_timeout_hours, timeout_info_message = calculate_adjusted_timeout(run_id, args.timeout_hours)
+
+    if timeout_info_message:
+        print(yellow(timeout_info_message))
+
     task = patch_task(
-        task, cpus=args.cpus, gpus=args.gpus, nodes=args.nodes, no_spot=args.no_spot, timeout_hours=args.timeout_hours
+        task,
+        cpus=args.cpus,
+        gpus=args.gpus,
+        nodes=args.nodes,
+        no_spot=args.no_spot,
+        timeout_hours=adjusted_timeout_hours,
     )
 
     if args.confirm:
@@ -159,7 +170,7 @@ def main():
             task_args=cmd_args,
             commit_hash=commit_hash,
             git_ref=args.git_ref,
-            timeout_hours=args.timeout_hours,
+            timeout_hours=adjusted_timeout_hours,
             task=task,
             **extra_details,
         )

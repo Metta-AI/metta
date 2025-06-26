@@ -8,6 +8,7 @@ import sky.server.common
 
 from metta.common.util.colorama import blue, bold, cyan, green, magenta, red, yellow
 from metta.common.util.git import get_commit_message, get_matched_pr, has_unstaged_changes, is_commit_pushed
+from metta.rl.util.trainer_state import get_elapsed_time
 
 
 def print_tip(text: str):
@@ -209,3 +210,47 @@ def display_job_summary(
                 print(f"  {i + 1}. {yellow(arg)}")
 
     print(f"\n{divider}")
+
+
+def calculate_adjusted_timeout(run_id: str, original_timeout_hours: float | None) -> tuple[float | None, str | None]:
+    """
+    Calculate adjusted timeout based on existing training time.
+
+    Args:
+        run_id: The run identifier
+        original_timeout_hours: Original timeout in hours, or None if no timeout
+
+    Returns:
+        Tuple of (adjusted_timeout_hours, info_message)
+    """
+    if original_timeout_hours is None:
+        return None, None
+
+    # Check if there's existing training time
+    elapsed_seconds = get_elapsed_time(run_id)
+
+    if elapsed_seconds is None:
+        # No existing training, use original timeout
+        return original_timeout_hours, None
+
+    elapsed_hours = elapsed_seconds / 3600.0
+
+    if elapsed_hours >= original_timeout_hours:
+        # Already exceeded the timeout
+        info_msg = (
+            f"Warning: Training has already run for {elapsed_hours:.2f}h, "
+            f"which exceeds the requested timeout of {original_timeout_hours:.2f}h. "
+            f"A timeout of 0 hrs will be applied."
+        )
+        return 0.0, info_msg
+
+    # Calculate remaining time
+    remaining_hours = original_timeout_hours - elapsed_hours
+
+    info_msg = (
+        f"Training has already run for {elapsed_hours:.2f}h. "
+        f"Adjusting timeout from {original_timeout_hours:.2f}h to {remaining_hours:.2f}h "
+        f"(remaining time)."
+    )
+
+    return remaining_hours, info_msg
