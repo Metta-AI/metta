@@ -22,9 +22,9 @@ env_overrides:
   game:
     num_agents: 4
 
-performance_threshold: 0.8
+performance_threshold: 0.95
 smoothing: 0.1
-progression_rate: 0.0001
-progression_mode: "time" #'time' or 'perf'
+progression_rate: 0.001
+progression_mode: "perf" #'time' or 'perf'
 blending_smoothness: 0.5
 blending_mode: "logistic"
