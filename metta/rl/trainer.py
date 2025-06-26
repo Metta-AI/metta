@@ -92,6 +92,10 @@ class MettaTrainer:
         self.policy_store = policy_store
         self.evals: dict[str, float] = {}
 
+        # Weight change tracking
+        self.weight_changes: dict[str, float] = {}
+        self.weight_change_minibatches = 0
+
         self.timer = Stopwatch(logger)
         self.timer.start()
 
@@ -469,10 +473,6 @@ class MettaTrainer:
         prio_cfg = trainer_cfg.get("prioritized_experience_replay", {})
         vtrace_cfg = trainer_cfg.get("vtrace", {})
 
-        if self._master:
-            critic_weights_before = self.policy.components["critic_1"].weight_net.weight.data.clone()
-            action_weights_before = self.policy.components["_action_"].W.data.clone()
-
         # Reset importance sampling ratios
         experience.reset_importance_sampling_ratios()
 
@@ -629,8 +629,34 @@ class MettaTrainer:
                 self.optimizer.zero_grad()
                 loss.backward()
                 if (minibatch_idx + 1) % self.experience.accumulate_minibatches == 0:
+                    # Track weight changes before optimizer step
+                    critic_1_before = None
+                    action_before = None
+
+                    # Check if the components exist and capture their weights
+                    if "critic_1" in self.policy.components and hasattr(
+                        self.policy.components["critic_1"], "weight_net"
+                    ):
+                        critic_1_before = self.policy.components["critic_1"].weight_net.weight.data.clone()
+
+                    if "_action_" in self.policy.components and hasattr(self.policy.components["_action_"], "W"):
+                        action_before = self.policy.components["_action_"].W.data.clone()
+
                     torch.nn.utils.clip_grad_norm_(self.policy.parameters(), trainer_cfg.max_grad_norm)
                     self.optimizer.step()
+
+                    # Calculate weight changes after optimizer step
+                    if critic_1_before is not None:
+                        critic_1_after = self.policy.components["critic_1"].weight_net.weight.data
+                        critic_1_change = (critic_1_after - critic_1_before).abs().sum().item()
+                        self.weight_changes["critic_1"] = self.weight_changes.get("critic_1", 0) + critic_1_change
+
+                    if action_before is not None:
+                        action_after = self.policy.components["_action_"].W.data
+                        action_change = (action_after - action_before).abs().sum().item()
+                        self.weight_changes["action"] = self.weight_changes.get("action", 0) + action_change
+
+                    self.weight_change_minibatches += 1
 
                     if self.cfg.agent.clip_range > 0:
                         self.policy.clip_weights()
@@ -649,14 +675,6 @@ class MettaTrainer:
                 if average_approx_kl > trainer_cfg.target_kl:
                     break
             # end loop over epochs
-
-        if self._master:
-            critic_change = (
-                (self.policy.components["critic_1"].weight_net.weight.data - critic_weights_before).abs().sum()
-            )
-            action_change = (self.policy.components["_action_"].W.data - action_weights_before).abs().sum()
-            self.stats["weight_change/critic"] = [critic_change.item()]
-            self.stats["weight_change/action"] = [action_change.item()]
 
         if self.lr_scheduler is not None:
             self.lr_scheduler.step()
@@ -792,10 +810,6 @@ class MettaTrainer:
                 ) from e
         self.stats = mean_stats
 
-        weight_change_stats = {k: v for k, v in self.stats.items() if k.startswith("weight_change/")}
-        for k in weight_change_stats.keys():
-            self.stats.pop(k, None)
-
         weight_stats = {}
         if self.cfg.agent.analyze_weights_interval != 0 and self.epoch % self.cfg.agent.analyze_weights_interval == 0:
             for metrics in self.policy.compute_weight_metrics():
@@ -882,6 +896,19 @@ class MettaTrainer:
             "num_minibatches": self.experience.num_minibatches,
         }
 
+        # Prepare weight change stats
+        weight_change_stats = {}
+        if self.weight_change_minibatches > 0:
+            # Calculate average weight change per optimizer step
+            for layer_name, total_change in self.weight_changes.items():
+                avg_change = total_change / self.weight_change_minibatches
+                weight_change_stats[f"weight_changes/{layer_name}_avg"] = avg_change
+                weight_change_stats[f"weight_changes/{layer_name}_total"] = total_change
+
+            # Reset counters for next epoch
+            self.weight_changes.clear()
+            self.weight_change_minibatches = 0
+
         self.wandb_run.log(
             {
                 **{f"overview/{k}": v for k, v in overview.items()},
@@ -891,9 +918,9 @@ class MettaTrainer:
                 **{f"eval_{k}": v for k, v in self.evals.items()},
                 **environment_stats,
                 **weight_stats,
+                **weight_change_stats,
                 **timing_stats,
                 **metric_stats,
-                **{k: v for k, v in self.stats.items() if "weight_change" in k},
             }
         )
 
