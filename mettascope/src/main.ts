@@ -48,7 +48,6 @@ export function onResize() {
     ui.timelinePanel.height = 0
     ui.agentPanel.height = 0
   } else {
-
     // Make sure traceSplit and infoSplit are not too small or too large.
     const a = 0.025
     ui.traceSplit = Math.max(a, Math.min(ui.traceSplit, 1 - a))
@@ -107,7 +106,6 @@ export function onResize() {
     ui.agentPanel.width = screenWidth
     ui.agentPanel.height = ui.agentPanelSplit * screenHeight
   }
-
 
   ui.mapPanel.updateDiv()
   ui.miniMapPanel.updateDiv()
@@ -406,10 +404,6 @@ export function onFrame() {
   }
 
   doDemoMode()
-
-  // Make sure the canvas is the size of the window.
-  html.globalCanvas.width = window.innerWidth
-  html.globalCanvas.height = window.innerHeight
 
   ctx.clear()
 
