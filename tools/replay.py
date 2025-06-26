@@ -13,7 +13,6 @@ from metta.common.util.config import Config
 from metta.common.util.logging import setup_mettagrid_logger
 from metta.common.util.runtime_configuration import setup_mettagrid_environment
 from metta.common.util.wandb.wandb_context import WandbContext
-from metta.common.uv_check import enforce_uv
 from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SingleEnvSimulationConfig
 
@@ -72,5 +71,4 @@ def main(cfg):
 
 
 if __name__ == "__main__":
-    enforce_uv()
     main()

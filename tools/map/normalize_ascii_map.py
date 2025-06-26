@@ -2,7 +2,6 @@
 import argparse
 from pathlib import Path
 
-from metta.common.uv_check import enforce_uv
 from metta.mettagrid.char_encoder import normalize_grid_char
 
 
@@ -29,5 +28,4 @@ def main():
 
 
 if __name__ == "__main__":
-    enforce_uv()
     main()
