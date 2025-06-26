@@ -30,14 +30,21 @@ alias jllc='sky jobs logs --controller $(jj | grep -A1 TASK | grep -v TASK | awk
 # launch training
 unalias lt 2>/dev/null
 
+
 lt() {
     local original_dir="$(pwd)"
-    if cd_repo_root; then
+    cd_repo_root
+    local repo_result=$?
+    
+    if [ $repo_result -eq 0 ]; then
         ./devops/skypilot/launch.py "train" "$@"
         local exit_code=$?
-        cd "$original_dir"
-        return $exit_code
+    else
+        local exit_code=$repo_result
     fi
-    return $?  # Return the error code from cd_repo_root
+    
+    cd "$original_dir"
+    return $exit_code
 }
+
 
