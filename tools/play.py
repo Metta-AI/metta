@@ -4,7 +4,6 @@
 import hydra
 
 import mettascope.server as server
-from metta.common.uv_check import enforce_uv
 
 
 @hydra.main(version_base=None, config_path="../configs", config_name="replay_job")
@@ -13,5 +12,4 @@ def main(cfg):
 
 
 if __name__ == "__main__":
-    enforce_uv()
     main()
