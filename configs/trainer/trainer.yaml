@@ -78,7 +78,7 @@ zero_copy: true
 require_contiguous_env_ids: false
 verbose: true
 
-batch_size: 262144
+batch_size: 524288
 minibatch_size: 16384
 bptt_horizon: 64
 update_epochs: 1
@@ -88,7 +88,7 @@ compile: false
 compile_mode: reduce-overhead
 profiler_interval_epochs: 10000
 
-forward_pass_minibatch_target_size: 2048
+forward_pass_minibatch_target_size: 4096
 async_factor: 2
 
 kickstart:
