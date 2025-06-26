@@ -1,10 +1,11 @@
 _target_: metta.rl.trainer.MettaTrainer
 
+# From trainer.yaml - base configuration
 num_workers: ???
 
 curriculum: /env/mettagrid/curriculum/simple
 env_overrides:
-  desync_episodes: false
+  desync_episodes: true
 
 initial_policy:
   uri: null
