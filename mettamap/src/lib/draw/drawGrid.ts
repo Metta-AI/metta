@@ -25,7 +25,7 @@ export async function drawGrid({
       ctx.fillStyle = "#c0bcb8";
       ctx.fillRect(object.c, object.r, 1, 1);
     }
-    drawer.drawObject(object, ctx, object.c, object.r, 1);
+    drawer.drawObject(object.name, ctx, object.c, object.r, 1);
   }
 
   // Draw grid lines

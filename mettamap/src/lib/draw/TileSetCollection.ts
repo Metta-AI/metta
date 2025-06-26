@@ -1,5 +1,3 @@
-import { CSSProperties } from "react";
-
 import { TileSet } from "./TileSet";
 
 export class TileSetCollection {
@@ -17,25 +15,11 @@ export class TileSetCollection {
     }
   }
 
-  draw(
-    name: string,
-    ctx: CanvasRenderingContext2D,
-    x: number,
-    y: number,
-    size: number
-  ) {
+  bitmap(name: string, modulate?: { r: number; g: number; b: number }) {
     const tileSet = this.nameToTileSet[name];
     if (!tileSet) {
       throw new Error(`Tile set for ${name} not found`);
     }
-    tileSet.draw(name, ctx, x, y, size);
-  }
-
-  css(
-    name: string,
-    size: number
-  ): { wrapper: CSSProperties; inner: CSSProperties } {
-    const tileSet = this.nameToTileSet[name];
-    return tileSet.css(name, size);
+    return tileSet.bitmap(name, modulate);
   }
 }
