@@ -79,21 +79,6 @@ constexpr std::array<const char*, ObjectTypeCount> ObjectTypeNamesArray = {
 
 const std::vector<std::string> ObjectTypeNames(ObjectTypeNamesArray.begin(), ObjectTypeNamesArray.end());
 
-// TODO: We now have this available in the config, so we should use that instead. We haven't done this yet
-// because we need to pass through the configuration. For now, this means things are unstable.
-constexpr std::array<const char*, 10> InventoryItemNamesArray = {{"ore.red",
-                                                                  "ore.blue",
-                                                                  "ore.green",
-                                                                  "battery.red",
-                                                                  "battery.blue",
-                                                                  "battery.green",
-                                                                  "heart",
-                                                                  "armor",
-                                                                  "laser",
-                                                                  "blueprint"}};
-
-const std::vector<std::string> InventoryItemNames(InventoryItemNamesArray.begin(), InventoryItemNamesArray.end());
-
 const std::map<uint8_t, std::string> FeatureNames = {
     {ObservationFeature::TypeId, "type_id"},
     {ObservationFeature::Group, "agent:group"},
@@ -127,7 +112,6 @@ const std::map<uint8_t, float> FeatureNormalizations = {
     {ObservationFeature::Swappable, 1.0},
 };
 
-const float DEFAULT_NORMALIZATION = 1.0;
 const float DEFAULT_INVENTORY_NORMALIZATION = 100.0;
 
 const std::map<TypeId, GridLayer> ObjectLayers = {{ObjectType::AgentT, GridLayer::Agent_Layer},
