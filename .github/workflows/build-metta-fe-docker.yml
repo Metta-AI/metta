@@ -1,4 +1,4 @@
-name: "Build App Backend Docker Image"
+name: "Build App Frontend Docker Image"
 concurrency:
   group: ${{ github.workflow }}
   cancel-in-progress: true
@@ -6,12 +6,12 @@ concurrency:
 on:
   push:
     paths:
-      - "app_backend/**"
+      - "observatory/**"
       - ".github/workflows/**"
   workflow_dispatch: {}
 
 env:
-  IMAGE_NAME: metta-app-backend
+  IMAGE_NAME: metta-app-frontend
 
 jobs:
   build-and-push-image:
@@ -51,8 +51,7 @@ jobs:
         id: push
         uses: docker/build-push-action@v6
         with:
-          context: .
-          file: ./app_backend/Dockerfile
+          context: observatory
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
