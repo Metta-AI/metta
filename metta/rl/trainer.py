@@ -114,6 +114,8 @@ class MettaTrainer:
         self.timer = Stopwatch(logger)
         self.timer.start()
 
+        self._memory_monitor = MemoryMonitor()
+
         self._system_monitor = SystemMonitor(
             sampling_interval_sec=1.0,  # Sample every second
             history_size=100,  # Keep last 100 samples
@@ -287,7 +289,6 @@ class MettaTrainer:
             for metric_name, step_metric in metric_overrides:
                 wandb_run.define_metric(metric_name, step_metric=step_metric)
 
-        self._memory_monitor = MemoryMonitor()
         self._memory_monitor.add(self)
 
         logger.info(f"MettaTrainer initialization complete on device: {self.device}")
