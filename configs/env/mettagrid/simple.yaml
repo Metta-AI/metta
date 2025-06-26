@@ -9,7 +9,7 @@ game:
   map_builder:
     room:
       objects:
-        mine: 5
+        mine_red: 5
         generator: 4
         altar: 5
         # armory: 5
