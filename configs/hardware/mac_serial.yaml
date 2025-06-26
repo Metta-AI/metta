@@ -19,4 +19,3 @@ trainer:
   async_factor: 1
   checkpoint_interval: 10
   bptt_horizon: 8
-  num_steps: 32
