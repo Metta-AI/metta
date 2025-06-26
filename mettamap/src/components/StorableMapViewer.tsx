@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { useQueryState } from "nuqs";
 import { FC, useMemo } from "react";
 
@@ -65,14 +66,15 @@ const FilterableFrontmatterViewer: FC<{
 
 export const StorableMapViewer: FC<{
   map: StorableMap;
+  url?: string;
   // in /stored-maps list interface, we allow filtering by frontmatter props (which works by updating the URL)
   filterable?: boolean;
-}> = ({ map, filterable = false }) => {
+}> = ({ map, url, filterable = false }) => {
   // Parse the frontmatter YAML
   const grid = useMemo(() => MettaGrid.fromAscii(map.data), [map.data]);
 
   return (
-    <div className="grid grid-cols-[400px_1fr_250px] gap-8">
+    <div className="grid min-h-[600px] grid-cols-[400px_1fr_250px] gap-8">
       <div className="max-h-[80vh] overflow-auto">
         {filterable ? (
           <FilterableFrontmatterViewer frontmatter={map.frontmatter.config} />
@@ -81,13 +83,24 @@ export const StorableMapViewer: FC<{
         )}
       </div>
       <div className="flex flex-col items-center justify-start overflow-auto">
-        <div className="max-w-full">
-          <MapViewer grid={grid} />
-        </div>
+        <MapViewer grid={grid} />
       </div>
-      <CopyToClipboardButton text={map.data}>
-        Copy Map Data to Clipboard
-      </CopyToClipboardButton>
+      <div className="flex flex-col gap-2">
+        <CopyToClipboardButton text={map.data}>
+          Copy Map Data to Clipboard
+        </CopyToClipboardButton>
+        {url &&
+          typeof window !== "undefined" &&
+          window.location.pathname !== "/stored-maps/view" && (
+            <Link
+              className="text-blue-500 hover:underline"
+              href={`/stored-maps/view?map=${url}`}
+              target="_blank"
+            >
+              Permalink
+            </Link>
+          )}
+      </div>
     </div>
   );
 };
