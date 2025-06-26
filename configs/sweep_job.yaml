@@ -3,7 +3,7 @@ defaults:
   - wandb: metta_research
   - agent: fast
   - sim: sweep_eval
-  - trainer: puffer
+  - trainer
   - _self_
 
 cmd: sweep
