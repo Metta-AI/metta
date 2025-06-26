@@ -125,7 +125,7 @@ class TrainerConfig(BaseModelWithForbidExtra):
     checkpoint_dir: str = "${run_dir}/checkpoints"
     evaluate_interval: int = Field(gt=0)
     checkpoint_interval: int = Field(gt=0)
-    wandb_checkpoint_interval: int = Field(gt=0)
+    wandb_checkpoint_interval: int = Field(ge=0)  # 0 to disable
     replay_interval: int = Field(gt=0)
     replay_dir: str = "s3://softmax-public/replays/${run}"
     grad_mean_variance_interval: int = Field(ge=0)  # 0 to disable
