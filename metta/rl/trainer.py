@@ -19,7 +19,7 @@ from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
 from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyRecord, PolicyStore
 from metta.agent.util.debug import assert_shape
-from metta.common.memory import get_object_size
+from metta.common.memory_monitor import MemoryMonitor
 from metta.common.stopwatch import Stopwatch, with_instance_timer
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.system_monitor import SystemMonitor
@@ -114,7 +114,7 @@ class MettaTrainer:
         self.timer = Stopwatch(logger)
         self.timer.start()
 
-        self.system_monitor = SystemMonitor(
+        self._system_monitor = SystemMonitor(
             sampling_interval_sec=1.0,  # Sample every second
             history_size=100,  # Keep last 100 samples
             logger=logger,
@@ -287,6 +287,9 @@ class MettaTrainer:
             for metric_name, step_metric in metric_overrides:
                 wandb_run.define_metric(metric_name, step_metric=step_metric)
 
+        self._memory_monitor = MemoryMonitor()
+        self._memory_monitor.add(self)
+
         logger.info(f"MettaTrainer initialization complete on device: {self.device}")
 
     def train(self) -> None:
@@ -352,7 +355,7 @@ class MettaTrainer:
         self._maybe_save_training_state(force=True)
         self._maybe_upload_policy_record_to_wandb(force=True)
 
-        self.system_monitor.stop()
+        self._system_monitor.stop()
 
     def _on_train_step(self):
         pass
@@ -467,21 +470,6 @@ class MettaTrainer:
                         self.stats[k] += v
                     except TypeError:
                         self.stats[k] = [self.stats[k], v]  # fallback: bundle as list
-
-        memory_info = {
-            "memory_use/worker_stats_size": get_object_size(self.stats),
-            "memory_use/worker_infos_size": get_object_size(infos),
-            "memory_use/worker_experience_size": get_object_size(self.experience),
-            "memory_use/worker_vecenv_size": get_object_size(self.vecenv),
-            "memory_use/worker_policy_size": get_object_size(self.policy),
-            "memory_use/worker_optimizer_size": get_object_size(self.optimizer),
-        }
-
-        # Add memory stats to self.stats so they get aggregated across workers
-        for k, v in memory_info.items():
-            if k not in self.stats:
-                self.stats[k] = []
-            self.stats[k].append(v)
 
         # TODO: Better way to enable multiple collects
         return self.stats, infos
@@ -929,11 +917,6 @@ class MettaTrainer:
             "timing_cumulative/sps": steps_per_second,
         }
 
-        memory_stats = {}
-        for k in list(self.stats.keys()):
-            if k.startswith("memory_use/"):
-                memory_stats[k] = self.stats.pop(k)
-
         environment_stats = {f"env_{k.split('/')[0]}/{'/'.join(k.split('/')[1:])}": v for k, v in self.stats.items()}
 
         overview = {
@@ -982,12 +965,12 @@ class MettaTrainer:
                 **{f"experience/{k}": v for k, v in self.experience.stats().items()},
                 **{f"parameters/{k}": v for k, v in parameters.items()},
                 **{f"eval_{k}": v for k, v in self.evals.items()},
-                **{f"monitor/{k}": v for k, v in self.system_monitor.stats().items()},
+                **{f"monitor/{k}": v for k, v in self._system_monitor.stats().items()},
+                **{f"trainer_memory/{k}": v for k, v in self._memory_monitor.stats().items()},
                 **environment_stats,
                 **weight_stats,
                 **timing_stats,
                 **metric_stats,
-                **memory_stats,
             }
         )
 
