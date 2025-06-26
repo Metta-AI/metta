@@ -99,10 +99,7 @@ py::dict CreateBenchmarkConfig(int num_agents) {
   py::dict wall_cfg, block_cfg, mine_cfg, generator_cfg, altar_cfg;
 
   objects_cfg["wall"] = wall_cfg;
-  objects_cfg["block"] = block_cfg;
-  objects_cfg["mine_red"] = mine_cfg;
-  objects_cfg["generator_red"] = generator_cfg;
-  objects_cfg["altar"] = altar_cfg;
+  objects_cfg["wall"]["type_id"] = 1;
 
   game_cfg["objects"] = objects_cfg;
 

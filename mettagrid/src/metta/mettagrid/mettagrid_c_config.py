@@ -62,6 +62,7 @@ class ConverterConfig_cpp(BaseModelWithForbidExtra):
     cooldown: int = Field(ge=0)
     initial_items: int = Field(ge=0)
     color: Byte = Field(default=0)
+    type_id: Byte
 
 
 class ObjectsConfig_cpp(BaseModelWithForbidExtra):
