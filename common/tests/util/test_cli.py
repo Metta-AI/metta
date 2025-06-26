@@ -1,4 +1,4 @@
-"""Tests for metta.util.cli module."""
+"""Tests for metta.common.util.cli module."""
 
 import subprocess
 import sys
@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 import pytest
 
-from metta.util.cli import die, get_user_confirmation, sh
+from metta.common.util.cli import die, get_user_confirmation, sh
 
 
 class TestGetUserConfirmation:
