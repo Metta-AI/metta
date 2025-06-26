@@ -35,6 +35,7 @@ class WandbProtein:
         self._defunct = 0
         self._invalid = 0
         self._observations = []
+        self._suggestion_info = {}  # Store info from protein.suggest()
 
         assert self._wandb_run.summary.get("protein.state") is None, (
             f"Run {self._wandb_run.name} already has protein state"
@@ -46,9 +47,6 @@ class WandbProtein:
 
         # CRITICAL: Overwrite WandB agent's suggested parameters with Protein's suggestions
         wandb_config = self._transform_suggestion(deepcopy(self._suggestion))
-        if "suggestion_uuid" in wandb_config:
-            del wandb_config["suggestion_uuid"]
-
         # Unlock config to allow overwriting WandB agent's suggestions
         self._wandb_run.config.__dict__["_locked"] = {}
 
@@ -58,6 +56,19 @@ class WandbProtein:
         # Also store in parameters section for tracking
         self._wandb_run.config.update({"parameters": wandb_config}, allow_val_change=True)
 
+        # Store prediction info in wandb summary
+        if self._suggestion_info:
+            self._wandb_run.summary.update(
+                {
+                    "protein.prediction.cost": self._suggestion_info.get("cost"),
+                    "protein.prediction.score": self._suggestion_info.get("score"),
+                    "protein.prediction.rating": self._suggestion_info.get("rating"),
+                }
+            )
+
+        # Store the complete suggestion for easy retrieval
+        self._wandb_run.summary.update({"protein.suggestion": self._suggestion})
+        self._wandb_run.summary.update({"protein.suggestion_info": self._suggestion_info})
         self._wandb_run.summary.update({"protein.state": "running"})
 
     def record_observation(self, objective: float, cost: float, allow_update: bool = False):
@@ -99,7 +110,7 @@ class WandbProtein:
         Returns:
             tuple: (suggestion_dict, info_dict)
         """
-        return self._transform_suggestion(deepcopy(self._suggestion)), {}
+        return self._transform_suggestion(deepcopy(self._suggestion)), self._suggestion_info
 
     def _transform_suggestion(self, suggestion):
         """Transform suggestion format. Override in subclasses if needed."""
@@ -160,7 +171,7 @@ class WandbProtein:
             return
 
         try:
-            suggestion = self._suggestion_from_run(run)
+            suggestion, info = self._suggestion_from_run(run)
         except Exception as e:
             logger.warning(f"Failed to get suggestion from run {run.name}: {e}")
             self._invalid += 1
@@ -198,32 +209,35 @@ class WandbProtein:
             }
         )
 
-        # Remove suggestion_uuid before passing to Protein
-        params_only = {k: v for k, v in suggestion.items() if k != "suggestion_uuid"}
-        self._protein.observe(params_only, objective, cost, is_failure)
+        # Pass suggestion to Protein (no need to remove suggestion_uuid since it's now in info)
+        self._protein.observe(suggestion, objective, cost, is_failure)
+        self._suggestion_info = info
 
     def _suggestion_from_run(self, run):
-        """Extract parameters from a run config - read from the actual config keys that training used."""
-        suggestion = {}
+        """
+        Extract parameters from a run config - just retrieve what we stored.
+        """
+        # Get the stored suggestion
+        suggestion = run.summary.get("protein.suggestion", {})
 
-        # Get all parameter names from Protein's hyperparameter space
-        for param_name in self._protein.hyperparameters.flat_spaces.keys():
-            # Read from the actual config key that training used
-            value = run.config.get(param_name)
-            if value is not None:
-                suggestion[param_name] = value
+        # Get the stored prediction info
+        info = run.summary.get("protein.suggestion_info", {})
 
-        # Add suggestion UUID for tracking
-        suggestion["suggestion_uuid"] = run.id
-        return suggestion
+        # Ensure suggestion_uuid is set in info
+        if "suggestion_uuid" not in info:
+            info["suggestion_uuid"] = run.id
+
+        return suggestion, info
 
     def _generate_protein_suggestion(self):
         """Generate a suggestion from Protein optimizer."""
         try:
-            self._suggestion, _ = self._protein.suggest(fill=None)
-            # Ensure suggestion_uuid is set
-            if "suggestion_uuid" not in self._suggestion:
-                self._suggestion["suggestion_uuid"] = self._wandb_run.id
+            self._suggestion, self._suggestion_info = self._protein.suggest(fill=None)
+
+            # Add suggestion UUID to info (metadata)
+            if "suggestion_uuid" not in self._suggestion_info:
+                self._suggestion_info["suggestion_uuid"] = self._wandb_run.id
+
         except Exception as e:
             logger.error(f"Failed to generate Protein suggestion: {e}")
             raise e
