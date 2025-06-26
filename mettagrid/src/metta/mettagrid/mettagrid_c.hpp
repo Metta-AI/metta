@@ -15,7 +15,6 @@
 #include <memory>
 #include <string>
 #include <vector>
-#include <random>
 
 #include "types.hpp"
 
@@ -106,9 +105,6 @@ private:
   std::map<uint8_t, float> _feature_normalizations;
 
   std::vector<bool> _action_success;
-
-  std::random_device _rd;
-  std::mt19937 _g;
 
   void init_action_handlers();
   void add_agent(Agent* agent);
