@@ -1,0 +1,10 @@
+metric: reward
+goal: maximize
+trainer:
+  optimizer:
+    learning_rate:
+      distribution: log_normal
+      min: 0.0001
+      max: 0.001
+      mean: 0.0005
+      scale: 0.5
