@@ -142,22 +142,8 @@ public:
     return GridLocation(new_r, new_c, loc.layer);
   }
 
-  inline const GridLocation relative_location(const GridLocation& loc,
-                                              Orientation orientation,
-                                              GridCoord distance,
-                                              GridCoord offset,
-                                              TypeId type_id) {
-    GridLocation rloc = this->relative_location(loc, orientation, distance, offset);
-    rloc.layer = this->layer_for_type_id[type_id];
-    return rloc;
-  }
-
   inline const GridLocation relative_location(const GridLocation& loc, Orientation orientation) {
     return this->relative_location(loc, orientation, 1, 0);
-  }
-
-  inline const GridLocation relative_location(const GridLocation& loc, Orientation orientation, TypeId type_id) {
-    return this->relative_location(loc, orientation, 1, 0, type_id);
   }
 
   inline char is_empty(unsigned int row, unsigned int col) {
