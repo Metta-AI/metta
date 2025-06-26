@@ -68,6 +68,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
         buf=None,
         stats_writer: Optional[StatsWriter] = None,
         replay_writer: Optional[ReplayWriter] = None,
+        is_training: bool = False,
         **kwargs,
     ):
         self.timer = Stopwatch(logger)
@@ -90,6 +91,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
         self.labels: list[str] = self._task.env_cfg().get("labels", [])
         self._should_reset = False
         self._num_episodes = 0
+        self._is_training = is_training
 
         self._initialize_c_env()
         super().__init__(buf)
@@ -144,7 +146,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
         # During training, we run a lot of envs in parallel, and it's better if they are not
         # all synced together. The desync_episodes flag is used to desync the episodes.
         # Ideally vecenv would have a way to desync the episodes, but it doesn't.
-        if self._num_episodes == 0 and task.env_cfg().desync_episodes:
+        if self._is_training and self._num_episodes == 0:
             max_steps = game_config_dict["max_steps"]
             game_config_dict["max_steps"] = int(np.random.randint(1, max_steps + 1))
             logger.info(f"Desync episode with max_steps {game_config_dict['max_steps']}")

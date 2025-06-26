@@ -1144,6 +1144,7 @@ class MettaTrainer:
             batch_size=self.batch_size,
             num_workers=trainer_cfg.num_workers,
             zero_copy=trainer_cfg.zero_copy,
+            is_training=True,
         )
 
         if self.cfg.seed is None:
