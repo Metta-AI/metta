@@ -918,6 +918,10 @@ class MettaTrainer:
                 f"timing_per_epoch/frac/{op}": lap_elapsed / wall_time_for_lap if wall_time_for_lap > 0 else 0
                 for op, lap_elapsed in lap_times.items()
             },
+            **{
+                f"timing_per_epoch/msec/{op}": lap_elapsed * 1000 if wall_time_for_lap > 0 else 0
+                for op, lap_elapsed in lap_times.items()
+            },
             "timing_per_epoch/sps": epoch_steps_per_second,
             **{
                 f"timing_cumulative/frac/{op}": elapsed / wall_time if wall_time > 0 else 0
