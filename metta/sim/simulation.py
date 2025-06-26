@@ -26,7 +26,6 @@ from omegaconf import OmegaConf
 from app_backend.stats_client import StatsClient
 from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyRecord, PolicyStore
-from metta.agent.policy_utils import initialize_policy_to_environment
 from metta.mettagrid.curriculum.sampling import SamplingCurriculum
 from metta.mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
 from metta.mettagrid.replay_writer import ReplayWriter
@@ -132,17 +131,31 @@ class Simulation:
 
         # Initialize policies with environment
         policy = self._policy_pr.policy()
-        try:
-            initialize_policy_to_environment(policy, features, action_names, max_args, self._device)
-        except AttributeError as e:
-            raise SimulationCompatibilityError(f"[{self._name}] {e}") from e
+        if hasattr(policy, "initialize_to_environment"):
+            policy.initialize_to_environment(features, action_names, max_args, self._device)
+        elif hasattr(policy, "activate_actions"):
+            # For backward compatibility with old policies
+            logger.warning(f"Policy {type(policy).__name__} uses deprecated activate_actions interface")
+            policy.activate_actions(action_names, max_args, self._device)
+        else:
+            raise SimulationCompatibilityError(
+                f"[{self._name}] Policy is missing required method 'initialize_to_environment'. "
+                f"Expected a MettaAgent-like object but got {type(policy).__name__}"
+            )
 
         if self._npc_pr is not None:
             npc_policy = self._npc_pr.policy()
-            try:
-                initialize_policy_to_environment(npc_policy, features, action_names, max_args, self._device)
-            except AttributeError as e:
-                raise SimulationCompatibilityError(f"[{self._name}] NPC {e}") from e
+            if hasattr(npc_policy, "initialize_to_environment"):
+                npc_policy.initialize_to_environment(features, action_names, max_args, self._device)
+            elif hasattr(npc_policy, "activate_actions"):
+                # For backward compatibility
+                logger.warning(f"NPC policy {type(npc_policy).__name__} uses deprecated activate_actions interface")
+                npc_policy.activate_actions(action_names, max_args, self._device)
+            else:
+                raise SimulationCompatibilityError(
+                    f"[{self._name}] NPC policy is missing required method 'initialize_to_environment'. "
+                    f"Expected a MettaAgent-like object but got {type(npc_policy).__name__}"
+                )
 
         # ---------------- agent-index bookkeeping ---------------------- #
         idx_matrix = torch.arange(metta_grid_env.num_agents * self._num_envs, device=self._device).reshape(

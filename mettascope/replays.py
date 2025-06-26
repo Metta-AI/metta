@@ -23,7 +23,7 @@ class FakeAgent(MettaAgent):
     def __init__(self):
         pass
 
-    def initialize_to_environment(self, features, action_names, action_max_params, device):
+    def activate_actions(self, *args):
         pass
 
     def __call__(self, obs, state):
