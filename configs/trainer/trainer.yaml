@@ -50,7 +50,7 @@ optimizer:
   weight_decay: 0
 
 lr_scheduler:
-  enabled: false
+  enabled: true
   anneal_lr: false
 
 max_grad_norm: 0.5
