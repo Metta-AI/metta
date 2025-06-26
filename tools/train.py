@@ -18,7 +18,10 @@ from metta.common.util.logging import setup_mettagrid_logger
 from metta.common.util.runtime_configuration import setup_mettagrid_environment
 from metta.common.util.stats_client_cfg import get_stats_client
 from metta.common.util.wandb.wandb_context import WandbContext, WandbRun
+<<<<<<< Updated upstream
 from metta.common.uv_check import enforce_uv
+=======
+>>>>>>> Stashed changes
 from metta.sim.simulation_config import SimulationSuiteConfig
 
 

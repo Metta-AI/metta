@@ -16,7 +16,10 @@ from metta.common.util.lock import run_once
 from metta.common.util.logging import setup_mettagrid_logger
 from metta.common.util.wandb.sweep import generate_run_id_for_sweep, sweep_id_from_name
 from metta.common.util.wandb.wandb_context import WandbContext
+<<<<<<< Updated upstream
 from metta.common.uv_check import enforce_uv
+=======
+>>>>>>> Stashed changes
 from metta.rl.carbs.metta_carbs import MettaCarbs, carbs_params_from_cfg
 from metta.sim.simulation_config import SimulationSuiteConfig
 

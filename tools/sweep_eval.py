@@ -12,7 +12,10 @@ from metta.agent.policy_store import PolicyStore
 from metta.common.util.logging import setup_mettagrid_logger
 from metta.common.util.runtime_configuration import setup_mettagrid_environment
 from metta.common.util.wandb.wandb_context import WandbContext
+<<<<<<< Updated upstream
 from metta.common.uv_check import enforce_uv
+=======
+>>>>>>> Stashed changes
 from metta.eval.eval_stats_db import EvalStatsDB
 from metta.sim.simulation_config import SimulationSuiteConfig
 from metta.sim.simulation_suite import SimulationSuite

@@ -7,7 +7,10 @@ from omegaconf import DictConfig, OmegaConf
 from metta.agent.policy_store import PolicyStore
 from metta.common.util.logging import setup_mettagrid_logger
 from metta.common.util.runtime_configuration import setup_mettagrid_environment
+<<<<<<< Updated upstream
 from metta.common.uv_check import enforce_uv
+=======
+>>>>>>> Stashed changes
 from metta.eval.analysis import analyze
 from metta.eval.analysis_config import AnalysisConfig
 

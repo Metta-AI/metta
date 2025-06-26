@@ -13,7 +13,10 @@ from omegaconf import DictConfig
 
 from metta.common.util.logging import setup_mettagrid_logger
 from metta.common.util.runtime_configuration import setup_mettagrid_environment
+<<<<<<< Updated upstream
 from metta.common.uv_check import enforce_uv
+=======
+>>>>>>> Stashed changes
 from metta.eval.eval_stats_db import EvalStatsDB
 from metta.mettagrid.util.file import local_copy
 

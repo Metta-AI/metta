@@ -8,7 +8,10 @@ from typing import cast, get_args
 from omegaconf import DictConfig, OmegaConf
 
 from metta.common.util.resolvers import register_resolvers
+<<<<<<< Updated upstream
 from metta.common.uv_check import enforce_uv
+=======
+>>>>>>> Stashed changes
 from metta.map.utils.show import ShowMode, show_map
 from tools.map.gen import map_builder_cfg_to_storable_map
 
