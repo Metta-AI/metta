@@ -68,7 +68,7 @@ def create_heart_reward_test_env(max_steps=50, num_agents=NUM_AGENTS):
         },
     }
 
-    return MettaGrid(cpp_config_dict(game_config), game_map)
+    return MettaGrid(cpp_config_dict(game_config), game_map, 42)
 
 
 def create_reward_test_env(max_steps=10, width=5, height=5, num_agents=NUM_AGENTS):
@@ -112,7 +112,7 @@ def create_reward_test_env(max_steps=10, width=5, height=5, num_agents=NUM_AGENT
         "agent": {"freeze_duration": 100, "rewards": {"heart": 1.0}},
     }
 
-    return MettaGrid(cpp_config_dict(game_config), game_map.tolist())
+    return MettaGrid(cpp_config_dict(game_config), game_map.tolist(), 42)
 
 
 def perform_action(env, action_name, arg=0):
