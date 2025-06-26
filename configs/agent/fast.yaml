@@ -72,15 +72,10 @@ components:
     nn_params:
       num_layers: 2
 
-  core_relu:
-    _target_: metta.agent.lib.nn_layer_library.ReLU
-    sources:
-      - name: _core_
-
   critic_1:
     _target_: metta.agent.lib.nn_layer_library.Linear
     sources:
-      - name: core_relu
+      - name: _core_
     nn_params:
       out_features: 1024
     nonlinearity: nn.Tanh
@@ -97,7 +92,7 @@ components:
   actor_1:
     _target_: metta.agent.lib.nn_layer_library.Linear
     sources:
-      - name: core_relu
+      - name: _core_
     nn_params:
       out_features: 512
 
