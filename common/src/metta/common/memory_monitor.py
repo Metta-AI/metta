@@ -3,7 +3,7 @@ import weakref
 from typing import Any, Set
 
 
-def get_object_size(obj: Any, visited: Set[int] = None) -> int:
+def get_object_size(obj: Any, visited: Set[int] | None = None) -> int:
     """Get the deep memory usage of an object in bytes, handling circular references."""
     if visited is None:
         visited = set()
@@ -13,6 +13,7 @@ def get_object_size(obj: Any, visited: Set[int] = None) -> int:
         return 0
 
     visited.add(obj_id)
+    size = 0
 
     try:
         size = sys.getsizeof(obj)
@@ -28,16 +29,22 @@ def get_object_size(obj: Any, visited: Set[int] = None) -> int:
         if hasattr(obj, "__dict__") and obj.__dict__:
             size += get_object_size(obj.__dict__, visited)
 
-        if hasattr(obj, "__slots__"):
-            for slot in obj.__slots__:
+        slots = getattr(obj, "__slots__", None)
+        if slots is not None:
+            for slot in slots:
                 if hasattr(obj, slot):
-                    size += get_object_size(getattr(obj, slot), visited)
+                    try:
+                        slot_value = getattr(obj, slot)
+                        size += get_object_size(slot_value, visited)
+                    except (AttributeError, ValueError):
+                        # Skip slots that can't be accessed
+                        pass
 
     except (TypeError, RecursionError, AttributeError):
         pass
-
-    finally:
-        visited.discard(obj_id)
+    except Exception:
+        # Catch any other unexpected exceptions
+        pass
 
     return size
 
@@ -73,14 +80,14 @@ class MemoryMonitor:
                 }
 
             # Track each attribute separately
-            if hasattr(obj, "__dict__"):
+            if hasattr(obj, "__dict__") and obj.__dict__:
                 for attr_name, attr_value in obj.__dict__.items():
                     attr_key = f"{name}.{attr_name}"
                     try:
                         attr_initial_size = get_object_size(attr_value)
                         try:
                             attr_weak_ref = weakref.ref(
-                                attr_value, lambda ref, key=attr_key: self._tracked_objects.pop(key, None)
+                                attr_value, lambda _ref, key=attr_key: self._tracked_objects.pop(key, None)
                             )
                             self._tracked_objects[attr_key] = {
                                 "object_ref": attr_weak_ref,
@@ -97,6 +104,36 @@ class MemoryMonitor:
                     except Exception:
                         # Skip attributes that can't be measured
                         pass
+
+            # Handle __slots__ attributes separately
+            slots = getattr(obj, "__slots__", None)
+            if slots is not None:
+                for slot in slots:
+                    if hasattr(obj, slot):
+                        try:
+                            slot_value = getattr(obj, slot)
+                            attr_key = f"{name}.{slot}"
+                            attr_initial_size = get_object_size(slot_value)
+
+                            try:
+                                attr_weak_ref = weakref.ref(
+                                    slot_value, lambda _ref, key=attr_key: self._tracked_objects.pop(key, None)
+                                )
+                                self._tracked_objects[attr_key] = {
+                                    "object_ref": attr_weak_ref,
+                                    "initial_size": attr_initial_size,
+                                    "is_weak": True,
+                                }
+                            except TypeError:
+                                # Store direct reference for slot values that don't support weak references
+                                self._tracked_objects[attr_key] = {
+                                    "object_ref": slot_value,
+                                    "initial_size": attr_initial_size,
+                                    "is_weak": False,
+                                }
+                        except (AttributeError, ValueError, Exception):
+                            # Skip slots that can't be accessed or measured
+                            pass
 
         except Exception as e:
             print(f"Warning: Could not track object {name}: {e}")
