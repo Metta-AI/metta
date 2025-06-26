@@ -7,6 +7,8 @@ from pathlib import Path
 import boto3
 from botocore.exceptions import ClientError
 
+from metta.common.uv_check import enforce_uv
+
 
 def is_image_file(filename):
     """Check if a file is an image based on its mimetype."""
@@ -76,4 +78,5 @@ def main():
 
 
 if __name__ == "__main__":
+    enforce_uv()
     main()
