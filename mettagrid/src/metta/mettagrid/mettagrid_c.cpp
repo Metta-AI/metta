@@ -38,7 +38,7 @@ MettaGrid::MettaGrid(py::dict cfg, py::list map) {
   max_steps = cfg["max_steps"].cast<unsigned int>();
   obs_width = cfg["obs_width"].cast<unsigned short>();
   obs_height = cfg["obs_height"].cast<unsigned short>();
-  _inventory_item_names = cfg["inventory_item_names"].cast<std::vector<std::string>>();
+  inventory_item_names = cfg["inventory_item_names"].cast<std::vector<std::string>>();
 
   _num_observation_tokens =
       cfg.contains("num_observation_tokens") ? cfg["num_observation_tokens"].cast<unsigned int>() : 0;
@@ -53,11 +53,11 @@ MettaGrid::MettaGrid(py::dict cfg, py::list map) {
   int width = map[0].cast<py::list>().size();
 
   _grid = std::make_unique<Grid>(width, height, layer_for_type_id);
-  _obs_encoder = std::make_unique<ObservationEncoder>(_inventory_item_names);
+  _obs_encoder = std::make_unique<ObservationEncoder>(inventory_item_names);
   _feature_normalizations = _obs_encoder->feature_normalizations();
 
   _event_manager = std::make_unique<EventManager>();
-  _stats = std::make_unique<StatsTracker>();
+  _stats = std::make_unique<StatsTracker>(inventory_item_names);
   _stats->set_environment(this);
 
   _event_manager->init(_grid.get());
@@ -669,18 +669,19 @@ py::list MettaGrid::object_type_names() {
   return py::cast(ObjectTypeNames);
 }
 
-py::list MettaGrid::inventory_item_names() {
-  return py::cast(_inventory_item_names);
+py::list MettaGrid::inventory_item_names_py() {
+  return py::cast(inventory_item_names);
 }
 
 Agent* MettaGrid::create_agent(int r, int c, const py::dict& agent_group_cfg_py) {
   unsigned char freeze_duration = agent_group_cfg_py["freeze_duration"].cast<unsigned char>();
   float action_failure_penalty = agent_group_cfg_py["action_failure_penalty"].cast<float>();
-  std::map<ObsType, uint8_t> max_items_per_type =
-      agent_group_cfg_py["max_items_per_type"].cast<std::map<ObsType, uint8_t>>();
-  std::map<ObsType, float> resource_rewards = agent_group_cfg_py["resource_rewards"].cast<std::map<ObsType, float>>();
-  std::map<ObsType, float> resource_reward_max =
-      agent_group_cfg_py["resource_reward_max"].cast<std::map<ObsType, float>>();
+  std::map<InventoryItem, uint8_t> max_items_per_type =
+      agent_group_cfg_py["max_items_per_type"].cast<std::map<InventoryItem, uint8_t>>();
+  std::map<InventoryItem, float> resource_rewards =
+      agent_group_cfg_py["resource_rewards"].cast<std::map<InventoryItem, float>>();
+  std::map<InventoryItem, float> resource_reward_max =
+      agent_group_cfg_py["resource_reward_max"].cast<std::map<InventoryItem, float>>();
   std::string group_name = agent_group_cfg_py["group_name"].cast<std::string>();
   unsigned int group_id = agent_group_cfg_py["group_id"].cast<unsigned int>();
 
@@ -692,7 +693,8 @@ Agent* MettaGrid::create_agent(int r, int c, const py::dict& agent_group_cfg_py)
                    resource_rewards,
                    resource_reward_max,
                    group_name,
-                   group_id);
+                   group_id,
+                   inventory_item_names);
 }
 
 py::array_t<unsigned int> MettaGrid::get_agent_groups() const {
@@ -711,14 +713,17 @@ unsigned int StatsTracker::get_current_step() const {
 }
 
 ConverterConfig MettaGrid::_create_converter_config(const py::dict& converter_cfg_py) {
-  std::map<ObsType, uint8_t> recipe_input = converter_cfg_py["recipe_input"].cast<std::map<ObsType, uint8_t>>();
-  std::map<ObsType, uint8_t> recipe_output = converter_cfg_py["recipe_output"].cast<std::map<ObsType, uint8_t>>();
+  std::map<InventoryItem, uint8_t> recipe_input =
+      converter_cfg_py["recipe_input"].cast<std::map<InventoryItem, uint8_t>>();
+  std::map<InventoryItem, uint8_t> recipe_output =
+      converter_cfg_py["recipe_output"].cast<std::map<InventoryItem, uint8_t>>();
   short max_output = converter_cfg_py["max_output"].cast<short>();
   unsigned short conversion_ticks = converter_cfg_py["conversion_ticks"].cast<unsigned short>();
   unsigned short cooldown = converter_cfg_py["cooldown"].cast<unsigned short>();
   unsigned char initial_items = converter_cfg_py["initial_items"].cast<unsigned char>();
   ObsType color = converter_cfg_py["color"].cast<ObsType>();
-  return ConverterConfig{recipe_input, recipe_output, max_output, conversion_ticks, cooldown, initial_items, color};
+  return ConverterConfig{
+      recipe_input, recipe_output, max_output, conversion_ticks, cooldown, initial_items, color, inventory_item_names};
 }
 
 // Pybind11 module definition
@@ -752,7 +757,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def_readonly("obs_height", &MettaGrid::obs_height)
       .def_readonly("max_steps", &MettaGrid::max_steps)
       .def_readonly("current_step", &MettaGrid::current_step)
-      .def("inventory_item_names", &MettaGrid::inventory_item_names)
+      .def("inventory_item_names", &MettaGrid::inventory_item_names_py)
       .def("get_agent_groups", &MettaGrid::get_agent_groups)
       .def_readonly("initial_grid_hash", &MettaGrid::initial_grid_hash);
 }
