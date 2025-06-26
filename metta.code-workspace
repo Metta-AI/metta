@@ -115,7 +115,20 @@
 			"deque": "cpp",
 			"regex": "cpp",
 			"memory": "cpp",
-			"iostream": "cpp"
+			"iostream": "cpp",
+			"any": "cpp",
+			"charconv": "cpp",
+			"codecvt": "cpp",
+			"condition_variable": "cpp",
+			"forward_list": "cpp",
+			"iomanip": "cpp",
+			"print": "cpp",
+			"set": "cpp",
+			"shared_mutex": "cpp",
+			"span": "cpp",
+			"typeindex": "cpp",
+			"unordered_set": "cpp",
+			"valarray": "cpp"
 		}
 	}
 }

@@ -92,7 +92,7 @@ def configured_env(base_config):
 
         print(cpp_config_dict(game_config))
 
-        env = MettaGrid(cpp_config_dict(game_config), game_map)
+        env = MettaGrid(cpp_config_dict(game_config), game_map, 42)
 
         # Set up buffers
         observations = np.zeros((1, NUM_OBS_TOKENS, OBS_TOKEN_SIZE), dtype=dtype_observations)

@@ -203,7 +203,7 @@ static void BM_MettaGridStep(benchmark::State& state) {  // NOLINT(runtime/refer
   auto cfg = CreateBenchmarkConfig(num_agents);
   auto map = CreateDefaultMap(2);
 
-  auto env = std::make_unique<MettaGrid>(cfg, map);
+  auto env = std::make_unique<MettaGrid>(cfg, map, 42);
   env->reset();
 
   // Verify agent count
