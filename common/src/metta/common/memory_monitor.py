@@ -96,13 +96,13 @@ class MemoryMonitor:
             }
         return {}
 
-    def stats(self) -> dict[str, dict[str, Any]]:
-        """Get comprehensive statistics for all tracked objects."""
+    def stats(self) -> dict[str, float]:
+        """Get statistics for all tracked objects."""
         if not self._tracked_objects:
             return {}
 
         object_stats = {}
         for name in self._tracked_objects.keys():
-            object_stats[name] = self.get(name)
+            object_stats[f"{name}.size_mb"] = self.get(name)["current_size_mb"]
 
         return object_stats
