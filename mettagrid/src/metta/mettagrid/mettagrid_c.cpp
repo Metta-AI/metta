@@ -45,14 +45,10 @@ MettaGrid::MettaGrid(py::dict cfg, py::list map) {
 
   current_step = 0;
 
-  std::vector<Layer> layer_for_type_id;
-  for (const auto& layer : ObjectLayers) {
-    layer_for_type_id.push_back(layer.second);
-  }
   int height = map.size();
   int width = map[0].cast<py::list>().size();
 
-  _grid = std::make_unique<Grid>(width, height, layer_for_type_id);
+  _grid = std::make_unique<Grid>(width, height);
   _obs_encoder = std::make_unique<ObservationEncoder>(inventory_item_names);
   _feature_normalizations = _obs_encoder->feature_normalizations();
 
@@ -291,7 +287,7 @@ void MettaGrid::_compute_observation(unsigned int observer_row,
         // c could still be outside of our bounds.
         if (c < c_start || c >= c_end) continue;
 
-        for (unsigned int layer = 0; layer < _grid->num_layers; layer++) {
+        for (unsigned int layer = 0; layer < GridLayer::GridLayerCount; layer++) {
           GridLocation object_loc(r, c, layer);
           auto obj = _grid->object_at(object_loc);
           if (!obj) continue;
