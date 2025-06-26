@@ -1,15 +1,14 @@
 # @package __global__
 
 defaults:
-  - override /sim: navigation
   - _self_
 
-run: pasha_sim
-policy_uri: wandb://run/daphne.regularnav.main:v2
+run: pasha_test_run_5
+policy_uri: wandb://run/daphne.nav_memory_sequence.baseline.06-20
 
-stats_server_uri: http://localhost:8000
-stats_user: ptsier
+stats_server_uri: https://api.observatory.softmax-research.net
 
-sim_job:
-  stats_db_uri: postgres://postgres:password@127.0.0.1/postgres
-
+trainer:
+  checkpoint_interval: 50
+  wandb_checkpoint_interval: 50
+  evaluate_interval: 50

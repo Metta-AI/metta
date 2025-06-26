@@ -101,6 +101,9 @@ if [ -z "$IS_DOCKER" ]; then
   bash "devops/skypilot/install.sh"
   echo -e "\nRead devops/skypilot/README.md for more information on how to set up aliases for common Skypilot commands."
 
+  echo -e "\nSetting up Observatory CLI..."
+  ./devops/observatory_login.py
+
   echo "✅ setup_dev.sh completed successfully!"
 fi
 
