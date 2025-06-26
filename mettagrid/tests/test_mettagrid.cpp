@@ -116,25 +116,14 @@ TEST_F(MettaGridCppTest, AgentInventoryUpdate) {
 // ==================== Grid Tests ====================
 
 TEST_F(MettaGridCppTest, GridCreation) {
-  std::vector<Layer> layer_for_type_id;
-  for (const auto& layer : ObjectLayers) {
-    layer_for_type_id.push_back(layer.second);
-  }
-
-  Grid grid(10, 5, layer_for_type_id);
+  Grid grid(10, 5);
 
   EXPECT_EQ(grid.width, 10);
   EXPECT_EQ(grid.height, 5);
-  EXPECT_EQ(grid.num_layers, GridLayer::GridLayerCount);
 }
 
 TEST_F(MettaGridCppTest, GridObjectManagement) {
-  std::vector<Layer> layer_for_type_id;
-  for (const auto& layer : ObjectLayers) {
-    layer_for_type_id.push_back(layer.second);
-  }
-
-  Grid grid(10, 10, layer_for_type_id);
+  Grid grid(10, 10);
 
   // Create and add an agent
   auto max_items_per_type = create_test_max_items_per_type();
@@ -162,12 +151,7 @@ TEST_F(MettaGridCppTest, GridObjectManagement) {
 // ==================== Action Tests ====================
 
 TEST_F(MettaGridCppTest, AttackAction) {
-  std::vector<Layer> layer_for_type_id;
-  for (const auto& layer : ObjectLayers) {
-    layer_for_type_id.push_back(layer.second);
-  }
-
-  Grid grid(10, 10, layer_for_type_id);
+  Grid grid(10, 10);
 
   auto max_items_per_type = create_test_max_items_per_type();
   auto rewards = create_test_rewards();
@@ -224,12 +208,7 @@ TEST_F(MettaGridCppTest, AttackAction) {
 }
 
 TEST_F(MettaGridCppTest, PutRecipeItems) {
-  std::vector<Layer> layer_for_type_id;
-  for (const auto& layer : ObjectLayers) {
-    layer_for_type_id.push_back(layer.second);
-  }
-
-  Grid grid(10, 10, layer_for_type_id);
+  Grid grid(10, 10);
 
   auto max_items_per_type = create_test_max_items_per_type();
   auto rewards = create_test_rewards();
@@ -283,12 +262,7 @@ TEST_F(MettaGridCppTest, PutRecipeItems) {
 }
 
 TEST_F(MettaGridCppTest, GetOutput) {
-  std::vector<Layer> layer_for_type_id;
-  for (const auto& layer : ObjectLayers) {
-    layer_for_type_id.push_back(layer.second);
-  }
-
-  Grid grid(10, 10, layer_for_type_id);
+  Grid grid(10, 10);
 
   auto max_items_per_type = create_test_max_items_per_type();
   auto rewards = create_test_rewards();
@@ -337,31 +311,12 @@ TEST_F(MettaGridCppTest, GetOutput) {
 // ==================== Event System Tests ====================
 
 TEST_F(MettaGridCppTest, EventManager) {
-  std::vector<Layer> layer_for_type_id;
-  for (const auto& layer : ObjectLayers) {
-    layer_for_type_id.push_back(layer.second);
-  }
-
-  Grid grid(10, 10, layer_for_type_id);
+  Grid grid(10, 10);
   EventManager event_manager;
 
   // Test that event manager can be initialized
   // (This is a basic test - more complex event testing would require more setup)
   EXPECT_NO_THROW(event_manager.process_events(1));
-}
-
-// ==================== Object Type Tests ====================
-
-TEST_F(MettaGridCppTest, ObjectTypes) {
-  // Test that object type constants are properly defined
-  EXPECT_NE(ObjectType::AgentT, ObjectType::WallT);
-  EXPECT_NE(ObjectType::AgentT, ObjectType::GeneratorRedT);
-  EXPECT_NE(ObjectType::WallT, ObjectType::GeneratorRedT);
-
-  // Test that object layers are properly mapped
-  EXPECT_TRUE(ObjectLayers.find(ObjectType::AgentT) != ObjectLayers.end());
-  EXPECT_TRUE(ObjectLayers.find(ObjectType::WallT) != ObjectLayers.end());
-  EXPECT_TRUE(ObjectLayers.find(ObjectType::GeneratorRedT) != ObjectLayers.end());
 }
 
 // ==================== Wall/Block Tests ====================
