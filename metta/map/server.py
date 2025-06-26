@@ -6,14 +6,14 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from typing_extensions import TypedDict
 
-from metta.map.utils.storable_map import StorableMap, StorableMapDict, StorableMapIndex, map_builder_cfg_to_storable_map
-from metta.mettagrid.util.file import read
-from metta.util.mettagrid_cfgs import (
+from metta.common.util.mettagrid_cfgs import (
     CfgKind,
     MettagridCfgFile,
     MettagridCfgFileMetadata,
 )
-from metta.util.resolvers import register_resolvers
+from metta.common.util.resolvers import register_resolvers
+from metta.map.utils.storable_map import StorableMap, StorableMapDict, StorableMapIndex, map_builder_cfg_to_storable_map
+from metta.mettagrid.util.file import read
 
 
 def make_app():

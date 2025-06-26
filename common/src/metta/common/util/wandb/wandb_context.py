@@ -12,7 +12,7 @@ import wandb.util
 from omegaconf import OmegaConf
 from pydantic import Field, TypeAdapter
 
-from metta.util.config import Config
+from metta.common.util.config import Config
 
 logger = logging.getLogger(__name__)
 

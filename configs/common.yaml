@@ -1,7 +1,7 @@
 hydra:
   callbacks:
     resolver_callback:
-      _target_: metta.util.resolvers.ResolverRegistrar
+      _target_: metta.common.util.resolvers.ResolverRegistrar
 
 run: ???
 dist_cfg_path: null
