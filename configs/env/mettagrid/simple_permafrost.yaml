@@ -1,0 +1,10 @@
+defaults:
+  - mettagrid
+  - game/map_builder: simple
+  - _self_
+
+game:
+  num_agents: 24
+
+  agent:
+    freeze_duration: 10000
