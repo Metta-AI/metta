@@ -1,0 +1,35 @@
+defaults:
+  - mettagrid
+  - _self_
+
+game:
+  agent:
+    freeze_duration: 10000
+
+  num_agents: 24  # 6 agents per team
+  group_reward_pct: 0.5  # 50% reward sharing across all teams
+
+  groups:
+    team_1:
+      id: 1
+      sprite: 1  # Red sprite for visual team identification
+      group_reward_pct: ${...group_reward_pct}
+      props: {}
+
+    team_2:
+      id: 2
+      sprite: 4  # Blue sprite for visual team identification
+      group_reward_pct: ${...group_reward_pct}
+      props: {}
+
+    team_3:
+      id: 3
+      sprite: 8  # Green sprite for visual team identification
+      group_reward_pct: ${...group_reward_pct}
+      props: {}
+
+    team_4:
+      id: 4
+      sprite: 12  # Yellow sprite for visual team identification
+      group_reward_pct: ${...group_reward_pct}
+      props: {}
