@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { SavedDashboardCreate } from "./repo";
+import { useState, useEffect } from 'react'
+import { SavedDashboardCreate } from './repo'
 
 // CSS for modal
 const MODAL_CSS = `
@@ -176,80 +176,80 @@ const MODAL_CSS = `
 .required {
   color: #dc3545;
 }
-`;
+`
 
 interface SaveDashboardModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onSave: (dashboardData: SavedDashboardCreate) => Promise<void>;
-  initialName?: string;
-  initialDescription?: string;
-  isUpdate?: boolean;
+  isOpen: boolean
+  onClose: () => void
+  onSave: (dashboardData: SavedDashboardCreate) => Promise<void>
+  initialName?: string
+  initialDescription?: string
+  isUpdate?: boolean
 }
 
 export function SaveDashboardModal({
   isOpen,
   onClose,
   onSave,
-  initialName = "",
-  initialDescription = "",
+  initialName = '',
+  initialDescription = '',
   isUpdate = false,
 }: SaveDashboardModalProps) {
-  const [name, setName] = useState(initialName);
-  const [description, setDescription] = useState(initialDescription);
-  const [isSaving, setIsSaving] = useState(false);
-  const [saveStatus, setSaveStatus] = useState<{ type: "success" | "error"; message: string } | null>(null);
+  const [name, setName] = useState(initialName)
+  const [description, setDescription] = useState(initialDescription)
+  const [isSaving, setIsSaving] = useState(false)
+  const [saveStatus, setSaveStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
 
   // Reset form when modal opens/closes
   useEffect(() => {
     if (isOpen) {
-      setName(initialName);
-      setDescription(initialDescription);
-      setSaveStatus(null);
+      setName(initialName)
+      setDescription(initialDescription)
+      setSaveStatus(null)
     }
-  }, [isOpen, initialName, initialDescription]);
+  }, [isOpen, initialName, initialDescription])
 
   const handleSave = async () => {
     if (!name.trim()) {
-      setSaveStatus({ type: "error", message: "Dashboard name is required" });
-      return;
+      setSaveStatus({ type: 'error', message: 'Dashboard name is required' })
+      return
     }
 
-    setIsSaving(true);
-    setSaveStatus(null);
+    setIsSaving(true)
+    setSaveStatus(null)
 
     try {
       const dashboardData: SavedDashboardCreate = {
         name: name.trim(),
         description: description.trim() || undefined,
-        type: "heatmap",
+        type: 'heatmap',
         dashboard_state: {}, // This will be filled by the parent component
-      };
+      }
 
-      await onSave(dashboardData);
-      setSaveStatus({ type: "success", message: `Dashboard ${isUpdate ? "updated" : "saved"} successfully!` });
+      await onSave(dashboardData)
+      setSaveStatus({ type: 'success', message: `Dashboard ${isUpdate ? 'updated' : 'saved'} successfully!` })
 
       // Close modal after a short delay
       setTimeout(() => {
-        onClose();
-        setSaveStatus(null);
-      }, 1500);
+        onClose()
+        setSaveStatus(null)
+      }, 1500)
     } catch (err: any) {
-      setSaveStatus({ type: "error", message: err.message || `Failed to ${isUpdate ? "update" : "save"} dashboard` });
+      setSaveStatus({ type: 'error', message: err.message || `Failed to ${isUpdate ? 'update' : 'save'} dashboard` })
     } finally {
-      setIsSaving(false);
+      setIsSaving(false)
     }
-  };
+  }
 
   const handleClose = () => {
     if (!isSaving) {
-      onClose();
-      setSaveStatus(null);
+      onClose()
+      setSaveStatus(null)
     }
-  };
+  }
 
   if (!isOpen) {
-    return null;
+    return null
   }
 
   return (
@@ -258,9 +258,7 @@ export function SaveDashboardModal({
       <div className="modal-overlay" onClick={handleClose}>
         <div className="modal-content" onClick={(e) => e.stopPropagation()}>
           <div className="modal-header">
-            <h2 className="modal-title">
-              {isUpdate ? "Update Dashboard" : "Save Dashboard"}
-            </h2>
+            <h2 className="modal-title">{isUpdate ? 'Update Dashboard' : 'Save Dashboard'}</h2>
             <button className="modal-close" onClick={handleClose} disabled={isSaving}>
               ×
             </button>
@@ -291,30 +289,18 @@ export function SaveDashboardModal({
             />
           </div>
 
-          {saveStatus && (
-            <div className={`save-status ${saveStatus.type}`}>
-              {saveStatus.message}
-            </div>
-          )}
+          {saveStatus && <div className={`save-status ${saveStatus.type}`}>{saveStatus.message}</div>}
 
           <div className="modal-actions">
-            <button
-              className="btn btn-secondary"
-              onClick={handleClose}
-              disabled={isSaving}
-            >
+            <button className="btn btn-secondary" onClick={handleClose} disabled={isSaving}>
               Cancel
             </button>
-            <button
-              className="btn btn-primary"
-              onClick={handleSave}
-              disabled={isSaving || !name.trim()}
-            >
-              {isSaving ? "Saving..." : isUpdate ? "Update" : "Save"}
+            <button className="btn btn-primary" onClick={handleSave} disabled={isSaving || !name.trim()}>
+              {isSaving ? 'Saving...' : isUpdate ? 'Update' : 'Save'}
             </button>
           </div>
         </div>
       </div>
     </>
-  );
+  )
 }

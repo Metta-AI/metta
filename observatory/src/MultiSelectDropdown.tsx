@@ -1,19 +1,19 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState } from 'react'
 
 interface MultiSelectOption {
-  value: string;
-  label: string;
-  metadata?: Record<string, any>;
+  value: string
+  label: string
+  metadata?: Record<string, any>
 }
 
 interface MultiSelectDropdownProps {
-  options: MultiSelectOption[];
-  selectedValues: Set<string>;
-  onSelectionChange: (selectedValues: Set<string>) => void;
-  placeholder?: string;
-  searchPlaceholder?: string;
-  maxHeight?: number;
-  width?: string;
+  options: MultiSelectOption[]
+  selectedValues: Set<string>
+  onSelectionChange: (selectedValues: Set<string>) => void
+  placeholder?: string
+  searchPlaceholder?: string
+  maxHeight?: number
+  width?: string
 }
 
 // CSS for multi-select dropdown
@@ -139,73 +139,68 @@ const MULTI_SELECT_CSS = `
 .multi-select-dropdown-arrow.open {
   transform: rotate(180deg);
 }
-`;
+`
 
 export function MultiSelectDropdown({
   options,
   selectedValues,
   onSelectionChange,
-  placeholder = "Select options",
-  searchPlaceholder = "Search...",
+  placeholder = 'Select options',
+  searchPlaceholder = 'Search...',
   maxHeight = 300,
-  width = "100%"
+  width = '100%',
 }: MultiSelectDropdownProps) {
-  const [isOpen, setIsOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
+  const [isOpen, setIsOpen] = useState(false)
+  const [searchTerm, setSearchTerm] = useState('')
 
   // Filter options based on search term
-  const filteredOptions = options.filter(option =>
-    option.label.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredOptions = options.filter((option) => option.label.toLowerCase().includes(searchTerm.toLowerCase()))
 
   // Handle click outside to close dropdown
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as Element;
+      const target = event.target as Element
       if (!target.closest('.multi-select-dropdown')) {
-        setIsOpen(false);
+        setIsOpen(false)
       }
-    };
+    }
 
     if (isOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('mousedown', handleClickOutside)
     }
 
     return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [isOpen]);
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [isOpen])
 
   const toggleSelection = (value: string) => {
-    const newSelectedValues = new Set(selectedValues);
+    const newSelectedValues = new Set(selectedValues)
     if (newSelectedValues.has(value)) {
-      newSelectedValues.delete(value);
+      newSelectedValues.delete(value)
     } else {
-      newSelectedValues.add(value);
+      newSelectedValues.add(value)
     }
-    onSelectionChange(newSelectedValues);
-  };
+    onSelectionChange(newSelectedValues)
+  }
 
   const getDisplayText = () => {
     if (selectedValues.size === 0) {
-      return placeholder;
+      return placeholder
     }
     if (selectedValues.size === 1) {
-      const option = options.find(opt => opt.value === Array.from(selectedValues)[0]);
-      return option?.label || placeholder;
+      const option = options.find((opt) => opt.value === Array.from(selectedValues)[0])
+      return option?.label || placeholder
     }
-    return `${selectedValues.size} items selected`;
-  };
+    return `${selectedValues.size} items selected`
+  }
 
   return (
     <>
       <style>{MULTI_SELECT_CSS}</style>
       <div className="multi-select-dropdown-container" style={{ width }}>
         <div className="multi-select-dropdown">
-          <div
-            className={`multi-select-dropdown-trigger ${isOpen ? 'open' : ''}`}
-            onClick={() => setIsOpen(!isOpen)}
-          >
+          <div className={`multi-select-dropdown-trigger ${isOpen ? 'open' : ''}`} onClick={() => setIsOpen(!isOpen)}>
             {getDisplayText()}
             <span className={`multi-select-dropdown-arrow ${isOpen ? 'open' : ''}`}>▼</span>
           </div>
@@ -237,9 +232,9 @@ export function MultiSelectDropdown({
                     <span className="multi-select-label">{option.label}</span>
                     {option.metadata && (
                       <span className="multi-select-metadata">
-                        {Object.entries(option.metadata).map(([_, value]) =>
-                          typeof value === 'number' ? value.toFixed(3) : value
-                        ).join(' ')}
+                        {Object.entries(option.metadata)
+                          .map(([_, value]) => (typeof value === 'number' ? value.toFixed(3) : value))
+                          .join(' ')}
                       </span>
                     )}
                   </div>
@@ -250,5 +245,5 @@ export function MultiSelectDropdown({
         </div>
       </div>
     </>
-  );
+  )
 }

@@ -1,10 +1,10 @@
-import { useEffect, useState } from "react";
-import { Routes, Route, Link, useLocation, useNavigate } from "react-router-dom";
-import { ServerRepo, Repo } from "./repo";
-import { Dashboard } from "./Dashboard";
-import { TokenManager } from "./TokenManager";
-import { SavedDashboards } from "./SavedDashboards";
-import { config } from "./config";
+import { useEffect, useState } from 'react'
+import { Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom'
+import { ServerRepo, Repo } from './repo'
+import { Dashboard } from './Dashboard'
+import { TokenManager } from './TokenManager'
+import { SavedDashboards } from './SavedDashboards'
+import { config } from './config'
 
 // CSS for navigation
 const NAV_CSS = `
@@ -56,140 +56,128 @@ const NAV_CSS = `
 .page-container {
   padding-top: 0;
 }
-`;
+`
 
 function App() {
   // Data loading state
   type DefaultState = {
-    type: "error";
-    error: string | null;
-  };
+    type: 'error'
+    error: string | null
+  }
   type LoadingState = {
-    type: "loading";
-  };
+    type: 'loading'
+  }
   type RepoState = {
-    type: "repo";
-    repo: Repo;
-    currentUser: string;
-  };
-  type State = DefaultState | LoadingState | RepoState;
+    type: 'repo'
+    repo: Repo
+    currentUser: string
+  }
+  type State = DefaultState | LoadingState | RepoState
 
-  const [state, setState] = useState<State>({ type: "loading" });
-  const location = useLocation();
-  const navigate = useNavigate();
+  const [state, setState] = useState<State>({ type: 'loading' })
+  const location = useLocation()
+  const navigate = useNavigate()
 
   useEffect(() => {
     const initializeRepo = async () => {
-      const serverUrl = config.apiBaseUrl;
+      const serverUrl = config.apiBaseUrl
       try {
-        const repo = new ServerRepo(serverUrl);
+        const repo = new ServerRepo(serverUrl)
 
         // Test the connection by calling getSuites
-        await repo.getSuites();
+        await repo.getSuites()
 
         // Get current user
-        const userInfo = await repo.whoami();
-        const currentUser = userInfo.user_email;
+        const userInfo = await repo.whoami()
+        const currentUser = userInfo.user_email
 
-        setState({ type: "repo", repo, currentUser });
+        setState({ type: 'repo', repo, currentUser })
       } catch (err: any) {
         setState({
-          type: "error",
-          error: `Failed to connect to server: ${
-            err.message
-          }. Make sure the server is running at ${serverUrl}`,
-        });
+          type: 'error',
+          error: `Failed to connect to server: ${err.message}. Make sure the server is running at ${serverUrl}`,
+        })
       }
-    };
+    }
 
-    initializeRepo();
-  }, [navigate]);
+    initializeRepo()
+  }, [navigate])
 
   const handleDashboardPageChange = () => {
-    navigate('/dashboard');
-  };
+    navigate('/dashboard')
+  }
 
-  if (state.type === "error") {
+  if (state.type === 'error') {
     return (
       <div
         style={{
-          fontFamily: "Arial, sans-serif",
+          fontFamily: 'Arial, sans-serif',
           margin: 0,
-          padding: "20px",
-          background: "#f8f9fa",
-          minHeight: "100vh",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
+          padding: '20px',
+          background: '#f8f9fa',
+          minHeight: '100vh',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
         }}
       >
         <div
           style={{
-            maxWidth: "600px",
-            margin: "0 auto",
-            background: "#fff",
-            padding: "40px",
-            borderRadius: "8px",
-            boxShadow: "0 2px 4px rgba(0,0,0,.1)",
-            textAlign: "center",
+            maxWidth: '600px',
+            margin: '0 auto',
+            background: '#fff',
+            padding: '40px',
+            borderRadius: '8px',
+            boxShadow: '0 2px 4px rgba(0,0,0,.1)',
+            textAlign: 'center',
           }}
         >
           <h1
             style={{
-              color: "#333",
-              marginBottom: "20px",
+              color: '#333',
+              marginBottom: '20px',
             }}
           >
             Policy Evaluation Dashboard
           </h1>
-          <p style={{ marginBottom: "20px", color: "#666" }}>
-            Unable to connect to the evaluation server.
-          </p>
-          {state.error && (
-            <div
-              style={{ color: "red", marginTop: "10px", marginBottom: "20px" }}
-            >
-              {state.error}
-            </div>
-          )}
-          <p style={{ color: "#666", fontSize: "14px" }}>
-            Please ensure the server is running and accessible.
-          </p>
+          <p style={{ marginBottom: '20px', color: '#666' }}>Unable to connect to the evaluation server.</p>
+          {state.error && <div style={{ color: 'red', marginTop: '10px', marginBottom: '20px' }}>{state.error}</div>}
+          <p style={{ color: '#666', fontSize: '14px' }}>Please ensure the server is running and accessible.</p>
         </div>
       </div>
-    );
+    )
   }
 
-  if (state.type === "loading") {
+  if (state.type === 'loading') {
     return (
       <div
         style={{
-          fontFamily: "Arial, sans-serif",
+          fontFamily: 'Arial, sans-serif',
           margin: 0,
-          padding: "20px",
-          background: "#f8f9fa",
-          minHeight: "100vh",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
+          padding: '20px',
+          background: '#f8f9fa',
+          minHeight: '100vh',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
         }}
       >
         <div
           style={{
-            textAlign: "center",
-            color: "#666",
+            textAlign: 'center',
+            color: '#666',
           }}
         >
           <h2>Connecting to server...</h2>
           <p>Loading evaluation data from the server.</p>
         </div>
       </div>
-    );
+    )
   }
 
-  if (state.type === "repo") {
+  if (state.type === 'repo') {
     return (
-      <div style={{ fontFamily: "Arial, sans-serif", margin: 0 }}>
+      <div style={{ fontFamily: 'Arial, sans-serif', margin: 0 }}>
         <style>{NAV_CSS}</style>
         <nav className="nav-container">
           <div className="nav-content">
@@ -199,21 +187,15 @@ function App() {
             <div className="nav-tabs">
               <Link
                 to="/dashboard"
-                className={`nav-tab ${location.pathname === "/dashboard" ? "active" : ""}`}
+                className={`nav-tab ${location.pathname === '/dashboard' ? 'active' : ''}`}
                 onClick={handleDashboardPageChange}
               >
                 Dashboard
               </Link>
-              <Link
-                to="/saved"
-                className={`nav-tab ${location.pathname === "/saved" ? "active" : ""}`}
-              >
+              <Link to="/saved" className={`nav-tab ${location.pathname === '/saved' ? 'active' : ''}`}>
                 Saved Dashboards
               </Link>
-              <Link
-                to="/tokens"
-                className={`nav-tab ${location.pathname === "/tokens" ? "active" : ""}`}
-              >
+              <Link to="/tokens" className={`nav-tab ${location.pathname === '/tokens' ? 'active' : ''}`}>
                 Token Management
               </Link>
             </div>
@@ -222,29 +204,17 @@ function App() {
 
         <div className="page-container">
           <Routes>
-            <Route
-              path="/dashboard"
-              element={<Dashboard repo={state.repo} />}
-            />
-            <Route
-              path="/saved"
-              element={<SavedDashboards repo={state.repo} currentUser={state.currentUser} />}
-            />
-            <Route
-              path="/tokens"
-              element={<TokenManager repo={state.repo} />}
-            />
-            <Route
-              path="/"
-              element={<Dashboard repo={state.repo} />}
-            />
+            <Route path="/dashboard" element={<Dashboard repo={state.repo} />} />
+            <Route path="/saved" element={<SavedDashboards repo={state.repo} currentUser={state.currentUser} />} />
+            <Route path="/tokens" element={<TokenManager repo={state.repo} />} />
+            <Route path="/" element={<Dashboard repo={state.repo} />} />
           </Routes>
         </div>
       </div>
-    );
+    )
   }
 
-  return null;
+  return null
 }
 
-export default App;
+export default App

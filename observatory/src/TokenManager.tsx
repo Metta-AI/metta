@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { Repo, TokenInfo, TokenCreate } from "./repo";
+import { useEffect, useState } from 'react'
+import { Repo, TokenInfo, TokenCreate } from './repo'
 
 // CSS for token manager
 const TOKEN_MANAGER_CSS = `
@@ -177,92 +177,95 @@ const TOKEN_MANAGER_CSS = `
   margin-bottom: 10px;
   color: #333;
 }
-`;
+`
 
 interface TokenManagerProps {
-  repo: Repo;
+  repo: Repo
 }
 
 export function TokenManager({ repo }: TokenManagerProps) {
-  const [tokens, setTokens] = useState<TokenInfo[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const [newTokenName, setNewTokenName] = useState("");
-  const [creatingToken, setCreatingToken] = useState(false);
-  const [newlyCreatedToken, setNewlyCreatedToken] = useState<string | null>(null);
+  const [tokens, setTokens] = useState<TokenInfo[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const [newTokenName, setNewTokenName] = useState('')
+  const [creatingToken, setCreatingToken] = useState(false)
+  const [newlyCreatedToken, setNewlyCreatedToken] = useState<string | null>(null)
 
   useEffect(() => {
-    loadTokens();
-  }, []);
+    loadTokens()
+  }, [])
 
   const loadTokens = async () => {
     try {
-      setLoading(true);
-      setError(null);
-      const response = await repo.listTokens();
-      setTokens(response.tokens);
+      setLoading(true)
+      setError(null)
+      const response = await repo.listTokens()
+      setTokens(response.tokens)
     } catch (err: any) {
-      setError(`Failed to load tokens: ${err.message}`);
+      setError(`Failed to load tokens: ${err.message}`)
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
   const createToken = async () => {
     if (!newTokenName.trim()) {
-      setError("Token name is required");
-      return;
+      setError('Token name is required')
+      return
     }
 
     try {
-      setCreatingToken(true);
-      setError(null);
-      setSuccessMessage(null);
+      setCreatingToken(true)
+      setError(null)
+      setSuccessMessage(null)
 
-      const tokenData: TokenCreate = { name: newTokenName.trim() };
-      const response = await repo.createToken(tokenData);
+      const tokenData: TokenCreate = { name: newTokenName.trim() }
+      const response = await repo.createToken(tokenData)
 
-      setNewlyCreatedToken(response.token);
-      setSuccessMessage("Token created successfully! Copy the token below before closing this page.");
-      setNewTokenName("");
+      setNewlyCreatedToken(response.token)
+      setSuccessMessage('Token created successfully! Copy the token below before closing this page.')
+      setNewTokenName('')
 
       // Reload the tokens list
-      await loadTokens();
+      await loadTokens()
     } catch (err: any) {
-      setError(`Failed to create token: ${err.message}`);
+      setError(`Failed to create token: ${err.message}`)
     } finally {
-      setCreatingToken(false);
+      setCreatingToken(false)
     }
-  };
+  }
 
   const deleteToken = async (tokenId: string) => {
-    if (!confirm("Are you sure you want to delete this token? This action cannot be undone.")) {
-      return;
+    if (!confirm('Are you sure you want to delete this token? This action cannot be undone.')) {
+      return
     }
 
     try {
-      setError(null);
-      await repo.deleteToken(tokenId);
-      setSuccessMessage("Token deleted successfully");
-      await loadTokens();
+      setError(null)
+      await repo.deleteToken(tokenId)
+      setSuccessMessage('Token deleted successfully')
+      await loadTokens()
     } catch (err: any) {
-      setError(`Failed to delete token: ${err.message}`);
+      setError(`Failed to delete token: ${err.message}`)
     }
-  };
+  }
 
   const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text).then(() => {
-      setSuccessMessage("Token copied to clipboard!");
-      setTimeout(() => setSuccessMessage(null), 2000);
-    }).catch(() => {
-      setError("Failed to copy token to clipboard");
-    });
-  };
+    navigator.clipboard
+      .writeText(text)
+      .then(() => {
+        setSuccessMessage('Token copied to clipboard!')
+        setTimeout(() => setSuccessMessage(null), 2000)
+      })
+      .catch(() => {
+        setError('Failed to copy token to clipboard')
+      })
+  }
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleString();
-  };
+    return new Date(dateString).toLocaleString()
+  }
 
   if (loading) {
     return (
@@ -270,7 +273,7 @@ export function TokenManager({ repo }: TokenManagerProps) {
         <style>{TOKEN_MANAGER_CSS}</style>
         <div className="loading">Loading tokens...</div>
       </div>
-    );
+    )
   }
 
   return (
@@ -295,36 +298,34 @@ export function TokenManager({ repo }: TokenManagerProps) {
               disabled={creatingToken}
             />
           </div>
-          <button
-            className="btn btn-primary"
-            onClick={createToken}
-            disabled={creatingToken || !newTokenName.trim()}
-          >
-            {creatingToken ? "Creating..." : "Create Token"}
+          <button className="btn btn-primary" onClick={createToken} disabled={creatingToken || !newTokenName.trim()}>
+            {creatingToken ? 'Creating...' : 'Create Token'}
           </button>
         </div>
 
         {newlyCreatedToken && (
           <div className="create-token-section">
             <h3>New Token Created</h3>
-            <p style={{ marginBottom: "10px", color: "#666" }}>
+            <p style={{ marginBottom: '10px', color: '#666' }}>
               Copy this token and store it securely. You won't be able to see it again.
             </p>
-            <div style={{
-              background: "#f8f9fa",
-              padding: "10px",
-              border: "1px solid #ddd",
-              borderRadius: "4px",
-              fontFamily: "monospace",
-              fontSize: "12px",
-              wordBreak: "break-all"
-            }}>
+            <div
+              style={{
+                background: '#f8f9fa',
+                padding: '10px',
+                border: '1px solid #ddd',
+                borderRadius: '4px',
+                fontFamily: 'monospace',
+                fontSize: '12px',
+                wordBreak: 'break-all',
+              }}
+            >
               {newlyCreatedToken}
             </div>
             <button
               className="btn btn-primary"
               onClick={() => copyToClipboard(newlyCreatedToken)}
-              style={{ marginTop: "10px" }}
+              style={{ marginTop: '10px' }}
             >
               Copy Token
             </button>
@@ -347,10 +348,7 @@ export function TokenManager({ repo }: TokenManagerProps) {
                     <div className="token-name">{token.name}</div>
                     <div className="token-id">ID: {token.id}</div>
                   </div>
-                  <button
-                    className="btn btn-danger"
-                    onClick={() => deleteToken(token.id)}
-                  >
+                  <button className="btn btn-danger" onClick={() => deleteToken(token.id)}>
                     Delete
                   </button>
                 </div>
@@ -366,7 +364,7 @@ export function TokenManager({ repo }: TokenManagerProps) {
                   <div className="token-detail">
                     <span className="token-detail-label">Last Used</span>
                     <span className="token-detail-value">
-                      {token.last_used_at ? formatDate(token.last_used_at) : "Never"}
+                      {token.last_used_at ? formatDate(token.last_used_at) : 'Never'}
                     </span>
                   </div>
                 </div>
@@ -376,5 +374,5 @@ export function TokenManager({ repo }: TokenManagerProps) {
         </div>
       </div>
     </div>
-  );
+  )
 }

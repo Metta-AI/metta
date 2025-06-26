@@ -1,10 +1,10 @@
-import { useEffect, useState } from "react";
-import { useLocation } from "react-router-dom";
-import { GroupHeatmapMetric, HeatmapData, PolicySelector, Repo, SavedDashboard, SavedDashboardCreate } from "./repo";
-import { MapViewer } from "./MapViewer";
-import { Heatmap } from "./Heatmap";
-import { SaveDashboardModal } from "./SaveDashboardModal";
-import { MultiSelectDropdown } from "./MultiSelectDropdown";
+import { useEffect, useState } from 'react'
+import { useLocation } from 'react-router-dom'
+import { GroupHeatmapMetric, HeatmapData, PolicySelector, Repo, SavedDashboard, SavedDashboardCreate } from './repo'
+import { MapViewer } from './MapViewer'
+import { Heatmap } from './Heatmap'
+import { SaveDashboardModal } from './SaveDashboardModal'
+import { MultiSelectDropdown } from './MultiSelectDropdown'
 
 // CSS for dashboard
 const DASHBOARD_CSS = `
@@ -125,130 +125,128 @@ const DASHBOARD_CSS = `
   color: #fff;
   border-color: #007bff;
 }
-`;
+`
 
 interface DashboardProps {
-  repo: Repo;
+  repo: Repo
 }
 
 export function Dashboard({ repo }: DashboardProps) {
   // Data state
-  const [heatmapData, setHeatmapData] = useState<HeatmapData | null>(null);
-  const [metrics, setMetrics] = useState<string[]>([]);
-  const [suites, setSuites] = useState<string[]>([]);
+  const [heatmapData, setHeatmapData] = useState<HeatmapData | null>(null)
+  const [metrics, setMetrics] = useState<string[]>([])
+  const [suites, setSuites] = useState<string[]>([])
 
   // UI state
-  const [selectedMetric, setSelectedMetric] = useState<string>("reward");
-  const [selectedSuite, setSelectedSuite] = useState<string>("navigation");
-  const [isViewLocked, setIsViewLocked] = useState(false);
+  const [selectedMetric, setSelectedMetric] = useState<string>('reward')
+  const [selectedSuite, setSelectedSuite] = useState<string>('navigation')
+  const [isViewLocked, setIsViewLocked] = useState(false)
   const [selectedCell, setSelectedCell] = useState<{
-    policyUri: string;
-    evalName: string;
-  } | null>(null);
-  const [availableGroupMetrics, setAvailableGroupMetrics] = useState<string[]>(
-    []
-  );
-  const [selectedGroupMetric, setSelectedGroupMetric] = useState<string>("");
-  const [numPoliciesToShow, setNumPoliciesToShow] = useState(20);
-  const [selectedPolicies, setSelectedPolicies] = useState<Set<string>>(new Set());
-  const [policySelector, setPolicySelector] = useState<PolicySelector>("latest");
+    policyUri: string
+    evalName: string
+  } | null>(null)
+  const [availableGroupMetrics, setAvailableGroupMetrics] = useState<string[]>([])
+  const [selectedGroupMetric, setSelectedGroupMetric] = useState<string>('')
+  const [numPoliciesToShow, setNumPoliciesToShow] = useState(20)
+  const [selectedPolicies, setSelectedPolicies] = useState<Set<string>>(new Set())
+  const [policySelector, setPolicySelector] = useState<PolicySelector>('latest')
 
   // Save dashboard state
-  const [showSaveModal, setShowSaveModal] = useState(false);
-  const [savedId, setSavedId] = useState<string | null>(null);
-  const [savedDashboard, setSavedDashboard] = useState<SavedDashboard | null>(null);
+  const [showSaveModal, setShowSaveModal] = useState(false)
+  const [savedId, setSavedId] = useState<string | null>(null)
+  const [savedDashboard, setSavedDashboard] = useState<SavedDashboard | null>(null)
 
-  const location = useLocation();
+  const location = useLocation()
 
   const parseGroupMetric = (label: string): GroupHeatmapMetric => {
-    if (label.includes(" - ")) {
-      const [group1, group2] = label.split(" - ");
-      return { group_1: group1, group_2: group2 };
+    if (label.includes(' - ')) {
+      const [group1, group2] = label.split(' - ')
+      return { group_1: group1, group_2: group2 }
     } else {
-      return label;
+      return label
     }
-  };
+  }
 
   // Initialize data and load saved dashboard if provided
   useEffect(() => {
     const initializeData = async () => {
-      const urlParams = new URLSearchParams(location.search);
-      const savedIdParam = urlParams.get('saved_id');
+      const urlParams = new URLSearchParams(location.search)
+      const savedIdParam = urlParams.get('saved_id')
 
       // Load suites first
-      const suitesData = await repo.getSuites();
-      setSuites(suitesData);
+      const suitesData = await repo.getSuites()
+      setSuites(suitesData)
 
       if (savedIdParam) {
         // Load saved dashboard
         try {
-          const dashboard = await repo.getSavedDashboard(savedIdParam);
-          const state = dashboard.dashboard_state;
-          setSelectedSuite(state.suite || suitesData[0]);
-          setSelectedMetric(state.metric || "reward");
-          setSelectedGroupMetric(state.group_metric || "");
-          setNumPoliciesToShow(state.num_policies_to_show || 20);
-          setSelectedPolicies(new Set(state.selected_policies || []));
-          setPolicySelector(state.policy_selector || "latest");
-          setSavedId(savedIdParam);
-          setSavedDashboard(dashboard);
+          const dashboard = await repo.getSavedDashboard(savedIdParam)
+          const state = dashboard.dashboard_state
+          setSelectedSuite(state.suite || suitesData[0])
+          setSelectedMetric(state.metric || 'reward')
+          setSelectedGroupMetric(state.group_metric || '')
+          setNumPoliciesToShow(state.num_policies_to_show || 20)
+          setSelectedPolicies(new Set(state.selected_policies || []))
+          setPolicySelector(state.policy_selector || 'latest')
+          setSavedId(savedIdParam)
+          setSavedDashboard(dashboard)
         } catch (err) {
-          console.error("Failed to load shared dashboard:", err);
+          console.error('Failed to load shared dashboard:', err)
           // Fallback to first suite if saved dashboard fails
-          setSelectedSuite(suitesData[0]);
+          setSelectedSuite(suitesData[0])
         }
       } else {
         // No saved dashboard, use first suite
-        setSelectedSuite(suitesData[0]);
+        setSelectedSuite(suitesData[0])
       }
-    };
+    }
 
-    initializeData();
-  }, [location.search, repo]);
+    initializeData()
+  }, [location.search, repo])
 
   // Load metrics and group metrics when suite changes
   useEffect(() => {
     const loadSuiteData = async () => {
-      if (!selectedSuite) return;
+      if (!selectedSuite) return
 
       const [metricsData, groupIdsData] = await Promise.all([
         repo.getMetrics(selectedSuite),
         repo.getGroupIds(selectedSuite),
-      ]);
-      setMetrics(metricsData);
+      ])
+      setMetrics(metricsData)
 
-      const groupDiffs: string[] = [];
+      const groupDiffs: string[] = []
       for (const groupId1 of groupIdsData) {
         for (const groupId2 of groupIdsData) {
           if (groupId1 !== groupId2) {
-            groupDiffs.push(`${groupId1} - ${groupId2}`);
+            groupDiffs.push(`${groupId1} - ${groupId2}`)
           }
         }
       }
 
-      const groupMetrics: string[] = ["", ...groupIdsData, ...groupDiffs];
-      setAvailableGroupMetrics(groupMetrics);
-    };
+      const groupMetrics: string[] = ['', ...groupIdsData, ...groupDiffs]
+      setAvailableGroupMetrics(groupMetrics)
+    }
 
-    loadSuiteData();
-  }, [selectedSuite, repo]);
+    loadSuiteData()
+  }, [selectedSuite, repo])
 
   // Load heatmap data when suite, metric, group metric, or policy selector changes
   useEffect(() => {
     const loadHeatmapData = async () => {
-      if (!selectedSuite || !selectedMetric) return;
+      if (!selectedSuite || !selectedMetric) return
 
       const heatmapData = await repo.getHeatmapData(
         selectedMetric,
         selectedSuite,
         parseGroupMetric(selectedGroupMetric),
         policySelector
-      );
-      setHeatmapData(heatmapData);
-    };
+      )
+      setHeatmapData(heatmapData)
+    }
 
-    loadHeatmapData();
-  }, [selectedSuite, selectedMetric, selectedGroupMetric, policySelector, repo]);
+    loadHeatmapData()
+  }, [selectedSuite, selectedMetric, selectedGroupMetric, policySelector, repo])
 
   const handleSaveDashboard = async (dashboardData: SavedDashboardCreate) => {
     try {
@@ -262,141 +260,144 @@ export function Dashboard({ repo }: DashboardProps) {
           selected_policies: Array.from(selectedPolicies),
           policy_selector: policySelector,
         },
-      };
+      }
 
       if (savedId) {
         // Update existing dashboard
-        const updatedDashboard = await repo.updateSavedDashboard(savedId, fullDashboardData);
-        setSavedDashboard(updatedDashboard);
+        const updatedDashboard = await repo.updateSavedDashboard(savedId, fullDashboardData)
+        setSavedDashboard(updatedDashboard)
       } else {
         // Create new dashboard
-        const newDashboard = await repo.createSavedDashboard(fullDashboardData);
-        setSavedId(newDashboard.id);
-        setSavedDashboard(newDashboard);
+        const newDashboard = await repo.createSavedDashboard(fullDashboardData)
+        setSavedId(newDashboard.id)
+        setSavedDashboard(newDashboard)
       }
     } catch (err: any) {
-      throw new Error(err.message || "Failed to save dashboard");
+      throw new Error(err.message || 'Failed to save dashboard')
     }
-  };
+  }
 
   if (!heatmapData) {
-    return <div>Loading...</div>;
+    return <div>Loading...</div>
   }
 
   // Component functions
 
   const setSelectedCellIfNotLocked = (cell: {
-    policyUri: string;
-    evalName: string;
+    policyUri: string
+    evalName: string
   }) => {
     if (!isViewLocked) {
-      setSelectedCell(cell);
+      setSelectedCell(cell)
     }
-  };
+  }
 
   const openReplayUrl = (policyUri: string, evalName: string) => {
-    const evalData = heatmapData?.cells[policyUri]?.[evalName];
-    if (!evalData?.replayUrl) return;
+    const evalData = heatmapData?.cells[policyUri]?.[evalName]
+    if (!evalData?.replayUrl) return
 
-    const replay_url_prefix = "https://metta-ai.github.io/metta/?replayUrl=";
-    window.open(replay_url_prefix + evalData.replayUrl, "_blank");
-  };
+    const replay_url_prefix = 'https://metta-ai.github.io/metta/?replayUrl='
+    window.open(replay_url_prefix + evalData.replayUrl, '_blank')
+  }
 
   const toggleLock = () => {
-    setIsViewLocked(!isViewLocked);
-  };
+    setIsViewLocked(!isViewLocked)
+  }
 
   const handleReplayClick = () => {
     if (selectedCell) {
-      openReplayUrl(selectedCell.policyUri, selectedCell.evalName);
+      openReplayUrl(selectedCell.policyUri, selectedCell.evalName)
     }
-  };
+  }
 
-  const selectedCellData = selectedCell
-    ? heatmapData?.cells[selectedCell.policyUri]?.[selectedCell.evalName]
-    : null;
-  const selectedEval = selectedCellData?.evalName ?? null;
-  const selectedReplayUrl = selectedCellData?.replayUrl ?? null;
+  const selectedCellData = selectedCell ? heatmapData?.cells[selectedCell.policyUri]?.[selectedCell.evalName] : null
+  const selectedEval = selectedCellData?.evalName ?? null
+  const selectedReplayUrl = selectedCellData?.replayUrl ?? null
 
   // Policy selection functions
   const selectAllPolicies = () => {
-    const allPolicies = Object.keys(heatmapData.cells);
-    setSelectedPolicies(new Set(allPolicies));
-  };
+    const allPolicies = Object.keys(heatmapData.cells)
+    setSelectedPolicies(new Set(allPolicies))
+  }
 
   const clearPolicySelection = () => {
-    setSelectedPolicies(new Set());
-  };
+    setSelectedPolicies(new Set())
+  }
 
   // Filter heatmap data based on selected policies
-  const filteredHeatmapData = selectedPolicies.size > 0 ? {
-    ...heatmapData,
-    cells: Object.fromEntries(
-      Object.entries(heatmapData.cells).filter(([policyUri]) =>
-        selectedPolicies.has(policyUri)
-      )
-    ),
-    policyAverageScores: Object.fromEntries(
-      Object.entries(heatmapData.policyAverageScores).filter(([policyUri]) =>
-        selectedPolicies.has(policyUri)
-      )
-    ),
-  } : heatmapData;
+  const filteredHeatmapData =
+    selectedPolicies.size > 0
+      ? {
+          ...heatmapData,
+          cells: Object.fromEntries(
+            Object.entries(heatmapData.cells).filter(([policyUri]) => selectedPolicies.has(policyUri))
+          ),
+          policyAverageScores: Object.fromEntries(
+            Object.entries(heatmapData.policyAverageScores).filter(([policyUri]) => selectedPolicies.has(policyUri))
+          ),
+        }
+      : heatmapData
 
   // Get sorted policies for display
   const sortedPolicies = Object.keys(heatmapData.cells).sort(
     (a, b) => heatmapData.policyAverageScores[b] - heatmapData.policyAverageScores[a]
-  );
+  )
 
   // Convert policies to options for MultiSelectDropdown
-  const policyOptions = sortedPolicies.map(policyUri => ({
+  const policyOptions = sortedPolicies.map((policyUri) => ({
     value: policyUri,
     label: policyUri,
     metadata: {
-      score: heatmapData.policyAverageScores[policyUri]
-    }
-  }));
+      score: heatmapData.policyAverageScores[policyUri],
+    },
+  }))
 
   return (
     <div
       style={{
-        padding: "20px",
-        background: "#f8f9fa",
-        minHeight: "calc(100vh - 60px)",
+        padding: '20px',
+        background: '#f8f9fa',
+        minHeight: 'calc(100vh - 60px)',
       }}
     >
       <style>{DASHBOARD_CSS}</style>
       <div
         style={{
-          maxWidth: "1200px",
-          margin: "0 auto",
-          background: "#fff",
-          padding: "20px",
-          borderRadius: "5px",
-          boxShadow: "0 2px 4px rgba(0,0,0,.1)",
+          maxWidth: '1200px',
+          margin: '0 auto',
+          background: '#fff',
+          padding: '20px',
+          borderRadius: '5px',
+          boxShadow: '0 2px 4px rgba(0,0,0,.1)',
         }}
       >
         {savedDashboard && (
-          <div style={{
-            textAlign: "center",
-            marginBottom: "20px",
-            paddingBottom: "20px",
-            borderBottom: "1px solid #eee"
-          }}>
-            <h1 style={{
-              margin: 0,
-              color: "#333",
-              fontSize: "24px",
-              fontWeight: "600"
-            }}>
+          <div
+            style={{
+              textAlign: 'center',
+              marginBottom: '20px',
+              paddingBottom: '20px',
+              borderBottom: '1px solid #eee',
+            }}
+          >
+            <h1
+              style={{
+                margin: 0,
+                color: '#333',
+                fontSize: '24px',
+                fontWeight: '600',
+              }}
+            >
               {savedDashboard.name}
             </h1>
             {savedDashboard.description && (
-              <p style={{
-                margin: "8px 0 0 0",
-                color: "#666",
-                fontSize: "16px"
-              }}>
+              <p
+                style={{
+                  margin: '8px 0 0 0',
+                  color: '#666',
+                  fontSize: '16px',
+                }}
+              >
                 {savedDashboard.description}
               </p>
             )}
@@ -404,26 +405,19 @@ export function Dashboard({ repo }: DashboardProps) {
         )}
 
         <div className="suite-tabs">
-          <div
-            style={{ fontSize: "18px", marginTop: "5px", marginRight: "10px" }}
-          >
-            Eval Suite:
-          </div>
+          <div style={{ fontSize: '18px', marginTop: '5px', marginRight: '10px' }}>Eval Suite:</div>
           {suites.map((suite) => (
             <button
               key={suite}
-              className={`suite-tab ${selectedSuite === suite ? "active" : ""}`}
+              className={`suite-tab ${selectedSuite === suite ? 'active' : ''}`}
               onClick={() => setSelectedSuite(suite)}
             >
               {suite}
             </button>
           ))}
-          <div style={{ marginLeft: "auto" }}>
-            <button
-              className="btn btn-secondary"
-              onClick={() => setShowSaveModal(true)}
-            >
-              {savedId ? "Update Dashboard" : "Save Dashboard"}
+          <div style={{ marginLeft: 'auto' }}>
+            <button className="btn btn-secondary" onClick={() => setShowSaveModal(true)}>
+              {savedId ? 'Update Dashboard' : 'Save Dashboard'}
             </button>
           </div>
         </div>
@@ -432,8 +426,8 @@ export function Dashboard({ repo }: DashboardProps) {
           isOpen={showSaveModal}
           onClose={() => setShowSaveModal(false)}
           onSave={handleSaveDashboard}
-          initialName={savedDashboard?.name || ""}
-          initialDescription={savedDashboard?.description || ""}
+          initialName={savedDashboard?.name || ''}
+          initialDescription={savedDashboard?.description || ''}
           isUpdate={!!savedId}
         />
 
@@ -448,51 +442,61 @@ export function Dashboard({ repo }: DashboardProps) {
         )}
 
         {/* Controls Section - Two Column Layout */}
-        <div style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr",
-          gap: "20px",
-          marginTop: "30px",
-          marginBottom: "30px"
-        }}>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr',
+            gap: '20px',
+            marginTop: '30px',
+            marginBottom: '30px',
+          }}
+        >
           {/* Left Column - Heatmap Controls */}
-          <div style={{
-            background: "#f8f9fa",
-            padding: "20px",
-            borderRadius: "8px",
-            border: "1px solid #e9ecef"
-          }}>
-            <h3 style={{
-              margin: "0 0 15px 0",
-              fontSize: "16px",
-              fontWeight: "600",
-              color: "#333"
-            }}>
+          <div
+            style={{
+              background: '#f8f9fa',
+              padding: '20px',
+              borderRadius: '8px',
+              border: '1px solid #e9ecef',
+            }}
+          >
+            <h3
+              style={{
+                margin: '0 0 15px 0',
+                fontSize: '16px',
+                fontWeight: '600',
+                color: '#333',
+              }}
+            >
               Heatmap Controls
             </h3>
 
-            <div style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: "15px"
-            }}>
-              <div style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "12px"
-              }}>
-                <div style={{ color: "#666", fontSize: "14px", minWidth: "120px" }}>Heatmap Metric</div>
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '15px',
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                }}
+              >
+                <div style={{ color: '#666', fontSize: '14px', minWidth: '120px' }}>Heatmap Metric</div>
                 <select
                   value={selectedMetric}
                   onChange={(e) => setSelectedMetric(e.target.value)}
                   style={{
-                    padding: "8px 12px",
-                    borderRadius: "4px",
-                    border: "1px solid #ddd",
-                    fontSize: "14px",
-                    flex: "1",
-                    backgroundColor: "#fff",
-                    cursor: "pointer",
+                    padding: '8px 12px',
+                    borderRadius: '4px',
+                    border: '1px solid #ddd',
+                    fontSize: '14px',
+                    flex: '1',
+                    backgroundColor: '#fff',
+                    cursor: 'pointer',
                   }}
                 >
                   {metrics.map((metric) => (
@@ -503,51 +507,53 @@ export function Dashboard({ repo }: DashboardProps) {
                 </select>
               </div>
 
-              <div style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "12px"
-              }}>
-                <div style={{ color: "#666", fontSize: "14px", minWidth: "120px" }}>Group Metric</div>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                }}
+              >
+                <div style={{ color: '#666', fontSize: '14px', minWidth: '120px' }}>Group Metric</div>
                 <select
                   value={selectedGroupMetric}
                   onChange={(e) => setSelectedGroupMetric(e.target.value)}
                   style={{
-                    padding: "8px 12px",
-                    borderRadius: "4px",
-                    border: "1px solid #ddd",
-                    fontSize: "14px",
-                    flex: "1",
-                    backgroundColor: "#fff",
-                    cursor: "pointer",
+                    padding: '8px 12px',
+                    borderRadius: '4px',
+                    border: '1px solid #ddd',
+                    fontSize: '14px',
+                    flex: '1',
+                    backgroundColor: '#fff',
+                    cursor: 'pointer',
                   }}
                 >
                   {availableGroupMetrics.map((groupMetric) => (
                     <option key={groupMetric} value={groupMetric}>
-                      {groupMetric === "" ? "Total" : groupMetric}
+                      {groupMetric === '' ? 'Total' : groupMetric}
                     </option>
                   ))}
                 </select>
               </div>
 
-              <div style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "12px"
-              }}>
-                <div style={{ color: "#666", fontSize: "14px", minWidth: "120px" }}>
-                  Number of policies:
-                </div>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                }}
+              >
+                <div style={{ color: '#666', fontSize: '14px', minWidth: '120px' }}>Number of policies:</div>
                 <input
                   type="number"
                   value={numPoliciesToShow}
                   onChange={(e) => setNumPoliciesToShow(parseInt(e.target.value))}
                   style={{
-                    padding: "8px 12px",
-                    borderRadius: "4px",
-                    border: "1px solid #ddd",
-                    fontSize: "14px",
-                    flex: "1"
+                    padding: '8px 12px',
+                    borderRadius: '4px',
+                    border: '1px solid #ddd',
+                    fontSize: '14px',
+                    flex: '1',
                   }}
                 />
               </div>
@@ -555,40 +561,42 @@ export function Dashboard({ repo }: DashboardProps) {
           </div>
 
           {/* Right Column - Policy Selection */}
-          <div style={{
-            background: "#f8f9fa",
-            padding: "20px",
-            borderRadius: "8px",
-            border: "1px solid #e9ecef"
-          }}>
-            <div style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              marginBottom: "15px"
-            }}>
-              <h3 style={{
-                margin: 0,
-                fontSize: "16px",
-                fontWeight: "600",
-                color: "#333"
-              }}>
+          <div
+            style={{
+              background: '#f8f9fa',
+              padding: '20px',
+              borderRadius: '8px',
+              border: '1px solid #e9ecef',
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '15px',
+              }}
+            >
+              <h3
+                style={{
+                  margin: 0,
+                  fontSize: '16px',
+                  fontWeight: '600',
+                  color: '#333',
+                }}
+              >
                 Policy Selection ({selectedPolicies.size} selected)
               </h3>
-              <div style={{
-                display: "flex",
-                gap: "8px"
-              }}>
-                <button
-                  className="policy-selector-btn"
-                  onClick={selectAllPolicies}
-                >
+              <div
+                style={{
+                  display: 'flex',
+                  gap: '8px',
+                }}
+              >
+                <button className="policy-selector-btn" onClick={selectAllPolicies}>
                   Select All
                 </button>
-                <button
-                  className="policy-selector-btn"
-                  onClick={clearPolicySelection}
-                >
+                <button className="policy-selector-btn" onClick={clearPolicySelection}>
                   Clear All
                 </button>
               </div>
@@ -602,29 +610,33 @@ export function Dashboard({ repo }: DashboardProps) {
               width="100%"
             />
 
-            <div style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: "15px",
-              marginTop: "15px"
-            }}>
-              <div style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "12px"
-              }}>
-                <div style={{ color: "#666", fontSize: "14px", minWidth: "120px" }}>Training Run Policy Selection</div>
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '15px',
+                marginTop: '15px',
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                }}
+              >
+                <div style={{ color: '#666', fontSize: '14px', minWidth: '120px' }}>Training Run Policy Selection</div>
                 <select
                   value={policySelector}
                   onChange={(e) => setPolicySelector(e.target.value as PolicySelector)}
                   style={{
-                    padding: "8px 12px",
-                    borderRadius: "4px",
-                    border: "1px solid #ddd",
-                    fontSize: "14px",
-                    flex: "1",
-                    backgroundColor: "#fff",
-                    cursor: "pointer",
+                    padding: '8px 12px',
+                    borderRadius: '4px',
+                    border: '1px solid #ddd',
+                    fontSize: '14px',
+                    flex: '1',
+                    backgroundColor: '#fff',
+                    cursor: 'pointer',
                   }}
                 >
                   <option value="latest">Latest</option>
@@ -632,7 +644,6 @@ export function Dashboard({ repo }: DashboardProps) {
                 </select>
               </div>
             </div>
-
           </div>
         </div>
 
@@ -645,5 +656,5 @@ export function Dashboard({ repo }: DashboardProps) {
         />
       </div>
     </div>
-  );
+  )
 }
