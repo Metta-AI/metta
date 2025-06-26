@@ -72,9 +72,7 @@ class ProgressiveMultiTaskCurriculum(RandomCurriculum):
         if self._last_score is None:
             self._smoothed_performance = score
         else:
-            self._smoothed_performance = (
-                self._smoothing * score + (1 - self._smoothing) * self._smoothed_performance
-            )
+            self._smoothed_performance = self._smoothing * score + (1 - self._smoothing) * self._smoothed_performance
         self._last_score = score
 
     def _advance_progression(self):
@@ -88,7 +86,7 @@ class ProgressiveMultiTaskCurriculum(RandomCurriculum):
     def _blending_function(self, x, xo, growing=True):
         """Blending function that supports both logistic and linear modes."""
         if self._blending_mode == "logistic":
-            return 1 / (1 + np.exp(-(-1) ** growing * (x - xo) / self._blending_smoothness))
+            return 1 / (1 + np.exp(-((-1) ** growing) * (x - xo) / self._blending_smoothness))
         elif self._blending_mode == "linear":
             # Linear blending with smoothness control
             if growing:
@@ -127,7 +125,8 @@ class ProgressiveMultiTaskCurriculum(RandomCurriculum):
         self._task_weights = {task_id: float(probs[i]) for i, task_id in enumerate(self._task_order)}
 
         logger.debug(
-            f"Progress: {self._progress:.3f}, smoothed_perf: {self._smoothed_performance:.3f}, weights: {[(k, f'{v:.3f}') for k, v in self._task_weights.items()]}")
+            f"Progress: {self._progress:.3f}, smoothed_perf: {self._smoothed_performance:.3f}, weights: {[(k, f'{v:.3f}') for k, v in self._task_weights.items()]}"
+        )
 
     def complete_task(self, id: str, score: float):
         # Assume score is between 0 and 1
