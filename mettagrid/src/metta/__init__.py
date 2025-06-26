@@ -9,6 +9,7 @@ __path__ = __import__("pkgutil").extend_path(__path__, __name__)
 
 from typing import Any, Dict, Optional
 
+import torch
 from omegaconf import DictConfig
 
 from metta.rl.trainer_config import (
@@ -20,6 +21,211 @@ from metta.rl.trainer_config import (
     TrainerConfig,
     VTraceConfig,
 )
+
+# Direct instantiation functions (no Hydra required)
+
+
+def make_agent(
+    obs_space,
+    action_space,
+    obs_width: int,
+    obs_height: int,
+    feature_normalizations: Dict[int, float],
+    global_features: list,
+    device: torch.device,
+    obs_key: str = "grid_obs",
+    clip_range: float = 0,
+    analyze_weights_interval: int = 300,
+    l2_init_weight_update_interval: int = 0,
+):
+    """Create a Metta agent instance directly.
+
+    Args:
+        obs_space: Observation space
+        action_space: Action space
+        obs_width: Width of observation
+        obs_height: Height of observation
+        feature_normalizations: Feature normalization values
+        global_features: List of global features
+        device: Torch device
+        obs_key: Key for observations
+        clip_range: Clipping range
+        analyze_weights_interval: Interval for weight analysis
+        l2_init_weight_update_interval: Interval for L2 init weight updates
+
+    Returns:
+        MettaAgent instance
+    """
+    from metta.agent.metta_agent import MettaAgent
+
+    config = create_agent(obs_key, clip_range, analyze_weights_interval, l2_init_weight_update_interval)
+
+    return MettaAgent(
+        obs_space=obs_space,
+        obs_width=obs_width,
+        obs_height=obs_height,
+        action_space=action_space,
+        feature_normalizations=feature_normalizations,
+        global_features=global_features,
+        device=device,
+        **config,  # Unpack the config dict as keyword arguments
+    )
+
+
+def make_optimizer(
+    parameters,
+    learning_rate: float = 0.0004573146765703167,
+    beta1: float = 0.9,
+    beta2: float = 0.999,
+    eps: float = 1e-12,
+    weight_decay: float = 0,
+    type: str = "adam",
+) -> torch.optim.Optimizer:
+    """Create an optimizer directly.
+
+    Args:
+        parameters: Model parameters to optimize
+        learning_rate: Learning rate
+        beta1: Beta1 for Adam
+        beta2: Beta2 for Adam
+        eps: Epsilon for Adam
+        weight_decay: Weight decay
+        type: Optimizer type (currently only "adam" supported)
+
+    Returns:
+        Torch optimizer instance
+    """
+    if type == "adam":
+        return torch.optim.Adam(
+            parameters,
+            lr=learning_rate,
+            betas=(beta1, beta2),
+            eps=eps,
+            weight_decay=weight_decay,
+        )
+    else:
+        raise ValueError(f"Unsupported optimizer type: {type}")
+
+
+def make_experience_buffer(
+    total_agents: int,
+    batch_size: int,
+    bptt_horizon: int,
+    minibatch_size: int,
+    max_minibatch_size: int,
+    obs_space,
+    atn_space,
+    device: torch.device,
+    hidden_size: int,
+    cpu_offload: bool = False,
+    num_lstm_layers: int = 2,
+    agents_per_batch: Optional[int] = None,
+):
+    """Create an experience buffer directly.
+
+    Returns:
+        Experience instance
+    """
+    from metta.rl.experience import Experience
+
+    return Experience(
+        total_agents=total_agents,
+        batch_size=batch_size,
+        bptt_horizon=bptt_horizon,
+        minibatch_size=minibatch_size,
+        max_minibatch_size=max_minibatch_size,
+        obs_space=obs_space,
+        atn_space=atn_space,
+        device=device,
+        hidden_size=hidden_size,
+        cpu_offload=cpu_offload,
+        num_lstm_layers=num_lstm_layers,
+        agents_per_batch=agents_per_batch,
+    )
+
+
+def make_loss_module(
+    policy: torch.nn.Module,
+    vf_coef: float = 0.44,
+    ent_coef: float = 0.0021,
+    clip_coef: float = 0.1,
+    vf_clip_coef: float = 0.1,
+    norm_adv: bool = True,
+    clip_vloss: bool = True,
+    gamma: float = 0.977,
+    gae_lambda: float = 0.916,
+    vtrace_rho_clip: float = 1.0,
+    vtrace_c_clip: float = 1.0,
+    l2_reg_loss_coef: float = 0.0,
+    l2_init_loss_coef: float = 0.0,
+    kickstarter: Optional[Any] = None,
+):
+    """Create a PPO loss module directly.
+
+    Returns:
+        ClipPPOLoss instance
+    """
+    from metta.rl.objectives import ClipPPOLoss
+
+    return ClipPPOLoss(
+        policy=policy,
+        vf_coef=vf_coef,
+        ent_coef=ent_coef,
+        clip_coef=clip_coef,
+        vf_clip_coef=vf_clip_coef,
+        norm_adv=norm_adv,
+        clip_vloss=clip_vloss,
+        gamma=gamma,
+        gae_lambda=gae_lambda,
+        vtrace_rho_clip=vtrace_rho_clip,
+        vtrace_c_clip=vtrace_c_clip,
+        l2_reg_loss_coef=l2_reg_loss_coef,
+        l2_init_loss_coef=l2_init_loss_coef,
+        kickstarter=kickstarter,
+    )
+
+
+def make_vecenv(
+    env_config: Dict[str, Any],
+    num_envs: int = 16,
+    num_workers: int = 1,
+    batch_size: Optional[int] = None,
+    device: str = "cpu",
+    zero_copy: bool = True,
+    vectorization: str = "serial",
+):
+    """Create a vectorized environment directly.
+
+    Args:
+        env_config: Environment configuration dictionary
+        num_envs: Number of environments
+        num_workers: Number of workers
+        batch_size: Batch size for vectorization
+        device: Device to use
+        zero_copy: Whether to use zero-copy optimization
+        vectorization: Vectorization backend (serial/multiprocessing/ray)
+
+    Returns:
+        Vectorized environment
+    """
+    from metta.mettagrid.curriculum.core import SingleTaskCurriculum
+    from metta.rl.vecenv import make_vecenv
+
+    # Create a simple curriculum with the env config
+    curriculum = SingleTaskCurriculum("task", DictConfig(env_config))
+
+    return make_vecenv(
+        curriculum=curriculum,
+        vectorization=vectorization,
+        num_envs=num_envs,
+        batch_size=batch_size,
+        num_workers=num_workers,
+        zero_copy=zero_copy,
+        is_training=True,
+    )
+
+
+# Configuration creation functions (for backward compatibility and Hydra usage)
 
 
 def create_agent(
