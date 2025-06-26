@@ -8,3 +8,7 @@ game:
   objects:
     altar:
       input_battery.red: 1
+
+  map_builder:
+    room:
+      altar: 5
