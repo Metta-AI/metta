@@ -32,7 +32,7 @@ unalias lt 2>/dev/null
 lt() {
     local original_dir="$(pwd)"
     if cd_repo_root; then
-        ./devops/skypilot/launch.py "$@"
+        ./devops/skypilot/launch.py "train $@"
         local exit_code=$?
         cd "$original_dir"
         return $exit_code
