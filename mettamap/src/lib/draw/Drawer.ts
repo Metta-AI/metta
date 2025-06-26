@@ -83,7 +83,6 @@ export class Drawer {
       throw new Error(`No drawer for object ${name}`);
     }
     for (const layer of layers) {
-      console.log(name, layer.tile, layer.modulate);
       const bitmap = this.tileSets.bitmap(layer.tile, layer.modulate);
       ctx.drawImage(bitmap, x, y, size, size);
     }

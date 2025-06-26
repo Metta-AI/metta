@@ -119,11 +119,23 @@ const MapViewerBrowserOnly: FC<Props> = ({
 
     context.setTransform(transform);
 
-    drawGrid({
-      grid,
-      context,
-      drawer,
-    });
+    try {
+      drawGrid({
+        grid,
+        context,
+        drawer,
+      });
+    } catch (e) {
+      context.resetTransform();
+      context.fillStyle = "black";
+      context.globalAlpha = 1;
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      context.font = "60px Arial";
+      context.fillStyle = "red";
+      context.fillText("Error drawing grid. Check console.", 80, 80);
+      console.error(e);
+      return;
+    }
 
     context.lineWidth = 0.03;
 

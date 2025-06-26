@@ -4,7 +4,7 @@ import { Drawer } from "../../lib/draw/Drawer";
 
 const BACKGROUND_COLOR = "#cfa970";
 
-export async function drawGrid({
+export function drawGrid({
   grid,
   context: ctx,
   drawer,
