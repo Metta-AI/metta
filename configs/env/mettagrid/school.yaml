@@ -25,7 +25,7 @@ game:
         agents: 1
         objects:
           altar: 1
-          generator: 3
+          generator_red: 3
           wall: ${..width}
 
       # multi agent small room
@@ -36,7 +36,7 @@ game:
         agents: 3
         objects:
           altar: 1
-          generator: 3
+          generator_red: 3
           wall: ${..width}
 
       # 2 agent scarce room
@@ -47,7 +47,7 @@ game:
         agents: 2
         objects:
           altar: 1
-          generator: 1
+          generator_red: 1
           wall: ${..width}
 
       # predator and prey room
@@ -60,7 +60,7 @@ game:
           prey: 3
         objects:
           altar: 1
-          generator: 1
+          generator_red: 1
           wall: ${..width}
 
       # maze
