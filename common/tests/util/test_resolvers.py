@@ -11,7 +11,7 @@ import numpy as np
 import pytest
 from omegaconf import OmegaConf
 
-from metta.util.resolvers import (
+from metta.common.util.resolvers import (
     oc_add,
     oc_choose,
     oc_clamp,
@@ -496,7 +496,7 @@ def test_date_format_resolver():
     """Test the date_format resolver with various formats"""
     import datetime
 
-    from metta.util.resolvers import oc_date_format
+    from metta.common.util.resolvers import oc_date_format
 
     # Get the current date for verification
     now = datetime.datetime.now()

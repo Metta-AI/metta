@@ -1,7 +1,7 @@
 from pydantic import ConfigDict, Field
 
 from metta.agent.policy_store import PolicySelectorConfig
-from metta.util.config import Config
+from metta.common.util.config import Config
 
 
 class AnalysisConfig(Config):
