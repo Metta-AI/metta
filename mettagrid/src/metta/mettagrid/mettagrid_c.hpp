@@ -41,6 +41,8 @@ public:
   unsigned int current_step;
   unsigned int max_steps;
 
+  std::vector<std::string> inventory_item_names;
+
   // Python API methods
   py::tuple reset();
   // In general, these types need to match what puffer wants to use.
@@ -64,15 +66,14 @@ public:
   py::list action_success();
   py::list max_action_args();
   py::list object_type_names();
-  py::list inventory_item_names();
+  py::list inventory_item_names_py();
   py::array_t<unsigned int> get_agent_groups() const;
-  static Agent* create_agent(int r, int c, const py::dict& agent_group_cfg_py);
+  Agent* create_agent(int r, int c, const py::dict& agent_group_cfg_py);
 
   uint64_t initial_grid_hash;
 
 private:
   // Member variables
-  std::vector<std::string> _inventory_item_names;
   std::map<unsigned int, float> _group_reward_pct;
   std::map<unsigned int, unsigned int> _group_sizes;
   std::unique_ptr<Grid> _grid;

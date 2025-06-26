@@ -104,9 +104,10 @@ protected:
 
             agent_target->update_inventory(item, -stolen);
             if (stolen > 0) {
-              actor->stats.add(InventoryItemNames[item] + ".stolen." + actor->group_name, stolen);
+              actor->stats.add(actor->stats.inventory_item_name(item) + ".stolen." + actor->group_name, stolen);
               // Also track what was stolen from the victim's perspective
-              agent_target->stats.add(InventoryItemNames[item] + ".stolen_from." + agent_target->group_name, stolen);
+              agent_target->stats.add(
+                  agent_target->stats.inventory_item_name(item) + ".stolen_from." + agent_target->group_name, stolen);
             }
           }
         }
