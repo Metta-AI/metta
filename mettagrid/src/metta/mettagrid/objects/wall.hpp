@@ -8,13 +8,17 @@
 #include "constants.hpp"
 #include "metta_object.hpp"
 
+struct WallConfig {
+  bool swappable;
+};
+
 class Wall : public MettaObject {
 public:
   bool _swappable;
 
-  Wall(GridCoord r, GridCoord c, ObjectConfig cfg) {
+  Wall(GridCoord r, GridCoord c, WallConfig cfg) {
     GridObject::init(ObjectType::WallT, GridLocation(r, c, GridLayer::Object_Layer));
-    this->_swappable = cfg["swappable"];
+    this->_swappable = cfg.swappable;
   }
 
   virtual vector<PartialObservationToken> obs_features() const override {
