@@ -106,6 +106,7 @@ class MettaTrainer:
         self.torch_profiler = TorchProfiler(self._master, cfg.run_dir, trainer_cfg.profiler_interval_epochs, wandb_run)
         self.losses = Losses()
         self.stats = defaultdict(list)
+        self.grad_stats = {}
         self.wandb_run = wandb_run
         self.policy_store = policy_store
         self.evals: dict[str, float] = {}
@@ -336,7 +337,8 @@ class MettaTrainer:
             self._maybe_upload_policy_record_to_wandb()
             self._maybe_generate_replay()
             self._maybe_update_l2_weights()
-
+            self._maybe_compute_grad_stats()
+            
             self._on_train_step()
             # end loop over total_timesteps
 
@@ -966,10 +968,12 @@ class MettaTrainer:
                 **weight_stats,
                 **timing_stats,
                 **metric_stats,
+                **self.grad_stats,
             }
         )
 
         self.stats.clear()
+        self.grad_stats.clear()
 
     def _compute_advantage(
         self,
@@ -1201,6 +1205,41 @@ class MettaTrainer:
             time.sleep(5)
 
         raise RuntimeError(f"Timeout: Master failed to create policy at {policy_path}")
+
+    def _maybe_compute_grad_stats(self, force=False):
+        """Compute and store gradient statistics if on interval."""
+        interval = self.trainer_cfg.get("grad_mean_variance_interval", 0)
+        if not self._should_run(interval, force):
+            return
+
+        with self.timer("grad_stats"):
+            all_gradients = []
+            for param in self.policy.parameters():
+                if param.grad is not None:
+                    all_gradients.append(param.grad.view(-1))
+
+            if not all_gradients:
+                logger.warning("No gradients found to compute stats.")
+                self.grad_stats = {}
+                return
+
+            all_gradients_tensor = torch.cat(all_gradients).to(torch.float32)
+
+            grad_mean = all_gradients_tensor.mean()
+            grad_variance = all_gradients_tensor.var()
+            grad_norm = all_gradients_tensor.norm(2)
+
+            self.grad_stats = {
+                "grad/mean": grad_mean.item(),
+                "grad/variance": grad_variance.item(),
+                "grad/norm": grad_norm.item(),
+            }
+            logger.info(
+                f"Computed gradient stats at epoch {self.epoch}: "
+                f"mean={self.grad_stats['grad/mean']:.2e}, "
+                f"var={self.grad_stats['grad/variance']:.2e}, "
+                f"norm={self.grad_stats['grad/norm']:.2e}"
+            )
 
 
 class AbortingTrainer(MettaTrainer):
