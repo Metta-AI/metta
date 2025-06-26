@@ -1,6 +1,5 @@
 _target_: metta.rl.trainer.MettaTrainer
 
-# From trainer.yaml - base configuration
 num_workers: ???
 
 curriculum: /env/mettagrid/curriculum/simple
