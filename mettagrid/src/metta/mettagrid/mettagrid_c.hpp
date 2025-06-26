@@ -27,6 +27,7 @@ class Agent;
 class ObservationEncoder;
 class GridObject;
 class ConverterConfig;
+class WallConfig;
 
 namespace py = pybind11;
 
@@ -58,6 +59,7 @@ public:
   unsigned int map_width();
   unsigned int map_height();
   py::dict feature_normalizations();
+  py::dict feature_spec();
   unsigned int num_agents();
   py::array_t<float> get_episode_rewards();
   py::dict get_episode_stats();
@@ -120,6 +122,7 @@ private:
 
   void _handle_invalid_action(size_t agent_idx, const std::string& stat, ActionType type, ActionArg arg);
   ConverterConfig _create_converter_config(const py::dict& converter_cfg_py);
+  WallConfig _create_wall_config(const py::dict& wall_cfg_py);
 };
 
 #endif  // METTAGRID_C_HPP_
