@@ -12,6 +12,7 @@ labels:
   - memory
 game:
   num_agents: 4
+  max_steps: 2000
   agent:
     ore.red_max: ${sampling:5,20,15}
     battery.red_max: ${sampling:5,20,15}
