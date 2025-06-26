@@ -13,6 +13,17 @@
 #include "has_inventory.hpp"
 #include "metta_object.hpp"
 
+struct ConverterConfig {
+  std::map<InventoryItem, uint8_t> recipe_input;
+  std::map<InventoryItem, uint8_t> recipe_output;
+  short max_output;
+  unsigned short conversion_ticks;
+  unsigned short cooldown;
+  unsigned char initial_items;
+  ObsType color;
+  std::vector<std::string> inventory_item_names;
+};
+
 class Converter : public HasInventory {
 private:
   // This should be called any time the converter could start converting. E.g.,
@@ -29,28 +40,38 @@ private:
     }
     // Check if the converter is already at max output.
     unsigned short total_output = 0;
-    for (unsigned int i = 0; i < InventoryItem::InventoryItemCount; i++) {
-      if (this->recipe_output[i] > 0) {
-        total_output += this->inventory[i];
+    for (const auto& [item, amount] : this->inventory) {
+      if (this->recipe_output.count(item) > 0) {
+        total_output += amount;
       }
     }
-    if (total_output >= this->max_output) {
+    if (this->max_output >= 0 && total_output >= this->max_output) {
       stats.incr("blocked.output_full");
       return;
     }
     // Check if the converter has enough input.
-    for (unsigned int i = 0; i < InventoryItem::InventoryItemCount; i++) {
-      if (this->inventory[i] < this->recipe_input[i]) {
+    for (const auto& [item, input_amount] : this->recipe_input) {
+      if (this->inventory.count(item) == 0 || this->inventory.at(item) < input_amount) {
         stats.incr("blocked.insufficient_input");
         return;
       }
     }
     // produce.
-    for (unsigned int i = 0; i < InventoryItem::InventoryItemCount; i++) {
-      this->inventory[i] -= this->recipe_input[i];
-      if (this->recipe_input[i] > 0) {
-        stats.add(InventoryItemNames[i] + ".consumed", this->recipe_input[i]);
+    // Get the amounts to consume from input, so we don't update the inventory
+    // while iterating over it.
+    std::map<InventoryItem, uint8_t> amounts_to_consume;
+    for (const auto& [item, input_amount] : this->recipe_input) {
+      amounts_to_consume[item] = input_amount;
+    }
+
+    for (const auto& [item, amount] : amounts_to_consume) {
+      // Don't call update_inventory here, because it will call maybe_start_converting again,
+      // which will cause an infinite loop.
+      this->inventory[item] -= amount;
+      if (this->inventory[item] == 0) {
+        this->inventory.erase(item);
       }
+      stats.add(stats.inventory_item_name(item) + ".consumed", amount);
     }
     // All the previous returns were "we don't start converting".
     // This one is us starting to convert.
@@ -60,47 +81,38 @@ private:
   }
 
 public:
-  vector<unsigned char> recipe_input;
-  vector<unsigned char> recipe_output;
+  std::map<InventoryItem, uint8_t> recipe_input;
+  std::map<InventoryItem, uint8_t> recipe_output;
   // The converter won't convert if its output already has this many things of
   // the type it produces. This may be clunky in some cases, but the main usage
   // is to make Mines (etc) have a maximum output.
-  unsigned short max_output;
-  unsigned char conversion_ticks;  // Time to produce output
-  unsigned char cooldown;          // Time to wait after producing before starting again
-  bool converting;                 // Currently in production phase
-  bool cooling_down;               // Currently in cooldown phase
+  // -1 means no limit
+  short max_output;
+  unsigned short conversion_ticks;  // Time to produce output
+  unsigned short cooldown;          // Time to wait after producing before starting again
+  bool converting;                  // Currently in production phase
+  bool cooling_down;                // Currently in cooldown phase
   unsigned char color;
   EventManager* event_manager;
   StatsTracker stats;
 
-  Converter(GridCoord r, GridCoord c, ObjectConfig cfg, TypeId type_id) {
+  Converter(GridCoord r, GridCoord c, ConverterConfig cfg, TypeId type_id)
+      : recipe_input(cfg.recipe_input),
+        recipe_output(cfg.recipe_output),
+        max_output(cfg.max_output),
+        conversion_ticks(cfg.conversion_ticks),
+        cooldown(cfg.cooldown),
+        color(cfg.color),
+        stats(cfg.inventory_item_names) {
     GridObject::init(type_id, GridLocation(r, c, GridLayer::Object_Layer));
-    HasInventory::init_has_inventory(cfg);
-    this->recipe_input.resize(InventoryItem::InventoryItemCount);
-    this->recipe_output.resize(InventoryItem::InventoryItemCount);
-    for (unsigned int i = 0; i < InventoryItem::InventoryItemCount; i++) {
-      this->recipe_input[i] = cfg["input_" + InventoryItemNames[i]];
-      this->recipe_output[i] = cfg["output_" + InventoryItemNames[i]];
-    }
-    this->max_output = cfg["max_output"];
-    this->conversion_ticks = cfg["conversion_ticks"];
-    this->cooldown = cfg["cooldown"];
-    this->color = cfg.count("color") ? cfg["color"] : 0;
     this->converting = false;
     this->cooling_down = false;
 
     // Initialize inventory with initial_items for all output types
-    // Default to recipe_output values if initial_items is not present
-    unsigned char initial_items = cfg["initial_items"];
-    for (unsigned int i = 0; i < InventoryItem::InventoryItemCount; i++) {
-      if (this->recipe_output[i] > 0) {
-        HasInventory::update_inventory(static_cast<InventoryItem>(i), initial_items);
-      }
+    for (const auto& [item, _] : this->recipe_output) {
+      HasInventory::update_inventory(item, cfg.initial_items);
     }
   }
-
-  Converter(GridCoord r, GridCoord c, ObjectConfig cfg) : Converter(r, c, cfg, ObjectType::GenericConverterT) {}
 
   void set_event_manager(EventManager* event_manager) {
     this->event_manager = event_manager;
@@ -112,11 +124,9 @@ public:
     stats.incr("conversions.completed");
 
     // Add output to inventory
-    for (unsigned int i = 0; i < InventoryItem::InventoryItemCount; i++) {
-      if (this->recipe_output[i] > 0) {
-        HasInventory::update_inventory(static_cast<InventoryItem>(i), this->recipe_output[i]);
-        stats.add(InventoryItemNames[i] + ".produced", this->recipe_output[i]);
-      }
+    for (const auto& [item, amount] : this->recipe_output) {
+      HasInventory::update_inventory(item, amount);
+      stats.add(stats.inventory_item_name(item) + ".produced", amount);
     }
 
     if (this->cooldown > 0) {
@@ -144,9 +154,9 @@ public:
     int delta = HasInventory::update_inventory(item, amount);
     if (delta != 0) {
       if (delta > 0) {
-        stats.add(InventoryItemNames[item] + ".added", delta);
+        stats.add(stats.inventory_item_name(item) + ".added", delta);
       } else {
-        stats.add(InventoryItemNames[item] + ".removed", -delta);
+        stats.add(stats.inventory_item_name(item) + ".removed", -delta);
       }
     }
     this->maybe_start_converting();
@@ -155,14 +165,14 @@ public:
 
   virtual vector<PartialObservationToken> obs_features() const override {
     vector<PartialObservationToken> features;
-    features.reserve(5 + InventoryItem::InventoryItemCount);
+    features.reserve(5 + this->inventory.size());
     features.push_back({ObservationFeature::TypeId, _type_id});
     features.push_back({ObservationFeature::Color, color});
     features.push_back({ObservationFeature::ConvertingOrCoolingDown, this->converting || this->cooling_down});
-    for (uint8_t i = 0; i < InventoryItem::InventoryItemCount; i++) {
-      if (inventory[i] > 0) {
-        features.push_back({static_cast<uint8_t>(InventoryFeatureOffset + i), inventory[i]});
-      }
+    for (const auto& [item, amount] : this->inventory) {
+      // inventory should only contain non-zero amounts
+      assert(amount > 0);
+      features.push_back({static_cast<uint8_t>(item + InventoryFeatureOffset), amount});
     }
     return features;
   }

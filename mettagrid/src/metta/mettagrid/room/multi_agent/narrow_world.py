@@ -2,7 +2,7 @@
 NarrowWorld: multi-agent environment with 1-tile-wide snaking corridors.
 Agents move through narrow channels (generated as a maze).
 Single empty bays (1×1) are carved randomly to allow passing.
-mine.reds, generators and altars are scattered along corridor cells in equal proportion.
+mine_reds, generators and altars are scattered along corridor cells in equal proportion.
 """
 
 from typing import List, Optional, Tuple
@@ -44,8 +44,8 @@ class NarrowWorld(Room):
         # Reflect corridors in grid
         grid[~self._occ] = "empty"
 
-        counts = {k: int(self._objects_cfg.get(k, 0)) for k in ("altar", "mine.red", "generator.red")}
-        object_cycle = ["altar", "mine.red", "generator.red"]
+        counts = {k: int(self._objects_cfg.get(k, 0)) for k in ("altar", "mine_red", "generator_red")}
+        object_cycle = ["altar", "mine_red", "generator_red"]
         corridor_cells = [(int(r), int(c)) for r, c in zip(*np.where(~self._occ), strict=False)]
         self._rng.shuffle(corridor_cells)
 

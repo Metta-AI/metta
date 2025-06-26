@@ -128,8 +128,8 @@ class Simulation:
             logger.warning(f"Policy {type(policy).__name__} using deprecated activate_actions interface")
             policy.activate_actions(action_names, max_args, self._device)
         else:
-            raise AttributeError(
-                f"Policy is missing required method 'initialize_to_environment' or 'activate_actions'. "
+            raise SimulationCompatibilityError(
+                f"[{self._name}] Policy is missing required method 'initialize_to_environment' or 'activate_actions'. "
                 f"Expected a MettaAgent-like object but got {type(policy).__name__}"
             )
 
@@ -142,18 +142,10 @@ class Simulation:
                 logger.warning(f"NPC policy {type(npc_policy).__name__} using deprecated activate_actions interface")
                 npc_policy.activate_actions(action_names, max_args, self._device)
             else:
-                raise AttributeError(
-                    f"NPC policy is missing required method 'initialize_to_environment' or 'activate_actions'. "
+                raise SimulationCompatibilityError(
+                    f"[{self._name}] NPC policy is missing required method 'initialize_to_environment' or 'activate_actions'. "
                     f"Expected a MettaAgent-like object but got {type(npc_policy).__name__}"
                 )
-            try:
-                # Already initialized above, no need to call again
-                pass
-            except Exception as e:
-                logger.error(f"Error initializing NPC policy: {e}")
-                raise SimulationCompatibilityError(
-                    f"[{self._name}] Error initializing NPC policy {self._npc_pr.name}: {e}"
-                ) from e
 
         # ---------------- agent-index bookkeeping ---------------------- #
         idx_matrix = torch.arange(metta_grid_env.num_agents * self._num_envs, device=self._device).reshape(

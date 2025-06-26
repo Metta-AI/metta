@@ -9,19 +9,6 @@ import { parseHtmlColor, find } from './htmlutils.js'
 import { updateHoverPanel, updateReadout, HoverPanel } from './hoverpanels.js'
 import { search, searchMatch } from './search.js'
 
-/** A flag to prevent multiple calls to requestAnimationFrame. */
-let frameRequested = false
-
-/** A function to safely request an animation frame. */
-export function requestFrame() {
-  if (!frameRequested) {
-    frameRequested = true
-    requestAnimationFrame((time) => {
-      frameRequested = false
-      onFrame()
-    })
-  }
-}
 
 /** Generates a color from an agent ID. */
 function colorFromId(agentId: number) {
@@ -799,7 +786,6 @@ export function drawMap(panel: PanelInfo) {
 
   if (search.active) {
     // Draw the black overlay over the map.
-    console.log('search.active:', search.active)
     ctx.drawSolidRect(
       -Common.TILE_SIZE / 2,
       -Common.TILE_SIZE / 2,

@@ -43,3 +43,5 @@ observatory/.vite/
 wandb
 
 /devops/charts/**/charts
+
+.claude/settings.local.json

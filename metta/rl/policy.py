@@ -96,13 +96,13 @@ class PytorchAgent(nn.Module):
         """L2 regularization loss."""
         if hasattr(self.policy, "l2_reg_loss"):
             return self.policy.l2_reg_loss()
-        return torch.tensor(0.0, device=getattr(self, "device", "cpu"))
+        return torch.tensor(0.0, device=getattr(self, "device", "cpu"), dtype=torch.float32)
 
     def l2_init_loss(self) -> torch.Tensor:
         """L2 initialization loss."""
         if hasattr(self.policy, "l2_init_loss"):
             return self.policy.l2_init_loss()
-        return torch.tensor(0.0, device=getattr(self, "device", "cpu"))
+        return torch.tensor(0.0, device=getattr(self, "device", "cpu"), dtype=torch.float32)
 
     def update_l2_init_weight_copy(self):
         """Update L2 initialization weight copy."""

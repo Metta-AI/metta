@@ -24,28 +24,7 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 
 ## Common Commands
 
-### Training and Simulation
-
-```bash
-# Train a model
-./tools/train.py run=my_experiment +hardware=macbook wandb=off
-
-# Run evaluation
-./tools/sim.py run=my_experiment +hardware=macbook wandb=off
-
-# Run interactive simulation
-./tools/play.py run=my_experiment +hardware=macbook wandb=off
-```
-
-### Evaluation
-
-```bash
-# Add a policy to the navigation evals database
-./tools/sim.py eval=navigation run=RUN_NAME eval.policy_uri=POLICY_URI +eval_db_uri=wandb://artifacts/navigation_db
-
-# Analyze results with heatmap
-./tools/analyze.py run=analyze +eval_db_uri=wandb://artifacts/navigation_db analyzer.policy_uri=POLICY_URI
-```
+@.cursor/commands.md
 
 ### Code Quality
 
@@ -116,6 +95,8 @@ The project uses OmegaConf for configuration, with config files organized in `co
 - `user/`: User-specific configurations
 
 ## Testing Philosophy
+
+@.cursor/docs.md
 
 - Tests should be independent and idempotent
 - Tests should be focused on testing one thing

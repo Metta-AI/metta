@@ -1,10 +1,22 @@
 _target_: mettagrid.mettagrid_env.MettaGridEnv
 
 sampling: 0
-desync_episodes: false
 
 game:
   num_observation_tokens: 100
+
+  inventory_item_names:
+    - ore.red
+    - ore.blue
+    - ore.green
+    - battery.red
+    - battery.blue
+    - battery.green
+    - heart
+    - armor
+    - laser
+    - blueprint
+
   map_builder:
     _target_: metta.mettagrid.room.random.Random
     width: 25
@@ -43,14 +55,13 @@ game:
       conversion_ticks: 1
       initial_items: 100
 
-    generator.red:
+    generator_red:
       cooldown: 5
       max_output: 100
       conversion_ticks: 1
       initial_items: 30
 
     wall: {}
-
 
   actions:
     noop:

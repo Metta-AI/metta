@@ -24,6 +24,7 @@ class Random(Room):
         self._width = width
         self._height = height
         self._objects = objects
+
         self._agents = agents
         self.set_size_labels(width, height)
 

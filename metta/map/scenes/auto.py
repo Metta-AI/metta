@@ -1,5 +1,6 @@
 import numpy as np
 
+from metta.common.util.config import Config
 from metta.map.scene import Scene
 from metta.map.scenes.bsp import BSPLayout
 from metta.map.scenes.make_connected import MakeConnected
@@ -10,7 +11,6 @@ from metta.map.scenes.random_scene import RandomScene, RandomSceneCandidate
 from metta.map.scenes.room_grid import RoomGrid
 from metta.map.types import AreaWhere, ChildrenAction, MapGrid
 from metta.map.utils.random import FloatDistribution, IntDistribution, sample_int_distribution
-from metta.util.config import Config
 
 
 class AutoParamsLayout(Config):

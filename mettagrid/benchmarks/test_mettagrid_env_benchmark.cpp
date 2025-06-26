@@ -33,6 +33,14 @@ py::dict CreateBenchmarkConfig(int num_agents) {
   game_cfg["obs_height"] = 11;
   game_cfg["num_observation_tokens"] = 100;
 
+  // Inventory item names configuration
+  py::list inventory_item_names;
+  inventory_item_names.append("ore");
+  inventory_item_names.append("heart");
+  inventory_item_names.append("armor");
+  inventory_item_names.append("laser");
+  game_cfg["inventory_item_names"] = inventory_item_names;
+
   // Actions configuration
   py::dict actions_cfg;
   py::dict noop_cfg, move_cfg, rotate_cfg, attack_cfg, swap_cfg, put_cfg, get_cfg, change_color_cfg;
@@ -54,40 +62,49 @@ py::dict CreateBenchmarkConfig(int num_agents) {
   actions_cfg["put_items"] = put_cfg;
   actions_cfg["get_items"] = get_cfg;
   actions_cfg["change_color"] = change_color_cfg;
+  actions_cfg["armor_item_id"] = 2;
+  actions_cfg["laser_item_id"] = 3;
 
   game_cfg["actions"] = actions_cfg;
 
   // Groups configuration
-  py::dict groups;
-  py::dict group1, group2;
+  py::dict agent_groups;
+  py::dict agent_group1, agent_group2;
 
-  group1["id"] = 0;
-  group1["group_reward_pct"] = 0.0f;
-  py::dict group1_props;
-  group1["props"] = group1_props;
+  agent_group1["freeze_duration"] = 0;
+  agent_group1["action_failure_penalty"] = 0;
+  agent_group1["max_items_per_type"] = py::dict();
+  agent_group1["resource_rewards"] = py::dict();
+  agent_group1["resource_reward_max"] = py::dict();
+  agent_group1["group_name"] = "team1";
+  agent_group1["group_id"] = 0;
+  agent_group1["group_reward_pct"] = 0.0f;
 
-  group2["id"] = 1;
-  group2["group_reward_pct"] = 0.0f;
-  py::dict group2_props;
-  group2["props"] = group2_props;
+  agent_group2["freeze_duration"] = 0;
+  agent_group2["action_failure_penalty"] = 0;
+  agent_group2["max_items_per_type"] = py::dict();
+  agent_group2["resource_rewards"] = py::dict();
+  agent_group2["resource_reward_max"] = py::dict();
+  agent_group2["group_name"] = "team2";
+  agent_group2["group_id"] = 1;
+  agent_group2["group_reward_pct"] = 0.0f;
 
-  groups["team1"] = group1;
-  groups["team2"] = group2;
+  agent_groups["agent.team1"] = agent_group1;
+  agent_groups["agent.team2"] = agent_group2;
 
-  game_cfg["groups"] = groups;
+  game_cfg["agent_groups"] = agent_groups;
 
   // Objects configuration
   py::dict objects_cfg;
-  py::dict wall_cfg, block_cfg, agent_cfg, mine_cfg, generator_cfg, altar_cfg;
+  py::dict wall_cfg, block_cfg, mine_cfg, generator_cfg, altar_cfg;
 
   objects_cfg["wall"] = wall_cfg;
   objects_cfg["block"] = block_cfg;
-  objects_cfg["mine.red"] = mine_cfg;
-  objects_cfg["generator.red"] = generator_cfg;
+  objects_cfg["mine_red"] = mine_cfg;
+  objects_cfg["generator_red"] = generator_cfg;
   objects_cfg["altar"] = altar_cfg;
 
   game_cfg["objects"] = objects_cfg;
-  game_cfg["agent"] = agent_cfg;
 
   return game_cfg;
 }

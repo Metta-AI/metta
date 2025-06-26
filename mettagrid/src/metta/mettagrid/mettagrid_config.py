@@ -1,4 +1,4 @@
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field, RootModel
 
@@ -121,31 +121,11 @@ class ConverterConfig(BaseModelWithForbidExtra):
     output_blueprint: Optional[int] = Field(default=None, alias="output_blueprint", ge=0, le=255)
 
     # Converter properties
-    # zero is valid, since it means "don't make any new items"
-    max_output: int = Field(ge=0)
+    max_output: int = Field(ge=-1)
     conversion_ticks: int = Field(ge=0)
     cooldown: int = Field(ge=0)
     initial_items: int = Field(ge=0)
     color: Optional[int] = Field(default=None, ge=0, le=255)
-
-
-class ObjectsConfig(BaseModelWithForbidExtra):
-    """Objects configuration."""
-
-    altar: Optional[ConverterConfig] = None
-    mine_red: Optional[ConverterConfig] = Field(default=None, alias="mine.red")
-    mine_blue: Optional[ConverterConfig] = Field(default=None, alias="mine.blue")
-    mine_green: Optional[ConverterConfig] = Field(default=None, alias="mine.green")
-    generator_red: Optional[ConverterConfig] = Field(default=None, alias="generator.red")
-    generator_blue: Optional[ConverterConfig] = Field(default=None, alias="generator.blue")
-    generator_green: Optional[ConverterConfig] = Field(default=None, alias="generator.green")
-    armory: Optional[ConverterConfig] = None
-    lasery: Optional[ConverterConfig] = None
-    lab: Optional[ConverterConfig] = None
-    factory: Optional[ConverterConfig] = None
-    temple: Optional[ConverterConfig] = None
-    wall: Optional[WallConfig] = None
-    block: Optional[WallConfig] = None
 
 
 class RewardSharingGroup(RootModel[Dict[str, float]]):
@@ -163,6 +143,7 @@ class RewardSharingConfig(BaseModelWithForbidExtra):
 class GameConfig(BaseModelWithForbidExtra):
     """Game configuration."""
 
+    inventory_item_names: List[str]
     num_agents: int = Field(ge=1)
     # zero means "no limit"
     max_steps: int = Field(ge=0)
@@ -171,7 +152,7 @@ class GameConfig(BaseModelWithForbidExtra):
     num_observation_tokens: int = Field(ge=1)
     agent: AgentConfig
     # Every agent must be in a group, so we need at least one group
-    groups: Dict[str, GroupConfig] = Field(min_items=1)
+    groups: Dict[str, GroupConfig] = Field(min_length=1)
     actions: ActionsConfig
-    objects: ObjectsConfig
+    objects: Dict[str, ConverterConfig | WallConfig]
     reward_sharing: Optional[RewardSharingConfig] = None

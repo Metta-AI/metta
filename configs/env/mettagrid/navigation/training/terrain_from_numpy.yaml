@@ -6,11 +6,7 @@ game:
   num_agents: 4
   map_builder:
     room:
-      _target_: metta.mettagrid.room.terrain_from_numpy.TerrainFromNumpy
-      border_width: 3
-      agents: 1
-      objects:
-        altar: 30
+      dir: terrain_maps_nohearts
   objects:
     altar:
       cooldown: 1000

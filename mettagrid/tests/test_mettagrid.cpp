@@ -10,6 +10,14 @@
 #include "objects/converter.hpp"
 #include "objects/wall.hpp"
 
+// Test-specific inventory item type constants
+namespace TestItems {
+constexpr uint8_t ORE = 0;
+constexpr uint8_t LASER = 1;
+constexpr uint8_t ARMOR = 2;
+constexpr uint8_t HEART = 3;
+}  // namespace TestItems
+
 // Pure C++ tests without any Python/pybind dependencies - we will test those with pytest
 class MettaGridCppTest : public ::testing::Test {
 protected:
@@ -17,89 +25,92 @@ protected:
 
   void TearDown() override {}
 
-  // Helper function to create test agent configuration
-  ObjectConfig create_test_agent_config() {
-    ObjectConfig agent_cfg;
-    agent_cfg["freeze_duration"] = 100;
-    agent_cfg["default_item_max"] = 50;
-    return agent_cfg;
-  }
-
-  // Helper function to create test group configuration
-  ObjectConfig create_test_group_config() {
-    ObjectConfig group_cfg;
-    group_cfg["default_item_max"] = 123;
-    return group_cfg;
+  // Helper function to create test max_items_per_type map
+  std::map<uint8_t, uint8_t> create_test_max_items_per_type() {
+    std::map<uint8_t, uint8_t> max_items_per_type;
+    max_items_per_type[TestItems::ORE] = 50;
+    max_items_per_type[TestItems::LASER] = 50;
+    max_items_per_type[TestItems::ARMOR] = 50;
+    max_items_per_type[TestItems::HEART] = 50;
+    return max_items_per_type;
   }
 
   // Helper function to create test rewards map
-  std::map<std::string, float> create_test_rewards() {
-    std::map<std::string, float> rewards;
-    rewards["heart"] = 1.0f;
-    rewards["ore.red"] = 0.125f;
-    rewards["ore.green"] = 0.5f;
+  std::map<uint8_t, float> create_test_rewards() {
+    std::map<uint8_t, float> rewards;
+    rewards[TestItems::ORE] = 0.125f;
+    rewards[TestItems::LASER] = 0.0f;
+    rewards[TestItems::ARMOR] = 0.0f;
+    rewards[TestItems::HEART] = 1.0f;
     return rewards;
+  }
+
+  // Helper function to create test resource_reward_max map
+  std::map<uint8_t, float> create_test_resource_reward_max() {
+    std::map<uint8_t, float> resource_reward_max;
+    resource_reward_max[TestItems::ORE] = 10.0f;
+    resource_reward_max[TestItems::LASER] = 10.0f;
+    resource_reward_max[TestItems::ARMOR] = 10.0f;
+    resource_reward_max[TestItems::HEART] = 10.0f;
+    return resource_reward_max;
+  }
+
+  std::vector<std::string> create_test_inventory_item_names() {
+    return {"ore", "laser", "armor", "heart"};
   }
 };
 
 // ==================== Agent Tests ====================
 
-TEST_F(MettaGridCppTest, AgentCreation) {
-  auto agent_cfg = create_test_agent_config();
-  auto rewards = create_test_rewards();
-
-  // Create agent directly using C++ constructor
-  std::unique_ptr<Agent> agent(new Agent(0, 0, "test_group", 1, agent_cfg, rewards));
-
-  ASSERT_NE(agent, nullptr);
-  EXPECT_EQ(agent->freeze_duration, 100);
-  EXPECT_EQ(agent->location.r, 0);
-  EXPECT_EQ(agent->location.c, 0);
-  EXPECT_EQ(agent->group_name, "test_group");
-  EXPECT_EQ(agent->group, 1);
-}
-
 TEST_F(MettaGridCppTest, AgentRewards) {
-  auto agent_cfg = create_test_agent_config();
+  auto max_items_per_type = create_test_max_items_per_type();
   auto rewards = create_test_rewards();
+  auto resource_reward_max = create_test_resource_reward_max();
+  auto inventory_item_names = create_test_inventory_item_names();
 
-  std::unique_ptr<Agent> agent(new Agent(0, 0, "test_group", 1, agent_cfg, rewards));
+  std::unique_ptr<Agent> agent(new Agent(
+      0, 0, 100, 0.1f, max_items_per_type, rewards, resource_reward_max, "test_group", 1, inventory_item_names));
 
   // Test reward values
-  EXPECT_FLOAT_EQ(agent->resource_rewards[InventoryItem::heart], 1.0f);
-  EXPECT_FLOAT_EQ(agent->resource_rewards[InventoryItem::ore_red], 0.125f);
-  EXPECT_FLOAT_EQ(agent->resource_rewards[InventoryItem::ore_green], 0.5f);
+  EXPECT_FLOAT_EQ(agent->resource_rewards[TestItems::ORE], 0.125f);
+  EXPECT_FLOAT_EQ(agent->resource_rewards[TestItems::LASER], 0.0f);
+  EXPECT_FLOAT_EQ(agent->resource_rewards[TestItems::ARMOR], 0.0f);
+  EXPECT_FLOAT_EQ(agent->resource_rewards[TestItems::HEART], 1.0f);
 }
 
 TEST_F(MettaGridCppTest, AgentInventoryUpdate) {
-  auto agent_cfg = create_test_agent_config();
+  auto max_items_per_type = create_test_max_items_per_type();
   auto rewards = create_test_rewards();
+  auto resource_reward_max = create_test_resource_reward_max();
+  auto inventory_item_names = create_test_inventory_item_names();
 
-  std::unique_ptr<Agent> agent(new Agent(0, 0, "test_group", 1, agent_cfg, rewards));
+  std::unique_ptr<Agent> agent(new Agent(
+      0, 0, 100, 0.1f, max_items_per_type, rewards, resource_reward_max, "test_group", 1, inventory_item_names));
 
   float dummy_reward = 0.0f;
   agent->init(&dummy_reward);
 
   // Test adding items
-  int delta = agent->update_inventory(InventoryItem::heart, 5);
+  int delta = agent->update_inventory(TestItems::ORE, 5);
   EXPECT_EQ(delta, 5);
-  EXPECT_EQ(agent->inventory[InventoryItem::heart], 5);
+  EXPECT_EQ(agent->inventory[TestItems::ORE], 5);
 
   // Test removing items
-  delta = agent->update_inventory(InventoryItem::heart, -2);
+  delta = agent->update_inventory(TestItems::ORE, -2);
   EXPECT_EQ(delta, -2);
-  EXPECT_EQ(agent->inventory[InventoryItem::heart], 3);
+  EXPECT_EQ(agent->inventory[TestItems::ORE], 3);
 
   // Test hitting zero
-  delta = agent->update_inventory(InventoryItem::heart, -10);
+  delta = agent->update_inventory(TestItems::ORE, -10);
   EXPECT_EQ(delta, -3);  // Should only remove what's available
-  EXPECT_EQ(agent->inventory[InventoryItem::heart], 0);
+  // check that the item is not in the inventory
+  EXPECT_EQ(agent->inventory.find(TestItems::ORE), agent->inventory.end());
 
-  // Test hitting default_item_max limit
-  agent->update_inventory(InventoryItem::heart, 30);
-  delta = agent->update_inventory(InventoryItem::heart, 50);  // default_item_max is 50
-  EXPECT_EQ(delta, 20);                                       // Should only add up to default_item_max
-  EXPECT_EQ(agent->inventory[InventoryItem::heart], 50);
+  // Test hitting max_items_per_type limit
+  agent->update_inventory(TestItems::ORE, 30);
+  delta = agent->update_inventory(TestItems::ORE, 50);  // max_items_per_type is 50
+  EXPECT_EQ(delta, 20);                                 // Should only add up to max_items_per_type
+  EXPECT_EQ(agent->inventory[TestItems::ORE], 50);
 }
 
 // ==================== Grid Tests ====================
@@ -126,9 +137,12 @@ TEST_F(MettaGridCppTest, GridObjectManagement) {
   Grid grid(10, 10, layer_for_type_id);
 
   // Create and add an agent
-  auto agent_cfg = create_test_agent_config();
+  auto max_items_per_type = create_test_max_items_per_type();
   auto rewards = create_test_rewards();
-  Agent* agent = new Agent(2, 3, "test_group", 1, agent_cfg, rewards);
+  auto resource_reward_max = create_test_resource_reward_max();
+  auto inventory_item_names = create_test_inventory_item_names();
+  Agent* agent = new Agent(
+      2, 3, 100, 0.1f, max_items_per_type, rewards, resource_reward_max, "test_group", 1, inventory_item_names);
 
   grid.add_object(agent);
 
@@ -155,12 +169,16 @@ TEST_F(MettaGridCppTest, AttackAction) {
 
   Grid grid(10, 10, layer_for_type_id);
 
-  auto agent_cfg = create_test_agent_config();
+  auto max_items_per_type = create_test_max_items_per_type();
   auto rewards = create_test_rewards();
+  auto resource_reward_max = create_test_resource_reward_max();
+  auto inventory_item_names = create_test_inventory_item_names();
 
   // Create attacker and target
-  Agent* attacker = new Agent(2, 0, "red", 1, agent_cfg, rewards);
-  Agent* target = new Agent(0, 0, "blue", 2, agent_cfg, rewards);
+  Agent* attacker =
+      new Agent(2, 0, 100, 0.1f, max_items_per_type, rewards, resource_reward_max, "red", 1, inventory_item_names);
+  Agent* target =
+      new Agent(0, 0, 100, 0.1f, max_items_per_type, rewards, resource_reward_max, "blue", 2, inventory_item_names);
 
   float attacker_reward = 0.0f;
   float target_reward = 0.0f;
@@ -171,21 +189,21 @@ TEST_F(MettaGridCppTest, AttackAction) {
   grid.add_object(target);
 
   // Give attacker a laser
-  attacker->update_inventory(InventoryItem::laser, 1);
-  EXPECT_EQ(attacker->inventory[InventoryItem::laser], 1);
+  attacker->update_inventory(TestItems::LASER, 1);
+  EXPECT_EQ(attacker->inventory[TestItems::LASER], 1);
 
   // Give target some items
-  target->update_inventory(InventoryItem::heart, 2);
-  target->update_inventory(InventoryItem::battery_red, 3);
-  EXPECT_EQ(target->inventory[InventoryItem::heart], 2);
-  EXPECT_EQ(target->inventory[InventoryItem::battery_red], 3);
+  target->update_inventory(TestItems::ORE, 2);
+  target->update_inventory(TestItems::HEART, 3);
+  EXPECT_EQ(target->inventory[TestItems::ORE], 2);
+  EXPECT_EQ(target->inventory[TestItems::HEART], 3);
 
   // Verify attacker orientation
   EXPECT_EQ(attacker->orientation, Orientation::Up);
 
   // Create attack action handler
   ActionConfig attack_cfg;
-  Attack attack(attack_cfg);
+  Attack attack(attack_cfg, TestItems::LASER, TestItems::ARMOR);
   attack.init(&grid);
 
   // Perform attack (arg 5 targets directly in front)
@@ -193,16 +211,16 @@ TEST_F(MettaGridCppTest, AttackAction) {
   EXPECT_TRUE(success);
 
   // Verify laser was consumed
-  EXPECT_EQ(attacker->inventory[InventoryItem::laser], 0);
+  EXPECT_EQ(attacker->inventory[TestItems::LASER], 0);
 
   // Verify target was frozen
   EXPECT_GT(target->frozen, 0);
 
   // Verify target's inventory was stolen
-  EXPECT_EQ(target->inventory[InventoryItem::heart], 0);
-  EXPECT_EQ(target->inventory[InventoryItem::battery_red], 0);
-  EXPECT_EQ(attacker->inventory[InventoryItem::heart], 2);
-  EXPECT_EQ(attacker->inventory[InventoryItem::battery_red], 3);
+  EXPECT_EQ(target->inventory[TestItems::ORE], 0);
+  EXPECT_EQ(target->inventory[TestItems::HEART], 0);
+  EXPECT_EQ(attacker->inventory[TestItems::ORE], 2);
+  EXPECT_EQ(attacker->inventory[TestItems::HEART], 3);
 }
 
 TEST_F(MettaGridCppTest, PutRecipeItems) {
@@ -213,33 +231,37 @@ TEST_F(MettaGridCppTest, PutRecipeItems) {
 
   Grid grid(10, 10, layer_for_type_id);
 
-  auto agent_cfg = create_test_agent_config();
+  auto max_items_per_type = create_test_max_items_per_type();
   auto rewards = create_test_rewards();
+  auto resource_reward_max = create_test_resource_reward_max();
+  auto inventory_item_names = create_test_inventory_item_names();
 
-  Agent* agent = new Agent(1, 0, "red", 1, agent_cfg, rewards);
+  Agent* agent =
+      new Agent(1, 0, 100, 0.1f, max_items_per_type, rewards, resource_reward_max, "red", 1, inventory_item_names);
   float agent_reward = 0.0f;
   agent->init(&agent_reward);
 
   grid.add_object(agent);
 
   // Create a generator that takes red ore and outputs batteries
-  ObjectConfig generator_cfg;
-  generator_cfg["input_ore.red"] = 1;
-  generator_cfg["output_battery.red"] = 1;
+  ConverterConfig generator_cfg;
+  generator_cfg.recipe_input[TestItems::ORE] = 1;
+  generator_cfg.recipe_output[TestItems::ARMOR] = 1;
   // Set the max_output to 0 so it won't consume things we put in it.
-  generator_cfg["max_output"] = 0;
-  generator_cfg["conversion_ticks"] = 1;
-  generator_cfg["cooldown"] = 10;
-  generator_cfg["initial_items"] = 0;
-
+  generator_cfg.max_output = 0;
+  generator_cfg.conversion_ticks = 1;
+  generator_cfg.cooldown = 10;
+  generator_cfg.initial_items = 0;
+  generator_cfg.color = 0;
+  generator_cfg.inventory_item_names = inventory_item_names;
   EventManager event_manager;
   Converter* generator = new Converter(0, 0, generator_cfg, ObjectType::GeneratorT);
   grid.add_object(generator);
   generator->set_event_manager(&event_manager);
 
   // Give agent some items
-  agent->update_inventory(InventoryItem::ore_red, 1);
-  agent->update_inventory(InventoryItem::ore_blue, 1);
+  agent->update_inventory(TestItems::ORE, 1);
+  agent->update_inventory(TestItems::HEART, 1);
 
   // Create put_recipe_items action handler
   ActionConfig put_cfg;
@@ -249,15 +271,15 @@ TEST_F(MettaGridCppTest, PutRecipeItems) {
   // Test putting matching items
   bool success = put.handle_action(agent->id, 0);
   EXPECT_TRUE(success);
-  EXPECT_EQ(agent->inventory[InventoryItem::ore_red], 0);      // Red ore consumed
-  EXPECT_EQ(agent->inventory[InventoryItem::ore_blue], 1);     // Blue ore unchanged
-  EXPECT_EQ(generator->inventory[InventoryItem::ore_red], 1);  // Red ore added to generator
+  EXPECT_EQ(agent->inventory[TestItems::ORE], 0);      // Ore consumed
+  EXPECT_EQ(agent->inventory[TestItems::HEART], 1);    // Heart unchanged
+  EXPECT_EQ(generator->inventory[TestItems::ORE], 1);  // Ore added to generator
 
   // Test putting non-matching items
   success = put.handle_action(agent->id, 0);
-  EXPECT_FALSE(success);                                        // Should fail since we only have blue ore left
-  EXPECT_EQ(agent->inventory[InventoryItem::ore_blue], 1);      // Blue ore unchanged
-  EXPECT_EQ(generator->inventory[InventoryItem::ore_blue], 0);  // No blue ore in generator
+  EXPECT_FALSE(success);                                 // Should fail since we only have heart left
+  EXPECT_EQ(agent->inventory[TestItems::HEART], 1);      // Heart unchanged
+  EXPECT_EQ(generator->inventory[TestItems::HEART], 0);  // No heart in generator
 }
 
 TEST_F(MettaGridCppTest, GetOutput) {
@@ -268,32 +290,36 @@ TEST_F(MettaGridCppTest, GetOutput) {
 
   Grid grid(10, 10, layer_for_type_id);
 
-  auto agent_cfg = create_test_agent_config();
+  auto max_items_per_type = create_test_max_items_per_type();
   auto rewards = create_test_rewards();
+  auto resource_reward_max = create_test_resource_reward_max();
+  auto inventory_item_names = create_test_inventory_item_names();
 
-  Agent* agent = new Agent(1, 0, "red", 1, agent_cfg, rewards);
+  Agent* agent =
+      new Agent(1, 0, 100, 0.1f, max_items_per_type, rewards, resource_reward_max, "red", 1, inventory_item_names);
   float agent_reward = 0.0f;
   agent->init(&agent_reward);
 
   grid.add_object(agent);
 
   // Create a generator with initial output
-  ObjectConfig generator_cfg;
-  generator_cfg["input_ore.red"] = 1;
-  generator_cfg["output_battery.red"] = 1;
+  ConverterConfig generator_cfg;
+  generator_cfg.recipe_input[TestItems::ORE] = 1;
+  generator_cfg.recipe_output[TestItems::ARMOR] = 1;
   // Set the max_output to 0 so it won't consume things we put in it.
-  generator_cfg["max_output"] = 1;
-  generator_cfg["conversion_ticks"] = 1;
-  generator_cfg["cooldown"] = 10;
-  generator_cfg["initial_items"] = 1;
-
+  generator_cfg.max_output = 1;
+  generator_cfg.conversion_ticks = 1;
+  generator_cfg.cooldown = 10;
+  generator_cfg.initial_items = 1;
+  generator_cfg.color = 0;
+  generator_cfg.inventory_item_names = inventory_item_names;
   EventManager event_manager;
   Converter* generator = new Converter(0, 0, generator_cfg, ObjectType::GeneratorT);
   grid.add_object(generator);
   generator->set_event_manager(&event_manager);
 
   // Give agent some items
-  agent->update_inventory(InventoryItem::ore_red, 1);
+  agent->update_inventory(TestItems::ORE, 1);
 
   // Create get_output action handler
   ActionConfig get_cfg;
@@ -303,9 +329,9 @@ TEST_F(MettaGridCppTest, GetOutput) {
   // Test getting output
   bool success = get.handle_action(agent->id, 0);
   EXPECT_TRUE(success);
-  EXPECT_EQ(agent->inventory[InventoryItem::ore_red], 1);          // Still have red ore
-  EXPECT_EQ(agent->inventory[InventoryItem::battery_red], 1);      // Also have a battery
-  EXPECT_EQ(generator->inventory[InventoryItem::battery_red], 0);  // Generator gave away its battery
+  EXPECT_EQ(agent->inventory[TestItems::ORE], 1);        // Still have ore
+  EXPECT_EQ(agent->inventory[TestItems::ARMOR], 1);      // Also have armor
+  EXPECT_EQ(generator->inventory[TestItems::ARMOR], 0);  // Generator gave away its armor
 }
 
 // ==================== Event System Tests ====================
@@ -338,17 +364,6 @@ TEST_F(MettaGridCppTest, ObjectTypes) {
   EXPECT_TRUE(ObjectLayers.find(ObjectType::GeneratorT) != ObjectLayers.end());
 }
 
-TEST_F(MettaGridCppTest, InventoryItems) {
-  // Test that inventory item constants are properly defined
-  EXPECT_NE(InventoryItem::heart, InventoryItem::battery_red);
-  EXPECT_NE(InventoryItem::heart, InventoryItem::ore_red);
-  EXPECT_NE(InventoryItem::battery_red, InventoryItem::ore_red);
-
-  // Test that inventory item names exist
-  EXPECT_FALSE(InventoryItemNames.empty());
-  EXPECT_GT(InventoryItemNames.size(), 0);
-}
-
 // ==================== Wall/Block Tests ====================
 
 TEST_F(MettaGridCppTest, WallCreation) {
@@ -364,13 +379,14 @@ TEST_F(MettaGridCppTest, WallCreation) {
 // ==================== Converter Tests ====================
 
 TEST_F(MettaGridCppTest, ConverterCreation) {
-  ObjectConfig converter_cfg;
-  converter_cfg["input_ore.red"] = 2;
-  converter_cfg["output_battery"] = 1;
-  converter_cfg["conversion_ticks"] = 5;
-  converter_cfg["cooldown"] = 10;
-  converter_cfg["initial_items"] = 0;
-
+  ConverterConfig converter_cfg;
+  converter_cfg.recipe_input[TestItems::ORE] = 2;
+  converter_cfg.recipe_output[TestItems::ARMOR] = 1;
+  converter_cfg.conversion_ticks = 5;
+  converter_cfg.cooldown = 10;
+  converter_cfg.initial_items = 0;
+  converter_cfg.color = 0;
+  converter_cfg.inventory_item_names = create_test_inventory_item_names();
   std::unique_ptr<Converter> converter(new Converter(1, 2, converter_cfg, ObjectType::GeneratorT));
 
   ASSERT_NE(converter, nullptr);

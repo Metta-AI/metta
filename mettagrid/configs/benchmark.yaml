@@ -2,11 +2,22 @@
 report_stats_interval: 100
 
 sampling: 0
-desync_episodes: false
 
 game:
   num_agents: 24
   num_observation_tokens: 100
+
+  inventory_item_names:
+    - ore.red
+    - ore.blue
+    - ore.green
+    - battery.red
+    - battery.blue
+    - battery.green
+    - heart
+    - armor
+    - laser
+    - blueprint
 
   map_builder:
     _target_: metta.mettagrid.room.multi_room.MultiRoom
@@ -112,7 +123,7 @@ game:
       cooldown: 10
       initial_items: 1
 
-    mine.red:
+    mine_red:
       output_ore.red: 1
       color: 0
       max_output: 5
@@ -120,7 +131,7 @@ game:
       cooldown: 50
       initial_items: 1
 
-    mine.blue:
+    mine_blue:
       color: 1
       output_ore.blue: 1
       max_output: 5
@@ -128,7 +139,7 @@ game:
       cooldown: 50
       initial_items: 1
 
-    mine.green:
+    mine_green:
       output_ore.green: 1
       color: 2
       max_output: 5
@@ -136,7 +147,7 @@ game:
       cooldown: 50
       initial_items: 1
 
-    generator.red:
+    generator_red:
       input_ore.red: 1
       output_battery.red: 1
       color: 0
@@ -145,7 +156,7 @@ game:
       cooldown: 25
       initial_items: 1
 
-    generator.blue:
+    generator_blue:
       input_ore.blue: 1
       output_battery.blue: 1
       color: 1
@@ -154,7 +165,7 @@ game:
       cooldown: 25
       initial_items: 1
 
-    generator.green:
+    generator_green:
       input_ore.green: 1
       output_battery.green: 1
       color: 2

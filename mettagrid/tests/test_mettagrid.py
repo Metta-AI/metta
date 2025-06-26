@@ -1,6 +1,7 @@
 import numpy as np
 
 from metta.mettagrid.mettagrid_c import MettaGrid
+from metta.mettagrid.mettagrid_c_config import cpp_config_dict
 from metta.mettagrid.mettagrid_env import dtype_actions
 
 NUM_AGENTS = 2
@@ -33,6 +34,7 @@ def create_minimal_mettagrid_c_env(max_steps=10, width=5, height=5):
         "obs_width": OBS_WIDTH,
         "obs_height": OBS_HEIGHT,
         "num_observation_tokens": NUM_OBS_TOKENS,
+        "inventory_item_names": ["laser", "armor"],
         "actions": {
             # don't really care about the actions for this test
             "noop": {"enabled": True},
@@ -46,13 +48,13 @@ def create_minimal_mettagrid_c_env(max_steps=10, width=5, height=5):
         },
         "groups": {"red": {"id": 0, "props": {}}},
         "objects": {
-            "wall": {"type_id": 1},
-            "block": {"type_id": 2},
+            "wall": {},
+            "block": {},
         },
         "agent": {},
     }
 
-    return MettaGrid(game_config, game_map.tolist())
+    return MettaGrid(cpp_config_dict(game_config), game_map.tolist())
 
 
 def test_grid_hash():
