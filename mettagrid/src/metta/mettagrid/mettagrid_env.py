@@ -75,6 +75,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
         self.timer.start()
         self.timer.start("thread_idle")
         self._steps = 0
+        self._resets = 0
 
         self._render_mode = render_mode
         self._curriculum = curriculum
@@ -171,6 +172,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
         self._initialize_c_env()
         self._num_episodes += 1
         self._steps = 0
+        self._resets += 1
 
         assert self.observations.dtype == dtype_observations
         assert self.terminals.dtype == dtype_terminals
@@ -282,7 +284,9 @@ class MettaGridEnv(PufferEnv, GymEnv):
             "map_h": self.map_height,
             "initial_grid_hash": self.initial_grid_hash,
             "steps": self._steps,
+            "resets": self._resets,
             "max_steps": self.max_steps,
+            "num_episodes": self._num_episodes,
         }
         infos["attributes"] = attributes
 
