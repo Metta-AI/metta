@@ -103,6 +103,8 @@ class MemoryMonitor:
 
         object_stats = {}
         for name in self._tracked_objects.keys():
-            object_stats[f"{name}.size_mb"] = self.get(name)["current_size_mb"]
+            size_mb = self.get(name)["current_size_mb"]
+            if size_mb > 0.1:
+                object_stats[f"{name}.size_mb"] = size_mb
 
         return object_stats
