@@ -1,0 +1,124 @@
+# Minimal MettaGridEnv configuration
+# This uses a simple inline ASCII map to avoid complex map generation
+
+# Top-level environment settings
+sampling: 0
+desync_episodes: false
+replay_level_prob: 0.2
+
+# Game configuration
+game:
+  # Basic game parameters
+  num_agents: 2
+  obs_width: 11
+  obs_height: 11
+  num_observation_tokens: 200
+  max_steps: 1000
+
+  # Diversity bonus settings (used by MettaGridEnv but not by GameConfig)
+  diversity_bonus:
+    enabled: false
+    similarity_coef: 0.5
+    diversity_coef: 0.5
+
+  # Default agent configuration
+  agent:
+    default_item_max: 50
+    heart_max: 255
+    freeze_duration: 10
+    rewards:
+      action_failure_penalty: 0
+      ore.red: 0.01
+      ore.red_max: 10
+      battery.red: 0.02
+      battery.red_max: 10
+      heart: 1
+      heart_max: 1000
+
+  # Agent groups configuration - only define what we'll use
+  groups:
+    agent:
+      id: 0
+      sprite: 0
+      props: {}
+
+  # Minimal object definitions
+  objects:
+    altar:
+      input_battery.red: 1
+      output_heart: 1
+      max_output: 5
+      conversion_ticks: 1
+      cooldown: 10
+      initial_items: 0
+
+    mine_red:
+      output_ore.red: 1
+      color: 0
+      max_output: 5
+      conversion_ticks: 1
+      cooldown: 20
+      initial_items: 1
+
+    generator_red:
+      input_ore.red: 1
+      output_battery.red: 1
+      color: 0
+      max_output: 5
+      conversion_ticks: 1
+      cooldown: 20
+      initial_items: 0
+
+    wall:
+      swappable: false
+
+    block:
+      swappable: true
+
+  # Action configuration
+  actions:
+    noop:
+      enabled: true
+    move:
+      enabled: true
+    rotate:
+      enabled: true
+    put_items:
+      enabled: true
+    get_items:
+      enabled: true
+    attack:
+      enabled: false
+    swap:
+      enabled: true
+    change_color:
+      enabled: false
+
+  # No reward sharing for simplicity
+  reward_sharing:
+    groups: {}
+
+  # Simple inline ASCII map
+  map_builder:
+    _target_: metta.map.mapgen.MapGen
+    width: 20
+    height: 14
+    border_width: 0
+    root:
+      type: metta.map.scenes.inline_ascii.InlineAscii
+      params:
+        data: |
+          ####################
+          #..................#
+          #..@...............#
+          #..................#
+          #..r...............#
+          #..................#
+          #..R...............#
+          #..................#
+          #.._...............#
+          #..................#
+          #..................#
+          #..@...............#
+          #..................#
+          ####################
