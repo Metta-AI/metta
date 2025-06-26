@@ -13,10 +13,12 @@
     "check:fix": "biome check --write ."
   },
   "dependencies": {
+    "@types/react-router-dom": "^5.3.3",
     "plotly.js": "^2.29.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
-    "react-plotly.js": "^2.6.0"
+    "react-plotly.js": "^2.6.0",
+    "react-router-dom": "^7.6.2"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",

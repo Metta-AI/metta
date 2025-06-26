@@ -1,0 +1,18 @@
+{
+  "include": [
+    "**/*.py"
+  ],
+  "exclude": [
+    "**/node_modules",
+    "**/__pycache__",
+    ".venv"
+  ],
+  "extraPaths": [
+    "./common/src",
+    "./mettagrid/src"
+  ],
+  "reportMissingModuleSource": false,
+  "pythonVersion": "3.11",
+  "venvPath": ".",
+  "venv": ".venv"
+}

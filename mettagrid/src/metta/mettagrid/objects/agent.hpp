@@ -34,11 +34,12 @@ public:
         GridCoord c,
         unsigned char freeze_duration,
         float action_failure_penalty,
-        std::map<ObsType, uint8_t> max_items_per_type,
-        std::map<ObsType, float> resource_rewards,
-        std::map<ObsType, float> resource_reward_max,
+        std::map<InventoryItem, uint8_t> max_items_per_type,
+        std::map<InventoryItem, float> resource_rewards,
+        std::map<InventoryItem, float> resource_reward_max,
         std::string group_name,
-        unsigned char group_id)
+        unsigned char group_id,
+        const std::vector<std::string>& inventory_item_names)
       : freeze_duration(freeze_duration),
         action_failure_penalty(action_failure_penalty),
         max_items_per_type(max_items_per_type),
@@ -47,7 +48,8 @@ public:
         group(group_id),
         group_name(group_name),
         color(0),
-        current_resource_reward(0) {
+        current_resource_reward(0),
+        stats(inventory_item_names) {
     GridObject::init(ObjectType::AgentT, GridLocation(r, c, GridLayer::Agent_Layer));
 
     this->frozen = 0;
@@ -72,9 +74,9 @@ public:
     }
 
     if (delta > 0) {
-      this->stats.add(InventoryItemNames[item] + ".gained", delta);
+      this->stats.add(this->stats.inventory_item_name(item) + ".gained", delta);
     } else if (delta < 0) {
-      this->stats.add(InventoryItemNames[item] + ".lost", -delta);
+      this->stats.add(this->stats.inventory_item_name(item) + ".lost", -delta);
     }
 
     this->compute_resource_reward(item);
@@ -126,7 +128,7 @@ public:
   }
 
 private:
-  std::map<ObsType, uint8_t> max_items_per_type;
+  std::map<InventoryItem, uint8_t> max_items_per_type;
 };
 
 #endif  // OBJECTS_AGENT_HPP_

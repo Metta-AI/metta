@@ -62,37 +62,39 @@ const uint8_t InventoryFeatureOffset = ObservationFeature::ObservationFeatureCou
 enum ObjectType {
   AgentT = 0,
   WallT = 1,
-  MineT = 2,
-  GeneratorT = 3,
-  AltarT = 4,
-  ArmoryT = 5,
-  LaseryT = 6,
-  LabT = 7,
-  FactoryT = 8,
-  TempleT = 9,
-  GenericConverterT = 10,
+  MineRedT = 2,
+  MineBlueT = 3,
+  MineGreenT = 4,
+  GeneratorRedT = 5,
+  GeneratorBlueT = 6,
+  GeneratorGreenT = 7,
+  AltarT = 8,
+  ArmoryT = 9,
+  LaseryT = 10,
+  LabT = 11,
+  FactoryT = 12,
+  TempleT = 13,
+  GenericConverterT = 14,
   ObjectTypeCount
 };
 
-constexpr std::array<const char*, ObjectTypeCount> ObjectTypeNamesArray = {
-    {"agent", "wall", "mine", "generator", "altar", "armory", "lasery", "lab", "factory", "temple", "converter"}};
+constexpr std::array<const char*, ObjectTypeCount> ObjectTypeNamesArray = {{"agent",
+                                                                            "wall",
+                                                                            "mine_red",
+                                                                            "mine_blue",
+                                                                            "mine_green",
+                                                                            "generator_red",
+                                                                            "generator_blue",
+                                                                            "generator_green",
+                                                                            "altar",
+                                                                            "armory",
+                                                                            "lasery",
+                                                                            "lab",
+                                                                            "factory",
+                                                                            "temple",
+                                                                            "converter"}};
 
 const std::vector<std::string> ObjectTypeNames(ObjectTypeNamesArray.begin(), ObjectTypeNamesArray.end());
-
-// TODO: We now have this available in the config, so we should use that instead. We haven't done this yet
-// because we need to pass through the configuration. For now, this means things are unstable.
-constexpr std::array<const char*, 10> InventoryItemNamesArray = {{"ore.red",
-                                                                  "ore.blue",
-                                                                  "ore.green",
-                                                                  "battery.red",
-                                                                  "battery.blue",
-                                                                  "battery.green",
-                                                                  "heart",
-                                                                  "armor",
-                                                                  "laser",
-                                                                  "blueprint"}};
-
-const std::vector<std::string> InventoryItemNames(InventoryItemNamesArray.begin(), InventoryItemNamesArray.end());
 
 const std::map<uint8_t, std::string> FeatureNames = {
     {ObservationFeature::TypeId, "type_id"},
@@ -127,13 +129,16 @@ const std::map<uint8_t, float> FeatureNormalizations = {
     {ObservationFeature::Swappable, 1.0},
 };
 
-const float DEFAULT_NORMALIZATION = 1.0;
 const float DEFAULT_INVENTORY_NORMALIZATION = 100.0;
 
 const std::map<TypeId, GridLayer> ObjectLayers = {{ObjectType::AgentT, GridLayer::Agent_Layer},
                                                   {ObjectType::WallT, GridLayer::Object_Layer},
-                                                  {ObjectType::MineT, GridLayer::Object_Layer},
-                                                  {ObjectType::GeneratorT, GridLayer::Object_Layer},
+                                                  {ObjectType::MineRedT, GridLayer::Object_Layer},
+                                                  {ObjectType::MineBlueT, GridLayer::Object_Layer},
+                                                  {ObjectType::MineGreenT, GridLayer::Object_Layer},
+                                                  {ObjectType::GeneratorRedT, GridLayer::Object_Layer},
+                                                  {ObjectType::GeneratorBlueT, GridLayer::Object_Layer},
+                                                  {ObjectType::GeneratorGreenT, GridLayer::Object_Layer},
                                                   {ObjectType::AltarT, GridLayer::Object_Layer},
                                                   {ObjectType::ArmoryT, GridLayer::Object_Layer},
                                                   {ObjectType::LaseryT, GridLayer::Object_Layer},

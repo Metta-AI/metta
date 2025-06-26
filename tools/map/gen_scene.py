@@ -7,8 +7,8 @@ from typing import cast, get_args
 
 from omegaconf import DictConfig, OmegaConf
 
+from metta.common.util.resolvers import register_resolvers
 from metta.map.utils.show import ShowMode, show_map
-from metta.util.resolvers import register_resolvers
 from tools.map.gen import map_builder_cfg_to_storable_map
 
 # Aggressively exit on ctrl+c

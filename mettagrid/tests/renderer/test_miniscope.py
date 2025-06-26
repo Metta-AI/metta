@@ -31,7 +31,7 @@ class TestMiniscopeRenderer:
     @pytest.fixture
     def object_type_names(self):
         """Provide standard object type names for testing."""
-        return ["agent", "wall", "altar", "mine", "generator", "lasery", "marker", "block"]
+        return ["agent", "wall", "altar", "mine_red", "generator_red", "lasery", "marker", "block"]
 
     @pytest.fixture
     def renderer(self, object_type_names):
@@ -52,9 +52,9 @@ class TestMiniscopeRenderer:
         test_cases = [
             ({"type": 0, "r": 0, "c": 0}, "🤖"),  # agent
             ({"type": 1, "r": 0, "c": 0}, "🧱"),  # wall
-            ({"type": 2, "r": 0, "c": 0}, "🎯"),  # altar (now target)
-            ({"type": 3, "r": 0, "c": 0}, "💎"),  # mine (now gem)
-            ({"type": 4, "r": 0, "c": 0}, "⚡"),  # generator
+            ({"type": 2, "r": 0, "c": 0}, "🎯"),  # altar
+            ({"type": 3, "r": 0, "c": 0}, "🔺"),  # mine
+            ({"type": 4, "r": 0, "c": 0}, "🔋"),  # generator
             ({"type": 5, "r": 0, "c": 0}, "🔫"),  # lasery
             ({"type": 6, "r": 0, "c": 0}, "📍"),  # marker
             ({"type": 7, "r": 0, "c": 0}, "📦"),  # block

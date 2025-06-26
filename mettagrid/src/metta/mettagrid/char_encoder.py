@@ -6,13 +6,14 @@ NAME_TO_CHAR: dict[str, list[str]] = {
     "agent.team_2": ["2"],
     "agent.team_3": ["3"],
     "agent.team_4": ["4"],
+    "agent.prey": ["p"],
+    "agent.predator": ["P"],
     # terrain
     "wall": ["#", "W"],
     "empty": [".", " "],
     "block": ["s"],
     # mines
-    "mine": ["m"],
-    "mine_red": ["r"],
+    "mine_red": ["m", "r"],
     "mine_blue": ["b"],
     "mine_green": ["g"],
     # generators

@@ -20,8 +20,8 @@ root:
         type: metta.map.scenes.random.Random
         params:
           objects:
-            mine: ${sampling:1,20,10}
-            generator: ${sampling:1,10,2}
+            mine_red: ${sampling:1,20,10}
+            generator_red: ${sampling:1,10,2}
             altar: ${sampling:1,5,1}
             armory: ${sampling:1,5,1}
             lasery: ${sampling:1,5,1}
