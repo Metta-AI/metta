@@ -48,9 +48,12 @@ def train(cfg: ListConfig | DictConfig, wandb_run: WandbRun | None, logger: Logg
 
     policy_store = PolicyStore(cfg, wandb_run)
 
-    # if torch.distributed.is_initialized():
-        # world_size = torch.distributed.get_world_size()
-        # cfg.trainer.forward_pass_minibatch_target_size = cfg.trainer.forward_pass_minibatch_target_size // world_size
+    if torch.distributed.is_initialized():
+        world_size = torch.distributed.get_world_size()
+        if cfg.trainer.scale_batches_by_world_size:
+            cfg.trainer.forward_pass_minibatch_target_size = (
+                cfg.trainer.forward_pass_minibatch_target_size // world_size
+            )
 
     stats_client: StatsClient | None = get_stats_client(cfg, logger)
 
