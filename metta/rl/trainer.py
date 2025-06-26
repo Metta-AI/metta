@@ -345,7 +345,6 @@ class MettaTrainer:
             wandb_policy_name = self._maybe_upload_policy_record_to_wandb()
             self._maybe_evaluate_policy(wandb_policy_name)
             self._maybe_generate_replay()
-            self._maybe_update_l2_weights()
             self._maybe_compute_grad_stats()
 
             self._on_train_step()
@@ -592,10 +591,6 @@ class MettaTrainer:
                     self.agent_step, full_logprobs, newvalue, obs, teacher_lstm_state=[]
                 )
 
-                l2_reg_loss = torch.tensor(0.0, device=self.device, dtype=torch.float32)
-                if trainer_cfg.l2_reg_loss_coef > 0:
-                    l2_reg_loss = trainer_cfg.l2_reg_loss_coef * self.policy.l2_reg_loss().to(self.device)
-
                 l2_init_loss = torch.tensor(0.0, device=self.device, dtype=torch.float32)
                 if trainer_cfg.l2_init_loss_coef > 0:
                     l2_init_loss = trainer_cfg.l2_init_loss_coef * self.policy.l2_init_loss().to(self.device)
@@ -604,7 +599,6 @@ class MettaTrainer:
                     pg_loss
                     - trainer_cfg.ent_coef * entropy_loss
                     + v_loss * trainer_cfg.vf_coef
-                    + l2_reg_loss
                     + l2_init_loss
                     + ks_action_loss
                     + ks_value_loss
@@ -622,7 +616,6 @@ class MettaTrainer:
                 self.losses.entropy_sum += entropy_loss.item()
                 self.losses.approx_kl_sum += approx_kl.item()
                 self.losses.clipfrac_sum += clipfrac.item()
-                self.losses.l2_reg_loss_sum += l2_reg_loss.item() if torch.is_tensor(l2_reg_loss) else l2_reg_loss
                 self.losses.l2_init_loss_sum += l2_init_loss.item() if torch.is_tensor(l2_init_loss) else l2_init_loss
                 self.losses.ks_action_loss_sum += ks_action_loss.item()
                 self.losses.ks_value_loss_sum += ks_value_loss.item()
@@ -953,8 +946,6 @@ class MettaTrainer:
         losses = self.losses.stats()
 
         # don't plot losses that are unused
-        if self.trainer_cfg.l2_reg_loss_coef == 0:
-            losses.pop("l2_reg_loss")
         if self.trainer_cfg.l2_init_loss_coef == 0:
             losses.pop("l2_init_loss")
         if not self.kickstarter.enabled:
