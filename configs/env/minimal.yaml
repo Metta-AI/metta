@@ -96,7 +96,9 @@ game:
 
   # No reward sharing for simplicity
   reward_sharing:
-    groups: {}
+    groups:
+      agent:
+        agent: 0.0  # No reward sharing for the single agent group
 
   # Simple inline ASCII map
   map_builder:

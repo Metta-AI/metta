@@ -231,6 +231,8 @@ game:
   # Reward sharing configuration
   reward_sharing:
     groups:
+      agent:
+        agent: 0.0  # Base agents don't share rewards
       team_1:
         team_1: 0.5
       team_2:
@@ -239,6 +241,10 @@ game:
         team_3: 0.5
       team_4:
         team_4: 0.5
+      prey:
+        prey: 0.0
+      predator:
+        predator: 0.0
 
   # Map builder configuration (used by MettaGridEnv)
   map_builder:
