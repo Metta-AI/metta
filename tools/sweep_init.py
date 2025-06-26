@@ -28,19 +28,23 @@ def main(cfg: DictConfig | ListConfig) -> int:
         logger.error("Run ID is missing, please set it in the config")
         return 1
 
+    # Derive sweep_name from the CLI run parameter (e.g., "simple_sweep")
+    # The run parameter is the sweep base name, individual runs will be "simple_sweep.r.0", etc.
+    sweep_name = cfg.run
+    cfg.sweep_name = sweep_name  # Set for config interpolations like sweep_dir
+
     logger.info("Sweep configuration:")
     logger.info(yaml.dump(OmegaConf.to_container(cfg, resolve=True), default_flow_style=False))
-    cfg.wandb.name = cfg.sweep_name
+    cfg.wandb.name = sweep_name
 
     is_master = os.environ.get("NODE_INDEX", "0") == "0"
 
-    # TODO I think we should scrap sweep_name and use run instead.
-    run_once(lambda: create_sweep(cfg.sweep_name, cfg, logger))
+    run_once(lambda: create_sweep(sweep_name, cfg, logger))
 
     if is_master:
-        create_run(cfg.sweep_name, cfg, logger)
+        create_run(sweep_name, cfg, logger)
     else:
-        wait_for_run(cfg.sweep_name, cfg, cfg.dist_cfg_path, logger)
+        wait_for_run(sweep_name, cfg, cfg.dist_cfg_path, logger)
 
     return 0
 
