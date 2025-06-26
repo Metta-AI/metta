@@ -94,7 +94,7 @@ game:
 
   objects:
     altar:
-      input_battery.red: 1
+      input_battery.red: 3
       output_heart: 1
       max_output: 5
       conversion_ticks: 1
