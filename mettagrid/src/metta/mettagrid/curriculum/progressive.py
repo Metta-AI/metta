@@ -35,7 +35,8 @@ class ProgressiveCurriculum(SamplingCurriculum):
 
 
 class ProgressiveMultiTaskCurriculum(RandomCurriculum):
-    """Curriculum that blends multiple tasks using gating mechanisms and advances progression based on smoothed performance or time."""
+    """Curriculum that blends multiple tasks using gating mechanisms and advances progression based on
+    smoothed performance or time."""
 
     def __init__(
         self,
@@ -125,7 +126,8 @@ class ProgressiveMultiTaskCurriculum(RandomCurriculum):
         self._task_weights = {task_id: float(probs[i]) for i, task_id in enumerate(self._task_order)}
 
         logger.debug(
-            f"Progress: {self._progress:.3f}, smoothed_perf: {self._smoothed_performance:.3f}, weights: {[(k, f'{v:.3f}') for k, v in self._task_weights.items()]}"
+            f"Progress: {self._progress:.3f}, smoothed_perf: {self._smoothed_performance:.3f}, "
+            f"weights: {[(k, f'{v:.3f}') for k, v in self._task_weights.items()]}"
         )
 
     def complete_task(self, id: str, score: float):
