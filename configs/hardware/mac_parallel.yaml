@@ -15,7 +15,7 @@ vectorization: multiprocessing
 trainer:
   num_workers: 4 # Number of "parallel" worker processes (i.e. cores)
   update_epochs: 1
-  batch_size: 1024
+  batch_size: 4096
   minibatch_size: 1024
   forward_pass_minibatch_target_size: 512
   async_factor: 1

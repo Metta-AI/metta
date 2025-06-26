@@ -11,13 +11,13 @@ import yaml
 from omegaconf import DictConfig, ListConfig, OmegaConf
 
 import wandb_carbs
+from metta.common.util.config import config_from_path
+from metta.common.util.lock import run_once
+from metta.common.util.logging import setup_mettagrid_logger
+from metta.common.util.wandb.sweep import generate_run_id_for_sweep, sweep_id_from_name
+from metta.common.util.wandb.wandb_context import WandbContext
 from metta.rl.carbs.metta_carbs import MettaCarbs, carbs_params_from_cfg
 from metta.sim.simulation_config import SimulationSuiteConfig
-from metta.util.config import config_from_path
-from metta.util.lock import run_once
-from metta.util.logging import setup_mettagrid_logger
-from metta.util.wandb.sweep import generate_run_id_for_sweep, sweep_id_from_name
-from metta.util.wandb.wandb_context import WandbContext
 
 
 @hydra.main(config_path="../configs", config_name="sweep_job", version_base=None)

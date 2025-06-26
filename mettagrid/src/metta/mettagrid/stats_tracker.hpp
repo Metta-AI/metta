@@ -9,6 +9,8 @@
 // Forward declaration
 class MettaGrid;
 
+using InventoryItem = uint8_t;
+
 class StatsTracker {
 private:
   std::map<std::string, float> _stats;
@@ -17,6 +19,7 @@ private:
   std::map<std::string, float> _min_value;
   std::map<std::string, float> _max_value;
   std::map<std::string, int> _update_count;
+  std::vector<std::string> _inventory_item_names;
   MettaGrid* _env;
 
   // Track timing for any update
@@ -52,10 +55,17 @@ private:
   friend class StatsTrackerTest;
 
 public:
-  StatsTracker() : _env(nullptr) {}
+  explicit StatsTracker(const std::vector<std::string>& inventory_item_names)
+      : _env(nullptr), _inventory_item_names(inventory_item_names) {}
 
   void set_environment(MettaGrid* env) {
     _env = env;
+  }
+
+  // We expose this through stats since "what name will be meaningful" to people is a reasonable domain of stats.
+  // Implemented when mettagrid is complete.
+  const std::string& inventory_item_name(InventoryItem item) const {
+    return _inventory_item_names[item];
   }
 
   void add(const std::string& key, float amount) {

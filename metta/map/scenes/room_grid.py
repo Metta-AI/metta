@@ -1,14 +1,18 @@
 from typing import Optional
 
+from metta.common.util.config import Config
 from metta.map.scene import Scene
-from metta.util.config import Config
 
 
 class RoomGridParams(Config):
     rows: Optional[int] = None
     columns: Optional[int] = None
     layout: Optional[list[list[str]]] = None
-    border_width: int = 1
+
+    # Default value guarantees that agents don't see beyond the walls.
+    # Usually shouldn't be changed.
+    border_width: int = 5
+
     border_object: str = "wall"
 
 

@@ -7,10 +7,11 @@
  * - Shows overall view.
  */
 
-import { requestFrame } from './main.js'
-import { focusFullMap } from './worldmap.js'
+import { requestFrame, setIsPlaying } from './main.js'
+import { focusFullMap, focusMap } from './worldmap.js'
 import { ui, state } from './common.js'
 import { getAttr } from './replay.js'
+import * as Common from './common.js'
 
 enum ShotType {
   FOCUS_AGENT = 'focus_agent',
@@ -54,6 +55,7 @@ export function startDemoMode() {
 
 export function stopDemoMode() {
   state.demoMode = false
+  setIsPlaying(false)
   requestFrame()
 }
 
@@ -128,7 +130,8 @@ export function doDemoMode() {
       )
       state.selectedGridObject = state.replay.agents[shot.agentId]
       state.followSelection = true
-      ui.mapPanel.zoomLevel = 0.3
+      focusMap(0, 0, 11 * Common.TILE_SIZE, 11 * Common.TILE_SIZE)
+      shot.zoomLevel = ui.mapPanel.zoomLevel * 1.5
     }
   }
 
