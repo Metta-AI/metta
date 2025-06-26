@@ -337,9 +337,9 @@ class MettaTrainer:
                 f"{steps_per_sec * self._world_size:.0f} steps/sec "
                 f"({train_pct:.0f}% train / {rollout_pct:.0f}% rollout / {stats_pct:.0f}% stats)"
             )
-            record_heartbeat()
 
             # Interval periodic tasks
+            self._maybe_record_heartbeat()
             self._maybe_save_policy()
             self._maybe_save_training_state()
             wandb_policy_name = self._maybe_upload_policy_record_to_wandb()
@@ -672,6 +672,12 @@ class MettaTrainer:
             return True
 
         return self.epoch % interval == 0
+
+    def _maybe_record_heartbeat(self, force=False):
+        if not self._should_run(10, force):
+            return
+
+        record_heartbeat()
 
     def _maybe_save_training_state(self, force=False):
         """Save training state if on checkpoint interval"""
@@ -1168,7 +1174,7 @@ class MettaTrainer:
             is_training=True,
         )
 
-        self._memory_monitor.add(self.vecenv)
+        # self._memory_monitor.add(self.vecenv)
 
         if self.cfg.seed is None:
             self.cfg.seed = np.random.randint(0, 1000000)
