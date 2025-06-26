@@ -255,7 +255,7 @@ TEST_F(MettaGridCppTest, PutRecipeItems) {
   generator_cfg.color = 0;
   generator_cfg.inventory_item_names = inventory_item_names;
   EventManager event_manager;
-  Converter* generator = new Converter(0, 0, generator_cfg, ObjectType::GeneratorT);
+  Converter* generator = new Converter(0, 0, generator_cfg, ObjectType::GeneratorRedT);
   grid.add_object(generator);
   generator->set_event_manager(&event_manager);
 
@@ -314,7 +314,7 @@ TEST_F(MettaGridCppTest, GetOutput) {
   generator_cfg.color = 0;
   generator_cfg.inventory_item_names = inventory_item_names;
   EventManager event_manager;
-  Converter* generator = new Converter(0, 0, generator_cfg, ObjectType::GeneratorT);
+  Converter* generator = new Converter(0, 0, generator_cfg, ObjectType::GeneratorRedT);
   grid.add_object(generator);
   generator->set_event_manager(&event_manager);
 
@@ -355,13 +355,13 @@ TEST_F(MettaGridCppTest, EventManager) {
 TEST_F(MettaGridCppTest, ObjectTypes) {
   // Test that object type constants are properly defined
   EXPECT_NE(ObjectType::AgentT, ObjectType::WallT);
-  EXPECT_NE(ObjectType::AgentT, ObjectType::GeneratorT);
-  EXPECT_NE(ObjectType::WallT, ObjectType::GeneratorT);
+  EXPECT_NE(ObjectType::AgentT, ObjectType::GeneratorRedT);
+  EXPECT_NE(ObjectType::WallT, ObjectType::GeneratorRedT);
 
   // Test that object layers are properly mapped
   EXPECT_TRUE(ObjectLayers.find(ObjectType::AgentT) != ObjectLayers.end());
   EXPECT_TRUE(ObjectLayers.find(ObjectType::WallT) != ObjectLayers.end());
-  EXPECT_TRUE(ObjectLayers.find(ObjectType::GeneratorT) != ObjectLayers.end());
+  EXPECT_TRUE(ObjectLayers.find(ObjectType::GeneratorRedT) != ObjectLayers.end());
 }
 
 // ==================== Wall/Block Tests ====================
@@ -387,7 +387,7 @@ TEST_F(MettaGridCppTest, ConverterCreation) {
   converter_cfg.initial_items = 0;
   converter_cfg.color = 0;
   converter_cfg.inventory_item_names = create_test_inventory_item_names();
-  std::unique_ptr<Converter> converter(new Converter(1, 2, converter_cfg, ObjectType::GeneratorT));
+  std::unique_ptr<Converter> converter(new Converter(1, 2, converter_cfg, ObjectType::GeneratorRedT));
 
   ASSERT_NE(converter, nullptr);
   EXPECT_EQ(converter->location.r, 1);

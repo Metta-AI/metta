@@ -22,7 +22,6 @@ class MiniscopeRenderer:
         "agent.prey": "🐰",  # Prey agent (Ap)
         "agent.predator": "🦁",  # Predator agent (AP)
         # Resources and Items
-        "mine": "💎",  # Generic mine (m) - using gem instead of pickaxe
         "mine_red": "🔺",  # Red mine (r)
         "mine_blue": "🔷",  # Blue mine (b)
         "mine_green": "💚",  # Green mine (g)
