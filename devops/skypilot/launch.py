@@ -6,13 +6,13 @@ import sys
 
 import sky
 
-from common.src.metta.common.fs import cd_repo_root
 from devops.skypilot.utils import (
     check_config_files,
     check_git_state,
     display_job_summary,
     launch_task,
 )
+from metta.common.fs import cd_repo_root
 from metta.common.util.cli import get_user_confirmation
 from metta.common.util.colorama import red
 from metta.common.util.git import get_current_commit, validate_git_ref
