@@ -295,13 +295,10 @@ class MettaGridEnv(PufferEnv, GymEnv):
             with self.timer("_stats_writer"):
                 assert self._episode_id is not None, "Episode ID must be set before writing stats"
 
+                env_cfg_flattened: dict[str, str] = {}
                 env_cfg = OmegaConf.to_container(self._task.env_cfg(), resolve=False)
                 for k, v in unroll_nested_dict(cast(dict[str, Any], env_cfg)):
-                    attributes[f"config.{str(k).replace('/', '.')}"] = str(v)
-
-                container = OmegaConf.to_container(self._task.env_cfg(), resolve=False)
-                for k, v in unroll_nested_dict(cast(dict[str, Any], container)):
-                    attributes[f"config.{str(k).replace('/', '.')}"] = str(v)
+                    env_cfg_flattened[f"config.{str(k).replace('/', '.')}"] = str(v)
 
                 agent_metrics = {}
                 for agent_idx, agent_stats in enumerate(stats["agent"]):
@@ -318,7 +315,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
 
                 self._stats_writer.record_episode(
                     self._episode_id,
-                    attributes,
+                    env_cfg_flattened,
                     agent_metrics,
                     agent_groups,
                     self.max_steps,
