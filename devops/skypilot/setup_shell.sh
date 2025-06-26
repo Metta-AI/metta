@@ -29,6 +29,7 @@ alias jllc='sky jobs logs --controller $(jj | grep -A1 TASK | grep -v TASK | awk
 
 # launch training
 unalias lt 2>/dev/null
+
 lt() {
     local original_dir="$(pwd)"
     if cd_repo_root; then
@@ -37,4 +38,6 @@ lt() {
         cd "$original_dir"
         return $exit_code
     fi
+    return $?  # Return the error code from cd_repo_root
 }
+
