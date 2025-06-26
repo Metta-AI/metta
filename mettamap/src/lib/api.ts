@@ -38,7 +38,9 @@ export async function findStoredMaps(
 ): Promise<MapMetadata[]> {
   const searchParams = new URLSearchParams({
     dir,
-    filter: filters.map((f) => `${f.key}=${f.value}`).join(","),
+    filter: filters
+      .map((f) => `${f.key}=${encodeURIComponent(f.value)}`)
+      .join(","),
   });
   const response = await fetch(
     `${API_URL}/stored-maps/find-maps?${searchParams}`
