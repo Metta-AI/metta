@@ -4,14 +4,10 @@
 import hydra
 from omegaconf import DictConfig, OmegaConf
 
-from metta.common.util.logging import setup_mettagrid_logger
-from metta.common.util.runtime_configuration import setup_mettagrid_environment
-<<<<<<< Updated upstream
-from metta.common.uv_check import enforce_uv
-=======
->>>>>>> Stashed changes
 from metta.eval.dashboard_data import DashboardConfig, write_dashboard_data
 from metta.mettagrid.util.file import http_url
+from metta.util.logging import setup_mettagrid_logger
+from metta.util.runtime_configuration import setup_mettagrid_environment
 
 DASHBOARD_URL = "https://metta-ai.github.io/metta/observatory/"
 
@@ -39,5 +35,4 @@ def main(cfg: DictConfig) -> None:
 
 
 if __name__ == "__main__":
-    enforce_uv()
     main()

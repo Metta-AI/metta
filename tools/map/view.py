@@ -3,14 +3,10 @@ import argparse
 import logging
 from typing import get_args
 
-from metta.common.util.resolvers import register_resolvers
-<<<<<<< Updated upstream
-from metta.common.uv_check import enforce_uv
-=======
->>>>>>> Stashed changes
 from metta.map.load_random import get_random_map_uri
 from metta.map.utils.show import ShowMode, show_map
 from metta.map.utils.storable_map import StorableMap
+from metta.util.resolvers import register_resolvers
 from tools.map.gen import uri_is_file
 
 logger = logging.getLogger(__name__)
@@ -43,5 +39,4 @@ def main():
 
 
 if __name__ == "__main__":
-    enforce_uv()
     main()
