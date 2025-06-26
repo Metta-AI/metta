@@ -36,51 +36,78 @@ export function onResize() {
   const screenWidth = window.innerWidth
   const screenHeight = window.innerHeight
 
-  // Make sure traceSplit and infoSplit are not too small or too large.
-  const a = 0.025
-  ui.traceSplit = Math.max(a, Math.min(ui.traceSplit, 1 - a))
-  ui.agentPanelSplit = Math.max(a, Math.min(ui.agentPanelSplit, 1 - a))
+  if (!state.showUi) {
+    ui.mapPanel.x = 0
+    ui.mapPanel.y = 0
+    ui.mapPanel.width = screenWidth
+    ui.mapPanel.height = screenHeight
+    ui.miniMapPanel.height = 0
+    ui.infoPanel.height = 0
+    ui.tracePanel.width = 0
+    ui.tracePanel.height = 0
+    ui.timelinePanel.height = 0
+    ui.agentPanel.height = 0
+  } else {
 
-  ui.mapPanel.x = 0
-  ui.mapPanel.y = Common.HEADER_HEIGHT
-  ui.mapPanel.width = screenWidth
-  let maxMapHeight = screenHeight - Common.HEADER_HEIGHT - Common.FOOTER_HEIGHT
-  ui.mapPanel.height = Math.min(screenHeight * ui.traceSplit - Common.HEADER_HEIGHT, maxMapHeight)
+    // Make sure traceSplit and infoSplit are not too small or too large.
+    const a = 0.025
+    ui.traceSplit = Math.max(a, Math.min(ui.traceSplit, 1 - a))
+    ui.agentPanelSplit = Math.max(a, Math.min(ui.agentPanelSplit, 1 - a))
 
-  // Minimap goes in the bottom left corner of the mapPanel.
-  if (state.replay != null) {
-    const miniMapWidth = state.replay.map_size[0] * 2
-    const miniMapHeight = state.replay.map_size[1] * 2
-    ui.miniMapPanel.x = 0
-    ui.miniMapPanel.y = ui.mapPanel.y + ui.mapPanel.height - miniMapHeight
-    ui.miniMapPanel.width = miniMapWidth
-    ui.miniMapPanel.height = miniMapHeight
+    ui.mapPanel.x = 0
+    ui.mapPanel.y = Common.HEADER_HEIGHT
+    ui.mapPanel.width = screenWidth
+    let maxMapHeight = screenHeight - Common.HEADER_HEIGHT - Common.FOOTER_HEIGHT
+    ui.mapPanel.height = Math.min(screenHeight * ui.traceSplit - Common.HEADER_HEIGHT, maxMapHeight)
+
+    // Minimap goes in the bottom left corner of the mapPanel.
+    if (state.replay != null) {
+      const miniMapWidth = state.replay.map_size[0] * 2
+      const miniMapHeight = state.replay.map_size[1] * 2
+      ui.miniMapPanel.x = 0
+      ui.miniMapPanel.y = ui.mapPanel.y + ui.mapPanel.height - miniMapHeight
+      ui.miniMapPanel.width = miniMapWidth
+      ui.miniMapPanel.height = miniMapHeight
+    }
+
+    ui.infoPanel.x = screenWidth - 400
+    ui.infoPanel.y = ui.mapPanel.y + ui.mapPanel.height - 300
+    ui.infoPanel.width = 400
+    ui.infoPanel.height = 300
+
+    // Trace panel is always on the bottom of the screen.
+    if (state.showTraces) {
+      ui.tracePanel.x = 0
+      ui.tracePanel.y = ui.mapPanel.y + ui.mapPanel.height
+      ui.tracePanel.width = screenWidth
+      ui.tracePanel.height = screenHeight - ui.tracePanel.y - Common.FOOTER_HEIGHT
+
+      html.actionButtons.style.top = ui.tracePanel.y - 148 + 'px'
+    } else {
+      ui.tracePanel.x = 0
+      ui.tracePanel.y = 0
+      ui.tracePanel.width = 0
+      ui.tracePanel.height = 0
+      // Have the map panel take up the trace panel's space.
+      ui.mapPanel.height = screenHeight - ui.mapPanel.y - Common.FOOTER_HEIGHT
+      ui.miniMapPanel.y = ui.mapPanel.y + ui.mapPanel.height - ui.miniMapPanel.height
+      ui.infoPanel.y = ui.mapPanel.y + ui.mapPanel.height - 300
+      html.actionButtons.style.top = ui.mapPanel.y + ui.mapPanel.height - 148 + 'px'
+    }
+
+    // Timeline panel is always on the bottom of the screen.
+    ui.timelinePanel.x = 0
+    ui.timelinePanel.y = screenHeight - 64 - 64
+    ui.timelinePanel.width = screenWidth
+    ui.timelinePanel.height = 64
+
+    // Agent panel is always on the top of the screen.
+    ui.agentPanel.x = 0
+    ui.agentPanel.y = Common.HEADER_HEIGHT
+    ui.agentPanel.width = screenWidth
+    ui.agentPanel.height = ui.agentPanelSplit * screenHeight
   }
 
-  ui.infoPanel.x = screenWidth - 400
-  ui.infoPanel.y = ui.mapPanel.y + ui.mapPanel.height - 300
-  ui.infoPanel.width = 400
-  ui.infoPanel.height = 300
-
-  // Trace panel is always on the bottom of the screen.
-  ui.tracePanel.x = 0
-  ui.tracePanel.y = ui.mapPanel.y + ui.mapPanel.height
-  ui.tracePanel.width = screenWidth
-  ui.tracePanel.height = screenHeight - ui.tracePanel.y - Common.FOOTER_HEIGHT
-
-  // Timeline panel is always on the bottom of the screen.
-  ui.timelinePanel.x = 0
-  ui.timelinePanel.y = screenHeight - 64 - 64
-  ui.timelinePanel.width = screenWidth
-  ui.timelinePanel.height = 64
-
-  // Agent panel is always on the top of the screen.
-  ui.agentPanel.x = 0
-  ui.agentPanel.y = Common.HEADER_HEIGHT
-  ui.agentPanel.width = screenWidth
-  ui.agentPanel.height = ui.agentPanelSplit * screenHeight
-
-  html.actionButtons.style.top = ui.tracePanel.y - 148 + 'px'
 
   ui.mapPanel.updateDiv()
   ui.miniMapPanel.updateDiv()
@@ -93,6 +120,25 @@ export function onResize() {
 
   // Redraw the square after resizing.
   requestFrame()
+}
+
+/** Shows all UI elements. */
+function showUi() {
+  find("#header").classList.remove('hidden')
+  find("#footer").classList.remove('hidden')
+  onResize()
+}
+
+/** Hides all UI elements. */
+function hideUi() {
+  find("#header").classList.add('hidden')
+  find("#footer").classList.add('hidden')
+  state.showMiniMap = false
+  state.showInfo = false
+  state.showTraces = false
+  state.showAgentPanel = false
+  state.showActionButtons = false
+  onResize()
 }
 
 /** Handles mouse down events. */
@@ -337,6 +383,16 @@ onEvent('keydown', 'body', (target: HTMLElement, e: Event) => {
   if (event.key == ' ') {
     setIsPlaying(!state.isPlaying)
   }
+  // Make F2 toggle the UI.
+  if (event.key == 'F2') {
+    state.showUi = !state.showUi
+    if (state.showUi) {
+      showUi()
+    } else {
+      hideUi()
+    }
+    requestFrame()
+  }
 
   processActions(event)
 
@@ -371,8 +427,13 @@ export function onFrame() {
     ui.miniMapPanel.div.classList.add('hidden')
   }
 
-  ctx.useMesh('trace')
-  drawTrace(ui.tracePanel)
+  if (state.showTraces) {
+    ui.tracePanel.div.classList.remove('hidden')
+    ctx.useMesh('trace')
+    drawTrace(ui.tracePanel)
+  } else {
+    ui.tracePanel.div.classList.add('hidden')
+  }
 
   ctx.useMesh('timeline')
   drawTimeline(ui.timelinePanel)
@@ -384,7 +445,7 @@ export function onFrame() {
     ui.infoPanel.div.classList.add('hidden')
   }
 
-  if (state.showControls) {
+  if (state.showActionButtons) {
     html.actionButtons.classList.remove('hidden')
   } else {
     html.actionButtons.classList.add('hidden')
@@ -509,7 +570,7 @@ function onShareButtonClick() {
 }
 
 /** Sets the playing state and updates the play button icon. */
-function setIsPlaying(isPlaying: boolean) {
+export function setIsPlaying(isPlaying: boolean) {
   state.isPlaying = isPlaying
   if (state.isPlaying) {
     html.playButton.setAttribute('src', 'data/ui/pause.png')
@@ -522,9 +583,9 @@ function setIsPlaying(isPlaying: boolean) {
 /** Toggles the opacity of a button. */
 function toggleOpacity(button: HTMLElement, show: boolean) {
   if (show) {
-    button.style.opacity = '1'
+    button.classList.remove('transparent')
   } else {
-    button.style.opacity = '0.2'
+    button.classList.add('transparent')
   }
 }
 
@@ -687,15 +748,15 @@ if (localStorage.hasOwnProperty('showMiniMap')) {
 toggleOpacity(html.minimapToggle, state.showMiniMap)
 
 onEvent('click', '#controls-toggle', () => {
-  state.showControls = !state.showControls
-  localStorage.setItem('showControls', state.showControls.toString())
-  toggleOpacity(html.controlsToggle, state.showControls)
+  state.showActionButtons = !state.showActionButtons
+  localStorage.setItem('showActionButtons', state.showActionButtons.toString())
+  toggleOpacity(html.controlsToggle, state.showActionButtons)
   requestFrame()
 })
-if (localStorage.hasOwnProperty('showControls')) {
-  state.showControls = localStorage.getItem('showControls') === 'true'
+if (localStorage.hasOwnProperty('showActionButtons')) {
+  state.showActionButtons = localStorage.getItem('showActionButtons') === 'true'
 }
-toggleOpacity(html.controlsToggle, state.showControls)
+toggleOpacity(html.controlsToggle, state.showActionButtons)
 
 onEvent('click', '#info-toggle', () => {
   state.showInfo = !state.showInfo
@@ -718,6 +779,54 @@ if (localStorage.hasOwnProperty('showAgentPanel')) {
   state.showAgentPanel = localStorage.getItem('showAgentPanel') === 'true'
 }
 toggleOpacity(html.agentPanelToggle, state.showAgentPanel)
+
+onEvent('click', '#traces-toggle', () => {
+  state.showTraces = !state.showTraces
+  localStorage.setItem('showTraces', state.showTraces.toString())
+  toggleOpacity(html.tracesToggle, state.showTraces)
+  onResize()
+  requestFrame()
+})
+if (localStorage.hasOwnProperty('showTraces')) {
+  state.showTraces = localStorage.getItem('showTraces') === 'true'
+}
+toggleOpacity(html.tracesToggle, state.showTraces)
+
+onEvent('click', '#info-panel .close', () => {
+  state.showInfo = false
+  localStorage.setItem('showInfo', state.showInfo.toString())
+  toggleOpacity(html.infoToggle, state.showInfo)
+  requestFrame()
+})
+
+onEvent('click', '#minimap-panel .close', () => {
+  state.showMiniMap = false
+  localStorage.setItem('showMiniMap', state.showMiniMap.toString())
+  toggleOpacity(html.minimapToggle, state.showMiniMap)
+  requestFrame()
+})
+
+onEvent('click', '#agent-panel .close', () => {
+  state.showAgentPanel = false
+  localStorage.setItem('showAgentPanel', state.showAgentPanel.toString())
+  toggleOpacity(html.agentPanelToggle, state.showAgentPanel)
+  requestFrame()
+})
+
+onEvent('click', '#trace-panel .close', () => {
+  state.showTraces = false
+  localStorage.setItem('showTraces', state.showTraces.toString())
+  toggleOpacity(html.tracesToggle, state.showTraces)
+  onResize()
+  requestFrame()
+})
+
+onEvent('click', '#action-buttons .close', () => {
+  state.showActionButtons = false
+  localStorage.setItem('showActionButtons', state.showActionButtons.toString())
+  toggleOpacity(html.controlsToggle, state.showActionButtons)
+  requestFrame()
+})
 
 initHighDpiMode()
 initActionButtons()

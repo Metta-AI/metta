@@ -32,42 +32,28 @@ public:
 
   Agent(GridCoord r,
         GridCoord c,
-        unsigned char default_item_max,
         unsigned char freeze_duration,
         float action_failure_penalty,
-        std::map<std::string, unsigned int> max_items_per_type_,
-        std::map<std::string, float> resource_rewards_,
-        std::map<std::string, float> resource_reward_max_,
+        std::map<InventoryItem, uint8_t> max_items_per_type,
+        std::map<InventoryItem, float> resource_rewards,
+        std::map<InventoryItem, float> resource_reward_max,
         std::string group_name,
-        unsigned char group_id)
+        unsigned char group_id,
+        const std::vector<std::string>& inventory_item_names)
       : freeze_duration(freeze_duration),
         action_failure_penalty(action_failure_penalty),
+        max_items_per_type(max_items_per_type),
+        resource_rewards(resource_rewards),
+        resource_reward_max(resource_reward_max),
         group(group_id),
         group_name(group_name),
         color(0),
-        current_resource_reward(0) {
+        current_resource_reward(0),
+        stats(inventory_item_names) {
     GridObject::init(ObjectType::AgentT, GridLocation(r, c, GridLayer::Agent_Layer));
 
     this->frozen = 0;
     this->orientation = 0;
-
-    for (int i = 0; i < InventoryItem::InventoryItemCount; i++) {
-      if (max_items_per_type_.count(InventoryItemNames[i]) > 0) {
-        this->max_items_per_type[static_cast<InventoryItem>(i)] = max_items_per_type_[InventoryItemNames[i]];
-      } else {
-        this->max_items_per_type[static_cast<InventoryItem>(i)] = default_item_max;
-      }
-    }
-    for (int i = 0; i < InventoryItem::InventoryItemCount; i++) {
-      if (resource_rewards_.count(InventoryItemNames[i]) > 0) {
-        this->resource_rewards[static_cast<InventoryItem>(i)] = resource_rewards_[InventoryItemNames[i]];
-      }
-    }
-    for (int i = 0; i < InventoryItem::InventoryItemCount; i++) {
-      if (resource_reward_max_.count(InventoryItemNames[i]) > 0) {
-        this->resource_reward_max[static_cast<InventoryItem>(i)] = resource_reward_max_[InventoryItemNames[i]];
-      }
-    }
     this->reward = nullptr;
   }
 
@@ -88,9 +74,9 @@ public:
     }
 
     if (delta > 0) {
-      this->stats.add(InventoryItemNames[item] + ".gained", delta);
+      this->stats.add(this->stats.inventory_item_name(item) + ".gained", delta);
     } else if (delta < 0) {
-      this->stats.add(InventoryItemNames[item] + ".lost", -delta);
+      this->stats.add(this->stats.inventory_item_name(item) + ".lost", -delta);
     }
 
     this->compute_resource_reward(item);
@@ -142,7 +128,7 @@ public:
   }
 
 private:
-  std::map<ObsType, uint8_t> max_items_per_type;
+  std::map<InventoryItem, uint8_t> max_items_per_type;
 };
 
 #endif  // OBJECTS_AGENT_HPP_
