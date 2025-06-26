@@ -122,14 +122,11 @@ MettaGrid::MettaGrid(py::dict cfg, py::list map) {
       grid_hash_data += std::to_string(r) + "," + std::to_string(c) + ":" + cell + ";";
 
       Converter* converter = nullptr;
-      if (cell == "wall") {
-        Wall* wall = new Wall(r, c, cfg["objects"]["wall"].cast<ObjectConfig>());
+      if (cell == "wall" || cell == "block") {
+        auto wall_cfg = _create_wall_config(cfg["objects"][py::str(cell)]);
+        Wall* wall = new Wall(r, c, wall_cfg);
         _grid->add_object(wall);
-        _stats->incr("objects.wall");
-      } else if (cell == "block") {
-        Wall* block = new Wall(r, c, cfg["objects"]["block"].cast<ObjectConfig>());
-        _grid->add_object(block);
-        _stats->incr("objects.block");
+        _stats->incr("objects." + cell);
       } else if (cell == "mine_red") {
         auto converter_cfg = _create_converter_config(cfg["objects"]["mine_red"]);
         converter = new Converter(r, c, converter_cfg, ObjectType::MineRedT);
@@ -739,6 +736,11 @@ ConverterConfig MettaGrid::_create_converter_config(const py::dict& converter_cf
   ObsType color = converter_cfg_py["color"].cast<ObsType>();
   return ConverterConfig{
       recipe_input, recipe_output, max_output, conversion_ticks, cooldown, initial_items, color, inventory_item_names};
+}
+
+WallConfig MettaGrid::_create_wall_config(const py::dict& wall_cfg_py) {
+  bool swappable = wall_cfg_py.contains("swappable") ? wall_cfg_py["swappable"].cast<bool>() : false;
+  return WallConfig{swappable};
 }
 
 // Pybind11 module definition
