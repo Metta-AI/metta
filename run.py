@@ -35,8 +35,8 @@ import torch
 from omegaconf import DictConfig, OmegaConf
 
 # Import basic requirements first
-from metta.util.logging import setup_mettagrid_logger
-from metta.util.runtime_configuration import setup_mettagrid_environment
+from metta.common.util.logging import setup_mettagrid_logger
+from metta.common.util.runtime_configuration import setup_mettagrid_environment
 
 
 def build_common_config(args):
@@ -55,7 +55,7 @@ def build_common_config(args):
         "stats_user": os.environ.get("USER", "unknown"),
         "dist_cfg_path": None,
         # Hydra config for compatibility
-        "hydra": {"callbacks": {"resolver_callback": {"_target_": "metta.util.resolvers.ResolverRegistrar"}}},
+        "hydra": {"callbacks": {"resolver_callback": {"_target_": "metta.common.util.resolvers.ResolverRegistrar"}}},
     }
 
     return DictConfig(cfg)
@@ -76,6 +76,13 @@ def build_train_config(args):
             "obs_height": 11,
             "num_observation_tokens": 200,
             "max_steps": 1000,
+            "inventory_item_names": [
+                "ore.red",
+                "battery.red",
+                "heart",
+                "laser",
+                "armor",
+            ],
             "diversity_bonus": {"enabled": False, "similarity_coef": 0.5, "diversity_coef": 0.5},
             "agent": {
                 "default_item_max": 50,
@@ -144,36 +151,75 @@ def build_train_config(args):
         },
     }
 
-    # Agent configuration
+    # Agent configuration (based on configs/agent/fast.yaml)
     agent_config = {
         "_target_": "metta.agent.metta_agent.MettaAgent",
-        "hidden_size": 128,  # Reduced for faster testing
-        "rl_layer": {"_target_": "metta.agent.lib.rl_layer.SimpleLSTMRLLayer", "hidden_size": 128, "num_layers": 1},
-        "torso": {
-            "_target_": "metta.agent.lib.torso.SimpleTorso",
-            "hidden_size": 128,
-            "resnet_channels": 32,
-            "num_resnet_blocks": 2,
-            "num_heads": 0,
-        },
-        "heads": {
-            "actor": {
-                "_target_": "metta.agent.lib.head.LinearHead",
-                "input_size": 128,
-                "output_size": "???",
-                "num_layers": 0,
+        "observations": {"obs_key": "grid_obs"},
+        "clip_range": 0,
+        "analyze_weights_interval": 300,
+        "l2_init_weight_update_interval": 0,
+        "components": {
+            "_obs_": {"_target_": "metta.agent.lib.obs_token_to_box_shaper.ObsTokenToBoxShaper", "sources": None},
+            "obs_normalizer": {
+                "_target_": "metta.agent.lib.observation_normalizer.ObservationNormalizer",
+                "sources": [{"name": "_obs_"}],
             },
-            "critic": {
-                "_target_": "metta.agent.lib.head.LinearHead",
-                "input_size": 128,
-                "output_size": 1,
-                "num_layers": 0,
+            "cnn1": {
+                "_target_": "metta.agent.lib.nn_layer_library.Conv2d",
+                "sources": [{"name": "obs_normalizer"}],
+                "nn_params": {"out_channels": 64, "kernel_size": 5, "stride": 3},
+            },
+            "cnn2": {
+                "_target_": "metta.agent.lib.nn_layer_library.Conv2d",
+                "sources": [{"name": "cnn1"}],
+                "nn_params": {"out_channels": 64, "kernel_size": 3, "stride": 1},
+            },
+            "obs_flattener": {"_target_": "metta.agent.lib.nn_layer_library.Flatten", "sources": [{"name": "cnn2"}]},
+            "fc1": {
+                "_target_": "metta.agent.lib.nn_layer_library.Linear",
+                "sources": [{"name": "obs_flattener"}],
+                "nn_params": {"out_features": 128},
+            },
+            "encoded_obs": {
+                "_target_": "metta.agent.lib.nn_layer_library.Linear",
+                "sources": [{"name": "fc1"}],
+                "nn_params": {"out_features": 128},
+            },
+            "_core_": {
+                "_target_": "metta.agent.lib.lstm.LSTM",
+                "sources": [{"name": "encoded_obs"}],
+                "output_size": 128,
+                "nn_params": {"num_layers": 2},
+            },
+            "core_relu": {"_target_": "metta.agent.lib.nn_layer_library.ReLU", "sources": [{"name": "_core_"}]},
+            "critic_1": {
+                "_target_": "metta.agent.lib.nn_layer_library.Linear",
+                "sources": [{"name": "core_relu"}],
+                "nn_params": {"out_features": 1024},
+                "nonlinearity": "nn.Tanh",
+                "effective_rank": True,
+            },
+            "_value_": {
+                "_target_": "metta.agent.lib.nn_layer_library.Linear",
+                "sources": [{"name": "critic_1"}],
+                "nn_params": {"out_features": 1},
+                "nonlinearity": None,
+            },
+            "actor_1": {
+                "_target_": "metta.agent.lib.nn_layer_library.Linear",
+                "sources": [{"name": "core_relu"}],
+                "nn_params": {"out_features": 512},
+            },
+            "_action_embeds_": {
+                "_target_": "metta.agent.lib.action.ActionEmbedding",
+                "sources": None,
+                "nn_params": {"num_embeddings": 100, "embedding_dim": 16},
+            },
+            "_action_": {
+                "_target_": "metta.agent.lib.actor.MettaActorSingleHead",
+                "sources": [{"name": "actor_1"}, {"name": "_action_embeds_"}],
             },
         },
-        "decoder": {"_target_": "metta.agent.lib.decoder.MultiDiscreteActionDecoder"},
-        "sample_dtype": "float32",
-        "device": cfg.device,
-        "normalize_observations": False,
     }
 
     # Add env configuration to main config first
@@ -186,21 +232,21 @@ def build_train_config(args):
         "use_e3b": False,
         "total_timesteps": getattr(args, "total_timesteps", 10_000),  # Small default for testing
         "clip_coef": 0.1,
-        "ent_coef": 0.01,  # Increased for exploration
-        "gae_lambda": 0.95,
-        "gamma": 0.99,
+        "ent_coef": 0.0021,  # From trainer.yaml
+        "gae_lambda": 0.916,  # From trainer.yaml
+        "gamma": 0.977,  # From trainer.yaml
         "optimizer": {
             "type": "adam",
             "beta1": 0.9,
             "beta2": 0.999,
-            "eps": 1e-8,
-            "learning_rate": 3e-4,
+            "eps": 1e-12,  # From trainer.yaml
+            "learning_rate": 0.0004573146765703167,  # From trainer.yaml
             "weight_decay": 0,
         },
         "lr_scheduler": {"enabled": False, "anneal_lr": False},
         "max_grad_norm": 0.5,
-        "vf_clip_coef": None,
-        "vf_coef": 0.5,
+        "vf_clip_coef": 0.1,  # From trainer.yaml
+        "vf_coef": 0.44,  # From trainer.yaml
         "l2_reg_loss_coef": 0,
         "l2_init_loss_coef": 0,
         "prioritized_experience_replay": {"prio_alpha": 0.0, "prio_beta0": 0.6},
@@ -211,16 +257,16 @@ def build_train_config(args):
         "zero_copy": True,
         "require_contiguous_env_ids": False,
         "verbose": True,
-        "batch_size": getattr(args, "batch_size", 32),  # Smaller, aligned batch
-        "minibatch_size": 16,  # Half of batch
-        "bptt_horizon": 8,  # Smaller horizon
+        "batch_size": getattr(args, "batch_size", 262144),  # From trainer.yaml
+        "minibatch_size": 16384,  # From trainer.yaml
+        "bptt_horizon": 64,  # From trainer.yaml
         "update_epochs": 1,
         "cpu_offload": False,
         "compile": False,
         "compile_mode": "reduce-overhead",
         "profiler_interval_epochs": 10000,
-        "forward_pass_minibatch_target_size": 32,  # Same as batch_size
-        "async_factor": 1,  # Single async factor for simplicity
+        "forward_pass_minibatch_target_size": 2048,  # From trainer.yaml
+        "async_factor": 2,  # From trainer.yaml
         "kickstart": {
             "teacher_uri": None,
             "action_loss_coef": 1,
@@ -288,7 +334,17 @@ def train_command(args):
     from metta.mettagrid.curriculum.core import SingleTaskCurriculum
     from metta.rl.experience import Experience
     from metta.rl.functional_trainer import rollout, train_ppo
+    from metta.rl.losses import Losses
     from metta.rl.vecenv import make_vecenv
+
+    # Import pufferlib C extensions for torch.ops.pufferlib
+    try:
+        from pufferlib import _C  # noqa: F401 - Required for torch.ops.pufferlib
+    except ImportError:
+        raise ImportError(
+            "Failed to import C/CUDA advantage kernel. If you have non-default PyTorch, "
+            "try installing with --no-build-isolation"
+        ) from None
 
     original_init = mettagrid_env.MettaGridEnv.__init__
 
@@ -360,19 +416,40 @@ def train_command(args):
         # Training parameters from config
         trainer_cfg = cfg.trainer
         device = torch.device(cfg.device)
-        batch_size = trainer_cfg.batch_size
-        minibatch_size = trainer_cfg.minibatch_size
         total_timesteps = trainer_cfg.total_timesteps
+
+        logger.info(
+            f"Original trainer config: batch_size={trainer_cfg.batch_size}, minibatch_size={trainer_cfg.minibatch_size}, bptt_horizon={trainer_cfg.bptt_horizon}"
+        )
 
         # Create vectorized environment
         logger.info("Creating vectorized environment...")
+
+        # Calculate batch size for forward pass
+        num_agents = curriculum.get_task().env_cfg().game.num_agents
+        target_batch_size = trainer_cfg.forward_pass_minibatch_target_size // num_agents
+        if target_batch_size < max(2, trainer_cfg.num_workers):  # pufferlib bug requires batch size >= 2
+            target_batch_size = trainer_cfg.num_workers
+
+        forward_batch_size = (target_batch_size // trainer_cfg.num_workers) * trainer_cfg.num_workers
+        num_envs = forward_batch_size * trainer_cfg.async_factor
+
+        logger.info(
+            f"Creating {num_envs} environments (forward_batch_size={forward_batch_size}, "
+            f"async_factor={trainer_cfg.async_factor}, num_workers={trainer_cfg.num_workers})"
+        )
+
+        # For serial execution with num_workers=1, let pufferlib determine batch_size
+        vecenv_batch_size = None if trainer_cfg.num_workers == 1 else forward_batch_size
+
         vecenv = make_vecenv(
             curriculum=curriculum,
             vectorization=cfg.vectorization,
-            num_envs=trainer_cfg.batch_size // trainer_cfg.num_workers,
+            num_envs=num_envs,
+            batch_size=vecenv_batch_size,
             num_workers=trainer_cfg.num_workers,
-            batch_size=trainer_cfg.batch_size,
-            render_mode=None,
+            zero_copy=trainer_cfg.zero_copy,
+            is_training=True,
         )
 
         # Get environment info from driver env
@@ -380,27 +457,79 @@ def train_command(args):
         actions_names = metta_grid_env.action_names
         actions_max_params = metta_grid_env.max_action_args
 
-        # Create agent/policy - instantiate from config
+        # Create agent/policy with environment parameters
         logger.info("Creating agent...")
+
+        # Create observation space (matching make_policy in metta_agent.py)
+        import gymnasium as gym
+        import numpy as np
+
+        obs_space = gym.spaces.Dict(
+            {
+                "grid_obs": metta_grid_env.single_observation_space,
+                "global_vars": gym.spaces.Box(low=-np.inf, high=np.inf, shape=[0], dtype=np.int32),
+            }
+        )
+
+        # Instantiate agent with all required parameters
         agent_config = dict(cfg.agent)
-        agent_config["device"] = device
-        policy = instantiate(agent_config, _convert_="all")
+        policy = instantiate(
+            agent_config,
+            obs_space=obs_space,
+            obs_width=metta_grid_env.obs_width,
+            obs_height=metta_grid_env.obs_height,
+            action_space=metta_grid_env.single_action_space,
+            feature_normalizations=metta_grid_env.feature_normalizations,
+            global_features=metta_grid_env.global_features,
+            device=device,
+            _recursive_=False,
+            _convert_="all",
+        )
 
         # Activate actions on the policy
         policy.activate_actions(actions_names, actions_max_params, device)
 
         # Create experience buffer
         logger.info("Creating experience buffer...")
+        # Get some default values from trainer config
+        bptt_horizon = trainer_cfg.get("bptt_horizon", 8)
+
+        # Calculate total agents from vecenv
+        total_agents = vecenv.num_agents
+
+        # For distributed training, batch_size is divided by world_size
+        # Since we're not using distributed training, world_size = 1
+        world_size = 1
+        batch_size = trainer_cfg.batch_size // world_size
+        minibatch_size = trainer_cfg.minibatch_size // world_size
+
+        logger.info(
+            f"Creating experience buffer with batch_size={batch_size}, minibatch_size={minibatch_size}, total_agents={total_agents}"
+        )
+
         experience = Experience(
+            total_agents=total_agents,
             batch_size=batch_size,
+            bptt_horizon=bptt_horizon,
             minibatch_size=minibatch_size,
+            max_minibatch_size=trainer_cfg.get("forward_pass_minibatch_target_size", 2048),
+            obs_space=metta_grid_env.single_observation_space,
+            atn_space=metta_grid_env.single_action_space,
             device=device,
-            lstm=policy.lstm if hasattr(policy, "lstm") else None,
+            hidden_size=policy.hidden_size,
+            cpu_offload=trainer_cfg.cpu_offload,
+            num_lstm_layers=policy.core_num_layers,
+            agents_per_batch=getattr(vecenv, "agents_per_batch", None),
         )
 
         # Create timer
         timer = Stopwatch(logger)
         timer.start()
+
+        # Reset environments before starting
+        logger.info("Resetting environments...")
+        seed = cfg.get("seed", 42)
+        vecenv.async_reset(seed)
 
         # Training loop
         logger.info("Starting training loop...")
@@ -423,21 +552,40 @@ def train_command(args):
 
             # TRAIN: Update policy using PPO
             with timer("train"):
-                losses = train_ppo(
+                # Create optimizer if not exists
+                if epoch == 0:
+                    optimizer = torch.optim.Adam(
+                        policy.parameters(),
+                        lr=trainer_cfg.optimizer.learning_rate,
+                        betas=(trainer_cfg.optimizer.beta1, trainer_cfg.optimizer.beta2),
+                        eps=trainer_cfg.optimizer.eps,
+                        weight_decay=trainer_cfg.optimizer.weight_decay,
+                    )
+                    losses = Losses()
+
+                epoch = train_ppo(
                     policy=policy,
+                    optimizer=optimizer,
                     experience=experience,
                     device=device,
-                    learning_rate=trainer_cfg.optimizer.learning_rate,
+                    losses=losses,
+                    epoch=epoch,
+                    cfg=cfg,
+                    gamma=trainer_cfg.gamma,
+                    gae_lambda=trainer_cfg.gae_lambda,
                     clip_coef=trainer_cfg.clip_coef,
-                    value_coef=trainer_cfg.vf_coef,
-                    entropy_coef=trainer_cfg.ent_coef,
+                    ent_coef=trainer_cfg.ent_coef,
+                    vf_coef=trainer_cfg.vf_coef,
                     max_grad_norm=trainer_cfg.max_grad_norm,
-                    batch_size=batch_size,
-                    minibatch_size=minibatch_size,
-                    update_epochs=trainer_cfg.update_epochs,
                     norm_adv=trainer_cfg.norm_adv,
                     clip_vloss=trainer_cfg.clip_vloss,
-                    timer=timer,
+                    vf_clip_coef=trainer_cfg.vf_clip_coef,
+                    update_epochs=trainer_cfg.update_epochs,
+                    agent_step=agent_step,
+                    total_timesteps=total_timesteps,
+                    batch_size=batch_size,
+                    vtrace_rho_clip=trainer_cfg.vtrace.vtrace_rho_clip,
+                    vtrace_c_clip=trainer_cfg.vtrace.vtrace_c_clip,
                 )
 
             # Log progress
@@ -447,10 +595,13 @@ def train_command(args):
             total_time = rollout_time + train_time
             steps_per_sec = steps_in_epoch / total_time if total_time > 0 else 0
 
+            # Get loss stats
+            loss_stats = losses.stats()
             logger.info(
                 f"Epoch {epoch} - Agent steps: {agent_step}/{total_timesteps} - "
                 f"{steps_per_sec:.0f} steps/sec - "
-                f"Loss: {losses.loss:.4f}"
+                f"Policy loss: {loss_stats['policy_loss']:.4f} - "
+                f"Value loss: {loss_stats['value_loss']:.4f}"
             )
 
             # Save checkpoint periodically
@@ -679,7 +830,7 @@ Examples:
     train_parser = subparsers.add_parser("train", help="Train a policy")
     train_parser.add_argument("--run", default="default_run", help="Experiment name")
     train_parser.add_argument("--total-timesteps", type=int, default=10_000, help="Total training timesteps")
-    train_parser.add_argument("--batch-size", type=int, default=32, help="Batch size")
+    train_parser.add_argument("--batch-size", type=int, default=262144, help="Batch size")
     train_parser.add_argument("--num-agents", type=int, default=2, help="Number of agents")
     train_parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu", help="Device to use")
     train_parser.add_argument("--seed", type=int, default=0, help="Random seed")
