@@ -44,7 +44,7 @@ protected:
       int taken = actor->update_inventory(item, converter->inventory[item]);
 
       if (taken > 0) {
-        actor->stats.add(InventoryItemNames[item] + ".get", taken);
+        actor->stats.add(actor->stats.inventory_item_name(item) + ".get", taken);
         converter->update_inventory(item, -taken);
         items_taken = true;
       }
