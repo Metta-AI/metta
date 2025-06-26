@@ -19,27 +19,13 @@ valid_optimizer_config = {
 # Complete valid trainer config with all required fields
 valid_trainer_config = {
     "_target_": "metta.rl.trainer.MettaTrainer",
+    "total_timesteps": 1000000,
     "batch_size": 1024,
     "minibatch_size": 256,
-    "total_timesteps": 1000000,
-    "optimizer": valid_optimizer_config,
-    "clip_coef": 0.1,
-    "grad_mean_variance_interval": 0,
-    "ent_coef": 0.01,
-    "gae_lambda": 0.95,
-    "gamma": 0.99,
-    "max_grad_norm": 0.5,
-    "vf_coef": 0.5,
-    "vf_clip_coef": 0.1,
-    "l2_reg_loss_coef": 0,
-    "l2_init_loss_coef": 0,
     "bptt_horizon": 32,
     "update_epochs": 1,
     "forward_pass_minibatch_target_size": 512,
-    "env": "/env/mettagrid/simple",
-    "norm_adv": True,
-    "clip_vloss": True,
-    "target_kl": None,
+    "async_factor": 2,
     "zero_copy": True,
     "require_contiguous_env_ids": False,
     "verbose": True,
@@ -47,13 +33,26 @@ valid_trainer_config = {
     "compile": False,
     "compile_mode": "reduce-overhead",
     "profiler_interval_epochs": 10000,
-    "async_factor": 2,
-    "evaluate_interval": 300,
-    "checkpoint_interval": 60,
-    "wandb_checkpoint_interval": 300,
-    "replay_interval": 300,
     "num_workers": 1,
-    # Nested configs that were removed from defaults
+    "env": "/env/mettagrid/simple",
+    "curriculum": None,
+    "env_overrides": {},
+    "grad_mean_variance_interval": 0,
+    "ppo": {
+        "clip_coef": 0.1,
+        "ent_coef": 0.01,
+        "gae_lambda": 0.95,
+        "gamma": 0.99,
+        "max_grad_norm": 0.5,
+        "vf_clip_coef": 0.1,
+        "vf_coef": 0.5,
+        "l2_reg_loss_coef": 0,
+        "l2_init_loss_coef": 0,
+        "norm_adv": True,
+        "clip_vloss": True,
+        "target_kl": None,
+    },
+    "optimizer": valid_optimizer_config,
     "lr_scheduler": {
         "enabled": False,
         "anneal_lr": False,
@@ -76,13 +75,20 @@ valid_trainer_config = {
         "kickstart_steps": 1_000_000_000,
         "additional_teachers": None,
     },
-    "env_overrides": {},
     "initial_policy": {
         "uri": None,
         "type": "top",
         "range": 1,
         "metric": "epoch",
         "filters": {},
+    },
+    "checkpoint": {
+        "checkpoint_interval": 60,
+        "wandb_checkpoint_interval": 300,
+    },
+    "simulation": {
+        "evaluate_interval": 300,
+        "replay_interval": 300,
     },
 }
 
@@ -223,8 +229,8 @@ class TestRealTypedConfigs:
                 assert validated_config.batch_size > 0
                 assert validated_config.batch_size >= validated_config.minibatch_size
                 assert validated_config.batch_size % validated_config.minibatch_size == 0
-                assert 0 < validated_config.gamma <= 1
-                assert 0 <= validated_config.gae_lambda <= 1
+                assert 0 < validated_config.ppo.gamma <= 1
+                assert 0 <= validated_config.ppo.gae_lambda <= 1
                 assert 0 < validated_config.optimizer.learning_rate <= 1
             except Exception as e:
                 print(f"Error loading config {config_name}: {e}")
