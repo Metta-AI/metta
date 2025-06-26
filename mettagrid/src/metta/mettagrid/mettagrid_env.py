@@ -170,6 +170,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
 
         self._initialize_c_env()
         self._num_episodes += 1
+        self._steps = 0
 
         assert self.observations.dtype == dtype_observations
         assert self.terminals.dtype == dtype_terminals
