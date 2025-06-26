@@ -14,8 +14,17 @@ class MettaProtein(WandbProtein):
         cfg: DictConfig | ListConfig,
         wandb_run=None,
     ):
+        # Get parameters section or empty dict
+        parameters = cfg.sweep.get("parameters", {})
+
+        # Convert to container if it's an OmegaConf object, otherwise use as-is
+        if OmegaConf.is_config(parameters):
+            parameters_dict = OmegaConf.to_container(parameters, resolve=True)
+        else:
+            parameters_dict = parameters
+
         protein = Protein(
-            OmegaConf.to_container(cfg.sweep.parameters, resolve=True),
+            parameters_dict,
             cfg.sweep.protein.get("max_suggestion_cost", 3600),
             cfg.sweep.protein.get("resample_frequency", 0),
             cfg.sweep.protein.get("num_random_samples", 50),

@@ -238,6 +238,10 @@ class WandbProtein:
             if "suggestion_uuid" not in self._suggestion_info:
                 self._suggestion_info["suggestion_uuid"] = self._wandb_run.id
 
+            # Update wandb summary with the new suggestion and info
+            self._wandb_run.summary.update({"protein.suggestion": self._suggestion})
+            self._wandb_run.summary.update({"protein.suggestion_info": self._suggestion_info})
+
         except Exception as e:
             logger.error(f"Failed to generate Protein suggestion: {e}")
             raise e
