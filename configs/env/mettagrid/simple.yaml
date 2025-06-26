@@ -5,3 +5,6 @@ defaults:
 
 game:
   num_agents: 24
+  objects:
+    altar:
+      input_battery.red: 1
