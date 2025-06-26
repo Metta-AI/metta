@@ -115,7 +115,7 @@ def create_metta_agent():
         def forward(self, x):
             return x
 
-    # Create a mock ActionEmbedding component that has the activate_actions method
+    # Create a mock ActionEmbedding component that has the _setup_action_embeddings method
     class MockActionEmbeds(torch.nn.Module):
         def __init__(self):
             super().__init__()
@@ -133,7 +133,7 @@ def create_metta_agent():
             self.clipped = True
             return True
 
-        def activate_actions(self, action_names, device):
+        def _setup_action_embeddings(self, action_names, device):
             self.action_names = action_names
             self.device = device
             # Create a simple mapping that will let us test action conversions
@@ -214,20 +214,6 @@ def test_initialize_to_environment(create_metta_agent):
     assert agent.action_names == action_names
     assert agent.action_max_params == action_max_params
     assert hasattr(agent, "action_index_tensor")
-
-
-def test_backward_compatibility_activate_actions(create_metta_agent):
-    """Test that the deprecated activate_actions still works for backward compatibility."""
-    agent, _, _ = create_metta_agent
-    action_names = ["action0", "action1", "action2"]
-    action_max_params = [1, 2, 0]
-
-    # Should still work but show warning
-    agent.activate_actions(action_names, action_max_params, "cpu")
-
-    # Check that actions were initialized
-    assert agent.action_names == action_names
-    assert agent.action_max_params == action_max_params
 
 
 def test_clip_weights_calls_components(create_metta_agent):

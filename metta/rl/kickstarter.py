@@ -4,6 +4,7 @@ import torch
 from torch import Tensor, nn
 
 from metta.agent.policy_state import PolicyState
+from metta.agent.policy_utils import initialize_policy_to_environment
 
 
 class Kickstarter:
@@ -68,16 +69,14 @@ class Kickstarter:
             policy = policy_record.policy()
             policy.action_loss_coef = teacher_cfg["action_loss_coef"]
             policy.value_loss_coef = teacher_cfg["value_loss_coef"]
-            if hasattr(policy, "initialize_to_environment"):
-                policy.initialize_to_environment(self.features, self.action_names, self.action_max_params, self.device)
-            elif hasattr(policy, "activate_actions"):
-                # Fallback for backward compatibility
-                policy.activate_actions(self.action_names, self.action_max_params, self.device)
-            else:
-                raise AttributeError(
-                    f"Teacher policy is missing required method 'initialize_to_environment' or 'activate_actions'. "
-                    f"Expected a MettaAgent-like object but got {type(policy).__name__}"
+
+            try:
+                initialize_policy_to_environment(
+                    policy, self.features, self.action_names, self.action_max_params, self.device
                 )
+            except AttributeError as e:
+                raise AttributeError(f"Teacher policy: {e}") from e
+
             if self.compile:
                 policy = torch.compile(policy, mode=self.compile_mode)
             self.teachers.append(policy)
