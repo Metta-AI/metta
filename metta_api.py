@@ -368,19 +368,24 @@ def get_logger(name: str):
 
 def quick_train(
     run_name: str = "default_run",
-    timesteps: int = 100_000,
-    batch_size: int = 256,
+    timesteps: int = 50_000_000_000,  # Match original default
+    batch_size: int = 262_144,  # Match original default
     num_agents: int = 2,
     num_workers: int = 1,
-    learning_rate: float = 3e-4,
-    checkpoint_interval: int = 100,
+    learning_rate: float = 0.0004573146765703167,  # Match original default
+    checkpoint_interval: int = 60,  # seconds, not epochs
+    evaluate_interval: int = 300,  # seconds
     device: str = "cuda",
     vectorization: str = "serial",
     env_width: int = 15,
     env_height: int = 10,
+    bptt_horizon: int = 64,  # Match original default
+    minibatch_size: int = 16_384,  # Match original default
+    update_epochs: int = 1,  # Match original default
+    max_grad_norm: float = 0.5,  # Match original default
     logger=None,
 ) -> str:
-    """Quick training function with sensible defaults.
+    """Quick training function with sensible defaults matching the original trainer.
 
     Args:
         run_name: Name of the training run
@@ -389,17 +394,23 @@ def quick_train(
         num_agents: Number of agents per environment
         num_workers: Number of workers
         learning_rate: Learning rate
-        checkpoint_interval: How often to save checkpoints
+        checkpoint_interval: How often to save checkpoints (in seconds)
+        evaluate_interval: How often to evaluate (in seconds)
         device: Device to use
         vectorization: Vectorization mode
         env_width: Environment width
         env_height: Environment height
+        bptt_horizon: BPTT horizon for LSTM training
+        minibatch_size: Minibatch size
+        update_epochs: Number of epochs to update per rollout
+        max_grad_norm: Maximum gradient norm for clipping
         logger: Optional logger instance
 
     Returns:
         Path to the final checkpoint
     """
     import os
+    import time
 
     import gymnasium as gym
     import numpy as np
@@ -428,17 +439,26 @@ def quick_train(
     )
 
     # Calculate environment count for batch size
-    target_batch_size = 32 // num_agents  # Aim for 32 agents total (reasonable default)
-    if target_batch_size < num_workers:
+    # Match original trainer logic
+    forward_pass_minibatch_target_size = 2048  # From original config
+    target_batch_size = forward_pass_minibatch_target_size // num_agents
+    if target_batch_size < max(2, num_workers):
         target_batch_size = num_workers
-    num_envs = target_batch_size
+
+    # Adjust batch_size to be multiple of num_workers
+    env_batch_size = (target_batch_size // num_workers) * num_workers
+    async_factor = 2  # From original config
+    num_envs = env_batch_size * async_factor
+
+    logger.info(f"Using {num_envs} environments with batch size {env_batch_size}")
+    logger.info(f"Total agents: {num_envs * num_agents}")
 
     # Create vectorized environment
     vecenv = make_vecenv(
         env_config=env_config,
         num_envs=num_envs,
         num_workers=num_workers,
-        batch_size=None if num_workers == 1 else num_envs,
+        batch_size=env_batch_size if num_workers > 1 else None,
         device=device,
         vectorization=vectorization,
     )
@@ -466,17 +486,30 @@ def quick_train(
     )
     policy.activate_actions(env_info.action_names, env_info.max_action_args, device_obj)
 
-    # Create experience buffer
-    minibatch_size = min(32, batch_size)
+    # For experience buffer, use actual batch_size parameter
+    # The original trainer uses a different batch_size for experience vs environments
+    total_agents = vecenv.num_agents
+
+    # Validate batch_size is large enough
+    min_batch_size = total_agents * bptt_horizon
+    if batch_size < min_batch_size:
+        logger.warning(
+            f"Batch size {batch_size} is too small for {total_agents} agents with "
+            f"bptt_horizon {bptt_horizon}. Adjusting to minimum {min_batch_size}."
+        )
+        batch_size = min_batch_size
+
+    # Create experience buffer with proper minibatch calculation
+    # Ensure minibatch_size divides batch_size evenly
     while batch_size % minibatch_size != 0 and minibatch_size > 1:
         minibatch_size -= 1
 
     experience = make_experience_buffer(
-        total_agents=vecenv.num_agents,
+        total_agents=total_agents,
         batch_size=batch_size,
-        bptt_horizon=8,
+        bptt_horizon=bptt_horizon,
         minibatch_size=minibatch_size,
-        max_minibatch_size=32,
+        max_minibatch_size=minibatch_size,
         obs_space=env_info.single_observation_space,
         atn_space=env_info.single_action_space,
         device=device_obj,
@@ -494,13 +527,24 @@ def quick_train(
     timer = Stopwatch(logger)
     timer.start()
 
+    # Track time for interval-based operations
+    last_checkpoint_time = time.time()
+    last_eval_time = time.time()
+    start_time = time.time()
+
     logger.info("Starting training...")
+    logger.info(f"Total timesteps: {timesteps:,}")
+    logger.info(f"Batch size: {batch_size:,}")
+    logger.info(f"Minibatch size: {minibatch_size:,}")
+    logger.info(f"Update epochs: {update_epochs}")
+    logger.info(f"BPTT horizon: {bptt_horizon}")
+
     vecenv.async_reset(seed=0)
 
     agent_step = 0
     epoch = 0
+    all_rollout_stats = {}
 
-    # Training loop
     while agent_step < timesteps:
         steps_before = agent_step
 
@@ -510,12 +554,28 @@ def quick_train(
             experience.reset_for_rollout()
 
             while not experience.ready_for_training:
-                num_steps, info, _ = perform_rollout_step(policy, vecenv, experience, device_obj, timer)
+                num_steps, info, _ = perform_rollout_step(
+                    policy=policy,
+                    vecenv=vecenv,
+                    experience=experience,
+                    device=device_obj,
+                    timer=timer,
+                )
                 agent_step += num_steps
                 if info:
                     raw_infos.extend(info)
 
+            # Process rollout stats
             rollout_stats = process_rollout_infos(raw_infos)
+
+            # Accumulate stats
+            for k, v in rollout_stats.items():
+                if k not in all_rollout_stats:
+                    all_rollout_stats[k] = []
+                if isinstance(v, list):
+                    all_rollout_stats[k].extend(v)
+                else:
+                    all_rollout_stats[k].append(v)
 
         # Train
         with timer("train"):
@@ -523,61 +583,98 @@ def quick_train(
             experience.reset_importance_sampling_ratios()
 
             # Compute advantages
-            advantages = compute_initial_advantages(experience, 0.977, 0.916, 1.0, 1.0, device_obj)
+            advantages = compute_initial_advantages(
+                experience, gamma=0.977, gae_lambda=0.916, vtrace_rho_clip=1.0, vtrace_c_clip=1.0, device=device_obj
+            )
 
-            # Train minibatches
-            for mb_idx in range(experience.num_minibatches):
-                minibatch = experience.sample_minibatch(
-                    advantages=advantages,
-                    prio_alpha=0.0,
-                    prio_beta=0.6,
-                    minibatch_idx=mb_idx,
-                    total_minibatches=experience.num_minibatches,
-                )
+            # Update epochs
+            for update_epoch in range(update_epochs):
+                # Train minibatches
+                for mb_idx in range(experience.num_minibatches):
+                    minibatch = experience.sample_minibatch(
+                        advantages=advantages,
+                        prio_alpha=0.0,  # No prioritized replay by default
+                        prio_beta=0.6,
+                        minibatch_idx=mb_idx,
+                        total_minibatches=experience.num_minibatches,
+                    )
 
-                loss = loss_module(
-                    minibatch=minibatch,
-                    experience=experience,
-                    losses=losses,
-                    agent_step=agent_step,
-                    device=device_obj,
-                )
-                losses.minibatches_processed += 1
+                    loss = loss_module(
+                        minibatch=minibatch,
+                        experience=experience,
+                        losses=losses,
+                        agent_step=agent_step,
+                        device=device_obj,
+                    )
+                    losses.minibatches_processed += 1
 
-                optimizer.zero_grad()
-                loss.backward()
+                    optimizer.zero_grad()
+                    loss.backward()
 
-                if (mb_idx + 1) % experience.accumulate_minibatches == 0:
-                    torch.nn.utils.clip_grad_norm_(policy.parameters(), 0.5)
-                    optimizer.step()
-                    if hasattr(policy, "clip_weights"):
-                        policy.clip_weights()
+                    if (mb_idx + 1) % experience.accumulate_minibatches == 0:
+                        torch.nn.utils.clip_grad_norm_(policy.parameters(), max_grad_norm)
+                        optimizer.step()
+                        if hasattr(policy, "clip_weights"):
+                            policy.clip_weights()
 
-        # Log progress
+        # Calculate and log metrics
         steps_in_epoch = agent_step - steps_before
         rollout_time = timer.get_last_elapsed("rollout")
         train_time = timer.get_last_elapsed("train")
-        steps_per_sec = steps_in_epoch / (rollout_time + train_time)
+        total_time = rollout_time + train_time
+        steps_per_sec = steps_in_epoch / total_time if total_time > 0 else 0
+
+        train_pct = (train_time / total_time) * 100 if total_time > 0 else 0
+        rollout_pct = (rollout_time / total_time) * 100 if total_time > 0 else 0
+
+        # Calculate average reward from stats
+        mean_reward = 0.0
+        if all_rollout_stats:
+            reward_keys = [k for k in all_rollout_stats.keys() if "reward" in k and "mean" in k]
+            if reward_keys:
+                all_rewards = []
+                for k in reward_keys:
+                    if isinstance(all_rollout_stats[k], list):
+                        all_rewards.extend(all_rollout_stats[k])
+                    else:
+                        all_rewards.append(all_rollout_stats[k])
+                if all_rewards:
+                    mean_reward = np.mean(all_rewards)
 
         loss_stats = losses.stats()
+
         logger.info(
-            f"Epoch {epoch} - Steps: {agent_step}/{timesteps} - "
-            f"{steps_per_sec:.0f} sps - "
+            f"Epoch {epoch} - Steps: {agent_step:,}/{timesteps:,} - "
+            f"{steps_per_sec:.0f} sps "
+            f"({train_pct:.0f}% train / {rollout_pct:.0f}% rollout) - "
             f"Policy loss: {loss_stats['policy_loss']:.4f} - "
-            f"Value loss: {loss_stats['value_loss']:.4f}"
+            f"Value loss: {loss_stats['value_loss']:.4f} - "
+            f"Reward: {mean_reward:.3f}"
         )
 
-        # Save checkpoint
-        if epoch % checkpoint_interval == 0:
+        # Time-based checkpoint saving
+        current_time = time.time()
+        if current_time - last_checkpoint_time >= checkpoint_interval:
             checkpoint_path = f"{checkpoint_dir}/policy_epoch_{epoch}.pt"
             torch.save(policy.state_dict(), checkpoint_path)
-            logger.info(f"Saved checkpoint: {checkpoint_path}")
+            logger.info(f"Saved checkpoint: {checkpoint_path} (after {current_time - start_time:.0f}s)")
+            last_checkpoint_time = current_time
+
+        # Clear accumulated stats periodically
+        if epoch % 10 == 0:
+            all_rollout_stats.clear()
 
         epoch += 1
 
     # Save final checkpoint
     final_checkpoint = f"{checkpoint_dir}/policy_final.pt"
     torch.save(policy.state_dict(), final_checkpoint)
+    logger.info(f"Training complete! Final checkpoint: {final_checkpoint}")
+
+    # Log timing summary
+    elapsed_time = time.time() - start_time
+    logger.info(f"Total training time: {elapsed_time:.1f}s")
+    logger.info(f"Average SPS: {agent_step / elapsed_time:.0f}")
 
     vecenv.close()
     return final_checkpoint

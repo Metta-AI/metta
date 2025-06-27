@@ -30,15 +30,17 @@ subparsers = parser.add_subparsers(dest="command", help="Command to run")
 # Train command
 train_parser = subparsers.add_parser("train", help="Train a policy")
 train_parser.add_argument("--run", default="default_run", help="Experiment name")
-train_parser.add_argument("--timesteps", type=int, default=10_000, help="Total timesteps")
-train_parser.add_argument("--batch-size", type=int, default=256, help="Batch size")
-train_parser.add_argument("--learning-rate", type=float, default=0.0003, help="Learning rate")
+train_parser.add_argument("--timesteps", type=int, default=1_000_000, help="Total timesteps (default: 1M for testing)")
+train_parser.add_argument("--batch-size", type=int, default=2048, help="Batch size")
+train_parser.add_argument("--learning-rate", type=float, default=0.0004573146765703167, help="Learning rate")
 train_parser.add_argument("--num-agents", type=int, default=2, help="Number of agents")
 train_parser.add_argument("--num-workers", type=int, default=1, help="Number of workers")
-train_parser.add_argument("--checkpoint-interval", type=int, default=100, help="Checkpoint interval")
+train_parser.add_argument("--checkpoint-interval", type=int, default=30, help="Checkpoint interval in seconds")
 train_parser.add_argument("--device", help="Device (defaults to cuda if available)")
 train_parser.add_argument("--seed", type=int, default=0, help="Random seed")
 train_parser.add_argument("--vectorization", default="serial", help="Vectorization mode")
+train_parser.add_argument("--minibatch-size", type=int, default=256, help="Minibatch size")
+train_parser.add_argument("--bptt-horizon", type=int, default=16, help="BPTT horizon")
 
 # Sim command
 sim_parser = subparsers.add_parser("sim", help="Evaluate a policy")
@@ -54,15 +56,17 @@ args = parser.parse_args()
 if not args.command:
     args.command = "train"
     args.run = "default_run"
-    args.timesteps = 10_000
-    args.batch_size = 256
-    args.learning_rate = 0.0003
+    args.timesteps = 1_000_000
+    args.batch_size = 16_384  # More reasonable for testing while following pattern
+    args.learning_rate = 0.0004573146765703167
     args.num_agents = 2
     args.num_workers = 1
-    args.checkpoint_interval = 100
+    args.checkpoint_interval = 30
     args.device = None
     args.seed = 0
     args.vectorization = "serial"
+    args.minibatch_size = 512  # Adjusted proportionally
+    args.bptt_horizon = 16
 
 # Execute based on command
 if args.command == "train":
@@ -92,6 +96,8 @@ if args.command == "train":
         checkpoint_interval=args.checkpoint_interval,
         device=config["device"],
         vectorization=args.vectorization,
+        minibatch_size=args.minibatch_size,
+        bptt_horizon=args.bptt_horizon,
         logger=logger,
     )
 
