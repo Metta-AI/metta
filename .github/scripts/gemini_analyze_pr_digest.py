@@ -369,7 +369,7 @@ def main():
     }
 
     # Optional environment variables with defaults
-    optional_env_vars = {"PR_DIGEST_FILE": "pr_digest_output.json", "DATE_RANGE": ""}
+    optional_env_vars = {"PR_DIGEST_FILE": "pr_digest_output.json", "REPORT_PERIOD": ""}
 
     # Validate required environment variables
     env_values = {}
@@ -399,7 +399,7 @@ def main():
     github_server_url = env_values["GITHUB_SERVER_URL"]
     github_run_id = env_values["GITHUB_RUN_ID"]
     pr_digest_file = env_values["PR_DIGEST_FILE"]
-    date_range = env_values["DATE_RANGE"]
+    report_period = env_values["REPORT_PERIOD"]
 
     # Construct GitHub run URL (all components are guaranteed to exist)
     github_run_url = f"{github_server_url}/{github_repository}/actions/runs/{github_run_id}"
@@ -448,7 +448,7 @@ def main():
     # Generate collection summary
     print("Generating collection summary...")
     collection_summary = analyzer.collection_analyzer.generate_collection_summary(
-        pr_summaries, date_range, github_repository
+        pr_summaries, report_period, github_repository
     )
 
     with open("collection_summary_output.txt", "w") as f:
@@ -458,7 +458,7 @@ def main():
     # Create Discord-formatted output
     print("Generating Discord summary...")
     discord_summary = analyzer.output_formatter.create_discord_summary(
-        pr_summaries, collection_summary, date_range, github_run_url
+        pr_summaries, collection_summary, report_period, github_run_url
     )
 
     with open("discord_summary_output.txt", "w") as f:
