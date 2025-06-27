@@ -186,6 +186,7 @@ class CollectionAnalyzer:
 
     def __init__(self, ai_client: GeminiAIClient):
         self.ai_client = ai_client
+        self.newsletter_extractor = PreviousNewsletterExtractor()
 
     def prepare_context(self, pr_summaries: List[PRSummary], date_range: str, repository: str) -> str:
         """Prepare context for collection analysis."""
@@ -231,6 +232,9 @@ class CollectionAnalyzer:
         """Generate a comprehensive collection summary."""
         context = self.prepare_context(pr_summaries, date_range, repository)
 
+        # Get previous newsletter context
+        previous_context = self.newsletter_extractor.get_previous_summaries_context()
+
         # Random creative element for closing thoughts
         bonus_prompts = [
             "A haiku capturing the essence of this development cycle - focus on the rhythm of progress, "
@@ -245,12 +249,22 @@ class CollectionAnalyzer:
 
         prompt = f"""You are creating an executive summary of development activity for {repository} from {date_range}.
 
+{previous_context}
+
 INPUT DATA: Below you'll find PR summaries with titles, descriptions, authors, file changes, and technical details:
 
 {context}
 
 AUDIENCE & TONE: Technical and direct - written for engineering and research staff who understand code architecture,
 implementation details, and technical tradeoffs.
+
+CONTEXT AWARENESS & NARRATIVE CONTINUITY:
+- Tell the ongoing story of our development process as it evolves - each newsletter should feel like a chapter in a larger narrative
+- Reference significant trends or changes compared to previous newsletters to show progression
+- Highlight any continuing work or resolved issues from previous periods
+- Connect current achievements to past challenges or initiatives when relevant
+- Maintain consistent tone and perspective across newsletters while letting the story naturally evolve
+- Show how the team and codebase are growing and adapting over time
 
 QUALITY CRITERIA:
 - Focus on technical impact and engineering outcomes
@@ -265,7 +279,9 @@ QUALITY CRITERIA:
 
 SHOUT OUT GUIDELINES:
 - Only highlight truly exceptional work (1-3 maximum, or none if not warranted)
-- Distribute recognition across different contributors
+- IMPORTANT: Review previous newsletters and avoid repeatedly recognizing the same contributors
+- If a developer received a shout out in recent newsletters, prioritize recognizing others who have done notable work
+- Aim to distribute recognition across the entire team over time
 - Focus on: complex problem-solving, code quality improvements, mentorship, critical fixes, or innovative solutions
 - Format: "👏 @username - [specific achievement in 1-2 sentences]"
 
