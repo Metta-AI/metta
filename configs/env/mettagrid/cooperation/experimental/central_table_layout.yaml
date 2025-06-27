@@ -13,10 +13,12 @@ game:
     default_item_max: 1
     heart_max: 1000
     rewards:
-      ore.red: 0.005
-      ore.blue: 0.005
-      ore.green: 0.005
-      battery.red: 0.01
+      ore.red: 0.17088483842567775
+      ore.red_max: 12
+      ore.blue: 0
+      battery.red: 0.9882859711234822
+      battery.red_max: 12
+      battery.blue: 0
       heart: 1
 
   map_builder:
