@@ -24,10 +24,10 @@ replay_dir: s3://softmax-public/replays/${run}
 
 total_timesteps: 50_000_000_000
 
-clip_coef: 0.14919147162017737
-ent_coef: 0.016700174334611493
-gae_lambda: 0.8443676864928215
-gamma: 0.997950174315581
+clip_coef: 0.15
+ent_coef: 0.0167
+gae_lambda: 0.8443
+gamma: 0.99
 
 # optimizer:
 #   type: muon
@@ -76,7 +76,7 @@ require_contiguous_env_ids: false
 verbose: true
 
 batch_size: 262144
-minibatch_size: 32768
+minibatch_size: 16384 
 bptt_horizon: 64
 update_epochs: 1
 
