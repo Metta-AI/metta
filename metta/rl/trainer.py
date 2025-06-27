@@ -33,6 +33,7 @@ from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses
 from metta.rl.torch_profiler import TorchProfiler
 from metta.rl.trainer_checkpoint import TrainerCheckpoint
+from metta.rl.trainer_config import parse_trainer_config
 from metta.rl.vecenv import make_vecenv
 from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
@@ -65,7 +66,7 @@ class MettaTrainer:
         **kwargs: Any,
     ):
         self.cfg = cfg
-        self.trainer_cfg = trainer_cfg = cfg.trainer
+        self.trainer_cfg = trainer_cfg = parse_trainer_config(cfg.trainer)
 
         # it doesn't make sense to evaluate more often than we checkpoint since we need a saved policy to evaluate
         if trainer_cfg.evaluate_interval != 0 and trainer_cfg.evaluate_interval < trainer_cfg.checkpoint_interval:
@@ -127,7 +128,7 @@ class MettaTrainer:
             auto_start=True,  # Start monitoring immediately
         )
 
-        curriculum_config = trainer_cfg.get("curriculum", trainer_cfg.get("env", {}))
+        curriculum_config = trainer_cfg.curriculum_or_env
         env_overrides = DictConfig(trainer_cfg.env_overrides)
         self._curriculum = curriculum_from_config_path(curriculum_config, env_overrides)
         self._make_vecenv()
@@ -193,7 +194,7 @@ class MettaTrainer:
             logger.info("Compiling policy")
             self.policy = torch.compile(self.policy, mode=trainer_cfg.compile_mode)
 
-        self.kickstarter = Kickstarter(cfg, policy_store, actions_names, actions_max_params)
+        self.kickstarter = Kickstarter(cfg, trainer_cfg, policy_store, actions_names, actions_max_params)
 
         if torch.distributed.is_initialized():
             logger.info(f"Initializing DistributedDataParallel on device {self.device}")
@@ -206,7 +207,7 @@ class MettaTrainer:
         self._stats_run_id: UUID | None = None
 
         # Optimizer
-        optimizer_type = getattr(trainer_cfg.optimizer, "type", "adam")
+        optimizer_type = trainer_cfg.optimizer.type
         assert optimizer_type in ("adam", "muon"), f"Optimizer type must be 'adam' or 'muon', got {optimizer_type}"
         opt_cls = torch.optim.Adam if optimizer_type == "adam" else ForeachMuon
         self.optimizer = opt_cls(
@@ -252,7 +253,7 @@ class MettaTrainer:
                 )
 
         self.lr_scheduler = None
-        if hasattr(trainer_cfg, "lr_scheduler") and getattr(trainer_cfg.lr_scheduler, "enabled", False):
+        if trainer_cfg.lr_scheduler.enabled:
             self.lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
                 self.optimizer, T_max=trainer_cfg.total_timesteps // trainer_cfg.batch_size
             )
@@ -293,7 +294,7 @@ class MettaTrainer:
             for metric_name, step_metric in metric_overrides:
                 wandb_run.define_metric(metric_name, step_metric=step_metric)
 
-        self._memory_monitor.add(self)
+        self._memory_monitor.add(self)  # don't include timer
 
         logger.info(f"MettaTrainer initialization complete on device: {self.device}")
 
@@ -337,15 +338,14 @@ class MettaTrainer:
                 f"{steps_per_sec * self._world_size:.0f} steps/sec "
                 f"({train_pct:.0f}% train / {rollout_pct:.0f}% rollout / {stats_pct:.0f}% stats)"
             )
-            record_heartbeat()
 
             # Interval periodic tasks
+            self._maybe_record_heartbeat()
             self._maybe_save_policy()
             self._maybe_save_training_state()
             wandb_policy_name = self._maybe_upload_policy_record_to_wandb()
             self._maybe_evaluate_policy(wandb_policy_name)
             self._maybe_generate_replay()
-            self._maybe_update_l2_weights()
             self._maybe_compute_grad_stats()
 
             self._on_train_step()
@@ -488,15 +488,15 @@ class MettaTrainer:
 
         self.losses.zero()
 
-        prio_cfg = trainer_cfg.get("prioritized_experience_replay", {})
-        vtrace_cfg = trainer_cfg.get("vtrace", {})
+        prio_cfg = trainer_cfg.prioritized_experience_replay
+        vtrace_cfg = trainer_cfg.vtrace
 
         # Reset importance sampling ratios
         experience.reset_importance_sampling_ratios()
 
         # Prioritized sampling parameters
-        b0 = prio_cfg.get("prio_beta0", 0.6)
-        a = prio_cfg.get("prio_alpha", 0.0)
+        b0 = prio_cfg.prio_beta0
+        a = prio_cfg.prio_alpha
         total_epochs = max(1, trainer_cfg.total_timesteps // trainer_cfg.batch_size)
         anneal_beta = b0 + (1 - b0) * a * self.epoch / total_epochs
 
@@ -514,8 +514,8 @@ class MettaTrainer:
             advantages,
             trainer_cfg.gamma,
             trainer_cfg.gae_lambda,
-            vtrace_cfg.get("vtrace_rho_clip", 1.0),
-            vtrace_cfg.get("vtrace_c_clip", 1.0),
+            vtrace_cfg.vtrace_rho_clip,
+            vtrace_cfg.vtrace_c_clip,
         )
 
         # Optimizing the policy and value network
@@ -557,8 +557,8 @@ class MettaTrainer:
                     minibatch["advantages"],
                     trainer_cfg.gamma,
                     trainer_cfg.gae_lambda,
-                    vtrace_cfg.get("vtrace_rho_clip", 1.0),
-                    vtrace_cfg.get("vtrace_c_clip", 1.0),
+                    vtrace_cfg.vtrace_rho_clip,
+                    vtrace_cfg.vtrace_c_clip,
                 )
 
                 # Normalize advantages with distributed support, then apply prioritized weights
@@ -576,10 +576,11 @@ class MettaTrainer:
                 newvalue_reshaped = newvalue.view(minibatch["returns"].shape)
                 if trainer_cfg.clip_vloss:
                     v_loss_unclipped = (newvalue_reshaped - minibatch["returns"]) ** 2
+                    vf_clip_coef = trainer_cfg.vf_clip_coef
                     v_clipped = minibatch["values"] + torch.clamp(
                         newvalue_reshaped - minibatch["values"],
-                        -trainer_cfg.get("vf_clip_coef", 0.1),
-                        trainer_cfg.get("vf_clip_coef", 0.1),
+                        -vf_clip_coef,
+                        vf_clip_coef,
                     )
                     v_loss_clipped = (v_clipped - minibatch["returns"]) ** 2
                     v_loss = 0.5 * torch.max(v_loss_unclipped, v_loss_clipped).mean()
@@ -592,10 +593,6 @@ class MettaTrainer:
                     self.agent_step, full_logprobs, newvalue, obs, teacher_lstm_state=[]
                 )
 
-                l2_reg_loss = torch.tensor(0.0, device=self.device, dtype=torch.float32)
-                if trainer_cfg.l2_reg_loss_coef > 0:
-                    l2_reg_loss = trainer_cfg.l2_reg_loss_coef * self.policy.l2_reg_loss().to(self.device)
-
                 l2_init_loss = torch.tensor(0.0, device=self.device, dtype=torch.float32)
                 if trainer_cfg.l2_init_loss_coef > 0:
                     l2_init_loss = trainer_cfg.l2_init_loss_coef * self.policy.l2_init_loss().to(self.device)
@@ -604,7 +601,6 @@ class MettaTrainer:
                     pg_loss
                     - trainer_cfg.ent_coef * entropy_loss
                     + v_loss * trainer_cfg.vf_coef
-                    + l2_reg_loss
                     + l2_init_loss
                     + ks_action_loss
                     + ks_value_loss
@@ -622,7 +618,6 @@ class MettaTrainer:
                 self.losses.entropy_sum += entropy_loss.item()
                 self.losses.approx_kl_sum += approx_kl.item()
                 self.losses.clipfrac_sum += clipfrac.item()
-                self.losses.l2_reg_loss_sum += l2_reg_loss.item() if torch.is_tensor(l2_reg_loss) else l2_reg_loss
                 self.losses.l2_init_loss_sum += l2_init_loss.item() if torch.is_tensor(l2_init_loss) else l2_init_loss
                 self.losses.ks_action_loss_sum += ks_action_loss.item()
                 self.losses.ks_value_loss_sum += ks_value_loss.item()
@@ -672,6 +667,12 @@ class MettaTrainer:
             return True
 
         return self.epoch % interval == 0
+
+    def _maybe_record_heartbeat(self, force=False):
+        if not self._should_run(10, force):
+            return
+
+        record_heartbeat()
 
     def _maybe_save_training_state(self, force=False):
         """Save training state if on checkpoint interval"""
@@ -905,8 +906,8 @@ class MettaTrainer:
         }
 
         epoch_steps = self.timer.get_lap_steps()
-        if epoch_steps is None:
-            epoch_steps = self.agent_step
+        assert epoch_steps is not None
+
         epoch_steps_per_second = epoch_steps / wall_time_for_lap if wall_time_for_lap > 0 else 0
         steps_per_second = self.timer.get_rate(self.agent_step) if wall_time > 0 else 0
 
@@ -916,6 +917,10 @@ class MettaTrainer:
         timing_stats = {
             **{
                 f"timing_per_epoch/frac/{op}": lap_elapsed / wall_time_for_lap if wall_time_for_lap > 0 else 0
+                for op, lap_elapsed in lap_times.items()
+            },
+            **{
+                f"timing_per_epoch/msec/{op}": lap_elapsed * 1000 if wall_time_for_lap > 0 else 0
                 for op, lap_elapsed in lap_times.items()
             },
             "timing_per_epoch/sps": epoch_steps_per_second,
@@ -953,8 +958,6 @@ class MettaTrainer:
         losses = self.losses.stats()
 
         # don't plot losses that are unused
-        if self.trainer_cfg.l2_reg_loss_coef == 0:
-            losses.pop("l2_reg_loss")
         if self.trainer_cfg.l2_init_loss_coef == 0:
             losses.pop("l2_init_loss")
         if not self.kickstarter.enabled:
@@ -1028,7 +1031,7 @@ class MettaTrainer:
 
     def _normalize_advantage_distributed(self, adv: torch.Tensor) -> torch.Tensor:
         """Normalize advantages with distributed training support while preserving shape."""
-        if not self.trainer_cfg.get("norm_adv", True):
+        if not self.trainer_cfg.norm_adv:
             return adv
 
         if torch.distributed.is_initialized():
@@ -1095,8 +1098,7 @@ class MettaTrainer:
         total_agents = vecenv.num_agents
 
         # Calculate minibatch parameters
-        minibatch_size = trainer_cfg.minibatch_size
-        max_minibatch_size = trainer_cfg.get("max_minibatch_size", minibatch_size)
+        max_minibatch_size = trainer_cfg.minibatch_size
 
         # Get LSTM parameters
         hidden_size = getattr(self.policy, "hidden_size", 256)
@@ -1184,8 +1186,7 @@ class MettaTrainer:
             return policy_store.policy(checkpoint.policy_path)
 
         # Try initial_policy from config
-        if hasattr(trainer_cfg, "initial_policy") and getattr(trainer_cfg.initial_policy, "uri", None) is not None:
-            initial_uri = trainer_cfg.initial_policy.uri
+        if trainer_cfg.initial_policy and (initial_uri := trainer_cfg.initial_policy.uri) is not None:
             logger.info(f"Loading initial policy URI: {initial_uri}")
             return policy_store.policy(initial_uri)
 
@@ -1223,7 +1224,7 @@ class MettaTrainer:
 
     def _maybe_compute_grad_stats(self, force=False):
         """Compute and store gradient statistics if on interval."""
-        interval = self.trainer_cfg.get("grad_mean_variance_interval", 0)
+        interval = self.trainer_cfg.grad_mean_variance_interval
         if not self._should_run(interval, force):
             return
 

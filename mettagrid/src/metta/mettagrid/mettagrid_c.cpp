@@ -45,14 +45,10 @@ MettaGrid::MettaGrid(py::dict cfg, py::list map) {
 
   current_step = 0;
 
-  std::vector<Layer> layer_for_type_id;
-  for (const auto& layer : ObjectLayers) {
-    layer_for_type_id.push_back(layer.second);
-  }
   int height = map.size();
   int width = map[0].cast<py::list>().size();
 
-  _grid = std::make_unique<Grid>(width, height, layer_for_type_id);
+  _grid = std::make_unique<Grid>(width, height);
   _obs_encoder = std::make_unique<ObservationEncoder>(inventory_item_names);
   _feature_normalizations = _obs_encoder->feature_normalizations();
 
@@ -122,14 +118,11 @@ MettaGrid::MettaGrid(py::dict cfg, py::list map) {
       grid_hash_data += std::to_string(r) + "," + std::to_string(c) + ":" + cell + ";";
 
       Converter* converter = nullptr;
-      if (cell == "wall") {
-        Wall* wall = new Wall(r, c, cfg["objects"]["wall"].cast<ObjectConfig>());
+      if (cell == "wall" || cell == "block") {
+        auto wall_cfg = _create_wall_config(cfg["objects"][py::str(cell)]);
+        Wall* wall = new Wall(r, c, wall_cfg);
         _grid->add_object(wall);
-        _stats->incr("objects.wall");
-      } else if (cell == "block") {
-        Wall* block = new Wall(r, c, cfg["objects"]["block"].cast<ObjectConfig>());
-        _grid->add_object(block);
-        _stats->incr("objects.block");
+        _stats->incr("objects." + cell);
       } else if (cell == "mine_red") {
         auto converter_cfg = _create_converter_config(cfg["objects"]["mine_red"]);
         converter = new Converter(r, c, converter_cfg, ObjectType::MineRedT);
@@ -294,7 +287,7 @@ void MettaGrid::_compute_observation(unsigned int observer_row,
         // c could still be outside of our bounds.
         if (c < c_start || c >= c_end) continue;
 
-        for (unsigned int layer = 0; layer < _grid->num_layers; layer++) {
+        for (unsigned int layer = 0; layer < GridLayer::GridLayerCount; layer++) {
           GridLocation object_loc(r, c, layer);
           auto obj = _grid->object_at(object_loc);
           if (!obj) continue;
@@ -583,6 +576,17 @@ py::dict MettaGrid::feature_normalizations() {
   return py::cast(_feature_normalizations);
 }
 
+py::dict MettaGrid::feature_spec() {
+  py::dict feature_spec;
+  for (const auto& feature : _obs_encoder->feature_names()) {
+    py::str feature_name = feature.second;
+    feature_spec[feature_name] = py::dict();
+    feature_spec[feature_name]["normalization"] = py::float_(_feature_normalizations[feature.first]);
+    feature_spec[feature_name]["id"] = py::int_(feature.first);
+  }
+  return feature_spec;
+}
+
 unsigned int MettaGrid::num_agents() {
   return _agents.size();
 }
@@ -730,6 +734,11 @@ ConverterConfig MettaGrid::_create_converter_config(const py::dict& converter_cf
       recipe_input, recipe_output, max_output, conversion_ticks, cooldown, initial_items, color, inventory_item_names};
 }
 
+WallConfig MettaGrid::_create_wall_config(const py::dict& wall_cfg_py) {
+  bool swappable = wall_cfg_py.contains("swappable") ? wall_cfg_py["swappable"].cast<bool>() : false;
+  return WallConfig{swappable};
+}
+
 // Pybind11 module definition
 PYBIND11_MODULE(mettagrid_c, m) {
   m.doc() = "MettaGrid environment";  // optional module docstring
@@ -757,6 +766,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def("action_success", &MettaGrid::action_success)
       .def("max_action_args", &MettaGrid::max_action_args)
       .def("object_type_names", &MettaGrid::object_type_names)
+      .def("feature_spec", &MettaGrid::feature_spec)
       .def_readonly("obs_width", &MettaGrid::obs_width)
       .def_readonly("obs_height", &MettaGrid::obs_height)
       .def_readonly("max_steps", &MettaGrid::max_steps)
