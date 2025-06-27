@@ -35,6 +35,7 @@ class Timer:
     checkpoints: dict[str, Checkpoint] = field(default_factory=dict)
     lap_counter: int = 0
     references: list[TimerReference] = field(default_factory=list)
+    max_laps: int = 4
 
     def is_running(self) -> bool:
         return self.start_time is not None
@@ -50,6 +51,7 @@ class Timer:
             checkpoints=data.get("checkpoints", {}),
             lap_counter=data.get("lap_counter", 0),
             references=data.get("references", []),
+            max_laps=data.get("max_laps", 4),
         )
 
 
@@ -168,8 +170,9 @@ class Stopwatch:
 
     _GLOBAL_TIMER_NAME: Final[str] = "global"  # Reserved name for the global timer
 
-    def __init__(self, logger: logging.Logger | None = None):
+    def __init__(self, logger: logging.Logger | None = None, max_laps: int = 4):
         self.logger = logger or logging.getLogger("Stopwatch")
+        self.max_laps = max_laps
         self._timers: dict[str, Timer] = {}
         # Create global timer but don't start it automatically
         self._timers[self.GLOBAL_TIMER_NAME] = self._create_timer(self.GLOBAL_TIMER_NAME)
@@ -191,6 +194,7 @@ class Stopwatch:
             checkpoints={},
             lap_counter=0,
             references=[],
+            max_laps=self.max_laps,
         )
 
     def _get_timer(self, name: str | None = None) -> Timer:
@@ -202,6 +206,17 @@ class Stopwatch:
             if name not in self._timers:
                 self._timers[name] = self._create_timer(name)
             return self._timers[name]
+
+    @with_lock
+    def _cleanup_old_checkpoints(self, timer: Timer):
+        """Remove oldest checkpoints if we exceed max_laps limit."""
+        if len(timer.checkpoints) > timer.max_laps:
+            # Sort checkpoints by elapsed time to identify oldest ones
+            sorted_checkpoints = sorted(timer.checkpoints.items(), key=lambda x: x[1]["elapsed_time"])
+
+            # Keep only the most recent max_laps checkpoints
+            checkpoints_to_keep = sorted_checkpoints[-timer.max_laps :]
+            timer.checkpoints = dict(checkpoints_to_keep)
 
     @with_lock
     def reset(self, name: str | None = None):
@@ -223,6 +238,7 @@ class Stopwatch:
             timer.last_elapsed = 0.0
             timer.checkpoints.clear()
             timer.lap_counter = 0
+            timer.max_laps = self.max_laps
             # Keep timer.references intact to preserve decorator information
         else:
             # Timer doesn't exist yet, create it
@@ -377,6 +393,8 @@ class Stopwatch:
             checkpoint_name = f"_lap_{len(timer.checkpoints) + 1}"
 
         timer.checkpoints[checkpoint_name] = Checkpoint(elapsed_time=elapsed, steps=steps)
+
+        self._cleanup_old_checkpoints(timer)
 
     def checkpoint_all(self, steps: int | None = None, checkpoint_name: str | None = None):
         """Record a checkpoint on all active timers.
@@ -552,6 +570,7 @@ class Stopwatch:
             "is_running": timer.is_running(),
             "checkpoints": dict(timer.checkpoints),
             "references": timer.references.copy(),
+            "max_laps": timer.max_laps,
         }
 
     def get_all_summaries(self) -> dict[str, dict[str, Any]]:
@@ -659,6 +678,7 @@ class Stopwatch:
         state = {
             "version": "1.0",  # Version for future compatibility
             "timers": {},
+            "max_laps": self.max_laps,
         }
 
         current_time = time.time()
@@ -697,6 +717,9 @@ class Stopwatch:
 
         if not isinstance(state, dict) or "timers" not in state:
             raise ValueError("Invalid state format")
+
+        if "max_laps" in state:
+            self.max_laps = state["max_laps"]
 
         # Clear current timers
         self._timers.clear()
