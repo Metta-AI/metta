@@ -108,11 +108,16 @@ MettaGrid::MettaGrid(py::dict cfg, py::list map, int seed) {
 
   for (const auto& [key, value] : object_configs) {
     auto object_cfg = value.cast<py::dict>();
+    TypeId type_id = object_cfg["type_id"].cast<TypeId>();
 
-    if (object_type_names[object_cfg["type_id"].cast<int>()] == "") {
+    if (type_id >= object_type_names.size()) {
+      object_type_names.resize(type_id + 1);
+    }
+
+    if (object_type_names[type_id] == "") {
       // #HardCodedConfig
       // The guard here is to avoid overwriting the type_name for the wall object with the block object.
-      object_type_names[object_cfg["type_id"].cast<int>()] = key.cast<std::string>();
+      object_type_names[type_id] = key.cast<std::string>();
     }
 
     auto object_type = object_cfg["object_type"].cast<std::string>();
