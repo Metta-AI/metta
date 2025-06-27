@@ -750,9 +750,9 @@ class MettaTrainer:
         fresh_policy_record = self.policy_store.create_empty_policy_record(name)
         # copy in the values we want to keep
         fresh_policy_record.metadata = metadata
-        fresh_policy = fresh_policy_record.policy
-        fresh_policy.activate_actions(metta_grid_env.action_names, metta_grid_env.max_action_args, self.device)
-        fresh_policy.load_state_dict(self.policy.state_dict(), strict=False)
+        fresh_policy_record.policy = policy_to_save
+        policy_to_save.activate_actions(metta_grid_env.action_names, metta_grid_env.max_action_args, self.device)
+        policy_to_save.load_state_dict(self.policy.state_dict(), strict=False)
 
         self.latest_saved_policy_record = self.policy_store.save(fresh_policy_record)
         return self.latest_saved_policy_record
