@@ -177,7 +177,7 @@ class MettaAgent(nn.Module):
 
     def _initialize_observations(self, features: dict[str, dict], device):
         """
-        Initialize observation features by creating embeddings and mapping them to feature IDs.
+        Initialize observation features by storing the feature mapping.
 
         Args:
             features: Dictionary mapping feature names to their properties
@@ -189,10 +189,9 @@ class MettaAgent(nn.Module):
         # Create feature_id to feature_name mapping for quick lookup
         self.feature_id_to_name = {props["id"]: name for name, props in features.items()}
 
-        # Store type and normalization information
-        self.feature_types = {props["id"]: props["type"] for props in features.values()}
+        # Store normalizations by feature ID
         self.feature_normalizations = {
-            props["id"]: props.get("normalization", 1.0) for props in features.values() if props["type"] == "scalar"
+            props["id"]: props.get("normalization", 1.0) for props in features.values() if "normalization" in props
         }
 
         # Store original feature mapping on first initialization
@@ -200,20 +199,19 @@ class MettaAgent(nn.Module):
             self.original_feature_mapping = {name: props["id"] for name, props in features.items()}
             logger.info(f"Stored original feature mapping: {self.original_feature_mapping}")
         else:
-            # Create remapping table for subsequent initializations
-            self._create_feature_remapping_table(features)
+            # Create remapping for subsequent initializations
+            self._create_feature_remapping(features)
 
         logger.info(f"Initialized observations with {len(features)} features")
 
-    def _create_feature_remapping_table(self, features: dict[str, dict]):
+    def _create_feature_remapping(self, features: dict[str, dict]):
         """
-        Create a remapping table to translate new feature IDs to original ones.
+        Create a remapping dictionary to translate new feature IDs to original ones.
         """
-        # Create identity mapping
-        self.feature_id_remap = torch.arange(256, dtype=torch.uint8, device=self.device)
-
-        # Update mapping for features that have different IDs
+        # Build remapping dict
+        self.feature_id_remap = {}
         remapped_count = 0
+
         for name, props in features.items():
             new_id = props["id"]
             if name in self.original_feature_mapping:
@@ -224,31 +222,33 @@ class MettaAgent(nn.Module):
                     logger.info(f"Remapping feature '{name}': {new_id} -> {original_id}")
 
         if remapped_count > 0:
-            logger.info(f"Created feature remapping table with {remapped_count} remapped features")
+            logger.info(f"Created feature remapping with {remapped_count} remapped features")
 
             # Update observation component if it supports remapping
             if "_obs_" in self.components and hasattr(self.components["_obs_"], "update_feature_remapping"):
-                self.components["_obs_"].update_feature_remapping(self.feature_id_remap)
+                # Convert dict to tensor for components that expect it
+                remap_tensor = torch.arange(256, dtype=torch.uint8, device=self.device)
+                for new_id, original_id in self.feature_id_remap.items():
+                    remap_tensor[new_id] = original_id
+                self.components["_obs_"].update_feature_remapping(remap_tensor)
 
-            # Update normalization factors for remapped features
+            # Update normalization factors
             self._update_normalization_factors(features)
 
     def _update_normalization_factors(self, features: dict[str, dict]):
         """Update normalization factors for components after feature remapping."""
-        # Build normalization mapping using original feature IDs
-        original_normalizations = {}
-        for name, props in features.items():
-            if name in self.original_feature_mapping and "normalization" in props:
-                original_id = self.original_feature_mapping[name]
-                original_normalizations[original_id] = props["normalization"]
-
         # Update ObsAttrValNorm components if they exist
         for comp_name, component in self.components.items():
             if hasattr(component, "__class__") and "ObsAttrValNorm" in component.__class__.__name__:
                 logger.info(f"Updating feature normalizations for {comp_name}")
+
+                # Create normalization tensor with remapped IDs
                 norm_tensor = torch.ones(256, dtype=torch.float32)
-                for feat_id, norm_val in original_normalizations.items():
-                    norm_tensor[feat_id] = norm_val
+                for name, props in features.items():
+                    if name in self.original_feature_mapping and "normalization" in props:
+                        original_id = self.original_feature_mapping[name]
+                        norm_tensor[original_id] = props["normalization"]
+
                 component.register_buffer("_norm_factors", norm_tensor)
 
     def _initialize_actions(self, action_names: list[str], action_max_params: list[int], device):

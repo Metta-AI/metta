@@ -429,29 +429,12 @@ class MettaGridEnv(PufferEnv, GymEnv):
         # Get feature spec from C++ environment
         feature_spec = self._c_env.feature_spec()
 
-        # Categorical features (discrete values with semantic meaning)
-        categorical_features = {
-            "type_id",
-            "agent:group",
-            "agent:frozen",
-            "agent:orientation",
-            "converting",
-            "swappable",
-            "last_action",
-            "last_action_arg",
-        }
-
         features = {}
         for feature_name, feature_info in feature_spec.items():
-            feature_type = "categorical" if feature_name in categorical_features else "scalar"
+            feature_dict = {"id": feature_info["id"]}
 
-            feature_dict = {
-                "id": feature_info["id"],
-                "type": feature_type,
-            }
-
-            # Add normalization for scalar features
-            if feature_type == "scalar" and "normalization" in feature_info:
+            # Add normalization if present
+            if "normalization" in feature_info:
                 feature_dict["normalization"] = feature_info["normalization"]
 
             features[feature_name] = feature_dict
