@@ -34,7 +34,7 @@ class Timer:
     last_elapsed: float = 0.0
     checkpoints: dict[str, Checkpoint] = field(default_factory=dict)
     lap_counter: int = 0
-    references: list[TimerReference] = field(default_factory=list)
+    references: set[tuple[str, int]] = field(default_factory=set)  # Changed to set of tuples
     max_laps: int = 4
 
     def is_running(self) -> bool:
@@ -53,6 +53,11 @@ class Timer:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "Timer":
         """Create a Timer instance from a dictionary created using .asdict()."""
+        references_data = data.get("references", [])
+
+        # Convert list of tuples back to set (from serialization)
+        references = set(references_data) if references_data else set()
+
         return cls(
             name=data["name"],
             start_time=data.get("start_time"),
@@ -60,7 +65,7 @@ class Timer:
             last_elapsed=data.get("last_elapsed", 0.0),
             checkpoints=data.get("checkpoints", {}),
             lap_counter=data.get("lap_counter", 0),
-            references=data.get("references", []),
+            references=references,
             max_laps=data.get("max_laps", 4),
         )
 
@@ -203,7 +208,7 @@ class Stopwatch:
             last_elapsed=0.0,
             checkpoints={},
             lap_counter=0,
-            references=[],
+            references=set(),  # Initialize as empty set
             max_laps=self.max_laps,
         )
 
@@ -287,8 +292,8 @@ class Stopwatch:
             filename = filename or caller_filename
             lineno = lineno or caller_lineno
 
-        # Store reference
-        timer.references.append(TimerReference(filename=filename, lineno=lineno))
+        # Store reference as tuple - set automatically handles deduplication
+        timer.references.add((filename, lineno))
         timer.start_time = time.time()
 
     @with_lock
@@ -573,7 +578,7 @@ class Stopwatch:
             "total_elapsed": self.get_elapsed(name),
             "is_running": timer.is_running(),
             "checkpoints": dict(timer.checkpoints),
-            "references": timer.references.copy(),
+            "references": list(timer.references),  # Convert set to list for output
             "max_laps": timer.max_laps,
         }
 
@@ -687,15 +692,13 @@ class Stopwatch:
         if not timer.references:
             return "unknown"
 
-        # Get unique filenames efficiently
-        first_file = timer.references[0]["filename"]
+        # Get unique filenames from the set of references
+        filenames = {filename for filename, _ in timer.references}
 
-        # Check if all references are from the same file
-        for ref in timer.references[1:]:
-            if ref["filename"] != first_file:
-                return "multifile"
-
-        return first_file
+        if len(filenames) == 1:
+            return next(iter(filenames))
+        else:
+            return "multifile"
 
     @with_lock
     def save_state(self) -> dict[str, Any]:
@@ -715,6 +718,9 @@ class Stopwatch:
         for name, timer in self._timers.items():
             # Convert timer to dict using dataclass asdict
             timer_dict = asdict(timer)
+
+            # Convert set to list for JSON serialization
+            timer_dict["references"] = list(timer.references)
 
             if timer.is_running() and timer.start_time is not None:
                 # Calculate elapsed time up to this point
