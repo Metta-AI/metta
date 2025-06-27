@@ -54,7 +54,16 @@ class TestStatsServerSimple:
     @pytest.fixture(scope="class")
     def stats_client(self, test_client: TestClient) -> StatsClient:
         """Create a stats client for testing."""
-        return StatsClient(test_client, user="test_user")
+        # First create a machine token
+        token_response = test_client.post(
+            "/tokens",
+            json={"name": "test_stats_client_token"},
+            headers={"X-Auth-Request-Email": "test_user"},
+        )
+        assert token_response.status_code == 200
+        token = token_response.json()["token"]
+
+        return StatsClient(test_client, machine_token=token)
 
     def test_complete_workflow(self, stats_client: StatsClient) -> None:
         """Test the complete end-to-end workflow."""

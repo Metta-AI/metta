@@ -83,7 +83,7 @@ export function Heatmap({
   } | null>(null)
 
   // Convert to heatmap format
-  const policies = [...new Set(data.cells.keys())]
+  const policies = Object.keys(data.cells)
   const shortNameToEvalName = new Map<string, string>()
   data.evalNames.forEach((evalName) => {
     shortNameToEvalName.set(getShortName(evalName), evalName)
@@ -93,15 +93,15 @@ export function Heatmap({
   const xLabels = ['overall', ...sortedShortNames]
 
   // Iterate over the policyEvalMap, and for each policy compute the average value of the evals
-  const sortedPolicies = policies.sort((a, b) => data.policyAverageScores.get(a)! - data.policyAverageScores.get(b)!)
+  const sortedPolicies = policies.sort((a, b) => data.policyAverageScores[a] - data.policyAverageScores[b])
   // take last 20 of sorted policies
   const y_labels = sortedPolicies.slice(-numPoliciesToShow)
 
   const z = y_labels.map((policy) => [
-    data.policyAverageScores.get(policy)!,
+    data.policyAverageScores[policy],
     ...sortedShortNames.map((shortName) => {
       const evalName = shortNameToEvalName.get(shortName)!
-      const cell = data.cells.get(policy)?.get(evalName)
+      const cell = data.cells[policy]?.[evalName]
       if (!cell) {
         return 0
       }

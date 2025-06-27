@@ -18,4 +18,4 @@ vectorization: multiprocessing
 seed: 0
 device: ${device_with_cuda_check:cuda}
 
-stats_user: ${oc.env:USER,unknown}
+stats_server_uri: https://api.observatory.softmax-research.net

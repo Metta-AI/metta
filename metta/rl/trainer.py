@@ -72,6 +72,9 @@ class MettaTrainer:
         if trainer_cfg.evaluate_interval != 0 and trainer_cfg.evaluate_interval < trainer_cfg.checkpoint_interval:
             raise ValueError("evaluate_interval must be at least as large as checkpoint_interval")
 
+        if trainer_cfg.evaluate_interval != 0 and trainer_cfg.evaluate_interval < trainer_cfg.wandb_checkpoint_interval:
+            raise ValueError("evaluate_interval must be at least as large as wandb_checkpoint_interval")
+
         # Validate that we save policies locally at least as often as we upload to wandb
         if (
             trainer_cfg.wandb_checkpoint_interval != 0
@@ -291,7 +294,7 @@ class MettaTrainer:
             for metric_name, step_metric in metric_overrides:
                 wandb_run.define_metric(metric_name, step_metric=step_metric)
 
-        self._memory_monitor.add(self)
+        self._memory_monitor.add(self)  # don't include timer
 
         logger.info(f"MettaTrainer initialization complete on device: {self.device}")
 
@@ -305,6 +308,7 @@ class MettaTrainer:
             self._stats_run_id = self._stats_client.create_training_run(name=name, attributes={}, url=url).id
 
         logger.info(f"Training on {self.device}")
+        wandb_policy_name: str | None = None
         while self.agent_step < trainer_cfg.total_timesteps:
             steps_before = self.agent_step
 
@@ -334,15 +338,14 @@ class MettaTrainer:
                 f"{steps_per_sec * self._world_size:.0f} steps/sec "
                 f"({train_pct:.0f}% train / {rollout_pct:.0f}% rollout / {stats_pct:.0f}% stats)"
             )
-            record_heartbeat()
 
             # Interval periodic tasks
+            self._maybe_record_heartbeat()
             self._maybe_save_policy()
             self._maybe_save_training_state()
-            self._maybe_evaluate_policy()
-            self._maybe_upload_policy_record_to_wandb()
+            wandb_policy_name = self._maybe_upload_policy_record_to_wandb()
+            self._maybe_evaluate_policy(wandb_policy_name)
             self._maybe_generate_replay()
-            self._maybe_update_l2_weights()
             self._maybe_compute_grad_stats()
 
             self._on_train_step()
@@ -590,10 +593,6 @@ class MettaTrainer:
                     self.agent_step, full_logprobs, newvalue, obs, teacher_lstm_state=[]
                 )
 
-                l2_reg_loss = torch.tensor(0.0, device=self.device, dtype=torch.float32)
-                if trainer_cfg.l2_reg_loss_coef > 0:
-                    l2_reg_loss = trainer_cfg.l2_reg_loss_coef * self.policy.l2_reg_loss().to(self.device)
-
                 l2_init_loss = torch.tensor(0.0, device=self.device, dtype=torch.float32)
                 if trainer_cfg.l2_init_loss_coef > 0:
                     l2_init_loss = trainer_cfg.l2_init_loss_coef * self.policy.l2_init_loss().to(self.device)
@@ -602,7 +601,6 @@ class MettaTrainer:
                     pg_loss
                     - trainer_cfg.ent_coef * entropy_loss
                     + v_loss * trainer_cfg.vf_coef
-                    + l2_reg_loss
                     + l2_init_loss
                     + ks_action_loss
                     + ks_value_loss
@@ -620,7 +618,6 @@ class MettaTrainer:
                 self.losses.entropy_sum += entropy_loss.item()
                 self.losses.approx_kl_sum += approx_kl.item()
                 self.losses.clipfrac_sum += clipfrac.item()
-                self.losses.l2_reg_loss_sum += l2_reg_loss.item() if torch.is_tensor(l2_reg_loss) else l2_reg_loss
                 self.losses.l2_init_loss_sum += l2_init_loss.item() if torch.is_tensor(l2_init_loss) else l2_init_loss
                 self.losses.ks_action_loss_sum += ks_action_loss.item()
                 self.losses.ks_value_loss_sum += ks_value_loss.item()
@@ -670,6 +667,12 @@ class MettaTrainer:
             return True
 
         return self.epoch % interval == 0
+
+    def _maybe_record_heartbeat(self, force=False):
+        if not self._should_run(10, force):
+            return
+
+        record_heartbeat()
 
     def _maybe_save_training_state(self, force=False):
         """Save training state if on checkpoint interval"""
@@ -742,7 +745,7 @@ class MettaTrainer:
         logger.info(f"Saved policy locally: {name}")
         return self.latest_saved_policy_record
 
-    def _maybe_upload_policy_record_to_wandb(self, force=False):
+    def _maybe_upload_policy_record_to_wandb(self, force: bool = False) -> str | None:
         """Upload policy to wandb if on wandb interval"""
         if not self._should_run(self.trainer_cfg.wandb_checkpoint_interval, force):
             return
@@ -758,21 +761,22 @@ class MettaTrainer:
             logger.warning("No wandb run name was provided")
             return
 
-        self.policy_store.add_to_wandb_run(self.wandb_run.name, self.latest_saved_policy_record)
+        result = self.policy_store.add_to_wandb_run(self.wandb_run.name, self.latest_saved_policy_record)
         logger.info(f"Uploaded policy to wandb at epoch {self.epoch}")
+        return result
 
     def _maybe_update_l2_weights(self, force=False):
         """Update L2 init weights if on update interval"""
         if self._should_run(self.cfg.agent.l2_init_weight_update_interval, force):
             self.policy.update_l2_init_weight_copy()
 
-    def _maybe_evaluate_policy(self, force=False):
+    def _maybe_evaluate_policy(self, wandb_policy_name: str | None = None, force: bool = False):
         """Evaluate policy if on evaluation interval"""
         if self._should_run(self.trainer_cfg.evaluate_interval, force):
-            self._evaluate_policy()
+            self._evaluate_policy(wandb_policy_name)
 
     @with_instance_timer("_evaluate_policy", log_level=logging.INFO)
-    def _evaluate_policy(self):
+    def _evaluate_policy(self, wandb_policy_name: str | None = None):
         if self._stats_run_id is not None and self._stats_client is not None:
             self._stats_epoch_id = self._stats_client.create_epoch(
                 run_id=self._stats_run_id,
@@ -792,6 +796,7 @@ class MettaTrainer:
             stats_dir="/tmp/stats",
             stats_client=self._stats_client,
             stats_epoch_id=self._stats_epoch_id,
+            wandb_policy_name=wandb_policy_name,
         )
         result = sim.simulate()
         stats_db = EvalStatsDB.from_sim_stats_db(result.stats_db)
@@ -901,8 +906,8 @@ class MettaTrainer:
         }
 
         epoch_steps = self.timer.get_lap_steps()
-        if epoch_steps is None:
-            epoch_steps = self.agent_step
+        assert epoch_steps is not None
+
         epoch_steps_per_second = epoch_steps / wall_time_for_lap if wall_time_for_lap > 0 else 0
         steps_per_second = self.timer.get_rate(self.agent_step) if wall_time > 0 else 0
 
@@ -912,6 +917,10 @@ class MettaTrainer:
         timing_stats = {
             **{
                 f"timing_per_epoch/frac/{op}": lap_elapsed / wall_time_for_lap if wall_time_for_lap > 0 else 0
+                for op, lap_elapsed in lap_times.items()
+            },
+            **{
+                f"timing_per_epoch/msec/{op}": lap_elapsed * 1000 if wall_time_for_lap > 0 else 0
                 for op, lap_elapsed in lap_times.items()
             },
             "timing_per_epoch/sps": epoch_steps_per_second,
@@ -949,8 +958,6 @@ class MettaTrainer:
         losses = self.losses.stats()
 
         # don't plot losses that are unused
-        if self.trainer_cfg.l2_reg_loss_coef == 0:
-            losses.pop("l2_reg_loss")
         if self.trainer_cfg.l2_init_loss_coef == 0:
             losses.pop("l2_init_loss")
         if not self.kickstarter.enabled:
