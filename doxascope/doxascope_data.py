@@ -10,8 +10,9 @@ This module provides functionality for:
 
 import json
 import logging
+from enum import IntEnum
 from pathlib import Path
-from typing import Dict, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import torch
@@ -20,20 +21,34 @@ from metta.agent.policy_state import PolicyState
 
 logger = logging.getLogger(__name__)
 
-AGENT_TYPE = 0
+
+class Movement(IntEnum):
+    STAY = 0
+    UP = 1
+    DOWN = 2
+    LEFT = 3
+    RIGHT = 4
+
+
 MOVEMENT_MAP = {
-    (0, 0): 0,  # stay
-    (-1, 0): 1,  # up
-    (1, 0): 2,  # down
-    (0, -1): 3,  # left
-    (0, 1): 4,  # right
+    (0, 0): Movement.STAY,
+    (-1, 0): Movement.UP,
+    (1, 0): Movement.DOWN,
+    (0, -1): Movement.LEFT,
+    (0, 1): Movement.RIGHT,
 }
 
 
 class DoxascopeLogger:
     """Logs memory vectors and position data for training doxascope networks."""
 
-    def __init__(self, doxascope_config, simulation_id: str, policy_name: str):
+    def __init__(
+        self,
+        doxascope_config: dict,
+        simulation_id: str,
+        policy_name: str,
+        object_type_names: Optional[List[str]] = None,
+    ):
         self.enabled = doxascope_config.get("enabled", False)
         if not self.enabled:
             return
@@ -45,8 +60,25 @@ class DoxascopeLogger:
         self.output_file = self.output_dir / f"doxascope_data_{simulation_id}.json"
         self.data = []
         self.timestep = 0
+        self.agent_id_map: Optional[Dict[int, int]] = None
+
+        if object_type_names and "agent" in object_type_names:
+            self.agent_type_id = object_type_names.index("agent")
+        else:
+            self.agent_type_id = 0  # Default to 0 if not found
+            logger.warning("Could not find 'agent' in object_type_names, defaulting to type ID 0.")
 
         logger.info(f"Doxascope logging enabled for policy '{policy_name}', will save raw data to {self.output_file}")
+
+    def _build_agent_id_map(self, env_grid_objects: Dict) -> Dict[int, int]:
+        """Builds a mapping from agent IDs to grid object IDs."""
+        agent_id_map = {}
+        for obj_id, obj in env_grid_objects.items():
+            if obj.get("type") == self.agent_type_id:
+                agent_id = obj.get("agent_id")
+                if agent_id is not None:
+                    agent_id_map[agent_id] = obj_id
+        return agent_id_map
 
     def log_timestep(
         self,
@@ -58,26 +90,20 @@ class DoxascopeLogger:
         if not self.enabled:
             return
 
+        if self.agent_id_map is None:
+            self.agent_id_map = self._build_agent_id_map(env_grid_objects)
+
         timestep_data = {"timestep": self.timestep, "agents": []}
 
         if policy_state.lstm_h is not None and policy_state.lstm_c is not None:
             memory_vectors = torch.cat([policy_state.lstm_h, policy_state.lstm_c], dim=0)
 
-            # Create a mapping from policy indices to agent IDs
-            agent_id_map = {}
-            for obj_id, obj in env_grid_objects.items():
-                if obj.get("type") == 0:  # Agent type
-                    agent_id = obj.get("agent_id")
-                    if agent_id is not None:
-                        agent_id_map[agent_id] = obj_id
-
             for i, agent_idx in enumerate(policy_idxs):
                 agent_idx_int = int(agent_idx.item())
                 memory_vector = memory_vectors[:, i].flatten().cpu()
 
-                # Get agent position from grid objects using the mapping
-                if agent_idx_int in agent_id_map:
-                    grid_obj_id = agent_id_map[agent_idx_int]
+                if agent_idx_int in self.agent_id_map:
+                    grid_obj_id = self.agent_id_map[agent_idx_int]
                     grid_obj = env_grid_objects[grid_obj_id]
                     position = (grid_obj["r"], grid_obj["c"])
                 else:
@@ -138,19 +164,17 @@ def preprocess_doxascope_data(
         logger.warning("No JSON files provided for preprocessing")
         return None, None
 
-    memory_vectors = []
-    movements = []
+    all_memory_vectors = []
+    all_movements = []
     expected_dim = None
 
     logger.info(f"Processing {len(json_files)} files...")
 
-    # Process new files
     for json_file in json_files:
         with open(json_file, "r") as f:
             data = json.load(f)
 
-        # Group data by agent ID to build trajectories
-        agent_trajectories = {}
+        agent_trajectories: Dict[int, list] = {}
         for timestep_data in data:
             for agent in timestep_data["agents"]:
                 agent_id = agent["agent_id"]
@@ -159,7 +183,6 @@ def preprocess_doxascope_data(
 
                 memory = np.array(agent["memory_vector"], dtype=np.float32)
 
-                # Set and check expected memory dimension
                 if expected_dim is None:
                     expected_dim = memory.shape[0]
                 elif memory.shape[0] != expected_dim:
@@ -171,65 +194,46 @@ def preprocess_doxascope_data(
                 position = agent["position"]
                 agent_trajectories[agent_id].append((memory, position))
 
-        # Process each agent's trajectory to create training pairs
         for agent_id, trajectory in agent_trajectories.items():
-            if len(trajectory) <= num_future_timesteps + num_past_timesteps:
+            if len(trajectory) <= num_future_timesteps + num_past_timesteps + 1:
                 continue
 
-            # Create training pairs from the trajectory
-            for i in range(num_past_timesteps, len(trajectory) - num_future_timesteps):
-                # Calculate past movements
+            for i in range(num_past_timesteps + 1, len(trajectory) - num_future_timesteps):
+                current_memory, _ = trajectory[i]
+
                 past_movements = []
-                if num_past_timesteps > 0:
-                    for k in range(num_past_timesteps, 0, -1):
-                        # Move that happened at time i-k+1
-                        pos_after = trajectory[i - k + 1][1]
-                        pos_before = trajectory[i - k][1]
-                        dr = pos_after[0] - pos_before[0]
-                        dc = pos_after[1] - pos_before[1]
-                        movement = MOVEMENT_MAP.get((dr, dc), 0)
-                        past_movements.append(movement)
+                for k in range(num_past_timesteps, 0, -1):
+                    if i - k - 1 < 0:
+                        continue
+                    pos_after = trajectory[i - k][1]
+                    pos_before = trajectory[i - k - 1][1]
+                    dr, dc = pos_after[0] - pos_before[0], pos_after[1] - pos_before[1]
+                    past_movements.append(MOVEMENT_MAP.get((dr, dc), Movement.STAY))
 
-                current_memory, prev_pos = trajectory[i]
                 future_movements = []
-
-                # Look ahead k steps to calculate the sequence of moves.
-                # Each move is relative to the agent's position in the preceding timestep.
                 for k in range(1, num_future_timesteps + 1):
-                    _, next_pos = trajectory[i + k]
+                    pos_after = trajectory[i + k][1]
+                    pos_before = trajectory[i + k - 1][1]
 
-                    # Calculate relative movement from the previous step
-                    dr = next_pos[0] - prev_pos[0]  # row delta
-                    dc = next_pos[1] - prev_pos[1]  # col delta
-
-                    # Update previous position for the next iteration
-                    prev_pos = next_pos
-
-                    # Convert (dr, dc) to a movement class
+                    dr, dc = pos_after[0] - pos_before[0], pos_after[1] - pos_before[1]
                     movement = MOVEMENT_MAP.get((dr, dc))
-
                     if movement is None:
-                        # This can happen if the agent teleports or moves > 1 cell
                         logger.warning(
                             f"Unexpected movement for agent {agent_id}: dr={dr}, dc={dc}. Defaulting to 'stay'."
                         )
-                        movement = 0
-
+                        movement = Movement.STAY
                     future_movements.append(movement)
 
-                # Combine all movements
-                all_movements = past_movements + future_movements
-                memory_vectors.append(current_memory)
-                movements.append(all_movements)
+                all_movements.append(past_movements + future_movements)
+                all_memory_vectors.append(current_memory)
 
-    if not memory_vectors:
+    if not all_memory_vectors:
         logger.warning("No training data created")
         return None, None
 
-    # Attempt to convert lists to NumPy arrays and save to a compressed file.
     try:
-        X = np.array(memory_vectors, dtype=np.float32)
-        y = np.array(movements, dtype=np.int64)
+        X = np.array(all_memory_vectors, dtype=np.float32)
+        y = np.array(all_movements, dtype=np.int64)
 
         preprocessed_dir.mkdir(parents=True, exist_ok=True)
         np.savez_compressed(output_file, X=X, y=y)
@@ -237,7 +241,7 @@ def preprocess_doxascope_data(
         return X, y
     except ValueError as e:
         logger.error(f"Failed to create NumPy arrays due to inconsistent shapes: {e}")
-        if memory_vectors:
-            unique_dims = {mv.shape for mv in memory_vectors}
+        if all_memory_vectors:
+            unique_dims = {mv.shape for mv in all_memory_vectors}
             logger.error(f"Found memory vectors with the following shapes: {unique_dims}")
         return None, None

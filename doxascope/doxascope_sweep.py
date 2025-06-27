@@ -13,7 +13,7 @@ import time
 from pathlib import Path
 
 import numpy as np
-import torch.nn as nn
+import torch
 from torch.utils.data import DataLoader
 
 from .doxascope_network import DoxascopeDataset, DoxascopeNet, DoxascopeTrainer
@@ -134,25 +134,25 @@ class DoxascopeSweep:
                 **model_config,
             )
 
-            # Unique output directory for each config to avoid model file conflicts
-            config_hash = hash(json.dumps(config, sort_keys=True))
-            run_output_dir = self.output_dir / "sweep_runs" / str(config_hash)
-
-            trainer = DoxascopeTrainer(model, output_dir=run_output_dir)
+            device = "cuda" if torch.cuda.is_available() else "cpu"
+            trainer = DoxascopeTrainer(model, device=device)
 
             # Train with early stopping
             start_time = time.time()
-            best_val_acc = trainer.train(train_loader, val_loader, num_epochs=max_epochs, lr=config.get("lr", 0.0007))
+            history, _, _ = trainer.train(train_loader, val_loader, num_epochs=max_epochs, lr=config.get("lr", 0.0007))
             train_time = time.time() - start_time
 
+            best_val_acc = max(history["val_acc"]) if history["val_acc"] else 0
+
             # Evaluate on the test set
-            eval_results = trainer.evaluate(test_loader, nn.CrossEntropyLoss())
+            _, test_acc_per_step, _, _ = trainer._run_epoch(test_loader, is_training=False)
+            test_acc_avg = sum(test_acc_per_step) / len(test_acc_per_step) if test_acc_per_step else 0
 
             return {
                 "config": config,
                 "best_val_acc": best_val_acc,
-                "test_acc_avg": eval_results["avg_acc"],
-                "test_acc_per_step": eval_results["acc_per_step"],
+                "test_acc_avg": test_acc_avg,
+                "test_acc_per_step": test_acc_per_step,
                 "train_time": train_time,
                 "success": True,
             }

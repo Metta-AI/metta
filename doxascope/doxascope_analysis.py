@@ -9,12 +9,16 @@ Provides insights into what patterns the network learned.
 import argparse
 import json
 from pathlib import Path
+from typing import Any, Dict, List
 
 import matplotlib.pyplot as plt
 import numpy as np
+import seaborn as sns
 import torch
 from sklearn.decomposition import PCA
+from sklearn.metrics import confusion_matrix
 
+from .doxascope_data import Movement
 from .doxascope_network import DoxascopeNet
 
 
@@ -317,50 +321,174 @@ def analyze_parameter_importance(results):
 
 
 def overlay_plots(policy_names: list, output_dir: Path):
-    """
-    Overlays the multistep accuracy plots from multiple policies.
-
-    Args:
-        policy_names: A list of policy names to include in the plot.
-        output_dir: The directory to save the combined plot.
-    """
-    plt.figure(figsize=(12, 7))
+    """Generate a plot comparing the multistep accuracy of multiple trained models."""
+    plt.figure(figsize=(12, 8))
     plt.title("Multistep Accuracy Comparison")
-    plt.xlabel("Timestep (t+/-k)")
     plt.ylabel("Test Accuracy (%)")
+    plt.xlabel("Timestep")
     plt.grid(True, which="both", linestyle="--", linewidth=0.5)
 
+    all_have_data = True
+    max_label_count = 0
+    plot_data = []
+
     for policy_name in policy_names:
-        results_path = Path(f"doxascope/data/results/{policy_name}/analysis_results.json")
+        results_path = output_dir / policy_name / "analysis_results.json"
         if not results_path.exists():
-            print(f"Warning: Could not find results for policy '{policy_name}' at {results_path}. Skipping.")
+            print(f"⚠️ Analysis results not found for policy '{policy_name}'. Skipping.")
+            all_have_data = False
             continue
 
         with open(results_path, "r") as f:
             data = json.load(f)
 
-        acc_per_step = data["test_acc_per_step"]
-        num_past = data["num_past_timesteps"]
-        num_future = data["num_future_timesteps"]
+        acc_per_step = data.get("test_acc_per_step")
+        if not acc_per_step:
+            print(f"⚠️ No accuracy data found for policy '{policy_name}'. Skipping.")
+            all_have_data = False
+            continue
 
-        # Generate x-axis labels
+        num_past = data.get("num_past_timesteps", 0)
+        num_future = data.get("num_future_timesteps", 0)
         past_steps = list(range(-num_past, 0)) if num_past > 0 else []
         future_steps = list(range(1, num_future + 1))
         steps = past_steps + future_steps
         step_labels = [str(s) for s in steps]
 
-        if len(step_labels) != len(acc_per_step):
-            print(f"Warning: Mismatch in step counts for '{policy_name}'. Skipping.")
-            continue
+        if len(step_labels) > max_label_count:
+            max_label_count = len(step_labels)
+            plt.xticks(ticks=range(len(step_labels)), labels=step_labels)
 
-        plt.plot(step_labels, acc_per_step, marker="o", linestyle="-", label=policy_name)
+        plot_data.append({"labels": step_labels, "accuracies": acc_per_step, "policy": policy_name})
+
+    if not all_have_data:
+        print("\nNote: Not all policies had data. The plot may be incomplete.")
+
+    for data in plot_data:
+        plt.plot(data["labels"], data["accuracies"], marker="o", linestyle="-", label=data["policy"])
 
     plt.legend()
     plt.tight_layout()
-    output_path = output_dir / "multistep_accuracy_overlay.png"
+
+    overlay_output_dir = output_dir / "overlays"
+    overlay_output_dir.mkdir(parents=True, exist_ok=True)
+    output_path = overlay_output_dir / "multistep_accuracy_overlay.png"
     plt.savefig(output_path)
     plt.close()
     print(f"\n✅ Overlay plot saved to: {output_path}")
+
+
+def plot_training_curves(history: Dict[str, Any], output_dir: Path):
+    """Plots training and validation loss and accuracy curves."""
+    plt.figure(figsize=(12, 5))
+
+    plt.subplot(1, 2, 1)
+    plt.plot(history["train_loss"], label="Train Loss")
+    plt.plot(history["val_loss"], label="Val Loss")
+    plt.xlabel("Epoch")
+    plt.ylabel("Loss")
+    plt.title("Training and Validation Loss")
+    plt.legend()
+    plt.grid(True, alpha=0.3)
+
+    plt.subplot(1, 2, 2)
+    plt.plot(history["train_acc"], label="Train Acc (avg)")
+    plt.plot(history["val_acc"], label="Val Acc (avg)")
+    plt.xlabel("Epoch")
+    plt.ylabel("Accuracy (%)")
+    plt.title("Training and Validation Accuracy")
+    plt.legend()
+    plt.grid(True, alpha=0.3)
+
+    plt.tight_layout()
+    plt.savefig(output_dir / "training_curves.png")
+    plt.close()
+
+
+def plot_confusion_matrix(
+    targets: np.ndarray, preds: np.ndarray, movement_names: List[str], timestep_str: str, output_dir: Path
+):
+    """Plot the confusion matrix."""
+    cm = confusion_matrix(targets, preds)
+    plt.figure(figsize=(8, 6))
+    sns.heatmap(
+        cm,
+        annot=True,
+        fmt="d",
+        cmap="Blues",
+        xticklabels=movement_names,
+        yticklabels=movement_names,
+    )
+    plt.xlabel("Predicted")
+    plt.ylabel("True")
+
+    plt.title(f"Confusion Matrix ({timestep_str})")
+    plt.savefig(output_dir / f"confusion_matrix_{timestep_str}.png")
+    plt.close()
+
+
+def plot_multistep_accuracy(test_acc_per_step: List[float], model_config: Dict[str, Any], output_dir: Path):
+    """Plots test accuracy for each future timestep."""
+    num_past = model_config.get("num_past_timesteps", 0)
+    num_future = model_config.get("num_future_timesteps", 1)
+
+    if num_past + num_future == 0:
+        return
+
+    past_steps = list(range(-num_past, 0)) if num_past > 0 else []
+    future_steps = list(range(1, num_future + 1))
+    steps = past_steps + future_steps
+    step_labels = [str(s) for s in steps]
+
+    if len(step_labels) != len(test_acc_per_step):
+        print(
+            f"Warning: Mismatch between number of labels ({len(step_labels)}) and accuracies ({len(test_acc_per_step)}). Skipping plot."
+        )
+        return
+
+    plt.figure(figsize=(10, 6))
+    plt.plot(step_labels, test_acc_per_step, marker="o", linestyle="-")
+    plt.title("Test Accuracy per Timestep")
+    plt.xlabel("Timestep")
+    plt.ylabel("Test Accuracy (%)")
+    plt.grid(True)
+    plt.tight_layout()
+    plt.savefig(output_dir / "multistep_accuracy.png")
+    plt.close()
+
+
+def run_analysis(history: Dict, results: Dict, output_dir: Path):
+    """Runs all analyses and generates plots."""
+    print("\n--- Running Final Analysis ---")
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    # Plot training curves
+    plot_training_curves(history, output_dir)
+
+    # Plot multistep accuracy
+    model_config = results.get("model_config", {})
+    test_acc_per_step = results.get("test_acc_per_step", [])
+    if test_acc_per_step:
+        plot_multistep_accuracy(test_acc_per_step, model_config, output_dir)
+
+    # Plot confusion matrices
+    predictions = results.get("predictions", [])
+    targets = results.get("targets", [])
+    num_past = model_config.get("num_past_timesteps", 0)
+    num_future = model_config.get("num_future_timesteps", 0)
+    movement_names = [m.name for m in Movement]
+
+    if num_past > 0 and len(predictions) > 0:
+        # Furthest past timestep
+        idx = 0
+        timestep_str = f"t-{num_past}"
+        plot_confusion_matrix(targets[idx], predictions[idx], movement_names, timestep_str, output_dir)
+
+    if num_future > 0 and len(predictions) > num_past:
+        # Furthest future timestep
+        idx = num_past + num_future - 1
+        timestep_str = f"t+{num_future}"
+        plot_confusion_matrix(targets[idx], predictions[idx], movement_names, timestep_str, output_dir)
 
 
 def main():

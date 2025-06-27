@@ -6,8 +6,9 @@ import torch
 
 from metta.agent.policy_state import PolicyState
 
-from .doxascope_data import DoxascopeLogger, preprocess_doxascope_data
-from .doxascope_network import DoxascopeNet, train_doxascope
+from .doxascope_data import DoxascopeLogger, Movement, preprocess_doxascope_data
+from .doxascope_network import DoxascopeNet
+from .doxascope_train import train_doxascope
 
 
 @pytest.fixture
@@ -104,30 +105,38 @@ def test_preprocess_doxascope_data(doxascope_dirs):
     assert X is not None and y is not None
 
     # Each of the 10 files has 50 timesteps.
-    # Samples can be generated for i in range(num_past, 50 - num_future)
-    # range(1, 48) -> 47 samples per file. 10 files -> 470 samples.
-    expected_samples = (50 - num_past - num_future) * 10
+    # The loop runs from i=2 to 50-2-1=47.
+    # range(2, 48) -> 46 samples per file. 10 files -> 460 samples.
+    expected_samples = (50 - num_past - num_future - 1) * 10
     assert X.shape == (expected_samples, 512)
     assert y.shape == (expected_samples, num_past + num_future)
 
     # Check the content of a specific y sample based on the fixture's movement pattern.
-    # The agent's position at time t defines the trajectory. The move at time t
-    # is the delta from pos(t-1) to pos(t).
+    # `move(t)` is the delta from pos(t-1) to pos(t).
+    # t=0: pos=(0,0) -> This is the initial state before any move.
+    # t=1: pos=(1,0), move(1) = pos(1)-pos(0)=(1,0) -> down(2)
+    # t=2: pos=(1,1), move(2) = pos(2)-pos(1)=(0,1) -> right(4)
+    # t=3: pos=(0,1), move(3) = pos(3)-pos(2)=(-1,0) -> up(1)
+    # t=4: pos=(0,0), move(4) = pos(4)-pos(3)=(0,-1) -> left(3)
+    # This pattern seems off, let's re-verify the fixture.
+    # In fixture: initial pos is (0,0), then pos[0]+=1 -> (1,0) at t=0. Let's trace carefully.
     # t=0: pos=(1,0)
-    # t=1: pos=(1,1). move(1) = pos(1) - pos(0) = (0,1) -> right(4)
-    # t=2: pos=(0,1). move(2) = pos(2) - pos(1) = (-1,0) -> up(1)
-    # t=3: pos=(0,0). move(3) = pos(3) - pos(2) = (0,-1) -> left(3)
-    # t=4: pos=(1,0). move(4) = pos(4) - pos(3) = (1,0) -> down(2)
-    move_pattern = [4, 1, 3, 2]
+    # t=1: pos=(1,1) -> move(1) = (0,1) = RIGHT
+    # t=2: pos=(0,1) -> move(2) = (-1,0) = UP
+    # t=3: pos=(0,0) -> move(3) = (0,-1) = LEFT
+    # t=4: pos=(1,0) -> move(4) = (1,0) = DOWN
+    move_pattern = [Movement.DOWN, Movement.RIGHT, Movement.UP, Movement.LEFT]  # Moves for t=0,1,2,3
 
-    # The first sample is from i=1.
-    # y for i=1 should be [move(1), move(2), move(3)]
-    expected_y_for_i_1 = [move_pattern[0], move_pattern[1], move_pattern[2]]
-    # Since all 10 files are identical, the first sample of each file's data is the same.
+    # First sample is from i=num_past+1=2.
+    # y should be [move(i-1), move(i+1), move(i+2)] -> [move(1), move(3), move(4)]
+    # move(4) is DOWN.
+    expected_y_for_i_1 = [move_pattern[1], move_pattern[3], Movement.DOWN]
     np.testing.assert_array_equal(y[0], expected_y_for_i_1)
 
-    # y for i=2 should be [move(2), move(3), move(4)]
-    expected_y_for_i_2 = [move_pattern[1], move_pattern[2], move_pattern[3]]
+    # Second sample is from i=3.
+    # y should be [move(i-1), move(i+1), move(i+2)] -> [move(2), move(4), move(5)]
+    # move(4) is DOWN, move(5) is RIGHT
+    expected_y_for_i_2 = [move_pattern[2], Movement.DOWN, Movement.RIGHT]
     np.testing.assert_array_equal(y[1], expected_y_for_i_2)
 
 
