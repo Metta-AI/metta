@@ -158,6 +158,7 @@ class MettaTrainer:
 
         # Load or create policy with proper distributed coordination
         policy_record = self._load_policy(checkpoint, policy_store)
+        logging.info(f"LOADED from {policy_record.uri}")
 
         if policy_record is not None:
             # Models loaded via torch.package have modified class names (prefixed with <torch_package_N>)
@@ -187,6 +188,8 @@ class MettaTrainer:
         assert self.policy is not None, "Failed to obtain policy"
 
         self.latest_saved_policy_record = self.initial_policy_record
+
+        logging.info(f"using from {self.latest_saved_policy_record.uri}")
 
         if self._master:
             logger.info(f"MettaTrainer loaded: {self.policy}")
