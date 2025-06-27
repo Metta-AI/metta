@@ -110,7 +110,7 @@ class TestStopwatch:
         timer = stopwatch._get_timer("test_timer")
         assert "checkpoint1" in timer.checkpoints
         assert timer.checkpoints["checkpoint1"]["steps"] == 100
-        assert len(timer.checkpoints) == 2
+        assert len(timer.checkpoints) == 3  # with _start
 
         # Verify anonymous checkpoint naming
         assert any(k.startswith("_lap_") for k in timer.checkpoints)
@@ -420,9 +420,9 @@ class TestStopwatch:
 
         # Expected checkpoints
         expected_checkpoints = {
-            "A": [0.2, 0.3, 0.4],
-            "B": [0.2, 0.2, 0.2],
-            "C": [0.3, 0.5, 0.6],
+            "A": [0.0, 0.2, 0.3, 0.4],
+            "B": [0.0, 0.2, 0.2, 0.2],
+            "C": [0.0, 0.3, 0.5, 0.6],
         }
 
         for name, expected_times in expected_checkpoints.items():
@@ -433,19 +433,17 @@ class TestStopwatch:
                 f"Timer {name}: expected {len(expected_times)} checkpoints, got {len(checkpoints)}"
             )
 
-            for i, (_, checkpoint_data) in enumerate(checkpoints):
-                actual_time = checkpoint_data["elapsed_time"]
-                expected_time = expected_times[i]
-                assert abs(actual_time - expected_time) < tol, (
-                    f"Timer {name} checkpoint {i}: expected {expected_time}, got {actual_time}\n"
-                    f"All checkpoints: {checkpoints}"
-                )
+            laps = len(checkpoints) - 1
+            for i in range(laps):
+                start_checkpoint_time = checkpoints[i][1]["elapsed_time"]
+                stop_checkpoint_time = checkpoints[i + 1][1]["elapsed_time"]
+                delta_time = stop_checkpoint_time - start_checkpoint_time
+                lap_index = -(laps - i)  # Convert forward index to backward index
+                lap_time = stopwatch.get_lap_time(lap_index, name)
 
-            if checkpoints:
-                first_checkpoint_time = checkpoints[0][1]["elapsed_time"]
-                first_lap_time = lap_times[name]
-                assert abs(first_checkpoint_time - first_lap_time) < tol, (
-                    f"Timer {name}: checkpoint time {first_checkpoint_time} != lap time {first_lap_time}"
+                assert lap_time is not None, f"Timer {name}: lap {lap_index} does not exist"
+                assert abs(delta_time - lap_time) < tol, (
+                    f"Timer {name}: checkpoint time {delta_time} != lap time {lap_time} for lap {lap_index}"
                 )
 
     def test_get_lap_steps_first_lap(self, stopwatch):
@@ -457,14 +455,9 @@ class TestStopwatch:
         stopwatch.start("test_timer")
         time.sleep(0.1)
 
-        # Record first checkpoint at 100 steps
+        # Record checkpoint at 100 steps
         stopwatch.checkpoint(100, name="test_timer")
-
-        # Try to get the first lap steps
-        first_lap_steps = stopwatch.get_lap_steps(1, "test_timer")
-
-        # This should return 100 (steps from 0 to first checkpoint)
-        # But currently returns None due to the bug
+        first_lap_steps = stopwatch.get_lap_steps(-1, "test_timer")
         assert first_lap_steps == 100, f"Expected 100 steps for first lap, got {first_lap_steps}"
 
         # Also test with default parameter (last lap)
@@ -472,19 +465,16 @@ class TestStopwatch:
         assert last_lap_steps == 100, f"Expected 100 steps for last lap, got {last_lap_steps}"
 
         # Add second checkpoint
+
         time.sleep(0.1)
         stopwatch.checkpoint(250, name="test_timer")
 
         # Now test both laps
-        first_lap_steps = stopwatch.get_lap_steps(1, "test_timer")
+        first_lap_steps = stopwatch.get_lap_steps(-2, "test_timer")
         assert first_lap_steps == 100, f"Expected 100 steps for first lap, got {first_lap_steps}"
 
-        second_lap_steps = stopwatch.get_lap_steps(2, "test_timer")
+        second_lap_steps = stopwatch.get_lap_steps(-1, "test_timer")
         assert second_lap_steps == 150, f"Expected 150 steps for second lap (250-100), got {second_lap_steps}"
-
-        # Test with negative index
-        last_lap_steps = stopwatch.get_lap_steps(-1, "test_timer")
-        assert last_lap_steps == 150, f"Expected 150 steps for last lap, got {last_lap_steps}"
 
         stopwatch.stop("test_timer")
 
@@ -549,13 +539,14 @@ class TestStopwatchIntegration:
         # Verify the checkpoint data
         timer = sw._get_timer("training")
         checkpoints = timer.checkpoints
-        assert len(checkpoints) == 3
+        assert len(checkpoints) == 4  # with _start
 
         # Extract checkpoint data for verification
         checkpoint_list = sorted(checkpoints.items(), key=lambda x: x[1]["elapsed_time"])
-        assert checkpoint_list[0][1]["steps"] == 100  # First checkpoint at 100 steps
-        assert checkpoint_list[1][1]["steps"] == 300  # Second checkpoint at 300 steps
-        assert checkpoint_list[2][1]["steps"] == 600  # Third checkpoint at 600 steps
+        assert checkpoint_list[0][1]["steps"] == 0  # First checkpoint at 0 steps
+        assert checkpoint_list[1][1]["steps"] == 100  # First checkpoint at 100 steps
+        assert checkpoint_list[2][1]["steps"] == 300  # Second checkpoint at 300 steps
+        assert checkpoint_list[3][1]["steps"] == 600  # Third checkpoint at 600 steps
 
     def test_real_world_scenario(self):
         """Test a realistic usage scenario."""
@@ -913,7 +904,7 @@ class TestStopwatchSaveLoad:
         )
 
         # Check checkpoints
-        assert len(new_timer.checkpoints) == 2  # check1, check2
+        assert len(new_timer.checkpoints) == 3  # _start, check1, check2
         assert "check1" in new_timer.checkpoints
         assert "check2" in new_timer.checkpoints
         assert new_timer.checkpoints["check1"]["steps"] == 100
@@ -1032,7 +1023,7 @@ class TestStopwatchSaveLoad:
 
         # Final timer should have all checkpoints and correct elapsed time
         timer = sw3._get_timer("cycle_test")
-        assert len(timer.checkpoints) == 2
+        assert len(timer.checkpoints) == 3  # with _start
         assert "checkpoint1" in timer.checkpoints
         assert "checkpoint2" in timer.checkpoints
 
