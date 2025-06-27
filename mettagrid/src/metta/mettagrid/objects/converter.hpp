@@ -22,6 +22,7 @@ struct ConverterConfig {
   unsigned char initial_items;
   ObsType color;
   std::vector<std::string> inventory_item_names;
+  TypeId type_id;
 };
 
 class Converter : public HasInventory {
@@ -96,7 +97,7 @@ public:
   EventManager* event_manager;
   StatsTracker stats;
 
-  Converter(GridCoord r, GridCoord c, ConverterConfig cfg, TypeId type_id)
+  Converter(GridCoord r, GridCoord c, ConverterConfig cfg)
       : recipe_input(cfg.recipe_input),
         recipe_output(cfg.recipe_output),
         max_output(cfg.max_output),
@@ -104,7 +105,7 @@ public:
         cooldown(cfg.cooldown),
         color(cfg.color),
         stats(cfg.inventory_item_names) {
-    GridObject::init(type_id, GridLocation(r, c, GridLayer::Object_Layer));
+    GridObject::init(cfg.type_id, GridLocation(r, c, GridLayer::Object_Layer));
     this->converting = false;
     this->cooling_down = false;
 
