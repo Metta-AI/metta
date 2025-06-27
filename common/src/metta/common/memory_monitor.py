@@ -1,3 +1,4 @@
+import inspect
 import sys
 import weakref
 from typing import Any, Set
@@ -139,16 +140,31 @@ class MemoryMonitor:
             print(f"Warning: Could not track object {name}: {e}")
 
     def _generate_name(self, obj: Any) -> str:
-        """Generate a name for an object based on its type and id."""
+        """Generate a name for an object based on its type and caller location."""
         obj_type = type(obj).__name__
-        obj_id = str(id(obj))[-6:]
+
+        # Get caller information (the code that called add())
+        try:
+            frame = inspect.currentframe()
+            if frame and frame.f_back and frame.f_back.f_back:
+                caller_frame = frame.f_back.f_back
+                filename = caller_frame.f_code.co_filename
+                line_number = caller_frame.f_lineno
+
+                # Extract just the filename without path
+                short_filename = filename.split("/")[-1].split("\\")[-1]
+                location = f"{short_filename}:{line_number}"
+            else:
+                location = "unknown"
+        except Exception:
+            location = "unknown"
 
         if hasattr(obj, "__name__"):
-            return f"{obj.__name__}_{obj_type}"
+            return f"{obj.__name__}_{obj_type}_{location}"
         elif hasattr(obj, "name") and isinstance(obj.name, str):
-            return f"{obj.name}_{obj_type}"
+            return f"{obj.name}_{obj_type}_{location}"
         else:
-            return f"{obj_type}_{obj_id}"
+            return f"{obj_type}_{location}"
 
     def remove(self, name: str) -> bool:
         """Remove an object and its attributes from monitoring."""
