@@ -118,28 +118,25 @@ class MettaAgent(nn.Module):
             component = hydra.utils.instantiate(component_cfgs[component_key], **self.agent_attributes)
             self.components[component_name] = component
 
-        # Inject ObsFeatureRemapper after _obs_ if using token observations
-        if "_obs_" in self.components:
-            # Check if this is a token-based observation pipeline
-            obs_component = self.components["_obs_"]
-            if hasattr(obs_component, "__class__") and "ObsTokenPadStrip" in obs_component.__class__.__name__:
-                logger.info("Injecting ObsFeatureRemapper for token-based observations")
+        # Always inject ObsFeatureRemapper since all observations start as tokens
+        # Even box-based policies use a token-to-box converter, so feature remapping is always needed
+        logger.info("Injecting ObsFeatureRemapper for feature ID remapping")
 
-                # Create the remapper component
-                remapper = ObsFeatureRemapper(name="_obs_feature_remapper_")
-                self.components["_obs_feature_remapper_"] = remapper
+        # Create the remapper component
+        remapper = ObsFeatureRemapper(name="_obs_feature_remapper_")
+        self.components["_obs_feature_remapper_"] = remapper
 
-                # Rewire the observation pipeline
-                # Find all components that use _obs_ as a source and update them to use the remapper
-                for name, component in self.components.items():
-                    if hasattr(component, "_sources") and component._sources is not None:
-                        for source in component._sources:
-                            if source.get("name") == "_obs_":
-                                logger.info(f"Rewiring {name} to use _obs_feature_remapper_ instead of _obs_")
-                                source["name"] = "_obs_feature_remapper_"
+        # Rewire the observation pipeline
+        # Find all components that use _obs_ as a source and update them to use the remapper
+        for name, component in self.components.items():
+            if hasattr(component, "_sources") and component._sources is not None:
+                for source in component._sources:
+                    if source.get("name") == "_obs_":
+                        logger.info(f"Rewiring {name} to use _obs_feature_remapper_ instead of _obs_")
+                        source["name"] = "_obs_feature_remapper_"
 
-                # Set the remapper's source to _obs_
-                remapper._sources = [{"name": "_obs_"}]
+        # Set the remapper's source to _obs_
+        remapper._sources = [{"name": "_obs_"}]
 
         component = self.components["_value_"]
         self._setup_components(component)
