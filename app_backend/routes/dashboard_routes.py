@@ -81,8 +81,8 @@ def get_group_data(
                 eam.*,
                 CAST ((e.attributes->'agent_groups')[eam.agent_id] AS INTEGER) as group_id
             FROM episode_agent_metrics eam
-            JOIN episode_view e ON e.id = eam.episode_id
-            WHERE e.simulation_suite = %s AND eam.metric = %s
+            JOIN episodes e ON e.id = eam.episode_id
+            WHERE e.eval_category = %s AND eam.metric = %s
         ),
         all_policies_with_runs AS (
           SELECT
@@ -104,17 +104,17 @@ def get_group_data(
 
         SELECT
           p.name as policy_uri,
-          e.eval_name,
+          e.env_name as eval_name,
           ANY_VALUE(e.replay_url) as replay_url,
           COUNT(*) AS num_agents,
           SUM(eam.value) AS total_value,
           p.run_id,
           p.end_training_epoch
         FROM episode_agent_metrics_with_group_id eam
-        JOIN episode_view e ON e.id = eam.episode_id
+        JOIN episodes e ON e.id = eam.episode_id
         JOIN all_policies_with_runs p ON e.primary_policy_id = p.id
         {}
-        GROUP BY p.name, e.eval_name, p.run_id, p.end_training_epoch
+        GROUP BY p.name, e.env_name, p.run_id, p.end_training_epoch
         ORDER BY p.run_id, p.end_training_epoch DESC
     """)
 
@@ -208,8 +208,8 @@ def _select_best_policies_per_run(rows: List[GroupDataRow], suite: str, con: Con
             run_policies[row.run_id][row.policy_uri].append(row)
 
     # Get all eval_names for this suite to handle missing evaluations
-    eval_rows = con.execute("SELECT DISTINCT eval_name FROM episode_view WHERE simulation_suite = %s", (suite,))
-    all_eval_names: Set[str] = {row[0] for row in eval_rows}
+    eval_rows = con.execute("SELECT DISTINCT env_name FROM episodes WHERE eval_category = %s", (suite,))
+    all_eval_names: Set[str] = {row[0] for row in eval_rows if row[0] is not None}
 
     selected_rows: List[GroupDataRow] = []
 
@@ -279,8 +279,8 @@ def create_dashboard_router(metta_repo: MettaRepo) -> APIRouter:
     ) -> HeatmapData:
         """Get heatmap data for a given suite, metric, and group metric."""
         with metta_repo.connect() as con:
-            eval_rows = con.execute("SELECT DISTINCT eval_name FROM episode_view WHERE simulation_suite = %s", (suite,))
-            all_eval_names: List[str] = [row[0] for row in eval_rows]
+            eval_rows = con.execute("SELECT DISTINCT env_name FROM episodes WHERE eval_category = %s", (suite,))
+            all_eval_names: List[str] = [row[0] for row in eval_rows if row[0] is not None]
 
             if isinstance(group_metric.group_metric, GroupDiff):
                 group1_rows = get_group_data(

@@ -133,6 +133,17 @@ MIGRATIONS = [
             """,
         ],
     ),
+    SqlMigration(
+        version=5,
+        description="Parse out eval category from eval name",
+        sql_statements=[
+            """ALTER TABLE episodes ADD COLUMN eval_category TEXT, ADD COLUMN env_name TEXT""",
+            """UPDATE episodes SET eval_category = split_part(eval_name, '/', 1), """
+            """env_name = split_part(eval_name, '/', 2)""",
+            """CREATE INDEX idx_episodes_eval_category ON episodes(eval_category)""",
+            """DROP VIEW episode_view""",
+        ],
+    ),
 ]
 
 
@@ -234,6 +245,10 @@ class MettaRepo:
         attributes: Dict[str, Any],
     ) -> uuid.UUID:
         with self.connect() as con:
+            # Parse eval_category and env_name from eval_name
+            eval_category = eval_name.split("/", 1)[0] if eval_name else None
+            env_name = eval_name.split("/", 1)[1] if eval_name and "/" in eval_name else None
+
             # Insert into episodes table
             result = con.execute(
                 """
@@ -241,17 +256,21 @@ class MettaRepo:
                     replay_url,
                     eval_name,
                     simulation_suite,
+                    eval_category,
+                    env_name,
                     primary_policy_id,
                     stats_epoch,
                     attributes
                 ) VALUES (
-                    %s, %s, %s, %s, %s, %s
+                    %s, %s, %s, %s, %s, %s, %s, %s
                 ) RETURNING id
                 """,
                 (
                     replay_url,
                     eval_name,
                     simulation_suite,
+                    eval_category,
+                    env_name,
                     primary_policy_id,
                     stats_epoch,
                     Jsonb(attributes),
@@ -294,9 +313,10 @@ class MettaRepo:
     def get_suites(self) -> List[str]:
         with self.connect() as con:
             result = con.execute("""
-                SELECT DISTINCT simulation_suite
-                FROM episode_view
-                ORDER BY simulation_suite
+                SELECT DISTINCT eval_category
+                FROM episodes
+                WHERE eval_category IS NOT NULL
+                ORDER BY eval_category
             """)
             return [row[0] for row in result]
 
@@ -306,9 +326,9 @@ class MettaRepo:
             result = con.execute(
                 """
                 SELECT DISTINCT eam.metric
-                FROM episode_view e
+                FROM episodes e
                 JOIN episode_agent_metrics eam ON e.id = eam.episode_id
-                WHERE e.simulation_suite = %s
+                WHERE e.eval_category = %s
                 ORDER BY eam.metric
             """,
                 (suite,),
@@ -321,8 +341,8 @@ class MettaRepo:
             result = con.execute(
                 """
                 SELECT DISTINCT jsonb_object_keys(e.attributes->'agent_groups') as group_id
-                FROM episode_view e
-                WHERE e.simulation_suite = %s
+                FROM episodes e
+                WHERE e.eval_category = %s
                 ORDER BY group_id
             """,
                 (suite,),
