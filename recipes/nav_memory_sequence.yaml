@@ -1,0 +1,31 @@
+name: "Navigation Memory Sequence Recipe"
+description: "These are still experimental, and we may need to use a progressive curriculum to train them. For now, our best results are achieved by finetuning."
+expected_performance: "Experimental - performance varies"
+
+# Training variants
+variants:
+  object_use_finetuned:
+    name: "Finetune off of object use"
+    baseline_run: "https://wandb.ai/metta-research/metta/runs/daphne.nav_memory_sequence.object_use_finetuned.06-25?nw=nwuserdaphned"
+    run_suffix: "nav_memory_sequence.object_use_finetuned.06-25"
+    trainer: "recipe_trainer"
+    curriculum: "env/mettagrid/curriculum/nav_memory_sequence"
+    initial_policy_uri: "wandb://run/daphne.object_use.06-25"
+    env_overrides: {}
+
+  navigation_finetuned:
+    name: "Finetune off of navigation"
+    baseline_run: "https://wandb.ai/metta-research/metta/runs/daphne.moretime.nav_memory_sequence.navigation_finetuned.06-25?nw=nwuserdaphned"
+    run_suffix: "nav_memory_sequence.navigation_finetuned.06-25"
+    trainer: "recipe_trainer"
+    curriculum: "env/mettagrid/curriculum/nav_memory_sequence"
+    initial_policy_uri: "wandb://run/daphne.navigation.low_reward.1gpu.4agents.06-25"
+    env_overrides: {}
+
+# CI/Testing configuration
+ci_config:
+  timeout_hours: 48  # Longer timeout for experimental recipes
+  expected_min_performance: 0.30  # Lower expectations for experimental
+  validation_metrics:
+    - "memory_sequence_success_rate"
+    - "navigation_accuracy"

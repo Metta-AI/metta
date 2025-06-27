@@ -1,0 +1,24 @@
+name: "Navigation Recipe"
+description: "We expect this recipe to achieve >88% on the navigation evals"
+baseline_run: "https://wandb.ai/metta-research/metta/runs/daphne.navigation.low_reward.1gpu.4agents.06-25"
+expected_performance: ">88% on navigation evals"
+
+# Training configuration
+run_suffix: "navigation.low_reward.baseline"
+trainer: "recipe_trainer"
+curriculum: "env/mettagrid/curriculum/navigation/low_reward"
+
+# Environment overrides
+env_overrides:
+  game.num_agents: 4
+
+# Optional: Initial policy for finetuning
+# initial_policy_uri: "wandb://run/previous_baseline"
+
+# CI/Testing configuration
+ci_config:
+  timeout_hours: 24  # Maximum runtime for CI
+  expected_min_performance: 0.85  # Minimum acceptable performance
+  validation_metrics:
+    - "navigation_success_rate"
+    - "episode_length"
