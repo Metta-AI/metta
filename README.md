@@ -183,9 +183,7 @@ Now you can run training with your personal WandB config:
 
 ## Visualizing a Model
 
-### Visualizing a Model
-
-#### Run the interactive simulation
+### Run the interactive simulation
 
 ```
 ./tools/play.py run=my_experiment +hardware=macbook wandb=off
@@ -194,6 +192,30 @@ Now you can run training with your personal WandB config:
 This launches a human-controlled session using the same configuration flags as
 training. It is useful for quickly testing maps or policies on your local
 hardware.
+
+### Using trained models with the interactive simulation
+
+To test your trained models in the interactive simulation:
+
+```bash
+./tools/play.py run=play_session policy_uri=file://./train_dir/my_experiment3/checkpoints/policy.pt +hardware=macbook
+```
+
+Where:
+- `policy_uri`: Path to your trained policy checkpoint file (the `.pt` file in your checkpoints directory)
+- For local checkpoints: Use `file://` prefix followed by the path
+- For WandB artifacts: Use `wandb://` prefix
+
+Example with your trained model:
+```bash
+# If you trained with: ./tools/train.py run=my_experiment3
+# Your checkpoint will be at: train_dir/my_experiment3/checkpoints/policy.pt
+./tools/play.py run=test_my_model policy_uri=file://./train_dir/my_experiment3/checkpoints/policy.pt +hardware=macbook
+```
+
+**Important notes:**
+- The interactive simulation doesn't support drag-and-drop for loading checkpoints. You must specify the policy using the `policy_uri` parameter when launching the tool.
+- If you encounter a missing `mettascope/dist` folder error, run `./mettascope/install.sh` to build the visualization components.
 
 #### Run the terminal simulation
 
