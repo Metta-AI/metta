@@ -44,8 +44,9 @@ class GitHubActionsOutput:
                 else:
                     f.write(f"{name}={value}\n")
         else:
-            # Fallback to deprecated method if GITHUB_OUTPUT not available
-            print(f"::set-output name={name}::{value[:100]}{'...' if len(value) > 100 else ''}")
+            raise RuntimeError(
+                "GITHUB_OUTPUT environment variable not set. This script requires a modern GitHub Actions environment."
+            )
 
 
 class GitHubAPI:
@@ -104,36 +105,19 @@ class GitHubAPI:
         """Get artifacts for a specific workflow run."""
         try:
             run = self.repo.get_workflow_run(run_id)
-            artifacts = run.get_artifacts()
 
             result = []
-            # Paginate through artifacts to ensure we get all of them
-            page = 0
-            max_pages = 5  # Artifacts are usually fewer, so lower limit
-
-            while page < max_pages:
-                try:
-                    artifacts_page = artifacts.get_page(page)
-                    if not artifacts_page:
-                        break
-
-                    for artifact in artifacts_page:
-                        result.append(
-                            {
-                                "id": artifact.id,
-                                "name": artifact.name,
-                                "size": artifact.size_in_bytes,
-                                "created_at": artifact.created_at.isoformat(),
-                                "expires_at": artifact.expires_at.isoformat() if artifact.expires_at else None,
-                                "download_url": artifact.archive_download_url,
-                            }
-                        )
-
-                    page += 1
-
-                except Exception:
-                    # No more pages available
-                    break
+            for artifact in run.get_artifacts():
+                result.append(
+                    {
+                        "id": artifact.id,
+                        "name": artifact.name,
+                        "size": artifact.size_in_bytes,
+                        "created_at": artifact.created_at.isoformat(),
+                        "expires_at": artifact.expires_at.isoformat() if artifact.expires_at else None,
+                        "download_url": artifact.archive_download_url,
+                    }
+                )
 
             return result
         except Exception as e:
@@ -345,7 +329,29 @@ def main():
     print("🚀 Starting Fetch Artifacts action")
 
     try:
-        config = parse_config()
+        required_vars = [
+            "GITHUB_TOKEN",
+            "INPUT_WORKFLOW_NAME",
+            "INPUT_ARTIFACT_NAME_PATTERN",
+            "GITHUB_REPOSITORY",
+        ]
+
+        optional_vars = {
+            "INPUT_NUM_ARTIFACTS": "5",
+            "INPUT_OUTPUT_DIRECTORY": "downloaded-artifacts",
+        }
+
+        env_values = parse_config(required_vars, optional_vars)
+
+        # Transform to config dict
+        config = {
+            "github_token": env_values["GITHUB_TOKEN"],
+            "repo": env_values["GITHUB_REPOSITORY"],
+            "workflow_name": env_values["INPUT_WORKFLOW_NAME"],
+            "artifact_name_pattern": env_values["INPUT_ARTIFACT_NAME_PATTERN"],
+            "num_artifacts": int(env_values["INPUT_NUM_ARTIFACTS"]),
+            "output_directory": env_values["INPUT_OUTPUT_DIRECTORY"],
+        }
 
         print("📋 Configuration:")
         print(f"  • Repository: {config['repo']}")

@@ -1,29 +1,44 @@
 import os
 import sys
-from typing import Any
 
 
-def parse_config() -> dict[str, Any]:
-    """Parse configuration from environment variables."""
-    config = {
-        "github_token": os.environ.get("INPUT_GITHUB_TOKEN") or os.environ.get("GITHUB_TOKEN"),
-        "workflow_name": os.environ.get("INPUT_WORKFLOW_NAME"),
-        "artifact_name_pattern": os.environ.get("INPUT_ARTIFACT_NAME_PATTERN"),
-        "num_artifacts": int(os.environ.get("INPUT_NUM_ARTIFACTS", "5")),
-        "output_directory": os.environ.get("INPUT_OUTPUT_DIRECTORY", "downloaded-artifacts"),
-        "repo": os.environ.get("GITHUB_REPOSITORY"),
-    }
+def parse_config(required_vars: list[str], optional_vars: dict[str, str] | None = None) -> dict[str, str]:
+    """
+    Parse and validate environment variables.
 
-    # Validation
-    required_fields = ["github_token", "workflow_name", "artifact_name_pattern", "repo"]
-    missing_fields = [field for field in required_fields if not config[field]]
+    Args:
+        required_vars: List of `var_name` for required variables
+        optional_vars: Dict of `{var_name: default value}` for optional variables
 
-    if missing_fields:
-        print(f"❌ Missing required configuration: {', '.join(missing_fields)}")
+    Returns:
+        Dict of {var_name: value} for all available env variables
+
+    Raises:
+        SystemExit: If any required variables are missing
+    """
+    if optional_vars is None:
+        optional_vars = {}
+
+    env_values = {}
+    missing_vars = []
+
+    # Validate required environment variables
+    for var_name in required_vars:
+        value = os.getenv(var_name)
+        if not value:
+            missing_vars.append(var_name)
+        else:
+            env_values[var_name] = value
+
+    # Report all missing variables at once
+    if missing_vars:
+        print("❌ Missing required environment variables:")
+        for var in missing_vars:
+            print(f"  - {var}")
         sys.exit(1)
 
-    if config["num_artifacts"] < 1 or config["num_artifacts"] > 100:
-        print("❌ num_artifacts must be between 1 and 100")
-        sys.exit(1)
+    # Get optional environment variables
+    for var_name, default_value in optional_vars.items():
+        env_values[var_name] = os.getenv(var_name, default_value)
 
-    return config
+    return env_values
