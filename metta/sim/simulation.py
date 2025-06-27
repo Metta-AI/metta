@@ -147,7 +147,12 @@ class Simulation:
 
         # ---------------- doxascope setup ---------------------------- #
         policy_name = self._policy_pr.name.replace("/", "_")
-        self._doxascope_logger = DoxascopeLogger(config.doxascope or {}, self._id, policy_name=policy_name)
+        self._doxascope_logger = DoxascopeLogger(
+            config.doxascope or {},
+            self._id,
+            policy_name=policy_name,
+            object_type_names=metta_grid_env.object_type_names,
+        )
 
     def start_simulation(self) -> None:
         """
