@@ -15,6 +15,7 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <random>
 
 #include "types.hpp"
 
@@ -33,7 +34,7 @@ namespace py = pybind11;
 
 class METTAGRID_API MettaGrid {
 public:
-  MettaGrid(py::dict env_cfg, py::list map);
+  MettaGrid(py::dict env_cfg, py::list map, int seed);
   ~MettaGrid();
 
   unsigned short obs_width;
@@ -107,6 +108,9 @@ private:
   std::map<uint8_t, float> _feature_normalizations;
 
   std::vector<bool> _action_success;
+
+  std::mt19937 _rng;
+  int _seed;
 
   void init_action_handlers();
   void add_agent(Agent* agent);
