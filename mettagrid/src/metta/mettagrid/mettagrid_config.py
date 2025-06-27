@@ -88,6 +88,7 @@ class ActionsConfig(BaseModelWithForbidExtra):
 class WallConfig(BaseModelWithForbidExtra):
     """Wall/Block configuration."""
 
+    type_id: int
     swappable: Optional[bool] = None
 
 
@@ -119,6 +120,7 @@ class ConverterConfig(BaseModelWithForbidExtra):
     output_blueprint: Optional[int] = Field(default=None, alias="output_blueprint", ge=0, le=255)
 
     # Converter properties
+    type_id: int
     max_output: int = Field(ge=-1)
     conversion_ticks: int = Field(ge=0)
     cooldown: int = Field(ge=0)

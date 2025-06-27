@@ -166,7 +166,7 @@ public:
   virtual vector<PartialObservationToken> obs_features() const override {
     vector<PartialObservationToken> features;
     features.reserve(5 + this->inventory.size());
-    features.push_back({ObservationFeature::TypeId, _type_id});
+    features.push_back({ObservationFeature::TypeId, type_id});
     features.push_back({ObservationFeature::Color, color});
     features.push_back({ObservationFeature::ConvertingOrCoolingDown, this->converting || this->cooling_down});
     for (const auto& [item, amount] : this->inventory) {
