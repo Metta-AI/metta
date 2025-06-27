@@ -152,7 +152,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
         if self._is_training and self._resets == 0:
             max_steps = game_config_dict["max_steps"]
             game_config_dict["max_steps"] = int(np.random.randint(1, max_steps + 1))
-            logger.info(f"Desync episode with max_steps {game_config_dict['max_steps']}")
+            # logger.info(f"Desync episode with max_steps {game_config_dict['max_steps']}")
 
         self._map_labels = level.labels
 

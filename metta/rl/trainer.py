@@ -158,9 +158,10 @@ class MettaTrainer:
 
         # Load or create policy with proper distributed coordination
         policy_record = self._load_policy(checkpoint, policy_store)
-        logging.info(f"LOADED from {policy_record.uri}")
 
         if policy_record is not None:
+            logging.info(f"LOADED {policy_record.uri}")
+
             # Models loaded via torch.package have modified class names (prefixed with <torch_package_N>)
             # which prevents them from being saved again. We work around this by creating a fresh
             # instance of the policy class and copying the state dict, allowing successful re-saving.
@@ -168,7 +169,10 @@ class MettaTrainer:
             loaded_policy = policy_record.policy()
             loaded_policy.activate_actions(actions_names, actions_max_params, self.device)
 
+            logging.info("about to create")
             fresh_policy_record = policy_store.create(metta_grid_env)
+            logging.info(f"CREATED {fresh_policy_record.uri}")
+
             fresh_policy = fresh_policy_record.policy()
             fresh_policy.activate_actions(actions_names, actions_max_params, self.device)
             fresh_policy.load_state_dict(loaded_policy.state_dict(), strict=False)
@@ -189,7 +193,7 @@ class MettaTrainer:
 
         self.latest_saved_policy_record = self.initial_policy_record
 
-        logging.info(f"using from {self.latest_saved_policy_record.uri}")
+        logging.info(f"USING {self.latest_saved_policy_record.uri}")
 
         if self._master:
             logger.info(f"MettaTrainer loaded: {self.policy}")
