@@ -425,15 +425,29 @@ class PolicyStore:
             "pytorch://" + name,
             {"action_names": [], "agent_step": 0, "epoch": 0, "generation": 0, "train_time": 0},
         )
-        pr._policy = load_pytorch_policy(path, self._device, pytorch_cfg=self._cfg.get("pytorch"))
+        pr._cached_policy = load_pytorch_policy(path, self._device, pytorch_cfg=self._cfg.get("pytorch"))
         return pr
 
     def _load_from_file(self, path: str, metadata_only: bool = False) -> PolicyRecord:
-        if path in self._cached_prs and (metadata_only or self._cached_prs[path]._policy is not None):
-            return self._cached_prs[path]
+        if path in self._cached_prs:
+            cached_pr = self._cached_prs[path]
+            # For metadata_only, we can return the cached record immediately
+            if metadata_only:
+                return cached_pr
+            # For full load, check if the policy is already loaded
+            # Use hasattr to safely check if the policy exists
+            try:
+                if hasattr(cached_pr, "_cached_policy") and cached_pr._cached_policy is not None:
+                    return cached_pr
+                elif hasattr(cached_pr, "policy") and cached_pr.policy is not None:
+                    return cached_pr
+            except AttributeError:
+                # If we can't access the policy, we'll reload it below
+                pass
 
         if not path.endswith(".pt") and os.path.isdir(path):
             path = os.path.join(path, os.listdir(path)[-1])
+
         logger.info(f"Loading policy from {path}")
 
         self._make_codebase_backwards_compatible()
@@ -447,8 +461,7 @@ class PolicyStore:
             pr = importer.load_pickle("policy_record", "data.pkl")
             pr._policy_store = self
             if not metadata_only:
-                pr._policy = pr.load(path, self._device)
-            pr._local_path = path
+                pr._cached_policy = pr.load(path, self._device)
             self._cached_prs[path] = pr
             return pr
         except Exception as e:
