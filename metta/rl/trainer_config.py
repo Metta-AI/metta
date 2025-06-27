@@ -100,6 +100,7 @@ class TrainerConfig(BaseModelWithForbidExtra):
     minibatch_size: int = Field(gt=0)
     bptt_horizon: int = Field(gt=0)
     update_epochs: int = Field(gt=0)
+    scale_batches_by_world_size: bool
 
     # Performance configuration
     cpu_offload: bool

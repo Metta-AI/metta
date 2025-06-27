@@ -28,6 +28,7 @@ valid_trainer_config = {
     "ent_coef": 0.01,
     "gae_lambda": 0.95,
     "gamma": 0.99,
+    "scale_batches_by_world_size": False,
     "max_grad_norm": 0.5,
     "vf_coef": 0.5,
     "vf_clip_coef": 0.1,
