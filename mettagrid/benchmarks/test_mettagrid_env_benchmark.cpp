@@ -79,6 +79,7 @@ py::dict CreateBenchmarkConfig(int num_agents) {
   agent_group1["group_name"] = "team1";
   agent_group1["group_id"] = 0;
   agent_group1["group_reward_pct"] = 0.0f;
+  agent_group1["type_id"] = 0;
 
   agent_group2["freeze_duration"] = 0;
   agent_group2["action_failure_penalty"] = 0;
@@ -88,6 +89,7 @@ py::dict CreateBenchmarkConfig(int num_agents) {
   agent_group2["group_name"] = "team2";
   agent_group2["group_id"] = 1;
   agent_group2["group_reward_pct"] = 0.0f;
+  agent_group2["type_id"] = 0;
 
   agent_groups["agent.team1"] = agent_group1;
   agent_groups["agent.team2"] = agent_group2;

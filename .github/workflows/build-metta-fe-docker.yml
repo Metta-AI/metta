@@ -5,6 +5,8 @@ concurrency:
 
 on:
   push:
+    branches:
+      - main
     paths:
       - "observatory/**"
       - ".github/workflows/**"
