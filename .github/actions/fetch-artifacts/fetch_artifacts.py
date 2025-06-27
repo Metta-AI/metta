@@ -177,7 +177,8 @@ class ArtifactFetcher:
     def find_and_collect_artifacts(self) -> tuple[list[dict[str, Any]], int]:
         """Find artifacts matching the specified pattern, collecting until we have num_artifacts."""
         print(
-            f"🔍 Searching for {self.config['num_artifacts']} artifacts matching '{self.config['artifact_name_pattern']}'"
+            f"🔍 Searching for {self.config['num_artifacts']} "
+            f"artifacts matching '{self.config['artifact_name_pattern']}'"
         )
         print(f"📋 Workflow: {self.config['workflow_name']}")
 
