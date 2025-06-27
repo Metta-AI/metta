@@ -1,4 +1,4 @@
-name: 'Test Fetch Artifacts Action'
+name: 'Test Fetch Artifacts'
 
 on:
   workflow_dispatch:
