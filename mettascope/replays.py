@@ -23,6 +23,9 @@ class FakeAgent(MettaAgent):
     def __init__(self):
         pass
 
+    def activate_actions(self, *args):
+        pass
+
     def __call__(self, obs, state):
         num_agents = obs.shape[0]
         return (torch.zeros((num_agents, 2)), None, None, None, None)

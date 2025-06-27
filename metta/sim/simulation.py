@@ -124,28 +124,35 @@ class Simulation:
         metta_grid_env: MettaGridEnv = self._vecenv.driver_env  # type: ignore
         assert isinstance(metta_grid_env, MettaGridEnv)
 
-        # Get environment features and actions
-        features = metta_grid_env.get_observation_features()
+        # Let every policy know the active action-set of this env.
         action_names = metta_grid_env.action_names
         max_args = metta_grid_env.max_action_args
 
-        # Initialize policies with environment
         policy = self._policy_pr.policy()
+        # Ensure policy has required interface
         if hasattr(policy, "initialize_to_environment"):
+            # New interface: pass features and actions
+            features = metta_grid_env.get_observation_features()
             policy.initialize_to_environment(features, action_names, max_args, self._device)
+        elif hasattr(policy, "activate_actions"):
+            # Old interface: just pass actions
+            policy.activate_actions(action_names, max_args, self._device)
         else:
-            raise SimulationCompatibilityError(
-                f"[{self._name}] Policy is missing required method 'initialize_to_environment'. "
+            raise AttributeError(
+                f"Policy is missing required method 'activate_actions' or 'initialize_to_environment'. "
                 f"Expected a MettaAgent-like object but got {type(policy).__name__}"
             )
 
         if self._npc_pr is not None:
             npc_policy = self._npc_pr.policy()
             if hasattr(npc_policy, "initialize_to_environment"):
+                features = metta_grid_env.get_observation_features()
                 npc_policy.initialize_to_environment(features, action_names, max_args, self._device)
+            elif hasattr(npc_policy, "activate_actions"):
+                npc_policy.activate_actions(action_names, max_args, self._device)
             else:
-                raise SimulationCompatibilityError(
-                    f"[{self._name}] NPC policy is missing required method 'initialize_to_environment'. "
+                raise AttributeError(
+                    f"NPC policy is missing required method 'activate_actions' or 'initialize_to_environment'. "
                     f"Expected a MettaAgent-like object but got {type(npc_policy).__name__}"
                 )
 

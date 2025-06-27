@@ -155,7 +155,6 @@ class MettaTrainer:
         # self.vecenv.driver_env as just the parent class pufferlib.PufferEnv
         actions_names = metta_grid_env.action_names
         actions_max_params = metta_grid_env.max_action_args
-        features = metta_grid_env.get_observation_features()
 
         # Load or create policy with proper distributed coordination
         policy_record = self._load_policy(checkpoint, policy_store)
@@ -166,11 +165,19 @@ class MettaTrainer:
             # instance of the policy class and copying the state dict, allowing successful re-saving.
             # TODO: Remove this workaround when checkpointing refactor is complete
             loaded_policy = policy_record.policy()
-            loaded_policy.initialize_to_environment(features, actions_names, actions_max_params, self.device)
+            if hasattr(loaded_policy, "initialize_to_environment"):
+                features = metta_grid_env.get_observation_features()
+                loaded_policy.initialize_to_environment(features, actions_names, actions_max_params, self.device)
+            else:
+                loaded_policy.activate_actions(actions_names, actions_max_params, self.device)
 
             fresh_policy_record = policy_store.create(metta_grid_env)
             fresh_policy = fresh_policy_record.policy()
-            fresh_policy.initialize_to_environment(features, actions_names, actions_max_params, self.device)
+            if hasattr(fresh_policy, "initialize_to_environment"):
+                features = metta_grid_env.get_observation_features()
+                fresh_policy.initialize_to_environment(features, actions_names, actions_max_params, self.device)
+            else:
+                fresh_policy.activate_actions(actions_names, actions_max_params, self.device)
             fresh_policy.load_state_dict(loaded_policy.state_dict(), strict=False)
 
             self.initial_policy_record = fresh_policy_record
@@ -183,7 +190,11 @@ class MettaTrainer:
                 policy_record = self._wait_for_policy(policy_store)
             self.initial_policy_record = policy_record
             self.policy = policy_record.policy()
-            self.policy.initialize_to_environment(features, actions_names, actions_max_params, self.device)
+            if hasattr(self.policy, "initialize_to_environment"):
+                features = metta_grid_env.get_observation_features()
+                self.policy.initialize_to_environment(features, actions_names, actions_max_params, self.device)
+            else:
+                self.policy.activate_actions(actions_names, actions_max_params, self.device)
 
         assert self.policy is not None, "Failed to obtain policy"
 
@@ -741,10 +752,13 @@ class MettaTrainer:
         # TODO: Remove this workaround when checkpointing refactor is complete
         logger.info("Creating a fresh policy instance for torch.package to save")
         fresh_policy = self.policy_store.create(metta_grid_env).policy()
-        features = metta_grid_env.get_observation_features()
-        fresh_policy.initialize_to_environment(
-            features, metta_grid_env.action_names, metta_grid_env.max_action_args, self.device
-        )
+        if hasattr(fresh_policy, "initialize_to_environment"):
+            features = metta_grid_env.get_observation_features()
+            fresh_policy.initialize_to_environment(
+                features, metta_grid_env.action_names, metta_grid_env.max_action_args, self.device
+            )
+        else:
+            fresh_policy.activate_actions(metta_grid_env.action_names, metta_grid_env.max_action_args, self.device)
         fresh_policy.load_state_dict(self.policy.state_dict(), strict=False)
         policy_to_save = fresh_policy
 
