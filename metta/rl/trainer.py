@@ -982,6 +982,8 @@ class MettaTrainer:
             "policy_record_version": self.latest_saved_policy_record.key_and_version()[1],
         }
 
+        logger.info(f"policy record uri {self.latest_saved_policy_record.uri}")
+
         self.wandb_run.log(
             {
                 **{f"overview/{k}": v for k, v in overview.items()},
