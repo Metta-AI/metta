@@ -19,7 +19,6 @@ from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
 from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyRecord, PolicyStore
 from metta.agent.util.debug import assert_shape
-from metta.common.fs import tree
 from metta.common.memory_monitor import MemoryMonitor
 from metta.common.stopwatch import Stopwatch, with_instance_timer
 from metta.common.util.heartbeat import record_heartbeat
@@ -68,7 +67,7 @@ class MettaTrainer:
     ):
         # debug
         logger.info(f"run_dir = {cfg.run_dir}")
-        logger.info(tree(cfg.run_dir))
+        logger.info(f"Contents: {', '.join(os.listdir(cfg.run_dir / 'checkpoints'))}")
 
         self.cfg = cfg
         self.trainer_cfg = trainer_cfg = parse_trainer_config(cfg.trainer)
