@@ -1,19 +1,20 @@
 import json
 import os
+from urllib.parse import unquote
 
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from typing_extensions import TypedDict
 
-from metta.map.utils.storable_map import StorableMap, StorableMapDict, StorableMapIndex, map_builder_cfg_to_storable_map
-from metta.mettagrid.util.file import read
-from metta.util.mettagrid_cfgs import (
+from metta.common.util.mettagrid_cfgs import (
     CfgKind,
     MettagridCfgFile,
     MettagridCfgFileMetadata,
 )
-from metta.util.resolvers import register_resolvers
+from metta.common.util.resolvers import register_resolvers
+from metta.map.utils.storable_map import StorableMap, StorableMapDict, StorableMapIndex, map_builder_cfg_to_storable_map
+from metta.mettagrid.util.file import read
 
 
 def make_app():
@@ -45,6 +46,7 @@ def make_app():
 
     @app.get("/stored-maps/find-maps")
     async def route_stored_maps_find_maps(dir: str, filter: str) -> StoredMapsFindMapsResult:
+        print(filter)
         filter_items: list[tuple[str, str]] = []
         for item in filter.split(","):
             if not item:
@@ -52,7 +54,7 @@ def make_app():
             if "=" not in item:
                 raise ValueError(f"Invalid filter item: {item}")
             key, value = item.split("=")
-            filter_items.append((key, value))
+            filter_items.append((key, unquote(value)))
 
         index = StorableMapIndex.load(dir)
         map_files = index.find_maps(filter_items)

@@ -4,7 +4,7 @@ import logging
 import threading
 import time
 from contextlib import contextmanager
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from typing import Any, Callable, ContextManager, Final, Tuple, TypedDict, TypeVar, cast
 
 F = TypeVar("F", bound=Callable[..., Any])
@@ -35,9 +35,34 @@ class Timer:
     checkpoints: dict[str, Checkpoint] = field(default_factory=dict)
     lap_counter: int = 0
     references: list[TimerReference] = field(default_factory=list)
+    max_laps: int = 4
 
     def is_running(self) -> bool:
         return self.start_time is not None
+
+    def cleanup_old_checkpoints(self):
+        """Remove oldest checkpoints if we exceed max_laps limit."""
+        max_checkpoints = self.max_laps + 1
+        if len(self.checkpoints) > max_checkpoints:
+            # Since checkpoints are added in chronological order and dicts maintain
+            # insertion order (Python 3.7+), we can just keep the last max_checkpoints items
+            checkpoint_items = list(self.checkpoints.items())
+            checkpoints_to_keep = checkpoint_items[-max_checkpoints:]
+            self.checkpoints = dict(checkpoints_to_keep)
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "Timer":
+        """Create a Timer instance from a dictionary created using .asdict()."""
+        return cls(
+            name=data["name"],
+            start_time=data.get("start_time"),
+            total_elapsed=data.get("total_elapsed", 0.0),
+            last_elapsed=data.get("last_elapsed", 0.0),
+            checkpoints=data.get("checkpoints", {}),
+            lap_counter=data.get("lap_counter", 0),
+            references=data.get("references", []),
+            max_laps=data.get("max_laps", 4),
+        )
 
 
 def _capture_caller_info(extra_skip_frames: int = 0) -> Tuple[str, int]:
@@ -155,8 +180,9 @@ class Stopwatch:
 
     _GLOBAL_TIMER_NAME: Final[str] = "global"  # Reserved name for the global timer
 
-    def __init__(self, logger: logging.Logger | None = None):
+    def __init__(self, logger: logging.Logger | None = None, max_laps: int = 4):
         self.logger = logger or logging.getLogger("Stopwatch")
+        self.max_laps = max_laps
         self._timers: dict[str, Timer] = {}
         # Create global timer but don't start it automatically
         self._timers[self.GLOBAL_TIMER_NAME] = self._create_timer(self.GLOBAL_TIMER_NAME)
@@ -170,7 +196,7 @@ class Stopwatch:
 
     def _create_timer(self, name: str) -> Timer:
         """Create a new timer instance."""
-        return Timer(
+        timer = Timer(
             name=name,
             start_time=None,
             total_elapsed=0.0,
@@ -178,7 +204,13 @@ class Stopwatch:
             checkpoints={},
             lap_counter=0,
             references=[],
+            max_laps=self.max_laps,
         )
+
+        # Add initial checkpoint at step 0 to serve as a reference point for lap calculations
+        timer.checkpoints["_start"] = Checkpoint(elapsed_time=0.0, steps=0)
+
+        return timer
 
     def _get_timer(self, name: str | None = None) -> Timer:
         """Get or create a timer. None defaults to global timer."""
@@ -210,9 +242,11 @@ class Stopwatch:
             timer.last_elapsed = 0.0
             timer.checkpoints.clear()
             timer.lap_counter = 0
+            timer.max_laps = self.max_laps
             # Keep timer.references intact to preserve decorator information
+            timer.checkpoints["_reset"] = Checkpoint(elapsed_time=0.0, steps=0)
         else:
-            # Timer doesn't exist yet, create it
+            # Timer doesn't exist yet, create it (with a "_start_" checkpoint)
             self._timers[name] = self._create_timer(name)
 
     def reset_all(self):
@@ -352,18 +386,19 @@ class Stopwatch:
         timer = self._get_timer(name)
 
         elapsed = self.get_elapsed(name)
+        timer.lap_counter += 1
 
         # Use internal counter if steps not provided
         if steps is None:
-            timer.lap_counter += 1
             steps = timer.lap_counter
 
         # Generate name if not provided
         if checkpoint_name is None:
             # Use 1-based indexing to match lap numbers
-            checkpoint_name = f"_lap_{len(timer.checkpoints) + 1}"
+            checkpoint_name = f"_lap_{timer.lap_counter}"
 
         timer.checkpoints[checkpoint_name] = Checkpoint(elapsed_time=elapsed, steps=steps)
+        timer.cleanup_old_checkpoints()
 
     def checkpoint_all(self, steps: int | None = None, checkpoint_name: str | None = None):
         """Record a checkpoint on all active timers.
@@ -539,6 +574,7 @@ class Stopwatch:
             "is_running": timer.is_running(),
             "checkpoints": dict(timer.checkpoints),
             "references": timer.references.copy(),
+            "max_laps": timer.max_laps,
         }
 
     def get_all_summaries(self) -> dict[str, dict[str, Any]]:
@@ -571,46 +607,71 @@ class Stopwatch:
 
         return results
 
-    @with_lock
-    def get_lap_steps(self, lap_index: int = -1, name: str | None = None) -> int | None:
-        """Get the step count for a specific lap.
+    def _get_lap_checkpoints(
+        self, lap_index: int = -1, name: str | None = None
+    ) -> Tuple[Checkpoint, Checkpoint] | None:
+        """Get the start and end checkpoints for a specified lap.
 
         Args:
-            lap_index: Index of the lap (1-based). Negative indices count from the end.
-                    default -1 is the most recent completed lap
+            lap_index: Index of the lap (negative only, counting from the end).
+                       Must be between -1 and -max_laps (inclusive)
+                       default -1 is the most recent completed lap
             name: Timer name (None for global)
 
         Returns:
-            Step count for the specified lap, or None if the lap doesn't exist.
-            For lap N, this returns the number of steps taken between checkpoint N-1 and checkpoint N.
-            For lap 1, this returns the steps from 0 to the first checkpoint.
+            The start and end checkpoints for the lap, or None if the lap doesn't exist.
+            For lap N, this returns checkpoint N-1 and checkpoint N.
+
         """
         timer = self._get_timer(name)
 
         if not timer.checkpoints:
             return None
 
-        # Sort checkpoints by time to get them in order
-        sorted_checkpoints = sorted(timer.checkpoints.items(), key=lambda x: x[1]["elapsed_time"])
-
-        # Handle negative indices
-        if lap_index < 0:
-            lap_index = len(sorted_checkpoints) + lap_index + 1
-
-        if lap_index < 1 or lap_index > len(sorted_checkpoints):
+        # Checkpoints are already in chronological order due to insertion order
+        # Need at least 2 checkpoints to have a lap
+        checkpoint_items = list(timer.checkpoints.items())
+        if len(checkpoint_items) < 2:
             return None
 
-        # Get the step count at the end of the requested lap
-        _, end_checkpoint = sorted_checkpoints[lap_index - 1]
+        # Only accept negative indices within max_laps range
+        if lap_index >= 0 or lap_index < -timer.max_laps:
+            return None
 
-        # Get the step count at the start of the lap (or 0 if it's the first lap)
-        if lap_index > 1:
-            _, start_checkpoint = sorted_checkpoints[lap_index - 2]
-            start_steps = start_checkpoint["steps"]
-        else:
-            start_steps = 0
+        # Calculate start and end checkpoint indices for the given lap_index
+        # lap_index = -1 means the most recent lap (between last two checkpoints)
+        # lap_index = -2 means second most recent lap, etc.
 
-        return end_checkpoint["steps"] - start_steps
+        end_checkpoint_idx = len(checkpoint_items) + lap_index  # Convert negative to array index
+        start_checkpoint_idx = end_checkpoint_idx - 1
+
+        # Validate indices are within bounds
+        if end_checkpoint_idx < 0 or end_checkpoint_idx >= len(checkpoint_items):
+            return None
+        if start_checkpoint_idx < 0:
+            return None
+
+        # Get the checkpoints
+        _, end_checkpoint = checkpoint_items[end_checkpoint_idx]
+        _, start_checkpoint = checkpoint_items[start_checkpoint_idx]
+
+        return start_checkpoint, end_checkpoint
+
+    @with_lock
+    def get_lap_time(self, lap_index: int = -1, name: str | None = None) -> float | None:
+        checkpoints = self._get_lap_checkpoints(lap_index, name)
+        if checkpoints is None:
+            return None
+        start_checkpoint, end_checkpoint = checkpoints
+        return end_checkpoint["elapsed_time"] - start_checkpoint["elapsed_time"]
+
+    @with_lock
+    def get_lap_steps(self, lap_index: int = -1, name: str | None = None) -> int | None:
+        checkpoints = self._get_lap_checkpoints(lap_index, name)
+        if checkpoints is None:
+            return None
+        start_checkpoint, end_checkpoint = checkpoints
+        return end_checkpoint["steps"] - start_checkpoint["steps"]
 
     @with_lock
     def get_filename(self, name: str | None = None) -> str:
@@ -635,3 +696,75 @@ class Stopwatch:
                 return "multifile"
 
         return first_file
+
+    @with_lock
+    def save_state(self) -> dict[str, Any]:
+        """Save the complete state of all timers to a serializable dictionary.
+
+        Returns:
+            Dictionary containing all timer states that can be serialized with pickle/json
+        """
+        state = {
+            "version": "1.0",  # Version for future compatibility
+            "timers": {},
+            "max_laps": self.max_laps,
+        }
+
+        current_time = time.time()
+
+        for name, timer in self._timers.items():
+            # Convert timer to dict using dataclass asdict
+            timer_dict = asdict(timer)
+
+            if timer.is_running() and timer.start_time is not None:
+                # Calculate elapsed time up to this point
+                elapsed_since_start = current_time - timer.start_time
+                timer_dict["total_elapsed"] += elapsed_since_start
+                # Store how long it was running when saved
+                timer_dict["_was_running_for"] = elapsed_since_start
+                # Mark that it was running
+                timer_dict["_was_running"] = True
+                # Clear start_time in the saved state since we've added the elapsed time
+                timer_dict["start_time"] = None
+            else:
+                timer_dict["_was_running"] = False
+
+            state["timers"][name] = timer_dict
+
+        return state
+
+    @with_lock
+    def load_state(self, state: dict[str, Any], resume_running: bool = True):
+        """Load timer state from a dictionary.
+
+        Args:
+            state: Dictionary containing timer state (from save_state())
+            resume_running: If True, timers that were running when saved will be resumed
+        """
+
+        current_time = time.time()
+
+        if not isinstance(state, dict) or "timers" not in state:
+            raise ValueError("Invalid state format")
+
+        if "max_laps" in state:
+            self.max_laps = state["max_laps"]
+
+        # Clear current timers
+        self._timers.clear()
+
+        # Restore each timer
+        for name, timer_data in state["timers"].items():
+            timer = Timer.from_dict(timer_data)
+
+            # Handle timers that were running when saved
+            if resume_running and timer_data.get("_was_running", False):
+                # Resume the timer
+                timer.start_time = current_time
+                # No need to adjust total_elapsed - it already includes time up to save point
+
+            self._timers[name] = timer
+
+        # Ensure global timer exists
+        if self.GLOBAL_TIMER_NAME not in self._timers:
+            self._timers[self.GLOBAL_TIMER_NAME] = self._create_timer(self.GLOBAL_TIMER_NAME)

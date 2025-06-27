@@ -1,0 +1,173 @@
+name: Generate Newsletter
+
+on:
+  schedule:
+    - cron: "0 1 * * 6" # Saturday at 1 AM GMT (Friday at 5 PM PST)
+  workflow_dispatch:
+    inputs:
+      days_to_scan:
+        description: "Number of days to scan"
+        required: false
+        default: "7"
+        type: choice
+        options: ["1", "7", "14", "30"]
+      force_refresh:
+        description: "Force cache refresh"
+        required: false
+        default: false
+        type: boolean
+      skip_discord:
+        description: "Skip Discord posting (test mode)"
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  generate-newsletter:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set days to scan
+        id: set-days
+        run: |
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            # Use repository variable for scheduled runs, fallback to 7 if not set
+            DAYS="${{ vars.PR_NEWSLETTER_HISTORY_DAYS || '7' }}"
+            echo "Using repository variable PR_NEWSLETTER_HISTORY_DAYS: $DAYS days"
+          else
+            # Use workflow input for manual runs, fallback to 7 if not provided
+            DAYS="${{ inputs.days_to_scan || '7' }}"
+            echo "Using workflow input: $DAYS days"
+          fi
+          echo "days=$DAYS" >> $GITHUB_OUTPUT
+          echo "Selected days to scan: $DAYS"
+
+      - name: Restore PR Summary Cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            .pr-digest-cache/
+          key: pr-cache-${{ github.repository }}-${{ hashFiles('.github/scripts/gemini_*.py') }}
+          restore-keys: |
+            pr-cache-${{ github.repository }}-
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.7.3"
+          enable-cache: true
+
+      - name: Create PR Digest
+        id: pr-digest
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          DATE_RANGE: "${{ steps.set-days.outputs.days }} days ago to now"
+          PR_DIGEST_FILE: "pr_digest_output.json"
+        run: |
+          echo "Creating PR digest for last ${{ steps.set-days.outputs.days }} days..."
+          uv run .github/scripts/create_pr_digest.py
+
+          # Output digest info for next step with error handling
+          if [ -f "pr_digest_output.json" ]; then
+            # Extract PR count with error handling
+            if ! PR_COUNT=$(jq length pr_digest_output.json); then
+              echo "❌ Failed to parse PR digest JSON"
+              exit 1
+            fi
+
+            # Validate PR count is a number
+            if ! [[ "$PR_COUNT" =~ ^[0-9]+$ ]]; then
+              echo "❌ Invalid PR count: $PR_COUNT"
+              exit 1
+            fi
+
+            echo "pr-count=$PR_COUNT" >> $GITHUB_OUTPUT
+            echo "digest-file=pr_digest_output.json" >> $GITHUB_OUTPUT
+            echo "date-range=${{ steps.set-days.outputs.days }} days ago to now" >> $GITHUB_OUTPUT
+            echo "✅ Created PR digest with $PR_COUNT PRs"
+
+            # Show basic digest info
+            echo "PR digest summary:"
+            echo "- Total PRs: $PR_COUNT"
+            echo "- File size: $(stat -f%z pr_digest_output.json 2>/dev/null || stat -c%s pr_digest_output.json) bytes"
+          else
+            echo "❌ Failed to create PR digest - pr_digest_output.json not found"
+            exit 1
+          fi
+
+      - name: Generate Newsletter
+        id: summary
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          PR_DIGEST_FILE: ${{ steps.pr-digest.outputs.digest-file }}
+          DATE_RANGE: ${{ steps.pr-digest.outputs.date-range }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_SERVER_URL: ${{ github.server_url }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          FORCE_REFRESH: ${{ inputs.force_refresh || 'false' }}
+        run: |
+          echo "Analyzing ${{ steps.pr-digest.outputs.pr-count }} PRs with AI..."
+          uv run .github/scripts/gemini_analyze_pr_digest.py
+
+          # Verify outputs were created with detailed checking
+          MISSING_FILES=()
+
+          if [ ! -f "discord_summary_output.txt" ]; then
+            MISSING_FILES+=("discord_summary_output.txt")
+          fi
+
+          if [ ! -f "collection_summary_output.txt" ]; then
+            MISSING_FILES+=("collection_summary_output.txt")
+          fi
+
+          if [ ${#MISSING_FILES[@]} -eq 0 ]; then
+            echo "✅ Newsletter generation completed successfully"
+            echo ""
+            echo "Generated files:"
+            for file in discord_summary_output.txt collection_summary_output.txt pr_summary_data.json; do
+              if [ -f "$file" ]; then
+                SIZE=$(stat -f%z "$file" 2>/dev/null || stat -c%s "$file")
+                echo "- $file (${SIZE} bytes)"
+              fi
+            done
+
+            if [ -d "pr-summaries" ]; then
+              SUMMARY_COUNT=$(find pr-summaries -name "*.json" | wc -l)
+              echo "- pr-summaries/ directory (${SUMMARY_COUNT} files)"
+            fi
+          else
+            echo "❌ Newsletter generation failed - missing required files:"
+            for file in "${MISSING_FILES[@]}"; do
+              echo "  - $file"
+            done
+            exit 1
+          fi
+
+      - name: Post to Discord
+        if: ${{ !inputs.skip_discord }}
+        uses: ./.github/actions/discord-webhook
+        with:
+          webhook-url: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          content-file: discord_summary_output.txt
+
+      - name: Save Cache
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            .pr-digest-cache/
+          key: pr-cache-${{ github.repository }}-${{ hashFiles('.github/scripts/gemini_*.py') }}
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: newsletter-${{ github.run_number }}
+          path: |
+            discord_summary_output.txt
+            collection_summary_output.txt
+            pr_summary_data.json
+            pr-summaries/
+            pr_digest_output.json
