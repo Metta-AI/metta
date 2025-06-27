@@ -123,42 +123,11 @@ MettaGrid::MettaGrid(py::dict cfg, py::list map) {
         Wall* wall = new Wall(r, c, wall_cfg);
         _grid->add_object(wall);
         _stats->incr("objects." + cell);
-      } else if (cell == "mine_red") {
-        auto converter_cfg = _create_converter_config(cfg["objects"]["mine_red"]);
-        converter = new Converter(r, c, converter_cfg, ObjectType::MineRedT);
-      } else if (cell == "mine_blue") {
-        auto converter_cfg = _create_converter_config(cfg["objects"]["mine_blue"]);
-        converter = new Converter(r, c, converter_cfg, ObjectType::MineBlueT);
-      } else if (cell == "mine_green") {
-        auto converter_cfg = _create_converter_config(cfg["objects"]["mine_green"]);
-        converter = new Converter(r, c, converter_cfg, ObjectType::MineGreenT);
-      } else if (cell == "generator_red") {
-        auto converter_cfg = _create_converter_config(cfg["objects"]["generator_red"]);
-        converter = new Converter(r, c, converter_cfg, ObjectType::GeneratorRedT);
-      } else if (cell == "generator_blue") {
-        auto converter_cfg = _create_converter_config(cfg["objects"]["generator_blue"]);
-        converter = new Converter(r, c, converter_cfg, ObjectType::GeneratorBlueT);
-      } else if (cell == "generator_green") {
-        auto converter_cfg = _create_converter_config(cfg["objects"]["generator_green"]);
-        converter = new Converter(r, c, converter_cfg, ObjectType::GeneratorGreenT);
-      } else if (cell == "altar") {
-        auto converter_cfg = _create_converter_config(cfg["objects"]["altar"]);
-        converter = new Converter(r, c, converter_cfg, ObjectType::AltarT);
-      } else if (cell == "armory") {
-        auto converter_cfg = _create_converter_config(cfg["objects"]["armory"]);
-        converter = new Converter(r, c, converter_cfg, ObjectType::ArmoryT);
-      } else if (cell == "lasery") {
-        auto converter_cfg = _create_converter_config(cfg["objects"]["lasery"]);
-        converter = new Converter(r, c, converter_cfg, ObjectType::LaseryT);
-      } else if (cell == "lab") {
-        auto converter_cfg = _create_converter_config(cfg["objects"]["lab"]);
-        converter = new Converter(r, c, converter_cfg, ObjectType::LabT);
-      } else if (cell == "factory") {
-        auto converter_cfg = _create_converter_config(cfg["objects"]["factory"]);
-        converter = new Converter(r, c, converter_cfg, ObjectType::FactoryT);
-      } else if (cell == "temple") {
-        auto converter_cfg = _create_converter_config(cfg["objects"]["temple"]);
-        converter = new Converter(r, c, converter_cfg, ObjectType::TempleT);
+      } else if (cell == "mine_red" || cell == "mine_blue" || cell == "mine_green" || cell == "generator_red" ||
+                 cell == "generator_blue" || cell == "generator_green" || cell == "altar" || cell == "armory" ||
+                 cell == "lasery" || cell == "lab" || cell == "factory" || cell == "temple") {
+        auto converter_cfg = _create_converter_config(cfg["objects"][py::str(cell)]);
+        converter = new Converter(r, c, converter_cfg);
       } else if (cell.starts_with("agent.")) {
         auto agent_group_cfg_py = agent_groups[py::str(cell)].cast<py::dict>();
 
@@ -532,7 +501,7 @@ py::dict MettaGrid::grid_objects() {
 
     py::dict obj_dict;
     obj_dict["id"] = obj_id;
-    obj_dict["type"] = obj->_type_id;
+    obj_dict["type"] = obj->type_id;
     obj_dict["r"] = obj->location.r;
     obj_dict["c"] = obj->location.c;
     obj_dict["layer"] = obj->location.layer;
@@ -623,7 +592,7 @@ py::dict MettaGrid::get_episode_stats() {
     Converter* converter = dynamic_cast<Converter*>(obj);
     if (converter) {
       // Add metadata to the converter's stats tracker BEFORE converting to dict
-      converter->stats.set("type_id", static_cast<int>(converter->_type_id));
+      converter->stats.set("type_id", static_cast<int>(converter->type_id));
       converter->stats.set("location.r", static_cast<int>(converter->location.r));
       converter->stats.set("location.c", static_cast<int>(converter->location.c));
 
@@ -730,8 +699,16 @@ ConverterConfig MettaGrid::_create_converter_config(const py::dict& converter_cf
   unsigned short cooldown = converter_cfg_py["cooldown"].cast<unsigned short>();
   unsigned char initial_items = converter_cfg_py["initial_items"].cast<unsigned char>();
   ObsType color = converter_cfg_py["color"].cast<ObsType>();
-  return ConverterConfig{
-      recipe_input, recipe_output, max_output, conversion_ticks, cooldown, initial_items, color, inventory_item_names};
+  TypeId type_id = converter_cfg_py["type_id"].cast<TypeId>();
+  return ConverterConfig{recipe_input,
+                         recipe_output,
+                         max_output,
+                         conversion_ticks,
+                         cooldown,
+                         initial_items,
+                         color,
+                         inventory_item_names,
+                         type_id};
 }
 
 WallConfig MettaGrid::_create_wall_config(const py::dict& wall_cfg_py) {
