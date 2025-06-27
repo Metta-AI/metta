@@ -56,6 +56,9 @@ class DistributedMettaAgent(DistributedDataParallel):
         except AttributeError:
             return getattr(self.module, name)
 
+    def activate_actions(self, action_names: list[str], action_max_params: list[int], device: torch.device) -> None:
+        return self.module.activate_actions(action_names, action_max_params, device)
+
     def initialize_to_environment(
         self, features: dict[str, dict], action_names: list[str], action_max_params: list[int], device: torch.device
     ) -> None:
@@ -173,7 +176,7 @@ class MettaAgent(nn.Module):
             device: Device to place tensors on
         """
         self._initialize_observations(features, device)
-        self._initialize_actions(action_names, action_max_params, device)
+        self.activate_actions(action_names, action_max_params, device)
 
     def _initialize_observations(self, features: dict[str, dict], device):
         """
@@ -278,8 +281,8 @@ class MettaAgent(nn.Module):
 
                 component.register_buffer("_norm_factors", norm_tensor)
 
-    def _initialize_actions(self, action_names: list[str], action_max_params: list[int], device):
-        """Initialize action configuration."""
+    def activate_actions(self, action_names: list[str], action_max_params: list[int], device):
+        """Run this at the beginning of training."""
         assert isinstance(action_max_params, list), "action_max_params must be a list"
 
         self.device = device

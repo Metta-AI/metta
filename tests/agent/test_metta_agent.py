@@ -205,10 +205,27 @@ def test_initialize_to_environment(create_metta_agent):
     assert agent.feature_normalizations[1] == 30.0
     assert agent.feature_normalizations[12] == 100.0
 
-    # Check that actions were also initialized (via _initialize_actions)
+    # Check that actions were also initialized (via activate_actions)
     assert agent.action_names == action_names
     assert agent.action_max_params == action_max_params
     assert hasattr(agent, "action_index_tensor")
+
+
+def test_activate_actions_backward_compatibility(create_metta_agent):
+    """Test that the old activate_actions method still works for backward compatibility."""
+    agent, _, _ = create_metta_agent
+
+    action_names = ["move", "attack", "interact"]
+    action_max_params = [3, 1, 2]
+
+    # Call the old activate_actions directly
+    agent.activate_actions(action_names, action_max_params, "cpu")
+
+    # Check that actions were initialized
+    assert agent.action_names == action_names
+    assert agent.action_max_params == action_max_params
+    assert hasattr(agent, "action_index_tensor")
+    assert agent.device == "cpu"
 
 
 def test_clip_weights_calls_components(create_metta_agent):
