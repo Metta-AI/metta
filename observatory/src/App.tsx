@@ -4,6 +4,7 @@ import { ServerRepo, Repo } from './repo'
 import { Dashboard } from './Dashboard'
 import { TokenManager } from './TokenManager'
 import { SavedDashboards } from './SavedDashboards'
+import { SQLQuery } from './SQLQuery'
 import { config } from './config'
 
 // CSS for navigation
@@ -198,6 +199,9 @@ function App() {
               <Link to="/tokens" className={`nav-tab ${location.pathname === '/tokens' ? 'active' : ''}`}>
                 Token Management
               </Link>
+              <Link to="/sql-query" className={`nav-tab ${location.pathname === '/sql-query' ? 'active' : ''}`}>
+                SQL Query
+              </Link>
             </div>
           </div>
         </nav>
@@ -207,6 +211,7 @@ function App() {
             <Route path="/dashboard" element={<Dashboard repo={state.repo} />} />
             <Route path="/saved" element={<SavedDashboards repo={state.repo} currentUser={state.currentUser} />} />
             <Route path="/tokens" element={<TokenManager repo={state.repo} />} />
+            <Route path="/sql-query" element={<SQLQuery repo={state.repo} />} />
             <Route path="/" element={<Dashboard repo={state.repo} />} />
           </Routes>
         </div>
