@@ -6,12 +6,13 @@ implementing the kickstarting technique to initialize a student policy with
 the knowledge of one or more teacher policies.
 """
 
-import pytest
-import torch
 from unittest.mock import MagicMock, patch
 
-from metta.rl.kickstarter import Kickstarter
+import pytest
+import torch
+
 from metta.agent.policy_state import PolicyState
+from metta.rl.kickstarter import Kickstarter
 
 
 class TestKickstarter:
@@ -41,9 +42,9 @@ class TestKickstarter:
         """Test initialization when no teachers are provided."""
         action_names = ["move", "attack"]
         action_max_params = [4, 2]
-        
+
         kickstarter = Kickstarter(mock_config, mock_policy_store, action_names, action_max_params)
-        
+
         assert kickstarter.enabled is False
         assert kickstarter.anneal_ratio == 0.2
         assert kickstarter.device == "cpu"
@@ -53,9 +54,9 @@ class TestKickstarter:
         mock_config.trainer.kickstart.teacher_uri = "wandb://teacher/uri"
         action_names = ["move", "attack"]
         action_max_params = [4, 2]
-        
+
         kickstarter = Kickstarter(mock_config, mock_policy_store, action_names, action_max_params)
-        
+
         assert kickstarter.enabled is True
         assert len(kickstarter.teacher_cfgs) == 1
         assert kickstarter.teacher_cfgs[0]["teacher_uri"] == "wandb://teacher/uri"
@@ -65,22 +66,14 @@ class TestKickstarter:
     def test_initialization_with_additional_teachers(self, mock_config, mock_policy_store):
         """Test initialization when additional teachers are provided."""
         mock_config.trainer.kickstart.additional_teachers = [
-            {
-                "teacher_uri": "wandb://teacher1/uri",
-                "action_loss_coef": 0.3,
-                "value_loss_coef": 0.7
-            },
-            {
-                "teacher_uri": "wandb://teacher2/uri",
-                "action_loss_coef": 0.6,
-                "value_loss_coef": 0.4
-            }
+            {"teacher_uri": "wandb://teacher1/uri", "action_loss_coef": 0.3, "value_loss_coef": 0.7},
+            {"teacher_uri": "wandb://teacher2/uri", "action_loss_coef": 0.6, "value_loss_coef": 0.4},
         ]
         action_names = ["move", "attack"]
         action_max_params = [4, 2]
-        
+
         kickstarter = Kickstarter(mock_config, mock_policy_store, action_names, action_max_params)
-        
+
         assert kickstarter.enabled is True
         assert len(kickstarter.teacher_cfgs) == 2
         assert kickstarter.teacher_cfgs[0]["teacher_uri"] == "wandb://teacher1/uri"
@@ -91,18 +84,18 @@ class TestKickstarter:
         mock_config.trainer.kickstart.teacher_uri = "wandb://teacher/uri"
         action_names = ["move", "attack"]
         action_max_params = [4, 2]
-        
+
         kickstarter = Kickstarter(mock_config, mock_policy_store, action_names, action_max_params)
-        
+
         # Initial anneal factor should be 1.0
         assert kickstarter.anneal_factor == 1.0
-        
+
         # Calculate expected values
         kickstart_steps = 1000
         anneal_ratio = 0.2
         anneal_duration = kickstart_steps * anneal_ratio  # 200
         ramp_down_start_step = kickstart_steps - anneal_duration  # 800
-        
+
         assert kickstarter.kickstart_steps == kickstart_steps
         assert kickstarter.anneal_duration == anneal_duration
         assert kickstarter.ramp_down_start_step == ramp_down_start_step
@@ -113,21 +106,21 @@ class TestKickstarter:
         mock_config.trainer.kickstart.teacher_uri = None
         action_names = ["move", "attack"]
         action_max_params = [4, 2]
-        
+
         kickstarter = Kickstarter(mock_config, mock_policy_store, action_names, action_max_params)
         kickstarter.enabled = False
-        
+
         # Create test tensors
         student_normalized_logits = torch.randn(2, 5)
         student_value = torch.randn(2, 1)
         observation = torch.randn(2, 10)
         teacher_lstm_state = []
-        
+
         # Call the loss method
         ks_action_loss, ks_value_loss = kickstarter.loss(
             500, student_normalized_logits, student_value, observation, teacher_lstm_state
         )
-        
+
         # Both losses should be zero tensors
         assert torch.all(ks_action_loss == 0.0)
         assert torch.all(ks_value_loss == 0.0)
@@ -138,21 +131,21 @@ class TestKickstarter:
         mock_config.trainer.kickstart.teacher_uri = "wandb://teacher/uri"
         action_names = ["move", "attack"]
         action_max_params = [4, 2]
-        
+
         kickstarter = Kickstarter(mock_config, mock_policy_store, action_names, action_max_params)
         kickstarter.enabled = True
-        
+
         # Create test tensors
         student_normalized_logits = torch.randn(2, 5)
         student_value = torch.randn(2, 1)
         observation = torch.randn(2, 10)
         teacher_lstm_state = []
-        
+
         # Call the loss method with agent_step > kickstart_steps
         ks_action_loss, ks_value_loss = kickstarter.loss(
             1500, student_normalized_logits, student_value, observation, teacher_lstm_state
         )
-        
+
         # Both losses should be zero tensors
         assert torch.all(ks_action_loss == 0.0)
         assert torch.all(ks_value_loss == 0.0)
@@ -164,40 +157,40 @@ class TestKickstarter:
         mock_config.trainer.kickstart.teacher_uri = "wandb://teacher/uri"
         action_names = ["move", "attack"]
         action_max_params = [4, 2]
-        
+
         kickstarter = Kickstarter(mock_config, mock_policy_store, action_names, action_max_params)
         kickstarter.enabled = True
-        
+
         # Mock the teachers list
         mock_teacher = MagicMock()
         mock_teacher.action_loss_coef = 0.5
         mock_teacher.value_loss_coef = 0.5
         kickstarter.teachers = [mock_teacher]
-        
+
         # Create test tensors
         student_normalized_logits = torch.randn(2, 5)
         student_value = torch.randn(2, 1)
         observation = torch.randn(2, 10)
         teacher_lstm_state = []
-        
+
         # Mock the _forward method to return predictable values
         teacher_value = torch.ones(2, 1)
         teacher_normalized_logits = torch.log(torch.ones(2, 5) / 5.0)  # Uniform distribution
         mock_forward.return_value = (teacher_value, teacher_normalized_logits)
-        
+
         # Test during ramp down phase (after ramp_down_start_step)
         agent_step = 900  # Between ramp_down_start_step (800) and kickstart_steps (1000)
-        
+
         # Call the loss method
         ks_action_loss, ks_value_loss = kickstarter.loss(
             agent_step, student_normalized_logits, student_value, observation, teacher_lstm_state
         )
-        
+
         # Check that anneal_factor was updated
         progress = (agent_step - kickstarter.ramp_down_start_step) / kickstarter.anneal_duration
         expected_anneal_factor = 1.0 - progress
         assert kickstarter.anneal_factor == pytest.approx(expected_anneal_factor)
-        
+
         # Verify that _forward was called with the right arguments
         # We can't directly compare PolicyState objects, so just check that _forward was called once
         assert mock_forward.call_count == 1
@@ -212,23 +205,23 @@ class TestKickstarter:
         mock_config.trainer.kickstart.teacher_uri = "wandb://teacher/uri"
         action_names = ["move", "attack"]
         action_max_params = [4, 2]
-        
+
         kickstarter = Kickstarter(mock_config, mock_policy_store, action_names, action_max_params)
-        
+
         # Create a mock teacher
         mock_teacher = MagicMock()
         mock_teacher.return_value = (None, None, None, torch.ones(2, 1), torch.zeros(2, 5))
-        
+
         # Create test tensors
         observation = torch.randn(2, 10)
         teacher_lstm_state = PolicyState()
-        
+
         # Call the _forward method
         value, norm_logits = kickstarter._forward(mock_teacher, observation, teacher_lstm_state)
-        
+
         # Check that the teacher was called with the right arguments
         mock_teacher.assert_called_once_with(observation, teacher_lstm_state)
-        
+
         # Check that the method returns the expected values
         assert torch.all(value == torch.ones(2, 1))
         assert torch.all(norm_logits == torch.zeros(2, 5))

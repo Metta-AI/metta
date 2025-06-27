@@ -16,7 +16,7 @@ class TestLosses:
     def test_initialization(self):
         """Test that a new Losses instance is properly initialized with zeros."""
         losses = Losses()
-        
+
         # Check that all loss values are initialized to zero
         assert losses.policy_loss_sum == 0.0
         assert losses.value_loss_sum == 0.0
@@ -34,16 +34,16 @@ class TestLosses:
     def test_zero_method(self):
         """Test that the zero method resets all loss values."""
         losses = Losses()
-        
+
         # Set some non-zero values
         losses.policy_loss_sum = 1.0
         losses.value_loss_sum = 2.0
         losses.entropy_sum = 3.0
         losses.minibatches_processed = 5
-        
+
         # Reset values
         losses.zero()
-        
+
         # Check that all values are reset to zero
         assert losses.policy_loss_sum == 0.0
         assert losses.value_loss_sum == 0.0
@@ -53,15 +53,15 @@ class TestLosses:
     def test_stats_with_no_minibatches(self):
         """Test stats method when no minibatches have been processed."""
         losses = Losses()
-        
+
         # Set some non-zero values
         losses.policy_loss_sum = 10.0
         losses.value_loss_sum = 20.0
         losses.entropy_sum = 5.0
-        
+
         # Get stats
         stats = losses.stats()
-        
+
         # Since minibatches_processed is 0, it should use n=1 for division
         assert stats["policy_loss"] == 10.0
         assert stats["value_loss"] == 20.0
@@ -70,7 +70,7 @@ class TestLosses:
     def test_stats_with_minibatches(self):
         """Test stats method when multiple minibatches have been processed."""
         losses = Losses()
-        
+
         # Set some non-zero values
         losses.policy_loss_sum = 10.0
         losses.value_loss_sum = 20.0
@@ -84,10 +84,10 @@ class TestLosses:
         losses.importance_sum = 1.5
         losses.explained_variance = 0.8
         losses.minibatches_processed = 5
-        
+
         # Get stats
         stats = losses.stats()
-        
+
         # Check that values are properly averaged
         assert stats["policy_loss"] == pytest.approx(2.0)  # 10.0 / 5
         assert stats["value_loss"] == pytest.approx(4.0)  # 20.0 / 5
@@ -105,15 +105,23 @@ class TestLosses:
         """Test that stats method returns a dictionary with the correct keys."""
         losses = Losses()
         stats = losses.stats()
-        
+
         # Check that the return value is a dictionary
         assert isinstance(stats, dict)
-        
+
         # Check that all expected keys are present
         expected_keys = [
-            "policy_loss", "value_loss", "entropy", "approx_kl", "clipfrac",
-            "l2_reg_loss", "l2_init_loss", "ks_action_loss", "ks_value_loss",
-            "importance", "explained_variance"
+            "policy_loss",
+            "value_loss",
+            "entropy",
+            "approx_kl",
+            "clipfrac",
+            "l2_reg_loss",
+            "l2_init_loss",
+            "ks_action_loss",
+            "ks_value_loss",
+            "importance",
+            "explained_variance",
         ]
         for key in expected_keys:
             assert key in stats
