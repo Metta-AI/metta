@@ -4,24 +4,29 @@ import { Repo, TableInfo, TableSchema, SQLQueryResponse } from './repo'
 const SQL_QUERY_CSS = `
   .sql-query-container {
     display: flex;
-    gap: 20px;
-    height: calc(100vh - 80px);
-    padding: 20px;
+    gap: 16px;
+    height: calc(100vh - 60px);
+    padding: 16px;
+    background-color: #fafafa;
   }
 
   .tables-sidebar {
-    width: 250px;
-    background-color: #f8f9fa;
-    border-radius: 8px;
-    padding: 20px;
+    width: 240px;
+    background-color: white;
+    border-radius: 6px;
+    padding: 16px;
     overflow-y: auto;
+    border: 1px solid #e5e7eb;
   }
 
   .tables-sidebar h3 {
     margin-top: 0;
-    margin-bottom: 15px;
-    font-size: 18px;
-    color: #333;
+    margin-bottom: 12px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #374151;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
   }
 
   .table-list {
@@ -31,90 +36,94 @@ const SQL_QUERY_CSS = `
   }
 
   .table-item {
-    padding: 8px 12px;
-    margin-bottom: 5px;
-    background-color: white;
+    padding: 8px 10px;
+    margin-bottom: 2px;
+    background-color: transparent;
     border-radius: 4px;
     cursor: pointer;
-    border: 1px solid #e0e0e0;
-    transition: all 0.2s ease;
+    border: 1px solid transparent;
+    transition: all 0.15s ease;
   }
 
   .table-item:hover {
-    background-color: #e8f4f8;
-    border-color: #2196F3;
+    background-color: #f3f4f6;
   }
 
   .table-item.selected {
-    background-color: #2196F3;
+    background-color: #3b82f6;
     color: white;
-    border-color: #1976D2;
   }
 
   .table-name {
+    font-size: 13px;
     font-weight: 500;
     margin-bottom: 2px;
   }
 
   .table-info {
-    font-size: 12px;
-    color: #666;
+    font-size: 11px;
+    color: #6b7280;
   }
 
   .table-item.selected .table-info {
-    color: #e3f2fd;
+    color: #dbeafe;
   }
 
   .query-area {
     flex: 1;
     display: flex;
     flex-direction: column;
-    gap: 20px;
+    gap: 16px;
   }
 
   .query-input-section {
     background-color: white;
-    border-radius: 8px;
-    padding: 20px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    border-radius: 6px;
+    padding: 16px;
+    border: 1px solid #e5e7eb;
   }
 
   .query-input-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 15px;
+    margin-bottom: 12px;
   }
 
   .query-input-header h3 {
     margin: 0;
-    font-size: 18px;
-    color: #333;
+    font-size: 14px;
+    font-weight: 600;
+    color: #374151;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
   }
 
   .query-textarea {
     width: 100%;
-    min-height: 150px;
-    padding: 12px;
-    border: 1px solid #ddd;
+    min-height: 120px;
+    padding: 10px;
+    border: 1px solid #e5e7eb;
     border-radius: 4px;
     font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-    font-size: 14px;
+    font-size: 13px;
     resize: vertical;
+    background-color: #f9fafb;
   }
 
   .query-textarea:focus {
     outline: none;
-    border-color: #2196F3;
-    box-shadow: 0 0 0 2px rgba(33, 150, 243, 0.1);
+    border-color: #3b82f6;
+    background-color: white;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
   }
 
   .results-section {
     flex: 1;
     background-color: white;
-    border-radius: 8px;
-    padding: 20px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    border-radius: 6px;
+    padding: 16px;
+    border: 1px solid #e5e7eb;
     overflow: hidden;
     display: flex;
     flex-direction: column;
@@ -124,51 +133,75 @@ const SQL_QUERY_CSS = `
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 15px;
+    margin-bottom: 12px;
   }
 
   .results-header h3 {
     margin: 0;
-    font-size: 18px;
-    color: #333;
+    font-size: 14px;
+    font-weight: 600;
+    color: #374151;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
   }
 
   .results-info {
-    font-size: 14px;
-    color: #666;
+    font-size: 12px;
+    color: #6b7280;
   }
 
   .results-table-container {
     flex: 1;
     overflow: auto;
-    border: 1px solid #ddd;
+    border: 1px solid #e5e7eb;
     border-radius: 4px;
   }
 
   .results-table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 14px;
+    font-size: 13px;
   }
 
   .results-table th {
-    background-color: #f5f5f5;
-    padding: 10px;
+    background-color: #f9fafb;
+    padding: 8px 12px;
     text-align: left;
     font-weight: 600;
-    border-bottom: 2px solid #ddd;
+    font-size: 12px;
+    color: #374151;
+    border-bottom: 1px solid #e5e7eb;
     position: sticky;
     top: 0;
     z-index: 1;
+    cursor: pointer;
+    user-select: none;
+    transition: background-color 0.15s;
+  }
+
+  .results-table th:hover {
+    background-color: #f3f4f6;
+  }
+
+  .results-table th.sorted-asc::after {
+    content: ' ↑';
+    font-size: 11px;
+    color: #3b82f6;
+  }
+
+  .results-table th.sorted-desc::after {
+    content: ' ↓';
+    font-size: 11px;
+    color: #3b82f6;
   }
 
   .results-table td {
-    padding: 8px 10px;
-    border-bottom: 1px solid #eee;
+    padding: 8px 12px;
+    border-bottom: 1px solid #f3f4f6;
   }
 
   .results-table tr:hover {
-    background-color: #f8f9fa;
+    background-color: #f9fafb;
   }
 
   .error-message {
@@ -194,54 +227,61 @@ const SQL_QUERY_CSS = `
   }
 
   .schema-info {
-    background-color: #f0f7ff;
+    background-color: #eff6ff;
     border-radius: 4px;
-    padding: 15px;
-    margin-bottom: 20px;
-    border: 1px solid #b3d9ff;
+    padding: 12px;
+    margin-bottom: 12px;
+    border: 1px solid #dbeafe;
   }
 
   .schema-info h4 {
-    margin: 0 0 10px 0;
-    color: #0066cc;
+    margin: 0 0 8px 0;
+    color: #1e40af;
+    font-size: 12px;
+    font-weight: 600;
   }
 
   .schema-columns {
-    font-size: 13px;
-    line-height: 1.6;
+    font-size: 12px;
+    line-height: 1.5;
   }
 
   .schema-column {
-    margin-bottom: 4px;
+    margin-bottom: 2px;
     font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
   }
 
   .column-type {
-    color: #666;
-    font-size: 12px;
+    color: #6b7280;
+    font-size: 11px;
   }
 
   .btn {
-    padding: 8px 16px;
+    padding: 6px 14px;
     border: none;
     border-radius: 4px;
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 500;
     cursor: pointer;
-    transition: background-color 0.2s;
+    transition: all 0.15s;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
   }
 
   .btn-primary {
-    background-color: #2196F3;
+    background-color: #3b82f6;
     color: white;
   }
 
   .btn-primary:hover {
-    background-color: #1976D2;
+    background-color: #2563eb;
+    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
   }
 
   .btn-primary:disabled {
-    background-color: #ccc;
+    background-color: #e5e7eb;
+    color: #9ca3af;
     cursor: not-allowed;
   }
 `
@@ -264,6 +304,7 @@ export function SQLQuery({ repo }: Props) {
   const [queryState, setQueryState] = useState<QueryState>({ type: 'idle' })
   const [tablesLoading, setTablesLoading] = useState(true)
   const [schemaLoading, setSchemaLoading] = useState(false)
+  const [sortConfig, setSortConfig] = useState<{ column: string; direction: 'asc' | 'desc' } | null>(null)
 
   useEffect(() => {
     loadTables()
@@ -319,7 +360,7 @@ export function SQLQuery({ repo }: Props) {
   function handleTableClick(tableName: string) {
     setSelectedTable(tableName)
     // Pre-fill query with a simple SELECT statement
-    setQuery(`SELECT * FROM ${tableName} LIMIT 100`)
+    setQuery(`SELECT * FROM ${tableName} LIMIT 1000`)
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
@@ -327,6 +368,50 @@ export function SQLQuery({ repo }: Props) {
       e.preventDefault()
       executeQuery()
     }
+  }
+
+  function handleSort(column: string) {
+    if (queryState.type !== 'success') return
+
+    let direction: 'asc' | 'desc' = 'asc'
+    if (sortConfig && sortConfig.column === column && sortConfig.direction === 'asc') {
+      direction = 'desc'
+    }
+    setSortConfig({ column, direction })
+  }
+
+  function getSortedRows() {
+    if (queryState.type !== 'success' || !sortConfig) {
+      return queryState.type === 'success' ? queryState.data.rows : []
+    }
+
+    const columnIndex = queryState.data.columns.indexOf(sortConfig.column)
+    if (columnIndex === -1) return queryState.data.rows
+
+    return [...queryState.data.rows].sort((a, b) => {
+      const aVal = a[columnIndex]
+      const bVal = b[columnIndex]
+
+      // Handle null values
+      if (aVal === null && bVal === null) return 0
+      if (aVal === null) return sortConfig.direction === 'asc' ? 1 : -1
+      if (bVal === null) return sortConfig.direction === 'asc' ? -1 : 1
+
+      // Compare values
+      if (typeof aVal === 'number' && typeof bVal === 'number') {
+        return sortConfig.direction === 'asc' ? aVal - bVal : bVal - aVal
+      }
+
+      // String comparison
+      const aStr = String(aVal).toLowerCase()
+      const bStr = String(bVal).toLowerCase()
+      
+      if (sortConfig.direction === 'asc') {
+        return aStr < bStr ? -1 : aStr > bStr ? 1 : 0
+      } else {
+        return aStr > bStr ? -1 : aStr < bStr ? 1 : 0
+      }
+    })
   }
 
   return (
@@ -364,7 +449,11 @@ export function SQLQuery({ repo }: Props) {
                 onClick={executeQuery}
                 disabled={!query.trim() || queryState.type === 'loading'}
               >
-                {queryState.type === 'loading' ? 'Executing...' : 'Execute Query'}
+                {queryState.type === 'loading' ? 'Executing...' : (
+                  <>
+                    Execute <span style={{ fontSize: '12px', opacity: 0.8 }}>⌘+Enter</span>
+                  </>
+                )}
               </button>
             </div>
 
@@ -422,12 +511,24 @@ export function SQLQuery({ repo }: Props) {
                   <thead>
                     <tr>
                       {queryState.data.columns.map(col => (
-                        <th key={col}>{col}</th>
+                        <th 
+                          key={col}
+                          onClick={() => handleSort(col)}
+                          className={
+                            sortConfig?.column === col
+                              ? sortConfig.direction === 'asc'
+                                ? 'sorted-asc'
+                                : 'sorted-desc'
+                              : ''
+                          }
+                        >
+                          {col}
+                        </th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
-                    {queryState.data.rows.map((row, idx) => (
+                    {getSortedRows().map((row, idx) => (
                       <tr key={idx}>
                         {row.map((cell, cellIdx) => (
                           <td key={cellIdx}>

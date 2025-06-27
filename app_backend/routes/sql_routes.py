@@ -129,6 +129,15 @@ def create_sql_router(metta_repo: MettaRepo) -> APIRouter:
             if "schema_migrations" in query_lower:
                 raise HTTPException(status_code=403, detail="Access to schema_migrations table is not allowed")
 
+            # Ensure query is read-only (no writes allowed)
+            # Check for common write operations
+            write_keywords = ["insert", "update", "delete", "drop", "create", "alter", "truncate", "grant", "revoke"]
+            first_word = query_lower.strip().split()[0] if query_lower.strip() else ""
+            if first_word in write_keywords:
+                raise HTTPException(
+                    status_code=403, detail="Only read-only queries are allowed. Write operations are not permitted."
+                )
+
             async def run_query():
                 with metta_repo.connect() as con:
                     # Set statement timeout to 20 seconds
@@ -142,10 +151,10 @@ def create_sql_router(metta_repo: MettaRepo) -> APIRouter:
                     if result.description:
                         columns = [desc.name for desc in result.description]
 
-                    # Fetch all rows
+                    # Fetch all rows with a limit of 1000
                     rows = []
                     if result.rowcount > 0 or (result.rowcount == -1 and result.description):
-                        rows = result.fetchall()
+                        rows = result.fetchmany(1000)  # Limit to 1000 rows
 
                     # Convert rows to list of lists for JSON serialization
                     rows_list = [list(row) for row in rows]
