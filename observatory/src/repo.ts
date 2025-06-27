@@ -141,7 +141,6 @@ export interface Repo {
   listTables(): Promise<TableInfo[]>
   getTableSchema(tableName: string): Promise<TableSchema>
   executeQuery(request: SQLQueryRequest): Promise<SQLQueryResponse>
-}
 
   // Training run methods
   getTrainingRuns(): Promise<TrainingRunListResponse>
