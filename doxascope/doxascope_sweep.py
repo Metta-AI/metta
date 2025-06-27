@@ -79,7 +79,6 @@ class DoxascopeSweep:
             "activation_fn": ["gelu", "relu", "silu"],
             "main_net_depth": [1, 2, 3],
             "processor_depth": [1, 2],
-            "shared_head_dim": [0, 128, 256],  # 0 means no shared head
         }
 
         search_space = {**hyperparams, **architectures}
@@ -125,7 +124,6 @@ class DoxascopeSweep:
                 "activation_fn",
                 "main_net_depth",
                 "processor_depth",
-                "shared_head_dim",
             ]
             model_config = {key: config[key] for key in net_params if key in config}
 
@@ -148,13 +146,13 @@ class DoxascopeSweep:
             train_time = time.time() - start_time
 
             # Evaluate on the test set
-            _, test_acc_avg, test_acc_per_step, _, _ = trainer.evaluate(test_loader, nn.CrossEntropyLoss())
+            eval_results = trainer.evaluate(test_loader, nn.CrossEntropyLoss())
 
             return {
                 "config": config,
                 "best_val_acc": best_val_acc,
-                "test_acc_avg": test_acc_avg,
-                "test_acc_per_step": test_acc_per_step,
+                "test_acc_avg": eval_results["avg_acc"],
+                "test_acc_per_step": eval_results["acc_per_step"],
                 "train_time": train_time,
                 "success": True,
             }

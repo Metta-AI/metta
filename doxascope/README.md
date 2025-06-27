@@ -13,6 +13,20 @@ This directory contains the necessary scripts for data logging, preprocessing, t
 -   `doxascope_analysis.py`: Includes functions for generating plots, such as training curves, confusion matrices, and multi-step accuracy graphs.
 -   `doxascope_sweep.py`: A script for running hyperparameter sweeps to find optimal model configurations.
 
+## Network Architecture
+
+The `DoxascopeNet` has a modular architecture that can be changed as the user wishes. The default architecture, based on sweeps over architecture configurations is:
+
+-   **Input Layer**: Takes the full concatenated memory vector as input.
+
+-   **Parallel State Processors**: The input vector is immediately split back into its constituent `h` and `c` states. Each state is passed through its own small, independent multi-layer perceptron (MLP). This initial parallel processing was found to improve performance, as it allows the network to learn features specific to each part of the LSTM memory before combining them.
+
+-   **Main Processing Network**: The outputs from the two state processors are concatenated and fed into a larger, deeper 3 layer main MLP. This network performs the core feature extraction on the combined memory representation.
+
+-   **Multi-Timestep Prediction Heads**: The final layer consists of multiple independent prediction heads. There is one head for each past and future timestep the network is configured to predict (e.g., for `t-2, t-1, t+1, t+2, t+3`). Each head is a linear layer that outputs the final classification logits for the five movement classes.
+
+-   **Residual Skip Connection**: A skip connection takes the original, raw input vector and adds it directly to the output of the first *future* prediction head (`t+1`). This residual link helps with gradient flow and training stability.
+
 ## Usage
 
 ### 1. Data Collection
@@ -39,11 +53,20 @@ Once you have collected data, you can train the network using the `doxascope_tra
 **Usage:**
 
 ```bash
-python -m metta.doxascope.doxascope_train <policy_name> [num_future_timesteps]
+python -m doxascope.doxascope_train <policy_name> <num_future_timesteps> [options]
 ```
 
+**Arguments:**
+
 -   `<policy_name>`: The name of the policy whose data you want to use for training. This corresponds to the subdirectory within `doxascope/data/raw_data/`.
--   `[num_future_timesteps]` (optional): The number of future timesteps the network should predict. Defaults to 1.
+-   `<num_future_timesteps>`: The number of future timesteps the network should predict.
+
+**Options:**
+
+-   `--num-past-timesteps <n>`: The number of past timesteps to predict (default: 0).
+-   `--lr <learning_rate>`: Learning rate for the optimizer (default: 0.0007).
+-   `--batch-size <size>`: Batch size for training (default: 32).
+-   `--num-epochs <epochs>`: Number of training epochs (default: 100).
 
 The script will automatically:
 1.  Locate the raw data files for the specified policy.
@@ -55,10 +78,10 @@ The script will automatically:
 ### 3. Analysis
 
 The training script automatically runs the analysis at the end of training. The output includes:
--   `training_curves.png`: Shows the training and validation loss and accuracy over epochs.
--   `multistep_accuracy.png`: Plots the model's test accuracy for each predicted future timestep.
--   `confusion_matrix_t+1.png`: A confusion matrix for the `t+1` predictions.
--   `confusion_matrix_t+20.png` (if applicable): A confusion matrix for the `t+20` predictions, allowing for analysis of long-term predictive patterns.
+-   `training_curves.png`: Shows the training and validation loss and accuracy over epochs. The reported validation accuracy is the average across all predicted timesteps.
+-   `multistep_accuracy.png`: Plots the model's final test accuracy for each predicted timestep. The x-axis shows the timestep relative to the present (e.g., `t-1`, `t+1`, `t+5`), providing a clear view of how predictability changes over time.
+-   `confusion_matrix_t-k.png` (if applicable): A confusion matrix for the furthest *past* timestep predicted (e.g., `t-20`), showing how well the model identifies previous actions.
+-   `confusion_matrix_t+k.png` (if applicable): A confusion matrix for the furthest *future* timestep predicted (e.g., `t+20`), allowing for analysis of long-term predictive patterns.
 
 ### 4. Hyperparameter Sweep
 
@@ -67,7 +90,7 @@ To find the best hyperparameters or network architecture, you can use the `doxas
 **Usage:**
 
 ```bash
-python -m metta.doxascope.doxascope_sweep <policy_name> <num_future_timesteps> [options]
+python -m doxascope.doxascope_sweep <policy_name> <num_future_timesteps> [options]
 ```
 
 **Arguments:**
@@ -90,13 +113,13 @@ The `doxascope_analysis.py` script provides more in-depth analysis tools.
 **Usage:**
 
 ```bash
-python -m metta.doxascope.doxascope_analysis <command> [args]
+python -m doxascope.doxascope_analysis <command> [args]
 ```
 
 **Commands:**
 
 -   `inspect <policy_name>`: Inspects the preprocessed data for a policy.
--   `encoding <policy_name>`: Analyzes the memory encoding of a trained model.
+-   `encoding <policy_name>`: Analyzes how a trained model encodes information by running the test data through the network and visualizing the internal representations.
 -   `sweep <results_path>`: Analyzes sweep results from a JSON file.
 
 Run with `-h` or `--help` for more details on each command.

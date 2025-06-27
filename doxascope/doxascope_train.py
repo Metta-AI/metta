@@ -22,6 +22,12 @@ def main():
         default=1,
         help="Number of future timesteps to predict.",
     )
+    parser.add_argument(
+        "--num-past-timesteps",
+        type=int,
+        default=0,
+        help="Number of past timesteps to predict.",
+    )
     parser.add_argument("--lr", type=float, default=0.0007, help="Learning rate for the optimizer.")
     parser.add_argument("--batch-size", type=int, default=32, help="Batch size for training.")
     parser.add_argument("--num-epochs", type=int, default=100, help="Number of training epochs.")
@@ -30,6 +36,8 @@ def main():
     print(f"Using policy: {args.policy_name}")
     if args.num_future_timesteps > 1:
         print(f"Predicting {args.num_future_timesteps} steps into the future.")
+    if args.num_past_timesteps > 0:
+        print(f"Predicting {args.num_past_timesteps} steps into the past.")
 
     # Define paths
     raw_data_dir = Path(f"doxascope/data/raw_data/{args.policy_name}")
@@ -41,6 +49,7 @@ def main():
         raw_data_dir=raw_data_dir,
         output_dir=results_dir,
         num_future_timesteps=args.num_future_timesteps,
+        num_past_timesteps=args.num_past_timesteps,
         lr=args.lr,
         batch_size=args.batch_size,
         num_epochs=args.num_epochs,

@@ -59,8 +59,8 @@ class DoxascopeNet(nn.Module):
         activation_fn="silu",
         main_net_depth=3,
         processor_depth=1,
-        shared_head_dim=0,
         skip_connection_weight=0.1,
+        num_past_timesteps=0,
     ):
         super(DoxascopeNet, self).__init__()
 
@@ -73,8 +73,8 @@ class DoxascopeNet(nn.Module):
             "activation_fn": activation_fn,
             "main_net_depth": main_net_depth,
             "processor_depth": processor_depth,
-            "shared_head_dim": shared_head_dim,
             "skip_connection_weight": skip_connection_weight,
+            "num_past_timesteps": num_past_timesteps,
         }
 
         self.input_dim = input_dim
@@ -121,18 +121,11 @@ class DoxascopeNet(nn.Module):
                 main_net_layers.extend([nn.Linear(hidden_dim, main_out_dim), act_fn, nn.Dropout(dropout_rate)])
 
         self.main_net = nn.Sequential(*main_net_layers)
-
-        # Optional shared head layer
-        self.shared_head_net = None
         head_input_dim = main_out_dim
-        if shared_head_dim > 0:
-            self.shared_head_net = nn.Sequential(
-                nn.Linear(head_input_dim, shared_head_dim), act_fn, nn.Dropout(dropout_rate)
-            )
-            head_input_dim = shared_head_dim
 
-        # Create k separate output heads
-        self.output_heads = nn.ModuleList([nn.Linear(head_input_dim, num_classes) for _ in range(num_future_timesteps)])
+        # Create k separate output heads for past and future predictions
+        num_heads = num_past_timesteps + num_future_timesteps
+        self.output_heads = nn.ModuleList([nn.Linear(head_input_dim, num_classes) for _ in range(num_heads)])
 
         # Skip connection (kept for stability, minimal impact)
         self.skip_connection = nn.Linear(input_dim, num_classes)
@@ -155,18 +148,15 @@ class DoxascopeNet(nn.Module):
         # Main prediction
         main_features = self.main_net(combined)
 
-        # Optional shared head
-        if self.shared_head_net:
-            main_features = self.shared_head_net(main_features)
-
         # Generate output from each head
         outputs = [head(main_features) for head in self.output_heads]
 
-        # Skip connection for residual learning (minimal impact but kept for stability)
-        # We apply the skip connection to the first timestep's prediction
-        if self.skip_connection_weight > 0:
+        # Apply the skip connection to the first future timestep's prediction
+        if self.skip_connection_weight > 0 and self.config["num_future_timesteps"] > 0:
             skip_output = self.skip_connection(x)
-            outputs[0] = outputs[0] + self.skip_connection_weight * skip_output  # Weighted skip connection
+            first_future_idx = self.config["num_past_timesteps"]
+            if first_future_idx < len(outputs):
+                outputs[first_future_idx] = outputs[first_future_idx] + self.skip_connection_weight * skip_output
 
         return outputs
 
@@ -199,7 +189,7 @@ class DoxascopeTrainer:
         total_loss = 0
         total = 0
 
-        num_steps = self.model.num_future_timesteps
+        num_steps = self.model.config.get("num_past_timesteps", 0) + self.model.config.get("num_future_timesteps", 0)
         correct_per_step = [0] * num_steps
 
         for batch_x, batch_y in dataloader:
@@ -232,7 +222,7 @@ class DoxascopeTrainer:
         total = 0
 
         # For multi-step, track accuracy and predictions per step
-        num_steps = self.model.num_future_timesteps
+        num_steps = self.model.config.get("num_past_timesteps", 0) + self.model.config.get("num_future_timesteps", 0)
         correct_per_step = [0] * num_steps
         all_preds_per_step = [[] for _ in range(num_steps)]
         all_targets_per_step = [[] for _ in range(num_steps)]
@@ -245,27 +235,27 @@ class DoxascopeTrainer:
 
                 # Sum losses from all heads
                 loss = self._compute_loss(outputs, batch_y, criterion)
-
                 total_loss += loss.item()
+                total += batch_y.size(0)
 
-                # Collect accuracy, predictions, and targets for each step
+                # Accuracy per step
                 for i in range(num_steps):
                     _, predicted = outputs[i].max(1)
                     correct_per_step[i] += predicted.eq(batch_y[:, i]).sum().item()
                     all_preds_per_step[i].extend(predicted.cpu().numpy())
                     all_targets_per_step[i].extend(batch_y[:, i].cpu().numpy())
 
-                total += batch_y.size(0)
-
-        # Calculate accuracies
+        avg_loss = total_loss / len(dataloader) if dataloader else 0
         acc_per_step = [100.0 * c / total for c in correct_per_step] if total > 0 else [0.0] * num_steps
-        # Overall accuracy is the average across all timesteps
-        acc = sum(acc_per_step) / len(acc_per_step) if acc_per_step else 0.0
+        avg_acc = sum(acc_per_step) / num_steps if num_steps > 0 else 0
 
-        if len(dataloader) == 0:
-            return 0.0, acc, acc_per_step, all_preds_per_step, all_targets_per_step
-
-        return total_loss / len(dataloader), acc, acc_per_step, all_preds_per_step, all_targets_per_step
+        return {
+            "loss": avg_loss,
+            "avg_acc": avg_acc,
+            "acc_per_step": acc_per_step,
+            "preds": all_preds_per_step,
+            "targets": all_targets_per_step,
+        }
 
     def train(self, train_loader, val_loader, num_epochs=100, lr=0.001, patience=10):
         """Train the model with early stopping."""
@@ -289,17 +279,17 @@ class DoxascopeTrainer:
             train_loss, train_acc_per_step = self.train_epoch(train_loader, optimizer, criterion)
 
             # Evaluate
-            val_loss, val_acc, val_acc_per_step, _, _ = self.evaluate(val_loader, criterion)
+            val_results = self.evaluate(val_loader, criterion)
 
             # Track metrics
             self.train_losses.append(train_loss)
-            self.val_losses.append(val_loss)
+            self.val_losses.append(val_results["loss"])
             self.train_accuracies.append(train_acc_per_step[0])
-            self.val_accuracies.append(val_acc)
-            self.val_accuracies_per_step.append(val_acc_per_step)
+            self.val_accuracies.append(val_results["avg_acc"])
+            self.val_accuracies_per_step.append(val_results["acc_per_step"])
 
-            if val_acc > best_val_acc:
-                best_val_acc = val_acc
+            if val_results["avg_acc"] > best_val_acc:
+                best_val_acc = val_results["avg_acc"]
                 patience_counter = 0
                 # Save the best model state and config
                 best_model_state = {
@@ -316,12 +306,12 @@ class DoxascopeTrainer:
             # Print progress
             epoch_time = time.time() - start_time
             train_acc_str = ", ".join([f"{acc:.1f}%" for acc in train_acc_per_step])
-            val_acc_str = ", ".join([f"{acc:.1f}%" for acc in val_acc_per_step])
+            val_acc_str = ", ".join([f"{acc:.1f}%" for acc in val_results["acc_per_step"]])
 
             print(
                 f"Epoch {epoch + 1:3d}: "
                 f"Train Loss: {train_loss:.4f}, Accs: [{train_acc_str}] | "
-                f"Val Loss: {val_loss:.4f}, Accs: [{val_acc_str}] | "
+                f"Val Loss: {val_results['loss']:.4f}, Accs: [{val_acc_str}] | "
                 f"Time: {epoch_time:.2f}s"
             )
 
@@ -334,10 +324,19 @@ class DoxascopeTrainer:
     def analyze_results(self, all_preds_per_step, all_targets_per_step, timesteps_to_analyze=(1,)):
         """Analyzes model results, including confusion matrices for specified timesteps."""
         movement_names = ["Stay", "Up", "Down", "Left", "Right"]
+        num_past_timesteps = self.model.config.get("num_past_timesteps", 0)
 
         for timestep in timesteps_to_analyze:
-            if timestep > 0 and timestep <= len(all_preds_per_step):
-                idx = timestep - 1
+            if timestep == 0:
+                continue
+
+            # Convert relative timestep to absolute index in the output array
+            if timestep > 0:  # Future timestep
+                idx = num_past_timesteps + timestep - 1
+            else:  # Past timestep (t-k is represented by -k)
+                idx = num_past_timesteps + timestep
+
+            if 0 <= idx < len(all_preds_per_step):
                 self.plot_confusion_matrix(
                     all_targets_per_step[idx],
                     all_preds_per_step[idx],
@@ -385,20 +384,36 @@ class DoxascopeTrainer:
         )
         plt.xlabel("Predicted")
         plt.ylabel("True")
-        plt.title(f"Confusion Matrix (t+{timestep})")
-        plt.savefig(self.output_dir / f"confusion_matrix_t+{timestep}.png")
+
+        # Format title and filename correctly based on timestep sign
+        if timestep > 0:
+            time_str = f"t+{timestep}"
+        else:
+            time_str = f"t{timestep}"
+
+        plt.title(f"Confusion Matrix ({time_str})")
+        plt.savefig(self.output_dir / f"confusion_matrix_{time_str}.png")
         plt.close()
 
     def plot_multistep_accuracy(self, test_acc_per_step):
         """Plots test accuracy for each future timestep."""
+        num_past = self.model.config.get("num_past_timesteps", 0)
+        num_future = self.model.config.get("num_future_timesteps", 1)
+
+        if num_past + num_future == 0:
+            return
+
+        past_steps = list(range(-num_past, 0))
+        future_steps = list(range(1, num_future + 1))
+        steps = past_steps + future_steps
+        step_labels = [str(s) for s in steps]
+
         plt.figure(figsize=(10, 6))
-        steps = range(1, len(test_acc_per_step) + 1)
-        plt.plot(steps, test_acc_per_step, marker="o", linestyle="-")
-        plt.title("Test Accuracy per Future Timestep")
-        plt.xlabel("Future Timestep (t+k)")
+        plt.plot(step_labels, test_acc_per_step, marker="o", linestyle="-")
+        plt.title("Test Accuracy per Timestep")
+        plt.xlabel("Timestep (t+/-k)")
         plt.ylabel("Test Accuracy (%)")
         plt.grid(True)
-        plt.xticks(steps)
         plt.tight_layout()
         plt.savefig(self.output_dir / "multistep_accuracy.png")
         plt.close()
@@ -410,6 +425,7 @@ def prepare_data(
     test_split: float,
     val_split: float,
     num_future_timesteps: int,
+    num_past_timesteps: int,
 ):
     """Prepares training, validation, and test datasets."""
     all_json_files = sorted(list(raw_data_dir.glob("*.json")))
@@ -428,9 +444,15 @@ def prepare_data(
     print(f"Found {num_files} total files: {len(train_files)} train, {len(val_files)} val, {len(test_files)} test")
 
     preprocessed_dir = output_dir / "preprocessed_data"
-    X_train, y_train = preprocess_doxascope_data(train_files, preprocessed_dir, "train_data.npz", num_future_timesteps)
-    X_val, y_val = preprocess_doxascope_data(val_files, preprocessed_dir, "val_data.npz", num_future_timesteps)
-    X_test, y_test = preprocess_doxascope_data(test_files, preprocessed_dir, "test_data.npz", num_future_timesteps)
+    X_train, y_train = preprocess_doxascope_data(
+        train_files, preprocessed_dir, "train_data.npz", num_future_timesteps, num_past_timesteps
+    )
+    X_val, y_val = preprocess_doxascope_data(
+        val_files, preprocessed_dir, "val_data.npz", num_future_timesteps, num_past_timesteps
+    )
+    X_test, y_test = preprocess_doxascope_data(
+        test_files, preprocessed_dir, "test_data.npz", num_future_timesteps, num_past_timesteps
+    )
 
     if X_train is None or X_val is None or X_test is None:
         raise ValueError("Data preprocessing failed. Check logs for details.")
@@ -447,6 +469,7 @@ def train_doxascope(
     num_epochs=100,
     lr=0.0007,
     num_future_timesteps=1,
+    num_past_timesteps=0,
 ):
     """
     Main function to train the doxascope network.
@@ -456,7 +479,7 @@ def train_doxascope(
 
     try:
         (X_train, y_train), (X_val, y_val), (X_test, y_test) = prepare_data(
-            raw_data_dir, output_dir, test_split, val_split, num_future_timesteps
+            raw_data_dir, output_dir, test_split, val_split, num_future_timesteps, num_past_timesteps
         )
     except (FileNotFoundError, ValueError) as e:
         print(f"Error: {e}")
@@ -479,10 +502,11 @@ def train_doxascope(
         "num_classes": 5,
         "dropout_rate": 0.4,
         "num_future_timesteps": num_future_timesteps,
+        "num_past_timesteps": num_past_timesteps,
         "activation_fn": "silu",
         "main_net_depth": 3,
         "processor_depth": 1,
-        "shared_head_dim": 256,
+        "skip_connection_weight": 0.1,
     }
     model = DoxascopeNet(**model_params)
 
@@ -494,36 +518,46 @@ def train_doxascope(
     print("\n--- Running Final Analysis ---")
     trainer.plot_training_curves()
 
-    # Analyze specific timesteps for confusion matrix
-    timesteps_to_analyze = [1]
-    if num_future_timesteps > 1:
-        timesteps_to_analyze.append(num_future_timesteps)
+    # Final analysis on test set
+    if test_loader:
+        test_results = trainer.evaluate(test_loader, nn.CrossEntropyLoss())
+        test_acc_per_step = test_results["acc_per_step"]
+        all_preds = test_results["preds"]
+        all_targets = test_results["targets"]
 
-    (
-        test_loss,
-        test_acc,
-        test_acc_per_step,
-        all_preds_per_step,
-        all_targets_per_step,
-    ) = trainer.evaluate(test_loader, nn.CrossEntropyLoss())
+        # Determine which timesteps to generate confusion matrices for
+        timesteps_to_analyze = []
+        if num_past_timesteps > 0:
+            # Furthest past timestep, e.g., t-2 if num_past=2
+            timesteps_to_analyze.append(-num_past_timesteps)
 
-    trainer.analyze_results(
-        all_preds_per_step,
-        all_targets_per_step,
-        timesteps_to_analyze=timesteps_to_analyze,
-    )
-    trainer.plot_multistep_accuracy(test_acc_per_step)
+        if num_future_timesteps > 0:
+            # Furthest future timestep, e.g., t+3 if num_future=3
+            timesteps_to_analyze.append(num_future_timesteps)
+
+        trainer.analyze_results(all_preds, all_targets, timesteps_to_analyze=timesteps_to_analyze)
+        trainer.plot_multistep_accuracy(test_acc_per_step)
 
     end_time = time.time()
     print(f"\n✅ Training and analysis complete in {end_time - start_time:.2f} seconds.")
     print(f"📈 Best Validation Accuracy (avg): {best_val_acc:.2f}%")
 
-    print("📈 Final Test Accuracies:")
-    if test_acc_per_step:
-        print(f"  - Average (all steps): {test_acc:.2f}%")
-        print(f"  - Step t+1: {test_acc_per_step[0]:.2f}%")
-        if len(test_acc_per_step) > 1:
-            print(f"  - Step t+{len(test_acc_per_step)}: {test_acc_per_step[-1]:.2f}%")
+    # Final summary print
+    if test_results:
+        test_acc = test_results["avg_acc"]
+        test_acc_per_step = test_results["acc_per_step"]
+        print("📈 Final Test Accuracies:")
+        if test_acc_per_step:
+            print(f"  - Average (all steps): {test_acc:.2f}%")
+            num_past = model.config.get("num_past_timesteps", 0)
+
+            for i, acc in enumerate(test_acc_per_step):
+                timestep = i - num_past + 1 if i >= num_past else -(num_past - i)
+                if timestep >= 1:
+                    timestep_str = f"t+{timestep}"
+                else:
+                    timestep_str = f"t{timestep}"
+                print(f"  - Step {timestep_str}: {acc:.2f}%")
 
     # Return for potential further use, e.g., in automated scripts
-    return best_val_acc, test_acc
+    return best_val_acc, (test_results["avg_acc"] if "test_results" in locals() else -1)

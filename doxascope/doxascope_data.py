@@ -113,6 +113,7 @@ def preprocess_doxascope_data(
     preprocessed_dir: Path,
     output_filename: str = "training_data.npz",
     num_future_timesteps: int = 1,
+    num_past_timesteps: int = 0,
 ) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
     """
     Preprocess all doxascope JSON files to create training data.
@@ -122,13 +123,14 @@ def preprocess_doxascope_data(
         preprocessed_dir: Directory where the output NPZ file will be saved
         output_filename: Name of the output NPZ file
         num_future_timesteps: The number of future steps to predict
+        num_past_timesteps: The number of past steps to predict
 
     Returns:
         A tuple containing two NumPy arrays:
         - X: The input data, with shape (num_samples, memory_vector_dim). Each row is a
           flattened LSTM memory vector.
-        - y: The target data, with shape (num_samples, num_future_timesteps). Each row
-          contains the sequence of future movement classes to be predicted.
+        - y: The target data, with shape (num_samples, num_past_timesteps + num_future_timesteps).
+          Each row contains the sequence of past and future movement classes to be predicted.
     """
     output_file = preprocessed_dir / output_filename
 
@@ -171,11 +173,23 @@ def preprocess_doxascope_data(
 
         # Process each agent's trajectory to create training pairs
         for agent_id, trajectory in agent_trajectories.items():
-            if len(trajectory) <= num_future_timesteps:
+            if len(trajectory) <= num_future_timesteps + num_past_timesteps:
                 continue
 
             # Create training pairs from the trajectory
-            for i in range(len(trajectory) - num_future_timesteps):
+            for i in range(num_past_timesteps, len(trajectory) - num_future_timesteps):
+                # Calculate past movements
+                past_movements = []
+                if num_past_timesteps > 0:
+                    for k in range(num_past_timesteps, 0, -1):
+                        # Move that happened at time i-k+1
+                        pos_after = trajectory[i - k + 1][1]
+                        pos_before = trajectory[i - k][1]
+                        dr = pos_after[0] - pos_before[0]
+                        dc = pos_after[1] - pos_before[1]
+                        movement = MOVEMENT_MAP.get((dr, dc), 0)
+                        past_movements.append(movement)
+
                 current_memory, prev_pos = trajectory[i]
                 future_movements = []
 
@@ -203,8 +217,10 @@ def preprocess_doxascope_data(
 
                     future_movements.append(movement)
 
+                # Combine all movements
+                all_movements = past_movements + future_movements
                 memory_vectors.append(current_memory)
-                movements.append(future_movements)
+                movements.append(all_movements)
 
     if not memory_vectors:
         logger.warning("No training data created")

@@ -44,10 +44,10 @@ def inspect_data(policy_name: str):
 
     print("\n**Movement Class Distribution:**")
     movement_names = ["Stay", "Up", "Down", "Left", "Right"]
-    unique_classes, counts = np.unique(y, return_counts=True)
+    unique_classes, counts = np.unique(y.flatten(), return_counts=True)
     for cls, count in zip(unique_classes, counts, strict=False):
         name = movement_names[cls] if cls < len(movement_names) else f"Unknown({cls})"
-        print(f"  - {cls} ({name}): {count:,} samples ({count / len(y):.1%})")
+        print(f"  - {cls} ({name}): {count:,} samples ({count / len(y.flatten()):.1%})")
 
     plot_data_inspection(X, y, movement_names, data_path.parent)
 
@@ -58,7 +58,7 @@ def plot_data_inspection(X, y, movement_names, output_dir: Path):
     fig.suptitle("Doxascope Training Data Inspection", fontsize=16)
 
     # Movement class distribution
-    unique_classes, counts = np.unique(y, return_counts=True)
+    unique_classes, counts = np.unique(y.flatten(), return_counts=True)
     labels = [movement_names[cls] for cls in unique_classes]
     axes[0, 0].bar(labels, counts, color="skyblue")
     axes[0, 0].set_title("Movement Class Distribution")
@@ -170,8 +170,16 @@ def analyze_prediction_confidence(model, X, y, movement_names):
     with torch.no_grad():
         inputs = torch.FloatTensor(X)
         outputs = model(inputs)
-        # We only analyze the first timestep's prediction for confidence
-        output_t1 = outputs[0]
+
+        # We only analyze the first future timestep's prediction for confidence
+        num_past = model.config.get("num_past_timesteps", 0)
+        if len(outputs) <= num_past:
+            print("No future predictions to analyze for confidence.")
+            return
+
+        output_t1 = outputs[num_past]
+        y_t1 = y[:, num_past]
+
         probabilities = torch.softmax(output_t1, dim=1)
         predictions = torch.argmax(output_t1, dim=1)
 
@@ -183,7 +191,7 @@ def analyze_prediction_confidence(model, X, y, movement_names):
 
     # Confidence by movement type
     for i, movement in enumerate(movement_names):
-        mask = y == i
+        mask = y_t1 == i
         if not np.any(mask):
             continue
 
@@ -193,7 +201,7 @@ def analyze_prediction_confidence(model, X, y, movement_names):
         print(f"{movement}: {movement_confidence:.3f} confidence, {correct_preds:.3f} accuracy")
 
     # Confidence of correct vs incorrect predictions
-    correct_mask = predictions.numpy() == y
+    correct_mask = predictions.numpy() == y_t1
     correct_confidence = max_probs[correct_mask].mean().item()
     incorrect_confidence = max_probs[~correct_mask].mean().item()
 
