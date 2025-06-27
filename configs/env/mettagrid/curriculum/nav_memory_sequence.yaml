@@ -5,5 +5,5 @@ tasks:
   /env/mettagrid/curriculum/navsequence/mem_medium: 1
   /env/mettagrid/curriculum/navsequence/sequence: 1
   /env/mettagrid/curriculum/sequence: 1
-  /env/mettagrid/curriculum/navigation/bucketed: 5
+  /env/mettagrid/curriculum/navigation/low_reward: 5
   /env/mettagrid/curriculum/object_use: 1

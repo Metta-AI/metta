@@ -11,6 +11,7 @@ labels:
   - memory
 game:
   num_agents: 4
+  max_steps: 2000
   agent:
     ore.red_max: 4
     battery.red_max: 4
