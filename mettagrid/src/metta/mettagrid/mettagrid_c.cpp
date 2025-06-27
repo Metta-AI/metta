@@ -102,6 +102,21 @@ MettaGrid::MettaGrid(py::dict cfg, py::list map, int seed) {
   }
   init_action_handlers();
 
+  auto object_configs = cfg["objects"].cast<py::dict>();
+  for (const auto& [key, value] : object_configs) {
+    auto object_cfg = value.cast<py::dict>();
+    TypeId type_id = object_cfg["type_id"].cast<TypeId>();
+    if (type_id >= object_type_names.size()) {
+      object_type_names.resize(type_id + 1);
+    }
+
+    if (object_type_names[type_id] == "") {
+      // #HardCodedConfig
+      // The guard here is to avoid overwriting the type_name for the wall object with the block object.
+      object_type_names[type_id] = key.cast<std::string>();
+    }
+  }
+
   auto agent_groups = cfg["agent_groups"].cast<py::dict>();
 
   for (const auto& [key, value] : agent_groups) {
@@ -652,8 +667,8 @@ py::list MettaGrid::max_action_args() {
   return py::cast(_max_action_args);
 }
 
-py::list MettaGrid::object_type_names() {
-  return py::cast(ObjectTypeNames);
+py::list MettaGrid::object_type_names_py() {
+  return py::cast(object_type_names);
 }
 
 py::list MettaGrid::inventory_item_names_py() {
@@ -759,7 +774,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def_property_readonly("observation_space", &MettaGrid::observation_space)
       .def("action_success", &MettaGrid::action_success)
       .def("max_action_args", &MettaGrid::max_action_args)
-      .def("object_type_names", &MettaGrid::object_type_names)
+      .def("object_type_names", &MettaGrid::object_type_names_py)
       .def("feature_spec", &MettaGrid::feature_spec)
       .def_readonly("obs_width", &MettaGrid::obs_width)
       .def_readonly("obs_height", &MettaGrid::obs_height)
