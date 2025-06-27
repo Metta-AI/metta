@@ -12,14 +12,14 @@ import torch
 import torch.distributed
 import wandb
 from heavyball import ForeachMuon
-from omegaconf import DictConfig, ListConfig
+from omegaconf import DictConfig
 
 from app_backend.stats_client import StatsClient
 from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
 from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyRecord, PolicyStore
 from metta.agent.util.debug import assert_shape
-from metta.common.fs import get_repo_root, tree
+from metta.common.fs import tree
 from metta.common.memory_monitor import MemoryMonitor
 from metta.common.stopwatch import Stopwatch, with_instance_timer
 from metta.common.util.heartbeat import record_heartbeat
@@ -59,7 +59,7 @@ logger = logging.getLogger(f"trainer-{rank}-{local_rank}")
 class MettaTrainer:
     def __init__(
         self,
-        cfg: DictConfig | ListConfig,
+        cfg: DictConfig,
         wandb_run: WandbRun | None,
         policy_store: PolicyStore,
         sim_suite_config: SimulationSuiteConfig,
@@ -67,7 +67,8 @@ class MettaTrainer:
         **kwargs: Any,
     ):
         # debug -- dump content of train_dir
-        logger.info(tree(get_repo_root() / "train_dir"))
+        logger.info(f"data_dir = {cfg.data_dir}")
+        logger.info(tree(cfg.data_dir))
 
         self.cfg = cfg
         self.trainer_cfg = trainer_cfg = parse_trainer_config(cfg.trainer)
@@ -1172,8 +1173,6 @@ class MettaTrainer:
             zero_copy=trainer_cfg.zero_copy,
             is_training=True,
         )
-
-        self._memory_monitor.add(self.vecenv)
 
         if self.cfg.seed is None:
             self.cfg.seed = np.random.randint(0, 1000000)

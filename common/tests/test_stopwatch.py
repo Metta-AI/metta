@@ -368,7 +368,7 @@ class TestStopwatch:
         # Test multifile
         # We simulate multiple references by manually adding them
         timer = stopwatch._get_timer("multifile_test")
-        timer.references.add(("file1.py", 20))
+        timer.references.add(("file1.py", 10))
         timer.references.add(("file2.py", 20))
         assert stopwatch.get_filename("multifile_test") == "multifile"
 
