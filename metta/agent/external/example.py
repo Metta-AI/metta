@@ -6,7 +6,10 @@ import torch.nn as nn
 
 
 class Recurrent(pufferlib.models.LSTMWrapper):
-    def __init__(self, env, policy, input_size=512, hidden_size=512):
+    def __init__(self, env, policy, input_size=512, hidden_size=512, **kwargs):
+        # If no policy provided, create one with the extra kwargs
+        if policy is None:
+            policy = Policy(env, hidden_size=hidden_size, **kwargs)
         super().__init__(env, policy, input_size, hidden_size)
 
     def forward(self, observations, state):
