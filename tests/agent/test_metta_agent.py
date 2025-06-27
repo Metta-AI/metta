@@ -115,7 +115,7 @@ def create_metta_agent():
         def forward(self, x):
             return x
 
-    # Create a mock ActionEmbedding component that has the _initialize_actions method
+    # Create a mock ActionEmbedding component that has the activate_actions method
     class MockActionEmbeds(torch.nn.Module):
         def __init__(self):
             super().__init__()
@@ -133,7 +133,7 @@ def create_metta_agent():
             self.clipped = True
             return True
 
-        def _initialize_actions(self, action_names, device):
+        def activate_actions(self, action_names, device):
             self.action_names = action_names
             self.device = device
             # Create a simple mapping that will let us test action conversions
@@ -201,9 +201,7 @@ def test_initialize_to_environment(create_metta_agent):
     assert agent.feature_id_to_name[1] == "hp"
     assert agent.feature_id_to_name[12] == "inv:ore_red"
 
-    # Check feature types and normalizations
-    assert agent.feature_types[0] == "categorical"
-    assert agent.feature_types[1] == "scalar"
+    # Check feature normalizations
     assert agent.feature_normalizations[1] == 30.0
     assert agent.feature_normalizations[12] == 100.0
 

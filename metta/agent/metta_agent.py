@@ -198,6 +198,9 @@ class MettaAgent(nn.Module):
         if not hasattr(self, "original_feature_mapping"):
             self.original_feature_mapping = {name: props["id"] for name, props in features.items()}
             logger.info(f"Stored original feature mapping: {self.original_feature_mapping}")
+
+            # Reserve index 255 for unknown features
+            logger.info("Reserved feature ID 255 for unknown features")
         else:
             # Create remapping for subsequent initializations
             self._create_feature_remapping(features)
@@ -207,10 +210,15 @@ class MettaAgent(nn.Module):
     def _create_feature_remapping(self, features: dict[str, dict]):
         """
         Create a remapping dictionary to translate new feature IDs to original ones.
+        Unknown features are mapped to index 255.
         """
+        # Define the unknown feature index
+        UNKNOWN_FEATURE_ID = 255
+
         # Build remapping dict
         self.feature_id_remap = {}
         remapped_count = 0
+        unknown_features = []
 
         for name, props in features.items():
             new_id = props["id"]
@@ -220,16 +228,35 @@ class MettaAgent(nn.Module):
                     self.feature_id_remap[new_id] = original_id
                     remapped_count += 1
                     logger.info(f"Remapping feature '{name}': {new_id} -> {original_id}")
+            else:
+                # This is a new feature not seen during training
+                self.feature_id_remap[new_id] = UNKNOWN_FEATURE_ID
+                unknown_features.append(name)
+                logger.info(
+                    f"Mapping unknown feature '{name}' (id={new_id}) to UNKNOWN_FEATURE_ID={UNKNOWN_FEATURE_ID}"
+                )
 
-        if remapped_count > 0:
-            logger.info(f"Created feature remapping with {remapped_count} remapped features")
+        if remapped_count > 0 or unknown_features:
+            logger.info(
+                f"Created feature remapping with {remapped_count} remapped features and {len(unknown_features)} unknown features"
+            )
 
             # Update observation component if it supports remapping
             if "_obs_" in self.components and hasattr(self.components["_obs_"], "update_feature_remapping"):
                 # Convert dict to tensor for components that expect it
+                # Start with identity mapping, then apply specific remappings
                 remap_tensor = torch.arange(256, dtype=torch.uint8, device=self.device)
+
+                # Apply known remappings
                 for new_id, original_id in self.feature_id_remap.items():
                     remap_tensor[new_id] = original_id
+
+                # Map all feature IDs that aren't in the current environment to UNKNOWN
+                current_feature_ids = {props["id"] for props in features.values()}
+                for feature_id in range(256):
+                    if feature_id not in current_feature_ids and feature_id not in self.feature_id_remap:
+                        remap_tensor[feature_id] = UNKNOWN_FEATURE_ID
+
                 self.components["_obs_"].update_feature_remapping(remap_tensor)
 
             # Update normalization factors
@@ -270,7 +297,7 @@ class MettaAgent(nn.Module):
         for action_name, max_param in self.active_actions:
             for i in range(max_param + 1):
                 full_action_names.append(f"{action_name}_{i}")
-        self.components["_action_embeds_"]._initialize_actions(full_action_names, self.device)
+        self.components["_action_embeds_"].activate_actions(full_action_names, self.device)
 
         # Create action_index tensor
         action_index = []
