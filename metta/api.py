@@ -3,10 +3,15 @@ Clean API for Metta - provides direct instantiation without Hydra.
 """
 
 import os
-from typing import Any, Dict, Optional
+import pickle
+from dataclasses import dataclass
+from typing import Any, Dict, List, Optional
 
+import numpy as np
 import torch
+import torch.nn as nn
 from omegaconf import DictConfig
+from torch.optim.lr_scheduler import CosineAnnealingLR, LambdaLR
 
 # Object type IDs from mettagrid/src/metta/mettagrid/objects/constants.hpp
 # These define the type of object in the environment
@@ -25,6 +30,90 @@ TYPE_LAB = 11
 TYPE_FACTORY = 12
 TYPE_TEMPLE = 13
 TYPE_GENERIC_CONVERTER = 14
+
+
+# Data structures for enhanced training state
+@dataclass
+class TrainingState:
+    """Complete training state for checkpointing."""
+
+    epoch: int
+    agent_step: int
+    total_agent_step: int
+    optimizer_state_dict: Dict[str, Any]
+    lr_scheduler_state_dict: Optional[Dict[str, Any]]
+    policy_path: Optional[str]
+    stopwatch_state: Optional[Dict[str, Any]]
+    extra_args: Dict[str, Any]
+
+    def save(self, checkpoint_dir: str) -> str:
+        """Save training state to checkpoint file."""
+        os.makedirs(checkpoint_dir, exist_ok=True)
+        path = os.path.join(checkpoint_dir, f"training_state_epoch_{self.epoch}.pkl")
+        with open(path, "wb") as f:
+            pickle.dump(self, f)
+        return path
+
+    @classmethod
+    def load(cls, path: str) -> "TrainingState":
+        """Load training state from checkpoint file."""
+        with open(path, "rb") as f:
+            return pickle.load(f)
+
+
+# Helper functions for enhanced features
+def make_lr_scheduler(
+    optimizer: torch.optim.Optimizer,
+    total_timesteps: int,
+    batch_size: int,
+    warmup_steps: Optional[int] = None,
+    schedule_type: str = "linear",
+    anneal_lr: bool = True,
+) -> Optional[torch.optim.lr_scheduler._LRScheduler]:
+    """Create a learning rate scheduler."""
+    if not anneal_lr:
+        return None
+
+    total_updates = total_timesteps // batch_size
+
+    if schedule_type == "linear":
+
+        def lr_lambda(epoch):
+            if warmup_steps and epoch < warmup_steps:
+                return epoch / warmup_steps
+            # Avoid division by zero
+            if total_updates <= (warmup_steps or 0):
+                return 1.0
+            progress = (epoch - (warmup_steps or 0)) / (total_updates - (warmup_steps or 0))
+            return max(0.0, 1.0 - progress)
+
+        return LambdaLR(optimizer, lr_lambda)
+    elif schedule_type == "cosine":
+        return CosineAnnealingLR(optimizer, T_max=total_updates)
+    else:
+        raise ValueError(f"Unknown schedule type: {schedule_type}")
+
+
+def compute_gradient_stats(model: nn.Module) -> Dict[str, float]:
+    """Compute gradient statistics for monitoring."""
+    grad_norms = []
+    param_norms = []
+
+    for name, param in model.named_parameters():
+        if param.grad is not None:
+            grad_norms.append(param.grad.norm().item())
+            param_norms.append(param.norm().item())
+
+    if not grad_norms:
+        return {}
+
+    return {
+        "grad_norm_mean": np.mean(grad_norms),
+        "grad_norm_max": np.max(grad_norms),
+        "grad_norm_min": np.min(grad_norms),
+        "param_norm_mean": np.mean(param_norms),
+    }
+
 
 # Direct instantiation functions
 
@@ -402,8 +491,8 @@ def quick_train(
     num_agents: int = 2,
     num_workers: int = 1,
     learning_rate: float = 0.0004573146765703167,  # Match original default
-    checkpoint_interval: int = 60,  # seconds, not epochs
-    evaluate_interval: int = 300,  # seconds
+    checkpoint_interval: int = 60,  # epochs, not seconds
+    evaluate_interval: int = 300,  # epochs
     device: str = "cuda",
     vectorization: str = "serial",
     env_width: int = 15,
@@ -412,6 +501,19 @@ def quick_train(
     minibatch_size: int = 16_384,  # Match original default
     update_epochs: int = 1,  # Match original default
     max_grad_norm: float = 0.5,  # Match original default
+    # New parameters for enhanced features
+    target_kl: Optional[float] = None,  # Early stopping based on KL divergence
+    anneal_lr: bool = False,  # Enable learning rate annealing
+    lr_schedule_type: str = "linear",  # Type of LR schedule
+    warmup_steps: Optional[int] = None,  # Warmup steps for LR scheduler
+    l2_init_weight_update_interval: int = 0,  # L2 weight update interval
+    grad_stats_interval: int = 0,  # Gradient statistics logging interval
+    save_full_state: bool = True,  # Save full training state
+    wandb_enabled: bool = False,  # Enable wandb logging
+    wandb_project: str = "metta",  # Wandb project name
+    wandb_entity: Optional[str] = None,  # Wandb entity
+    wandb_tags: Optional[List[str]] = None,  # Wandb tags
+    resume_from: Optional[str] = None,  # Resume from checkpoint
     logger=None,
 ) -> str:
     """Quick training function with sensible defaults matching the original trainer.
@@ -423,8 +525,8 @@ def quick_train(
         num_agents: Number of agents per environment
         num_workers: Number of workers
         learning_rate: Learning rate
-        checkpoint_interval: How often to save checkpoints (in seconds)
-        evaluate_interval: How often to evaluate (in seconds)
+        checkpoint_interval: How often to save checkpoints (in epochs)
+        evaluate_interval: How often to evaluate (in epochs)
         device: Device to use
         vectorization: Vectorization mode
         env_width: Environment width
@@ -433,6 +535,18 @@ def quick_train(
         minibatch_size: Minibatch size
         update_epochs: Number of epochs to update per rollout
         max_grad_norm: Maximum gradient norm for clipping
+        target_kl: Stop training if KL divergence exceeds this value
+        anneal_lr: Whether to anneal learning rate
+        lr_schedule_type: Type of LR schedule ("linear" or "cosine")
+        warmup_steps: Number of warmup steps for LR scheduler
+        l2_init_weight_update_interval: How often to update L2 init weights (epochs)
+        grad_stats_interval: How often to compute gradient statistics (epochs)
+        save_full_state: Whether to save full training state (optimizer, etc.)
+        wandb_enabled: Whether to enable wandb logging
+        wandb_project: Wandb project name
+        wandb_entity: Wandb entity
+        wandb_tags: Wandb tags
+        resume_from: Path to checkpoint to resume from
         logger: Optional logger instance
 
     Returns:
@@ -442,7 +556,6 @@ def quick_train(
     import time
 
     import gymnasium as gym
-    import numpy as np
 
     from metta.common.stopwatch import Stopwatch
     from metta.rl.functional_trainer import (
@@ -454,6 +567,36 @@ def quick_train(
 
     if logger is None:
         logger = get_logger("quick_train")
+
+    # Initialize wandb if enabled
+    wandb_run = None
+    if wandb_enabled:
+        try:
+            import wandb
+
+            wandb_run = wandb.init(
+                project=wandb_project,
+                entity=wandb_entity,
+                tags=wandb_tags,
+                name=run_name,
+                config={
+                    "run_name": run_name,
+                    "timesteps": timesteps,
+                    "batch_size": batch_size,
+                    "num_agents": num_agents,
+                    "learning_rate": learning_rate,
+                    "device": device,
+                    "bptt_horizon": bptt_horizon,
+                    "minibatch_size": minibatch_size,
+                    "update_epochs": update_epochs,
+                    "target_kl": target_kl,
+                    "anneal_lr": anneal_lr,
+                },
+            )
+            logger.info(f"Initialized wandb run: {wandb_run.name}")
+        except ImportError:
+            logger.warning("Wandb enabled but not installed. Install with: pip install wandb")
+            wandb_enabled = False
 
     # Setup directories
     checkpoint_dir = f"./train_dir/{run_name}/checkpoints"
@@ -560,11 +703,25 @@ def quick_train(
     loss_module = make_loss_module(policy=policy)
     losses = Losses()
 
+    # Create learning rate scheduler
+    lr_scheduler = None
+    if anneal_lr:
+        lr_scheduler = make_lr_scheduler(
+            optimizer=optimizer,
+            total_timesteps=timesteps,
+            batch_size=batch_size,
+            warmup_steps=warmup_steps,
+            schedule_type=lr_schedule_type,
+            anneal_lr=anneal_lr,
+        )
+
     # Initialize training variables
     epoch = 0
     agent_step = 0
     steps_per_epoch = batch_size  # Steps taken per rollout
     total_epochs = timesteps // batch_size  # Total number of rollout+train cycles
+    latest_policy_path = None
+    early_stop = False
 
     # Timing
     timer = Stopwatch(logger)
@@ -575,6 +732,22 @@ def quick_train(
 
     # Stats
     all_rollout_stats = {}
+    gradient_stats_history = []
+
+    # Resume from checkpoint if specified
+    if resume_from:
+        logger.info(f"Resuming from checkpoint: {resume_from}")
+        training_state = TrainingState.load(resume_from)
+        epoch = training_state.epoch
+        agent_step = training_state.agent_step
+        optimizer.load_state_dict(training_state.optimizer_state_dict)
+        if lr_scheduler and training_state.lr_scheduler_state_dict:
+            lr_scheduler.load_state_dict(training_state.lr_scheduler_state_dict)
+        if training_state.policy_path:
+            policy.load_state_dict(torch.load(training_state.policy_path, map_location=device))
+        if training_state.stopwatch_state:
+            timer.load_state(training_state.stopwatch_state)
+        logger.info(f"Resumed from epoch {epoch}, agent_step {agent_step}")
 
     logger.info(
         f"Starting training with {num_envs} environments, "
@@ -587,7 +760,7 @@ def quick_train(
     vecenv.async_reset(seed=0)
 
     # Main training loop - matches original trainer structure
-    while agent_step < timesteps:
+    while agent_step < timesteps and not early_stop:
         steps_before = agent_step
 
         # Rollout phase
@@ -632,6 +805,9 @@ def quick_train(
                 experience, gamma=0.977, gae_lambda=0.916, vtrace_rho_clip=1.0, vtrace_c_clip=1.0, device=device_obj
             )
 
+            # Track KL divergence for early stopping
+            kl_values = []
+
             # Update epochs (inner loop)
             minibatch_idx = 0
             total_minibatches = experience.num_minibatches * update_epochs
@@ -659,6 +835,11 @@ def quick_train(
                     optimizer.zero_grad()
                     loss.backward()
 
+                    # Compute gradient statistics if enabled
+                    if grad_stats_interval > 0 and epoch % grad_stats_interval == 0:
+                        grad_stats = compute_gradient_stats(policy)
+                        gradient_stats_history.append((epoch, grad_stats))
+
                     if (minibatch_idx + 1) % experience.accumulate_minibatches == 0:
                         torch.nn.utils.clip_grad_norm_(policy.parameters(), max_grad_norm)
                         optimizer.step()
@@ -667,14 +848,68 @@ def quick_train(
 
                     minibatch_idx += 1
 
+                    # Track KL for early stopping
+                    if hasattr(losses, "approx_kl_sum") and losses.minibatches_processed > 0:
+                        avg_kl = losses.approx_kl_sum / losses.minibatches_processed
+                        kl_values.append(avg_kl)
+
+                # Check for early stopping based on KL divergence
+                if target_kl is not None and kl_values:
+                    mean_kl = np.mean(kl_values)
+                    if mean_kl > target_kl:
+                        logger.info(f"Early stopping: KL divergence ({mean_kl:.4f}) exceeded target ({target_kl})")
+                        early_stop = True
+                        break
+
                 # Increment epoch after all minibatches in update_epoch
                 epoch += 1
 
-        # Process stats (minimal for now)
+            # Update learning rate scheduler
+            if lr_scheduler:
+                lr_scheduler.step()
+
+            # Update L2 init weights if enabled
+            if l2_init_weight_update_interval > 0 and epoch % l2_init_weight_update_interval == 0:
+                if hasattr(policy, "update_l2_init_weight_copy"):
+                    policy.update_l2_init_weight_copy()
+                    logger.info(f"Updated L2 init weights at epoch {epoch}")
+
+        # Process stats
         with timer("stats"):
-            # In original trainer, this is where wandb logging happens
-            # For our simple version, we just track time
-            pass
+            loss_dict = losses.stats()
+
+            # Log to wandb if enabled
+            if wandb_enabled and wandb_run:
+                try:
+                    import wandb
+
+                    # Prepare metrics
+                    metrics = {
+                        "epoch": epoch,
+                        "agent_step": agent_step,
+                        "loss/policy": loss_dict.get("policy_loss", 0),
+                        "loss/value": loss_dict.get("value_loss", 0),
+                        "loss/entropy": loss_dict.get("entropy", 0),
+                        "metrics/approx_kl": loss_dict.get("approx_kl", 0),
+                        "metrics/clipfrac": loss_dict.get("clipfrac", 0),
+                        "metrics/explained_variance": loss_dict.get("explained_variance", 0),
+                        "learning_rate": optimizer.param_groups[0]["lr"],
+                    }
+
+                    # Add rollout stats
+                    if all_rollout_stats:
+                        for key, values in all_rollout_stats.items():
+                            if isinstance(values, list) and values:
+                                metrics[f"rollout/{key}"] = np.mean(values)
+
+                    # Add gradient stats
+                    if gradient_stats_history and gradient_stats_history[-1][0] == epoch:
+                        for key, value in gradient_stats_history[-1][1].items():
+                            metrics[f"gradients/{key}"] = value
+
+                    wandb.log(metrics, step=agent_step)
+                except Exception as e:
+                    logger.warning(f"Failed to log to wandb: {e}")
 
         # Calculate and log metrics (per rollout+train cycle, not per epoch)
         steps_in_cycle = agent_step - steps_before
@@ -704,18 +939,71 @@ def quick_train(
 
         loss_stats = losses.stats()
 
-        # Log using same format as original trainer
+        # Enhanced logging with loss stats
         logger.info(
             f"Epoch {epoch} - "
             f"{steps_per_sec * world_size:.0f} steps/sec "
-            f"({train_pct:.0f}% train / {rollout_pct:.0f}% rollout / {stats_pct:.0f}% stats)"
+            f"({train_pct:.0f}% train / {rollout_pct:.0f}% rollout / {stats_pct:.0f}% stats) - "
+            f"reward: {mean_reward:.2f}, "
+            f"policy_loss: {loss_stats.get('policy_loss', 0):.4f}, "
+            f"value_loss: {loss_stats.get('value_loss', 0):.4f}, "
+            f"kl: {loss_stats.get('approx_kl', 0):.4f}"
         )
 
-        # Epoch-based checkpoint saving (matches original trainer)
+        # Epoch-based checkpoint saving
         if epoch % checkpoint_interval == 0:
             checkpoint_path = f"{checkpoint_dir}/policy_epoch_{epoch}.pt"
             torch.save(policy.state_dict(), checkpoint_path)
-            logger.info(f"Saved checkpoint: {checkpoint_path} at epoch {epoch}")
+            latest_policy_path = checkpoint_path
+            logger.info(f"Saved policy checkpoint: {checkpoint_path}")
+
+            # Save full training state if enabled
+            if save_full_state:
+                training_state = TrainingState(
+                    epoch=epoch,
+                    agent_step=agent_step,
+                    total_agent_step=agent_step * world_size,
+                    optimizer_state_dict=optimizer.state_dict(),
+                    lr_scheduler_state_dict=lr_scheduler.state_dict() if lr_scheduler else None,
+                    policy_path=checkpoint_path,
+                    stopwatch_state=timer.save_state(),
+                    extra_args={"run_name": run_name, "mean_reward": mean_reward},
+                )
+                state_path = training_state.save(checkpoint_dir)
+                logger.info(f"Saved full training state: {state_path}")
+
+        # Periodic evaluation if enabled
+        if evaluate_interval > 0 and epoch % evaluate_interval == 0:
+            logger.info(f"Running evaluation at epoch {epoch}")
+            eval_results = quick_eval(
+                checkpoint_path=latest_policy_path or f"{checkpoint_dir}/policy_epoch_{epoch}.pt",
+                num_episodes=10,
+                num_envs=min(32, num_envs),
+                num_agents=num_agents,
+                device=device,
+                logger=logger,
+            )
+            logger.info(
+                f"Evaluation results: avg_reward={eval_results['avg_reward']:.2f}, "
+                f"episodes={eval_results['num_episodes']}"
+            )
+
+            # Log eval results to wandb
+            if wandb_enabled and wandb_run:
+                try:
+                    import wandb
+
+                    wandb.log(
+                        {
+                            "eval/avg_reward": eval_results["avg_reward"],
+                            "eval/std_reward": eval_results["std_reward"],
+                            "eval/min_reward": eval_results["min_reward"],
+                            "eval/max_reward": eval_results["max_reward"],
+                        },
+                        step=agent_step,
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to log eval results to wandb: {e}")
 
         # Clear accumulated stats periodically
         if epoch % 10 == 0:
@@ -726,10 +1014,43 @@ def quick_train(
     torch.save(policy.state_dict(), final_checkpoint)
     logger.info(f"Training complete! Final checkpoint: {final_checkpoint}")
 
+    # Save final training state
+    if save_full_state:
+        final_state = TrainingState(
+            epoch=epoch,
+            agent_step=agent_step,
+            total_agent_step=agent_step * world_size,
+            optimizer_state_dict=optimizer.state_dict(),
+            lr_scheduler_state_dict=lr_scheduler.state_dict() if lr_scheduler else None,
+            policy_path=final_checkpoint,
+            stopwatch_state=timer.save_state(),
+            extra_args={"run_name": run_name, "final": True},
+        )
+        final_state_path = final_state.save(checkpoint_dir)
+        logger.info(f"Saved final training state: {final_state_path}")
+
     # Log timing summary
     elapsed_time = time.time() - start_time
     logger.info(f"Total training time: {elapsed_time:.1f}s")
     logger.info(f"Average SPS: {agent_step / elapsed_time:.0f}")
+
+    # Log gradient stats summary
+    if gradient_stats_history:
+        logger.info("Gradient statistics summary:")
+        recent_stats = gradient_stats_history[-10:]  # Last 10 measurements
+        for stat_name in ["grad_norm_mean", "grad_norm_max", "param_norm_mean"]:
+            values = [s[1].get(stat_name, 0) for s in recent_stats if stat_name in s[1]]
+            if values:
+                logger.info(f"  {stat_name}: mean={np.mean(values):.4f}, std={np.std(values):.4f}")
+
+    # Close wandb run
+    if wandb_enabled and wandb_run:
+        try:
+            import wandb
+
+            wandb.finish()
+        except Exception as e:
+            logger.warning(f"Failed to close wandb run: {e}")
 
     vecenv.close()
     return final_checkpoint
@@ -763,7 +1084,6 @@ def quick_eval(
         Dictionary with evaluation results
     """
     import gymnasium as gym
-    import numpy as np
 
     if logger is None:
         logger = get_logger("quick_eval")
@@ -984,6 +1304,146 @@ def quick_sim(
             }
         ]
     }
+
+
+# Advanced features for production use
+
+
+def create_policy_store(config: Dict[str, Any]) -> Any:
+    """Create a PolicyStore instance for managing policies.
+
+    Args:
+        config: Runtime configuration dict
+
+    Returns:
+        PolicyStore instance
+    """
+    from metta.agent.policy_store import PolicyStore
+
+    return PolicyStore(DictConfig(config), stats_client=None)
+
+
+def save_policy_to_store(
+    policy_store: Any,
+    policy: torch.nn.Module,
+    name: str,
+    metadata: Optional[Dict[str, Any]] = None,
+) -> Any:
+    """Save a policy to the PolicyStore with metadata.
+
+    Args:
+        policy_store: PolicyStore instance
+        policy: Policy to save
+        name: Name for the policy
+        metadata: Optional metadata dict
+
+    Returns:
+        PolicyRecord instance
+    """
+    import os
+
+    # Create path for policy
+    path = os.path.join(policy_store.policy_uri.replace("file://", ""), name)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+
+    # Save policy with metadata
+    return policy_store.save(name, path, policy, metadata or {})
+
+
+def run_simulation_suite(
+    policy_path: str,
+    suite_name: str = "eval",
+    num_envs: int = 32,
+    num_episodes: int = 10,
+    device: str = "cuda",
+    logger=None,
+) -> Dict[str, Any]:
+    """Run a full simulation suite evaluation.
+
+    Args:
+        policy_path: Path to policy checkpoint
+        suite_name: Name of the simulation suite
+        num_envs: Number of environments
+        num_episodes: Number of episodes per task
+        device: Device to use
+        logger: Optional logger
+
+    Returns:
+        Dictionary with evaluation results for all tasks
+    """
+    from metta.sim.simulation import SimulationSuite
+    from metta.sim.simulation_config import SimulationSuiteConfig
+
+    if logger is None:
+        logger = get_logger("simulation_suite")
+
+    # Create simulation suite config
+    suite_config = SimulationSuiteConfig(
+        name=suite_name,
+        num_envs=num_envs,
+        num_episodes=num_episodes,
+        map_preview_limit=32,
+        suites=[],  # Will be populated based on suite_name
+    )
+
+    # Create policy record
+    from metta.agent.policy_record import PolicyRecord
+
+    policy_record = PolicyRecord(
+        name=os.path.basename(policy_path),
+        uri=f"file://{os.path.abspath(policy_path)}",
+        generation=1,
+    )
+
+    # Run simulation suite
+    logger.info(f"Running simulation suite '{suite_name}' with policy: {policy_path}")
+    sim_suite = SimulationSuite(
+        config=suite_config,
+        policy_pr=policy_record,
+        device=device,
+    )
+
+    results = sim_suite.run()
+
+    # Format results
+    formatted_results = {}
+    for task_name, task_results in results.items():
+        if isinstance(task_results, dict) and "metrics" in task_results:
+            formatted_results[task_name] = {
+                "avg_reward": task_results["metrics"].get("mean", 0),
+                "std_reward": task_results["metrics"].get("std", 0),
+                "episodes": task_results["metrics"].get("count", 0),
+            }
+
+    return formatted_results
+
+
+def generate_replay(
+    policy_path: str,
+    num_episodes: int = 1,
+    output_dir: str = "./replays",
+    device: str = "cuda",
+    logger=None,
+) -> List[str]:
+    """Generate replay files for visualization.
+
+    Args:
+        policy_path: Path to policy checkpoint
+        num_episodes: Number of episodes to record
+        output_dir: Directory to save replays
+        device: Device to use
+        logger: Optional logger
+
+    Returns:
+        List of replay file paths
+    """
+    if logger is None:
+        logger = get_logger("replay_generator")
+
+    # This is a placeholder - actual replay generation would require
+    # integration with the replay recording system
+    logger.info("Replay generation not yet implemented in functional API")
+    return []
 
 
 # Configuration factory functions (from metta/__init__.py)
