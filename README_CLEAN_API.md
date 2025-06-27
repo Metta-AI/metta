@@ -1,6 +1,6 @@
-# Metta Clean API (No Hydra)
+# Metta Clean API
 
-A clean, torch.rl-style API for using Metta as a library without Hydra configuration.
+A clean, simple API for using Metta without Hydra configuration files.
 
 ## Installation
 
@@ -11,95 +11,101 @@ pip install -e .
 ## Quick Start
 
 ```python
-import metta_api as metta
+# Train a policy (default settings)
+python train.py
 
-# Create components with sensible defaults
-env_config = metta.create_env(num_agents=4)
-vecenv = metta.make_vecenv(env_config=env_config, num_envs=32)
-policy = metta.make_agent(obs_space=obs_space, ...)
-optimizer = metta.make_optimizer(policy.parameters())
-loss_module = metta.make_loss_module(policy=policy)
+# Train with custom settings
+python train.py --timesteps 1000000 --batch-size 512 --num-agents 4
 
-# Standard PyTorch training loop
-loss = loss_module(minibatch=minibatch, ...)
-loss.backward()
-optimizer.step()
+# Evaluate a checkpoint
+python train.py --mode eval --checkpoint ./train_dir/default_run/checkpoints/policy_final.pt
 ```
 
-## Simple Training Script
+## Architecture
 
-```bash
-# Train with defaults
-python run.py
+The clean API consists of three main components:
 
-# Train with options
-python run.py train --run my_experiment --timesteps 1000000
+1. **`train.py`** - Main entry point for training and evaluation
+2. **`metta_api.py`** - Clean API module providing factory functions and utilities
+3. **`examples/run_functional_training.py`** - Example of using the functional training API directly
 
-# Evaluate
-python run.py sim --run my_experiment --policy-uri file://./checkpoints/policy.pt
-```
-
-**Note:** Import `metta_api` instead of `metta` directly due to the package structure. The `metta_api` module provides all the clean API functions you need.
-
-## API Reference
+## API Overview
 
 ### Factory Functions
 
-- `metta.make_agent()` - Create agent instances directly
-- `metta.make_vecenv()` - Create vectorized environments
-- `metta.make_optimizer()` - Create optimizers
-- `metta.make_experience_buffer()` - Create experience buffers
-- `metta.make_loss_module()` - Create loss modules (torch.nn.Module style)
+The `metta_api` module provides these key functions:
 
-### Configuration Helpers
+- `make_agent()` - Create a Metta agent directly
+- `make_vecenv()` - Create a vectorized environment
+- `make_optimizer()` - Create an optimizer
+- `make_loss_module()` - Create a loss module
+- `make_experience_buffer()` - Create an experience buffer
 
-- `metta.create_env()` - Create environment config
-- `metta.create_agent()` - Create agent config
-- `metta.create_trainer()` - Create trainer config
-- `metta.build_runtime_config()` - Build runtime configuration
-- `metta.setup_metta_environment()` - Setup Metta environment
-- `metta.get_logger()` - Get configured logger
+### Configuration Functions
 
-### Functional Training
+- `agent()` - Create agent configuration
+- `env()` - Create environment configuration
+- `trainer()` - Create trainer configuration
+- `optimizer()` - Create optimizer configuration
 
-From `metta.rl.functional_trainer`:
-- `perform_rollout_step()` - Single rollout step
-- `compute_initial_advantages()` - Compute GAE advantages
-- `process_rollout_infos()` - Process rollout statistics
+### Utility Functions
 
-### Loss Modules
+- `build_runtime_config()` - Build runtime configuration
+- `setup_metta_environment()` - Setup logging and environment
+- `get_logger()` - Get a configured logger
+- `quick_train()` - High-level training function
+- `quick_eval()` - High-level evaluation function
 
-From `metta.rl.objectives`:
-- `ClipPPOLoss` - PPO loss module (torch.nn.Module)
-
-## Example: Complete Training Loop
-
-See `examples/clean_api_example.py` for a complete example, or the simplified `run.py`.
+## Example Usage
 
 ```python
-# Training loop
-while agent_step < total_timesteps:
-    # Rollout
-    experience.reset_for_rollout()
-    while not experience.ready_for_training:
-        num_steps, info, _ = perform_rollout_step(policy, vecenv, experience, device, timer)
-        agent_step += num_steps
+import metta_api as metta
 
-    # Train
-    advantages = compute_initial_advantages(experience, gamma, gae_lambda, 1.0, 1.0, device)
+# Simple training
+checkpoint = metta.quick_train(
+    run_name="my_experiment",
+    timesteps=100_000,
+    batch_size=256,
+    num_agents=2,
+)
 
-    for minibatch in experience.sample_minibatches():
-        loss = loss_module(minibatch=minibatch, ...)
-        loss.backward()
-        optimizer.step()
+# Simple evaluation
+results = metta.quick_eval(
+    checkpoint_path=checkpoint,
+    num_episodes=10,
+)
+print(f"Average reward: {results['avg_reward']:.4f}")
 ```
 
-## Key Benefits
+## Advanced Usage
 
-1. **No Hydra Required** - Direct instantiation of all components
-2. **torch.rl Style** - Loss modules inherit from nn.Module
-3. **Modular Design** - Small, composable functions
-4. **Clean API** - Simple factory functions with sensible defaults
-5. **PyTorch Native** - Standard PyTorch training loops
+For more control, use the functional training components directly:
 
-The API maintains full compatibility with existing Metta functionality while providing a much cleaner interface for users who want to use Metta as a library.
+```python
+from metta.rl.functional_trainer import (
+    perform_rollout_step,
+    compute_initial_advantages,
+    process_rollout_infos,
+)
+
+# See examples/run_functional_training.py for a complete example
+```
+
+## Migration from Hydra
+
+The clean API eliminates the need for Hydra configuration files. Instead of:
+
+```yaml
+# config.yaml
+trainer:
+  batch_size: 256
+  learning_rate: 3e-4
+```
+
+You can now use:
+
+```python
+config = metta.trainer(batch_size=256, learning_rate=3e-4)
+```
+
+All configuration is done programmatically in Python, making it easier to debug and integrate with other systems.

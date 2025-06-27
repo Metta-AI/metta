@@ -667,25 +667,90 @@ def quick_eval(
     episode_lengths = []
     episodes_completed = 0
 
-    obs = vecenv.reset(seed=42)
-    hidden = policy.initial_hidden(vecenv.num_agents)
+    # Reset and start environments
+    vecenv.async_reset(seed=42)
+
+    # Initialize hidden state
+    from metta.agent.policy_state import PolicyState
+    from metta.mettagrid.mettagrid_env import dtype_actions
+
+    state = PolicyState()
+    if hasattr(policy, "core_num_layers"):
+        state.lstm_h = torch.zeros(policy.core_num_layers, vecenv.num_agents, policy.hidden_size, device=device_obj)
+        state.lstm_c = torch.zeros(policy.core_num_layers, vecenv.num_agents, policy.hidden_size, device=device_obj)
+
+    step_count = 0
+
+    logger.info(f"Starting evaluation with {num_envs} environments, collecting {num_episodes} episodes")
 
     while episodes_completed < num_episodes:
-        with torch.no_grad():
-            actions, hidden = policy.forward(obs, hidden)
+        # Receive from environment
+        o, r, d, t, info, env_id, mask = vecenv.recv()
+        step_count += 1
 
-        obs, reward, done, info = vecenv.step(actions)
+        # Convert observations to tensors
+        o = torch.as_tensor(o).to(device_obj, non_blocking=True)
+
+        with torch.no_grad():
+            actions, _, _, _, _ = policy(o, state)
+
+        # Send actions to environment
+        vecenv.send(actions.cpu().numpy().astype(dtype_actions))
 
         # Process episode completions
-        for i, inf in enumerate(info):
-            if inf and "episode_return" in inf:
-                rewards.append(inf["episode_return"])
-                if "episode_length" in inf:
-                    episode_lengths.append(inf["episode_length"])
-                episodes_completed += 1
+        if info:
+            # Debug first few steps to see info structure
+            if step_count <= 5:
+                logger.info(f"Info at step {step_count}: {info}")
 
-                if episodes_completed >= num_episodes:
-                    break
+            # Process info like in training - it might be nested
+            from metta.mettagrid.util.dict_utils import unroll_nested_dict
+
+            for idx, info_dict in enumerate(info):
+                if info_dict:
+                    # Unroll nested dictionary
+                    flat_info = dict(unroll_nested_dict(info_dict))
+
+                    # Check various possible keys for episode completion
+                    episode_done = False
+                    episode_return = None
+                    episode_length = None
+
+                    # Look for task_reward pattern (e.g., "task_reward/task/rewards.mean")
+                    for key, value in flat_info.items():
+                        if key.startswith("task_reward/") and key.endswith("/rewards.mean"):
+                            episode_return = value
+                            episode_done = True
+                            logger.info(f"Found episode completion with key: {key} = {value}")
+                            break
+
+                    # Also check for episode length/steps
+                    if "attributes" in flat_info and isinstance(flat_info["attributes"], dict):
+                        if "steps" in flat_info["attributes"]:
+                            episode_length = flat_info["attributes"]["steps"]
+
+                    if episode_done and episode_return is not None:
+                        rewards.append(float(episode_return))
+                        if episode_length is not None:
+                            episode_lengths.append(int(episode_length))
+                        episodes_completed += 1
+
+                        logger.info(
+                            f"Episode {episodes_completed}/{num_episodes} completed: "
+                            f"reward={episode_return:.2f}, length={episode_length or 'N/A'}"
+                        )
+
+                        if episodes_completed >= num_episodes:
+                            logger.info(f"Collected {num_episodes} episodes after {step_count} steps")
+                            break
+
+        # Debug: check what's in info periodically
+        if step_count % 5000 == 0 and info:
+            logger.info(f"Sample info at step {step_count}: {info[0] if info else 'None'}")
+
+        # Log progress every 1000 steps
+        if step_count % 1000 == 0:
+            logger.info(f"Evaluation step {step_count}, episodes completed: {episodes_completed}/{num_episodes}")
 
     vecenv.close()
 

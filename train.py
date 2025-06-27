@@ -74,11 +74,15 @@ def evaluate(args):
 
     logger.info(f"Evaluating checkpoint: {args.checkpoint}")
 
+    # Use fewer environments for small episode counts
+    num_envs = min(args.num_envs, args.num_episodes * 4)  # Don't use more than 4x episodes
+    logger.info(f"Using {num_envs} environments to collect {args.num_episodes} episodes")
+
     # Quick eval wrapper
     results = metta.quick_eval(
         checkpoint_path=args.checkpoint,
         num_episodes=args.num_episodes,
-        num_envs=args.num_envs,
+        num_envs=num_envs,
         num_agents=args.num_agents,
         device=config["device"],
         vectorization="multiprocessing",
