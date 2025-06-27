@@ -975,9 +975,6 @@ class MettaTrainer:
             "num_minibatches": self.experience.num_minibatches,
         }
 
-        total_refs = sum(len(timer.references) for timer in self.timer._timers.values())
-        logger.info(f"timer reference count is now {total_refs}")
-
         self.wandb_run.log(
             {
                 **{f"overview/{k}": v for k, v in overview.items()},
