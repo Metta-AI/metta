@@ -661,6 +661,7 @@ Agent* MettaGrid::create_agent(int r, int c, const py::dict& agent_group_cfg_py)
       agent_group_cfg_py["resource_reward_max"].cast<std::map<InventoryItem, float>>();
   std::string group_name = agent_group_cfg_py["group_name"].cast<std::string>();
   unsigned int group_id = agent_group_cfg_py["group_id"].cast<unsigned int>();
+  TypeId type_id = agent_group_cfg_py["type_id"].cast<TypeId>();
 
   return new Agent(r,
                    c,
@@ -671,7 +672,8 @@ Agent* MettaGrid::create_agent(int r, int c, const py::dict& agent_group_cfg_py)
                    resource_reward_max,
                    group_name,
                    group_id,
-                   inventory_item_names);
+                   inventory_item_names,
+                   type_id);
 }
 
 py::array_t<unsigned int> MettaGrid::get_agent_groups() const {
@@ -713,7 +715,8 @@ ConverterConfig MettaGrid::_create_converter_config(const py::dict& converter_cf
 
 WallConfig MettaGrid::_create_wall_config(const py::dict& wall_cfg_py) {
   bool swappable = wall_cfg_py.contains("swappable") ? wall_cfg_py["swappable"].cast<bool>() : false;
-  return WallConfig{swappable};
+  TypeId type_id = wall_cfg_py["type_id"].cast<TypeId>();
+  return WallConfig{type_id, swappable};
 }
 
 // Pybind11 module definition
