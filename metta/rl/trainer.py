@@ -914,6 +914,13 @@ class MettaTrainer:
         assert epoch_steps is not None
         logger.info(f"epoch_steps = {epoch_steps}")
 
+        checkpoints = self.timer._get_timer().checkpoints  # get global timer
+        logger.info(f"Current checkpoints: {list(checkpoints.keys())}")
+        for name, cp in checkpoints.items():
+            elapsed_time = cp["elapsed_time"]
+            steps = cp["steps"]
+            logger.info(f"{name}:  elapsed_time: {elapsed_time} steps: {steps}")
+
         epoch_steps_per_second = epoch_steps / wall_time_for_lap if wall_time_for_lap > 0 else 0
         steps_per_second = self.timer.get_rate(self.agent_step) if wall_time > 0 else 0
 
