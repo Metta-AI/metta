@@ -77,15 +77,9 @@ class Kickstarter:
                 # TODO: Consider passing environment reference or features here if needed
                 if hasattr(policy, "_initialize_actions"):
                     policy._initialize_actions(self.action_names, self.device)
-                elif hasattr(policy, "activate_actions"):
-                    # For backward compatibility with old policies
-                    policy.activate_actions(self.action_names, self.action_max_params, self.device)
-            elif hasattr(policy, "activate_actions"):
-                # For backward compatibility with old policies
-                policy.activate_actions(self.action_names, self.action_max_params, self.device)
             else:
                 raise AttributeError(
-                    f"Teacher policy is missing required method 'initialize_to_environment' or 'activate_actions'. "
+                    f"Teacher policy is missing required method 'initialize_to_environment'. "
                     f"Expected a MettaAgent-like object but got {type(policy).__name__}"
                 )
 

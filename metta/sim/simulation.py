@@ -133,10 +133,6 @@ class Simulation:
         policy = self._policy_pr.policy()
         if hasattr(policy, "initialize_to_environment"):
             policy.initialize_to_environment(features, action_names, max_args, self._device)
-        elif hasattr(policy, "activate_actions"):
-            # For backward compatibility with old policies
-            logger.warning(f"Policy {type(policy).__name__} uses deprecated activate_actions interface")
-            policy.activate_actions(action_names, max_args, self._device)
         else:
             raise SimulationCompatibilityError(
                 f"[{self._name}] Policy is missing required method 'initialize_to_environment'. "
@@ -147,10 +143,6 @@ class Simulation:
             npc_policy = self._npc_pr.policy()
             if hasattr(npc_policy, "initialize_to_environment"):
                 npc_policy.initialize_to_environment(features, action_names, max_args, self._device)
-            elif hasattr(npc_policy, "activate_actions"):
-                # For backward compatibility
-                logger.warning(f"NPC policy {type(npc_policy).__name__} uses deprecated activate_actions interface")
-                npc_policy.activate_actions(action_names, max_args, self._device)
             else:
                 raise SimulationCompatibilityError(
                     f"[{self._name}] NPC policy is missing required method 'initialize_to_environment'. "

@@ -80,14 +80,7 @@ class PytorchAgent(nn.Module):
         """Initialize to environment - forward to wrapped policy if it has this method."""
         if hasattr(self.policy, "initialize_to_environment"):
             self.policy.initialize_to_environment(features, action_names, action_max_params, device)
-        elif hasattr(self.policy, "activate_actions"):
-            # Fallback for backward compatibility with old policies
-            logger.warning(
-                f"Wrapped policy {type(self.policy).__name__} uses deprecated activate_actions interface. "
-                "Please update to use initialize_to_environment."
-            )
-            self.policy.activate_actions(action_names, action_max_params, device)
-        # If neither method exists, that's OK - some simple policies don't need initialization
+        # If the method doesn't exist, that's OK - some simple policies don't need initialization
         self.device = device
 
     def l2_reg_loss(self) -> torch.Tensor:
