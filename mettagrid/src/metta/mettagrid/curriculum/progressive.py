@@ -143,3 +143,4 @@ class ProgressiveMultiTaskCurriculum(RandomCurriculum):
             "smoothed_performance": self._smoothed_performance,
             "progress": self._progress,
         }
+        return stats
