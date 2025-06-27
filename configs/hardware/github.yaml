@@ -16,9 +16,9 @@ trainer:
   async_factor: 1
   checkpoint_interval: 1
   bptt_horizon: 8
-  num_steps: 32
   total_timesteps: 2
   evaluate_interval: 1
+  wandb_checkpoint_interval: 0
   replay_interval: 1
   replay_dir: ${run_dir}/replays/
   env_overrides:

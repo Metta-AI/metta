@@ -10,10 +10,10 @@ from typing import cast, get_args
 import hydra
 from omegaconf import DictConfig, OmegaConf
 
+from metta.common.util.config import config_from_path
+from metta.common.util.resolvers import register_resolvers
 from metta.map.utils.show import ShowMode, show_map
 from metta.map.utils.storable_map import map_builder_cfg_to_storable_map
-from metta.util.config import config_from_path
-from metta.util.resolvers import register_resolvers
 
 # Aggressively exit on ctrl+c
 signal.signal(signal.SIGINT, lambda sig, frame: os._exit(0))

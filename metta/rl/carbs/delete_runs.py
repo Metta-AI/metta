@@ -2,6 +2,7 @@ import argparse
 from typing import List
 
 import wandb
+from wandb.errors import CommError
 
 
 def delete_init_runs(sweep_id: str, entity: str, project: str) -> List[str]:
@@ -10,7 +11,7 @@ def delete_init_runs(sweep_id: str, entity: str, project: str) -> List[str]:
 
     try:
         sweep = api.sweep(f"{entity}/{project}/{sweep_id}")
-    except wandb.errors.CommError:
+    except CommError:
         print(f"Sweep not found: {sweep_id}")
         return deleted_runs
 

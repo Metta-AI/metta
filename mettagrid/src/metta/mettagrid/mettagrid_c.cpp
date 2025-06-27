@@ -38,25 +38,22 @@ MettaGrid::MettaGrid(py::dict cfg, py::list map) {
   max_steps = cfg["max_steps"].cast<unsigned int>();
   obs_width = cfg["obs_width"].cast<unsigned short>();
   obs_height = cfg["obs_height"].cast<unsigned short>();
+  inventory_item_names = cfg["inventory_item_names"].cast<std::vector<std::string>>();
 
   _num_observation_tokens =
       cfg.contains("num_observation_tokens") ? cfg["num_observation_tokens"].cast<unsigned int>() : 0;
 
   current_step = 0;
 
-  std::vector<Layer> layer_for_type_id;
-  for (const auto& layer : ObjectLayers) {
-    layer_for_type_id.push_back(layer.second);
-  }
   int height = map.size();
   int width = map[0].cast<py::list>().size();
 
-  _grid = std::make_unique<Grid>(width, height, layer_for_type_id);
-  _obs_encoder = std::make_unique<ObservationEncoder>();
+  _grid = std::make_unique<Grid>(width, height);
+  _obs_encoder = std::make_unique<ObservationEncoder>(inventory_item_names);
   _feature_normalizations = _obs_encoder->feature_normalizations();
 
   _event_manager = std::make_unique<EventManager>();
-  _stats = std::make_unique<StatsTracker>();
+  _stats = std::make_unique<StatsTracker>(inventory_item_names);
   _stats->set_environment(this);
 
   _event_manager->init(_grid.get());
@@ -84,8 +81,12 @@ MettaGrid::MettaGrid(py::dict cfg, py::list map) {
     _action_handlers.push_back(std::make_unique<Rotate>(cfg["actions"]["rotate"].cast<ActionConfig>()));
   }
   if (cfg["actions"]["attack"]["enabled"].cast<bool>()) {
-    _action_handlers.push_back(std::make_unique<Attack>(cfg["actions"]["attack"].cast<ActionConfig>()));
-    _action_handlers.push_back(std::make_unique<AttackNearest>(cfg["actions"]["attack"].cast<ActionConfig>()));
+    _action_handlers.push_back(std::make_unique<Attack>(cfg["actions"]["attack"].cast<ActionConfig>(),
+                                                        cfg["actions"]["laser_item_id"].cast<InventoryItem>(),
+                                                        cfg["actions"]["armor_item_id"].cast<InventoryItem>()));
+    _action_handlers.push_back(std::make_unique<AttackNearest>(cfg["actions"]["attack"].cast<ActionConfig>(),
+                                                               cfg["actions"]["laser_item_id"].cast<InventoryItem>(),
+                                                               cfg["actions"]["armor_item_id"].cast<InventoryItem>()));
   }
   if (cfg["actions"]["swap"]["enabled"].cast<bool>()) {
     _action_handlers.push_back(std::make_unique<Swap>(cfg["actions"]["swap"].cast<ActionConfig>()));
@@ -117,38 +118,47 @@ MettaGrid::MettaGrid(py::dict cfg, py::list map) {
       grid_hash_data += std::to_string(r) + "," + std::to_string(c) + ":" + cell + ";";
 
       Converter* converter = nullptr;
-      if (cell == "wall") {
-        Wall* wall = new Wall(r, c, cfg["objects"]["wall"].cast<ObjectConfig>());
+      if (cell == "wall" || cell == "block") {
+        auto wall_cfg = _create_wall_config(cfg["objects"][py::str(cell)]);
+        Wall* wall = new Wall(r, c, wall_cfg);
         _grid->add_object(wall);
-        _stats->incr("objects.wall");
-      } else if (cell == "block") {
-        Wall* block = new Wall(r, c, cfg["objects"]["block"].cast<ObjectConfig>());
-        _grid->add_object(block);
-        _stats->incr("objects.block");
-      } else if (cell.starts_with("mine")) {
-        std::string m = cell;
-        if (m.find('_') == std::string::npos) {
-          m = "mine_red";
-        }
-        converter = new Converter(r, c, cfg["objects"][py::str(m)].cast<ObjectConfig>(), ObjectType::MineT);
-      } else if (cell.starts_with("generator")) {
-        std::string m = cell;
-        if (m.find('_') == std::string::npos) {
-          m = "generator_red";
-        }
-        converter = new Converter(r, c, cfg["objects"][py::str(m)].cast<ObjectConfig>(), ObjectType::GeneratorT);
+        _stats->incr("objects." + cell);
+      } else if (cell == "mine_red") {
+        auto converter_cfg = _create_converter_config(cfg["objects"]["mine_red"]);
+        converter = new Converter(r, c, converter_cfg, ObjectType::MineRedT);
+      } else if (cell == "mine_blue") {
+        auto converter_cfg = _create_converter_config(cfg["objects"]["mine_blue"]);
+        converter = new Converter(r, c, converter_cfg, ObjectType::MineBlueT);
+      } else if (cell == "mine_green") {
+        auto converter_cfg = _create_converter_config(cfg["objects"]["mine_green"]);
+        converter = new Converter(r, c, converter_cfg, ObjectType::MineGreenT);
+      } else if (cell == "generator_red") {
+        auto converter_cfg = _create_converter_config(cfg["objects"]["generator_red"]);
+        converter = new Converter(r, c, converter_cfg, ObjectType::GeneratorRedT);
+      } else if (cell == "generator_blue") {
+        auto converter_cfg = _create_converter_config(cfg["objects"]["generator_blue"]);
+        converter = new Converter(r, c, converter_cfg, ObjectType::GeneratorBlueT);
+      } else if (cell == "generator_green") {
+        auto converter_cfg = _create_converter_config(cfg["objects"]["generator_green"]);
+        converter = new Converter(r, c, converter_cfg, ObjectType::GeneratorGreenT);
       } else if (cell == "altar") {
-        converter = new Converter(r, c, cfg["objects"]["altar"].cast<ObjectConfig>(), ObjectType::AltarT);
+        auto converter_cfg = _create_converter_config(cfg["objects"]["altar"]);
+        converter = new Converter(r, c, converter_cfg, ObjectType::AltarT);
       } else if (cell == "armory") {
-        converter = new Converter(r, c, cfg["objects"]["armory"].cast<ObjectConfig>(), ObjectType::ArmoryT);
+        auto converter_cfg = _create_converter_config(cfg["objects"]["armory"]);
+        converter = new Converter(r, c, converter_cfg, ObjectType::ArmoryT);
       } else if (cell == "lasery") {
-        converter = new Converter(r, c, cfg["objects"]["lasery"].cast<ObjectConfig>(), ObjectType::LaseryT);
+        auto converter_cfg = _create_converter_config(cfg["objects"]["lasery"]);
+        converter = new Converter(r, c, converter_cfg, ObjectType::LaseryT);
       } else if (cell == "lab") {
-        converter = new Converter(r, c, cfg["objects"]["lab"].cast<ObjectConfig>(), ObjectType::LabT);
+        auto converter_cfg = _create_converter_config(cfg["objects"]["lab"]);
+        converter = new Converter(r, c, converter_cfg, ObjectType::LabT);
       } else if (cell == "factory") {
-        converter = new Converter(r, c, cfg["objects"]["factory"].cast<ObjectConfig>(), ObjectType::FactoryT);
+        auto converter_cfg = _create_converter_config(cfg["objects"]["factory"]);
+        converter = new Converter(r, c, converter_cfg, ObjectType::FactoryT);
       } else if (cell == "temple") {
-        converter = new Converter(r, c, cfg["objects"]["temple"].cast<ObjectConfig>(), ObjectType::TempleT);
+        auto converter_cfg = _create_converter_config(cfg["objects"]["temple"]);
+        converter = new Converter(r, c, converter_cfg, ObjectType::TempleT);
       } else if (cell.starts_with("agent.")) {
         auto agent_group_cfg_py = agent_groups[py::str(cell)].cast<py::dict>();
 
@@ -277,7 +287,7 @@ void MettaGrid::_compute_observation(unsigned int observer_row,
         // c could still be outside of our bounds.
         if (c < c_start || c >= c_end) continue;
 
-        for (unsigned int layer = 0; layer < _grid->num_layers; layer++) {
+        for (unsigned int layer = 0; layer < GridLayer::GridLayerCount; layer++) {
           GridLocation object_loc(r, c, layer);
           auto obj = _grid->object_at(object_loc);
           if (!obj) continue;
@@ -529,7 +539,7 @@ py::dict MettaGrid::grid_objects() {
 
     auto features = obj->obs_features();
     for (const auto& feature : features) {
-      obj_dict[py::str(ObservationFeatureNames[feature.feature_id])] = feature.value;
+      obj_dict[py::str(_obs_encoder->feature_names().at(feature.feature_id))] = feature.value;
     }
 
     objects[py::int_(obj_id)] = obj_dict;
@@ -564,6 +574,17 @@ unsigned int MettaGrid::map_height() {
 // the channel or the feature_id.
 py::dict MettaGrid::feature_normalizations() {
   return py::cast(_feature_normalizations);
+}
+
+py::dict MettaGrid::feature_spec() {
+  py::dict feature_spec;
+  for (const auto& feature : _obs_encoder->feature_names()) {
+    py::str feature_name = feature.second;
+    feature_spec[feature_name] = py::dict();
+    feature_spec[feature_name]["normalization"] = py::float_(_feature_normalizations[feature.first]);
+    feature_spec[feature_name]["id"] = py::int_(feature.first);
+  }
+  return feature_spec;
 }
 
 unsigned int MettaGrid::num_agents() {
@@ -656,33 +677,32 @@ py::list MettaGrid::object_type_names() {
   return py::cast(ObjectTypeNames);
 }
 
-py::list MettaGrid::inventory_item_names() {
-  return py::cast(InventoryItemNames);
+py::list MettaGrid::inventory_item_names_py() {
+  return py::cast(inventory_item_names);
 }
 
 Agent* MettaGrid::create_agent(int r, int c, const py::dict& agent_group_cfg_py) {
-  unsigned char default_item_max = agent_group_cfg_py["default_item_max"].cast<unsigned char>();
   unsigned char freeze_duration = agent_group_cfg_py["freeze_duration"].cast<unsigned char>();
   float action_failure_penalty = agent_group_cfg_py["action_failure_penalty"].cast<float>();
-  std::map<std::string, unsigned int> max_items_per_type =
-      agent_group_cfg_py["max_items_per_type"].cast<std::map<std::string, unsigned int>>();
-  std::map<std::string, float> resource_rewards =
-      agent_group_cfg_py["resource_rewards"].cast<std::map<std::string, float>>();
-  std::map<std::string, float> resource_reward_max =
-      agent_group_cfg_py["resource_reward_max"].cast<std::map<std::string, float>>();
+  std::map<InventoryItem, uint8_t> max_items_per_type =
+      agent_group_cfg_py["max_items_per_type"].cast<std::map<InventoryItem, uint8_t>>();
+  std::map<InventoryItem, float> resource_rewards =
+      agent_group_cfg_py["resource_rewards"].cast<std::map<InventoryItem, float>>();
+  std::map<InventoryItem, float> resource_reward_max =
+      agent_group_cfg_py["resource_reward_max"].cast<std::map<InventoryItem, float>>();
   std::string group_name = agent_group_cfg_py["group_name"].cast<std::string>();
   unsigned int group_id = agent_group_cfg_py["group_id"].cast<unsigned int>();
 
   return new Agent(r,
                    c,
-                   default_item_max,
                    freeze_duration,
                    action_failure_penalty,
                    max_items_per_type,
                    resource_rewards,
                    resource_reward_max,
                    group_name,
-                   group_id);
+                   group_id,
+                   inventory_item_names);
 }
 
 py::array_t<unsigned int> MettaGrid::get_agent_groups() const {
@@ -698,6 +718,25 @@ py::array_t<unsigned int> MettaGrid::get_agent_groups() const {
 unsigned int StatsTracker::get_current_step() const {
   if (!_env) return 0;
   return static_cast<MettaGrid*>(_env)->current_step;
+}
+
+ConverterConfig MettaGrid::_create_converter_config(const py::dict& converter_cfg_py) {
+  std::map<InventoryItem, uint8_t> recipe_input =
+      converter_cfg_py["recipe_input"].cast<std::map<InventoryItem, uint8_t>>();
+  std::map<InventoryItem, uint8_t> recipe_output =
+      converter_cfg_py["recipe_output"].cast<std::map<InventoryItem, uint8_t>>();
+  short max_output = converter_cfg_py["max_output"].cast<short>();
+  unsigned short conversion_ticks = converter_cfg_py["conversion_ticks"].cast<unsigned short>();
+  unsigned short cooldown = converter_cfg_py["cooldown"].cast<unsigned short>();
+  unsigned char initial_items = converter_cfg_py["initial_items"].cast<unsigned char>();
+  ObsType color = converter_cfg_py["color"].cast<ObsType>();
+  return ConverterConfig{
+      recipe_input, recipe_output, max_output, conversion_ticks, cooldown, initial_items, color, inventory_item_names};
+}
+
+WallConfig MettaGrid::_create_wall_config(const py::dict& wall_cfg_py) {
+  bool swappable = wall_cfg_py.contains("swappable") ? wall_cfg_py["swappable"].cast<bool>() : false;
+  return WallConfig{swappable};
 }
 
 // Pybind11 module definition
@@ -727,11 +766,12 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def("action_success", &MettaGrid::action_success)
       .def("max_action_args", &MettaGrid::max_action_args)
       .def("object_type_names", &MettaGrid::object_type_names)
+      .def("feature_spec", &MettaGrid::feature_spec)
       .def_readonly("obs_width", &MettaGrid::obs_width)
       .def_readonly("obs_height", &MettaGrid::obs_height)
       .def_readonly("max_steps", &MettaGrid::max_steps)
       .def_readonly("current_step", &MettaGrid::current_step)
-      .def("inventory_item_names", &MettaGrid::inventory_item_names)
+      .def("inventory_item_names", &MettaGrid::inventory_item_names_py)
       .def("get_agent_groups", &MettaGrid::get_agent_groups)
       .def_readonly("initial_grid_hash", &MettaGrid::initial_grid_hash);
 }

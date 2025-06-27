@@ -5,10 +5,10 @@ from typing import Generic, List, Optional, TypeVar, get_args, get_origin
 import numpy as np
 from omegaconf import DictConfig, OmegaConf
 
+from metta.common.util.config import Config
 from metta.map.config import scenes_root
 from metta.map.types import AreaQuery, ChildrenAction, MapGrid, SceneCfg
 from metta.map.utils.random import MaybeSeed
-from metta.util.config import Config
 
 
 @dataclass

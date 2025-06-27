@@ -2,8 +2,8 @@ import logging
 
 import numpy as np
 
+from metta.common.util.config import Config
 from metta.map.scene import Scene
-from metta.util.config import Config
 
 DIRECTIONS = [(-1, 0), (0, 1), (1, 0), (0, -1)]
 

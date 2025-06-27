@@ -21,10 +21,8 @@ export const CopyToClipboardButton: FC<PropsWithChildren<{ text: string }>> = ({
   };
 
   return (
-    <div className="flex flex-col items-center justify-start">
-      <Button onClick={copyDataToClipboard}>
-        {copySuccess ? "Copied!" : children}
-      </Button>
-    </div>
+    <Button onClick={copyDataToClipboard}>
+      {copySuccess ? "Copied!" : children}
+    </Button>
   );
 };

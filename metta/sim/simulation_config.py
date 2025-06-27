@@ -4,7 +4,7 @@ from typing import Dict, Optional
 
 from pydantic import model_validator
 
-from metta.util.config import Config
+from metta.common.util.config import Config
 
 
 class SimulationConfig(Config):
