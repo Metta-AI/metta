@@ -223,12 +223,54 @@ class PolicyStore:
             return pr
 
         try:
+            # Sanitize metadata -- removes unresolved omegaconf objects and wandb references
+            def sanitize_dict(v) -> dict:
+                def sanitize_value(val):
+                    # Skip wandb-related objects
+                    if hasattr(val, "__module__") and val.__module__ and "wandb" in val.__module__:
+                        return None
+
+                    # Recursively clean dictionaries
+                    if isinstance(val, dict):
+                        return {k: sanitize_value(v) for k, v in val.items() if sanitize_value(v) is not None}
+
+                    # Recursively clean lists
+                    if isinstance(val, list):
+                        return [sanitize_value(item) for item in val if sanitize_value(item) is not None]
+
+                    # Keep primitive types as-is
+                    if isinstance(val, (str, int, float, bool, type(None))):
+                        return val
+
+                    # Convert objects to strings, return None if conversion fails
+                    if hasattr(val, "__dict__"):
+                        try:
+                            return str(val)
+                        except Exception:
+                            return None
+
+                    # Keep everything else as-is
+                    return val
+
+                # Process the input value
+                result = sanitize_value(v)
+
+                # Ensure we always return a dict
+                if not isinstance(result, dict):
+                    return {} if result is None else {"value": result}
+
+                return result
+
+            sanitized_metadata = sanitize_dict(pr.metadata)
+
             with PackageExporter(path, debug=False) as exporter:
                 # Apply all packaging rules
                 self._apply_packaging_rules(exporter, pr.policy.__class__.__module__, pr.policy.__class__)
 
                 # Save the policy and metadata
-                exporter.save_pickle("policy_record", "data.pkl", PolicyRecord(None, pr.name, pr.uri, pr.metadata))
+                exporter.save_pickle(
+                    "policy_record", "data.pkl", PolicyRecord(None, pr.name, pr.uri, sanitized_metadata)
+                )
                 exporter.save_pickle("policy", "model.pkl", pr.policy)
 
         except Exception as e:
