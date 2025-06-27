@@ -1,5 +1,4 @@
 import os
-import subprocess
 from pathlib import Path
 from typing import Optional
 
@@ -36,35 +35,81 @@ def cd_repo_root():
     os.chdir(repo_root)
 
 
+def _python_tree(path: Path, max_depth: Optional[int] = None, _current_depth: int = 0, _prefix: str = "") -> str:
+    """
+    Python-based tree implementation as fallback.
+
+    Args:
+        path: Directory path to tree
+        max_depth: Maximum depth to traverse
+        _current_depth: Current recursion depth (internal use)
+        _prefix: Current line prefix (internal use)
+
+    Returns:
+        Tree-like string representation
+    """
+    if not path.exists():
+        return f"{path} [does not exist]\n"
+
+    if not path.is_dir():
+        return f"{path} [not a directory]\n"
+
+    result = ""
+    if _current_depth == 0:
+        result += f"{path}\n"
+
+    # Stop if we've reached max depth
+    if max_depth is not None and _current_depth >= max_depth:
+        return result
+
+    try:
+        # Get all items in directory, sorted
+        items = sorted(path.iterdir(), key=lambda x: (x.is_file(), x.name.lower()))
+
+        for i, item in enumerate(items):
+            is_last = i == len(items) - 1
+
+            # Create the tree symbols
+            if is_last:
+                current_prefix = _prefix + "└── "
+                next_prefix = _prefix + "    "
+            else:
+                current_prefix = _prefix + "├── "
+                next_prefix = _prefix + "│   "
+
+            result += current_prefix + item.name
+
+            if item.is_dir():
+                result += "/\n"
+                # Recurse into subdirectory
+                if max_depth is None or _current_depth + 1 < max_depth:
+                    result += _python_tree(item, max_depth, _current_depth + 1, next_prefix)
+            else:
+                result += "\n"
+
+    except PermissionError:
+        result += f"{_prefix}[Permission Denied]\n"
+    except Exception as e:
+        result += f"{_prefix}[Error: {e}]\n"
+
+    return result
+
+
 def tree(path: Optional[Path] = None, max_depth: Optional[int] = None) -> str:
     """
-    Collect the output of the tree command.
+    Generate a tree-like directory listing using pure Python.
 
     Args:
         path: Directory path to tree (defaults to current directory)
         max_depth: Maximum depth to traverse
 
     Returns:
-        Tree command output as string
-
-    Raises:
-        FileNotFoundError: If tree command is not available
-        subprocess.CalledProcessError: If tree command fails
+        Tree-like string representation of directory structure
     """
-    cmd = ["tree"]
+    # Use current directory if no path specified
+    if path is None:
+        path = Path.cwd()
+    else:
+        path = Path(path)
 
-    # Add path if specified
-    if path:
-        cmd.append(str(path))
-
-    # Add depth limit
-    if max_depth is not None:
-        cmd.extend(["-L", str(max_depth)])
-
-    try:
-        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-        return result.stdout
-    except FileNotFoundError as e:
-        raise FileNotFoundError(
-            "tree command not found. Install it with: brew install tree (macOS) or apt install tree (Ubuntu/Debian)"
-        ) from e
+    return _python_tree(path, max_depth)
