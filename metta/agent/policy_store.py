@@ -24,9 +24,10 @@ import wandb
 import wandb.sdk.wandb_run
 from omegaconf import DictConfig, ListConfig
 from torch import nn
-from torch.package import PackageExporter, PackageImporter
+from torch.package import PackageImporter
 
 from metta.agent.metta_agent import make_policy
+from metta.agent.policy_record import PolicyRecord
 from metta.rl.policy import load_pytorch_policy
 
 logger = logging.getLogger("policy_store")
@@ -38,335 +39,6 @@ class PolicySelectorConfig:
     def __init__(self, type: str = "top", metric: str = "score"):
         self.type = type
         self.metric = metric
-
-
-class PolicyRecord:
-    def __init__(self, policy_store: Optional["PolicyStore"], name: str, uri: str, metadata: dict):
-        self._policy_store = policy_store
-        self.name = name
-        self.uri = uri
-        self.metadata = metadata
-        self._policy = None
-        self._local_path = None
-
-        if self.uri.startswith("file://"):
-            self._local_path = self.uri[len("file://") :]
-
-    def policy(self) -> nn.Module:
-        if self._policy is None:
-            logger.debug(f"PolicyRecord._policy is None, loading from {self.uri}")
-            pr = self._policy_store.load_from_uri(self.uri)
-            self._policy = pr.policy()
-            self._local_path = pr.local_path()
-        return self._policy
-
-    def policy_as_metta_agent(self):
-        policy = self.policy()
-        if type(policy).__name__ not in {"MettaAgent", "DistributedMettaAgent", "PytorchAgent"}:
-            raise TypeError(f"Expected MettaAgent, DistributedMettaAgent, or PytorchAgent, got {type(policy).__name__}")
-        return policy
-
-    def num_params(self) -> int:
-        return sum(p.numel() for p in self.policy().parameters() if p.requires_grad)
-
-    def local_path(self) -> Optional[str]:
-        return self._local_path
-
-    def __repr__(self):
-        """Generate a detailed representation of the PolicyRecord with weight shapes.."""
-        # Basic policy record info
-        lines = [f"PolicyRecord(name={self.name}, uri={self.uri})"]
-
-        # Add key metadata if available
-        important_keys = ["epoch", "agent_step", "generation", "score"]
-        metadata_items = []
-        for k in important_keys:
-            if k in self.metadata:
-                metadata_items.append(f"{k}={self.metadata[k]}")
-
-        if metadata_items:
-            lines.append(f"Metadata: {', '.join(metadata_items)}")
-
-        # Load policy if not already loaded
-        policy = None
-        if self._policy is None:
-            try:
-                policy = self.policy()
-            except Exception as e:
-                lines.append(f"Error loading policy: {str(e)}")
-                return "\n".join(lines)
-        else:
-            policy = self._policy
-
-        # Add total parameter count
-        total_params = sum(p.numel() for p in policy.parameters())
-        trainable_params = sum(p.numel() for p in policy.parameters() if p.requires_grad)
-        lines.append(f"Total parameters: {total_params:,} (trainable: {trainable_params:,})")
-
-        # Add module structure with detailed weight shapes
-        lines.append("\nModule Structure with Weight Shapes:")
-
-        for name, module in policy.named_modules():
-            # Skip top-level module
-            if name == "":
-                continue
-
-            # Create indentation based on module hierarchy
-            indent = "  " * name.count(".")
-
-            # Get module type
-            module_type = module.__class__.__name__
-
-            # Start building the module info line
-            module_info = f"{indent}{name}: {module_type}"
-
-            # Get parameters for this module (non-recursive)
-            params = list(module.named_parameters(recurse=False))
-
-            # Add detailed parameter information
-            if params:
-                # For common layer types, add specialized shape information
-                if isinstance(module, torch.nn.Conv2d):
-                    weight = next((p for name, p in params if name == "weight"), None)
-                    if weight is not None:
-                        out_channels, in_channels, kernel_h, kernel_w = weight.shape
-                        module_info += " ["
-                        module_info += f"out_channels={out_channels}, "
-                        module_info += f"in_channels={in_channels}, "
-                        module_info += f"kernel=({kernel_h}, {kernel_w})"
-                        module_info += "]"
-
-                elif isinstance(module, torch.nn.Linear):
-                    weight = next((p for name, p in params if name == "weight"), None)
-                    if weight is not None:
-                        out_features, in_features = weight.shape
-                        module_info += f" [in_features={in_features}, out_features={out_features}]"
-
-                elif isinstance(module, torch.nn.LSTM):
-                    module_info += " ["
-                    module_info += f"input_size={module.input_size}, "
-                    module_info += f"hidden_size={module.hidden_size}, "
-                    module_info += f"num_layers={module.num_layers}"
-                    module_info += "]"
-
-                elif isinstance(module, torch.nn.Embedding):
-                    weight = next((p for name, p in params if name == "weight"), None)
-                    if weight is not None:
-                        num_embeddings, embedding_dim = weight.shape
-                        module_info += f" [num_embeddings={num_embeddings}, embedding_dim={embedding_dim}]"
-
-                # Add all parameter shapes
-                param_shapes = []
-                for param_name, param in params:
-                    param_shapes.append(f"{param_name}={list(param.shape)}")
-
-                if param_shapes and not any(
-                    x in module_info for x in ["out_channels", "in_features", "hidden_size", "num_embeddings"]
-                ):
-                    module_info += f" ({', '.join(param_shapes)})"
-
-            # Add formatted module info to output
-            lines.append(module_info)
-
-        # Add section for buffer shapes (non-parameter tensors like running_mean in BatchNorm)
-        buffers = list(policy.named_buffers())
-        if buffers:
-            lines.append("\nBuffer Shapes:")
-            for name, buffer in buffers:
-                lines.append(f"  {name}: {list(buffer.shape)}")
-
-        return "\n".join(lines)
-
-    def _clean_metadata_for_packaging(self, metadata: dict) -> dict:
-        import copy
-
-        def clean_value(v):
-            if hasattr(v, "__module__") and v.__module__ and "wandb" in v.__module__:
-                return None
-            elif isinstance(v, dict):
-                return {k: clean_value(val) for k, val in v.items() if clean_value(val) is not None}
-            elif isinstance(v, list):
-                return [clean_value(item) for item in v if clean_value(item) is not None]
-            elif isinstance(v, (str, int, float, bool, type(None))):
-                return v
-            elif hasattr(v, "__dict__"):
-                try:
-                    return str(v)
-                except Exception:
-                    return None
-            else:
-                return v
-
-        return clean_value(copy.deepcopy(metadata))
-
-    def save(self, path: str, policy: nn.Module) -> "PolicyRecord":
-        logger.info(f"Saving policy to {path}")
-        self._local_path = path
-        self.uri = "file://" + path
-
-        # Get feature embeddings if the policy supports them
-        feature_embeddings = {}
-        if hasattr(policy, "get_feature_embeddings_for_checkpoint"):
-            feature_embeddings = policy.get_feature_embeddings_for_checkpoint()
-            if feature_embeddings:
-                logger.info(f"Saving {len(feature_embeddings)} feature embeddings to checkpoint")
-
-        # Use simple torch.save for now to avoid torch.package issues
-        use_simple_save = True
-
-        if use_simple_save:
-            # Simple save using torch.save
-            checkpoint = {
-                "policy_state_dict": policy.state_dict(),
-                "policy_record": PolicyRecord(None, self.name, self.uri, self.metadata),
-                "feature_embeddings": feature_embeddings,
-                "metadata": self.metadata,
-            }
-            torch.save(checkpoint, path)
-
-            # Verify the file was created
-            if not os.path.exists(path):
-                raise RuntimeError(f"Failed to create policy file at {path}")
-
-            file_size = os.path.getsize(path)
-            logger.debug(f"Successfully created policy file at {path} ({file_size} bytes)")
-
-            return self
-
-        try:
-            with PackageExporter(path, debug=False) as exporter:
-                # Extern metta.util.config first since it depends on pydantic
-                exporter.extern("metta.util.config")
-
-                # Intern all metta modules to include them in the package
-                exporter.intern("metta.**")
-
-                if policy.__class__.__module__ == "__main__":
-                    import inspect
-
-                    try:
-                        source = inspect.getsource(policy.__class__)
-                        exporter.save_source_string("__main__", f"import torch\nimport torch.nn as nn\n\n{source}")
-                    except Exception:
-                        exporter.extern("__main__")
-
-                for module in [
-                    "torch",
-                    "numpy",
-                    "scipy",
-                    "sklearn",
-                    "matplotlib",
-                    "gymnasium",
-                    "gym",
-                    "tensordict",
-                    "einops",
-                    "hydra",
-                    "omegaconf",
-                ]:
-                    exporter.extern(module)
-                    exporter.extern(f"{module}.**")
-                for module in ["torch_scatter", "torch_geometric", "torch_sparse"]:
-                    exporter.extern(module)
-
-                for pattern in ["wandb", "wandb.**", "wandb.*", "wandb.sdk", "wandb.sdk.**", "wandb.sdk.wandb_run"]:
-                    exporter.mock(pattern)
-
-                for module in ["pufferlib", "pydantic", "boto3", "botocore", "duckdb", "pandas"]:
-                    exporter.mock(module)
-                    exporter.mock(f"{module}.**")
-                exporter.mock("typing_extensions")
-                exporter.mock("seaborn")
-                exporter.mock("plotly")
-
-                exporter.extern("mettagrid.mettagrid_c")
-                exporter.extern("mettagrid")
-                exporter.extern("mettagrid.**")
-                exporter.extern("sys")
-
-                clean_metadata = self._clean_metadata_for_packaging(self.metadata)
-                # Add feature embeddings to metadata
-                if feature_embeddings:
-                    clean_metadata["feature_embeddings"] = feature_embeddings
-
-                exporter.save_pickle(
-                    "policy_record", "data.pkl", PolicyRecord(None, self.name, self.uri, clean_metadata)
-                )
-                exporter.save_pickle("policy", "model.pkl", policy)
-
-        except Exception as e:
-            logger.error(f"torch.package save failed: {e}")
-            raise RuntimeError(f"Failed to save policy using torch.package: {e}") from e
-
-        # Verify the file was created
-        if not os.path.exists(path):
-            raise RuntimeError(f"Failed to create policy file at {path}")
-
-        file_size = os.path.getsize(path)
-        logger.debug(f"Successfully created policy file at {path} ({file_size} bytes)")
-
-        return self
-
-    def load(self, path: str, device: str = "cpu") -> nn.Module:
-        logger.info(f"Loading policy from {path}")
-        try:
-            importer = PackageImporter(path)
-            try:
-                policy = importer.load_pickle("policy", "model.pkl", map_location=device)
-
-                # Load PolicyRecord to get metadata with potential feature embeddings
-                try:
-                    pr = importer.load_pickle("policy_record", "data.pkl", map_location=device)
-                    if hasattr(pr, "metadata") and "feature_embeddings" in pr.metadata:
-                        feature_embeddings = pr.metadata["feature_embeddings"]
-                        if hasattr(policy, "restore_feature_embeddings_from_checkpoint"):
-                            policy.restore_feature_embeddings_from_checkpoint(feature_embeddings)
-                            logger.info(f"Restored {len(feature_embeddings)} feature embeddings from checkpoint")
-                except Exception as e:
-                    logger.debug(f"Could not restore feature embeddings: {e}")
-
-                return policy
-            except Exception as e:
-                logger.warning(f"Could not load policy directly: {e}")
-                pr = importer.load_pickle("policy_record", "data.pkl", map_location=device)
-                if hasattr(pr, "_policy") and pr._policy is not None:
-                    return pr._policy
-                raise ValueError("PolicyRecord in package does not contain a policy") from e
-        except Exception as e:
-            logger.info(f"Not a torch.package file ({e})")
-            raise ValueError(f"Cannot load policy from {path}: This file is not a valid torch.package file.") from e
-
-    def key_and_version(self) -> tuple[str, int]:
-        """
-        Extract the policy key and version from the URI.
-        TODO: store these on the metadata for new policies,
-        eventually read them from the metadata instead of parsing the URI.
-        Returns:
-            tuple: (policy_key, version)
-                - policy_key is the clean name without path or version
-                - version is the numeric version or 0 if not present
-        """
-        # Get the last part after splitting by slash
-        base_name = self.uri.split("/")[-1]
-
-        # Check if it has a version number in format ":vNUM"
-        if ":" in base_name and ":v" in base_name:
-            parts = base_name.split(":v")
-            try:
-                version = int(parts[1])
-            except ValueError:
-                version = 0
-        else:
-            # No version, use the whole thing as key and version = 0
-            key = base_name
-            version = 0
-
-        return key, version
-
-    def key(self) -> str:
-        return self.key_and_version()[0]
-
-    def version(self) -> int:
-        return self.key_and_version()[1]
 
 
 class PolicyStore:
@@ -687,27 +359,36 @@ class PolicyStore:
 
                 if not metadata_only:
                     # Create a new policy and load the state dict
-                    from metta.mettagrid.mettagrid_env import MettaGridEnv
                     # We need a dummy env to create the policy structure
                     # This is a bit hacky but works for now
-                    env = type('DummyEnv', (), {
-                        'single_observation_space': gym.spaces.Box(low=0, high=255, shape=(34, 11, 11), dtype=np.uint8),
-                        'obs_width': 11,
-                        'obs_height': 11,
-                        'single_action_space': gym.spaces.MultiDiscrete([9, 10]),
-                        'action_names': checkpoint.get("metadata", {}).get("action_names", []),
-                        'max_action_args': [10] * 9,  # Dummy values
-                        'feature_normalizations': {},
-                        'global_features': [],
-                    })()
+                    env = type(
+                        "DummyEnv",
+                        (),
+                        {
+                            "single_observation_space": gym.spaces.Box(
+                                low=0, high=255, shape=(34, 11, 11), dtype=np.uint8
+                            ),
+                            "obs_width": 11,
+                            "obs_height": 11,
+                            "single_action_space": gym.spaces.MultiDiscrete([9, 10]),
+                            "action_names": checkpoint.get("metadata", {}).get("action_names", []),
+                            "max_action_args": [10] * 9,  # Dummy values
+                            "feature_normalizations": {},
+                            "global_features": [],
+                        },
+                    )()
 
                     policy = make_policy(env, self._cfg)
                     policy.load_state_dict(checkpoint["policy_state_dict"], strict=False)
 
                     # Restore feature embeddings if available
-                    if "feature_embeddings" in checkpoint and hasattr(policy, "restore_feature_embeddings_from_checkpoint"):
+                    if "feature_embeddings" in checkpoint and hasattr(
+                        policy, "restore_feature_embeddings_from_checkpoint"
+                    ):
                         policy.restore_feature_embeddings_from_checkpoint(checkpoint["feature_embeddings"])
-                        logger.info(f"Restored {len(checkpoint['feature_embeddings'])} feature embeddings from checkpoint")
+                        logger.info(
+                            f"Restored {len(checkpoint['feature_embeddings'])} feature embeddings from checkpoint"
+                        )
 
                     pr._policy = policy
 
