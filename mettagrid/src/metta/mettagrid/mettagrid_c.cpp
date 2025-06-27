@@ -141,8 +141,13 @@ MettaGrid::MettaGrid(py::dict cfg, py::list map, int seed) {
       // Add cell position and type to hash data
       grid_hash_data += std::to_string(r) + "," + std::to_string(c) + ":" + cell + ";";
 
-      if (cell == "empty") {
+      // #HardCodedConfig
+      if (cell == "empty" || cell == "." || cell == " ") {
         continue;
+      }
+
+      if (!object_configs.contains(py_cell)) {
+        throw std::runtime_error("Unknown object type: " + cell);
       }
 
       auto object_cfg = object_configs[py_cell].cast<py::dict>();
