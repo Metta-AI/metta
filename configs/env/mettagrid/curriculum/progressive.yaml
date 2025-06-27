@@ -6,7 +6,7 @@ _target_: metta.mettagrid.curriculum.progressive.ProgressiveMultiTaskCurriculum
 # Default progressive parameters
 performance_threshold: 0.8
 smoothing: 0.1
-progression_rate: 0.01
+progression_rate: 0.001
 progression_mode: "perf"  # 'time' or 'perf'
 blending_smoothness: 0.5
 blending_mode: "logistic"  # 'logistic' or 'linear'
