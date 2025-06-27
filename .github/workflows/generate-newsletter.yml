@@ -2,13 +2,13 @@ name: Generate Newsletter
 
 on:
   schedule:
-    - cron: "0 1 * * 6" # Saturday at 1 AM GMT (Friday at 5 PM PST)
+    - cron: "0 1 * * *" # Daily at 1 AM GMT
   workflow_dispatch:
     inputs:
       days_to_scan:
         description: "Number of days to scan"
         required: false
-        default: "7"
+        default: "1"
         type: choice
         options: ["1", "7", "14", "30"]
       force_refresh:
@@ -42,12 +42,12 @@ jobs:
         id: set-days
         run: |
           if [ "${{ github.event_name }}" = "schedule" ]; then
-            # Use repository variable for scheduled runs, fallback to 7 if not set
-            DAYS="${{ vars.PR_NEWSLETTER_HISTORY_DAYS || '7' }}"
+            # Use repository variable for scheduled runs, fallback to 1 if not set
+            DAYS="${{ vars.PR_NEWSLETTER_HISTORY_DAYS || '1' }}"
             echo "Using repository variable PR_NEWSLETTER_HISTORY_DAYS: $DAYS days"
           else
-            # Use workflow input for manual runs, fallback to 7 if not provided
-            DAYS="${{ inputs.days_to_scan || '7' }}"
+            # Use workflow input for manual runs, fallback to 1 if not provided
+            DAYS="${{ inputs.days_to_scan || '1' }}"
             echo "Using workflow input: $DAYS days"
           fi
           echo "days=$DAYS" >> $GITHUB_OUTPUT
