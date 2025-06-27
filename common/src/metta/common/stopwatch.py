@@ -10,13 +10,6 @@ from typing import Any, Callable, ContextManager, Final, Tuple, TypedDict, TypeV
 F = TypeVar("F", bound=Callable[..., Any])
 
 
-class TimerReference(TypedDict):
-    """Reference to where a timer was used."""
-
-    filename: str
-    lineno: int
-
-
 class Checkpoint(TypedDict):
     """A checkpoint/lap marker in a timer."""
 
