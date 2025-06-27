@@ -3,6 +3,7 @@ import os
 import time
 from collections import defaultdict
 from contextlib import nullcontext
+from pathlib import Path
 from typing import Any, Set
 from uuid import UUID
 
@@ -67,7 +68,7 @@ class MettaTrainer:
     ):
         # debug
         logger.info(f"run_dir = {cfg.run_dir}")
-        logger.info(f"Contents: {', '.join(os.listdir(cfg.run_dir / 'checkpoints'))}")
+        logger.info(f"Contents: {', '.join(os.listdir(Path(cfg.run_dir) / 'checkpoints'))}")
 
         self.cfg = cfg
         self.trainer_cfg = trainer_cfg = parse_trainer_config(cfg.trainer)
