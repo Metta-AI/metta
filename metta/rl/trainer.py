@@ -115,6 +115,8 @@ class MettaTrainer:
         self.policy_store = policy_store
         self.evals: dict[str, float] = {}
 
+        self._memory_monitor.add(self)  # don't include timer
+
         self.timer = Stopwatch(logger)
         self.timer.start()
 
@@ -292,8 +294,6 @@ class MettaTrainer:
 
             for metric_name, step_metric in metric_overrides:
                 wandb_run.define_metric(metric_name, step_metric=step_metric)
-
-        self._memory_monitor.add(self)
 
         logger.info(f"MettaTrainer initialization complete on device: {self.device}")
 
