@@ -4,10 +4,11 @@ import torch
 from torch import Tensor, nn
 
 from metta.agent.policy_state import PolicyState
+from metta.rl.trainer_config import KickstartTeacherConfig, TrainerConfig
 
 
 class Kickstarter:
-    def __init__(self, cfg, policy_store, features, action_names, action_max_params):
+    def __init__(self, cfg, trainer_cfg: TrainerConfig, policy_store, action_names, action_max_params):
         """
         Kickstarting is a technique to initialize a student policy with the knowledge of one or more teacher policies.
         This is done by adding a loss term that encourages the student's output (action logits and value) to match the
@@ -22,20 +23,20 @@ class Kickstarter:
         although this hunch hasn't been tested yet.
         """
         self.device = cfg.device
-        self.teacher_cfgs = cfg.trainer.kickstart.additional_teachers
-        self.anneal_ratio = cfg.trainer.kickstart.anneal_ratio
+        self.teacher_cfgs = trainer_cfg.kickstart.additional_teachers
+        self.anneal_ratio = trainer_cfg.kickstart.anneal_ratio
         assert 0 <= self.anneal_ratio <= 1, "Anneal_ratio must be between 0 and 1."
 
-        self.teacher_uri = cfg.trainer.kickstart.teacher_uri
+        self.teacher_uri = trainer_cfg.kickstart.teacher_uri
         if self.teacher_uri is not None:
             if self.teacher_cfgs is None:
                 self.teacher_cfgs = []
             self.teacher_cfgs.append(
-                {
-                    "teacher_uri": self.teacher_uri,
-                    "action_loss_coef": cfg.trainer.kickstart.action_loss_coef,
-                    "value_loss_coef": cfg.trainer.kickstart.value_loss_coef,
-                }
+                KickstartTeacherConfig(
+                    teacher_uri=self.teacher_uri,
+                    action_loss_coef=trainer_cfg.kickstart.action_loss_coef,
+                    value_loss_coef=trainer_cfg.kickstart.value_loss_coef,
+                )
             )
 
         self.enabled: bool = True
@@ -43,11 +44,10 @@ class Kickstarter:
             self.enabled = False
             return
 
-        self.compile: bool = cfg.trainer.compile
-        self.compile_mode: str = cfg.trainer.compile_mode
+        self.compile: bool = trainer_cfg.compile
+        self.compile_mode: str = trainer_cfg.compile_mode
         self.policy_store = policy_store
-        self.kickstart_steps: int = cfg.trainer.kickstart.kickstart_steps
-        self.features: dict[str, dict] = features
+        self.kickstart_steps: int = trainer_cfg.kickstart.kickstart_steps
         self.action_names: list[str] = action_names
         self.action_max_params: list[int] = action_max_params
         self.anneal_factor = 1.0
@@ -64,19 +64,28 @@ class Kickstarter:
     def _load_policies(self) -> None:
         self.teachers: list[nn.Module] = []
         for teacher_cfg in self.teacher_cfgs:
-            policy_record = self.policy_store.policy(teacher_cfg["teacher_uri"])
+            policy_record = self.policy_store.policy(teacher_cfg.teacher_uri)
             policy = policy_record.policy()
-            policy.action_loss_coef = teacher_cfg["action_loss_coef"]
-            policy.value_loss_coef = teacher_cfg["value_loss_coef"]
+            policy.action_loss_coef = teacher_cfg.action_loss_coef
+            policy.value_loss_coef = teacher_cfg.value_loss_coef
 
             if hasattr(policy, "initialize_to_environment"):
-                policy.initialize_to_environment(self.features, self.action_names, self.action_max_params, self.device)
+                # For policies that need feature information, they should get it from the environment
+                # when they are actually used. For now, we just initialize actions which is backward compatible.
+                # The actual feature initialization happens in the trainer when the policy is loaded.
+                # We only need to ensure action compatibility here.
+                # TODO: Consider passing environment reference or features here if needed
+                if hasattr(policy, "_initialize_actions"):
+                    policy._initialize_actions(self.action_names, self.device)
+                elif hasattr(policy, "activate_actions"):
+                    # For backward compatibility with old policies
+                    policy.activate_actions(self.action_names, self.action_max_params, self.device)
             elif hasattr(policy, "activate_actions"):
                 # For backward compatibility with old policies
                 policy.activate_actions(self.action_names, self.action_max_params, self.device)
             else:
                 raise AttributeError(
-                    f"Teacher policy is missing required method 'initialize_to_environment'. "
+                    f"Teacher policy is missing required method 'initialize_to_environment' or 'activate_actions'. "
                     f"Expected a MettaAgent-like object but got {type(policy).__name__}"
                 )
 

@@ -139,9 +139,6 @@ def create_metta_agent():
             # Create a simple mapping that will let us test action conversions
             self.action_to_idx = {name: i for i, name in enumerate(action_names)}
 
-        def l2_reg_loss(self):
-            return torch.tensor(0.0, dtype=torch.float32)
-
         def l2_init_loss(self):
             return torch.tensor(0.0, dtype=torch.float32)
 
@@ -286,68 +283,6 @@ def test_clip_weights_with_non_callable(create_metta_agent):
     assert "not callable" in str(excinfo.value)
 
 
-def test_l2_reg_loss_sums_component_losses(create_metta_agent):
-    agent, comp1, comp2 = create_metta_agent
-
-    # Add l2_reg_loss method to test components with predictable return values
-    comp1.l2_reg_loss = lambda: torch.tensor(0.5, dtype=torch.float32)
-    comp2.l2_reg_loss = lambda: torch.tensor(1.5, dtype=torch.float32)
-
-    # Call the method being tested
-    result = agent.l2_reg_loss()
-
-    # Verify the result is the sum of component losses
-    assert result.item() == 2.0  # 0.5 + 1.5 = 2.0
-
-
-def test_l2_reg_loss_raises_attribute_error(create_metta_agent):
-    agent, comp1, comp2 = create_metta_agent
-
-    # Add a component without the l2_reg_loss method
-    class IncompleteComponent(torch.nn.Module):
-        def __init__(self):
-            super().__init__()
-            self.ready = True
-            self._sources = None
-
-        def setup(self, source_components):
-            pass
-
-        def forward(self, x):
-            return x
-
-    # First make sure existing components have the method
-    comp1.l2_reg_loss = lambda: torch.tensor(0.5, dtype=torch.float32)
-    comp2.l2_reg_loss = lambda: torch.tensor(1.5, dtype=torch.float32)
-
-    # Replace one of the existing components with our incomplete one
-    agent.components["_core_"] = IncompleteComponent()
-
-    # Verify that an AttributeError is raised
-    with pytest.raises(AttributeError) as excinfo:
-        agent.l2_reg_loss()
-
-    # Check the error message mentions the missing method
-    # Don't rely on a specific component name in the error message
-    error_msg = str(excinfo.value)
-    assert "does not have method 'l2_reg_loss'" in error_msg
-
-
-def test_l2_reg_loss_raises_error_for_different_shapes(create_metta_agent):
-    agent, comp1, comp2 = create_metta_agent
-
-    # Set up components to return tensors with different shapes
-    comp1.l2_reg_loss = lambda: torch.tensor(0.25, dtype=torch.float32) * torch.ones(2)  # tensor with shape [2]
-    comp2.l2_reg_loss = lambda: torch.tensor(0.5, dtype=torch.float32)  # scalar tensor
-
-    # Verify that a RuntimeError is raised due to different tensor shapes
-    with pytest.raises(RuntimeError) as excinfo:
-        agent.l2_reg_loss()
-
-    # Check that the error message mentions the tensor shape mismatch
-    assert "expects each tensor to be equal size" in str(excinfo.value)
-
-
 def test_l2_init_loss_raises_error_for_different_shapes(create_metta_agent):
     agent, comp1, comp2 = create_metta_agent
 
@@ -361,34 +296,6 @@ def test_l2_init_loss_raises_error_for_different_shapes(create_metta_agent):
 
     # Check that the error message mentions the tensor shape mismatch
     assert "expects each tensor to be equal size" in str(excinfo.value)
-
-
-def test_l2_reg_loss_with_non_callable(create_metta_agent):
-    agent, comp1, comp2 = create_metta_agent
-
-    # Make l2_reg_loss non-callable on one component
-    comp1.l2_reg_loss = "Not a function"
-
-    # Verify a TypeError is raised
-    with pytest.raises(TypeError) as excinfo:
-        agent.l2_reg_loss()
-
-    # Check the error message
-    assert "not callable" in str(excinfo.value)
-
-
-def test_l2_reg_loss_empty_components(create_metta_agent):
-    agent, _, _ = create_metta_agent
-
-    # Empty the components dictionary
-    agent.components = torch.nn.ModuleDict({})
-
-    # Verify an assertion error is raised when no components exist
-    with pytest.raises(AssertionError) as excinfo:
-        agent.l2_reg_loss()
-
-    # Check the error message
-    assert "No components available" in str(excinfo.value)
 
 
 def test_convert_action_to_logit_index(create_metta_agent):
