@@ -20,6 +20,7 @@ from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyRecord, PolicyStore
 from metta.agent.util.debug import assert_shape
 from metta.common.fs import tree
+from metta.common.memory_monitor import MemoryMonitor
 from metta.common.stopwatch import Stopwatch, with_instance_timer
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.system_monitor import SystemMonitor
@@ -122,6 +123,8 @@ class MettaTrainer:
 
         self.timer = Stopwatch(logger)
         self.timer.start()
+
+        self._memory_monitor = MemoryMonitor()
 
         self._system_monitor = SystemMonitor(
             sampling_interval_sec=1.0,  # Sample every second
@@ -295,6 +298,8 @@ class MettaTrainer:
 
             for metric_name, step_metric in metric_overrides:
                 wandb_run.define_metric(metric_name, step_metric=step_metric)
+
+        self._memory_monitor.add(self)
 
         logger.info(f"MettaTrainer initialization complete on device: {self.device}")
 
@@ -978,6 +983,7 @@ class MettaTrainer:
                 **{f"parameters/{k}": v for k, v in parameters.items()},
                 **{f"eval_{k}": v for k, v in self.evals.items()},
                 **{f"monitor/{k}": v for k, v in self._system_monitor.stats().items()},
+                **{f"trainer_memory/{k}": v for k, v in self._memory_monitor.stats().items()},
                 **environment_stats,
                 **weight_stats,
                 **timing_stats,
@@ -1060,6 +1066,7 @@ class MettaTrainer:
 
     def close(self):
         self.vecenv.close()
+        self._memory_monitor.clear()
 
     @property
     def latest_saved_policy_uri(self) -> str | None:
