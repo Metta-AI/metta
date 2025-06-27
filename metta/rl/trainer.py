@@ -12,13 +12,14 @@ import torch
 import torch.distributed
 import wandb
 from heavyball import ForeachMuon
-from omegaconf import DictConfig, ListConfig
+from omegaconf import DictConfig
 
 from app_backend.stats_client import StatsClient
 from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
 from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyRecord, PolicyStore
 from metta.agent.util.debug import assert_shape
+from metta.common.fs import tree
 from metta.common.memory_monitor import MemoryMonitor
 from metta.common.stopwatch import Stopwatch, with_instance_timer
 from metta.common.util.heartbeat import record_heartbeat
@@ -58,13 +59,17 @@ logger = logging.getLogger(f"trainer-{rank}-{local_rank}")
 class MettaTrainer:
     def __init__(
         self,
-        cfg: DictConfig | ListConfig,
+        cfg: DictConfig,
         wandb_run: WandbRun | None,
         policy_store: PolicyStore,
         sim_suite_config: SimulationSuiteConfig,
         stats_client: StatsClient | None,
         **kwargs: Any,
     ):
+        # debug
+        logger.info(f"run_dir = {cfg.run_dir}")
+        logger.info(tree(cfg.run_dir))
+
         self.cfg = cfg
         self.trainer_cfg = trainer_cfg = parse_trainer_config(cfg.trainer)
 
@@ -119,14 +124,14 @@ class MettaTrainer:
         self.timer = Stopwatch(logger)
         self.timer.start()
 
-        self._memory_monitor = MemoryMonitor()
-
-        self._system_monitor = SystemMonitor(
-            sampling_interval_sec=1.0,  # Sample every second
-            history_size=100,  # Keep last 100 samples
-            logger=logger,
-            auto_start=True,  # Start monitoring immediately
-        )
+        if self._master:
+            self._memory_monitor = MemoryMonitor()
+            self._system_monitor = SystemMonitor(
+                sampling_interval_sec=1.0,  # Sample every second
+                history_size=100,  # Keep last 100 samples
+                logger=logger,
+                auto_start=True,  # Start monitoring immediately
+            )
 
         curriculum_config = trainer_cfg.curriculum_or_env
         env_overrides = DictConfig(trainer_cfg.env_overrides)
@@ -295,7 +300,8 @@ class MettaTrainer:
             for metric_name, step_metric in metric_overrides:
                 wandb_run.define_metric(metric_name, step_metric=step_metric)
 
-        self._memory_monitor.add(self)  # don't include timer
+        if self._master:
+            self._memory_monitor.add(self, name="MettaTrainer", track_attributes=True)
 
         logger.info(f"MettaTrainer initialization complete on device: {self.device}")
 
@@ -362,8 +368,6 @@ class MettaTrainer:
         self._maybe_save_policy(force=True)
         self._maybe_save_training_state(force=True)
         self._maybe_upload_policy_record_to_wandb(force=True)
-
-        self._system_monitor.stop()
 
     def _on_train_step(self):
         pass
@@ -870,6 +874,7 @@ class MettaTrainer:
     def _process_stats(self):
         if not self._master or not self.wandb_run:
             self.stats.clear()
+            self.grad_stats.clear()
             return
 
         # convert lists of values (collected across all environments and rollout steps on this GPU)
@@ -1065,7 +1070,9 @@ class MettaTrainer:
 
     def close(self):
         self.vecenv.close()
-        self._memory_monitor.clear()
+        if self._master:
+            self._memory_monitor.clear()
+            self._system_monitor.stop()
 
     @property
     def latest_saved_policy_uri(self) -> str | None:
@@ -1169,8 +1176,6 @@ class MettaTrainer:
             zero_copy=trainer_cfg.zero_copy,
             is_training=True,
         )
-
-        self._memory_monitor.add(self.vecenv)
 
         if self.cfg.seed is None:
             self.cfg.seed = np.random.randint(0, 1000000)
