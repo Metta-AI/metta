@@ -58,11 +58,11 @@ class InitialPolicyConfig(BaseModelWithForbidExtra):
 class CheckpointConfig(BaseModelWithForbidExtra):
     checkpoint_dir: str = "${run_dir}/checkpoints"
     checkpoint_interval: int = Field(gt=0)
-    wandb_checkpoint_interval: int = Field(gt=0)
+    wandb_checkpoint_interval: int = Field(ge=0)  # 0 to disable
 
 
 class SimulationConfig(BaseModelWithForbidExtra):
-    evaluate_interval: int = Field(gt=0)
+    evaluate_interval: int = Field(ge=0)  # 0 to disable
     replay_interval: int = Field(gt=0)
     replay_dir: str = "s3://softmax-public/replays/${run}"
 

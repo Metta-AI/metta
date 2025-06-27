@@ -235,3 +235,44 @@ class TestRealTypedConfigs:
             except Exception as e:
                 print(f"Error loading config {config_name}: {e}")
                 raise e
+
+    def test_all_config_overrides_comprehensive(self):
+        """Test all config files that override trainer settings (hardware and user configs)."""
+        configs_root = Path(__file__).parent.parent.parent / "configs"
+
+        # Collect all config files that might have trainer overrides
+        config_files_to_test: list[tuple[str, str, str]] = []
+
+        # Hardware configs
+        hardware_configs = list((configs_root / "hardware").glob("*.yaml"))
+        for config in hardware_configs:
+            config_files_to_test.append(("hardware", config.stem, f"+hardware={config.stem}"))
+
+        # User configs
+        user_configs = list((configs_root / "user").glob("*.yaml"))
+        for config in user_configs:
+            config_files_to_test.append(("user", config.stem, f"+user={config.stem}"))
+
+        # Test each config file
+        for config_type, config_name, override in config_files_to_test:
+            # Check if the config file has a trainer section
+            config_path = configs_root / f"{config_type}/{config_name}.yaml"
+
+            # Quick check if file contains trainer section
+            with open(config_path, 'r') as f:
+                content = f.read()
+                if "trainer:" not in content:
+                    continue  # Skip configs without trainer overrides
+
+            print(f"Testing {config_type} config: {config_name}")
+
+            try:
+                # For hardware/user configs, apply them as overrides
+                overrides_list = [override, "trainer.num_workers=1"]
+                cfg = load_config_with_hydra("trainer", overrides=overrides_list)
+
+                _ = parse_trainer_config(cfg.trainer)
+
+            except Exception as e:
+                print(f"Error loading {config_type} config {config_name}: {e}")
+                raise AssertionError(f"Failed to load {config_type} config {config_name}: {e}") from e
