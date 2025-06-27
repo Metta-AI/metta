@@ -1,5 +1,5 @@
 _target_: metta.mettagrid.curriculum.low_reward.LowRewardCurriculum
 
 tasks:
-  /env/mettagrid/curriculum/objects/all_objects: 1
+  /env/mettagrid/curriculum/objects/all_objects: 2
   /env/mettagrid/curriculum/objects/sequence: 1
