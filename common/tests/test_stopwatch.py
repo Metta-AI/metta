@@ -3,7 +3,7 @@ import time
 
 import pytest
 
-from metta.common.stopwatch import Stopwatch, with_instance_timer, with_timer
+from metta.common.stopwatch import Checkpoint, Stopwatch, with_instance_timer, with_timer
 
 
 @pytest.fixture
@@ -1060,3 +1060,118 @@ class TestStopwatchSaveLoad:
         # New timer should exist
         assert "new1" in stopwatch._timers
         assert stopwatch.get_elapsed("new1") > 0.04
+
+
+def test_cleanup_old_checkpoints_preserves_order():
+    """Test that _cleanup_old_checkpoints maintains chronological order."""
+
+    stopwatch = Stopwatch(max_laps=3)
+    timer_name = "test_timer"
+
+    # Create a timer and add checkpoints in chronological order
+    timer = stopwatch._get_timer(timer_name)
+
+    # Manually add checkpoints to ensure we know the exact order and timing
+    checkpoints_data = [
+        ("checkpoint_1", 1.0, 100),
+        ("checkpoint_2", 2.0, 200),
+        ("checkpoint_3", 3.0, 300),
+        ("checkpoint_4", 4.0, 400),
+        ("checkpoint_5", 5.0, 500),
+    ]
+
+    # Add all checkpoints
+    for name, elapsed, steps in checkpoints_data:
+        timer.checkpoints[name] = Checkpoint(elapsed_time=elapsed, steps=steps)
+
+    # Verify initial state - should have 6 checkpoints with "_start"
+    assert len(timer.checkpoints) == 6
+
+    # Get the order before cleanup
+    before_cleanup = list(timer.checkpoints.items())
+    print("Before cleanup:")
+    for name, cp in before_cleanup:
+        print(f"  {name}: elapsed={cp['elapsed_time']}, steps={cp['steps']}")
+
+    # Trigger cleanup (max_laps=3 means max_checkpoints=4, so 6 > 4 triggers cleanup)
+    stopwatch._cleanup_old_checkpoints(timer)
+
+    # Should now have 4 checkpoints (max_laps + 1)
+    assert len(timer.checkpoints) == 4
+
+    # Get the order after cleanup
+    after_cleanup = list(timer.checkpoints.items())
+    print("\nAfter cleanup:")
+    for name, cp in after_cleanup:
+        print(f"  {name}: elapsed={cp['elapsed_time']}, steps={cp['steps']}")
+
+    # Verify that we kept the LAST 4 checkpoints
+    expected_remaining = checkpoints_data[-4:]  # Last 4 items
+
+    actual_items = list(timer.checkpoints.items())
+
+    for i, (expected_name, expected_elapsed, expected_steps) in enumerate(expected_remaining):
+        actual_name, actual_checkpoint = actual_items[i]
+
+        assert actual_name == expected_name, f"Name mismatch at index {i}: expected {expected_name}, got {actual_name}"
+        assert actual_checkpoint["elapsed_time"] == expected_elapsed, f"Elapsed time mismatch at index {i}"
+        assert actual_checkpoint["steps"] == expected_steps, f"Steps mismatch at index {i}"
+
+    # Verify chronological order is maintained (elapsed_time should be increasing)
+    elapsed_times = [cp["elapsed_time"] for cp in timer.checkpoints.values()]
+    assert elapsed_times == sorted(elapsed_times), f"Checkpoints not in chronological order: {elapsed_times}"
+
+    # Verify step counts are increasing
+    step_counts = [cp["steps"] for cp in timer.checkpoints.values()]
+    assert step_counts == sorted(step_counts), f"Step counts not in increasing order: {step_counts}"
+
+
+def test_multiple_laps_after_cleanup():
+    """Test multiple lap indices after cleanup."""
+
+    stopwatch = Stopwatch(max_laps=2)  # Very restrictive to force cleanup
+    timer_name = "multi_lap_test"
+
+    timer = stopwatch._get_timer(timer_name)
+
+    # Add more checkpoints than max_laps allows
+    checkpoints_data = [
+        ("_start", 0.0, 0),
+        ("epoch_1", 1.0, 100),
+        ("epoch_2", 2.0, 250),  # 150 step lap
+        ("epoch_3", 3.0, 400),  # 150 step lap
+        ("epoch_4", 4.0, 600),  # 200 step lap
+    ]
+
+    for name, elapsed, steps in checkpoints_data:
+        timer.checkpoints[name] = Checkpoint(elapsed_time=elapsed, steps=steps)
+
+    print("Before cleanup - all checkpoints:")
+    for name, cp in timer.checkpoints.items():
+        print(f"  {name}: elapsed={cp['elapsed_time']}, steps={cp['steps']}")
+
+    # Force cleanup (max_laps=2 means keep 3 checkpoints)
+    stopwatch._cleanup_old_checkpoints(timer)
+
+    print("\nAfter cleanup:")
+    for name, cp in timer.checkpoints.items():
+        print(f"  {name}: elapsed={cp['elapsed_time']}, steps={cp['steps']}")
+
+    # Now test lap calculations
+    print("\nLap calculations:")
+
+    # Most recent lap (-1): should be epoch_4 - epoch_3 = 600 - 400 = 200
+    lap_1 = stopwatch.get_lap_steps(-1, timer_name)
+    print(f"Lap -1 (most recent): {lap_1}, expected: 200")
+
+    # Second most recent lap (-2): should be epoch_3 - epoch_2 = 400 - 250 = 150
+    lap_2 = stopwatch.get_lap_steps(-2, timer_name)
+    print(f"Lap -2 (second recent): {lap_2}, expected: 150")
+
+    # This should fail because we don't have enough checkpoints
+    lap_3 = stopwatch.get_lap_steps(-3, timer_name)
+    print(f"Lap -3 (should be None): {lap_3}")
+
+    assert lap_1 == 200, f"Expected lap -1 to be 200, got {lap_1}"
+    assert lap_2 == 150, f"Expected lap -2 to be 150, got {lap_2}"
+    assert lap_3 is None, f"Expected lap -3 to be None, got {lap_3}"
