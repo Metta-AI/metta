@@ -294,7 +294,7 @@ class MettaTrainer:
             for metric_name, step_metric in metric_overrides:
                 wandb_run.define_metric(metric_name, step_metric=step_metric)
 
-        self._memory_monitor.add(self)  # don't include timer
+        self._memory_monitor.add(self)
 
         logger.info(f"MettaTrainer initialization complete on device: {self.device}")
 
@@ -969,6 +969,9 @@ class MettaTrainer:
             "epoch_steps": epoch_steps,
             "num_minibatches": self.experience.num_minibatches,
         }
+
+        total_refs = sum(len(timer.references) for timer in self.timer._timers.values())
+        logger.info(f"timer reference count is now {total_refs}")
 
         self.wandb_run.log(
             {
