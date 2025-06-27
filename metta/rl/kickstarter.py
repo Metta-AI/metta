@@ -68,21 +68,7 @@ class Kickstarter:
             policy = policy_record.policy()
             policy.action_loss_coef = teacher_cfg.action_loss_coef
             policy.value_loss_coef = teacher_cfg.value_loss_coef
-
-            if hasattr(policy, "initialize_to_environment"):
-                # For policies that need feature information, they should get it from the environment
-                # when they are actually used. For now, we just initialize actions which is backward compatible.
-                # The actual feature initialization happens in the trainer when the policy is loaded.
-                # We only need to ensure action compatibility here.
-                # TODO: Consider passing environment reference or features here if needed
-                if hasattr(policy, "_initialize_actions"):
-                    policy._initialize_actions(self.action_names, self.device)
-            else:
-                raise AttributeError(
-                    f"Teacher policy is missing required method 'initialize_to_environment'. "
-                    f"Expected a MettaAgent-like object but got {type(policy).__name__}"
-                )
-
+            policy.activate_actions(self.action_names, self.action_max_params, self.device)
             if self.compile:
                 policy = torch.compile(policy, mode=self.compile_mode)
             self.teachers.append(policy)
