@@ -464,12 +464,40 @@ class PolicyStore:
 
                 # Create mock environment
                 obs_shape = checkpoint.get("obs_shape", [34, 11, 11])
+
+                # Provide default feature normalizations for legacy checkpoints
+                # These are common features with reasonable normalization values
+                default_feature_normalizations = {
+                    0: 1.0,  # type_id
+                    1: 10.0,  # agent:group
+                    2: 30.0,  # hp
+                    3: 1.0,  # agent:frozen
+                    4: 1.0,  # agent:orientation
+                    5: 255.0,  # agent:color
+                    6: 1.0,  # converting
+                    7: 1.0,  # swappable
+                    8: 255.0,  # episode_completion_pct
+                    9: 10.0,  # last_action
+                    10: 10.0,  # last_action_arg
+                    11: 100.0,  # last_reward
+                    12: 100.0,  # inv:ore.red
+                    13: 100.0,  # inv:ore.blue
+                    14: 100.0,  # inv:ore.green
+                    15: 100.0,  # inv:battery.red
+                    16: 100.0,  # inv:battery.blue
+                    17: 100.0,  # inv:battery.green
+                    18: 100.0,  # inv:heart
+                    19: 100.0,  # inv:armor
+                    20: 100.0,  # inv:laser
+                    21: 100.0,  # inv:blueprint
+                }
+
                 env = SimpleNamespace(
                     single_observation_space=gym.spaces.Box(low=0, high=255, shape=obs_shape, dtype=np.uint8),
                     obs_width=obs_shape[1],
                     obs_height=obs_shape[2],
                     single_action_space=gym.spaces.MultiDiscrete(checkpoint.get("action_space_nvec", [9, 10])),
-                    feature_normalizations=checkpoint.get("feature_normalizations", {}),
+                    feature_normalizations=checkpoint.get("feature_normalizations", default_feature_normalizations),
                     global_features=[],
                 )
 

@@ -3,7 +3,7 @@ import os
 import tempfile
 import warnings
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 import torch
 
@@ -16,10 +16,10 @@ class TrainerCheckpoint:
         agent_step: int = 0,
         epoch: int = 0,
         total_agent_step: Optional[int] = None,
-        optimizer_state_dict: Optional[Dict[str, Any]] = None,
+        optimizer_state_dict: Optional[dict[str, Any]] = None,
         policy_path: Optional[str] = None,
-        stopwatch_state: Optional[Dict[str, Any]] = None,
-        extra_args: Optional[Dict[str, Any]] = None,
+        stopwatch_state: Optional[dict[str, Any]] = None,
+        extra_args: Optional[dict[str, Any]] = None,
     ):
         self.agent_step = agent_step
         self.epoch = epoch
