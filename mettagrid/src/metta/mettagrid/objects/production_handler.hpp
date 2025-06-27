@@ -18,7 +18,7 @@ public:
     }
 
     converter->finish_converting();
-    converter->stats.incr(ObjectTypeNames[converter->_type_id] + ".produced");
+    converter->stats.incr(ObjectTypeNames[converter->type_id] + ".produced");
   }
 };
 
