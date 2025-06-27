@@ -24,7 +24,8 @@ import wandb
 import wandb.sdk.wandb_run
 from omegaconf import DictConfig, ListConfig
 from torch import nn
-from torch.package import PackageExporter, PackageImporter
+from torch.package.package_exporter import PackageExporter
+from torch.package.package_importer import PackageImporter
 
 from metta.agent.metta_agent import make_policy
 from metta.agent.policy_record import PolicyRecord
@@ -163,9 +164,8 @@ class PolicyStore:
     def make_model_name(self, epoch: int):
         return f"model_{epoch:04d}.pt"
 
-    def create(self, env) -> PolicyRecord:
+    def create(self, env, name: str) -> PolicyRecord:
         policy = make_policy(env, self._cfg)
-        name = self.make_model_name(0)
         path = os.path.join(self._cfg.trainer.checkpoint_dir, name)
         pr = PolicyRecord(
             self,
@@ -179,18 +179,17 @@ class PolicyStore:
                 "train_time": 0,
             },
         )
-        self._save_policy(path, policy, pr)
         pr._policy = policy
         return pr
 
-    def save(self, name: str, path: str, policy: nn.Module, metadata: dict) -> PolicyRecord:
-        """Convenience method to create and save a policy in one step."""
-        pr = PolicyRecord(self, name, "file://" + path, metadata)
-        return self._save_policy(path, policy, pr)
-
-    def _save_policy(self, path: str, policy: nn.Module, pr: PolicyRecord) -> PolicyRecord:
+    def save_policy(self, policy: nn.Module, pr: PolicyRecord) -> PolicyRecord:
         """Save a policy and its metadata using torch.package."""
-        logger.info(f"Saving policy to {path} using torch.package")
+        path = pr.uri.split("file://")[1]
+
+        if os.path.exists(path):
+            logger.warning(f"Overwriting existing policy at {path}using torch.package")
+        else:
+            logger.info(f"Saving policy to {path} using torch.package")
 
         policy_class_name = policy.__class__.__module__
         if "torch_package_" in policy_class_name:
@@ -204,8 +203,7 @@ class PolicyStore:
                 self._apply_packaging_rules(exporter, policy.__class__.__module__, policy.__class__)
 
                 # Save the policy and metadata
-                clean_metadata = pr._clean_metadata_for_packaging(pr.metadata)
-                exporter.save_pickle("policy_record", "data.pkl", PolicyRecord(None, pr.name, pr.uri, clean_metadata))
+                exporter.save_pickle("policy_record", "data.pkl", PolicyRecord(None, pr.name, pr.uri, pr.metadata))
                 exporter.save_pickle("policy", "model.pkl", policy)
 
         except Exception as e:

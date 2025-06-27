@@ -3,13 +3,12 @@ PolicyRecord: A lightweight data structure for storing policy metadata and refer
 This is separated from PolicyStore to enable cleaner packaging of saved policies.
 """
 
-import copy
 import logging
 from typing import Optional
 
 import torch
 from torch import nn
-from torch.package import PackageImporter
+from torch.package.package_importer import PackageImporter
 
 logger = logging.getLogger("policy_record")
 
@@ -20,7 +19,7 @@ class PolicyRecord:
     def __init__(self, policy_store, name: str, uri: str, metadata: dict):
         self._policy_store = policy_store
         self.name = name
-        self.uri = uri
+        self.uri: str = uri
         self.metadata = metadata
         self._policy = None
         self._local_path = None
@@ -77,6 +76,7 @@ class PolicyRecord:
 
     def key_and_version(self) -> tuple[str, int]:
         """Extract the policy key and version from the URI."""
+
         # Get the last part after splitting by slash
         base_name = self.uri.split("/")[-1]
 
@@ -103,28 +103,6 @@ class PolicyRecord:
     def version(self) -> int:
         """Get the policy version number."""
         return self.key_and_version()[1]
-
-    def _clean_metadata_for_packaging(self, metadata: dict) -> dict:
-        """Clean metadata to remove non-serializable objects."""
-
-        def clean_value(v):
-            if hasattr(v, "__module__") and v.__module__ and "wandb" in v.__module__:
-                return None
-            elif isinstance(v, dict):
-                return {k: clean_value(val) for k, val in v.items() if clean_value(val) is not None}
-            elif isinstance(v, list):
-                return [clean_value(item) for item in v if clean_value(item) is not None]
-            elif isinstance(v, (str, int, float, bool, type(None))):
-                return v
-            elif hasattr(v, "__dict__"):
-                try:
-                    return str(v)
-                except Exception:
-                    return None
-            else:
-                return v
-
-        return clean_value(copy.deepcopy(metadata))
 
     def __repr__(self):
         """Generate a detailed representation of the PolicyRecord."""

@@ -161,6 +161,7 @@ class MettaTrainer:
 
         if policy_record is not None:
             logging.info(f"LOADED {policy_record.uri}")
+            self.latest_saved_policy_record = policy_record
 
             # Models loaded via torch.package have modified class names (prefixed with <torch_package_N>)
             # which prevents them from being saved again. We work around this by creating a fresh
@@ -169,9 +170,8 @@ class MettaTrainer:
             loaded_policy = policy_record.policy()
             loaded_policy.activate_actions(actions_names, actions_max_params, self.device)
 
-            logging.info("about to create")
-            fresh_policy_record = policy_store.create(metta_grid_env)
-            logging.info(f"CREATED {fresh_policy_record.uri}")
+            fresh_policy_record = policy_store.create(metta_grid_env, policy_record.name)
+            fresh_policy_record.metadata = policy_record.metadata
 
             fresh_policy = fresh_policy_record.policy()
             fresh_policy.activate_actions(actions_names, actions_max_params, self.device)
@@ -183,15 +183,16 @@ class MettaTrainer:
         else:
             if self._master:
                 policy_record = self._create_policy(policy_store, metta_grid_env)
+                policy_store.save_policy(policy_record.policy(), policy_record)
+                self.latest_saved_policy_record = policy_record
             else:
                 policy_record = self._wait_for_policy(policy_store)
+
             self.initial_policy_record = policy_record
             self.policy = policy_record.policy()
             self.policy.activate_actions(actions_names, actions_max_params, self.device)
 
         assert self.policy is not None, "Failed to obtain policy"
-
-        self.latest_saved_policy_record = self.initial_policy_record
 
         logging.info(f"USING {self.latest_saved_policy_record.uri}")
 
@@ -711,7 +712,6 @@ class MettaTrainer:
             return
 
         name = self.policy_store.make_model_name(self.epoch)
-        path = os.path.join(self.trainer_cfg.checkpoint_dir, name)
 
         metta_grid_env: MettaGridEnv = self.vecenv.driver_env  # type: ignore
         assert isinstance(metta_grid_env, MettaGridEnv), "vecenv.driver_env must be a MettaGridEnv"
@@ -746,13 +746,15 @@ class MettaTrainer:
         # instance of the policy class and copying the state dict, allowing successful re-saving.
         # TODO: Remove this workaround when checkpointing refactor is complete
         logger.info("Creating a fresh policy instance for torch.package to save")
-        fresh_policy = self.policy_store.create(metta_grid_env).policy()
+        fresh_policy_record = self.policy_store.create(metta_grid_env, name)
+        # copy in the values we want to keep
+        fresh_policy_record.metadata = metadata
+        fresh_policy = fresh_policy_record.policy()
         fresh_policy.activate_actions(metta_grid_env.action_names, metta_grid_env.max_action_args, self.device)
         fresh_policy.load_state_dict(self.policy.state_dict(), strict=False)
         policy_to_save = fresh_policy
 
-        self.latest_saved_policy_record = self.policy_store.save(name, path, policy_to_save, metadata)
-        logger.info(f"Saved policy locally: {name}")
+        self.latest_saved_policy_record = self.policy_store.save_policy(policy_to_save, fresh_policy_record)
         return self.latest_saved_policy_record
 
     def _maybe_upload_policy_record_to_wandb(self, force: bool = False) -> str | None:
@@ -1224,13 +1226,14 @@ class MettaTrainer:
 
         return None
 
-    def _create_policy(self, policy_store, metta_grid_env) -> PolicyRecord:
+    def _create_policy(self, policy_store: PolicyStore, metta_grid_env) -> PolicyRecord:
         """Create a new policy. Only master should call this."""
         if not self._master:
             raise RuntimeError("Only master process should create policies")
 
         logger.info("Creating new policy")
-        return policy_store.create(metta_grid_env)
+        name = policy_store.make_model_name(self.epoch)
+        return policy_store.create(metta_grid_env, name)
 
     def _wait_for_policy(self, policy_store, timeout_attempts: int = 10) -> PolicyRecord:
         """Non-master processes wait for master to create policy."""
