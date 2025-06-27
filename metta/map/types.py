@@ -3,7 +3,7 @@ from typing import Any, Callable, Literal, TypeAlias
 import numpy as np
 import numpy.typing as npt
 
-from metta.util.config import Config
+from metta.common.util.config import Config
 
 # Shaped version, `np.ndarray[tuple[int, int], np.dtype[np.str_]]`,
 # would be better, but slices from numpy arrays are not typed properly, which makes it too annoying to use.

@@ -1,170 +1,194 @@
 "use client";
-import { FC, useCallback, useEffect, useRef, useState } from "react";
+import clsx from "clsx";
+import { FC, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { usePanZoom } from "@/hooks/use-pan-and-zoom";
-import { MettaGrid } from "@/lib/MettaGrid";
+import { useIsMouseDown } from "@/hooks/useIsMouseDown";
+import { drawGrid } from "@/lib/draw/drawGrid";
+import { Cell, MettaGrid } from "@/lib/MettaGrid";
 
-import { drawGrid } from "./drawMap";
-import { loadSprites, Sprites } from "./sprites";
+import {
+  useCallOnElementResize,
+  useCallOnWindowResize,
+  useDrawer,
+  useSpacePressed,
+} from "./hooks";
 
-export type Cell = { x: number; y: number };
 type CellHandler = (cell: Cell | undefined) => void;
 
 type Props = {
   grid: MettaGrid;
   onCellHover?: CellHandler;
-  selectedCell?: { x: number; y: number };
+  selectedCell?: Cell;
   onCellSelect?: CellHandler;
+  panOnSpace?: boolean;
 };
 
-const Overlay: FC<{
-  cellSize: number;
-  hoveredCell?: {
-    x: number;
-    y: number;
-  };
-  selectedCell?: {
-    x: number;
-    y: number;
-  };
-}> = ({ cellSize, hoveredCell, selectedCell }) => {
-  return (
-    <>
-      {hoveredCell && (
-        <div
-          className="absolute border border-blue-500"
-          style={{
-            left: hoveredCell?.x * cellSize,
-            top: hoveredCell?.y * cellSize,
-            width: cellSize + 2,
-            height: cellSize + 2,
-          }}
-        ></div>
-      )}
-      {selectedCell && (
-        <div
-          className="absolute border border-red-500"
-          style={{
-            left: selectedCell?.x * cellSize,
-            top: selectedCell?.y * cellSize,
-            width: cellSize + 2,
-            height: cellSize + 2,
-          }}
-        ></div>
-      )}
-    </>
-  );
-};
-
-export const MapViewer: FC<Props> = ({
+const MapViewerBrowserOnly: FC<Props> = ({
   grid,
   onCellHover,
   onCellSelect,
   selectedCell,
+  panOnSpace,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
 
-  const { transform, setContainer, panZoomHandlers, setZoom, setPan, zoom } =
+  const dpr = window.devicePixelRatio;
+
+  const spacePressed = useSpacePressed();
+  const isMouseDown = useIsMouseDown();
+
+  const enablePan = !panOnSpace || spacePressed;
+
+  const { setContainer, panZoomHandlers, setZoom, setPan, pan, zoom } =
     usePanZoom({
       minZoom: 1,
       maxZoom: 10,
       zoomSensitivity: 0.007,
+      enablePan,
     });
-  const [sprites, setSprites] = useState<Sprites | null>(null);
 
-  // Cell size used for drawing the grid.
-  // This is in internal canvas pixels, not pixels on the screen. (canvas.width, not clientWidth)
-  const [cellSize, setCellSize] = useState(0);
+  const drawer = useDrawer();
 
-  const [hoveredCell, setHoveredCell] = useState<
-    | {
-        x: number;
-        y: number;
-      }
-    | undefined
-  >();
+  const [hoveredCell, setHoveredCell] = useState<Cell | undefined>();
 
-  const measureCellSize = useCallback(() => {
-    if (!canvasRef.current || !containerRef.current) return;
+  const [scale, setScale] = useState(0);
 
-    const containerWidth = containerRef.current.clientWidth;
-    const containerHeight = containerRef.current.clientHeight;
+  // measure cell size and set canvas dimensions
+  const initCanvas = useCallback(() => {
+    if (!canvasRef.current) return;
 
-    // Calculate new cell size
-    const widthBasedSize = Math.floor(containerWidth / grid.width);
-    const heightBasedSize = Math.floor(containerHeight / grid.height);
-
-    // Large minimal cell size is useful for zoom, but not very effective, could be optimized.
-    // This results in 3k * 3k canvas for 120x120 grid.
-    // (e.g. with Factorio-style discrete zoom and pre-rendered sprites for each size)
-    const cellSize = Math.max(24, Math.min(widthBasedSize, heightBasedSize));
-    setCellSize(cellSize);
+    const canvas = canvasRef.current;
 
     // Set canvas dimensions
-    canvasRef.current.width = grid.width * cellSize;
-    canvasRef.current.height = grid.height * cellSize;
-  }, [grid]);
+    canvas.width = canvas.clientWidth * dpr;
+    canvas.height = canvas.clientHeight * dpr;
+
+    // Calculate new scale
+    const widthBasedSize = canvas.width / grid.width;
+    const heightBasedSize = canvas.height / grid.height;
+
+    const scale = Math.min(widthBasedSize, heightBasedSize);
+    setScale(scale);
+
+    // copy-paste of recenter code (it's hard to add a dependency because of hook rules)
+    setPan({
+      x: (canvas.width - grid.width * scale) / (2 * dpr),
+      y: (canvas.height - grid.height * scale) / (2 * dpr),
+    });
+    setZoom(1);
+  }, [grid.width, grid.height]);
 
   useEffect(() => {
-    measureCellSize();
-  }, [measureCellSize, containerRef.current, canvasRef.current]);
+    initCanvas();
+  }, [initCanvas]);
+
+  const recenter = useCallback(() => {
+    if (!scale || !canvasRef.current) return;
+    const canvas = canvasRef.current;
+    setZoom(1);
+    setPan({
+      x: (canvas.width - grid.width * scale) / (2 * dpr),
+      y: (canvas.height - grid.height * scale) / (2 * dpr),
+    });
+  }, [scale, setPan, setZoom]);
+
+  const transform = useMemo(() => {
+    if (!canvasRef.current) return new DOMMatrixReadOnly();
+    const ox = canvasRef.current.width / 2;
+    const oy = canvasRef.current.height / 2;
+    return new DOMMatrixReadOnly()
+      .translate(pan.x * dpr, pan.y * dpr)
+      .translate(ox, oy)
+      .scale(zoom)
+      .translate(-ox, -oy)
+      .scale(scale);
+  }, [zoom, pan, scale, dpr]);
 
   const draw = useCallback(() => {
-    if (!sprites || !canvasRef.current || !cellSize) return;
+    if (!drawer || !canvasRef.current) return;
 
-    drawGrid({
-      grid,
-      canvas: canvasRef.current,
-      sprites,
-      cellSize,
-    });
-  }, [sprites, grid, cellSize]);
+    const canvas = canvasRef.current;
 
-  // Handle window resize
-  useEffect(() => {
-    // TODO - avoid rendering? (doesn't work yet)
-    window.addEventListener("resize", draw);
-    return () => window.removeEventListener("resize", draw);
-  }, [draw]);
+    const context = canvas.getContext("2d");
+    if (!context) return;
+
+    context.resetTransform();
+    context.fillStyle = "#eee";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+
+    context.setTransform(transform);
+
+    try {
+      drawGrid({
+        grid,
+        context,
+        drawer,
+      });
+    } catch (e) {
+      context.resetTransform();
+      context.fillStyle = "black";
+      context.globalAlpha = 1;
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      context.font = "60px Arial";
+      context.fillStyle = "red";
+      context.fillText("Error drawing grid. Check console.", 80, 80);
+      console.error(e);
+      return;
+    }
+
+    context.lineWidth = 0.03;
+
+    if (hoveredCell && grid.cellInGrid(hoveredCell)) {
+      context.strokeStyle = "white";
+      const margin = 0.03;
+      context.roundRect(
+        hoveredCell.c + margin,
+        hoveredCell.r + margin,
+        1 - 2 * margin,
+        1 - 2 * margin,
+        0.1
+      );
+      context.stroke();
+    }
+
+    if (selectedCell && grid.cellInGrid(selectedCell)) {
+      context.strokeStyle = "blue";
+      context.roundRect(selectedCell.c, selectedCell.r, 1, 1, 0.1);
+      context.stroke();
+    }
+  }, [drawer, grid, transform, hoveredCell, selectedCell]);
+
+  useCallOnWindowResize(initCanvas);
+  useCallOnElementResize(canvasRef.current, initCanvas);
 
   // TODO - avoid rendering if not visible
   useEffect(draw, [draw]);
-
-  useEffect(() => {
-    loadSprites().then(setSprites);
-  }, []);
 
   // Benchmark: uncomment to redraw 60 frames per second when the canvas is visible on screen
   // useStressTest(draw, canvasRef.current);
 
   const cellFromMouseEvent = useCallback(
-    (e: React.MouseEvent<HTMLCanvasElement>) => {
-      if (!canvasRef.current) return null;
-
-      // 1. Grab the bounding box AFTER CSS transforms:
-      const rect = canvasRef.current.getBoundingClientRect();
-
-      // 2. Compute screen‑relative coords inside that box
-      const sx = e.clientX - rect.left;
-      const sy = e.clientY - rect.top;
-
-      // // 3. Un‑scale to get your logical canvas coords:
-      // const canvasX = sx / zoom;
-      // const canvasY = sy / zoom;
-
-      const x = sx * (grid.width / rect.width);
-      const y = sy * (grid.height / rect.height);
-
-      return { x: Math.floor(x), y: Math.floor(y) };
+    (e: React.MouseEvent<HTMLCanvasElement>): Cell | undefined => {
+      const point = transform.inverse().transformPoint({
+        x: e.nativeEvent.offsetX * dpr,
+        y: e.nativeEvent.offsetY * dpr,
+      });
+      const cell = {
+        r: Math.floor(point.y),
+        c: Math.floor(point.x),
+      };
+      if (!grid.cellInGrid(cell)) {
+        return undefined;
+      }
+      return cell;
     },
-    [grid]
+    [transform, grid]
   );
 
   const onMouseMove = useCallback(
     (e: React.MouseEvent<HTMLCanvasElement>) => {
       const cell = cellFromMouseEvent(e);
-      if (!cell) return;
 
       setHoveredCell(cell);
       onCellHover?.(cell);
@@ -177,52 +201,45 @@ export const MapViewer: FC<Props> = ({
       if (!onCellSelect) return;
 
       const cell = cellFromMouseEvent(e);
-      if (!cell) return;
-
-      if (grid.object(cell.x, cell.y)) {
-        onCellSelect(cell);
-      } else {
-        onCellSelect(undefined);
-      }
+      onCellSelect(cell);
     },
     [zoom, grid, onCellSelect, cellFromMouseEvent]
   );
 
   return (
     <div
-      ref={(el) => {
-        containerRef.current = el;
-        setContainer(el);
-      }}
+      className="relative flex h-full w-full overflow-hidden"
       {...panZoomHandlers}
-      onDoubleClick={() => {
-        // Reset on double click
-        setZoom(1);
-        setPan({ x: 0, y: 0 });
-      }}
-      className="flex h-full w-full cursor-grab items-start justify-center overflow-hidden bg-gray-100"
+      ref={setContainer}
     >
-      <div className="relative max-h-full max-w-full" style={{ transform }}>
-        <canvas
-          ref={canvasRef}
-          onMouseMove={onMouseMove}
-          onMouseLeave={() => {
-            setHoveredCell(undefined);
-            onCellHover?.(undefined);
-          }}
-          onClick={onMouseClick}
-          className="h-full max-h-full w-full max-w-full"
-        />
-        <div className="pointer-events-none absolute inset-0 z-10">
-          {canvasRef.current && (
-            <Overlay
-              cellSize={canvasRef.current?.clientWidth / grid.width}
-              hoveredCell={hoveredCell}
-              selectedCell={selectedCell}
-            />
-          )}
-        </div>
-      </div>
+      <canvas
+        ref={canvasRef}
+        onDoubleClick={recenter}
+        // Canvas takes all available space.
+        className={clsx(
+          "h-full w-full overflow-hidden",
+          enablePan && (isMouseDown ? "cursor-grabbing" : "cursor-grab")
+        )}
+        onMouseMove={onMouseMove}
+        onMouseLeave={() => {
+          setHoveredCell(undefined);
+          onCellHover?.(undefined);
+        }}
+        onClick={onMouseClick}
+      />
+      {/* <DebugInfo canvas={canvasRef.current} pan={pan} zoom={zoom} /> */}
     </div>
   );
+};
+
+export const MapViewer: FC<Props> = (props) => {
+  if (typeof window === "undefined") {
+    return (
+      <div className="relative flex h-full w-full overflow-hidden">
+        <canvas className="h-full w-full overflow-hidden" />
+      </div>
+    );
+  }
+
+  return <MapViewerBrowserOnly {...props} />;
 };

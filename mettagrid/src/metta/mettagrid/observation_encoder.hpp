@@ -14,13 +14,15 @@
 
 class ObservationEncoder {
 public:
-  ObservationEncoder() {
+  explicit ObservationEncoder(const std::vector<std::string>& inventory_item_names) {
     _feature_normalizations = FeatureNormalizations;
-    for (int i = 0; i < ObservationFeature::ObservationFeatureCount; i++) {
-      _feature_normalizations.insert({i, DEFAULT_NORMALIZATION});
-    }
-    for (int i = 0; i < InventoryItem::InventoryItemCount; i++) {
-      _feature_normalizations.insert({static_cast<uint8_t>(InventoryFeatureOffset + i), DEFAULT_NORMALIZATION});
+    _feature_names = FeatureNames;
+    assert(_feature_names.size() == InventoryFeatureOffset);
+    assert(_feature_names.size() == _feature_normalizations.size());
+    for (int i = 0; i < inventory_item_names.size(); i++) {
+      _feature_normalizations.insert(
+          {static_cast<uint8_t>(InventoryFeatureOffset + i), DEFAULT_INVENTORY_NORMALIZATION});
+      _feature_names.insert({static_cast<uint8_t>(InventoryFeatureOffset + i), "inv:" + inventory_item_names[i]});
     }
   }
 
@@ -46,8 +48,13 @@ public:
     return _feature_normalizations;
   }
 
+  const std::map<uint8_t, std::string>& feature_names() const {
+    return _feature_names;
+  }
+
 private:
   std::map<uint8_t, float> _feature_normalizations;
+  std::map<uint8_t, std::string> _feature_names;
 };
 
 #endif  // OBSERVATION_ENCODER_HPP_
