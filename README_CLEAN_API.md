@@ -59,7 +59,7 @@ The `metta_api` module provides these key functions:
 ## Example Usage
 
 ```python
-import metta_api as metta
+from metta import api as metta
 
 # Simple training
 checkpoint = metta.quick_train(
@@ -109,3 +109,14 @@ config = metta.trainer(batch_size=256, learning_rate=3e-4)
 ```
 
 All configuration is done programmatically in Python, making it easier to debug and integrate with other systems.
+
+```python
+from metta import api as metta
+
+# Define your environment
+env_config = metta.env(
+    num_agents=2,
+    width=15,
+    height=10,
+    max_steps=1000,
+)

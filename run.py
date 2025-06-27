@@ -1,23 +1,27 @@
-#!/usr/bin/env python3
-"""
-Simple entry point for Metta without Hydra.
+#!/usr/bin/env python
+"""Direct Metta execution script for training and simulation.
 
-Usage:
-    # Train (default)
+This script provides a simple command-line interface for:
+- Training agents
+- Running simulations
+- Visualizing results
+
+Examples:
+    # Train with default settings
     python run.py
 
-    # Train with options
-    python run.py train --run my_experiment --timesteps 1000000
+    # Train with custom parameters
+    python run.py train --timesteps 100000 --batch-size 1024
 
-    # Evaluate
-    python run.py sim --run my_experiment --policy-uri file://./checkpoints/policy.pt
+    # Run simulation
+    python run.py sim --run myrun --policy-uri file://path/to/policy.pt
 """
 
 import argparse
 import json
 import os
 
-import metta_api as metta
+from metta import api as metta
 
 # Parse arguments
 parser = argparse.ArgumentParser(

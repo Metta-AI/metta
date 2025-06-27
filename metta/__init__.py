@@ -21,6 +21,9 @@ from metta.rl.trainer_config import (
     VTraceConfig,
 )
 
+# Import the API module for programmatic access
+from . import api
+
 
 def agent(
     obs_key: str = "grid_obs",
