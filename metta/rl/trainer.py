@@ -294,7 +294,7 @@ class MettaTrainer:
             for metric_name, step_metric in metric_overrides:
                 wandb_run.define_metric(metric_name, step_metric=step_metric)
 
-        self._memory_monitor.add(self)
+        self._memory_monitor.add(self)  # don't include timer
 
         logger.info(f"MettaTrainer initialization complete on device: {self.device}")
 
@@ -338,9 +338,9 @@ class MettaTrainer:
                 f"{steps_per_sec * self._world_size:.0f} steps/sec "
                 f"({train_pct:.0f}% train / {rollout_pct:.0f}% rollout / {stats_pct:.0f}% stats)"
             )
-            record_heartbeat()
 
             # Interval periodic tasks
+            self._maybe_record_heartbeat()
             self._maybe_save_policy()
             self._maybe_save_training_state()
             wandb_policy_name = self._maybe_upload_policy_record_to_wandb()
@@ -668,6 +668,12 @@ class MettaTrainer:
 
         return self.epoch % interval == 0
 
+    def _maybe_record_heartbeat(self, force=False):
+        if not self._should_run(10, force):
+            return
+
+        record_heartbeat()
+
     def _maybe_save_training_state(self, force=False):
         """Save training state if on checkpoint interval"""
         if not self._should_run(self.trainer_cfg.checkpoint_interval, force):
@@ -900,8 +906,8 @@ class MettaTrainer:
         }
 
         epoch_steps = self.timer.get_lap_steps()
-        if epoch_steps is None:
-            epoch_steps = self.agent_step
+        assert epoch_steps is not None
+
         epoch_steps_per_second = epoch_steps / wall_time_for_lap if wall_time_for_lap > 0 else 0
         steps_per_second = self.timer.get_rate(self.agent_step) if wall_time > 0 else 0
 
@@ -911,6 +917,10 @@ class MettaTrainer:
         timing_stats = {
             **{
                 f"timing_per_epoch/frac/{op}": lap_elapsed / wall_time_for_lap if wall_time_for_lap > 0 else 0
+                for op, lap_elapsed in lap_times.items()
+            },
+            **{
+                f"timing_per_epoch/msec/{op}": lap_elapsed * 1000 if wall_time_for_lap > 0 else 0
                 for op, lap_elapsed in lap_times.items()
             },
             "timing_per_epoch/sps": epoch_steps_per_second,
