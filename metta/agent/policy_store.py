@@ -490,8 +490,11 @@ class PolicyStore:
         if isinstance(checkpoint, PolicyRecord):
             pr = checkpoint
             pr._policy_store = self
-            if pr._cached_policy is None and not metadata_only:
-                raise ValueError("Legacy PolicyRecord has no policy attached")
+            # Check if _cached_policy attribute exists and handle both cases
+            has_cached_policy = hasattr(pr, "_cached_policy")
+            if not metadata_only:
+                if not has_cached_policy or pr._cached_policy is None:
+                    raise ValueError("Legacy PolicyRecord has no policy attached")
             self._cached_prs[path] = pr
             return pr
 
