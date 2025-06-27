@@ -23,6 +23,7 @@ class AgentGroupConfig_cpp(BaseModelWithForbidExtra):
     group_name: str
     group_id: int
     group_reward_pct: float = Field(ge=0, le=1)
+    type_id: int = 0
 
 
 class ActionConfig_cpp(BaseModelWithForbidExtra):
@@ -50,6 +51,7 @@ class WallConfig_cpp(BaseModelWithForbidExtra):
     """Wall/Block configuration."""
 
     swappable: Optional[bool] = None
+    type_id: Byte
 
 
 class ConverterConfig_cpp(BaseModelWithForbidExtra):
@@ -62,6 +64,7 @@ class ConverterConfig_cpp(BaseModelWithForbidExtra):
     cooldown: int = Field(ge=0)
     initial_items: int = Field(ge=0)
     color: Byte = Field(default=0)
+    type_id: Byte
 
 
 class ObjectsConfig_cpp(BaseModelWithForbidExtra):

@@ -42,7 +42,10 @@ def base_config():
             "change_color": {"enabled": True},
         },
         "groups": {"red": {"id": 0, "props": {}}},
-        "objects": {"wall": {}, "altar": {"max_output": -1, "conversion_ticks": 1, "cooldown": 10, "initial_items": 0}},
+        "objects": {
+            "wall": {"type_id": 1},
+            "altar": {"type_id": 8, "max_output": -1, "conversion_ticks": 1, "cooldown": 10, "initial_items": 0},
+        },
         "agent": {"rewards": {}},
     }
 
@@ -92,7 +95,7 @@ def configured_env(base_config):
 
         print(cpp_config_dict(game_config))
 
-        env = MettaGrid(cpp_config_dict(game_config), game_map)
+        env = MettaGrid(cpp_config_dict(game_config), game_map, 42)
 
         # Set up buffers
         observations = np.zeros((1, NUM_OBS_TOKENS, OBS_TOKEN_SIZE), dtype=dtype_observations)

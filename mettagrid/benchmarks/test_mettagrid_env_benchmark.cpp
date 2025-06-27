@@ -79,6 +79,7 @@ py::dict CreateBenchmarkConfig(int num_agents) {
   agent_group1["group_name"] = "team1";
   agent_group1["group_id"] = 0;
   agent_group1["group_reward_pct"] = 0.0f;
+  agent_group1["type_id"] = 0;
 
   agent_group2["freeze_duration"] = 0;
   agent_group2["action_failure_penalty"] = 0;
@@ -88,6 +89,7 @@ py::dict CreateBenchmarkConfig(int num_agents) {
   agent_group2["group_name"] = "team2";
   agent_group2["group_id"] = 1;
   agent_group2["group_reward_pct"] = 0.0f;
+  agent_group2["type_id"] = 0;
 
   agent_groups["agent.team1"] = agent_group1;
   agent_groups["agent.team2"] = agent_group2;
@@ -99,10 +101,7 @@ py::dict CreateBenchmarkConfig(int num_agents) {
   py::dict wall_cfg, block_cfg, mine_cfg, generator_cfg, altar_cfg;
 
   objects_cfg["wall"] = wall_cfg;
-  objects_cfg["block"] = block_cfg;
-  objects_cfg["mine_red"] = mine_cfg;
-  objects_cfg["generator_red"] = generator_cfg;
-  objects_cfg["altar"] = altar_cfg;
+  objects_cfg["wall"]["type_id"] = 1;
 
   game_cfg["objects"] = objects_cfg;
 
@@ -203,7 +202,7 @@ static void BM_MettaGridStep(benchmark::State& state) {  // NOLINT(runtime/refer
   auto cfg = CreateBenchmarkConfig(num_agents);
   auto map = CreateDefaultMap(2);
 
-  auto env = std::make_unique<MettaGrid>(cfg, map);
+  auto env = std::make_unique<MettaGrid>(cfg, map, 42);
   env->reset();
 
   // Verify agent count
