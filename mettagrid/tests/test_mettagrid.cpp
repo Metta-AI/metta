@@ -16,6 +16,7 @@ constexpr uint8_t ORE = 0;
 constexpr uint8_t LASER = 1;
 constexpr uint8_t ARMOR = 2;
 constexpr uint8_t HEART = 3;
+constexpr uint8_t CONVERTER = 4;
 }  // namespace TestItems
 
 // Pure C++ tests without any Python/pybind dependencies - we will test those with pytest
@@ -233,8 +234,9 @@ TEST_F(MettaGridCppTest, PutRecipeItems) {
   generator_cfg.initial_items = 0;
   generator_cfg.color = 0;
   generator_cfg.inventory_item_names = inventory_item_names;
+  generator_cfg.type_id = TestItems::CONVERTER;
   EventManager event_manager;
-  Converter* generator = new Converter(0, 0, generator_cfg, ObjectType::GeneratorRedT);
+  Converter* generator = new Converter(0, 0, generator_cfg);
   grid.add_object(generator);
   generator->set_event_manager(&event_manager);
 
@@ -287,8 +289,9 @@ TEST_F(MettaGridCppTest, GetOutput) {
   generator_cfg.initial_items = 1;
   generator_cfg.color = 0;
   generator_cfg.inventory_item_names = inventory_item_names;
+  generator_cfg.type_id = TestItems::CONVERTER;
   EventManager event_manager;
-  Converter* generator = new Converter(0, 0, generator_cfg, ObjectType::GeneratorRedT);
+  Converter* generator = new Converter(0, 0, generator_cfg);
   grid.add_object(generator);
   generator->set_event_manager(&event_manager);
 
@@ -342,9 +345,11 @@ TEST_F(MettaGridCppTest, ConverterCreation) {
   converter_cfg.initial_items = 0;
   converter_cfg.color = 0;
   converter_cfg.inventory_item_names = create_test_inventory_item_names();
-  std::unique_ptr<Converter> converter(new Converter(1, 2, converter_cfg, ObjectType::GeneratorRedT));
+  converter_cfg.type_id = TestItems::CONVERTER;
+  std::unique_ptr<Converter> converter(new Converter(1, 2, converter_cfg));
 
   ASSERT_NE(converter, nullptr);
   EXPECT_EQ(converter->location.r, 1);
   EXPECT_EQ(converter->location.c, 2);
+  EXPECT_EQ(converter->type_id, TestItems::CONVERTER);
 }
