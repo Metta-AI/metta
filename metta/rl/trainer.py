@@ -1207,18 +1207,18 @@ class MettaTrainer:
         # Try checkpoint first
         if checkpoint and checkpoint.policy_path:
             logger.info(f"Loading policy from checkpoint: {checkpoint.policy_path}")
-            return policy_store.policy(checkpoint.policy_path)
+            return policy_store.policy_record(checkpoint.policy_path)
 
         # Try initial_policy from config
         if trainer_cfg.initial_policy and (initial_uri := trainer_cfg.initial_policy.uri) is not None:
             logger.info(f"Loading initial policy URI: {initial_uri}")
-            return policy_store.policy(initial_uri)
+            return policy_store.policy_record(initial_uri)
 
         # Try default checkpoint path
         policy_path = os.path.join(trainer_cfg.checkpoint_dir, policy_store.make_model_name(0))
         if os.path.exists(policy_path):
             logger.info(f"Loading policy from checkpoint: {policy_path}")
-            return policy_store.policy(policy_path)
+            return policy_store.policy_record(policy_path)
 
         return None
 
@@ -1246,7 +1246,7 @@ class MettaTrainer:
         for attempt in range(timeout_attempts):
             if os.path.exists(policy_path):
                 logger.info(f"Found policy created by master: {policy_path}")
-                return policy_store.policy(policy_path)
+                return policy_store.policy_record(policy_path)
             logger.info(f"Waiting for master to create policy... attempt {attempt + 1}/{timeout_attempts}")
             time.sleep(5)
 
