@@ -158,7 +158,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
         # Convert string array to list of strings for C++ compatibility
         # TODO: push the not-numpy-array higher up the stack, and consider pushing not-a-sparse-list lower.
         with self.timer("_initialize_c_env.make_c_env"):
-            self._c_env = MettaGrid(cpp_config_dict(game_config_dict), level.grid.tolist())
+            self._c_env = MettaGrid(cpp_config_dict(game_config_dict), level.grid.tolist(), self._current_seed)
 
         self._grid_env = self._c_env
 
@@ -257,6 +257,11 @@ class MettaGridEnv(PufferEnv, GymEnv):
             infos[f"map_reward/{label}"] = episode_rewards_mean
 
         infos.update(self._curriculum.get_completion_rates())
+
+        # Add curriculum-specific stats
+        curriculum_stats = self._curriculum.get_curriculum_stats()
+        for key, value in curriculum_stats.items():
+            infos[f"curriculum/{key}"] = value
 
         with self.timer("_c_env.get_episode_stats"):
             stats = self._c_env.get_episode_stats()

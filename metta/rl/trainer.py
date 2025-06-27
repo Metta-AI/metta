@@ -105,10 +105,6 @@ class MettaTrainer:
         if torch.distributed.is_initialized():
             self._master = int(os.environ["RANK"]) == 0
             self._world_size = torch.distributed.get_world_size()
-
-            self._batch_size = trainer_cfg.batch_size // self._world_size
-            self._minibatch_size = trainer_cfg.minibatch_size // self._world_size
-
             logger.info(
                 f"Rank: {os.environ['RANK']}, Local rank: {os.environ['LOCAL_RANK']}, World size: {self._world_size}"
             )
@@ -311,7 +307,10 @@ class MettaTrainer:
         if self._stats_client is not None:
             name = self.wandb_run.name if self.wandb_run is not None and self.wandb_run.name is not None else "unknown"
             url = self.wandb_run.url if self.wandb_run is not None else None
-            self._stats_run_id = self._stats_client.create_training_run(name=name, attributes={}, url=url).id
+            try:
+                self._stats_run_id = self._stats_client.create_training_run(name=name, attributes={}, url=url).id
+            except Exception as e:
+                logger.warning(f"Failed to create training run: {e}")
 
         logger.info(f"Training on {self.device}")
         wandb_policy_name: str | None = None
@@ -777,7 +776,12 @@ class MettaTrainer:
     def _maybe_evaluate_policy(self, wandb_policy_name: str | None = None, force: bool = False):
         """Evaluate policy if on evaluation interval"""
         if self._should_run(self.trainer_cfg.evaluate_interval, force):
-            self._evaluate_policy(wandb_policy_name)
+            try:
+                self._evaluate_policy(wandb_policy_name)
+            except Exception as e:
+                logger.error(f"Error evaluating policy: {e}")
+
+            self._stats_epoch_start = self.epoch + 1
 
     @with_instance_timer("_evaluate_policy", log_level=logging.INFO)
     def _evaluate_policy(self, wandb_policy_name: str | None = None):
@@ -788,7 +792,6 @@ class MettaTrainer:
                 end_training_epoch=self.epoch,
                 attributes={},
             ).id
-            self._stats_epoch_start = self.epoch + 1
 
         logger.info(f"Simulating policy: {self.latest_saved_policy_uri} with config: {self.sim_suite_config}")
         sim = SimulationSuite(
@@ -989,7 +992,8 @@ class MettaTrainer:
                 **timing_stats,
                 **metric_stats,
                 **self.grad_stats,
-            }
+            },
+            step=self.agent_step,
         )
 
         self.stats.clear()
