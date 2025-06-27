@@ -725,7 +725,8 @@ ConverterConfig MettaGrid::_create_converter_config(const py::dict& converter_cf
 
 WallConfig MettaGrid::_create_wall_config(const py::dict& wall_cfg_py) {
   bool swappable = wall_cfg_py.contains("swappable") ? wall_cfg_py["swappable"].cast<bool>() : false;
-  return WallConfig{swappable};
+  TypeId type_id = wall_cfg_py["type_id"].cast<TypeId>();
+  return WallConfig{type_id, swappable};
 }
 
 // Pybind11 module definition
