@@ -490,11 +490,29 @@ class PolicyStore:
         if isinstance(checkpoint, PolicyRecord):
             pr = checkpoint
             pr._policy_store = self
-            # Check if _cached_policy attribute exists and handle both cases
-            has_cached_policy = hasattr(pr, "_cached_policy")
+
             if not metadata_only:
-                if not has_cached_policy or pr._cached_policy is None:
-                    raise ValueError("Legacy PolicyRecord has no policy attached")
+                # Check for policy under different possible attribute names
+                policy_cache_attributes = ["_cached_policy", "_policy"]
+                policy = None
+
+                for attr in policy_cache_attributes:
+                    if hasattr(pr, attr):
+                        policy = getattr(pr, attr)
+                        if policy is not None:
+                            # If we found it under a different name, set it to the current standard
+                            if attr != "_cached_policy":
+                                pr._cached_policy = policy
+                                logger.info(
+                                    f"Found policy under legacy attribute '{attr}', migrated to '_cached_policy'"
+                                )
+                            break
+
+                if policy is None:
+                    raise ValueError(
+                        f"Legacy PolicyRecord has no policy attached (checked attributes: {policy_cache_attributes})"
+                    )
+
             self._cached_prs[path] = pr
             return pr
 
