@@ -115,12 +115,11 @@ class MettaTrainer:
         self.policy_store = policy_store
         self.evals: dict[str, float] = {}
 
+        self._memory_monitor = MemoryMonitor()
         self._memory_monitor.add(self)  # don't include timer
 
         self.timer = Stopwatch(logger)
         self.timer.start()
-
-        self._memory_monitor = MemoryMonitor()
 
         self._system_monitor = SystemMonitor(
             sampling_interval_sec=1.0,  # Sample every second
