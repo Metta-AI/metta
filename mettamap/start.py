@@ -1,7 +1,9 @@
 #!/usr/bin/env -S uv run
 
 import os
+import shutil
 import subprocess
+import sys
 import threading
 import time
 import webbrowser
@@ -20,7 +22,10 @@ def main():
 
     # Ensure color output from child processes even when stdout is piped.
     env = os.environ.copy()
-    env["FORCE_COLOR"] = "1"
+    if os.isatty(sys.stdout.fileno()):
+        env["FORCE_COLOR"] = "1"
+        # some screen space is used by the label prefix
+        env["COLUMNS"] = str(shutil.get_terminal_size().columns - 11)
 
     # Start the backend server in repo root
     backend_process = subprocess.Popen(
