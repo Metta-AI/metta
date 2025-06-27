@@ -21,5 +21,5 @@ export const MapLoader: FC<{ mapUrl: string; filterable?: boolean }> = ({
     return <div>Loading...</div>;
   }
 
-  return <StorableMapViewer map={map} filterable={filterable} />;
+  return <StorableMapViewer url={mapUrl} map={map} filterable={filterable} />;
 };

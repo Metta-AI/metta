@@ -13,7 +13,7 @@ from metta.agent.policy_state import PolicyState
 from metta.agent.util.debug import assert_shape
 from metta.agent.util.distribution_utils import evaluate_actions, sample_actions
 from metta.agent.util.safe_get import safe_get_from_obs_space
-from metta.util.omegaconf import convert_to_dict
+from metta.common.util.omegaconf import convert_to_dict
 
 if TYPE_CHECKING:
     from metta.mettagrid.mettagrid_env import MettaGridEnv
@@ -428,16 +428,6 @@ class MettaAgent(nn.Module):
                 results.append(result)
 
         return results
-
-    def l2_reg_loss(self) -> torch.Tensor:
-        """L2 regularization loss is on by default although setting l2_norm_coeff to 0 effectively turns it off. Adjust
-        it by setting l2_norm_scale in your component config to a multiple of the global loss value or 0 to turn it off.
-        """
-        component_loss_tensors = self._apply_to_components("l2_reg_loss")
-        if len(component_loss_tensors) > 0:
-            return torch.sum(torch.stack(component_loss_tensors))
-        else:
-            return torch.tensor(0.0, device=self.device, dtype=torch.float32)
 
     def l2_init_loss(self) -> torch.Tensor:
         """L2 initialization loss is on by default although setting l2_init_coeff to 0 effectively turns it off. Adjust

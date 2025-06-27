@@ -11,13 +11,14 @@ import yaml
 from omegaconf import DictConfig, ListConfig, OmegaConf
 
 import wandb_carbs
+from metta.common.util.config import config_from_path
+from metta.common.util.lock import run_once
+from metta.common.util.logging import setup_mettagrid_logger
+from metta.common.util.wandb.sweep import generate_run_id_for_sweep, sweep_id_from_name
+from metta.common.util.wandb.wandb_context import WandbContext
 from metta.rl.carbs.metta_carbs import MettaCarbs, carbs_params_from_cfg
 from metta.sim.simulation_config import SimulationSuiteConfig
-from metta.util.config import config_from_path
-from metta.util.lock import run_once
-from metta.util.logging import setup_mettagrid_logger
-from metta.util.wandb.sweep import generate_run_id_for_sweep, sweep_id_from_name
-from metta.util.wandb.wandb_context import WandbContext
+from tools.sweep_config_utils import apply_carbs_suggestion, save_train_job_override_config, validate_merged_config
 
 
 @hydra.main(config_path="../configs", config_name="sweep_job", version_base=None)
@@ -115,10 +116,19 @@ def create_run(sweep_name: str, cfg: DictConfig | ListConfig, logger: Logger) ->
             _log_file(run_dir, wandb_run, "carbs_suggestion.yaml", suggestion)
 
             train_cfg = OmegaConf.create({key: cfg[key] for key in cfg.sweep.keys()})
+            # Convert suggestion to DictConfig if it's a dict
+            if isinstance(suggestion, dict):
+                suggestion = OmegaConf.create(suggestion)
             apply_carbs_suggestion(train_cfg, suggestion)
-            save_path = os.path.join(run_dir, "train_config_overrides.yaml")
-            OmegaConf.save(train_cfg, save_path)
-            logger.info(f"Saved train config overrides to {save_path}")
+
+            try:
+                validate_merged_config(cfg, train_cfg)
+            except ValueError:
+                logger.error("Invalid configuration after applying CARBS suggestion", exc_info=True)
+                raise
+            else:
+                save_path = save_train_job_override_config(cfg, train_cfg)
+                logger.info(f"Saved train config overrides to {save_path}")
 
         if cfg.dist_cfg_path is not None:
             logger.info(f"Saved run details to {cfg.dist_cfg_path}")
@@ -150,24 +160,6 @@ def wait_for_run(sweep_name: str, cfg: DictConfig | ListConfig, path: str, logge
 
     run = OmegaConf.load(path).run
     logger.info(f"Run ID: {run} ready")
-
-
-def apply_carbs_suggestion(config: DictConfig | ListConfig, suggestion: DictConfig):
-    """Apply suggestions to a configuration object using dotted path notation.
-
-    Args:
-        config: The configuration object to modify
-        suggestion: The suggestions to apply
-    """
-    for key, value in suggestion.items():
-        if key == "suggestion_uuid":
-            continue
-
-        # Convert key to string if it's not already
-        str_key = str(key) if not isinstance(key, str) else key
-
-        # Use OmegaConf.update with the string key
-        OmegaConf.update(config, str_key, value)
 
 
 def _log_file(run_dir: str, wandb_run, name: str, data):

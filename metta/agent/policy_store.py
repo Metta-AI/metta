@@ -15,7 +15,7 @@ import os
 import random
 import sys
 import warnings
-from typing import List, Optional, Union
+from typing import Any, List, Optional, Union
 
 import gymnasium as gym
 import numpy as np
@@ -179,18 +179,24 @@ class PolicyStore:
                 "train_time": 0,
             },
         )
-        self.save_policy(path, policy, pr)
+        self._save_policy(path, policy, pr)
         pr._policy = policy
         return pr
 
     def save(self, name: str, path: str, policy: nn.Module, metadata: dict) -> PolicyRecord:
         """Convenience method to create and save a policy in one step."""
         pr = PolicyRecord(self, name, "file://" + path, metadata)
-        return self.save_policy(path, policy, pr)
+        return self._save_policy(path, policy, pr)
 
-    def save_policy(self, path: str, policy: nn.Module, pr: PolicyRecord) -> PolicyRecord:
+    def _save_policy(self, path: str, policy: nn.Module, pr: PolicyRecord) -> PolicyRecord:
         """Save a policy and its metadata using torch.package."""
         logger.info(f"Saving policy to {path} using torch.package")
+
+        policy_class_name = policy.__class__.__module__
+        if "torch_package_" in policy_class_name:
+            logger.error("Policy class name with torch_package_ prefixes! Did you forget to rebuild the agent?")
+            logger.error("Skipping save to prevent pickle errors.")
+            return pr
 
         try:
             with PackageExporter(path, debug=False) as exporter:
@@ -210,19 +216,21 @@ class PolicyStore:
         pr.uri = "file://" + path
         return pr
 
-    def add_to_wandb_run(self, run_id: str, pr: PolicyRecord, additional_files=None):
+    def add_to_wandb_run(self, run_id: str, pr: PolicyRecord, additional_files: list[str] | None = None) -> str:
         local_path = pr.local_path()
         if local_path is None:
             raise ValueError("PolicyRecord has no local path")
         return self.add_to_wandb_artifact(run_id, "model", pr.metadata, local_path, additional_files)
 
-    def add_to_wandb_sweep(self, sweep_name: str, pr: PolicyRecord, additional_files=None):
+    def add_to_wandb_sweep(self, sweep_name: str, pr: PolicyRecord, additional_files: list[str] | None = None) -> str:
         local_path = pr.local_path()
         if local_path is None:
             raise ValueError("PolicyRecord has no local path")
         return self.add_to_wandb_artifact(sweep_name, "sweep_model", pr.metadata, local_path, additional_files)
 
-    def add_to_wandb_artifact(self, name: str, type: str, metadata: dict, local_path: str, additional_files=None):
+    def add_to_wandb_artifact(
+        self, name: str, type: str, metadata: dict[str, Any], local_path: str, additional_files: list[str] | None = None
+    ) -> str:
         if self._wandb_run is None:
             raise ValueError("PolicyStore was not initialized with a wandb run")
 
@@ -236,6 +244,7 @@ class PolicyStore:
         artifact.wait()
         logger.info(f"Added artifact {artifact.qualified_name}")
         self._wandb_run.log_artifact(artifact)
+        return artifact.qualified_name
 
     def _prs_from_path(self, path: str) -> List[PolicyRecord]:
         paths = []
@@ -480,7 +489,7 @@ class PolicyStore:
                     "omegaconf.**",
                     "mettagrid.**",
                     "metta.mettagrid.**",
-                    "metta.util.config",
+                    "metta.common.util.config",
                     "metta.rl.vecenv",
                     "metta.eval.dashboard_data",
                     "metta.sim.simulation_config",
@@ -497,11 +506,11 @@ class PolicyStore:
                     "metta.agent.metta_agent",
                     "metta.agent.brain_policy",
                     "metta.agent.policy_state",
-                    "metta.util.omegaconf",
-                    "metta.util.runtime_configuration",
-                    "metta.util.logger",
-                    "metta.util.decorators",
-                    "metta.util.resolvers",
+                    "metta.common.util.omegaconf",
+                    "metta.common.util.runtime_configuration",
+                    "metta.common.util.logger",
+                    "metta.common.util.decorators",
+                    "metta.common.util.resolvers",
                 ],
             ),
             # Mock rules: Exclude these completely

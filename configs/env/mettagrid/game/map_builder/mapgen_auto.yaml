@@ -17,8 +17,8 @@ root:
     # Values are absolute counts. (TODO: make them percentages?)
     objects:
       {}
-      # mine: ${uniform:1,800,400}
-      # generator: ${uniform:1,400,80}
+      # mine_red: ${uniform:1,800,400}
+      # generator_red: ${uniform:1,400,80}
       # altar: ${uniform:1,200,40}
       # armory: ${uniform:1,200,40}
       # lasery: ${uniform:1,200,40}
@@ -30,8 +30,8 @@ root:
     # The percentage of objects to generate in each area.
     # The percentage will be sampled from the distribution for each room separately.
     room_objects:
-      mine: ["uniform", 0.0005, 0.01]
-      generator: ["lognormal", 0.0001, 0.01, 0.03]
+      mine_red: ["uniform", 0.0005, 0.01]
+      generator_red: ["lognormal", 0.0001, 0.01, 0.03]
       altar: ["lognormal", 0.0001, 0.01, 0.03]
       armory: ["uniform", 0.0005, 0.01]
       lasery: ["uniform", 0.0005, 0.01]

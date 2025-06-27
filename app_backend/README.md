@@ -1,6 +1,6 @@
 # Metta App Backend
 
-A FastAPI-based backend server for the Metta AI framework, containerized with Docker and managed with uv.
+This is the backend for the app deployed at https://observatory.softmax-research.net/
 
 ## Building the Docker Image
 
@@ -28,6 +28,8 @@ If you are running a postgres instance locally, use `host.docker.internal` as ho
 - `STATS_DB_URI`: PostgreSQL connection string (default: `postgres://postgres:password@127.0.0.1/postgres`)
 - `HOST`: Server host (default: `127.0.0.1`)
 - `PORT`: Server port (default: `8000`)
+- `DEBUG_USER_EMAIL` : In production, your auth token is managed by oauth2_proxy. This is a way to run locally
+without the oauth2_proxy.
 
 ## Development
 
