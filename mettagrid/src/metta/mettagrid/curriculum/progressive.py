@@ -143,8 +143,3 @@ class ProgressiveMultiTaskCurriculum(RandomCurriculum):
             "smoothed_performance": self._smoothed_performance,
             "progress": self._progress,
         }
-        # Add task probabilities
-        task_probs = self.get_task_probs()
-        for task_id, prob in task_probs.items():
-            stats[f"task_prob/{task_id}"] = prob
-        return stats
