@@ -2,10 +2,9 @@
 
 import asyncio
 import os
-import platform
-import subprocess
 import sys
 import threading
+import webbrowser
 from pathlib import Path
 from urllib.parse import urlencode
 
@@ -127,15 +126,7 @@ class CLIAuthenticator:
 
     def _open_browser(self, url: str) -> None:
         """Open the default browser to the authentication URL"""
-        try:
-            system = platform.system().lower()
-            if system == "darwin":  # macOS
-                subprocess.run(["open", url], check=True)
-            elif system == "windows":
-                subprocess.run(["start", url], shell=True, check=True)
-            else:  # Linux and others
-                subprocess.run(["xdg-open", url], check=True)
-        except subprocess.CalledProcessError as e:
+        if not webbrowser.open(url):
             print(f"Failed to open browser automatically: {e}")
             print(f"Please manually visit: {url}")
 
