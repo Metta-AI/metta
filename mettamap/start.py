@@ -1,6 +1,9 @@
 #!/usr/bin/env -S uv run
 
 import subprocess
+import threading
+import time
+import webbrowser
 from pathlib import Path
 
 from metta.common.fs import cd_repo_root
@@ -31,34 +34,57 @@ def main():
 
     print("Both servers started. Press Ctrl+C to stop both.")
 
+    browser_opened = False
+
+    def stream_output(proc: subprocess.Popen[str], label: str):
+        """Continuously read lines from a subprocess and print them with a label.
+
+        When the frontend (pnpm dev) indicates it is ready, automatically open the browser.
+        """
+        nonlocal browser_opened
+        assert proc.stdout is not None  # for mypy/static checkers
+        for line in iter(proc.stdout.readline, ""):
+            if not line:
+                continue
+
+            # Print the raw line with a prefixed label.
+            print(f"[{label}] {line.rstrip()}")
+
+            # Detect the readiness message from the frontend dev server.
+            if label == "FRONTEND" and not browser_opened and "ready in" in line.lower():
+                # Open the default browser pointing to the local dev server.
+                webbrowser.open("http://localhost:3000")
+                browser_opened = True
+
+    # Start dedicated threads to capture stdout from each process.
+    backend_thread = threading.Thread(target=stream_output, args=(backend_process, "BACKEND"), daemon=True)
+    frontend_thread = threading.Thread(target=stream_output, args=(frontend_process, "FRONTEND"), daemon=True)
+
+    backend_thread.start()
+    frontend_thread.start()
+
     try:
-        # Monitor both processes and print their output
+        # Keep running until either process exits or the user interrupts.
         while True:
-            # Check if either process has terminated
             if backend_process.poll() is not None:
                 print("Backend server terminated")
                 break
             if frontend_process.poll() is not None:
                 print("Frontend server terminated")
                 break
-
-            # Read output from both processes
-            backend_output = backend_process.stdout.readline()
-            if backend_output:
-                print(f"[BACKEND] {backend_output.strip()}")
-
-            frontend_output = frontend_process.stdout.readline()
-            if frontend_output:
-                print(f"[FRONTEND] {frontend_output.strip()}")
-
+            time.sleep(0.5)
     except KeyboardInterrupt:
         print("\nStopping servers...")
+    finally:
         backend_process.terminate()
         frontend_process.terminate()
 
-        # Wait for processes to terminate
         backend_process.wait()
         frontend_process.wait()
+
+        # Give threads a moment to flush remaining output
+        backend_thread.join(timeout=1)
+        frontend_thread.join(timeout=1)
 
         print("Both servers stopped.")
 
