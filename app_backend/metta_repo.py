@@ -246,9 +246,9 @@ class MettaRepo:
     ) -> uuid.UUID:
         with self.connect() as con:
             # Parse eval_category and env_name from eval_name
-            eval_category = eval_name.split('/', 1)[0] if eval_name else None
-            env_name = eval_name.split('/', 1)[1] if eval_name and '/' in eval_name else None
-            
+            eval_category = eval_name.split("/", 1)[0] if eval_name else None
+            env_name = eval_name.split("/", 1)[1] if eval_name and "/" in eval_name else None
+
             # Insert into episodes table
             result = con.execute(
                 """
