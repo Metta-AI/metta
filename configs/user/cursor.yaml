@@ -11,8 +11,10 @@ analysis:
 
 # Training settings optimized for quick testing
 trainer:
-  checkpoint_interval: 50      # Save frequently for testing
-  evaluate_interval: 0         # Skip evaluation during quick tests
+  checkpoint:
+    checkpoint_interval: 50      # Save frequently for testing
+  simulation:
+    evaluate_interval: 0         # Skip evaluation during quick tests
   total_timesteps: 100000     # Stop after 100k steps for quick tests
 
 # Hardware - assume CPU for compatibility
