@@ -9,5 +9,5 @@
 
 
 #2) finetune off of navigation
-#baseline to compare: https://wandb.ai/metta-research/metta/runs/daphne.nav_memory_sequence.navigation_finetuned.06-25?nw=nwuserdaphned
+#baseline to compare: https://wandb.ai/metta-research/metta/runs/daphne.moretime.nav_memory_sequence.navigation_finetuned.06-25?nw=nwuserdaphned
 ./devops/skypilot/launch.py train run=daphne.nav_memory_sequence.navigation_finetuned.06-25 trainer.curriculum=env/mettagrid/curriculum/nav_memory_sequence --gpus=1 --skip-git-check trainer.initial_policy.uri=wandb://run/daphne.navigation.low_reward.1gpu.4agents.06-25 \
