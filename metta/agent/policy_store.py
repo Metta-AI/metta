@@ -381,15 +381,6 @@ class PolicyStore:
                     policy = make_policy(env, self._cfg)
                     policy.load_state_dict(checkpoint["policy_state_dict"], strict=False)
 
-                    # Restore feature embeddings if available
-                    if "feature_embeddings" in checkpoint and hasattr(
-                        policy, "restore_feature_embeddings_from_checkpoint"
-                    ):
-                        policy.restore_feature_embeddings_from_checkpoint(checkpoint["feature_embeddings"])
-                        logger.info(
-                            f"Restored {len(checkpoint['feature_embeddings'])} feature embeddings from checkpoint"
-                        )
-
                     pr._policy = policy
 
                 self._cached_prs[path] = pr
@@ -492,20 +483,70 @@ class PolicyStore:
                     21: 100.0,  # inv:blueprint
                 }
 
+                # Get action configuration from checkpoint
+                # Default action space for 9 actions based on standard metta configuration
+                # This matches: put_recipe_items(1), get_output(1), noop(1), move(3), rotate(4),
+                # attack(10), attack_nearest(1), swap(1), change_color(3)
+                # Total embeddings: 1+1+1+3+4+10+1+1+3 = 25
+                default_action_space_nvec = [1, 1, 1, 3, 4, 10, 1, 1, 3]
+
+                # Try to get action names from metadata first, then from checkpoint root
+                action_names = checkpoint.get("metadata", {}).get("action_names", checkpoint.get("action_names", []))
+
+                # Use action names length to determine the right subset of action space
+                if action_names:
+                    action_space_nvec = default_action_space_nvec[: len(action_names)]
+                else:
+                    action_space_nvec = checkpoint.get("action_space_nvec", default_action_space_nvec)
+
+                # If no action names in checkpoint, generate default ones
+                if not action_names:
+                    action_names = [f"action_{i}" for i in range(len(action_space_nvec))]
+
+                # Generate max_action_args from nvec (nvec includes the 0-arg option)
+                max_action_args = [n - 1 for n in action_space_nvec]
+
                 env = SimpleNamespace(
                     single_observation_space=gym.spaces.Box(low=0, high=255, shape=obs_shape, dtype=np.uint8),
                     obs_width=obs_shape[1],
                     obs_height=obs_shape[2],
-                    single_action_space=gym.spaces.MultiDiscrete(checkpoint.get("action_space_nvec", [9, 10])),
+                    single_action_space=gym.spaces.MultiDiscrete(action_space_nvec),
                     feature_normalizations=checkpoint.get("feature_normalizations", default_feature_normalizations),
                     global_features=[],
+                    action_names=action_names,
+                    max_action_args=max_action_args,
                 )
 
                 policy = make_policy(env, self._cfg)
 
+                # Initialize the policy with environment features and actions
+                # This is necessary to set up the action embeddings with the correct size
+                # Create mock features based on the observation shape
+                features = {}
+                for i in range(obs_shape[0]):
+                    features[f"feature_{i}"] = {
+                        "id": i,
+                        "type": "scalar",
+                        "normalization": default_feature_normalizations.get(i, 1.0),
+                    }
+
+                # Initialize policy to environment
+                if hasattr(policy, "initialize_to_environment"):
+                    policy.initialize_to_environment(
+                        features=features,
+                        action_names=action_names,
+                        action_max_params=max_action_args,
+                        device=self._device,
+                    )
+
                 # Load state dict
-                state_key = next((k for k in ["model_state_dict", "state_dict"] if k in checkpoint), None)
-                policy.load_state_dict(checkpoint.get(state_key, checkpoint))
+                state_key = next(
+                    (k for k in ["policy_state_dict", "model_state_dict", "state_dict"] if k in checkpoint), None
+                )
+                if state_key:
+                    policy.load_state_dict(checkpoint[state_key])
+                else:
+                    policy.load_state_dict(checkpoint)
 
                 pr._policy = policy
                 logger.info("Successfully loaded legacy checkpoint as MettaAgent")

@@ -133,9 +133,6 @@ class MettaAgent(nn.Module):
         self._total_params = sum(p.numel() for p in self.parameters())
         logger.info(f"Total number of parameters in MettaAgent: {self._total_params:,}. Setup complete.")
 
-        # Initialize feature embedding maps
-        self.feature_name_to_embedding: dict[str, torch.Tensor] = {}
-
     def _setup_components(self, component):
         """_sources is a list of dicts albeit many layers simply have one element.
         It must always have a "name" and that name should be the same as the relevant key in self.components.
@@ -295,29 +292,6 @@ class MettaAgent(nn.Module):
 
         self.action_index_tensor = torch.tensor(action_index, device=self.device, dtype=torch.int32)
         logger.info(f"Agent actions initialized with: {self.active_actions}")
-
-    def get_feature_embeddings_for_checkpoint(self) -> dict[str, torch.Tensor]:
-        """
-        Get feature embeddings to include in checkpoint metadata.
-        This reads from the current embedding tensors and maps them back to feature names.
-
-        Returns:
-            Dictionary mapping feature names to their current embedding tensors
-        """
-        # TODO: This will be implemented when we add actual feature embeddings
-        # For now, return the stored embeddings if any
-        return self.feature_name_to_embedding.copy()
-
-    def restore_feature_embeddings_from_checkpoint(self, embeddings: dict[str, torch.Tensor]):
-        """
-        Restore feature embeddings from checkpoint metadata.
-
-        Args:
-            embeddings: Dictionary mapping feature names to embedding tensors
-        """
-        # TODO: This will be implemented when we add actual feature embeddings
-        # For now, just store them
-        self.feature_name_to_embedding = embeddings.copy()
 
     @property
     def lstm(self):

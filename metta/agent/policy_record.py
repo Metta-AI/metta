@@ -60,7 +60,7 @@ class PolicyRecord:
         return self._local_path
 
     def load(self, path: str, device: str = "cpu") -> nn.Module:
-        """Load a policy from a torch package or checkpoint file."""
+        """Load a policy from a checkpoint file."""
         logger.info(f"Loading policy from {path}")
 
         # First try simple torch.load (our current approach)
@@ -72,14 +72,6 @@ class PolicyRecord:
                 if policy_record and hasattr(policy_record, "_policy") and policy_record._policy is not None:
                     policy = policy_record._policy
                     policy.load_state_dict(checkpoint["policy_state_dict"])
-
-                    # Restore feature embeddings if available
-                    if "feature_embeddings" in checkpoint:
-                        feature_embeddings = checkpoint["feature_embeddings"]
-                        if hasattr(policy, "restore_feature_embeddings_from_checkpoint"):
-                            policy.restore_feature_embeddings_from_checkpoint(feature_embeddings)
-                            logger.info(f"Restored {len(feature_embeddings)} feature embeddings from checkpoint")
-
                     return policy
                 else:
                     raise ValueError("Checkpoint does not contain a valid policy")
@@ -90,20 +82,7 @@ class PolicyRecord:
         try:
             importer = PackageImporter(path)
             try:
-                policy = importer.load_pickle("policy", "model.pkl", map_location=device)
-
-                # Load PolicyRecord to get metadata with potential feature embeddings
-                try:
-                    pr = importer.load_pickle("policy_record", "data.pkl", map_location=device)
-                    if hasattr(pr, "metadata") and "feature_embeddings" in pr.metadata:
-                        feature_embeddings = pr.metadata["feature_embeddings"]
-                        if hasattr(policy, "restore_feature_embeddings_from_checkpoint"):
-                            policy.restore_feature_embeddings_from_checkpoint(feature_embeddings)
-                            logger.info(f"Restored {len(feature_embeddings)} feature embeddings from checkpoint")
-                except Exception as e:
-                    logger.debug(f"Could not restore feature embeddings: {e}")
-
-                return policy
+                return importer.load_pickle("policy", "model.pkl", map_location=device)
             except Exception as e:
                 logger.warning(f"Could not load policy directly: {e}")
                 pr = importer.load_pickle("policy_record", "data.pkl", map_location=device)
@@ -120,14 +99,7 @@ class PolicyRecord:
         self._local_path = path
         self.uri = "file://" + path
 
-        # Get feature embeddings if the policy supports them
-        feature_embeddings = {}
-        if hasattr(policy, "get_feature_embeddings_for_checkpoint"):
-            feature_embeddings = policy.get_feature_embeddings_for_checkpoint()
-            if feature_embeddings:
-                logger.info(f"Saving {len(feature_embeddings)} feature embeddings to checkpoint")
-
-        # Use simple torch.save for now to avoid torch.package issues
+        # Use simple torch.save for now to avoid torch.package issues with C extensions
         use_simple_save = True
 
         if use_simple_save:
@@ -135,7 +107,6 @@ class PolicyRecord:
             checkpoint = {
                 "policy_state_dict": policy.state_dict(),
                 "policy_record": PolicyRecord(None, self.name, self.uri, self.metadata),
-                "feature_embeddings": feature_embeddings,
                 "metadata": self.metadata,
             }
             torch.save(checkpoint, path)
@@ -149,7 +120,7 @@ class PolicyRecord:
 
             return self
 
-        # torch.package save (currently disabled)
+        # torch.package save (currently disabled due to C extension issues)
         try:
             with PackageExporter(path, debug=False) as exporter:
                 # Extern metta.util.config first since it depends on pydantic
@@ -201,9 +172,6 @@ class PolicyRecord:
                 exporter.extern("sys")
 
                 clean_metadata = self._clean_metadata_for_packaging(self.metadata)
-                # Add feature embeddings to metadata
-                if feature_embeddings:
-                    clean_metadata["feature_embeddings"] = feature_embeddings
 
                 exporter.save_pickle(
                     "policy_record", "data.pkl", PolicyRecord(None, self.name, self.uri, clean_metadata)
