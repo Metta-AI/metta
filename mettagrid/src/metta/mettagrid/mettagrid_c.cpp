@@ -686,7 +686,6 @@ Agent* MettaGrid::create_agent(int r, int c, const py::dict& agent_group_cfg_py)
   std::string group_name = agent_group_cfg_py["group_name"].cast<std::string>();
   unsigned int group_id = agent_group_cfg_py["group_id"].cast<unsigned int>();
   TypeId type_id = agent_group_cfg_py["type_id"].cast<TypeId>();
-  std::string type_name = agent_group_cfg_py["type_name"].cast<std::string>();
   return new Agent(r,
                    c,
                    freeze_duration,
@@ -697,8 +696,7 @@ Agent* MettaGrid::create_agent(int r, int c, const py::dict& agent_group_cfg_py)
                    group_name,
                    group_id,
                    inventory_item_names,
-                   type_id,
-                   type_name);
+                   type_id);
 }
 
 py::array_t<unsigned int> MettaGrid::get_agent_groups() const {

@@ -22,7 +22,7 @@ struct ConverterConfig {
   unsigned char initial_items;
   ObsType color;
   std::vector<std::string> inventory_item_names;
-  int type_id;
+  TypeId type_id;
   std::string type_name;
 };
 
