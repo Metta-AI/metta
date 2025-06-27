@@ -126,9 +126,9 @@
 			"typeinfo": "cpp",
 			"unordered_map": "cpp",
 			"unordered_set": "cpp",
-			"valarray": "cpp""valarray": "cpp",
+			"valarray": "cpp",
 			"variant": "cpp",
-			"vector": "cpp",
+			"vector": "cpp""vector": "cpp",
 		}
 	}
 }
