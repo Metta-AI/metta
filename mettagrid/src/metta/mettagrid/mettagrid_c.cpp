@@ -5,6 +5,8 @@
 
 #include <algorithm>
 #include <cmath>
+#include <numeric>
+#include <random>
 
 #include "action_handler.hpp"
 #include "actions/attack.hpp"
@@ -30,7 +32,10 @@
 
 namespace py = pybind11;
 
-MettaGrid::MettaGrid(py::dict cfg, py::list map) {
+MettaGrid::MettaGrid(py::dict cfg, py::list map, int seed) {
+  _seed = seed;
+  _rng = std::mt19937(seed);
+
   // cfg is a dict-form of the OmegaConf config.
   // `map` is a list of lists of strings, which are the map cells.
 
@@ -317,11 +322,16 @@ void MettaGrid::_step(py::array_t<ActionType, py::array::c_style> actions) {
   current_step++;
   _event_manager->process_events(current_step);
 
+  // Create and shuffle agent indices for randomized action order
+  std::vector<size_t> agent_indices(_agents.size());
+  std::iota(agent_indices.begin(), agent_indices.end(), 0);
+  std::shuffle(agent_indices.begin(), agent_indices.end(), _rng);
+
   // Process actions by priority levels (highest to lowest)
   for (unsigned char offset = 0; offset <= _max_action_priority; offset++) {
     unsigned char current_priority = _max_action_priority - offset;
 
-    for (size_t agent_idx = 0; agent_idx < _agents.size(); agent_idx++) {
+    for (const auto& agent_idx : agent_indices) {
       ActionType action = actions_view(agent_idx, 0);
       ActionArg arg = actions_view(agent_idx, 1);
 
@@ -721,7 +731,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
   m.doc() = "MettaGrid environment";  // optional module docstring
 
   py::class_<MettaGrid>(m, "MettaGrid")
-      .def(py::init<py::dict, py::list>())
+      .def(py::init<py::dict, py::list, int>())
       .def("reset", &MettaGrid::reset)
       .def("step", &MettaGrid::step, py::arg("actions").noconvert())
       .def("set_buffers",
