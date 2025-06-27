@@ -1,0 +1,233 @@
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.impute import SimpleImputer
+from sklearn.decomposition import FactorAnalysis
+from sklearn.preprocessing import StandardScaler
+from sklearn.model_selection import KFold
+from scipy.cluster.hierarchy import linkage, leaves_list
+from scipy.spatial.distance import pdist
+from scipy.stats import pearsonr
+
+def cluster_and_reorder(matrix: pd.DataFrame, method: str = 'ward', metric: str = 'euclidean'):
+    """
+    Cluster the rows of a DataFrame and reorder both rows and columns
+    according to the clustering structure.
+
+    Args:
+        matrix (pd.DataFrame): Input matrix to cluster (e.g. agent-factor scores or factor loadings).
+        method (str): Linkage method for hierarchical clustering (default: 'ward').
+        metric (str): Distance metric (default: 'euclidean').
+
+    Returns:
+        pd.DataFrame: Reordered matrix.
+    """
+    # Compute row linkage
+    matrix = matrix.fillna(0)
+    row_linkage = linkage(pdist(matrix.values, metric=metric), method=method)
+    row_order = leaves_list(row_linkage)
+
+    # Compute column linkage
+    col_linkage = linkage(pdist(matrix.values.T, metric=metric), method=method)
+    col_order = leaves_list(col_linkage)
+
+    # Reorder matrix
+    reordered = matrix.iloc[row_order, :].iloc[:, col_order]
+
+    return reordered
+
+
+def calculate_agent_iq_and_interpret_factors(metrics_df: pd.DataFrame):
+    """
+    Calculates Agent IQ using Factor Analysis with NaN-resilient correlation matrix handling.
+    """
+    print("--- Starting IQ and Factor Analysis ---")
+    print(f"Initial Data Shape: {metrics_df.shape}")
+    print("Initial Missing Values per Column:\n", metrics_df.isnull().sum())
+
+    # Step 1: Impute or handle missing values for Factor Analysis
+    data_imputed = metrics_df.copy()
+
+    # Optional: use more sophisticated imputation
+    # imputer = SimpleImputer(strategy='mean')
+    # data_imputed = pd.DataFrame(imputer.fit_transform(metrics_df), columns=metrics_df.columns, index=metrics_df.index)
+    data_imputed = data_imputed.fillna(0)
+
+    print(f"Final Data Shape: {data_imputed.shape}")
+    print("Remaining Missing Values per Column:\n", data_imputed.isnull().sum())
+
+    # Step 2: Visualize Correlation Matrix
+    print("\n--- Step 2: Visualizing Task Correlation Matrix (with NaN support) ---")
+    corr_matrix = metrics_df.corr(method='pearson', min_periods=3)  # Only compute correlations with 3+ overlapping values
+
+    print("Task Correlation Matrix (5x5):\n", corr_matrix.iloc[:5, :5])
+    plt.figure(figsize=(10, 8))
+    sns.heatmap(cluster_and_reorder(corr_matrix), annot=False, cmap='coolwarm', fmt=".2f", linewidths=0.2)
+    plt.title('Task Correlation Matrix (NaN-Aware)')
+    plt.show()
+
+        # Compute p-values
+    task_names = metrics_df.columns.tolist()
+    pval_matrix = pd.DataFrame(np.ones((len(task_names), len(task_names))),
+                               index=task_names, columns=task_names)
+
+    for i, task_i in enumerate(task_names):
+        for j, task_j in enumerate(task_names):
+            if i <= j:
+                x = metrics_df[task_i]
+                y = metrics_df[task_j]
+                mask = x.notna() & y.notna()
+                if mask.sum() > 2:
+                    _, pval = pearsonr(x[mask], y[mask])
+                    pval_matrix.loc[task_i, task_j] = pval
+                    pval_matrix.loc[task_j, task_i] = pval
+
+    # Cluster correlation matrix to get order
+    corr_matrix_for_order = metrics_df.corr(method='pearson', min_periods=3)
+    corr_matrix_for_order = corr_matrix_for_order.fillna(0)  # required for pdist
+    row_linkage = linkage(pdist(corr_matrix_for_order.values), method='ward')
+    row_order = leaves_list(row_linkage)
+    ordered_tasks = corr_matrix_for_order.index[row_order]
+
+    # Reorder p-value matrix
+    ordered_pvals = pval_matrix.loc[ordered_tasks, ordered_tasks]
+
+    # Plot heatmap of p-values
+    plt.figure(figsize=(10, 8))
+    sns.heatmap(np.log10(ordered_pvals), cmap='Greens_r', annot=False, linewidths=0.5, linecolor='gray')
+    plt.title('P-values of Task-Task Pearson Correlations (Reordered)')
+    plt.xlabel('Task')
+    plt.ylabel('Task')
+    plt.tight_layout()
+    plt.show()
+
+
+    # Step 3: Cross-Validated Factor Analysis
+    print("\n--- Step 3: Cross-Validated Factor Analysis ---")
+    max_factors = 50# min(data_imputed.shape[1], data_imputed.shape[0] - 1)
+    if max_factors < 1:
+        print("Not enough data to perform Factor Analysis.")
+        return None, None, 0, None
+
+    reconstruction_errors = []
+    variance_explained_stats = []
+    kf = KFold(n_splits=5, shuffle=True, random_state=42)
+    factor_range = range(1, max_factors + 1)
+
+    for n_components in factor_range:
+        fold_errors = []
+        fold_variances = []
+        for train_idx, test_idx in kf.split(data_imputed):
+            X_train, X_test = data_imputed.iloc[train_idx], data_imputed.iloc[test_idx]
+            fa = FactorAnalysis(n_components=n_components, random_state=42)
+            fa.fit(X_train)
+            scores = fa.transform(X_test)
+            X_reconstructed = np.dot(scores, fa.components_) + fa.mean_
+            error = np.mean((X_test - X_reconstructed) ** 2)
+            fold_errors.append(error)
+
+            test_variance = np.var(X_test.values)
+            explained = 1 - (error / test_variance)
+            fold_variances.append(explained)
+
+        mean_error = np.mean(fold_errors)
+        std_error = np.std(fold_errors)
+        mean_var = np.mean(fold_variances)
+        std_var = np.std(fold_variances)
+
+        reconstruction_errors.append(mean_error)
+        variance_explained_stats.append((mean_var, std_var))
+        print(f"  Factors: {n_components}, MSE: {mean_error:.4f}, Variance Explained: {mean_var:.4f} ± {std_var:.4f}")
+
+    # Plot reconstruction error
+    plt.figure(figsize=(10, 6))
+    plt.plot(factor_range, reconstruction_errors, marker='o')
+    plt.title('Reconstruction Error vs. Number of Factors')
+    plt.xlabel('Number of Factors')
+    plt.ylabel('Mean Squared Error')
+    plt.grid(True)
+    plt.show()
+
+    # Plot variance explained
+    mean_vars = [v[0] for v in variance_explained_stats]
+    std_vars = [v[1] for v in variance_explained_stats]
+    plt.figure(figsize=(10, 6))
+    plt.errorbar(factor_range, mean_vars, yerr=std_vars, fmt='-o', capsize=5)
+    plt.title('Cross-Validated Variance Explained vs. Number of Factors')
+    plt.xlabel('Number of Factors')
+    plt.ylabel('Variance Explained')
+    plt.grid(True)
+    plt.show()
+
+    # Select optimal number of factors
+    optimal_n_factors = (np.array(mean_vars) - mean_vars[0]) > 0.90* (max(mean_vars) - mean_vars[0])
+    optimal_n_factors = np.where(optimal_n_factors)[0][0]+1
+    print(f"\nOptimal number of factors: {optimal_n_factors}")
+
+    # Step 4: Final Factor Model Fit
+    print(f"\n--- Step 4: Fitting Factor Analysis with {optimal_n_factors} Factors ---")
+    fa_final = FactorAnalysis(n_components=optimal_n_factors, random_state=42)
+    agent_scores = fa_final.fit_transform(data_imputed)
+    agent_scores_df = pd.DataFrame(agent_scores,
+                                   columns=[f'Factor_{i+1}' for i in range(optimal_n_factors)],
+                                   index=data_imputed.index)
+    print("Agent Factor Scores (first 5 rows):\n", agent_scores_df.head())
+
+    # Step 5: Compute IQ
+    print("\n--- Step 5: Computing Agent IQ ---")
+    scaler = StandardScaler()
+    scaled_scores = scaler.fit_transform(agent_scores_df)
+    agent_iq = pd.Series(scaled_scores.sum(axis=1) * 100,
+                         index=data_imputed.index,
+                         name='Agent_IQ')
+    print("Agent IQ (first 10):\n", agent_iq.head(10))
+    print("\nAgent IQ Stats:\n", agent_iq.describe())
+
+    plt.figure(figsize=(8, 5))
+    sns.histplot(agent_iq, kde=True)
+    plt.title('Distribution of Agent IQ Scores')
+    plt.xlabel('IQ Score')
+    plt.ylabel('Number of Agents')
+    plt.show()
+
+    # Step 6: Factor Loadings
+    print("\n--- Step 6: Interpreting Factor Loadings ---")
+    loadings = pd.DataFrame(fa_final.components_.T,
+                            index=data_imputed.columns,
+                            columns=[f'Factor_{i+1}' for i in range(optimal_n_factors)])
+    print("Factor Loadings:\n", loadings)
+
+    plt.figure(figsize=(12, 8))
+    sns.heatmap(loadings, annot=False, cmap='vlag', fmt=".2f", center=0, linewidths=0.5)
+    plt.title('Factor Loadings: Task Contributions to Latent Factors')
+    plt.xlabel('Latent Factors')
+    plt.ylabel('Tasks')
+    plt.show()
+
+    # Interpretation Summary
+    for i in range(optimal_n_factors):
+        factor = f'Factor_{i+1}'
+        top_tasks = loadings[factor].abs().sort_values(ascending=False).head(5)
+        print(f"\n{factor} - Top Contributing Tasks:")
+        for task in top_tasks.index:
+            print(f"  - {task}: {loadings.at[task, factor]:.3f}")
+        print("  *Interpret based on high-loading tasks.*")
+
+    print("\n--- Analysis Complete ---")
+    return agent_iq, loadings, optimal_n_factors, agent_scores_df
+
+
+# --- Example Usage ---
+if __name__ == "__main__":
+
+    df = reward_matrix.set_index('policy_uri')
+    df = df.apply(pd.to_numeric, errors='coerce')
+
+    # Run analysis
+    iq, loadings, n_factors, factor_scores = calculate_agent_iq_and_interpret_factors(df)
+
+    if iq is not None:
+        print("\n--- Final Summary ---")
+        print("Top Agent IQs:\n", iq.sort_values(ascending=False).head())
+        print("\nOptimal Number of Factors:", n_factors)

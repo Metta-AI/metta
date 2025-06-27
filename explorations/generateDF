@@ -1,0 +1,132 @@
+"""
+!wget https://s3.amazonaws.com/softmax-public/policydash/results.html -O results.html
+!wget https://s3.amazonaws.com/softmax-public/policydash/navigation.html -O navigation.html
+!wget https://s3.amazonaws.com/softmax-public/policydash/memory.html -O memory.html
+!wget https://s3.amazonaws.com/softmax-public/policydash/objectuse.html -O objectuse.html
+!wget https://s3.amazonaws.com/softmax-public/policydash/nav_sequence.html -O nav_sequence.html
+"""
+
+import pandas as pd
+import ast
+import numpy as np
+import matplotlib.pyplot as plt
+
+filestoopen = ['results.html', 'navigation.html', 'memory.html', 'objectuse.html', 'nav_sequence.html']
+
+df = pd.DataFrame()
+
+for fil in filestoopen:
+  with open(fil, "r") as f:
+      data_dict = ast.literal_eval(f.read())
+      print(data_dict)
+      df = pd.concat([df, pd.DataFrame(data_dict['policy_evals'])])
+      print('.', end='')
+
+df_trimmed = df[["policy_uri", "policy_eval_metrics"]]
+expanded_metrics = []
+for _, row in df_trimmed.iterrows():
+    metric_dict = {entry["metric"]: entry["sum_value"] for entry in row["policy_eval_metrics"]}
+    metric_dict["policy_uri"] = row["policy_uri"]
+    expanded_metrics.append(metric_dict)
+
+# Create a new DataFrame from the expanded list
+metrics_df = pd.DataFrame(expanded_metrics)
+
+# List of files to process
+filestoopen = ['results.html', 'navigation.html', 'memory.html', 'objectuse.html', 'nav_sequence.html']
+
+# Placeholder for expanded metrics from all files
+expanded_metrics = []
+
+for fil in filestoopen:
+    with open(fil, "r") as f:
+        # Parse the string as a dictionary safely
+        data_dict = ast.literal_eval(f.read())
+
+        # Extract and process each policy evaluation
+        for policy_eval in data_dict['policy_evals']:
+            metric_dict = {
+                metric["metric"]: metric["sum_value"]
+                for metric in policy_eval["policy_eval_metrics"]
+            }
+            # Include policy identifier
+            metric_dict["policy_uri"] = policy_eval["policy_uri"]
+            expanded_metrics.append(metric_dict)
+        print(f"Processed {fil}")
+
+# Create DataFrame from the expanded metric dictionaries
+df = pd.DataFrame(expanded_metrics)
+
+# Pivot DataFrame to ensure all metrics are columns, filling missing values with NaN
+df_final = df.groupby("policy_uri").first().reset_index()
+
+# Optional: sort columns alphabetically (excluding the first 'policy_uri' column)
+metric_cols = sorted([col for col in df_final.columns if col != "policy_uri"])
+df_final = df_final[["policy_uri"] + metric_cols]
+
+# Display or save final DataFrame
+print(df_final.head())
+
+reward_matrix = df.pivot_table(
+    index="policy_uri",
+    columns="eval_name",
+    values="reward",
+    aggfunc="mean",  # or use "max", "min", or "first" depending on your logic
+    fill_value=np.nan
+).reset_index()
+
+
+reward_matrix.head(10)
+
+# Ensure reward_matrix contains only numeric values
+df = reward_matrix.set_index('policy_uri')
+sorted_df = df.apply(pd.to_numeric, errors='coerce')
+
+# Sort policies by average reward
+sorted_df['avg_reward'] = sorted_df.mean(axis=1)
+sorted_df = sorted_df.sort_values(by='avg_reward', ascending=False).drop(columns=['avg_reward'])
+
+# Extract task names from column headers
+tasks = sorted_df.columns.tolist()
+policy_labels = sorted_df.index.tolist()
+
+# -------- 1. Absolute Reward Plot -------- #
+plt.figure(figsize=(18, 8))
+plt.imshow(sorted_df.values, aspect='auto', cmap='coolwarm')
+plt.colorbar(label='Reward')
+plt.title('Absolute Rewards per Policy (Sorted by Avg Reward)')
+plt.xlabel('Evaluation Task of ' +str(len(tasks)))
+plt.ylabel('Policy of '+ str(len(policy_labels)))
+
+# X-ticks for task names
+plt.xticks(ticks=[i for i in range(len(tasks)) if i % 3 == 0],
+           labels=[tasks[i] for i in range(len(tasks)) if i % 3 == 0], rotation=45, ha='right')
+
+# Y-ticks every 10 policies
+plt.yticks(ticks=[i for i in range(len(policy_labels)) if i % 10 == 0],
+           labels=[policy_labels[i] for i in range(len(policy_labels)) if i % 10 == 0])
+
+plt.tight_layout()
+plt.show()
+
+# -------- 2. Z-Scored Reward Plot -------- #
+# Z-score by task, ignoring NaNs
+zscored_df = (sorted_df - sorted_df.mean()) / sorted_df.std()
+
+plt.figure(figsize=(18, 8))
+plt.imshow(zscored_df.values, aspect='auto', cmap='coolwarm', vmin=-2, vmax=2)
+plt.colorbar(label='Z-scored Reward')
+plt.title('Z-scored Rewards per Policy (Standardized by Task)')
+plt.xlabel('Evaluation Task of ' +str(len(tasks)))
+plt.ylabel('Policy of '+ str(len(policy_labels)))
+
+# X-ticks for task names
+plt.xticks(ticks=[i for i in range(len(tasks)) if i % 3 == 0],
+           labels=[tasks[i] for i in range(len(tasks)) if i % 3 == 0], rotation=45, ha='right')
+
+# Y-ticks every 10 policies
+plt.yticks(ticks=[i for i in range(len(policy_labels)) if i % 10 == 0],
+           labels=[policy_labels[i] for i in range(len(policy_labels)) if i % 10 == 0])
+
+plt.tight_layout()
+plt.show()
