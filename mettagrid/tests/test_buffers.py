@@ -60,8 +60,8 @@ def create_minimal_mettagrid_c_env(max_steps=10, width=5, height=5, config_overr
         },
         "groups": {"red": {"id": 0, "props": {}}},
         "objects": {
-            "wall": {},
-            "block": {},
+            "wall": {"type_id": 1},
+            "block": {"type_id": 1},
         },
         "agent": {},
     }

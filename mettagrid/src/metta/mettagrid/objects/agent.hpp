@@ -114,7 +114,7 @@ public:
   virtual vector<PartialObservationToken> obs_features() const override {
     vector<PartialObservationToken> features;
     features.reserve(5 + this->inventory.size());
-    features.push_back({ObservationFeature::TypeId, _type_id});
+    features.push_back({ObservationFeature::TypeId, type_id});
     features.push_back({ObservationFeature::Group, group});
     features.push_back({ObservationFeature::Frozen, frozen});
     features.push_back({ObservationFeature::Orientation, orientation});
