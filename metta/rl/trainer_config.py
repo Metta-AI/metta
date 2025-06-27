@@ -55,22 +55,24 @@ class InitialPolicyConfig(BaseModelWithForbidExtra):
     filters: dict[str, Any]
 
 
-class TrainerConfig(BaseModelWithForbidExtra):
-    # Target for hydra instantiation
-    target: str = Field(alias="_target_")
+class CheckpointConfig(BaseModelWithForbidExtra):
+    checkpoint_dir: str = "${run_dir}/checkpoints"
+    checkpoint_interval: int = Field(gt=0)
+    wandb_checkpoint_interval: int = Field(ge=0)  # 0 to disable
 
-    # Core training parameters
-    total_timesteps: int = Field(gt=0)
 
+class SimulationConfig(BaseModelWithForbidExtra):
+    evaluate_interval: int = Field(ge=0)  # 0 to disable
+    replay_interval: int = Field(gt=0)
+    replay_dir: str = "s3://softmax-public/replays/${run}"
+
+
+class PPOConfig(BaseModelWithForbidExtra):
     # PPO hyperparameters
     clip_coef: float = Field(gt=0, le=1.0)
     ent_coef: float = Field(ge=0)
     gae_lambda: float = Field(ge=0, le=1.0)
     gamma: float = Field(ge=0, le=1.0)
-
-    # Optimizer and scheduler
-    optimizer: OptimizerConfig
-    lr_scheduler: LRSchedulerConfig
 
     # Training parameters
     max_grad_norm: float = Field(gt=0)
@@ -79,16 +81,31 @@ class TrainerConfig(BaseModelWithForbidExtra):
     l2_reg_loss_coef: float = Field(ge=0)
     l2_init_loss_coef: float = Field(ge=0)
 
+    # Normalization and clipping
+    norm_adv: bool
+    clip_vloss: bool
+    target_kl: float | None
+
+
+class TrainerConfig(BaseModelWithForbidExtra):
+    # Target for hydra instantiation
+    target: str = Field(alias="_target_")
+
+    # Core training parameters
+    total_timesteps: int = Field(gt=0)
+
+    # PPO configuration
+    ppo: PPOConfig
+
+    # Optimizer and scheduler
+    optimizer: OptimizerConfig
+    lr_scheduler: LRSchedulerConfig
+
     # Experience replay
     prioritized_experience_replay: PrioritizedExperienceReplayConfig
 
     # V-trace
     vtrace: VTraceConfig
-
-    # Normalization and clipping
-    norm_adv: bool
-    clip_vloss: bool
-    target_kl: float | None
 
     # System configuration
     zero_copy: bool
@@ -121,13 +138,13 @@ class TrainerConfig(BaseModelWithForbidExtra):
     env_overrides: dict[str, Any]
     initial_policy: InitialPolicyConfig
 
-    # Checkpoint and evaluation
-    checkpoint_dir: str = "${run_dir}/checkpoints"
-    evaluate_interval: int = Field(gt=0)
-    checkpoint_interval: int = Field(gt=0)
-    wandb_checkpoint_interval: int = Field(ge=0)  # 0 to disable
-    replay_interval: int = Field(gt=0)
-    replay_dir: str = "s3://softmax-public/replays/${run}"
+    # Checkpoint configuration
+    checkpoint: CheckpointConfig
+
+    # Simulation configuration
+    simulation: SimulationConfig
+
+    # Grad mean variance logging
     grad_mean_variance_interval: int = Field(ge=0)  # 0 to disable
 
     model_config: ClassVar[ConfigDict] = ConfigDict(

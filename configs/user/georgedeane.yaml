@@ -6,7 +6,8 @@ defaults:
 
 trainer:
   env: /env/mettagrid/walkaround
-  evaluate_interval: 2
+  simulation:
+    evaluate_interval: 2
 
 # eval_db_uri: wandb://artifacts/memory_db
 

@@ -84,7 +84,7 @@ export TEST_ID=$(date +%Y%m%d_%H%M%S)
 echo "Running full integration test with ID: $TEST_ID"
 
 # 1. Train for 100k steps (~1 minute on GPU)
-./tools/train.py run=test_$TEST_ID trainer.total_timesteps=100000 trainer.checkpoint_interval=50 trainer.evaluate_interval=0 trainer.num_workers=2
+./tools/train.py run=test_$TEST_ID trainer.total_timesteps=100000 trainer.checkpoint.checkpoint_interval=50 trainer.simulation.evaluate_interval=0 trainer.num_workers=2
 
 # 2. Run limited simulations (~30 seconds)
 ./tools/sim.py run=eval_$TEST_ID policy_uri=file://./train_dir/test_$TEST_ID/checkpoints sim=navigation device=cpu
