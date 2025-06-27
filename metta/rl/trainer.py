@@ -66,9 +66,9 @@ class MettaTrainer:
         stats_client: StatsClient | None,
         **kwargs: Any,
     ):
-        # debug -- dump content of train_dir
-        logger.info(f"run dir = {cfg.data_dir}/{wandb_run}")
-        logger.info(tree(cfg.data_dir / wandb_run))
+        # debug
+        logger.info(f"run_dir = {cfg.run_dir}")
+        logger.info(tree(cfg.run_dir))
 
         self.cfg = cfg
         self.trainer_cfg = trainer_cfg = parse_trainer_config(cfg.trainer)
