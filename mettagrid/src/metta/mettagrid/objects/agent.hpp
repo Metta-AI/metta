@@ -39,7 +39,8 @@ public:
         std::map<InventoryItem, float> resource_reward_max,
         std::string group_name,
         unsigned char group_id,
-        const std::vector<std::string>& inventory_item_names)
+        const std::vector<std::string>& inventory_item_names,
+        TypeId type_id)
       : freeze_duration(freeze_duration),
         action_failure_penalty(action_failure_penalty),
         max_items_per_type(max_items_per_type),
@@ -50,7 +51,7 @@ public:
         color(0),
         current_resource_reward(0),
         stats(inventory_item_names) {
-    GridObject::init(ObjectType::AgentT, GridLocation(r, c, GridLayer::Agent_Layer));
+    GridObject::init(type_id, GridLocation(r, c, GridLayer::Agent_Layer));
 
     this->frozen = 0;
     this->orientation = 0;
