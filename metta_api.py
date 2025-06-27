@@ -239,7 +239,7 @@ def make_vecenv(
         curriculum=curriculum,
         vectorization=vectorization,
         num_envs=num_envs,
-        batch_size=batch_size,
+        batch_size=num_envs // num_workers if num_workers > 1 else None,
         num_workers=num_workers,
         zero_copy=zero_copy,
         is_training=True,
@@ -468,18 +468,26 @@ def quick_train(
     )
 
     # Calculate environment count for batch size
-    # Match original trainer logic
-    forward_pass_minibatch_target_size = 2048  # From original config
-    target_batch_size = forward_pass_minibatch_target_size // num_agents
-    if target_batch_size < max(2, num_workers):
-        target_batch_size = num_workers
+    # The number of environments should be calculated to achieve desired batch size
+    # batch_size = num_envs * num_agents * steps_per_rollout
+    # For single-step rollouts, we need: num_envs = batch_size / num_agents
+    target_num_envs = batch_size // num_agents
 
-    # Adjust batch_size to be multiple of num_workers
-    env_batch_size = (target_batch_size // num_workers) * num_workers
-    async_factor = 2  # From original config
-    num_envs = env_batch_size * async_factor
+    # Ensure we have at least as many envs as workers
+    if target_num_envs < num_workers:
+        target_num_envs = num_workers
+        logger.warning(
+            f"Requested batch_size {batch_size} with {num_agents} agents would need "
+            f"{batch_size // num_agents} envs, but num_workers={num_workers}. "
+            f"Using {target_num_envs} envs instead."
+        )
 
-    logger.info(f"Using {num_envs} environments with batch size {env_batch_size}")
+    # Adjust to be multiple of num_workers
+    num_envs = (target_num_envs // num_workers) * num_workers
+    if num_envs == 0:
+        num_envs = num_workers
+
+    logger.info(f"Using {num_envs} environments to achieve batch size ~{num_envs * num_agents}")
     logger.info(f"Total agents: {num_envs * num_agents}")
 
     # Create vectorized environment
@@ -487,7 +495,7 @@ def quick_train(
         env_config=env_config,
         num_envs=num_envs,
         num_workers=num_workers,
-        batch_size=env_batch_size if num_workers > 1 else None,
+        batch_size=num_envs // num_workers if num_workers > 1 else None,
         device=device,
         vectorization=vectorization,
     )
@@ -552,37 +560,45 @@ def quick_train(
     loss_module = make_loss_module(policy=policy)
     losses = Losses()
 
-    # Training setup
-    timer = Stopwatch(logger)
-    timer.start()
+    # Initialize training variables
+    epoch = 0
+    agent_step = 0
+    steps_per_epoch = batch_size  # Steps taken per rollout
+    total_epochs = timesteps // batch_size  # Total number of rollout+train cycles
 
-    # Track time for interval-based operations
-    last_checkpoint_time = time.time()
-    last_eval_time = time.time()
+    # Timing
+    timer = Stopwatch(logger)
     start_time = time.time()
 
-    logger.info("Starting training...")
-    logger.info(f"Total timesteps: {timesteps:,}")
-    logger.info(f"Batch size: {batch_size:,}")
-    logger.info(f"Minibatch size: {minibatch_size:,}")
-    logger.info(f"Update epochs: {update_epochs}")
-    logger.info(f"BPTT horizon: {bptt_horizon}")
+    # For distributed training (currently single GPU)
+    world_size = 1
 
-    vecenv.async_reset(seed=0)
-
-    agent_step = 0
-    epoch = 0
+    # Stats
     all_rollout_stats = {}
 
+    logger.info(
+        f"Starting training with {num_envs} environments, "
+        f"{total_agents} total agents, "
+        f"batch size {batch_size}, "
+        f"minibatch size {experience.minibatch_size}"
+    )
+
+    # Reset environments
+    vecenv.async_reset(seed=0)
+
+    # Main training loop - matches original trainer structure
     while agent_step < timesteps:
         steps_before = agent_step
 
-        # Rollout
+        # Rollout phase
         with timer("rollout"):
             raw_infos = []
+
+            # Reset experience buffer for new rollout
             experience.reset_for_rollout()
 
             while not experience.ready_for_training:
+                # Rollout single step
                 num_steps, info, _ = perform_rollout_step(
                     policy=policy,
                     vecenv=vecenv,
@@ -606,7 +622,7 @@ def quick_train(
                 else:
                     all_rollout_stats[k].append(v)
 
-        # Train
+        # Train phase
         with timer("train"):
             losses.zero()
             experience.reset_importance_sampling_ratios()
@@ -616,7 +632,10 @@ def quick_train(
                 experience, gamma=0.977, gae_lambda=0.916, vtrace_rho_clip=1.0, vtrace_c_clip=1.0, device=device_obj
             )
 
-            # Update epochs
+            # Update epochs (inner loop)
+            minibatch_idx = 0
+            total_minibatches = experience.num_minibatches * update_epochs
+
             for update_epoch in range(update_epochs):
                 # Train minibatches
                 for mb_idx in range(experience.num_minibatches):
@@ -624,8 +643,8 @@ def quick_train(
                         advantages=advantages,
                         prio_alpha=0.0,  # No prioritized replay by default
                         prio_beta=0.6,
-                        minibatch_idx=mb_idx,
-                        total_minibatches=experience.num_minibatches,
+                        minibatch_idx=minibatch_idx,
+                        total_minibatches=total_minibatches,
                     )
 
                     loss = loss_module(
@@ -640,21 +659,34 @@ def quick_train(
                     optimizer.zero_grad()
                     loss.backward()
 
-                    if (mb_idx + 1) % experience.accumulate_minibatches == 0:
+                    if (minibatch_idx + 1) % experience.accumulate_minibatches == 0:
                         torch.nn.utils.clip_grad_norm_(policy.parameters(), max_grad_norm)
                         optimizer.step()
                         if hasattr(policy, "clip_weights"):
                             policy.clip_weights()
 
-        # Calculate and log metrics
-        steps_in_epoch = agent_step - steps_before
+                    minibatch_idx += 1
+
+                # Increment epoch after all minibatches in update_epoch
+                epoch += 1
+
+        # Process stats (minimal for now)
+        with timer("stats"):
+            # In original trainer, this is where wandb logging happens
+            # For our simple version, we just track time
+            pass
+
+        # Calculate and log metrics (per rollout+train cycle, not per epoch)
+        steps_in_cycle = agent_step - steps_before
         rollout_time = timer.get_last_elapsed("rollout")
         train_time = timer.get_last_elapsed("train")
-        total_time = rollout_time + train_time
-        steps_per_sec = steps_in_epoch / total_time if total_time > 0 else 0
+        stats_time = timer.get_last_elapsed("stats")
+        total_time = rollout_time + train_time + stats_time
+        steps_per_sec = steps_in_cycle / total_time if total_time > 0 else 0
 
         train_pct = (train_time / total_time) * 100 if total_time > 0 else 0
         rollout_pct = (rollout_time / total_time) * 100 if total_time > 0 else 0
+        stats_pct = (stats_time / total_time) * 100 if total_time > 0 else 0
 
         # Calculate average reward from stats
         mean_reward = 0.0
@@ -672,28 +704,22 @@ def quick_train(
 
         loss_stats = losses.stats()
 
+        # Log using same format as original trainer
         logger.info(
-            f"Epoch {epoch} - Steps: {agent_step:,}/{timesteps:,} - "
-            f"{steps_per_sec:.0f} sps "
-            f"({train_pct:.0f}% train / {rollout_pct:.0f}% rollout) - "
-            f"Policy loss: {loss_stats['policy_loss']:.4f} - "
-            f"Value loss: {loss_stats['value_loss']:.4f} - "
-            f"Reward: {mean_reward:.3f}"
+            f"Epoch {epoch} - "
+            f"{steps_per_sec * world_size:.0f} steps/sec "
+            f"({train_pct:.0f}% train / {rollout_pct:.0f}% rollout / {stats_pct:.0f}% stats)"
         )
 
-        # Time-based checkpoint saving
-        current_time = time.time()
-        if current_time - last_checkpoint_time >= checkpoint_interval:
+        # Epoch-based checkpoint saving (matches original trainer)
+        if epoch % checkpoint_interval == 0:
             checkpoint_path = f"{checkpoint_dir}/policy_epoch_{epoch}.pt"
             torch.save(policy.state_dict(), checkpoint_path)
-            logger.info(f"Saved checkpoint: {checkpoint_path} (after {current_time - start_time:.0f}s)")
-            last_checkpoint_time = current_time
+            logger.info(f"Saved checkpoint: {checkpoint_path} at epoch {epoch}")
 
         # Clear accumulated stats periodically
         if epoch % 10 == 0:
             all_rollout_stats.clear()
-
-        epoch += 1
 
     # Save final checkpoint
     final_checkpoint = f"{checkpoint_dir}/policy_final.pt"
