@@ -155,25 +155,44 @@ def parse_date_range(date_range_str: str) -> tuple[str, str]:
 
 
 def main():
-    """Main entry point."""
     logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
+    # Define required environment variables
+    required_env_vars = {
+        "GITHUB_TOKEN": "GitHub Token",
+        "GITHUB_REPOSITORY": "GitHub repository name",
+        "DAYS_TO_SCAN": "Days to process",
+    }
+
+    # Validate required environment variables
+    env_values = {}
+    missing_vars = []
+
+    for var_name, description in required_env_vars.items():
+        value = os.getenv(var_name)
+        if not value:
+            missing_vars.append(f"{var_name} ({description})")
+        else:
+            env_values[var_name] = value
+
+    # Report all missing variables at once
+    if missing_vars:
+        print("Error: Missing required environment variables:")
+        for var in missing_vars:
+            print(f"  - {var}")
+        sys.exit(1)
+
     # Get configuration from environment
-    github_token = os.getenv("GITHUB_TOKEN")
-    github_repository = os.getenv("GITHUB_REPOSITORY")
-    date_range = os.getenv("DATE_RANGE", "")
+    github_token = env_values["GITHUB_TOKEN"]
+    github_repository = env_values["GITHUB_REPOSITORY"]
+    days_to_scan = env_values["DAYS_TO_SCAN"]
     output_file = os.getenv("PR_DIGEST_FILE", "pr_digest_output.json")
 
-    if not github_token:
-        print("Error: GITHUB_TOKEN not provided")
-        sys.exit(1)
+    days = int(days_to_scan)
+    until = datetime.now()
+    since = until - timedelta(days=days)
+    since, until = since.isoformat() + "Z", until.isoformat() + "Z"
 
-    if not github_repository:
-        print("Error: GITHUB_REPOSITORY not provided")
-        sys.exit(1)
-
-    # Parse date range
-    since, until = parse_date_range(date_range)
     logging.info(f"Date range: {since} to {until}")
 
     # Create digest

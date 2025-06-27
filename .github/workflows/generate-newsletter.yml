@@ -64,7 +64,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
-          DATE_RANGE: "${{ steps.set-days.outputs.days }} days ago to now"
+          DAYS_TO_SCAN: ${{ steps.set-days.outputs.days }}
           PR_DIGEST_FILE: "pr_digest_output.json"
         run: |
           echo "Creating PR digest for last ${{ steps.set-days.outputs.days }} days..."
@@ -86,7 +86,7 @@ jobs:
 
             echo "pr-count=$PR_COUNT" >> $GITHUB_OUTPUT
             echo "digest-file=pr_digest_output.json" >> $GITHUB_OUTPUT
-            echo "date-range=${{ steps.set-days.outputs.days }} days ago to now" >> $GITHUB_OUTPUT
+            echo "report-period=Last ${{ steps.set-days.outputs.days }} days" >> $GITHUB_OUTPUT
             echo "✅ Created PR digest with $PR_COUNT PRs"
 
             # Show basic digest info
@@ -103,7 +103,7 @@ jobs:
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           PR_DIGEST_FILE: ${{ steps.pr-digest.outputs.digest-file }}
-          DATE_RANGE: ${{ steps.pr-digest.outputs.date-range }}
+          REPORT_PERIOD: ${{ steps.pr-digest.outputs.report-period }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_SERVER_URL: ${{ github.server_url }}
           GITHUB_RUN_ID: ${{ github.run_id }}
