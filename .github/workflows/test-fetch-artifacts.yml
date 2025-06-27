@@ -1,0 +1,73 @@
+name: 'Test Fetch Artifacts Action'
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/actions/fetch-artifacts/**'
+      - '.github/workflows/test-fetch-artifacts.yml'
+
+jobs:
+  test-fetch-artifacts:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Fetch newsletter artifacts
+        uses: ./.github/actions/fetch-artifacts
+        with:
+          workflow-name: 'generate-newsletter.yml'
+          artifact-name-pattern: 'newsletter-*'
+          num-artifacts: '2'
+          output-directory: 'newsletter-artifacts'
+
+      - name: List downloaded artifacts
+        run: |
+          echo "📦 Downloaded artifacts:"
+          ls -la newsletter-artifacts/
+          echo ""
+
+      - name: Unzip and examine artifacts
+        run: |
+          echo "🔍 Examining artifact contents..."
+
+          for zip_file in newsletter-artifacts/*.zip; do
+            if [ -f "$zip_file" ]; then
+              echo "=========================================="
+              echo "📄 Processing: $(basename "$zip_file")"
+              echo "=========================================="
+
+              # Create directory for this artifact
+              artifact_dir="unzipped/$(basename "$zip_file" .zip)"
+              mkdir -p "$artifact_dir"
+
+              # Unzip the artifact
+              unzip -q "$zip_file" -d "$artifact_dir"
+
+              # Show the directory structure
+              echo "📂 Directory structure:"
+              find "$artifact_dir" -type f -exec ls -lh {} \; | head -20
+              echo ""
+
+              # Show some sample content if there are text files
+              echo "📝 Sample content (first few files):"
+              find "$artifact_dir" -name "*.txt" -o -name "*.md" -o -name "*.json" -o -name "*.yml" -o -name "*.yaml" | head -3 | while read file; do
+                echo "--- Content of $file (first 10 lines) ---"
+                head -10 "$file" 2>/dev/null || echo "Unable to read file"
+                echo ""
+              done
+
+              echo "=========================================="
+              echo ""
+            fi
+          done
+
+      - name: Summary
+        run: |
+          echo "✅ Test completed!"
+          echo "📊 Summary:"
+          echo "  • Artifacts downloaded: $(ls newsletter-artifacts/*.zip 2>/dev/null | wc -l)"
+          echo "  • Total size: $(du -sh newsletter-artifacts/ 2>/dev/null | cut -f1 || echo '0')"
+          echo "  • Unzipped files: $(find unzipped/ -type f 2>/dev/null | wc -l || echo '0')"
