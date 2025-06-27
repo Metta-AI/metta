@@ -160,11 +160,34 @@ class PreviousNewsletterExtractor:
         # Take the most recent summaries (last N items since list is sorted oldest first)
         recent_summaries = summaries[-max_summaries:] if len(summaries) > max_summaries else summaries
 
+        # Extract previous shout outs to help AI avoid repetition
+        all_shout_outs = []
+        for summary in recent_summaries:
+            content = summary["content"]
+            # Look for shout out section
+            if "**Shout Outs:**" in content:
+                shout_section = content.split("**Shout Outs:**")[1].split("**")[0]
+                # Extract usernames mentioned (looking for @username pattern)
+                import re
+
+                mentioned_users = re.findall(r"👏 @(\w+)", shout_section)
+                all_shout_outs.extend(mentioned_users)
+
         context_parts = [
             "\n**PREVIOUS NEWSLETTER SUMMARIES:**",
             f"(Showing {len(recent_summaries)} most recent newsletters for context and continuity)",
             "",
         ]
+
+        if all_shout_outs:
+            context_parts.extend(
+                [
+                    "**Recent Shout Outs Given:**",
+                    f"These developers were recognized in recent newsletters: {', '.join(set(all_shout_outs))}",
+                    "(Consider recognizing different contributors to distribute appreciation across the team)",
+                    "",
+                ]
+            )
 
         for summary in recent_summaries:
             context_parts.extend(
