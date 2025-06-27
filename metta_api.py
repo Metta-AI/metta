@@ -8,6 +8,24 @@ from typing import Any, Dict, Optional
 import torch
 from omegaconf import DictConfig
 
+# Object type IDs from mettagrid/src/metta/mettagrid/objects/constants.hpp
+# These define the type of object in the environment
+TYPE_AGENT = 0
+TYPE_WALL = 1
+TYPE_MINE_RED = 2
+TYPE_MINE_BLUE = 3
+TYPE_MINE_GREEN = 4
+TYPE_GENERATOR_RED = 5
+TYPE_GENERATOR_BLUE = 6
+TYPE_GENERATOR_GREEN = 7
+TYPE_ALTAR = 8
+TYPE_ARMORY = 9
+TYPE_LASERY = 10
+TYPE_LAB = 11
+TYPE_FACTORY = 12
+TYPE_TEMPLE = 13
+TYPE_GENERIC_CONVERTER = 14
+
 # Direct instantiation functions
 
 
@@ -264,12 +282,15 @@ def env(
                     "ore.red": 0.01,
                     "battery.red": 0.02,
                     "heart": 1,
+                    "ore.red_max": 10,
+                    "battery.red_max": 10,
                     "heart_max": 1000,
                 },
             },
             "groups": {"agent": {"id": 0, "sprite": 0, "props": {}}},
             "objects": {
                 "altar": {
+                    "type_id": TYPE_ALTAR,
                     "input_battery.red": 1,
                     "output_heart": 1,
                     "max_output": 5,
@@ -278,6 +299,7 @@ def env(
                     "initial_items": 1,
                 },
                 "mine_red": {
+                    "type_id": TYPE_MINE_RED,
                     "output_ore.red": 1,
                     "color": 0,
                     "max_output": 5,
@@ -286,6 +308,7 @@ def env(
                     "initial_items": 1,
                 },
                 "generator_red": {
+                    "type_id": TYPE_GENERATOR_RED,
                     "input_ore.red": 1,
                     "output_battery.red": 1,
                     "color": 0,
@@ -294,8 +317,14 @@ def env(
                     "cooldown": 50,
                     "initial_items": 1,
                 },
-                "wall": {"swappable": False},
-                "block": {"swappable": True},
+                "wall": {
+                    "type_id": TYPE_WALL,
+                    "swappable": False,
+                },
+                "block": {
+                    "type_id": TYPE_WALL,
+                    "swappable": True,
+                },
             },
             "actions": {
                 "noop": {"enabled": True},
