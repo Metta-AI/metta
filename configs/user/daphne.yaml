@@ -13,10 +13,14 @@ defaults:
   - _self_
 
 trainer:
+<<<<<<< HEAD
   curriculum: /env/mettagrid/curriculum/nav_memory_sequence
+=======
+  curriculum: /env/mettagrid/curriculum/object_use
+>>>>>>> 4e33d20dd5b20178b9d29a74c256161cedb45402
 
-policy_uri: wandb://run/dd_navigation_curriculum
+policy_uri: wandb://run/daphne.navigation.bucketed.sky.8agents.06-25
 
-run_id: 1
+run_id: 3
 run: ${oc.env:USER}.local.${run_id}
 trained_policy_uri: ${run_dir}/checkpoints

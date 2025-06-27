@@ -1,35 +1,12 @@
 _target_: metta.rl.trainer.MettaTrainer
 
-num_workers: ???
+defaults:
+  - trainer
+  - _self_
 
-curriculum: /env/mettagrid/curriculum/simple
-env_overrides: {}
+resume: true
+use_e3b: false
 
-initial_policy:
-  uri: null
-  type: top
-  range: 1
-  metric: epoch
-  filters: {}
-
-checkpoint_dir: ${run_dir}/checkpoints
-
-evaluate_interval: 300
-checkpoint_interval: 60
-wandb_checkpoint_interval: 300
-grad_mean_variance_interval: 0 # 0 to disable
-replay_interval: ${trainer.evaluate_interval}
-replay_dir: s3://softmax-public/replays/${run}
-
-<<<<<<< HEAD
-<<<<<<< HEAD
-# Average reward settings
-average_reward: false # Set to true to use average reward optimization
-average_reward_alpha: 0.01 # Smoothing factor for 100k step average (ln(2)/100000)
-=======
-
-=======
->>>>>>> 4e33d20dd5b20178b9d29a74c256161cedb45402
 total_timesteps: 50_000_000_000
 
 clip_coef: 0.1
@@ -56,8 +33,6 @@ optimizer:
 lr_scheduler:
   enabled: false
   anneal_lr: false
-  warmup_steps: null
-  schedule_type: null
 
 max_grad_norm: 0.5
 vf_clip_coef: 0.1
@@ -109,4 +84,3 @@ kickstart:
     #  - teacher_uri: wandb://run/mettabox_cogeval_defaults_lowent_initialized0005:v95
     #    action_loss_coef: 1
     #    value_loss_coef: 1
->>>>>>> 01647b2cbef62eb75d71c3a835097099ef1b63a7

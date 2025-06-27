@@ -4,6 +4,7 @@ defaults:
 
 game:
   num_agents: 4
+  max_steps: 2000
   agent:
     ore.red_max: ${sampling:5,25,15}
     battery.red_max: ${sampling:5,25,15}
