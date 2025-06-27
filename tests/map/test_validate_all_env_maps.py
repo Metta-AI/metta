@@ -23,6 +23,8 @@ def map_or_env_configs() -> list[MettagridCfgFileMetadata]:
         # have unset params
         "game/map_builder/load.yaml",
         "game/map_builder/load_random.yaml",
+        # requires credentials
+        "terrain_from_numpy.yaml",
     ]
 
     # exclude some configs that won't work
