@@ -24,7 +24,7 @@ import wandb
 import wandb.sdk.wandb_run
 from omegaconf import DictConfig, ListConfig
 from torch import nn
-from torch.package import PackageImporter
+from torch.package import PackageExporter, PackageImporter
 
 from metta.agent.metta_agent import make_policy
 from metta.agent.policy_record import PolicyRecord
@@ -179,12 +179,42 @@ class PolicyStore:
                 "train_time": 0,
             },
         )
-        pr.save(path, policy)
+        self._save_policy(path, policy, pr)
         pr._policy = policy
         return pr
 
-    def save(self, name: str, path: str, policy: nn.Module, metadata: dict):
-        return PolicyRecord(self, name, "file://" + path, metadata).save(path, policy)
+    def save(self, name: str, path: str, policy: nn.Module, metadata: dict) -> PolicyRecord:
+        """Convenience method to create and save a policy in one step."""
+        pr = PolicyRecord(self, name, "file://" + path, metadata)
+        return self._save_policy(path, policy, pr)
+
+    def _save_policy(self, path: str, policy: nn.Module, pr: PolicyRecord) -> PolicyRecord:
+        """Save a policy and its metadata using torch.package."""
+        logger.info(f"Saving policy to {path} using torch.package")
+
+        policy_class_name = policy.__class__.__module__
+        if "torch_package_" in policy_class_name:
+            logger.error("Policy class name with torch_package_ prefixes! Did you forget to rebuild the agent?")
+            logger.error("Skipping save to prevent pickle errors.")
+            return pr
+
+        try:
+            with PackageExporter(path, debug=False) as exporter:
+                # Apply all packaging rules
+                self._apply_packaging_rules(exporter, policy.__class__.__module__, policy.__class__)
+
+                # Save the policy and metadata
+                clean_metadata = pr._clean_metadata_for_packaging(pr.metadata)
+                exporter.save_pickle("policy_record", "data.pkl", PolicyRecord(None, pr.name, pr.uri, clean_metadata))
+                exporter.save_pickle("policy", "model.pkl", policy)
+
+        except Exception as e:
+            logger.error(f"torch.package save failed: {e}")
+            raise RuntimeError(f"Failed to save policy using torch.package: {e}") from e
+
+        pr._local_path = path
+        pr.uri = "file://" + path
+        return pr
 
     def add_to_wandb_run(self, run_id: str, pr: PolicyRecord, additional_files: list[str] | None = None) -> str:
         local_path = pr.local_path()
@@ -348,47 +378,6 @@ class PolicyStore:
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", category=FutureWarning)
 
-        # Try loading as simple checkpoint first
-        try:
-            checkpoint = torch.load(path, map_location=self._device, weights_only=False)
-            if isinstance(checkpoint, dict) and "policy_record" in checkpoint:
-                # This is our simple save format
-                pr = checkpoint["policy_record"]
-                pr._policy_store = self
-                pr._local_path = path
-
-                if not metadata_only:
-                    # Create a new policy and load the state dict
-                    # We need a dummy env to create the policy structure
-                    # This is a bit hacky but works for now
-                    env = type(
-                        "DummyEnv",
-                        (),
-                        {
-                            "single_observation_space": gym.spaces.Box(
-                                low=0, high=255, shape=(34, 11, 11), dtype=np.uint8
-                            ),
-                            "obs_width": 11,
-                            "obs_height": 11,
-                            "single_action_space": gym.spaces.MultiDiscrete([9, 10]),
-                            "action_names": checkpoint.get("metadata", {}).get("action_names", []),
-                            "max_action_args": [10] * 9,  # Dummy values
-                            "feature_normalizations": {},
-                            "global_features": [],
-                        },
-                    )()
-
-                    policy = make_policy(env, self._cfg)
-                    policy.load_state_dict(checkpoint["policy_state_dict"], strict=False)
-
-                    pr._policy = policy
-
-                self._cached_prs[path] = pr
-                return pr
-        except Exception as e:
-            logger.debug(f"Not a simple checkpoint: {e}")
-
-        # Try loading as torch.package
         try:
             importer = PackageImporter(path)
             pr = importer.load_pickle("policy_record", "data.pkl")
@@ -455,98 +444,20 @@ class PolicyStore:
 
                 # Create mock environment
                 obs_shape = checkpoint.get("obs_shape", [34, 11, 11])
-
-                # Provide default feature normalizations for legacy checkpoints
-                # These are common features with reasonable normalization values
-                default_feature_normalizations = {
-                    0: 1.0,  # type_id
-                    1: 10.0,  # agent:group
-                    2: 30.0,  # hp
-                    3: 1.0,  # agent:frozen
-                    4: 1.0,  # agent:orientation
-                    5: 255.0,  # agent:color
-                    6: 1.0,  # converting
-                    7: 1.0,  # swappable
-                    8: 255.0,  # episode_completion_pct
-                    9: 10.0,  # last_action
-                    10: 10.0,  # last_action_arg
-                    11: 100.0,  # last_reward
-                    12: 100.0,  # inv:ore.red
-                    13: 100.0,  # inv:ore.blue
-                    14: 100.0,  # inv:ore.green
-                    15: 100.0,  # inv:battery.red
-                    16: 100.0,  # inv:battery.blue
-                    17: 100.0,  # inv:battery.green
-                    18: 100.0,  # inv:heart
-                    19: 100.0,  # inv:armor
-                    20: 100.0,  # inv:laser
-                    21: 100.0,  # inv:blueprint
-                }
-
-                # Get action configuration from checkpoint
-                # Default action space for 9 actions based on standard metta configuration
-                # This matches: put_recipe_items(1), get_output(1), noop(1), move(3), rotate(4),
-                # attack(10), attack_nearest(1), swap(1), change_color(3)
-                # Total embeddings: 1+1+1+3+4+10+1+1+3 = 25
-                default_action_space_nvec = [1, 1, 1, 3, 4, 10, 1, 1, 3]
-
-                # Try to get action names from metadata first, then from checkpoint root
-                action_names = checkpoint.get("metadata", {}).get("action_names", checkpoint.get("action_names", []))
-
-                # Use action names length to determine the right subset of action space
-                if action_names:
-                    action_space_nvec = default_action_space_nvec[: len(action_names)]
-                else:
-                    action_space_nvec = checkpoint.get("action_space_nvec", default_action_space_nvec)
-
-                # If no action names in checkpoint, generate default ones
-                if not action_names:
-                    action_names = [f"action_{i}" for i in range(len(action_space_nvec))]
-
-                # Generate max_action_args from nvec (nvec includes the 0-arg option)
-                max_action_args = [n - 1 for n in action_space_nvec]
-
                 env = SimpleNamespace(
                     single_observation_space=gym.spaces.Box(low=0, high=255, shape=obs_shape, dtype=np.uint8),
                     obs_width=obs_shape[1],
                     obs_height=obs_shape[2],
-                    single_action_space=gym.spaces.MultiDiscrete(action_space_nvec),
-                    feature_normalizations=checkpoint.get("feature_normalizations", default_feature_normalizations),
+                    single_action_space=gym.spaces.MultiDiscrete(checkpoint.get("action_space_nvec", [9, 10])),
+                    feature_normalizations=checkpoint.get("feature_normalizations", {}),
                     global_features=[],
-                    action_names=action_names,
-                    max_action_args=max_action_args,
                 )
 
                 policy = make_policy(env, self._cfg)
 
-                # Initialize the policy with environment features and actions
-                # This is necessary to set up the action embeddings with the correct size
-                # Create mock features based on the observation shape
-                features = {}
-                for i in range(obs_shape[0]):
-                    features[f"feature_{i}"] = {
-                        "id": i,
-                        "type": "scalar",
-                        "normalization": default_feature_normalizations.get(i, 1.0),
-                    }
-
-                # Initialize policy to environment
-                if hasattr(policy, "initialize_to_environment"):
-                    policy.initialize_to_environment(
-                        features=features,
-                        action_names=action_names,
-                        action_max_params=max_action_args,
-                        device=self._device,
-                    )
-
                 # Load state dict
-                state_key = next(
-                    (k for k in ["policy_state_dict", "model_state_dict", "state_dict"] if k in checkpoint), None
-                )
-                if state_key:
-                    policy.load_state_dict(checkpoint[state_key])
-                else:
-                    policy.load_state_dict(checkpoint)
+                state_key = next((k for k in ["model_state_dict", "state_dict"] if k in checkpoint), None)
+                policy.load_state_dict(checkpoint.get(state_key, checkpoint))
 
                 pr._policy = policy
                 logger.info("Successfully loaded legacy checkpoint as MettaAgent")
@@ -555,3 +466,86 @@ class PolicyStore:
 
         self._cached_prs[path] = pr
         return pr
+
+    def _apply_packaging_rules(self, exporter, policy_module: Optional[str], policy_class: type) -> None:
+        """Apply packaging rules to the exporter based on a configuration."""
+        # Define packaging rules using wildcards for conciseness
+        rules = [
+            # Extern rules: Third-party libs and modules with pydantic dependencies
+            (
+                "extern",
+                [
+                    "sys",
+                    "torch.**",
+                    "numpy.**",
+                    "scipy.**",
+                    "sklearn.**",
+                    "matplotlib.**",
+                    "gymnasium.**",
+                    "gym.**",
+                    "tensordict.**",
+                    "einops.**",
+                    "hydra.**",
+                    "omegaconf.**",
+                    "mettagrid.**",
+                    "metta.mettagrid.**",
+                    "metta.common.util.config",
+                    "metta.rl.vecenv",
+                    "metta.eval.dashboard_data",
+                    "metta.sim.simulation_config",
+                    "metta.agent.policy_store",
+                ],
+            ),
+            # Intern rules: Essential metta code for loading policies
+            (
+                "intern",
+                [
+                    "metta.agent.policy_record",
+                    "metta.agent.lib.**",
+                    "metta.agent.util.**",
+                    "metta.agent.metta_agent",
+                    "metta.agent.brain_policy",
+                    "metta.agent.policy_state",
+                    "metta.common.util.omegaconf",
+                    "metta.common.util.runtime_configuration",
+                    "metta.common.util.logger",
+                    "metta.common.util.decorators",
+                    "metta.common.util.resolvers",
+                ],
+            ),
+            # Mock rules: Exclude these completely
+            (
+                "mock",
+                [
+                    "wandb.**",
+                    "pufferlib.**",
+                    "pydantic.**",
+                    "boto3.**",
+                    "botocore.**",
+                    "duckdb.**",
+                    "pandas.**",
+                    "typing_extensions",
+                    "seaborn",
+                    "plotly",
+                ],
+            ),
+        ]
+
+        # Apply rules from the configuration
+        for action, patterns in rules:
+            for pattern in patterns:
+                getattr(exporter, action)(pattern)
+
+        # Handle special cases for the policy's own module
+        if policy_module:
+            if policy_module == "__main__":
+                import inspect
+
+                try:
+                    source = inspect.getsource(policy_class)
+                    exporter.save_source_string("__main__", f"import torch\nimport torch.nn as nn\n\n{source}")
+                except Exception:
+                    exporter.extern("__main__")
+            elif "test" in policy_module:
+                # Extern test modules to prevent them from being packaged
+                exporter.extern(policy_module)

@@ -5,12 +5,11 @@ This is separated from PolicyStore to enable cleaner packaging of saved policies
 
 import copy
 import logging
-import os
 from typing import Optional
 
 import torch
 from torch import nn
-from torch.package import PackageExporter, PackageImporter
+from torch.package import PackageImporter
 
 logger = logging.getLogger("policy_record")
 
@@ -60,25 +59,8 @@ class PolicyRecord:
         return self._local_path
 
     def load(self, path: str, device: str = "cpu") -> nn.Module:
-        """Load a policy from a checkpoint file."""
+        """Load a policy from a torch package file."""
         logger.info(f"Loading policy from {path}")
-
-        # First try simple torch.load (our current approach)
-        try:
-            checkpoint = torch.load(path, map_location=device)
-            if isinstance(checkpoint, dict) and "policy_state_dict" in checkpoint:
-                # Load from simple checkpoint format
-                policy_record = checkpoint.get("policy_record")
-                if policy_record and hasattr(policy_record, "_policy") and policy_record._policy is not None:
-                    policy = policy_record._policy
-                    policy.load_state_dict(checkpoint["policy_state_dict"])
-                    return policy
-                else:
-                    raise ValueError("Checkpoint does not contain a valid policy")
-        except Exception:
-            pass  # Fall through to torch.package loading
-
-        # Try torch.package format
         try:
             importer = PackageImporter(path)
             try:
@@ -91,105 +73,7 @@ class PolicyRecord:
                 raise ValueError("PolicyRecord in package does not contain a policy") from e
         except Exception as e:
             logger.info(f"Not a torch.package file ({e})")
-            raise ValueError(f"Cannot load policy from {path}: This file is not a valid policy file.") from e
-
-    def save(self, path: str, policy: nn.Module) -> "PolicyRecord":
-        """Save a policy to disk."""
-        logger.info(f"Saving policy to {path}")
-        self._local_path = path
-        self.uri = "file://" + path
-
-        # Use simple torch.save for now to avoid torch.package issues with C extensions
-        use_simple_save = True
-
-        if use_simple_save:
-            # Simple save using torch.save
-            checkpoint = {
-                "policy_state_dict": policy.state_dict(),
-                "policy_record": PolicyRecord(None, self.name, self.uri, self.metadata),
-                "metadata": self.metadata,
-            }
-            torch.save(checkpoint, path)
-
-            # Verify the file was created
-            if not os.path.exists(path):
-                raise RuntimeError(f"Failed to create policy file at {path}")
-
-            file_size = os.path.getsize(path)
-            logger.debug(f"Successfully created policy file at {path} ({file_size} bytes)")
-
-            return self
-
-        # torch.package save (currently disabled due to C extension issues)
-        try:
-            with PackageExporter(path, debug=False) as exporter:
-                # Extern metta.util.config first since it depends on pydantic
-                exporter.extern("metta.util.config")
-
-                # Intern all metta modules to include them in the package
-                exporter.intern("metta.**")
-
-                if policy.__class__.__module__ == "__main__":
-                    import inspect
-
-                    try:
-                        source = inspect.getsource(policy.__class__)
-                        exporter.save_source_string("__main__", f"import torch\nimport torch.nn as nn\n\n{source}")
-                    except Exception:
-                        exporter.extern("__main__")
-
-                for module in [
-                    "torch",
-                    "numpy",
-                    "scipy",
-                    "sklearn",
-                    "matplotlib",
-                    "gymnasium",
-                    "gym",
-                    "tensordict",
-                    "einops",
-                    "hydra",
-                    "omegaconf",
-                ]:
-                    exporter.extern(module)
-                    exporter.extern(f"{module}.**")
-                for module in ["torch_scatter", "torch_geometric", "torch_sparse"]:
-                    exporter.extern(module)
-
-                for pattern in ["wandb", "wandb.**", "wandb.*", "wandb.sdk", "wandb.sdk.**", "wandb.sdk.wandb_run"]:
-                    exporter.mock(pattern)
-
-                for module in ["pufferlib", "pydantic", "boto3", "botocore", "duckdb", "pandas"]:
-                    exporter.mock(module)
-                    exporter.mock(f"{module}.**")
-                exporter.mock("typing_extensions")
-                exporter.mock("seaborn")
-                exporter.mock("plotly")
-
-                exporter.extern("mettagrid.mettagrid_c")
-                exporter.extern("mettagrid")
-                exporter.extern("mettagrid.**")
-                exporter.extern("sys")
-
-                clean_metadata = self._clean_metadata_for_packaging(self.metadata)
-
-                exporter.save_pickle(
-                    "policy_record", "data.pkl", PolicyRecord(None, self.name, self.uri, clean_metadata)
-                )
-                exporter.save_pickle("policy", "model.pkl", policy)
-
-        except Exception as e:
-            logger.error(f"torch.package save failed: {e}")
-            raise RuntimeError(f"Failed to save policy using torch.package: {e}") from e
-
-        # Verify the file was created
-        if not os.path.exists(path):
-            raise RuntimeError(f"Failed to create policy file at {path}")
-
-        file_size = os.path.getsize(path)
-        logger.debug(f"Successfully created policy file at {path} ({file_size} bytes)")
-
-        return self
+            raise ValueError(f"Cannot load policy from {path}: This file is not a valid torch.package file.") from e
 
     def key_and_version(self) -> tuple[str, int]:
         """Extract the policy key and version from the URI."""
