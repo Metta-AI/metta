@@ -65,7 +65,7 @@ class Kickstarter:
         self.teachers: list[nn.Module] = []
         for teacher_cfg in self.teacher_cfgs:
             policy_record = self.policy_store.policy(teacher_cfg.teacher_uri)
-            policy = policy_record.policy()
+            policy = policy_record.policy
             policy.action_loss_coef = teacher_cfg.action_loss_coef
             policy.value_loss_coef = teacher_cfg.value_loss_coef
             policy.activate_actions(self.action_names, self.action_max_params, self.device)

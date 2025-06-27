@@ -21,41 +21,58 @@ class PolicyRecord:
         self.name = name
         self.uri: str = uri
         self.metadata = metadata
-        self._policy = None
-        self._local_path = None
+        self._cached_policy = None
 
-        if self.uri.startswith("file://"):
-            self._local_path = self.uri[len("file://") :]
-
+    @property
     def policy(self) -> nn.Module:
         """Load and return the policy, using cache if available."""
-        if self._policy is None:
+        if self._cached_policy is None:
             if self._policy_store is None:
                 # If no policy store, try to load directly (for packaged policies)
-                if self._local_path:
-                    self._policy = self.load(self._local_path)
+                local_path = self.local_path()
+                if local_path is not None:
+                    self._cached_policy = self.load(local_path)
                 else:
-                    raise ValueError("Cannot load policy without policy_store or local_path")
+                    raise ValueError("Cannot load policy without policy_store or a file:// local path uri")
             else:
                 pr = self._policy_store.load_from_uri(self.uri)
-                self._policy = pr.policy()
-                self._local_path = pr.local_path()
-        return self._policy
+                # FIX: Access _policy directly to avoid recursion
+                self._cached_policy = pr._policy
+
+        return self._cached_policy
+
+    @policy.setter
+    def policy(self, policy: nn.Module) -> None:
+        """Set or overwrite the policy.
+
+        Args:
+            policy: The PyTorch module to set as the policy.
+
+        Raises:
+            TypeError: If policy is not a nn.Module.
+        """
+        if not isinstance(policy, nn.Module):
+            raise TypeError(f"Policy must be a torch.nn.Module, got {type(policy).__name__}")
+        self._cached_policy = policy
+        logger.info(f"Policy overwritten for {self.name}")
 
     def policy_as_metta_agent(self):
         """Return the policy, ensuring it's a MettaAgent type."""
-        policy = self.policy()
+        policy = self.policy
         if type(policy).__name__ not in {"MettaAgent", "DistributedMettaAgent", "PytorchAgent"}:
             raise TypeError(f"Expected MettaAgent, DistributedMettaAgent, or PytorchAgent, got {type(policy).__name__}")
         return policy
 
     def num_params(self) -> int:
         """Count the number of trainable parameters."""
-        return sum(p.numel() for p in self.policy().parameters() if p.requires_grad)
+        return sum(p.numel() for p in self.policy.parameters() if p.requires_grad)
 
     def local_path(self) -> Optional[str]:
         """Return the local file path if available."""
-        return self._local_path
+        if self.uri.startswith("file://"):
+            return self.uri[len("file://") :]
+        else:
+            return None
 
     def load(self, path: str, device: str = "cpu") -> nn.Module:
         """Load a policy from a torch package file."""
@@ -67,8 +84,8 @@ class PolicyRecord:
             except Exception as e:
                 logger.warning(f"Could not load policy directly: {e}")
                 pr = importer.load_pickle("policy_record", "data.pkl", map_location=device)
-                if hasattr(pr, "_policy") and pr._policy is not None:
-                    return pr._policy
+                if hasattr(pr, "_policy") and pr._cached_policy is not None:
+                    return pr._cached_policy
                 raise ValueError("PolicyRecord in package does not contain a policy") from e
         except Exception as e:
             logger.info(f"Not a torch.package file ({e})")
@@ -96,14 +113,6 @@ class PolicyRecord:
 
         return key, version
 
-    def key(self) -> str:
-        """Get the policy key (name without version)."""
-        return self.key_and_version()[0]
-
-    def version(self) -> int:
-        """Get the policy version number."""
-        return self.key_and_version()[1]
-
     def __repr__(self):
         """Generate a detailed representation of the PolicyRecord."""
         # Basic policy record info
@@ -121,14 +130,14 @@ class PolicyRecord:
 
         # Load policy if not already loaded
         policy = None
-        if self._policy is None:
+        if self._cached_policy is None:
             try:
-                policy = self.policy()
+                policy = self.policy
             except Exception as e:
                 lines.append(f"Error loading policy: {str(e)}")
                 return "\n".join(lines)
         else:
-            policy = self._policy
+            policy = self._cached_policy
 
         # Add total parameter count
         total_params = sum(p.numel() for p in policy.parameters())

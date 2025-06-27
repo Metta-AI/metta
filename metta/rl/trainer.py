@@ -16,7 +16,7 @@ from heavyball import ForeachMuon
 from omegaconf import DictConfig
 
 from app_backend.stats_client import StatsClient
-from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
+from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent, make_policy
 from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyRecord, PolicyStore
 from metta.agent.util.debug import assert_shape
@@ -170,13 +170,13 @@ class MettaTrainer:
             # which prevents them from being saved again. We work around this by creating a fresh
             # instance of the policy class and copying the state dict, allowing successful re-saving.
             # TODO: Remove this workaround when checkpointing refactor is complete
-            loaded_policy = policy_record.policy()
+            loaded_policy = policy_record.policy
             loaded_policy.activate_actions(actions_names, actions_max_params, self.device)
 
-            fresh_policy_record = policy_store.create(metta_grid_env, policy_record.name)
+            fresh_policy_record = policy_store.create_empty_policy_record(policy_record.name)
             fresh_policy_record.metadata = policy_record.metadata
 
-            fresh_policy = fresh_policy_record.policy()
+            fresh_policy = fresh_policy_record.policy
             fresh_policy.activate_actions(actions_names, actions_max_params, self.device)
             fresh_policy.load_state_dict(loaded_policy.state_dict(), strict=False)
 
@@ -185,14 +185,12 @@ class MettaTrainer:
 
         else:
             if self._master:
-                policy_record = self._create_policy(policy_store, metta_grid_env)
-                policy_store.save_policy(policy_record.policy(), policy_record)
-                self.latest_saved_policy_record = policy_record
+                policy_record = self._create_and_save_policy_record(policy_store, metta_grid_env)
             else:
-                policy_record = self._wait_for_policy(policy_store)
+                policy_record = self._wait_for_policy_record(policy_store)
 
             self.initial_policy_record = policy_record
-            self.policy = policy_record.policy()
+            self.policy = policy_record.policy
             self.policy.activate_actions(actions_names, actions_max_params, self.device)
 
         assert self.policy is not None, "Failed to obtain policy"
@@ -749,15 +747,14 @@ class MettaTrainer:
         # instance of the policy class and copying the state dict, allowing successful re-saving.
         # TODO: Remove this workaround when checkpointing refactor is complete
         logger.info("Creating a fresh policy instance for torch.package to save")
-        fresh_policy_record = self.policy_store.create(metta_grid_env, name)
+        fresh_policy_record = self.policy_store.create_empty_policy_record(name)
         # copy in the values we want to keep
         fresh_policy_record.metadata = metadata
-        fresh_policy = fresh_policy_record.policy()
+        fresh_policy = fresh_policy_record.policy
         fresh_policy.activate_actions(metta_grid_env.action_names, metta_grid_env.max_action_args, self.device)
         fresh_policy.load_state_dict(self.policy.state_dict(), strict=False)
-        policy_to_save = fresh_policy
 
-        self.latest_saved_policy_record = self.policy_store.save_policy(policy_to_save, fresh_policy_record)
+        self.latest_saved_policy_record = self.policy_store.save(fresh_policy_record)
         return self.latest_saved_policy_record
 
     def _maybe_upload_policy_record_to_wandb(self, force: bool = False) -> str | None:
@@ -869,10 +866,8 @@ class MettaTrainer:
         results = replay_simulator.simulate()
 
         if self.wandb_run is not None:
-            replay_urls = results.stats_db.get_replay_urls(
-                policy_key=self.latest_saved_policy_record.key(),
-                policy_version=self.latest_saved_policy_record.version(),
-            )
+            key, version = self.latest_saved_policy_record.key_and_version()
+            replay_urls = results.stats_db.get_replay_urls(key, version)
             if len(replay_urls) > 0:
                 replay_url = replay_urls[0]
                 player_url = "https://metta-ai.github.io/metta/?replayUrl=" + replay_url
@@ -1227,16 +1222,21 @@ class MettaTrainer:
 
         return None
 
-    def _create_policy(self, policy_store: PolicyStore, metta_grid_env) -> PolicyRecord:
+    def _create_and_save_policy_record(self, policy_store: PolicyStore, env: MettaGridEnv) -> PolicyRecord:
         """Create a new policy. Only master should call this."""
         if not self._master:
-            raise RuntimeError("Only master process should create policies")
+            raise RuntimeError("Only master process should create and save a policy record")
 
-        logger.info("Creating new policy")
         name = policy_store.make_model_name(self.epoch)
-        return policy_store.create(metta_grid_env, name)
+        logger.info(f"Creating new policy record: {name}")
+        pr = policy_store.create_empty_policy_record(name)
+        pr.policy = make_policy(env, self.cfg)
+        policy_store.save(pr)
+        self.latest_saved_policy_record = pr
 
-    def _wait_for_policy(self, policy_store, timeout_attempts: int = 10) -> PolicyRecord:
+        return self.latest_saved_policy_record
+
+    def _wait_for_policy_record(self, policy_store, timeout_attempts: int = 10) -> PolicyRecord:
         """Non-master processes wait for master to create policy."""
         if self._master:
             raise RuntimeError("Master process should not wait for policy")

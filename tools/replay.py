@@ -54,9 +54,8 @@ def main(cfg):
             replay_dir=replay_dir,
         )
         result = sim.simulate()
-        replay_url = result.stats_db.get_replay_urls(
-            policy_key=policy_record.key(), policy_version=policy_record.version()
-        )[0]
+        key, version = policy_record.key_and_version()
+        replay_url = result.stats_db.get_replay_urls(key, version)[0]
 
         # Only on macos open a browser to the replay
         if platform.system() == "Darwin":

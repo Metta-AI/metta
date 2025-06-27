@@ -211,7 +211,7 @@ def _load_trained_policy(env: MettaGridEnv, cfg: DictConfig) -> Policy:
 
         policy_store = PolicyStore(cfg, None)
         policy_pr = policy_store.policy(cfg.policy_uri)
-        return TrainedPolicyWrapper(policy_pr.policy(), env)
+        return TrainedPolicyWrapper(policy_pr.policy, env)
     except Exception as e:
         print(f"Failed to load trained policy: {e}")
         print("Falling back to simple policy")
