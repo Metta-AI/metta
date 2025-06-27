@@ -21,11 +21,6 @@ from typing import Any, Optional
 
 from github import Github
 
-script_dir = Path(__file__).parent.parent.parent / "scripts"
-sys.path.insert(0, str(script_dir))
-
-from utils.config import parse_config  # noqa: E402
-
 
 class GitHubActionsOutput:
     """Helper for setting GitHub Actions outputs safely."""
@@ -327,6 +322,11 @@ class ArtifactFetcher:
 def main():
     """Main entry point."""
     print("🚀 Starting Fetch Artifacts action")
+
+    # Import parse_config
+    script_dir = Path(__file__).parent.parent.parent / "scripts"
+    sys.path.insert(0, str(script_dir))
+    from utils.config import parse_config
 
     try:
         required_vars = [

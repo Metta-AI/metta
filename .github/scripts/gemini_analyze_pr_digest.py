@@ -360,38 +360,26 @@ def main():
     """Main entry point for PR digest analysis."""
     logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
-    # Define required environment variables
-    required_env_vars = {
-        "GEMINI_API_KEY": "Gemini AI API key",
-        "GITHUB_REPOSITORY": "GitHub repository name",
-        "GITHUB_SERVER_URL": "GitHub server URL",
-        "GITHUB_RUN_ID": "GitHub Actions run ID",
+    # Import parse_config
+    script_dir = Path(__file__).parent.parent.parent / "scripts"
+    sys.path.insert(0, str(script_dir))
+    from utils.config import parse_config
+
+    # Define required and optional environment variables
+    required_vars = [
+        "GEMINI_API_KEY",
+        "GITHUB_REPOSITORY",
+        "GITHUB_SERVER_URL",
+        "GITHUB_RUN_ID",
+    ]
+
+    optional_vars = {
+        "PR_DIGEST_FILE": "pr_digest_output.json",
+        "REPORT_PERIOD": "(unknown)",
     }
 
-    # Optional environment variables with defaults
-    optional_env_vars = {"PR_DIGEST_FILE": "pr_digest_output.json", "REPORT_PERIOD": ""}
-
-    # Validate required environment variables
-    env_values = {}
-    missing_vars = []
-
-    for var_name, description in required_env_vars.items():
-        value = os.getenv(var_name)
-        if not value:
-            missing_vars.append(f"{var_name} ({description})")
-        else:
-            env_values[var_name] = value
-
-    # Report all missing variables at once
-    if missing_vars:
-        print("Error: Missing required environment variables:")
-        for var in missing_vars:
-            print(f"  - {var}")
-        sys.exit(1)
-
-    # Get optional environment variables
-    for var_name, default_value in optional_env_vars.items():
-        env_values[var_name] = os.getenv(var_name, default_value)
+    # Parse configuration
+    env_values = parse_config(required_vars, optional_vars)
 
     # Extract values for easier use
     api_key = env_values["GEMINI_API_KEY"]
@@ -401,7 +389,7 @@ def main():
     pr_digest_file = env_values["PR_DIGEST_FILE"]
     report_period = env_values["REPORT_PERIOD"]
 
-    # Construct GitHub run URL (all components are guaranteed to exist)
+    # Construct GitHub run URL
     github_run_url = f"{github_server_url}/{github_repository}/actions/runs/{github_run_id}"
 
     # Validate file existence
