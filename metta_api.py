@@ -768,3 +768,249 @@ def quick_eval(
         results["episode_lengths"] = episode_lengths
 
     return results
+
+
+def quick_sim(
+    run_name: str,
+    policy_uri: str,
+    num_episodes: int = 10,
+    num_envs: int = 32,
+    num_agents: int = 2,
+    device: str = "cuda",
+    logger=None,
+) -> Dict[str, Any]:
+    """Quick simulation/evaluation function using the simulation suite.
+
+    Args:
+        run_name: Name of the run
+        policy_uri: URI of the policy to evaluate
+        num_episodes: Number of episodes to run
+        num_envs: Number of parallel environments
+        num_agents: Number of agents per environment
+        device: Device to use
+        logger: Optional logger instance
+
+    Returns:
+        Dictionary with simulation results
+    """
+    from metta.agent.policy_store import PolicyStore
+    from metta.sim.simulation_config import SimulationSuiteConfig
+    from metta.sim.simulation_suite import SimulationSuite
+
+    if logger is None:
+        logger = get_logger("quick_sim")
+
+    # Build config
+    config = build_runtime_config(
+        run=run_name,
+        device=device,
+        vectorization="multiprocessing",  # Better for eval
+    )
+
+    # Directories
+    stats_dir = f"{config['run_dir']}/stats"
+    replay_dir = f"{config['run_dir']}/replays/evals"
+    os.makedirs(stats_dir, exist_ok=True)
+    os.makedirs(replay_dir, exist_ok=True)
+
+    # Load policy
+    policy_store = PolicyStore(config, None)
+    policy_prs = policy_store.policies(policy_uri, "top", n=1, metric="eval_score")
+
+    results = {"policies": []}
+
+    for pr in policy_prs:
+        logger.info(f"Evaluating {pr.name}")
+
+        # Run simulation
+        sim = SimulationSuite(
+            config=SimulationSuiteConfig(
+                {
+                    "name": "eval",
+                    "num_envs": num_envs,
+                    "num_episodes": num_episodes,
+                    "map_preview_limit": 32,
+                    "suites": [],
+                }
+            ),
+            policy_pr=pr,
+            policy_store=policy_store,
+            replay_dir=f"{replay_dir}/{pr.name}",
+            stats_dir=stats_dir,
+            device=config["device"],
+            vectorization=config["vectorization"],
+            stats_client=None,
+        )
+
+        sim_results = sim.simulate()
+
+        # Collect results
+        checkpoint_data = {"name": pr.name, "uri": pr.uri, "metrics": {}}
+
+        rewards_df = sim_results.stats_db.query(
+            "SELECT AVG(value) AS reward_avg FROM agent_metrics WHERE metric = 'reward'"
+        )
+        if len(rewards_df) > 0 and rewards_df.iloc[0]["reward_avg"] is not None:
+            checkpoint_data["metrics"]["reward_avg"] = float(rewards_df.iloc[0]["reward_avg"])
+
+        results["policies"].append(checkpoint_data)
+
+        # Export stats
+        stats_db_uri = f"{config['run_dir']}/stats.db"
+        sim_results.stats_db.export(stats_db_uri)
+        logger.info(f"Exported stats to {stats_db_uri}")
+
+    return results
+
+
+# Configuration factory functions (from metta/__init__.py)
+
+
+def agent_config(
+    obs_key: str = "grid_obs",
+    clip_range: float = 0,
+    analyze_weights_interval: int = 300,
+    l2_init_weight_update_interval: int = 0,
+) -> Dict[str, Any]:
+    """Create a default Metta agent configuration dict."""
+    return {
+        "_target_": "metta.agent.metta_agent.MettaAgent",
+        "observations": {"obs_key": obs_key},
+        "clip_range": clip_range,
+        "analyze_weights_interval": analyze_weights_interval,
+        "l2_init_weight_update_interval": l2_init_weight_update_interval,
+        "components": {
+            "_obs_": {"_target_": "metta.agent.lib.obs_token_to_box_shaper.ObsTokenToBoxShaper", "sources": None},
+            "obs_normalizer": {
+                "_target_": "metta.agent.lib.observation_normalizer.ObservationNormalizer",
+                "sources": [{"name": "_obs_"}],
+            },
+            "cnn1": {
+                "_target_": "metta.agent.lib.nn_layer_library.Conv2d",
+                "sources": [{"name": "obs_normalizer"}],
+                "nn_params": {"out_channels": 64, "kernel_size": 5, "stride": 3},
+            },
+            "cnn2": {
+                "_target_": "metta.agent.lib.nn_layer_library.Conv2d",
+                "sources": [{"name": "cnn1"}],
+                "nn_params": {"out_channels": 64, "kernel_size": 3, "stride": 1},
+            },
+            "obs_flattener": {"_target_": "metta.agent.lib.nn_layer_library.Flatten", "sources": [{"name": "cnn2"}]},
+            "fc1": {
+                "_target_": "metta.agent.lib.nn_layer_library.Linear",
+                "sources": [{"name": "obs_flattener"}],
+                "nn_params": {"out_features": 128},
+            },
+            "encoded_obs": {
+                "_target_": "metta.agent.lib.nn_layer_library.Linear",
+                "sources": [{"name": "fc1"}],
+                "nn_params": {"out_features": 128},
+            },
+            "_core_": {
+                "_target_": "metta.agent.lib.lstm.LSTM",
+                "sources": [{"name": "encoded_obs"}],
+                "output_size": 128,
+                "nn_params": {"num_layers": 2},
+            },
+            "core_relu": {"_target_": "metta.agent.lib.nn_layer_library.ReLU", "sources": [{"name": "_core_"}]},
+            "critic_1": {
+                "_target_": "metta.agent.lib.nn_layer_library.Linear",
+                "sources": [{"name": "core_relu"}],
+                "nn_params": {"out_features": 1024},
+                "nonlinearity": "nn.Tanh",
+                "effective_rank": True,
+            },
+            "_value_": {
+                "_target_": "metta.agent.lib.nn_layer_library.Linear",
+                "sources": [{"name": "critic_1"}],
+                "nn_params": {"out_features": 1},
+                "nonlinearity": None,
+            },
+            "actor_1": {
+                "_target_": "metta.agent.lib.nn_layer_library.Linear",
+                "sources": [{"name": "core_relu"}],
+                "nn_params": {"out_features": 512},
+            },
+            "_action_embeds_": {
+                "_target_": "metta.agent.lib.action.ActionEmbedding",
+                "sources": None,
+                "nn_params": {"num_embeddings": 100, "embedding_dim": 16},
+            },
+            "_action_": {
+                "_target_": "metta.agent.lib.actor.MettaActorSingleHead",
+                "sources": [{"name": "actor_1"}, {"name": "_action_embeds_"}],
+            },
+        },
+    }
+
+
+def trainer_config(
+    total_timesteps: int = 10_000,
+    batch_size: int = 256,
+    learning_rate: float = 0.0003,
+    checkpoint_dir: str = "./checkpoints",
+    num_workers: int = 1,
+    **kwargs,
+) -> Dict[str, Any]:
+    """Create a default trainer configuration dict."""
+    # Calculate appropriate minibatch_size based on batch_size
+    minibatch_size = min(32, batch_size)
+    while batch_size % minibatch_size != 0 and minibatch_size > 1:
+        minibatch_size -= 1
+
+    defaults = {
+        "target": "metta.rl.trainer.MettaTrainer",
+        "total_timesteps": total_timesteps,
+        "clip_coef": 0.1,
+        "ent_coef": 0.0021,
+        "gae_lambda": 0.916,
+        "gamma": 0.977,
+        "learning_rate": learning_rate,
+        "max_grad_norm": 0.5,
+        "vf_clip_coef": 0.1,
+        "vf_coef": 0.44,
+        "norm_adv": True,
+        "clip_vloss": True,
+        "batch_size": batch_size,
+        "minibatch_size": minibatch_size,
+        "bptt_horizon": 8,
+        "num_workers": num_workers,
+        "checkpoint_dir": checkpoint_dir,
+        "checkpoint_interval": 100,
+    }
+
+    # Override defaults with any provided kwargs
+    defaults.update(kwargs)
+    return defaults
+
+
+def sim_suite_config(
+    name: str = "eval",
+    num_envs: int = 32,
+    num_episodes: int = 10,
+    map_preview_limit: int = 32,
+) -> Dict[str, Any]:
+    """Create a default simulation suite configuration dict."""
+    return {
+        "_target_": "metta.sim.simulation_config.SimulationSuiteConfig",
+        "name": name,
+        "num_envs": num_envs,
+        "num_episodes": num_episodes,
+        "map_preview_limit": map_preview_limit,
+        "suites": [],
+    }
+
+
+def wandb_config(
+    mode: str = "disabled",
+    project: str = "metta",
+    entity: Optional[str] = None,
+    tags: Optional[list] = None,
+) -> Dict[str, Any]:
+    """Create a default WandB configuration dict."""
+    return {
+        "mode": mode,
+        "project": project,
+        "entity": entity,
+        "tags": tags or [],
+    }
