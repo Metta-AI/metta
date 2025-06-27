@@ -712,6 +712,8 @@ ConverterConfig MettaGrid::_create_converter_config(const py::dict& converter_cf
   unsigned char initial_items = converter_cfg_py["initial_items"].cast<unsigned char>();
   ObsType color = converter_cfg_py["color"].cast<ObsType>();
   TypeId type_id = converter_cfg_py["type_id"].cast<TypeId>();
+  std::string type_name = converter_cfg_py["type_name"].cast<std::string>();
+
   return ConverterConfig{recipe_input,
                          recipe_output,
                          max_output,
@@ -720,13 +722,15 @@ ConverterConfig MettaGrid::_create_converter_config(const py::dict& converter_cf
                          initial_items,
                          color,
                          inventory_item_names,
-                         type_id};
+                         type_id,
+                         type_name};
 }
 
 WallConfig MettaGrid::_create_wall_config(const py::dict& wall_cfg_py) {
   bool swappable = wall_cfg_py.contains("swappable") ? wall_cfg_py["swappable"].cast<bool>() : false;
   TypeId type_id = wall_cfg_py["type_id"].cast<TypeId>();
-  return WallConfig{type_id, swappable};
+  std::string type_name = wall_cfg_py["type_name"].cast<std::string>();
+  return WallConfig{type_id, type_name, swappable};
 }
 
 // Pybind11 module definition

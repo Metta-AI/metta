@@ -52,6 +52,7 @@ class WallConfig_cpp(BaseModelWithForbidExtra):
 
     swappable: Optional[bool] = None
     type_id: Byte
+    type_name: str
 
 
 class ConverterConfig_cpp(BaseModelWithForbidExtra):
@@ -65,7 +66,7 @@ class ConverterConfig_cpp(BaseModelWithForbidExtra):
     initial_items: int = Field(ge=0)
     color: Byte = Field(default=0)
     type_id: Byte
-
+    type_name: str
 
 class ObjectsConfig_cpp(BaseModelWithForbidExtra):
     """Objects configuration."""
@@ -182,9 +183,9 @@ def from_mettagrid_config(mettagrid_config: GameConfig_py) -> GameConfig_cpp:
                     converter_config_cpp_dict["recipe_output"][inventory_item_ids[k[7:]]] = v
                 else:
                     converter_config_cpp_dict[k] = v
-            object_configs[object_type] = ConverterConfig_cpp(**converter_config_cpp_dict)
+            object_configs[object_type] = ConverterConfig_cpp(type_name=object_type, **converter_config_cpp_dict)
         elif isinstance(object_config, WallConfig_py):
-            object_configs[object_type] = WallConfig_cpp(**object_config.model_dump(by_alias=True, exclude_unset=True))
+            object_configs[object_type] = WallConfig_cpp(type_name=object_type, **object_config.model_dump(by_alias=True, exclude_unset=True))
         else:
             raise ValueError(f"Unknown object type: {object_type}")
 

@@ -102,6 +102,7 @@ py::dict CreateBenchmarkConfig(int num_agents) {
 
   objects_cfg["wall"] = wall_cfg;
   objects_cfg["wall"]["type_id"] = 1;
+  objects_cfg["wall"]["type_name"] = "wall";
 
   game_cfg["objects"] = objects_cfg;
 
