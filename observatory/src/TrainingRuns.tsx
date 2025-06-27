@@ -39,6 +39,21 @@ const TRAINING_RUNS_CSS = `
   font-size: 14px;
 }
 
+.search-box {
+  width: 300px;
+  padding: 8px 12px;
+  font-size: 14px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  outline: none;
+  margin-bottom: 10px;
+}
+
+.search-box:focus {
+  border-color: #007bff;
+  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+}
+
 .training-runs-table {
   width: 100%;
   border-collapse: collapse;
@@ -129,6 +144,7 @@ export function TrainingRuns({ repo }: TrainingRunsProps) {
   const [trainingRuns, setTrainingRuns] = useState<TrainingRun[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
 
   useEffect(() => {
     const loadTrainingRuns = async () => {
@@ -164,6 +180,15 @@ export function TrainingRuns({ repo }: TrainingRunsProps) {
     }
   }
 
+  const filteredTrainingRuns = trainingRuns.filter(run => {
+    const query = searchQuery.toLowerCase()
+    return (
+      run.name.toLowerCase().includes(query) ||
+      run.status.toLowerCase().includes(query) ||
+      run.user_id.toLowerCase().includes(query)
+    )
+  })
+
   if (loading) {
     return (
       <div className="training-runs-container">
@@ -196,14 +221,30 @@ export function TrainingRuns({ repo }: TrainingRunsProps) {
       <div className="training-runs-content">
         <div className="training-runs-header">
           <h1 className="training-runs-title">Training Runs</h1>
-          <div className="training-runs-count">
-            {trainingRuns.length} training run{trainingRuns.length !== 1 ? 's' : ''}
+          <div>
+            <input
+              type="text"
+              placeholder="Search training runs..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="search-box"
+            />
+            <div className="training-runs-count">
+              {searchQuery ?
+                `${filteredTrainingRuns.length} of ${trainingRuns.length} training runs` :
+                `${trainingRuns.length} training run${trainingRuns.length !== 1 ? 's' : ''}`
+              }
+            </div>
           </div>
         </div>
 
         {trainingRuns.length === 0 ? (
           <div className="loading-container">
             <div>No training runs found.</div>
+          </div>
+        ) : filteredTrainingRuns.length === 0 ? (
+          <div className="loading-container">
+            <div>No training runs match your search.</div>
           </div>
         ) : (
           <table className="training-runs-table">
@@ -217,7 +258,7 @@ export function TrainingRuns({ repo }: TrainingRunsProps) {
               </tr>
             </thead>
             <tbody>
-              {trainingRuns.map((run) => (
+              {filteredTrainingRuns.map((run) => (
                 <tr key={run.id}>
                   <td>
                     <Link to={`/training-run/${run.id}`} className="training-run-name">
