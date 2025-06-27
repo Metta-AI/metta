@@ -38,7 +38,9 @@ class GitHubActionsOutput:
                     f.write(f"{name}<<{delimiter}\n{value}\n{delimiter}\n")
                 else:
                     f.write(f"{name}={value}\n")
-        print(f"::set-output name={name}::{value[:100]}{'...' if len(value) > 100 else ''}")
+        else:
+            # Fallback to deprecated method if GITHUB_OUTPUT not available
+            print(f"::set-output name={name}::{value[:100]}{'...' if len(value) > 100 else ''}")
 
 
 class GitHubAPI:
@@ -53,40 +55,39 @@ class GitHubAPI:
         """Get successful workflow runs for the specified workflow."""
         try:
             workflow = self.repo.get_workflow(workflow_filename)
-            runs = workflow.get_runs(status="completed", conclusion="success")
+            # Get all runs (most recent first) and filter as we go
+            runs = workflow.get_runs()
 
             result = []
-            # Paginate through runs to ensure we get all of them
-            page = 0
-            max_pages = 10  # Reasonable limit to avoid infinite loops
+            checked_runs = 0
+            max_checks = 200  # Reasonable limit to avoid checking too many runs
 
-            while page < max_pages:
-                try:
-                    runs_page = runs.get_page(page)
-                    if not runs_page:
+            for run in runs:
+                checked_runs += 1
+
+                # Only process successful runs
+                if run.conclusion != "success":
+                    # Continue to next run without adding to result
+                    if checked_runs >= max_checks:
                         break
+                    continue
 
-                    for run in runs_page:
-                        # Exclude current run if specified
-                        if exclude_run_id and str(run.id) == str(exclude_run_id):
-                            continue
-
-                        result.append(
-                            {
-                                "id": run.id,
-                                "created_at": run.created_at.isoformat(),
-                                "url": run.html_url,
-                            }
-                        )
-
-                    page += 1
-
-                    # If we have enough runs for reasonable searching, break early
-                    if len(result) >= 100:
+                # Exclude current run if specified
+                if exclude_run_id and str(run.id) == str(exclude_run_id):
+                    if checked_runs >= max_checks:
                         break
+                    continue
 
-                except Exception:
-                    # No more pages available
+                result.append(
+                    {
+                        "id": run.id,
+                        "created_at": run.created_at.isoformat(),
+                        "url": run.html_url,
+                    }
+                )
+
+                # Stop if we have enough successful runs or checked too many
+                if len(result) >= 50 or checked_runs >= max_checks:
                     break
 
             return result
