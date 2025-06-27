@@ -153,16 +153,8 @@ jobs:
         run: |
           mkdir -p pr-analysis
 
-          # Create detailed text file
-          cat > pr-analysis/pr_${{ steps.validate.outputs.pr_number }}_analysis.txt << 'EOF'
-          PR #${{ steps.validate.outputs.pr_number }} Analysis Report
-          Generated: $(date -u)
-          Model: ${{ inputs.model_tier }}
-          Repository: ${{ github.repository }}
-
-          ================================================================================
-
-          $(cat single_pr_result.json | jq -r '
+          # Extract analysis data with error handling
+          if ! ANALYSIS_DATA=$(cat single_pr_result.json | jq -r '
             "TITLE: " + .title + "\n" +
             "AUTHOR: " + .author + "\n" +
             "CATEGORY: " + (.category | ascii_upcase) + "\n" +
@@ -173,7 +165,21 @@ jobs:
             "KEY CHANGES\n" + (.key_changes | map("• " + .) | join("\n")) + "\n\n" +
             "DEVELOPER IMPACT\n" + .developer_impact + "\n\n" +
             "TECHNICAL NOTES\n" + (.technical_notes // "No additional technical notes")
-          ')
+          '); then
+            echo "❌ Failed to extract analysis data"
+            exit 1
+          fi
+
+          # Create detailed text file (no indentation for clean output)
+          cat > pr-analysis/pr_${{ steps.validate.outputs.pr_number }}_analysis.txt <<EOF
+          PR #${{ steps.validate.outputs.pr_number }} Analysis Report
+          Generated: $(date -u)
+          Model: ${{ inputs.model_tier }}
+          Repository: ${{ github.repository }}
+
+          ================================================================================
+
+          ${ANALYSIS_DATA}
 
           ================================================================================
           EOF
@@ -190,7 +196,18 @@ jobs:
 
       - name: Create Summary
         run: |
-          cat > analysis_summary.md << 'EOF'
+          # Extract summary JSON with error handling and pretty formatting
+          if ! SUMMARY_JSON=$(cat single_pr_result.json | jq --indent 2 '{
+            title,
+            category,
+            impact_level,
+            summary: (.summary | split(" ") | .[0:20] | join(" ") + "...")
+          }'); then
+            echo "❌ Failed to extract summary JSON"
+            exit 1
+          fi
+
+          cat > analysis_summary.md <<EOF
           # Single PR Analysis Results
 
           **PR:** #${{ steps.validate.outputs.pr_number }}
@@ -198,14 +215,9 @@ jobs:
           **Cache Updated:** ${{ inputs.update_cache }}
 
           ## Quick Summary
-          ```json
-          $(cat single_pr_result.json | jq '{
-            title,
-            category,
-            impact_level,
-            summary: (.summary | split(" ") | .[0:20] | join(" ") + "...")
-          }')
-          ```
+          \`\`\`json
+          ${SUMMARY_JSON}
+          \`\`\`
 
           See artifacts for complete analysis.
           EOF
