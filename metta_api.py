@@ -779,7 +779,7 @@ def quick_sim(
     device: str = "cuda",
     logger=None,
 ) -> Dict[str, Any]:
-    """Quick simulation/evaluation function using the simulation suite.
+    """Quick simulation/evaluation function using direct evaluation.
 
     Args:
         run_name: Name of the run
@@ -793,74 +793,45 @@ def quick_sim(
     Returns:
         Dictionary with simulation results
     """
-    from metta.agent.policy_store import PolicyStore
-    from metta.sim.simulation_config import SimulationSuiteConfig
-    from metta.sim.simulation_suite import SimulationSuite
+    import os
 
     if logger is None:
         logger = get_logger("quick_sim")
 
-    # Build config
-    config = build_runtime_config(
-        run=run_name,
+    # Extract checkpoint path from URI
+    if policy_uri.startswith("file://"):
+        checkpoint_path = policy_uri[7:]
+    else:
+        checkpoint_path = policy_uri
+
+    # Make sure path is absolute
+    if not os.path.isabs(checkpoint_path):
+        checkpoint_path = os.path.abspath(checkpoint_path)
+
+    logger.info(f"Evaluating policy: {checkpoint_path}")
+
+    # Use quick_eval to run the evaluation
+    results = quick_eval(
+        checkpoint_path=checkpoint_path,
+        num_episodes=num_episodes,
+        num_envs=num_envs,
+        num_agents=num_agents,
         device=device,
-        vectorization="multiprocessing",  # Better for eval
+        vectorization="multiprocessing",
+        logger=logger,
     )
 
-    # Directories
-    stats_dir = f"{config['run_dir']}/stats"
-    replay_dir = f"{config['run_dir']}/replays/evals"
-    os.makedirs(stats_dir, exist_ok=True)
-    os.makedirs(replay_dir, exist_ok=True)
-
-    # Load policy
-    policy_store = PolicyStore(config, None)
-    policy_prs = policy_store.policies(policy_uri, "top", n=1, metric="eval_score")
-
-    results = {"policies": []}
-
-    for pr in policy_prs:
-        logger.info(f"Evaluating {pr.name}")
-
-        # Run simulation
-        sim = SimulationSuite(
-            config=SimulationSuiteConfig(
-                {
-                    "name": "eval",
-                    "num_envs": num_envs,
-                    "num_episodes": num_episodes,
-                    "map_preview_limit": 32,
-                    "suites": [],
-                }
-            ),
-            policy_pr=pr,
-            policy_store=policy_store,
-            replay_dir=f"{replay_dir}/{pr.name}",
-            stats_dir=stats_dir,
-            device=config["device"],
-            vectorization=config["vectorization"],
-            stats_client=None,
-        )
-
-        sim_results = sim.simulate()
-
-        # Collect results
-        checkpoint_data = {"name": pr.name, "uri": pr.uri, "metrics": {}}
-
-        rewards_df = sim_results.stats_db.query(
-            "SELECT AVG(value) AS reward_avg FROM agent_metrics WHERE metric = 'reward'"
-        )
-        if len(rewards_df) > 0 and rewards_df.iloc[0]["reward_avg"] is not None:
-            checkpoint_data["metrics"]["reward_avg"] = float(rewards_df.iloc[0]["reward_avg"])
-
-        results["policies"].append(checkpoint_data)
-
-        # Export stats
-        stats_db_uri = f"{config['run_dir']}/stats.db"
-        sim_results.stats_db.export(stats_db_uri)
-        logger.info(f"Exported stats to {stats_db_uri}")
-
-    return results
+    # Format results
+    policy_name = os.path.basename(checkpoint_path)
+    return {
+        "policies": [
+            {
+                "name": policy_name,
+                "uri": policy_uri,
+                "metrics": results,
+            }
+        ]
+    }
 
 
 # Configuration factory functions (from metta/__init__.py)

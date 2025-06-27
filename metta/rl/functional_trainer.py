@@ -13,6 +13,7 @@ import einops
 import numpy as np
 import torch
 import torch.distributed
+from pufferlib import _C  # noqa: F401 - Required for torch.ops.pufferlib
 from torch import Tensor
 
 from metta.agent.policy_state import PolicyState
