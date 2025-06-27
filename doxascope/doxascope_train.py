@@ -12,7 +12,6 @@ from pathlib import Path
 
 import torch
 
-from .doxascope_analysis import run_analysis
 from .doxascope_network import (
     DoxascopeNet,
     DoxascopeTrainer,
@@ -77,6 +76,8 @@ def train_doxascope(
         results["targets"] = all_targets
 
     if output_dir:
+        from .doxascope_analysis import run_analysis
+
         run_analysis(history, results, output_dir)
 
     # Save analysis results
