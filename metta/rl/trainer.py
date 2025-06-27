@@ -66,9 +66,12 @@ class MettaTrainer:
         stats_client: StatsClient | None,
         **kwargs: Any,
     ):
-        # debug
         logger.info(f"run_dir = {cfg.run_dir}")
-        logger.info(f"Contents: {', '.join(os.listdir(Path(cfg.run_dir) / 'checkpoints'))}")
+        checkpoints_dir = Path(cfg.run_dir) / "checkpoints"
+        if checkpoints_dir.exists():
+            files = sorted(os.listdir(checkpoints_dir))
+            recent_files = files[-3:] if len(files) >= 3 else files
+            logger.info(f"Recent checkpoints: {', '.join(recent_files)}")
 
         self.cfg = cfg
         self.trainer_cfg = trainer_cfg = parse_trainer_config(cfg.trainer)
