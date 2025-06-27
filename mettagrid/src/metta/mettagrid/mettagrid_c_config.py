@@ -50,6 +50,7 @@ class WallConfig_cpp(BaseModelWithForbidExtra):
     """Wall/Block configuration."""
 
     swappable: Optional[bool] = None
+    type_id: Byte
 
 
 class ConverterConfig_cpp(BaseModelWithForbidExtra):

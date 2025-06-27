@@ -234,9 +234,8 @@ TEST_F(MettaGridCppTest, PutRecipeItems) {
   generator_cfg.initial_items = 0;
   generator_cfg.color = 0;
   generator_cfg.inventory_item_names = inventory_item_names;
-  generator_cfg.type_id = TestItems::CONVERTER;
   EventManager event_manager;
-  Converter* generator = new Converter(0, 0, generator_cfg);
+  Converter* generator = new Converter(0, 0, generator_cfg, TestItems::CONVERTER);
   grid.add_object(generator);
   generator->set_event_manager(&event_manager);
 
@@ -289,10 +288,8 @@ TEST_F(MettaGridCppTest, GetOutput) {
   generator_cfg.initial_items = 1;
   generator_cfg.color = 0;
   generator_cfg.inventory_item_names = inventory_item_names;
-  generator_cfg.type_id = TestItems::CONVERTER;
-  generator_cfg.type_name = "generator";
   EventManager event_manager;
-  Converter* generator = new Converter(0, 0, generator_cfg);
+  Converter* generator = new Converter(0, 0, generator_cfg, TestItems::CONVERTER);
   grid.add_object(generator);
   generator->set_event_manager(&event_manager);
 
@@ -346,7 +343,6 @@ TEST_F(MettaGridCppTest, ConverterCreation) {
   converter_cfg.initial_items = 0;
   converter_cfg.color = 0;
   converter_cfg.inventory_item_names = create_test_inventory_item_names();
-  converter_cfg.type_id = TestItems::CONVERTER;
   std::unique_ptr<Converter> converter(new Converter(1, 2, converter_cfg, TestItems::CONVERTER));
 
   ASSERT_NE(converter, nullptr);
