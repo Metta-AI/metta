@@ -282,7 +282,8 @@ AUDIENCE & TONE: Technical and direct - written for engineering and research sta
 implementation details, and technical tradeoffs.
 
 CONTEXT AWARENESS & NARRATIVE CONTINUITY:
-- Tell the ongoing story of our development process as it evolves - each newsletter should feel like a chapter in a larger narrative
+- Tell the ongoing story of our development process as it evolves - each newsletter should feel like a
+  chapter in a larger narrative
 - Reference significant trends or changes compared to previous newsletters to show progression
 - Highlight any continuing work or resolved issues from previous periods
 - Connect current achievements to past challenges or initiatives when relevant
