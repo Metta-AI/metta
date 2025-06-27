@@ -126,9 +126,8 @@ MettaGrid::MettaGrid(py::dict cfg, py::list map) {
       } else if (cell == "mine_red" || cell == "mine_blue" || cell == "mine_green" || cell == "generator_red" ||
                  cell == "generator_blue" || cell == "generator_green" || cell == "altar" || cell == "armory" ||
                  cell == "lasery" || cell == "lab" || cell == "factory" || cell == "temple") {
-        TypeId type_id = cfg["objects"][py::str(cell)]["type_id"].cast<TypeId>();
         auto converter_cfg = _create_converter_config(cfg["objects"][py::str(cell)]);
-        converter = new Converter(r, c, converter_cfg, type_id);
+        converter = new Converter(r, c, converter_cfg);
       } else if (cell.starts_with("agent.")) {
         auto agent_group_cfg_py = agent_groups[py::str(cell)].cast<py::dict>();
 
@@ -700,8 +699,16 @@ ConverterConfig MettaGrid::_create_converter_config(const py::dict& converter_cf
   unsigned short cooldown = converter_cfg_py["cooldown"].cast<unsigned short>();
   unsigned char initial_items = converter_cfg_py["initial_items"].cast<unsigned char>();
   ObsType color = converter_cfg_py["color"].cast<ObsType>();
-  return ConverterConfig{
-      recipe_input, recipe_output, max_output, conversion_ticks, cooldown, initial_items, color, inventory_item_names};
+  TypeId type_id = converter_cfg_py["type_id"].cast<TypeId>();
+  return ConverterConfig{recipe_input,
+                         recipe_output,
+                         max_output,
+                         conversion_ticks,
+                         cooldown,
+                         initial_items,
+                         color,
+                         inventory_item_names,
+                         type_id};
 }
 
 WallConfig MettaGrid::_create_wall_config(const py::dict& wall_cfg_py) {
