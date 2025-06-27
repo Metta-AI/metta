@@ -65,7 +65,7 @@ def simulate_policy(
     policy_store = PolicyStore(cfg, None)
     # TODO: institutionalize this better?
     metric = sim_job.simulation_suite.name + "_score"
-    policy_prs = policy_store.policies(policy_uri, sim_job.selector_type, n=1, metric=metric)
+    policy_prs = policy_store.policy_records(policy_uri, sim_job.selector_type, n=1, metric=metric)
 
     stats_client: StatsClient | None = get_stats_client(cfg, logger)
 

@@ -4,11 +4,12 @@ import torch
 from torch import Tensor, nn
 
 from metta.agent.policy_state import PolicyState
+from metta.agent.policy_store import PolicyStore
 from metta.rl.trainer_config import KickstartTeacherConfig, TrainerConfig
 
 
 class Kickstarter:
-    def __init__(self, cfg, trainer_cfg: TrainerConfig, policy_store, action_names, action_max_params):
+    def __init__(self, cfg, trainer_cfg: TrainerConfig, policy_store: PolicyStore, action_names, action_max_params):
         """
         Kickstarting is a technique to initialize a student policy with the knowledge of one or more teacher policies.
         This is done by adding a loss term that encourages the student's output (action logits and value) to match the
@@ -46,7 +47,7 @@ class Kickstarter:
 
         self.compile: bool = trainer_cfg.compile
         self.compile_mode: str = trainer_cfg.compile_mode
-        self.policy_store = policy_store
+        self.policy_store: PolicyStore = policy_store
         self.kickstart_steps: int = trainer_cfg.kickstart.kickstart_steps
         self.action_names: list[str] = action_names
         self.action_max_params: list[int] = action_max_params
@@ -64,8 +65,8 @@ class Kickstarter:
     def _load_policies(self) -> None:
         self.teachers: list[nn.Module] = []
         for teacher_cfg in self.teacher_cfgs:
-            policy_record = self.policy_store.policy(teacher_cfg.teacher_uri)
-            policy = policy_record.policy
+            policy_record = self.policy_store.policy_record(teacher_cfg.teacher_uri)
+            policy: nn.Module = policy_record.policy
             policy.action_loss_coef = teacher_cfg.action_loss_coef
             policy.value_loss_coef = teacher_cfg.value_loss_coef
             policy.activate_actions(self.action_names, self.action_max_params, self.device)

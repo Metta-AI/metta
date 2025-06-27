@@ -37,7 +37,7 @@ def main(cfg):
     with WandbContext(cfg.wandb, cfg) as wandb_run:
         policy_store = PolicyStore(cfg, wandb_run)
         replay_job = ReplayJob(cfg.replay_job)
-        policy_record = policy_store.policy(replay_job.policy_uri)
+        policy_record = policy_store.policy_record(replay_job.policy_uri)
         sim_config = SingleEnvSimulationConfig(cfg.replay_job.sim)
 
         sim_name = sim_config.env.split("/")[-1]
