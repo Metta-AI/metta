@@ -17,9 +17,14 @@ import fnmatch
 import os
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 from github import Github
+
+script_dir = Path(__file__).parent.parent.parent / "scripts"
+sys.path.insert(0, str(script_dir))
+
+from utils.config import parse_config  # noqa: E402
 
 
 class GitHubActionsOutput:
@@ -51,7 +56,7 @@ class GitHubAPI:
         self.github = Github(token)
         self.repo = self.github.get_repo(repo)
 
-    def get_workflow_runs(self, workflow_filename: str, exclude_run_id: Optional[str] = None) -> List[Dict[str, Any]]:
+    def get_workflow_runs(self, workflow_filename: str, exclude_run_id: Optional[str] = None) -> list[dict[str, Any]]:
         """Get successful workflow runs for the specified workflow."""
         try:
             workflow = self.repo.get_workflow(workflow_filename)
@@ -95,7 +100,7 @@ class GitHubAPI:
             print(f"❌ Error fetching workflow runs: {e}")
             return []
 
-    def get_run_artifacts(self, run_id: int) -> List[Dict[str, Any]]:
+    def get_run_artifacts(self, run_id: int) -> list[dict[str, Any]]:
         """Get artifacts for a specific workflow run."""
         try:
             run = self.repo.get_workflow_run(run_id)
@@ -159,7 +164,7 @@ class GitHubAPI:
 class ArtifactFetcher:
     """Main class for fetching artifacts and saving them as ZIP files."""
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         self.config = config
         self.github_api = GitHubAPI(config["github_token"], config["repo"])
         self.output = GitHubActionsOutput()
@@ -169,7 +174,7 @@ class ArtifactFetcher:
         """Check if artifact name matches the pattern."""
         return fnmatch.fnmatch(artifact_name.lower(), pattern.lower())
 
-    def find_and_collect_artifacts(self) -> tuple[List[Dict[str, Any]], int]:
+    def find_and_collect_artifacts(self) -> tuple[list[dict[str, Any]], int]:
         """Find artifacts matching the specified pattern, collecting until we have num_artifacts."""
         print(
             f"🔍 Searching for {self.config['num_artifacts']} artifacts matching '{self.config['artifact_name_pattern']}'"
@@ -192,7 +197,8 @@ class ArtifactFetcher:
                 run_date = run["created_at"]
 
                 print(
-                    f"🔍 Searching run {run_id} ({run_date[:10]}) - {len(matching_artifacts)}/{target_count} artifacts found"
+                    f"🔍 Searching run {run_id} ({run_date[:10]}) - "
+                    f" {len(matching_artifacts)}/{target_count} artifacts found"
                 )
 
                 try:
@@ -230,7 +236,7 @@ class ArtifactFetcher:
             print(f"❌ Error fetching workflow runs: {e}")
             return [], 0
 
-    def download_artifact(self, artifact_info: Dict[str, Any]) -> Dict[str, Any]:
+    def download_artifact(self, artifact_info: dict[str, Any]) -> dict[str, Any]:
         """Download a single artifact as a ZIP file."""
         artifact_name = artifact_info["artifact_name"]
         run_id = artifact_info["run_id"]
@@ -268,7 +274,7 @@ class ArtifactFetcher:
             print(f"❌ Error downloading artifact {artifact_name}: {e}")
             return {**artifact_info, "status": "error", "error": str(e)}
 
-    def run(self) -> Dict[str, Any]:
+    def run(self) -> dict[str, Any]:
         """Main execution method."""
         # Find and collect the requested number of artifacts
         matching_artifacts, runs_searched = self.find_and_collect_artifacts()
@@ -299,7 +305,7 @@ class ArtifactFetcher:
 
         return {"success": True, "artifacts_found": successful_downloads, "downloaded_artifacts": downloaded_artifacts}
 
-    def _print_summary(self, downloaded_artifacts: List[Dict[str, Any]], runs_searched: int) -> None:
+    def _print_summary(self, downloaded_artifacts: list[dict[str, Any]], runs_searched: int) -> None:
         """Print a summary of the download operation."""
         print("\n📊 Download Summary:")
         print(f"{'Artifact Name':<30} {'Run ID':<12} {'Date':<12} {'Size':<12} {'Status'}")
@@ -331,32 +337,6 @@ class ArtifactFetcher:
             for artifact in downloaded_artifacts:
                 if artifact.get("status") == "downloaded":
                     print(f"  • {artifact['local_filename']}")
-
-
-def parse_config() -> Dict[str, Any]:
-    """Parse configuration from environment variables."""
-    config = {
-        "github_token": os.environ.get("INPUT_GITHUB_TOKEN") or os.environ.get("GITHUB_TOKEN"),
-        "workflow_name": os.environ.get("INPUT_WORKFLOW_NAME"),
-        "artifact_name_pattern": os.environ.get("INPUT_ARTIFACT_NAME_PATTERN"),
-        "num_artifacts": int(os.environ.get("INPUT_NUM_ARTIFACTS", "5")),
-        "output_directory": os.environ.get("INPUT_OUTPUT_DIRECTORY", "downloaded-artifacts"),
-        "repo": os.environ.get("GITHUB_REPOSITORY"),
-    }
-
-    # Validation
-    required_fields = ["github_token", "workflow_name", "artifact_name_pattern", "repo"]
-    missing_fields = [field for field in required_fields if not config[field]]
-
-    if missing_fields:
-        print(f"❌ Missing required configuration: {', '.join(missing_fields)}")
-        sys.exit(1)
-
-    if config["num_artifacts"] < 1 or config["num_artifacts"] > 100:
-        print("❌ num_artifacts must be between 1 and 100")
-        sys.exit(1)
-
-    return config
 
 
 def main():
