@@ -164,18 +164,19 @@ def create_sql_router(metta_repo: MettaRepo) -> APIRouter:
             # Run with asyncio timeout as additional safeguard
             return await asyncio.wait_for(run_query(), timeout=21.0)
 
-        except asyncio.TimeoutError:
-            raise HTTPException(status_code=408, detail="Query execution timed out after 20 seconds") from None
-        except pg_errors.QueryCanceled:
-            raise HTTPException(status_code=408, detail="Query execution timed out after 20 seconds") from None
+        except asyncio.TimeoutError as e:
+            raise HTTPException(status_code=408, detail="Query execution timed out after 20 seconds") from e
+        except pg_errors.QueryCanceled as e:
+            raise HTTPException(status_code=408, detail="Query execution timed out after 20 seconds") from e
         except pg_errors.SyntaxError as e:
-            raise HTTPException(status_code=400, detail=f"SQL syntax error: {str(e)}") from None
+            raise HTTPException(status_code=400, detail=f"SQL syntax error: {str(e)}") from e
         except pg_errors.UndefinedTable as e:
-            raise HTTPException(status_code=400, detail=f"Table not found: {str(e)}") from None
+            raise HTTPException(status_code=400, detail=f"Table not found: {str(e)}") from e
         except pg_errors.UndefinedColumn as e:
-            raise HTTPException(status_code=400, detail=f"Column not found: {str(e)}") from None
+            raise HTTPException(status_code=400, detail=f"Column not found: {str(e)}") from e
         except pg_errors.InsufficientPrivilege as e:
-            raise HTTPException(status_code=403, detail=f"Insufficient privileges: {str(e)}") from None
+            raise HTTPException(status_code=403, detail=f"Insufficient privileges: {str(e)}") from e
+
         except HTTPException:
             raise
         except Exception as e:
