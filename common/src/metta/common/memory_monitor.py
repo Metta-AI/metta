@@ -160,11 +160,11 @@ class MemoryMonitor:
             location = "unknown"
 
         if hasattr(obj, "__name__"):
-            return f"{obj.__name__}_{obj_type}_{location}"
+            return f"{location}.{obj.__name__}[{obj_type}]"
         elif hasattr(obj, "name") and isinstance(obj.name, str):
-            return f"{obj.name}_{obj_type}_{location}"
+            return f"{location}.{obj.name}[{obj_type}]"
         else:
-            return f"{obj_type}_{location}"
+            return f"{location}.{obj_type}"
 
     def remove(self, name: str) -> bool:
         """Remove an object and its attributes from monitoring."""
