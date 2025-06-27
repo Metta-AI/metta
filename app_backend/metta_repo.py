@@ -1,4 +1,7 @@
+import hashlib
+import secrets
 import uuid
+from datetime import datetime, timedelta
 from typing import Any, Dict, List
 
 from psycopg import Connection
@@ -70,6 +73,77 @@ MIGRATIONS = [
             )""",
         ],
     ),
+    SqlMigration(
+        version=1,
+        description="Add machine tokens table",
+        sql_statements=[
+            """CREATE TABLE machine_tokens (
+                id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                user_id TEXT NOT NULL,
+                name TEXT NOT NULL,
+                token_hash TEXT NOT NULL,
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                expiration_time TIMESTAMP NOT NULL,
+                last_used_at TIMESTAMP,
+                UNIQUE (user_id, name)
+            )""",
+            """CREATE INDEX idx_machine_tokens_user_id ON machine_tokens(user_id)""",
+            """CREATE INDEX idx_machine_tokens_token_hash ON machine_tokens(token_hash)""",
+        ],
+    ),
+    SqlMigration(
+        version=2,
+        description="Make training run names unique",
+        sql_statements=[
+            """ALTER TABLE training_runs ADD CONSTRAINT training_runs_name_unique UNIQUE (user_id, name)""",
+        ],
+    ),
+    SqlMigration(
+        version=3,
+        description="Remove machine token name uniqueness constraint",
+        sql_statements=[
+            """ALTER TABLE machine_tokens DROP CONSTRAINT machine_tokens_user_id_name_key""",
+        ],
+    ),
+    SqlMigration(
+        version=4,
+        description="Add saved dashboards table",
+        sql_statements=[
+            """CREATE TABLE saved_dashboards (
+                id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                user_id TEXT NOT NULL,
+                name TEXT NOT NULL,
+                description TEXT,
+                type TEXT NOT NULL,
+                dashboard_state JSONB,
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )""",
+            """CREATE INDEX idx_saved_dashboards_user_id ON saved_dashboards(user_id)""",
+            """CREATE VIEW episode_view AS
+                SELECT id,
+                  split_part(eval_name, '/', 1) as simulation_suite,
+                  split_part(eval_name, '/', 2) as eval_name,
+                  replay_url,
+                  primary_policy_id,
+                  stats_epoch,
+                  attributes
+                FROM episodes
+                WHERE split_part(eval_name, '/', 1) IS NOT NULL AND split_part(eval_name, '/', 2) IS NOT NULL
+            """,
+        ],
+    ),
+    SqlMigration(
+        version=5,
+        description="Parse out eval category from eval name",
+        sql_statements=[
+            """ALTER TABLE episodes ADD COLUMN eval_category TEXT, ADD COLUMN env_name TEXT""",
+            """UPDATE episodes SET eval_category = split_part(eval_name, '/', 1), """
+            """env_name = split_part(eval_name, '/', 2)""",
+            """CREATE INDEX idx_episodes_eval_category ON episodes(eval_category)""",
+            """DROP VIEW episode_view""",
+        ],
+    ),
 ]
 
 
@@ -98,16 +172,26 @@ class MettaRepo:
     def create_training_run(self, name: str, user_id: str, attributes: Dict[str, str], url: str | None) -> uuid.UUID:
         status = "running"
         with self.connect() as con:
+            # Try to insert a new training run, but if it already exists, return the existing ID
             result = con.execute(
                 """
                 INSERT INTO training_runs (name, user_id, attributes, status, url)
                 VALUES (%s, %s, %s, %s, %s)
+                ON CONFLICT (user_id, name) DO NOTHING
                 RETURNING id
                 """,
                 (name, user_id, Jsonb(attributes), status, url),
             ).fetchone()
             if result is None:
-                raise RuntimeError("Failed to insert training run")
+                # If no result, the run already exists, so fetch its ID
+                result = con.execute(
+                    """
+                    SELECT id FROM training_runs WHERE user_id = %s AND name = %s
+                    """,
+                    (user_id, name),
+                ).fetchone()
+                if result is None:
+                    raise RuntimeError("Failed to find existing training run")
             return result[0]
 
     def create_epoch(
@@ -161,6 +245,10 @@ class MettaRepo:
         attributes: Dict[str, Any],
     ) -> uuid.UUID:
         with self.connect() as con:
+            # Parse eval_category and env_name from eval_name
+            eval_category = eval_name.split("/", 1)[0] if eval_name else None
+            env_name = eval_name.split("/", 1)[1] if eval_name and "/" in eval_name else None
+
             # Insert into episodes table
             result = con.execute(
                 """
@@ -168,17 +256,21 @@ class MettaRepo:
                     replay_url,
                     eval_name,
                     simulation_suite,
+                    eval_category,
+                    env_name,
                     primary_policy_id,
                     stats_epoch,
                     attributes
                 ) VALUES (
-                    %s, %s, %s, %s, %s, %s
+                    %s, %s, %s, %s, %s, %s, %s, %s
                 ) RETURNING id
                 """,
                 (
                     replay_url,
                     eval_name,
                     simulation_suite,
+                    eval_category,
+                    env_name,
                     primary_policy_id,
                     stats_epoch,
                     Jsonb(attributes),
@@ -221,10 +313,10 @@ class MettaRepo:
     def get_suites(self) -> List[str]:
         with self.connect() as con:
             result = con.execute("""
-                SELECT DISTINCT simulation_suite
+                SELECT DISTINCT eval_category
                 FROM episodes
-                WHERE simulation_suite IS NOT NULL
-                ORDER BY simulation_suite
+                WHERE eval_category IS NOT NULL
+                ORDER BY eval_category
             """)
             return [row[0] for row in result]
 
@@ -236,7 +328,7 @@ class MettaRepo:
                 SELECT DISTINCT eam.metric
                 FROM episodes e
                 JOIN episode_agent_metrics eam ON e.id = eam.episode_id
-                WHERE e.simulation_suite = %s
+                WHERE e.eval_category = %s
                 ORDER BY eam.metric
             """,
                 (suite,),
@@ -250,9 +342,213 @@ class MettaRepo:
                 """
                 SELECT DISTINCT jsonb_object_keys(e.attributes->'agent_groups') as group_id
                 FROM episodes e
-                WHERE e.simulation_suite = %s
+                WHERE e.eval_category = %s
                 ORDER BY group_id
             """,
                 (suite,),
             )
             return [row[0] for row in result]
+
+    def _hash_token(self, token: str) -> str:
+        """Hash a token for secure storage."""
+        return hashlib.sha256(token.encode()).hexdigest()
+
+    def create_machine_token(self, user_id: str, name: str, expiration_days: int = 365) -> str:
+        """Create a new machine token for a user."""
+        # Generate a secure random token
+        token = secrets.token_urlsafe(32)
+        token_hash = self._hash_token(token)
+
+        # Set expiration time
+        expiration_time = datetime.now() + timedelta(days=expiration_days)
+
+        with self.connect() as con:
+            con.execute(
+                """
+                INSERT INTO machine_tokens (user_id, name, token_hash, expiration_time)
+                VALUES (%s, %s, %s, %s)
+                """,
+                (user_id, name, token_hash, expiration_time),
+            )
+
+        return token
+
+    def list_machine_tokens(self, user_id: str) -> List[Dict[str, Any]]:
+        """List all machine tokens for a user."""
+        with self.connect() as con:
+            result = con.execute(
+                """
+                SELECT id, name, created_at, expiration_time, last_used_at
+                FROM machine_tokens
+                WHERE user_id = %s
+                ORDER BY created_at DESC
+                """,
+                (user_id,),
+            )
+            return [
+                {
+                    "id": str(row[0]),
+                    "name": row[1],
+                    "created_at": row[2],
+                    "expiration_time": row[3],
+                    "last_used_at": row[4],
+                }
+                for row in result
+            ]
+
+    def delete_machine_token(self, user_id: str, token_id: str) -> bool:
+        """Delete a machine token."""
+        try:
+            token_uuid = uuid.UUID(token_id)
+        except ValueError:
+            return False
+
+        with self.connect() as con:
+            result = con.execute(
+                """
+                DELETE FROM machine_tokens
+                WHERE id = %s AND user_id = %s
+                """,
+                (token_uuid, user_id),
+            )
+            return result.rowcount > 0
+
+    def validate_machine_token(self, token: str) -> str | None:
+        """Validate a machine token and return the user_id if valid."""
+        token_hash = self._hash_token(token)
+
+        with self.connect() as con:
+            result = con.execute(
+                """
+                UPDATE machine_tokens
+                SET last_used_at = CURRENT_TIMESTAMP
+                WHERE token_hash = %s AND expiration_time > CURRENT_TIMESTAMP
+                RETURNING user_id
+                """,
+                (token_hash,),
+            ).fetchone()
+
+            if result:
+                return result[0]
+            return None
+
+    def create_saved_dashboard(
+        self,
+        user_id: str,
+        name: str,
+        description: str | None,
+        dashboard_type: str,
+        dashboard_state: Dict[str, Any],
+    ) -> uuid.UUID:
+        """Create a new saved dashboard (no upsert, always insert)."""
+        with self.connect() as con:
+            result = con.execute(
+                """
+                INSERT INTO saved_dashboards (
+                    user_id, name, description, type, dashboard_state
+                ) VALUES (%s, %s, %s, %s, %s)
+                RETURNING id
+                """,
+                (user_id, name, description, dashboard_type, Jsonb(dashboard_state)),
+            ).fetchone()
+            if result is None:
+                raise RuntimeError("Failed to create saved dashboard")
+            return result[0]
+
+    def list_saved_dashboards(self) -> List[Dict[str, Any]]:
+        """List all saved dashboards."""
+        with self.connect() as con:
+            result = con.execute(
+                """
+                SELECT id, name, description, type, dashboard_state, created_at, updated_at, user_id
+                FROM saved_dashboards
+                ORDER BY updated_at DESC
+                """
+            )
+            return [
+                {
+                    "id": str(row[0]),
+                    "name": row[1],
+                    "description": row[2],
+                    "type": row[3],
+                    "dashboard_state": row[4],
+                    "created_at": row[5],
+                    "updated_at": row[6],
+                    "user_id": row[7],
+                }
+                for row in result
+            ]
+
+    def get_saved_dashboard(self, dashboard_id: str) -> Dict[str, Any] | None:
+        """Get a specific saved dashboard by ID."""
+        try:
+            dashboard_uuid = uuid.UUID(dashboard_id)
+        except ValueError:
+            return None
+
+        with self.connect() as con:
+            result = con.execute(
+                """
+                SELECT id, name, description, type, dashboard_state, created_at, updated_at, user_id
+                FROM saved_dashboards
+                WHERE id = %s
+                """,
+                (dashboard_uuid,),
+            ).fetchone()
+
+            if result is None:
+                return None
+
+            return {
+                "id": str(result[0]),
+                "name": result[1],
+                "description": result[2],
+                "type": result[3],
+                "dashboard_state": result[4],
+                "created_at": result[5],
+                "updated_at": result[6],
+                "user_id": result[7],
+            }
+
+    def delete_saved_dashboard(self, user_id: str, dashboard_id: str) -> bool:
+        """Delete a saved dashboard."""
+        try:
+            dashboard_uuid = uuid.UUID(dashboard_id)
+        except ValueError:
+            return False
+
+        with self.connect() as con:
+            result = con.execute(
+                """
+                DELETE FROM saved_dashboards
+                WHERE id = %s AND user_id = %s
+                """,
+                (dashboard_uuid, user_id),
+            )
+            return result.rowcount > 0
+
+    def update_saved_dashboard(
+        self,
+        user_id: str,
+        dashboard_id: str,
+        name: str,
+        description: str | None,
+        dashboard_type: str,
+        dashboard_state: Dict[str, Any],
+    ) -> bool:
+        """Update an existing saved dashboard."""
+        try:
+            dashboard_uuid = uuid.UUID(dashboard_id)
+        except ValueError:
+            return False
+
+        with self.connect() as con:
+            result = con.execute(
+                """
+                UPDATE saved_dashboards
+                SET name = %s, description = %s, type = %s, dashboard_state = %s, updated_at = CURRENT_TIMESTAMP
+                WHERE id = %s AND user_id = %s
+                """,
+                (name, description, dashboard_type, Jsonb(dashboard_state), dashboard_uuid, user_id),
+            )
+            return result.rowcount > 0

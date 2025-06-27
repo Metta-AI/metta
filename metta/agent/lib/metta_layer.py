@@ -162,7 +162,6 @@ class ParamLayer(LayerBase):
         self,
         clip_scale=1,
         analyze_weights=None,
-        l2_norm_scale=1,
         l2_init_scale=1,
         nonlinearity="nn.ReLU",
         initialization="Orthogonal",
@@ -171,7 +170,6 @@ class ParamLayer(LayerBase):
     ):
         self.clip_scale = clip_scale
         self.analyze_weights_bool = analyze_weights
-        self.l2_norm_scale = l2_norm_scale
         self.l2_init_scale = l2_init_scale
         self.nonlinearity = nonlinearity
         self.initialization = initialization
@@ -250,18 +248,6 @@ class ParamLayer(LayerBase):
         if self.clip_value > 0:
             with torch.no_grad():
                 self.weight_net.weight.data = self.weight_net.weight.data.clamp(-self.clip_value, self.clip_value)
-
-    def l2_reg_loss(self) -> torch.Tensor:
-        """
-        Computes L2 regularization loss (weight decay).
-
-        Returns:
-            torch.Tensor: The L2 regularization loss scaled by l2_norm_scale,
-                          or zero if regularization is disabled.
-        """
-        l2_reg_loss = torch.tensor(0.0, device=self.weight_net.weight.data.device, dtype=torch.float32)
-        l2_reg_loss = torch.sum(self.weight_net.weight.data**2) * self.l2_norm_scale
-        return l2_reg_loss
 
     def l2_init_loss(self) -> torch.Tensor:
         """

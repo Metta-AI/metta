@@ -16,6 +16,7 @@ constexpr uint8_t ORE = 0;
 constexpr uint8_t LASER = 1;
 constexpr uint8_t ARMOR = 2;
 constexpr uint8_t HEART = 3;
+constexpr uint8_t CONVERTER = 4;
 }  // namespace TestItems
 
 // Pure C++ tests without any Python/pybind dependencies - we will test those with pytest
@@ -69,7 +70,7 @@ TEST_F(MettaGridCppTest, AgentRewards) {
   auto inventory_item_names = create_test_inventory_item_names();
 
   std::unique_ptr<Agent> agent(new Agent(
-      0, 0, 100, 0.1f, max_items_per_type, rewards, resource_reward_max, "test_group", 1, inventory_item_names));
+      0, 0, 100, 0.1f, max_items_per_type, rewards, resource_reward_max, "test_group", 1, inventory_item_names, 0));
 
   // Test reward values
   EXPECT_FLOAT_EQ(agent->resource_rewards[TestItems::ORE], 0.125f);
@@ -85,7 +86,7 @@ TEST_F(MettaGridCppTest, AgentInventoryUpdate) {
   auto inventory_item_names = create_test_inventory_item_names();
 
   std::unique_ptr<Agent> agent(new Agent(
-      0, 0, 100, 0.1f, max_items_per_type, rewards, resource_reward_max, "test_group", 1, inventory_item_names));
+      0, 0, 100, 0.1f, max_items_per_type, rewards, resource_reward_max, "test_group", 1, inventory_item_names, 0));
 
   float dummy_reward = 0.0f;
   agent->init(&dummy_reward);
@@ -116,25 +117,14 @@ TEST_F(MettaGridCppTest, AgentInventoryUpdate) {
 // ==================== Grid Tests ====================
 
 TEST_F(MettaGridCppTest, GridCreation) {
-  std::vector<Layer> layer_for_type_id;
-  for (const auto& layer : ObjectLayers) {
-    layer_for_type_id.push_back(layer.second);
-  }
-
-  Grid grid(10, 5, layer_for_type_id);
+  Grid grid(10, 5);
 
   EXPECT_EQ(grid.width, 10);
   EXPECT_EQ(grid.height, 5);
-  EXPECT_EQ(grid.num_layers, GridLayer::GridLayerCount);
 }
 
 TEST_F(MettaGridCppTest, GridObjectManagement) {
-  std::vector<Layer> layer_for_type_id;
-  for (const auto& layer : ObjectLayers) {
-    layer_for_type_id.push_back(layer.second);
-  }
-
-  Grid grid(10, 10, layer_for_type_id);
+  Grid grid(10, 10);
 
   // Create and add an agent
   auto max_items_per_type = create_test_max_items_per_type();
@@ -142,7 +132,7 @@ TEST_F(MettaGridCppTest, GridObjectManagement) {
   auto resource_reward_max = create_test_resource_reward_max();
   auto inventory_item_names = create_test_inventory_item_names();
   Agent* agent = new Agent(
-      2, 3, 100, 0.1f, max_items_per_type, rewards, resource_reward_max, "test_group", 1, inventory_item_names);
+      2, 3, 100, 0.1f, max_items_per_type, rewards, resource_reward_max, "test_group", 1, inventory_item_names, 0);
 
   grid.add_object(agent);
 
@@ -162,12 +152,7 @@ TEST_F(MettaGridCppTest, GridObjectManagement) {
 // ==================== Action Tests ====================
 
 TEST_F(MettaGridCppTest, AttackAction) {
-  std::vector<Layer> layer_for_type_id;
-  for (const auto& layer : ObjectLayers) {
-    layer_for_type_id.push_back(layer.second);
-  }
-
-  Grid grid(10, 10, layer_for_type_id);
+  Grid grid(10, 10);
 
   auto max_items_per_type = create_test_max_items_per_type();
   auto rewards = create_test_rewards();
@@ -176,9 +161,9 @@ TEST_F(MettaGridCppTest, AttackAction) {
 
   // Create attacker and target
   Agent* attacker =
-      new Agent(2, 0, 100, 0.1f, max_items_per_type, rewards, resource_reward_max, "red", 1, inventory_item_names);
+      new Agent(2, 0, 100, 0.1f, max_items_per_type, rewards, resource_reward_max, "red", 1, inventory_item_names, 0);
   Agent* target =
-      new Agent(0, 0, 100, 0.1f, max_items_per_type, rewards, resource_reward_max, "blue", 2, inventory_item_names);
+      new Agent(0, 0, 100, 0.1f, max_items_per_type, rewards, resource_reward_max, "blue", 2, inventory_item_names, 0);
 
   float attacker_reward = 0.0f;
   float target_reward = 0.0f;
@@ -224,12 +209,7 @@ TEST_F(MettaGridCppTest, AttackAction) {
 }
 
 TEST_F(MettaGridCppTest, PutRecipeItems) {
-  std::vector<Layer> layer_for_type_id;
-  for (const auto& layer : ObjectLayers) {
-    layer_for_type_id.push_back(layer.second);
-  }
-
-  Grid grid(10, 10, layer_for_type_id);
+  Grid grid(10, 10);
 
   auto max_items_per_type = create_test_max_items_per_type();
   auto rewards = create_test_rewards();
@@ -237,7 +217,7 @@ TEST_F(MettaGridCppTest, PutRecipeItems) {
   auto inventory_item_names = create_test_inventory_item_names();
 
   Agent* agent =
-      new Agent(1, 0, 100, 0.1f, max_items_per_type, rewards, resource_reward_max, "red", 1, inventory_item_names);
+      new Agent(1, 0, 100, 0.1f, max_items_per_type, rewards, resource_reward_max, "red", 1, inventory_item_names, 0);
   float agent_reward = 0.0f;
   agent->init(&agent_reward);
 
@@ -254,8 +234,9 @@ TEST_F(MettaGridCppTest, PutRecipeItems) {
   generator_cfg.initial_items = 0;
   generator_cfg.color = 0;
   generator_cfg.inventory_item_names = inventory_item_names;
+  generator_cfg.type_id = TestItems::CONVERTER;
   EventManager event_manager;
-  Converter* generator = new Converter(0, 0, generator_cfg, ObjectType::GeneratorT);
+  Converter* generator = new Converter(0, 0, generator_cfg);
   grid.add_object(generator);
   generator->set_event_manager(&event_manager);
 
@@ -283,12 +264,7 @@ TEST_F(MettaGridCppTest, PutRecipeItems) {
 }
 
 TEST_F(MettaGridCppTest, GetOutput) {
-  std::vector<Layer> layer_for_type_id;
-  for (const auto& layer : ObjectLayers) {
-    layer_for_type_id.push_back(layer.second);
-  }
-
-  Grid grid(10, 10, layer_for_type_id);
+  Grid grid(10, 10);
 
   auto max_items_per_type = create_test_max_items_per_type();
   auto rewards = create_test_rewards();
@@ -296,7 +272,7 @@ TEST_F(MettaGridCppTest, GetOutput) {
   auto inventory_item_names = create_test_inventory_item_names();
 
   Agent* agent =
-      new Agent(1, 0, 100, 0.1f, max_items_per_type, rewards, resource_reward_max, "red", 1, inventory_item_names);
+      new Agent(1, 0, 100, 0.1f, max_items_per_type, rewards, resource_reward_max, "red", 1, inventory_item_names, 0);
   float agent_reward = 0.0f;
   agent->init(&agent_reward);
 
@@ -313,8 +289,9 @@ TEST_F(MettaGridCppTest, GetOutput) {
   generator_cfg.initial_items = 1;
   generator_cfg.color = 0;
   generator_cfg.inventory_item_names = inventory_item_names;
+  generator_cfg.type_id = TestItems::CONVERTER;
   EventManager event_manager;
-  Converter* generator = new Converter(0, 0, generator_cfg, ObjectType::GeneratorT);
+  Converter* generator = new Converter(0, 0, generator_cfg);
   grid.add_object(generator);
   generator->set_event_manager(&event_manager);
 
@@ -337,12 +314,7 @@ TEST_F(MettaGridCppTest, GetOutput) {
 // ==================== Event System Tests ====================
 
 TEST_F(MettaGridCppTest, EventManager) {
-  std::vector<Layer> layer_for_type_id;
-  for (const auto& layer : ObjectLayers) {
-    layer_for_type_id.push_back(layer.second);
-  }
-
-  Grid grid(10, 10, layer_for_type_id);
+  Grid grid(10, 10);
   EventManager event_manager;
 
   // Test that event manager can be initialized
@@ -350,24 +322,10 @@ TEST_F(MettaGridCppTest, EventManager) {
   EXPECT_NO_THROW(event_manager.process_events(1));
 }
 
-// ==================== Object Type Tests ====================
-
-TEST_F(MettaGridCppTest, ObjectTypes) {
-  // Test that object type constants are properly defined
-  EXPECT_NE(ObjectType::AgentT, ObjectType::WallT);
-  EXPECT_NE(ObjectType::AgentT, ObjectType::GeneratorT);
-  EXPECT_NE(ObjectType::WallT, ObjectType::GeneratorT);
-
-  // Test that object layers are properly mapped
-  EXPECT_TRUE(ObjectLayers.find(ObjectType::AgentT) != ObjectLayers.end());
-  EXPECT_TRUE(ObjectLayers.find(ObjectType::WallT) != ObjectLayers.end());
-  EXPECT_TRUE(ObjectLayers.find(ObjectType::GeneratorT) != ObjectLayers.end());
-}
-
 // ==================== Wall/Block Tests ====================
 
 TEST_F(MettaGridCppTest, WallCreation) {
-  ObjectConfig wall_cfg;
+  WallConfig wall_cfg;
 
   std::unique_ptr<Wall> wall(new Wall(2, 3, wall_cfg));
 
@@ -387,9 +345,11 @@ TEST_F(MettaGridCppTest, ConverterCreation) {
   converter_cfg.initial_items = 0;
   converter_cfg.color = 0;
   converter_cfg.inventory_item_names = create_test_inventory_item_names();
-  std::unique_ptr<Converter> converter(new Converter(1, 2, converter_cfg, ObjectType::GeneratorT));
+  converter_cfg.type_id = TestItems::CONVERTER;
+  std::unique_ptr<Converter> converter(new Converter(1, 2, converter_cfg));
 
   ASSERT_NE(converter, nullptr);
   EXPECT_EQ(converter->location.r, 1);
   EXPECT_EQ(converter->location.c, 2);
+  EXPECT_EQ(converter->type_id, TestItems::CONVERTER);
 }

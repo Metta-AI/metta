@@ -22,5 +22,5 @@ root:
             predator: 1
           objects:
             altar: ${sampling:1,5,1}
-            generator: ${sampling:1,50,15}
+            generator_red: ${sampling:1,50,15}
             wall: ${sampling:10,100,40}

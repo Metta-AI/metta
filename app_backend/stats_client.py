@@ -37,20 +37,21 @@ class ClientEpisodeResponse(BaseModel):
 class StatsClient:
     """Client for interacting with the stats API."""
 
-    def __init__(self, http_client: httpx.Client, user: str):
+    def __init__(self, http_client: httpx.Client, machine_token: str):
         """
         Initialize the stats client.
 
         Args:
             http_client: HTTP client implementation to use for requests
+            machine_token: Machine token for authentication
         """
         self.http_client = http_client
-        self.user = user
+        self.machine_token = machine_token
 
     def __enter__(self):
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, exc_type: type[BaseException] | None, exc_val: BaseException | None, exc_tb: Any) -> None:
         self.close()
 
     def close(self):
@@ -71,7 +72,8 @@ class StatsClient:
             httpx.HTTPStatusError: If the request fails
         """
         params = {"policy_names": policy_names}
-        response = self.http_client.get("/stats/policies/ids", params=params)
+        headers = {"X-Auth-Token": self.machine_token}
+        response = self.http_client.get("/stats/policies/ids", params=params, headers=headers)
         response.raise_for_status()
 
         # Deserialize string UUIDs to UUID objects
@@ -96,8 +98,9 @@ class StatsClient:
         Raises:
             httpx.HTTPStatusError: If the request fails
         """
-        data = TrainingRunCreate(name=name, user_id=self.user, attributes=attributes or {}, url=url)
-        response = self.http_client.post("/stats/training-runs", json=data.model_dump())
+        data = TrainingRunCreate(name=name, attributes=attributes or {}, url=url)
+        headers = {"X-Auth-Token": self.machine_token}
+        response = self.http_client.post("/stats/training-runs", json=data.model_dump(), headers=headers)
         response.raise_for_status()
 
         # Deserialize string UUID to UUID object
@@ -132,7 +135,10 @@ class StatsClient:
             end_training_epoch=end_training_epoch,
             attributes=attributes or {},
         )
-        response = self.http_client.post(f"/stats/training-runs/{run_id}/epochs", json=data.model_dump())
+        headers = {"X-Auth-Token": self.machine_token}
+        response = self.http_client.post(
+            f"/stats/training-runs/{run_id}/epochs", json=data.model_dump(), headers=headers
+        )
         response.raise_for_status()
 
         # Deserialize string UUID to UUID object
@@ -164,7 +170,8 @@ class StatsClient:
         """
         epoch_id_str = str(epoch_id) if epoch_id else None
         data = PolicyCreate(name=name, description=description, url=url, epoch_id=epoch_id_str)
-        response = self.http_client.post("/stats/policies", json=data.model_dump())
+        headers = {"X-Auth-Token": self.machine_token}
+        response = self.http_client.post("/stats/policies", json=data.model_dump(), headers=headers)
         response.raise_for_status()
 
         # Deserialize string UUID to UUID object
@@ -202,7 +209,7 @@ class StatsClient:
         Raises:
             httpx.HTTPStatusError: If the request fails
         """
-        # Convert UUIDs to strings for the Pydantic model
+        # Convert UUIDs to strings for serialization
         agent_policies_str = {agent_id: str(policy_id) for agent_id, policy_id in agent_policies.items()}
         primary_policy_id_str = str(primary_policy_id)
         stats_epoch_str = str(stats_epoch) if stats_epoch else None
@@ -217,7 +224,8 @@ class StatsClient:
             replay_url=replay_url,
             attributes=attributes or {},
         )
-        response = self.http_client.post("/stats/episodes", json=data.model_dump())
+        headers = {"X-Auth-Token": self.machine_token}
+        response = self.http_client.post("/stats/episodes", json=data.model_dump(), headers=headers)
         response.raise_for_status()
 
         # Deserialize string UUID to UUID object

@@ -27,7 +27,7 @@ game:
 
     objects:
       altar: 1
-      generator: 15
+      generator_red: 15
       wall: 40
 
   num_agents: 5
@@ -50,18 +50,21 @@ game:
 
   objects:
     altar:
+      type_id: 8
       cooldown: 2
       max_output: 100
       conversion_ticks: 1
       initial_items: 100
 
     generator_red:
+      type_id: 2
       cooldown: 5
       max_output: 100
       conversion_ticks: 1
       initial_items: 30
 
-    wall: {}
+    wall:
+      type_id: 1
 
   actions:
     noop:

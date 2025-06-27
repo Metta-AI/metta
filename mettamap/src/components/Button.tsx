@@ -8,12 +8,14 @@ export const Button: FC<{
   theme?: "primary" | "secondary";
   type?: "button" | "submit";
   size?: "sm" | "md";
+  disabled?: boolean;
 }> = ({
   onClick,
   children,
   theme = "secondary",
   type = "button",
   size = "md",
+  disabled = false,
 }) => {
   return (
     <button
@@ -24,10 +26,12 @@ export const Button: FC<{
         theme === "primary" &&
           "border-blue-500 bg-blue-500 text-white hover:bg-blue-600",
         theme === "secondary" &&
-          "border-blue-400 text-blue-500 hover:bg-blue-100"
+          "border-blue-400 text-blue-500 hover:bg-blue-100",
+        disabled && "opacity-50"
       )}
       onClick={onClick}
       type={type}
+      disabled={disabled}
     >
       {children}
     </button>

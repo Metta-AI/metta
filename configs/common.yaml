@@ -16,6 +16,6 @@ policy_uri: file://${run_dir}/checkpoints
 torch_deterministic: true
 vectorization: multiprocessing
 seed: 0
-device: cuda
+device: ${device_with_cuda_check:cuda}
 
-stats_user: ${oc.env:USER,unknown}
+stats_server_uri: https://api.observatory.softmax-research.net

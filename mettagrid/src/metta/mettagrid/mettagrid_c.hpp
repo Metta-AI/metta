@@ -15,6 +15,7 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <random>
 
 #include "types.hpp"
 
@@ -27,12 +28,13 @@ class Agent;
 class ObservationEncoder;
 class GridObject;
 class ConverterConfig;
+class WallConfig;
 
 namespace py = pybind11;
 
 class METTAGRID_API MettaGrid {
 public:
-  MettaGrid(py::dict env_cfg, py::list map);
+  MettaGrid(py::dict env_cfg, py::list map, int seed);
   ~MettaGrid();
 
   unsigned short obs_width;
@@ -58,6 +60,7 @@ public:
   unsigned int map_width();
   unsigned int map_height();
   py::dict feature_normalizations();
+  py::dict feature_spec();
   unsigned int num_agents();
   py::array_t<float> get_episode_rewards();
   py::dict get_episode_stats();
@@ -106,6 +109,9 @@ private:
 
   std::vector<bool> _action_success;
 
+  std::mt19937 _rng;
+  int _seed;
+
   void init_action_handlers();
   void add_agent(Agent* agent);
   void _compute_observation(unsigned int observer_r,
@@ -120,6 +126,7 @@ private:
 
   void _handle_invalid_action(size_t agent_idx, const std::string& stat, ActionType type, ActionArg arg);
   ConverterConfig _create_converter_config(const py::dict& converter_cfg_py);
+  WallConfig _create_wall_config(const py::dict& wall_cfg_py);
 };
 
 #endif  // METTAGRID_C_HPP_

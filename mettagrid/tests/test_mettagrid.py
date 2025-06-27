@@ -48,13 +48,13 @@ def create_minimal_mettagrid_c_env(max_steps=10, width=5, height=5):
         },
         "groups": {"red": {"id": 0, "props": {}}},
         "objects": {
-            "wall": {},
-            "block": {},
+            "wall": {"type_id": 1},
+            "block": {"type_id": 1},
         },
         "agent": {},
     }
 
-    return MettaGrid(cpp_config_dict(game_config), game_map.tolist())
+    return MettaGrid(cpp_config_dict(game_config), game_map.tolist(), 42)
 
 
 def test_grid_hash():
