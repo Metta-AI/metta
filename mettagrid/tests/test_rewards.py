@@ -53,8 +53,9 @@ def create_heart_reward_test_env(max_steps=50, num_agents=NUM_AGENTS):
         },
         "groups": {"red": {"id": 0, "props": {}}},
         "objects": {
-            "wall": {},
+            "wall": {"type_id": 1},
             "altar": {
+                "type_id": 8,
                 "output_heart": 1,
                 "initial_items": 5,  # Start with some hearts
                 "max_output": 50,
@@ -106,8 +107,8 @@ def create_reward_test_env(max_steps=10, width=5, height=5, num_agents=NUM_AGENT
             "blue": {"id": 2, "group_reward_pct": 0.0},
         },
         "objects": {
-            "wall": {},
-            "block": {},
+            "wall": {"type_id": 1},
+            "block": {"type_id": 1},
         },
         "agent": {"freeze_duration": 100, "rewards": {"heart": 1.0}},
     }
