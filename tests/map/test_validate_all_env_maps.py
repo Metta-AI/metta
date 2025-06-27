@@ -11,6 +11,8 @@ def map_or_env_configs() -> list[MettagridCfgFileMetadata]:
     metadata_by_kind = MettagridCfgFileMetadata.get_all()
     result = metadata_by_kind["map"] + metadata_by_kind["env"]
 
+    # If this test is failing and you have configs that are too hard to fix
+    # properly, you can add them to this list.
     exclude_patterns = [
         "multiagent/experiments",
         "multiagent/multiagent",
