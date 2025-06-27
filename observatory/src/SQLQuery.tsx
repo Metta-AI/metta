@@ -81,6 +81,7 @@ const SQL_QUERY_CSS = `
     border-radius: 6px;
     padding: 16px;
     border: 1px solid #e5e7eb;
+    position: relative;
   }
 
   .query-input-header {
@@ -99,16 +100,23 @@ const SQL_QUERY_CSS = `
     letter-spacing: 0.5px;
   }
 
+  .query-input-wrapper {
+    position: relative;
+  }
+
   .query-textarea {
     width: 100%;
     min-height: 120px;
     padding: 10px;
+    padding-bottom: 45px;
+    padding-right: 140px;
     border: 1px solid #e5e7eb;
     border-radius: 4px;
     font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
     font-size: 13px;
     resize: vertical;
     background-color: #f9fafb;
+    box-sizing: border-box;
   }
 
   .query-textarea:focus {
@@ -284,6 +292,13 @@ const SQL_QUERY_CSS = `
     color: #9ca3af;
     cursor: not-allowed;
   }
+
+  .execute-button {
+    position: absolute;
+    bottom: 10px;
+    right: 10px;
+    z-index: 2;
+  }
 `
 
 interface Props {
@@ -444,17 +459,6 @@ export function SQLQuery({ repo }: Props) {
           <div className="query-input-section">
             <div className="query-input-header">
               <h3>SQL Query</h3>
-              <button 
-                className="btn btn-primary" 
-                onClick={executeQuery}
-                disabled={!query.trim() || queryState.type === 'loading'}
-              >
-                {queryState.type === 'loading' ? 'Executing...' : (
-                  <>
-                    Execute <span style={{ fontSize: '12px', opacity: 0.8 }}>⌘+Enter</span>
-                  </>
-                )}
-              </button>
             </div>
 
             {tableSchema && !schemaLoading && (
@@ -471,14 +475,27 @@ export function SQLQuery({ repo }: Props) {
               </div>
             )}
 
-            <textarea
-              className="query-textarea"
-              value={query}
-              onChange={e => setQuery(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Enter your SQL query here... (Cmd/Ctrl + Enter to execute)"
-              spellCheck={false}
-            />
+            <div className="query-input-wrapper">
+              <textarea
+                className="query-textarea"
+                value={query}
+                onChange={e => setQuery(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Enter your SQL query here..."
+                spellCheck={false}
+              />
+              <button 
+                className="btn btn-primary execute-button" 
+                onClick={executeQuery}
+                disabled={!query.trim() || queryState.type === 'loading'}
+              >
+                {queryState.type === 'loading' ? 'Executing...' : (
+                  <>
+                    Execute <span style={{ fontSize: '12px', opacity: 0.8 }}>⌘+Enter</span>
+                  </>
+                )}
+              </button>
+            </div>
           </div>
 
           <div className="results-section">
