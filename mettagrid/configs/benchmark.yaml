@@ -57,12 +57,12 @@ game:
     rewards:
       # action_failure_penalty: 0.00001
       action_failure_penalty: 0
-      ore.red: 0.17088483842567775
-      ore.blue: 0.17088483842567775
-      ore.green: 0.17088483842567775
-      battery.red: 0.9882859711234822
-      battery.blue: 0.9882859711234822
-      battery.green: 0.9882859711234822
+      ore.red: 0.005
+      ore.blue: 0.005
+      ore.green: 0.005
+      battery.red: 0.01
+      battery.blue: 0.01
+      battery.green: 0.01
       battery.red_max: 5
       battery.blue_max: 5
       battery.green_max: 5
@@ -116,6 +116,7 @@ game:
 
   objects:
     altar:
+      type_id: 8
       input_battery.red: 3
       output_heart: 1
       max_output: 5
@@ -124,6 +125,7 @@ game:
       initial_items: 1
 
     mine_red:
+      type_id: 2
       output_ore.red: 1
       color: 0
       max_output: 5
@@ -132,6 +134,7 @@ game:
       initial_items: 1
 
     mine_blue:
+      type_id: 3
       color: 1
       output_ore.blue: 1
       max_output: 5
@@ -140,6 +143,7 @@ game:
       initial_items: 1
 
     mine_green:
+      type_id: 4
       output_ore.green: 1
       color: 2
       max_output: 5
@@ -148,6 +152,7 @@ game:
       initial_items: 1
 
     generator_red:
+      type_id: 5
       input_ore.red: 1
       output_battery.red: 1
       color: 0
@@ -157,6 +162,7 @@ game:
       initial_items: 1
 
     generator_blue:
+      type_id: 6
       input_ore.blue: 1
       output_battery.blue: 1
       color: 1
@@ -166,6 +172,7 @@ game:
       initial_items: 1
 
     generator_green:
+      type_id: 7
       input_ore.green: 1
       output_battery.green: 1
       color: 2
@@ -175,6 +182,7 @@ game:
       initial_items: 1
 
     armory:
+      type_id: 9
       input_ore.red: 3
       output_armor: 1
       max_output: 5
@@ -183,6 +191,7 @@ game:
       initial_items: 1
 
     lasery:
+      type_id: 10
       input_ore.red: 1
       input_battery.red: 2
       output_laser: 1
@@ -192,6 +201,7 @@ game:
       initial_items: 1
 
     lab:
+      type_id: 11
       input_ore.red: 3
       input_battery.red: 3
       output_blueprint: 1
@@ -201,6 +211,7 @@ game:
       initial_items: 1
 
     factory:
+      type_id: 12
       input_blueprint: 1
       input_ore.red: 5
       input_battery.red: 5
@@ -212,6 +223,7 @@ game:
       initial_items: 1
 
     temple:
+      type_id: 13
       input_heart: 1
       input_blueprint: 1
       output_heart: 5
@@ -221,9 +233,11 @@ game:
       initial_items: 1
 
     wall:
+      type_id: 1
       swappable: false
 
     block:
+      type_id: 1
       swappable: true
 
   actions:
