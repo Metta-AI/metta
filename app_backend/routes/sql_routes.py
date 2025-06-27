@@ -176,6 +176,7 @@ def create_sql_router(metta_repo: MettaRepo) -> APIRouter:
             raise HTTPException(status_code=400, detail=f"Column not found: {str(e)}") from e
         except pg_errors.InsufficientPrivilege as e:
             raise HTTPException(status_code=403, detail=f"Insufficient privileges: {str(e)}") from e
+
         except HTTPException:
             raise
         except Exception as e:
