@@ -40,6 +40,8 @@ class GitHubPRDigestCreator:
 
         all_prs = []
         page = 1
+        consecutive_old_prs = 0
+        old_pr_threshold = 20  # Stop after seeing 20 consecutive old PRs
 
         while True:
             params["page"] = page
@@ -53,6 +55,7 @@ class GitHubPRDigestCreator:
             if not prs:
                 break
 
+            page_found_recent = False
             for pr in prs:
                 # Only include merged PRs
                 if not pr.get("merged_at"):
@@ -64,10 +67,21 @@ class GitHubPRDigestCreator:
 
                 if since_dt <= merged_at <= until_dt:
                     all_prs.append(pr)
+                    consecutive_old_prs = 0  # Reset counter when we find a recent PR
+                    page_found_recent = True
                 elif merged_at < since_dt:
-                    # PRs are sorted by updated date, so we can stop when we go too far back
-                    logging.info(f"Reached PRs older than {since}, stopping...")
-                    return all_prs
+                    consecutive_old_prs += 1
+
+            # Log progress
+            if page_found_recent:
+                logging.info(f"Page {page}: Found recent PRs, continuing (consecutive old count reset)")
+            else:
+                logging.info(f"Page {page}: No recent PRs found (consecutive old: {consecutive_old_prs})")
+
+            # Stop if we've seen too many consecutive old PRs
+            if consecutive_old_prs >= old_pr_threshold:
+                logging.info(f"Stopping after finding {consecutive_old_prs} consecutive PRs older than {since}")
+                break
 
             page += 1
 
@@ -76,6 +90,7 @@ class GitHubPRDigestCreator:
                 logging.warning("Reached maximum page limit (50), stopping...")
                 break
 
+        logging.info(f"Found {len(all_prs)} merged PRs in date range")
         return all_prs
 
     def get_pr_details(self, pr_number: int) -> Optional[Dict]:
@@ -155,25 +170,44 @@ def parse_date_range(date_range_str: str) -> tuple[str, str]:
 
 
 def main():
-    """Main entry point."""
     logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
+    # Define required environment variables
+    required_env_vars = {
+        "GITHUB_TOKEN": "GitHub Token",
+        "GITHUB_REPOSITORY": "GitHub repository name",
+        "DAYS_TO_SCAN": "Days to process",
+    }
+
+    # Validate required environment variables
+    env_values = {}
+    missing_vars = []
+
+    for var_name, description in required_env_vars.items():
+        value = os.getenv(var_name)
+        if not value:
+            missing_vars.append(f"{var_name} ({description})")
+        else:
+            env_values[var_name] = value
+
+    # Report all missing variables at once
+    if missing_vars:
+        print("Error: Missing required environment variables:")
+        for var in missing_vars:
+            print(f"  - {var}")
+        sys.exit(1)
+
     # Get configuration from environment
-    github_token = os.getenv("GITHUB_TOKEN")
-    github_repository = os.getenv("GITHUB_REPOSITORY")
-    date_range = os.getenv("DATE_RANGE", "")
+    github_token = env_values["GITHUB_TOKEN"]
+    github_repository = env_values["GITHUB_REPOSITORY"]
+    days_to_scan = env_values["DAYS_TO_SCAN"]
     output_file = os.getenv("PR_DIGEST_FILE", "pr_digest_output.json")
 
-    if not github_token:
-        print("Error: GITHUB_TOKEN not provided")
-        sys.exit(1)
+    days = int(days_to_scan)
+    until = datetime.now()
+    since = until - timedelta(days=days)
+    since, until = since.isoformat() + "Z", until.isoformat() + "Z"
 
-    if not github_repository:
-        print("Error: GITHUB_REPOSITORY not provided")
-        sys.exit(1)
-
-    # Parse date range
-    since, until = parse_date_range(date_range)
     logging.info(f"Date range: {since} to {until}")
 
     # Create digest

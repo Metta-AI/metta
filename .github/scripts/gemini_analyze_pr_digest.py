@@ -12,6 +12,7 @@ import os
 import random
 import sys
 import time
+import zipfile
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import asdict
 from datetime import datetime
@@ -66,11 +67,149 @@ class CacheManager:
         return f"{pr_data['number']}-{pr_data['merged_at']}"
 
 
+class PreviousNewsletterExtractor:
+    """Extracts and processes previous newsletter artifacts."""
+
+    def __init__(self, newsletter_dir: str = "previous-newsletters"):
+        self.newsletter_dir = Path(newsletter_dir)
+
+    def extract_discord_summaries(self) -> List[Dict[str, str]]:
+        """Extract discord summaries from previous newsletter artifacts.
+
+        Returns:
+            List of dicts with 'content', 'run_id', and 'date' keys, sorted by date (oldest first)
+        """
+        if not self.newsletter_dir.exists():
+            logging.info(f"Previous newsletters directory '{self.newsletter_dir}' not found")
+            return []
+
+        summaries = []
+        zip_files = list(self.newsletter_dir.glob("*.zip"))
+
+        if not zip_files:
+            logging.info("No newsletter artifacts found")
+            return []
+
+        logging.info(f"Found {len(zip_files)} newsletter artifacts to process")
+
+        for zip_path in zip_files:
+            try:
+                # Extract run ID from filename (format: newsletter-X_RUNID.zip)
+                artifact_name = zip_path.stem  # Remove .zip extension
+                run_id = artifact_name.split("_")[-1] if "_" in artifact_name else artifact_name
+
+                # Extract and read discord summary
+                with zipfile.ZipFile(zip_path, "r") as zf:
+                    # Look for discord_summary_output.txt
+                    discord_file = None
+                    for name in zf.namelist():
+                        if name.endswith("discord_summary_output.txt"):
+                            discord_file = name
+                            break
+
+                    if discord_file:
+                        # Read the content
+                        content = zf.read(discord_file).decode("utf-8")
+
+                        # Get file info for timestamp
+                        file_info = zf.getinfo(discord_file)
+                        file_date = file_info.date_time
+
+                        # Convert to readable date string
+                        from datetime import datetime
+
+                        timestamp = datetime(*file_date[:6])
+
+                        summaries.append(
+                            {
+                                "content": content,
+                                "run_id": run_id,
+                                "date": timestamp.isoformat(),
+                                "artifact_name": artifact_name,
+                            }
+                        )
+
+                        logging.info(f"✅ Extracted discord summary from {artifact_name}")
+                    else:
+                        logging.warning(f"⚠️ No discord_summary_output.txt found in {artifact_name}")
+
+            except Exception as e:
+                logging.error(f"❌ Error processing {zip_path.name}: {e}")
+                continue
+
+        # Sort by date (oldest first)
+        summaries.sort(key=lambda x: x["date"])
+
+        logging.info(f"Successfully extracted {len(summaries)} discord summaries")
+        return summaries
+
+    def get_previous_summaries_context(self, max_summaries: int = 3) -> str:
+        """Get formatted context from previous summaries for AI prompt.
+
+        Args:
+            max_summaries: Maximum number of previous summaries to include
+
+        Returns:
+            Formatted string with previous summaries context
+        """
+        summaries = self.extract_discord_summaries()
+
+        if not summaries:
+            return ""
+
+        # Take the most recent summaries (last N items since list is sorted oldest first)
+        recent_summaries = summaries[-max_summaries:] if len(summaries) > max_summaries else summaries
+
+        # Extract previous shout outs to help AI avoid repetition
+        all_shout_outs = []
+        for summary in recent_summaries:
+            content = summary["content"]
+            # Look for shout out section
+            if "**Shout Outs:**" in content:
+                shout_section = content.split("**Shout Outs:**")[1].split("**")[0]
+                # Extract usernames mentioned (looking for @username pattern)
+                import re
+
+                mentioned_users = re.findall(r"👏 @(\w+)", shout_section)
+                all_shout_outs.extend(mentioned_users)
+
+        context_parts = [
+            "\n**PREVIOUS NEWSLETTER SUMMARIES:**",
+            f"(Showing {len(recent_summaries)} most recent newsletters for context and continuity)",
+            "",
+        ]
+
+        if all_shout_outs:
+            context_parts.extend(
+                [
+                    "**Recent Shout Outs Given:**",
+                    f"These developers were recognized in recent newsletters: {', '.join(set(all_shout_outs))}",
+                    "(Consider recognizing different contributors to distribute appreciation across the team)",
+                    "",
+                ]
+            )
+
+        for summary in recent_summaries:
+            context_parts.extend(
+                [
+                    f"---Newsletter from {summary['date']}---",
+                    summary["content"][:1500],  # Limit each summary to avoid prompt bloat
+                    "...[truncated]" if len(summary["content"]) > 1500 else "",
+                    "",
+                ]
+            )
+
+        context_parts.append("---END OF PREVIOUS NEWSLETTERS---\n")
+
+        return "\n".join(context_parts)
+
+
 class CollectionAnalyzer:
     """Generates collection-level summaries and insights from multiple PR summaries."""
 
     def __init__(self, ai_client: GeminiAIClient):
         self.ai_client = ai_client
+        self.newsletter_extractor = PreviousNewsletterExtractor()
 
     def prepare_context(self, pr_summaries: List[PRSummary], date_range: str, repository: str) -> str:
         """Prepare context for collection analysis."""
@@ -116,6 +255,9 @@ class CollectionAnalyzer:
         """Generate a comprehensive collection summary."""
         context = self.prepare_context(pr_summaries, date_range, repository)
 
+        # Get previous newsletter context
+        previous_context = self.newsletter_extractor.get_previous_summaries_context()
+
         # Random creative element for closing thoughts
         bonus_prompts = [
             "A haiku capturing the essence of this development cycle - focus on the rhythm of progress, "
@@ -130,12 +272,23 @@ class CollectionAnalyzer:
 
         prompt = f"""You are creating an executive summary of development activity for {repository} from {date_range}.
 
+{previous_context}
+
 INPUT DATA: Below you'll find PR summaries with titles, descriptions, authors, file changes, and technical details:
 
 {context}
 
 AUDIENCE & TONE: Technical and direct - written for engineering and research staff who understand code architecture,
 implementation details, and technical tradeoffs.
+
+CONTEXT AWARENESS & NARRATIVE CONTINUITY:
+- Tell the ongoing story of our development process as it evolves - each newsletter should feel like a
+  chapter in a larger narrative
+- Reference significant trends or changes compared to previous newsletters to show progression
+- Highlight any continuing work or resolved issues from previous periods
+- Connect current achievements to past challenges or initiatives when relevant
+- Maintain consistent tone and perspective across newsletters while letting the story naturally evolve
+- Show how the team and codebase are growing and adapting over time
 
 QUALITY CRITERIA:
 - Focus on technical impact and engineering outcomes
@@ -150,7 +303,9 @@ QUALITY CRITERIA:
 
 SHOUT OUT GUIDELINES:
 - Only highlight truly exceptional work (1-3 maximum, or none if not warranted)
-- Distribute recognition across different contributors
+- IMPORTANT: Review previous newsletters and avoid repeatedly recognizing the same contributors
+- If a developer received a shout out in recent newsletters, prioritize recognizing others who have done notable work
+- Aim to distribute recognition across the entire team over time
 - Focus on: complex problem-solving, code quality improvements, mentorship, critical fixes, or innovative solutions
 - Format: "👏 @username - [specific achievement in 1-2 sentences]"
 
@@ -360,38 +515,26 @@ def main():
     """Main entry point for PR digest analysis."""
     logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
-    # Define required environment variables
-    required_env_vars = {
-        "GEMINI_API_KEY": "Gemini AI API key",
-        "GITHUB_REPOSITORY": "GitHub repository name",
-        "GITHUB_SERVER_URL": "GitHub server URL",
-        "GITHUB_RUN_ID": "GitHub Actions run ID",
+    # Import parse_config
+    script_dir = Path(__file__).parent.parent.parent / "scripts"
+    sys.path.insert(0, str(script_dir))
+    from utils.config import parse_config
+
+    # Define required and optional environment variables
+    required_vars = [
+        "GEMINI_API_KEY",
+        "GITHUB_REPOSITORY",
+        "GITHUB_SERVER_URL",
+        "GITHUB_RUN_ID",
+    ]
+
+    optional_vars = {
+        "PR_DIGEST_FILE": "pr_digest_output.json",
+        "REPORT_PERIOD": "(unknown)",
     }
 
-    # Optional environment variables with defaults
-    optional_env_vars = {"PR_DIGEST_FILE": "pr_digest_output.json", "DATE_RANGE": ""}
-
-    # Validate required environment variables
-    env_values = {}
-    missing_vars = []
-
-    for var_name, description in required_env_vars.items():
-        value = os.getenv(var_name)
-        if not value:
-            missing_vars.append(f"{var_name} ({description})")
-        else:
-            env_values[var_name] = value
-
-    # Report all missing variables at once
-    if missing_vars:
-        print("Error: Missing required environment variables:")
-        for var in missing_vars:
-            print(f"  - {var}")
-        sys.exit(1)
-
-    # Get optional environment variables
-    for var_name, default_value in optional_env_vars.items():
-        env_values[var_name] = os.getenv(var_name, default_value)
+    # Parse configuration
+    env_values = parse_config(required_vars, optional_vars)
 
     # Extract values for easier use
     api_key = env_values["GEMINI_API_KEY"]
@@ -399,9 +542,9 @@ def main():
     github_server_url = env_values["GITHUB_SERVER_URL"]
     github_run_id = env_values["GITHUB_RUN_ID"]
     pr_digest_file = env_values["PR_DIGEST_FILE"]
-    date_range = env_values["DATE_RANGE"]
+    report_period = env_values["REPORT_PERIOD"]
 
-    # Construct GitHub run URL (all components are guaranteed to exist)
+    # Construct GitHub run URL
     github_run_url = f"{github_server_url}/{github_repository}/actions/runs/{github_run_id}"
 
     # Validate file existence
@@ -448,7 +591,7 @@ def main():
     # Generate collection summary
     print("Generating collection summary...")
     collection_summary = analyzer.collection_analyzer.generate_collection_summary(
-        pr_summaries, date_range, github_repository
+        pr_summaries, report_period, github_repository
     )
 
     with open("collection_summary_output.txt", "w") as f:
@@ -458,7 +601,7 @@ def main():
     # Create Discord-formatted output
     print("Generating Discord summary...")
     discord_summary = analyzer.output_formatter.create_discord_summary(
-        pr_summaries, collection_summary, date_range, github_run_url
+        pr_summaries, collection_summary, report_period, github_run_url
     )
 
     with open("discord_summary_output.txt", "w") as f:

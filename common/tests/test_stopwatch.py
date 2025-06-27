@@ -368,14 +368,14 @@ class TestStopwatch:
         # Test multifile
         # We simulate multiple references by manually adding them
         timer = stopwatch._get_timer("multifile_test")
-        timer.references.append({"filename": "file1.py", "lineno": 10})
-        timer.references.append({"filename": "file2.py", "lineno": 20})
+        timer.references.add(("file1.py", 10))
+        timer.references.add(("file2.py", 20))
         assert stopwatch.get_filename("multifile_test") == "multifile"
 
         # Test multiple references from same file
         timer2 = stopwatch._get_timer("samefile_test")
-        timer2.references.append({"filename": "same.py", "lineno": 10})
-        timer2.references.append({"filename": "same.py", "lineno": 20})
+        timer2.references.add(("same.py", 10))
+        timer2.references.add(("same.py", 20))
         assert stopwatch.get_filename("samefile_test") == "same.py"
 
     def test_lap_all_with_running_and_stopped_timers(self, stopwatch):
@@ -885,8 +885,8 @@ class TestStopwatchSaveLoad:
         # Add references manually for testing
         timer = stopwatch._get_timer("complex_timer")
         # Note: start() already added one reference, so we'll have 3 total
-        timer.references.append({"filename": "test1.py", "lineno": 10})
-        timer.references.append({"filename": "test2.py", "lineno": 20})
+        timer.references.add(("test1.py", 10))
+        timer.references.add(("test2.py", 20))
 
         # Save state
         state = stopwatch.save_state()
@@ -916,8 +916,8 @@ class TestStopwatchSaveLoad:
         # Check references - should have 3 (1 from start + 2 manual)
         assert len(new_timer.references) == 3
         # The first reference is from start(), check the manually added ones
-        assert new_timer.references[1]["filename"] == "test1.py"
-        assert new_timer.references[2]["filename"] == "test2.py"
+        assert ("test1.py", 10) in new_timer.references
+        assert ("test2.py", 20) in new_timer.references
 
     def test_save_load_empty_state(self):
         """Test saving/loading empty stopwatch."""
