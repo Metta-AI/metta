@@ -1130,21 +1130,20 @@ def test_multiple_laps_after_cleanup():
     """Test multiple lap indices after cleanup."""
 
     stopwatch = Stopwatch(max_laps=2)  # Very restrictive to force cleanup
-    timer_name = "multi_lap_test"
 
-    timer = stopwatch._get_timer(timer_name)
+    timer = stopwatch._get_timer()
 
     # Add more checkpoints than max_laps allows
     checkpoints_data = [
-        ("_start", 0.0, 0),
-        ("epoch_1", 1.0, 100),
-        ("epoch_2", 2.0, 250),  # 150 step lap
-        ("epoch_3", 3.0, 400),  # 150 step lap
-        ("epoch_4", 4.0, 600),  # 200 step lap
+        ("_lap_1", 1.0, 100),
+        ("_lap_2", 2.0, 250),  # 150 step lap
+        ("_lap_3", 3.0, 400),  # 150 step lap
+        ("_lap_4", 4.0, 600),  # 200 step lap
     ]
 
     for name, elapsed, steps in checkpoints_data:
         timer.checkpoints[name] = Checkpoint(elapsed_time=elapsed, steps=steps)
+        timer.lap_counter += 1
 
     print("Before cleanup - all checkpoints:")
     for name, cp in timer.checkpoints.items():
@@ -1160,18 +1159,43 @@ def test_multiple_laps_after_cleanup():
     # Now test lap calculations
     print("\nLap calculations:")
 
-    # Most recent lap (-1): should be epoch_4 - epoch_3 = 600 - 400 = 200
-    lap_1 = stopwatch.get_lap_steps(-1, timer_name)
+    # Most recent lap (-1): should be lap_4 - lap_3 = 600 - 400 = 200
+    lap_1 = stopwatch.get_lap_steps(-1)
     print(f"Lap -1 (most recent): {lap_1}, expected: 200")
 
-    # Second most recent lap (-2): should be epoch_3 - epoch_2 = 400 - 250 = 150
-    lap_2 = stopwatch.get_lap_steps(-2, timer_name)
+    # Second most recent lap (-2): should be lap_3 - lap_2 = 400 - 250 = 150
+    lap_2 = stopwatch.get_lap_steps(-2)
     print(f"Lap -2 (second recent): {lap_2}, expected: 150")
 
     # This should fail because we don't have enough checkpoints
-    lap_3 = stopwatch.get_lap_steps(-3, timer_name)
+    lap_3 = stopwatch.get_lap_steps(-3)
     print(f"Lap -3 (should be None): {lap_3}")
 
     assert lap_1 == 200, f"Expected lap -1 to be 200, got {lap_1}"
     assert lap_2 == 150, f"Expected lap -2 to be 150, got {lap_2}"
+    assert lap_3 is None, f"Expected lap -3 to be None, got {lap_3}"
+
+    # now we will add some laps using the timer
+    stopwatch.start()
+    time.sleep(0.05)
+    stopwatch.lap_all(steps=850, exclude_global=False)
+    time.sleep(0.05)
+    stopwatch.lap_all(steps=1150, exclude_global=False)
+    stopwatch.stop()
+
+    print("\nAfter laps:")
+    for name, cp in timer.checkpoints.items():
+        print(f"  {name}: elapsed={cp['elapsed_time']}, steps={cp['steps']}")
+
+    lap_1 = stopwatch.get_lap_steps(-1)
+    print(f"Lap -1 (most recent): {lap_1}, expected: 300")
+
+    lap_2 = stopwatch.get_lap_steps(-2)
+    print(f"Lap -2 (second recent): {lap_2}, expected: 250")
+
+    lap_3 = stopwatch.get_lap_steps(-3)
+    print(f"Lap -3 (should be None): {lap_3}")
+
+    assert lap_1 == 300, f"Expected lap -1 to be 300, got {lap_1}"
+    assert lap_2 == 250, f"Expected lap -2 to be 250, got {lap_2}"
     assert lap_3 is None, f"Expected lap -3 to be None, got {lap_3}"

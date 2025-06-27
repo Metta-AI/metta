@@ -386,16 +386,16 @@ class Stopwatch:
         timer = self._get_timer(name)
 
         elapsed = self.get_elapsed(name)
+        timer.lap_counter += 1
 
         # Use internal counter if steps not provided
         if steps is None:
-            timer.lap_counter += 1
             steps = timer.lap_counter
 
         # Generate name if not provided
         if checkpoint_name is None:
             # Use 1-based indexing to match lap numbers
-            checkpoint_name = f"_lap_{len(timer.checkpoints) + 1}"
+            checkpoint_name = f"_lap_{timer.lap_counter}"
 
         timer.checkpoints[checkpoint_name] = Checkpoint(elapsed_time=elapsed, steps=steps)
         timer.cleanup_old_checkpoints()
