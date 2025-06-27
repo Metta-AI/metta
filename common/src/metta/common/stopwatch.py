@@ -211,11 +211,10 @@ class Stopwatch:
     def _cleanup_old_checkpoints(self, timer: Timer):
         """Remove oldest checkpoints if we exceed max_laps limit."""
         if len(timer.checkpoints) > timer.max_laps:
-            # Sort checkpoints by elapsed time to identify oldest ones
-            sorted_checkpoints = sorted(timer.checkpoints.items(), key=lambda x: x[1]["elapsed_time"])
-
-            # Keep only the most recent max_laps checkpoints
-            checkpoints_to_keep = sorted_checkpoints[-timer.max_laps :]
+            # Since checkpoints are added in chronological order and dicts maintain
+            # insertion order (Python 3.7+), we can just keep the last max_laps items
+            checkpoint_items = list(timer.checkpoints.items())
+            checkpoints_to_keep = checkpoint_items[-timer.max_laps :]
             timer.checkpoints = dict(checkpoints_to_keep)
 
     @with_lock

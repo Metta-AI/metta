@@ -1174,7 +1174,7 @@ class MettaTrainer:
             is_training=True,
         )
 
-        # self._memory_monitor.add(self.vecenv)
+        self._memory_monitor.add(self.vecenv)
 
         if self.cfg.seed is None:
             self.cfg.seed = np.random.randint(0, 1000000)
