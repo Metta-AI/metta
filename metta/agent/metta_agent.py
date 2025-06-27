@@ -59,6 +59,11 @@ class DistributedMettaAgent(DistributedDataParallel):
     def activate_actions(self, action_names: list[str], action_max_params: list[int], device: torch.device) -> None:
         return self.module.activate_actions(action_names, action_max_params, device)
 
+    def initialize_to_environment(
+        self, features: dict[str, dict], action_names: list[str], action_max_params: list[int], device: torch.device
+    ) -> None:
+        return self.module.initialize_to_environment(features, action_names, action_max_params, device)
+
 
 class MettaAgent(nn.Module):
     def __init__(
@@ -106,6 +111,7 @@ class MettaAgent(nn.Module):
         self.components = nn.ModuleDict()
         component_cfgs = convert_to_dict(cfg.components)
 
+        # First pass: instantiate all configured components
         for component_key in component_cfgs:
             # Convert key to string to ensure compatibility
             component_name = str(component_key)
@@ -149,9 +155,134 @@ class MettaAgent(nn.Module):
                 source_components[source["name"]] = self.components[source["name"]]
         component.setup(source_components)
 
+    def initialize_to_environment(
+        self, features: dict[str, dict], action_names: list[str], action_max_params: list[int], device
+    ):
+        """
+        Initialize the policy to the current environment's features and actions.
+        This should be called exactly once per time the policy is "brought out of storage".
+
+        Args:
+            features: Dictionary mapping feature names to their properties:
+                {
+                    feature_name: {
+                        "id": byte,  # The feature_id to use during this run
+                        "type": "scalar" | "categorical",
+                        "normalization": float (optional, only for scalar features)
+                    }
+                }
+            action_names: List of action names
+            action_max_params: List of maximum parameters for each action
+            device: Device to place tensors on
+        """
+        self._initialize_observations(features, device)
+        self.activate_actions(action_names, action_max_params, device)
+
+    def _initialize_observations(self, features: dict[str, dict], device):
+        """
+        Initialize observation features by storing the feature mapping.
+
+        Args:
+            features: Dictionary mapping feature names to their properties
+            device: Device to place tensors on
+        """
+        self.active_features = features
+        self.device = device
+
+        # Create feature_id to feature_name mapping for quick lookup
+        self.feature_id_to_name = {props["id"]: name for name, props in features.items()}
+
+        # Store normalizations by feature ID
+        self.feature_normalizations = {
+            props["id"]: props.get("normalization", 1.0) for props in features.values() if "normalization" in props
+        }
+
+        # Store original feature mapping on first initialization
+        if not hasattr(self, "original_feature_mapping"):
+            self.original_feature_mapping = {name: props["id"] for name, props in features.items()}
+            logger.info(f"Stored original feature mapping: {self.original_feature_mapping}")
+
+            # Reserve index 255 for unknown features
+            logger.info("Reserved feature ID 255 for unknown features")
+        else:
+            # Create remapping for subsequent initializations
+            self._create_feature_remapping(features)
+
+        logger.info(f"Initialized observations with {len(features)} features")
+
+    def _create_feature_remapping(self, features: dict[str, dict]):
+        """
+        Create a remapping dictionary to translate new feature IDs to original ones.
+        Unknown features are mapped to index 255.
+        """
+        # Define the unknown feature index
+        UNKNOWN_FEATURE_ID = 255
+
+        # Build remapping dict
+        self.feature_id_remap = {}
+        remapped_count = 0
+        unknown_features = []
+
+        for name, props in features.items():
+            new_id = props["id"]
+            if name in self.original_feature_mapping:
+                original_id = self.original_feature_mapping[name]
+                if new_id != original_id:
+                    self.feature_id_remap[new_id] = original_id
+                    remapped_count += 1
+                    logger.info(f"Remapping feature '{name}': {new_id} -> {original_id}")
+            else:
+                # This is a new feature not seen during training
+                self.feature_id_remap[new_id] = UNKNOWN_FEATURE_ID
+                unknown_features.append(name)
+                logger.info(
+                    f"Mapping unknown feature '{name}' (id={new_id}) to UNKNOWN_FEATURE_ID={UNKNOWN_FEATURE_ID}"
+                )
+
+        if remapped_count > 0 or unknown_features:
+            logger.info(
+                f"Created feature remapping with {remapped_count} remapped features and {len(unknown_features)} unknown features"
+            )
+
+            # Update observation component if it supports remapping
+            if "_obs_" in self.components and hasattr(self.components["_obs_"], "update_feature_remapping"):
+                # Convert dict to tensor for components that expect it
+                # Start with identity mapping, then apply specific remappings
+                remap_tensor = torch.arange(256, dtype=torch.uint8, device=self.device)
+
+                # Apply known remappings
+                for new_id, original_id in self.feature_id_remap.items():
+                    remap_tensor[new_id] = original_id
+
+                # Map all feature IDs that aren't in the current environment to UNKNOWN
+                current_feature_ids = {props["id"] for props in features.values()}
+                for feature_id in range(256):
+                    if feature_id not in current_feature_ids and feature_id not in self.feature_id_remap:
+                        remap_tensor[feature_id] = UNKNOWN_FEATURE_ID
+
+                self.components["_obs_"].update_feature_remapping(remap_tensor)
+
+            # Update normalization factors
+            self._update_normalization_factors(features)
+
+    def _update_normalization_factors(self, features: dict[str, dict]):
+        """Update normalization factors for components after feature remapping."""
+        # Update ObsAttrValNorm components if they exist
+        for comp_name, component in self.components.items():
+            if hasattr(component, "__class__") and "ObsAttrValNorm" in component.__class__.__name__:
+                logger.info(f"Updating feature normalizations for {comp_name}")
+
+                # Create normalization tensor with remapped IDs
+                norm_tensor = torch.ones(256, dtype=torch.float32)
+                for name, props in features.items():
+                    if name in self.original_feature_mapping and "normalization" in props:
+                        original_id = self.original_feature_mapping[name]
+                        norm_tensor[original_id] = props["normalization"]
+
+                component.register_buffer("_norm_factors", norm_tensor)
+
     def activate_actions(self, action_names: list[str], action_max_params: list[int], device):
         """Run this at the beginning of training."""
-
         assert isinstance(action_max_params, list), "action_max_params must be a list"
 
         self.device = device
@@ -178,7 +309,7 @@ class MettaAgent(nn.Module):
                 action_index.append([action_type_idx, j])
 
         self.action_index_tensor = torch.tensor(action_index, device=self.device, dtype=torch.int32)
-        logger.info(f"Agent actions activated with: {self.active_actions}")
+        logger.info(f"Agent actions initialized with: {self.active_actions}")
 
     @property
     def lstm(self):

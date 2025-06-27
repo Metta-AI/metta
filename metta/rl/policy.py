@@ -80,6 +80,15 @@ class PytorchAgent(nn.Module):
             self.policy.activate_actions(action_names, action_max_params, device)
         self.device = device
 
+    def initialize_to_environment(
+        self, features: dict[str, dict], action_names: list[str], action_max_params: list[int], device
+    ):
+        """Initialize to environment - forward to wrapped policy if it has this method."""
+        if hasattr(self.policy, "initialize_to_environment"):
+            self.policy.initialize_to_environment(features, action_names, action_max_params, device)
+        # If the method doesn't exist, that's OK - some simple policies don't need initialization
+        self.device = device
+
     def l2_reg_loss(self) -> torch.Tensor:
         """L2 regularization loss."""
         if hasattr(self.policy, "l2_reg_loss"):
