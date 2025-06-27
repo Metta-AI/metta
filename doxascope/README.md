@@ -123,3 +123,21 @@ python -m doxascope.doxascope_analysis <command> [args]
 -   `sweep <results_path>`: Analyzes sweep results from a JSON file.
 
 Run with `-h` or `--help` for more details on each command.
+
+### 6. Comparing Policies
+
+To compare the multistep accuracy of multiple trained models, you can use the `overlay` command. This will generate a single plot that overlays the accuracy curves for each specified policy, making it easy to compare their predictive performance over time.
+
+Before running the overlay, ensure that each policy you want to compare has been trained, as this generates the necessary `analysis_results.json` file.
+
+**Usage:**
+
+```bash
+python -m doxascope.doxascope_analysis overlay <policy_name_1> <policy_name_2> ...
+```
+
+**Arguments:**
+
+-   `<policy_name_1> <policy_name_2> ...`: A space-separated list of policy names.
+
+The output will be saved as `multistep_accuracy_overlay.png` in the `doxascope/data/results/` directory.

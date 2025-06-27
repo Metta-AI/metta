@@ -5,6 +5,7 @@ Doxascope Neural Network
 A PyTorch implementation of a neural network that predicts agent movement from LSTM memory vectors.
 """
 
+import json
 import random
 import time
 from pathlib import Path
@@ -537,6 +538,18 @@ def train_doxascope(
 
         trainer.analyze_results(all_preds, all_targets, timesteps_to_analyze=timesteps_to_analyze)
         trainer.plot_multistep_accuracy(test_acc_per_step)
+
+        # Save analysis results for later comparison
+        analysis_data = {
+            "policy_name": raw_data_dir.name,
+            "best_val_acc": best_val_acc,
+            "avg_test_acc": test_results["avg_acc"],
+            "test_acc_per_step": test_results["acc_per_step"],
+            "num_past_timesteps": num_past_timesteps,
+            "num_future_timesteps": num_future_timesteps,
+        }
+        with open(output_dir / "analysis_results.json", "w") as f:
+            json.dump(analysis_data, f, indent=4)
 
     end_time = time.time()
     print(f"\n✅ Training and analysis complete in {end_time - start_time:.2f} seconds.")

@@ -285,6 +285,8 @@ def analyze_sweep_results(results_path: Path):
     print("\n🔍 Parameter Impact Analysis:")
     analyze_parameter_importance(successful_results)
 
+    print(f"   Test Accuracy (t+1): {sorted_results[0]['test_accuracy']:.2f}%")
+
 
 def analyze_parameter_importance(results):
     """Helper to analyze which parameters correlate with performance."""
@@ -314,6 +316,53 @@ def analyze_parameter_importance(results):
                 print(f"   - Could not analyze parameter '{param}' (likely non-numeric values).")
 
 
+def overlay_plots(policy_names: list, output_dir: Path):
+    """
+    Overlays the multistep accuracy plots from multiple policies.
+
+    Args:
+        policy_names: A list of policy names to include in the plot.
+        output_dir: The directory to save the combined plot.
+    """
+    plt.figure(figsize=(12, 7))
+    plt.title("Multistep Accuracy Comparison")
+    plt.xlabel("Timestep (t+/-k)")
+    plt.ylabel("Test Accuracy (%)")
+    plt.grid(True, which="both", linestyle="--", linewidth=0.5)
+
+    for policy_name in policy_names:
+        results_path = Path(f"doxascope/data/results/{policy_name}/analysis_results.json")
+        if not results_path.exists():
+            print(f"Warning: Could not find results for policy '{policy_name}' at {results_path}. Skipping.")
+            continue
+
+        with open(results_path, "r") as f:
+            data = json.load(f)
+
+        acc_per_step = data["test_acc_per_step"]
+        num_past = data["num_past_timesteps"]
+        num_future = data["num_future_timesteps"]
+
+        # Generate x-axis labels
+        past_steps = list(range(-num_past, 0)) if num_past > 0 else []
+        future_steps = list(range(1, num_future + 1))
+        steps = past_steps + future_steps
+        step_labels = [str(s) for s in steps]
+
+        if len(step_labels) != len(acc_per_step):
+            print(f"Warning: Mismatch in step counts for '{policy_name}'. Skipping.")
+            continue
+
+        plt.plot(step_labels, acc_per_step, marker="o", linestyle="-", label=policy_name)
+
+    plt.legend()
+    plt.tight_layout()
+    output_path = output_dir / "multistep_accuracy_overlay.png"
+    plt.savefig(output_path)
+    plt.close()
+    print(f"\n✅ Overlay plot saved to: {output_path}")
+
+
 def main():
     """Main CLI entrypoint for analysis."""
     parser = argparse.ArgumentParser(description="Doxascope Analysis Tools")
@@ -331,6 +380,16 @@ def main():
     parser_sweep = subparsers.add_parser("sweep", help="Analyze sweep results.")
     parser_sweep.add_argument("results_path", type=Path, help="Path to the sweep results JSON file.")
 
+    # 'overlay' command
+    parser_overlay = subparsers.add_parser("overlay", help="Overlay multistep accuracy plots from multiple policies.")
+    parser_overlay.add_argument("policy_names", nargs="+", help="List of policy names to include in the overlay plot.")
+    parser_overlay.add_argument(
+        "--output-dir",
+        type=Path,
+        default=Path("doxascope/data/results"),
+        help="Directory to save the combined plot.",
+    )
+
     args = parser.parse_args()
 
     if args.command == "inspect":
@@ -339,6 +398,8 @@ def main():
         analyze_memory_encoding(args.policy_name)
     elif args.command == "sweep":
         analyze_sweep_results(args.results_path)
+    elif args.command == "overlay":
+        overlay_plots(args.policy_names, args.output_dir)
 
 
 if __name__ == "__main__":
