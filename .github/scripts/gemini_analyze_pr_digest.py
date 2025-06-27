@@ -12,6 +12,7 @@ import os
 import random
 import sys
 import time
+import zipfile
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import asdict
 from datetime import datetime
@@ -64,6 +65,120 @@ class CacheManager:
     def get_cache_key(self, pr_data: Dict) -> str:
         """Generate a cache key for a PR."""
         return f"{pr_data['number']}-{pr_data['merged_at']}"
+
+
+class PreviousNewsletterExtractor:
+    """Extracts and processes previous newsletter artifacts."""
+
+    def __init__(self, newsletter_dir: str = "previous-newsletters"):
+        self.newsletter_dir = Path(newsletter_dir)
+
+    def extract_discord_summaries(self) -> List[Dict[str, str]]:
+        """Extract discord summaries from previous newsletter artifacts.
+
+        Returns:
+            List of dicts with 'content', 'run_id', and 'date' keys, sorted by date (oldest first)
+        """
+        if not self.newsletter_dir.exists():
+            logging.info(f"Previous newsletters directory '{self.newsletter_dir}' not found")
+            return []
+
+        summaries = []
+        zip_files = list(self.newsletter_dir.glob("*.zip"))
+
+        if not zip_files:
+            logging.info("No newsletter artifacts found")
+            return []
+
+        logging.info(f"Found {len(zip_files)} newsletter artifacts to process")
+
+        for zip_path in zip_files:
+            try:
+                # Extract run ID from filename (format: newsletter-X_RUNID.zip)
+                artifact_name = zip_path.stem  # Remove .zip extension
+                run_id = artifact_name.split("_")[-1] if "_" in artifact_name else artifact_name
+
+                # Extract and read discord summary
+                with zipfile.ZipFile(zip_path, "r") as zf:
+                    # Look for discord_summary_output.txt
+                    discord_file = None
+                    for name in zf.namelist():
+                        if name.endswith("discord_summary_output.txt"):
+                            discord_file = name
+                            break
+
+                    if discord_file:
+                        # Read the content
+                        content = zf.read(discord_file).decode("utf-8")
+
+                        # Get file info for timestamp
+                        file_info = zf.getinfo(discord_file)
+                        file_date = file_info.date_time
+
+                        # Convert to readable date string
+                        from datetime import datetime
+
+                        timestamp = datetime(*file_date[:6])
+
+                        summaries.append(
+                            {
+                                "content": content,
+                                "run_id": run_id,
+                                "date": timestamp.isoformat(),
+                                "artifact_name": artifact_name,
+                            }
+                        )
+
+                        logging.info(f"✅ Extracted discord summary from {artifact_name}")
+                    else:
+                        logging.warning(f"⚠️ No discord_summary_output.txt found in {artifact_name}")
+
+            except Exception as e:
+                logging.error(f"❌ Error processing {zip_path.name}: {e}")
+                continue
+
+        # Sort by date (oldest first)
+        summaries.sort(key=lambda x: x["date"])
+
+        logging.info(f"Successfully extracted {len(summaries)} discord summaries")
+        return summaries
+
+    def get_previous_summaries_context(self, max_summaries: int = 3) -> str:
+        """Get formatted context from previous summaries for AI prompt.
+
+        Args:
+            max_summaries: Maximum number of previous summaries to include
+
+        Returns:
+            Formatted string with previous summaries context
+        """
+        summaries = self.extract_discord_summaries()
+
+        if not summaries:
+            return ""
+
+        # Take the most recent summaries (last N items since list is sorted oldest first)
+        recent_summaries = summaries[-max_summaries:] if len(summaries) > max_summaries else summaries
+
+        context_parts = [
+            "\n**PREVIOUS NEWSLETTER SUMMARIES:**",
+            f"(Showing {len(recent_summaries)} most recent newsletters for context and continuity)",
+            "",
+        ]
+
+        for summary in recent_summaries:
+            context_parts.extend(
+                [
+                    f"---Newsletter from {summary['date']}---",
+                    summary["content"][:1500],  # Limit each summary to avoid prompt bloat
+                    "...[truncated]" if len(summary["content"]) > 1500 else "",
+                    "",
+                ]
+            )
+
+        context_parts.append("---END OF PREVIOUS NEWSLETTERS---\n")
+
+        return "\n".join(context_parts)
 
 
 class CollectionAnalyzer:
