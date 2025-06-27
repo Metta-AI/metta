@@ -22,7 +22,7 @@ replay_interval: ${trainer.evaluate_interval}
 replay_dir: s3://softmax-public/replays/${run}
 
 
-total_timesteps: 300_000_000
+total_timesteps: 50_000_000_000
 
 clip_coef: 0.14919147162017737
 ent_coef: 0.016700174334611493
