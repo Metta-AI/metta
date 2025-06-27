@@ -23,6 +23,7 @@ trainer:
   total_timesteps: 1_000_000_000  # Shorter run for testing
 
 # Add any other user-specific overrides below
+wandb_checkpoint_interval: 100
 wandb:
   enabled: true
   project: metta
