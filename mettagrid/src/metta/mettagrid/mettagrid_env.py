@@ -3,6 +3,7 @@ from __future__ import annotations
 import datetime
 import logging
 import random
+import time
 import uuid
 from typing import Any, Dict, Optional, cast
 
@@ -248,6 +249,9 @@ class MettaGridEnv(PufferEnv, GymEnv):
 
     def process_episode_stats(self, infos: Dict[str, Any]):
         self.timer.start("process_episode_stats")
+
+        infos.clear()
+        infos["completion_time"] = time.time()
 
         episode_rewards = self._c_env.get_episode_rewards()
         episode_rewards_sum = episode_rewards.sum()

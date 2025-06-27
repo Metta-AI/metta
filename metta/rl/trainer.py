@@ -877,11 +877,13 @@ class MettaTrainer:
             return
 
         # convert lists of values (collected across all environments and rollout steps on this GPU)
-        # into single mean values.
+        # into single mean values and standard deviations.
         mean_stats = {}
         for k, v in self.stats.items():
             try:
                 mean_stats[k] = np.mean(v)
+                # Add standard deviation with .std_dev suffix
+                mean_stats[f"{k}.std_dev"] = np.std(v)
             except (TypeError, ValueError) as e:
                 raise RuntimeError(
                     f"Cannot compute mean for stat '{k}' with value {v!r} (type: {type(v)}). "
