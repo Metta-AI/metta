@@ -40,6 +40,8 @@ class GitHubPRDigestCreator:
 
         all_prs = []
         page = 1
+        consecutive_old_prs = 0
+        old_pr_threshold = 20  # Stop after seeing 20 consecutive old PRs
 
         while True:
             params["page"] = page
@@ -53,6 +55,7 @@ class GitHubPRDigestCreator:
             if not prs:
                 break
 
+            page_found_recent = False
             for pr in prs:
                 # Only include merged PRs
                 if not pr.get("merged_at"):
@@ -64,10 +67,21 @@ class GitHubPRDigestCreator:
 
                 if since_dt <= merged_at <= until_dt:
                     all_prs.append(pr)
+                    consecutive_old_prs = 0  # Reset counter when we find a recent PR
+                    page_found_recent = True
                 elif merged_at < since_dt:
-                    # PRs are sorted by updated date, so we can stop when we go too far back
-                    logging.info(f"Reached PRs older than {since}, stopping...")
-                    return all_prs
+                    consecutive_old_prs += 1
+
+            # Log progress
+            if page_found_recent:
+                logging.info(f"Page {page}: Found recent PRs, continuing (consecutive old count reset)")
+            else:
+                logging.info(f"Page {page}: No recent PRs found (consecutive old: {consecutive_old_prs})")
+
+            # Stop if we've seen too many consecutive old PRs
+            if consecutive_old_prs >= old_pr_threshold:
+                logging.info(f"Stopping after finding {consecutive_old_prs} consecutive PRs older than {since}")
+                break
 
             page += 1
 
@@ -76,6 +90,7 @@ class GitHubPRDigestCreator:
                 logging.warning("Reached maximum page limit (50), stopping...")
                 break
 
+        logging.info(f"Found {len(all_prs)} merged PRs in date range")
         return all_prs
 
     def get_pr_details(self, pr_number: int) -> Optional[Dict]:
