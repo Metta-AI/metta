@@ -111,6 +111,7 @@ MettaGrid::MettaGrid(py::dict cfg, py::list map, int seed) {
     TypeId type_id = object_cfg["type_id"].cast<TypeId>();
 
     if (type_id >= object_type_names.size()) {
+      // Sometimes the type_ids are not contiguous, so we need to resize the vector.
       object_type_names.resize(type_id + 1);
     }
 
