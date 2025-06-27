@@ -36,8 +36,8 @@ class PolicyRecord:
                     raise ValueError("Cannot load policy without policy_store or a file:// local path uri")
             else:
                 pr = self._policy_store.load_from_uri(self.uri)
-                # FIX: Access _policy directly to avoid recursion
-                self._cached_policy = pr._policy
+                # FIX: Access _cached_policy directly to avoid recursion
+                self._cached_policy = pr._cached_policy
 
         return self._cached_policy
 

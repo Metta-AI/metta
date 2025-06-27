@@ -435,15 +435,11 @@ class PolicyStore:
             if metadata_only:
                 return cached_pr
             # For full load, check if the policy is already loaded
-            # Use hasattr to safely check if the policy exists
-            try:
-                if hasattr(cached_pr, "_cached_policy") and cached_pr._cached_policy is not None:
-                    return cached_pr
-                elif hasattr(cached_pr, "policy") and cached_pr.policy is not None:
-                    return cached_pr
-            except AttributeError:
-                # If we can't access the policy, we'll reload it below
-                pass
+            # Only check the _cached_policy attribute directly to avoid triggering
+            # the property getter which may cause recursion or errors
+            if hasattr(cached_pr, "_cached_policy") and cached_pr._cached_policy is not None:
+                return cached_pr
+            # If no cached policy, we need to reload it below
 
         if not path.endswith(".pt") and os.path.isdir(path):
             path = os.path.join(path, os.listdir(path)[-1])
