@@ -251,7 +251,6 @@ class MettaGridEnv(PufferEnv, GymEnv):
         self.timer.start("process_episode_stats")
 
         infos.clear()
-        infos["completion_time"] = time.time()
 
         episode_rewards = self._c_env.get_episode_rewards()
         episode_rewards_sum = episode_rewards.sum()
@@ -281,6 +280,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
             "steps": self._steps,
             "resets": self._resets,
             "max_steps": self.max_steps,
+            "completion_time": time.time(),
         }
         infos["attributes"] = attributes
 
