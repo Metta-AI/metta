@@ -349,6 +349,59 @@ class MettaRepo:
             )
             return [row[0] for row in result]
 
+    def get_training_runs(self) -> List[Dict[str, Any]]:
+        """Get all training runs."""
+        with self.connect() as con:
+            result = con.execute(
+                """
+                SELECT id, name, created_at, user_id, finished_at, status, url
+                FROM training_runs
+                ORDER BY created_at DESC
+                """
+            )
+            return [
+                {
+                    "id": str(row[0]),
+                    "name": row[1],
+                    "created_at": row[2].isoformat(),
+                    "user_id": row[3],
+                    "finished_at": row[4].isoformat() if row[4] else None,
+                    "status": row[5],
+                    "url": row[6],
+                }
+                for row in result
+            ]
+
+    def get_training_run(self, run_id: str) -> Dict[str, Any] | None:
+        """Get a specific training run by ID."""
+        try:
+            run_uuid = uuid.UUID(run_id)
+        except ValueError:
+            return None
+
+        with self.connect() as con:
+            result = con.execute(
+                """
+                SELECT id, name, created_at, user_id, finished_at, status, url
+                FROM training_runs
+                WHERE id = %s
+                """,
+                (run_uuid,),
+            ).fetchone()
+
+            if result is None:
+                return None
+
+            return {
+                "id": str(result[0]),
+                "name": result[1],
+                "created_at": result[2].isoformat(),
+                "user_id": result[3],
+                "finished_at": result[4].isoformat() if result[4] else None,
+                "status": result[5],
+                "url": result[6],
+            }
+
     def _hash_token(self, token: str) -> str:
         """Hash a token for secure storage."""
         return hashlib.sha256(token.encode()).hexdigest()

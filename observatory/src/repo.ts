@@ -63,6 +63,20 @@ export type SavedDashboardListResponse = {
   dashboards: SavedDashboard[]
 }
 
+export type TrainingRun = {
+  id: string
+  name: string
+  created_at: string
+  user_id: string
+  finished_at: string | null
+  status: string
+  url: string | null
+}
+
+export type TrainingRunListResponse = {
+  training_runs: TrainingRun[]
+}
+
 export type TableInfo = {
   table_name: string
   column_count: number
@@ -127,6 +141,16 @@ export interface Repo {
   listTables(): Promise<TableInfo[]>
   getTableSchema(tableName: string): Promise<TableSchema>
   executeQuery(request: SQLQueryRequest): Promise<SQLQueryResponse>
+
+  // Training run methods
+  getTrainingRuns(): Promise<TrainingRunListResponse>
+  getTrainingRun(runId: string): Promise<TrainingRun>
+  getTrainingRunHeatmapData(
+    runId: string,
+    metric: string,
+    suite: string,
+    groupMetric: GroupHeatmapMetric
+  ): Promise<HeatmapData>
 }
 
 export class ServerRepo implements Repo {
@@ -254,4 +278,26 @@ export class ServerRepo implements Repo {
   async executeQuery(request: SQLQueryRequest): Promise<SQLQueryResponse> {
     return this.apiCallWithBody<SQLQueryResponse>('/sql/query', request)
   }
+
+  // Training run methods
+  async getTrainingRuns(): Promise<TrainingRunListResponse> {
+    return this.apiCall<TrainingRunListResponse>('/dashboard/training-runs')
+  }
+
+  async getTrainingRun(runId: string): Promise<TrainingRun> {
+    return this.apiCall<TrainingRun>(`/dashboard/training-runs/${encodeURIComponent(runId)}`)
+  }
+
+  async getTrainingRunHeatmapData(
+    runId: string,
+    metric: string,
+    suite: string,
+    groupMetric: GroupHeatmapMetric
+  ): Promise<HeatmapData> {
+    return this.apiCallWithBody<HeatmapData>(
+      `/dashboard/training-runs/${encodeURIComponent(runId)}/suites/${encodeURIComponent(suite)}/metrics/${encodeURIComponent(metric)}/heatmap`,
+      { group_metric: groupMetric }
+    )
+  }
 }
+
