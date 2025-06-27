@@ -3,20 +3,19 @@
 import torch
 from tensordict import TensorDict
 
-from metta.agent.lib.obs_feature_remapper import ObsFeatureRemapper
+from metta.agent.lib.obs_tokenizers import ObsTokenPadStrip
 from metta.agent.metta_agent import MettaAgent
 
 
-def test_obs_feature_remapper():
-    """Test that ObsFeatureRemapper correctly remaps feature IDs."""
-    remapper = ObsFeatureRemapper(name="test_remapper")
-    remapper._sources = [{"name": "input"}]
-    remapper._in_tensor_shapes = [[0, 3]]  # Set directly for testing
-    remapper._initialize()  # Call _initialize
+def test_obs_token_pad_strip_remapping():
+    """Test that ObsTokenPadStrip correctly remaps feature IDs."""
+    # Create ObsTokenPadStrip with test shape
+    obs_shape = (4, 3)  # 4 tokens, 3 channels
+    pad_strip = ObsTokenPadStrip(obs_shape=obs_shape, name="test_pad_strip")
+    pad_strip._out_tensor_shape = [0, 3]  # Set output shape
 
     # Create test observations [batch, tokens, 3] where 3 is [coord, feature_id, value]
     batch_size = 2
-    num_tokens = 4
     observations = torch.tensor(
         [
             # Batch 0
@@ -42,14 +41,14 @@ def test_obs_feature_remapper():
     remap_table[3] = 1
     remap_table[5] = 2
     remap_table[7] = 4
-    remapper.update_remapping(remap_table)
+    pad_strip.update_feature_remapping(remap_table)
 
     # Create input tensor dict
-    td = TensorDict({"input": observations})
+    td = TensorDict({"x": observations})
 
-    # Process through remapper
-    output_td = remapper._forward(td)
-    remapped_obs = output_td["test_remapper"]
+    # Process through pad strip
+    output_td = pad_strip._forward(td)
+    remapped_obs = output_td["test_pad_strip"]
 
     # Verify remapping
     assert remapped_obs[0, 0, 1] == 1  # 3->1
@@ -59,8 +58,10 @@ def test_obs_feature_remapper():
     assert remapped_obs[1, 1, 1] == 2  # 5->2
 
     # Verify other fields remain unchanged
-    assert torch.equal(remapped_obs[..., 0], observations[..., 0])  # Coords unchanged
-    assert torch.equal(remapped_obs[..., 2], observations[..., 2])  # Values unchanged
+    assert remapped_obs[0, 0, 0] == 0x12  # Coords unchanged
+    assert remapped_obs[0, 1, 0] == 0x34
+    assert remapped_obs[0, 0, 2] == 10  # Values unchanged
+    assert remapped_obs[0, 1, 2] == 20
 
 
 def test_feature_remapping_in_agent():
@@ -99,6 +100,14 @@ def test_feature_remapping_in_agent():
         "mineral": {"id": 7, "type": "scalar", "normalization": 100.0},  # Was 3, now 7
     }
 
+    # Create a mock _obs_ component
+    class MockObsComponent:
+        def update_feature_remapping(self, remap_table):
+            self.remap_table = remap_table
+
+    mock_obs = MockObsComponent()
+    agent.components["_obs_"] = mock_obs
+
     # Bind _create_feature_remapping_table method to mock agent
     agent._create_feature_remapping_table = lambda features: MettaAgent._create_feature_remapping_table(agent, features)
 
@@ -108,6 +117,10 @@ def test_feature_remapping_in_agent():
     assert hasattr(agent, "feature_id_remap")
     assert agent.feature_id_remap[5].item() == 2  # hp: 5->2
     assert agent.feature_id_remap[7].item() == 3  # mineral: 7->3
+
+    # Verify ObsTokenPadStrip was updated
+    assert hasattr(mock_obs, "remap_table")
+    assert torch.equal(mock_obs.remap_table, agent.feature_id_remap)
 
     # Identity mappings should remain
     assert agent.feature_id_remap[0].item() == 0  # type_id unchanged

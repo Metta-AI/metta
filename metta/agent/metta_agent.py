@@ -9,7 +9,6 @@ from omegaconf import DictConfig, ListConfig, OmegaConf
 from torch import nn
 from torch.nn.parallel import DistributedDataParallel
 
-from metta.agent.lib.obs_feature_remapper import ObsFeatureRemapper
 from metta.agent.policy_state import PolicyState
 from metta.agent.util.debug import assert_shape
 from metta.agent.util.distribution_utils import evaluate_actions, sample_actions
@@ -117,26 +116,6 @@ class MettaAgent(nn.Module):
             logger.info(f"calling hydra instantiate from MettaAgent __init__ for {component_name}")
             component = hydra.utils.instantiate(component_cfgs[component_key], **self.agent_attributes)
             self.components[component_name] = component
-
-        # Always inject ObsFeatureRemapper since all observations start as tokens
-        # Even box-based policies use a token-to-box converter, so feature remapping is always needed
-        logger.info("Injecting ObsFeatureRemapper for feature ID remapping")
-
-        # Create the remapper component
-        remapper = ObsFeatureRemapper(name="_obs_feature_remapper_")
-        self.components["_obs_feature_remapper_"] = remapper
-
-        # Rewire the observation pipeline
-        # Find all components that use _obs_ as a source and update them to use the remapper
-        for name, component in self.components.items():
-            if hasattr(component, "_sources") and component._sources is not None:
-                for source in component._sources:
-                    if source.get("name") == "_obs_":
-                        logger.info(f"Rewiring {name} to use _obs_feature_remapper_ instead of _obs_")
-                        source["name"] = "_obs_feature_remapper_"
-
-        # Set the remapper's source to _obs_
-        remapper._sources = [{"name": "_obs_"}]
 
         component = self.components["_value_"]
         self._setup_components(component)
@@ -260,9 +239,12 @@ class MettaAgent(nn.Module):
         if remapped_count > 0:
             logger.info(f"Created feature remapping table with {remapped_count} remapped features")
 
-            # Update the observation processing components with the remapping
-            if "_obs_feature_remapper_" in self.components:
-                self.components["_obs_feature_remapper_"].update_remapping(self.feature_id_remap)
+            # Update the ObsTokenPadStrip component with the remapping
+            if "_obs_" in self.components:
+                obs_component = self.components["_obs_"]
+                if hasattr(obs_component, "update_feature_remapping"):
+                    obs_component.update_feature_remapping(self.feature_id_remap)
+                    logger.info("Updated ObsTokenPadStrip with feature remapping")
 
             # Update feature normalizations for downstream components
             # When feature IDs are remapped, we need to ensure normalization values
