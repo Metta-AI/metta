@@ -14,7 +14,7 @@ game:
     room:
       _target_: metta.mettagrid.room.ascii.Ascii
       border_width: 1
-      uri: "configs/env/mettagrid/maps/memory/memory_training/hc190.map"
+      uri: "configs/env/mettagrid/maps/memory_training/hc190.map"
 
   objects:
     altar:

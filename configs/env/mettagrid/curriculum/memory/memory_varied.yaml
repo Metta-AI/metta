@@ -1,4 +1,4 @@
-_target_: mettagrid.curriculum.LowRewardCurriculum
+_target_: metta.mettagrid.curriculum.low_reward.LowRewardCurriculum
 
 tasks:
   # Memory training environments - easy, medium, hard
@@ -18,4 +18,3 @@ tasks:
   /env/mettagrid/memory/training/easy_short: 1
   /env/mettagrid/memory/training/medium_short: 1
   /env/mettagrid/memory/training/hard_short: 1
-
