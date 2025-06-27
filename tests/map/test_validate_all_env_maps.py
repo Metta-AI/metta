@@ -1,4 +1,5 @@
 import pytest
+from botocore.exceptions import NoCredentialsError
 
 from metta.common.util.mettagrid_cfgs import MettagridCfgFileMetadata
 from metta.common.util.resolvers import register_resolvers
@@ -23,8 +24,6 @@ def map_or_env_configs() -> list[MettagridCfgFileMetadata]:
         # have unset params
         "game/map_builder/load.yaml",
         "game/map_builder/load_random.yaml",
-        # requires credentials
-        "terrain_from_numpy.yaml",
     ]
 
     # exclude some configs that won't work
@@ -38,5 +37,7 @@ def test_validate_cfg(cfg_metadata):
     map_cfg = cfg_metadata.get_cfg().get_map_cfg()
     try:
         map_builder_cfg_to_storable_map(map_cfg)
+    except NoCredentialsError as e:
+        pytest.skip(f"Skipping {cfg_metadata.path} because it requires AWS credentials: {e}")
     except Exception as e:
         pytest.fail(f"Failed to validate map config {cfg_metadata.path}: {e}")
