@@ -1094,7 +1094,7 @@ def test_cleanup_old_checkpoints_preserves_order():
         print(f"  {name}: elapsed={cp['elapsed_time']}, steps={cp['steps']}")
 
     # Trigger cleanup (max_laps=3 means max_checkpoints=4, so 6 > 4 triggers cleanup)
-    stopwatch._cleanup_old_checkpoints(timer)
+    timer.cleanup_old_checkpoints()
 
     # Should now have 4 checkpoints (max_laps + 1)
     assert len(timer.checkpoints) == 4
@@ -1151,7 +1151,7 @@ def test_multiple_laps_after_cleanup():
         print(f"  {name}: elapsed={cp['elapsed_time']}, steps={cp['steps']}")
 
     # Force cleanup (max_laps=2 means keep 3 checkpoints)
-    stopwatch._cleanup_old_checkpoints(timer)
+    timer.cleanup_old_checkpoints()
 
     print("\nAfter cleanup:")
     for name, cp in timer.checkpoints.items():

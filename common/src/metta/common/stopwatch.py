@@ -40,6 +40,16 @@ class Timer:
     def is_running(self) -> bool:
         return self.start_time is not None
 
+    def cleanup_old_checkpoints(self):
+        """Remove oldest checkpoints if we exceed max_laps limit."""
+        max_checkpoints = self.max_laps + 1
+        if len(self.checkpoints) > max_checkpoints:
+            # Since checkpoints are added in chronological order and dicts maintain
+            # insertion order (Python 3.7+), we can just keep the last max_checkpoints items
+            checkpoint_items = list(self.checkpoints.items())
+            checkpoints_to_keep = checkpoint_items[-max_checkpoints:]
+            self.checkpoints = dict(checkpoints_to_keep)
+
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "Timer":
         """Create a Timer instance from a dictionary created using .asdict()."""
@@ -211,17 +221,6 @@ class Stopwatch:
             if name not in self._timers:
                 self._timers[name] = self._create_timer(name)
             return self._timers[name]
-
-    @with_lock
-    def _cleanup_old_checkpoints(self, timer: Timer):
-        """Remove oldest checkpoints if we exceed max_laps limit."""
-        max_checkpoints = timer.max_laps + 1
-        if len(timer.checkpoints) > max_checkpoints:
-            # Since checkpoints are added in chronological order and dicts maintain
-            # insertion order (Python 3.7+), we can just keep the last max_checkpoints items
-            checkpoint_items = list(timer.checkpoints.items())
-            checkpoints_to_keep = checkpoint_items[-max_checkpoints:]
-            timer.checkpoints = dict(checkpoints_to_keep)
 
     @with_lock
     def reset(self, name: str | None = None):
@@ -399,8 +398,7 @@ class Stopwatch:
             checkpoint_name = f"_lap_{len(timer.checkpoints) + 1}"
 
         timer.checkpoints[checkpoint_name] = Checkpoint(elapsed_time=elapsed, steps=steps)
-
-        self._cleanup_old_checkpoints(timer)
+        timer.cleanup_old_checkpoints()
 
     def checkpoint_all(self, steps: int | None = None, checkpoint_name: str | None = None):
         """Record a checkpoint on all active timers.

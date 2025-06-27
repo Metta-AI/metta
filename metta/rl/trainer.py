@@ -895,10 +895,6 @@ class MettaTrainer:
                     if key != "name":
                         weight_stats[f"weights/{key}/{name}"] = value
 
-        epoch_steps = self.timer.get_lap_steps()
-        assert epoch_steps is not None
-        logger.info(f"epoch_steps = {epoch_steps}")
-
         elapsed_times = self.timer.get_all_elapsed()
         wall_time = self.timer.get_elapsed()
         train_time = elapsed_times.get("_rollout", 0) + elapsed_times.get("_train", 0)
@@ -913,6 +909,10 @@ class MettaTrainer:
             "metric/total_time": wall_time,
             "metric/train_time": train_time,
         }
+
+        epoch_steps = self.timer.get_lap_steps()
+        assert epoch_steps is not None
+        logger.info(f"epoch_steps = {epoch_steps}")
 
         epoch_steps_per_second = epoch_steps / wall_time_for_lap if wall_time_for_lap > 0 else 0
         steps_per_second = self.timer.get_rate(self.agent_step) if wall_time > 0 else 0
