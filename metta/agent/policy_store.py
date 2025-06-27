@@ -187,7 +187,7 @@ class PolicyStore:
         path = pr.uri.split("file://")[1]
 
         if os.path.exists(path):
-            logger.warning(f"Overwriting existing policy at {path}using torch.package")
+            logger.warning(f"Overwriting existing policy at {path} using torch.package")
         else:
             logger.info(f"Saving policy to {path} using torch.package")
 
