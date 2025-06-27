@@ -44,14 +44,14 @@ def create_sql_router(metta_repo: MettaRepo) -> APIRouter:
             with metta_repo.connect() as con:
                 # Get all tables except schema_migrations
                 tables_query = """
-                    SELECT 
+                    SELECT
                         t.table_name,
                         COUNT(c.column_name) as column_count
                     FROM information_schema.tables t
-                    LEFT JOIN information_schema.columns c 
-                        ON t.table_name = c.table_name 
+                    LEFT JOIN information_schema.columns c
+                        ON t.table_name = c.table_name
                         AND t.table_schema = c.table_schema
-                    WHERE t.table_schema = 'public' 
+                    WHERE t.table_schema = 'public'
                         AND t.table_type = 'BASE TABLE'
                         AND t.table_name != 'schema_migrations'
                     GROUP BY t.table_name
@@ -71,7 +71,7 @@ def create_sql_router(metta_repo: MettaRepo) -> APIRouter:
                 return table_info
 
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Error listing tables: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Error listing tables: {str(e)}") from e
 
     @router.get("/tables/{table_name}/schema", response_model=TableSchema)
     async def get_table_schema(table_name: str, user: str = user_or_token) -> TableSchema:
@@ -84,14 +84,14 @@ def create_sql_router(metta_repo: MettaRepo) -> APIRouter:
 
                 # Get column information
                 schema_query = """
-                    SELECT 
+                    SELECT
                         column_name,
                         data_type,
                         is_nullable,
                         column_default,
                         character_maximum_length
                     FROM information_schema.columns
-                    WHERE table_schema = 'public' 
+                    WHERE table_schema = 'public'
                         AND table_name = %s
                     ORDER BY ordinal_position
                 """
@@ -118,7 +118,7 @@ def create_sql_router(metta_repo: MettaRepo) -> APIRouter:
         except HTTPException:
             raise
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Error getting table schema: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Error getting table schema: {str(e)}") from e
 
     @router.post("/query", response_model=SQLQueryResponse)
     async def execute_query(request: SQLQueryRequest, user: str = user_or_token) -> SQLQueryResponse:
@@ -165,22 +165,22 @@ def create_sql_router(metta_repo: MettaRepo) -> APIRouter:
             return await asyncio.wait_for(run_query(), timeout=21.0)
 
         except asyncio.TimeoutError:
-            raise HTTPException(status_code=408, detail="Query execution timed out after 20 seconds")
+            raise HTTPException(status_code=408, detail="Query execution timed out after 20 seconds") from None
         except pg_errors.QueryCanceled:
-            raise HTTPException(status_code=408, detail="Query execution timed out after 20 seconds")
+            raise HTTPException(status_code=408, detail="Query execution timed out after 20 seconds") from None
         except pg_errors.SyntaxError as e:
-            raise HTTPException(status_code=400, detail=f"SQL syntax error: {str(e)}")
+            raise HTTPException(status_code=400, detail=f"SQL syntax error: {str(e)}") from None
         except pg_errors.UndefinedTable as e:
-            raise HTTPException(status_code=400, detail=f"Table not found: {str(e)}")
+            raise HTTPException(status_code=400, detail=f"Table not found: {str(e)}") from None
         except pg_errors.UndefinedColumn as e:
-            raise HTTPException(status_code=400, detail=f"Column not found: {str(e)}")
+            raise HTTPException(status_code=400, detail=f"Column not found: {str(e)}") from None
         except pg_errors.InsufficientPrivilege as e:
-            raise HTTPException(status_code=403, detail=f"Insufficient privileges: {str(e)}")
+            raise HTTPException(status_code=403, detail=f"Insufficient privileges: {str(e)}") from None
         except HTTPException:
             raise
         except Exception as e:
             # Log the full error for debugging but return a generic message
             error_type = type(e).__name__
-            raise HTTPException(status_code=500, detail=f"Query execution failed ({error_type}): {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Query execution failed ({error_type}): {str(e)}") from e
 
     return router
