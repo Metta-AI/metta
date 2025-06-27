@@ -984,7 +984,8 @@ class MettaTrainer:
                 **timing_stats,
                 **metric_stats,
                 **self.grad_stats,
-            }
+            },
+            step=self.agent_step,
         )
 
         self.stats.clear()
