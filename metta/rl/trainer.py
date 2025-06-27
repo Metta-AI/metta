@@ -150,6 +150,12 @@ class MettaTrainer:
             if checkpoint.stopwatch_state is not None:
                 logger.info("Restoring timer state from checkpoint")
                 self.timer.load_state(checkpoint.stopwatch_state, resume_running=True)
+            if checkpoint.policy_path:
+                logger.info(f"Checkpoint contains policy path: {checkpoint.policy_path}")
+            else:
+                logger.warning(
+                    "Checkpoint does not contain a policy path - will try to find policy through other means"
+                )
 
         # Note that these fields are specific to MettaGridEnv, which is why we can't keep
         # self.vecenv.driver_env as just the parent class pufferlib.PufferEnv
@@ -171,6 +177,16 @@ class MettaTrainer:
             fresh_policy = fresh_policy_record.policy()
             fresh_policy.activate_actions(actions_names, actions_max_params, self.device)
             fresh_policy.load_state_dict(loaded_policy.state_dict(), strict=False)
+
+            # Preserve metadata from the loaded policy record when creating fresh record
+            if checkpoint and hasattr(policy_record, "metadata"):
+                # Update fresh record's metadata with loaded policy's metadata
+                fresh_policy_record.metadata.update(policy_record.metadata)
+                # Also ensure epoch and agent_step match checkpoint if available
+                if checkpoint.epoch > 0:
+                    fresh_policy_record.metadata["epoch"] = checkpoint.epoch
+                if checkpoint.agent_step > 0:
+                    fresh_policy_record.metadata["agent_step"] = checkpoint.agent_step
 
             self.initial_policy_record = fresh_policy_record
             self.policy = fresh_policy
@@ -686,13 +702,24 @@ class MettaTrainer:
         if self.kickstarter.enabled and self.kickstarter.teacher_uri is not None:
             extra_args["teacher_pr_uri"] = self.kickstarter.teacher_uri
 
+        # Store just the model filename instead of full URI for portability across restarts
+        policy_filename = None
+        if self.latest_saved_policy_uri:
+            if self.latest_saved_policy_uri.startswith("file://"):
+                # Extract just the filename from the full path
+                full_path = self.latest_saved_policy_uri[len("file://") :]
+                policy_filename = os.path.basename(full_path)
+            else:
+                # For non-file URIs (e.g., wandb://), store as-is
+                policy_filename = self.latest_saved_policy_uri
+
         checkpoint = TrainerCheckpoint(
             agent_step=self.agent_step,
             epoch=self.epoch,
             total_agent_step=self.agent_step * self._world_size,
             optimizer_state_dict=self.optimizer.state_dict(),
             stopwatch_state=self.timer.save_state(),
-            policy_path=self.latest_saved_policy_uri,
+            policy_path=policy_filename,
             extra_args=extra_args,
         )
         checkpoint.save(self.cfg.run_dir)
@@ -1191,20 +1218,42 @@ class MettaTrainer:
 
         # Try checkpoint first
         if checkpoint and checkpoint.policy_path:
-            logger.info(f"Loading policy from checkpoint: {checkpoint.policy_path}")
-            return policy_store.policy(checkpoint.policy_path)
+            policy_path = checkpoint.policy_path
+
+            # If it's just a filename (not a URI), reconstruct the full path
+            if not any(prefix in policy_path for prefix in ["://", "/"]):
+                # It's a relative filename, construct full path in checkpoint directory
+                full_path = os.path.join(trainer_cfg.checkpoint_dir, policy_path)
+                policy_path = f"file://{full_path}"
+            elif policy_path.startswith("/") and "://" not in policy_path:
+                # It's an absolute path without protocol, add file:// prefix
+                policy_path = f"file://{policy_path}"
+
+            logger.info(f"Loading policy from checkpoint: {policy_path}")
+            try:
+                return policy_store.policy(policy_path)
+            except Exception as e:
+                logger.error(f"Failed to load policy from checkpoint path {policy_path}: {e}")
+                logger.info("Will try other methods to find policy")
 
         # Try initial_policy from config
         if trainer_cfg.initial_policy and (initial_uri := trainer_cfg.initial_policy.uri) is not None:
             logger.info(f"Loading initial policy URI: {initial_uri}")
-            return policy_store.policy(initial_uri)
+            try:
+                return policy_store.policy(initial_uri)
+            except Exception as e:
+                logger.error(f"Failed to load initial policy from {initial_uri}: {e}")
 
         # Try default checkpoint path
         policy_path = os.path.join(trainer_cfg.checkpoint_dir, policy_store.make_model_name(0))
         if os.path.exists(policy_path):
-            logger.info(f"Loading policy from checkpoint: {policy_path}")
-            return policy_store.policy(policy_path)
+            logger.info(f"Loading policy from default checkpoint path: {policy_path}")
+            try:
+                return policy_store.policy(f"file://{policy_path}")
+            except Exception as e:
+                logger.error(f"Failed to load policy from default path {policy_path}: {e}")
 
+        logger.info("No existing policy found, will create new one")
         return None
 
     def _create_policy(self, policy_store, metta_grid_env) -> PolicyRecord:
