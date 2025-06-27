@@ -63,6 +63,33 @@ export type SavedDashboardListResponse = {
   dashboards: SavedDashboard[]
 }
 
+export type TableInfo = {
+  table_name: string
+  column_count: number
+  row_count: number
+}
+
+export type TableSchema = {
+  table_name: string
+  columns: Array<{
+    name: string
+    type: string
+    nullable: boolean
+    default: string | null
+    max_length: number | null
+  }>
+}
+
+export type SQLQueryRequest = {
+  query: string
+}
+
+export type SQLQueryResponse = {
+  columns: string[]
+  rows: any[][]
+  row_count: number
+}
+
 /**
  * Interface for data fetching.
  *
@@ -95,6 +122,11 @@ export interface Repo {
 
   // User methods
   whoami(): Promise<{ user_email: string }>
+
+  // SQL query methods
+  listTables(): Promise<TableInfo[]>
+  getTableSchema(tableName: string): Promise<TableSchema>
+  executeQuery(request: SQLQueryRequest): Promise<SQLQueryResponse>
 }
 
 export class ServerRepo implements Repo {
@@ -208,5 +240,18 @@ export class ServerRepo implements Repo {
   // User methods
   async whoami(): Promise<{ user_email: string }> {
     return this.apiCall<{ user_email: string }>('/whoami')
+  }
+
+  // SQL query methods
+  async listTables(): Promise<TableInfo[]> {
+    return this.apiCall<TableInfo[]>('/sql/tables')
+  }
+
+  async getTableSchema(tableName: string): Promise<TableSchema> {
+    return this.apiCall<TableSchema>(`/sql/tables/${encodeURIComponent(tableName)}/schema`)
+  }
+
+  async executeQuery(request: SQLQueryRequest): Promise<SQLQueryResponse> {
+    return this.apiCallWithBody<SQLQueryResponse>('/sql/query', request)
   }
 }
