@@ -240,8 +240,6 @@ class TestSweepPipelineIntegration:
 
             # Create a copy of the base config for testing
             test_config = OmegaConf.create({"trainer": base_train_config.trainer})
-            original_lr = test_config.trainer.optimizer.learning_rate
-            original_batch_size = test_config.trainer.batch_size
 
             # Apply suggestion
             apply_protein_suggestion(test_config, suggestion)
@@ -354,7 +352,7 @@ class TestSweepPipelineIntegration:
             observation = metta_protein._protein.success_observations[0]
             assert observation["output"] == objective_value
             assert observation["cost"] == training_cost
-            assert observation["is_failure"] == False
+            assert not observation["is_failure"]
 
         finally:
             wandb.finish()
@@ -488,7 +486,7 @@ class TestSweepPipelineIntegration:
 
                 from metta.sweep.protein_wandb import create_sweep
 
-                sweep_id = create_sweep("wandb_integration_test", "test_entity", "test_integration_project")
+                create_sweep("wandb_integration_test", "test_entity", "test_integration_project")
 
             # Create MettaProtein instance
             metta_protein = MettaProtein(base_sweep_config, wandb.run)
