@@ -1,20 +1,20 @@
 defaults:
   - /env/mettagrid/mettagrid@
-sampling: 1
 
+sampling: 1
 game:
   num_agents: 16
-  max_steps: 100
+  max_steps: 60
   agent:
     rewards:
       heart: 1
   map_builder:
     _target_: metta.mettagrid.room.multi_room.MultiRoom
-    num_rooms: 4
+    num_rooms: 2
     room:
       _target_: metta.mettagrid.room.ascii.Ascii
       border_width: 1
-      uri: "configs/env/mettagrid/maps/memory_training/hard.map"
+      uri: "configs/env/mettagrid/maps/memory_training/easy.map"
 
   objects:
     altar:
