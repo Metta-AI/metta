@@ -10,7 +10,3 @@ tasks:
   /env/mettagrid/navigation_sequence/experiments/hard_mem_balanced: 1
   /env/mettagrid/navigation_sequence/experiments/hard_mem_dense: 1
   /env/mettagrid/navigation_sequence/experiments/hard_mem_sparse: 1
-
-env_overrides:
-  game:
-    num_agents: 16

@@ -21,7 +21,6 @@ grad_mean_variance_interval: 0 # 0 to disable
 replay_interval: ${trainer.evaluate_interval}
 replay_dir: s3://softmax-public/replays/${run}
 
-
 total_timesteps: 50_000_000_000
 
 clip_coef: 0.1
@@ -59,8 +58,8 @@ l2_init_loss_coef: 0
 
 # Prioritized experience replay parameters
 prioritized_experience_replay:
-  prio_alpha: 0.0  # Default to uniform sampling (0.0 = uniform, >0 = prioritized)
-  prio_beta0: 0.6  # Initial importance sampling correction
+  prio_alpha: 0.0 # Default to uniform sampling (0.0 = uniform, >0 = prioritized)
+  prio_beta0: 0.6 # Initial importance sampling correction
 
 norm_adv: true
 clip_vloss: true
@@ -68,8 +67,8 @@ target_kl: null
 
 # V-trace clipping parameters (for off-policy corrections)
 vtrace:
-  vtrace_rho_clip: 1.0  # Default: on-policy (no off-policy correction)
-  vtrace_c_clip: 1.0    # Default: on-policy bootstrapping
+  vtrace_rho_clip: 1.0 # Default: on-policy (no off-policy correction)
+  vtrace_c_clip: 1.0 # Default: on-policy bootstrapping
 
 zero_copy: true
 require_contiguous_env_ids: false
