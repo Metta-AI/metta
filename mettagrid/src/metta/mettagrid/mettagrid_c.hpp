@@ -44,6 +44,7 @@ public:
   unsigned int max_steps;
 
   std::vector<std::string> inventory_item_names;
+  std::vector<std::string> object_type_names;
 
   // Python API methods
   py::tuple reset();
@@ -68,7 +69,7 @@ public:
   py::object observation_space();
   py::list action_success();
   py::list max_action_args();
-  py::list object_type_names();
+  py::list object_type_names_py();
   py::list inventory_item_names_py();
   py::array_t<unsigned int> get_agent_groups() const;
   Agent* create_agent(int r, int c, const py::dict& agent_group_cfg_py);

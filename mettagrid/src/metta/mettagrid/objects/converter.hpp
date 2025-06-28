@@ -23,6 +23,7 @@ struct ConverterConfig {
   ObsType color;
   std::vector<std::string> inventory_item_names;
   TypeId type_id;
+  std::string type_name;
 };
 
 class Converter : public HasInventory {
@@ -105,7 +106,7 @@ public:
         cooldown(cfg.cooldown),
         color(cfg.color),
         stats(cfg.inventory_item_names) {
-    GridObject::init(cfg.type_id, GridLocation(r, c, GridLayer::Object_Layer));
+    GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c, GridLayer::Object_Layer));
     this->converting = false;
     this->cooling_down = false;
 
