@@ -10,18 +10,28 @@ import torch
 from torch import nn
 from torch.package.package_importer import PackageImporter
 
+from metta.agent.policy_metatdata import PolicyMetadata
+
 logger = logging.getLogger("policy_record")
 
 
 class PolicyRecord:
     """A record containing a policy and its metadata."""
 
-    def __init__(self, policy_store, name: str, uri: str, metadata: dict):
+    def __init__(self, policy_store, run_name: str, uri: str, metadata: PolicyMetadata):
         self._policy_store = policy_store
-        self.name = name
+        self.run_name = run_name  # Human-readable identifier (e.g., from wandb)
         self.uri: str = uri
         self.metadata = metadata
         self._cached_policy = None
+
+    @property
+    def local_filename(self) -> str | None:
+        """Extract the local filename if this is a file:// URI."""
+        if not self.uri.startswith("file://"):
+            raise ValueError(f"local_filename() only applies to file:// URIs, but got: {self.uri}.")
+
+        return self.uri.split("/")[-1]  # e.g., "model_0042.pt"
 
     @property
     def policy(self) -> nn.Module:
@@ -54,7 +64,7 @@ class PolicyRecord:
         if not isinstance(policy, nn.Module):
             raise TypeError(f"Policy must be a torch.nn.Module, got {type(policy).__name__}")
         self._cached_policy = policy
-        logger.info(f"Policy overwritten for {self.name}")
+        logger.info(f"Policy overwritten for {self.run_name}")
 
     def policy_as_metta_agent(self):
         """Return the policy, ensuring it's a MettaAgent type."""
@@ -129,7 +139,7 @@ class PolicyRecord:
     def __repr__(self):
         """Generate a detailed representation of the PolicyRecord."""
         # Basic policy record info
-        lines = [f"PolicyRecord(name={self.name}, uri={self.uri})"]
+        lines = [f"PolicyRecord(name={self.run_name}, uri={self.uri})"]
 
         # Add key metadata if available
         important_keys = ["epoch", "agent_step", "generation", "score"]
