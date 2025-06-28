@@ -188,7 +188,7 @@ class TestWandbProtein:
             assert wandb.run.summary.get("protein.state") is None
 
             # Create WandbProtein
-            wandb_protein = WandbProtein(mock_protein)
+            _ = WandbProtein(mock_protein)
 
             # After initialization, protein state should be set
             assert wandb.run.summary.get("protein.state") == "running"
