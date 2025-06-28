@@ -127,7 +127,7 @@ class CLIAuthenticator:
     def _open_browser(self, url: str) -> None:
         """Open the default browser to the authentication URL"""
         if not webbrowser.open(url):
-            print(f"Failed to open browser automatically: {e}")
+            print("Failed to open browser automatically")
             print(f"Please manually visit: {url}")
 
     def _save_token(self, token: str) -> None:
