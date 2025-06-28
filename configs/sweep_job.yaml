@@ -4,37 +4,36 @@ defaults:
   - agent: fast
   - sim: sweep_eval
   - trainer: trainer
-  - sweep: quick
+  - sweep: cogeval_sweep
   - _self_
 
 cmd: sweep
 sweep_run: ???
 
-# Override device for macOS (no CUDA support)
-device: cpu
+# Use default device (GPU if available)
+# device: cpu  # Uncomment for CPU-only training
 
 trainer:
-  # Ultra-fast training for sweep tests
-  total_timesteps: 1000  # Minimal training
-  evaluate_interval: 1000  # Very frequent evaluation
-  batch_size: 3200  # Must be >= 2 agents * 64 bptt_horizon = 128
-  minibatch_size: 1600
-  checkpoint_interval: 1000  # No checkpointing during short runs
-  wandb_checkpoint_interval: 1000
-  curriculum: /env/mettagrid/curriculum/simple  # Use proper curriculum path
-  num_workers: 1  # Single worker
-  forward_pass_minibatch_target_size: 2  # Minimal batch size for 2 agents
-  async_factor: 1
+  # Proper training configuration for cogeval sweep
+  total_timesteps: 50_000_000_000  # 50B timesteps - will be overridden by sweep
+  evaluate_interval: 300  # Evaluate every 300 epochs
+  batch_size: 524288  # Large batch size - will be overridden by sweep
+  minibatch_size: 16384  # Standard minibatch size - will be overridden by sweep
+  checkpoint_interval: 60  # Checkpoint every 60 epochs
+  wandb_checkpoint_interval: 300  # Upload to wandb every 300 epochs
+  curriculum: /env/mettagrid/curriculum/simple
+  num_workers: 8  # Multiple workers for faster training
+  forward_pass_minibatch_target_size: 4096  # Standard target size
+  async_factor: 2  # Standard async factor
   env_overrides:
     game:
-      max_steps: 10  # Very short episodes
-      num_agents: 2  # Minimal agents
+      max_steps: 1000  # Standard episode length - will be overridden by sweep
+      num_agents: 16  # Standard agent count
 
-# TODO Check what sim is about.
 sim:
   name: sweep_eval  # Required field
-  num_episodes: 1  # Single episode for ultra-fast evaluation
-  max_time_s: 60
+  num_episodes: 100  # Proper evaluation with 100 episodes
+  max_time_s: 600  # 10 minutes for evaluation
   env_overrides: {}
   simulations:
     simple:
@@ -45,7 +44,7 @@ sweep_job:
   trainer: ${trainer}
   agent: ${agent}
   sweep: ${sweep}
-  device: cpu  # Override cuda default for macOS
+  # device: cpu  # Uncomment for CPU-only training
   sweep_run: ???  # Sweep base name (e.g., "simple_sweep")
 
 sweep_dir: "${.data_dir}/sweep/${.sweep_run}"
