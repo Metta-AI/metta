@@ -58,7 +58,14 @@ def main(cfg: DictConfig | ListConfig) -> int:
     with WandbContext(cfg.wandb, cfg) as wandb_run:
         policy_store = PolicyStore(cfg, wandb_run)
         try:
-            policy_pr = policy_store.policy_record("wandb://run/" + cfg.run)
+            # First get the policy records from the run to find the artifact URI
+            policy_records = policy_store.policy_records("wandb://run/" + cfg.run)
+            if not policy_records:
+                raise ValueError(f"No policy records found for run {cfg.run}")
+
+            # Get the first policy record and load it directly using its wandb URI
+            # This will download the artifact and give us a local path
+            policy_pr = policy_store.load_from_uri(policy_records[0].uri)
         except Exception as e:
             logger.error(f"Error getting policy for run {cfg.run}: {e}")
             WandbProtein._record_failure(wandb_run)
