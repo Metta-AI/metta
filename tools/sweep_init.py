@@ -1,7 +1,24 @@
 #!/usr/bin/env -S uv run
-import json
+
+# NumPy 2.0 compatibility for WandB - must be imported before wandb
 import os
 import sys
+
+# Add the project root to the path
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, project_root)
+
+# Import numpy compatibility before any other imports
+try:
+    from metta.common.util import numpy_compat
+except ImportError:
+    # Fallback: manually add the compatibility
+    import numpy as np
+
+    if not hasattr(np, "byte"):
+        np.byte = np.int8
+
+import json
 import time
 from logging import Logger
 
@@ -16,7 +33,7 @@ from metta.common.util.wandb.sweep import generate_run_id_for_sweep, sweep_id_fr
 from metta.common.util.wandb.wandb_context import WandbContext
 from metta.sim.simulation_config import SimulationSuiteConfig
 from metta.sweep.protein_metta import MettaProtein
-from metta.sweep.protein_wandb import create_sweep
+from metta.sweep.protein_wandb import create_sweep as create_wandb_sweep
 
 
 @hydra.main(config_path="../configs", config_name="sweep_job", version_base=None)
@@ -55,7 +72,7 @@ def create_sweep(cfg: DictConfig | ListConfig, logger: Logger) -> None:
     os.makedirs(cfg.runs_dir, exist_ok=True)
 
     # Create sweep using the standalone function (Protein will control all parameters)
-    sweep_id = create_sweep(cfg.sweep_run, cfg.wandb.entity, cfg.wandb.project)
+    sweep_id = create_wandb_sweep(cfg.sweep_run, cfg.wandb.entity, cfg.wandb.project)
     OmegaConf.save(
         {
             "sweep": cfg.sweep_run,

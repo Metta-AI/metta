@@ -1,7 +1,24 @@
 #!/usr/bin/env -S uv run
-import json
+
+# NumPy 2.0 compatibility for WandB - must be imported before wandb
 import os
 import sys
+
+# Add the project root to the path
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, project_root)
+
+# Import numpy compatibility before any other imports
+try:
+    from metta.common.util import numpy_compat
+except ImportError:
+    # Fallback: manually add the compatibility
+    import numpy as np
+
+    if not hasattr(np, "byte"):
+        np.byte = np.int8
+
+import json
 import time
 
 import hydra
