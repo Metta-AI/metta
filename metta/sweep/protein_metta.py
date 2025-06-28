@@ -2,6 +2,8 @@ import logging
 
 from omegaconf import DictConfig, ListConfig, OmegaConf
 
+from metta.util.numpy.clean_numpy_types import clean_numpy_types
+
 from .protein import Protein
 from .protein_wandb import WandbProtein
 
@@ -14,16 +16,16 @@ class MettaProtein(WandbProtein):
         cfg: DictConfig | ListConfig,
         wandb_run=None,
     ):
-        parameters_dict = OmegaConf.to_container(cfg.sweep.parameters, resolve=True)
+        parameters_dict = OmegaConf.to_container(cfg.parameters, resolve=True)
 
         protein = Protein(
             parameters_dict,
-            cfg.sweep.protein.get("max_suggestion_cost", 3600),
-            cfg.sweep.protein.get("resample_frequency", 0),
-            cfg.sweep.protein.get("num_random_samples", 50),
-            cfg.sweep.protein.get("global_search_scale", 1),
-            cfg.sweep.protein.get("random_suggestions", 1024),
-            cfg.sweep.protein.get("suggestions_per_pareto", 256),
+            cfg.protein.max_suggestion_cost,
+            cfg.protein.resample_frequency,
+            cfg.protein.num_random_samples,
+            cfg.protein.global_search_scale,
+            cfg.protein.random_suggestions,
+            cfg.protein.suggestions_per_pareto,
         )
 
         # Initialize WandbProtein with the created Protein instance
@@ -31,19 +33,5 @@ class MettaProtein(WandbProtein):
 
     def _transform_suggestion(self, suggestion):
         """Transform suggestion format for compatibility with training."""
-        import numpy as np
-
-        def clean_numpy_types(obj):
-            """Recursively convert numpy types to Python native types."""
-            if isinstance(obj, np.ndarray):
-                return obj.item() if obj.size == 1 else obj.tolist()
-            elif isinstance(obj, np.generic):
-                return obj.item()
-            elif isinstance(obj, dict):
-                return {k: clean_numpy_types(v) for k, v in obj.items()}
-            elif isinstance(obj, list):
-                return [clean_numpy_types(v) for v in obj]
-            return obj
-
-        # Convert numpy types to Python native types for OmegaConf compatibility
+        # TODO: Import this
         return clean_numpy_types(suggestion)
