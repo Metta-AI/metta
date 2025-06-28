@@ -96,6 +96,6 @@ default-groups = ["dev"]
 
 [tool.uv.sources]
 pufferlib = { git = "https://github.com/Metta-AI/PufferLib.git", rev = "dcd597ef1a094cc2da886f5a4ab2c7f1b27d0183" }
-app_backend = { workspace = true }
-metta-mettagrid = { workspace = true }
-metta-common = { workspace = true }
+app_backend = { path = "app_backend", editable = true }
+metta-mettagrid = { path = "mettagrid", editable = true }
+metta-common = { path = "common", editable = true }
