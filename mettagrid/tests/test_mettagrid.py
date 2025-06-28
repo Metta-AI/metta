@@ -136,7 +136,7 @@ def test_grid_objects():
     for obj in objects.values():
         if obj.get("type_id") == 1:
             # Walls
-            assert set(obj) == {"type_id"} | common_properties
+            assert set(obj) == {"type_id", "type_name"} | common_properties
         if obj.get("type_id") == 0:
             # Agents
             assert set(obj).issuperset(
