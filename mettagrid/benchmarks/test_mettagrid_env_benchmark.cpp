@@ -79,8 +79,8 @@ py::dict CreateBenchmarkConfig(int num_agents) {
   agent_group1["group_id"] = 0;
   agent_group1["group_reward_pct"] = 0.0f;
   agent_group1["type_id"] = 0;
-  agent_group2["type_name"] = "agent";
-  agent_group2["object_type"] = "agent";
+  agent_group1["type_name"] = "agent";
+  agent_group1["object_type"] = "agent";
 
   agent_group2["freeze_duration"] = 0;
   agent_group2["action_failure_penalty"] = 0;
