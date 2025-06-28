@@ -68,7 +68,6 @@ py::dict CreateBenchmarkConfig(int num_agents) {
   game_cfg["actions"] = actions_cfg;
 
   // Groups configuration
-  py::dict agent_groups;
   py::dict agent_group1, agent_group2;
 
   agent_group1["freeze_duration"] = 0;
@@ -94,9 +93,6 @@ py::dict CreateBenchmarkConfig(int num_agents) {
   agent_group2["type_id"] = 0;
   agent_group2["type_name"] = "agent";
   agent_group2["object_type"] = "agent";
-
-  agent_groups["agent.team1"] = agent_group1;
-  agent_groups["agent.team2"] = agent_group2;
 
   // Objects configuration
   py::dict objects_cfg;

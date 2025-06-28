@@ -121,6 +121,10 @@ MettaGrid::MettaGrid(py::dict cfg, py::list map, int seed) {
       object_type_names[type_id] = key.cast<std::string>();
     }
 
+    if (!object_cfg.contains("object_type")) {
+      throw std::runtime_error("Object type not specified for " + key.cast<std::string>());
+    }
+
     auto object_type = object_cfg["object_type"].cast<std::string>();
     if (object_type == "agent") {
       unsigned int id = object_cfg["group_id"].cast<unsigned int>();
