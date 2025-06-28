@@ -204,8 +204,8 @@ def pareto_points(observations, eps=1e-6):
     for idx, obs in enumerate(observations):
         try:
             higher_score = scores + eps > scores[idx]
-        except:
-            breakpoint()
+        except Exception as e:
+            raise RuntimeError(f"Failed to compare protein scores: {e}") from e
         lower_cost = costs - eps < costs[idx]
         better = higher_score & lower_cost
         better[idx] = False
@@ -233,7 +233,6 @@ class Random:
         return self.hyperparameters.to_dict(self.suggestion, fill), {}
 
     def observe(self, hypers, score, cost, is_failure=False):
-        params = self.hyperparameters.from_dict(hypers)
         self.success_observations.append(
             dict(
                 input=hypers,
@@ -369,26 +368,18 @@ class Protein:
         gp.util.train(self.gp_cost, self.cost_opt)
         self.gp_cost.eval()
         candidates, pareto_idxs = pareto_points(self.success_observations)
-        pareto_costs = np.array([e["cost"] for e in candidates])
         search_centers = np.stack([e["input"] for e in candidates])
         suggestions = self.hyperparameters.sample(len(candidates) * self.suggestions_per_pareto, mu=search_centers)
         suggestions = torch.from_numpy(suggestions)
         with torch.no_grad():
             gp_y_norm, gp_y_norm_var = self.gp_score(suggestions)
-            gp_log_c_norm, gp_log_c_norm_var = self.gp_cost(suggestions)
+            gp_log_c_norm, _ = self.gp_cost(suggestions)
         gp_y_norm = gp_y_norm.numpy()
         gp_log_c_norm = gp_log_c_norm.numpy()
         gp_y = gp_y_norm * (max_score - min_score) + min_score
         gp_log_c = gp_log_c_norm * (log_c_max - log_c_min) + log_c_min
         gp_c = np.exp(gp_log_c)
-        gp_c_min = np.min(gp_c)
-        gp_c_max = np.max(gp_c)
-        gp_c_norm = (gp_c - gp_c_min) / (gp_c_max - gp_c_min + 1e-6)
-        pareto_y = y[pareto_idxs]
-        pareto_c = c[pareto_idxs]
-        pareto_log_c_norm = log_c_norm[pareto_idxs]
-        max_c = np.max(c)
-        min_c = np.min(c)
+
         max_c_mask = gp_c < self.max_suggestion_cost
         target = (1 + self.expansion_rate) * np.random.rand()
         weight = 1 - abs(target - gp_log_c_norm)
