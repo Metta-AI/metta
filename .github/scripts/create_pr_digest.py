@@ -12,13 +12,13 @@ import os
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Set
 
 import requests
 
 
-class GitHubPRDigestCreator:
-    """Creates a digest of merged PRs for a given date range."""
+class PRDigestCreator:
+    """Creates a digest of merged PRs, checking cache before fetching details."""
 
     def __init__(self, token: str, repository: str):
         self.token = token
@@ -31,9 +31,30 @@ class GitHubPRDigestCreator:
                 "User-Agent": "PR-Digest-Creator/1.0",
             }
         )
+        self.summaries_dir = Path("pr-summaries")
+
+    def get_cached_pr_numbers(self) -> Set[int]:
+        """Get set of PR numbers that already have summaries."""
+        cached_prs = set()
+
+        # Check for individual PR summary files
+        if self.summaries_dir.exists():
+            for pr_file in self.summaries_dir.glob("pr_*.txt"):
+                try:
+                    # Extract PR number from filename (pr_1234.txt)
+                    pr_number = int(pr_file.stem.split("_")[1])
+                    cached_prs.add(pr_number)
+                except (ValueError, IndexError):
+                    logging.warning(f"Couldn't parse PR number from {pr_file}")
+
+            logging.info(f"Found {len(cached_prs)} PR summary files in {self.summaries_dir}/")
+        else:
+            logging.info(f"PR summaries directory {self.summaries_dir}/ does not exist yet")
+
+        return cached_prs
 
     def get_merged_prs(self, since: str, until: str) -> List[Dict]:
-        """Fetch merged PRs within the date range."""
+        """Fetch merged PRs within the date range (minimal data)."""
         url = f"https://api.github.com/repos/{self.repository}/pulls"
 
         params = {"state": "closed", "sort": "updated", "direction": "desc", "per_page": 100}
@@ -66,7 +87,16 @@ class GitHubPRDigestCreator:
                 until_dt = datetime.fromisoformat(until.replace("Z", "+00:00"))
 
                 if since_dt <= merged_at <= until_dt:
-                    all_prs.append(pr)
+                    # Store minimal data for cache checking
+                    all_prs.append(
+                        {
+                            "number": pr["number"],
+                            "title": pr["title"],
+                            "merged_at": pr["merged_at"],
+                            "html_url": pr["html_url"],
+                            "author": pr["user"]["login"],
+                        }
+                    )
                     consecutive_old_prs = 0  # Reset counter when we find a recent PR
                     page_found_recent = True
                 elif merged_at < since_dt:
@@ -129,23 +159,54 @@ class GitHubPRDigestCreator:
             return None
 
     def create_digest(self, since: str, until: str) -> List[Dict]:
-        """Create a complete digest of PRs with full details."""
+        """Create a complete digest of PRs with full details, skipping cached ones."""
         logging.info(f"Creating PR digest for {self.repository} from {since} to {until}")
 
-        # Get list of merged PRs
-        merged_prs = self.get_merged_prs(since, until)
-        logging.info(f"Found {len(merged_prs)} merged PRs in date range")
+        # Step 1: Get cached PR numbers
+        cached_pr_numbers = self.get_cached_pr_numbers()
 
-        # Get detailed information for each PR
+        # Step 2: Get list of merged PRs (minimal data)
+        all_merged_prs = self.get_merged_prs(since, until)
+        logging.info(f"Found {len(all_merged_prs)} merged PRs in date range")
+
+        # Step 3: Filter out cached PRs
+        prs_to_fetch = []
+        skipped_prs = []
+
+        for pr in all_merged_prs:
+            if pr["number"] in cached_pr_numbers:
+                skipped_prs.append(pr)
+            else:
+                prs_to_fetch.append(pr)
+
+        logging.info(f"Cache check: {len(skipped_prs)} already cached, {len(prs_to_fetch)} need fetching")
+
+        if skipped_prs:
+            logging.info("Skipped cached PRs:")
+            for pr in skipped_prs[:10]:  # Show first 10
+                logging.info(f"  - PR #{pr['number']}: {pr['title']}")
+            if len(skipped_prs) > 10:
+                logging.info(f"  ... and {len(skipped_prs) - 10} more")
+
+        # Step 4: Get detailed information only for uncached PRs
         detailed_prs = []
-        for i, pr in enumerate(merged_prs):
-            logging.info(f"Fetching details for PR {i + 1}/{len(merged_prs)}: #{pr['number']}")
+        for i, pr in enumerate(prs_to_fetch):
+            logging.info(f"Fetching details for PR {i + 1}/{len(prs_to_fetch)}: #{pr['number']}")
 
             details = self.get_pr_details(pr["number"])
             if details:
                 detailed_prs.append(details)
 
-        logging.info(f"Successfully collected details for {len(detailed_prs)} PRs")
+        # Log summary
+        logging.info(f"""
+=== PR Digest Summary ===
+Total merged PRs in range: {len(all_merged_prs)}
+Already cached (skipped): {len(skipped_prs)}
+Newly fetched: {len(detailed_prs)}
+API calls saved: {len(skipped_prs) * 2} (1 for PR details + 1 for diff each)
+========================
+        """)
+
         return detailed_prs
 
 
@@ -204,14 +265,14 @@ def main():
     output_file = os.getenv("PR_DIGEST_FILE", "pr_digest_output.json")
 
     days = int(days_to_scan)
-    until = datetime.now()
-    since = until - timedelta(days=days)
-    since, until = since.isoformat() + "Z", until.isoformat() + "Z"
+    until_date = datetime.now()
+    since_date = until_date - timedelta(days=days)
+    since = since_date.isoformat() + "Z"
+    until = until_date.isoformat() + "Z"
 
     logging.info(f"Date range: {since} to {until}")
 
-    # Create digest
-    creator = GitHubPRDigestCreator(github_token, github_repository)
+    creator = PRDigestCreator(github_token, github_repository)
 
     try:
         digest = creator.create_digest(since, until)
@@ -221,14 +282,39 @@ def main():
         with open(output_path, "w") as f:
             json.dump(digest, f, indent=2)
 
-        print(f"✅ Created PR digest with {len(digest)} PRs")
+        print(f"✅ Created PR digest with {len(digest)} NEW PRs (after cache check)")
         print(f"✅ Saved to {output_path}")
+
+        # Handle case where all PRs are cached
+        if len(digest) == 0:
+            print("ℹ️  All PRs in the date range are already cached!")
+            print("ℹ️  Creating minimal outputs to prevent workflow failure...")
+
+            # Create minimal output files
+            with open("discord_summary_output.txt", "w") as f:
+                f.write(f"📊 **PR Summary Report** • Last {days} days\n\n")
+                f.write(
+                    "ℹ️ No new PRs to report - all changes in this period were already summarized "
+                    + "in previous newsletters.\n"
+                )
+
+            with open("collection_summary_output.txt", "w") as f:
+                f.write("No new PRs to summarize in this period.")
+
+            # Create empty but valid JSON for pr_summary_data
+            with open("pr_summary_data.json", "w") as f:
+                json.dump([], f)
 
         # Set output for GitHub Actions
         if os.getenv("GITHUB_ACTIONS"):
             with open(os.environ["GITHUB_OUTPUT"], "a") as f:
                 f.write(f"pr_count={len(digest)}\n")
                 f.write(f"digest_file={output_path}\n")
+                f.write(f"has_new_prs={'true' if digest else 'false'}\n")
+                # Add formatted date range for display
+                since_formatted = since_date.strftime("%B %d, %Y")
+                until_formatted = until_date.strftime("%B %d, %Y")
+                f.write(f"date_range_display={since_formatted} to {until_formatted}\n")
 
     except Exception as e:
         logging.error(f"Failed to create PR digest: {e}")
