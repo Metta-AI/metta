@@ -80,6 +80,7 @@ for dep in \
   "metta.rl.fast_gae" \
   "metta.mettagrid.mettagrid_env" \
   "metta.mettagrid.mettagrid_c" \
+; do
   uv run python -c "import $dep; print('✅ Found {} at {}'.format('$dep', $dep.__file__))" || {
     echo "❌ Failed to import $dep"
     exit 1
