@@ -128,7 +128,7 @@ jobs:
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           PR_DIGEST_FILE: ${{ steps.pr-digest.outputs.digest-file }}
-          REPORT_PERIOD: ${{ steps.pr-digest.outputs.report-period }}
+          REPORT_PERIOD: ${{ steps.pr-digest.outputs.date-range-display }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_SERVER_URL: ${{ github.server_url }}
           GITHUB_RUN_ID: ${{ github.run_id }}

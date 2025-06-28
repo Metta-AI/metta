@@ -265,9 +265,10 @@ def main():
     output_file = os.getenv("PR_DIGEST_FILE", "pr_digest_output.json")
 
     days = int(days_to_scan)
-    until = datetime.now()
-    since = until - timedelta(days=days)
-    since, until = since.isoformat() + "Z", until.isoformat() + "Z"
+    until_date = datetime.now()
+    since_date = until_date - timedelta(days=days)
+    since = since_date.isoformat() + "Z"
+    until = until_date.isoformat() + "Z"
 
     logging.info(f"Date range: {since} to {until}")
 
@@ -310,6 +311,10 @@ def main():
                 f.write(f"pr_count={len(digest)}\n")
                 f.write(f"digest_file={output_path}\n")
                 f.write(f"has_new_prs={'true' if digest else 'false'}\n")
+                # Add formatted date range for display
+                since_formatted = since_date.strftime("%B %d, %Y")
+                until_formatted = until_date.strftime("%B %d, %Y")
+                f.write(f"date_range_display={since_formatted} to {until_formatted}\n")
 
     except Exception as e:
         logging.error(f"Failed to create PR digest: {e}")
