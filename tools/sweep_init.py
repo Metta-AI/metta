@@ -16,6 +16,7 @@ from metta.common.util.wandb.sweep import generate_run_id_for_sweep, sweep_id_fr
 from metta.common.util.wandb.wandb_context import WandbContext
 from metta.sim.simulation_config import SimulationSuiteConfig
 from metta.sweep.protein_metta import MettaProtein
+from metta.sweep.protein_wandb import create_sweep
 
 
 @hydra.main(config_path="../configs", config_name="sweep_job", version_base=None)
@@ -53,8 +54,8 @@ def create_sweep(cfg: DictConfig | ListConfig, logger: Logger) -> None:
     logger.info(f"Creating new sweep: {cfg.sweep_dir}")
     os.makedirs(cfg.runs_dir, exist_ok=True)
 
-    # TODO: If think "sweep: cfg.sweep_job.sweep" is the right way to do this.
-    sweep_id = MettaProtein.create_sweep(cfg.sweep_run, cfg.wandb.entity, cfg.wandb.project, cfg.sweep_job.sweep)
+    # Create sweep using the standalone function (Protein will control all parameters)
+    sweep_id = create_sweep(cfg.sweep_run, cfg.wandb.entity, cfg.wandb.project)
     OmegaConf.save(
         {
             "sweep": cfg.sweep_run,
