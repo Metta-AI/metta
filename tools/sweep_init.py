@@ -10,12 +10,12 @@ import wandb
 import yaml
 from omegaconf import DictConfig, ListConfig, OmegaConf
 
+from metta.common.util.lock import run_once
+from metta.common.util.logging import setup_mettagrid_logger
+from metta.common.util.wandb.sweep import generate_run_id_for_sweep, sweep_id_from_name
+from metta.common.util.wandb.wandb_context import WandbContext
 from metta.sim.simulation_config import SimulationSuiteConfig
 from metta.sweep.protein_metta import MettaProtein
-from metta.util.lock import run_once
-from metta.util.logging import setup_mettagrid_logger
-from metta.util.wandb.sweep import generate_run_id_for_sweep, sweep_id_from_name
-from metta.util.wandb.wandb_context import WandbContext
 
 
 @hydra.main(config_path="../configs", config_name="sweep_job", version_base=None)
@@ -100,7 +100,7 @@ def create_run(cfg: DictConfig | ListConfig, logger: Logger) -> str:
                 wandb_run.tags = ()
             wandb_run.tags += (f"sweep_id:{sweep_cfg.wandb_sweep_id}", f"sweep_run:{sweep_cfg.sweep}")
 
-            protein = MettaProtein(cfg, wandb_run)
+            protein = MettaProtein(cfg.sweep_job.sweep, wandb_run)
             logger.info("Config:")
             logger.info(OmegaConf.to_yaml(cfg))
 
