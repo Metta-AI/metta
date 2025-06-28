@@ -58,7 +58,7 @@ def main(cfg: DictConfig | ListConfig) -> int:
     with WandbContext(cfg.wandb, cfg) as wandb_run:
         policy_store = PolicyStore(cfg, wandb_run)
         try:
-            policy_pr = policy_store.policy("wandb://run/" + cfg.run)
+            policy_pr = policy_store.policy_record("wandb://run/" + cfg.run)
         except Exception as e:
             logger.error(f"Error getting policy for run {cfg.run}: {e}")
             WandbCarbs._record_failure(wandb_run)
