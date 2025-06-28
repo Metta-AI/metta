@@ -1,5 +1,7 @@
 import logging
-from typing import Any, Optional
+from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 class PolicyMetadata(dict[str, Any]):
@@ -8,10 +10,23 @@ class PolicyMetadata(dict[str, Any]):
     # Define required field names as class constant
     _REQUIRED_FIELDS = {"agent_step", "epoch", "generation", "train_time"}
 
-    def __init__(self, agent_step: int, epoch: int, generation: int, train_time: float, **kwargs: Any):
+    def __init__(self, agent_step=0, epoch=0, generation=0, train_time=0.0, **kwargs: Any):
         """Initialize with required fields and optional additional fields."""
-        # Initialize the dict with all fields
-        super().__init__(agent_step=agent_step, epoch=epoch, generation=generation, train_time=train_time, **kwargs)
+
+        # Build the data dict, letting kwargs override defaults
+        data = {
+            "agent_step": agent_step,
+            "epoch": epoch,
+            "generation": generation,
+            "train_time": train_time,
+        }
+
+        overrides = set(data.keys()) & set(kwargs.keys())
+        if overrides:
+            logger.warning(f"kwargs override positional arguments: {overrides}")
+
+        data.update(kwargs)
+        super().__init__(data)
 
     def __delitem__(self, key: str) -> None:
         """Delete item by key, preventing deletion of required fields."""
@@ -29,13 +44,11 @@ class PolicyMetadata(dict[str, Any]):
         else:
             return super().pop(key, default)
 
-    def sanitized(self, logger: Optional[logging.Logger] = None) -> "PolicyMetadata":
+    def sanitized(self) -> "PolicyMetadata":
         """Return a sanitized copy safe for pickling.
 
         Removes wandb-related objects and converts non-picklable objects to strings.
 
-        Args:
-            logger: Optional logger for warnings about sanitized values
         """
 
         def sanitize_value(val: Any, path: str = "") -> Any:

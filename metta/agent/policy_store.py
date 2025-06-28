@@ -22,10 +22,10 @@ import numpy as np
 import torch
 import wandb
 from omegaconf import DictConfig, ListConfig
-from torch.package.package_exporter import PackageExporter
 from torch.package.package_importer import PackageImporter
 
 from metta.agent.metta_agent import make_policy
+from metta.agent.policy_metadata import PolicyMetadata
 from metta.agent.policy_record import PolicyRecord
 from metta.rl.policy import load_pytorch_policy
 
@@ -195,105 +195,25 @@ class PolicyStore:
 
     def create_empty_policy_record(self, name: str, override_path: str | None = None) -> PolicyRecord:
         path = override_path if override_path is not None else os.path.join(self._cfg.trainer.checkpoint_dir, name)
-        return PolicyRecord(
-            self,
-            name,
-            f"file://{path}",
-            {
-                "agent_step": 0,
-                "epoch": 0,
-                "generation": 0,
-                "train_time": 0,
-            },
-        )
+        metadata = PolicyMetadata()
+        return PolicyRecord(self, name, f"file://{path}", metadata)
 
-    def save(self, pr: PolicyRecord) -> PolicyRecord:
-        """Save a policy and its metadata using torch.package."""
-        path = pr.uri.split("file://")[1]
-
-        if os.path.exists(path):
-            logger.warning(f"Overwriting existing policy at {path} using torch.package")
-        else:
-            logger.info(f"Saving policy to {path} using torch.package")
-
-        policy_class_name = pr.policy.__class__.__module__
-        if "torch_package_" in policy_class_name:
-            logger.error("Policy class name with torch_package_ prefixes! Did you forget to rebuild the agent?")
-            logger.error("Skipping save to prevent pickle errors.")
-            return pr
-
-        try:
-            # Sanitize metadata -- removes unresolved omegaconf objects and wandb references
-            def sanitize_dict(v) -> dict:
-                def sanitize_value(val):
-                    # Skip wandb-related objects
-                    if hasattr(val, "__module__") and val.__module__ and "wandb" in val.__module__:
-                        return None
-
-                    # Recursively clean dictionaries
-                    if isinstance(val, dict):
-                        return {k: sanitize_value(v) for k, v in val.items() if sanitize_value(v) is not None}
-
-                    # Recursively clean lists
-                    if isinstance(val, list):
-                        return [sanitize_value(item) for item in val if sanitize_value(item) is not None]
-
-                    # Keep primitive types as-is
-                    if isinstance(val, (str, int, float, bool, type(None))):
-                        return val
-
-                    # Convert objects to strings, return None if conversion fails
-                    if hasattr(val, "__dict__"):
-                        try:
-                            return str(val)
-                        except Exception:
-                            return None
-
-                    # Keep everything else as-is
-                    return val
-
-                # Process the input value
-                result = sanitize_value(v)
-
-                # Ensure we always return a dict
-                if not isinstance(result, dict):
-                    return {} if result is None else {"value": result}
-
-                return result
-
-            sanitized_metadata = sanitize_dict(pr.metadata)
-
-            with PackageExporter(path, debug=False) as exporter:
-                # Apply all packaging rules
-                self._apply_packaging_rules(exporter, pr.policy.__class__.__module__, pr.policy.__class__)
-
-                # Save the policy and metadata
-                exporter.save_pickle(
-                    "policy_record", "data.pkl", PolicyRecord(None, pr.name, pr.uri, sanitized_metadata)
-                )
-                exporter.save_pickle("policy", "model.pkl", pr.policy)
-
-        except Exception as e:
-            logger.error(f"torch.package save failed: {e}")
-            raise RuntimeError(f"Failed to save policy using torch.package: {e}") from e
-
-        pr.uri = "file://" + path
-        return pr
+    def save_to_file(
+        self,
+        pr: PolicyRecord,
+        path: str | None = None,
+    ) -> PolicyRecord:
+        """Save a policy record by delegating to its save method."""
+        return pr.save_to_file(path, packaging_rules_callback=self._apply_packaging_rules)
 
     def add_to_wandb_run(self, run_id: str, pr: PolicyRecord, additional_files: list[str] | None = None) -> str:
-        local_path = pr.local_path()
-        if local_path is None:
-            raise ValueError("PolicyRecord has no local path")
-        return self.add_to_wandb_artifact(run_id, "model", pr.metadata, local_path, additional_files)
+        return self.add_to_wandb_artifact(run_id, "model", pr.metadata, pr.file_path, additional_files)
 
     def add_to_wandb_sweep(self, sweep_name: str, pr: PolicyRecord, additional_files: list[str] | None = None) -> str:
-        local_path = pr.local_path()
-        if local_path is None:
-            raise ValueError("PolicyRecord has no local path")
-        return self.add_to_wandb_artifact(sweep_name, "sweep_model", pr.metadata, local_path, additional_files)
+        return self.add_to_wandb_artifact(sweep_name, "sweep_model", pr.metadata, pr.file_path, additional_files)
 
     def add_to_wandb_artifact(
-        self, name: str, type: str, metadata: dict[str, Any], local_path: str, additional_files: list[str] | None = None
+        self, name: str, type: str, metadata: dict[str, Any], file_path: str, additional_files: list[str] | None = None
     ) -> str:
         if self._wandb_run is None:
             raise ValueError("PolicyStore was not initialized with a wandb run")
@@ -301,7 +221,7 @@ class PolicyStore:
         additional_files = additional_files or []
 
         artifact = wandb.Artifact(name, type=type, metadata=metadata)
-        artifact.add_file(local_path, name="model.pt")
+        artifact.add_file(file_path, name="model.pt")
         for file in additional_files:
             artifact.add_file(file)
         artifact.save()
@@ -343,7 +263,8 @@ class PolicyStore:
             artifacts = [a for a in artifacts if a.version == version]
 
         return [
-            PolicyRecord(self, name=a.name, uri="wandb://" + a.qualified_name, metadata=a.metadata) for a in artifacts
+            PolicyRecord(self, run_name=a.name, uri="wandb://" + a.qualified_name, metadata=a.metadata)
+            for a in artifacts
         ]
 
     def _prs_from_wandb_sweep(self, sweep_name: str, version: Optional[str] = None) -> List[PolicyRecord]:
@@ -417,14 +338,10 @@ class PolicyStore:
                 if submodule_name in sys.modules:
                     modules_queue.append(submodule_name)
 
-    def _load_from_pytorch(self, path: str, metadata_only: bool = False) -> PolicyRecord:
+    def _load_from_pytorch(self, path: str) -> PolicyRecord:
         name = os.path.basename(path)
-        pr = PolicyRecord(
-            self,
-            name,
-            "pytorch://" + name,
-            {"action_names": [], "agent_step": 0, "epoch": 0, "generation": 0, "train_time": 0},
-        )
+        metadata = PolicyMetadata(action_names=[])  # TODO: is action_names a required param?
+        pr = PolicyRecord(self, name, "pytorch://" + name, metadata)
         pr._cached_policy = load_pytorch_policy(path, self._device, pytorch_cfg=self._cfg.get("pytorch"))
         return pr
 
