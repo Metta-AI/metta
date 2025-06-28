@@ -33,5 +33,4 @@ class MettaProtein(WandbProtein):
 
     def _transform_suggestion(self, suggestion):
         """Transform suggestion format for compatibility with training."""
-        # TODO: Import this
         return clean_numpy_types(suggestion)

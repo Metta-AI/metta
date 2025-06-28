@@ -46,7 +46,7 @@ class TestMettaProtein:
             mock_protein.return_value = mock_protein_instance
 
             with patch("metta.sweep.protein_metta.WandbProtein.__init__", return_value=None):
-                metta_protein = MettaProtein(config, mock_wandb_run)
+                _ = MettaProtein(config, mock_wandb_run)
 
                 # Verify Protein was called with correct parameters
                 mock_protein.assert_called_once()
@@ -85,7 +85,7 @@ class TestMettaProtein:
             mock_protein.return_value = mock_protein_instance
 
             with patch("metta.sweep.protein_metta.WandbProtein.__init__", return_value=None):
-                metta_protein = MettaProtein(config, mock_wandb_run)
+                _ = MettaProtein(config, mock_wandb_run)
 
                 # Verify Protein was called with defaults
                 mock_protein.assert_called_once()
@@ -118,7 +118,7 @@ class TestMettaProtein:
                                     "min": 1e-5,
                                     "max": 1e-2,
                                     "scale": "auto",
-                                    "mean": "${sweep.parameters.trainer.batch_size}",  # Fixed interpolation path
+                                    "mean": "${sweep.parameters.batch_size}",
                                 }
                             },
                         },
@@ -134,11 +134,11 @@ class TestMettaProtein:
             mock_protein.return_value = mock_protein_instance
 
             with patch("metta.sweep.protein_metta.WandbProtein.__init__", return_value=None):
-                metta_protein = MettaProtein(config, mock_wandb_run)
+                _ = MettaProtein(config, mock_wandb_run)
 
                 # Verify interpolation was resolved
                 mock_protein.assert_called_once()
-                args, kwargs = mock_protein.call_args
+                args, _ = mock_protein.call_args
                 protein_config = args[0]
 
                 # Check that interpolation was resolved
