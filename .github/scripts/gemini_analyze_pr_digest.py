@@ -444,6 +444,7 @@ Generated using {MODEL_CONFIG["default"]} on {datetime.now().isoformat()}
         date_range: str,
         github_run_url: str,
         stats: Dict[str, int],
+        github_repository: str,
     ) -> str:
         """Create Discord-formatted summary with statistics."""
         category_stats = {}
@@ -453,7 +454,7 @@ Generated using {MODEL_CONFIG["default"]} on {datetime.now().isoformat()}
             impact_stats[pr.impact_level] = impact_stats.get(pr.impact_level, 0) + 1
 
         lines = [
-            f"📊 **Enhanced PR Summary Report** • {date_range}",
+            f"📊 ** {github_repository} Newsletter ** • {date_range}",
             "",
             "**📈 Statistics**",
             f"• Total PRs analyzed: {len(pr_summaries)}",
@@ -695,7 +696,7 @@ def main():
     # Create Discord-formatted output
     print("Generating Discord summary...")
     discord_summary = analyzer.output_formatter.create_discord_summary(
-        pr_summaries, collection_summary, report_period, github_run_url, stats
+        pr_summaries, collection_summary, report_period, github_run_url, stats, github_repository
     )
 
     with open("discord_summary_output.txt", "w") as f:
