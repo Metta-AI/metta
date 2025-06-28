@@ -26,10 +26,9 @@ trainer:
   forward_pass_minibatch_target_size: 2  # Minimal batch size for 2 agents
   async_factor: 1
   env_overrides:
-    env_overrides:  # Double nesting required
-      game:
-        max_steps: 10  # Very short episodes
-        num_agents: 2  # Minimal agents
+    game:
+      max_steps: 10  # Very short episodes
+      num_agents: 2  # Minimal agents
 
 # TODO Check what sim is about.
 sim:
