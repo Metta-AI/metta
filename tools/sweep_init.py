@@ -1,24 +1,14 @@
 #!/usr/bin/env -S uv run
 
 # NumPy 2.0 compatibility for WandB - must be imported before wandb
-import os
-import sys
+import numpy as np  # noqa: E402
 
-# Add the project root to the path
-project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, project_root)
-
-# Import numpy compatibility before any other imports
-try:
-    from metta.common.util import numpy_compat
-except ImportError:
-    # Fallback: manually add the compatibility
-    import numpy as np
-
-    if not hasattr(np, "byte"):
-        np.byte = np.int8
+if not hasattr(np, "byte"):
+    np.byte = np.int8
 
 import json
+import os
+import sys
 import time
 from logging import Logger
 
