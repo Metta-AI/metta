@@ -162,7 +162,7 @@ class WandbProtein:
             return
 
         if run.summary["protein.state"] == "running":
-            last_hb = datetime.strptime(run._attrs["heartbeatAt"], "%Y-%m-%dT%H:%M:%S%fZ").replace(tzinfo=timezone.utc)
+            last_hb = datetime.strptime(run._attrs["heartbeatAt"], "%Y-%m-%dT%H:%M:%S.%fZ").replace(tzinfo=timezone.utc)
             if (datetime.now(timezone.utc) - last_hb).total_seconds() > 5 * 60:
                 logger.debug(f"Skipping run {run.name} - no heartbeat in last 5 minutes")
                 self._defunct += 1
