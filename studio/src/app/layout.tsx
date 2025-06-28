@@ -52,3 +52,6 @@ export default function RootLayout({ children }: PropsWithChildren) {
     </html>
   );
 }
+
+// Opt out of all static rendering, this is a local app so it doesn't matter.
+export const dynamic = "force-dynamic";

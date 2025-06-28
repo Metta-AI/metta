@@ -30,10 +30,13 @@ From the repository root run:
 
 The launcher will:
 
-1. Start the **backend** (`metta.studio.server`).
-2. Start the **Next.js** dev server via `pnpm dev`.
-3. Stream colored logs for both processes, prefixing them with `[BACKEND]` and `[FRONTEND]`.
-4. Open `http://localhost:3000`.
+1. Build the frontend code if needed.
+2. Start the **backend** (`metta.studio.server`).
+3. Start the **Next.js** dev server via `pnpm start` (or `pnpm dev` if you use `--dev` flag).
+4. Stream colored logs for both processes, prefixing them with `[BACKEND]` and `[FRONTEND]`.
+5. Open `http://localhost:3000`.
+
+Use `./studio/start.py --dev` to run the app in development mode. This will start the Next.js dev server that will automatically reload when you make changes to the code.
 
 Press <kbd>Ctrl</kbd>+<kbd>C</kbd> in the terminal to shut everything down.
 

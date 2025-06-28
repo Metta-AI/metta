@@ -1,5 +1,6 @@
 #!/usr/bin/env -S uv run
 
+import argparse
 import os
 import shutil
 import subprocess
@@ -13,6 +14,10 @@ from metta.common.fs import cd_repo_root
 
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--dev", action="store_true", help="Run in development mode")
+    args = parser.parse_args()
+
     cd_repo_root()
     repo_root = Path.cwd()
     studio_dir = repo_root / "studio"
@@ -27,6 +32,48 @@ def main():
         # some screen space is used by the label prefix
         env["COLUMNS"] = str(shutil.get_terminal_size().columns - 11)
 
+    # Start the frontend dev server in studio directory
+    if args.dev:
+        frontend_process = subprocess.Popen(
+            ["pnpm", "dev"],
+            cwd=studio_dir,
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+        )
+    else:
+        # Build the production bundle before starting the server.
+        print("Building frontend…")
+        build_completed = subprocess.run(
+            ["pnpm", "build"],
+            cwd=studio_dir,
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+        )
+
+        # Echo build output to the parent process stdout.
+        if build_completed.stdout:
+            print(build_completed.stdout)
+
+        if build_completed.returncode != 0:
+            print("Frontend build failed – aborting.")
+            sys.exit(build_completed.returncode)
+
+        # Launch the production server.
+        frontend_process = subprocess.Popen(
+            ["pnpm", "start"],
+            cwd=studio_dir,
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+        )
+
     # Start the backend server in repo root
     backend_process = subprocess.Popen(
         ["uv", "run", "-m", "metta.studio.server"],
@@ -38,20 +85,7 @@ def main():
         bufsize=1,
     )
 
-    # Start the frontend dev server in studio directory
-    frontend_process = subprocess.Popen(
-        ["pnpm", "dev"],
-        cwd=studio_dir,
-        env=env,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-        bufsize=1,
-    )
-
     print("Both servers started. Press Ctrl+C to stop both.")
-
-    browser_opened = False
 
     RESET = "\033[0m"
     COLORS = {
@@ -59,13 +93,25 @@ def main():
         "FRONTEND": "\033[95m",  # Bright Magenta
     }
 
+    backend_ready = False
+    frontend_ready = False
+    browser_opened = False
+
+    def try_start_browser():
+        nonlocal browser_opened
+        if not browser_opened and frontend_ready and backend_ready:
+            print("Trying to start browser")
+            webbrowser.open("http://localhost:3000")
+            browser_opened = True
+
     def stream_output(proc: subprocess.Popen[str], label: str):
         """Continuously read lines from a subprocess and print them with a label.
 
-        When the frontend (pnpm dev) indicates it is ready, automatically open the browser.
+        When both backend and frontend indicate they are ready, automatically open the browser.
         """
-        nonlocal browser_opened
+        nonlocal backend_ready, frontend_ready
         assert proc.stdout is not None  # for mypy/static checkers
+
         for line in iter(proc.stdout.readline, ""):
             if not line:
                 continue
@@ -76,10 +122,14 @@ def main():
             print(f"{prefix}{line.rstrip()}")
 
             # Detect the readiness message from the frontend dev server.
-            if label == "FRONTEND" and not browser_opened and "ready in" in line.lower():
-                # Open the default browser pointing to the local dev server.
-                webbrowser.open("http://localhost:3000")
-                browser_opened = True
+            if label == "FRONTEND" and "ready in" in line.lower():
+                frontend_ready = True
+                print("Frontend ready")
+                try_start_browser()
+            if label == "BACKEND" and "Uvicorn running on" in line:
+                backend_ready = True
+                print("Backend ready")
+                try_start_browser()
 
     # Start dedicated threads to capture stdout from each process.
     backend_thread = threading.Thread(target=stream_output, args=(backend_process, "BACKEND"), daemon=True)
