@@ -91,11 +91,24 @@ class PolicyRecord:
             logger.info(f"Not a torch.package file ({e})")
             raise ValueError(f"Cannot load policy from {path}: This file is not a valid torch.package file.") from e
 
-    def key_and_version(self) -> tuple[str, int]:
-        """Extract the policy key and version from the URI."""
+    def wandb_key_and_version(self) -> tuple[str, int]:
+        """Extract the wandb artifact key and version from the URI.
 
-        # Get the last part after splitting by slash
-        base_name = self.uri.split("/")[-1]
+        Returns:
+            Tuple of (artifact_key, version_number)
+
+        Raises:
+            ValueError: If the URI is not a wandb:// URI
+        """
+        if not self.uri.startswith("wandb://"):
+            raise ValueError(
+                f"wandb_key_and_version() only applies to wandb:// URIs, "
+                f"but got: {self.uri}. For local files, use metadata['epoch'] for versioning."
+            )
+
+        # Remove wandb:// prefix and get the last part
+        artifact_path = self.uri[8:]
+        base_name = artifact_path.split("/")[-1]
 
         # Check if it has a version number in format ":vNUM"
         if ":" in base_name and ":v" in base_name:
