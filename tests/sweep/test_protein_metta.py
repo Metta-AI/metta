@@ -14,28 +14,29 @@ class TestMettaProtein:
         """Test MettaProtein initialization with complete config."""
         config = OmegaConf.create(
             {
-                "sweep": {
-                    "protein": {
-                        "max_suggestion_cost": 7200,
-                        "num_random_samples": 100,
-                        "global_search_scale": 2,
-                    },
-                    "parameters": {
-                        "metric": "reward",
-                        "goal": "maximize",
-                        "trainer": {
-                            "optimizer": {
-                                "learning_rate": {
-                                    "distribution": "log_normal",
-                                    "min": 1e-5,
-                                    "max": 1e-2,
-                                    "scale": "auto",
-                                    "mean": 3e-4,
-                                }
+                "protein": {
+                    "max_suggestion_cost": 7200,
+                    "resample_frequency": 0,
+                    "num_random_samples": 100,
+                    "global_search_scale": 2,
+                    "random_suggestions": 1024,
+                    "suggestions_per_pareto": 256,
+                },
+                "parameters": {
+                    "metric": "reward",
+                    "goal": "maximize",
+                    "trainer": {
+                        "optimizer": {
+                            "learning_rate": {
+                                "distribution": "log_normal",
+                                "min": 1e-5,
+                                "max": 1e-2,
+                                "scale": "auto",
+                                "mean": 3e-4,
                             }
-                        },
+                        }
                     },
-                }
+                },
             }
         )
 
@@ -50,7 +51,7 @@ class TestMettaProtein:
 
                 # Verify Protein was called with correct parameters
                 mock_protein.assert_called_once()
-                args, kwargs = mock_protein.call_args
+                args, _ = mock_protein.call_args
 
                 # Check that parameters were passed correctly
                 protein_config = args[0]
@@ -67,14 +68,19 @@ class TestMettaProtein:
         """Test MettaProtein initialization with minimal config (using defaults)."""
         config = OmegaConf.create(
             {
-                "sweep": {
-                    "protein": {},  # Empty protein config - should use defaults
-                    "parameters": {
-                        "metric": "accuracy",
-                        "goal": "minimize",
-                        "batch_size": {"distribution": "uniform", "min": 16, "max": 128, "scale": "auto", "mean": 64},
-                    },
-                }
+                "protein": {
+                    "max_suggestion_cost": 3600,
+                    "resample_frequency": 0,
+                    "num_random_samples": 50,
+                    "global_search_scale": 1,
+                    "random_suggestions": 1024,
+                    "suggestions_per_pareto": 256,
+                },  # Default protein config values
+                "parameters": {
+                    "metric": "accuracy",
+                    "goal": "minimize",
+                    "batch_size": {"distribution": "uniform", "min": 16, "max": 128, "scale": "auto", "mean": 64},
+                },
             }
         )
 
@@ -105,25 +111,30 @@ class TestMettaProtein:
         """Test that OmegaConf interpolations are resolved correctly."""
         config = OmegaConf.create(
             {
-                "sweep": {
-                    "protein": {},
-                    "parameters": {
-                        "metric": "loss",
-                        "goal": "minimize",
-                        "trainer": {
-                            "batch_size": 32,
-                            "optimizer": {
-                                "learning_rate": {
-                                    "distribution": "log_normal",
-                                    "min": 1e-5,
-                                    "max": 1e-2,
-                                    "scale": "auto",
-                                    "mean": "${sweep.parameters.batch_size}",
-                                }
-                            },
+                "protein": {
+                    "max_suggestion_cost": 3600,
+                    "resample_frequency": 0,
+                    "num_random_samples": 50,
+                    "global_search_scale": 1,
+                    "random_suggestions": 1024,
+                    "suggestions_per_pareto": 256,
+                },
+                "parameters": {
+                    "metric": "loss",
+                    "goal": "minimize",
+                    "trainer": {
+                        "batch_size": 32,
+                        "optimizer": {
+                            "learning_rate": {
+                                "distribution": "log_normal",
+                                "min": 1e-5,
+                                "max": 1e-2,
+                                "scale": "auto",
+                                "mean": "${parameters.trainer.batch_size}",
+                            }
                         },
                     },
-                }
+                },
             }
         )
 
@@ -146,7 +157,19 @@ class TestMettaProtein:
 
     def test_transform_suggestion(self):
         """Test the _transform_suggestion method."""
-        config = OmegaConf.create({"sweep": {"protein": {}, "parameters": {"metric": "reward", "goal": "maximize"}}})
+        config = OmegaConf.create(
+            {
+                "protein": {
+                    "max_suggestion_cost": 3600,
+                    "resample_frequency": 0,
+                    "num_random_samples": 50,
+                    "global_search_scale": 1,
+                    "random_suggestions": 1024,
+                    "suggestions_per_pareto": 256,
+                },
+                "parameters": {"metric": "reward", "goal": "maximize"},
+            }
+        )
 
         mock_wandb_run = Mock()
 
