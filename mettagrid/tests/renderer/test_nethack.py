@@ -24,7 +24,7 @@ class TestNethackRenderer:
     @pytest.fixture
     def basic_renderer(self):
         """Create a basic renderer for testing."""
-        object_type_names = ["agent", "wall", "empty", "mine", "generator", "altar", "factory", "lab", "temple"]
+        object_type_names = ["agent", "wall", "empty", "mine_red", "generator_red", "altar", "factory", "lab", "temple"]
         return NethackRenderer(object_type_names)
 
     @pytest.fixture
@@ -396,12 +396,12 @@ class TestNetHackStyleSolution:
             "wall": "#",
             "agent": "@",
             "empty": ".",
-            "generator": "G",
+            "generator_red": "G",
             "altar": "_",
             "factory": "F",
             "lab": "L",
             "temple": "T",
-            "mine": "^",
+            "mine_red": "^",
             "converter": "*",
         }
 
