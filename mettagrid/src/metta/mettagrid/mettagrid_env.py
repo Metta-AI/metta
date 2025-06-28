@@ -3,6 +3,7 @@ from __future__ import annotations
 import datetime
 import logging
 import random
+import time
 import uuid
 from typing import Any, Dict, Optional, cast
 
@@ -151,7 +152,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
         if self._is_training and self._resets == 0:
             max_steps = game_config_dict["max_steps"]
             game_config_dict["max_steps"] = int(np.random.randint(1, max_steps + 1))
-            logger.info(f"Desync episode with max_steps {game_config_dict['max_steps']}")
+            # logger.info(f"Desync episode with max_steps {game_config_dict['max_steps']}")
 
         self._map_labels = level.labels
 
@@ -249,6 +250,8 @@ class MettaGridEnv(PufferEnv, GymEnv):
     def process_episode_stats(self, infos: Dict[str, Any]):
         self.timer.start("process_episode_stats")
 
+        infos.clear()
+
         episode_rewards = self._c_env.get_episode_rewards()
         episode_rewards_sum = episode_rewards.sum()
         episode_rewards_mean = episode_rewards_sum / self._c_env.num_agents
@@ -282,6 +285,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
             "steps": self._steps,
             "resets": self._resets,
             "max_steps": self.max_steps,
+            "completion_time": time.time(),
         }
         infos["attributes"] = attributes
 
