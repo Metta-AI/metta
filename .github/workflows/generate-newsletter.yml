@@ -29,15 +29,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Fetch previous newsletters
-        uses: ./.github/actions/fetch-artifacts
-        with:
-          workflow-name: 'generate-newsletter.yml'
-          artifact-name-pattern: 'newsletter-*'
-          num-artifacts: '3'
-          output-directory: 'previous-newsletters'
-        continue-on-error: true
-
       - name: Set days to scan
         id: set-days
         run: |
@@ -53,14 +44,14 @@ jobs:
           echo "days=$DAYS" >> $GITHUB_OUTPUT
           echo "Selected days to scan: $DAYS"
 
-      - name: Restore PR Summary Cache
+      - name: Restore PR Summaries Cache
         uses: actions/cache@v4
         with:
           path: |
-            .pr-digest-cache/
-          key: pr-cache-${{ github.repository }}-${{ hashFiles('.github/scripts/gemini_*.py') }}
+            pr-summaries/
+          key: pr-summaries-${{ github.repository }}-${{ github.run_number }}
           restore-keys: |
-            pr-cache-${{ github.repository }}-
+            pr-summaries-${{ github.repository }}-
 
       - name: Install uv
         uses: astral-sh/setup-uv@v6
@@ -77,6 +68,15 @@ jobs:
           PR_DIGEST_FILE: "pr_digest_output.json"
         run: |
           echo "Creating PR digest for last ${{ steps.set-days.outputs.days }} days..."
+
+          # Show cache status before running
+          if [ -d "pr-summaries" ]; then
+            CACHED_COUNT=$(find pr-summaries -name "pr_*.txt" | wc -l)
+            echo "📁 Found existing pr-summaries directory with $CACHED_COUNT cached PRs"
+          else
+            echo "📁 No pr-summaries directory found, starting fresh"
+          fi
+
           uv run .github/scripts/create_pr_digest.py
 
           # Output digest info for next step with error handling
@@ -96,19 +96,35 @@ jobs:
             echo "pr-count=$PR_COUNT" >> $GITHUB_OUTPUT
             echo "digest-file=pr_digest_output.json" >> $GITHUB_OUTPUT
             echo "report-period=Last ${{ steps.set-days.outputs.days }} days" >> $GITHUB_OUTPUT
-            echo "✅ Created PR digest with $PR_COUNT PRs"
+            echo "has-new-prs=$([[ $PR_COUNT -gt 0 ]] && echo 'true' || echo 'false')" >> $GITHUB_OUTPUT
+
+            if [ $PR_COUNT -eq 0 ]; then
+              echo "ℹ️  No new PRs found - all PRs in range are already cached"
+            else
+              echo "✅ Created PR digest with $PR_COUNT NEW PRs"
+            fi
 
             # Show basic digest info
             echo "PR digest summary:"
-            echo "- Total PRs: $PR_COUNT"
+            echo "- New PRs to process: $PR_COUNT"
             echo "- File size: $(stat -f%z pr_digest_output.json 2>/dev/null || stat -c%s pr_digest_output.json) bytes"
           else
             echo "❌ Failed to create PR digest - pr_digest_output.json not found"
             exit 1
           fi
 
+      - name: Fetch previous newsletters
+        uses: ./.github/actions/fetch-artifacts
+        with:
+          workflow-name: 'generate-newsletter.yml'
+          artifact-name-pattern: 'newsletter-*'
+          num-artifacts: '3'
+          output-directory: 'previous-newsletters'
+        continue-on-error: true
+
       - name: Generate Newsletter
         id: summary
+        if: ${{ steps.pr-digest.outputs.has-new-prs == 'true' }}
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           PR_DIGEST_FILE: ${{ steps.pr-digest.outputs.digest-file }}
@@ -119,7 +135,7 @@ jobs:
           FORCE_REFRESH: ${{ inputs.force_refresh || 'false' }}
           PREVIOUS_NEWSLETTERS_DIR: "previous-newsletters"
         run: |
-          echo "Analyzing ${{ steps.pr-digest.outputs.pr-count }} PRs with AI..."
+          echo "Analyzing ${{ steps.pr-digest.outputs.pr-count }} new PRs with AI..."
           uv run .github/scripts/gemini_analyze_pr_digest.py
 
           # Verify outputs were created with detailed checking
@@ -145,7 +161,7 @@ jobs:
             done
 
             if [ -d "pr-summaries" ]; then
-              SUMMARY_COUNT=$(find pr-summaries -name "*.json" | wc -l)
+              SUMMARY_COUNT=$(find pr-summaries -name "*.txt" | wc -l)
               echo "- pr-summaries/ directory (${SUMMARY_COUNT} files)"
             fi
           else
@@ -156,6 +172,30 @@ jobs:
             exit 1
           fi
 
+      - name: Handle No New PRs Case
+        if: ${{ steps.pr-digest.outputs.has-new-prs == 'false' }}
+        run: |
+          echo "ℹ️  All PRs are already cached, creating minimal newsletter..."
+
+          # The create_pr_digest.py script should have already created these files
+          # but let's verify they exist
+          if [ ! -f "discord_summary_output.txt" ]; then
+            echo "Creating default Discord message..."
+            cat > discord_summary_output.txt << EOF
+          📊 **PR Summary Report** • ${{ steps.pr-digest.outputs.report-period }}
+
+          ℹ️ No new PRs to report - all changes in this period were already summarized in previous newsletters.
+          EOF
+          fi
+
+          if [ ! -f "collection_summary_output.txt" ]; then
+            echo "No new PRs to summarize." > collection_summary_output.txt
+          fi
+
+          if [ ! -f "pr_summary_data.json" ]; then
+            echo "[]" > pr_summary_data.json
+          fi
+
       - name: Post to Discord
         if: ${{ !inputs.skip_discord }}
         uses: ./.github/actions/discord-webhook
@@ -163,12 +203,12 @@ jobs:
           webhook-url: ${{ secrets.DISCORD_WEBHOOK_URL }}
           content-file: discord_summary_output.txt
 
-      - name: Save Cache
+      - name: Save PR Summaries Cache
         uses: actions/cache/save@v4
         with:
           path: |
-            .pr-digest-cache/
-          key: pr-cache-${{ github.repository }}-${{ hashFiles('.github/scripts/gemini_*.py') }}
+            pr-summaries/
+          key: pr-summaries-${{ github.repository }}-${{ github.run_number }}
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
