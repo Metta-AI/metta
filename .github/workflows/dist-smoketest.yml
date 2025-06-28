@@ -61,6 +61,7 @@ jobs:
           git_ref_override: ${{ github.event.inputs.commit_to_run || '' }} # Action handles empty as current HEAD
           wandb_api_key: ${{ secrets.WANDB_API_KEY }}
           skypilot_api_url: ${{ secrets.SKYPILOT_API_URL }}
+          observatory_token: ${{ secrets.OBSERVATORY_TOKEN }}
 
       - name: Print 1-GPU Run Information
         shell: bash
@@ -102,6 +103,7 @@ jobs:
           git_ref_override: ${{ github.event.inputs.commit_to_run || '' }}
           wandb_api_key: ${{ secrets.WANDB_API_KEY }}
           skypilot_api_url: ${{ secrets.SKYPILOT_API_URL }}
+          observatory_token: ${{ secrets.OBSERVATORY_TOKEN }}
 
       - name: Print 4-GPU Run Information
         shell: bash

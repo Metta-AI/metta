@@ -62,6 +62,7 @@ echo "  - Arguments: $args"
 
 echo "[INFO] Starting distributed training..."
 
+set +e
 PYTHONPATH=$PYTHONPATH:. uv run torchrun \
   --nnodes=$NUM_NODES \
   --nproc-per-node=$NUM_GPUS \
@@ -72,5 +73,12 @@ PYTHONPATH=$PYTHONPATH:. uv run torchrun \
   trainer.num_workers=$((NUM_CPUS / NUM_GPUS)) \
   wandb.enabled=true \
   $args
+EXIT_CODE=$?
+set -e
 
-echo "[SUCCESS] Training completed successfully"
+if [ "$EXIT_CODE" -eq 0 ]; then
+  echo "[SUCCESS] Training completed successfully"
+else
+  echo "[ERROR] Training failed with exit code $EXIT_CODE"
+fi
+exit "$EXIT_CODE"

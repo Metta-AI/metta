@@ -26,6 +26,8 @@ From within the metta/mettascope/ directory:
 python -m http.server 2000
 ```
 
+As this is using WebGPU, we recommend using Chrome. Ensure you have set `chrome://flags/#enable-unsafe-webgpu` to Enabled.
+
 Then open the browser and go to `http://localhost:2000` to see the player.
 
 ### Viewing replays
@@ -61,15 +63,7 @@ python tools/gen_html.py
 1. **Launch** VSCode or Cursor.
 2. **Open the project folder**:
    - Go to `File > Open Folder...` and select the `metta/` directory.
-3. **(Optional) Create a user config file**:
-   - Path: `configs/user/USERNAME.yaml`
-   - Add the following key (you can customize the environment as needed):
-     ```yaml
-     replay_job:
-       sim:
-         env: /env/mettagrid/laser_tag
-     ```
-4. **Run Metta**:
+3. **Run Metta**:
    - In the top right of VSCode/Cursor, click **"Run and Debug"**.
      - If hidden, open the dropdown menu to find it.
    - In the second dropdown (default: "Train Metta"), select **"Play Metta"**.

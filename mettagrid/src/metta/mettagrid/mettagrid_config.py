@@ -1,10 +1,8 @@
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, Field, RootModel
+from pydantic import Field, RootModel
 
-
-class BaseModelWithForbidExtra(BaseModel):
-    model_config = dict(extra="forbid")
+from metta.common.util.typed_config import BaseModelWithForbidExtra
 
 
 class AgentRewards(BaseModelWithForbidExtra):
@@ -90,6 +88,7 @@ class ActionsConfig(BaseModelWithForbidExtra):
 class WallConfig(BaseModelWithForbidExtra):
     """Wall/Block configuration."""
 
+    type_id: int
     swappable: Optional[bool] = None
 
 
@@ -121,6 +120,7 @@ class ConverterConfig(BaseModelWithForbidExtra):
     output_blueprint: Optional[int] = Field(default=None, alias="output_blueprint", ge=0, le=255)
 
     # Converter properties
+    type_id: int
     max_output: int = Field(ge=-1)
     conversion_ticks: int = Field(ge=0)
     cooldown: int = Field(ge=0)

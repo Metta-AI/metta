@@ -4,9 +4,10 @@ import logging
 from itertools import product
 from typing import Any, Dict, List, Optional, Tuple
 
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig
 from tqdm import tqdm
 
+from metta.common.util.config import copy_omegaconf_config
 from metta.mettagrid.curriculum.core import Curriculum
 from metta.mettagrid.curriculum.sampling import SampledTaskCurriculum
 from metta.mettagrid.curriculum.util import config_from_path
@@ -29,7 +30,7 @@ class BucketedCurriculum(LowRewardCurriculum):
 
         self._id_to_curriculum = {}
         base_cfg = config_from_path(env_cfg_template, env_overrides)
-        env_cfg_template = OmegaConf.create(OmegaConf.to_container(base_cfg, resolve=False))
+        env_cfg_template = copy_omegaconf_config(base_cfg)
 
         logger.info("Generating bucketed tasks")
         for parameter_values in tqdm(product(*expanded_buckets.values())):

@@ -5,6 +5,8 @@ concurrency:
 
 on:
   push:
+    branches:
+      - main
     paths:
       - "app_backend/**"
       - ".github/workflows/**"

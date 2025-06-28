@@ -3,6 +3,7 @@ import os
 import time
 from collections import defaultdict
 from contextlib import nullcontext
+from pathlib import Path
 from typing import Any, Set
 from uuid import UUID
 
@@ -12,10 +13,10 @@ import torch
 import torch.distributed
 import wandb
 from heavyball import ForeachMuon
-from omegaconf import DictConfig, ListConfig
+from omegaconf import DictConfig
 
 from app_backend.stats_client import StatsClient
-from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
+from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent, make_policy
 from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyRecord, PolicyStore
 from metta.agent.util.debug import assert_shape
@@ -33,6 +34,7 @@ from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses
 from metta.rl.torch_profiler import TorchProfiler
 from metta.rl.trainer_checkpoint import TrainerCheckpoint
+from metta.rl.trainer_config import parse_trainer_config
 from metta.rl.vecenv import make_vecenv
 from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
@@ -57,15 +59,22 @@ logger = logging.getLogger(f"trainer-{rank}-{local_rank}")
 class MettaTrainer:
     def __init__(
         self,
-        cfg: DictConfig | ListConfig,
+        cfg: DictConfig,
         wandb_run: WandbRun | None,
         policy_store: PolicyStore,
         sim_suite_config: SimulationSuiteConfig,
         stats_client: StatsClient | None,
         **kwargs: Any,
     ):
+        logger.info(f"run_dir = {cfg.run_dir}")
+        checkpoints_dir = Path(cfg.run_dir) / "checkpoints"
+        if checkpoints_dir.exists():
+            files = sorted(os.listdir(checkpoints_dir))
+            recent_files = files[-3:] if len(files) >= 3 else files
+            logger.info(f"Recent checkpoints: {', '.join(recent_files)}")
+
         self.cfg = cfg
-        self.trainer_cfg = trainer_cfg = cfg.trainer
+        self.trainer_cfg = trainer_cfg = parse_trainer_config(cfg.trainer)
 
         # it doesn't make sense to evaluate more often than we checkpoint since we need a saved policy to evaluate
         if trainer_cfg.evaluate_interval != 0 and trainer_cfg.evaluate_interval < trainer_cfg.checkpoint_interval:
@@ -99,10 +108,6 @@ class MettaTrainer:
         if torch.distributed.is_initialized():
             self._master = int(os.environ["RANK"]) == 0
             self._world_size = torch.distributed.get_world_size()
-
-            self._batch_size = trainer_cfg.batch_size // self._world_size
-            self._minibatch_size = trainer_cfg.minibatch_size // self._world_size
-
             logger.info(
                 f"Rank: {os.environ['RANK']}, Local rank: {os.environ['LOCAL_RANK']}, World size: {self._world_size}"
             )
@@ -118,16 +123,16 @@ class MettaTrainer:
         self.timer = Stopwatch(logger)
         self.timer.start()
 
-        self._memory_monitor = MemoryMonitor()
+        if self._master:
+            self._memory_monitor = MemoryMonitor()
+            self._system_monitor = SystemMonitor(
+                sampling_interval_sec=1.0,  # Sample every second
+                history_size=100,  # Keep last 100 samples
+                logger=logger,
+                auto_start=True,  # Start monitoring immediately
+            )
 
-        self._system_monitor = SystemMonitor(
-            sampling_interval_sec=1.0,  # Sample every second
-            history_size=100,  # Keep last 100 samples
-            logger=logger,
-            auto_start=True,  # Start monitoring immediately
-        )
-
-        curriculum_config = trainer_cfg.get("curriculum", trainer_cfg.get("env", {}))
+        curriculum_config = trainer_cfg.curriculum_or_env
         env_overrides = DictConfig(trainer_cfg.env_overrides)
         self._curriculum = curriculum_from_config_path(curriculum_config, env_overrides)
         self._make_vecenv()
@@ -158,15 +163,20 @@ class MettaTrainer:
         policy_record = self._load_policy(checkpoint, policy_store)
 
         if policy_record is not None:
+            logging.info(f"LOADED {policy_record.uri}")
+            self.latest_saved_policy_record = policy_record
+
             # Models loaded via torch.package have modified class names (prefixed with <torch_package_N>)
             # which prevents them from being saved again. We work around this by creating a fresh
             # instance of the policy class and copying the state dict, allowing successful re-saving.
             # TODO: Remove this workaround when checkpointing refactor is complete
-            loaded_policy = policy_record.policy()
+            loaded_policy = policy_record.policy
             loaded_policy.activate_actions(actions_names, actions_max_params, self.device)
 
-            fresh_policy_record = policy_store.create(metta_grid_env)
-            fresh_policy = fresh_policy_record.policy()
+            fresh_policy_record = policy_store.create_empty_policy_record(policy_record.name)
+            fresh_policy_record.metadata = policy_record.metadata
+
+            fresh_policy = fresh_policy_record.policy
             fresh_policy.activate_actions(actions_names, actions_max_params, self.device)
             fresh_policy.load_state_dict(loaded_policy.state_dict(), strict=False)
 
@@ -175,16 +185,17 @@ class MettaTrainer:
 
         else:
             if self._master:
-                policy_record = self._create_policy(policy_store, metta_grid_env)
+                policy_record = self._create_and_save_policy_record(policy_store, metta_grid_env)
             else:
-                policy_record = self._wait_for_policy(policy_store)
+                policy_record = self._wait_for_policy_record(policy_store)
+
             self.initial_policy_record = policy_record
-            self.policy = policy_record.policy()
+            self.policy = policy_record.policy
             self.policy.activate_actions(actions_names, actions_max_params, self.device)
 
         assert self.policy is not None, "Failed to obtain policy"
 
-        self.latest_saved_policy_record = self.initial_policy_record
+        logging.info(f"USING {self.latest_saved_policy_record.uri}")
 
         if self._master:
             logger.info(f"MettaTrainer loaded: {self.policy}")
@@ -193,7 +204,7 @@ class MettaTrainer:
             logger.info("Compiling policy")
             self.policy = torch.compile(self.policy, mode=trainer_cfg.compile_mode)
 
-        self.kickstarter = Kickstarter(cfg, policy_store, actions_names, actions_max_params)
+        self.kickstarter = Kickstarter(cfg, trainer_cfg, policy_store, actions_names, actions_max_params)
 
         if torch.distributed.is_initialized():
             logger.info(f"Initializing DistributedDataParallel on device {self.device}")
@@ -206,7 +217,7 @@ class MettaTrainer:
         self._stats_run_id: UUID | None = None
 
         # Optimizer
-        optimizer_type = getattr(trainer_cfg.optimizer, "type", "adam")
+        optimizer_type = trainer_cfg.optimizer.type
         assert optimizer_type in ("adam", "muon"), f"Optimizer type must be 'adam' or 'muon', got {optimizer_type}"
         opt_cls = torch.optim.Adam if optimizer_type == "adam" else ForeachMuon
         self.optimizer = opt_cls(
@@ -252,7 +263,7 @@ class MettaTrainer:
                 )
 
         self.lr_scheduler = None
-        if hasattr(trainer_cfg, "lr_scheduler") and getattr(trainer_cfg.lr_scheduler, "enabled", False):
+        if trainer_cfg.lr_scheduler.enabled:
             self.lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
                 self.optimizer, T_max=trainer_cfg.total_timesteps // trainer_cfg.batch_size
             )
@@ -293,7 +304,8 @@ class MettaTrainer:
             for metric_name, step_metric in metric_overrides:
                 wandb_run.define_metric(metric_name, step_metric=step_metric)
 
-        self._memory_monitor.add(self)
+        if self._master:
+            self._memory_monitor.add(self, name="MettaTrainer", track_attributes=True)
 
         logger.info(f"MettaTrainer initialization complete on device: {self.device}")
 
@@ -304,7 +316,10 @@ class MettaTrainer:
         if self._stats_client is not None:
             name = self.wandb_run.name if self.wandb_run is not None and self.wandb_run.name is not None else "unknown"
             url = self.wandb_run.url if self.wandb_run is not None else None
-            self._stats_run_id = self._stats_client.create_training_run(name=name, attributes={}, url=url).id
+            try:
+                self._stats_run_id = self._stats_client.create_training_run(name=name, attributes={}, url=url).id
+            except Exception as e:
+                logger.warning(f"Failed to create training run: {e}")
 
         logger.info(f"Training on {self.device}")
         wandb_policy_name: str | None = None
@@ -337,15 +352,14 @@ class MettaTrainer:
                 f"{steps_per_sec * self._world_size:.0f} steps/sec "
                 f"({train_pct:.0f}% train / {rollout_pct:.0f}% rollout / {stats_pct:.0f}% stats)"
             )
-            record_heartbeat()
 
             # Interval periodic tasks
+            self._maybe_record_heartbeat()
             self._maybe_save_policy()
             self._maybe_save_training_state()
             wandb_policy_name = self._maybe_upload_policy_record_to_wandb()
             self._maybe_evaluate_policy(wandb_policy_name)
             self._maybe_generate_replay()
-            self._maybe_update_l2_weights()
             self._maybe_compute_grad_stats()
 
             self._on_train_step()
@@ -361,8 +375,6 @@ class MettaTrainer:
         self._maybe_save_policy(force=True)
         self._maybe_save_training_state(force=True)
         self._maybe_upload_policy_record_to_wandb(force=True)
-
-        self._system_monitor.stop()
 
     def _on_train_step(self):
         pass
@@ -488,15 +500,15 @@ class MettaTrainer:
 
         self.losses.zero()
 
-        prio_cfg = trainer_cfg.get("prioritized_experience_replay", {})
-        vtrace_cfg = trainer_cfg.get("vtrace", {})
+        prio_cfg = trainer_cfg.prioritized_experience_replay
+        vtrace_cfg = trainer_cfg.vtrace
 
         # Reset importance sampling ratios
         experience.reset_importance_sampling_ratios()
 
         # Prioritized sampling parameters
-        b0 = prio_cfg.get("prio_beta0", 0.6)
-        a = prio_cfg.get("prio_alpha", 0.0)
+        b0 = prio_cfg.prio_beta0
+        a = prio_cfg.prio_alpha
         total_epochs = max(1, trainer_cfg.total_timesteps // trainer_cfg.batch_size)
         anneal_beta = b0 + (1 - b0) * a * self.epoch / total_epochs
 
@@ -514,8 +526,8 @@ class MettaTrainer:
             advantages,
             trainer_cfg.gamma,
             trainer_cfg.gae_lambda,
-            vtrace_cfg.get("vtrace_rho_clip", 1.0),
-            vtrace_cfg.get("vtrace_c_clip", 1.0),
+            vtrace_cfg.vtrace_rho_clip,
+            vtrace_cfg.vtrace_c_clip,
         )
 
         # Optimizing the policy and value network
@@ -557,8 +569,8 @@ class MettaTrainer:
                     minibatch["advantages"],
                     trainer_cfg.gamma,
                     trainer_cfg.gae_lambda,
-                    vtrace_cfg.get("vtrace_rho_clip", 1.0),
-                    vtrace_cfg.get("vtrace_c_clip", 1.0),
+                    vtrace_cfg.vtrace_rho_clip,
+                    vtrace_cfg.vtrace_c_clip,
                 )
 
                 # Normalize advantages with distributed support, then apply prioritized weights
@@ -576,10 +588,11 @@ class MettaTrainer:
                 newvalue_reshaped = newvalue.view(minibatch["returns"].shape)
                 if trainer_cfg.clip_vloss:
                     v_loss_unclipped = (newvalue_reshaped - minibatch["returns"]) ** 2
+                    vf_clip_coef = trainer_cfg.vf_clip_coef
                     v_clipped = minibatch["values"] + torch.clamp(
                         newvalue_reshaped - minibatch["values"],
-                        -trainer_cfg.get("vf_clip_coef", 0.1),
-                        trainer_cfg.get("vf_clip_coef", 0.1),
+                        -vf_clip_coef,
+                        vf_clip_coef,
                     )
                     v_loss_clipped = (v_clipped - minibatch["returns"]) ** 2
                     v_loss = 0.5 * torch.max(v_loss_unclipped, v_loss_clipped).mean()
@@ -592,10 +605,6 @@ class MettaTrainer:
                     self.agent_step, full_logprobs, newvalue, obs, teacher_lstm_state=[]
                 )
 
-                l2_reg_loss = torch.tensor(0.0, device=self.device, dtype=torch.float32)
-                if trainer_cfg.l2_reg_loss_coef > 0:
-                    l2_reg_loss = trainer_cfg.l2_reg_loss_coef * self.policy.l2_reg_loss().to(self.device)
-
                 l2_init_loss = torch.tensor(0.0, device=self.device, dtype=torch.float32)
                 if trainer_cfg.l2_init_loss_coef > 0:
                     l2_init_loss = trainer_cfg.l2_init_loss_coef * self.policy.l2_init_loss().to(self.device)
@@ -604,7 +613,6 @@ class MettaTrainer:
                     pg_loss
                     - trainer_cfg.ent_coef * entropy_loss
                     + v_loss * trainer_cfg.vf_coef
-                    + l2_reg_loss
                     + l2_init_loss
                     + ks_action_loss
                     + ks_value_loss
@@ -622,7 +630,6 @@ class MettaTrainer:
                 self.losses.entropy_sum += entropy_loss.item()
                 self.losses.approx_kl_sum += approx_kl.item()
                 self.losses.clipfrac_sum += clipfrac.item()
-                self.losses.l2_reg_loss_sum += l2_reg_loss.item() if torch.is_tensor(l2_reg_loss) else l2_reg_loss
                 self.losses.l2_init_loss_sum += l2_init_loss.item() if torch.is_tensor(l2_init_loss) else l2_init_loss
                 self.losses.ks_action_loss_sum += ks_action_loss.item()
                 self.losses.ks_value_loss_sum += ks_value_loss.item()
@@ -673,6 +680,12 @@ class MettaTrainer:
 
         return self.epoch % interval == 0
 
+    def _maybe_record_heartbeat(self, force=False):
+        if not self._should_run(10, force):
+            return
+
+        record_heartbeat()
+
     def _maybe_save_training_state(self, force=False):
         """Save training state if on checkpoint interval"""
         if not self._should_run(self.trainer_cfg.checkpoint_interval, force):
@@ -700,7 +713,6 @@ class MettaTrainer:
             return
 
         name = self.policy_store.make_model_name(self.epoch)
-        path = os.path.join(self.trainer_cfg.checkpoint_dir, name)
 
         metta_grid_env: MettaGridEnv = self.vecenv.driver_env  # type: ignore
         assert isinstance(metta_grid_env, MettaGridEnv), "vecenv.driver_env must be a MettaGridEnv"
@@ -735,13 +747,14 @@ class MettaTrainer:
         # instance of the policy class and copying the state dict, allowing successful re-saving.
         # TODO: Remove this workaround when checkpointing refactor is complete
         logger.info("Creating a fresh policy instance for torch.package to save")
-        fresh_policy = self.policy_store.create(metta_grid_env).policy()
-        fresh_policy.activate_actions(metta_grid_env.action_names, metta_grid_env.max_action_args, self.device)
-        fresh_policy.load_state_dict(self.policy.state_dict(), strict=False)
-        policy_to_save = fresh_policy
+        fresh_policy_record = self.policy_store.create_empty_policy_record(name)
+        # copy in the values we want to keep
+        fresh_policy_record.metadata = metadata
+        fresh_policy_record.policy = policy_to_save
+        policy_to_save.activate_actions(metta_grid_env.action_names, metta_grid_env.max_action_args, self.device)
+        policy_to_save.load_state_dict(self.policy.state_dict(), strict=False)
 
-        self.latest_saved_policy_record = self.policy_store.save(name, path, policy_to_save, metadata)
-        logger.info(f"Saved policy locally: {name}")
+        self.latest_saved_policy_record = self.policy_store.save(fresh_policy_record)
         return self.latest_saved_policy_record
 
     def _maybe_upload_policy_record_to_wandb(self, force: bool = False) -> str | None:
@@ -769,10 +782,15 @@ class MettaTrainer:
         if self._should_run(self.cfg.agent.l2_init_weight_update_interval, force):
             self.policy.update_l2_init_weight_copy()
 
-    def _maybe_evaluate_policy(self, force=False):
+    def _maybe_evaluate_policy(self, wandb_policy_name: str | None = None, force: bool = False):
         """Evaluate policy if on evaluation interval"""
         if self._should_run(self.trainer_cfg.evaluate_interval, force):
-            self._evaluate_policy()
+            try:
+                self._evaluate_policy(wandb_policy_name)
+            except Exception as e:
+                logger.error(f"Error evaluating policy: {e}")
+
+            self._stats_epoch_start = self.epoch + 1
 
     @with_instance_timer("_evaluate_policy", log_level=logging.INFO)
     def _evaluate_policy(self, wandb_policy_name: str | None = None):
@@ -783,7 +801,6 @@ class MettaTrainer:
                 end_training_epoch=self.epoch,
                 attributes={},
             ).id
-            self._stats_epoch_start = self.epoch + 1
 
         logger.info(f"Simulating policy: {self.latest_saved_policy_uri} with config: {self.sim_suite_config}")
         sim = SimulationSuite(
@@ -849,10 +866,8 @@ class MettaTrainer:
         results = replay_simulator.simulate()
 
         if self.wandb_run is not None:
-            replay_urls = results.stats_db.get_replay_urls(
-                policy_key=self.latest_saved_policy_record.key(),
-                policy_version=self.latest_saved_policy_record.version(),
-            )
+            key, version = self.latest_saved_policy_record.key_and_version()
+            replay_urls = results.stats_db.get_replay_urls(key, version)
             if len(replay_urls) > 0:
                 replay_url = replay_urls[0]
                 player_url = "https://metta-ai.github.io/metta/?replayUrl=" + replay_url
@@ -865,14 +880,17 @@ class MettaTrainer:
     def _process_stats(self):
         if not self._master or not self.wandb_run:
             self.stats.clear()
+            self.grad_stats.clear()
             return
 
         # convert lists of values (collected across all environments and rollout steps on this GPU)
-        # into single mean values.
+        # into single mean values and standard deviations.
         mean_stats = {}
         for k, v in self.stats.items():
             try:
                 mean_stats[k] = np.mean(v)
+                # Add standard deviation with .std_dev suffix
+                mean_stats[f"{k}.std_dev"] = np.std(v)
             except (TypeError, ValueError) as e:
                 raise RuntimeError(
                     f"Cannot compute mean for stat '{k}' with value {v!r} (type: {type(v)}). "
@@ -905,8 +923,8 @@ class MettaTrainer:
         }
 
         epoch_steps = self.timer.get_lap_steps()
-        if epoch_steps is None:
-            epoch_steps = self.agent_step
+        assert epoch_steps is not None
+
         epoch_steps_per_second = epoch_steps / wall_time_for_lap if wall_time_for_lap > 0 else 0
         steps_per_second = self.timer.get_rate(self.agent_step) if wall_time > 0 else 0
 
@@ -916,6 +934,10 @@ class MettaTrainer:
         timing_stats = {
             **{
                 f"timing_per_epoch/frac/{op}": lap_elapsed / wall_time_for_lap if wall_time_for_lap > 0 else 0
+                for op, lap_elapsed in lap_times.items()
+            },
+            **{
+                f"timing_per_epoch/msec/{op}": lap_elapsed * 1000 if wall_time_for_lap > 0 else 0
                 for op, lap_elapsed in lap_times.items()
             },
             "timing_per_epoch/sps": epoch_steps_per_second,
@@ -953,8 +975,6 @@ class MettaTrainer:
         losses = self.losses.stats()
 
         # don't plot losses that are unused
-        if self.trainer_cfg.l2_reg_loss_coef == 0:
-            losses.pop("l2_reg_loss")
         if self.trainer_cfg.l2_init_loss_coef == 0:
             losses.pop("l2_init_loss")
         if not self.kickstarter.enabled:
@@ -965,6 +985,8 @@ class MettaTrainer:
             "learning_rate": self.optimizer.param_groups[0]["lr"],
             "epoch_steps": epoch_steps,
             "num_minibatches": self.experience.num_minibatches,
+            "generation": self.current_policy_generation,
+            "policy_record_version": self.latest_saved_policy_record.key_and_version()[1],
         }
 
         self.wandb_run.log(
@@ -981,7 +1003,12 @@ class MettaTrainer:
                 **timing_stats,
                 **metric_stats,
                 **self.grad_stats,
-            }
+            },
+            # WandB can automatically increment step on each call to log, but we force the value here
+            # to make WandB reject any non-monotonic data points. This hides duplicate data when resuming
+            # from checkpoints and keeps graphs clean. The policy is reset to the checkpoint too so the
+            # count of steps that contribute to training the saved policies is consistent.
+            step=self.agent_step,
         )
 
         self.stats.clear()
@@ -1028,7 +1055,7 @@ class MettaTrainer:
 
     def _normalize_advantage_distributed(self, adv: torch.Tensor) -> torch.Tensor:
         """Normalize advantages with distributed training support while preserving shape."""
-        if not self.trainer_cfg.get("norm_adv", True):
+        if not self.trainer_cfg.norm_adv:
             return adv
 
         if torch.distributed.is_initialized():
@@ -1058,7 +1085,9 @@ class MettaTrainer:
 
     def close(self):
         self.vecenv.close()
-        self._memory_monitor.clear()
+        if self._master:
+            self._memory_monitor.clear()
+            self._system_monitor.stop()
 
     @property
     def latest_saved_policy_uri(self) -> str | None:
@@ -1095,8 +1124,7 @@ class MettaTrainer:
         total_agents = vecenv.num_agents
 
         # Calculate minibatch parameters
-        minibatch_size = trainer_cfg.minibatch_size
-        max_minibatch_size = trainer_cfg.get("max_minibatch_size", minibatch_size)
+        max_minibatch_size = trainer_cfg.minibatch_size
 
         # Get LSTM parameters
         hidden_size = getattr(self.policy, "hidden_size", 256)
@@ -1164,8 +1192,6 @@ class MettaTrainer:
             is_training=True,
         )
 
-        self._memory_monitor.add(self.vecenv)
-
         if self.cfg.seed is None:
             self.cfg.seed = np.random.randint(0, 1000000)
 
@@ -1181,31 +1207,36 @@ class MettaTrainer:
         # Try checkpoint first
         if checkpoint and checkpoint.policy_path:
             logger.info(f"Loading policy from checkpoint: {checkpoint.policy_path}")
-            return policy_store.policy(checkpoint.policy_path)
+            return policy_store.policy_record(checkpoint.policy_path)
 
         # Try initial_policy from config
-        if hasattr(trainer_cfg, "initial_policy") and getattr(trainer_cfg.initial_policy, "uri", None) is not None:
-            initial_uri = trainer_cfg.initial_policy.uri
+        if trainer_cfg.initial_policy and (initial_uri := trainer_cfg.initial_policy.uri) is not None:
             logger.info(f"Loading initial policy URI: {initial_uri}")
-            return policy_store.policy(initial_uri)
+            return policy_store.policy_record(initial_uri)
 
         # Try default checkpoint path
         policy_path = os.path.join(trainer_cfg.checkpoint_dir, policy_store.make_model_name(0))
         if os.path.exists(policy_path):
             logger.info(f"Loading policy from checkpoint: {policy_path}")
-            return policy_store.policy(policy_path)
+            return policy_store.policy_record(policy_path)
 
         return None
 
-    def _create_policy(self, policy_store, metta_grid_env) -> PolicyRecord:
+    def _create_and_save_policy_record(self, policy_store: PolicyStore, env: MettaGridEnv) -> PolicyRecord:
         """Create a new policy. Only master should call this."""
         if not self._master:
-            raise RuntimeError("Only master process should create policies")
+            raise RuntimeError("Only master process should create and save a policy record")
 
-        logger.info("Creating new policy")
-        return policy_store.create(metta_grid_env)
+        name = policy_store.make_model_name(self.epoch)
+        logger.info(f"Creating new policy record: {name}")
+        pr = policy_store.create_empty_policy_record(name)
+        pr.policy = make_policy(env, self.cfg)
+        policy_store.save(pr)
+        self.latest_saved_policy_record = pr
 
-    def _wait_for_policy(self, policy_store, timeout_attempts: int = 10) -> PolicyRecord:
+        return self.latest_saved_policy_record
+
+    def _wait_for_policy_record(self, policy_store, timeout_attempts: int = 10) -> PolicyRecord:
         """Non-master processes wait for master to create policy."""
         if self._master:
             raise RuntimeError("Master process should not wait for policy")
@@ -1215,7 +1246,7 @@ class MettaTrainer:
         for attempt in range(timeout_attempts):
             if os.path.exists(policy_path):
                 logger.info(f"Found policy created by master: {policy_path}")
-                return policy_store.policy(policy_path)
+                return policy_store.policy_record(policy_path)
             logger.info(f"Waiting for master to create policy... attempt {attempt + 1}/{timeout_attempts}")
             time.sleep(5)
 
@@ -1223,7 +1254,7 @@ class MettaTrainer:
 
     def _maybe_compute_grad_stats(self, force=False):
         """Compute and store gradient statistics if on interval."""
-        interval = self.trainer_cfg.get("grad_mean_variance_interval", 0)
+        interval = self.trainer_cfg.grad_mean_variance_interval
         if not self._should_run(interval, force):
             return
 

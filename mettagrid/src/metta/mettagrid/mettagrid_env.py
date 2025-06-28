@@ -3,6 +3,7 @@ from __future__ import annotations
 import datetime
 import logging
 import random
+import time
 import uuid
 from typing import Any, Dict, Optional, cast
 
@@ -151,14 +152,14 @@ class MettaGridEnv(PufferEnv, GymEnv):
         if self._is_training and self._resets == 0:
             max_steps = game_config_dict["max_steps"]
             game_config_dict["max_steps"] = int(np.random.randint(1, max_steps + 1))
-            logger.info(f"Desync episode with max_steps {game_config_dict['max_steps']}")
+            # logger.info(f"Desync episode with max_steps {game_config_dict['max_steps']}")
 
         self._map_labels = level.labels
 
         # Convert string array to list of strings for C++ compatibility
         # TODO: push the not-numpy-array higher up the stack, and consider pushing not-a-sparse-list lower.
         with self.timer("_initialize_c_env.make_c_env"):
-            self._c_env = MettaGrid(cpp_config_dict(game_config_dict), level.grid.tolist())
+            self._c_env = MettaGrid(cpp_config_dict(game_config_dict), level.grid.tolist(), self._current_seed)
 
         self._grid_env = self._c_env
 
@@ -249,22 +250,21 @@ class MettaGridEnv(PufferEnv, GymEnv):
     def process_episode_stats(self, infos: Dict[str, Any]):
         self.timer.start("process_episode_stats")
 
+        infos.clear()
+
         episode_rewards = self._c_env.get_episode_rewards()
         episode_rewards_sum = episode_rewards.sum()
         episode_rewards_mean = episode_rewards_sum / self._c_env.num_agents
-
-        init_time = self.timer.get_elapsed("_initialize_c_env")
-        infos.update(
-            {
-                f"task_reward/{self._task.short_name()}/rewards.mean": episode_rewards_mean,
-                f"task_timing/{self._task.short_name()}/init_time": init_time,
-            }
-        )
 
         for label in self._map_labels + self.labels:
             infos[f"map_reward/{label}"] = episode_rewards_mean
 
         infos.update(self._curriculum.get_completion_rates())
+
+        # Add curriculum-specific stats
+        curriculum_stats = self._curriculum.get_curriculum_stats()
+        for key, value in curriculum_stats.items():
+            infos[f"curriculum/{key}"] = value
 
         with self.timer("_c_env.get_episode_stats"):
             stats = self._c_env.get_episode_stats()
@@ -285,19 +285,20 @@ class MettaGridEnv(PufferEnv, GymEnv):
             "steps": self._steps,
             "resets": self._resets,
             "max_steps": self.max_steps,
+            "completion_time": time.time(),
         }
         infos["attributes"] = attributes
 
         replay_url = None
 
-        if self._replay_writer:
-            with self.timer("_replay_writer"):
+        with self.timer("_replay_writer"):
+            if self._replay_writer:
                 assert self._episode_id is not None, "Episode ID must be set before writing a replay"
                 replay_url = self._replay_writer.write_replay(self._episode_id)
                 infos["replay_url"] = replay_url
 
-        if self._stats_writer:
-            with self.timer("_stats_writer"):
+        with self.timer("_stats_writer"):
+            if self._stats_writer:
                 assert self._episode_id is not None, "Episode ID must be set before writing stats"
 
                 env_cfg_flattened: dict[str, str] = {}
@@ -346,6 +347,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
                 f"active_frac/{op}": lap_elapsed / adjusted_lap_time if adjusted_lap_time > 0 else 0
                 for op, lap_elapsed in lap_times.items()
             },
+            **{f"msec/{op}": lap_elapsed * 1000 for op, lap_elapsed in lap_times.items()},
             "frac/thread_idle": lap_thread_idle_time / wall_time_for_lap,
         }
         infos["timing_cumulative"] = {
@@ -355,6 +357,14 @@ class MettaGridEnv(PufferEnv, GymEnv):
             },
             "frac/thread_idle": thread_idle_time / wall_time,
         }
+
+        task_init_time_msec = lap_times.get("_initialize_c_env", 0) * 1000
+        infos.update(
+            {
+                f"task_reward/{self._task.short_name()}/rewards.mean": episode_rewards_mean,
+                f"task_timing/{self._task.short_name()}/init_time_msec": task_init_time_msec,
+            }
+        )
 
         self._episode_id = None
 

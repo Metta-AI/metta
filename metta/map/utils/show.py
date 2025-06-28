@@ -31,11 +31,10 @@ def show_map(storable_map: StorableMap, mode: ShowMode | None):
         env = MettaGridEnv(SingleTaskCurriculum("show_map", env_cfg), level=level, render_mode="none")
 
         file_path = write_local_map_preview(env)
-        url_path = file_path.split("mettascope/")[-1]
 
         with hydra.initialize(version_base=None, config_path="../../../configs"):
             cfg = hydra.compose(config_name="replay_job")
-            mettascope.server.run(cfg, open_url=f"?replayUrl={url_path}")
+            mettascope.server.run(cfg, open_url=f"?replayUrl=local/{file_path}")
 
     elif mode == "ascii":
         ascii_lines = grid_to_lines(storable_map.grid)

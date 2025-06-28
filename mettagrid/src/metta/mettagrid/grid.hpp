@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "grid_object.hpp"
+#include "objects/constants.hpp"
 
 using std::max;
 using std::unique_ptr;
@@ -16,16 +17,12 @@ class Grid {
 public:
   unsigned int width;
   unsigned int height;
-  vector<Layer> layer_for_type_id;
-  Layer num_layers;
 
   GridType grid;
   vector<std::unique_ptr<GridObject>> objects;
 
-  inline Grid(unsigned int width, unsigned int height, vector<Layer> layer_for_type_id)
-      : width(width), height(height), layer_for_type_id(layer_for_type_id) {
-    num_layers = *max_element(layer_for_type_id.begin(), layer_for_type_id.end()) + 1;
-    grid.resize(height, vector<vector<GridObjectId>>(width, vector<GridObjectId>(this->num_layers, 0)));
+  inline Grid(unsigned int width, unsigned int height) : width(width), height(height) {
+    grid.resize(height, vector<vector<GridObjectId>>(width, vector<GridObjectId>(GridLayer::GridLayerCount, 0)));
 
     // 0 is reserved for empty space
     objects.push_back(nullptr);
@@ -34,7 +31,7 @@ public:
   virtual ~Grid() = default;
 
   inline char add_object(GridObject* obj) {
-    if (obj->location.r >= height || obj->location.c >= width || obj->location.layer >= num_layers) {
+    if (obj->location.r >= height || obj->location.c >= width || obj->location.layer >= GridLayer::GridLayerCount) {
       return false;
     }
     if (this->grid[obj->location.r][obj->location.c][obj->location.layer] != 0) {
@@ -58,7 +55,7 @@ public:
   }
 
   inline char move_object(GridObjectId id, const GridLocation& loc) {
-    if (loc.r >= height || loc.c >= width || loc.layer >= num_layers) {
+    if (loc.r >= height || loc.c >= width || loc.layer >= GridLayer::GridLayerCount) {
       return false;
     }
 
@@ -99,7 +96,7 @@ public:
   }
 
   inline GridObject* object_at(const GridLocation& loc) {
-    if (loc.r >= height || loc.c >= width || loc.layer >= num_layers) {
+    if (loc.r >= height || loc.c >= width || loc.layer >= GridLayer::GridLayerCount) {
       return nullptr;
     }
     if (grid[loc.r][loc.c][loc.layer] == 0) {
@@ -142,29 +139,15 @@ public:
     return GridLocation(new_r, new_c, loc.layer);
   }
 
-  inline const GridLocation relative_location(const GridLocation& loc,
-                                              Orientation orientation,
-                                              GridCoord distance,
-                                              GridCoord offset,
-                                              TypeId type_id) {
-    GridLocation rloc = this->relative_location(loc, orientation, distance, offset);
-    rloc.layer = this->layer_for_type_id[type_id];
-    return rloc;
-  }
-
   inline const GridLocation relative_location(const GridLocation& loc, Orientation orientation) {
     return this->relative_location(loc, orientation, 1, 0);
-  }
-
-  inline const GridLocation relative_location(const GridLocation& loc, Orientation orientation, TypeId type_id) {
-    return this->relative_location(loc, orientation, 1, 0, type_id);
   }
 
   inline char is_empty(unsigned int row, unsigned int col) {
     GridLocation loc;
     loc.r = row;
     loc.c = col;
-    for (int layer = 0; layer < num_layers; ++layer) {
+    for (int layer = 0; layer < GridLayer::GridLayerCount; ++layer) {
       loc.layer = layer;
       if (object_at(loc) != nullptr) {
         return 0;

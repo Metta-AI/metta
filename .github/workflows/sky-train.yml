@@ -99,9 +99,9 @@ jobs:
               echo "Push event: Using PR #$PR_NUMBER_FROM_COMMIT in run name base: $RUN_NAME_BASE"
             else
               BRANCH_NAME_RAW=$(git rev-parse --abbrev-ref HEAD)
-              BRANCH_NAME_SANITISED=$(echo "$BRANCH_NAME_RAW" | sed 's/[^a-zA-Z0-9_-]/-/g')
-              RUN_NAME_BASE="${{ env.RUN_NAME_PREFIX }}.${BRANCH_NAME_SANITISED}"
-              echo "Push event: Using branch name '$BRANCH_NAME_SANITISED' in run name base: $RUN_NAME_BASE (PR number not found in commit)"
+              BRANCH_NAME_SANITIZED=$(echo "$BRANCH_NAME_RAW" | sed 's/[^a-zA-Z0-9_-]/-/g')
+              RUN_NAME_BASE="${{ env.RUN_NAME_PREFIX }}.${BRANCH_NAME_SANITIZED}"
+              echo "Push event: Using branch name '$BRANCH_NAME_SANITIZED' in run name base: $RUN_NAME_BASE (PR number not found in commit)"
             fi
             FINAL_RUN_NAME="$RUN_NAME_BASE.$SHORT_COMMIT_HASH.$TIMESTAMP"
             echo "Push event: Run name: $FINAL_RUN_NAME"
@@ -124,6 +124,7 @@ jobs:
           git_ref_override: ${{ github.event.inputs.commit_to_run || '' }} # Pass commit_to_run for manual, default for push
           wandb_api_key: ${{ secrets.WANDB_API_KEY }}
           skypilot_api_url: ${{ secrets.SKYPILOT_API_URL }}
+          observatory_token: ${{ secrets.OBSERVATORY_TOKEN }}
 
       - name: Print Run Information
         shell: bash

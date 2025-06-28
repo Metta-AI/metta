@@ -6,7 +6,7 @@ defaults:
 
 trainer:
   # env: /env/mettagrid/multienv_mettagrid
-  curriculum: /env/mettagrid/curriculum/all
+  curriculum: /env/mettagrid/curriculum/simple
 
   env_overrides:
     sampling: 0.7
@@ -35,9 +35,10 @@ trainer:
 # policy_uri: wandb://run/b.daveey.t.1.lra.dr.muon
 # policy_uri: pytorch:///tmp/puffer_metta.pt
 # policy_uri: pytorch:///tmp/puffer_metta.pt
-policy_uri: wandb://run/daveey.lasertag.r5.2x4:v12
+# policy_uri: wandb://run/daveey.lasertag.r5.2x4:v12
 # policy_uri: pytorch://${data_dir}/puffer/puffer_metta.pt
 
+policy_uri: ${trained_policy_uri}
 npc_policy_uri: ${policy_uri}
 # npc_policy_uri: ${trained_policy_uri}
 
@@ -53,12 +54,12 @@ analyzer:
 
 replay_job:
   sim:
-    env: /env/mettagrid/laser_tag
-    env_overrides:
-      sampling: 1
-      game:
-        max_steps: 300
-        group_reward_pct: 0.5
+    env: /env/mettagrid/simple
+    # env_overrides:
+    #   sampling: 1
+    #   game:
+    #     max_steps: 300
+    #     group_reward_pct: 0.5
 
 sim_job:
   # policy_agents_pct: 1
@@ -74,7 +75,7 @@ sim_job:
   #         agents: 4
   #       num_rooms: 4
 
-run_id: 24
+run_id: 1
 run: ${oc.env:USER}.local.${run_id}
 trained_policy_uri: ${run_dir}/checkpoints
 

@@ -25,6 +25,9 @@ inputs:
   skypilot_api_url:
     description: "SkyPilot API URL"
     required: true
+  observatory_token:
+    description: "Observatory API token"
+    required: true
 
 runs:
   using: "composite"
@@ -57,6 +60,13 @@ runs:
         chmod 600 $HOME/.netrc
       env:
         WANDB_API_KEY: ${{ inputs.wandb_api_key }}
+
+    - name: Set up Metta observatory
+      shell: bash
+      run: |
+        mkdir -p $HOME/.metta
+        echo "${{ inputs.observatory_token }}" > $HOME/.metta/observatory_token
+        echo "Created ~/.metta directory with observatory token for SkyPilot file mount"
 
     - name: Configure SkyPilot API server
       shell: bash

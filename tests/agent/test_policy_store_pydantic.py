@@ -61,12 +61,19 @@ def test_policy_save_load_without_pydantic():
         temp_path = f.name
 
     try:
-        # Save using the convenience method
-        policy_store.save("test_policy", temp_path, policy, metadata)
+        print(temp_path)
+
+        # create a policy
+        pr = policy_store.create_empty_policy_record(name=temp_path)
+        pr.metadata = metadata
+        pr.policy = policy
+
+        # Save
+        policy_store.save(pr)
 
         # Try to load it back
         loaded_pr = policy_store.load_from_uri(f"file://{temp_path}")
-        loaded_policy = loaded_pr.policy()
+        loaded_policy = loaded_pr.policy
 
         # Verify the loaded policy works
         test_input = torch.randn(1, 10)

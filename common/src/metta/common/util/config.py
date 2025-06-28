@@ -87,3 +87,7 @@ def config_from_path(config_path: str, overrides: Optional[DictConfig | ListConf
         cfg = OmegaConf.merge(cfg, overrides)
         OmegaConf.set_struct(cfg, True)
     return cast(DictConfig, cfg)
+
+
+def copy_omegaconf_config(cfg: DictConfig | ListConfig) -> DictConfig | ListConfig:
+    return OmegaConf.create(OmegaConf.to_container(cfg, resolve=False))

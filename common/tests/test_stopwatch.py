@@ -3,7 +3,7 @@ import time
 
 import pytest
 
-from metta.common.stopwatch import Stopwatch, with_instance_timer, with_timer
+from metta.common.stopwatch import Checkpoint, Stopwatch, with_instance_timer, with_timer
 
 
 @pytest.fixture
@@ -110,7 +110,7 @@ class TestStopwatch:
         timer = stopwatch._get_timer("test_timer")
         assert "checkpoint1" in timer.checkpoints
         assert timer.checkpoints["checkpoint1"]["steps"] == 100
-        assert len(timer.checkpoints) == 2
+        assert len(timer.checkpoints) == 3  # with _start
 
         # Verify anonymous checkpoint naming
         assert any(k.startswith("_lap_") for k in timer.checkpoints)
@@ -368,14 +368,14 @@ class TestStopwatch:
         # Test multifile
         # We simulate multiple references by manually adding them
         timer = stopwatch._get_timer("multifile_test")
-        timer.references.append({"filename": "file1.py", "lineno": 10})
-        timer.references.append({"filename": "file2.py", "lineno": 20})
+        timer.references.add(("file1.py", 10))
+        timer.references.add(("file2.py", 20))
         assert stopwatch.get_filename("multifile_test") == "multifile"
 
         # Test multiple references from same file
         timer2 = stopwatch._get_timer("samefile_test")
-        timer2.references.append({"filename": "same.py", "lineno": 10})
-        timer2.references.append({"filename": "same.py", "lineno": 20})
+        timer2.references.add(("same.py", 10))
+        timer2.references.add(("same.py", 20))
         assert stopwatch.get_filename("samefile_test") == "same.py"
 
     def test_lap_all_with_running_and_stopped_timers(self, stopwatch):
@@ -420,9 +420,9 @@ class TestStopwatch:
 
         # Expected checkpoints
         expected_checkpoints = {
-            "A": [0.2, 0.3, 0.4],
-            "B": [0.2, 0.2, 0.2],
-            "C": [0.3, 0.5, 0.6],
+            "A": [0.0, 0.2, 0.3, 0.4],
+            "B": [0.0, 0.2, 0.2, 0.2],
+            "C": [0.0, 0.3, 0.5, 0.6],
         }
 
         for name, expected_times in expected_checkpoints.items():
@@ -433,19 +433,17 @@ class TestStopwatch:
                 f"Timer {name}: expected {len(expected_times)} checkpoints, got {len(checkpoints)}"
             )
 
-            for i, (_, checkpoint_data) in enumerate(checkpoints):
-                actual_time = checkpoint_data["elapsed_time"]
-                expected_time = expected_times[i]
-                assert abs(actual_time - expected_time) < tol, (
-                    f"Timer {name} checkpoint {i}: expected {expected_time}, got {actual_time}\n"
-                    f"All checkpoints: {checkpoints}"
-                )
+            laps = len(checkpoints) - 1
+            for i in range(laps):
+                start_checkpoint_time = checkpoints[i][1]["elapsed_time"]
+                stop_checkpoint_time = checkpoints[i + 1][1]["elapsed_time"]
+                delta_time = stop_checkpoint_time - start_checkpoint_time
+                lap_index = -(laps - i)  # Convert forward index to backward index
+                lap_time = stopwatch.get_lap_time(lap_index, name)
 
-            if checkpoints:
-                first_checkpoint_time = checkpoints[0][1]["elapsed_time"]
-                first_lap_time = lap_times[name]
-                assert abs(first_checkpoint_time - first_lap_time) < tol, (
-                    f"Timer {name}: checkpoint time {first_checkpoint_time} != lap time {first_lap_time}"
+                assert lap_time is not None, f"Timer {name}: lap {lap_index} does not exist"
+                assert abs(delta_time - lap_time) < tol, (
+                    f"Timer {name}: checkpoint time {delta_time} != lap time {lap_time} for lap {lap_index}"
                 )
 
     def test_get_lap_steps_first_lap(self, stopwatch):
@@ -457,14 +455,9 @@ class TestStopwatch:
         stopwatch.start("test_timer")
         time.sleep(0.1)
 
-        # Record first checkpoint at 100 steps
+        # Record checkpoint at 100 steps
         stopwatch.checkpoint(100, name="test_timer")
-
-        # Try to get the first lap steps
-        first_lap_steps = stopwatch.get_lap_steps(1, "test_timer")
-
-        # This should return 100 (steps from 0 to first checkpoint)
-        # But currently returns None due to the bug
+        first_lap_steps = stopwatch.get_lap_steps(-1, "test_timer")
         assert first_lap_steps == 100, f"Expected 100 steps for first lap, got {first_lap_steps}"
 
         # Also test with default parameter (last lap)
@@ -472,19 +465,16 @@ class TestStopwatch:
         assert last_lap_steps == 100, f"Expected 100 steps for last lap, got {last_lap_steps}"
 
         # Add second checkpoint
+
         time.sleep(0.1)
         stopwatch.checkpoint(250, name="test_timer")
 
         # Now test both laps
-        first_lap_steps = stopwatch.get_lap_steps(1, "test_timer")
+        first_lap_steps = stopwatch.get_lap_steps(-2, "test_timer")
         assert first_lap_steps == 100, f"Expected 100 steps for first lap, got {first_lap_steps}"
 
-        second_lap_steps = stopwatch.get_lap_steps(2, "test_timer")
+        second_lap_steps = stopwatch.get_lap_steps(-1, "test_timer")
         assert second_lap_steps == 150, f"Expected 150 steps for second lap (250-100), got {second_lap_steps}"
-
-        # Test with negative index
-        last_lap_steps = stopwatch.get_lap_steps(-1, "test_timer")
-        assert last_lap_steps == 150, f"Expected 150 steps for last lap, got {last_lap_steps}"
 
         stopwatch.stop("test_timer")
 
@@ -549,13 +539,14 @@ class TestStopwatchIntegration:
         # Verify the checkpoint data
         timer = sw._get_timer("training")
         checkpoints = timer.checkpoints
-        assert len(checkpoints) == 3
+        assert len(checkpoints) == 4  # with _start
 
         # Extract checkpoint data for verification
         checkpoint_list = sorted(checkpoints.items(), key=lambda x: x[1]["elapsed_time"])
-        assert checkpoint_list[0][1]["steps"] == 100  # First checkpoint at 100 steps
-        assert checkpoint_list[1][1]["steps"] == 300  # Second checkpoint at 300 steps
-        assert checkpoint_list[2][1]["steps"] == 600  # Third checkpoint at 600 steps
+        assert checkpoint_list[0][1]["steps"] == 0  # First checkpoint at 0 steps
+        assert checkpoint_list[1][1]["steps"] == 100  # First checkpoint at 100 steps
+        assert checkpoint_list[2][1]["steps"] == 300  # Second checkpoint at 300 steps
+        assert checkpoint_list[3][1]["steps"] == 600  # Third checkpoint at 600 steps
 
     def test_real_world_scenario(self):
         """Test a realistic usage scenario."""
@@ -894,8 +885,8 @@ class TestStopwatchSaveLoad:
         # Add references manually for testing
         timer = stopwatch._get_timer("complex_timer")
         # Note: start() already added one reference, so we'll have 3 total
-        timer.references.append({"filename": "test1.py", "lineno": 10})
-        timer.references.append({"filename": "test2.py", "lineno": 20})
+        timer.references.add(("test1.py", 10))
+        timer.references.add(("test2.py", 20))
 
         # Save state
         state = stopwatch.save_state()
@@ -913,7 +904,7 @@ class TestStopwatchSaveLoad:
         )
 
         # Check checkpoints
-        assert len(new_timer.checkpoints) == 2  # check1, check2
+        assert len(new_timer.checkpoints) == 3  # _start, check1, check2
         assert "check1" in new_timer.checkpoints
         assert "check2" in new_timer.checkpoints
         assert new_timer.checkpoints["check1"]["steps"] == 100
@@ -925,8 +916,8 @@ class TestStopwatchSaveLoad:
         # Check references - should have 3 (1 from start + 2 manual)
         assert len(new_timer.references) == 3
         # The first reference is from start(), check the manually added ones
-        assert new_timer.references[1]["filename"] == "test1.py"
-        assert new_timer.references[2]["filename"] == "test2.py"
+        assert ("test1.py", 10) in new_timer.references
+        assert ("test2.py", 20) in new_timer.references
 
     def test_save_load_empty_state(self):
         """Test saving/loading empty stopwatch."""
@@ -1032,7 +1023,7 @@ class TestStopwatchSaveLoad:
 
         # Final timer should have all checkpoints and correct elapsed time
         timer = sw3._get_timer("cycle_test")
-        assert len(timer.checkpoints) == 2
+        assert len(timer.checkpoints) == 3  # with _start
         assert "checkpoint1" in timer.checkpoints
         assert "checkpoint2" in timer.checkpoints
 
@@ -1069,3 +1060,142 @@ class TestStopwatchSaveLoad:
         # New timer should exist
         assert "new1" in stopwatch._timers
         assert stopwatch.get_elapsed("new1") > 0.04
+
+
+def test_cleanup_old_checkpoints_preserves_order():
+    """Test that _cleanup_old_checkpoints maintains chronological order."""
+
+    stopwatch = Stopwatch(max_laps=3)
+    timer_name = "test_timer"
+
+    # Create a timer and add checkpoints in chronological order
+    timer = stopwatch._get_timer(timer_name)
+
+    # Manually add checkpoints to ensure we know the exact order and timing
+    checkpoints_data = [
+        ("checkpoint_1", 1.0, 100),
+        ("checkpoint_2", 2.0, 200),
+        ("checkpoint_3", 3.0, 300),
+        ("checkpoint_4", 4.0, 400),
+        ("checkpoint_5", 5.0, 500),
+    ]
+
+    # Add all checkpoints
+    for name, elapsed, steps in checkpoints_data:
+        timer.checkpoints[name] = Checkpoint(elapsed_time=elapsed, steps=steps)
+
+    # Verify initial state - should have 6 checkpoints with "_start"
+    assert len(timer.checkpoints) == 6
+
+    # Get the order before cleanup
+    before_cleanup = list(timer.checkpoints.items())
+    print("Before cleanup:")
+    for name, cp in before_cleanup:
+        print(f"  {name}: elapsed={cp['elapsed_time']}, steps={cp['steps']}")
+
+    # Trigger cleanup (max_laps=3 means max_checkpoints=4, so 6 > 4 triggers cleanup)
+    timer.cleanup_old_checkpoints()
+
+    # Should now have 4 checkpoints (max_laps + 1)
+    assert len(timer.checkpoints) == 4
+
+    # Get the order after cleanup
+    after_cleanup = list(timer.checkpoints.items())
+    print("\nAfter cleanup:")
+    for name, cp in after_cleanup:
+        print(f"  {name}: elapsed={cp['elapsed_time']}, steps={cp['steps']}")
+
+    # Verify that we kept the LAST 4 checkpoints
+    expected_remaining = checkpoints_data[-4:]  # Last 4 items
+
+    actual_items = list(timer.checkpoints.items())
+
+    for i, (expected_name, expected_elapsed, expected_steps) in enumerate(expected_remaining):
+        actual_name, actual_checkpoint = actual_items[i]
+
+        assert actual_name == expected_name, f"Name mismatch at index {i}: expected {expected_name}, got {actual_name}"
+        assert actual_checkpoint["elapsed_time"] == expected_elapsed, f"Elapsed time mismatch at index {i}"
+        assert actual_checkpoint["steps"] == expected_steps, f"Steps mismatch at index {i}"
+
+    # Verify chronological order is maintained (elapsed_time should be increasing)
+    elapsed_times = [cp["elapsed_time"] for cp in timer.checkpoints.values()]
+    assert elapsed_times == sorted(elapsed_times), f"Checkpoints not in chronological order: {elapsed_times}"
+
+    # Verify step counts are increasing
+    step_counts = [cp["steps"] for cp in timer.checkpoints.values()]
+    assert step_counts == sorted(step_counts), f"Step counts not in increasing order: {step_counts}"
+
+
+def test_multiple_laps_after_cleanup():
+    """Test multiple lap indices after cleanup."""
+
+    stopwatch = Stopwatch(max_laps=2)  # Very restrictive to force cleanup
+
+    timer = stopwatch._get_timer()
+
+    # Add more checkpoints than max_laps allows
+    checkpoints_data = [
+        ("_lap_1", 1.0, 100),
+        ("_lap_2", 2.0, 250),  # 150 step lap
+        ("_lap_3", 3.0, 400),  # 150 step lap
+        ("_lap_4", 4.0, 600),  # 200 step lap
+    ]
+
+    for name, elapsed, steps in checkpoints_data:
+        timer.checkpoints[name] = Checkpoint(elapsed_time=elapsed, steps=steps)
+        timer.lap_counter += 1
+
+    print("Before cleanup - all checkpoints:")
+    for name, cp in timer.checkpoints.items():
+        print(f"  {name}: elapsed={cp['elapsed_time']}, steps={cp['steps']}")
+
+    # Force cleanup (max_laps=2 means keep 3 checkpoints)
+    timer.cleanup_old_checkpoints()
+
+    print("\nAfter cleanup:")
+    for name, cp in timer.checkpoints.items():
+        print(f"  {name}: elapsed={cp['elapsed_time']}, steps={cp['steps']}")
+
+    # Now test lap calculations
+    print("\nLap calculations:")
+
+    # Most recent lap (-1): should be lap_4 - lap_3 = 600 - 400 = 200
+    lap_1 = stopwatch.get_lap_steps(-1)
+    print(f"Lap -1 (most recent): {lap_1}, expected: 200")
+
+    # Second most recent lap (-2): should be lap_3 - lap_2 = 400 - 250 = 150
+    lap_2 = stopwatch.get_lap_steps(-2)
+    print(f"Lap -2 (second recent): {lap_2}, expected: 150")
+
+    # This should fail because we don't have enough checkpoints
+    lap_3 = stopwatch.get_lap_steps(-3)
+    print(f"Lap -3 (should be None): {lap_3}")
+
+    assert lap_1 == 200, f"Expected lap -1 to be 200, got {lap_1}"
+    assert lap_2 == 150, f"Expected lap -2 to be 150, got {lap_2}"
+    assert lap_3 is None, f"Expected lap -3 to be None, got {lap_3}"
+
+    # now we will add some laps using the timer
+    stopwatch.start()
+    time.sleep(0.05)
+    stopwatch.lap_all(steps=850, exclude_global=False)
+    time.sleep(0.05)
+    stopwatch.lap_all(steps=1150, exclude_global=False)
+    stopwatch.stop()
+
+    print("\nAfter laps:")
+    for name, cp in timer.checkpoints.items():
+        print(f"  {name}: elapsed={cp['elapsed_time']}, steps={cp['steps']}")
+
+    lap_1 = stopwatch.get_lap_steps(-1)
+    print(f"Lap -1 (most recent): {lap_1}, expected: 300")
+
+    lap_2 = stopwatch.get_lap_steps(-2)
+    print(f"Lap -2 (second recent): {lap_2}, expected: 250")
+
+    lap_3 = stopwatch.get_lap_steps(-3)
+    print(f"Lap -3 (should be None): {lap_3}")
+
+    assert lap_1 == 300, f"Expected lap -1 to be 300, got {lap_1}"
+    assert lap_2 == 250, f"Expected lap -2 to be 250, got {lap_2}"
+    assert lap_3 is None, f"Expected lap -3 to be None, got {lap_3}"

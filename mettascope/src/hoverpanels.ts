@@ -16,7 +16,7 @@
 
 import { find, findIn, onEvent, removeChildren, findAttr } from './htmlutils.js'
 import { state, ui } from './common.js'
-import { getAttr } from './replay.js'
+import { getAttr, getObjectConfig } from './replay.js'
 import * as Common from './common.js'
 import { Vec2f } from './vector_math.js'
 
@@ -166,53 +166,34 @@ function updateDom(htmlPanel: HTMLElement, object: any) {
   let recipe = findIn(htmlPanel, '.recipe')
   removeChildren(recipe)
   let recipeArea = findIn(htmlPanel, '.recipe-area')
-  let config = state.replay.config
+  let objectConfig = getObjectConfig(object)
   let displayedResources = 0
-  if (config != null && config.game != null && config.game.objects != null) {
-    for (let name in config.game.objects) {
-      // I hope this will change in the future, but the only way to match an object to
-      // a config is to split a config name into a type-name and color-name and match
-      // that to the object's type-name and color-name. Keep in mind that color 0
-      // is the default color, which is red.
-      // In the future, I hope the type name will just match the config name.
-      let nameParts = name.split('.')
-      let configTypeName = nameParts[0]
-      let configColorName = nameParts[1] || 'red' // Red is the default 0 color.
-
-      let objectTypeName = state.replay.object_types[object.type]
-      let objectColorName = undefined
-      if (object.color >= 0 && object.color < Common.COLORS.length) {
-        objectColorName = Common.COLORS[object.color][0]
+  if (objectConfig != null) {
+    recipeArea.classList.remove('hidden')
+    // Configs have input_{resource} and output_{resource}.
+    for (let key in objectConfig) {
+      if (key.startsWith('input_')) {
+        let resource = key.replace('input_', '')
+        let amount = objectConfig[key]
+        let item = itemTemplate.cloneNode(true) as HTMLElement
+        item.querySelector('.amount')!.textContent = amount
+        item.querySelector('.icon')!.setAttribute('src', 'data/atlas/resources/' + resource + '.png')
+        recipe.appendChild(item)
+        displayedResources++
       }
-      if (configTypeName == objectTypeName && (objectColorName === undefined || configColorName == objectColorName)) {
-        let objectConfig = config.game.objects[name]
-        recipeArea.classList.remove('hidden')
-        // Configs have input_{resource} and output_{resource}.
-        for (let key in objectConfig) {
-          if (key.startsWith('input_')) {
-            let resource = key.replace('input_', '')
-            let amount = objectConfig[key]
-            let item = itemTemplate.cloneNode(true) as HTMLElement
-            item.querySelector('.amount')!.textContent = amount
-            item.querySelector('.icon')!.setAttribute('src', 'data/atlas/resources/' + resource + '.png')
-            recipe.appendChild(item)
-            displayedResources++
-          }
-        }
-        // Add the arrow.
-        recipe.appendChild(recipeArrow.cloneNode(true))
-        // Add the output.
-        for (let key in objectConfig) {
-          if (key.startsWith('output_')) {
-            let resource = key.replace('output_', '')
-            let amount = objectConfig[key]
-            let item = itemTemplate.cloneNode(true) as HTMLElement
-            item.querySelector('.amount')!.textContent = amount
-            item.querySelector('.icon')!.setAttribute('src', 'data/atlas/resources/' + resource + '.png')
-            recipe.appendChild(item)
-            displayedResources++
-          }
-        }
+    }
+    // Add the arrow.
+    recipe.appendChild(recipeArrow.cloneNode(true))
+    // Add the output.
+    for (let key in objectConfig) {
+      if (key.startsWith('output_')) {
+        let resource = key.replace('output_', '')
+        let amount = objectConfig[key]
+        let item = itemTemplate.cloneNode(true) as HTMLElement
+        item.querySelector('.amount')!.textContent = amount
+        item.querySelector('.icon')!.setAttribute('src', 'data/atlas/resources/' + resource + '.png')
+        recipe.appendChild(item)
+        displayedResources++
       }
     }
   }

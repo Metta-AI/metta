@@ -46,3 +46,6 @@ wandb
 /devops/charts/**/charts
 
 .claude/settings.local.json
+
+# can be created by skypilot
+/Miniconda3-Linux.sh

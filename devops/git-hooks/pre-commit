@@ -1,4 +1,4 @@
-#!/bin/bash
+policy_uri=wandb://run/daphne.nav_memory_sequence.baseline.06-20#!/bin/bash
 set -e
 
 # Get all staged Python files

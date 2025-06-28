@@ -21,7 +21,7 @@ def main(cfg: DictConfig) -> None:
     config = AnalysisConfig(cfg.analysis)
 
     policy_store = PolicyStore(cfg, None)
-    policy_pr = policy_store.policy(
+    policy_pr = policy_store.policy_record(
         config.policy_uri, config.policy_selector.type, metric=config.policy_selector.metric
     )
     analyze(policy_pr, config)

@@ -26,6 +26,10 @@ class Curriculum:
         """Return the current task probabilities for logging purposes."""
         return {}
 
+    def get_curriculum_stats(self) -> dict:
+        """Return curriculum statistics for logging purposes (default: empty)."""
+        return {}
+
 
 class Task:
     def __init__(self, id: str, curriculum: "Curriculum", env_cfg: Optional[DictConfig] = None):

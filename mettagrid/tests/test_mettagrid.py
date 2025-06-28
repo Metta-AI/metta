@@ -48,13 +48,13 @@ def create_minimal_mettagrid_c_env(max_steps=10, width=5, height=5):
         },
         "groups": {"red": {"id": 0, "props": {}}},
         "objects": {
-            "wall": {},
-            "block": {},
+            "wall": {"type_id": 1},
+            "block": {"type_id": 1},
         },
         "agent": {},
     }
 
-    return MettaGrid(cpp_config_dict(game_config), game_map.tolist())
+    return MettaGrid(cpp_config_dict(game_config), game_map.tolist(), 42)
 
 
 def test_grid_hash():
@@ -136,7 +136,7 @@ def test_grid_objects():
     for obj in objects.values():
         if obj.get("type_id") == 1:
             # Walls
-            assert set(obj) == {"type_id"} | common_properties
+            assert set(obj) == {"type_id", "type_name"} | common_properties
         if obj.get("type_id") == 0:
             # Agents
             assert set(obj).issuperset(
