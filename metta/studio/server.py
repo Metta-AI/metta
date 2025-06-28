@@ -17,7 +17,7 @@ from metta.common.util.resolvers import register_resolvers
 from metta.map.utils.storable_map import StorableMap, StorableMapDict, StorableMapIndex, map_builder_cfg_to_storable_map
 from metta.mettagrid.util.file import read
 
-logger = logging.getLogger("metta.map.server")
+logger = logging.getLogger("metta.studio.server")
 
 
 def make_app():

@@ -15,10 +15,10 @@ from metta.common.fs import cd_repo_root
 def main():
     cd_repo_root()
     repo_root = Path.cwd()
-    mettamap_dir = repo_root / "mettamap"
+    studio_dir = repo_root / "studio"
 
     print(f"Starting servers from repo root: {repo_root}")
-    print(f"Mettamap directory: {mettamap_dir}")
+    print(f"Studio frontend directory: {studio_dir}")
 
     # Ensure color output from child processes even when stdout is piped.
     env = os.environ.copy()
@@ -29,7 +29,7 @@ def main():
 
     # Start the backend server in repo root
     backend_process = subprocess.Popen(
-        ["uv", "run", "-m", "metta.map.server"],
+        ["uv", "run", "-m", "metta.studio.server"],
         cwd=repo_root,
         env=env,
         stdout=subprocess.PIPE,
@@ -38,10 +38,10 @@ def main():
         bufsize=1,
     )
 
-    # Start the frontend dev server in mettamap directory
+    # Start the frontend dev server in studio directory
     frontend_process = subprocess.Popen(
         ["pnpm", "dev"],
-        cwd=mettamap_dir,
+        cwd=studio_dir,
         env=env,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
