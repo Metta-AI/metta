@@ -140,29 +140,38 @@ def _get_group_data_with_policy_filter(
     """Core group data query with configurable policy filtering."""
     query_template: SQL = SQL("""
         WITH
+        filtered_episodes AS (
+            SELECT e.id, e.env_name, e.primary_policy_id, e.replay_url, e.attributes
+            FROM episodes e
+            WHERE e.eval_category = %s
+        ),
         episode_agent_metrics_with_group_id AS (
             SELECT
-                eam.*,
-                CAST ((e.attributes->'agent_groups')[eam.agent_id] AS INTEGER) as group_id
+                eam.episode_id,
+                eam.agent_id,
+                eam.value,
+                CAST ((fe.attributes->'agent_groups')[eam.agent_id] AS INTEGER) as group_id,
+                fe.env_name,
+                fe.primary_policy_id,
+                fe.replay_url
             FROM episode_agent_metrics eam
-            JOIN episodes e ON e.id = eam.episode_id
-            WHERE e.eval_category = %s AND eam.metric = %s
+            JOIN filtered_episodes fe ON fe.id = eam.episode_id
+            WHERE eam.metric = %s
         ),
         {}
 
         SELECT
           p.name as policy_uri,
-          e.env_name as eval_name,
-          ANY_VALUE(e.replay_url) as replay_url,
+          eam.env_name as eval_name,
+          ANY_VALUE(eam.replay_url) as replay_url,
           COUNT(*) AS num_agents,
           SUM(eam.value) AS total_value,
           p.run_id,
           p.end_training_epoch
         FROM episode_agent_metrics_with_group_id eam
-        JOIN episodes e ON e.id = eam.episode_id
-        JOIN filtered_policies p ON e.primary_policy_id = p.id
+        JOIN filtered_policies p ON eam.primary_policy_id = p.id
         {}
-        GROUP BY p.name, e.env_name, p.run_id, p.end_training_epoch
+        GROUP BY p.name, eam.env_name, p.run_id, p.end_training_epoch
         ORDER BY p.run_id, p.end_training_epoch DESC
     """)
 
@@ -291,6 +300,8 @@ def _select_best_policies_per_run(rows: List[GroupDataRow], suite: str, con: Con
     Select the best policy per training run based on average score across all evaluations.
     For policies with no run_id (epoch_id is NULL), include them as-is.
     Ties are broken by selecting the latest policy (highest end_training_epoch).
+    
+    Optimized version that avoids extra database queries and simplifies scoring logic.
     """
     # Group rows by run_id and policy_uri
     run_policies: DefaultDict[str, DefaultDict[str, List[GroupDataRow]]] = defaultdict(lambda: defaultdict(list))
@@ -302,10 +313,6 @@ def _select_best_policies_per_run(rows: List[GroupDataRow], suite: str, con: Con
         else:
             run_policies[row.run_id][row.policy_uri].append(row)
 
-    # Get all eval_names for this suite to handle missing evaluations
-    eval_rows = con.execute("SELECT DISTINCT env_name FROM episodes WHERE eval_category = %s", (suite,))
-    all_eval_names: Set[str] = {row[0] for row in eval_rows if row[0] is not None}
-
     selected_rows: List[GroupDataRow] = []
 
     # Process each training run
@@ -316,20 +323,16 @@ def _select_best_policies_per_run(rows: List[GroupDataRow], suite: str, con: Con
 
         # Calculate average score for each policy in this run
         for _policy_uri, policy_rows in policies_dict.items():
-            # Create a map of eval_name -> average score for this policy
-            eval_scores: Dict[str, float] = {}
             policy_epoch = policy_rows[0].end_training_epoch or 0
-
+            
+            # Calculate average score across available evaluations for this policy
+            total_score = 0.0
             for row in policy_rows:
                 avg_score = row.total_value / row.num_agents if row.num_agents > 0 else 0.0
-                eval_scores[row.eval_name] = avg_score
+                total_score += avg_score
 
-            # Calculate average across all evaluations (missing ones default to 0)
-            total_score = 0.0
-            for eval_name in all_eval_names:
-                total_score += eval_scores.get(eval_name, 0.0)
-
-            avg_score = total_score / len(all_eval_names) if all_eval_names else 0.0
+            # Simple average across evaluations this policy actually participated in
+            avg_score = total_score / len(policy_rows) if policy_rows else 0.0
 
             # Select best policy, with ties broken by latest epoch
             if avg_score > best_avg_score or (avg_score == best_avg_score and policy_epoch > best_policy_epoch):

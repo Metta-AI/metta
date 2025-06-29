@@ -144,6 +144,29 @@ MIGRATIONS = [
             """DROP VIEW episode_view""",
         ],
     ),
+    SqlMigration(
+        version=6,
+        description="Add heatmap performance indexes",
+        sql_statements=[
+            # Critical index for episode_agent_metrics main query
+            """CREATE INDEX idx_episode_agent_metrics_episode_metric 
+               ON episode_agent_metrics(episode_id, metric)""",
+            
+            # Composite index for episodes eval filtering and joins
+            """CREATE INDEX idx_episodes_eval_category_env_policy 
+               ON episodes(eval_category, env_name, primary_policy_id)""",
+            
+            # Index to optimize the JSON agent_groups lookup
+            """CREATE INDEX idx_episodes_attributes_agent_groups 
+               ON episodes USING GIN ((attributes->'agent_groups'))""",
+               
+            # Index for policy-epoch joins
+            """CREATE INDEX idx_policies_epoch_id ON policies(epoch_id)""",
+            
+            # Index for epochs run lookups
+            """CREATE INDEX idx_epochs_run_id ON epochs(run_id, end_training_epoch DESC)""",
+        ],
+    ),
 ]
 
 
