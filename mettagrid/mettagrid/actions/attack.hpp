@@ -41,7 +41,7 @@ protected:
 
   bool _handle_target(Agent* actor, GridLocation target_loc) {
     target_loc.layer = GridLayer::Agent_Layer;
-    Agent* agent_target = static_cast<Agent*>(_grid->object_at(target_loc));
+    Agent* agent_target = dynamic_cast<Agent*>(_grid->object_at(target_loc));
 
     bool was_frozen = false;
     if (agent_target) {
@@ -87,7 +87,7 @@ protected:
     }
 
     target_loc.layer = GridLayer::Object_Layer;
-    MettaObject* object_target = static_cast<MettaObject*>(_grid->object_at(target_loc));
+    MettaObject* object_target = dynamic_cast<MettaObject*>(_grid->object_at(target_loc));
     if (object_target) {
       actor->stats.incr(_stats.target[object_target->_type_id]);
       actor->stats.incr(_stats.target[object_target->_type_id], actor->group_name);

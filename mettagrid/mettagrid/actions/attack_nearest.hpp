@@ -34,7 +34,7 @@ protected:
             _grid->relative_location(actor->location, static_cast<Orientation>(actor->orientation), distance, offset);
 
         target_loc.layer = GridLayer::Agent_Layer;
-        Agent* agent_target = static_cast<Agent*>(_grid->object_at(target_loc));
+        Agent* agent_target = dynamic_cast<Agent*>(_grid->object_at(target_loc));
         if (agent_target) {
           return _handle_target(actor, target_loc);
         }

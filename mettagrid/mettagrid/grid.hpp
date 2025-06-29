@@ -34,10 +34,13 @@ public:
   virtual ~Grid() = default;
 
   inline char add_object(GridObject* obj) {
-    if (obj->location.r >= height || obj->location.c >= width || obj->location.layer >= num_layers) {
+    if (obj->location.r >= height || obj->location.c >= width ||
+        obj->location.layer >= num_layers) {
+      delete obj;
       return false;
     }
     if (this->grid[obj->location.r][obj->location.c][obj->location.layer] != 0) {
+      delete obj;
       return false;
     }
 
