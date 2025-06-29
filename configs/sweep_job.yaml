@@ -10,29 +10,30 @@ defaults:
 cmd: sweep
 sweep_run: ???
 
-# Use default device (GPU if available)
+# Use default device (GPU if available, CPU as fallback)
 # device: cpu  # Uncomment for CPU-only training
 
 trainer:
-  # Ultra-fast training configuration for testing sweep
-  total_timesteps: 5000  # Very minimal training for quick testing
-  evaluate_interval: 1000  # Evaluate frequently
-  batch_size: 3200  # Small batch size for quick training
-  minibatch_size: 1600  # Small minibatch size
-  checkpoint_interval: 1000  # Checkpoint frequently for testing
-  wandb_checkpoint_interval: 1000  # Upload frequently for testing
+  # Ultra-fast training for sweep tests
+  total_timesteps: 1000  # Minimal training
+  evaluate_interval: 1000  # Very frequent evaluation
+  batch_size: 3200  # Must be >= 2 agents * 64 bptt_horizon = 128
+  minibatch_size: 1600
+  checkpoint_interval: 1000  # No checkpointing during short runs
+  wandb_checkpoint_interval: 1000
   curriculum: /env/mettagrid/curriculum/simple
-  forward_pass_minibatch_target_size: 256  # Small target size for quick training
-  async_factor: 1  # Single async factor for simplicity
+  num_workers: 1  # Single worker for simplicity
+  forward_pass_minibatch_target_size: 2  # Minimal batch size for 2 agents
+  async_factor: 1
   env_overrides:
     game:
-      max_steps: 50  # Very short episodes for quick testing
-      num_agents: 4  # Fewer agents for faster training
+      max_steps: 10  # Very short episodes
+      num_agents: 2  # Minimal agents
 
 sim:
   name: sweep_eval  # Required field
-  num_episodes: 5  # Very few episodes for quick testing
-  max_time_s: 60  # 1 minute for quick evaluation
+  num_episodes: 1  # Single episode for ultra-fast evaluation
+  max_time_s: 60
   env_overrides: {}
   simulations:
     simple:
