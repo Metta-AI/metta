@@ -134,7 +134,9 @@ export const StorableMapViewer: FC<{
                   }}
                 />
               ) : (
-                <div>No scene tree</div>
+                <div className="pt-4 text-center text-gray-500">
+                  No scene tree
+                </div>
               ),
             },
           ]}
