@@ -121,6 +121,13 @@ class Scene(Generic[ParamsT]):
             "children": [child.scene.get_scene_tree() for child in self.child_scenes],
         }
 
+    def print_scene_tree(self, indent=0):
+        print(" " * indent + self.__class__.__name__)
+        print(" " * indent + f"area: {self.area.as_dict()}")
+        print(" " * indent + f"params: {self.params.model_dump()}")
+        for child in self.child_scenes:
+            child.scene.print_scene_tree(indent + 2)
+
     def render_with_children(self):
         self.render()
         for query in self.get_children():

@@ -56,6 +56,8 @@ def test_x4():
         shape=(9, 9),
     )
 
+    scene.print_scene_tree()
+
     assert_grid(
         scene,
         """
