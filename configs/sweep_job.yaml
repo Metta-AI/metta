@@ -16,11 +16,11 @@ sweep_run: ???
 trainer:
   # Quick but meaningful training for sweep demo
   total_timesteps: 50000  # Enough to see learning progress
-  evaluate_interval: 5000  # Evaluate every 5K timesteps
+  evaluate_interval: 10000  # Evaluate every 10K timesteps
   batch_size: 3200  # Must be >= 2 agents * 64 bptt_horizon = 128
   minibatch_size: 1600
   checkpoint_interval: 10000  # Checkpoint every 10K timesteps
-  wandb_checkpoint_interval: 5000  # Upload to wandb every 5K timesteps
+  wandb_checkpoint_interval: 10000  # Upload to wandb every 10K timesteps
   curriculum: /env/mettagrid/curriculum/simple
   num_workers: 1  # Single worker for simplicity
   forward_pass_minibatch_target_size: 2  # Minimal batch size for 2 agents
