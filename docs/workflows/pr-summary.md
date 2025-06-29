@@ -2,7 +2,7 @@
 
 ## Overview
 
-This workflow automatically generates weekly summaries of merged pull requests and posts them to Discord. It uses a two-phase approach with Google's Gemini AI models and implements smart caching to minimize API calls.
+This workflow automatically generates daily summaries of merged pull requests and posts them to Discord. It uses a two-phase approach with Google's Gemini AI models and implements smart caching to minimize API calls.
 
 ## Architecture
 
@@ -21,16 +21,18 @@ This workflow automatically generates weekly summaries of merged pull requests a
 
 ## Components
 
-### 1. Main Workflow (`.github/workflows/pr_summary.yml`)
+### 1. Main Workflow (`.github/workflows/generate-newsletter.yml`)
 
-**Schedule**: Runs every Friday at 7 PM UTC (`0 19 * * 5`)
+**Schedule**: Runs daily at 1 AM GMT (`0 1 * * *`)
 
 **Manual Triggers**:
-- `days_to_scan`: Number of days to analyze (7, 14, or 30)
+
+- `days_to_scan`: Number of days to analyze (1 or 7)
 - `force_refresh`: Force cache refresh
 - `skip_discord`: Skip Discord posting for testing (boolean)
 
 **Steps**:
+
 1. Fetch PR digest using custom action
 2. Generate AI summary using Gemini
 3. Display summary in workflow logs (always)
@@ -42,44 +44,51 @@ This workflow automatically generates weekly summaries of merged pull requests a
 **Purpose**: Fetches merged PRs with intelligent caching to reduce GitHub API calls.
 
 **Files**:
+
 - `action.yml`: Action metadata and configuration
 - `fetch_pr_digest.py`: Main script (note: file name has underscore, not hyphen)
 
 **Key Features**:
+
 - **Incremental caching**: Only fetches new PRs since last run
 - **Cache pruning**: Removes entries older than 60 days
 - **Rate limit handling**: Automatic retry with backoff
 - **Diff truncation**: Limits diff size to prevent token overflow
 
 **Inputs**:
+
 - `github-token`: GitHub API access token
 - `repository`: Target repository (default: current)
-- `days`: Lookback period (default: 7)
+- `days`: Lookback period (default: 1)
 - `diff-limit`: Max diff characters (default: 20,000)
 - `force-refresh`: Bypass cache (default: false)
 
 **Outputs**:
+
 - `digest-file`: Path to JSON with PR data
 - `pr-count`: Number of PRs found
 - `cache-stats`: Cache hit/miss statistics
 - `date-range`: Date range scanned
 
-### 3. Summary Generation Script (`.github/scripts/generate_pr_summary.py`)
+### 3. Summary Generation Script (`.github/scripts/generate_daily_pr_summary.py`)
 
 **Two-Phase AI Approach**:
 
 **Phase 1**: Individual PR Summaries
+
 - Model: `gemini-2.5-flash-preview-05-20` (fast, efficient)
 - Generates concise technical summaries for each PR
 - Parallel processing with configurable workers
 - Per-PR caching to avoid regeneration
 
 **Phase 2**: Consolidated Summary
+
 - Model: `gemini-2.5-pro-preview-05-06` (powerful, synthesis)
 - Synthesizes individual summaries into cohesive report
 - Structured format with executive summary, API changes, and detailed breakdown
 
 **Features**:
+
 - Model-aware caching (regenerates if model changes)
 - Configurable via environment variables
 - Special prompts for Gemini 2.5 models with thinking capabilities
@@ -90,10 +99,12 @@ This workflow automatically generates weekly summaries of merged pull requests a
 **Purpose**: Posts content to Discord with automatic message splitting.
 
 **Files**:
+
 - `action.yml`: Action metadata and configuration
 - `discord_webhook.py`: Main posting script
 
 **Key Features**:
+
 - **Automatic splitting**: Handles Discord's 2000 character limit
 - **Smart boundaries**: Splits at paragraphs/lines for readability
 - **Rate limiting**: 0.5s delay between messages
@@ -113,14 +124,16 @@ DISCORD_WEBHOOK_URL # Discord webhook for posting
 ### Environment Variables
 
 **For PR Digest**:
+
 ```bash
 REPOSITORY="owner/repo"    # Target repository
-DAYS_TO_SCAN="7"          # Lookback period
+DAYS_TO_SCAN="1"          # Lookback period
 DIFF_LIMIT="20000"        # Max diff size
 FORCE_REFRESH="false"     # Cache bypass
 ```
 
 **For Summary Generation**:
+
 ```bash
 PHASE1_MODEL="gemini-2.5-flash-preview-05-20"  # PR summaries
 PHASE2_MODEL="gemini-2.5-pro-preview-05-06"    # Final synthesis
@@ -133,6 +146,7 @@ MAX_WORKERS="5"                                 # Parallel workers
 ### PR Digest Cache
 
 **Structure**:
+
 ```json
 {
   "version": "1.0",
@@ -154,11 +168,12 @@ MAX_WORKERS="5"                                 # Parallel workers
 }
 ```
 
-**Cache Key**: `pr-digest-{repository}-week-{week_number}-{year}`
+**Cache Key**: `pr-digest-{repository}-day-{day_of_year}-{year}`
 
 ### PR Summary Cache
 
 **Structure**:
+
 ```json
 {
   "model": "gemini-2.5-flash-preview-05-20",
@@ -180,22 +195,25 @@ MAX_WORKERS="5"                                 # Parallel workers
 The final Discord message follows this structure:
 
 ```markdown
-## Summary of changes from YYYY-MM-DD to YYYY-MM-DD
+## Summary of changes from YYYY-MM-DD
 
 **Executive Summary:**
-A concise paragraph summarizing the week's key technical developments...
+A concise paragraph summarizing the day's key technical developments...
 
 **Internal API Changes:**
+
 - Change description [#123](https://github.com/...)
 - Another change [#456](https://github.com/...)
 
 **Detailed Breakdown:**
 
 ### Feature Category
+
 - PR description with technical details [#789](https://github.com/...)
 - Related PR [#012](https://github.com/...)
 
 ### Bug Fixes
+
 - Fix description [#345](https://github.com/...)
 ```
 
@@ -215,29 +233,32 @@ A concise paragraph summarizing the week's key technical developments...
 
 ## Usage Examples
 
-### Manual Trigger with 14-day Lookback
+### Manual Trigger with 7-day Lookback
+
 ```yaml
 workflow_dispatch:
   inputs:
-    days_to_scan: "14"
+    days_to_scan: '7'
     force_refresh: false
     skip_discord: false
 ```
 
 ### Test Mode (No Discord)
+
 ```yaml
 workflow_dispatch:
   inputs:
-    days_to_scan: "7"
+    days_to_scan: '1'
     force_refresh: false
     skip_discord: true
 ```
 
 ### Force Full Refresh
+
 ```yaml
 workflow_dispatch:
   inputs:
-    days_to_scan: "7"
+    days_to_scan: '1'
     force_refresh: true
     skip_discord: false
 ```
