@@ -15,6 +15,7 @@ from metta.common.util.config import Config
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.logging import setup_mettagrid_logger
 from metta.common.util.runtime_configuration import setup_mettagrid_environment
+from metta.common.util.skypilot_latency import queue_latency_s
 from metta.common.util.stats_client_cfg import get_stats_client
 from metta.common.util.wandb.wandb_context import WandbContext, WandbRun
 from metta.sim.simulation_config import SimulationSuiteConfig
@@ -68,8 +69,14 @@ def main(cfg: ListConfig | DictConfig) -> int:
     setup_mettagrid_environment(cfg)
 
     record_heartbeat()
-
     logger = setup_mettagrid_logger("train")
+    latency_sec = queue_latency_s()
+    if latency_sec is not None:
+        os.environ["SKYPILOT_QUEUE_LATENCY_S"] = str(latency_sec)
+        logger.info(f"SkyPilot queue latency: {latency_sec:.1f} s")
+    else:
+        logger.info("SkyPilot queue latency: N/A (not a SkyPilot job)")
+
     logger.info(f"Train job config: {OmegaConf.to_yaml(cfg, resolve=True)}")
 
     logger.info(
@@ -87,6 +94,9 @@ def main(cfg: ListConfig | DictConfig) -> int:
     logger.info(f"Training {cfg.run} on {cfg.device}")
     if os.environ.get("RANK", "0") == "0":
         with WandbContext(cfg.wandb, cfg) as wandb_run:
+            if wandb_run is not None and latency_sec is not None:
+                wandb_run.summary["skypilot_queue_latency_s"] = latency_sec
+                wandb_run.log({"skypilot_queue_latency_s": latency_sec}, step=0)
             train(cfg, wandb_run, logger)
     else:
         train(cfg, None, logger)
