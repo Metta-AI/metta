@@ -1,16 +1,17 @@
 "use client";
 import Link from "next/link";
 import { useQueryState } from "nuqs";
-import { FC, useMemo } from "react";
+import { FC, useCallback, useMemo, useState } from "react";
 
 import { FilterItem, parseFilterParam } from "@/app/stored-maps/dir/params";
-import { StorableMap } from "@/lib/api";
+import { SceneTree, StorableMap } from "@/lib/api";
 import { MettaGrid } from "@/lib/MettaGrid";
 
 import { CopyToClipboardButton } from "./CopyToClipboardButton";
 import { JsonAsYaml } from "./JsonAsYaml";
 import { MapViewer } from "./MapViewer";
 import { SceneTreeViewer } from "./SceneTreeViewer";
+import { Tabs } from "./Tabs";
 
 // YAML viewer with the ability to click lines to filter the map list
 const FilterableFrontmatterViewer: FC<{
@@ -74,20 +75,66 @@ export const StorableMapViewer: FC<{
   // Parse the frontmatter YAML
   const grid = useMemo(() => MettaGrid.fromAscii(map.data), [map.data]);
 
+  const [selectedSceneTree, setSelectedSceneTree] = useState<
+    SceneTree | undefined
+  >();
+
+  const drawExtra = useCallback(
+    (context: CanvasRenderingContext2D) => {
+      if (!selectedSceneTree) return;
+      context.save();
+      context.strokeStyle = "white";
+      context.lineWidth = 0.06;
+      const margin = 0.03;
+      context.roundRect(
+        selectedSceneTree.area.x + margin,
+        selectedSceneTree.area.y + margin,
+        selectedSceneTree.area.width - 2 * margin,
+        selectedSceneTree.area.height - 2 * margin,
+        0.1
+      );
+      context.stroke();
+      context.restore();
+    },
+    [selectedSceneTree]
+  );
+
   return (
     <div className="grid min-h-[600px] grid-cols-[400px_1fr_250px] gap-8">
       <div className="max-h-[80vh] overflow-auto">
-        {filterable ? (
-          <FilterableFrontmatterViewer frontmatter={map.frontmatter.config} />
-        ) : (
-          <JsonAsYaml json={map.frontmatter.config} />
-        )}
-        {map.frontmatter.scene_tree && (
-          <SceneTreeViewer sceneTree={map.frontmatter.scene_tree} />
-        )}
+        <Tabs
+          tabs={[
+            {
+              id: "config",
+              label: "Config",
+              content: filterable ? (
+                <FilterableFrontmatterViewer
+                  frontmatter={map.frontmatter.config}
+                />
+              ) : (
+                <JsonAsYaml json={map.frontmatter.config} />
+              ),
+            },
+            {
+              id: "scene_tree",
+              label: "Scene Tree",
+              content: map.frontmatter.scene_tree ? (
+                <SceneTreeViewer
+                  sceneTree={map.frontmatter.scene_tree}
+                  onSceneSelect={(sceneTree) => {
+                    setSelectedSceneTree(sceneTree);
+                  }}
+                />
+              ) : (
+                <div>No scene tree</div>
+              ),
+            },
+          ]}
+          defaultTab="config"
+        />
       </div>
       <div className="flex flex-col items-center justify-start overflow-auto">
-        <MapViewer grid={grid} />
+        <MapViewer grid={grid} drawExtra={drawExtra} />
       </div>
       <div className="flex flex-col gap-2">
         <CopyToClipboardButton text={map.data}>

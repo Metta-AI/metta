@@ -178,6 +178,10 @@ const YamlAny: FC<{
     return <YamlScalar value={value} />;
   }
 
+  if (value === null) {
+    return <span className="text-gray-500">null</span>;
+  }
+
   throw new Error(`Unknown value type: ${typeof value}`);
 };
 
