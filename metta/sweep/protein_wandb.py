@@ -74,6 +74,9 @@ class WandbProtein:
     def record_observation(self, objective: float, cost: float, allow_update: bool = False):
         self._record_observation(self._wandb_run, objective, cost, allow_update)
 
+        # Pass the observation to the protein so it can learn from it
+        self._protein.observe(self._suggestion, objective, cost, is_failure=False)
+
     @staticmethod
     def _record_observation(wandb_run, objective: float, cost: float, allow_update: bool = False):
         """
@@ -94,6 +97,9 @@ class WandbProtein:
 
     def record_failure(self):
         self._record_failure(self._wandb_run)
+
+        # Pass the failure to the protein so it can learn from it
+        self._protein.observe(self._suggestion, 0.0, 0.0, is_failure=True)
 
     @staticmethod
     def _record_failure(wandb_run):
@@ -249,7 +255,7 @@ class WandbProtein:
 
 def create_sweep(sweep_name: str, wandb_entity: str, wandb_project: str):
     """
-    Create a new wandb sweep without parameters (Protein will control all suggestions).
+    Create a new wandb sweep with a dummy parameter (Protein will control all suggestions).
 
     Args:
         sweep_name (str): The name of the sweep.
@@ -264,7 +270,10 @@ def create_sweep(sweep_name: str, wandb_entity: str, wandb_project: str):
             "name": sweep_name,
             "method": "bayes",  # This won't actually be used since we override suggestions
             "metric": {"name": "protein.objective", "goal": "maximize"},
-            "parameters": {},  # Empty - Protein controls all parameters
+            "parameters": {
+                # WandB requires at least one parameter, but Protein will override all suggestions
+                "dummy_param": {"values": [1]}
+            },
         },
         project=wandb_project,
         entity=wandb_entity,

@@ -1,4 +1,11 @@
 #!/usr/bin/env -S uv run
+
+# NumPy 2.0 compatibility for WandB - must be imported before wandb
+import numpy as np  # noqa: E402
+
+if not hasattr(np, "byte"):
+    np.byte = np.int8
+
 import json
 import os
 import sys
@@ -58,7 +65,14 @@ def main(cfg: DictConfig | ListConfig) -> int:
     with WandbContext(cfg.wandb, cfg) as wandb_run:
         policy_store = PolicyStore(cfg, wandb_run)
         try:
-            policy_pr = policy_store.policy_record("wandb://run/" + cfg.run)
+            # First get the policy records from the run to find the artifact URI
+            policy_records = policy_store.policy_records("wandb://run/" + cfg.run)
+            if not policy_records:
+                raise ValueError(f"No policy records found for run {cfg.run}")
+
+            # Get the first policy record and load it directly using its wandb URI
+            # This will download the artifact and give us a local path
+            policy_pr = policy_store.load_from_uri(policy_records[0].uri)
         except Exception as e:
             logger.error(f"Error getting policy for run {cfg.run}: {e}")
             WandbProtein._record_failure(wandb_run)
@@ -78,7 +92,7 @@ def main(cfg: DictConfig | ListConfig) -> int:
         # Update sweep stats with initial information
         sweep_stats.update(
             {
-                "score.metric": cfg.metric,
+                "score.metric": cfg.sweep_job.sweep.parameters.metric,
             }
         )
         wandb_run.summary.update(sweep_stats)
@@ -92,7 +106,7 @@ def main(cfg: DictConfig | ListConfig) -> int:
         results = eval.simulate()
         eval_time = time.time() - eval_start_time
         eval_stats_db = EvalStatsDB.from_sim_stats_db(results.stats_db)
-        eval_metric = eval_stats_db.get_average_metric_by_filter(cfg.metric, policy_pr)
+        eval_metric = eval_stats_db.get_average_metric_by_filter(cfg.sweep_job.sweep.parameters.metric, policy_pr)
 
         # Get training stats from metadata if available
         train_time = policy_pr.metadata.get("train_time", 0)
@@ -129,13 +143,18 @@ def main(cfg: DictConfig | ListConfig) -> int:
         )
 
         # Add policy to wandb sweep
-        policy_store.add_to_wandb_sweep(cfg.sweep_name, policy_pr)
+        policy_store.add_to_wandb_sweep(cfg.sweep_run, policy_pr)
 
         # Record observation in Protein if enabled
         total_time = train_time + eval_time
         logger.info(f"Evaluation Metric: {eval_metric}, Total Time: {total_time}")
 
-        WandbProtein._record_observation(wandb_run, eval_metric, total_time, allow_update=True)
+        # Handle case where evaluation metric is None (evaluation failed)
+        if eval_metric is None:
+            logger.warning("Evaluation metric is None - recording as failure")
+            WandbProtein._record_failure(wandb_run)
+        else:
+            WandbProtein._record_observation(wandb_run, eval_metric, total_time, allow_update=True)
 
         wandb_run.summary.update({"run_time": total_time})
         return 0

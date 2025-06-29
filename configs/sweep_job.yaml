@@ -4,25 +4,48 @@ defaults:
   - agent: fast
   - sim: sweep_eval
   - trainer: trainer
+  - sweep: quick
   - _self_
 
 cmd: sweep
-sweep_name: ???
-sweep_params: "sweep/full"
-sweep_params_override: {}
-sweep: ???
+sweep_run: ???
 
-metric: reward
-num_random_samples: 10
+# Use default device (GPU if available, CPU as fallback)
+# device: cpu  # Uncomment for CPU-only training
 
 trainer:
-  evaluate_interval: 300
+  # Quick but meaningful training for sweep demo
+  total_timesteps: 50000  # Enough to see learning progress
+  evaluate_interval: 10000  # Evaluate every 10K timesteps
+  batch_size: 3200  # Must be >= 2 agents * 64 bptt_horizon = 128
+  minibatch_size: 1600
+  checkpoint_interval: 10000  # Checkpoint every 10K timesteps
+  wandb_checkpoint_interval: 10000  # Upload to wandb every 10K timesteps
+  curriculum: /env/mettagrid/curriculum/simple
+  num_workers: 1  # Single worker for simplicity
+  forward_pass_minibatch_target_size: 2  # Minimal batch size for 2 agents
+  async_factor: 1
+  env_overrides:
+    game:
+      max_steps: 50  # Longer episodes to see meaningful progress
+      num_agents: 6  # Minimum to ensure num_rooms >= 1 (6/6 = 1)
 
 sim:
-  num_episodes: 5
+  name: sweep_eval  # Required field
+  num_episodes: 1  # Single episode for ultra-fast evaluation
+  max_time_s: 60
+  env_overrides: {}
+  simulations:
+    simple:
+      env: env/mettagrid/simple
 
 sweep_job:
   evals: ${sim}
+  trainer: ${trainer}
+  agent: ${agent}
+  sweep: ${sweep}
+  # device: cpu  # Uncomment for CPU-only training
+  sweep_run: ???  # Sweep base name (e.g., "simple_sweep")
 
-sweep_dir: "${.data_dir}/sweep/${.sweep_name}"
+sweep_dir: "${.data_dir}/sweep/${.sweep_run}"
 runs_dir: "${.sweep_dir}/runs"

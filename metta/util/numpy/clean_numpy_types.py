@@ -2,11 +2,28 @@ import numpy as np
 
 
 def clean_numpy_types(obj):
-    """Recursively convert numpy types to Python native types."""
+    """Recursively convert numpy types to Python native types, preserving integer types."""
     if isinstance(obj, np.ndarray):
-        return obj.item() if obj.size == 1 else obj.tolist()
+        if obj.size == 1:
+            item = obj.item()
+            # Preserve integer types
+            if isinstance(item, (np.integer, int)) and not isinstance(item, bool):
+                return int(item)
+            elif isinstance(item, (np.floating, float)):
+                return float(item)
+            else:
+                return item
+        else:
+            return obj.tolist()
     elif isinstance(obj, np.generic):
-        return obj.item()
+        item = obj.item()
+        # Preserve integer types
+        if isinstance(item, (np.integer, int)) and not isinstance(item, bool):
+            return int(item)
+        elif isinstance(item, (np.floating, float)):
+            return float(item)
+        else:
+            return item
     elif isinstance(obj, dict):
         return {k: clean_numpy_types(v) for k, v in obj.items()}
     elif isinstance(obj, list):
