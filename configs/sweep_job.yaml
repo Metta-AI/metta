@@ -28,7 +28,7 @@ trainer:
   env_overrides:
     game:
       max_steps: 10  # Very short episodes
-      num_agents: 2  # Minimal agents
+      num_agents: 6  # Minimum to ensure num_rooms >= 1 (6/6 = 1)
 
 sim:
   name: sweep_eval  # Required field
