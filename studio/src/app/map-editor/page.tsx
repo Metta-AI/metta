@@ -92,7 +92,9 @@ export default function MapEditorPage() {
               Copy ASCII
             </Button>
             <div className="text-xs text-gray-700">
-              Tip: hold down "Space" to pan. Double-click to reset zoom and pan.
+              {
+                'Tip: hold down "Space" to pan. Double-click to reset zoom and pan.'
+              }
             </div>
           </div>
         }

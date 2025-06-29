@@ -52,7 +52,7 @@ class MettagridCfgFileMetadata:
         return metadata_by_kind
 
     def get_cfg(self) -> "MettagridCfgFile":
-        with hydra.initialize(config_path="../../configs", version_base=None):
+        with hydra.initialize(config_path="../../../../../configs", version_base=None):
             cfg = config_from_path(METTAGRID_CFG_ROOT + "/" + self.path)
             if not isinstance(cfg, DictConfig):
                 raise ValueError(f"Invalid config type: {type(cfg)}")

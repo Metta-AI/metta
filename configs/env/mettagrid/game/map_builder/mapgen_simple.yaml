@@ -10,8 +10,9 @@ root:
   type: metta.map.scenes.room_grid.RoomGrid
 
   params:
+    # simple.yaml referred to num_agents here, TODO
     rows: 2
-    columns: 3 # simple.yaml referred to num_agents here, but we're using OmegaConf now without Hydra
+    columns: 3
 
   border_width: 0
 

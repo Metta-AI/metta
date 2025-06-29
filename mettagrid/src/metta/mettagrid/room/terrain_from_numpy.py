@@ -75,35 +75,15 @@ class TerrainFromNumpy(Room):
         objects: DictConfig,
         agents: int | DictConfig = 10,
         dir: str = "terrain_maps_nohearts",
+        file: str | None = None,
         border_width: int = 0,
         border_object: str = "wall",
-        file: str | None = None,
-        team: str | None = None,
     ):
-        root = dir.split("/")[0]
-        map_dir = f"train_dir/{dir}"
-        root_dir = f"train_dir/{root}"
-
-        s3_path = f"s3://softmax-public/maps/{root}.zip"
-        local_zipped_dir = root_dir + ".zip"
-        # Only one process can hold this lock at a time:
-        with FileLock(local_zipped_dir + ".lock"):
-            if not os.path.exists(map_dir) and not os.path.exists(local_zipped_dir):
-                download_from_s3(s3_path, local_zipped_dir)
-            if not os.path.exists(root_dir) and os.path.exists(local_zipped_dir):
-                with zipfile.ZipFile(local_zipped_dir, "r") as zip_ref:
-                    zip_ref.extractall(os.path.dirname(root_dir))
-                os.remove(local_zipped_dir)
-                logger.info(f"Extracted {local_zipped_dir} to {root_dir}")
-        if file is None:
-            self.uri = pick_random_file(map_dir)
-        else:
-            self.uri = file
-        self.dir = map_dir
+        self._dir = dir
+        self._file = file
         self._agents = agents
         self._objects = objects
-        self.team = team
-        super().__init__(border_width=border_width, border_object=border_object, labels=[root])
+        super().__init__(border_width=border_width, border_object=border_object)
 
     def get_valid_positions(self, level):
         # Create a boolean mask for empty cells
@@ -130,7 +110,30 @@ class TerrainFromNumpy(Room):
         return valid_positions
 
     def _build(self):
-        level = safe_load(f"{self.dir}/{self.uri}")
+        root = self._dir.split("/")[0]
+        self.labels.append(root)
+
+        map_dir = f"train_dir/{self._dir}"
+        root_dir = f"train_dir/{root}"
+
+        s3_path = f"s3://softmax-public/maps/{root}.zip"
+        local_zipped_dir = root_dir + ".zip"
+        # Only one process can hold this lock at a time:
+        with FileLock(local_zipped_dir + ".lock"):
+            if not os.path.exists(map_dir) and not os.path.exists(local_zipped_dir):
+                download_from_s3(s3_path, local_zipped_dir)
+            if not os.path.exists(root_dir) and os.path.exists(local_zipped_dir):
+                with zipfile.ZipFile(local_zipped_dir, "r") as zip_ref:
+                    zip_ref.extractall(os.path.dirname(root_dir))
+                os.remove(local_zipped_dir)
+                logger.info(f"Extracted {local_zipped_dir} to {root_dir}")
+
+        if self._file is None:
+            uri = pick_random_file(map_dir)
+        else:
+            uri = self._file
+
+        level = safe_load(f"{map_dir}/{uri}")
         height, width = level.shape
         self.set_size_labels(width, height)
 

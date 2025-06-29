@@ -11,7 +11,7 @@ import { getRepoRoot } from "@/lib/api";
 import { TopMenuLink } from "./TopMenuLink";
 
 export const metadata: Metadata = {
-  title: "MettaMap viewer",
+  title: "Softmax Studio",
 };
 
 const GlobalProviders: FC<PropsWithChildren> = async ({ children }) => {
@@ -29,11 +29,11 @@ const TopMenu: FC = () => {
   return (
     <div className="flex items-center gap-6 border-b border-gray-200 bg-gray-50 px-8 py-2">
       <Link href="/" className="font-bold">
-        MettaMap Viewer
+        Softmax Studio
       </Link>
       <TopMenuLink href="/mettagrid-cfgs">MettaGrid Configs</TopMenuLink>
       <TopMenuLink href="/map-editor">Map Editor</TopMenuLink>
-      <TopMenuLink href="/stored-maps">Stored Maps</TopMenuLink>
+      <TopMenuLink href="/stored-maps">Stored Maps (Experimental)</TopMenuLink>
     </div>
   );
 };
@@ -52,3 +52,6 @@ export default function RootLayout({ children }: PropsWithChildren) {
     </html>
   );
 }
+
+// Opt out of all static rendering, this is a local app so it doesn't matter.
+export const dynamic = "force-dynamic";
