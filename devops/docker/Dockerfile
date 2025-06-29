@@ -41,7 +41,6 @@ WORKDIR /workspace/metta
 # Install dependencies
 ADD .python-version pyproject.toml uv.lock .
 ADD mettagrid/pyproject.toml mettagrid/
-ADD wandb_carbs/pyproject.toml wandb_carbs/
 
 ENV UV_LINK_MODE=copy
 ARG TARGETPLATFORM
