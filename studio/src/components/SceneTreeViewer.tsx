@@ -31,6 +31,34 @@ const ParamsViewer: FC<{ params: Record<string, unknown> }> = ({ params }) => {
   );
 };
 
+const ChildrenViewer: FC<{
+  children: SceneTree[];
+  isExpanded: boolean;
+  onToggle: () => void;
+  depth: number;
+}> = ({ children, isExpanded, onToggle }) => {
+  if (children.length === 0) return null;
+
+  return (
+    <div className="mt-2">
+      <button
+        onClick={onToggle}
+        className="flex cursor-pointer items-center gap-1 text-xs font-medium text-blue-700 hover:text-blue-900"
+      >
+        <span
+          className={clsx(
+            "transform transition-transform",
+            isExpanded ? "rotate-90" : ""
+          )}
+        >
+          ▶
+        </span>
+        Children ({children.length})
+      </button>
+    </div>
+  );
+};
+
 function hashString(str: string): number {
   let hash = 0;
   for (let i = 0; i < str.length; i++) {
@@ -98,11 +126,13 @@ const InnerSceneTreeViewer: FC<TreeProps> = ({ sceneTree, depth = 0 }) => {
         onMouseLeave={() => onSceneSelect(undefined)}
       >
         <div className="flex items-start justify-between">
-          <div className="flex-1">
-            <div className="no-wrap mb-1 flex items-center gap-2">
-              <span className="text-sm font-bold">{sceneTree.type}</span>
-              <div className="flex items-center gap-1 rounded px-2 py-0.5 font-mono text-xs">
-                <span className="whitespace-nowrap text-gray-600">
+          <div className="min-w-0 flex-1">
+            <div className="mb-1 flex items-center gap-2 overflow-hidden">
+              <span className="truncate text-sm font-bold">
+                {sceneTree.type}
+              </span>
+              <div className="flex flex-shrink-0 items-center gap-1 rounded px-2 py-0.5 font-mono text-xs">
+                <span className="text-gray-600">
                   ({sceneTree.area.x}, {sceneTree.area.y})
                 </span>
                 <span className="text-gray-400">•</span>
@@ -113,43 +143,21 @@ const InnerSceneTreeViewer: FC<TreeProps> = ({ sceneTree, depth = 0 }) => {
             </div>
 
             <ParamsViewer params={sceneTree.params} />
+            <ChildrenViewer
+              children={sceneTree.children}
+              isExpanded={isExpanded}
+              onToggle={() => setIsExpanded(!isExpanded)}
+              depth={depth}
+            />
           </div>
-
-          {hasChildren && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setIsExpanded(!isExpanded);
-              }}
-              className="hover:bg-opacity-50 ml-2 rounded p-1 transition-colors"
-            >
-              <span
-                className={clsx(
-                  "transform text-xs transition-transform",
-                  isExpanded && "rotate-90"
-                )}
-              >
-                ▶
-              </span>
-            </button>
-          )}
         </div>
       </div>
 
       {hasChildren && isExpanded && (
-        <div className="mt-2">
-          <div className="mb-2 ml-2 text-xs font-medium text-gray-600">
-            Children ({sceneTree.children.length}):
-          </div>
-          <div className="ml-2 border-l-2 border-gray-200 pl-2">
-            {sceneTree.children.map((child, i) => (
-              <InnerSceneTreeViewer
-                key={i}
-                sceneTree={child}
-                depth={depth + 1}
-              />
-            ))}
-          </div>
+        <div className="mt-2 ml-2 border-l-2 border-gray-200 pl-2">
+          {sceneTree.children.map((child, i) => (
+            <InnerSceneTreeViewer key={i} sceneTree={child} depth={depth + 1} />
+          ))}
         </div>
       )}
     </div>
@@ -161,9 +169,11 @@ export const SceneTreeViewer: FC<TreeProps & ContextProps> = ({
   ...contextProps
 }) => {
   return (
-    <div className="overflow-auto pt-2">
+    <div className="h-full overflow-auto pt-2">
       <SceneTreeViewerContext.Provider value={contextProps}>
-        <InnerSceneTreeViewer sceneTree={sceneTree} />
+        <div className="min-w-fit">
+          <InnerSceneTreeViewer sceneTree={sceneTree} />
+        </div>
       </SceneTreeViewerContext.Provider>
     </div>
   );

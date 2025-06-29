@@ -83,20 +83,28 @@ export const StorableMapViewer: FC<{
     (context: CanvasRenderingContext2D) => {
       if (!selectedSceneTree) return;
       context.save();
-      context.strokeStyle = "white";
-      context.lineWidth = 0.06;
-      const margin = 0.03;
-      context.roundRect(
+
+      // Create a clipping path for the selected area
+      const margin = 0.1;
+      context.beginPath();
+      context.rect(
         selectedSceneTree.area.x + margin,
         selectedSceneTree.area.y + margin,
         selectedSceneTree.area.width - 2 * margin,
-        selectedSceneTree.area.height - 2 * margin,
-        0.1
+        selectedSceneTree.area.height - 2 * margin
       );
-      context.stroke();
+
+      // Invert the clipping path to draw fog everywhere EXCEPT the selected area
+      context.rect(0, 0, grid.width, grid.height);
+      context.clip("evenodd");
+
+      // Draw fog-of-war overlay
+      context.fillStyle = "rgba(0, 0, 0, 0.4)";
+      context.fillRect(0, 0, grid.width, grid.height);
+
       context.restore();
     },
-    [selectedSceneTree]
+    [selectedSceneTree, grid]
   );
 
   return (
