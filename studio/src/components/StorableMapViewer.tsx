@@ -10,6 +10,7 @@ import { MettaGrid } from "@/lib/MettaGrid";
 import { CopyToClipboardButton } from "./CopyToClipboardButton";
 import { JsonAsYaml } from "./JsonAsYaml";
 import { MapViewer } from "./MapViewer";
+import { SceneTreeViewer } from "./SceneTreeViewer";
 
 // YAML viewer with the ability to click lines to filter the map list
 const FilterableFrontmatterViewer: FC<{
@@ -80,6 +81,9 @@ export const StorableMapViewer: FC<{
           <FilterableFrontmatterViewer frontmatter={map.frontmatter.config} />
         ) : (
           <JsonAsYaml json={map.frontmatter.config} />
+        )}
+        {map.frontmatter.scene_tree && (
+          <SceneTreeViewer sceneTree={map.frontmatter.scene_tree} />
         )}
       </div>
       <div className="flex flex-col items-center justify-start overflow-auto">

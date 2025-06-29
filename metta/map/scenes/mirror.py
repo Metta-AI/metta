@@ -19,16 +19,16 @@ class Mirror(Scene[MirrorParams]):
 
         if symmetry == "horizontal":
             left_width = (self.width + 1) // 2  # take half, plus one for odd width
-            left_grid = self.grid[:, :left_width]
-            child_scene = make_scene(scene, left_grid)
+            left_area = self.area[:, :left_width]
+            child_scene = make_scene(scene, left_area)
             child_scene.render_with_children()
 
             self.grid[:, self.width - left_width :] = child_scene.grid[:, ::-1]
 
         elif symmetry == "vertical":
             top_height = (self.height + 1) // 2  # take half, plus one for odd width
-            top_grid = self.grid[:top_height, :]
-            child_scene = make_scene(scene, top_grid)
+            top_area = self.area[:top_height, :]
+            child_scene = make_scene(scene, top_area)
             child_scene.render_with_children()
 
             self.grid[self.height - top_height :, :] = child_scene.grid[::-1, :]
@@ -38,8 +38,8 @@ class Mirror(Scene[MirrorParams]):
             sub_width = (self.width + 1) // 2  # take half, plus one for odd width
             sub_height = (self.height + 1) // 2  # take half, plus one for odd width
 
-            sub_grid = self.grid[:sub_height, :sub_width]
-            child_scene = make_scene(scene, sub_grid)
+            sub_area = self.area[:sub_height, :sub_width]
+            child_scene = make_scene(scene, sub_area)
             child_scene.render_with_children()
 
             # reflect to the right

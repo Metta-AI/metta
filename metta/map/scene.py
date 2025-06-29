@@ -7,18 +7,17 @@ from omegaconf import DictConfig, OmegaConf
 
 from metta.common.util.config import Config
 from metta.map.config import scenes_root
-from metta.map.types import AreaQuery, ChildrenAction, MapGrid, SceneCfg
+from metta.map.types import Area, AreaQuery, ChildrenAction, SceneCfg
 from metta.map.utils.random import MaybeSeed
 
-
-@dataclass
-class Area:
-    id: int  # unique for areas in a scene; not unique across scenes.
-    grid: MapGrid
-    tags: list[str]
-
-
 ParamsT = TypeVar("ParamsT", bound=Config)
+
+
+# This class is useful for debugging: we store every scene we produce dynamically.
+@dataclass
+class ChildInfo:
+    area: Area
+    scene: "Scene"
 
 
 class Scene(Generic[ParamsT]):
@@ -50,7 +49,7 @@ class Scene(Generic[ParamsT]):
 
     def __init__(
         self,
-        grid: MapGrid,
+        area: Area,
         params: ParamsT | DictConfig | dict | None = None,
         children: Optional[List[ChildrenAction]] = None,
         seed: MaybeSeed = None,
@@ -67,6 +66,7 @@ class Scene(Generic[ParamsT]):
         else:
             raise ValueError(f"Invalid params: {params}")
 
+        # `children` are not scenes, but queries that will be used to select areas and produce scenes in them.
         children = children or []
         self.children: list[ChildrenAction] = []
         for action in children:
@@ -74,19 +74,17 @@ class Scene(Generic[ParamsT]):
                 action = ChildrenAction(**action)
             self.children.append(action)
 
-        self.grid = grid
-        self.height = grid.shape[0]
-        self.width = grid.shape[1]
+        self.child_scenes: list[ChildInfo] = []
+
+        self.area = area
+        self.grid = area.grid
+        self.height = self.grid.shape[0]
+        self.width = self.grid.shape[1]
 
         self._areas = []
 
         # { "lock_name": [area_id1, area_id2, ...] }
         self._locks = {}
-        self._full_area = Area(
-            id=-1,
-            grid=self.grid,
-            tags=[],
-        )
 
         self.rng = np.random.default_rng(seed)
 
@@ -100,6 +98,9 @@ class Scene(Generic[ParamsT]):
         """
         pass
 
+    def register_child(self, area: Area, child_scene: "Scene"):
+        self.child_scenes.append(ChildInfo(area=area, scene=child_scene))
+
     # Render implementations can do two things:
     # - update `self.grid` as it sees fit
     # - create areas of interest in a scene through `self.make_area()`
@@ -112,17 +113,29 @@ class Scene(Generic[ParamsT]):
     def get_children(self) -> List[ChildrenAction]:
         return self.children
 
+    def get_scene_tree(self) -> dict:
+        return {
+            "type": self.__class__.__name__,
+            "params": self.params.model_dump(),
+            "area": self.area.as_dict(),
+            "children": [child.scene.get_scene_tree() for child in self.child_scenes],
+        }
+
     def render_with_children(self):
         self.render()
         for query in self.get_children():
             areas = self.select_areas(query)
             for area in areas:
-                child_scene = make_scene(query.scene, area.grid)
+                child_scene = make_scene(query.scene, area)
+                self.register_child(area, child_scene)
                 child_scene.render_with_children()
 
     def make_area(self, x: int, y: int, width: int, height: int, tags: Optional[List[str]] = None) -> Area:
         area = Area(
-            id=len(self._areas),
+            x=x + self.area.x,
+            y=y + self.area.y,
+            width=width,
+            height=height,
             grid=self.grid[y : y + height, x : x + width],
             tags=tags or [],
         )
@@ -137,7 +150,7 @@ class Scene(Generic[ParamsT]):
         where = query.where
         if where:
             if where == "full":
-                selected_areas = [self._full_area]
+                selected_areas = [self.area]
             else:
                 tags = where.tags
                 for area in areas:
@@ -158,7 +171,7 @@ class Scene(Generic[ParamsT]):
                 self._locks[lock] = set()
 
             # Remove areas that are locked.
-            selected_areas = [area for area in selected_areas if area.id not in self._locks[lock]]
+            selected_areas = [area for area in selected_areas if id(area) not in self._locks[lock]]
 
         limit = query.limit
         if limit is not None and limit < len(selected_areas):
@@ -181,7 +194,7 @@ class Scene(Generic[ParamsT]):
 
         if lock:
             # Add final list of used areas to the lock.
-            self._locks[lock].update([area.id for area in selected_areas])
+            self._locks[lock].update([id(area) for area in selected_areas])
 
         return selected_areas
 
@@ -195,10 +208,10 @@ def load_class(full_class_name: str) -> type[Scene]:
     return cls
 
 
-def make_scene(cfg: SceneCfg, grid: MapGrid) -> Scene:
+def make_scene(cfg: SceneCfg, area: Area) -> Scene:
     if callable(cfg):
         # useful for dynamically produced scenes in `get_children()`
-        scene = cfg(grid)
+        scene = cfg(area)
         if not isinstance(scene, Scene):
             raise ValueError(f"Scene callback didn't return a valid scene: {scene}")
         return scene
@@ -212,4 +225,4 @@ def make_scene(cfg: SceneCfg, grid: MapGrid) -> Scene:
         raise ValueError(f"Invalid scene config: {cfg}, type: {type(cfg)}")
 
     cls = load_class(cfg["type"])
-    return cls(grid=grid, params=cfg.get("params", {}), children=cfg.get("children", []))
+    return cls(area=area, params=cfg.get("params", {}), children=cfg.get("children", []))
