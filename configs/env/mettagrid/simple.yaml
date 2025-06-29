@@ -20,6 +20,7 @@ game:
       type: metta.map.scenes.room_grid.RoomGrid
 
       params:
+        # 4 areas, 6 agents per area
         rows: 2
         columns: 2
         border_width: 0
