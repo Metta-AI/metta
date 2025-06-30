@@ -2,7 +2,8 @@
 
 ## Overview
 
-Training loss components
+Training loss components that indicate learning progress and stability. Monitor these to
+ensure healthy training dynamics.
 
 **Total metrics in this section:** 8
 

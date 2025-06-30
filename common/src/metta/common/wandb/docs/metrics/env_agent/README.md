@@ -2,7 +2,9 @@
 
 ## Overview
 
-Agent actions, rewards, and item interactions
+Detailed agent behavior metrics including actions taken, items collected, combat outcomes,
+and other agent-specific events. These metrics help understand what agents are actually doing
+in the environment.
 
 **Total metrics in this section:** 1120
 

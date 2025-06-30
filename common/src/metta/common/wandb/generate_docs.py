@@ -68,7 +68,7 @@ def analyze_metric_patterns(metrics):
     return dict(categorized)
 
 
-def generate_main_readme(sections, output_dir):
+def generate_main_readme(sections, output_dir, descriptions):
     """Generate the main README.md file."""
     content = """# WandB Metrics Documentation
 
@@ -91,7 +91,10 @@ behavior, environment dynamics, and system performance.
     section_counts.sort(key=lambda x: x[1], reverse=True)
 
     for section, count in section_counts:
-        desc = get_section_description(section)
+        desc = get_section_description(section, descriptions)
+        # Truncate long descriptions for the table
+        if "\n" in desc:
+            desc = desc.split("\n")[0] + "..."
         content += f"| [`{section}/`](./{section}/) | {desc} | {count} |\n"
 
     content += f"\n**Total Metrics:** {sum(c for _, c in section_counts)}\n"
@@ -160,9 +163,14 @@ cd common/src/metta/common/wandb
     return readme_path
 
 
-def get_section_description(section):
+def get_section_description(section, descriptions=None):
     """Get a description for each section."""
-    descriptions = {
+    # Check if we have a custom description in the YAML
+    if descriptions and "sections" in descriptions and section in descriptions["sections"]:
+        return descriptions["sections"][section]["description"].strip()
+
+    # Fall back to default descriptions
+    default_descriptions = {
         "env_agent": "Agent actions, rewards, and item interactions",
         "env_attributes": "Environment configuration and episode attributes",
         "env_game": "Game object counts and token tracking",
@@ -181,7 +189,7 @@ def get_section_description(section):
         "timing_per_epoch": "Per-epoch training timing",
         "trainer_memory": "Memory usage by trainer components",
     }
-    return descriptions.get(section, "Metrics for " + section.replace("_", " "))
+    return default_descriptions.get(section, "Metrics for " + section.replace("_", " "))
 
 
 def generate_section_readme(section, subsections, output_dir, descriptions):
@@ -198,7 +206,7 @@ def generate_section_readme(section, subsections, output_dir, descriptions):
 
 ## Overview
 
-{get_section_description(section)}
+{get_section_description(section, descriptions)}
 
 **Total metrics in this section:** {len(all_metrics)}
 
@@ -294,16 +302,18 @@ def load_metric_descriptions(script_dir):
 
 def get_metric_description(metric, descriptions):
     """Get description for a specific metric."""
-    if metric in descriptions and "description" in descriptions[metric]:
-        desc = descriptions[metric]["description"]
+    metrics_section = descriptions.get("metrics", {})
+
+    if metric in metrics_section and "description" in metrics_section[metric]:
+        desc = metrics_section[metric]["description"].strip()
 
         # Add unit if specified
-        if "unit" in descriptions[metric]:
-            desc += f" (Unit: {descriptions[metric]['unit']})"
+        if "unit" in metrics_section[metric]:
+            desc += f" (Unit: {metrics_section[metric]['unit']})"
 
         # Add interpretation if specified
-        if "interpretation" in descriptions[metric]:
-            desc += f"\n\n**Interpretation:** {descriptions[metric]['interpretation']}"
+        if "interpretation" in metrics_section[metric]:
+            desc += f"\n\n**Interpretation:** {metrics_section[metric]['interpretation']}"
 
         return desc
 
@@ -339,7 +349,7 @@ def main():
     print(f"Generating documentation in {output_dir}/")
 
     # Generate main README
-    main_readme = generate_main_readme(sections, output_dir)
+    main_readme = generate_main_readme(sections, output_dir, descriptions)
     print(f"Created: {main_readme}")
 
     # Generate section READMEs

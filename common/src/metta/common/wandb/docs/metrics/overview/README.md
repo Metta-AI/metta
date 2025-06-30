@@ -2,7 +2,7 @@
 
 ## Overview
 
-High-level training progress
+High-level summary metrics that provide a quick assessment of training progress and performance.
 
 **Total metrics in this section:** 3
 

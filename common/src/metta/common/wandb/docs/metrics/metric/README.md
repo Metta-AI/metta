@@ -2,7 +2,9 @@
 
 ## Overview
 
-Core training metrics (steps, epochs, time)
+Core tracking metrics that serve as x-axis values for other plots. These metrics track
+fundamental progress indicators like steps, epochs, and time. When analyzing other metrics,
+these values provide the temporal context for understanding changes over the training run.
 
 **Total metrics in this section:** 4
 
@@ -15,21 +17,24 @@ Core training metrics (steps, epochs, time)
 **agent_step:**
 - `metric/agent_step`
 
-Total number of agent steps taken across all environments.
+Total number of agent steps taken across all environments. This is the primary x-axis value
+for most training curves as it represents actual experience collected.
 
-**Interpretation:** Primary measure of training progress. Compare with wall-clock time for efficiency.
+**Interpretation:** Use this as x-axis when comparing runs with different environment counts or speeds.
 
 **epoch:**
 - `metric/epoch`
 
-Current training epoch number.
+Current training epoch number. Each epoch represents one cycle of rollout collection and training.
+Useful as x-axis for metrics that update once per epoch.
 
-**Interpretation:** One epoch represents a full cycle of experience collection and training.
+**Interpretation:** Good for comparing architectural changes where steps-per-epoch may vary.
 
 **total_time:**
 - `metric/total_time`
 
-Total wall-clock time since training started. (Unit: seconds)
+Total wall-clock time since training started. Use as x-axis when comparing real-world efficiency
+or when coordinating with external events. (Unit: seconds)
 
 **train_time:**
 - `metric/train_time`

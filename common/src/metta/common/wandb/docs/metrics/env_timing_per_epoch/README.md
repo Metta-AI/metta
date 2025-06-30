@@ -2,7 +2,8 @@
 
 ## Overview
 
-Per-epoch environment timing breakdown
+Performance profiling metrics measured per epoch. Useful for identifying bottlenecks and
+optimizing environment execution speed.
 
 **Total metrics in this section:** 42
 
