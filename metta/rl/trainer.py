@@ -177,6 +177,14 @@ class MettaTrainer:
             # instance of the policy class and copying the state dict, allowing successful re-saving.
             # TODO: Remove this workaround when checkpointing refactor is complete
             loaded_policy = policy_record.policy
+
+            # Restore original_feature_mapping from metadata if available
+            if (
+                hasattr(loaded_policy, "restore_original_feature_mapping")
+                and "original_feature_mapping" in policy_record.metadata
+            ):
+                loaded_policy.restore_original_feature_mapping(policy_record.metadata["original_feature_mapping"])
+
             if hasattr(loaded_policy, "initialize_to_environment"):
                 features = metta_grid_env.get_observation_features()
                 loaded_policy.initialize_to_environment(features, actions_names, actions_max_params, self.device)
@@ -187,6 +195,14 @@ class MettaTrainer:
             fresh_policy_record.metadata = policy_record.metadata
 
             fresh_policy = fresh_policy_record.policy
+
+            # Also restore original_feature_mapping to fresh policy
+            if (
+                hasattr(fresh_policy, "restore_original_feature_mapping")
+                and "original_feature_mapping" in policy_record.metadata
+            ):
+                fresh_policy.restore_original_feature_mapping(policy_record.metadata["original_feature_mapping"])
+
             if hasattr(fresh_policy, "initialize_to_environment"):
                 features = metta_grid_env.get_observation_features()
                 fresh_policy.initialize_to_environment(features, actions_names, actions_max_params, self.device)
@@ -770,6 +786,15 @@ class MettaTrainer:
             policy_to_save = self.policy.module
         else:
             raise ValueError(f"Policy must be of type MettaAgent or DistributedMettaAgent, got {type(self.policy)}")
+
+        # Save the original feature mapping in metadata
+        if hasattr(policy_to_save, "get_original_feature_mapping"):
+            original_feature_mapping = policy_to_save.get_original_feature_mapping()
+            if original_feature_mapping is not None:
+                metadata["original_feature_mapping"] = original_feature_mapping
+                logger.info(
+                    f"Saving original_feature_mapping with {len(original_feature_mapping)} features to metadata"
+                )
 
         # Models loaded via torch.package have modified class names (prefixed with <torch_package_N>)
         # which prevents them from being saved again. We work around this by creating a fresh

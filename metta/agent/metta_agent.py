@@ -269,7 +269,7 @@ class MettaAgent(nn.Module):
                     remapped_count += 1
                     logger.info(f"Remapping feature '{name}': {new_id} -> {original_id}")
             else:
-                # This is a new feature not seen before
+                # This is a new feature not seen before by this agent instance
                 if not self.is_training:
                     # In evaluation mode, map unknown features to the unknown token
                     self.feature_id_remap[new_id] = UNKNOWN_FEATURE_ID
@@ -278,10 +278,10 @@ class MettaAgent(nn.Module):
                         f"Evaluation mode: Mapping unknown feature '{name}' (id={new_id}) to UNKNOWN_FEATURE_ID={UNKNOWN_FEATURE_ID}"
                     )
                 else:
-                    # In training mode, allow the model to learn new features
-                    # Update original mapping to include this new feature
+                    # In training mode, always allow the model to learn new features
+                    # This handles both initial training and resumed training after save/reload
                     self.original_feature_mapping[name] = new_id
-                    logger.info(f"Training mode: Adding new feature '{name}' with id={new_id} to original mapping")
+                    logger.info(f"Training mode: Learning new feature '{name}' with id={new_id}")
 
         if remapped_count > 0 or unknown_features:
             logger.info(
@@ -294,14 +294,19 @@ class MettaAgent(nn.Module):
                 # Start with identity mapping, then apply specific remappings
                 remap_tensor = torch.arange(256, dtype=torch.uint8, device=self.device)
 
-                # Apply known remappings
+                # Apply known remappings (including unknown features mapped to 255)
                 for new_id, original_id in self.feature_id_remap.items():
                     remap_tensor[new_id] = original_id
 
-                # Map all feature IDs that aren't in the current environment to UNKNOWN
+                # Map all feature IDs that aren't in the current environment AND aren't already remapped to UNKNOWN
+                # This handles feature IDs from training that aren't present in the current eval environment
                 current_feature_ids = {props["id"] for props in features.values()}
                 for feature_id in range(256):
-                    if feature_id not in current_feature_ids and feature_id not in self.feature_id_remap:
+                    # Skip if already handled by feature_id_remap
+                    if feature_id in self.feature_id_remap:
+                        continue
+                    # If not in current environment, map to UNKNOWN
+                    if feature_id not in current_feature_ids:
                         remap_tensor[feature_id] = UNKNOWN_FEATURE_ID
 
                 self.components["_obs_"].update_feature_remapping(remap_tensor)
@@ -324,6 +329,20 @@ class MettaAgent(nn.Module):
                         norm_tensor[original_id] = props["normalization"]
 
                 component.register_buffer("_norm_factors", norm_tensor)
+
+    def get_original_feature_mapping(self) -> dict[str, int] | None:
+        """Get the original feature mapping for saving in metadata."""
+        return getattr(self, "original_feature_mapping", None)
+
+    def restore_original_feature_mapping(self, mapping: dict[str, int]) -> None:
+        """Restore the original feature mapping from metadata.
+
+        This should be called after loading a model from checkpoint but before
+        calling initialize_to_environment.
+        """
+        # Make a copy to avoid shared state between agents
+        self.original_feature_mapping = mapping.copy()
+        logger.info(f"Restored original feature mapping with {len(mapping)} features from metadata")
 
     def activate_actions(self, action_names: list[str], action_max_params: list[int], device):
         """Run this at the beginning of training."""
