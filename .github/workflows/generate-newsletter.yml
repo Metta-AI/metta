@@ -2,7 +2,7 @@ name: Generate Newsletter
 
 on:
   schedule:
-    - cron: "0 1 * * *" # Daily at 1 AM GMT
+    - cron: "0 1 * * 2,4,6" # M/W/F at 1 AM GMT (5 PM PST)
   workflow_dispatch:
     inputs:
       days_to_scan:
@@ -33,9 +33,29 @@ jobs:
         id: set-days
         run: |
           if [ "${{ github.event_name }}" = "schedule" ]; then
-            # Use repository variable for scheduled runs, fallback to 1 if not set
-            DAYS="${{ vars.PR_NEWSLETTER_HISTORY_DAYS || '1' }}"
-            echo "Using repository variable PR_NEWSLETTER_HISTORY_DAYS: $DAYS days"
+            # Get current day of week (0=Sunday, 1=Monday, etc.)
+            DAY_OF_WEEK=$(date +%w)
+
+            # Set days based on day of week (in GMT)
+            # Remember: this runs Tue/Thu/Sat GMT = Mon/Wed/Fri PST
+            case $DAY_OF_WEEK in
+              2) # Tuesday GMT = Monday PST
+                DAYS=3
+                echo "Monday run: using 3 days of history"
+                ;;
+              4) # Thursday GMT = Wednesday PST
+                DAYS=2
+                echo "Wednesday run: using 2 days of history"
+                ;;
+              6) # Saturday GMT = Friday PST
+                DAYS=2
+                echo "Friday run: using 2 days of history"
+                ;;
+              *) # Fallback (shouldn't happen with your cron schedule)
+                DAYS="${{ vars.PR_NEWSLETTER_HISTORY_DAYS || '1' }}"
+                echo "Unexpected day, using default: $DAYS days"
+                ;;
+            esac
           else
             # Use workflow input for manual runs, fallback to 1 if not provided
             DAYS="${{ inputs.days_to_scan || '1' }}"
