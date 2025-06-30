@@ -40,6 +40,7 @@ class PRAnalyzer:
         self.ai_client = ai_client
 
     def categorize_pr(self, pr_data: Dict) -> str:
+        """Enhanced PR categorization based on labels, title, and content."""
         title = pr_data.get("title", "").lower()
         labels = [label.lower() for label in pr_data.get("labels", [])]
         body = pr_data.get("body", "").lower()
