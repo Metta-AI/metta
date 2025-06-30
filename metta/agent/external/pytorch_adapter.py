@@ -189,7 +189,7 @@ class PytorchAdapter(nn.Module):
         # Convert to MettaAgent format
         if isinstance(logits, list):
             # For multi-discrete actions, concatenate logits
-            logits = torch.cat([l for l in logits], dim=-1)
+            logits = torch.cat([log for log in logits], dim=-1)
 
         # Sample actions and compute log probs
         action, logprob, entropy = sample_logits(logits, action)
