@@ -25,9 +25,9 @@ from omegaconf import DictConfig, ListConfig
 from torch.package.package_exporter import PackageExporter
 from torch.package.package_importer import PackageImporter
 
+from metta.agent.external.pytorch_adapter import load_pytorch_policy
 from metta.agent.metta_agent import make_policy
 from metta.agent.policy_record import PolicyRecord
-from metta.rl.policy import load_pytorch_policy
 
 logger = logging.getLogger("policy_store")
 

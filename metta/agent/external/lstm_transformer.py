@@ -1,3 +1,14 @@
+"""LSTM-Transformer hybrid policy for external use with pytorch:// URI scheme.
+
+This file provides a stronger drop-in replacement for the original CNN+MLP policy
+and can be loaded using the pytorch:// URI scheme with proper configuration:
+
+pytorch:
+  _target_: metta.agent.external.lstm_transformer.Recurrent
+  hidden_size: 384
+  cnn_channels: 128
+"""
+
 from typing import List
 
 import pufferlib.models

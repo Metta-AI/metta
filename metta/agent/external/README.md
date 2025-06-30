@@ -4,12 +4,22 @@ This directory contains utilities for loading external PyTorch policies (e.g., f
 
 ## Directory Contents
 
-- `example.py` - Reference implementation showing how to adapt a PufferLib-style policy for Metta
-- `lstm_transformer.py` - Alternative LSTM-Transformer hybrid architecture example
+- `pytorch_adapter.py` - Unified `PytorchAdapter` class that wraps external policies for MettaAgent compatibility
+- `torch.py` - Exact copy of PufferLib's torch.py policy (unmodified)
+- `example.py` - Example showing modifications needed for Metta compatibility (for reference)
+- `lstm_transformer.py` - Alternative LSTM-Transformer hybrid architecture
 
 ## Overview
 
-External policies are loaded using the `pytorch://` URI scheme. These policies are automatically wrapped in a `PytorchAgent` adapter that translates between the external policy interface and Metta's expected interface.
+External policies are loaded using the `pytorch://` URI scheme. These policies are automatically wrapped in a `PytorchAdapter` that translates between the external policy interface and Metta's expected interface. The adapter handles:
+
+- Different naming conventions (critic→value, hidden→logits)
+- State management for LSTM policies and state conversion
+- Token observation handling [B, M, 3]
+- PufferLib LSTMWrapper patterns
+- Method forwarding for MettaAgent compatibility
+
+The key advantage is that external policies can be used **without modification**. The `torch.py` file is an exact copy from PufferLib, and all necessary conversions are handled by the adapter.
 
 ## Quick Start
 
@@ -83,9 +93,38 @@ policy_uri: pytorch://checkpoints/external_model.pt
 
 # Optional: Configure the external policy loading
 pytorch:
-  _target_: metta.agent.external.example.Recurrent
+  _target_: metta.agent.external.torch.Recurrent  # Or your custom policy class
   hidden_size: 512
   cnn_channels: 128
+```
+
+### Using the Adapter System
+
+The `PytorchAdapter` class automatically detects the type of external policy and applies the appropriate conversions:
+
+- For PufferLib LSTMWrapper policies (like `torch.Recurrent`), it handles the LSTM state management and forward_train conversions
+- For standard PyTorch policies, it provides basic interface translation
+- Backwards compatibility: `ExternalPolicyAdapter` is kept as an alias
+
+Example configuration for different policy types:
+
+```yaml
+# For PufferLib policies (torch.py) - can be used without modification
+pytorch:
+  _target_: metta.agent.external.torch.Recurrent
+  hidden_size: 512
+
+# For LSTM-Transformer hybrid
+pytorch:
+  _target_: metta.agent.external.lstm_transformer.Recurrent
+  hidden_size: 384
+  depth: 3
+  num_heads: 6
+
+# For custom external policies
+pytorch:
+  _target_: path.to.your.ExternalPolicy
+  custom_arg: value
 ```
 
 ## Integration with Metta Features
@@ -177,3 +216,25 @@ pr = store.load_from_uri("file://path/to/metta_policy.pt")
 model = pr.policy.policy  # The inner policy module
 torch.save(model.state_dict(), "exported_weights.pt")
 ```
+
+## Limitations of Unmodified External Policies
+
+### PufferLib torch.py
+
+The unmodified PufferLib `torch.py` is designed specifically for token observations [B, M, 3] and does not support regular grid observations [B, H, W, C] without modification. This is why `example.py` includes overrides to the forward method.
+
+**If you need to use PufferLib policies with Metta:**
+
+1. **For token observations only**: Use the unmodified `torch.py` with our adapter
+2. **For grid observations**: Use `example.py` which includes the necessary modifications
+3. **For full compatibility**: Create your own policy based on `example.py` as a template
+
+### Recommended Approach
+
+For most use cases, we recommend using modified policies like `example.py` or `lstm_transformer.py` which have been adapted to work with Metta's observation formats. These provide:
+
+- Support for both token and grid observations
+- Proper state management for Metta's PolicyState
+- Compatibility with Metta's training infrastructure
+
+The adapter system (`PytorchAdapter`) handles the interface translation, but it cannot change fundamental assumptions about observation formats built into the external policies.

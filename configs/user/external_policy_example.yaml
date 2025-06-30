@@ -1,0 +1,32 @@
+# Example configuration for using external PyTorch policies
+
+defaults:
+  - common
+  - sim/all_tokenized
+  - env/mettagrid/base
+  - hardware/local_debug
+
+# Load an external PyTorch policy using the pytorch:// URI scheme
+policy_uri: pytorch://path/to/your/checkpoint.pt
+
+# Configure which external policy class to use
+pytorch:
+  # For modified PufferLib-style policies that work with Metta (recommended)
+  _target_: metta.agent.external.example.Recurrent
+  hidden_size: 512
+  cnn_channels: 128
+
+  # Alternative: Use the LSTM-Transformer hybrid
+  # _target_: metta.agent.external.lstm_transformer.Recurrent
+  # hidden_size: 384
+  # depth: 3
+  # num_heads: 6
+
+  # For unmodified PufferLib torch.py (token observations only)
+  # _target_: metta.agent.external.torch.Recurrent
+  # Note: This only works with token observations, not grid observations
+
+# Standard simulation settings
+sim:
+  episodes: 100
+  render: true
