@@ -15,7 +15,6 @@ def test_obs_token_pad_strip_remapping():
     pad_strip._out_tensor_shape = [0, 3]  # Set output shape
 
     # Create test observations [batch, tokens, 3] where 3 is [coord, feature_id, value]
-    batch_size = 2
     observations = torch.tensor(
         [
             # Batch 0
