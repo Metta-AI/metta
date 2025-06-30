@@ -127,6 +127,35 @@ class PolicyRecord:
             logger.info(f"Saving policy to {path}")
 
         try:
+            # Get agent attributes and convert to serializable format
+            agent_attrs = getattr(self.policy, "agent_attributes", {})
+            serializable_attrs = {}
+
+            for key, value in agent_attrs.items():
+                if key == "action_space" and hasattr(value, "nvec"):
+                    # Convert gym.spaces.MultiDiscrete to dict
+                    import numpy as np
+
+                    nvec = value.nvec
+                    if isinstance(nvec, np.ndarray):
+                        nvec = nvec.tolist()
+                    serializable_attrs[key] = {"nvec": list(nvec)}
+                elif key == "obs_shape" and hasattr(value, "__iter__"):
+                    # Ensure obs_shape is a list
+                    serializable_attrs[key] = list(value)
+                elif isinstance(value, (dict, list, str, int, float, bool, type(None))):
+                    # Keep JSON-serializable types as-is
+                    serializable_attrs[key] = value
+                else:
+                    # Convert other types to string representation
+                    logger.warning(f"Converting non-serializable attribute {key} of type {type(value)} to string")
+                    serializable_attrs[key] = str(value)
+
+            # Add action configuration if available
+            if hasattr(self.policy, "action_names") and hasattr(self.policy, "action_max_params"):
+                serializable_attrs["action_names"] = self.policy.action_names
+                serializable_attrs["action_max_params"] = self.policy.action_max_params
+
             # Create checkpoint dictionary with state dict and metadata only
             checkpoint = {
                 "model_state_dict": self.policy.state_dict(),
@@ -134,7 +163,7 @@ class PolicyRecord:
                 "name": self.name,
                 "uri": f"file://{path}",
                 # Include architecture information for reconstruction
-                "agent_attributes": getattr(self.policy, "agent_attributes", {}),
+                "agent_attributes": serializable_attrs,
                 # Simple version tag
                 "checkpoint_version": "1.0",
             }

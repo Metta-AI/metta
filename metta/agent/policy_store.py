@@ -382,23 +382,50 @@ class PolicyStore:
 
                     agent_attrs = checkpoint.get("agent_attributes", {})
 
-                    # Create minimal environment for policy creation
+                    # Safely extract obs_shape and ensure it's a list with at least 3 elements
                     obs_shape = agent_attrs.get("obs_shape", [34, 11, 11])
+                    if isinstance(obs_shape, (tuple, list)):
+                        obs_shape = list(obs_shape)
+                    else:
+                        obs_shape = [34, 11, 11]  # Default shape
+
+                    # Ensure we have at least 3 dimensions
+                    while len(obs_shape) < 3:
+                        obs_shape.append(11 if len(obs_shape) > 0 else 34)
+
+                    # Safely extract action space nvec
+                    action_space_nvec = [9, 10]  # Default
+                    action_space_data = agent_attrs.get("action_space")
+                    if action_space_data is not None:
+                        if isinstance(action_space_data, dict) and "nvec" in action_space_data:
+                            action_space_nvec = action_space_data["nvec"]
+                        elif hasattr(action_space_data, "nvec"):
+                            # Handle gym.spaces.MultiDiscrete object
+                            action_space_nvec = list(action_space_data.nvec)
+
+                    # Create minimal environment for policy creation
                     env = SimpleNamespace(
                         single_observation_space=gym.spaces.Box(low=0, high=255, shape=obs_shape, dtype=np.uint8),
-                        obs_width=agent_attrs.get("obs_width", obs_shape[1]),
-                        obs_height=agent_attrs.get("obs_height", obs_shape[2]),
-                        single_action_space=gym.spaces.MultiDiscrete(
-                            agent_attrs.get("action_space", {}).get("nvec", [9, 10])
-                            if isinstance(agent_attrs.get("action_space", {}), dict)
-                            else agent_attrs.get("action_space", gym.spaces.MultiDiscrete([9, 10]))
-                        ),
+                        obs_width=agent_attrs.get("obs_width", obs_shape[2] if len(obs_shape) > 2 else 11),
+                        obs_height=agent_attrs.get("obs_height", obs_shape[1] if len(obs_shape) > 1 else 11),
+                        single_action_space=gym.spaces.MultiDiscrete(action_space_nvec),
                         feature_normalizations=agent_attrs.get("feature_normalizations", {}),
                         global_features=[],
                     )
 
-                    # Create policy and load state dict
+                    # Create policy
                     policy = make_policy(env, self._cfg)
+
+                    # Activate actions if configuration is available
+                    if "action_names" in agent_attrs and "action_max_params" in agent_attrs:
+                        action_names = agent_attrs["action_names"]
+                        action_max_params = agent_attrs["action_max_params"]
+                        policy.activate_actions(action_names, action_max_params, self._device)
+                        logger.info(f"Activated actions with {len(action_names)} action types")
+                    else:
+                        logger.warning("No action configuration found in checkpoint, policy may not work correctly")
+
+                    # Load state dict after activation
                     policy.load_state_dict(checkpoint["model_state_dict"])
                     pr._cached_policy = policy.to(self._device)
 
