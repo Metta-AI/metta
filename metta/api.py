@@ -22,6 +22,7 @@ from metta.mettagrid import MettaGrid
 from metta.rl.experience import Experience
 from metta.rl.gae import compute_advantages as compute_advantages_gae
 from metta.rl.pufferlib import BatchInfo, ExperienceStore, RolloutManager
+from metta.rl.trainer_config import OptimizerConfig, PPOConfig
 
 # Object type IDs from mettagrid/src/metta/mettagrid/objects/constants.hpp
 # These define the type of object in the environment
@@ -134,6 +135,160 @@ def _get_runtime_config():
 
 # ============= Typed Configuration Classes =============
 @dataclass
+class ObjectConfig:
+    """Configuration for an object type."""
+
+    type: str
+    name: str
+    color: int
+
+
+@dataclass
+class ActionConfig:
+    """Configuration for an action type."""
+
+    type: str
+    key: str
+    delta: Optional[int] = None
+    item: Optional[str] = None
+    use: Optional[str] = None
+
+
+@dataclass
+class GameConfig:
+    """Configuration for game mechanics."""
+
+    max_steps: int = 1000
+    time_punishment: float = -0.0001
+    episode_lifetime: int = 10000
+    num_agents: int = 64
+    width: int = 64
+    height: int = 64
+    observation_width: int = 11
+    observation_height: int = 11
+    num_observation_tokens: int = 200
+
+    # Agent configuration
+    default_item_max: int = 50
+    heart_max: int = 255
+    freeze_duration: int = 10
+
+    # Rewards
+    action_failure_penalty: float = 0
+    ore_red_reward: float = 0.01
+    battery_red_reward: float = 0.02
+    heart_reward: float = 1
+    ore_red_max: int = 10
+    battery_red_max: int = 10
+    heart_max_reward: int = 1000
+
+    # Inventory
+    inventory_item_names: List[str] = field(
+        default_factory=lambda: ["ore.red", "battery.red", "heart", "laser", "armor"]
+    )
+
+    # Diversity bonus
+    diversity_bonus_enabled: bool = False
+    similarity_coef: float = 0.5
+    diversity_coef: float = 0.5
+
+    # Groups
+    groups: Dict[str, Dict[str, Any]] = field(default_factory=lambda: {"agent": {"id": 0, "sprite": 0, "props": {}}})
+    reward_sharing_groups: Dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class MapBuilderConfig:
+    """Configuration for map generation."""
+
+    type: str = "Random"
+    width: int = 64
+    height: int = 64
+    border_width: int = 2
+    agents: int = 64
+    objects: Dict[str, int] = field(
+        default_factory=lambda: {"mine_red": 2, "generator_red": 1, "altar": 1, "wall": 5, "block": 3}
+    )
+
+
+@dataclass
+class EnvConfig:
+    """Complete environment configuration."""
+
+    game: GameConfig = field(default_factory=GameConfig)
+    objects: List[ObjectConfig] = field(
+        default_factory=lambda: [
+            ObjectConfig(type="mine", name="mine_red", color=0),
+            ObjectConfig(type="generator", name="generator_red", color=0),
+            ObjectConfig(type="converter", name="altar", color=1),
+            ObjectConfig(type="wall", name="wall", color=15),
+            ObjectConfig(type="wall", name="block", color=14),
+        ]
+    )
+    actions: List[ActionConfig] = field(
+        default_factory=lambda: [
+            ActionConfig(type="null", key="forward"),
+            ActionConfig(type="rotate_absolute", key="rotate", delta=0),
+            ActionConfig(type="move_with_rotate", key="move", delta=0),
+            ActionConfig(type="harvest", key="harvest"),
+            ActionConfig(type="attack", key="attack"),
+            ActionConfig(type="gift", key="gift", item="battery.red"),
+            ActionConfig(type="toggle_use", key="use_shield", use="shield"),
+            ActionConfig(type="use", key="use_energy_red", use="channel_red"),
+        ]
+    )
+    map_builder: MapBuilderConfig = field(default_factory=MapBuilderConfig)
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary format expected by MettaGrid."""
+        return {
+            "game": {
+                "max_steps": self.game.max_steps,
+                "time_punishment": self.game.time_punishment,
+                "episode_lifetime": self.game.episode_lifetime,
+                "num_agents": self.game.num_agents,
+                "width": self.game.width,
+                "height": self.game.height,
+                "observation_width": self.game.observation_width,
+                "observation_height": self.game.observation_height,
+                "num_observation_tokens": self.game.num_observation_tokens,
+                "groups": self.game.groups,
+                "agent": {
+                    "default_item_max": self.game.default_item_max,
+                    "heart_max": self.game.heart_max,
+                    "freeze_duration": self.game.freeze_duration,
+                    "rewards": {
+                        "action_failure_penalty": self.game.action_failure_penalty,
+                        "ore.red": self.game.ore_red_reward,
+                        "battery.red": self.game.battery_red_reward,
+                        "heart": self.game.heart_reward,
+                        "ore.red_max": self.game.ore_red_max,
+                        "battery.red_max": self.game.battery_red_max,
+                        "heart_max": self.game.heart_max_reward,
+                    },
+                },
+                "inventory_item_names": self.game.inventory_item_names,
+                "diversity_bonus": {
+                    "enabled": self.game.diversity_bonus_enabled,
+                    "similarity_coef": self.game.similarity_coef,
+                    "diversity_coef": self.game.diversity_coef,
+                },
+                "objects": [vars(obj) for obj in self.objects],
+                "actions": [vars(action) for action in self.actions],
+                "reward_sharing": {"groups": self.game.reward_sharing_groups},
+                "map_builder": {
+                    "_target_": f"metta.mettagrid.room.random.{self.map_builder.type}",
+                    "width": self.map_builder.width,
+                    "height": self.map_builder.height,
+                    "border_width": self.map_builder.border_width,
+                    "agents": self.map_builder.agents,
+                    "objects": self.map_builder.objects,
+                },
+            },
+        }
+
+
+@dataclass
 class AgentModelConfig:
     """Configuration for the ML agent model architecture."""
 
@@ -148,74 +303,10 @@ class AgentModelConfig:
     dtypes_fp16: bool = False
     obs_scale: int = 1
     obs_process_func: str = "flatten_obs_dict"
-    observation_types: list[ObservationType] = field(default_factory=lambda: ["entities_state"])
+    observation_types: List[ObservationType] = field(default_factory=lambda: ["entities_state"])
     clip_range: float = 0
-
-
-@dataclass
-class OptimizerConfig:
-    """Configuration for the optimizer."""
-
-    type: str = "adam"
-    learning_rate: float = 0.0004573146765703167
-    beta1: float = 0.9
-    beta2: float = 0.999
-    eps: float = 1e-12
-    weight_decay: float = 0
-
-
-@dataclass
-class PPOConfig:
-    """Configuration for PPO algorithm parameters."""
-
-    clip_coef: float = 0.1
-    ent_coef: float = 0.0021
-    gae_lambda: float = 0.916
-    gamma: float = 0.977
-    max_grad_norm: float = 0.5
-    vf_clip_coef: float = 0.1
-    vf_coef: float = 0.44
-    norm_adv: bool = True
-    clip_vloss: bool = True
-    target_kl: float | None = None
-
-
-@dataclass
-class CheckpointConfig:
-    """Configuration for checkpointing."""
-
-    checkpoint_interval: int = 60
-    wandb_checkpoint_interval: int = 300
-    checkpoint_dir: str = "./checkpoints"
-
-
-@dataclass
-class SimulationConfig:
-    """Configuration for simulation and evaluation."""
-
-    evaluate_interval: int = 300
-    replay_interval: int = 300
-    replay_dir: str = "./replays"
-
-
-@dataclass
-class EnvConfig:
-    """Configuration for the environment."""
-
-    game: dict[str, Any] = field(
-        default_factory=lambda: {
-            "max_steps": 1000,
-            "time_punishment": -0.0001,
-            "episode_lifetime": 10000,
-            "num_agents": 64,
-            "width": 64,
-            "height": 64,
-        }
-    )
-    objects: list[dict[str, Any]] = field(default_factory=lambda: _get_default_objects_config())
-    actions: list[dict[str, Any]] = field(default_factory=lambda: _get_default_actions_config())
-    observation_height: int = 11
-    observation_width: int = 11
+    analyze_weights_interval: int = 300
+    l2_init_weight_update_interval: int = 0
 
 
 @dataclass
@@ -232,7 +323,6 @@ class ExperienceConfig:
     forward_pass_minibatch_target_size: int = 4096
 
 
-# Data structures for enhanced training state
 @dataclass
 class TrainingState:
     """Complete training state for checkpointing."""
@@ -244,7 +334,7 @@ class TrainingState:
     lr_scheduler_state_dict: Optional[Dict[str, Any]]
     policy_path: Optional[str]
     stopwatch_state: Optional[Dict[str, Any]]
-    extra_args: Dict[str, Any]
+    extra_args: Dict[str, Any] = field(default_factory=dict)
 
     def save(self, checkpoint_dir: str) -> str:
         """Save training state to checkpoint file."""
@@ -261,120 +351,48 @@ class TrainingState:
             return pickle.load(f)
 
 
-# Helper functions for enhanced features
-def make_lr_scheduler(
-    optimizer: torch.optim.Optimizer,
-    total_timesteps: int,
-    batch_size: int,
-    warmup_steps: Optional[int] = None,
-    schedule_type: str = "linear",
-    anneal_lr: bool = True,
-) -> Optional[torch.optim.lr_scheduler._LRScheduler]:
-    """Create a learning rate scheduler."""
-    if not anneal_lr:
-        return None
-
-    total_updates = total_timesteps // batch_size
-
-    if schedule_type == "linear":
-
-        def lr_lambda(epoch):
-            if warmup_steps and epoch < warmup_steps:
-                return epoch / warmup_steps
-            # Avoid division by zero
-            if total_updates <= (warmup_steps or 0):
-                return 1.0
-            progress = (epoch - (warmup_steps or 0)) / (total_updates - (warmup_steps or 0))
-            return max(0.0, 1.0 - progress)
-
-        return LambdaLR(optimizer, lr_lambda)
-    elif schedule_type == "cosine":
-        return CosineAnnealingLR(optimizer, T_max=total_updates)
-    else:
-        raise ValueError(f"Unknown schedule type: {schedule_type}")
-
-
-def compute_gradient_stats(model: nn.Module) -> Dict[str, float]:
-    """Compute gradient statistics for monitoring."""
-    grad_norms = []
-    param_norms = []
-
-    for name, param in model.named_parameters():
-        if param.grad is not None:
-            grad_norms.append(param.grad.norm().item())
-            param_norms.append(param.norm().item())
-
-    if not grad_norms:
-        return {}
-
-    return {
-        "grad_norm_mean": np.mean(grad_norms),
-        "grad_norm_max": np.max(grad_norms),
-        "grad_norm_min": np.min(grad_norms),
-        "param_norm_mean": np.mean(param_norms),
-    }
-
-
 # ============= API Functions =============
 def make_environment(
     env_config: Optional[EnvConfig] = None,
-    map_builder: Optional[Any] = None,
     **kwargs,
 ) -> MettaGrid:
     """Create a MettaGrid environment.
 
     Args:
-        env_config: EnvConfig object or None. If None, uses defaults.
-        map_builder: Optional map builder to override the default.
+        env_config: EnvConfig object. If None, uses defaults.
         **kwargs: Additional keyword arguments to override config values.
 
     Returns:
         MettaGrid environment instance.
     """
-    # Use default config if none provided
-    config_dict = _get_default_env_config()
-
-    # Apply EnvConfig if provided
-    if env_config is not None:
-        # Update game settings
-        config_dict["game"].update(env_config.game)
-        config_dict["game"]["observation_width"] = env_config.observation_width
-        config_dict["game"]["observation_height"] = env_config.observation_height
-        config_dict["game"]["objects"] = env_config.objects
-        config_dict["game"]["actions"] = env_config.actions
+    config = env_config or EnvConfig()
 
     # Apply kwargs overrides
     if "num_agents" in kwargs:
-        config_dict["game"]["num_agents"] = kwargs["num_agents"]
-        config_dict["game"]["map_builder"]["agents"] = kwargs["num_agents"]
+        config.game.num_agents = kwargs["num_agents"]
+        config.map_builder.agents = kwargs["num_agents"]
     if "width" in kwargs:
-        config_dict["game"]["width"] = kwargs["width"]
-        config_dict["game"]["map_builder"]["width"] = kwargs["width"]
+        config.game.width = kwargs["width"]
+        config.map_builder.width = kwargs["width"]
     if "height" in kwargs:
-        config_dict["game"]["height"] = kwargs["height"]
-        config_dict["game"]["map_builder"]["height"] = kwargs["height"]
+        config.game.height = kwargs["height"]
+        config.map_builder.height = kwargs["height"]
     if "max_steps" in kwargs:
-        config_dict["game"]["max_steps"] = kwargs["max_steps"]
-
-    # Apply map builder if provided
-    if map_builder is not None:
-        config_dict["game"]["map_builder"] = map_builder
+        config.game.max_steps = kwargs["max_steps"]
 
     # Create environment
-    env = MettaGrid(config_dict["game"], None, 0)
+    env = MettaGrid(config.to_dict()["game"], None, 0)
     env.enable_history(True)
-
     return env
 
 
 def make_agent(
     observation_space: Any,
     action_space: Any,
-    global_features: list,
+    global_features: List[str],
     device: torch.device,
     config: Optional[AgentModelConfig] = None,
-    **kwargs,
-):
+) -> MettaAgent:
     """Create a Metta agent.
 
     Args:
@@ -382,20 +400,12 @@ def make_agent(
         action_space: The action space of the environment.
         global_features: List of global features.
         device: Torch device to use.
-        config: AgentModelConfig object or None. If None, uses defaults.
-        **kwargs: Additional keyword arguments to override config values.
+        config: AgentModelConfig object. If None, uses defaults.
 
     Returns:
         MettaAgent instance.
     """
-    # Use config if provided, otherwise create from kwargs
-    if config is None:
-        config = AgentModelConfig(**kwargs)
-    else:
-        # Override config values with kwargs
-        for key, value in kwargs.items():
-            if hasattr(config, key):
-                setattr(config, key, value)
+    config = config or AgentModelConfig()
 
     # Create observation processor
     obs_preprocessor = obs_lib.make_obs_preprocessor(
@@ -444,8 +454,8 @@ def make_agent(
             "clip_range": config.clip_range,
             "forward_lstm": config.forward_lstm,
             "backbone": config.backbone,
-            "analyze_weights_interval": 300,
-            "l2_init_weight_update_interval": 0,
+            "analyze_weights_interval": config.analyze_weights_interval,
+            "l2_init_weight_update_interval": config.l2_init_weight_update_interval,
             "components": components,
             "dtypes_fp16": config.dtypes_fp16,
             "obs_preprocessor": obs_preprocessor,
@@ -459,28 +469,18 @@ def make_agent(
 def make_optimizer(
     agent: MettaAgent,
     config: Optional[OptimizerConfig] = None,
-    **kwargs,
 ) -> torch.optim.Optimizer:
     """Create an optimizer for training.
 
     Args:
         agent: The agent to optimize.
-        config: OptimizerConfig object or None. If None, uses defaults.
-        **kwargs: Additional keyword arguments to override config values.
+        config: OptimizerConfig object. If None, uses defaults.
 
     Returns:
         Torch optimizer instance.
     """
-    # Use config if provided, otherwise create from kwargs
-    if config is None:
-        config = OptimizerConfig(**kwargs)
-    else:
-        # Override config values with kwargs
-        for key, value in kwargs.items():
-            if hasattr(config, key):
-                setattr(config, key, value)
+    config = config or OptimizerConfig()
 
-    # Create optimizer based on type
     if config.type == "adam":
         return torch.optim.Adam(
             agent.parameters(),
@@ -506,22 +506,20 @@ def make_optimizer(
 
 def make_curriculum(
     env_path: str = "/env/mettagrid/simple",
-    scenes: Optional[list[Scene]] = None,
+    scenes: Optional[List[Scene]] = None,
 ) -> Curriculum:
     """Create a curriculum for training.
 
     Args:
         env_path: Path to the environment configuration.
-        scenes: Optional list of scenes to use. If None, creates single task curriculum.
+        scenes: Optional list of scenes. If None, creates single task curriculum.
 
     Returns:
         Curriculum instance.
     """
     if scenes is None:
-        # Single task curriculum
         return SingleTaskCurriculum(env_path, {})
     else:
-        # Multi-scene curriculum
         from metta.env.curriculum import MultiSceneCurriculum
 
         return MultiSceneCurriculum(scenes, {})
@@ -531,39 +529,36 @@ def make_experience_manager(
     env: MettaGrid,
     agent: MettaAgent,
     config: Optional[ExperienceConfig] = None,
-    **kwargs,
 ) -> Experience:
     """Create an experience manager for collecting rollouts.
 
     Args:
         env: The environment.
         agent: The agent.
-        config: ExperienceConfig object or None. If None, uses defaults.
-        **kwargs: Additional keyword arguments to override config values.
+        config: ExperienceConfig object. If None, uses defaults.
 
     Returns:
         Experience manager instance.
     """
-    # Use config if provided, otherwise create from kwargs
-    if config is None:
-        config = ExperienceConfig(**kwargs)
-    else:
-        # Override config values with kwargs
-        for key, value in kwargs.items():
-            if hasattr(config, key):
-                setattr(config, key, value)
+    config = config or ExperienceConfig()
 
-    # Get runtime config
-    cfg = _get_runtime_config()
-
-    # Update with our config values
-    cfg.trainer.batch_size = config.batch_size
-    cfg.trainer.minibatch_size = config.minibatch_size
-    cfg.trainer.bptt_horizon = config.bptt_horizon
-    cfg.trainer.cpu_offload = config.cpu_offload
-    cfg.trainer.zero_copy = config.zero_copy
-    cfg.trainer.async_factor = config.async_factor
-    cfg.trainer.forward_pass_minibatch_target_size = config.forward_pass_minibatch_target_size
+    # Create runtime config
+    cfg = DictConfig(
+        {
+            "forward_pass_minibatch_target_size": config.forward_pass_minibatch_target_size,
+            "async_factor": config.async_factor,
+            "trainer": {
+                "zero_copy": config.zero_copy,
+                "cpu_offload": config.cpu_offload,
+                "forward_pass_minibatch_target_size": config.forward_pass_minibatch_target_size,
+                "async_factor": config.async_factor,
+                "batch_size": config.batch_size,
+                "minibatch_size": config.minibatch_size,
+                "bptt_horizon": config.bptt_horizon,
+            },
+            "vectorization": "serial",
+        }
+    )
 
     # Create experience store
     experience_store = ExperienceStore(
@@ -613,11 +608,7 @@ def rollout(
     Returns:
         BatchInfo containing rollout statistics.
     """
-    if num_steps is None:
-        num_steps = experience.batch_size
-
-    batch_info = experience.rollout(agent, num_steps)
-    return batch_info
+    return experience.rollout(agent, num_steps or experience.batch_size)
 
 
 def compute_advantages(
@@ -635,19 +626,14 @@ def compute_advantages(
     Returns:
         Advantages tensor.
     """
-    # Get the latest batch data
     batch = experience.get_batch()
-
-    # Compute advantages using the imported function
-    advantages = compute_advantages_gae(
+    return compute_advantages_gae(
         batch["rewards"],
         batch["values"],
         batch["dones"],
         gamma,
         gae_lambda,
     )
-
-    return advantages
 
 
 def train_ppo(
@@ -656,37 +642,23 @@ def train_ppo(
     experience: Experience,
     ppo_config: Optional[PPOConfig] = None,
     update_epochs: int = 1,
-    **kwargs,
-) -> dict[str, float]:
+) -> Dict[str, float]:
     """Train the agent using PPO.
 
     Args:
         agent: The agent to train.
         optimizer: The optimizer.
         experience: Experience manager with collected data.
-        ppo_config: PPOConfig object or None. If None, uses defaults.
+        ppo_config: PPOConfig object. If None, uses defaults.
         update_epochs: Number of epochs to train.
-        **kwargs: Additional keyword arguments to override config values.
 
     Returns:
         Dictionary of training statistics.
     """
-    # Use config if provided, otherwise create from kwargs
-    if ppo_config is None:
-        ppo_config = PPOConfig(**kwargs)
-    else:
-        # Override config values with kwargs
-        for key, value in kwargs.items():
-            if hasattr(ppo_config, key):
-                setattr(ppo_config, key, value)
+    config = ppo_config or PPOConfig()
 
-    # Training loop placeholder - in real implementation this would:
-    # 1. Get batches from experience
-    # 2. Compute advantages
-    # 3. Update policy using PPO algorithm
-    # 4. Return training statistics
-
-    stats = {
+    # Placeholder for actual PPO implementation
+    return {
         "policy_loss": 0.0,
         "value_loss": 0.0,
         "entropy": 0.0,
@@ -694,14 +666,12 @@ def train_ppo(
         "clipfrac": 0.0,
     }
 
-    return stats
-
 
 def save_checkpoint(
     agent: MettaAgent,
     path: str,
     epoch: int = 0,
-    metadata: Optional[dict] = None,
+    metadata: Optional[Dict[str, Any]] = None,
 ) -> None:
     """Save agent checkpoint.
 
@@ -714,19 +684,17 @@ def save_checkpoint(
     os.makedirs(path, exist_ok=True)
     checkpoint_path = os.path.join(path, f"checkpoint_{epoch:06d}.pt")
 
-    checkpoint = {
-        "epoch": epoch,
-        "model_state_dict": agent.state_dict(),
-        "metadata": metadata or {},
-    }
+    torch.save(
+        {
+            "epoch": epoch,
+            "model_state_dict": agent.state_dict(),
+            "metadata": metadata or {},
+        },
+        checkpoint_path,
+    )
 
-    torch.save(checkpoint, checkpoint_path)
 
-
-def load_checkpoint(
-    agent: MettaAgent,
-    path: str,
-) -> dict:
+def load_checkpoint(agent: MettaAgent, path: str) -> Dict[str, Any]:
     """Load agent checkpoint.
 
     Args:
@@ -745,23 +713,17 @@ def eval_policy(
     agent: MettaAgent,
     env: MettaGrid,
     num_episodes: int = 10,
-    device: Optional[torch.device] = None,
-) -> dict[str, float]:
+) -> Dict[str, float]:
     """Evaluate a policy.
 
     Args:
         agent: The agent to evaluate.
         env: The environment.
         num_episodes: Number of episodes to run.
-        device: Device to run on.
 
     Returns:
         Dictionary of evaluation statistics.
     """
-    if device is None:
-        device = agent.device
-
-    # Simple evaluation loop
     total_rewards = []
     episode_lengths = []
 
@@ -774,7 +736,7 @@ def eval_policy(
 
         while not done:
             with torch.no_grad():
-                obs_tensor = torch.from_numpy(obs).to(device)
+                obs_tensor = torch.from_numpy(obs).to(agent.device)
                 action, _, _, hidden_state = agent(obs_tensor, hidden_state)
                 action = action.cpu().numpy()
 
@@ -794,130 +756,54 @@ def eval_policy(
     }
 
 
-def create_policy_store(config: Dict[str, Any]) -> Any:
-    """Create a policy store for saving and loading policies."""
-    from metta.agent.policy_store import PolicyStore
+# Helper functions
+def make_lr_scheduler(
+    optimizer: torch.optim.Optimizer,
+    total_timesteps: int,
+    batch_size: int,
+    warmup_steps: Optional[int] = None,
+    schedule_type: str = "linear",
+    anneal_lr: bool = True,
+) -> Optional[torch.optim.lr_scheduler._LRScheduler]:
+    """Create a learning rate scheduler."""
+    if not anneal_lr:
+        return None
 
-    return PolicyStore(DictConfig(config), None)
+    total_updates = total_timesteps // batch_size
 
+    if schedule_type == "linear":
 
-def save_policy_to_store(
-    policy_store: Any,
-    policy: torch.nn.Module,
-    name: str,
-    metadata: Optional[Dict[str, Any]] = None,
-) -> Any:
-    """Save a policy to the policy store."""
-    return policy_store.save_policy(
-        policy=policy,
-        name=name,
-        metadata=metadata or {},
-    )
+        def lr_lambda(epoch):
+            if warmup_steps and epoch < warmup_steps:
+                return epoch / warmup_steps
+            if total_updates <= (warmup_steps or 0):
+                return 1.0
+            progress = (epoch - (warmup_steps or 0)) / (total_updates - (warmup_steps or 0))
+            return max(0.0, 1.0 - progress)
 
-
-def run_simulation_suite(
-    policy_path: str,
-    suite_name: str = "eval",
-    num_envs: int = 32,
-    num_episodes: int = 10,
-    device: str = "cuda",
-    logger=None,
-) -> Dict[str, Any]:
-    """Run a simulation suite for comprehensive evaluation.
-
-    Returns:
-        Dictionary with results for each environment in the suite
-    """
-    from metta.sim.simulation_config import SimulationSuiteConfig
-    from metta.sim.simulation_suite import SimulationSuite
-
-    # Create runtime config
-    config = _get_runtime_config(device=device)
-    policy_store = create_policy_store(config)
-
-    # Load policy
-    policy_record = policy_store.policy_record(f"file://{policy_path}")
-
-    # Create simulation suite config
-    suite_config = SimulationSuiteConfig(
-        name=suite_name,
-        simulations={
-            "simple": {
-                "env": "/env/mettagrid/simple",
-                "num_episodes": num_episodes,
-            },
-            "memory": {
-                "env": "/env/mettagrid/memory",
-                "num_episodes": num_episodes,
-            },
-        },
-    )
-
-    # Run simulations
-    sim_suite = SimulationSuite(
-        config=suite_config,
-        policy_pr=policy_record,
-        policy_store=policy_store,
-        device=device,
-        vectorization="multiprocessing",
-    )
-
-    results = sim_suite.simulate()
-
-    # Extract and return metrics
-    output = {}
-    for sim_name, sim_result in results.results.items():
-        output[sim_name] = {
-            "avg_reward": sim_result.avg_reward,
-            "num_episodes": sim_result.num_episodes,
-        }
-
-    return output
+        return LambdaLR(optimizer, lr_lambda)
+    elif schedule_type == "cosine":
+        return CosineAnnealingLR(optimizer, T_max=total_updates)
+    else:
+        raise ValueError(f"Unknown schedule type: {schedule_type}")
 
 
-def generate_replay(
-    policy_path: str,
-    num_episodes: int = 1,
-    output_dir: str = "./replays",
-    device: str = "cuda",
-    logger=None,
-) -> List[str]:
-    """Generate replay files for visualization.
+def compute_gradient_stats(model: nn.Module) -> Dict[str, float]:
+    """Compute gradient statistics for monitoring."""
+    grad_norms = []
+    param_norms = []
 
-    Returns:
-        List of paths to generated replay files
-    """
-    from metta.sim.simulation import Simulation
-    from metta.sim.simulation_config import SingleEnvSimulationConfig
+    for name, param in model.named_parameters():
+        if param.grad is not None:
+            grad_norms.append(param.grad.norm().item())
+            param_norms.append(param.norm().item())
 
-    # Create runtime config
-    config = _get_runtime_config(device=device)
-    policy_store = create_policy_store(config)
+    if not grad_norms:
+        return {}
 
-    # Load policy
-    policy_record = policy_store.policy_record(f"file://{policy_path}")
-
-    # Create simulation config
-    sim_config = SingleEnvSimulationConfig(
-        env="/env/mettagrid/simple",
-        num_episodes=num_episodes,
-    )
-
-    # Run simulation with replay
-    sim = Simulation(
-        name="replay",
-        config=sim_config,
-        policy_pr=policy_record,
-        policy_store=policy_store,
-        device=device,
-        vectorization="serial",
-        replay_dir=output_dir,
-    )
-
-    results = sim.simulate()
-
-    # Get replay paths
-    key, version = policy_record.key_and_version()
-    replay_urls = results.stats_db.get_replay_urls(key, version)
-
-    return replay_urls
+    return {
+        "grad_norm_mean": np.mean(grad_norms),
+        "grad_norm_max": np.max(grad_norms),
+        "grad_norm_min": np.min(grad_norms),
+        "param_norm_mean": np.mean(param_norms),
+    }
