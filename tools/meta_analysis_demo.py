@@ -1,0 +1,200 @@
+#!/usr/bin/env -S uv run
+"""
+Meta-analysis demonstration script.
+
+This script demonstrates the proof of principle for predicting training curves
+from environment and agent configurations using VAEs.
+"""
+
+import argparse
+import logging
+import os
+from pathlib import Path
+
+import hydra
+import torch
+from omegaconf import DictConfig
+from torch.utils.data import DataLoader, random_split
+
+from metta.common.util.logging import setup_mettagrid_logger
+from metta.common.util.script_decorators import metta_script
+from metta.meta_analysis import TrainingDataCollector, MetaAnalysisModel, MetaAnalysisTrainer, TrainingCurveDataset
+
+
+@hydra.main(config_path="../configs", config_name="meta_learning_demo", version_base=None)
+@metta_script
+def main(cfg: DictConfig) -> int:
+    """Main demonstration script."""
+
+    logger = setup_mettagrid_logger()
+    logger.info("Starting meta-learning demonstration")
+
+    # Create output directory
+    output_dir = Path(cfg.output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    # Step 1: Collect training data from wandb
+    if cfg.collect_data:
+        logger.info("Collecting training data from wandb...")
+
+        collector = TrainingDataCollector(
+            wandb_entity=cfg.wandb.entity,
+            wandb_project=cfg.wandb.project
+        )
+
+        # Collect training runs
+        training_data = collector.collect_training_runs(
+            run_filters=cfg.run_filters,
+            max_runs=cfg.max_runs
+        )
+
+        if not training_data:
+            logger.error("No training data collected!")
+            return 1
+
+        # Save dataset
+        dataset_path = output_dir / "training_dataset.csv"
+        df = collector.save_dataset(training_data, str(dataset_path))
+
+        logger.info(f"Collected {len(training_data)} training runs")
+        logger.info(f"Dataset saved to {dataset_path}")
+
+        # Print dataset statistics
+        logger.info("Dataset statistics:")
+        logger.info(f"  Environment features: {list(df.columns[3:8])}")  # Skip run_id, run_name, final_performance
+        logger.info(f"  Agent features: {list(df.columns[8:-1])}")  # Skip training_curve
+        logger.info(f"  Average final performance: {df['final_performance'].mean():.3f}")
+
+    # Step 2: Train meta-learning model
+    if cfg.train_model:
+        logger.info("Training meta-learning model...")
+
+        # Define features
+        env_features = [
+            "max_steps", "num_agents", "map_width", "map_height",
+            "num_rooms", "num_altars", "num_mines", "num_generators", "num_walls"
+        ]
+
+        agent_features = [
+            "learning_rate", "batch_size", "minibatch_size", "gamma",
+            "gae_lambda", "clip_coef", "ent_coef", "vf_coef",
+            "hidden_size", "num_layers", "cnn_channels", "cnn_kernel_size"
+        ]
+
+        # Load dataset
+        dataset_path = output_dir / "training_dataset.csv"
+        if not dataset_path.exists():
+            logger.error(f"Dataset not found at {dataset_path}")
+            return 1
+
+        dataset = TrainingCurveDataset(str(dataset_path), env_features, agent_features)
+
+        # Split dataset
+        train_size = int(0.8 * len(dataset))
+        val_size = len(dataset) - train_size
+        train_dataset, val_dataset = random_split(dataset, [train_size, val_size])
+
+        # Create dataloaders
+        train_loader = DataLoader(train_dataset, batch_size=cfg.batch_size, shuffle=True)
+        val_loader = DataLoader(val_dataset, batch_size=cfg.batch_size, shuffle=False)
+
+        # Create model
+        model = MetaAnalysisModel(
+            env_input_dim=len(env_features),
+            agent_input_dim=len(agent_features),
+            env_latent_dim=cfg.env_latent_dim,
+            agent_latent_dim=cfg.agent_latent_dim,
+            curve_length=cfg.curve_length,
+            hidden_dim=cfg.hidden_dim
+        )
+
+        # Create trainer
+        trainer = MetaAnalysisTrainer(
+            model=model,
+            device=cfg.device,
+            learning_rate=cfg.learning_rate,
+            beta=cfg.beta,
+            curve_weight=cfg.curve_weight
+        )
+
+        # Train model
+        save_path = output_dir / "meta_learning_model"
+        training_results = trainer.train(
+            train_dataloader=train_loader,
+            val_dataloader=val_loader,
+            num_epochs=cfg.num_epochs,
+            save_path=str(save_path)
+        )
+
+        logger.info("Training completed!")
+
+        # Save training results
+        import json
+        results_path = output_dir / "training_results.json"
+        with open(results_path, 'w') as f:
+            json.dump(training_results, f, indent=2)
+
+        logger.info(f"Training results saved to {results_path}")
+
+    # Step 3: Demonstrate predictions
+    if cfg.demo_predictions:
+        logger.info("Demonstrating predictions...")
+
+        # Load trained model
+        model_path = output_dir / "meta_learning_model_final.pt"
+        if not model_path.exists():
+            logger.error(f"Trained model not found at {model_path}")
+            return 1
+
+        # Create model and load weights
+        env_features = [
+            "max_steps", "num_agents", "map_width", "map_height",
+            "num_rooms", "num_altars", "num_mines", "num_generators", "num_walls"
+        ]
+        agent_features = [
+            "learning_rate", "batch_size", "minibatch_size", "gamma",
+            "gae_lambda", "clip_coef", "ent_coef", "vf_coef",
+            "hidden_size", "num_layers", "cnn_channels", "cnn_kernel_size"
+        ]
+
+        model = MetaAnalysisModel(
+            env_input_dim=len(env_features),
+            agent_input_dim=len(agent_features),
+            env_latent_dim=cfg.env_latent_dim,
+            agent_latent_dim=cfg.agent_latent_dim,
+            curve_length=cfg.curve_length,
+            hidden_dim=cfg.hidden_dim
+        )
+
+        model.load_state_dict(torch.load(model_path, map_location=cfg.device))
+        trainer = MetaAnalysisTrainer(model=model, device=cfg.device)
+
+        # Sample from latent space
+        logger.info("Sampling from learned latent space...")
+        env_latent, agent_latent = trainer.sample_latent_space(num_samples=5)
+
+        # Generate predicted curves
+        predicted_curves = trainer.model.predict_curve(env_latent, agent_latent)
+
+        logger.info("Generated predicted training curves:")
+        for i, curve in enumerate(predicted_curves):
+            logger.info(f"  Sample {i+1}: Final reward = {curve[-1]:.3f}")
+
+        # Save predictions
+        import numpy as np
+        predictions_path = output_dir / "latent_space_predictions.npz"
+        np.savez(
+            predictions_path,
+            env_latent=env_latent.cpu().numpy(),
+            agent_latent=agent_latent.cpu().numpy(),
+            predicted_curves=predicted_curves.cpu().numpy()
+        )
+
+        logger.info(f"Predictions saved to {predictions_path}")
+
+    logger.info("Meta-learning demonstration completed!")
+    return 0
+
+
+if __name__ == "__main__":
+    main()
