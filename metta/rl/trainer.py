@@ -1,7 +1,9 @@
 import logging
 import os
+import time
 from collections import defaultdict
 from contextlib import nullcontext
+from pathlib import Path
 from typing import Any, Set
 from uuid import UUID
 
@@ -143,24 +145,44 @@ class MettaTrainer:
         actions_names = metta_grid_env.action_names
         actions_max_params = metta_grid_env.max_action_args
 
-        # Load or create policy
+        # Load or create policy with distributed coordination
         policy_record = self._load_policy(checkpoint, policy_store)
 
         if policy_record is not None:
             logging.info(f"LOADED {policy_record.uri}")
             self.latest_saved_policy_record = policy_record
             self.initial_policy_record = policy_record
-            self.policy = policy_record.policy
+                        self.policy = policy_record.policy
             self.policy.activate_actions(actions_names, actions_max_params, self.device)
         else:
-            # Create new policy
-            policy_record = self._create_and_save_policy_record(policy_store, metta_grid_env)
-            self.initial_policy_record = policy_record
-            self.latest_saved_policy_record = policy_record
-            self.policy = policy_record.policy
-            self.policy.activate_actions(actions_names, actions_max_params, self.device)
+            # In distributed mode, handle policy creation/loading differently
+            if torch.distributed.is_initialized() and not self._master:
+                # Non-master ranks wait for master to create and save the policy
+                default_policy_path = os.path.join(trainer_cfg.checkpoint_dir, policy_store.make_model_name(0))
+                logger.info(f"Non-master rank waiting for policy to be created at {default_policy_path}")
+
+                policy_record = self._wait_for_policy_record(default_policy_path)
+                if policy_record is None:
+                    raise RuntimeError(f"Failed to load policy from {default_policy_path} after waiting")
+
+                self.initial_policy_record = policy_record
+                self.latest_saved_policy_record = policy_record
+                self.policy = policy_record.policy
+                self.policy.activate_actions(actions_names, actions_max_params, self.device)
+            else:
+                # Master creates and saves new policy
+                policy_record = self._create_and_save_policy_record(policy_store, metta_grid_env)
+                self.initial_policy_record = policy_record
+                self.latest_saved_policy_record = policy_record
+                self.policy = policy_record.policy
+                self.policy.activate_actions(actions_names, actions_max_params, self.device)
 
         logging.info(f"USING {self.latest_saved_policy_record.uri}")
+
+        # Synchronize all ranks after policy loading/creation
+        if torch.distributed.is_initialized():
+            torch.distributed.barrier()
+            logger.info("All ranks synchronized after policy loading")
 
         if self._master:
             logger.info(f"MettaTrainer loaded: {self.policy}")
@@ -288,6 +310,11 @@ class MettaTrainer:
             self._maybe_record_heartbeat()
             self._maybe_save_policy()
             self._maybe_save_training_state()
+
+            # Synchronize all ranks after potential policy save
+            if torch.distributed.is_initialized():
+                torch.distributed.barrier()
+
             wandb_policy_name = self._maybe_upload_policy_record_to_wandb()
             self._maybe_evaluate_policy(wandb_policy_name)
             self._maybe_generate_replay()
@@ -306,6 +333,11 @@ class MettaTrainer:
         self._maybe_save_policy(force=True)
         self._maybe_save_training_state(force=True)
         self._maybe_upload_policy_record_to_wandb(force=True)
+
+        # Final synchronization before training completes
+        if torch.distributed.is_initialized():
+            torch.distributed.barrier()
+            logger.info("All ranks synchronized after final saves")
 
     def _on_train_step(self):
         pass
@@ -674,6 +706,40 @@ class MettaTrainer:
 
         self.latest_saved_policy_record = self.policy_store.save(fresh_policy_record)
         return self.latest_saved_policy_record
+
+    def _wait_for_policy_record(self, policy_path: str, timeout: int = 300) -> PolicyRecord | None:
+        """Wait for a policy file to be created by the master rank.
+
+        Args:
+            policy_path: Path to the policy file to wait for
+            timeout: Maximum time to wait in seconds
+
+        Returns:
+            PolicyRecord if found, None if timeout
+        """
+        if self._master:
+            # Master doesn't need to wait
+            return None
+
+        logger.info(f"Non-master rank waiting for policy at {policy_path}")
+        start_time = time.time()
+
+        while not os.path.exists(policy_path):
+            time.sleep(1)
+            elapsed = time.time() - start_time
+
+            if elapsed > timeout:
+                logger.error(f"Timeout after {timeout}s waiting for policy at {policy_path}")
+                return None
+
+            if int(elapsed) % 10 == 0:  # Log every 10 seconds
+                logger.info(f"Still waiting for policy... ({elapsed:.0f}s elapsed)")
+
+        # File exists, but may still be writing. Wait a bit more to ensure it's complete.
+        time.sleep(2)
+
+        logger.info(f"Policy file found after {time.time() - start_time:.1f}s, loading...")
+        return self.policy_store.policy_record(policy_path)
 
     def _maybe_upload_policy_record_to_wandb(self, force: bool = False) -> str | None:
         """Upload policy to wandb if on wandb interval"""
