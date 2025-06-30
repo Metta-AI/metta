@@ -38,8 +38,6 @@ def train(cfg: ListConfig | DictConfig, wandb_run: WandbRun | None, logger: Logg
 
     train_job = TrainJob(cfg.train_job)
 
-    policy_store = PolicyStore(cfg, wandb_run)
-
     if torch.distributed.is_initialized():
         world_size = torch.distributed.get_world_size()
         if cfg.trainer.scale_batches_by_world_size:
@@ -48,6 +46,7 @@ def train(cfg: ListConfig | DictConfig, wandb_run: WandbRun | None, logger: Logg
             )
             cfg.trainer.batch_size = cfg.trainer.batch_size // world_size
 
+    policy_store = PolicyStore(cfg, wandb_run)
     stats_client: StatsClient | None = get_stats_client(cfg, logger)
 
     # Instantiate the trainer directly with the typed config

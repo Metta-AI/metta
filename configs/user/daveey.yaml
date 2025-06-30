@@ -13,7 +13,8 @@ trainer:
     game:
       max_steps: 13
 
-  # evaluate_interval: 200
+  # simulation:
+  #   evaluate_interval: 200
   # optimizer:
   #   type: muon
 
