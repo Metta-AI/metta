@@ -3,7 +3,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from metta.setup.config import SetupConfig, UserType
+from metta.setup.config import ComponentConfig, SetupConfig, UserType
 from metta.setup.registry import get_all_modules, get_applicable_modules
 from metta.setup.utils import error, header, import_all_modules_from_subpackage, info, success, warning
 
@@ -13,8 +13,8 @@ import_all_modules_from_subpackage("metta.setup", "components")
 
 class MettaCLI:
     def __init__(self):
-        self.repo_root = Path(__file__).parent.parent.parent
-        self.config = SetupConfig()
+        self.repo_root: Path = Path(__file__).parent.parent.parent
+        self.config: SetupConfig = SetupConfig()
 
     def setup_wizard(self) -> None:
         header("Welcome to Metta!\n\n")
@@ -23,11 +23,9 @@ class MettaCLI:
             info("Current configuration:")
             info(f"Profile: {self.config.user_type.value}")
             info("\nEnabled components:")
-            components = self.config.get("components", {})
+            components: dict[str, ComponentConfig] = self.config.get("components", {})
             for comp, value in components.items():
-                if isinstance(value, dict) and value.get("enabled", False):
-                    success(f"  + {comp}")
-                elif isinstance(value, bool) and value:
+                if value.get("enabled"):
                     success(f"  + {comp}")
             info("\n")
 
@@ -75,7 +73,7 @@ class MettaCLI:
         self.config.apply_profile(user_type)
 
         info("\nCustomize components:")
-        components = self.config.get("components", {})
+        components: dict[str, ComponentConfig] = self.config.get("components", {})
         for comp in components:
             current = self.config.is_component_enabled(comp)
             prompt = f"Enable {comp}? (y/n, current: {'y' if current else 'n'}): "

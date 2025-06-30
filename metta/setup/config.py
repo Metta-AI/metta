@@ -1,8 +1,9 @@
 from enum import Enum
 from pathlib import Path
-from typing import Any, Optional
+from typing import TypeVar, cast
 
 import yaml
+from typing_extensions import NotRequired, TypedDict
 
 
 class UserType(Enum):
@@ -11,7 +12,16 @@ class UserType(Enum):
     SOFTMAX = "softmax"
 
 
-PROFILE_DEFINITIONS = {
+class ComponentConfig(TypedDict):
+    enabled: bool
+    expected_connection: NotRequired[str | None]
+
+
+class ProfileConfig(TypedDict):
+    components: dict[str, ComponentConfig]
+
+
+PROFILE_DEFINITIONS: dict[UserType, ProfileConfig] = {
     UserType.EXTERNAL: {
         "components": {
             "system": {"enabled": True},
@@ -56,28 +66,26 @@ PROFILE_DEFINITIONS = {
     },
 }
 
+T = TypeVar("T")
+
 
 class SetupConfig:
-    def __init__(self, config_path: Optional[Path] = None):
-        if config_path is None:
-            self.config_path = Path.home() / ".metta" / "config.yaml"
-        else:
-            self.config_path = config_path
-
+    def __init__(self, config_path: Path | None = None):
+        self.config_path: Path = config_path or Path.home() / ".metta" / "config.yaml"
         self.config_path.parent.mkdir(parents=True, exist_ok=True)
-        self._config = self._load_config()
+        self._config: ComponentConfig = self._load_config()
 
-    def _load_config(self) -> dict:
+    def _load_config(self) -> ComponentConfig:
         if self.config_path.exists():
             with open(self.config_path, "r") as f:
-                return yaml.safe_load(f) or {}
-        return {}
+                return yaml.safe_load(f) or ComponentConfig(enabled=False)
+        return ComponentConfig(enabled=False)
 
     def save(self) -> None:
         with open(self.config_path, "w") as f:
             yaml.dump(self._config, f, default_flow_style=False, sort_keys=False)
 
-    def get(self, key: str, default: Any = None) -> Any:
+    def get(self, key: str, default: T) -> T:
         keys = key.split(".")
         value = self._config
 
@@ -86,10 +94,9 @@ class SetupConfig:
                 value = value[k]
             else:
                 return default
+        return cast(T, value)
 
-        return value
-
-    def set(self, key: str, value: Any) -> None:
+    def set(self, key: str, value: T) -> None:
         keys = key.split(".")
         config = self._config
 
@@ -110,11 +117,12 @@ class SetupConfig:
         self.set("user_type", value.value)
 
     def is_component_enabled(self, component: str) -> bool:
-        comp_config = self.get(f"components.{component}", {})
-        return comp_config.get("enabled", False) if isinstance(comp_config, dict) else bool(comp_config)
+        comp_config: ComponentConfig = self.get(f"components.{component}", ComponentConfig(enabled=False))
+        return comp_config["enabled"]
 
     def get_expected_connection(self, component: str) -> str | None:
-        return self.get(f"components.{component}", {}).get("expected_connection")
+        comp_config: ComponentConfig = self.get(f"components.{component}", ComponentConfig(enabled=False))
+        return comp_config.get("expected_connection")
 
     def apply_profile(self, profile: UserType) -> None:
         self.user_type = profile

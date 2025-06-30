@@ -1,5 +1,4 @@
 import json
-import subprocess
 from pathlib import Path
 
 from metta.setup.components.base import SetupModule
@@ -48,7 +47,10 @@ class AWSSetup(SetupModule):
     def check_connected_as(self) -> str | None:
         if not self.check_installed():
             return None
-        result = subprocess.run(["aws", "sts", "get-caller-identity"], capture_output=True, text=True)
+        try:
+            result = self.run_command(["aws", "sts", "get-caller-identity"], check=False)
+        except FileNotFoundError:
+            return None
 
         if result.returncode == 0:
             try:

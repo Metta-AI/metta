@@ -3,6 +3,7 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 
 from metta.setup.config import SetupConfig
+from metta.setup.utils import step
 
 
 class SetupModule(ABC):
@@ -40,13 +41,18 @@ class SetupModule(ABC):
             )
 
     def run_command(
-        self, cmd: list[str], cwd: Path | None = None, check: bool = True
+        self,
+        cmd: list[str],
+        cwd: Path | None = None,
+        check: bool = True,
+        capture_output: bool = True,
+        input: str | None = None,
     ) -> subprocess.CompletedProcess[str]:
         if cwd is None:
             cwd = self.repo_root
 
-        print(f"Running: {' '.join(cmd)}")
-        return subprocess.run(cmd, cwd=cwd, check=check, capture_output=True, text=True)
+        step(f"Running: {' '.join(cmd)}")
+        return subprocess.run(cmd, cwd=cwd, check=check, capture_output=capture_output, text=True, input=input)
 
     def run_script(self, script_path: str, args: list[str] | None = None) -> subprocess.CompletedProcess[str]:
         script = self.repo_root / script_path

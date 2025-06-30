@@ -3,6 +3,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from typing_extensions import override
+
 from metta.setup.components.base import SetupModule
 from metta.setup.registry import register_module
 from metta.setup.utils import error, info, success, warning
@@ -11,12 +13,15 @@ from metta.setup.utils import error, info, success, warning
 @register_module
 class SystemSetup(SetupModule):
     @property
+    @override
     def description(self) -> str:
         return "System dependencies (Homebrew packages, etc.)"
 
+    @override
     def is_applicable(self) -> bool:
         return self.config.is_component_enabled("system")
 
+    @override
     def check_installed(self) -> bool:
         if platform.system() != "Darwin":
             # NOTE: need to implement this at some point
@@ -31,17 +36,12 @@ class SystemSetup(SetupModule):
             return False
 
         try:
-            result = subprocess.run(
-                [brew_path, "bundle", "check", "--file", str(brewfile_path)], capture_output=True, text=True
-            )
-
-            if result.returncode != 0:
-                return False
-
-            return True
+            result = self.run_command([brew_path, "bundle", "check", "--file", str(brewfile_path)], check=False)
+            return result.returncode == 0
         except (subprocess.CalledProcessError, FileNotFoundError):
             return False
 
+    @override
     def install(self) -> None:
         info("Setting up system dependencies...")
 
@@ -69,14 +69,12 @@ class SystemSetup(SetupModule):
     def _install_homebrew(self) -> None:
         info("Installing Homebrew...")
         try:
-            result = subprocess.run(
-                ["curl", "-fsSL", "https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh"],
-                capture_output=True,
-                text=True,
-                check=True,
+            # Run the Homebrew installer directly with subprocess to preserve TTY
+            # This allows it to prompt for sudo password interactively
+            install_cmd = (
+                '/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"'
             )
-
-            subprocess.run(["/bin/bash", "-c", result.stdout], check=True)
+            subprocess.run(install_cmd, shell=True, check=True)
             success("Homebrew installed successfully")
         except subprocess.CalledProcessError as e:
             error(f"Error installing Homebrew: {e}")
@@ -98,7 +96,7 @@ class SystemSetup(SetupModule):
 
         try:
             # Run with output visible to user
-            subprocess.run(command, check=True)
+            _ = self.run_command(command, capture_output=False)
         except subprocess.CalledProcessError:
             if not force and not no_fail:
                 warning("""
