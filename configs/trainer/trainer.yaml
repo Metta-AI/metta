@@ -11,4 +11,4 @@ checkpoint:
 
 simulation:
   evaluate_interval: 300
-  replay_interval: 300  # Fixed: was using invalid interpolation
+  replay_interval: ${trainer.simulation.evaluate_interval}  # Now this works!

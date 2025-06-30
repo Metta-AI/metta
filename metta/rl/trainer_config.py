@@ -184,30 +184,14 @@ def parse_trainer_config(
     if trainer_cfg._target_ != "metta.rl.trainer.MettaTrainer":
         raise ValueError(f"Unsupported trainer config: {trainer_cfg._target_}")
 
-    # Convert to dict properly, handling nested OmegaConf objects
+    # Convert to dict and let OmegaConf handle all interpolations
     config_dict = OmegaConf.to_container(trainer_cfg, resolve=True)
 
-    # some fields that may only be resolved at runtime (because they are
-    # computed from run_dir and run) are set here if they aren't present.
-
-    # Set checkpoint_dir if not provided or resolve interpolations
+    # Set default paths if not provided
     if "checkpoint_dir" not in config_dict.setdefault("checkpoint", {}):
         config_dict["checkpoint"]["checkpoint_dir"] = f"{cfg.run_dir}/checkpoints"
-    else:
-        # Resolve interpolations
-        checkpoint_dir = config_dict["checkpoint"]["checkpoint_dir"]
-        config_dict["checkpoint"]["checkpoint_dir"] = checkpoint_dir.replace("${run_dir}", cfg.run_dir).replace(
-            "${run}", cfg.run
-        )
 
-    # Set replay_dir if not provided or resolve interpolations
     if "replay_dir" not in config_dict.setdefault("simulation", {}):
         config_dict["simulation"]["replay_dir"] = f"s3://softmax-public/replays/{cfg.run}"
-    else:
-        # Resolve interpolations
-        replay_dir = config_dict["simulation"]["replay_dir"]
-        config_dict["simulation"]["replay_dir"] = replay_dir.replace("${run_dir}", cfg.run_dir).replace(
-            "${run}", cfg.run
-        )
 
     return TrainerConfig.model_validate(config_dict)
