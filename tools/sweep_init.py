@@ -10,16 +10,18 @@ import wandb
 import yaml
 from omegaconf import DictConfig, ListConfig, OmegaConf
 
+from metta.common.util.config import config_from_path
+from metta.common.util.lock import run_once
+from metta.common.util.logging import setup_mettagrid_logger
+from metta.common.util.script_decorators import metta_script
+from metta.common.util.wandb.sweep import generate_run_id_for_sweep, sweep_id_from_name
+from metta.common.util.wandb.wandb_context import WandbContext
 from metta.sim.simulation_config import SimulationSuiteConfig
 from metta.sweep.protein_metta import MettaProtein
-from metta.util.config import config_from_path
-from metta.util.lock import run_once
-from metta.util.logging import setup_mettagrid_logger
-from metta.util.wandb.sweep import generate_run_id_for_sweep, sweep_id_from_name
-from metta.util.wandb.wandb_context import WandbContext
 
 
 @hydra.main(config_path="../configs", config_name="sweep_job", version_base=None)
+@metta_script
 def main(cfg: DictConfig | ListConfig) -> int:
     logger = setup_mettagrid_logger("sweep_eval")
     logger.info("Sweep configuration:")

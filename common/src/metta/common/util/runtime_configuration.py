@@ -7,6 +7,7 @@ import warnings
 import numpy as np
 import torch
 from omegaconf import OmegaConf
+from omegaconf.omegaconf import DictConfig
 from rich import traceback
 
 logger = logging.getLogger("runtime_configuration")
@@ -41,7 +42,57 @@ def seed_everything(seed, torch_deterministic, rank: int = 0):
         os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"
 
 
-def setup_mettagrid_environment(cfg):
+def setup_mettagrid_environment(cfg: DictConfig) -> None:
+    """
+    Configure the runtime environment for MettagridGrid simulations.
+    Initializes CUDA, sets thread counts, and handles reproducibility settings.
+
+    Parameters:
+    -----------
+    cfg : DictConfig
+        Configuration containing torch_deterministic flag and other runtime settings
+    """
+    # Validate device configuration
+    device = cfg.get("device", "cpu")
+
+    # Check if CUDA is requested but not available
+    if device.startswith("cuda"):
+        try:
+            import torch
+
+            if not torch.cuda.is_available():
+                raise RuntimeError(
+                    f"Device '{device}' was requested but CUDA is not available. "
+                    "Please either install CUDA/PyTorch with GPU support or set device: cpu in your config."
+                )
+
+            # If device is cuda:X, check that the specific device exists
+            if ":" in device:
+                device_id = device.split(":")[1]
+                try:
+                    device_id = int(device_id)
+                    if device_id >= torch.cuda.device_count():
+                        raise RuntimeError(
+                            f"Device '{device}' was requested but only {torch.cuda.device_count()} "
+                            f"CUDA devices are available (0-{torch.cuda.device_count() - 1})."
+                        )
+                except ValueError:
+                    raise ValueError(f"Invalid device ID in '{device}'. Device ID must be an integer.") from None
+        except ImportError:
+            raise RuntimeError(
+                "PyTorch is not installed but CUDA device was requested. "
+                "Please install PyTorch or set device: cpu in your config."
+            ) from None
+
+    # Validate device format
+    if device != "cpu" and not device.startswith("cuda"):
+        raise ValueError(
+            f"Invalid device '{device}'. Device must be 'cpu' or start with 'cuda' (e.g., 'cuda', 'cuda:0')."
+        )
+
+    # Set CUDA launch blocking for better error messages in development
+    os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
+
     # Import mettagrid_env to ensure OmegaConf resolvers are registered before Hydra loads
     import metta.mettagrid.mettagrid_env  # noqa: F401
 
