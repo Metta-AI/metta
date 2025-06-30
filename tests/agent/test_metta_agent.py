@@ -169,7 +169,7 @@ def metta_agent_with_actions(create_metta_agent):
     }
 
     # Use new interface
-    agent.initialize_to_environment(features, action_names, action_max_params, "cpu", is_training=True)
+    agent.initialize_to_environment(features, action_names, action_max_params, "cpu")
     return agent
 
 
@@ -189,7 +189,7 @@ def test_initialize_to_environment(create_metta_agent):
     action_max_params = [3, 1, 2]
 
     # Call initialize_to_environment
-    agent.initialize_to_environment(features, action_names, action_max_params, "cpu", is_training=True)
+    agent.initialize_to_environment(features, action_names, action_max_params, "cpu")
 
     # Check that features were stored
     assert hasattr(agent, "active_features")
@@ -326,7 +326,7 @@ def test_convert_action_to_logit_index(create_metta_agent):
         "hp": {"id": 1, "type": "scalar", "normalization": 30.0},
     }
 
-    agent.initialize_to_environment(features, action_names, action_max_params, "cpu", is_training=True)
+    agent.initialize_to_environment(features, action_names, action_max_params, "cpu")
 
     # Test single actions
     # action (0,0) should map to logit index 0
@@ -373,7 +373,7 @@ def test_convert_logit_index_to_action(create_metta_agent):
         "hp": {"id": 1, "type": "scalar", "normalization": 30.0},
     }
 
-    agent.initialize_to_environment(features, action_names, action_max_params, "cpu", is_training=True)
+    agent.initialize_to_environment(features, action_names, action_max_params, "cpu")
 
     # Test single conversions
     # logit index 0 should map to action (0,0)
@@ -411,7 +411,7 @@ def test_bidirectional_action_conversion(create_metta_agent):
         "hp": {"id": 1, "type": "scalar", "normalization": 30.0},
     }
 
-    agent.initialize_to_environment(features, action_names, action_max_params, "cpu", is_training=True)
+    agent.initialize_to_environment(features, action_names, action_max_params, "cpu")
 
     # Create a test set of all possible actions
     original_actions = torch.tensor(
@@ -449,7 +449,7 @@ def test_action_conversion_edge_cases(create_metta_agent):
         "type_id": {"id": 0, "type": "categorical"},
     }
 
-    agent.initialize_to_environment(features, action_names, action_max_params, "cpu", is_training=True)
+    agent.initialize_to_environment(features, action_names, action_max_params, "cpu")
 
     # Test with empty tensor - should raise a ValueError about invalid size
     empty_actions = torch.zeros((0, 2), dtype=torch.long, device="cpu")
@@ -461,7 +461,7 @@ def test_action_conversion_edge_cases(create_metta_agent):
     # Setup with single action type that has many parameters
     action_names = ["action0"]
     action_max_params = [9]  # action0: [0,1,2,3,4,5,6,7,8,9]
-    agent.initialize_to_environment(features, action_names, action_max_params, "cpu", is_training=True)
+    agent.initialize_to_environment(features, action_names, action_max_params, "cpu")
 
     # Test high parameter values
     action = torch.tensor([[0, 9]], dtype=torch.long, device="cpu")  # highest valid param
@@ -495,7 +495,7 @@ def test_action_use(create_metta_agent):
         "hp": {"id": 1, "type": "scalar", "normalization": 30.0},
     }
 
-    agent.initialize_to_environment(features, action_names, action_max_params, "cpu", is_training=True)
+    agent.initialize_to_environment(features, action_names, action_max_params, "cpu")
 
     # Verify the agent correctly stored the list internally
     assert isinstance(agent.action_max_params, list)
@@ -663,7 +663,7 @@ def test_distribution_utils_compatibility(create_metta_agent):
         "hp": {"id": 1, "type": "scalar", "normalization": 30.0},
     }
 
-    agent.initialize_to_environment(features, action_names, action_max_params, "cpu", is_training=True)
+    agent.initialize_to_environment(features, action_names, action_max_params, "cpu")
 
     num_total_actions = sum([param + 1 for param in action_max_params])
     batch_size = 4
@@ -705,7 +705,7 @@ def test_forward_training_integration(create_metta_agent):
         "hp": {"id": 1, "type": "scalar", "normalization": 30.0},
     }
 
-    agent.initialize_to_environment(features, action_names, action_max_params, "cpu", is_training=True)
+    agent.initialize_to_environment(features, action_names, action_max_params, "cpu")
 
     B, T = 2, 3
     num_total_actions = sum([param + 1 for param in action_max_params])  # 3 + 4 = 7

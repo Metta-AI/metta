@@ -73,6 +73,10 @@ def test_feature_remapping_in_agent():
             self.device = "cpu"
             self.components = {}
 
+        def _is_training_context(self):
+            # Mock the training context detection for testing
+            return getattr(self, "_mock_is_training", True)
+
     agent = MockAgent()
 
     # Test _initialize_observations with original features
@@ -82,8 +86,11 @@ def test_feature_remapping_in_agent():
         "mineral": {"id": 3, "type": "scalar", "normalization": 100.0},
     }
 
+    # Set training mode for first initialization
+    agent._mock_is_training = True
+
     # Call _initialize_observations as a bound method
-    MettaAgent._initialize_observations(agent, original_features, "cpu", is_training=True)
+    MettaAgent._initialize_observations(agent, original_features, "cpu", agent._is_training_context())
 
     # Verify original mapping stored
     assert hasattr(agent, "original_feature_mapping")
@@ -111,9 +118,9 @@ def test_feature_remapping_in_agent():
     # Bind required methods to mock agent
     agent._create_feature_remapping = lambda features: MettaAgent._create_feature_remapping(agent, features)
     agent._update_normalization_factors = lambda features: MettaAgent._update_normalization_factors(agent, features)
-    agent.is_training = True  # Set the training flag
+    agent._mock_is_training = True  # Set the training flag
 
-    MettaAgent._initialize_observations(agent, new_features, "cpu", is_training=True)
+    MettaAgent._initialize_observations(agent, new_features, "cpu", agent._is_training_context())
 
     # Verify remapping was created
     assert hasattr(agent, "feature_id_remap")
@@ -136,6 +143,10 @@ def test_unknown_feature_handling():
             self.device = "cpu"
             self.components = {}
 
+        def _is_training_context(self):
+            # Mock the training context detection for testing
+            return getattr(self, "_mock_is_training", True)
+
     agent = MockAgent()
 
     # First initialization with training features
@@ -144,7 +155,10 @@ def test_unknown_feature_handling():
         "hp": {"id": 2, "type": "scalar", "normalization": 30.0},
     }
 
-    MettaAgent._initialize_observations(agent, original_features, "cpu", is_training=True)
+    # Set training mode for first initialization
+    agent._mock_is_training = True
+
+    MettaAgent._initialize_observations(agent, original_features, "cpu", agent._is_training_context())
 
     # Create mock observation component
     class MockObsComponent:
@@ -157,7 +171,7 @@ def test_unknown_feature_handling():
     # Bind required methods to mock agent
     agent._create_feature_remapping = lambda features: MettaAgent._create_feature_remapping(agent, features)
     agent._update_normalization_factors = lambda features: MettaAgent._update_normalization_factors(agent, features)
-    agent.is_training = False  # Set to evaluation mode to test unknown feature handling
+    agent._mock_is_training = False  # Set to evaluation mode to test unknown feature handling
 
     # Second initialization with new unknown features
     new_features = {
@@ -167,7 +181,7 @@ def test_unknown_feature_handling():
         "another_new": {"id": 15, "type": "categorical"},  # Unknown!
     }
 
-    MettaAgent._initialize_observations(agent, new_features, "cpu", is_training=False)
+    MettaAgent._initialize_observations(agent, new_features, "cpu", agent._is_training_context())
 
     # Verify unknown features are mapped to 255
     assert hasattr(agent, "feature_id_remap")

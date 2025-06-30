@@ -173,9 +173,7 @@ class MettaTrainer:
             loaded_policy = policy_record.policy
             if hasattr(loaded_policy, "initialize_to_environment"):
                 features = metta_grid_env.get_observation_features()
-                loaded_policy.initialize_to_environment(
-                    features, actions_names, actions_max_params, self.device, is_training=True
-                )
+                loaded_policy.initialize_to_environment(features, actions_names, actions_max_params, self.device)
             else:
                 loaded_policy.activate_actions(actions_names, actions_max_params, self.device)
 
@@ -185,9 +183,7 @@ class MettaTrainer:
             fresh_policy = fresh_policy_record.policy
             if hasattr(fresh_policy, "initialize_to_environment"):
                 features = metta_grid_env.get_observation_features()
-                fresh_policy.initialize_to_environment(
-                    features, actions_names, actions_max_params, self.device, is_training=True
-                )
+                fresh_policy.initialize_to_environment(features, actions_names, actions_max_params, self.device)
             else:
                 fresh_policy.activate_actions(actions_names, actions_max_params, self.device)
             fresh_policy.load_state_dict(loaded_policy.state_dict(), strict=False)
@@ -205,9 +201,7 @@ class MettaTrainer:
             self.policy = policy_record.policy
             if hasattr(self.policy, "initialize_to_environment"):
                 features = metta_grid_env.get_observation_features()
-                self.policy.initialize_to_environment(
-                    features, actions_names, actions_max_params, self.device, is_training=True
-                )
+                self.policy.initialize_to_environment(features, actions_names, actions_max_params, self.device)
             else:
                 self.policy.activate_actions(actions_names, actions_max_params, self.device)
 
@@ -778,7 +772,7 @@ class MettaTrainer:
         if hasattr(policy_to_save, "initialize_to_environment"):
             features = metta_grid_env.get_observation_features()
             policy_to_save.initialize_to_environment(
-                features, metta_grid_env.action_names, metta_grid_env.max_action_args, self.device, is_training=True
+                features, metta_grid_env.action_names, metta_grid_env.max_action_args, self.device
             )
         else:
             policy_to_save.activate_actions(metta_grid_env.action_names, metta_grid_env.max_action_args, self.device)

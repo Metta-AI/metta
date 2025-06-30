@@ -41,6 +41,7 @@ class FakeAgent(MettaAgent):
         """
         Dummy implementation to satisfy the simulation interface.
         FakeAgent doesn't need to actually initialize anything.
+        Note: is_training parameter is deprecated and ignored.
         """
         pass
 

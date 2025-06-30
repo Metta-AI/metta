@@ -89,8 +89,9 @@ class PytorchAgent(nn.Module):
         is_training: bool = True,
     ):
         """Initialize to environment - forward to wrapped policy if it has this method."""
+        # is_training parameter is deprecated and ignored - mode is auto-detected
         if hasattr(self.policy, "initialize_to_environment"):
-            self.policy.initialize_to_environment(features, action_names, action_max_params, device, is_training)
+            self.policy.initialize_to_environment(features, action_names, action_max_params, device)
         elif hasattr(self.policy, "activate_actions"):
             # Fallback to old interface if available
             self.policy.activate_actions(action_names, action_max_params, device)

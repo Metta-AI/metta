@@ -67,7 +67,8 @@ class DistributedMettaAgent(DistributedDataParallel):
         device: torch.device,
         is_training: bool = True,
     ) -> None:
-        return self.module.initialize_to_environment(features, action_names, action_max_params, device, is_training)
+        # is_training parameter is deprecated and ignored - mode is auto-detected
+        return self.module.initialize_to_environment(features, action_names, action_max_params, device)
 
 
 class MettaAgent(nn.Module):
@@ -160,6 +161,27 @@ class MettaAgent(nn.Module):
                 source_components[source["name"]] = self.components[source["name"]]
         component.setup(source_components)
 
+    def _is_training_context(self) -> bool:
+        """
+        Determine if we're in a training context by checking the call stack.
+
+        Returns True if called from MettaTrainer, False otherwise (e.g., from Simulation).
+        This avoids needing to pass an is_training flag everywhere.
+        """
+        import inspect
+
+        # Check the call stack for MettaTrainer
+        for frame_info in inspect.stack():
+            frame_locals = frame_info.frame.f_locals
+            # Check if 'self' in the frame is a MettaTrainer instance
+            if "self" in frame_locals:
+                obj = frame_locals["self"]
+                # Check by class name to avoid import cycles
+                if obj.__class__.__name__ == "MettaTrainer":
+                    return True
+
+        return False
+
     def initialize_to_environment(
         self,
         features: dict[str, dict],
@@ -184,9 +206,11 @@ class MettaAgent(nn.Module):
             action_names: List of action names
             action_max_params: List of maximum parameters for each action
             device: Device to place tensors on
-            is_training: Whether the agent is in training mode (True) or evaluation mode (False)
+            is_training: Deprecated. Training mode is now automatically detected.
         """
-        self._initialize_observations(features, device, is_training)
+        # Auto-detect training mode instead of using the parameter
+        is_training_mode = self._is_training_context()
+        self._initialize_observations(features, device, is_training_mode)
         self.activate_actions(action_names, action_max_params, device)
 
     def _initialize_observations(self, features: dict[str, dict], device, is_training: bool):
@@ -196,7 +220,7 @@ class MettaAgent(nn.Module):
         Args:
             features: Dictionary mapping feature names to their properties
             device: Device to place tensors on
-            is_training: Whether the agent is in training mode
+            is_training: Whether the agent is in training mode (auto-detected based on context)
         """
         self.active_features = features
         self.device = device
