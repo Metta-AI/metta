@@ -28,6 +28,7 @@ from torch.package.package_importer import PackageImporter
 from metta.agent.metta_agent import make_policy
 from metta.agent.policy_record import PolicyRecord
 from metta.rl.policy import load_pytorch_policy
+from metta.rl.trainer_config import TrainerConfig, parse_trainer_config
 
 logger = logging.getLogger("policy_store")
 
@@ -43,6 +44,7 @@ class PolicySelectorConfig:
 class PolicyStore:
     def __init__(self, cfg: ListConfig | DictConfig, wandb_run):
         self._cfg = cfg
+        self._trainer_cfg: TrainerConfig | None = parse_trainer_config(cfg) if "trainer" in cfg else None
         self._device = cfg.device
         self._wandb_run = wandb_run
         self._cached_prs = {}
@@ -194,7 +196,11 @@ class PolicyStore:
         return f"model_{epoch:04d}.pt"
 
     def create_empty_policy_record(self, name: str, override_path: str | None = None) -> PolicyRecord:
-        path = override_path if override_path is not None else os.path.join(self._cfg.trainer.checkpoint_dir, name)
+        path = (
+            override_path
+            if override_path is not None
+            else os.path.join(self._trainer_cfg.checkpoint.checkpoint_dir, name)
+        )
         return PolicyRecord(
             self,
             name,
