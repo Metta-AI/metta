@@ -11,6 +11,7 @@ from omegaconf import DictConfig, ListConfig, OmegaConf
 from metta.agent.policy_store import PolicyStore
 from metta.common.util.logging import setup_mettagrid_logger
 from metta.common.util.runtime_configuration import setup_mettagrid_environment
+from metta.common.util.script_decorators import metta_script
 from metta.common.util.wandb.wandb_context import WandbContext
 from metta.eval.eval_stats_db import EvalStatsDB
 from metta.sim.simulation_config import SimulationSuiteConfig
@@ -35,6 +36,7 @@ def load_file(run_dir, name):
 
 
 @hydra.main(config_path="../configs", config_name="sweep_job", version_base=None)
+@metta_script
 def main(cfg: DictConfig | ListConfig) -> int:
     setup_mettagrid_environment(cfg)
 
