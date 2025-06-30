@@ -41,7 +41,7 @@ class AutoParams(Config):
     bsp: AutoParamsBSP
     room_symmetry: AutoParamsRoomSymmetry
     content: list[RandomSceneCandidate]
-    objects: dict[str, IntDistribution]
+    objects: dict[str, FloatDistribution]
     room_objects: dict[str, FloatDistribution]
 
 
@@ -53,7 +53,9 @@ class Auto(Scene[AutoParams]):
                 where="full",
             ),
             ChildrenAction(
-                scene=lambda area: Random(area=area, params={"objects": self.params.objects}, seed=self.rng),
+                scene=lambda area: RandomObjects(
+                    area=area, params={"object_ranges": self.params.objects}, seed=self.rng
+                ),
                 where="full",
             ),
             ChildrenAction(

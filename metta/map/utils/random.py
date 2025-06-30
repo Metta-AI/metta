@@ -1,7 +1,6 @@
 from typing import Literal, Union
 
 import numpy as np
-from omegaconf import ListConfig
 from scipy import stats
 
 # Useful for scene classes - they want to take an optional seed, but sometimes we
@@ -45,17 +44,17 @@ FloatDistribution = Union[
 ]
 
 
-def sample_float_distribution(cfg: FloatDistribution, rng: np.random.Generator) -> float:
+def sample_float_distribution(dist: FloatDistribution, rng: np.random.Generator) -> float:
     """
     Valid config values:
     - `float`: just return the value
     - `["uniform", low: float, high: float]`: any float in the range
     - `["lognormal", p5: float, p95: float, max: float]`: any float in the range, max (absolute limit) is optional
     """
-    if isinstance(cfg, float):
-        return cfg
-    elif isinstance(cfg, tuple) or isinstance(cfg, ListConfig):
-        (dist_type, *args) = cfg
+    if isinstance(dist, float):
+        return dist
+    elif isinstance(dist, tuple):
+        (dist_type, *args) = dist
         if dist_type == "uniform":
             assert len(args) == 2, "Uniform distribution requires [low, high]"
             return rng.uniform(args[0], args[1])
@@ -69,26 +68,26 @@ def sample_float_distribution(cfg: FloatDistribution, rng: np.random.Generator) 
         else:
             raise ValueError(f"Unknown distribution type: {dist_type}")
     else:
-        raise ValueError(f"Invalid distribution: {cfg}")
+        raise ValueError(f"Invalid distribution: {dist}")
 
 
 IntDistribution = Union[int, tuple[Literal["uniform"], int, int]]
 
 
-def sample_int_distribution(cfg: IntDistribution, rng: np.random.Generator) -> int:
+def sample_int_distribution(dist: IntDistribution, rng: np.random.Generator) -> int:
     """
     Valid config values:
     - `int`: just return the value
     - `["uniform", low: int, high: int]`: any integer in the range, high is inclusive
     """
-    if isinstance(cfg, int):
-        return cfg
-    elif isinstance(cfg, tuple) or isinstance(cfg, ListConfig):
-        (dist_type, *args) = cfg
+    if isinstance(dist, int):
+        return dist
+    elif isinstance(dist, tuple):
+        (dist_type, *args) = dist
         if dist_type == "uniform":
             assert len(args) == 2, "Uniform int distribution requires [low, high]"
             return rng.integers(args[0], args[1], endpoint=True, dtype=int)
         else:
             raise ValueError(f"Unknown distribution type: {dist_type}")
     else:
-        raise ValueError(f"Invalid distribution: {cfg}")
+        raise ValueError(f"Invalid distribution: {dist}")

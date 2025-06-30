@@ -13,21 +13,8 @@ root:
     # How many agents to generate? These are placed randomly over the map.
     num_agents: 0
 
-    # These will be placed anywhere, randomly distributed over the entire map.
-    # Values are absolute counts. (TODO: make them percentages?)
-    objects:
-      {}
-      # mine_red: ${uniform:1,800,400}
-      # generator_red: ${uniform:1,400,80}
-      # altar: ${uniform:1,200,40}
-      # armory: ${uniform:1,200,40}
-      # lasery: ${uniform:1,200,40}
-      # lab: ${uniform:1,200,40}
-      # factory: ${uniform:1,200,40}
-      # temple: ${uniform:1,200,40}
-      # TODO - blocks?
 
-    # The percentage of objects to generate in each area.
+    # The percentage of objects to generate in each area, via RandomObjects scene.
     # The percentage will be sampled from the distribution for each room separately.
     room_objects:
       mine_red: ["uniform", 0.0005, 0.01]
@@ -38,6 +25,10 @@ root:
       lab: ["uniform", 0.0005, 0.01]
       factory: ["uniform", 0.0005, 0.01]
       temple: ["uniform", 0.0005, 0.01]
+
+    # These will be placed anywhere, randomly distributed over the entire map.
+    objects:
+      {}
 
     # Which layout to use? We have two options for now: BSP (binary space partitioning) and a rectangular grid.
     layout:
