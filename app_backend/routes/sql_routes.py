@@ -9,7 +9,7 @@ from pydantic import BaseModel
 
 from app_backend.auth import create_user_or_token_dependency
 from app_backend.metta_repo import MettaRepo
-from app_backend.query_logger import log_query_execution
+from app_backend.query_logger import execute_query_and_log
 from app_backend.route_logger import timed_route
 
 
@@ -61,13 +61,13 @@ def create_sql_router(metta_repo: MettaRepo) -> APIRouter:
                     ORDER BY t.table_name
                 """
 
-                tables = log_query_execution(con, tables_query, (), "list_tables_metadata")
+                tables = execute_query_and_log(con, tables_query, (), "list_tables_metadata")
 
                 # Get row counts for each table
                 table_info = []
                 for table_name, column_count in tables:
                     row_count_query = f"SELECT COUNT(*) FROM {table_name}"
-                    row_count_result = log_query_execution(con, row_count_query, (), f"count_rows_{table_name}")
+                    row_count_result = execute_query_and_log(con, row_count_query, (), f"count_rows_{table_name}")
                     row_count = row_count_result[0][0]
 
                     table_info.append(TableInfo(table_name=table_name, column_count=column_count, row_count=row_count))
@@ -101,7 +101,7 @@ def create_sql_router(metta_repo: MettaRepo) -> APIRouter:
                     ORDER BY ordinal_position
                 """
 
-                columns = log_query_execution(con, schema_query, (table_name,), f"get_schema_{table_name}")
+                columns = execute_query_and_log(con, schema_query, (table_name,), f"get_schema_{table_name}")
 
                 if not columns:
                     raise HTTPException(status_code=404, detail=f"Table '{table_name}' not found")

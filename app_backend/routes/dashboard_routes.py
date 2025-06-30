@@ -14,7 +14,7 @@ from pydantic import BaseModel
 from app_backend import query_logger
 from app_backend.auth import create_user_or_token_dependency
 from app_backend.metta_repo import MettaRepo
-from app_backend.query_logger import log_query_execution
+from app_backend.query_logger import execute_query_and_log
 from app_backend.route_logger import timed_route
 
 # Set up logging for heatmap performance analysis
@@ -446,7 +446,7 @@ def create_dashboard_router(metta_repo: MettaRepo) -> APIRouter:
         """
 
         # Step 1: Get evaluation names
-        eval_rows = log_query_execution(
+        eval_rows = execute_query_and_log(
             con,
             "SELECT DISTINCT env_name FROM episodes WHERE eval_category = %s",
             (data_retriever.suite,),

@@ -7,6 +7,7 @@ from typing import Any, Generator, Tuple
 
 from psycopg import Connection, Cursor
 from psycopg.abc import Query
+from psycopg.rows import TupleRow
 from psycopg.sql import Composable
 
 # Logger for database query performance
@@ -62,7 +63,9 @@ def timed_query(
         raise
 
 
-def log_query_execution(con: Connection, query: Query, params: Tuple[Any, ...] = (), description: str = "") -> Any:
+def execute_query_and_log(
+    con: Connection, query: Query, params: Tuple[Any, ...] = (), description: str = ""
+) -> list[TupleRow]:
     """
     Execute a query with timing and logging, returning the results.
 
@@ -81,7 +84,9 @@ def log_query_execution(con: Connection, query: Query, params: Tuple[Any, ...] =
         return cursor.fetchall()
 
 
-def log_query_execution_one(con: Connection, query: Query, params: Tuple[Any, ...] = (), description: str = "") -> Any:
+def execute_single_row_query_and_log(
+    con: Connection, query: Query, params: Tuple[Any, ...] = (), description: str = ""
+) -> TupleRow | None:
     """
     Execute a query with timing and logging, returning the first result.
 
