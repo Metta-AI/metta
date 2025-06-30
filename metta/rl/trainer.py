@@ -2,7 +2,6 @@ import logging
 import os
 from collections import defaultdict
 from contextlib import nullcontext
-from pathlib import Path
 from typing import Any, Set
 from uuid import UUID
 
@@ -19,7 +18,6 @@ from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent, make_poli
 from metta.agent.policy_metadata import PolicyMetadata
 from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyRecord, PolicyStore
-from metta.agent.util.debug import assert_shape
 from metta.common.memory_monitor import MemoryMonitor
 from metta.common.stopwatch import Stopwatch, with_instance_timer
 from metta.common.util.heartbeat import record_heartbeat
@@ -67,32 +65,13 @@ class MettaTrainer:
         **kwargs: Any,
     ):
         logger.info(f"run_dir = {cfg.run_dir}")
-        checkpoints_dir = Path(cfg.run_dir) / "checkpoints"
-        if checkpoints_dir.exists():
-            files = sorted(os.listdir(checkpoints_dir))
-            recent_files = files[-3:] if len(files) >= 3 else files
-            logger.info(f"Recent checkpoints: {', '.join(recent_files)}")
 
         self.cfg = cfg
         self.trainer_cfg = trainer_cfg = parse_trainer_config(cfg.trainer)
 
-        # it doesn't make sense to evaluate more often than we checkpoint since we need a saved policy to evaluate
+        # Basic validation
         if trainer_cfg.evaluate_interval != 0 and trainer_cfg.evaluate_interval < trainer_cfg.checkpoint_interval:
             raise ValueError("evaluate_interval must be at least as large as checkpoint_interval")
-
-        if trainer_cfg.evaluate_interval != 0 and trainer_cfg.evaluate_interval < trainer_cfg.wandb_checkpoint_interval:
-            raise ValueError("evaluate_interval must be at least as large as wandb_checkpoint_interval")
-
-        # Validate that we save policies locally at least as often as we upload to wandb
-        if (
-            trainer_cfg.wandb_checkpoint_interval != 0
-            and trainer_cfg.checkpoint_interval != 0
-            and trainer_cfg.wandb_checkpoint_interval < trainer_cfg.checkpoint_interval
-        ):
-            raise ValueError(
-                "wandb_checkpoint_interval must be at least as large as checkpoint_interval "
-                "to ensure policies exist locally before uploading to wandb"
-            )
 
         if trainer_cfg.checkpoint_dir:
             os.makedirs(trainer_cfg.checkpoint_dir, exist_ok=True)
@@ -125,12 +104,7 @@ class MettaTrainer:
 
         if self._master:
             self._memory_monitor = MemoryMonitor()
-            self._system_monitor = SystemMonitor(
-                sampling_interval_sec=1.0,  # Sample every second
-                history_size=100,  # Keep last 100 samples
-                logger=logger,
-                auto_start=True,  # Start monitoring immediately
-            )
+            self._system_monitor = SystemMonitor()
 
         curriculum_config = trainer_cfg.curriculum_or_env
         env_overrides = DictConfig(trainer_cfg.env_overrides)
@@ -159,39 +133,22 @@ class MettaTrainer:
         actions_names = metta_grid_env.action_names
         actions_max_params = metta_grid_env.max_action_args
 
-        # Load or create policy with proper distributed coordination
+        # Load or create policy
         policy_record = self._load_policy(checkpoint, policy_store)
 
         if policy_record is not None:
             logging.info(f"LOADED {policy_record.uri}")
             self.latest_saved_policy_record = policy_record
-
-            # Create a fresh policy instance to ensure proper saving later
-            loaded_policy = policy_record.policy
-            loaded_policy.activate_actions(actions_names, actions_max_params, self.device)
-
-            fresh_policy_record = policy_store.create_empty_policy_record(policy_record.name)
-            fresh_policy_record.metadata = policy_record.metadata
-
-            fresh_policy = fresh_policy_record.policy
-            fresh_policy.activate_actions(actions_names, actions_max_params, self.device)
-            fresh_policy.load_state_dict(loaded_policy.state_dict(), strict=False)
-
-            self.initial_policy_record = fresh_policy_record
-            self.policy = fresh_policy
-
+            self.initial_policy_record = policy_record
+            self.policy = policy_record.policy
+            self.policy.activate_actions(actions_names, actions_max_params, self.device)
         else:
             # Create new policy
             policy_record = self._create_and_save_policy_record(policy_store, metta_grid_env)
             self.initial_policy_record = policy_record
+            self.latest_saved_policy_record = policy_record
             self.policy = policy_record.policy
             self.policy.activate_actions(actions_names, actions_max_params, self.device)
-
-        assert self.policy is not None, "Failed to obtain policy"
-
-        # Ensure latest_saved_policy_record is set
-        if not hasattr(self, "latest_saved_policy_record") or self.latest_saved_policy_record is None:
-            self.latest_saved_policy_record = self.initial_policy_record
 
         logging.info(f"USING {self.latest_saved_policy_record.uri}")
 
@@ -232,39 +189,11 @@ class MettaTrainer:
             weight_decay=trainer_cfg.optimizer.weight_decay,
         )
 
-        # validate that policy matches environment
-        if isinstance(self.policy, MettaAgent):
-            agent = self.policy
-        elif isinstance(self.policy, DistributedMettaAgent):
+        # Basic policy type validation
+        if isinstance(self.policy, DistributedMettaAgent):
             agent = self.policy.module
         else:
-            raise ValueError(f"Policy must be of type MettaAgent or DistributedMettaAgent, got {type(self.policy)}")
-
-        _env_shape = metta_grid_env.single_observation_space.shape
-        environment_shape = tuple(_env_shape) if isinstance(_env_shape, list) else _env_shape
-
-        # The rest of the validation logic continues to work with duck typing
-        if hasattr(agent, "components"):
-            found_match = False
-            for component_name, component in agent.components.items():
-                if hasattr(component, "_obs_shape"):
-                    found_match = True
-                    component_shape = (
-                        tuple(component._obs_shape) if isinstance(component._obs_shape, list) else component._obs_shape
-                    )
-                    if component_shape != environment_shape:
-                        raise ValueError(
-                            f"Observation space mismatch error:\n"
-                            f"[policy] component_name: {component_name}\n"
-                            f"[policy] component_shape: {component_shape}\n"
-                            f"environment_shape: {environment_shape}\n"
-                        )
-
-            if not found_match:
-                raise ValueError(
-                    "No component with observation shape found in policy. "
-                    f"Environment observation shape: {environment_shape}"
-                )
+            agent = self.policy
 
         self.lr_scheduler = None
         if trainer_cfg.lr_scheduler.enabled:
@@ -276,20 +205,8 @@ class MettaTrainer:
             try:
                 self.optimizer.load_state_dict(checkpoint.optimizer_state_dict)
                 logger.info("Successfully loaded optimizer state from checkpoint")
-            except ValueError as e:
-                if "doesn't match the size of optimizer's group" in str(e):
-                    # Extract some info about the mismatch
-                    old_params = len(checkpoint.optimizer_state_dict.get("param_groups", [{}])[0].get("params", []))
-                    new_params = sum(1 for _ in self.policy.parameters())
-                    logger.warning(
-                        f"Optimizer state dict doesn't match current model architecture. "
-                        f"Checkpoint has {old_params} parameter groups, current model has {new_params}. "
-                        "This typically happens when layers are added/removed. "
-                        "Starting with fresh optimizer state."
-                    )
-                else:
-                    # Re-raise if it's a different ValueError
-                    raise
+            except ValueError:
+                logger.warning("Optimizer state dict doesn't match. Starting with fresh optimizer state.")
 
         if wandb_run and self._master:
             # Define metrics (wandb x-axis values)
@@ -428,10 +345,6 @@ class MettaTrainer:
                 # Use pre-moved tensor
                 actions, selected_action_log_probs, _, value, _ = policy(o, state)
 
-                if __debug__:
-                    assert_shape(selected_action_log_probs, ("BT",), "selected_action_log_probs")
-                    assert_shape(actions, ("BT", 2), "actions")
-
                 # Store LSTM state for performance
                 lstm_state_to_store = None
                 if state.lstm_h is not None:
@@ -457,16 +370,6 @@ class MettaTrainer:
                 lstm_state=lstm_state_to_store,
             )
 
-            # At this point, infos contains lists of values collected across:
-            # 1. Multiple vectorized environments managed by this GPU's vecenv
-            # 2. Multiple rollout steps (until experience buffer is full)
-            #
-            # - Some stats (like "episode/reward") appear only when episodes complete
-            # - Other stats might appear every step
-            #
-            # These will later be averaged in _process_stats() to get mean values
-            # across all environments on this GPU. Stats from other GPUs (if using
-            # distributed training) are handled separately and not aggregated here.
             if info:
                 raw_infos.extend(info)
 
@@ -1009,10 +912,6 @@ class MettaTrainer:
                 **metric_stats,
                 **self.grad_stats,
             },
-            # WandB can automatically increment step on each call to log, but we force the value here
-            # to make WandB reject any non-monotonic data points. This hides duplicate data when resuming
-            # from checkpoints and keeps graphs clean. The policy is reset to the checkpoint too so the
-            # count of steps that contribute to training the saved policies is consistent.
             step=self.agent_step,
         )
 
@@ -1031,8 +930,6 @@ class MettaTrainer:
         vtrace_rho_clip,
         vtrace_c_clip,
     ):
-        """CUDA kernel for puffer advantage with automatic CPU fallback."""
-
         # Get correct device for this process
         device = torch.device(self.device) if isinstance(self.device, str) else self.device
 
@@ -1059,7 +956,6 @@ class MettaTrainer:
         return advantages
 
     def _normalize_advantage_distributed(self, adv: torch.Tensor) -> torch.Tensor:
-        """Normalize advantages with distributed training support while preserving shape."""
         if not self.trainer_cfg.norm_adv:
             return adv
 
@@ -1096,30 +992,23 @@ class MettaTrainer:
 
     @property
     def latest_saved_policy_uri(self) -> str | None:
-        """Get the URI of the latest saved policy, if any."""
         if self.latest_saved_policy_record is None:
             return None
         return self.latest_saved_policy_record.uri
 
     @property
     def initial_policy_uri(self) -> str | None:
-        """Get the URI of the initial policy, if any."""
         if self.initial_policy_record is None:
             return None
         return self.initial_policy_record.uri
 
     @property
     def current_policy_generation(self) -> int:
-        """Get the generation number for new policies saved in this training run.
-        This is the initial policy's generation + 1, representing that we're
-        training the next generation from that starting point.
-        """
         if self.initial_policy_record is None:
             return 0
         return self.initial_policy_record.metadata.get("generation", 0) + 1
 
     def _make_experience_buffer(self):
-        """Create experience buffer with tensor-based storage for prioritized sampling."""
         vecenv = self.vecenv
         trainer_cfg = self.trainer_cfg
 
