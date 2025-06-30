@@ -184,14 +184,63 @@ class MettaTrainer:
         else:
             if self._master:
                 policy_record = self._create_and_save_policy_record(policy_store, metta_grid_env)
-            else:
-                policy_record = self._wait_for_policy_record(policy_store)
+                self.initial_policy_record = policy_record
+                self.policy = policy_record.policy
+                self.policy.activate_actions(actions_names, actions_max_params, self.device)
 
-            self.initial_policy_record = policy_record
-            self.policy = policy_record.policy
-            self.policy.activate_actions(actions_names, actions_max_params, self.device)
+                # Broadcast policy state to other ranks if distributed
+                if torch.distributed.is_initialized():
+                    logger.info("Broadcasting initial policy state to all ranks")
+                    state_dict = self.policy.state_dict()
+                    # Broadcast each tensor in the state dict
+                    for key, tensor in state_dict.items():
+                        torch.distributed.broadcast(tensor, src=0)
+            else:
+                # Non-master: receive policy via broadcast or wait for file
+                if torch.distributed.is_initialized():
+                    logger.info("Waiting for policy broadcast from master")
+
+                    # Create empty policy first
+                    name = policy_store.make_model_name(self.epoch)
+                    policy_record = policy_store.create_empty_policy_record(name)
+                    policy_record.policy = make_policy(metta_grid_env, self.cfg)
+                    self.initial_policy_record = policy_record
+                    self.policy = policy_record.policy
+                    self.policy.activate_actions(actions_names, actions_max_params, self.device)
+
+                    # Receive broadcasted state
+                    state_dict = self.policy.state_dict()
+                    for key, tensor in state_dict.items():
+                        torch.distributed.broadcast(tensor, src=0)
+                    self.policy.load_state_dict(state_dict)
+                    logger.info("Received policy state from master via broadcast")
+
+                    # Optionally wait for master to save (with shorter timeout)
+                    try:
+                        saved_record = self._wait_for_policy_record(policy_store, timeout_attempts=3)
+                        if saved_record:
+                            self.latest_saved_policy_record = saved_record
+                    except RuntimeError as e:
+                        logger.warning(f"Could not load saved policy from disk: {e}")
+                        # Continue anyway since we have the policy via broadcast
+                else:
+                    # Non-distributed mode shouldn't happen with non-master
+                    # but if it does, fall back to file-based waiting
+                    policy_record = self._wait_for_policy_record(policy_store)
+                    self.initial_policy_record = policy_record
+                    self.policy = policy_record.policy
+                    self.policy.activate_actions(actions_names, actions_max_params, self.device)
 
         assert self.policy is not None, "Failed to obtain policy"
+
+        # Ensure latest_saved_policy_record is set
+        if not hasattr(self, "latest_saved_policy_record") or self.latest_saved_policy_record is None:
+            self.latest_saved_policy_record = self.initial_policy_record
+
+        # Synchronize all ranks before continuing
+        if torch.distributed.is_initialized():
+            torch.distributed.barrier()
+            logger.info("All ranks synchronized after policy initialization")
 
         logging.info(f"USING {self.latest_saved_policy_record.uri}")
 
@@ -1226,13 +1275,21 @@ class MettaTrainer:
         logger.info(f"Creating new policy record: {name}")
         pr = policy_store.create_empty_policy_record(name)
         pr.policy = make_policy(env, self.cfg)
-        policy_store.save(pr)
-        self.latest_saved_policy_record = pr
 
-        return self.latest_saved_policy_record
+        # Try to save, but don't fail if it doesn't work
+        try:
+            saved_pr = policy_store.save(pr)
+            self.latest_saved_policy_record = saved_pr
+            logger.info(f"Successfully saved initial policy to {saved_pr.uri}")
+        except Exception as e:
+            logger.warning(f"Failed to save initial policy to disk: {e}")
+            # Set it anyway so training can continue
+            self.latest_saved_policy_record = pr
+
+        return pr
 
     def _wait_for_policy_record(self, policy_store, timeout_attempts: int = 10) -> PolicyRecord:
-        """Non-master processes wait for master to create policy."""
+        """Non-master processes wait for master to create policy on disk."""
         if self._master:
             raise RuntimeError("Master process should not wait for policy")
 
