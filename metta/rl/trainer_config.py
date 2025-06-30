@@ -1,6 +1,6 @@
 from typing import Any, ClassVar, Literal
 
-from omegaconf import DictConfig, ListConfig, OmegaConf
+from omegaconf import DictConfig, OmegaConf
 from pydantic import ConfigDict, Field, model_validator
 
 from metta.common.util.typed_config import BaseModelWithForbidExtra
@@ -186,11 +186,12 @@ def parse_trainer_config(
             raise ValueError(f"cfg must have a '{key}' field")
 
     trainer_cfg = cfg.trainer
-    if isinstance(trainer_cfg, ListConfig):
+    if not isinstance(trainer_cfg, DictConfig):
         raise ValueError("ListConfig is not supported")
 
-    if trainer_cfg._target_ != "metta.rl.trainer.MettaTrainer":
-        raise ValueError(f"Unsupported trainer config: {trainer_cfg._target_}")
+    if _target_ := trainer_cfg.get("_target_"):
+        if _target_ != "metta.rl.trainer.MettaTrainer":
+            raise ValueError(f"Unsupported trainer config: {_target_}")
 
     # Convert to dict and let OmegaConf handle all interpolations
     config_dict = OmegaConf.to_container(trainer_cfg, resolve=True)
