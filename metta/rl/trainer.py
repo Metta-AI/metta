@@ -16,7 +16,7 @@ from heavyball import ForeachMuon
 from omegaconf import DictConfig
 
 from app_backend.stats_client import StatsClient
-from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent, make_policy
+from metta.agent.metta_agent import DistributedMettaAgent, make_policy
 from metta.agent.policy_metadata import PolicyMetadata
 from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyRecord, PolicyStore
@@ -329,8 +329,11 @@ class MettaTrainer:
             self._maybe_save_training_state()
 
             # Synchronize all ranks after potential policy save
+            # This is critical to prevent memory leaks and ensure all ranks stay in sync
             if torch.distributed.is_initialized():
                 torch.distributed.barrier()
+                if self._master and self.epoch % 10 == 0:
+                    logger.info(f"All ranks synchronized after checkpoint at epoch {self.epoch}")
 
             wandb_policy_name = self._maybe_upload_policy_record_to_wandb()
             self._maybe_evaluate_policy(wandb_policy_name)
@@ -724,23 +727,55 @@ class MettaTrainer:
             eval_scores=category_scores_map,
         )
 
-        if isinstance(self.policy, MettaAgent):
-            policy_to_save = self.policy
-        elif isinstance(self.policy, DistributedMettaAgent):
-            policy_to_save = self.policy.module
+        # Extract the actual policy module from distributed wrapper if needed
+        if isinstance(self.policy, DistributedMettaAgent):
+            current_policy = self.policy.module
         else:
-            raise ValueError(f"Policy must be of type MettaAgent or DistributedMettaAgent, got {type(self.policy)}")
+            current_policy = self.policy
 
-        # Create a fresh policy instance for saving
+        # Log memory usage before creating new policy
+        if hasattr(self, "_memory_monitor"):
+            memory_before = self._memory_monitor.get_current_memory_mb()
+            logger.info(f"Memory before policy save: {memory_before:.1f} MB")
+
+        # Create a truly fresh policy instance to avoid memory leaks
         logger.info("Creating a fresh policy instance to save")
+        fresh_policy = make_policy(metta_grid_env, self.cfg)
+        fresh_policy.activate_actions(metta_grid_env.action_names, metta_grid_env.max_action_args, self.device)
+
+        # Copy the state dict from the current policy to the fresh instance
+        fresh_policy.load_state_dict(current_policy.state_dict(), strict=False)
+
+        # Create policy record with the fresh policy
         fresh_policy_record = self.policy_store.create_empty_policy_record(name)
-        # copy in the values we want to keep
         fresh_policy_record.metadata = metadata
-        fresh_policy_record.policy = policy_to_save
-        policy_to_save.activate_actions(metta_grid_env.action_names, metta_grid_env.max_action_args, self.device)
-        policy_to_save.load_state_dict(self.policy.state_dict(), strict=False)
+        fresh_policy_record.policy = fresh_policy
 
         self.latest_saved_policy_record = self.policy_store.save(fresh_policy_record)
+
+        # Explicit cleanup to help garbage collection
+        del fresh_policy
+
+        # Force garbage collection to free memory immediately
+        import gc
+
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+
+        # Log memory usage after save
+        if hasattr(self, "_memory_monitor"):
+            memory_after = self._memory_monitor.get_current_memory_mb()
+            logger.info(
+                f"Memory after policy save: {memory_after:.1f} MB (delta: {memory_after - memory_before:.1f} MB)"
+            )
+
+        logger.info(f"Successfully saved policy at epoch {self.epoch}")
+
+        # Clean up old policies to prevent disk space issues
+        if self.epoch % 10 == 0:  # Clean up every 10 epochs
+            self._cleanup_old_policies(keep_last_n=5)
+
         return self.latest_saved_policy_record
 
     def _wait_for_policy_record(self, policy_path: str, timeout: int = 300) -> PolicyRecord | None:
@@ -1280,6 +1315,37 @@ class MettaTrainer:
                 f"var={self.grad_stats['grad/variance']:.2e}, "
                 f"norm={self.grad_stats['grad/norm']:.2e}"
             )
+
+    def _cleanup_old_policies(self, keep_last_n: int = 5):
+        """Clean up old saved policies to prevent memory accumulation.
+
+        Args:
+            keep_last_n: Number of most recent policies to keep
+        """
+        if not self._master or not hasattr(self, "policy_store"):
+            return
+
+        try:
+            # Get checkpoint directory
+            checkpoint_dir = Path(self.trainer_cfg.checkpoint.checkpoint_dir)
+            if not checkpoint_dir.exists():
+                return
+
+            # List all policy files
+            policy_files = sorted(checkpoint_dir.glob("policy_*.pt"))
+
+            # Keep only the most recent ones
+            if len(policy_files) > keep_last_n:
+                files_to_remove = policy_files[:-keep_last_n]
+                for file_path in files_to_remove:
+                    try:
+                        file_path.unlink()
+                        logger.info(f"Removed old policy file: {file_path}")
+                    except Exception as e:
+                        logger.warning(f"Failed to remove old policy file {file_path}: {e}")
+
+        except Exception as e:
+            logger.warning(f"Error during policy cleanup: {e}")
 
 
 class AbortingTrainer(MettaTrainer):
