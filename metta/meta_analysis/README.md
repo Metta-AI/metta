@@ -45,7 +45,23 @@ The system can automatically collect training data from your existing wandb runs
 from metta.meta_analysis import TrainingDataCollector
 
 collector = TrainingDataCollector("your-entity", "your-project")
+
+# Basic collection
 training_data = collector.collect_training_runs(max_runs=100)
+
+# With date filtering
+training_data = collector.collect_training_runs(
+    max_runs=100,
+    start_date="2024-01-01",  # Filter runs from this date
+    end_date="2024-12-31"     # Filter runs until this date
+)
+
+# With additional filters
+training_data = collector.collect_training_runs(
+    max_runs=100,
+    start_date="2024-06-01",
+    run_filters={"state": "finished", "config.trainer.curriculum": {"$regex": "navigation"}}
+)
 ```
 
 ### Training
@@ -112,6 +128,19 @@ The system extracts these agent parameters:
 Adjust the demo configuration in `configs/meta_analysis_demo.yaml`:
 
 ```yaml
+# Data collection settings
+collect_data: true
+max_runs: 50
+
+# Date filtering (ISO format: YYYY-MM-DD)
+start_date: "2024-01-01"  # Filter runs from this date
+end_date: "2024-12-31"    # Filter runs until this date
+
+# Additional filters
+run_filters:
+  "state": "finished"
+  "config.trainer.curriculum": {"$regex": "navigation"}
+
 # Model architecture
 env_latent_dim: 16
 agent_latent_dim: 16

@@ -16,6 +16,18 @@ from .models import MetaAnalysisModel
 
 logger = logging.getLogger(__name__)
 
+try:
+    import wandb
+except ImportError:
+    wandb = None
+
+try:
+    from sklearn.manifold import TSNE
+    import matplotlib.pyplot as plt
+except ImportError:
+    TSNE = None
+    plt = None
+
 
 class TrainingCurveDataset(Dataset):
     """Dataset for training curve prediction."""
@@ -84,6 +96,9 @@ class MetaAnalysisTrainer:
         learning_rate: float = 1e-3,
         beta: float = 1.0,  # VAE KL loss weight
         curve_weight: float = 1.0,  # Reward prediction loss weight
+        wandb_run=None,
+        tsne_interval: int = 10,
+        tsne_sample_size: int = 128,
     ):
         self.model = model.to(device)
         self.device = device
@@ -96,6 +111,10 @@ class MetaAnalysisTrainer:
         # Loss functions
         self.reconstruction_loss = nn.MSELoss()
         self.curve_loss = nn.MSELoss()
+
+        self.wandb_run = wandb_run
+        self.tsne_interval = tsne_interval
+        self.tsne_sample_size = tsne_sample_size
 
     def vae_loss(
         self,
@@ -220,12 +239,45 @@ class MetaAnalysisTrainer:
             "val_curve_loss": total_curve_loss / num_batches,
         }
 
+    def _log_tsne(self, dataset: Dataset, epoch: int, prefix: str = "train"):
+        if TSNE is None or plt is None or self.wandb_run is None:
+            return
+        # Sample a batch
+        idxs = np.random.choice(len(dataset), min(self.tsne_sample_size, len(dataset)), replace=False)
+        envs = []
+        agents = []
+        for idx in idxs:
+            env, agent, _ = dataset[idx]
+            envs.append(env.numpy())
+            agents.append(agent.numpy())
+        envs = torch.FloatTensor(np.stack(envs)).to(self.device)
+        agents = torch.FloatTensor(np.stack(agents)).to(self.device)
+        with torch.no_grad():
+            env_mu, _ = self.model.env_vae.encode(envs)
+            agent_mu, _ = self.model.agent_vae.encode(agents)
+        # TSNE
+        env_emb = env_mu.cpu().numpy()
+        agent_emb = agent_mu.cpu().numpy()
+        env_tsne = TSNE(n_components=2, random_state=42).fit_transform(env_emb)
+        agent_tsne = TSNE(n_components=2, random_state=42).fit_transform(agent_emb)
+        # Plot
+        fig, axes = plt.subplots(1, 2, figsize=(10, 4))
+        axes[0].scatter(env_tsne[:, 0], env_tsne[:, 1], alpha=0.7)
+        axes[0].set_title(f"Env Latent TSNE (epoch {epoch})")
+        axes[1].scatter(agent_tsne[:, 0], agent_tsne[:, 1], alpha=0.7)
+        axes[1].set_title(f"Agent Latent TSNE (epoch {epoch})")
+        plt.tight_layout()
+        self.wandb_run.log({f"{prefix}/tsne_latents": wandb.Image(fig)}, step=epoch)
+        plt.close(fig)
+
     def train(
         self,
         train_dataloader: DataLoader,
         val_dataloader: Optional[DataLoader] = None,
         num_epochs: int = 100,
         save_path: Optional[str] = None,
+        train_dataset: Optional[Dataset] = None,
+        val_dataset: Optional[Dataset] = None,
     ) -> Dict[str, List[float]]:
         """Train the model."""
 
@@ -250,6 +302,24 @@ class MetaAnalysisTrainer:
                 )
             else:
                 logger.info(f"Epoch {epoch}: Train Loss: {train_metrics['total_loss']:.4f}")
+
+            # Wandb logging
+            if self.wandb_run is not None:
+                log_dict = {"train/total_loss": train_metrics["total_loss"],
+                            "train/recon_loss": train_metrics["recon_loss"],
+                            "train/kl_loss": train_metrics["kl_loss"],
+                            "train/curve_loss": train_metrics["curve_loss"]}
+                if val_dataloader is not None:
+                    log_dict["val/total_loss"] = val_metrics["val_loss"]
+                    log_dict["val/curve_loss"] = val_metrics["val_curve_loss"]
+                self.wandb_run.log(log_dict, step=epoch)
+
+            # TSNE logging
+            if self.wandb_run is not None and epoch % self.tsne_interval == 0:
+                if train_dataset is not None:
+                    self._log_tsne(train_dataset, epoch, prefix="train")
+                if val_dataset is not None:
+                    self._log_tsne(val_dataset, epoch, prefix="val")
 
             # Save model
             if save_path and (epoch + 1) % 10 == 0:

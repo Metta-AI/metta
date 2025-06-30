@@ -8,9 +8,16 @@ wandb:
   entity: metta-research
   project: metta
 
+wandb_log: true  # Enable wandb logging
+
 # Data collection settings
 collect_data: true
 max_runs: 50  # Limit for demo
+
+# Date filtering (ISO format: YYYY-MM-DD)
+start_date: "2025-04-30"  # Filter runs from April 30th, 2025
+# end_date: "2024-12-31"    # Uncomment to filter runs until this date (leave commented for "until present")
+
 run_filters:
   # Example filters - adjust based on your data
   "config.trainer.curriculum": {"$regex": "navigation"}
@@ -29,6 +36,9 @@ learning_rate: 0.001
 beta: 1.0  # VAE KL loss weight
 curve_weight: 1.0  # Reward prediction loss weight
 num_epochs: 50  # Reduced for demo
+
+tsne_interval: 10  # Log TSNE plots every N epochs
+tsne_sample_size: 128  # Number of samples for TSNE
 
 # Demo settings
 demo_predictions: true
