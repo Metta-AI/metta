@@ -215,7 +215,13 @@ class MettaTrainer:
             logger.info("Compiling policy")
             self.policy = torch.compile(self.policy, mode=trainer_cfg.compile_mode)
 
-        self.kickstarter = Kickstarter(cfg, trainer_cfg, policy_store, actions_names, actions_max_params)
+        self.kickstarter = Kickstarter(
+            trainer_cfg.kickstart,
+            self.device,
+            policy_store,
+            actions_names,
+            actions_max_params,
+        )
 
         if torch.distributed.is_initialized():
             logger.info(f"Initializing DistributedDataParallel on device {self.device}")

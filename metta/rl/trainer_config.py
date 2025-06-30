@@ -4,6 +4,7 @@ from omegaconf import DictConfig, ListConfig
 from pydantic import ConfigDict, Field, model_validator
 
 from metta.common.util.typed_config import BaseModelWithForbidExtra
+from metta.rl.kickstarter import KickstartConfig
 
 
 class OptimizerConfig(BaseModelWithForbidExtra):
@@ -30,21 +31,6 @@ class PrioritizedExperienceReplayConfig(BaseModelWithForbidExtra):
 class VTraceConfig(BaseModelWithForbidExtra):
     vtrace_rho_clip: float = Field(gt=0)
     vtrace_c_clip: float = Field(gt=0)
-
-
-class KickstartTeacherConfig(BaseModelWithForbidExtra):
-    teacher_uri: str
-    action_loss_coef: float = Field(ge=0)
-    value_loss_coef: float = Field(ge=0)
-
-
-class KickstartConfig(BaseModelWithForbidExtra):
-    teacher_uri: str | None
-    action_loss_coef: float = Field(ge=0)
-    value_loss_coef: float = Field(ge=0)
-    anneal_ratio: float = Field(ge=0, le=1.0)
-    kickstart_steps: int = Field(gt=0)
-    additional_teachers: list[KickstartTeacherConfig] | None = None
 
 
 class InitialPolicyConfig(BaseModelWithForbidExtra):
