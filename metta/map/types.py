@@ -88,7 +88,6 @@ class AreaQuery(Config):
     lock: str | None = None
     where: Literal["full"] | AreaWhere | None = None
     order_by: Literal["random", "first", "last"] = "random"
-    order_by_seed: int | None = None
 
 
 class ChildrenAction(AreaQuery):

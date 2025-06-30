@@ -34,7 +34,7 @@ def scene():
         ]
     )
     area = Area.root_area_from_grid(grid)
-    scene = MockScene(area=area)
+    scene = MockScene(area=area, seed=42)
     # Create some test areas with different tags
     scene.make_area(0, 0, 3, 2, tags=["tag1", "tag2", "scene1"])  # ABC / FGH
     scene.make_area(1, 2, 2, 2, tags=["tag2", "tag3", "scene2"])  # LM / QR
@@ -127,7 +127,7 @@ def test_select_areas_returns_list_type(scene):
     assert isinstance(selected_areas, list), "select_areas should return a list"
 
     # Test with random ordering (which uses numpy internally)
-    query = AreaQuery(limit=2, order_by="random", order_by_seed=42)
+    query = AreaQuery(limit=2, order_by="random")
     selected_areas = scene.select_areas(query)
     assert isinstance(selected_areas, list), "select_areas with random ordering should return a list"
 
@@ -142,7 +142,7 @@ def test_select_areas_returns_list_type(scene):
     assert isinstance(selected_areas, list), "select_areas with last ordering should return a list"
 
     # Verify list operations work
-    query = AreaQuery(limit=1, order_by="random", order_by_seed=42)
+    query = AreaQuery(limit=1, order_by="random")
     selected_areas = scene.select_areas(query)
     # This should not raise AttributeError if it's a proper list
     selected_areas_copy = selected_areas.copy()

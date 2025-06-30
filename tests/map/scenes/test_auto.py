@@ -5,7 +5,7 @@ from tests.map.scenes.utils import assert_connected, render_scene
 def test_basic():
     params = {
         "num_agents": 1,
-        "objects": {"altar": 2},
+        "objects": {"altar": 0.02},
         "room_objects": {"altar": ["uniform", 0.0005, 0.01]},
         "room_symmetry": {"horizontal": 1, "vertical": 1, "x4": 1, "none": 1},
         "layout": {"grid": 1, "bsp": 1},
