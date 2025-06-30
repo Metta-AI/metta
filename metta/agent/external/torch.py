@@ -61,7 +61,8 @@ class Policy(nn.Module):
                 3.0,
                 1.0,
                 2.0,
-            ]
+            ],
+            dtype=torch.float32,
         )[None, :, None, None]
         # max_vec = torch.ones(22)[None, :, None, None]
         self.register_buffer("max_vec", max_vec)
