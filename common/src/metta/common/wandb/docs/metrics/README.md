@@ -1,12 +1,10 @@
 # WandB Metrics Documentation
 
-This directory contains comprehensive documentation for all metrics logged to Weights & Biases (WandB)
-during Metta training runs.
+This directory contains comprehensive documentation for all metrics logged to Weights & Biases (WandB) during Metta training runs.
 
 ## Overview
 
-Our WandB logging captures detailed metrics across multiple categories to monitor training progress, agent
-behavior, environment dynamics, and system performance.
+Our WandB logging captures detailed metrics across multiple categories to monitor training progress, agent behavior, environment dynamics, and system performance.
 
 ## Metric Categories
 
@@ -29,9 +27,8 @@ behavior, environment dynamics, and system performance.
 | [`overview/`](./overview/) | High-level training progress | 3 |
 | [`env_task_reward/`](./env_task_reward/) | Task completion rewards | 2 |
 | [`env_task_timing/`](./env_task_timing/) | Task initialization timing | 2 |
-| [`WandB Metrics for metta-research/`](./WandB Metrics for metta-research/) | Metrics for WandB Metrics for metta-research | 1 |
 
-**Total Metrics:** 1502
+**Total Metrics:** 1501
 
 ## Metric Naming Convention
 
@@ -73,4 +70,14 @@ To explore specific metric categories:
 
 ## Related Tools
 
-- [`build_stats_table.py`](../util/wandb/build_stats_table.py) - Script to fetch and organize metrics from WandB runs
+- [`collect_metrics.py`](../../collect_metrics.py) - Script to fetch metrics from WandB runs
+- [`generate_docs.py`](../../generate_docs.py) - Script to generate this documentation
+
+## Updating Documentation
+
+To update this documentation with metrics from a new run:
+```bash
+cd common/src/metta/common/wandb
+./collect_metrics.py <run_id>  # Fetches metrics to wandb_metrics.txt
+./generate_docs.py             # Regenerates documentation
+```

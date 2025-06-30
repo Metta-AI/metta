@@ -19,24 +19,26 @@ def parse_metrics_file(filepath):
     with open(filepath, "r") as f:
         lines = f.readlines()
 
-    # Skip header lines
-    start_idx = 0
-    for i, line in enumerate(lines):
-        if line.strip() and not line.startswith("="):
-            start_idx = i
-            break
-
-    # Parse metrics
-    for line in lines[start_idx:]:
+    # Parse metrics, skipping header and footer
+    for line in lines:
         line = line.strip()
-        if not line or line.startswith("Total metrics:"):
+
+        # Skip empty lines, headers, and footer
+        if (
+            not line
+            or line.startswith("=")
+            or line.startswith("WandB Metrics for")
+            or line.startswith("Total metrics:")
+        ):
             continue
 
-        parts = line.split("/")
-        if len(parts) >= 2:
-            section = parts[0]
-            subsection = parts[1] if len(parts) > 2 else "general"
-            sections[section][subsection].append(line)
+        # Only process lines that look like metrics (contain '/')
+        if "/" in line:
+            parts = line.split("/")
+            if len(parts) >= 2:
+                section = parts[0]
+                subsection = parts[1] if len(parts) > 2 else "general"
+                sections[section][subsection].append(line)
 
     return dict(sections)
 
@@ -67,13 +69,13 @@ def generate_main_readme(sections, output_dir):
     """Generate the main README.md file."""
     content = """# WandB Metrics Documentation
 
-This directory contains comprehensive documentation for all metrics logged to Weights & Biases (WandB)
-during Metta training runs.
+This directory contains comprehensive documentation for all metrics logged to Weights & Biases (WandB) during
+Metta training runs.
 
 ## Overview
 
-Our WandB logging captures detailed metrics across multiple categories to monitor training progress, agent
-behavior, environment dynamics, and system performance.
+Our WandB logging captures detailed metrics across multiple categories to monitor training progress, agent behavior,
+environment dynamics, and system performance.
 
 ## Metric Categories
 
@@ -132,7 +134,17 @@ To explore specific metric categories:
 
 ## Related Tools
 
-- [`build_stats_table.py`](../util/wandb/build_stats_table.py) - Script to fetch and organize metrics from WandB runs
+- [`collect_metrics.py`](../../collect_metrics.py) - Script to fetch metrics from WandB runs
+- [`generate_docs.py`](../../generate_docs.py) - Script to generate this documentation
+
+## Updating Documentation
+
+To update this documentation with metrics from a new run:
+```bash
+cd common/src/metta/common/wandb
+./collect_metrics.py <run_id>  # Fetches metrics to wandb_metrics.txt
+./generate_docs.py             # Regenerates documentation
+```
 """
 
     # Create output directory
@@ -345,11 +357,11 @@ Monitor these metrics for:
 def main():
     script_dir = os.path.dirname(os.path.abspath(__file__))
     metrics_file = os.path.join(script_dir, "wandb_metrics.txt")
-    output_dir = os.path.join(script_dir, "metrics_docs")
+    output_dir = os.path.join(script_dir, "docs", "metrics")
 
     if not os.path.exists(metrics_file):
         print(f"Error: {metrics_file} not found!")
-        print("Please run build_stats_table.py first to generate the metrics file.")
+        print("Please run collect_metrics.py first to generate the metrics file.")
         return
 
     print(f"Parsing metrics from {metrics_file}...")
@@ -370,6 +382,8 @@ def main():
     print("\nDocumentation generation complete!")
     print(f"Main README: {output_dir}/README.md")
     print(f"Section docs: {output_dir}/<section>/README.md")
+    print("\nTo view the documentation, navigate to:")
+    print(f"  {output_dir}/")
 
 
 if __name__ == "__main__":
