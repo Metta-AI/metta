@@ -1,0 +1,37 @@
+# Meta-analysis demonstration configuration
+
+# Output directory for results
+output_dir: ${run_dir}/meta_analysis_demo
+
+# Wandb configuration
+wandb:
+  entity: metta-research
+  project: metta
+
+# Data collection settings
+collect_data: true
+max_runs: 50  # Limit for demo
+run_filters:
+  # Example filters - adjust based on your data
+  "config.trainer.curriculum": {"$regex": "navigation"}
+  "state": "finished"
+
+# Model architecture
+env_latent_dim: 16
+agent_latent_dim: 16
+curve_length: 100
+hidden_dim: 128
+
+# Training settings
+train_model: true
+batch_size: 8
+learning_rate: 0.001
+beta: 1.0  # VAE KL loss weight
+curve_weight: 1.0  # Reward prediction loss weight
+num_epochs: 50  # Reduced for demo
+
+# Demo settings
+demo_predictions: true
+
+# Hardware
+device: cpu  # Use GPU if available
