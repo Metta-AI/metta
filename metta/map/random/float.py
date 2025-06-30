@@ -1,51 +1,30 @@
-from typing import Annotated, Literal
+from typing import Annotated
 
 import numpy as np
-from pydantic import BaseModel, GetPydanticSchema
-from pydantic_core import core_schema
+from pydantic import BaseModel, BeforeValidator
 from scipy import stats
 
 
-class FloatBaseDistribution(BaseModel):
-    def sample(self, _) -> float: ...
+class BaseFloatDistribution(BaseModel):
+    def sample(self, rng: np.random.Generator) -> float: ...
 
 
-class FloatConstantDistribution(FloatBaseDistribution):
+class FloatConstantDistribution(BaseFloatDistribution):
     value: float
 
-    def sample(self, _) -> float:
+    def sample(self, rng) -> float:
         return self.value
 
 
-FloatConstantDistributionType = Annotated[
-    float,
-    GetPydanticSchema(
-        lambda tp, handler: core_schema.no_info_after_validator_function(
-            lambda x: FloatConstantDistribution(value=x), handler(tp)
-        )
-    ),
-]
-
-
-class FloatUniformDistribution(FloatBaseDistribution):
+class FloatUniformDistribution(BaseFloatDistribution):
     low: float
     high: float
 
-    def sample(self, rng: np.random.Generator) -> float:
+    def sample(self, rng) -> float:
         return rng.uniform(self.low, self.high)
 
 
-FloatUniformDistributionType = Annotated[
-    tuple[Literal["uniform"], float, float],
-    GetPydanticSchema(
-        lambda tp, handler: core_schema.no_info_after_validator_function(
-            lambda x: FloatUniformDistribution(low=x[1], high=x[2]), handler(tp)
-        )
-    ),
-]
-
-
-class FloatLognormalDistribution(FloatBaseDistribution):
+class FloatLognormalDistribution(BaseFloatDistribution):
     low: float
     high: float
     max: float | None = None
@@ -61,13 +40,13 @@ class FloatLognormalDistribution(FloatBaseDistribution):
         if self.low <= 0:
             raise ValueError("Low value must be above 0")
 
-        # Default to 90% probability, for now
-        probability = 0.9
+            # Default to 90% probability, for now
+            probability = 0.9
 
-        if probability <= 0 or probability >= 1:
-            raise ValueError("Probability must be in (0, 1) interval")
+            if probability <= 0 or probability >= 1:
+                raise ValueError("Probability must be in (0, 1) interval")
 
-        log_low = np.log(self.low)
+            log_low = np.log(self.low)
         log_high = np.log(self.high)
 
         # Calculate normalized sigmas using the inverse of the normal CDF
@@ -86,37 +65,38 @@ class FloatLognormalDistribution(FloatBaseDistribution):
         return percentage
 
 
-FloatLognormalDistributionTypeTwoArgs = Annotated[
-    tuple[Literal["lognormal"], float, float],
-    GetPydanticSchema(
-        lambda tp, handler: core_schema.no_info_after_validator_function(
-            lambda x: FloatLognormalDistribution(low=x[1], high=x[2]), handler(tp)
-        )
-    ),
-]
+def _to_float_distribution(v) -> BaseFloatDistribution:
+    """
+    Accept:
+    - an existing distribution object
+    - a float                     -> Constant
+    - ("uniform", low, high)      -> Uniform
+    - ("lognormal", p5, p95)      -> Lognormal with 90% probability of being between p5 and p95
+    - ("lognormal", p5, p95, max) -> Lognormal + absolute limit
+    """
+    if isinstance(v, BaseFloatDistribution):
+        return v
+    if isinstance(v, float):
+        return FloatConstantDistribution(value=v)
+    if isinstance(v, (list, tuple)) and len(v) == 3 and v[0] == "uniform":
+        _, low, high = v
+        return FloatUniformDistribution(low=low, high=high)
+    if isinstance(v, (list, tuple)) and len(v) == 3 and v[0] == "lognormal":
+        _, low, high = v
+        return FloatLognormalDistribution(low=low, high=high)
+    if isinstance(v, (list, tuple)) and len(v) == 4 and v[0] == "lognormal":
+        _, low, high, max = v
+        return FloatLognormalDistribution(low=low, high=high, max=max)
+    raise TypeError(
+        "value must be one of: "
+        "- a float,\n"
+        "- a tuple of the form (uniform, low, high),\n"
+        "- a tuple of the form (lognormal, p5, p95),\n"
+        "- a tuple of the form (lognormal, p5, p95, max)"
+    )
 
-FloatLognormalDistributionTypeThreeArgs = Annotated[
-    tuple[Literal["lognormal"], float, float, float],
-    GetPydanticSchema(
-        lambda tp, handler: core_schema.no_info_after_validator_function(
-            lambda x: FloatLognormalDistribution(low=x[1], high=x[2], max=x[3]), handler(tp)
-        )
-    ),
-]
 
-FloatDistribution = (
-    # `float`: just return the value
-    FloatConstantDistributionType
-    # `["uniform", low: float, high: float]`: any float in the range
-    | FloatUniformDistributionType
-    # `["lognormal", p5: float, p95: float]`: any float in the lognormal distribution
-    # with 90% probability of being between p5 and p95
-    | FloatLognormalDistributionTypeTwoArgs
-    # `["lognormal", p5: float, p95: float, max: float]`: any float in the lognormal distribution
-    # with 90% probability of being between p5 and p95, and max (absolute limit) is optional
-    | FloatLognormalDistributionTypeThreeArgs
-    # Direct distribution instances
-    | FloatConstantDistribution
-    | FloatUniformDistribution
-    | FloatLognormalDistribution
-)
+FloatDistribution = Annotated[
+    BaseFloatDistribution,
+    BeforeValidator(_to_float_distribution),
+]

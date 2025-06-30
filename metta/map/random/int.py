@@ -1,8 +1,7 @@
-from typing import Annotated, Literal, Union
+from typing import Annotated, Union
 
 import numpy as np
-from pydantic import BaseModel, GetPydanticSchema
-from pydantic_core import core_schema
+from pydantic import BaseModel, BeforeValidator
 
 # Useful for scene classes - they want to take an optional seed, but sometimes we
 # pass in a generator from another scene.
@@ -10,13 +9,13 @@ MaybeSeed = Union[int, np.random.Generator, None]
 
 
 class BaseIntDistribution(BaseModel):
-    def sample(self, _: np.random.Generator) -> int: ...
+    def sample(self, rng: np.random.Generator) -> int: ...
 
 
 class IntConstantDistribution(BaseIntDistribution):
     value: int
 
-    def sample(self, _) -> int:
+    def sample(self, rng) -> int:
         return self.value
 
 
@@ -24,26 +23,28 @@ class IntUniformDistribution(BaseIntDistribution):
     low: int
     high: int
 
-    def sample(self, rng: np.random.Generator) -> int:
+    def sample(self, rng) -> int:
         return rng.integers(self.low, self.high, endpoint=True, dtype=int)
 
 
-IntConstantDistributionType = Annotated[
-    int,
-    GetPydanticSchema(
-        lambda tp, handler: core_schema.no_info_after_validator_function(
-            lambda x: IntConstantDistribution(value=x), handler(tp)
-        )
-    ),
-]
+def _to_int_distribution(v) -> BaseIntDistribution:
+    """
+    Accept:
+      • an existing distribution object
+      • an int                    → Constant
+      • ("uniform", low, high)    → Uniform
+    """
+    if isinstance(v, BaseIntDistribution):
+        return v
+    if isinstance(v, int):
+        return IntConstantDistribution(value=v)
+    if isinstance(v, (list, tuple)) and len(v) == 3 and v[0] == "uniform":
+        _, low, high = v
+        return IntUniformDistribution(low=low, high=high)
+    raise TypeError("value must be an int or ('uniform', low, high) tuple")
 
-IntUniformDistributionType = Annotated[
-    tuple[Literal["uniform"], int, int],
-    GetPydanticSchema(
-        lambda tp, handler: core_schema.no_info_after_validator_function(
-            lambda v: IntUniformDistribution(low=v[1], high=v[2]), handler(tp)
-        )
-    ),
-]
 
-IntDistribution = IntConstantDistributionType | IntUniformDistributionType
+IntDistribution = Annotated[
+    BaseIntDistribution,
+    BeforeValidator(_to_int_distribution),
+]

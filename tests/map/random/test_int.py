@@ -1,6 +1,5 @@
 import numpy as np
 import pytest
-from pydantic import ValidationError
 
 from metta.map.random.int import (
     IntConstantDistribution,
@@ -86,7 +85,7 @@ class TestIntDistributionTypes:
         class TestModel(BaseModel):
             dist: IntDistribution
 
-        model = TestModel(dist=42)
+        model = TestModel.model_validate({"dist": 42})
         assert isinstance(model.dist, IntConstantDistribution)
         assert model.dist.value == 42
 
@@ -97,7 +96,7 @@ class TestIntDistributionTypes:
         class TestModel(BaseModel):
             dist: IntDistribution
 
-        model = TestModel(dist=("uniform", 1, 10))
+        model = TestModel.model_validate({"dist": ("uniform", 1, 10)})
         assert isinstance(model.dist, IntUniformDistribution)
         assert model.dist.low == 1
         assert model.dist.high == 10
@@ -109,12 +108,12 @@ class TestIntDistributionTypes:
             dist: IntDistribution
 
         # Wrong number of elements
-        with pytest.raises(ValidationError):
-            TestModel(dist=("uniform", 1))
+        with pytest.raises(TypeError):
+            TestModel.model_validate({"dist": ("uniform", 1)})
 
         # Wrong first element
-        with pytest.raises(ValidationError):
-            TestModel(dist=("normal", 1, 10))
+        with pytest.raises(TypeError):
+            TestModel.model_validate({"dist": ("normal", 1, 10)})
 
     def test_integration_constant_distribution(self):
         from pydantic import BaseModel
@@ -122,7 +121,7 @@ class TestIntDistributionTypes:
         class TestModel(BaseModel):
             dist: IntDistribution
 
-        model = TestModel(dist=7)
+        model = TestModel.model_validate({"dist": 7})
         rng = np.random.default_rng(seed=123)
 
         assert model.dist.sample(rng) == 7
@@ -133,7 +132,7 @@ class TestIntDistributionTypes:
         class TestModel(BaseModel):
             dist: IntDistribution
 
-        model = TestModel(dist=("uniform", 5, 15))
+        model = TestModel.model_validate({"dist": ("uniform", 5, 15)})
         rng = np.random.default_rng(seed=123)
 
         samples = [model.dist.sample(rng) for _ in range(50)]
