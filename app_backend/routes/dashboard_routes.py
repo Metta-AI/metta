@@ -148,53 +148,79 @@ def _get_group_data_with_policy_filter(
     logger.info(f"Starting core group data query: suite={suite}, metric={metric}, group='{group}'")
     
     try:
-        query_template: SQL = SQL("""
-            WITH
-            filtered_episodes AS (
-                SELECT e.id, e.env_name, e.primary_policy_id, e.replay_url, e.attributes
-                FROM episodes e
-                WHERE e.eval_category = %s
-            ),
-            episode_agent_metrics_with_group_id AS (
+        if group == "":
+            # Optimized query for all groups - avoids expensive JSON parsing and reduces CTEs
+            logger.info("Using optimized all-groups query (no JSON parsing, direct joins)")
+            query_template = SQL("""
+                WITH
+                {}
+                
                 SELECT
-                    eam.episode_id,
-                    eam.agent_id,
-                    eam.value,
-                    CAST ((fe.attributes->'agent_groups')[eam.agent_id] AS INTEGER) as group_id,
-                    fe.env_name,
-                    fe.primary_policy_id,
-                    fe.replay_url
+                  p.name as policy_uri,
+                  e.env_name as eval_name,
+                  ANY_VALUE(e.replay_url) as replay_url,
+                  COUNT(*) AS num_agents,
+                  SUM(eam.value) AS total_value,
+                  p.run_id,
+                  p.end_training_epoch
                 FROM episode_agent_metrics eam
-                JOIN filtered_episodes fe ON fe.id = eam.episode_id
+                JOIN episodes e ON e.id = eam.episode_id AND e.eval_category = %s
+                JOIN filtered_policies p ON e.primary_policy_id = p.id
                 WHERE eam.metric = %s
-            ),
-            {}
+                GROUP BY p.name, e.env_name, p.run_id, p.end_training_epoch
+                ORDER BY p.run_id, p.end_training_epoch DESC
+            """)
+            
+            query = query_template.format(policy_cte)
+            # For optimized query: extra_params come first (for CTE), then base params (for main query)
+            params = extra_params + (suite, metric)
+            
+        else:
+            # Original query with group filtering - includes JSON parsing only when needed
+            logger.info(f"Using group-filtered query with JSON parsing for group '{group}'")
+            query_template = SQL("""
+                WITH
+                filtered_episodes AS (
+                    SELECT e.id, e.env_name, e.primary_policy_id, e.replay_url, e.attributes
+                    FROM episodes e
+                    WHERE e.eval_category = %s
+                ),
+                episode_agent_metrics_with_group_id AS (
+                    SELECT
+                        eam.episode_id,
+                        eam.agent_id,
+                        eam.value,
+                        CAST ((fe.attributes->'agent_groups')[eam.agent_id] AS INTEGER) as group_id,
+                        fe.env_name,
+                        fe.primary_policy_id,
+                        fe.replay_url
+                    FROM episode_agent_metrics eam
+                    JOIN filtered_episodes fe ON fe.id = eam.episode_id
+                    WHERE eam.metric = %s
+                ),
+                {}
 
-            SELECT
-              p.name as policy_uri,
-              eam.env_name as eval_name,
-              ANY_VALUE(eam.replay_url) as replay_url,
-              COUNT(*) AS num_agents,
-              SUM(eam.value) AS total_value,
-              p.run_id,
-              p.end_training_epoch
-            FROM episode_agent_metrics_with_group_id eam
-            JOIN filtered_policies p ON eam.primary_policy_id = p.id
-            {}
-            GROUP BY p.name, eam.env_name, p.run_id, p.end_training_epoch
-            ORDER BY p.run_id, p.end_training_epoch DESC
-        """)
-
-        where_clause = SQL("")
-        if group != "":
-            where_clause = SQL("WHERE eam.group_id = %s")
-
-        query = query_template.format(policy_cte, where_clause)
-        base_params = (suite, metric) + extra_params
-        params = base_params + (group,) if group != "" else base_params
+                SELECT
+                  p.name as policy_uri,
+                  eam.env_name as eval_name,
+                  ANY_VALUE(eam.replay_url) as replay_url,
+                  COUNT(*) AS num_agents,
+                  SUM(eam.value) AS total_value,
+                  p.run_id,
+                  p.end_training_epoch
+                FROM episode_agent_metrics_with_group_id eam
+                JOIN filtered_policies p ON eam.primary_policy_id = p.id
+                WHERE eam.group_id = %s
+                GROUP BY p.name, eam.env_name, p.run_id, p.end_training_epoch
+                ORDER BY p.run_id, p.end_training_epoch DESC
+            """)
+            
+            query = query_template.format(policy_cte)
+            base_params = (suite, metric) + extra_params
+            params = base_params + (group,)
 
         query_start = time.time()
-        logger.info(f"Executing database query with params: {params}")
+        logger.info(f"Executing {'optimized' if group == '' else 'group-filtered'} database query with params: {params}")
         
         with con.cursor(row_factory=class_row(GroupDataRow)) as cursor:
             cursor.execute(query, params)
