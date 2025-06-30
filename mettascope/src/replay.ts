@@ -392,3 +392,31 @@ export function sendAction(actionName: string, actionParam: number) {
     console.error('No selected grid object')
   }
 }
+
+/**
+ * Capitalize the first letter of every word in a string.
+ * Example: "hello world" -> "Hello World"
+ */
+function capitalize(str: string) {
+  return str
+    .split(' ')
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ')
+}
+
+/** Gets a nice english name of a resource, type or any other property. */
+export function propertyName(key: string) {
+  return capitalize(key.replace('inv:', '').replace('agent:', '').replace('.', ' ').replace('_', ' '))
+}
+
+/** Gets the icon of a resource, type or any other property. */
+export function propertyIcon(key: string) {
+  if (state.replay.object_types.includes(key)) {
+    let idx = state.replay.object_types.indexOf(key)
+    return "data/atlas/" + state.replay.object_images[idx][0]
+  } else if (key.startsWith('inv:') || key.startsWith('agent:inv:')) {
+    return 'data/atlas/resources/' + key.replace('inv:', '').replace('agent:', '') + '.png'
+  } else {
+    return 'data/ui/table/' + key.replace('agent:', '') + '.png'
+  }
+}
