@@ -1,20 +1,20 @@
-import datetime as dt
+import datetime
 import importlib
 import os
 import time
+import uuid
+
+import pytest
 
 
-def test_queue_latency_helper():
-    # Craft a task‑id with the current moment (UTC)
-    now = dt.datetime.utcnow()
-    ts_str = now.strftime("%Y-%m-%d-%H-%M-%S-%f")
-    os.environ["SKYPILOT_TASK_ID"] = f"sky-{ts_str}_demo_1"
-
+@pytest.mark.parametrize("prefix", ["sky-", "managed-sky-", "sky-managed-"])
+def test_queue_latency_helper(prefix):
+    ts = datetime.datetime.utcnow().strftime("%Y-%m-%d-%H-%M-%S-%f")
+    os.environ["SKYPILOT_TASK_ID"] = f"{prefix}{ts}_demo_{uuid.uuid4().hex[:3]}"
     mod = importlib.import_module("metta.common.util.skypilot_latency")
-    first = mod.queue_latency_s()
-    assert first is not None and 0 <= first < 1
-
+    t0 = mod.queue_latency_s()
+    assert t0 is not None and 0 <= t0 < 1
     time.sleep(0.02)
-    second = mod.queue_latency_s()
-    assert second is not None and second >= first
-    assert second < 2
+    t1 = mod.queue_latency_s()
+    assert t1 is not None and t1 >= t0 < 2
+    del os.environ["SKYPILOT_TASK_ID"]

@@ -73,7 +73,8 @@ def main(cfg: ListConfig | DictConfig) -> int:
     latency_sec = queue_latency_s()
     if latency_sec is not None:
         os.environ["SKYPILOT_QUEUE_LATENCY_S"] = str(latency_sec)
-        logger.info(f"SkyPilot queue latency: {latency_sec:.1f} s")
+        task_id = os.environ.get("SKYPILOT_TASK_ID", "unknown")
+        logger.info(f"SkyPilot queue latency: {latency_sec:.1f} s (task: {task_id})")
     else:
         logger.info("SkyPilot queue latency: N/A (not a SkyPilot job)")
 
