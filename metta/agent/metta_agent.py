@@ -60,9 +60,14 @@ class DistributedMettaAgent(DistributedDataParallel):
         return self.module.activate_actions(action_names, action_max_params, device)
 
     def initialize_to_environment(
-        self, features: dict[str, dict], action_names: list[str], action_max_params: list[int], device: torch.device
+        self,
+        features: dict[str, dict],
+        action_names: list[str],
+        action_max_params: list[int],
+        device: torch.device,
+        is_training: bool = True,
     ) -> None:
-        return self.module.initialize_to_environment(features, action_names, action_max_params, device)
+        return self.module.initialize_to_environment(features, action_names, action_max_params, device, is_training)
 
 
 class MettaAgent(nn.Module):
@@ -156,7 +161,12 @@ class MettaAgent(nn.Module):
         component.setup(source_components)
 
     def initialize_to_environment(
-        self, features: dict[str, dict], action_names: list[str], action_max_params: list[int], device
+        self,
+        features: dict[str, dict],
+        action_names: list[str],
+        action_max_params: list[int],
+        device,
+        is_training: bool = True,
     ):
         """
         Initialize the policy to the current environment's features and actions.
@@ -174,20 +184,23 @@ class MettaAgent(nn.Module):
             action_names: List of action names
             action_max_params: List of maximum parameters for each action
             device: Device to place tensors on
+            is_training: Whether the agent is in training mode (True) or evaluation mode (False)
         """
-        self._initialize_observations(features, device)
+        self._initialize_observations(features, device, is_training)
         self.activate_actions(action_names, action_max_params, device)
 
-    def _initialize_observations(self, features: dict[str, dict], device):
+    def _initialize_observations(self, features: dict[str, dict], device, is_training: bool):
         """
         Initialize observation features by storing the feature mapping.
 
         Args:
             features: Dictionary mapping feature names to their properties
             device: Device to place tensors on
+            is_training: Whether the agent is in training mode
         """
         self.active_features = features
         self.device = device
+        self.is_training = is_training
 
         # Create feature_id to feature_name mapping for quick lookup
         self.feature_id_to_name = {props["id"]: name for name, props in features.items()}
@@ -232,12 +245,19 @@ class MettaAgent(nn.Module):
                     remapped_count += 1
                     logger.info(f"Remapping feature '{name}': {new_id} -> {original_id}")
             else:
-                # This is a new feature not seen during training
-                self.feature_id_remap[new_id] = UNKNOWN_FEATURE_ID
-                unknown_features.append(name)
-                logger.info(
-                    f"Mapping unknown feature '{name}' (id={new_id}) to UNKNOWN_FEATURE_ID={UNKNOWN_FEATURE_ID}"
-                )
+                # This is a new feature not seen before
+                if not self.is_training:
+                    # In evaluation mode, map unknown features to the unknown token
+                    self.feature_id_remap[new_id] = UNKNOWN_FEATURE_ID
+                    unknown_features.append(name)
+                    logger.info(
+                        f"Evaluation mode: Mapping unknown feature '{name}' (id={new_id}) to UNKNOWN_FEATURE_ID={UNKNOWN_FEATURE_ID}"
+                    )
+                else:
+                    # In training mode, allow the model to learn new features
+                    # Update original mapping to include this new feature
+                    self.original_feature_mapping[name] = new_id
+                    logger.info(f"Training mode: Adding new feature '{name}' with id={new_id} to original mapping")
 
         if remapped_count > 0 or unknown_features:
             logger.info(

@@ -133,7 +133,8 @@ class Simulation:
         if hasattr(policy, "initialize_to_environment"):
             # New interface: pass features and actions
             features = metta_grid_env.get_observation_features()
-            policy.initialize_to_environment(features, action_names, max_args, self._device)
+            # Simulations are generally used for evaluation, not training
+            policy.initialize_to_environment(features, action_names, max_args, self._device, is_training=False)
         elif hasattr(policy, "activate_actions"):
             # Old interface: just pass actions
             policy.activate_actions(action_names, max_args, self._device)
@@ -147,7 +148,8 @@ class Simulation:
             npc_policy = self._npc_pr.policy()
             if hasattr(npc_policy, "initialize_to_environment"):
                 features = metta_grid_env.get_observation_features()
-                npc_policy.initialize_to_environment(features, action_names, max_args, self._device)
+                # NPC policies are used during evaluation
+                npc_policy.initialize_to_environment(features, action_names, max_args, self._device, is_training=False)
             elif hasattr(npc_policy, "activate_actions"):
                 npc_policy.activate_actions(action_names, max_args, self._device)
             else:

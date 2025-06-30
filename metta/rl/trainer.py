@@ -167,7 +167,9 @@ class MettaTrainer:
             loaded_policy = policy_record.policy()
             if hasattr(loaded_policy, "initialize_to_environment"):
                 features = metta_grid_env.get_observation_features()
-                loaded_policy.initialize_to_environment(features, actions_names, actions_max_params, self.device)
+                loaded_policy.initialize_to_environment(
+                    features, actions_names, actions_max_params, self.device, is_training=True
+                )
             else:
                 loaded_policy.activate_actions(actions_names, actions_max_params, self.device)
 
@@ -175,7 +177,9 @@ class MettaTrainer:
             fresh_policy = fresh_policy_record.policy()
             if hasattr(fresh_policy, "initialize_to_environment"):
                 features = metta_grid_env.get_observation_features()
-                fresh_policy.initialize_to_environment(features, actions_names, actions_max_params, self.device)
+                fresh_policy.initialize_to_environment(
+                    features, actions_names, actions_max_params, self.device, is_training=True
+                )
             else:
                 fresh_policy.activate_actions(actions_names, actions_max_params, self.device)
             fresh_policy.load_state_dict(loaded_policy.state_dict(), strict=False)
