@@ -13,6 +13,7 @@ from fastapi.staticfiles import StaticFiles
 from omegaconf import DictConfig
 
 import mettascope.replays as replays
+from metta.common.util.script_decorators import metta_script
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -245,6 +246,7 @@ def run(cfg: DictConfig, open_url: str | None = None):
 
 
 @hydra.main(version_base=None, config_path="../configs", config_name="replay_job")
+@metta_script
 def main(cfg):
     run(cfg)
 
