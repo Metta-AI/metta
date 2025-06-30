@@ -19,7 +19,7 @@ def map_or_env_configs() -> list[MettagridCfgFileMetadata]:
         "multiagent/multiagent",
         # "memory/evals",
         "mettagrid.yaml",
-        # usually incomlpete
+        # usually incomplete
         "defaults",
         # have unset params
         "game/map_builder/load.yaml",
