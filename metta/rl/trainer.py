@@ -516,7 +516,7 @@ class MettaTrainer:
         # Initial importance sampling ratio is all ones
         initial_importance_sampling_ratio = torch.ones_like(experience.values)
 
-        advantages = self._compute_advantage(
+        advantages = compute_advantage(
             experience.values,
             experience.rewards,
             experience.dones,
@@ -526,6 +526,7 @@ class MettaTrainer:
             trainer_cfg.gae_lambda,
             vtrace_cfg.vtrace_rho_clip,
             vtrace_cfg.vtrace_c_clip,
+            self.device,
         )
 
         # Optimizing the policy and value network
@@ -559,7 +560,7 @@ class MettaTrainer:
                     clipfrac = ((importance_sampling_ratio - 1.0).abs() > trainer_cfg.clip_coef).float().mean()
 
                 # Re-compute advantages with new ratios (V-trace)
-                adv = self._compute_advantage(
+                adv = compute_advantage(
                     minibatch["values"],
                     minibatch["rewards"],
                     minibatch["dones"],
@@ -569,10 +570,11 @@ class MettaTrainer:
                     trainer_cfg.gae_lambda,
                     vtrace_cfg.vtrace_rho_clip,
                     vtrace_cfg.vtrace_c_clip,
+                    self.device,
                 )
 
                 # Normalize advantages with distributed support, then apply prioritized weights
-                adv = self._normalize_advantage_distributed(adv)
+                adv = normalize_advantage_distributed(adv, trainer_cfg.norm_adv)
                 adv = minibatch["prio_weights"] * adv
 
                 # Policy loss
@@ -1012,35 +1014,40 @@ class MettaTrainer:
         self.stats.clear()
         self.grad_stats.clear()
 
-    def _compute_advantage(
-        self,
-        values,
-        rewards,
-        dones,
-        importance_sampling_ratio,
-        advantages,
-        gamma,
-        gae_lambda,
-        vtrace_rho_clip,
-        vtrace_c_clip,
-    ):
-        """CUDA kernel for puffer advantage with automatic CPU fallback."""
-        return compute_advantage(
-            values,
-            rewards,
-            dones,
-            importance_sampling_ratio,
-            advantages,
-            gamma,
-            gae_lambda,
-            vtrace_rho_clip,
-            vtrace_c_clip,
-            self.device,
-        )
+    def _maybe_compute_grad_stats(self, force=False):
+        """Compute and store gradient statistics if on interval."""
+        interval = self.trainer_cfg.grad_mean_variance_interval
+        if not self._should_run(interval, force):
+            return
 
-    def _normalize_advantage_distributed(self, adv: torch.Tensor) -> torch.Tensor:
-        """Normalize advantages with distributed training support while preserving shape."""
-        return normalize_advantage_distributed(adv, self.trainer_cfg.norm_adv)
+        with self.timer("grad_stats"):
+            all_gradients = []
+            for param in self.policy.parameters():
+                if param.grad is not None:
+                    all_gradients.append(param.grad.view(-1))
+
+            if not all_gradients:
+                logger.warning("No gradients found to compute stats.")
+                self.grad_stats = {}
+                return
+
+            all_gradients_tensor = torch.cat(all_gradients).to(torch.float32)
+
+            grad_mean = all_gradients_tensor.mean()
+            grad_variance = all_gradients_tensor.var()
+            grad_norm = all_gradients_tensor.norm(2)
+
+            self.grad_stats = {
+                "grad/mean": grad_mean.item(),
+                "grad/variance": grad_variance.item(),
+                "grad/norm": grad_norm.item(),
+            }
+            logger.info(
+                f"Computed gradient stats at epoch {self.epoch}: "
+                f"mean={self.grad_stats['grad/mean']:.2e}, "
+                f"var={self.grad_stats['grad/variance']:.2e}, "
+                f"norm={self.grad_stats['grad/norm']:.2e}"
+            )
 
     def close(self):
         self.vecenv.close()
@@ -1210,41 +1217,6 @@ class MettaTrainer:
             time.sleep(5)
 
         raise RuntimeError(f"Timeout: Master failed to create policy at {policy_path}")
-
-    def _maybe_compute_grad_stats(self, force=False):
-        """Compute and store gradient statistics if on interval."""
-        interval = self.trainer_cfg.grad_mean_variance_interval
-        if not self._should_run(interval, force):
-            return
-
-        with self.timer("grad_stats"):
-            all_gradients = []
-            for param in self.policy.parameters():
-                if param.grad is not None:
-                    all_gradients.append(param.grad.view(-1))
-
-            if not all_gradients:
-                logger.warning("No gradients found to compute stats.")
-                self.grad_stats = {}
-                return
-
-            all_gradients_tensor = torch.cat(all_gradients).to(torch.float32)
-
-            grad_mean = all_gradients_tensor.mean()
-            grad_variance = all_gradients_tensor.var()
-            grad_norm = all_gradients_tensor.norm(2)
-
-            self.grad_stats = {
-                "grad/mean": grad_mean.item(),
-                "grad/variance": grad_variance.item(),
-                "grad/norm": grad_norm.item(),
-            }
-            logger.info(
-                f"Computed gradient stats at epoch {self.epoch}: "
-                f"mean={self.grad_stats['grad/mean']:.2e}, "
-                f"var={self.grad_stats['grad/variance']:.2e}, "
-                f"norm={self.grad_stats['grad/norm']:.2e}"
-            )
 
 
 class AbortingTrainer(MettaTrainer):
