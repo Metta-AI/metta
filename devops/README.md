@@ -8,8 +8,8 @@ To set up your development environment:
 
 ```bash
 # From the metta root directory
-./metta.sh setup    # Run interactive setup wizard
-./metta.sh install  # Install selected components
+./metta.sh configure
+./metta.sh install
 ```
 
 The setup wizard will:
