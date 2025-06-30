@@ -2,10 +2,7 @@ import importlib
 import textwrap
 from pathlib import Path
 
-from colorama import Fore, Style, init
-
-# Initialize colorama
-init(autoreset=True)
+from metta.common.util.colorama import Fore, blue, bold, colorize, cyan, green, red, yellow
 
 
 def _format_message(message: str) -> str:
@@ -14,27 +11,27 @@ def _format_message(message: str) -> str:
 
 
 def success(message: str, **kwargs) -> None:
-    print(f"{Fore.GREEN}{_format_message(message)}{Style.RESET_ALL}", **kwargs)
+    print(green(_format_message(message)), **kwargs)
 
 
 def info(message: str, **kwargs) -> None:
-    print(f"{Fore.BLUE}{_format_message(message)}{Style.RESET_ALL}", **kwargs)
+    print(blue(_format_message(message)), **kwargs)
 
 
 def warning(message: str, **kwargs) -> None:
-    print(f"{Fore.YELLOW}{_format_message(message)}{Style.RESET_ALL}", **kwargs)
+    print(yellow(_format_message(message)), **kwargs)
 
 
 def error(message: str, **kwargs) -> None:
-    print(f"{Fore.RED}{_format_message(message)}{Style.RESET_ALL}", **kwargs)
+    print(red(_format_message(message)), **kwargs)
 
 
 def header(message: str) -> None:
-    print(f"\n{Fore.CYAN}{Style.BRIGHT}{_format_message(message)}{Style.RESET_ALL}")
+    print(f"\n{bold(cyan(_format_message(message)))}")
 
 
 def step(message: str) -> None:
-    print(f"{Fore.WHITE}{_format_message(message)}{Style.RESET_ALL}")
+    print(colorize(_format_message(message), Fore.WHITE))
 
 
 def import_all_modules_from_subpackage(package_name: str, subpackage: str) -> None:
@@ -60,7 +57,6 @@ def import_all_modules_from_subpackage(package_name: str, subpackage: str) -> No
         if module_file.stem != "__init__" and not module_file.stem.startswith("_"):
             module_name = f"{package_name}.{subpackage}.{module_file.stem}"
             try:
-                importlib.import_module(module_name)
+                _ = importlib.import_module(module_name)
             except ImportError:
-                # Silently skip modules that can't be imported
                 pass
