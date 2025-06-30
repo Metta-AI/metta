@@ -100,55 +100,29 @@ This README provides only a brief overview of research explorations. Visit the [
 
 ## Installation
 
-### 1. Install uv
+### Quick Start
 
-First, install uv (a fast Python package installer and resolver):
-
-```bash
-curl -LsSf https://astral.sh/uv/install.sh | sh
-```
-
-After git updates, run `uv sync` to reinstall all necessary dependencies.
-
-### 2. Install system dependencies
-
-Choose the appropriate setup method for your platform:
-
-**macOS:**
-```bash
-./devops/macos/setup_machine.py
-```
-
-**Other platforms or manual setup:**
-Install the packages listed in `devops/macos/Brewfile`.
-
-### 3. Configure the development environment
+Clone the repository and run the setup:
 
 ```bash
-./devops/setup_dev.sh
+git clone https://github.com/Metta-AI/metta.git
+cd metta
+./metta.sh configure  # Interactive setup wizard
+./metta.sh install    # Install configured components
 ```
 
-This script will:
-- Install Python dependencies with `uv sync`
-- Set up MettaScope (visualization tools)
-- Configure AWS access profiles
-- Install Skypilot (cloud compute management)
-
-
-**Note:** Some setup scripts may fail if you're not on the Metta dev team and don't have permissions for certain cloud resources. This shouldn't prevent most forms of local development, but if it causes you to be blocked, please contact us or raise a Github Issue.
+For more information on setup options and managing components, run `./metta.sh --help` or see the [setup documentation](devops/setup/README.md).
 
 
 ## Usage
 
-The repository contains command-line through `tools/*.py` scripts. Most of these tools use [Hydra](https://hydra.cc/) for configuration management, which allows flexible parameter overrides and composition.
-
+The repository contains command-line tools in the `tools/` directory. Most of these tools use [Hydra](https://hydra.cc/) for configuration management, which allows flexible parameter overrides and composition.
 
 - **Override parameters**: `param=value` sets configuration values directly
 - **Compose configs**: `+group=option` loads additional configuration files from `configs/group/option.yaml`
 - **Use config groups**: Load user-specific settings with `+user=<name>` from `configs/user/<name>.yaml`
 
 ### Training a Model
-
 
 ```bash
 ./tools/train.py run=my_experiment +hardware=macbook wandb=off +user=<name>
@@ -188,9 +162,6 @@ Now you can run training with your personal WandB config:
 Mettascope allows you to run and view episodes in the environment you specify. It goes beyond just spectator mode, and allows taking over an agent and controlling it manually.
 
 For more information, see [./mettascope/README.md](./mettascope/README.md).
-
-#### Requirements
-Ensure you have run `./mettascope/install.sh` (also covered by `./devops/setup_dev.sh`).
 
 #### Run the interactive simulation
 

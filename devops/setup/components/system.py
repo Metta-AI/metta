@@ -1,0 +1,137 @@
+import platform
+import subprocess
+import sys
+from pathlib import Path
+
+from devops.setup.components.base import SetupModule
+from devops.setup.config import UserType
+from devops.setup.registry import register_module
+from devops.setup.utils import error, info, success, warning
+
+
+@register_module
+class SystemSetup(SetupModule):
+    @property
+    def description(self) -> str:
+        return "System dependencies (Homebrew packages, etc.)"
+
+    def is_applicable(self) -> bool:
+        return self.config.is_component_enabled("system")
+
+    def check_installed(self) -> bool:
+        if platform.system() != "Darwin":
+            # NOTE: need to implement this at some point
+            return True
+
+        brew_path = self._find_brew_path()
+        if not brew_path:
+            return False
+
+        brewfile_path = self.repo_root / "devops" / "macos" / "Brewfile"
+        if not brewfile_path.exists():
+            return False
+
+        try:
+            result = subprocess.run(
+                [brew_path, "bundle", "check", "--file", str(brewfile_path)], capture_output=True, text=True
+            )
+
+            if result.returncode != 0:
+                return False
+
+            if self.config.user_type == UserType.SOFTMAX_DEVOPS:
+                devops_brewfile = self.repo_root / "devops" / "macos" / "Brewfile.softmax_devops"
+                if devops_brewfile.exists():
+                    devops_result = subprocess.run(
+                        [brew_path, "bundle", "check", "--file", str(devops_brewfile)], capture_output=True, text=True
+                    )
+                    return devops_result.returncode == 0
+
+            return True
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            return False
+
+    def install(self) -> None:
+        info("Setting up system dependencies...")
+
+        if platform.system() == "Darwin":
+            self._install_macos()
+        else:
+            # NOTE: need to implement this at some point
+            info("""
+                You will need to manage package installation manually.
+                See devops/macos/Brewfile for the full list of recommended packages.
+
+                If you are on a mettabox, you can run `./devops/mettabox/setup_machine.sh`.
+            """)
+
+    def _install_macos(self) -> None:
+        brew_path = self._find_brew_path()
+        if not brew_path:
+            self._install_homebrew()
+            brew_path = self._find_brew_path()
+
+        self._run_brew_bundle("Brewfile")
+
+        if self.config.user_type == UserType.SOFTMAX_DEVOPS:
+            info("\nInstalling additional devops tools...")
+            self._run_brew_bundle("Brewfile.softmax_devops")
+
+        success("System dependencies installed")
+
+    def _install_homebrew(self) -> None:
+        info("Installing Homebrew...")
+        try:
+            result = subprocess.run(
+                ["curl", "-fsSL", "https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh"],
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+
+            subprocess.run(["/bin/bash", "-c", result.stdout], check=True)
+            success("Homebrew installed successfully")
+        except subprocess.CalledProcessError as e:
+            error(f"Error installing Homebrew: {e}")
+            sys.exit(1)
+
+    def _run_brew_bundle(self, brewfile_name: str, force: bool = False, no_fail: bool = False) -> None:
+        brewfile_path = self.repo_root / "devops" / "macos" / brewfile_name
+        if not brewfile_path.exists():
+            warning(f"{brewfile_name} not found at {brewfile_path}")
+            return
+
+        info(f"Installing packages from {brewfile_name}...")
+        command = ["brew", "bundle", "--file", str(brewfile_path)]
+
+        if force:
+            command.append("--force")
+        if no_fail:
+            command.append("--no-upgrade")
+
+        try:
+            # Run with output visible to user
+            subprocess.run(command, check=True)
+        except subprocess.CalledProcessError:
+            if not force and not no_fail:
+                warning("""
+
+                    Some packages are already installed but not managed by Homebrew.
+                    This is common and usually not a problem. You have a few options:
+
+                    1. Continue anyway (recommended) - The setup will skip already installed packages
+                    2. Force Homebrew to manage them - Run with --brew-force flag
+                    3. Skip conflicting packages - Run with --brew-no-fail flag
+
+                    For now, we'll continue with the installation...
+                """)
+
+                # Retry with no-upgrade to skip already installed packages
+                self._run_brew_bundle(brewfile_name, no_fail=True)
+
+    def _find_brew_path(self) -> str | None:
+        """Find the Homebrew executable path."""
+        for path in ["/opt/homebrew/bin/brew", "/usr/local/bin/brew"]:
+            if Path(path).exists():
+                return path
+        return None

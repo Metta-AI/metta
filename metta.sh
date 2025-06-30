@@ -1,0 +1,1 @@
+./devops/setup/metta.sh
