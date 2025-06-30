@@ -56,12 +56,11 @@ class PolicyRecord:
         """Load and return the policy, using cache if available."""
         if self._cached_policy is None:
             if self._policy_store is None:
-                # If no policy store, try to load directly (for packaged policies)
-                path = self.file_path
-                if path is not None:
-                    self._cached_policy = self.load_from_file(path)
-                else:
-                    raise ValueError("Cannot load policy without policy_store or a file:// local path uri")
+                # Standalone loading is not supported
+                raise ValueError(
+                    "Cannot load policy without a PolicyStore. "
+                    "PolicyRecord must be created through PolicyStore for loading functionality."
+                )
             else:
                 pr = self._policy_store.load_from_uri(self.uri)
                 # FIX: Access _cached_policy directly to avoid recursion
@@ -94,17 +93,6 @@ class PolicyRecord:
     def num_params(self) -> int:
         """Count the number of trainable parameters."""
         return sum(p.numel() for p in self.policy.parameters() if p.requires_grad)
-
-    def load_from_file(self, path: str, device: str = "cpu") -> nn.Module:
-        """Load a policy from a file using standard torch.load."""
-        logger.info(f"Loading policy from {path}")
-
-        # This method is only called when policy_store is None (standalone loading)
-        # In that case, we can't reconstruct from state_dict, so we need the full model
-        raise NotImplementedError(
-            "PolicyRecord.load_from_file is not implemented for state_dict only checkpoints. "
-            "Loading should go through PolicyStore._load_from_file instead."
-        )
 
     def save_to_file(self, path: Optional[str] = None, packaging_rules_callback=None) -> "PolicyRecord":
         """Save a policy and its metadata using standard torch.save.
