@@ -15,6 +15,16 @@
 		"ruff.enable": true,
 		"ruff.nativeServer": "on",
 		"files.excludeGitIgnored": true,
+		"[python]": {
+			"editor.formatOnSave": true,
+			"editor.codeActionsOnSave": {
+				"source.fixAll.ruff": "explicit",
+				"source.organizeImports.ruff": "explicit"
+			},
+			"editor.defaultFormatter": "charliermarsh.ruff"
+		},
+		"ruff.organizeImports": true,
+		"ruff.fixAll": true,
 		"terminal.integrated.profiles.osx": {
 			"metta-0": {
 				"path": "bash",
