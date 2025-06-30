@@ -12,8 +12,7 @@ policy_uri: pytorch://checkpoints/metta_6-8/metta_6-8.pt
 npc_policy_uri: null
 
 pytorch:
- _target_: metta.agent.external.example.Recurrent
+ _target_: metta.agent.external.torch.Recurrent
  hidden_size: 512
- cnn_channels: 128
 
 trained_policy_uri: pytorch://checkpoints/metta_6-8/metta_6-8.pt

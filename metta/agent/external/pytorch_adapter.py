@@ -13,6 +13,7 @@ Key features:
 - Provides method forwarding for MettaAgent compatibility
 """
 
+import importlib
 import logging
 from types import SimpleNamespace
 
@@ -25,6 +26,61 @@ from torch import nn
 from metta.agent.policy_state import PolicyState
 
 logger = logging.getLogger("pytorch_adapter")
+
+
+def create_external_policy(target_str: str, env, hidden_size: int, pytorch_cfg: DictConfig = None):
+    """Helper function to create external policies with proper initialization.
+
+    This handles the case where external policies like torch.Recurrent require
+    both a Policy and Recurrent wrapper to be created together.
+
+    Args:
+        target_str: The target string (e.g., 'metta.agent.external.torch.Recurrent')
+        env: Environment namespace with action/observation space info
+        hidden_size: Hidden size for the policy
+        pytorch_cfg: Full configuration dict for the policy
+
+    Returns:
+        Initialized policy ready to load weights
+    """
+    # Parse the module and class name
+    module_path, class_name = target_str.rsplit(".", 1)
+    module = importlib.import_module(module_path)
+
+    # Check if this module has both Policy and Recurrent classes
+    if hasattr(module, "Policy") and hasattr(module, "Recurrent") and class_name == "Recurrent":
+        # This is a PufferLib-style policy that needs both classes initialized
+        Policy = module.Policy
+        Recurrent = module.Recurrent
+
+        # Extract relevant kwargs from config
+        kwargs = {}
+        if pytorch_cfg:
+            # Get all config params except _target_
+            for key, value in pytorch_cfg.items():
+                if key != "_target_" and key != "env" and key != "policy":
+                    kwargs[key] = value
+
+        # Ensure hidden_size is set
+        if "hidden_size" not in kwargs:
+            kwargs["hidden_size"] = hidden_size
+
+        # Create the base policy first
+        base_policy = Policy(env, **kwargs)
+
+        # Create the recurrent wrapper with the base policy
+        input_size = kwargs.get("input_size", kwargs["hidden_size"])
+        policy = Recurrent(env, policy=base_policy, input_size=input_size, hidden_size=kwargs["hidden_size"])
+
+        return policy
+    else:
+        # For other policies, use standard instantiation
+        if pytorch_cfg:
+            return instantiate(pytorch_cfg, env=env)
+        else:
+            # Fallback to direct class instantiation
+            PolicyClass = getattr(module, class_name)
+            return PolicyClass(env, hidden_size=hidden_size)
 
 
 def load_pytorch_policy(path: str, device: str = "cpu", pytorch_cfg: DictConfig = None):
@@ -60,8 +116,8 @@ def load_pytorch_policy(path: str, device: str = "cpu", pytorch_cfg: DictConfig 
 
     # Instantiate the external policy if config provided, otherwise auto-detect
     if pytorch_cfg and hasattr(pytorch_cfg, "_target_"):
-        # Pass policy=None and let the Recurrent class create the policy
-        policy = instantiate(pytorch_cfg, env=env, policy=None)
+        # Use helper to create policy with proper initialization
+        policy = create_external_policy(pytorch_cfg._target_, env, hidden_size, pytorch_cfg)
     else:
         # Auto-detect the model type from checkpoint keys
         if "lstm.weight_ih_l0" in weights or "cell.weight_ih" in weights:
