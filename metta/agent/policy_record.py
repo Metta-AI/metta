@@ -173,14 +173,18 @@ class PolicyRecord:
                 serializable_attrs["action_names"] = self.policy.action_names
                 serializable_attrs["action_max_params"] = self.policy.action_max_params
 
+            # Insert architecture attributes into metadata and sanitize
+            # This keeps everything in the PolicyMetadata object
+            metadata_dict = dict(self.metadata)
+            metadata_dict["agent_attributes"] = serializable_attrs
+            policy_metadata = PolicyMetadata(**metadata_dict)
+
             # Create checkpoint dictionary with state dict and metadata only
             checkpoint = {
                 "model_state_dict": self.policy.state_dict(),
-                "metadata": self.metadata.sanitized(),
+                "policy_metadata": policy_metadata.sanitized(),
                 "name": self.name,
                 "uri": f"file://{path}",
-                # Include architecture information for reconstruction
-                "agent_attributes": serializable_attrs,
                 # Simple version tag
                 "checkpoint_version": "1.0",
             }

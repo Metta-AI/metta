@@ -373,14 +373,22 @@ class PolicyStore:
 
             # Handle checkpoint with state dict
             if isinstance(checkpoint, dict) and "model_state_dict" in checkpoint:
-                metadata = PolicyMetadata(**checkpoint["metadata"])
+                # Support both old and new metadata keys for backward compatibility
+                metadata_dict = checkpoint.get("policy_metadata") or checkpoint.get("metadata")
+                if metadata_dict is None:
+                    raise ValueError("Checkpoint missing both 'policy_metadata' and 'metadata' keys")
+                metadata = PolicyMetadata(**metadata_dict)
                 pr = PolicyRecord(self, checkpoint["name"], checkpoint["uri"], metadata)
 
                 if not metadata_only:
                     # Reconstruct environment from agent_attributes
                     from types import SimpleNamespace
 
-                    agent_attrs = checkpoint.get("agent_attributes", {})
+                    # Extract agent_attributes from metadata if present (new format)
+                    # or from checkpoint directly (old format)
+                    agent_attrs = metadata.get("agent_attributes", {})
+                    if not agent_attrs:
+                        agent_attrs = checkpoint.get("agent_attributes", {})
                     obs_shape = agent_attrs.get("obs_shape", [34, 11, 11])
 
                     # Create minimal environment for policy creation

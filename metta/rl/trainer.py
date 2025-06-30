@@ -111,12 +111,7 @@ class MettaTrainer:
 
         if self._master:
             self._memory_monitor = MemoryMonitor()
-            self._system_monitor = SystemMonitor(
-                sampling_interval_sec=1.0,  # Sample every second
-                history_size=100,  # Keep last 100 samples
-                logger=logger,
-                auto_start=True,  # Start monitoring immediately
-            )
+            self._system_monitor = SystemMonitor(logger=logger)
 
         curriculum_config = trainer_cfg.curriculum_or_env
         env_overrides = DictConfig(trainer_cfg.env_overrides)
@@ -152,7 +147,7 @@ class MettaTrainer:
             logging.info(f"LOADED {policy_record.uri}")
             self.latest_saved_policy_record = policy_record
             self.initial_policy_record = policy_record
-                        self.policy = policy_record.policy
+            self.policy = policy_record.policy
             self.policy.activate_actions(actions_names, actions_max_params, self.device)
         else:
             # In distributed mode, handle policy creation/loading differently
@@ -387,6 +382,13 @@ class MettaTrainer:
                 # Use pre-moved tensor
                 actions, selected_action_log_probs, _, value, _ = policy(o, state)
 
+                if __debug__:
+                    # Check for NaN/Inf values in outputs
+                    if torch.isnan(actions).any() or torch.isinf(actions).any():
+                        logger.error("NaN or Inf detected in actions!")
+                    if torch.isnan(value).any() or torch.isinf(value).any():
+                        logger.error("NaN or Inf detected in values!")
+
                 # Store LSTM state for performance
                 lstm_state_to_store = None
                 if state.lstm_h is not None:
@@ -412,6 +414,12 @@ class MettaTrainer:
                 lstm_state=lstm_state_to_store,
             )
 
+            # At this point, infos contains lists of values collected across:
+            # 1. All agents in the environment
+            # 2. All rollout steps
+            # Each info is a dict mapping metric names to values.
+            # We need to flatten these into arrays for aggregation.
+            # This happens later, after the rollout is complete (see below).
             if info:
                 raw_infos.extend(info)
 
@@ -1068,18 +1076,21 @@ class MettaTrainer:
 
     @property
     def latest_saved_policy_uri(self) -> str | None:
+        """Get the URI of the latest saved policy, if any."""
         if self.latest_saved_policy_record is None:
             return None
         return self.latest_saved_policy_record.uri
 
     @property
     def initial_policy_uri(self) -> str | None:
+        """Get the URI of the initial policy used to start training."""
         if self.initial_policy_record is None:
             return None
         return self.initial_policy_record.uri
 
     @property
     def current_policy_generation(self) -> int:
+        """Get the current generation number of the policy."""
         if self.initial_policy_record is None:
             return 0
         return self.initial_policy_record.metadata.get("generation", 0) + 1
