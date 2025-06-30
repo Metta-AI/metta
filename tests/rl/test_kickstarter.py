@@ -12,7 +12,7 @@ import pytest
 import torch
 
 from metta.agent.policy_state import PolicyState
-from metta.rl.kickstarter import Kickstarter
+from metta.rl.kickstarter import Kickstarter, KickstartTeacherConfig
 
 
 class TestKickstarter:
@@ -22,15 +22,13 @@ class TestKickstarter:
     def mock_config(self):
         """Create a mock configuration for testing."""
         cfg = MagicMock()
-        cfg.device = "cpu"
-        cfg.trainer.kickstart.additional_teachers = None
-        cfg.trainer.kickstart.anneal_ratio = 0.2
-        cfg.trainer.kickstart.teacher_uri = None
-        cfg.trainer.compile = False
-        cfg.trainer.compile_mode = "default"
-        cfg.trainer.kickstart.kickstart_steps = 1000
-        cfg.trainer.kickstart.action_loss_coef = 0.5
-        cfg.trainer.kickstart.value_loss_coef = 0.5
+        cfg.additional_teachers = None
+        cfg.anneal_ratio = 0.2
+        cfg.teacher_uri = None
+        cfg.kickstart_steps = 1000
+        cfg.action_loss_coef = 0.5
+        cfg.value_loss_coef = 0.5
+
         return cfg
 
     @pytest.fixture
@@ -43,7 +41,7 @@ class TestKickstarter:
         action_names = ["move", "attack"]
         action_max_params = [4, 2]
 
-        kickstarter = Kickstarter(mock_config, mock_policy_store, action_names, action_max_params)
+        kickstarter = Kickstarter(mock_config, "cpu", mock_policy_store, action_names, action_max_params)
 
         assert kickstarter.enabled is False
         assert kickstarter.anneal_ratio == 0.2
@@ -51,41 +49,41 @@ class TestKickstarter:
 
     def test_initialization_with_teacher_uri(self, mock_config, mock_policy_store):
         """Test initialization when a teacher URI is provided."""
-        mock_config.trainer.kickstart.teacher_uri = "wandb://teacher/uri"
+        mock_config.teacher_uri = "wandb://teacher/uri"
         action_names = ["move", "attack"]
         action_max_params = [4, 2]
 
-        kickstarter = Kickstarter(mock_config, mock_policy_store, action_names, action_max_params)
+        kickstarter = Kickstarter(mock_config, "cpu", mock_policy_store, action_names, action_max_params)
 
         assert kickstarter.enabled is True
         assert len(kickstarter.teacher_cfgs) == 1
-        assert kickstarter.teacher_cfgs[0]["teacher_uri"] == "wandb://teacher/uri"
-        assert kickstarter.teacher_cfgs[0]["action_loss_coef"] == 0.5
-        assert kickstarter.teacher_cfgs[0]["value_loss_coef"] == 0.5
+        assert kickstarter.teacher_cfgs[0].teacher_uri == "wandb://teacher/uri"
+        assert kickstarter.teacher_cfgs[0].action_loss_coef == 0.5
+        assert kickstarter.teacher_cfgs[0].value_loss_coef == 0.5
 
     def test_initialization_with_additional_teachers(self, mock_config, mock_policy_store):
         """Test initialization when additional teachers are provided."""
-        mock_config.trainer.kickstart.additional_teachers = [
-            {"teacher_uri": "wandb://teacher1/uri", "action_loss_coef": 0.3, "value_loss_coef": 0.7},
-            {"teacher_uri": "wandb://teacher2/uri", "action_loss_coef": 0.6, "value_loss_coef": 0.4},
+        mock_config.additional_teachers = [
+            KickstartTeacherConfig(teacher_uri="wandb://teacher1/uri", action_loss_coef=0.3, value_loss_coef=0.7),
+            KickstartTeacherConfig(teacher_uri="wandb://teacher2/uri", action_loss_coef=0.6, value_loss_coef=0.4),
         ]
         action_names = ["move", "attack"]
         action_max_params = [4, 2]
 
-        kickstarter = Kickstarter(mock_config, mock_policy_store, action_names, action_max_params)
+        kickstarter = Kickstarter(mock_config, "cpu", mock_policy_store, action_names, action_max_params)
 
         assert kickstarter.enabled is True
         assert len(kickstarter.teacher_cfgs) == 2
-        assert kickstarter.teacher_cfgs[0]["teacher_uri"] == "wandb://teacher1/uri"
-        assert kickstarter.teacher_cfgs[1]["teacher_uri"] == "wandb://teacher2/uri"
+        assert kickstarter.teacher_cfgs[0].teacher_uri == "wandb://teacher1/uri"
+        assert kickstarter.teacher_cfgs[1].teacher_uri == "wandb://teacher2/uri"
 
     def test_anneal_factor_calculation(self, mock_config, mock_policy_store):
         """Test the calculation of the anneal factor."""
-        mock_config.trainer.kickstart.teacher_uri = "wandb://teacher/uri"
+        mock_config.teacher_uri = "wandb://teacher/uri"
         action_names = ["move", "attack"]
         action_max_params = [4, 2]
 
-        kickstarter = Kickstarter(mock_config, mock_policy_store, action_names, action_max_params)
+        kickstarter = Kickstarter(mock_config, "cpu", mock_policy_store, action_names, action_max_params)
 
         # Initial anneal factor should be 1.0
         assert kickstarter.anneal_factor == 1.0
@@ -103,11 +101,11 @@ class TestKickstarter:
     @patch("metta.rl.kickstarter.Kickstarter._load_policies")
     def test_loss_disabled(self, mock_load_policies, mock_config, mock_policy_store):
         """Test the loss method when kickstarting is disabled."""
-        mock_config.trainer.kickstart.teacher_uri = None
+        mock_config.teacher_uri = None
         action_names = ["move", "attack"]
         action_max_params = [4, 2]
 
-        kickstarter = Kickstarter(mock_config, mock_policy_store, action_names, action_max_params)
+        kickstarter = Kickstarter(mock_config, "cpu", mock_policy_store, action_names, action_max_params)
         kickstarter.enabled = False
 
         # Create test tensors
@@ -128,11 +126,11 @@ class TestKickstarter:
     @patch("metta.rl.kickstarter.Kickstarter._load_policies")
     def test_loss_after_kickstart_steps(self, mock_load_policies, mock_config, mock_policy_store):
         """Test the loss method after kickstart steps have been exceeded."""
-        mock_config.trainer.kickstart.teacher_uri = "wandb://teacher/uri"
+        mock_config.teacher_uri = "wandb://teacher/uri"
         action_names = ["move", "attack"]
         action_max_params = [4, 2]
 
-        kickstarter = Kickstarter(mock_config, mock_policy_store, action_names, action_max_params)
+        kickstarter = Kickstarter(mock_config, "cpu", mock_policy_store, action_names, action_max_params)
         kickstarter.enabled = True
 
         # Create test tensors
@@ -154,11 +152,11 @@ class TestKickstarter:
     @patch("metta.rl.kickstarter.Kickstarter._load_policies")
     def test_loss_with_annealing(self, mock_load_policies, mock_forward, mock_config, mock_policy_store):
         """Test the loss method with annealing."""
-        mock_config.trainer.kickstart.teacher_uri = "wandb://teacher/uri"
+        mock_config.teacher_uri = "wandb://teacher/uri"
         action_names = ["move", "attack"]
         action_max_params = [4, 2]
 
-        kickstarter = Kickstarter(mock_config, mock_policy_store, action_names, action_max_params)
+        kickstarter = Kickstarter(mock_config, "cpu", mock_policy_store, action_names, action_max_params)
         kickstarter.enabled = True
 
         # Mock the teachers list
@@ -202,11 +200,11 @@ class TestKickstarter:
 
     def test_forward_method(self, mock_config, mock_policy_store):
         """Test the _forward method."""
-        mock_config.trainer.kickstart.teacher_uri = "wandb://teacher/uri"
+        mock_config.teacher_uri = "wandb://teacher/uri"
         action_names = ["move", "attack"]
         action_max_params = [4, 2]
 
-        kickstarter = Kickstarter(mock_config, mock_policy_store, action_names, action_max_params)
+        kickstarter = Kickstarter(mock_config, "cpu", mock_policy_store, action_names, action_max_params)
 
         # Create a mock teacher
         mock_teacher = MagicMock()
