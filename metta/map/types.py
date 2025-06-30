@@ -75,7 +75,7 @@ class Area:
 # - a function that takes a MapGrid and returns a Scene instance (useful for children values produced in Python code)
 #
 # See `metta.map.scene.make_scene` implementation for more details.
-SceneCfg = dict | str | Callable[[Area], Any]
+SceneCfg = dict | str | Callable[[Area, np.random.Generator], Any]
 
 
 class AreaWhere(Config):
