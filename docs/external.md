@@ -1,12 +1,14 @@
 # External PyTorch Policies
 
-This directory contains utilities for loading external PyTorch policies (e.g., from PufferLib) into Metta. This allows you to train and evaluate policies that were developed outside of Metta's standard agent architecture.
+This documentation covers utilities for loading external PyTorch policies (e.g., from PufferLib) into Metta. This allows you to train and evaluate policies that were developed outside of Metta's standard agent architecture.
 
-## Directory Contents
+## External Loading Code Location
 
-- `pytorch_adapter.py` - Unified `PytorchAdapter` class that wraps external policies for MettaAgent compatibility
-- `torch.py` - Exact copy of PufferLib's torch.py policy (unmodified) - works perfectly with our adapter
-- `lstm_transformer.py` - Alternative LSTM-Transformer hybrid architecture with Metta-specific enhancements
+The external policy loading implementation is located in `metta/agent/external/`:
+
+- `metta/agent/external/pytorch_adapter.py` - Unified `PytorchAdapter` class that wraps external policies for MettaAgent compatibility
+- `metta/agent/external/torch.py` - Exact copy of PufferLib's torch.py policy (unmodified) - works perfectly with our adapter
+- `metta/agent/external/lstm_transformer.py` - Alternative LSTM-Transformer hybrid architecture with Metta-specific enhancements
 
 ## Overview
 
@@ -51,7 +53,7 @@ Metta supports multiple URI schemes for loading policies:
 
 ## Creating an External Policy
 
-External policies must follow a specific interface to be compatible with Metta. See `torch.py` for a working example. Key requirements:
+External policies must follow a specific interface to be compatible with Metta. See `metta/agent/external/torch.py` for a working example. Key requirements:
 
 ### 1. Policy Structure
 
@@ -99,7 +101,7 @@ pytorch:
 
 ### Using the Adapter System
 
-The `PytorchAdapter` class automatically detects the type of external policy and applies the appropriate conversions:
+The `PytorchAdapter` class (in `metta/agent/external/pytorch_adapter.py`) automatically detects the type of external policy and applies the appropriate conversions:
 
 - For PufferLib LSTMWrapper policies (like `torch.Recurrent`), it handles the LSTM state management and forward_train conversions
 - For standard PyTorch policies, it provides basic interface translation
@@ -172,7 +174,7 @@ Metta uses tokenized observations in the format `[location, feature_id, value]` 
 - **feature_id** (byte 1): The feature type (e.g., wall=0, agent=1, mineral=3)
 - **value** (byte 2): The feature value (e.g., health amount, resource count)
 
-The `torch.py` policy (see the `encode_observations` method) shows how to decode these tokens into the standard grid format expected by CNNs.
+The `torch.py` policy (see the `encode_observations` method in `metta/agent/external/torch.py`) shows how to decode these tokens into the standard grid format expected by CNNs.
 
 ## Advanced Usage
 
@@ -181,7 +183,7 @@ The `torch.py` policy (see the `encode_observations` method) shows how to decode
 To create your own external policy adapter:
 
 1. Create a new file in `metta/agent/external/`
-2. Implement the required interface (see `example.py`)
+2. Implement the required interface (see `metta/agent/external/torch.py` for an example)
 3. Update your config to use your custom policy:
    ```yaml
    pytorch:
@@ -227,7 +229,7 @@ The unmodified PufferLib policies (like `torch.py`) are designed to work with ex
 
 ## How the Adapter Works
 
-The `PytorchAdapter` provides seamless integration between external policies and Metta:
+The `PytorchAdapter` (located in `metta/agent/external/pytorch_adapter.py`) provides seamless integration between external policies and Metta:
 
 1. **PolicyState handling**: Automatically converts between Metta's `PolicyState` object (with `lstm_h`, `lstm_c` attributes) and PufferLib's dict format `{'lstm_h': tensor, 'lstm_c': tensor}`
 2. **Smart method selection**: Chooses between `forward_eval` (for inference) and `forward` (for training) based on context
