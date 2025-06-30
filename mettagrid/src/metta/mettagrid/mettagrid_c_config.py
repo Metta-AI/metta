@@ -18,6 +18,15 @@ class ActionConfig_cpp(BaseModelWithForbidExtra):
     enabled: bool
 
 
+class AttackActionConfig_cpp(ActionConfig_cpp):
+    """Attack action configuration."""
+
+    attack_resources: Dict[FeatureId, int]
+    # Note: if there are no defense resources, the attack will always succeed.
+    # Otherwise, you need to have enough defense resources to block the attack.
+    defense_resources: Dict[FeatureId, int]
+
+
 class ActionsConfig_cpp(BaseModelWithForbidExtra):
     """Actions configuration."""
 
@@ -26,11 +35,9 @@ class ActionsConfig_cpp(BaseModelWithForbidExtra):
     rotate: ActionConfig_cpp
     put_items: ActionConfig_cpp
     get_items: ActionConfig_cpp
-    attack: ActionConfig_cpp
+    attack: AttackActionConfig_cpp
     swap: ActionConfig_cpp
     change_color: ActionConfig_cpp
-    laser_item_id: FeatureId
-    armor_item_id: FeatureId
 
 
 class ObjectConfig_cpp(BaseModelWithForbidExtra):
@@ -187,14 +194,17 @@ def from_mettagrid_config(mettagrid_config: GameConfig_py) -> GameConfig_cpp:
         else:
             raise ValueError(f"Unknown object type: {object_type}")
 
+    attack_resources = dict((inventory_item_ids[k], v) for k, v in mettagrid_config.actions.attack.attack_resources.items())
+    defense_resources = dict(
+        (inventory_item_ids[k], v) for k, v in mettagrid_config.actions.attack.defense_resources.items()
+    )
+    game_config["actions"]["attack"]["attack_resources"] = attack_resources
+    game_config["actions"]["attack"]["defense_resources"] = defense_resources
+
     game_config = mettagrid_config.model_dump(by_alias=True, exclude_none=True)
     del game_config["agent"]
     del game_config["groups"]
     game_config["objects"] = object_configs
-    # TODO: make this configurable at a higher level
-    # #HardCodedConfig
-    game_config["actions"]["laser_item_id"] = inventory_item_ids["laser"]
-    game_config["actions"]["armor_item_id"] = inventory_item_ids["armor"]
 
     return GameConfig_cpp(**game_config)
 
