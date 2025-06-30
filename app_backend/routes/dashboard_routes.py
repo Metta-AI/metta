@@ -18,7 +18,7 @@ from app_backend.query_logger import log_query_execution
 from app_backend.route_logger import timed_route
 
 # Set up logging for heatmap performance analysis
-logger = logging.getLogger("heatmap_performance")
+logger = logging.getLogger("dashboard_performance")
 logger.setLevel(logging.INFO)
 
 
@@ -231,7 +231,7 @@ def _get_group_data_with_policy_filter(
         results = cursor.fetchall()
 
     end_time = time.time()
-    logger.info(f"Query execution time: {end_time - start_time:.3f}s")
+    logger.info(f"Get group data execution time: {end_time - start_time:.3f}s")
     if end_time - start_time > query_logger.SLOW_QUERY_THRESHOLD_SECONDS:
         logger.warning(f"SLOW QUERY ({end_time - start_time:.3f}s): {query.as_string(con)}, Params: {params}")
 

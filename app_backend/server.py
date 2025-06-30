@@ -9,7 +9,6 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app_backend.auth import user_from_header_or_token
 from app_backend.metta_repo import MettaRepo
-from app_backend.route_logger import timed_route
 from app_backend.routes import dashboard_routes, sql_routes, stats_routes, token_routes
 
 
@@ -42,7 +41,7 @@ def setup_logging():
     )
 
     # Configure heatmap performance logger specifically
-    heatmap_logger = logging.getLogger("heatmap_performance")
+    heatmap_logger = logging.getLogger("dashboard_performance")
     heatmap_logger.setLevel(logging.INFO)
 
     # Configure database query performance logger
@@ -64,10 +63,6 @@ def setup_logging():
 
     _logging_configured = True
     print("Logging configured - performance logging enabled (routes, db queries, heatmaps), /whoami requests filtered")
-
-    # Test log to verify it's working
-    test_logger = logging.getLogger("heatmap_performance")
-    test_logger.info("Heatmap performance logging is active and ready")
 
 
 def create_app(stats_repo: MettaRepo) -> fastapi.FastAPI:
@@ -98,7 +93,6 @@ def create_app(stats_repo: MettaRepo) -> fastapi.FastAPI:
     app.include_router(token_router)
 
     @app.get("/whoami")
-    @timed_route("whoami")
     async def whoami(request: fastapi.Request):  # type: ignore
         user_id = user_from_header_or_token(request, stats_repo)
         return {"user_email": user_id or "unknown"}
@@ -110,7 +104,7 @@ if __name__ == "__main__":
     from app_backend.config import host, port, stats_db_uri
 
     # Setup logging first
-    setup_logging()
+    # setup_logging()
 
     stats_repo = MettaRepo(stats_db_uri)
     app = create_app(stats_repo)
