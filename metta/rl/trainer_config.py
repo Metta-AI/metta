@@ -91,7 +91,8 @@ class PPOConfig(BaseModelWithForbidExtra):
     ent_coef: float = Field(default=0.0021, ge=0)
     # GAE lambda: Type 2 default chosen from sweep, deviates from typical 0.95, bias/variance tradeoff
     gae_lambda: float = Field(default=0.916, ge=0, le=1.0)
-    # Gamma: Type 2 default chosen from sweep, deviates from typical 0.99, suggests shorter effective horizon for multi-agent
+    # Gamma: Type 2 default chosen from sweep, deviates from typical 0.99, suggests shorter
+    # effective horizon for multi-agent
     gamma: float = Field(default=0.977, ge=0, le=1.0)
 
     # Training parameters
