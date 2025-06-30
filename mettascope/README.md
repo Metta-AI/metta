@@ -11,11 +11,10 @@ This advanced WebGPU viewer allows you to watch and replay any metta replay. It 
 
 ## Installation
 
-Ensure you have Node.js version 23.11.0 or higher installed. You can check your version with: `node --version`.
-
-Then, install and build mettascope:
+Ensure Observatory is installed through the Metta setup tool:
 ```bash
-./mettascope/install.sh
+# From the metta root directory
+./metta.sh install mettascope
 ```
 
 ## Usage
