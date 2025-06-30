@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Test that PolicyStore can save/load policies without pydantic dependency"""
+"""Test that PolicyStore can save/load policies using standard torch.save/load"""
 
 import os
 import tempfile
@@ -30,6 +30,7 @@ def test_policy_save_load_without_pydantic():
     """Test that we can save and load a policy without pydantic errors"""
 
     # Import PolicyStore and PolicyRecord from their respective modules
+    from metta.agent.policy_metadata import PolicyMetadata
     from metta.agent.policy_store import PolicyStore
 
     # Create minimal config
@@ -47,14 +48,14 @@ def test_policy_save_load_without_pydantic():
     # Create a test policy
     policy = MinimalPolicy()
 
-    # Create metadata without pydantic objects
-    metadata = {
-        "action_names": ["move", "turn"],
-        "agent_step": 100,
-        "epoch": 5,
-        "generation": 1,
-        "train_time": 60.0,
-    }
+    # Create metadata using PolicyMetadata class
+    metadata = PolicyMetadata(
+        action_names=["move", "turn"],
+        agent_step=100,
+        epoch=5,
+        generation=1,
+        train_time=60.0,
+    )
 
     # Save the policy
     with tempfile.NamedTemporaryFile(suffix=".pt", delete=False) as f:
@@ -82,7 +83,8 @@ def test_policy_save_load_without_pydantic():
         # Assertions
         # The loaded policy may not be the exact same class due to module externing
         assert type(loaded_policy).__name__ == "MinimalPolicy"
-        assert loaded_pr.metadata == metadata
+        # Compare metadata as dicts since PolicyMetadata is dict-like
+        assert dict(loaded_pr.metadata) == dict(metadata)
         assert output.shape == torch.Size([1, 10])
 
         # Verify the loaded policy has the expected structure

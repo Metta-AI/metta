@@ -17,6 +17,7 @@ from omegaconf import DictConfig
 
 from app_backend.stats_client import StatsClient
 from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent, make_policy
+from metta.agent.policy_metadata import PolicyMetadata
 from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyRecord, PolicyStore
 from metta.agent.util.debug import assert_shape
@@ -166,10 +167,7 @@ class MettaTrainer:
             logging.info(f"LOADED {policy_record.uri}")
             self.latest_saved_policy_record = policy_record
 
-            # Models loaded via torch.package have modified class names (prefixed with <torch_package_N>)
-            # which prevents them from being saved again. We work around this by creating a fresh
-            # instance of the policy class and copying the state dict, allowing successful re-saving.
-            # TODO: Remove this workaround when checkpointing refactor is complete
+            # Create a fresh policy instance to ensure proper saving later
             loaded_policy = policy_record.policy
             loaded_policy.activate_actions(actions_names, actions_max_params, self.device)
 
@@ -723,17 +721,17 @@ class MettaTrainer:
         category_score_values = [v for k, v in category_scores_map.items()]
         overall_score = sum(category_score_values) / len(category_score_values) if category_score_values else 0
 
-        metadata = {
-            "agent_step": self.agent_step,
-            "epoch": self.epoch,
-            "run": self.cfg.run,
-            "action_names": metta_grid_env.action_names,
-            "generation": self.current_policy_generation,
-            "initial_uri": self.initial_policy_uri,
-            "train_time": training_time,
-            "score": overall_score,
-            "eval_scores": category_scores_map,
-        }
+        metadata = PolicyMetadata(
+            agent_step=self.agent_step,
+            epoch=self.epoch,
+            run=self.cfg.run,
+            action_names=metta_grid_env.action_names,
+            generation=self.current_policy_generation,
+            initial_uri=self.initial_policy_uri,
+            train_time=training_time,
+            score=overall_score,
+            eval_scores=category_scores_map,
+        )
 
         if isinstance(self.policy, MettaAgent):
             policy_to_save = self.policy
@@ -742,11 +740,8 @@ class MettaTrainer:
         else:
             raise ValueError(f"Policy must be of type MettaAgent or DistributedMettaAgent, got {type(self.policy)}")
 
-        # Models loaded via torch.package have modified class names (prefixed with <torch_package_N>)
-        # which prevents them from being saved again. We work around this by creating a fresh
-        # instance of the policy class and copying the state dict, allowing successful re-saving.
-        # TODO: Remove this workaround when checkpointing refactor is complete
-        logger.info("Creating a fresh policy instance for torch.package to save")
+        # Create a fresh policy instance for saving
+        logger.info("Creating a fresh policy instance to save")
         fresh_policy_record = self.policy_store.create_empty_policy_record(name)
         # copy in the values we want to keep
         fresh_policy_record.metadata = metadata
@@ -866,7 +861,7 @@ class MettaTrainer:
         results = replay_simulator.simulate()
 
         if self.wandb_run is not None:
-            key, version = self.latest_saved_policy_record.wandb_key_and_version()
+            key, version = self.latest_saved_policy_record.key_and_version()
             replay_urls = results.stats_db.get_replay_urls(key, version)
             if len(replay_urls) > 0:
                 replay_url = replay_urls[0]
@@ -986,7 +981,7 @@ class MettaTrainer:
             "epoch_steps": epoch_steps,
             "num_minibatches": self.experience.num_minibatches,
             "generation": self.current_policy_generation,
-            "policy_record_version": self.latest_saved_policy_record.wandb_key_and_version()[1],
+            "policy_record_version": self.latest_saved_policy_record.key_and_version()[1],
         }
 
         self.wandb_run.log(

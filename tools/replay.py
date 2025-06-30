@@ -53,15 +53,21 @@ def main(cfg):
             stats_dir=replay_job.stats_dir,
             replay_dir=replay_dir,
         )
-        result = sim.simulate()
-        key, version = policy_record.wandb_key_and_version()
-        replay_url = result.stats_db.get_replay_urls(key, version)[0]
+
+        # Generate replays
+        num_episodes = cfg.sim.num_episodes
+        logger.info(f"Generating {num_episodes} replays...")
+        sim_results = sim.simulate()
+
+        # Get replay URLs
+        key, version = policy_record.key_and_version()
+        replay_urls = sim_results.stats_db.get_replay_urls(key, version)
 
         # Only on macos open a browser to the replay
         if platform.system() == "Darwin":
-            if not replay_url.startswith("http"):
+            if not replay_urls[0].startswith("http"):
                 # Remove ./ prefix if it exists
-                clean_path = replay_url.removeprefix("./")
+                clean_path = replay_urls[0].removeprefix("./")
                 local_url = f"http://localhost:8000/local/{clean_path}"
                 full_url = f"/?replayUrl={quote(local_url)}"
 

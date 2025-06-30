@@ -81,6 +81,6 @@ class PolicyCache:
             if len(self._cache) > self._max_size:
                 evicted_key, evicted_record = self._cache.popitem(last=False)
                 logger.info(
-                    f"Evicted policy from cache: {evicted_record.run_name} "
+                    f"Evicted policy from cache: {evicted_record.name} "
                     f"(key: {evicted_key}) - Cache at capacity ({self._max_size})"
                 )

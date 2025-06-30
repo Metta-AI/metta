@@ -14,7 +14,6 @@ import logging
 import os
 import random
 import sys
-import warnings
 from typing import Any, List, Optional, Union
 
 import gymnasium as gym
@@ -22,7 +21,6 @@ import numpy as np
 import torch
 import wandb
 from omegaconf import DictConfig, ListConfig
-from torch.package.package_importer import PackageImporter
 
 from metta.agent.metta_agent import make_policy
 from metta.agent.policy_metadata import PolicyMetadata
@@ -204,7 +202,11 @@ class PolicyStore:
         path: str | None = None,
     ) -> PolicyRecord:
         """Save a policy record by delegating to its save method."""
-        return pr.save_to_file(path, packaging_rules_callback=self._apply_packaging_rules)
+        return pr.save_to_file(path)
+
+    def save(self, pr: PolicyRecord, path: str | None = None) -> PolicyRecord:
+        """Save a policy record (backward compatibility wrapper for save_to_file)."""
+        return self.save_to_file(pr, path)
 
     def add_to_wandb_run(self, run_id: str, pr: PolicyRecord, additional_files: list[str] | None = None) -> str:
         return self.add_to_wandb_artifact(run_id, "model", pr.metadata, pr.file_path, additional_files)
@@ -263,8 +265,7 @@ class PolicyStore:
             artifacts = [a for a in artifacts if a.version == version]
 
         return [
-            PolicyRecord(self, run_name=a.name, uri="wandb://" + a.qualified_name, metadata=a.metadata)
-            for a in artifacts
+            PolicyRecord(self, name=a.name, uri="wandb://" + a.qualified_name, metadata=a.metadata) for a in artifacts
         ]
 
     def _prs_from_wandb_sweep(self, sweep_name: str, version: Optional[str] = None) -> List[PolicyRecord]:
@@ -366,22 +367,32 @@ class PolicyStore:
         self._make_codebase_backwards_compatible()
 
         assert path.endswith(".pt"), f"Policy file {path} does not have a .pt extension"
-        with warnings.catch_warnings():
-            warnings.filterwarnings("ignore", category=FutureWarning)
 
         try:
-            importer = PackageImporter(path)
-            pr = importer.load_pickle("policy_record", "data.pkl")
-            pr._policy_store = self
-            if not metadata_only:
-                pr._cached_policy = pr.load(path, self._device)
-            self._cached_prs[path] = pr
-            return pr
-        except Exception as e:
-            logger.debug(f"Not a torch.package file: {e}")
-            if "PytorchStreamReader failed locating file .data/extern_modules" in str(e):
-                logger.info("Detected old checkpoint format, loading as regular PyTorch checkpoint")
+            checkpoint = torch.load(path, map_location=self._device, weights_only=False)
+
+            # Handle new checkpoint format (v2.0)
+            if isinstance(checkpoint, dict) and checkpoint.get("checkpoint_version") == "2.0":
+                metadata = PolicyMetadata(**checkpoint["metadata"])
+                pr = PolicyRecord(self, checkpoint["name"], checkpoint["uri"], metadata)
+
+                if not metadata_only:
+                    # Load the complete model if available
+                    if "model" in checkpoint:
+                        pr._cached_policy = checkpoint["model"].to(self._device)
+                    else:
+                        # Fallback to loading from state dict
+                        raise NotImplementedError("Loading from state dict only not yet implemented")
+
+                self._cached_prs[path] = pr
+                return pr
+
+            # Handle legacy checkpoints (both PolicyRecord objects and old dict format)
+            else:
                 return self._load_legacy_checkpoint(path, metadata_only)
+
+        except Exception as e:
+            logger.error(f"Failed to load policy from {path}: {e}")
             raise ValueError(f"Failed to load policy from {path}: {e}") from e
 
     def _load_wandb_artifact(self, qualified_name: str):
@@ -475,86 +486,3 @@ class PolicyStore:
 
         self._cached_prs[path] = pr
         return pr
-
-    def _apply_packaging_rules(self, exporter, policy_module: Optional[str], policy_class: type) -> None:
-        """Apply packaging rules to the exporter based on a configuration."""
-        # Define packaging rules using wildcards for conciseness
-        rules = [
-            # Extern rules: Third-party libs and modules with pydantic dependencies
-            (
-                "extern",
-                [
-                    "sys",
-                    "torch.**",
-                    "numpy.**",
-                    "scipy.**",
-                    "sklearn.**",
-                    "matplotlib.**",
-                    "gymnasium.**",
-                    "gym.**",
-                    "tensordict.**",
-                    "einops.**",
-                    "hydra.**",
-                    "omegaconf.**",
-                    "mettagrid.**",
-                    "metta.mettagrid.**",
-                    "metta.common.util.config",
-                    "metta.rl.vecenv",
-                    "metta.eval.dashboard_data",
-                    "metta.sim.simulation_config",
-                    "metta.agent.policy_store",
-                ],
-            ),
-            # Intern rules: Essential metta code for loading policy records
-            (
-                "intern",
-                [
-                    "metta.agent.policy_record",
-                    "metta.agent.lib.**",
-                    "metta.agent.util.**",
-                    "metta.agent.metta_agent",
-                    "metta.agent.brain_policy",
-                    "metta.agent.policy_state",
-                    "metta.common.util.omegaconf",
-                    "metta.common.util.runtime_configuration",
-                    "metta.common.util.logger",
-                    "metta.common.util.decorators",
-                    "metta.common.util.resolvers",
-                ],
-            ),
-            # Mock rules: Exclude these completely
-            (
-                "mock",
-                [
-                    "wandb.**",
-                    "pufferlib.**",
-                    "pydantic.**",
-                    "boto3.**",
-                    "botocore.**",
-                    "duckdb.**",
-                    "pandas.**",
-                    "typing_extensions",
-                    "seaborn",
-                    "plotly",
-                ],
-            ),
-        ]
-
-        # Apply rules from the configuration
-        for action, patterns in rules:
-            for pattern in patterns:
-                getattr(exporter, action)(pattern)
-
-        # Handle special cases for the policy's own module
-        if policy_module:
-            if policy_module == "__main__":
-                import inspect
-
-                try:
-                    source = inspect.getsource(policy_class)
-                    exporter.save_source_string("__main__", f"import torch\nimport torch.nn as nn\n\n{source}")
-                except Exception:
-                    exporter.extern("__main__")
-            elif "test" in policy_module:
-                # Extern test modules to prevent them from being packaged
-                exporter.extern(policy_module)
