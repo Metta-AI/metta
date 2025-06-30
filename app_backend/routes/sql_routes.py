@@ -9,6 +9,8 @@ from pydantic import BaseModel
 
 from app_backend.auth import create_user_or_token_dependency
 from app_backend.metta_repo import MettaRepo
+from app_backend.query_logger import execute_query_and_log
+from app_backend.route_logger import timed_route
 
 
 class SQLQueryRequest(BaseModel):
@@ -38,6 +40,7 @@ def create_sql_router(metta_repo: MettaRepo) -> APIRouter:
     user_or_token = Depends(create_user_or_token_dependency(metta_repo))
 
     @router.get("/tables", response_model=List[TableInfo])
+    @timed_route("list_tables")
     async def list_tables(user: str = user_or_token) -> List[TableInfo]:
         """List all available tables in the database (excluding migrations)."""
         try:
@@ -58,13 +61,14 @@ def create_sql_router(metta_repo: MettaRepo) -> APIRouter:
                     ORDER BY t.table_name
                 """
 
-                tables = con.execute(tables_query).fetchall()
+                tables = execute_query_and_log(con, tables_query, (), "list_tables_metadata")
 
                 # Get row counts for each table
                 table_info = []
                 for table_name, column_count in tables:
                     row_count_query = f"SELECT COUNT(*) FROM {table_name}"
-                    row_count = con.execute(row_count_query).fetchone()[0]
+                    row_count_result = execute_query_and_log(con, row_count_query, (), f"count_rows_{table_name}")
+                    row_count = row_count_result[0][0]
 
                     table_info.append(TableInfo(table_name=table_name, column_count=column_count, row_count=row_count))
 
@@ -74,6 +78,7 @@ def create_sql_router(metta_repo: MettaRepo) -> APIRouter:
             raise HTTPException(status_code=500, detail=f"Error listing tables: {str(e)}") from e
 
     @router.get("/tables/{table_name}/schema", response_model=TableSchema)
+    @timed_route("get_table_schema")
     async def get_table_schema(table_name: str, user: str = user_or_token) -> TableSchema:
         """Get the schema for a specific table."""
         try:
@@ -96,7 +101,7 @@ def create_sql_router(metta_repo: MettaRepo) -> APIRouter:
                     ORDER BY ordinal_position
                 """
 
-                columns = con.execute(schema_query, (table_name,)).fetchall()
+                columns = execute_query_and_log(con, schema_query, (table_name,), f"get_schema_{table_name}")
 
                 if not columns:
                     raise HTTPException(status_code=404, detail=f"Table '{table_name}' not found")
@@ -121,6 +126,7 @@ def create_sql_router(metta_repo: MettaRepo) -> APIRouter:
             raise HTTPException(status_code=500, detail=f"Error getting table schema: {str(e)}") from e
 
     @router.post("/query", response_model=SQLQueryResponse)
+    @timed_route("execute_sql_query")
     async def execute_query(request: SQLQueryRequest, user: str = user_or_token) -> SQLQueryResponse:
         """Execute a SQL query with a 20-second timeout."""
         try:

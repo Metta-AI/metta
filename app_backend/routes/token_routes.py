@@ -6,6 +6,7 @@ from pydantic import BaseModel
 
 from app_backend.auth import UserEmail
 from app_backend.metta_repo import MettaRepo
+from app_backend.route_logger import timed_route
 
 
 # Request/Response Models
@@ -34,6 +35,7 @@ def create_token_router(metta_repo: MettaRepo) -> APIRouter:
     router = APIRouter(prefix="/tokens", tags=["tokens"])
 
     @router.post("", response_model=TokenResponse)
+    @timed_route("create_token")
     async def create_token(token_data: TokenCreate, user_email: UserEmail) -> TokenResponse:
         """Create a new machine token for the authenticated user."""
         try:
@@ -43,6 +45,7 @@ def create_token_router(metta_repo: MettaRepo) -> APIRouter:
             raise HTTPException(status_code=500, detail=f"Failed to create token: {str(e)}") from e
 
     @router.get("/cli")
+    @timed_route("create_cli_token")
     async def create_cli_token(
         user_email: UserEmail, callback: str = Query(..., description="Callback URL to redirect to with token")
     ) -> RedirectResponse:
@@ -65,6 +68,7 @@ def create_token_router(metta_repo: MettaRepo) -> APIRouter:
             raise HTTPException(status_code=500, detail=f"Failed to create CLI token: {str(e)}") from e
 
     @router.get("", response_model=TokenListResponse)
+    @timed_route("list_tokens")
     async def list_tokens(user_email: UserEmail) -> TokenListResponse:
         """List all machine tokens for the authenticated user."""
         try:
@@ -84,6 +88,7 @@ def create_token_router(metta_repo: MettaRepo) -> APIRouter:
             raise HTTPException(status_code=500, detail=f"Failed to list tokens: {str(e)}") from e
 
     @router.delete("/{token_id}")
+    @timed_route("delete_token")
     async def delete_token(token_id: str, user_email: UserEmail) -> dict[str, str]:
         """Delete a machine token for the authenticated user."""
         try:
