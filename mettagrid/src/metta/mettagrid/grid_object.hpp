@@ -59,11 +59,13 @@ public:
   GridObjectId id;
   GridLocation location;
   TypeId type_id;
+  std::string type_name;
 
   virtual ~GridObject() = default;
 
-  void init(TypeId type_id, const GridLocation& loc) {
+  void init(TypeId type_id, const std::string& type_name, const GridLocation& loc) {
     this->type_id = type_id;
+    this->type_name = type_name;
     this->location = loc;
   }
 
