@@ -248,19 +248,18 @@ class Experience:
         if self.cpu_offload:
             mb_obs = mb_obs.to(self.device, non_blocking=True)
 
-        # Detach tensors to prevent gradient accumulation through buffer views
         return {
             "obs": mb_obs,
-            "actions": self.actions[idx].detach(),
-            "logprobs": self.logprobs[idx].detach(),
-            "values": self.values[idx].detach(),
-            "rewards": self.rewards[idx].detach(),
-            "dones": self.dones[idx].detach(),
-            "advantages": advantages[idx].detach(),
-            "returns": (advantages[idx] + self.values[idx]).detach(),
+            "actions": self.actions[idx],
+            "logprobs": self.logprobs[idx],
+            "values": self.values[idx],
+            "rewards": self.rewards[idx],
+            "dones": self.dones[idx],
+            "advantages": advantages[idx],
+            "returns": advantages[idx] + self.values[idx],
             "indices": idx,
-            "prio_weights": ((self.segments * prio_probs[idx, None]) ** -prio_beta).detach(),
-            "ratio": self.ratio[idx].detach(),
+            "prio_weights": (self.segments * prio_probs[idx, None]) ** -prio_beta,
+            "ratio": self.ratio[idx],
         }
 
     def update_values(self, indices: Tensor, new_values: Tensor) -> None:

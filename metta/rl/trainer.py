@@ -347,6 +347,7 @@ class MettaTrainer:
             self._maybe_evaluate_policy(wandb_policy_name)
             self._maybe_generate_replay()
             self._maybe_compute_grad_stats()
+            self._maybe_log_memory_usage()
 
             self._on_train_step()
             # end loop over total_timesteps
@@ -1104,6 +1105,28 @@ class MettaTrainer:
                 f"var={self.grad_stats['grad/variance']:.2e}, "
                 f"norm={self.grad_stats['grad/norm']:.2e}"
             )
+
+    def _maybe_log_memory_usage(self):
+        """Log memory usage periodically for debugging."""
+        if self._master and self.epoch % 100 == 0:
+            import gc
+
+            gc.collect()
+
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+                allocated = torch.cuda.memory_allocated() / 1e9
+                reserved = torch.cuda.memory_reserved() / 1e9
+                logger.info(f"GPU memory - Allocated: {allocated:.2f} GB, Reserved: {reserved:.2f} GB")
+
+                if self.wandb_run:
+                    self.wandb_run.log(
+                        {
+                            "debug/gpu_memory_allocated_gb": allocated,
+                            "debug/gpu_memory_reserved_gb": reserved,
+                        },
+                        step=self.agent_step,
+                    )
 
 
 class AbortingTrainer(MettaTrainer):
