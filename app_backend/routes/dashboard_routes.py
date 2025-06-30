@@ -151,27 +151,36 @@ def _get_group_data_with_policy_filter(
         # Optimized query for all groups - avoids expensive JSON parsing and reduces CTEs
         query_template = SQL("""
             WITH
-            {}
+            {} ,
 
+            pre_aggregated AS (
+              SELECT
+                episode_id,
+                SUM(value) as total_value,
+                COUNT(*) as agent_count
+              FROM episode_agent_metrics
+              WHERE metric = %s
+              GROUP BY episode_id
+            )
             SELECT
               p.name as policy_uri,
               e.env_name as eval_name,
               ANY_VALUE(e.replay_url) as replay_url,
-              COUNT(*) AS num_agents,
-              SUM(eam.value) AS total_value,
+              pa.agent_count AS num_agents,
+              pa.total_value AS total_value,
               p.run_id,
               p.end_training_epoch
-            FROM episode_agent_metrics eam
-            JOIN episodes e ON e.id = eam.episode_id AND e.eval_category = %s
+            FROM episodes e
+            JOIN pre_aggregated pa ON e.id = pa.episode_id
             JOIN filtered_policies p ON e.primary_policy_id = p.id
-            WHERE eam.metric = %s
-            GROUP BY p.name, e.env_name, p.run_id, p.end_training_epoch
-            ORDER BY p.run_id, p.end_training_epoch DESC
+            WHERE e.eval_category = %s
+            GROUP BY p.name, e.env_name, p.run_id, p.end_training_epoch, pa.agent_count, pa.total_value
+            ORDER BY p.run_id, p.end_training_epoch DESC;
         """)
 
         query = query_template.format(policy_cte)
         # For optimized query: extra_params come first (for CTE), then base params (for main query)
-        params = extra_params + (suite, metric)
+        params = extra_params + (metric, suite)
 
     else:
         # Original query with group filtering - includes JSON parsing only when needed
