@@ -13,6 +13,8 @@ from pydantic import BaseModel
 
 from app_backend.auth import create_user_or_token_dependency
 from app_backend.metta_repo import MettaRepo
+from app_backend.route_logger import timed_route
+from app_backend.query_logger import log_query_execution
 
 # Set up logging for heatmap performance analysis
 logger = logging.getLogger("heatmap_performance")
@@ -146,7 +148,7 @@ def _get_group_data_with_policy_filter(
     """Core group data query with configurable policy filtering."""
     start_time = time.time()
     logger.info(f"Starting core group data query: suite={suite}, metric={metric}, group='{group}'")
-    
+
     try:
         if group == "":
             # Optimized query for all groups - avoids expensive JSON parsing and reduces CTEs
@@ -154,7 +156,7 @@ def _get_group_data_with_policy_filter(
             query_template = SQL("""
                 WITH
                 {}
-                
+
                 SELECT
                   p.name as policy_uri,
                   e.env_name as eval_name,
@@ -170,11 +172,11 @@ def _get_group_data_with_policy_filter(
                 GROUP BY p.name, e.env_name, p.run_id, p.end_training_epoch
                 ORDER BY p.run_id, p.end_training_epoch DESC
             """)
-            
+
             query = query_template.format(policy_cte)
             # For optimized query: extra_params come first (for CTE), then base params (for main query)
             params = extra_params + (suite, metric)
-            
+
         else:
             # Original query with group filtering - includes JSON parsing only when needed
             logger.info(f"Using group-filtered query with JSON parsing for group '{group}'")
@@ -214,24 +216,30 @@ def _get_group_data_with_policy_filter(
                 GROUP BY p.name, eam.env_name, p.run_id, p.end_training_epoch
                 ORDER BY p.run_id, p.end_training_epoch DESC
             """)
-            
+
             query = query_template.format(policy_cte)
             base_params = (suite, metric) + extra_params
             params = base_params + (group,)
 
         query_start = time.time()
-        logger.info(f"Executing {'optimized' if group == '' else 'group-filtered'} database query with params: {params}")
-        
+        logger.info(
+            f"Executing {'optimized' if group == '' else 'group-filtered'} database query with params: {params}"
+        )
+
+        # log the query
+        logger.info(f"Query: {query.as_string(con)}")
+        logger.info(f"Params: {params}")
+
         with con.cursor(row_factory=class_row(GroupDataRow)) as cursor:
             cursor.execute(query, params)
             results = cursor.fetchall()
-            
+
         query_time = time.time() - query_start
         total_time = time.time() - start_time
-        
+
         logger.info(f"Core query completed: {len(results)} rows in {query_time:.3f}s (total: {total_time:.3f}s)")
         return results
-        
+
     except Exception as e:
         total_time = time.time() - start_time
         logger.error(f"Core query failed after {total_time:.3f}s: {e}")
@@ -294,7 +302,7 @@ def _apply_policy_selector(
     """
     start_time = time.time()
     logger.info(f"Applying policy selector '{policy_selector}' to {len(rows)} rows")
-    
+
     try:
         if policy_selector == "latest":
             result = _select_latest_policies_per_run(rows)
@@ -302,11 +310,11 @@ def _apply_policy_selector(
             result = _select_best_policies_per_run(rows, suite, con)
         else:
             raise ValueError(f"Invalid policy_selector: {policy_selector}")
-        
+
         selector_time = time.time() - start_time
         logger.info(f"Policy selector '{policy_selector}' completed: {len(result)} rows in {selector_time:.3f}s")
         return result
-        
+
     except Exception as e:
         selector_time = time.time() - start_time
         logger.error(f"Policy selector '{policy_selector}' failed after {selector_time:.3f}s: {e}")
@@ -372,7 +380,7 @@ def _select_best_policies_per_run(rows: List[GroupDataRow], suite: str, con: Con
     """
     start_time = time.time()
     logger.debug(f"Selecting best policies from {len(rows)} rows")
-    
+
     # Group rows by run_id and policy_uri
     run_policies: DefaultDict[str, DefaultDict[str, List[GroupDataRow]]] = defaultdict(lambda: defaultdict(list))
     no_run_rows: List[GroupDataRow] = []
@@ -430,14 +438,17 @@ def create_dashboard_router(metta_repo: MettaRepo) -> APIRouter:
     user_or_token = Depends(create_user_or_token_dependency(metta_repo))
 
     @router.get("/suites")
+    @timed_route("get_suites")
     async def get_suites() -> List[str]:  # type: ignore[reportUnusedFunction]
         return metta_repo.get_suites()
 
     @router.get("/suites/{suite}/metrics")
+    @timed_route("get_metrics")
     async def get_metrics(suite: str) -> List[str]:  # type: ignore[reportUnusedFunction]
         return metta_repo.get_metrics(suite)
 
     @router.get("/suites/{suite}/group-ids")
+    @timed_route("get_group_ids")
     async def get_group_ids(suite: str) -> List[str]:  # type: ignore[reportUnusedFunction]
         return metta_repo.get_group_ids(suite)
 
@@ -459,12 +470,15 @@ def create_dashboard_router(metta_repo: MettaRepo) -> APIRouter:
         """
         total_start = time.time()
         logger.info(f"Building heatmap data: suite={data_retriever.suite}, metric={data_retriever.metric}")
-        
+
         try:
             # Step 1: Get evaluation names
             eval_start = time.time()
-            eval_rows = con.execute(
-                "SELECT DISTINCT env_name FROM episodes WHERE eval_category = %s", (data_retriever.suite,)
+            eval_rows = log_query_execution(
+                con,
+                "SELECT DISTINCT env_name FROM episodes WHERE eval_category = %s", 
+                (data_retriever.suite,),
+                "get_evaluation_names"
             )
             all_eval_names: List[str] = [row[0] for row in eval_rows]
             eval_time = time.time() - eval_start
@@ -473,7 +487,9 @@ def create_dashboard_router(metta_repo: MettaRepo) -> APIRouter:
             # Step 2: Get group data
             groups_start = time.time()
             if isinstance(group_metric.group_metric, GroupDiff):
-                logger.info(f"Fetching group difference data: {group_metric.group_metric.group_1} vs {group_metric.group_metric.group_2}")
+                logger.info(
+                    f"Fetching group difference data: {group_metric.group_metric.group_1} vs {group_metric.group_metric.group_2}"
+                )
                 group1_rows = data_retriever.get_group_data(con, group_metric.group_metric.group_1)
                 group2_rows = data_retriever.get_group_data(con, group_metric.group_metric.group_2)
             else:
@@ -521,7 +537,9 @@ def create_dashboard_router(metta_repo: MettaRepo) -> APIRouter:
             policy_average_scores: Dict[str, float] = {}
             for policy_uri in all_policy_uris:
                 policy_cells = cells[policy_uri]
-                policy_average_scores[policy_uri] = sum(cell.value for cell in policy_cells.values()) / len(policy_cells)
+                policy_average_scores[policy_uri] = sum(cell.value for cell in policy_cells.values()) / len(
+                    policy_cells
+                )
             averages_time = time.time() - averages_start
             logger.info(f"Calculated {len(policy_average_scores)} policy averages in {averages_time:.3f}s")
 
@@ -536,13 +554,14 @@ def create_dashboard_router(metta_repo: MettaRepo) -> APIRouter:
                 evalAverageScores={},
                 evalMaxScores={},
             )
-            
+
         except Exception as e:
             total_time = time.time() - total_start
             logger.error(f"Heatmap data building failed after {total_time:.3f}s: {e}")
             raise
 
     @router.post("/suites/{suite}/metrics/{metric}/heatmap")
+    @timed_route("get_heatmap_data")
     async def get_heatmap_data(  # type: ignore[reportUnusedFunction]
         suite: str,
         metric: str,
@@ -552,31 +571,32 @@ def create_dashboard_router(metta_repo: MettaRepo) -> APIRouter:
         request_start = time.time()
         request_id = f"{suite}/{metric}/{group_metric.group_metric}/{group_metric.policy_selector}"
         logger.info(f"HEATMAP REQUEST START: {request_id}")
-        
+
         try:
             # Step 1: Database connection
             conn_start = time.time()
             with metta_repo.connect() as con:
                 conn_time = time.time() - conn_start
                 logger.info(f"Database connection established in {conn_time:.3f}s")
-                
+
                 # Step 2: Data retrieval and processing
                 data_retriever = PolicySelectorDataRetriever(suite, metric, group_metric.policy_selector)
                 result = _build_heatmap_data(con, group_metric, data_retriever)
-                
+
                 # Step 3: Final response
                 total_time = time.time() - request_start
                 result_size = len(result.cells) * len(result.evalNames) if result.cells else 0
                 logger.info(f"HEATMAP REQUEST COMPLETE: {request_id} - {result_size} cells in {total_time:.3f}s")
-                
+
                 return result
-                
+
         except Exception as e:
             total_time = time.time() - request_start
             logger.error(f"HEATMAP REQUEST FAILED: {request_id} after {total_time:.3f}s - {e}")
             raise
 
     @router.get("/saved")
+    @timed_route("list_saved_dashboards")
     async def list_saved_dashboards() -> SavedDashboardListResponse:  # type: ignore[reportUnusedFunction]
         """List all saved dashboards."""
         dashboards = metta_repo.list_saved_dashboards()
@@ -597,6 +617,7 @@ def create_dashboard_router(metta_repo: MettaRepo) -> APIRouter:
         )
 
     @router.get("/saved/{dashboard_id}")
+    @timed_route("get_saved_dashboard")
     async def get_saved_dashboard(dashboard_id: str) -> SavedDashboardResponse:  # type: ignore[reportUnusedFunction]
         """Get a specific saved dashboard by ID."""
         dashboard = metta_repo.get_saved_dashboard(dashboard_id)
@@ -615,6 +636,7 @@ def create_dashboard_router(metta_repo: MettaRepo) -> APIRouter:
         )
 
     @router.post("/saved")
+    @timed_route("create_saved_dashboard")
     async def create_saved_dashboard(  # type: ignore[reportUnusedFunction]
         dashboard_data: SavedDashboardCreate,
         user_or_token: str = user_or_token,
@@ -645,6 +667,7 @@ def create_dashboard_router(metta_repo: MettaRepo) -> APIRouter:
         )
 
     @router.put("/saved/{dashboard_id}")
+    @timed_route("update_saved_dashboard")
     async def update_saved_dashboard(  # type: ignore[reportUnusedFunction]
         dashboard_id: str,
         dashboard_data: SavedDashboardCreate,
@@ -680,6 +703,7 @@ def create_dashboard_router(metta_repo: MettaRepo) -> APIRouter:
         )
 
     @router.delete("/saved/{dashboard_id}")
+    @timed_route("delete_saved_dashboard")
     async def delete_saved_dashboard(  # type: ignore[reportUnusedFunction]
         dashboard_id: str, user_or_token: str = user_or_token
     ) -> Dict[str, str]:
@@ -690,6 +714,7 @@ def create_dashboard_router(metta_repo: MettaRepo) -> APIRouter:
         return {"message": "Dashboard deleted successfully"}
 
     @router.get("/training-runs")
+    @timed_route("get_training_runs")
     async def get_training_runs() -> TrainingRunListResponse:  # type: ignore[reportUnusedFunction]
         """Get all training runs."""
         training_runs = metta_repo.get_training_runs()
@@ -709,6 +734,7 @@ def create_dashboard_router(metta_repo: MettaRepo) -> APIRouter:
         )
 
     @router.get("/training-runs/{run_id}")
+    @timed_route("get_training_run")
     async def get_training_run(run_id: str) -> TrainingRun:  # type: ignore[reportUnusedFunction]
         """Get a specific training run by ID."""
         training_run = metta_repo.get_training_run(run_id)
@@ -726,6 +752,7 @@ def create_dashboard_router(metta_repo: MettaRepo) -> APIRouter:
         )
 
     @router.post("/training-runs/{run_id}/suites/{suite}/metrics/{metric}/heatmap")
+    @timed_route("get_training_run_heatmap_data")
     async def get_training_run_heatmap_data(  # type: ignore[reportUnusedFunction]
         run_id: str,
         suite: str,
@@ -736,7 +763,7 @@ def create_dashboard_router(metta_repo: MettaRepo) -> APIRouter:
         request_start = time.time()
         request_id = f"run:{run_id}/{suite}/{metric}/{group_metric.group_metric}"
         logger.info(f"TRAINING RUN HEATMAP REQUEST START: {request_id}")
-        
+
         try:
             # Verify training run exists
             training_run = metta_repo.get_training_run(run_id)
@@ -746,13 +773,13 @@ def create_dashboard_router(metta_repo: MettaRepo) -> APIRouter:
             with metta_repo.connect() as con:
                 data_retriever = TrainingRunDataRetriever(suite, metric, run_id)
                 result = _build_heatmap_data(con, group_metric, data_retriever)
-                
+
                 total_time = time.time() - request_start
                 result_size = len(result.cells) * len(result.evalNames) if result.cells else 0
                 logger.info(f"TRAINING RUN HEATMAP COMPLETE: {request_id} - {result_size} cells in {total_time:.3f}s")
-                
+
                 return result
-                
+
         except Exception as e:
             total_time = time.time() - request_start
             logger.error(f"TRAINING RUN HEATMAP FAILED: {request_id} after {total_time:.3f}s - {e}")

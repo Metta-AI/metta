@@ -9,10 +9,23 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app_backend.auth import user_from_header_or_token
 from app_backend.metta_repo import MettaRepo
+from app_backend.route_logger import timed_route
 from app_backend.routes import dashboard_routes, sql_routes, stats_routes, token_routes
 
 
 _logging_configured = False
+
+
+class NoWhoAmIFilter(logging.Filter):
+    """Filter out /whoami requests from uvicorn access logs."""
+    
+    def filter(self, record):
+        # Filter out /whoami requests from uvicorn access logs
+        if hasattr(record, 'getMessage'):
+            message = record.getMessage()
+            return not ('/whoami' in message and 'GET' in message)
+        return True
+
 
 def setup_logging():
     """Configure logging for the application, including heatmap performance logging."""
@@ -32,11 +45,25 @@ def setup_logging():
     heatmap_logger = logging.getLogger("heatmap_performance")
     heatmap_logger.setLevel(logging.INFO)
     
-    # Ensure the logger doesn't duplicate messages from root logger
+    # Configure database query performance logger
+    db_logger = logging.getLogger("db_performance")
+    db_logger.setLevel(logging.INFO)
+    
+    # Configure route performance logger
+    route_logger = logging.getLogger("route_performance")
+    route_logger.setLevel(logging.INFO)
+    
+    # Ensure the loggers don't duplicate messages from root logger
     heatmap_logger.propagate = True
+    db_logger.propagate = True
+    route_logger.propagate = True
+    
+    # Filter out /whoami requests from uvicorn access logs
+    uvicorn_access_logger = logging.getLogger("uvicorn.access")
+    uvicorn_access_logger.addFilter(NoWhoAmIFilter())
     
     _logging_configured = True
-    print("Logging configured - heatmap performance logging enabled")
+    print("Logging configured - performance logging enabled (routes, db queries, heatmaps), /whoami requests filtered")
     
     # Test log to verify it's working
     test_logger = logging.getLogger("heatmap_performance")
@@ -71,7 +98,8 @@ def create_app(stats_repo: MettaRepo) -> fastapi.FastAPI:
     app.include_router(token_router)
 
     @app.get("/whoami")
-    def whoami(request: fastapi.Request):  # type: ignore
+    @timed_route("whoami")
+    async def whoami(request: fastapi.Request):  # type: ignore
         user_id = user_from_header_or_token(request, stats_repo)
         return {"user_email": user_id or "unknown"}
 
