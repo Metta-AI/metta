@@ -96,10 +96,18 @@ def main(cfg: DictConfig) -> int:
 
         dataset = TrainingCurveDataset(str(dataset_path), env_features, agent_features)
 
-        # Split dataset
-        train_size = int(0.8 * len(dataset))
+                # Split dataset with reproducible random seed
+        train_split_ratio = getattr(cfg, "train_val_split", 0.8)
+        random_seed = getattr(cfg, "random_seed", 42)
+
+        train_size = int(train_split_ratio * len(dataset))
         val_size = len(dataset) - train_size
+
+        # Set random seed for reproducible splits
+        torch.manual_seed(random_seed)
         train_dataset, val_dataset = random_split(dataset, [train_size, val_size])
+
+        logger.info(f"Dataset split: {len(train_dataset)} train, {len(val_dataset)} validation samples (ratio: {train_split_ratio:.1%})")
 
         # Create dataloaders
         train_loader = DataLoader(train_dataset, batch_size=cfg.batch_size, shuffle=True)
@@ -141,6 +149,9 @@ def main(cfg: DictConfig) -> int:
 
         # Train model
         save_path = output_dir / "meta_analysis_model"
+        logger.info(f"Starting training for {cfg.num_epochs} epochs...")
+        logger.info(f"Batch size: {cfg.batch_size}, Learning rate: {cfg.learning_rate}")
+
         training_results = trainer.train(
             train_dataloader=train_loader,
             val_dataloader=val_loader,
@@ -151,6 +162,12 @@ def main(cfg: DictConfig) -> int:
         )
 
         logger.info("Training completed!")
+
+        # Log final metrics
+        if training_results["val_losses"]:
+            final_train_loss = training_results["train_losses"][-1]["total_loss"]
+            final_val_loss = training_results["val_losses"][-1]["val_loss"]
+            logger.info(f"Final metrics - Train Loss: {final_train_loss:.4f}, Val Loss: {final_val_loss:.4f}")
 
         # Save training results
         import json

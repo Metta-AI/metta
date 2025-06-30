@@ -206,6 +206,8 @@ class MetaAnalysisTrainer:
 
         self.model.eval()
         total_loss = 0.0
+        total_recon_loss = 0.0
+        total_kl_loss = 0.0
         total_curve_loss = 0.0
 
         with torch.no_grad():
@@ -224,20 +226,24 @@ class MetaAnalysisTrainer:
                 ) = self.model(env_config, agent_config)
 
                 # Compute losses
-                env_vae_loss, _, _ = self.vae_loss(env_recon, env_config, env_mu, env_logvar)
-                agent_vae_loss, _, _ = self.vae_loss(agent_recon, agent_config, agent_mu, agent_logvar)
+                env_vae_loss, env_recon_loss, env_kl_loss = self.vae_loss(env_recon, env_config, env_mu, env_logvar)
+                agent_vae_loss, agent_recon_loss, agent_kl_loss = self.vae_loss(agent_recon, agent_config, agent_mu, agent_logvar)
                 curve_loss = self.curve_loss(predicted_curve, target_curve)
 
                 # Total loss
                 loss = env_vae_loss + agent_vae_loss + self.curve_weight * curve_loss
 
                 total_loss += loss.item()
+                total_recon_loss += (env_recon_loss + agent_recon_loss).item()
+                total_kl_loss += (env_kl_loss + agent_kl_loss).item()
                 total_curve_loss += curve_loss.item()
 
         # Average losses
         num_batches = len(dataloader)
         return {
             "val_loss": total_loss / num_batches,
+            "val_recon_loss": total_recon_loss / num_batches,
+            "val_kl_loss": total_kl_loss / num_batches,
             "val_curve_loss": total_curve_loss / num_batches,
         }
 
@@ -285,6 +291,8 @@ class MetaAnalysisTrainer:
                 if val_dataloader is not None:
                     log_dict.update({
                         "val/total_loss": val_metrics["val_loss"],
+                        "val/recon_loss": val_metrics["val_recon_loss"],
+                        "val/kl_loss": val_metrics["val_kl_loss"],
                         "val/curve_loss": val_metrics["val_curve_loss"],
                     })
                 self.wandb_run.log(log_dict, step=epoch)
