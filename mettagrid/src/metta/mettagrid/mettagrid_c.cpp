@@ -39,14 +39,20 @@ MettaGrid::MettaGrid(py::dict cfg, py::list map, int seed) {
   // cfg is a dict-form of the OmegaConf config.
   // `map` is a list of lists of strings, which are the map cells.
 
-  int num_agents = cfg["num_agents"].cast<int>();
-  max_steps = cfg["max_steps"].cast<unsigned int>();
-  obs_width = cfg["obs_width"].cast<unsigned short>();
-  obs_height = cfg["obs_height"].cast<unsigned short>();
-  inventory_item_names = cfg["inventory_item_names"].cast<std::vector<std::string>>();
+  try {
+    num_agents = cfg["num_agents"].cast<int>();
+    max_steps = cfg["max_steps"].cast<unsigned int>();
+    obs_width = cfg["obs_width"].cast<unsigned short>();
+    obs_height = cfg["obs_height"].cast<unsigned short>();
+    inventory_item_names = cfg["inventory_item_names"].cast<std::vector<std::string>>();
 
-  _num_observation_tokens =
-      cfg.contains("num_observation_tokens") ? cfg["num_observation_tokens"].cast<unsigned int>() : 0;
+    _num_observation_tokens =
+        cfg.contains("num_observation_tokens") ? cfg["num_observation_tokens"].cast<unsigned int>() : 0;
+  } catch (const py::cast_error& e) {
+    throw std::runtime_error("Invalid config parameter: " + std::string(e.what()));
+  } catch (const py::key_error& e) {
+    throw std::runtime_error("Missing required config parameter: " + std::string(e.what()));
+  }
 
   current_step = 0;
 
@@ -102,13 +108,19 @@ MettaGrid::MettaGrid(py::dict cfg, py::list map, int seed) {
   }
   init_action_handlers();
 
-  auto object_configs = cfg["objects"].cast<py::dict>();
+  py::dict object_configs;
+  try {
+    object_configs = cfg["objects"].cast<py::dict>();
+  } catch (const py::cast_error& e) {
+    throw std::runtime_error("Invalid objects config: " + std::string(e.what()));
+  }
 
   object_type_names.resize(object_configs.size());
 
   for (const auto& [key, value] : object_configs) {
-    auto object_cfg = value.cast<py::dict>();
-    TypeId type_id = object_cfg["type_id"].cast<TypeId>();
+    try {
+      auto object_cfg = value.cast<py::dict>();
+      TypeId type_id = object_cfg["type_id"].cast<TypeId>();
 
     if (type_id >= object_type_names.size()) {
       // Sometimes the type_ids are not contiguous, so we need to resize the vector.
@@ -126,10 +138,15 @@ MettaGrid::MettaGrid(py::dict cfg, py::list map, int seed) {
     }
 
     auto object_type = object_cfg["object_type"].cast<std::string>();
-    if (object_type == "agent") {
-      unsigned int id = object_cfg["group_id"].cast<unsigned int>();
-      _group_sizes[id] = 0;
-      _group_reward_pct[id] = object_cfg["group_reward_pct"].cast<float>();
+      if (object_type == "agent") {
+        unsigned int id = object_cfg["group_id"].cast<unsigned int>();
+        _group_sizes[id] = 0;
+        _group_reward_pct[id] = object_cfg["group_reward_pct"].cast<float>();
+      }
+    } catch (const py::cast_error& e) {
+      throw std::runtime_error("Invalid object config for " + key.cast<std::string>() + ": " + std::string(e.what()));
+    } catch (const py::key_error& e) {
+      throw std::runtime_error("Missing object config key for " + key.cast<std::string>() + ": " + std::string(e.what()));
     }
   }
 
@@ -158,24 +175,32 @@ MettaGrid::MettaGrid(py::dict cfg, py::list map, int seed) {
       auto object_type = object_cfg["object_type"].cast<std::string>();
       if (object_type == "wall") {
         auto wall_cfg = _create_wall_config(object_cfg);
-        Wall* wall = new Wall(r, c, wall_cfg);
-        _grid->add_object(wall);
+        auto wall = std::make_unique<Wall>(r, c, wall_cfg);
+        if (!_grid->add_object(wall.release())) {
+          throw std::runtime_error("Failed to add wall to grid at (" + std::to_string(r) + ", " + std::to_string(c) + ")");
+        }
         _stats->incr("objects." + cell);
       } else if (object_type == "converter") {
         auto converter_cfg = _create_converter_config(object_cfg);
-        Converter* converter = new Converter(r, c, converter_cfg);
+        auto converter = std::make_unique<Converter>(r, c, converter_cfg);
+        Converter* converter_ptr = converter.get();  // Keep reference before releasing ownership
+        if (!_grid->add_object(converter.release())) {
+          throw std::runtime_error("Failed to add converter to grid at (" + std::to_string(r) + ", " + std::to_string(c) + ")");
+        }
         _stats->incr("objects." + cell);
-        _grid->add_object(converter);
-        converter->set_event_manager(_event_manager.get());
-        converter->stats.set_environment(this);
+        converter_ptr->set_event_manager(_event_manager.get());
+        converter_ptr->stats.set_environment(this);
       } else if (object_type == "agent") {
         auto agent_cfg = _create_agent_config(object_cfg);
-        Agent* agent = new Agent(r, c, agent_cfg);
-        _grid->add_object(agent);
-        agent->agent_id = _agents.size();
-        agent->stats.set_environment(this);
-        add_agent(agent);
-        _group_sizes[agent->group] += 1;
+        auto agent = std::make_unique<Agent>(r, c, agent_cfg);
+        Agent* agent_ptr = agent.get();  // Keep reference before releasing ownership
+        if (!_grid->add_object(agent.release())) {
+          throw std::runtime_error("Failed to add agent to grid at (" + std::to_string(r) + ", " + std::to_string(c) + ")");
+        }
+        agent_ptr->agent_id = _agents.size();
+        agent_ptr->stats.set_environment(this);
+        add_agent(agent_ptr);
+        _group_sizes[agent_ptr->group] += 1;
       } else {
         throw std::runtime_error("Unknown object type: " + object_type);
       }
@@ -254,6 +279,10 @@ void MettaGrid::_compute_observation(unsigned int observer_row,
   auto rewards_view = _rewards.unchecked<1>();
 
   // Global tokens
+  if (agent_idx >= _agents.size()) {
+    // Invalid agent index - this should not happen in normal operation
+    return;
+  }
   ObservationToken* agent_obs_ptr = reinterpret_cast<ObservationToken*>(observation_view.mutable_data(agent_idx, 0, 0));
   ObservationTokens agent_obs_tokens(agent_obs_ptr, observation_view.shape(1) - tokens_written);
   unsigned int episode_completion_pct = 0;
@@ -295,6 +324,10 @@ void MettaGrid::_compute_observation(unsigned int observer_row,
           auto obj = _grid->object_at(object_loc);
           if (!obj) continue;
 
+          if (tokens_written >= static_cast<size_t>(observation_view.shape(1))) {
+            // No more space for tokens
+            break;
+          }
           uint8_t* obs_data = observation_view.mutable_data(agent_idx, tokens_written, 0);
           ObservationToken* agent_obs_ptr = reinterpret_cast<ObservationToken*>(obs_data);
           ObservationTokens agent_obs_tokens(agent_obs_ptr, observation_view.shape(1) - tokens_written);
@@ -317,6 +350,12 @@ void MettaGrid::_compute_observation(unsigned int observer_row,
 void MettaGrid::_compute_observations(py::array_t<ActionType, py::array::c_style> actions) {
   auto actions_view = actions.unchecked<2>();
   auto observation_view = _observations.mutable_unchecked<3>();
+  
+  // Validate that actions array matches number of agents
+  if (actions_view.shape(0) != static_cast<ssize_t>(_agents.size())) {
+    throw std::runtime_error("Actions array size does not match number of agents");
+  }
+  
   for (size_t idx = 0; idx < _agents.size(); idx++) {
     auto& agent = _agents[idx];
     _compute_observation(

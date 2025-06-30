@@ -27,7 +27,12 @@ public:
   }
 
   bool handle_action(GridObjectId actor_object_id, ActionArg arg) {
-    Agent* actor = static_cast<Agent*>(_grid->object(actor_object_id));
+    GridObject* obj = _grid->object(actor_object_id);
+    Agent* actor = dynamic_cast<Agent*>(obj);
+    if (!actor) {
+      // Invalid object type - this should not happen in normal operation
+      return false;
+    }
 
     // Handle frozen status
     if (actor->frozen > 0) {

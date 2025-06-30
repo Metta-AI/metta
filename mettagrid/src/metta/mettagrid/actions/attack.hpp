@@ -49,7 +49,8 @@ protected:
 
   bool _handle_target(Agent* actor, GridLocation target_loc) {
     target_loc.layer = GridLayer::Agent_Layer;
-    Agent* agent_target = static_cast<Agent*>(_grid->object_at(target_loc));
+    GridObject* target_obj = _grid->object_at(target_loc);
+    Agent* agent_target = dynamic_cast<Agent*>(target_obj);
 
     bool was_frozen = false;
     if (agent_target) {
