@@ -311,17 +311,21 @@ class PolicyStore:
 
     def _make_codebase_backwards_compatible(self):
         """
-        torch.load expects the codebase to be in the same structure as when the model was saved.
+        Make codebase compatible with old checkpoints that were saved before module restructuring.
 
-        We can use this function to alias old layout structures. For now we are supporting:
-        - agent --> metta.agent
+        This is only needed for loading very old checkpoints (before the agent -> metta.agent move).
+        New checkpoints saved with the simple torch.save approach don't need this since they
+        save the entire PolicyRecord object and don't rely on module paths for reconstruction.
+
+        Currently supports:
+        - agent --> metta.agent (for checkpoints saved before the module was moved)
         """
-        # Memoize
+        # Memoize to avoid running multiple times
         if getattr(self, "_made_codebase_backwards_compatible", False):
             return
         self._made_codebase_backwards_compatible = True
 
-        # Handle agent --> metta.agent
+        # Handle agent --> metta.agent for old checkpoints
         sys.modules["agent"] = sys.modules["metta.agent"]
         modules_queue = collections.deque(["metta.agent"])
 
@@ -357,7 +361,9 @@ class PolicyStore:
 
     def _load_from_pytorch(self, path: str) -> PolicyRecord:
         name = os.path.basename(path)
-        metadata = PolicyMetadata(action_names=[])  # TODO: is action_names a required param?
+        # PolicyMetadata only requires: agent_step, epoch, generation, train_time
+        # action_names is optional and not used by pytorch:// checkpoints
+        metadata = PolicyMetadata()
         pr = PolicyRecord(self, name, "pytorch://" + name, metadata)
         pr._cached_policy = load_pytorch_policy(path, self._device, pytorch_cfg=self._cfg.get("pytorch"))
         return pr
@@ -413,15 +419,27 @@ class PolicyStore:
         return pr
 
     def _load_legacy_checkpoint(self, path: str, metadata_only: bool = False) -> PolicyRecord:
+        """
+        Load checkpoints from before we switched to the simple torch.save approach.
+
+        This handles two types of legacy checkpoints:
+        1. Old PolicyRecord objects that might have different attribute names
+        2. Dict-based checkpoints that only saved state_dict and metadata
+
+        For type 2, we need to reconstruct the environment and create a new policy
+        since we don't have the full object saved.
+        """
         logger.info(f"Loading legacy checkpoint from {path}")
         checkpoint = torch.load(path, map_location=self._device, weights_only=False)
 
         if isinstance(checkpoint, PolicyRecord):
+            # Type 1: Old PolicyRecord with potentially different attribute names
             pr = checkpoint
             pr._policy_store = self
 
             if not metadata_only:
                 # Check for policy under different possible attribute names
+                # (some old checkpoints used _policy instead of _cached_policy)
                 policy_cache_attributes = ["_cached_policy", "_policy"]
                 policy = None
 
@@ -429,7 +447,7 @@ class PolicyStore:
                     if hasattr(pr, attr):
                         policy = getattr(pr, attr)
                         if policy is not None:
-                            # If we found it under a different name, set it to the current standard
+                            # Standardize to _cached_policy
                             if attr != "_cached_policy":
                                 pr._cached_policy = policy
                                 logger.info(
@@ -448,7 +466,8 @@ class PolicyStore:
         if not isinstance(checkpoint, dict):
             raise ValueError(f"Unexpected checkpoint format: {type(checkpoint)}")
 
-        # Create PolicyRecord with metadata
+        # Type 2: Dict-based checkpoint (only state_dict and metadata)
+        # This is from before we saved the entire PolicyRecord object
         pr = PolicyRecord(
             self,
             os.path.basename(path),
@@ -463,7 +482,8 @@ class PolicyStore:
             try:
                 from types import SimpleNamespace
 
-                # Create mock environment
+                # Create a mock environment to instantiate the policy
+                # These are default values that should work for most legacy checkpoints
                 obs_shape = checkpoint.get("obs_shape", [34, 11, 11])
                 env = SimpleNamespace(
                     single_observation_space=gym.spaces.Box(low=0, high=255, shape=obs_shape, dtype=np.uint8),
@@ -474,16 +494,17 @@ class PolicyStore:
                     global_features=[],
                 )
 
+                # Create policy and load the saved state_dict
                 policy = make_policy(env, self._cfg)  # type:ignore
 
-                # Load state dict
+                # Find the state dict key (different checkpoints used different names)
                 state_key = next((k for k in ["model_state_dict", "state_dict"] if k in checkpoint), None)
                 policy.load_state_dict(checkpoint.get(state_key, checkpoint))
                 pr.policy = policy
 
-                logger.info("Successfully loaded legacy checkpoint as MettaAgent")
+                logger.info("Successfully loaded legacy dict-based checkpoint")
             except Exception as e:
-                raise ValueError(f"Cannot load legacy checkpoint as MettaAgent: {e}") from e
+                raise ValueError(f"Cannot reconstruct policy from legacy checkpoint: {e}") from e
 
         self._cached_prs[path] = pr
         return pr

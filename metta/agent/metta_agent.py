@@ -89,6 +89,10 @@ class MettaAgent(nn.Module):
 
         obs_shape = safe_get_from_obs_space(obs_space, obs_key, "shape")
 
+        # agent_attributes is used to pass environment and architecture info to components
+        # during instantiation via Hydra. With the simple torch.save approach, these
+        # attributes are saved as part of the policy object and don't need to be
+        # reconstructed from metadata anymore.
         self.agent_attributes = {
             "clip_range": self.clip_range,
             "action_space": action_space,
