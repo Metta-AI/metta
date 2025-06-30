@@ -1,15 +1,18 @@
 defaults:
   - game/agent: hearts
-  - game/groups: teams
-  - game/objects: basic
-  - game/objects: advanced
-  - game/objects: combat
-  - game/objects: generators
-  - game/objects: mines
-  - game/reward_sharing: team
+  - game/groups: solo
+  - game/objects:
+      - basic
+      - mines
   - _self_
 
+<<<<<<< HEAD
 sampling: 0
+=======
+replay_level_prob: 0.2
+sampling: 0
+
+>>>>>>> 9db25a334 (cp)
 game:
   num_agents: ???
   obs_width: 11

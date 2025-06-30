@@ -1,5 +1,5 @@
 defaults:
-  - /env/mettagrid/mettagrid@
+  - /env/mettagrid/full@
   - _self_
 
 game:

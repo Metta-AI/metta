@@ -76,7 +76,7 @@ sim_job:
   #         agents: 4
   #       num_rooms: 4
 
-run_id: 1.2
+run_id: 1.6
 run: ${oc.env:USER}.local.${run_id}
 trained_policy_uri: ${run_dir}/checkpoints
 

@@ -1,5 +1,5 @@
 defaults:
-  - /env/mettagrid/mettagrid@
+  - full
   - _self_
 
 game:
@@ -19,39 +19,39 @@ game:
     rooms:
       base:
         _target_: metta.mettagrid.room.random.Random
-        width: ${sampling:10,50,10}
-        height: ${sampling:10,50,10}
+        width: 10
+        height: 10
         border_width: 0
 
         agents: ${div:${....num_agents},4}
 
         objects:
-          generator_red: ${sampling:1,10,2}
-          armory: ${sampling:1,5,1}
-          lasery: ${sampling:1,5,1}
-          lab: ${sampling:1,5,1}
-          factory: ${sampling:1,5,1}
-          temple: ${sampling:1,5,1}
-          wall: ${sampling:0,10,5}
+          generator_red: 2
+          armory: 1
+          lasery: 1
+          lab: 1
+          factory: 1
+          temple: 1
+          wall: 5
 
       wild:
         _target_: metta.mettagrid.room.random.Random
-        width: ${sampling:10,50,20}
-        height: ${sampling:10,50,20}
+        width: 20
+        height: 20
         border_width: 0
 
         objects:
-          mine_red: ${sampling:1,20,10}
-          altar: ${sampling:1,5,1}
-          wall: ${sampling:0,20,5}
+          mine_red: 10
+          altar: 1
+          wall: 5
 
       center:
         _target_: metta.mettagrid.room.random.Random
-        width: ${sampling:10,50,10}
-        height: ${sampling:10,50,10}
+        width: 10
+        height: 10
         border_width: 0
 
         objects:
-          altar: ${sampling:1,3,2}
-          wall: ${sampling:0,20,5}
-          generator_red: ${sampling:1,10,2}
+          altar: 2
+          wall: 5
+          generator_red: 2
