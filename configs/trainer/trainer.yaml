@@ -2,3 +2,13 @@ _target_: metta.rl.trainer.MettaTrainer
 
 num_workers: ???
 
+# Note: checkpoint_dir and replay_dir are set automatically by parse_trainer_config
+# using ${run_dir}/checkpoints and s3://softmax-public/replays/${run}
+
+checkpoint:
+  checkpoint_interval: 60
+  wandb_checkpoint_interval: 300
+
+simulation:
+  evaluate_interval: 300
+  replay_interval: 300  # Fixed: was using invalid interpolation
