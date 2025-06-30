@@ -727,8 +727,7 @@ class MettaTrainer:
             eval_scores=category_scores_map,
         )
 
-        # Create a policy record that points to the current policy
-        # without creating a new instance - just like policy_store.py does
+        # Create a policy record and assign our current policy to it
         policy_record = self.policy_store.create_empty_policy_record(name)
         policy_record.metadata = metadata
 
@@ -738,16 +737,13 @@ class MettaTrainer:
         else:
             policy_record.policy = self.policy
 
-        # Save the policy record (this will save state_dict and metadata only)
+        # Save the policy record
         self.latest_saved_policy_record = self.policy_store.save(policy_record)
-
         logger.info(f"Successfully saved policy at epoch {self.epoch}")
 
         # Clean up old policies to prevent disk space issues
         if self.epoch % 10 == 0:  # Clean up every 10 epochs
             self._cleanup_old_policies(keep_last_n=5)
-
-        return self.latest_saved_policy_record
 
     def _wait_for_policy_record(self, policy_path: str, timeout: int = 300) -> PolicyRecord | None:
         """Wait for a policy file to be created by the master rank.
@@ -1245,13 +1241,11 @@ class MettaTrainer:
         name = policy_store.make_model_name(self.epoch)
         logger.info(f"Creating new policy record: {name}")
 
-        # Create the policy record
+        # Create the policy record with a new policy instance
         pr = policy_store.create_empty_policy_record(name)
-
-        # Create a new policy instance
         pr.policy = make_policy(env, self.cfg)
 
-        # Save the policy record (this saves state_dict and metadata)
+        # Save the policy record
         saved_pr = policy_store.save(pr)
         logger.info(f"Successfully saved initial policy to {saved_pr.uri}")
 

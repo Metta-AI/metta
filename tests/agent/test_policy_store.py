@@ -31,13 +31,19 @@ def test_policy_save_load_without_pydantic():
 
     # Import PolicyStore and PolicyRecord from their respective modules
     from metta.agent.policy_metadata import PolicyMetadata
+    from metta.agent.policy_record import PolicyRecord
     from metta.agent.policy_store import PolicyStore
 
     # Create minimal config
     cfg = OmegaConf.create(
         {
             "device": "cpu",
-            "trainer": {"checkpoint_dir": tempfile.mkdtemp()},
+            "run": "test_run",
+            "run_dir": tempfile.mkdtemp(),
+            "trainer": {
+                "checkpoint": {"checkpoint_dir": tempfile.mkdtemp()},
+                "num_workers": 1,
+            },
             "data_dir": tempfile.mkdtemp(),
             # Add minimal agent config needed for make_policy
             "agent": {
@@ -83,27 +89,17 @@ def test_policy_save_load_without_pydantic():
         # This tests the critical part - that we don't have pydantic issues
         checkpoint = torch.load(temp_path, map_location="cpu", weights_only=False)
 
-        # Verify checkpoint format
-        assert "policy_metadata" in checkpoint or "metadata" in checkpoint
-        assert "model_state_dict" in checkpoint
-        assert "name" in checkpoint
-        assert "uri" in checkpoint
-        assert "checkpoint_version" in checkpoint
+        # With the old simple approach, we save the entire PolicyRecord
+        assert isinstance(checkpoint, PolicyRecord)
 
         # Verify metadata is properly saved
-        saved_metadata = checkpoint.get("policy_metadata") or checkpoint.get("metadata")
-        assert saved_metadata is not None
-        assert saved_metadata["action_names"] == ["move", "turn"]
-        assert saved_metadata["agent_step"] == 100
-        assert saved_metadata["epoch"] == 5
-        assert saved_metadata["generation"] == 1
-        assert saved_metadata["train_time"] == 60.0
+        assert checkpoint.metadata["action_names"] == ["move", "turn"]
+        assert checkpoint.metadata["agent_step"] == 100
+        assert checkpoint.metadata["epoch"] == 5
+        assert checkpoint.metadata["generation"] == 1
+        assert checkpoint.metadata["train_time"] == 60.0
 
-        # Verify state dict is saved
-        assert isinstance(checkpoint["model_state_dict"], dict)
-        assert len(checkpoint["model_state_dict"]) > 0
-
-        print("✅ Checkpoint format verified - no pydantic issues!")
+        print("✅ Checkpoint format verified - using simple torch.save approach!")
 
     finally:
         # Cleanup

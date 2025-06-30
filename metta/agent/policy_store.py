@@ -202,17 +202,27 @@ class PolicyStore:
         metadata = PolicyMetadata()
         return PolicyRecord(self, name, f"file://{path}", metadata)
 
-    def save_to_file(
-        self,
-        pr: PolicyRecord,
-        path: str | None = None,
-    ) -> PolicyRecord:
-        """Save a policy record by delegating to its save method."""
-        return pr.save_to_file(path)
-
     def save(self, pr: PolicyRecord, path: str | None = None) -> PolicyRecord:
-        """Save a policy record (backward compatibility wrapper for save_to_file)."""
-        return self.save_to_file(pr, path)
+        """Save a policy record using the simple torch.save approach."""
+        if path is None:
+            if hasattr(pr, "file_path"):
+                path = pr.file_path
+            else:
+                path = pr.uri[7:] if pr.uri.startswith("file://") else pr.uri
+
+        logger.info(f"Saving policy to {path}")
+
+        # Temporarily remove the policy store reference to avoid pickling issues
+        pr._policy_store = None
+        torch.save(pr, path)
+        pr._policy_store = self
+
+        # Don't cache the policy that we just saved,
+        # since it might be updated later. We always
+        # load the policy from the file when needed.
+        pr._cached_policy = None
+        self._cached_prs[path] = pr
+        return pr
 
     def add_to_wandb_run(self, run_id: str, pr: PolicyRecord, additional_files: list[str] | None = None) -> str:
         return self.add_to_wandb_artifact(run_id, "model", pr.metadata, pr.file_path, additional_files)
@@ -355,15 +365,8 @@ class PolicyStore:
     def _load_from_file(self, path: str, metadata_only: bool = False) -> PolicyRecord:
         if path in self._cached_prs:
             cached_pr = self._cached_prs[path]
-            # For metadata_only, we can return the cached record immediately
-            if metadata_only:
+            if metadata_only or cached_pr._cached_policy is not None:
                 return cached_pr
-            # For full load, check if the policy is already loaded
-            # Only check the _cached_policy attribute directly to avoid triggering
-            # the property getter which may cause recursion or errors
-            if hasattr(cached_pr, "_cached_policy") and cached_pr._cached_policy is not None:
-                return cached_pr
-            # If no cached policy, we need to reload it below
 
         if not path.endswith(".pt") and os.path.isdir(path):
             path = os.path.join(path, os.listdir(path)[-1])
@@ -374,64 +377,24 @@ class PolicyStore:
 
         assert path.endswith(".pt"), f"Policy file {path} does not have a .pt extension"
 
-        try:
-            checkpoint = torch.load(path, map_location=self._device, weights_only=False)
+        # Simple torch.load approach
+        pr = torch.load(path, map_location=self._device, weights_only=False)
 
-            # Handle checkpoint with state dict
-            if isinstance(checkpoint, dict) and "model_state_dict" in checkpoint:
-                # Support both old and new metadata keys for backward compatibility
-                metadata_dict = checkpoint.get("policy_metadata") or checkpoint.get("metadata")
-                if metadata_dict is None:
-                    raise ValueError("Checkpoint missing both 'policy_metadata' and 'metadata' keys")
-                metadata = PolicyMetadata(**metadata_dict)
-                pr = PolicyRecord(self, checkpoint["name"], checkpoint["uri"], metadata)
+        # Handle the case where we loaded a dict (new format) - convert to old format
+        if isinstance(pr, dict) and "model_state_dict" in pr:
+            return self._load_legacy_checkpoint(path, metadata_only)
 
-                if not metadata_only:
-                    # Reconstruct environment from agent_attributes
-                    from types import SimpleNamespace
+        # Otherwise we should have a PolicyRecord object
+        if not isinstance(pr, PolicyRecord):
+            return self._load_legacy_checkpoint(path, metadata_only)
 
-                    # Extract agent_attributes from metadata if present (new format)
-                    # or from checkpoint directly (old format)
-                    agent_attrs = metadata.get("agent_attributes", {})
-                    if not agent_attrs:
-                        agent_attrs = checkpoint.get("agent_attributes", {})
-                    obs_shape = agent_attrs.get("obs_shape", [34, 11, 11])
+        pr._policy_store = self
+        self._cached_prs[path] = pr
 
-                    # Create minimal environment for policy creation
-                    env = SimpleNamespace(
-                        single_observation_space=gym.spaces.Box(low=0, high=255, shape=obs_shape, dtype=np.uint8),
-                        obs_width=agent_attrs.get("obs_width", 11),
-                        obs_height=agent_attrs.get("obs_height", 11),
-                        single_action_space=gym.spaces.MultiDiscrete(
-                            agent_attrs.get("action_space", {}).get("nvec", [9, 10])
-                        ),
-                        feature_normalizations=agent_attrs.get("feature_normalizations", {}),
-                        global_features=[],
-                    )
+        if metadata_only:
+            pr._cached_policy = None
 
-                    # Create policy
-                    policy = make_policy(env, self._cfg)
-
-                    # Activate actions if configuration is available
-                    if "action_names" in agent_attrs and "action_max_params" in agent_attrs:
-                        action_names = agent_attrs["action_names"]
-                        action_max_params = agent_attrs["action_max_params"]
-                        policy.activate_actions(action_names, action_max_params, self._device)
-
-                    # Load state dict after activation
-                    policy.load_state_dict(checkpoint["model_state_dict"])
-                    pr._cached_policy = policy.to(self._device)
-
-                self._cached_prs[path] = pr
-                return pr
-
-            # Handle legacy checkpoints (both PolicyRecord objects and old dict format)
-            else:
-                return self._load_legacy_checkpoint(path, metadata_only)
-
-        except Exception as e:
-            logger.error(f"Failed to load policy from {path}: {e}")
-            raise ValueError(f"Failed to load policy from {path}: {e}") from e
+        return pr
 
     def _load_wandb_artifact(self, qualified_name: str):
         logger.info(f"Loading policy from wandb artifact {qualified_name}")

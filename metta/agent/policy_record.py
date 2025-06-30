@@ -5,7 +5,7 @@ This is separated from PolicyStore to enable cleaner packaging of saved policies
 
 import logging
 import os
-from typing import Optional, Union
+from typing import Union
 
 import torch
 from torch import nn
@@ -93,99 +93,6 @@ class PolicyRecord:
     def num_params(self) -> int:
         """Count the number of trainable parameters."""
         return sum(p.numel() for p in self.policy.parameters() if p.requires_grad)
-
-    def save_to_file(self, path: Optional[str] = None, packaging_rules_callback=None) -> "PolicyRecord":
-        """Save a policy and its metadata using standard torch.save.
-
-        Args:
-            path: Optional path to save to. If None, uses the path from the URI.
-            packaging_rules_callback: Ignored - kept for compatibility.
-
-        Returns:
-            Self, with updated URI if a new path was provided.
-        """
-        if path is None:
-            if not self.uri.startswith("file://"):
-                raise ValueError("Can only save to file:// URIs without explicit path")
-            path = self.file_path
-
-        if os.path.exists(path):
-            logger.warning(f"Overwriting existing policy at {path}")
-        else:
-            logger.info(f"Saving policy to {path}")
-
-        try:
-            # Get agent attributes and convert to serializable format
-            agent_attrs = getattr(self.policy, "agent_attributes", {})
-            serializable_attrs = {}
-
-            for key, value in agent_attrs.items():
-                if key == "action_space" and hasattr(value, "nvec"):
-                    # Convert gym.spaces.MultiDiscrete to dict
-                    import numpy as np
-
-                    nvec = value.nvec
-                    if isinstance(nvec, np.ndarray):
-                        nvec = nvec.tolist()
-                    serializable_attrs[key] = {"nvec": list(nvec)}
-                elif key == "obs_shape" and hasattr(value, "__iter__"):
-                    # Ensure obs_shape is a list
-                    serializable_attrs[key] = list(value)
-                elif isinstance(value, (dict, list, str, int, float, bool, type(None))):
-                    # Keep JSON-serializable types as-is
-                    serializable_attrs[key] = value
-                else:
-                    # Handle OmegaConf objects
-                    try:
-                        from omegaconf import DictConfig, ListConfig
-
-                        if isinstance(value, (DictConfig, ListConfig)):
-                            # Convert OmegaConf to regular Python objects
-                            from omegaconf import OmegaConf
-
-                            serializable_attrs[key] = OmegaConf.to_container(value, resolve=True)
-                            logger.info(f"Converted OmegaConf {key} to regular Python container")
-                        else:
-                            # Convert other types to string representation
-                            logger.warning(
-                                f"Converting non-serializable attribute {key} of type {type(value)} to string"
-                            )
-                            serializable_attrs[key] = str(value)
-                    except ImportError:
-                        # If OmegaConf is not available, convert to string
-                        logger.warning(f"Converting non-serializable attribute {key} of type {type(value)} to string")
-                        serializable_attrs[key] = str(value)
-
-            # Add action configuration if available
-            if hasattr(self.policy, "action_names") and hasattr(self.policy, "action_max_params"):
-                serializable_attrs["action_names"] = self.policy.action_names
-                serializable_attrs["action_max_params"] = self.policy.action_max_params
-
-            # Insert architecture attributes into metadata and sanitize
-            # This keeps everything in the PolicyMetadata object
-            metadata_dict = dict(self.metadata)
-            metadata_dict["agent_attributes"] = serializable_attrs
-            policy_metadata = PolicyMetadata(**metadata_dict)
-
-            # Create checkpoint dictionary with state dict and metadata only
-            checkpoint = {
-                "model_state_dict": self.policy.state_dict(),
-                "policy_metadata": policy_metadata.sanitized(),
-                "name": self.name,
-                "uri": f"file://{path}",
-                # Simple version tag
-                "checkpoint_version": "1.0",
-            }
-
-            torch.save(checkpoint, path)
-            logger.info(f"Successfully saved checkpoint to {path}")
-
-        except Exception as e:
-            logger.error(f"Failed to save checkpoint: {e}")
-            raise RuntimeError(f"Failed to save policy: {e}") from e
-
-        self.uri = f"file://{path}"
-        return self
 
     def key_and_version(self) -> tuple[str, int]:
         """Extract key and version from the URI, handling both wandb:// and file:// URIs.
