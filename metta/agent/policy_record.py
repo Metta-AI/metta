@@ -5,7 +5,7 @@ This is separated from PolicyStore to enable cleaner packaging of saved policies
 
 import logging
 import os
-from typing import Optional
+from typing import Optional, Union
 
 import torch
 from torch import nn
@@ -18,12 +18,29 @@ logger = logging.getLogger(__name__)
 class PolicyRecord:
     """A record containing a policy and its metadata."""
 
-    def __init__(self, policy_store, name: str, uri: str, metadata: PolicyMetadata):
+    def __init__(self, policy_store, name: str, uri: str, metadata: Union[PolicyMetadata, dict]):
         self._policy_store = policy_store
         self.name = name  # Human-readable identifier (e.g., from wandb)
         self.uri: str = uri
+        # Use the setter to ensure proper type
         self.metadata = metadata
         self._cached_policy = None
+
+    @property
+    def metadata(self) -> PolicyMetadata:
+        """Get the metadata."""
+        return self._metadata
+
+    @metadata.setter
+    def metadata(self, value) -> None:
+        """Set metadata, ensuring it's a PolicyMetadata instance."""
+        if isinstance(value, PolicyMetadata):
+            self._metadata = value
+        elif isinstance(value, dict):
+            # Automatically convert dict to PolicyMetadata
+            self._metadata = PolicyMetadata(**value)
+        else:
+            raise TypeError(f"metadata must be PolicyMetadata or dict, got {type(value).__name__}")
 
     @property
     def file_path(self) -> str:
