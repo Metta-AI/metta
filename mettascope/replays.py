@@ -10,7 +10,7 @@ from metta.agent.metta_agent import MettaAgent
 from metta.agent.policy_store import PolicyStore
 from metta.common.util.logging import setup_mettagrid_logger
 from metta.common.util.runtime_configuration import setup_mettagrid_environment
-from metta.common.util.wandb.wandb_context import WandbContext
+from metta.common.wandb.wandb_context import WandbContext
 from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SingleEnvSimulationConfig
 

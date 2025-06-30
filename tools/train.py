@@ -17,7 +17,7 @@ from metta.common.util.logging import setup_mettagrid_logger
 from metta.common.util.runtime_configuration import setup_mettagrid_environment
 from metta.common.util.script_decorators import metta_script
 from metta.common.util.stats_client_cfg import get_stats_client
-from metta.common.util.wandb.wandb_context import WandbContext, WandbRun
+from metta.common.wandb.wandb_context import WandbContext, WandbRun
 from metta.sim.simulation_config import SimulationSuiteConfig
 from tools.sweep_config_utils import load_train_job_config_with_overrides
 
