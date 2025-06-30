@@ -7,8 +7,8 @@ from omegaconf import DictConfig, OmegaConf
 
 from metta.common.util.config import Config
 from metta.map.config import scenes_root
+from metta.map.random.int import MaybeSeed
 from metta.map.types import Area, AreaQuery, ChildrenAction, SceneCfg
-from metta.map.utils.random import MaybeSeed
 
 ParamsT = TypeVar("ParamsT", bound=Config)
 

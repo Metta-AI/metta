@@ -1,6 +1,8 @@
 import numpy as np
 
 from metta.common.util.config import Config
+from metta.map.random.float import FloatDistribution
+from metta.map.random.int import IntDistribution
 from metta.map.scene import Scene
 from metta.map.scenes.bsp import BSPLayout
 from metta.map.scenes.make_connected import MakeConnected
@@ -10,7 +12,6 @@ from metta.map.scenes.random_objects import RandomObjects
 from metta.map.scenes.random_scene import RandomScene, RandomSceneCandidate
 from metta.map.scenes.room_grid import RoomGrid
 from metta.map.types import AreaWhere, ChildrenAction
-from metta.map.utils.random import FloatDistribution, IntDistribution, sample_int_distribution
 
 
 class AutoParamsLayout(Config):
@@ -89,8 +90,8 @@ class AutoLayout(Scene[AutoParams]):
             ]
 
         if layout == "grid":
-            rows = sample_int_distribution(self.params.grid.rows, self.rng)
-            columns = sample_int_distribution(self.params.grid.columns, self.rng)
+            rows = self.params.grid.rows.sample(self.rng)
+            columns = self.params.grid.columns.sample(self.rng)
 
             return [
                 ChildrenAction(
@@ -106,7 +107,7 @@ class AutoLayout(Scene[AutoParams]):
                 ),
             ]
         elif layout == "bsp":
-            area_count = sample_int_distribution(self.params.bsp.area_count, self.rng)
+            area_count = self.params.bsp.area_count.sample(self.rng)
 
             return [
                 ChildrenAction(
