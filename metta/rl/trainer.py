@@ -81,28 +81,34 @@ class MettaTrainer:
             logger.info(f"Recent checkpoints: {', '.join(recent_files)}")
 
         self.cfg = cfg
-        self.trainer_cfg = trainer_cfg = parse_trainer_config(cfg.trainer)
+        self.trainer_cfg = trainer_cfg = parse_trainer_config(cfg)
 
         # it doesn't make sense to evaluate more often than we checkpoint since we need a saved policy to evaluate
-        if trainer_cfg.evaluate_interval != 0 and trainer_cfg.evaluate_interval < trainer_cfg.checkpoint_interval:
+        if (
+            trainer_cfg.simulation.evaluate_interval != 0
+            and trainer_cfg.simulation.evaluate_interval < trainer_cfg.checkpoint.checkpoint_interval
+        ):
             raise ValueError("evaluate_interval must be at least as large as checkpoint_interval")
 
-        if trainer_cfg.evaluate_interval != 0 and trainer_cfg.evaluate_interval < trainer_cfg.wandb_checkpoint_interval:
+        if (
+            trainer_cfg.simulation.evaluate_interval != 0
+            and trainer_cfg.simulation.evaluate_interval < trainer_cfg.checkpoint.wandb_checkpoint_interval
+        ):
             raise ValueError("evaluate_interval must be at least as large as wandb_checkpoint_interval")
 
         # Validate that we save policies locally at least as often as we upload to wandb
         if (
-            trainer_cfg.wandb_checkpoint_interval != 0
-            and trainer_cfg.checkpoint_interval != 0
-            and trainer_cfg.wandb_checkpoint_interval < trainer_cfg.checkpoint_interval
+            trainer_cfg.checkpoint.wandb_checkpoint_interval != 0
+            and trainer_cfg.checkpoint.checkpoint_interval != 0
+            and trainer_cfg.checkpoint.wandb_checkpoint_interval < trainer_cfg.checkpoint.checkpoint_interval
         ):
             raise ValueError(
                 "wandb_checkpoint_interval must be at least as large as checkpoint_interval "
                 "to ensure policies exist locally before uploading to wandb"
             )
 
-        if trainer_cfg.checkpoint_dir:
-            os.makedirs(trainer_cfg.checkpoint_dir, exist_ok=True)
+        if trainer_cfg.checkpoint.checkpoint_dir:
+            os.makedirs(trainer_cfg.checkpoint.checkpoint_dir, exist_ok=True)
 
         self.sim_suite_config = sim_suite_config
         self._stats_client = stats_client
@@ -497,8 +503,8 @@ class MettaTrainer:
             experience.dones,
             initial_importance_sampling_ratio,
             advantages,
-            trainer_cfg.gamma,
-            trainer_cfg.gae_lambda,
+            trainer_cfg.ppo.gamma,
+            trainer_cfg.ppo.gae_lambda,
             vtrace_cfg.vtrace_rho_clip,
             vtrace_cfg.vtrace_c_clip,
             self.device,
@@ -530,11 +536,10 @@ class MettaTrainer:
                     losses=self.losses,
                     device=self.device,
                 )
-
                 self.optimizer.zero_grad()
                 loss.backward()
                 if (minibatch_idx + 1) % self.experience.accumulate_minibatches == 0:
-                    torch.nn.utils.clip_grad_norm_(self.policy.parameters(), trainer_cfg.max_grad_norm)
+                    torch.nn.utils.clip_grad_norm_(self.policy.parameters(), trainer_cfg.ppo.max_grad_norm)
                     self.optimizer.step()
 
                     if self.cfg.agent.clip_range > 0:
@@ -549,9 +554,9 @@ class MettaTrainer:
             self.epoch += 1
 
             # check early exit if we have reached target_kl
-            if trainer_cfg.target_kl is not None:
+            if trainer_cfg.ppo.target_kl is not None:
                 average_approx_kl = self.losses.approx_kl_sum / self.losses.minibatches_processed
-                if average_approx_kl > trainer_cfg.target_kl:
+                if average_approx_kl > trainer_cfg.ppo.target_kl:
                     break
             # end loop over epochs
 
@@ -579,7 +584,7 @@ class MettaTrainer:
 
     def _maybe_save_training_state(self, force=False):
         """Save training state if on checkpoint interval"""
-        if not self._should_run(self.trainer_cfg.checkpoint_interval, force):
+        if not self._should_run(self.trainer_cfg.checkpoint.checkpoint_interval, force):
             return
 
         extra_args = {}
@@ -600,7 +605,7 @@ class MettaTrainer:
 
     def _maybe_save_policy(self, force=False):
         """Save policy locally if on checkpoint interval"""
-        if not self._should_run(self.trainer_cfg.checkpoint_interval, force):
+        if not self._should_run(self.trainer_cfg.checkpoint.checkpoint_interval, force):
             return
 
         name = self.policy_store.make_model_name(self.epoch)
@@ -650,7 +655,7 @@ class MettaTrainer:
 
     def _maybe_upload_policy_record_to_wandb(self, force: bool = False) -> str | None:
         """Upload policy to wandb if on wandb interval"""
-        if not self._should_run(self.trainer_cfg.wandb_checkpoint_interval, force):
+        if not self._should_run(self.trainer_cfg.checkpoint.wandb_checkpoint_interval, force):
             return
 
         if not self.wandb_run:
@@ -675,7 +680,7 @@ class MettaTrainer:
 
     def _maybe_evaluate_policy(self, wandb_policy_name: str | None = None, force: bool = False):
         """Evaluate policy if on evaluation interval"""
-        if self._should_run(self.trainer_cfg.evaluate_interval, force):
+        if self._should_run(self.trainer_cfg.simulation.evaluate_interval, force):
             try:
                 self._evaluate_policy(wandb_policy_name)
             except Exception as e:
@@ -734,7 +739,7 @@ class MettaTrainer:
 
     def _maybe_generate_replay(self, force=False):
         """Generate replay if on replay interval"""
-        if self._should_run(self.trainer_cfg.replay_interval, force):
+        if self._should_run(self.trainer_cfg.simulation.replay_interval, force):
             self._generate_and_upload_replay()
 
     @with_instance_timer("_generate_and_upload_replay", log_level=logging.INFO)
@@ -752,7 +757,7 @@ class MettaTrainer:
             policy_store=self.policy_store,
             device=self.device,
             vectorization=self.cfg.vectorization,
-            replay_dir=self.trainer_cfg.replay_dir,
+            replay_dir=self.trainer_cfg.simulation.replay_dir,
         )
         results = replay_simulator.simulate()
 
@@ -866,7 +871,9 @@ class MettaTrainer:
         losses = self.losses.stats()
 
         # don't plot losses that are unused
-        if self.trainer_cfg.l2_init_loss_coef == 0:
+        if self.trainer_cfg.ppo.l2_reg_loss_coef == 0:
+            losses.pop("l2_reg_loss")
+        if self.trainer_cfg.ppo.l2_init_loss_coef == 0:
             losses.pop("l2_init_loss")
         if not self.kickstarter.enabled:
             losses.pop("ks_action_loss")
@@ -1034,7 +1041,7 @@ class MettaTrainer:
             return policy_store.policy_record(initial_uri)
 
         # Try default checkpoint path
-        policy_path = os.path.join(trainer_cfg.checkpoint_dir, policy_store.make_model_name(0))
+        policy_path = os.path.join(trainer_cfg.checkpoint.checkpoint_dir, policy_store.make_model_name(0))
         if os.path.exists(policy_path):
             logger.info(f"Loading policy from checkpoint: {policy_path}")
             return policy_store.policy_record(policy_path)
@@ -1060,7 +1067,7 @@ class MettaTrainer:
         if self._master:
             raise RuntimeError("Master process should not wait for policy")
 
-        policy_path = os.path.join(self.trainer_cfg.checkpoint_dir, policy_store.make_model_name(0))
+        policy_path = os.path.join(self.trainer_cfg.checkpoint.checkpoint_dir, policy_store.make_model_name(0))
 
         for attempt in range(timeout_attempts):
             if os.path.exists(policy_path):
