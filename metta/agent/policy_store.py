@@ -194,28 +194,13 @@ class PolicyStore:
         return f"model_{epoch:04d}.pt"
 
     def create_empty_policy_record(self, name: str, override_path: str | None = None) -> PolicyRecord:
-<<<<<<< HEAD
-        path = override_path if override_path is not None else os.path.join(self._cfg.trainer.checkpoint_dir, name)
-        metadata = PolicyMetadata()
-        return PolicyRecord(self, name, f"file://{path}", metadata)
-=======
         path = (
             override_path
             if override_path is not None
             else os.path.join(self._trainer_cfg.checkpoint.checkpoint_dir, name)
         )
-        return PolicyRecord(
-            self,
-            name,
-            f"file://{path}",
-            {
-                "agent_step": 0,
-                "epoch": 0,
-                "generation": 0,
-                "train_time": 0,
-            },
-        )
->>>>>>> origin
+        metadata = PolicyMetadata()
+        return PolicyRecord(self, name, f"file://{path}", metadata)
 
     def save_to_file(
         self,

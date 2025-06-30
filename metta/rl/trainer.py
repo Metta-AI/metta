@@ -74,7 +74,7 @@ class MettaTrainer:
             logger.info(f"Recent checkpoints: {', '.join(recent_files)}")
 
         self.cfg = cfg
-        self.trainer_cfg = trainer_cfg = parse_trainer_config(cfg.trainer)
+        self.trainer_cfg = trainer_cfg = parse_trainer_config(cfg)
 
         # it doesn't make sense to evaluate more often than we checkpoint since we need a saved policy to evaluate
         if (
@@ -727,48 +727,19 @@ class MettaTrainer:
             eval_scores=category_scores_map,
         )
 
+        # Create a policy record that points to the current policy
+        # without creating a new instance - just like policy_store.py does
+        policy_record = self.policy_store.create_empty_policy_record(name)
+        policy_record.metadata = metadata
+
         # Extract the actual policy module from distributed wrapper if needed
         if isinstance(self.policy, DistributedMettaAgent):
-            current_policy = self.policy.module
+            policy_record.policy = self.policy.module
         else:
-            current_policy = self.policy
+            policy_record.policy = self.policy
 
-        # Log memory usage before creating new policy
-        if hasattr(self, "_memory_monitor"):
-            memory_before = self._memory_monitor.get_current_memory_mb()
-            logger.info(f"Memory before policy save: {memory_before:.1f} MB")
-
-        # Create a truly fresh policy instance to avoid memory leaks
-        logger.info("Creating a fresh policy instance to save")
-        fresh_policy = make_policy(metta_grid_env, self.cfg)
-        fresh_policy.activate_actions(metta_grid_env.action_names, metta_grid_env.max_action_args, self.device)
-
-        # Copy the state dict from the current policy to the fresh instance
-        fresh_policy.load_state_dict(current_policy.state_dict(), strict=False)
-
-        # Create policy record with the fresh policy
-        fresh_policy_record = self.policy_store.create_empty_policy_record(name)
-        fresh_policy_record.metadata = metadata
-        fresh_policy_record.policy = fresh_policy
-
-        self.latest_saved_policy_record = self.policy_store.save(fresh_policy_record)
-
-        # Explicit cleanup to help garbage collection
-        del fresh_policy
-
-        # Force garbage collection to free memory immediately
-        import gc
-
-        gc.collect()
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
-
-        # Log memory usage after save
-        if hasattr(self, "_memory_monitor"):
-            memory_after = self._memory_monitor.get_current_memory_mb()
-            logger.info(
-                f"Memory after policy save: {memory_after:.1f} MB (delta: {memory_after - memory_before:.1f} MB)"
-            )
+        # Save the policy record (this will save state_dict and metadata only)
+        self.latest_saved_policy_record = self.policy_store.save(policy_record)
 
         logger.info(f"Successfully saved policy at epoch {self.epoch}")
 
@@ -1273,12 +1244,17 @@ class MettaTrainer:
         """Create a new policy and save it."""
         name = policy_store.make_model_name(self.epoch)
         logger.info(f"Creating new policy record: {name}")
+
+        # Create the policy record
         pr = policy_store.create_empty_policy_record(name)
+
+        # Create a new policy instance
         pr.policy = make_policy(env, self.cfg)
 
+        # Save the policy record (this saves state_dict and metadata)
         saved_pr = policy_store.save(pr)
-        self.latest_saved_policy_record = saved_pr
         logger.info(f"Successfully saved initial policy to {saved_pr.uri}")
+
         return saved_pr
 
     def _maybe_compute_grad_stats(self, force=False):
