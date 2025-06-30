@@ -5,9 +5,6 @@ from metta.common.util.config import Config
 from metta.map.scene import Scene
 from metta.map.types import Area, AreaQuery, AreaWhere
 
-# Set a global seed for reproducibility
-SEED = 42
-
 
 class MockParams(Config):
     pass
@@ -20,9 +17,6 @@ class MockScene(Scene[MockParams]):
 
 @pytest.fixture
 def scene():
-    # Set NumPy seed for reproducibility
-    np.random.seed(SEED)
-
     # Create a 5x5 grid with some test data
     grid = np.array(
         [
@@ -53,7 +47,6 @@ def test_areas_are_correctly_created(scene):
 
 
 def test_select_areas_with_where_tags(scene):
-    assert np.random.get_state()[1][0] == SEED  # Verify seed is still effective
     # Test selecting areas with specific tags
     query = AreaQuery(where=AreaWhere(tags=["tag1", "tag2"]))
     selected_areas = scene.select_areas(query)

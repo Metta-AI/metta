@@ -36,7 +36,7 @@ def is_connected(grid: MapGrid):
     """Check if all empty cells in the grid are connected."""
     height, width = grid.shape
 
-    def is_empty(cell: str) -> bool:
+    def is_empty(cell) -> bool:
         return cell == "empty" or cell.startswith("agent")
 
     # Find all empty cells
