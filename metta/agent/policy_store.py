@@ -381,54 +381,17 @@ class PolicyStore:
                     from types import SimpleNamespace
 
                     agent_attrs = checkpoint.get("agent_attributes", {})
-
-                    # Safely extract obs_shape
                     obs_shape = agent_attrs.get("obs_shape", [34, 11, 11])
-                    if isinstance(obs_shape, (tuple, list)):
-                        obs_shape = list(obs_shape)
-                    else:
-                        obs_shape = [34, 11, 11]  # Default shape for box observations
-
-                    # Do NOT modify obs_shape dimensions - it could be:
-                    # - Token observations: [num_tokens, features_per_token] (2D)
-                    # - Box observations: [channels, height, width] (3D)
-                    # The shape should match what was saved, not be forced to 3D
-
-                    # Safely extract action space nvec
-                    action_space_nvec = [9, 10]  # Default
-                    action_space_data = agent_attrs.get("action_space")
-                    if action_space_data is not None:
-                        if isinstance(action_space_data, dict) and "nvec" in action_space_data:
-                            action_space_nvec = action_space_data["nvec"]
-                        elif hasattr(action_space_data, "nvec"):
-                            # Handle gym.spaces.MultiDiscrete object
-                            action_space_nvec = list(action_space_data.nvec)
-
-                    # Safely extract feature_normalizations
-                    feature_normalizations = agent_attrs.get("feature_normalizations", {})
-                    if isinstance(feature_normalizations, str):
-                        # Handle old checkpoints where it was converted to string
-                        logger.warning("feature_normalizations was saved as string, using default values")
-                        feature_normalizations = {0: 1.0, 1: 1.0, 2: 1.0}  # Default normalization
-                    elif isinstance(feature_normalizations, dict):
-                        # Ensure keys are integers (they might be strings after save/load)
-                        feature_normalizations = {
-                            int(k) if isinstance(k, str) and k.isdigit() else k: v
-                            for k, v in feature_normalizations.items()
-                        }
-                    else:
-                        logger.warning(
-                            f"Unexpected feature_normalizations type: {type(feature_normalizations)}, using defaults"
-                        )
-                        feature_normalizations = {0: 1.0, 1: 1.0, 2: 1.0}
 
                     # Create minimal environment for policy creation
                     env = SimpleNamespace(
                         single_observation_space=gym.spaces.Box(low=0, high=255, shape=obs_shape, dtype=np.uint8),
-                        obs_width=agent_attrs.get("obs_width", 11),  # Use saved value or default
-                        obs_height=agent_attrs.get("obs_height", 11),  # Use saved value or default
-                        single_action_space=gym.spaces.MultiDiscrete(action_space_nvec),
-                        feature_normalizations=feature_normalizations,
+                        obs_width=agent_attrs.get("obs_width", 11),
+                        obs_height=agent_attrs.get("obs_height", 11),
+                        single_action_space=gym.spaces.MultiDiscrete(
+                            agent_attrs.get("action_space", {}).get("nvec", [9, 10])
+                        ),
+                        feature_normalizations=agent_attrs.get("feature_normalizations", {}),
                         global_features=[],
                     )
 
@@ -440,9 +403,6 @@ class PolicyStore:
                         action_names = agent_attrs["action_names"]
                         action_max_params = agent_attrs["action_max_params"]
                         policy.activate_actions(action_names, action_max_params, self._device)
-                        logger.info(f"Activated actions with {len(action_names)} action types")
-                    else:
-                        logger.warning("No action configuration found in checkpoint, policy may not work correctly")
 
                     # Load state dict after activation
                     policy.load_state_dict(checkpoint["model_state_dict"])
