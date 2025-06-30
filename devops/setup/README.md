@@ -69,7 +69,7 @@ DEFAULT_PROFILES = {
 
 ## How It Works
 
-- **Profiles**: `external`, `cloud`, `softmax`, `softmax_devops` with different defaults
+- **Profiles**: `external`, `cloud`, `softmax` with different defaults
 - **Config**: Stored in `~/.metta/config.yaml`
 - **Scripts**: Components define their own installation process and can call out to existing install scripts (e.g., `mettascope/install.sh`) via `setup_script_location`
 

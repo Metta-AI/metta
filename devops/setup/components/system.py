@@ -4,7 +4,6 @@ import sys
 from pathlib import Path
 
 from devops.setup.components.base import SetupModule
-from devops.setup.config import UserType
 from devops.setup.registry import register_module
 from devops.setup.utils import error, info, success, warning
 
@@ -39,14 +38,6 @@ class SystemSetup(SetupModule):
             if result.returncode != 0:
                 return False
 
-            if self.config.user_type == UserType.SOFTMAX_DEVOPS:
-                devops_brewfile = self.repo_root / "devops" / "macos" / "Brewfile.softmax_devops"
-                if devops_brewfile.exists():
-                    devops_result = subprocess.run(
-                        [brew_path, "bundle", "check", "--file", str(devops_brewfile)], capture_output=True, text=True
-                    )
-                    return devops_result.returncode == 0
-
             return True
         except (subprocess.CalledProcessError, FileNotFoundError):
             return False
@@ -72,10 +63,6 @@ class SystemSetup(SetupModule):
             brew_path = self._find_brew_path()
 
         self._run_brew_bundle("Brewfile")
-
-        if self.config.user_type == UserType.SOFTMAX_DEVOPS:
-            info("\nInstalling additional devops tools...")
-            self._run_brew_bundle("Brewfile.softmax_devops")
 
         success("System dependencies installed")
 

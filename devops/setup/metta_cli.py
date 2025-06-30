@@ -33,24 +33,21 @@ class MettaCLI:
         info("1. External contributor")
         info("2. User with own cloud account")
         info("3. Softmax employee")
-        info("4. Softmax DevOps engineer")
-        info("5. Custom configuration")
+        info("4. Custom configuration")
 
-        choice = input("\nEnter choice (1-5, or press Enter to keep current): ").strip()
+        choice = input("\nEnter choice (1-4, or press Enter to keep current): ").strip()
 
         if not choice and self.config.config_path.exists():
             info("Keeping current configuration.")
             return
 
-        if choice == "5":
+        if choice == "4":
             self._custom_setup()
         else:
             if choice == "2":
                 user_type = UserType.CLOUD
             elif choice == "3":
                 user_type = UserType.SOFTMAX
-            elif choice == "4":
-                user_type = UserType.SOFTMAX_DEVOPS
             else:
                 user_type = UserType.EXTERNAL
 
@@ -63,16 +60,13 @@ class MettaCLI:
         info("1. External contributor")
         info("2. User with own cloud account")
         info("3. Softmax employee")
-        info("4. Softmax DevOps engineer")
 
-        choice = input("\nEnter choice (1-4): ").strip()
+        choice = input("\nEnter choice (1-3): ").strip()
 
         if choice == "2":
             user_type = UserType.CLOUD
         elif choice == "3":
             user_type = UserType.SOFTMAX
-        elif choice == "4":
-            user_type = UserType.SOFTMAX_DEVOPS
         else:
             user_type = UserType.EXTERNAL
 
@@ -96,7 +90,6 @@ class MettaCLI:
                 "external": UserType.EXTERNAL,
                 "cloud": UserType.CLOUD,
                 "softmax": UserType.SOFTMAX,
-                "softmax_devops": UserType.SOFTMAX_DEVOPS,
             }
             if args.profile in profile_map:
                 self.config.apply_profile(profile_map[args.profile])
@@ -104,7 +97,7 @@ class MettaCLI:
                 info("\nRun './metta.sh install' to set up your environment.")
             else:
                 error(f"Unknown profile: {args.profile}")
-                info("Available profiles: external, cloud, softmax, softmax_devops")
+                info("Available profiles: external, cloud, softmax")
                 sys.exit(1)
         else:
             self.setup_wizard()
@@ -282,8 +275,8 @@ Examples:
         configure_parser = subparsers.add_parser("configure", help="Configure Metta for your environment")
         configure_parser.add_argument(
             "--profile",
-            choices=["external", "cloud", "softmax", "softmax_devops"],
-            help="Set user profile (external, cloud, softmax, or softmax_devops)",
+            choices=["external", "cloud", "softmax"],
+            help="Set user profile (external, cloud, or softmax)",
         )
 
         # Install command

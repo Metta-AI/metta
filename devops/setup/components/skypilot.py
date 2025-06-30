@@ -14,7 +14,7 @@ class SkypilotSetup(SetupModule):
 
     def is_applicable(self) -> bool:
         return (
-            self.config.user_type in [UserType.SOFTMAX, UserType.SOFTMAX_DEVOPS, UserType.CLOUD]
+            self.config.user_type in [UserType.SOFTMAX, UserType.CLOUD]
             and self.config.is_component_enabled("skypilot")
             and self.config.is_component_enabled("aws")
         )
@@ -35,7 +35,7 @@ class SkypilotSetup(SetupModule):
 
     @property
     def setup_script_location(self) -> str | None:
-        if self.config.user_type in [UserType.SOFTMAX, UserType.SOFTMAX_DEVOPS]:
+        if self.config.user_type == UserType.SOFTMAX:
             return "devops/skypilot/install.sh"
         return None
 
@@ -53,7 +53,7 @@ class SkypilotSetup(SetupModule):
                 info("GitHub authentication may have been cancelled or failed.")
                 info("You can complete it later with: gh auth login")
 
-        if self.config.user_type in [UserType.SOFTMAX, UserType.SOFTMAX_DEVOPS]:
+        if self.config.user_type == UserType.SOFTMAX:
             super().install()
             success("SkyPilot installed")
         else:
@@ -67,7 +67,7 @@ class SkypilotSetup(SetupModule):
         if not self.check_installed():
             return None
 
-        if self.config.user_type in [UserType.SOFTMAX, UserType.SOFTMAX_DEVOPS]:
+        if self.config.user_type == UserType.SOFTMAX:
             try:
                 result = subprocess.run(["sky", "api", "info"], capture_output=True, text=True)
                 softmax_url = "skypilot-api.softmax-research.net"

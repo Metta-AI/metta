@@ -9,7 +9,6 @@ class UserType(Enum):
     EXTERNAL = "external"
     CLOUD = "cloud"
     SOFTMAX = "softmax"
-    SOFTMAX_DEVOPS = "softmax_devops"
 
 
 PROFILE_DEFINITIONS = {
@@ -56,7 +55,6 @@ PROFILE_DEFINITIONS = {
         }
     },
 }
-PROFILE_DEFINITIONS[UserType.SOFTMAX_DEVOPS] = PROFILE_DEFINITIONS[UserType.SOFTMAX].copy()
 
 
 class SetupConfig:

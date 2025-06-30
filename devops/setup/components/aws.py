@@ -16,14 +16,13 @@ class AWSSetup(SetupModule):
 
     @property
     def setup_script_location(self) -> str | None:
-        if self.config.user_type in [UserType.SOFTMAX, UserType.SOFTMAX_DEVOPS]:
+        if self.config.user_type == UserType.SOFTMAX:
             return "devops/aws/setup_aws_profiles.sh"
         return None
 
     def is_applicable(self) -> bool:
         return self.config.user_type in [
             UserType.SOFTMAX,
-            UserType.SOFTMAX_DEVOPS,
             UserType.CLOUD,
         ] and self.config.is_component_enabled("aws")
 
@@ -35,7 +34,7 @@ class AWSSetup(SetupModule):
         return True
 
     def install(self) -> None:
-        if self.config.user_type in [UserType.SOFTMAX, UserType.SOFTMAX_DEVOPS]:
+        if self.config.user_type == UserType.SOFTMAX:
             info("""
                 Your AWS access should have been provisioned.
                 If you don't have access, contact your team lead.

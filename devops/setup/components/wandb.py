@@ -34,7 +34,7 @@ class WandbSetup(SetupModule):
             success("W&B already configured")
             return
 
-        if self.config.user_type in [UserType.SOFTMAX, UserType.SOFTMAX_DEVOPS]:
+        if self.config.user_type == UserType.SOFTMAX:
             info("""
                 Your Weights & Biases access should have been provisioned.
                 If you don't have access, contact your team lead.

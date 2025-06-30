@@ -14,10 +14,7 @@ class TailscaleSetup(SetupModule):
         return "Tailscale VPN for internal network access"
 
     def is_applicable(self) -> bool:
-        return self.config.user_type in [
-            UserType.SOFTMAX,
-            UserType.SOFTMAX_DEVOPS,
-        ] and self.config.is_component_enabled("tailscale")
+        return self.config.user_type == UserType.SOFTMAX and self.config.is_component_enabled("tailscale")
 
     def check_installed(self) -> bool:
         try:
