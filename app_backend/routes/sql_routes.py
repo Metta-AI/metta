@@ -9,8 +9,8 @@ from pydantic import BaseModel
 
 from app_backend.auth import create_user_or_token_dependency
 from app_backend.metta_repo import MettaRepo
-from app_backend.route_logger import timed_route
 from app_backend.query_logger import log_query_execution
+from app_backend.route_logger import timed_route
 
 
 class SQLQueryRequest(BaseModel):
