@@ -52,50 +52,6 @@ enum ObservationFeatureEnum : uint8_t {
 
 const uint8_t InventoryFeatureOffset = ObservationFeature::ObservationFeatureCount;
 
-// There should be a one-to-one mapping between ObjectType and ObjectTypeNames.
-// ObjectTypeName is mostly used for human-readability, but may be used as a key
-// in config files, etc. Agents will be able to see an object's type_id.
-//
-// Note that ObjectType does _not_ have to correspond to an object's class (which
-// is a C++ concept). In particular, multiple ObjectTypes may correspond to the
-// same class.
-enum ObjectType {
-  AgentT = 0,
-  WallT = 1,
-  MineRedT = 2,
-  MineBlueT = 3,
-  MineGreenT = 4,
-  GeneratorRedT = 5,
-  GeneratorBlueT = 6,
-  GeneratorGreenT = 7,
-  AltarT = 8,
-  ArmoryT = 9,
-  LaseryT = 10,
-  LabT = 11,
-  FactoryT = 12,
-  TempleT = 13,
-  GenericConverterT = 14,
-  ObjectTypeCount
-};
-
-constexpr std::array<const char*, ObjectTypeCount> ObjectTypeNamesArray = {{"agent",
-                                                                            "wall",
-                                                                            "mine_red",
-                                                                            "mine_blue",
-                                                                            "mine_green",
-                                                                            "generator_red",
-                                                                            "generator_blue",
-                                                                            "generator_green",
-                                                                            "altar",
-                                                                            "armory",
-                                                                            "lasery",
-                                                                            "lab",
-                                                                            "factory",
-                                                                            "temple",
-                                                                            "converter"}};
-
-const std::vector<std::string> ObjectTypeNames(ObjectTypeNamesArray.begin(), ObjectTypeNamesArray.end());
-
 const std::map<uint8_t, std::string> FeatureNames = {
     {ObservationFeature::TypeId, "type_id"},
     {ObservationFeature::Group, "agent:group"},

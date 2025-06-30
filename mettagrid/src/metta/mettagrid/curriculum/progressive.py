@@ -4,6 +4,7 @@ import copy
 import logging
 from typing import Dict, Optional
 
+import numpy as np
 from omegaconf import DictConfig, OmegaConf
 
 from metta.mettagrid.curriculum.core import Task
@@ -34,56 +35,112 @@ class ProgressiveCurriculum(SamplingCurriculum):
 
 
 class ProgressiveMultiTaskCurriculum(RandomCurriculum):
-    """Curriculum that starts with higher probabilities for earlier tasks
-    and gradually shifts to favor later tasks over time."""
+    """Curriculum that blends multiple tasks using gating mechanisms and advances progression based on
+    smoothed performance or time."""
 
     def __init__(
         self,
         tasks: Dict[str, float],
-        env_overrides: DictConfig,
-        progression_rate: float = 0.00001,
-        initial_skew: float = 5.0,
+        env_overrides: Optional[DictConfig] = None,
+        performance_threshold: float = 0.8,
+        smoothing: float = 0.1,
+        progression_rate: float = 0.01,
+        progression_mode: str = "perf",
+        blending_smoothness: float = 0.5,
+        blending_mode: str = "logistic",
     ):
+        if env_overrides is None:
+            env_overrides = DictConfig({})
         super().__init__(tasks, env_overrides)
-        self._task_order = list(tasks.keys())  # Preserve order from dict
-        self._progression_rate = progression_rate  # How fast to shift probabilities
-        self._initial_skew = initial_skew  # How much to favor early tasks initially
+        if progression_mode not in ["time", "perf"]:
+            raise ValueError("progression_mode must be either 'time' or 'perf'")
+        if blending_mode not in ["logistic", "linear"]:
+            raise ValueError("blending_mode must be either 'logistic' or 'linear'")
+        self._task_order = list(tasks.keys())
+        self._performance_threshold = performance_threshold
+        self._smoothing = smoothing
+        self._progression_rate = progression_rate
+        self._progression_mode = progression_mode
+        self._blending_smoothness = blending_smoothness
+        self._blending_mode = blending_mode
+        self._progress = 0.0  # initialization of the progress value parameterizing the trajectory
+        self._smoothed_performance = 0.0
         self._step_count = 0
-
-        # Initialize weights heavily skewed toward beginning
+        self._last_score = None
         self._update_progressive_weights()
 
+    def _update_smoothed_performance(self, score: float):
+        if self._last_score is None:
+            self._smoothed_performance = score
+        else:
+            self._smoothed_performance = self._smoothing * score + (1 - self._smoothing) * self._smoothed_performance
+        self._last_score = score
+
+    def _advance_progression(self):
+        if self._progression_mode == "perf":
+            if self._smoothed_performance >= self._performance_threshold:
+                self._progress = min(1.0, self._progress + self._progression_rate)
+        elif self._progression_mode == "time":
+            self._step_count += 1
+            self._progress = min(1.0, self._step_count * self._progression_rate)
+
+    def _blending_function(self, x, xo, growing=True):
+        """Blending function that supports both logistic and linear modes."""
+        if self._blending_mode == "logistic":
+            return 1 / (1 + np.exp(-((-1) ** growing) * (x - xo) / self._blending_smoothness))
+        elif self._blending_mode == "linear":
+            # Linear blending with smoothness control
+            if growing:
+                # Growing function: 0 at xo, 1 at xo + blending_smoothness
+                return max(0, min(1, (x - xo + self._blending_smoothness) / self._blending_smoothness))
+            else:
+                # Shrinking function: 1 at xo, 0 at xo + blending_smoothness
+                return max(0, min(1, (xo + self._blending_smoothness - x) / self._blending_smoothness))
+
     def _update_progressive_weights(self):
-        """Update task weights based on progression through training."""
         num_tasks = len(self._task_order)
 
-        # Create a progression factor that goes from 0 to 1 over time
-        progression = min(1.0, self._step_count * self._progression_rate)
+        # Use the gating mechanism for all progress values
+        # Scale progress to task space (0 to num_tasks-1)
+        p = self._progress * (num_tasks - 1)
 
-        # Generate weights that start favoring early tasks and shift to later ones
-        weights = {}
-        for i, task_id in enumerate(self._task_order):
-            # Position in list (0 to 1)
-            position = i / (num_tasks - 1) if num_tasks > 1 else 0
+        # Task positions (0, 1, 2, ..., num_tasks-1)
+        task_positions = np.arange(num_tasks)
 
-            # Early in training: favor early tasks (low position values)
-            # Later in training: favor later tasks (high position values)
-            early_weight = self._initial_skew * (1 - position)  # Higher for early tasks
-            late_weight = self._initial_skew * position  # Higher for later tasks
+        # Create gating matrix: tasks x progress points
+        gating = np.zeros(num_tasks)
 
-            # Interpolate between early and late weights based on progression
-            weight = (1 - progression) * early_weight + progression * late_weight
-            weights[task_id] = max(0.01, weight)  # Ensure minimum weight
+        for i, task_pos in enumerate(task_positions):
+            # Double gating: activation and deactivation
+            activation = self._blending_function(p, task_pos - self._blending_smoothness, growing=True)
+            deactivation = self._blending_function(p, task_pos + self._blending_smoothness, growing=False)
+            gating[i] = activation * deactivation
 
-        self._task_weights = weights
+        # Normalize to get probabilities
+        if np.sum(gating) > 0:
+            probs = gating / np.sum(gating)
+        else:
+            # Fallback to uniform distribution if all gates are zero
+            probs = np.ones(num_tasks) / num_tasks
+
+        self._task_weights = {task_id: float(probs[i]) for i, task_id in enumerate(self._task_order)}
 
         logger.debug(
-            f"Step {self._step_count}, progression: {progression:.3f}, "
-            f"weights: {[(k, f'{v:.3f}') for k, v in weights.items()]}"
+            f"Progress: {self._progress:.3f}, smoothed_perf: {self._smoothed_performance:.3f}, "
+            f"weights: {[(k, f'{v:.3f}') for k, v in self._task_weights.items()]}"
         )
 
     def complete_task(self, id: str, score: float):
-        """Update step count and progressive weights after each task completion."""
-        self._step_count += 1
+        # Assume score is between 0 and 1
+        self._update_smoothed_performance(score)
+        self._advance_progression()
         self._update_progressive_weights()
         super().complete_task(id, score)
+
+    def get_curriculum_stats(self) -> Dict[str, float]:
+        """Return curriculum statistics for logging purposes."""
+        stats = {
+            "smoothed_performance": self._smoothed_performance,
+            "progress": self._progress,
+        }
+        return stats

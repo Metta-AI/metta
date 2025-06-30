@@ -2,6 +2,7 @@
 #define OBJECTS_AGENT_HPP_
 
 #include <algorithm>
+#include <cassert>
 #include <string>
 #include <vector>
 
@@ -9,6 +10,18 @@
 #include "../stats_tracker.hpp"
 #include "constants.hpp"
 #include "metta_object.hpp"
+
+struct AgentConfig {
+  std::string group_name;
+  unsigned char group_id;
+  unsigned char freeze_duration;
+  float action_failure_penalty;
+  std::map<InventoryItem, uint8_t> max_items_per_type;
+  std::map<InventoryItem, float> resource_rewards;
+  std::map<InventoryItem, float> resource_reward_max;
+  std::vector<std::string> inventory_item_names;
+  TypeId type_id;
+};
 
 class Agent : public MettaObject {
 public:
@@ -30,32 +43,22 @@ public:
   float current_resource_reward;
   float* reward;
 
-  Agent(GridCoord r,
-        GridCoord c,
-        unsigned char freeze_duration,
-        float action_failure_penalty,
-        std::map<InventoryItem, uint8_t> max_items_per_type,
-        std::map<InventoryItem, float> resource_rewards,
-        std::map<InventoryItem, float> resource_reward_max,
-        std::string group_name,
-        unsigned char group_id,
-        const std::vector<std::string>& inventory_item_names,
-        TypeId type_id)
-      : freeze_duration(freeze_duration),
-        action_failure_penalty(action_failure_penalty),
-        max_items_per_type(max_items_per_type),
-        resource_rewards(resource_rewards),
-        resource_reward_max(resource_reward_max),
-        group(group_id),
-        group_name(group_name),
+  Agent(GridCoord r, GridCoord c, const AgentConfig& config)
+      : freeze_duration(config.freeze_duration),
+        action_failure_penalty(config.action_failure_penalty),
+        max_items_per_type(config.max_items_per_type),
+        resource_rewards(config.resource_rewards),
+        resource_reward_max(config.resource_reward_max),
+        group(config.group_id),
+        group_name(config.group_name),
         color(0),
         current_resource_reward(0),
-        stats(inventory_item_names) {
-    GridObject::init(type_id, GridLocation(r, c, GridLayer::Agent_Layer));
-
-    this->frozen = 0;
-    this->orientation = 0;
-    this->reward = nullptr;
+        stats(config.inventory_item_names),
+        frozen(0),
+        orientation(0),
+        reward(nullptr) {
+    // #HardCodedConfig -- "agent" is hard coded.
+    GridObject::init(config.type_id, "agent", GridLocation(r, c, GridLayer::Agent_Layer));
   }
 
   void init(float* reward) {

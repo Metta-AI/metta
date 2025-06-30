@@ -13,9 +13,9 @@
 
 #include <map>
 #include <memory>
+#include <random>
 #include <string>
 #include <vector>
-#include <random>
 
 #include "types.hpp"
 
@@ -29,6 +29,7 @@ class ObservationEncoder;
 class GridObject;
 class ConverterConfig;
 class WallConfig;
+class AgentConfig;
 
 namespace py = pybind11;
 
@@ -44,6 +45,7 @@ public:
   unsigned int max_steps;
 
   std::vector<std::string> inventory_item_names;
+  std::vector<std::string> object_type_names;
 
   // Python API methods
   py::tuple reset();
@@ -68,10 +70,9 @@ public:
   py::object observation_space();
   py::list action_success();
   py::list max_action_args();
-  py::list object_type_names();
+  py::list object_type_names_py();
   py::list inventory_item_names_py();
   py::array_t<unsigned int> get_agent_groups() const;
-  Agent* create_agent(int r, int c, const py::dict& agent_group_cfg_py);
 
   uint64_t initial_grid_hash;
 
@@ -125,6 +126,7 @@ private:
   void _step(py::array_t<ActionType, py::array::c_style> actions);
 
   void _handle_invalid_action(size_t agent_idx, const std::string& stat, ActionType type, ActionArg arg);
+  AgentConfig _create_agent_config(const py::dict& agent_group_cfg_py);
   ConverterConfig _create_converter_config(const py::dict& converter_cfg_py);
   WallConfig _create_wall_config(const py::dict& wall_cfg_py);
 };
