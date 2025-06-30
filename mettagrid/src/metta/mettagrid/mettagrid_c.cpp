@@ -169,7 +169,8 @@ MettaGrid::MettaGrid(py::dict cfg, py::list map, int seed) {
         converter->set_event_manager(_event_manager.get());
         converter->stats.set_environment(this);
       } else if (object_type == "agent") {
-        Agent* agent = MettaGrid::create_agent(r, c, object_cfg);
+        auto agent_cfg = _create_agent_config(object_cfg);
+        Agent* agent = new Agent(r, c, agent_cfg);
         _grid->add_object(agent);
         agent->agent_id = _agents.size();
         agent->stats.set_environment(this);
@@ -689,7 +690,7 @@ py::list MettaGrid::inventory_item_names_py() {
   return py::cast(inventory_item_names);
 }
 
-Agent* MettaGrid::create_agent(int r, int c, const py::dict& agent_group_cfg_py) {
+AgentConfig MettaGrid::_create_agent_config(const py::dict& agent_group_cfg_py) {
   unsigned char freeze_duration = agent_group_cfg_py["freeze_duration"].cast<unsigned char>();
   float action_failure_penalty = agent_group_cfg_py["action_failure_penalty"].cast<float>();
   std::map<InventoryItem, uint8_t> max_items_per_type =
@@ -699,19 +700,17 @@ Agent* MettaGrid::create_agent(int r, int c, const py::dict& agent_group_cfg_py)
   std::map<InventoryItem, float> resource_reward_max =
       agent_group_cfg_py["resource_reward_max"].cast<std::map<InventoryItem, float>>();
   std::string group_name = agent_group_cfg_py["group_name"].cast<std::string>();
-  unsigned int group_id = agent_group_cfg_py["group_id"].cast<unsigned int>();
+  unsigned char group_id = agent_group_cfg_py["group_id"].cast<unsigned char>();
   TypeId type_id = agent_group_cfg_py["type_id"].cast<TypeId>();
-  return new Agent(r,
-                   c,
-                   freeze_duration,
-                   action_failure_penalty,
-                   max_items_per_type,
-                   resource_rewards,
-                   resource_reward_max,
-                   group_name,
-                   group_id,
-                   inventory_item_names,
-                   type_id);
+  return AgentConfig{group_name,
+                     group_id,
+                     freeze_duration,
+                     action_failure_penalty,
+                     max_items_per_type,
+                     resource_rewards,
+                     resource_reward_max,
+                     inventory_item_names,
+                     type_id};
 }
 
 py::array_t<unsigned int> MettaGrid::get_agent_groups() const {
