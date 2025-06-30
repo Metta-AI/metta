@@ -48,7 +48,7 @@ def load_pytorch_policy(path: str, device: str = "cpu", pytorch_cfg: DictConfig 
         logger.warning(f"Failed automatic parse from weights: {e}")
         # TODO -- fix all magic numbers
         num_actions, num_action_args = 9, 10
-        _, obs_channels = 128, 34
+        hidden_size, obs_channels = 512, 22
 
     # Create environment namespace
     env = SimpleNamespace(
@@ -58,13 +58,21 @@ def load_pytorch_policy(path: str, device: str = "cpu", pytorch_cfg: DictConfig 
         ),
     )
 
-    # Instantiate the external policy if config provided, otherwise create a basic wrapper
+    # Instantiate the external policy if config provided, otherwise auto-detect
     if pytorch_cfg and hasattr(pytorch_cfg, "_target_"):
         # Pass policy=None and let the Recurrent class create the policy
         policy = instantiate(pytorch_cfg, env=env, policy=None)
     else:
-        # For backwards compatibility with direct checkpoint loading
-        policy = create_basic_policy(env, weights)
+        # Auto-detect the model type from checkpoint keys
+        if "lstm.weight_ih_l0" in weights or "cell.weight_ih" in weights:
+            # This is a Recurrent (LSTMWrapper) model
+            from metta.agent.external.torch import Policy, Recurrent
+
+            base_policy = Policy(env, hidden_size=hidden_size)
+            policy = Recurrent(env, policy=base_policy, input_size=hidden_size, hidden_size=hidden_size)
+        else:
+            # For backwards compatibility with direct checkpoint loading
+            policy = create_basic_policy(env, weights)
 
     policy.load_state_dict(weights)
     policy = PytorchAdapter(policy).to(device)
@@ -150,12 +158,17 @@ class PytorchAdapter(nn.Module):
             raise NotImplementedError(f"Policy {type(self.policy)} does not have a callable forward method")
 
         # Sample actions from logits
-        action, logprob, logits_entropy = sample_logits(hidden, action)
+        action_indices, logprob, logits_entropy = sample_logits(hidden, action)
 
-        # Convert action indices back to (action_type, action_param) format if needed
-        # This is handled by MettaAgent's _convert_logit_index_to_action
-        # For now, just return the raw indices
-        return action, logprob, logits_entropy, critic, hidden
+        # Convert action indices to (action_type, action_param) format
+        # For standard policies, we assume single discrete actions
+        if action_indices.dim() == 1:
+            # Create action pairs (action_type=indices, action_param=0)
+            actions = torch.stack([action_indices, torch.zeros_like(action_indices)], dim=-1)
+        else:
+            actions = action_indices
+
+        return actions, logprob, logits_entropy, critic, hidden
 
     def _forward_lstm_wrapper(self, obs: torch.Tensor, state: PolicyState, action=None):
         """Handle PufferLib LSTMWrapper style policies."""
@@ -191,14 +204,39 @@ class PytorchAdapter(nn.Module):
             # For multi-discrete actions, concatenate logits
             logits = torch.cat([log for log in logits], dim=-1)
 
-        # Sample actions and compute log probs
-        action, logprob, entropy = sample_logits(logits, action)
+            # Sample actions and compute log probs
+        action_indices, logprob, entropy = sample_logits(logits, action)
+
+        # Convert action indices to (action_type, action_param) format
+        # This mimics MettaAgent's _convert_logit_index_to_action
+        if hasattr(self.policy, "policy") and hasattr(self.policy.policy, "actor"):
+            # Get action space info from the policy
+            action_nvec = [head.out_features for head in self.policy.policy.actor]
+
+            # Build action index tensor (precompute for efficiency)
+            action_index = []
+            for action_type_idx, max_param in enumerate(action_nvec):
+                for j in range(max_param):
+                    action_index.append([action_type_idx, j])
+
+            action_index_tensor = torch.tensor(action_index, device=action_indices.device, dtype=torch.int32)
+
+            # Convert indices to action pairs
+            actions = action_index_tensor[action_indices]
+        else:
+            # Fallback: assume actions are already in the right format or single discrete
+            # For single discrete, we need to expand to (batch, 2) format
+            if action_indices.dim() == 1:
+                # Create dummy action pairs (action_type=indices, action_param=0)
+                actions = torch.stack([action_indices, torch.zeros_like(action_indices)], dim=-1)
+            else:
+                actions = action_indices
 
         # Ensure value has correct shape
         if value.dim() == 1:
             value = value.unsqueeze(-1)
 
-        return action, logprob, entropy, value, logits
+        return actions, logprob, entropy, value, logits
 
     def _forward_train_with_state_conversion(self, x, state, action=None):
         """Helper to handle state conversion for training."""
@@ -229,8 +267,15 @@ class PytorchAdapter(nn.Module):
                 logits, value = result
                 if isinstance(logits, list):
                     logits = torch.cat(logits, dim=-1)
-                action, logprob, entropy = sample_logits(logits, action)
-                return action, logprob, entropy, value, logits
+                action_indices, logprob, entropy = sample_logits(logits, action)
+
+                # Convert to (action_type, action_param) format
+                if action_indices.dim() == 1:
+                    actions = torch.stack([action_indices, torch.zeros_like(action_indices)], dim=-1)
+                else:
+                    actions = action_indices
+
+                return actions, logprob, entropy, value, logits
             else:
                 # Might already be in the right format
                 return result
