@@ -3,15 +3,8 @@ requires = ["scikit-build-core", "pybind11==2.10.4"]
 build-backend = "scikit_build_core.build"
 
 [project]
-name = "metta"
-version = "0.1"
-description = "Metta AI framework"
-readme = "README.md"
-requires-python = "==3.11.7"
-license = "MIT"
 dependencies = [
   "boto3>=1.38.32",
-  "carbs",
   "colorama>=0.4.6",
   "cpplint>=2.0.2",
   "duckdb>=1.3.0",
@@ -43,6 +36,7 @@ dependencies = [
   "pytest-cov>=6.1.1",
   "python-dotenv>=1.1.0",
   "pyyaml>=6.0.2",
+  "pyro-ppl>=1.9.1",
   "rich>=13.9.4",
   "ruff>=0.11.13",
   "scipy>=1.15.3",
@@ -53,13 +47,19 @@ dependencies = [
   "tensordict>=0.8.3",
   "termcolor>=2.4.0",
   "testcontainers>=4.10.0",
+  "torch>=2.7.1",
   "torchrl>=0.8.1",
   "tqdm>=4.67.1",
   "uvicorn[standard]>=0.34.2",
   "wandb>=0.19.11",
-  "wandb-carbs",
   "wandb-core>=0.17.0b11",
 ]
+name = "metta"
+version = "0.1"
+description = "Metta AI framework"
+readme = "README.md"
+requires-python = "==3.11.7"
+license = "MIT"
 
 [dependency-groups]
 dev = ["skypilot==0.9.3"]
@@ -93,12 +93,9 @@ cache-keys = [
 default-groups = ["dev"]
 
 [tool.uv.workspace]
-members = ["mettagrid", "wandb_carbs", "app_backend", "common"]
 
 [tool.uv.sources]
 pufferlib = { git = "https://github.com/Metta-AI/PufferLib.git", rev = "dcd597ef1a094cc2da886f5a4ab2c7f1b27d0183" }
-carbs = { git = "https://github.com/imbue-ai/carbs.git" }
-wandb_carbs = { workspace = true }
-app_backend = { workspace = true }
-metta-mettagrid = { workspace = true }
-metta-common = { workspace = true }
+app_backend = { path = "app_backend", editable = true }
+metta-mettagrid = { path = "mettagrid", editable = true }
+metta-common = { path = "common", editable = true }
