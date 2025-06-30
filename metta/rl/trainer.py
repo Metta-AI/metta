@@ -193,7 +193,7 @@ class MettaTrainer:
                     logger.info("Broadcasting initial policy state to all ranks")
                     state_dict = self.policy.state_dict()
                     # Broadcast each tensor in the state dict
-                    for key, tensor in state_dict.items():
+                    for _key, tensor in state_dict.items():
                         torch.distributed.broadcast(tensor, src=0)
             else:
                 # Non-master: receive policy via broadcast or wait for file
@@ -210,7 +210,7 @@ class MettaTrainer:
 
                     # Receive broadcasted state
                     state_dict = self.policy.state_dict()
-                    for key, tensor in state_dict.items():
+                    for _key, tensor in state_dict.items():
                         torch.distributed.broadcast(tensor, src=0)
                     self.policy.load_state_dict(state_dict)
                     logger.info("Received policy state from master via broadcast")

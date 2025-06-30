@@ -99,34 +99,12 @@ class PolicyRecord:
         """Load a policy from a file using standard torch.load."""
         logger.info(f"Loading policy from {path}")
 
-        # Standard torch checkpoint loading
-        checkpoint = torch.load(path, map_location=device, weights_only=False)
-
-        # Handle different checkpoint formats
-        if isinstance(checkpoint, dict):
-            # New checkpoint format (v2.0)
-            if checkpoint.get("checkpoint_version") == "2.0" and "model" in checkpoint:
-                return checkpoint["model"].to(device)
-
-            # Legacy dict format with state dict
-            elif "model_state_dict" in checkpoint:
-                # This is a state dict only - need to reconstruct the model
-                # For now, we'll need the environment and config from the policy store
-                if self._policy_store is None:
-                    raise ValueError("Cannot reconstruct model from state dict without policy_store context")
-
-                # TODO: This is temporary - we'll need to save env config with the checkpoint
-                raise NotImplementedError("Loading from state dict only not yet implemented")
-
-            else:
-                raise ValueError(f"Unknown checkpoint dictionary format with keys: {list(checkpoint.keys())}")
-
-        elif isinstance(checkpoint, nn.Module):
-            # Direct model save
-            return checkpoint.to(device)
-
-        else:
-            raise ValueError(f"Unknown checkpoint format: {type(checkpoint)}")
+        # This method is only called when policy_store is None (standalone loading)
+        # In that case, we can't reconstruct from state_dict, so we need the full model
+        raise NotImplementedError(
+            "PolicyRecord.load_from_file is not implemented for state_dict only checkpoints. "
+            "Loading should go through PolicyStore._load_from_file instead."
+        )
 
     def save_to_file(self, path: Optional[str] = None, packaging_rules_callback=None) -> "PolicyRecord":
         """Save a policy and its metadata using standard torch.save.
@@ -149,22 +127,17 @@ class PolicyRecord:
             logger.info(f"Saving policy to {path}")
 
         try:
-            # Create checkpoint dictionary with all necessary information
+            # Create checkpoint dictionary with state dict and metadata only
             checkpoint = {
                 "model_state_dict": self.policy.state_dict(),
-                "model_class": self.policy.__class__.__name__,
-                "model_module": self.policy.__class__.__module__,
                 "metadata": self.metadata.sanitized(),
                 "name": self.name,
                 "uri": f"file://{path}",
                 # Include architecture information for reconstruction
                 "agent_attributes": getattr(self.policy, "agent_attributes", {}),
-                # Version info for compatibility checking
-                "checkpoint_version": "2.0",  # New simplified format
+                # Simple version tag
+                "checkpoint_version": "1.0",
             }
-
-            # Save the complete model as well for easier loading
-            checkpoint["model"] = self.policy
 
             torch.save(checkpoint, path)
             logger.info(f"Successfully saved checkpoint to {path}")

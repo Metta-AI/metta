@@ -371,18 +371,36 @@ class PolicyStore:
         try:
             checkpoint = torch.load(path, map_location=self._device, weights_only=False)
 
-            # Handle new checkpoint format (v2.0)
-            if isinstance(checkpoint, dict) and checkpoint.get("checkpoint_version") == "2.0":
+            # Handle checkpoint with state dict
+            if isinstance(checkpoint, dict) and "model_state_dict" in checkpoint:
                 metadata = PolicyMetadata(**checkpoint["metadata"])
                 pr = PolicyRecord(self, checkpoint["name"], checkpoint["uri"], metadata)
 
                 if not metadata_only:
-                    # Load the complete model if available
-                    if "model" in checkpoint:
-                        pr._cached_policy = checkpoint["model"].to(self._device)
-                    else:
-                        # Fallback to loading from state dict
-                        raise NotImplementedError("Loading from state dict only not yet implemented")
+                    # Reconstruct environment from agent_attributes
+                    from types import SimpleNamespace
+
+                    agent_attrs = checkpoint.get("agent_attributes", {})
+
+                    # Create minimal environment for policy creation
+                    obs_shape = agent_attrs.get("obs_shape", [34, 11, 11])
+                    env = SimpleNamespace(
+                        single_observation_space=gym.spaces.Box(low=0, high=255, shape=obs_shape, dtype=np.uint8),
+                        obs_width=agent_attrs.get("obs_width", obs_shape[1]),
+                        obs_height=agent_attrs.get("obs_height", obs_shape[2]),
+                        single_action_space=gym.spaces.MultiDiscrete(
+                            agent_attrs.get("action_space", {}).get("nvec", [9, 10])
+                            if isinstance(agent_attrs.get("action_space", {}), dict)
+                            else agent_attrs.get("action_space", gym.spaces.MultiDiscrete([9, 10]))
+                        ),
+                        feature_normalizations=agent_attrs.get("feature_normalizations", {}),
+                        global_features=[],
+                    )
+
+                    # Create policy and load state dict
+                    policy = make_policy(env, self._cfg)
+                    policy.load_state_dict(checkpoint["model_state_dict"])
+                    pr._cached_policy = policy.to(self._device)
 
                 self._cached_prs[path] = pr
                 return pr
