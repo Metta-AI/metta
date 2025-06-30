@@ -1,3 +1,18 @@
+"""Adapter for loading external PyTorch policies into Metta.
+
+This module provides a unified adapter system that allows external PyTorch policies
+(particularly from PufferLib) to be used within Metta's training and evaluation framework.
+
+The main class, PytorchAdapter, automatically detects the type of external policy and
+applies appropriate conversions for compatibility with MettaAgent.
+
+Key features:
+- Handles PufferLib LSTMWrapper policies without modification (e.g., torch.py)
+- Converts between Metta's PolicyState and PufferLib's dict state format
+- Works with Metta's native token observations [B, M, 3]
+- Provides method forwarding for MettaAgent compatibility
+"""
+
 import logging
 from types import SimpleNamespace
 
@@ -147,40 +162,42 @@ class PytorchAdapter(nn.Module):
         # Convert Metta PolicyState to LSTMWrapper state format (dict)
         if hasattr(state, "lstm_h") and state.lstm_h is not None:
             h, c = state.lstm_h, state.lstm_c
-            if len(h.shape) == 3:
-                h, c = h.squeeze(), c.squeeze()
+            # Handle shape differences between training and inference
+            if len(h.shape) == 3:  # Training format [1, B, hidden_size]
+                h, c = h.squeeze(0), c.squeeze(0)  # Convert to [B, hidden_size]
             lstm_state = {"lstm_h": h, "lstm_c": c}
         else:
             # PufferLib expects a dict with lstm_h and lstm_c keys
             lstm_state = {"lstm_h": None, "lstm_c": None}
 
-        # Call the LSTMWrapper's forward method
-        result = self.policy(obs, lstm_state)
-
-        # LSTMWrapper returns ((actions, value), hidden_state)
-        if isinstance(result, tuple) and len(result) == 2:
-            outputs, hidden_state = result
-            if isinstance(outputs, tuple) and len(outputs) == 2:
-                logits, value = outputs
+        # Determine if we're in training or inference mode
+        if action is not None or (obs.dim() > 3 and hasattr(self.policy, "forward")):
+            # Training mode - use forward method which handles time dimension
+            logits, value = self.policy.forward(obs, lstm_state)
+        else:
+            # Inference mode - use forward_eval for efficiency
+            if hasattr(self.policy, "forward_eval"):
+                logits, value = self.policy.forward_eval(obs, lstm_state)
             else:
-                logits = outputs
-                value = torch.zeros(obs.shape[0], 1)
-        else:
-            raise ValueError(f"Unexpected result format from LSTMWrapper: {type(result)}")
+                logits, value = self.policy.forward(obs, lstm_state)
 
-        # Update state with new hidden state
-        if isinstance(hidden_state, tuple) and len(hidden_state) == 2:
-            state.lstm_h, state.lstm_c = hidden_state
-        else:
-            state.lstm_h = hidden_state
-            state.lstm_c = hidden_state
-        state.hidden = state.lstm_h
+        # Update state from the dict (LSTMWrapper modifies it in-place)
+        state.lstm_h = lstm_state.get("lstm_h")
+        state.lstm_c = lstm_state.get("lstm_c")
+        state.hidden = lstm_state.get("hidden", state.lstm_h)
 
         # Convert to MettaAgent format
         if isinstance(logits, list):
+            # For multi-discrete actions, concatenate logits
             logits = torch.cat([l for l in logits], dim=-1)
 
+        # Sample actions and compute log probs
         action, logprob, entropy = sample_logits(logits, action)
+
+        # Ensure value has correct shape
+        if value.dim() == 1:
+            value = value.unsqueeze(-1)
+
         return action, logprob, entropy, value, logits
 
     def _forward_train_with_state_conversion(self, x, state, action=None):

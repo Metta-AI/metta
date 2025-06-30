@@ -1,14 +1,14 @@
-import numpy as np
 import einops
+import pufferlib.models
+import pufferlib.pytorch
 import torch
 from torch import nn
-from torch.nn import functional as F
 
-import pufferlib.models
 
 class Recurrent(pufferlib.models.LSTMWrapper):
     def __init__(self, env, policy, input_size=512, hidden_size=512):
         super().__init__(env, policy, input_size, hidden_size)
+
 
 class Policy(nn.Module):
     def __init__(self, env, cnn_channels=128, hidden_size=512, **kwargs):
@@ -20,35 +20,58 @@ class Policy(nn.Module):
         self.out_height = 11
         self.num_layers = 22
 
-        self.network= nn.Sequential(
-            pufferlib.pytorch.layer_init(
-                nn.Conv2d(self.num_layers, cnn_channels, 5, stride=3)),
+        self.network = nn.Sequential(
+            pufferlib.pytorch.layer_init(nn.Conv2d(self.num_layers, cnn_channels, 5, stride=3)),
             nn.ReLU(),
-            pufferlib.pytorch.layer_init(
-                nn.Conv2d(cnn_channels, cnn_channels, 3, stride=1)),
+            pufferlib.pytorch.layer_init(nn.Conv2d(cnn_channels, cnn_channels, 3, stride=1)),
             nn.ReLU(),
             nn.Flatten(),
-            pufferlib.pytorch.layer_init(nn.Linear(cnn_channels, hidden_size//2)),
+            pufferlib.pytorch.layer_init(nn.Linear(cnn_channels, hidden_size // 2)),
             nn.ReLU(),
         )
 
         self.self_encoder = nn.Sequential(
-            pufferlib.pytorch.layer_init(nn.Linear(self.num_layers, hidden_size//2)),
+            pufferlib.pytorch.layer_init(nn.Linear(self.num_layers, hidden_size // 2)),
             nn.ReLU(),
         )
 
-        #max_vec = torch.tensor([  1.,   9.,   1.,  30.,   1.,   3., 255.,  26.,   1.,   1.,   1.,   1.,
+        # max_vec = torch.tensor([  1.,   9.,   1.,  30.,   1.,   3., 255.,  26.,   1.,   1.,   1.,   1.,
         #  1.,  47.,   3.,   3.,   2.,   1.,   1.,   1.,   1., 1.])[None, :, None, None]
-        max_vec = torch.tensor([9., 1., 1., 10., 3., 254., 1., 1., 235., 8., 9., 250., 29., 1., 1., 8., 1., 1., 6., 3., 1., 2.])[None, :, None, None]
-        #max_vec = torch.ones(22)[None, :, None, None]
-        self.register_buffer('max_vec', max_vec)
+        max_vec = torch.tensor(
+            [
+                9.0,
+                1.0,
+                1.0,
+                10.0,
+                3.0,
+                254.0,
+                1.0,
+                1.0,
+                235.0,
+                8.0,
+                9.0,
+                250.0,
+                29.0,
+                1.0,
+                1.0,
+                8.0,
+                1.0,
+                1.0,
+                6.0,
+                3.0,
+                1.0,
+                2.0,
+            ]
+        )[None, :, None, None]
+        # max_vec = torch.ones(22)[None, :, None, None]
+        self.register_buffer("max_vec", max_vec)
 
         action_nvec = env.single_action_space.nvec
-        self.actor = nn.ModuleList([pufferlib.pytorch.layer_init(
-            nn.Linear(hidden_size, n), std=0.01) for n in action_nvec])
+        self.actor = nn.ModuleList(
+            [pufferlib.pytorch.layer_init(nn.Linear(hidden_size, n), std=0.01) for n in action_nvec]
+        )
 
-        self.value = pufferlib.pytorch.layer_init(
-            nn.Linear(hidden_size, 1), std=1)
+        self.value = pufferlib.pytorch.layer_init(nn.Linear(hidden_size, 1), std=1)
 
     def forward(self, observations, state=None):
         hidden, lookup = self.encode_observations(observations)
@@ -56,7 +79,6 @@ class Policy(nn.Module):
         return (actions, value), hidden
 
     def encode_observations(self, observations, state=None):
-
         token_observations = observations
         B = token_observations.shape[0]
         TT = 1
@@ -96,20 +118,20 @@ class Policy(nn.Module):
 
         observations = box_obs
 
-        #max_vec = box_obs.max(0)[0].max(1)[0].max(1)[0]
-        #self.max_vec = torch.maximum(self.max_vec, max_vec[None, :, None, None])
-        #if (np.random.rand() < 0.001):
+        # max_vec = box_obs.max(0)[0].max(1)[0].max(1)[0]
+        # self.max_vec = torch.maximum(self.max_vec, max_vec[None, :, None, None])
+        # if (np.random.rand() < 0.001):
         #    breakpoint()
 
         features = observations / self.max_vec
-        #mmax = features.max(0)[0].max(1)[0].max(1)[0]
-        #self.max_vec = torch.maximum(self.max_vec, mmax[None, :, None, None])
+        # mmax = features.max(0)[0].max(1)[0].max(1)[0]
+        # self.max_vec = torch.maximum(self.max_vec, mmax[None, :, None, None])
         self_features = self.self_encoder(features[:, :, 5, 5])
         cnn_features = self.network(features)
         return torch.cat([self_features, cnn_features], dim=1)
 
     def decode_actions(self, hidden):
-        #hidden = self.layer_norm(hidden)
+        # hidden = self.layer_norm(hidden)
         logits = [dec(hidden) for dec in self.actor]
         value = self.value(hidden)
         return logits, value

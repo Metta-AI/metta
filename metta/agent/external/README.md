@@ -5,9 +5,8 @@ This directory contains utilities for loading external PyTorch policies (e.g., f
 ## Directory Contents
 
 - `pytorch_adapter.py` - Unified `PytorchAdapter` class that wraps external policies for MettaAgent compatibility
-- `torch.py` - Exact copy of PufferLib's torch.py policy (unmodified)
-- `example.py` - Example showing modifications needed for Metta compatibility (for reference)
-- `lstm_transformer.py` - Alternative LSTM-Transformer hybrid architecture
+- `torch.py` - Exact copy of PufferLib's torch.py policy (unmodified) - works perfectly with our adapter
+- `lstm_transformer.py` - Alternative LSTM-Transformer hybrid architecture with Metta-specific enhancements
 
 ## Overview
 
@@ -52,7 +51,7 @@ Metta supports multiple URI schemes for loading policies:
 
 ## Creating an External Policy
 
-External policies must follow a specific interface to be compatible with Metta. See `example.py` for a complete implementation. Key requirements:
+External policies must follow a specific interface to be compatible with Metta. See `torch.py` for a working example. Key requirements:
 
 ### 1. Policy Structure
 
@@ -173,7 +172,7 @@ Metta uses tokenized observations in the format `[location, feature_id, value]` 
 - **feature_id** (byte 1): The feature type (e.g., wall=0, agent=1, mineral=3)
 - **value** (byte 2): The feature value (e.g., health amount, resource count)
 
-The `example.py` policy shows how to decode these tokens into the standard grid format expected by most neural networks.
+The `torch.py` policy (see the `encode_observations` method) shows how to decode these tokens into the standard grid format expected by CNNs.
 
 ## Advanced Usage
 
@@ -217,24 +216,44 @@ model = pr.policy.policy  # The inner policy module
 torch.save(model.state_dict(), "exported_weights.pt")
 ```
 
-## Limitations of Unmodified External Policies
+## Token Observations in Metta
 
-### PufferLib torch.py
+Metta uses token observations natively with shape `[B, M, 3]` where:
+- M is the number of observation tokens (configurable, typically 200)
+- Each token has 3 channels: [location_byte, feature_id, feature_value]
+- The location byte encodes x,y coordinates within the observation window (high 4 bits = row, low 4 bits = column)
 
-The unmodified PufferLib `torch.py` is designed specifically for token observations [B, M, 3] and does not support regular grid observations [B, H, W, C] without modification. This is why `example.py` includes overrides to the forward method.
+The unmodified PufferLib policies (like `torch.py`) are designed to work with exactly this token format. They internally convert tokens to a grid representation for CNN processing, which is exactly what Metta needs.
 
-**If you need to use PufferLib policies with Metta:**
+## How the Adapter Works
 
-1. **For token observations only**: Use the unmodified `torch.py` with our adapter
-2. **For grid observations**: Use `example.py` which includes the necessary modifications
-3. **For full compatibility**: Create your own policy based on `example.py` as a template
+The `PytorchAdapter` provides seamless integration between external policies and Metta:
 
-### Recommended Approach
+1. **PolicyState handling**: Automatically converts between Metta's `PolicyState` object (with `lstm_h`, `lstm_c` attributes) and PufferLib's dict format `{'lstm_h': tensor, 'lstm_c': tensor}`
+2. **Smart method selection**: Chooses between `forward_eval` (for inference) and `forward` (for training) based on context
+3. **State persistence**: Ensures LSTM states are properly maintained across forward passes
+4. **Output format conversion**: Handles different action space formats (multi-discrete, lists of logits)
 
-For most use cases, we recommend using modified policies like `example.py` or `lstm_transformer.py` which have been adapted to work with Metta's observation formats. These provide:
+## Recommended Usage
 
-- Support for both token and grid observations
-- Proper state management for Metta's PolicyState
-- Compatibility with Metta's training infrastructure
+### For Standard Token-Based Metta Environments
 
-The adapter system (`PytorchAdapter`) handles the interface translation, but it cannot change fundamental assumptions about observation formats built into the external policies.
+The unmodified `torch.py` with our `PytorchAdapter` works perfectly:
+```yaml
+pytorch:
+  _target_: metta.agent.external.torch.Recurrent
+  hidden_size: 512
+```
+
+### For Alternative Architectures
+
+Use `lstm_transformer.py` for a hybrid LSTM-Transformer architecture:
+```yaml
+pytorch:
+  _target_: metta.agent.external.lstm_transformer.Recurrent
+  hidden_size: 384
+  depth: 3
+  num_heads: 6
+```
+
+The adapter system (`PytorchAdapter`) handles most interface translation automatically, making it easy to use external policies with minimal modifications.
