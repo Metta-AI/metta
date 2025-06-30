@@ -115,12 +115,20 @@ def test_feature_remapping_in_agent():
     mock_obs = MockObsComponent()
     agent.components["_obs_"] = mock_obs
 
-    # Bind required methods to mock agent
-    agent._create_feature_remapping = lambda features: MettaAgent._create_feature_remapping(agent, features)
+    # Bind MettaAgent methods to mock agent for testing
+    agent._initialize_observations = lambda features, device, is_training: MettaAgent._initialize_observations(
+        agent, features, device, is_training
+    )
+    agent._create_feature_remapping = lambda features, is_training: MettaAgent._create_feature_remapping(
+        agent, features, is_training
+    )
     agent._update_normalization_factors = lambda features: MettaAgent._update_normalization_factors(agent, features)
-    agent._mock_is_training = True  # Set the training flag
+    agent._apply_feature_remapping = lambda features, unknown_id: MettaAgent._apply_feature_remapping(
+        agent, features, unknown_id
+    )
+    agent.get_original_feature_mapping = lambda: MettaAgent.get_original_feature_mapping(agent)
 
-    MettaAgent._initialize_observations(agent, new_features, "cpu", agent._is_training_context())
+    MettaAgent._initialize_observations(agent, new_features, "cpu", True)
 
     # Verify remapping was created
     assert hasattr(agent, "feature_id_remap")
@@ -168,33 +176,49 @@ def test_unknown_feature_handling():
     mock_obs = MockObsComponent()
     agent.components["_obs_"] = mock_obs
 
-    # Bind required methods to mock agent
-    agent._create_feature_remapping = lambda features: MettaAgent._create_feature_remapping(agent, features)
+    # Bind MettaAgent methods to mock agent for testing
+    agent._initialize_observations = lambda features, device, is_training: MettaAgent._initialize_observations(
+        agent, features, device, is_training
+    )
+    agent._create_feature_remapping = lambda features, is_training: MettaAgent._create_feature_remapping(
+        agent, features, is_training
+    )
     agent._update_normalization_factors = lambda features: MettaAgent._update_normalization_factors(agent, features)
-    agent._mock_is_training = False  # Set to evaluation mode to test unknown feature handling
+    agent._apply_feature_remapping = lambda features, unknown_id: MettaAgent._apply_feature_remapping(
+        agent, features, unknown_id
+    )
+    agent.get_original_feature_mapping = lambda: MettaAgent.get_original_feature_mapping(agent)
 
     # Second initialization with new unknown features
-    new_features = {
-        "type_id": {"id": 0, "type": "categorical"},  # Known
-        "hp": {"id": 2, "type": "scalar", "normalization": 30.0},  # Known
-        "new_feature": {"id": 10, "type": "scalar"},  # Unknown!
-        "another_new": {"id": 15, "type": "categorical"},  # Unknown!
+    new_features_with_unknown = {
+        "type_id": {"id": 5, "type": "categorical"},  # Known feature, new ID
+        "hp": {"id": 7, "type": "scalar", "normalization": 35.0},  # Known feature, new ID
+        "new_feature": {"id": 10, "type": "categorical"},  # Unknown feature (should be mapped to 255 in eval mode)
+        "another_new": {"id": 15, "type": "scalar"},  # Unknown feature (should be mapped to 255 in eval mode)
     }
 
-    MettaAgent._initialize_observations(agent, new_features, "cpu", agent._is_training_context())
+    MettaAgent._initialize_observations(agent, new_features_with_unknown, "cpu", False)  # Evaluation mode
 
     # Verify unknown features are mapped to 255
     assert hasattr(agent, "feature_id_remap")
+    # Unknown features should be mapped to 255
     assert agent.feature_id_remap[10] == 255  # new_feature -> UNKNOWN
     assert agent.feature_id_remap[15] == 255  # another_new -> UNKNOWN
+    # Known features should be remapped to their original IDs
+    assert agent.feature_id_remap[5] == 0  # type_id: 5 -> 0
+    assert agent.feature_id_remap[7] == 2  # hp: 7 -> 2
 
     # Verify the remap table in observation component
-    assert mock_obs.remap_table[10] == 255
-    assert mock_obs.remap_table[15] == 255
+    assert mock_obs.remap_table[10] == 255  # new_feature -> UNKNOWN
+    assert mock_obs.remap_table[15] == 255  # another_new -> UNKNOWN
 
-    # Known features should map to themselves
-    assert mock_obs.remap_table[0] == 0
-    assert mock_obs.remap_table[2] == 2
+    # Remapped features should map to their original IDs
+    assert mock_obs.remap_table[5] == 0  # type_id: remapped from 5 to 0
+    assert mock_obs.remap_table[7] == 2  # hp: remapped from 7 to 2
+
+    # Feature IDs not in the current environment should map to UNKNOWN
+    assert mock_obs.remap_table[0] == 255  # Original type_id ID not in current env
+    assert mock_obs.remap_table[2] == 255  # Original hp ID not in current env
 
 
 def test_feature_mapping_persistence_via_metadata():
@@ -257,15 +281,21 @@ def test_feature_mapping_persistence_via_metadata():
     mock_obs = MockObsComponent()
     new_agent.components["_obs_"] = mock_obs
 
-    # Bind required methods
-    new_agent._create_feature_remapping = lambda features: MettaAgent._create_feature_remapping(new_agent, features)
+    # Bind MettaAgent methods to mock agent for testing
+    new_agent._initialize_observations = lambda features, device, is_training: MettaAgent._initialize_observations(
+        new_agent, features, device, is_training
+    )
+    new_agent._create_feature_remapping = lambda features, is_training: MettaAgent._create_feature_remapping(
+        new_agent, features, is_training
+    )
     new_agent._update_normalization_factors = lambda features: MettaAgent._update_normalization_factors(
         new_agent, features
     )
-    new_agent._is_training_context = lambda: True  # Simulate training mode
-    new_agent.is_training = True
+    new_agent._apply_feature_remapping = lambda features, unknown_id: MettaAgent._apply_feature_remapping(
+        new_agent, features, unknown_id
+    )
 
-    # Reinitialize with new features
+    # Initialize in training mode - new features should be learned
     MettaAgent._initialize_observations(new_agent, new_features, "cpu", True)
 
     # Verify remapping was created correctly
@@ -289,12 +319,15 @@ def test_feature_mapping_persistence_via_metadata():
     assert eval_agent.original_feature_mapping == {"type_id": 0, "hp": 2, "mineral": 3}
 
     eval_agent.components["_obs_"] = MockObsComponent()
-    eval_agent._create_feature_remapping = lambda features: MettaAgent._create_feature_remapping(eval_agent, features)
+    eval_agent._create_feature_remapping = lambda features, is_training: MettaAgent._create_feature_remapping(
+        eval_agent, features, is_training
+    )
     eval_agent._update_normalization_factors = lambda features: MettaAgent._update_normalization_factors(
         eval_agent, features
     )
-    eval_agent._is_training_context = lambda: False  # Simulate evaluation mode
-    eval_agent.is_training = False
+    eval_agent._apply_feature_remapping = lambda features, unknown_id: MettaAgent._apply_feature_remapping(
+        eval_agent, features, unknown_id
+    )
 
     # Initialize in eval mode - new features should map to 255
     MettaAgent._initialize_observations(eval_agent, new_features, "cpu", False)

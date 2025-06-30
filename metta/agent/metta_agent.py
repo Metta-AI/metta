@@ -161,27 +161,6 @@ class MettaAgent(nn.Module):
                 source_components[source["name"]] = self.components[source["name"]]
         component.setup(source_components)
 
-    def _is_training_context(self) -> bool:
-        """
-        Determine if we're in a training context by checking the call stack.
-
-        Returns True if called from MettaTrainer, False otherwise (e.g., from Simulation).
-        This avoids needing to pass an is_training flag everywhere.
-        """
-        import inspect
-
-        # Check the call stack for MettaTrainer
-        for frame_info in inspect.stack():
-            frame_locals = frame_info.frame.f_locals
-            # Check if 'self' in the frame is a MettaTrainer instance
-            if "self" in frame_locals:
-                obj = frame_locals["self"]
-                # Check by class name to avoid import cycles
-                if obj.__class__.__name__ == "MettaTrainer":
-                    return True
-
-        return False
-
     def initialize_to_environment(
         self,
         features: dict[str, dict],
@@ -208,28 +187,17 @@ class MettaAgent(nn.Module):
             device: Device to place tensors on
             is_training: Deprecated. Training mode is now automatically detected.
         """
-        # Auto-detect training mode instead of using the parameter
-        is_training_mode = self._is_training_context()
-        self._initialize_observations(features, device, is_training_mode)
+        # Use PyTorch's built-in training mode detection
+        self._initialize_observations(features, device, self.training)
         self.activate_actions(action_names, action_max_params, device)
 
     def _initialize_observations(self, features: dict[str, dict], device, is_training: bool):
-        """
-        Initialize observation features by storing the feature mapping.
-
-        Args:
-            features: Dictionary mapping feature names to their properties
-            device: Device to place tensors on
-            is_training: Whether the agent is in training mode (auto-detected based on context)
-        """
+        """Initialize observation features by storing the feature mapping."""
         self.active_features = features
         self.device = device
-        self.is_training = is_training
 
-        # Create feature_id to feature_name mapping for quick lookup
+        # Create quick lookup mappings
         self.feature_id_to_name = {props["id"]: name for name, props in features.items()}
-
-        # Store normalizations by feature ID
         self.feature_normalizations = {
             props["id"]: props.get("normalization", 1.0) for props in features.values() if "normalization" in props
         }
@@ -237,82 +205,59 @@ class MettaAgent(nn.Module):
         # Store original feature mapping on first initialization
         if not hasattr(self, "original_feature_mapping"):
             self.original_feature_mapping = {name: props["id"] for name, props in features.items()}
-            logger.info(f"Stored original feature mapping: {self.original_feature_mapping}")
-
-            # Reserve index 255 for unknown features
-            logger.info("Reserved feature ID 255 for unknown features")
+            logger.info(f"Stored original feature mapping with {len(self.original_feature_mapping)} features")
         else:
             # Create remapping for subsequent initializations
-            self._create_feature_remapping(features)
+            self._create_feature_remapping(features, is_training)
 
-        logger.info(f"Initialized observations with {len(features)} features")
-
-    def _create_feature_remapping(self, features: dict[str, dict]):
-        """
-        Create a remapping dictionary to translate new feature IDs to original ones.
-        Unknown features are mapped to index 255.
-        """
-        # Define the unknown feature index
+    def _create_feature_remapping(self, features: dict[str, dict], is_training: bool):
+        """Create a remapping dictionary to translate new feature IDs to original ones."""
         UNKNOWN_FEATURE_ID = 255
-
-        # Build remapping dict
         self.feature_id_remap = {}
-        remapped_count = 0
         unknown_features = []
 
         for name, props in features.items():
             new_id = props["id"]
             if name in self.original_feature_mapping:
+                # Remap known features to their original IDs
                 original_id = self.original_feature_mapping[name]
                 if new_id != original_id:
                     self.feature_id_remap[new_id] = original_id
-                    remapped_count += 1
-                    logger.info(f"Remapping feature '{name}': {new_id} -> {original_id}")
+            elif not is_training:
+                # In eval mode, map unknown features to UNKNOWN_FEATURE_ID
+                self.feature_id_remap[new_id] = UNKNOWN_FEATURE_ID
+                unknown_features.append(name)
             else:
-                # This is a new feature not seen before by this agent instance
-                if not self.is_training:
-                    # In evaluation mode, map unknown features to the unknown token
-                    self.feature_id_remap[new_id] = UNKNOWN_FEATURE_ID
-                    unknown_features.append(name)
-                    logger.info(
-                        f"Evaluation mode: Mapping unknown feature '{name}' (id={new_id}) to UNKNOWN_FEATURE_ID={UNKNOWN_FEATURE_ID}"
-                    )
-                else:
-                    # In training mode, always allow the model to learn new features
-                    # This handles both initial training and resumed training after save/reload
-                    self.original_feature_mapping[name] = new_id
-                    logger.info(f"Training mode: Learning new feature '{name}' with id={new_id}")
+                # In training mode, learn new features
+                self.original_feature_mapping[name] = new_id
 
-        if remapped_count > 0 or unknown_features:
+        if self.feature_id_remap:
             logger.info(
-                f"Created feature remapping with {remapped_count} remapped features and {len(unknown_features)} unknown features"
+                f"Created feature remapping: {len(self.feature_id_remap)} remapped, {len(unknown_features)} unknown"
             )
+            self._apply_feature_remapping(features, UNKNOWN_FEATURE_ID)
 
-            # Update observation component if it supports remapping
-            if "_obs_" in self.components and hasattr(self.components["_obs_"], "update_feature_remapping"):
-                # Convert dict to tensor for components that expect it
-                # Start with identity mapping, then apply specific remappings
-                remap_tensor = torch.arange(256, dtype=torch.uint8, device=self.device)
+    def _apply_feature_remapping(self, features: dict[str, dict], unknown_id: int):
+        """Apply feature remapping to observation component and update normalizations."""
+        # Update observation component if it supports remapping
+        if "_obs_" in self.components and hasattr(self.components["_obs_"], "update_feature_remapping"):
+            # Build complete remapping tensor
+            remap_tensor = torch.arange(256, dtype=torch.uint8, device=self.device)
 
-                # Apply known remappings (including unknown features mapped to 255)
-                for new_id, original_id in self.feature_id_remap.items():
-                    remap_tensor[new_id] = original_id
+            # Apply explicit remappings
+            for new_id, original_id in self.feature_id_remap.items():
+                remap_tensor[new_id] = original_id
 
-                # Map all feature IDs that aren't in the current environment AND aren't already remapped to UNKNOWN
-                # This handles feature IDs from training that aren't present in the current eval environment
-                current_feature_ids = {props["id"] for props in features.values()}
-                for feature_id in range(256):
-                    # Skip if already handled by feature_id_remap
-                    if feature_id in self.feature_id_remap:
-                        continue
-                    # If not in current environment, map to UNKNOWN
-                    if feature_id not in current_feature_ids:
-                        remap_tensor[feature_id] = UNKNOWN_FEATURE_ID
+            # Map unused feature IDs to UNKNOWN
+            current_feature_ids = {props["id"] for props in features.values()}
+            for feature_id in range(256):
+                if feature_id not in self.feature_id_remap and feature_id not in current_feature_ids:
+                    remap_tensor[feature_id] = unknown_id
 
-                self.components["_obs_"].update_feature_remapping(remap_tensor)
+            self.components["_obs_"].update_feature_remapping(remap_tensor)
 
-            # Update normalization factors
-            self._update_normalization_factors(features)
+        # Update normalization factors
+        self._update_normalization_factors(features)
 
     def _update_normalization_factors(self, features: dict[str, dict]):
         """Update normalization factors for components after feature remapping."""
