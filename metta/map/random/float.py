@@ -40,13 +40,9 @@ class FloatLognormalDistribution(BaseFloatDistribution):
         if self.low <= 0:
             raise ValueError("Low value must be above 0")
 
-            # Default to 90% probability, for now
-            probability = 0.9
+        probability = 0.9
 
-            if probability <= 0 or probability >= 1:
-                raise ValueError("Probability must be in (0, 1) interval")
-
-            log_low = np.log(self.low)
+        log_low = np.log(self.low)
         log_high = np.log(self.high)
 
         # Calculate normalized sigmas using the inverse of the normal CDF
@@ -73,6 +69,7 @@ def _to_float_distribution(v) -> BaseFloatDistribution:
     - ("uniform", low, high)      -> Uniform
     - ("lognormal", p5, p95)      -> Lognormal with 90% probability of being between p5 and p95
     - ("lognormal", p5, p95, max) -> Lognormal + absolute limit
+                                     and max (absolute limit) is optional
     """
     if isinstance(v, BaseFloatDistribution):
         return v

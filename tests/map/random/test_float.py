@@ -1,6 +1,5 @@
 import numpy as np
 import pytest
-from pydantic import ValidationError
 
 from metta.map.random.float import (
     FloatConstantDistribution,
@@ -155,7 +154,7 @@ class TestFloatDistributionTypes:
         class TestModel(BaseModel):
             dist: FloatDistribution
 
-        model = TestModel(dist=3.14)
+        model = TestModel.model_validate({"dist": 3.14})
         assert isinstance(model.dist, FloatConstantDistribution)
         assert model.dist.value == 3.14
 
@@ -165,7 +164,7 @@ class TestFloatDistributionTypes:
         class TestModel(BaseModel):
             dist: FloatDistribution
 
-        model = TestModel(dist=("uniform", 1.0, 10.0))
+        model = TestModel.model_validate({"dist": ("uniform", 1.0, 10.0)})
         assert isinstance(model.dist, FloatUniformDistribution)
         assert model.dist.low == 1.0
         assert model.dist.high == 10.0
@@ -176,7 +175,7 @@ class TestFloatDistributionTypes:
         class TestModel(BaseModel):
             dist: FloatDistribution
 
-        model = TestModel(dist=("lognormal", 1.0, 10.0))
+        model = TestModel.model_validate({"dist": ("lognormal", 1.0, 10.0)})
         assert isinstance(model.dist, FloatLognormalDistribution)
         assert model.dist.low == 1.0
         assert model.dist.high == 10.0
@@ -188,7 +187,7 @@ class TestFloatDistributionTypes:
         class TestModel(BaseModel):
             dist: FloatDistribution
 
-        model = TestModel(dist=("lognormal", 1.0, 10.0, 15.0))
+        model = TestModel.model_validate({"dist": ("lognormal", 1.0, 10.0, 15.0)})
         assert isinstance(model.dist, FloatLognormalDistribution)
         assert model.dist.low == 1.0
         assert model.dist.high == 10.0
@@ -201,12 +200,12 @@ class TestFloatDistributionTypes:
             dist: FloatDistribution
 
         # Wrong distribution type
-        with pytest.raises(ValidationError):
-            TestModel(dist=("normal", 1.0, 10.0))
+        with pytest.raises(TypeError):
+            TestModel.model_validate({"dist": ("normal", 1.0, 10.0)})
 
         # Wrong number of arguments for uniform
-        with pytest.raises(ValidationError):
-            TestModel(dist=("uniform", 1.0))
+        with pytest.raises(TypeError):
+            TestModel.model_validate({"dist": ("uniform", 1.0)})
 
     def test_integration_constant_distribution(self):
         from pydantic import BaseModel
@@ -214,7 +213,7 @@ class TestFloatDistributionTypes:
         class TestModel(BaseModel):
             dist: FloatDistribution
 
-        model = TestModel(dist=2.718)
+        model = TestModel.model_validate({"dist": 2.718})
         rng = np.random.default_rng(seed=123)
 
         assert model.dist.sample(rng) == 2.718
@@ -225,7 +224,7 @@ class TestFloatDistributionTypes:
         class TestModel(BaseModel):
             dist: FloatDistribution
 
-        model = TestModel(dist=("uniform", 0.5, 1.5))
+        model = TestModel.model_validate({"dist": ("uniform", 0.5, 1.5)})
         rng = np.random.default_rng(seed=123)
 
         samples = [model.dist.sample(rng) for _ in range(50)]
@@ -237,7 +236,7 @@ class TestFloatDistributionTypes:
         class TestModel(BaseModel):
             dist: FloatDistribution
 
-        model = TestModel(dist=("lognormal", 1.0, 5.0))
+        model = TestModel.model_validate({"dist": ("lognormal", 1.0, 5.0)})
         rng = np.random.default_rng(seed=123)
 
         samples = [model.dist.sample(rng) for _ in range(50)]
@@ -249,7 +248,7 @@ class TestFloatDistributionTypes:
         class TestModel(BaseModel):
             dist: FloatDistribution
 
-        model = TestModel(dist=("lognormal", 1.0, 5.0, 10.0))
+        model = TestModel.model_validate({"dist": ("lognormal", 1.0, 5.0, 10.0)})
         rng = np.random.default_rng(seed=123)
 
         samples = [model.dist.sample(rng) for _ in range(100)]
