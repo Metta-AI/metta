@@ -33,11 +33,3 @@ Cumulative training timing
 - `timing_cumulative/sps`
 
 
-
-## Interpretation Guide
-
-Monitor these metrics for:
-- Trends over time
-- Anomalies or spikes
-- Correlations with training performance
-- System resource usage patterns

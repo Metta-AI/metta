@@ -1,10 +1,12 @@
 # WandB Metrics Documentation
 
-This directory contains comprehensive documentation for all metrics logged to Weights & Biases (WandB) during Metta training runs.
+This directory contains comprehensive documentation for all metrics logged to Weights & Biases (WandB) during
+Metta training runs.
 
 ## Overview
 
-Our WandB logging captures detailed metrics across multiple categories to monitor training progress, agent behavior, environment dynamics, and system performance.
+Our WandB logging captures detailed metrics across multiple categories to monitor training progress, agent
+behavior, environment dynamics, and system performance.
 
 ## Metric Categories
 

@@ -12,22 +12,31 @@ Training experience buffer statistics
 
 **Count:** 9 metrics
 
-**Metric Groups:**
-- `actions_mean` (1 metrics)
-- `actions_std` (1 metrics)
-- `dones` (1 metrics)
-- `ep_lengths` (1 metrics)
-- `logprobs` (1 metrics)
-- `ratio` (1 metrics)
-- `rewards` (1 metrics)
-- `truncateds` (1 metrics)
-- `values` (1 metrics)
+**actions_mean:**
+- `experience/actions_mean`
+
+**actions_std:**
+- `experience/actions_std`
+
+**dones:**
+- `experience/dones`
+
+**ep_lengths:**
+- `experience/ep_lengths`
+
+**logprobs:**
+- `experience/logprobs`
+
+**ratio:**
+- `experience/ratio`
+
+**rewards:**
+- `experience/rewards`
+
+**truncateds:**
+- `experience/truncateds`
+
+**values:**
+- `experience/values`
 
 
-## Interpretation Guide
-
-Monitor these metrics for:
-- Trends over time
-- Anomalies or spikes
-- Correlations with training performance
-- System resource usage patterns

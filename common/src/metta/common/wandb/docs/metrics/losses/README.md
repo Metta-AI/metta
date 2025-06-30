@@ -12,27 +12,48 @@ Training loss components
 
 **Count:** 8 metrics
 
-**Metric Groups:**
-- `approx_kl` (1 metrics)
-- `clipfrac` (1 metrics)
-- `entropy` (1 metrics)
-- `explained_variance` (1 metrics)
-- `importance` (1 metrics)
-- `l2_reg_loss` (1 metrics)
-- `policy_loss` (1 metrics)
-- `value_loss` (1 metrics)
+**approx_kl:**
+- `losses/approx_kl`
+
+Approximate KL divergence between old and new policies.
+
+**Interpretation:** Should stay below target threshold (typically 0.01-0.02). High values trigger early stopping.
+
+**clipfrac:**
+- `losses/clipfrac`
+
+Fraction of samples clipped by PPO's objective function.
+
+**Interpretation:** Typically 0.1-0.3. Very high values suggest too large policy updates.
+
+**entropy:**
+- `losses/entropy`
+
+Policy entropy measuring action distribution randomness.
+
+**Interpretation:** Higher entropy encourages exploration. Should gradually decrease but not reach zero.
+
+**explained_variance:**
+- `losses/explained_variance`
+
+**importance:**
+- `losses/importance`
+
+**l2_reg_loss:**
+- `losses/l2_reg_loss`
+
+**policy_loss:**
+- `losses/policy_loss`
+
+Actor network loss measuring action prediction quality.
+
+**Interpretation:** Should decrease over time but not to zero. Sudden spikes may indicate instability.
+
+**value_loss:**
+- `losses/value_loss`
+
+Critic network loss measuring value prediction accuracy.
+
+**Interpretation:** Lower is better, but some noise is expected. High values suggest poor value estimates.
 
 
-## Interpretation Guide
-
-### Loss Components
-- `policy_loss` - Actor loss for action selection
-- `value_loss` - Critic loss for value estimation
-- `entropy` - Policy entropy (exploration)
-- `approx_kl` - KL divergence (policy stability)
-
-### Training Health Indicators
-1. **Convergence**: Decreasing losses over time
-2. **Stability**: Low variance in loss values
-3. **Exploration**: Maintain reasonable entropy
-4. **Policy Updates**: Monitor `approx_kl` and `clipfrac`

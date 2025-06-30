@@ -28,11 +28,3 @@ Training hyperparameters
 - `parameters/policy_record_version`
 
 
-
-## Interpretation Guide
-
-Monitor these metrics for:
-- Trends over time
-- Anomalies or spikes
-- Correlations with training performance
-- System resource usage patterns

@@ -4,12 +4,15 @@
 # dependencies = [
 #     "wandb>=0.16.0",
 #     "requests>=2.31.0",
+#     "pyyaml>=6.0",
 # ]
 # ///
 
 import os
 from collections import defaultdict
 from pathlib import Path
+
+import yaml
 
 
 def parse_metrics_file(filepath):
@@ -74,8 +77,8 @@ Metta training runs.
 
 ## Overview
 
-Our WandB logging captures detailed metrics across multiple categories to monitor training progress, agent behavior,
-environment dynamics, and system performance.
+Our WandB logging captures detailed metrics across multiple categories to monitor training progress, agent
+behavior, environment dynamics, and system performance.
 
 ## Metric Categories
 
@@ -181,7 +184,7 @@ def get_section_description(section):
     return descriptions.get(section, "Metrics for " + section.replace("_", " "))
 
 
-def generate_section_readme(section, subsections, output_dir):
+def generate_section_readme(section, subsections, output_dir, descriptions):
     """Generate README for a specific section."""
     section_dir = Path(output_dir) / section
     section_dir.mkdir(parents=True, exist_ok=True)
@@ -190,8 +193,6 @@ def generate_section_readme(section, subsections, output_dir):
     all_metrics = []
     for metrics in subsections.values():
         all_metrics.extend(metrics)
-
-    patterns = analyze_metric_patterns(all_metrics)
 
     content = f"""# {section.replace("_", " ").title()} Metrics
 
@@ -217,25 +218,29 @@ def generate_section_readme(section, subsections, output_dir):
         # Group related metrics
         metric_groups = group_related_metrics(metrics)
 
-        if len(metric_groups) > 5:
-            # Just show summary for large groups
-            content += "**Metric Groups:**\n"
-            for group_name, group_metrics in sorted(metric_groups.items()):
-                content += f"- `{group_name}` ({len(group_metrics)} metrics)\n"
-        else:
-            # Show detailed breakdown for small groups
-            for group_name, group_metrics in sorted(metric_groups.items()):
-                content += f"**{group_name}:**\n"
-                for metric in sorted(group_metrics)[:10]:  # Limit to 10 examples
-                    content += f"- `{metric}`\n"
-                if len(group_metrics) > 10:
-                    content += f"- ... and {len(group_metrics) - 10} more\n"
-                content += "\n"
+        for group_name, group_metrics in sorted(metric_groups.items()):
+            content += f"**{group_name}:**\n"
+
+            # Check if we have a description for the primary metric
+            primary_metric = f"{section}/{subsection}/{group_name}".replace("/general/", "/")
+            if subsection == "general":
+                primary_metric = f"{section}/{group_name}"
+
+            metric_desc = get_metric_description(primary_metric, descriptions)
+
+            # List the metrics
+            for metric in sorted(group_metrics)[:10]:  # Limit to 10 examples
+                content += f"- `{metric}`\n"
+            if len(group_metrics) > 10:
+                content += f"- ... and {len(group_metrics) - 10} more\n"
+
+            # Add description if available
+            if metric_desc:
+                content += f"\n{metric_desc}\n"
+
+            content += "\n"
 
         content += "\n"
-
-    # Add interpretation guide based on section
-    content += get_section_interpretation_guide(section, patterns)
 
     readme_path = section_dir / "README.md"
     with open(readme_path, "w") as f:
@@ -278,80 +283,40 @@ def group_related_metrics(metrics):
     return dict(groups)
 
 
-def get_section_interpretation_guide(section, patterns):
-    """Get interpretation guide for specific sections."""
-    guides = {
-        "env_agent": """
-## Interpretation Guide
+def load_metric_descriptions(script_dir):
+    """Load metric descriptions from YAML file."""
+    yaml_path = os.path.join(script_dir, "metric_descriptions.yaml")
+    if os.path.exists(yaml_path):
+        with open(yaml_path, "r") as f:
+            return yaml.safe_load(f)
+    return {}
 
-### Action Metrics
-- `action.<action_type>.success/failed` - Track success rates for different actions
-- `action.<action_type>.agent` - Breakdown by individual agents
-- Look for high failure rates to identify problematic behaviors
 
-### Item Interactions
-- `<item>.gained/lost` - Track item acquisition and loss
-- `<item>.stolen/stolen_from` - Monitor PvP dynamics
-- `<item>.get/put` - Environmental interactions
+def get_metric_description(metric, descriptions):
+    """Get description for a specific metric."""
+    if metric in descriptions and "description" in descriptions[metric]:
+        desc = descriptions[metric]["description"]
 
-### Combat Metrics
-- `attack.win/loss` - Combat outcomes
-- `attack.blocked` - Defensive success
-- `attack.own_team` - Friendly fire incidents
+        # Add unit if specified
+        if "unit" in descriptions[metric]:
+            desc += f" (Unit: {descriptions[metric]['unit']})"
 
-### Key Patterns to Watch
-1. **Action Success Rates**: Low success rates may indicate poor policy or difficult environments
-2. **Item Flow**: Track how items move between agents
-3. **Combat Balance**: Monitor win/loss ratios across agents
-""",
-        "env_timing_per_epoch": """
-## Interpretation Guide
+        # Add interpretation if specified
+        if "interpretation" in descriptions[metric]:
+            desc += f"\n\n**Interpretation:** {descriptions[metric]['interpretation']}"
 
-### Timing Categories
-- `msec/` - Raw millisecond timings
-- `frac/` - Fraction of total time
-- `active_frac/` - Fraction of active (non-idle) time
+        return desc
 
-### Key Operations
-- `step` - Environment step execution
-- `reset` - Episode reset operations
-- `_initialize_c_env` - C++ environment initialization
-- `process_episode_stats` - Statistics processing
+    # Check patterns for auto-generated descriptions
+    if "patterns" in descriptions:
+        for pattern, pattern_info in descriptions["patterns"].items():
+            if pattern.startswith("*") and metric.endswith(pattern[1:]):
+                base_metric = metric[: -len(pattern[1:])]
+                base_desc = get_metric_description(base_metric, descriptions)
+                if base_desc:
+                    return base_desc.split("\n")[0] + pattern_info.get("suffix", "")
 
-### Performance Analysis
-1. **Bottlenecks**: Look for operations with high `msec` values
-2. **Efficiency**: Check `thread_idle` for CPU utilization
-3. **Variability**: High `std_dev` values indicate inconsistent performance
-""",
-        "losses": """
-## Interpretation Guide
-
-### Loss Components
-- `policy_loss` - Actor loss for action selection
-- `value_loss` - Critic loss for value estimation
-- `entropy` - Policy entropy (exploration)
-- `approx_kl` - KL divergence (policy stability)
-
-### Training Health Indicators
-1. **Convergence**: Decreasing losses over time
-2. **Stability**: Low variance in loss values
-3. **Exploration**: Maintain reasonable entropy
-4. **Policy Updates**: Monitor `approx_kl` and `clipfrac`
-""",
-    }
-
-    return guides.get(
-        section,
-        """
-## Interpretation Guide
-
-Monitor these metrics for:
-- Trends over time
-- Anomalies or spikes
-- Correlations with training performance
-- System resource usage patterns
-""",
-    )
+    return None
 
 
 def main():
@@ -367,6 +332,9 @@ def main():
     print(f"Parsing metrics from {metrics_file}...")
     sections = parse_metrics_file(metrics_file)
 
+    print("Loading metric descriptions...")
+    descriptions = load_metric_descriptions(script_dir)
+
     print(f"Found {len(sections)} sections")
     print(f"Generating documentation in {output_dir}/")
 
@@ -376,7 +344,7 @@ def main():
 
     # Generate section READMEs
     for section, subsections in sections.items():
-        section_readme = generate_section_readme(section, subsections, output_dir)
+        section_readme = generate_section_readme(section, subsections, output_dir, descriptions)
         print(f"Created: {section_readme}")
 
     print("\nDocumentation generation complete!")
@@ -384,6 +352,12 @@ def main():
     print(f"Section docs: {output_dir}/<section>/README.md")
     print("\nTo view the documentation, navigate to:")
     print(f"  {output_dir}/")
+
+    # Check if metric_descriptions.yaml exists
+    yaml_path = os.path.join(script_dir, "metric_descriptions.yaml")
+    if not os.path.exists(yaml_path):
+        print("\nNote: No metric_descriptions.yaml found.")
+        print(f"Create {yaml_path} to add custom descriptions for metrics.")
 
 
 if __name__ == "__main__":

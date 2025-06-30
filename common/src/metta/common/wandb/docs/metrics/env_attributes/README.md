@@ -12,21 +12,36 @@ Environment configuration and episode attributes
 
 **Count:** 16 metrics
 
-**Metric Groups:**
-- `completion_time` (2 metrics)
-- `initial_grid_hash` (2 metrics)
-- `map_h` (2 metrics)
-- `map_w` (2 metrics)
-- `max_steps` (2 metrics)
-- `resets` (2 metrics)
-- `seed` (2 metrics)
-- `steps` (2 metrics)
+**completion_time:**
+- `env_attributes/completion_time`
+- `env_attributes/completion_time.std_dev`
+
+**initial_grid_hash:**
+- `env_attributes/initial_grid_hash`
+- `env_attributes/initial_grid_hash.std_dev`
+
+**map_h:**
+- `env_attributes/map_h`
+- `env_attributes/map_h.std_dev`
+
+**map_w:**
+- `env_attributes/map_w`
+- `env_attributes/map_w.std_dev`
+
+**max_steps:**
+- `env_attributes/max_steps`
+- `env_attributes/max_steps.std_dev`
+
+**resets:**
+- `env_attributes/resets`
+- `env_attributes/resets.std_dev`
+
+**seed:**
+- `env_attributes/seed`
+- `env_attributes/seed.std_dev`
+
+**steps:**
+- `env_attributes/steps`
+- `env_attributes/steps.std_dev`
 
 
-## Interpretation Guide
-
-Monitor these metrics for:
-- Trends over time
-- Anomalies or spikes
-- Correlations with training performance
-- System resource usage patterns
