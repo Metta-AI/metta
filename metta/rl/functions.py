@@ -256,8 +256,9 @@ def compute_advantage(
     device = torch.device(device) if isinstance(device, str) else device
 
     # Move tensors to device and compute advantage
+    # Detach to prevent gradient accumulation when moving tensors
     tensors = [values, rewards, dones, importance_sampling_ratio, advantages]
-    tensors = [t.to(device) for t in tensors]
+    tensors = [t.detach().to(device) for t in tensors]
     values, rewards, dones, importance_sampling_ratio, advantages = tensors
 
     # Create context manager that only applies CUDA device context if needed
@@ -418,6 +419,11 @@ def accumulate_rollout_stats(
     # Batch process info dictionaries
     for i in raw_infos:
         for k, v in unroll_nested_dict(i):
+            # Detach any tensors before accumulating to prevent memory leaks
+            if torch.is_tensor(v):
+                v = v.detach().cpu().item() if v.numel() == 1 else v.detach().cpu().numpy()
+            elif isinstance(v, np.ndarray) and v.size == 1:
+                v = v.item()
             infos[k].append(v)
 
     # Batch process stats
