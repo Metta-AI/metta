@@ -26,8 +26,17 @@ from metta.common.util.wandb.wandb_context import WandbRun
 from metta.eval.eval_stats_db import EvalStatsDB
 from metta.mettagrid.curriculum.util import curriculum_from_config_path
 from metta.mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
-from metta.mettagrid.util.dict_utils import unroll_nested_dict
 from metta.rl.experience import Experience
+from metta.rl.functions import (
+    accumulate_rollout_stats,
+    calculate_batch_sizes,
+    calculate_explained_variance,
+    calculate_prioritized_sampling_params,
+    compute_advantage,
+    get_lstm_config,
+    process_minibatch_update,
+    validate_policy_environment_match,
+)
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses
 from metta.rl.torch_profiler import TorchProfiler
@@ -226,39 +235,8 @@ class MettaTrainer:
             weight_decay=trainer_cfg.optimizer.weight_decay,
         )
 
-        # validate that policy matches environment
-        if isinstance(self.policy, MettaAgent):
-            agent = self.policy
-        elif isinstance(self.policy, DistributedMettaAgent):
-            agent = self.policy.module
-        else:
-            raise ValueError(f"Policy must be of type MettaAgent or DistributedMettaAgent, got {type(self.policy)}")
-
-        _env_shape = metta_grid_env.single_observation_space.shape
-        environment_shape = tuple(_env_shape) if isinstance(_env_shape, list) else _env_shape
-
-        # The rest of the validation logic continues to work with duck typing
-        if hasattr(agent, "components"):
-            found_match = False
-            for component_name, component in agent.components.items():
-                if hasattr(component, "_obs_shape"):
-                    found_match = True
-                    component_shape = (
-                        tuple(component._obs_shape) if isinstance(component._obs_shape, list) else component._obs_shape
-                    )
-                    if component_shape != environment_shape:
-                        raise ValueError(
-                            f"Observation space mismatch error:\n"
-                            f"[policy] component_name: {component_name}\n"
-                            f"[policy] component_shape: {component_shape}\n"
-                            f"environment_shape: {environment_shape}\n"
-                        )
-
-            if not found_match:
-                raise ValueError(
-                    "No component with observation shape found in policy. "
-                    f"Environment observation shape: {environment_shape}"
-                )
+        # Validate that policy matches environment
+        validate_policy_environment_match(self.policy, metta_grid_env)
 
         self.lr_scheduler = None
         if trainer_cfg.lr_scheduler.enabled:
@@ -379,12 +357,12 @@ class MettaTrainer:
 
     @with_instance_timer("_rollout")
     def _rollout(self):
+        """Perform rollout phase of training."""
         experience = self.experience
         trainer_cfg = self.trainer_cfg
         device = self.device
 
         policy = self.policy
-        infos = defaultdict(list)
         raw_infos = []  # Collect raw info for batch processing later
         experience.reset_for_rollout()
 
@@ -468,31 +446,14 @@ class MettaTrainer:
                 self.vecenv.send(actions.cpu().numpy().astype(dtype_actions))
 
         # Batch process info dictionaries after rollout
-        for i in raw_infos:
-            for k, v in unroll_nested_dict(i):
-                infos[k].append(v)
-
-        # Batch process stats more efficiently
-        for k, v in infos.items():
-            if isinstance(v, np.ndarray):
-                v = v.tolist()
-
-            if isinstance(v, list):
-                self.stats.setdefault(k, []).extend(v)
-            else:
-                if k not in self.stats:
-                    self.stats[k] = v
-                else:
-                    try:
-                        self.stats[k] += v
-                    except TypeError:
-                        self.stats[k] = [self.stats[k], v]  # fallback: bundle as list
+        accumulate_rollout_stats(raw_infos, self.stats)
 
         # TODO: Better way to enable multiple collects
-        return self.stats, infos
+        return self.stats, self.stats
 
     @with_instance_timer("_train")
     def _train(self):
+        """Perform training phase."""
         experience = self.experience
         trainer_cfg = self.trainer_cfg
 
@@ -505,10 +466,13 @@ class MettaTrainer:
         experience.reset_importance_sampling_ratios()
 
         # Prioritized sampling parameters
-        b0 = prio_cfg.prio_beta0
-        a = prio_cfg.prio_alpha
-        total_epochs = max(1, trainer_cfg.total_timesteps // trainer_cfg.batch_size)
-        anneal_beta = b0 + (1 - b0) * a * self.epoch / total_epochs
+        anneal_beta = calculate_prioritized_sampling_params(
+            epoch=self.epoch,
+            total_timesteps=trainer_cfg.total_timesteps,
+            batch_size=trainer_cfg.batch_size,
+            prio_alpha=prio_cfg.prio_alpha,
+            prio_beta0=prio_cfg.prio_beta0,
+        )
 
         # Compute advantages using puff_advantage
         advantages = torch.zeros(experience.values.shape, device=self.device)
@@ -537,104 +501,24 @@ class MettaTrainer:
             for _ in range(experience.num_minibatches):
                 minibatch = experience.sample_minibatch(
                     advantages=advantages,
-                    prio_alpha=a,
+                    prio_alpha=prio_cfg.prio_alpha,
                     prio_beta=anneal_beta,
                     minibatch_idx=minibatch_idx,
                     total_minibatches=_total_minibatches,
                 )
 
-                obs = minibatch["obs"]
-
-                lstm_state = PolicyState()
-                _, new_logprobs, entropy, newvalue, full_logprobs = self.policy(
-                    obs, lstm_state, action=minibatch["actions"]
+                # Use the helper function to process minibatch update
+                loss = process_minibatch_update(
+                    policy=self.policy,
+                    experience=experience,
+                    minibatch=minibatch,
+                    advantages=advantages,
+                    trainer_cfg=trainer_cfg,
+                    kickstarter=self.kickstarter,
+                    agent_step=self.agent_step,
+                    losses=self.losses,
+                    device=self.device,
                 )
-
-                new_logprobs = new_logprobs.reshape(minibatch["logprobs"].shape)
-                logratio = new_logprobs - minibatch["logprobs"]
-                importance_sampling_ratio = logratio.exp()
-                experience.update_ratio(minibatch["indices"], importance_sampling_ratio)
-
-                with torch.no_grad():
-                    approx_kl = ((importance_sampling_ratio - 1) - logratio).mean()
-                    clipfrac = ((importance_sampling_ratio - 1.0).abs() > trainer_cfg.clip_coef).float().mean()
-
-                # Re-compute advantages with new ratios (V-trace)
-                adv = compute_advantage(
-                    minibatch["values"],
-                    minibatch["rewards"],
-                    minibatch["dones"],
-                    importance_sampling_ratio,
-                    minibatch["advantages"],
-                    trainer_cfg.gamma,
-                    trainer_cfg.gae_lambda,
-                    vtrace_cfg.vtrace_rho_clip,
-                    vtrace_cfg.vtrace_c_clip,
-                    self.device,
-                )
-
-                # Normalize advantages with distributed support, then apply prioritized weights
-                adv = normalize_advantage_distributed(adv, trainer_cfg.norm_adv)
-                adv = minibatch["prio_weights"] * adv
-
-                # Policy loss
-                pg_loss1 = -adv * importance_sampling_ratio
-                pg_loss2 = -adv * torch.clamp(
-                    importance_sampling_ratio, 1 - trainer_cfg.clip_coef, 1 + trainer_cfg.clip_coef
-                )
-                pg_loss = torch.max(pg_loss1, pg_loss2).mean()
-
-                # Value loss
-                newvalue_reshaped = newvalue.view(minibatch["returns"].shape)
-                if trainer_cfg.clip_vloss:
-                    v_loss_unclipped = (newvalue_reshaped - minibatch["returns"]) ** 2
-                    vf_clip_coef = trainer_cfg.vf_clip_coef
-                    v_clipped = minibatch["values"] + torch.clamp(
-                        newvalue_reshaped - minibatch["values"],
-                        -vf_clip_coef,
-                        vf_clip_coef,
-                    )
-                    v_loss_clipped = (v_clipped - minibatch["returns"]) ** 2
-                    v_loss = 0.5 * torch.max(v_loss_unclipped, v_loss_clipped).mean()
-                else:
-                    v_loss = 0.5 * ((newvalue_reshaped - minibatch["returns"]) ** 2).mean()
-
-                entropy_loss = entropy.mean()
-
-                ks_action_loss, ks_value_loss = self.kickstarter.loss(
-                    self.agent_step, full_logprobs, newvalue, obs, teacher_lstm_state=[]
-                )
-
-                l2_init_loss = torch.tensor(0.0, device=self.device, dtype=torch.float32)
-                if trainer_cfg.l2_init_loss_coef > 0:
-                    l2_init_loss = trainer_cfg.l2_init_loss_coef * self.policy.l2_init_loss().to(self.device)
-
-                loss = (
-                    pg_loss
-                    - trainer_cfg.ent_coef * entropy_loss
-                    + v_loss * trainer_cfg.vf_coef
-                    + l2_init_loss
-                    + ks_action_loss
-                    + ks_value_loss
-                )
-
-                # Update values in experience buffer
-                experience.update_values(minibatch["indices"], newvalue.view(minibatch["values"].shape))
-
-                if self.losses is None:
-                    raise ValueError("self.losses is None")
-
-                # Update loss tracking for logging
-                self.losses.policy_loss_sum += pg_loss.item()
-                self.losses.value_loss_sum += v_loss.item()
-                self.losses.entropy_sum += entropy_loss.item()
-                self.losses.approx_kl_sum += approx_kl.item()
-                self.losses.clipfrac_sum += clipfrac.item()
-                self.losses.l2_init_loss_sum += l2_init_loss.item() if torch.is_tensor(l2_init_loss) else l2_init_loss
-                self.losses.ks_action_loss_sum += ks_action_loss.item()
-                self.losses.ks_value_loss_sum += ks_value_loss.item()
-                self.losses.importance_sum += importance_sampling_ratio.mean().item()
-                self.losses.minibatches_processed += 1
 
                 self.optimizer.zero_grad()
                 loss.backward()
@@ -663,12 +547,8 @@ class MettaTrainer:
         if self.lr_scheduler is not None:
             self.lr_scheduler.step()
 
-        # Calculate explained variance
-        y_pred = experience.values.flatten()
-        y_true = advantages.flatten() + experience.values.flatten()
-        var_y = y_true.var()
-        explained_var = torch.nan if var_y == 0 else 1 - (y_true - y_pred).var() / var_y
-        self.losses.explained_variance = explained_var.item() if torch.is_tensor(explained_var) else float("nan")
+        # Calculate explained variance using helper function
+        self.losses.explained_variance = calculate_explained_variance(experience.values, advantages)
 
     def _should_run(self, interval: int, force: bool = False) -> bool:
         """Check if a periodic task should run based on interval and force flag."""
@@ -1057,15 +937,8 @@ class MettaTrainer:
         # Calculate minibatch parameters
         max_minibatch_size = trainer_cfg.minibatch_size
 
-        # Get LSTM parameters
-        hidden_size = getattr(self.policy, "hidden_size", 256)
-        num_lstm_layers = 2  # Default value
-
-        # Try to get actual number of LSTM layers from policy
-        if hasattr(self.policy, "components") and "_core_" in self.policy.components:
-            lstm_module = self.policy.components["_core_"]
-            if hasattr(lstm_module, "_net") and hasattr(lstm_module._net, "num_layers"):
-                num_lstm_layers = lstm_module._net.num_layers
+        # Get LSTM parameters using helper function
+        hidden_size, num_lstm_layers = get_lstm_config(self.policy)
 
         # Create experience buffer
         self.experience = Experience(
@@ -1089,22 +962,24 @@ class MettaTrainer:
 
         num_agents = self._curriculum.get_task().env_cfg().game.num_agents
 
-        self.target_batch_size = trainer_cfg.forward_pass_minibatch_target_size // num_agents
-        if self.target_batch_size < max(2, trainer_cfg.num_workers):  # pufferlib bug requires batch size >= 2
-            self.target_batch_size = trainer_cfg.num_workers
+        # Calculate batch sizes using helper function
+        self.target_batch_size, self.batch_size, num_envs = calculate_batch_sizes(
+            forward_pass_minibatch_target_size=trainer_cfg.forward_pass_minibatch_target_size,
+            num_agents=num_agents,
+            num_workers=trainer_cfg.num_workers,
+            async_factor=trainer_cfg.async_factor,
+        )
 
         logger.info(
             f"target_batch_size: {self.target_batch_size} = "
             f"min ({trainer_cfg.forward_pass_minibatch_target_size} // {num_agents} , {trainer_cfg.num_workers})"
         )
 
-        self.batch_size = (self.target_batch_size // trainer_cfg.num_workers) * trainer_cfg.num_workers
         logger.info(
             f"forward_pass_batch_size: {self.batch_size} = "
             f"({self.target_batch_size} // {trainer_cfg.num_workers}) * {trainer_cfg.num_workers}"
         )
 
-        num_envs = self.batch_size * trainer_cfg.async_factor
         logger.info(f"num_envs: {num_envs}")
 
         if num_envs < 1:
