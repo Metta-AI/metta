@@ -4,7 +4,7 @@ from omegaconf import DictConfig, ListConfig, OmegaConf
 from pydantic import ConfigDict, Field, model_validator
 
 from metta.common.util.typed_config import BaseModelWithForbidExtra
-from metta.rl.kickstarter import KickstartConfig
+from metta.rl.kickstarter_config import KickstartConfig
 
 
 class OptimizerConfig(BaseModelWithForbidExtra):
@@ -44,13 +44,23 @@ class InitialPolicyConfig(BaseModelWithForbidExtra):
 class CheckpointConfig(BaseModelWithForbidExtra):
     checkpoint_interval: int = Field(default=60, gt=0)
     wandb_checkpoint_interval: int = Field(default=300, ge=0)  # 0 to disable
-    checkpoint_dir: str
+    checkpoint_dir: str = Field(default="")
+
+    @model_validator(mode="after")
+    def validate_fields(self) -> "CheckpointConfig":
+        assert self.checkpoint_dir, "checkpoint_dir must be set"
+        return self
 
 
 class SimulationConfig(BaseModelWithForbidExtra):
     evaluate_interval: int = Field(default=300, ge=0)  # 0 to disable
     replay_interval: int = Field(default=300, gt=0)
-    replay_dir: str
+    replay_dir: str = Field(default="")
+
+    @model_validator(mode="after")
+    def validate_fields(self) -> "SimulationConfig":
+        assert self.replay_dir, "replay_dir must be set"
+        return self
 
 
 class PPOConfig(BaseModelWithForbidExtra):
@@ -152,8 +162,6 @@ class TrainerConfig(BaseModelWithForbidExtra):
         if not self.curriculum and not self.env:
             raise ValueError("curriculum or env must be set")
 
-        # No need to set paths here - they're handled by properties
-
         return self
 
     @property
@@ -186,6 +194,8 @@ def parse_trainer_config(
 
     # Convert to dict and let OmegaConf handle all interpolations
     config_dict = OmegaConf.to_container(trainer_cfg, resolve=True)
+    if not isinstance(config_dict, dict):
+        raise ValueError("trainer config must be a dict")
 
     # Set default paths if not provided
     if "checkpoint_dir" not in config_dict.setdefault("checkpoint", {}):

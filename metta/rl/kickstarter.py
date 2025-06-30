@@ -1,27 +1,11 @@
 from typing import List
 
 import torch
-from pydantic import Field
 from torch import Tensor, nn
 
 from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyStore
-from metta.common.util.typed_config import BaseModelWithForbidExtra
-
-
-class KickstartTeacherConfig(BaseModelWithForbidExtra):
-    teacher_uri: str
-    action_loss_coef: float = Field(default=1, ge=0)
-    value_loss_coef: float = Field(default=1, ge=0)
-
-
-class KickstartConfig(BaseModelWithForbidExtra):
-    teacher_uri: str | None = None
-    action_loss_coef: float = Field(default=1, ge=0)
-    value_loss_coef: float = Field(default=1, ge=0)
-    anneal_ratio: float = Field(default=0.65, ge=0, le=1.0)
-    kickstart_steps: int = Field(default=1_000_000_000, gt=0)
-    additional_teachers: list[KickstartTeacherConfig] | None = None
+from metta.rl.kickstarter_config import KickstartConfig, KickstartTeacherConfig
 
 
 class Kickstarter:
@@ -78,7 +62,7 @@ class Kickstarter:
 
     def _load_policies(self) -> None:
         self.teachers: list[nn.Module] = []
-        for teacher_cfg in self.teacher_cfgs:
+        for teacher_cfg in self.teacher_cfgs or []:
             policy_record = self.policy_store.policy_record(teacher_cfg.teacher_uri)
             policy: nn.Module = policy_record.policy
             policy.action_loss_coef = teacher_cfg.action_loss_coef

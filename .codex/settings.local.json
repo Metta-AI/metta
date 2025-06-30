@@ -12,7 +12,8 @@
       "Bash(pytest:*)",
       "Bash(./devops/test_uv_setup.sh:*)",
       "Bash(rm:*)",
-      "WebFetch(domain:docs.astral.sh)"
+      "WebFetch(domain:docs.astral.sh)",
+      "Bash(*)"
     ],
     "deny": []
   },
