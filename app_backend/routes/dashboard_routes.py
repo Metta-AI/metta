@@ -300,7 +300,7 @@ def _select_best_policies_per_run(rows: List[GroupDataRow], suite: str, con: Con
     Select the best policy per training run based on average score across all evaluations.
     For policies with no run_id (epoch_id is NULL), include them as-is.
     Ties are broken by selecting the latest policy (highest end_training_epoch).
-    
+
     Optimized version that avoids extra database queries and simplifies scoring logic.
     """
     # Group rows by run_id and policy_uri
@@ -324,7 +324,7 @@ def _select_best_policies_per_run(rows: List[GroupDataRow], suite: str, con: Con
         # Calculate average score for each policy in this run
         for _policy_uri, policy_rows in policies_dict.items():
             policy_epoch = policy_rows[0].end_training_epoch or 0
-            
+
             # Calculate average score across available evaluations for this policy
             total_score = 0.0
             for row in policy_rows:
