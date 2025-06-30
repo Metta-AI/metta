@@ -16,7 +16,3 @@ brew "uv"
 brew "npm"
 brew "node"
 brew "gh"
-
-# Applications
-cask "cursor"
-cask "discord"
