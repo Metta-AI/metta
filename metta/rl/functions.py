@@ -9,6 +9,7 @@ from collections import defaultdict
 from contextlib import nullcontext
 from typing import Any, Dict, Optional, Tuple
 
+import einops
 import numpy as np
 import torch
 import torch.distributed
@@ -38,7 +39,13 @@ def process_rollout_infos(raw_infos: list) -> Dict[str, Any]:
         if isinstance(v, list):
             stats.setdefault(k, []).extend(v)
         else:
-            stats[k] = [stats[k], v] if k in stats else v
+            if k not in stats:
+                stats[k] = v
+            else:
+                try:
+                    stats[k] += v
+                except TypeError:
+                    stats[k] = [stats[k], v]  # fallback: bundle as list
     return stats
 
 
@@ -58,8 +65,10 @@ def perform_rollout_step(
     num_steps = int(mask.sum().item())
 
     # Convert to tensors
-    tensors = [o, r, d, t]
-    o, r, d, t = [torch.as_tensor(x).to(device, non_blocking=True) for x in tensors]
+    o = torch.as_tensor(o).to(device, non_blocking=True)
+    r = torch.as_tensor(r).to(device, non_blocking=True)
+    d = torch.as_tensor(d).to(device, non_blocking=True)
+    t = torch.as_tensor(t).to(device, non_blocking=True)
 
     with torch.no_grad():
         state = PolicyState()
@@ -72,10 +81,12 @@ def perform_rollout_step(
 
         lstm_state_to_store = None
         if state.lstm_h is not None:
-            lstm_state_to_store = {"lstm_h": state.lstm_h, "lstm_c": state.lstm_c}
+            lstm_state_to_store = {"lstm_h": state.lstm_h.detach(), "lstm_c": state.lstm_c.detach()}
 
         if str(device).startswith("cuda"):
             torch.cuda.synchronize()
+
+    value = value.flatten()
 
     experience.store(
         obs=o,
@@ -84,7 +95,7 @@ def perform_rollout_step(
         rewards=r,
         dones=d,
         truncations=t,
-        values=value.flatten(),
+        values=value,
         env_id=training_env_id,
         mask=mask,
         lstm_state=lstm_state_to_store,
@@ -108,8 +119,14 @@ def compute_advantage(
     vtrace_c_clip: float,
     device: torch.device,
 ) -> Tensor:
-    """CUDA kernel for puffer advantage with automatic CPU fallback."""
-    # Move tensors to device
+    """CUDA kernel for puffer advantage with automatic CPU fallback.
+
+    This matches the trainer.py implementation exactly.
+    """
+    # Get correct device
+    device = torch.device(device) if isinstance(device, str) else device
+
+    # Move tensors to device and compute advantage
     tensors = [values, rewards, dones, importance_sampling_ratio, advantages]
     tensors = [t.to(device) for t in tensors]
     values, rewards, dones, importance_sampling_ratio, advantages = tensors
@@ -133,57 +150,34 @@ def compute_advantage(
 
 
 def normalize_advantage_distributed(adv: Tensor, norm_adv: bool = True) -> Tensor:
-    """Normalize advantages with distributed training support while preserving shape."""
+    """Normalize advantages with distributed training support while preserving shape.
+
+    This matches the trainer.py implementation exactly.
+    """
     if not norm_adv:
         return adv
 
     if torch.distributed.is_initialized():
         # Compute local statistics
         adv_flat = adv.view(-1)
-        local_stats = torch.tensor(
-            [adv_flat.sum().item(), (adv_flat * adv_flat).sum().item(), adv_flat.numel()],
-            dtype=adv.dtype,
-            device=adv.device,
-        )
+        local_sum = einops.rearrange(adv_flat.sum(), "-> 1")
+        local_sq_sum = einops.rearrange((adv_flat * adv_flat).sum(), "-> 1")
+        local_count = torch.tensor([adv_flat.numel()], dtype=adv.dtype, device=adv.device)
 
-        # All-reduce statistics
-        torch.distributed.all_reduce(local_stats, op=torch.distributed.ReduceOp.SUM)
+        # Combine statistics for single all_reduce
+        stats = einops.rearrange([local_sum, local_sq_sum, local_count], "one float -> (float one)")
+        torch.distributed.all_reduce(stats, op=torch.distributed.ReduceOp.SUM)
 
         # Extract global statistics
-        global_sum, global_sq_sum, global_count = local_stats
+        global_sum, global_sq_sum, global_count = stats[0], stats[1], stats[2]
         global_mean = global_sum / global_count
         global_var = (global_sq_sum / global_count) - (global_mean * global_mean)
         global_std = torch.sqrt(global_var.clamp(min=1e-8))
 
-        # Normalize
+        # Normalize and reshape back
         adv = (adv - global_mean) / (global_std + 1e-8)
     else:
         # Local normalization
         adv = (adv - adv.mean()) / (adv.std() + 1e-8)
 
     return adv
-
-
-def compute_initial_advantages(
-    experience: Experience,
-    gamma: float,
-    gae_lambda: float,
-    vtrace_rho_clip: float,
-    vtrace_c_clip: float,
-    device: torch.device,
-) -> Tensor:
-    """Computes initial advantages before the training loop."""
-    advantages = torch.zeros(experience.values.shape, device=device)
-    initial_importance_sampling_ratio = torch.ones_like(experience.values)
-    return compute_advantage(
-        experience.values,
-        experience.rewards,
-        experience.dones,
-        initial_importance_sampling_ratio,
-        advantages,
-        gamma,
-        gae_lambda,
-        vtrace_rho_clip,
-        vtrace_c_clip,
-        device,
-    )

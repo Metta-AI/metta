@@ -7,7 +7,7 @@ from torch import nn
 
 from metta.agent.policy_state import PolicyState
 from metta.rl.experience import Experience
-from metta.rl.functional_trainer import (
+from metta.rl.functions import (
     compute_advantage,
     normalize_advantage_distributed,
 )

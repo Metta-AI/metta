@@ -784,8 +784,8 @@ def quick_train(
     import time
 
     from metta.common.stopwatch import Stopwatch
-    from metta.rl.functional_trainer import (
-        compute_initial_advantages,
+    from metta.rl.functions import (
+        compute_advantage,
         perform_rollout_step,
         process_rollout_infos,
     )
@@ -939,13 +939,19 @@ def quick_train(
             experience.reset_importance_sampling_ratios()
 
             # Compute advantages
-            advantages = compute_initial_advantages(
-                experience,
-                gamma=params["gamma"],
-                gae_lambda=params["gae_lambda"],
-                vtrace_rho_clip=params["vtrace_rho_clip"],
-                vtrace_c_clip=params["vtrace_c_clip"],
-                device=device_obj,
+            advantages = torch.zeros(experience.values.shape, device=device_obj)
+            initial_importance_sampling_ratio = torch.ones_like(experience.values)
+            advantages = compute_advantage(
+                experience.values,
+                experience.rewards,
+                experience.dones,
+                initial_importance_sampling_ratio,
+                advantages,
+                params["gamma"],
+                params["gae_lambda"],
+                params["vtrace_rho_clip"],
+                params["vtrace_c_clip"],
+                device_obj,
             )
 
             # Train for one epoch

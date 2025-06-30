@@ -82,9 +82,9 @@ print(f"Average reward: {results['avg_reward']:.4f}")
 For more control, use the functional training components directly:
 
 ```python
-from metta.rl.functional_trainer import (
+from metta.rl.functions import (
     perform_rollout_step,
-    compute_initial_advantages,
+    compute_advantage,
     process_rollout_infos,
 )
 
