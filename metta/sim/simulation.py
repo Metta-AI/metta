@@ -115,7 +115,7 @@ class Simulation:
         # ---------------- policies ------------------------------------- #
         self._policy_pr = policy_pr
         self._policy_store = policy_store
-        self._npc_pr = policy_store.policy(config.npc_policy_uri) if config.npc_policy_uri else None
+        self._npc_pr = policy_store.policy_record(config.npc_policy_uri) if config.npc_policy_uri else None
         self._policy_agents_pct = config.policy_agents_pct if self._npc_pr is not None else 1.0
 
         self._stats_client: StatsClient | None = stats_client
@@ -128,7 +128,7 @@ class Simulation:
         action_names = metta_grid_env.action_names
         max_args = metta_grid_env.max_action_args
 
-        policy = self._policy_pr.policy()
+        policy = self._policy_pr.policy
         # Ensure policy has required interface
         if hasattr(policy, "initialize_to_environment"):
             # New interface: pass features and actions
@@ -145,7 +145,7 @@ class Simulation:
             )
 
         if self._npc_pr is not None:
-            npc_policy = self._npc_pr.policy()
+            npc_policy = self._npc_pr.policy
             if hasattr(npc_policy, "initialize_to_environment"):
                 features = metta_grid_env.get_observation_features()
                 # NPC policies are used during evaluation
@@ -238,12 +238,12 @@ class Simulation:
             obs_t = torch.as_tensor(self._obs, device=self._device)
             # Candidate-policy agents
             my_obs = obs_t[self._policy_idxs]
-            policy = self._policy_pr.policy()
+            policy = self._policy_pr.policy
             policy_actions, _, _, _, _ = policy(my_obs, self._policy_state)
             # NPC agents (if any)
             if self._npc_pr is not None and len(self._npc_idxs):
                 npc_obs = obs_t[self._npc_idxs]
-                npc_policy = self._npc_pr.policy()
+                npc_policy = self._npc_pr.policy
                 try:
                     npc_actions, _, _, _, _ = npc_policy(npc_obs, self._npc_state)
                 except Exception as e:

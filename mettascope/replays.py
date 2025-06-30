@@ -70,7 +70,7 @@ def create_simulation(cfg):
     with WandbContext(cfg.wandb, cfg) as wandb_run:
         policy_store = PolicyStore(cfg, wandb_run)
         if cfg.replay_job.policy_uri is not None:
-            policy_record = policy_store.policy(cfg.replay_job.policy_uri)
+            policy_record = policy_store.policy_record(cfg.replay_job.policy_uri)
         else:
             # Set the policy_uri to None to run play without a policy.
             policy_record = FakePolicyRecord()

@@ -1,14 +1,31 @@
 from typing import List
 
 import torch
+from pydantic import BaseModel, Field
 from torch import Tensor, nn
 
 from metta.agent.policy_state import PolicyState
-from metta.rl.trainer_config import KickstartTeacherConfig, TrainerConfig
+from metta.agent.policy_store import PolicyStore
+from metta.common.util.typed_config import BaseModelWithForbidExtra
+
+
+class KickstartTeacherConfig(BaseModelWithForbidExtra):
+    teacher_uri: str
+    action_loss_coef: float = Field(ge=0)
+    value_loss_coef: float = Field(ge=0)
+
+
+class KickstartConfig(BaseModel):
+    teacher_uri: str | None
+    action_loss_coef: float = Field(ge=0)
+    value_loss_coef: float = Field(ge=0)
+    anneal_ratio: float = Field(ge=0, le=1.0)
+    kickstart_steps: int = Field(gt=0)
+    additional_teachers: list[KickstartTeacherConfig] | None = None
 
 
 class Kickstarter:
-    def __init__(self, cfg, trainer_cfg: TrainerConfig, policy_store, action_names, action_max_params):
+    def __init__(self, cfg: KickstartConfig, device: str, policy_store: PolicyStore, action_names, action_max_params):
         """
         Kickstarting is a technique to initialize a student policy with the knowledge of one or more teacher policies.
         This is done by adding a loss term that encourages the student's output (action logits and value) to match the
@@ -22,20 +39,20 @@ class Kickstarter:
         Linear annealing is used because cosine's rapid dropping phase can come when the policy transition is unstable
         although this hunch hasn't been tested yet.
         """
-        self.device = cfg.device
-        self.teacher_cfgs = trainer_cfg.kickstart.additional_teachers
-        self.anneal_ratio = trainer_cfg.kickstart.anneal_ratio
+        self.device = device
+        self.teacher_cfgs = cfg.additional_teachers
+        self.anneal_ratio = cfg.anneal_ratio
         assert 0 <= self.anneal_ratio <= 1, "Anneal_ratio must be between 0 and 1."
 
-        self.teacher_uri = trainer_cfg.kickstart.teacher_uri
+        self.teacher_uri = cfg.teacher_uri
         if self.teacher_uri is not None:
             if self.teacher_cfgs is None:
                 self.teacher_cfgs = []
             self.teacher_cfgs.append(
                 KickstartTeacherConfig(
                     teacher_uri=self.teacher_uri,
-                    action_loss_coef=trainer_cfg.kickstart.action_loss_coef,
-                    value_loss_coef=trainer_cfg.kickstart.value_loss_coef,
+                    action_loss_coef=cfg.action_loss_coef,
+                    value_loss_coef=cfg.value_loss_coef,
                 )
             )
 
@@ -44,10 +61,8 @@ class Kickstarter:
             self.enabled = False
             return
 
-        self.compile: bool = trainer_cfg.compile
-        self.compile_mode: str = trainer_cfg.compile_mode
-        self.policy_store = policy_store
-        self.kickstart_steps: int = trainer_cfg.kickstart.kickstart_steps
+        self.policy_store: PolicyStore = policy_store
+        self.kickstart_steps: int = cfg.kickstart_steps
         self.action_names: list[str] = action_names
         self.action_max_params: list[int] = action_max_params
         self.anneal_factor = 1.0
@@ -64,13 +79,11 @@ class Kickstarter:
     def _load_policies(self) -> None:
         self.teachers: list[nn.Module] = []
         for teacher_cfg in self.teacher_cfgs:
-            policy_record = self.policy_store.policy(teacher_cfg.teacher_uri)
-            policy = policy_record.policy()
+            policy_record = self.policy_store.policy_record(teacher_cfg.teacher_uri)
+            policy: nn.Module = policy_record.policy
             policy.action_loss_coef = teacher_cfg.action_loss_coef
             policy.value_loss_coef = teacher_cfg.value_loss_coef
             policy.activate_actions(self.action_names, self.action_max_params, self.device)
-            if self.compile:
-                policy = torch.compile(policy, mode=self.compile_mode)
             self.teachers.append(policy)
 
     def loss(
