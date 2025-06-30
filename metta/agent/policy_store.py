@@ -382,16 +382,17 @@ class PolicyStore:
 
                     agent_attrs = checkpoint.get("agent_attributes", {})
 
-                    # Safely extract obs_shape and ensure it's a list with at least 3 elements
+                    # Safely extract obs_shape
                     obs_shape = agent_attrs.get("obs_shape", [34, 11, 11])
                     if isinstance(obs_shape, (tuple, list)):
                         obs_shape = list(obs_shape)
                     else:
-                        obs_shape = [34, 11, 11]  # Default shape
+                        obs_shape = [34, 11, 11]  # Default shape for box observations
 
-                    # Ensure we have at least 3 dimensions
-                    while len(obs_shape) < 3:
-                        obs_shape.append(11 if len(obs_shape) > 0 else 34)
+                    # Do NOT modify obs_shape dimensions - it could be:
+                    # - Token observations: [num_tokens, features_per_token] (2D)
+                    # - Box observations: [channels, height, width] (3D)
+                    # The shape should match what was saved, not be forced to 3D
 
                     # Safely extract action space nvec
                     action_space_nvec = [9, 10]  # Default
@@ -403,13 +404,31 @@ class PolicyStore:
                             # Handle gym.spaces.MultiDiscrete object
                             action_space_nvec = list(action_space_data.nvec)
 
+                    # Safely extract feature_normalizations
+                    feature_normalizations = agent_attrs.get("feature_normalizations", {})
+                    if isinstance(feature_normalizations, str):
+                        # Handle old checkpoints where it was converted to string
+                        logger.warning("feature_normalizations was saved as string, using default values")
+                        feature_normalizations = {0: 1.0, 1: 1.0, 2: 1.0}  # Default normalization
+                    elif isinstance(feature_normalizations, dict):
+                        # Ensure keys are integers (they might be strings after save/load)
+                        feature_normalizations = {
+                            int(k) if isinstance(k, str) and k.isdigit() else k: v
+                            for k, v in feature_normalizations.items()
+                        }
+                    else:
+                        logger.warning(
+                            f"Unexpected feature_normalizations type: {type(feature_normalizations)}, using defaults"
+                        )
+                        feature_normalizations = {0: 1.0, 1: 1.0, 2: 1.0}
+
                     # Create minimal environment for policy creation
                     env = SimpleNamespace(
                         single_observation_space=gym.spaces.Box(low=0, high=255, shape=obs_shape, dtype=np.uint8),
-                        obs_width=agent_attrs.get("obs_width", obs_shape[2] if len(obs_shape) > 2 else 11),
-                        obs_height=agent_attrs.get("obs_height", obs_shape[1] if len(obs_shape) > 1 else 11),
+                        obs_width=agent_attrs.get("obs_width", 11),  # Use saved value or default
+                        obs_height=agent_attrs.get("obs_height", 11),  # Use saved value or default
                         single_action_space=gym.spaces.MultiDiscrete(action_space_nvec),
-                        feature_normalizations=agent_attrs.get("feature_normalizations", {}),
+                        feature_normalizations=feature_normalizations,
                         global_features=[],
                     )
 

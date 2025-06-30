@@ -147,9 +147,26 @@ class PolicyRecord:
                     # Keep JSON-serializable types as-is
                     serializable_attrs[key] = value
                 else:
-                    # Convert other types to string representation
-                    logger.warning(f"Converting non-serializable attribute {key} of type {type(value)} to string")
-                    serializable_attrs[key] = str(value)
+                    # Handle OmegaConf objects
+                    try:
+                        from omegaconf import DictConfig, ListConfig
+
+                        if isinstance(value, (DictConfig, ListConfig)):
+                            # Convert OmegaConf to regular Python objects
+                            from omegaconf import OmegaConf
+
+                            serializable_attrs[key] = OmegaConf.to_container(value, resolve=True)
+                            logger.info(f"Converted OmegaConf {key} to regular Python container")
+                        else:
+                            # Convert other types to string representation
+                            logger.warning(
+                                f"Converting non-serializable attribute {key} of type {type(value)} to string"
+                            )
+                            serializable_attrs[key] = str(value)
+                    except ImportError:
+                        # If OmegaConf is not available, convert to string
+                        logger.warning(f"Converting non-serializable attribute {key} of type {type(value)} to string")
+                        serializable_attrs[key] = str(value)
 
             # Add action configuration if available
             if hasattr(self.policy, "action_names") and hasattr(self.policy, "action_max_params"):
