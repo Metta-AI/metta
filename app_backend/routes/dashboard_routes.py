@@ -1,3 +1,5 @@
+import logging
+import time
 from abc import ABC, abstractmethod
 from collections import defaultdict
 from dataclasses import dataclass
@@ -11,6 +13,10 @@ from pydantic import BaseModel
 
 from app_backend.auth import create_user_or_token_dependency
 from app_backend.metta_repo import MettaRepo
+
+# Set up logging for heatmap performance analysis
+logger = logging.getLogger("heatmap_performance")
+logger.setLevel(logging.INFO)
 
 
 # Pydantic models for API responses
@@ -138,54 +144,72 @@ def _get_group_data_with_policy_filter(
     con: Connection, suite: str, metric: str, group: str, policy_cte: SQL, extra_params: Tuple[Any, ...] = ()
 ) -> List[GroupDataRow]:
     """Core group data query with configurable policy filtering."""
-    query_template: SQL = SQL("""
-        WITH
-        filtered_episodes AS (
-            SELECT e.id, e.env_name, e.primary_policy_id, e.replay_url, e.attributes
-            FROM episodes e
-            WHERE e.eval_category = %s
-        ),
-        episode_agent_metrics_with_group_id AS (
+    start_time = time.time()
+    logger.info(f"Starting core group data query: suite={suite}, metric={metric}, group='{group}'")
+    
+    try:
+        query_template: SQL = SQL("""
+            WITH
+            filtered_episodes AS (
+                SELECT e.id, e.env_name, e.primary_policy_id, e.replay_url, e.attributes
+                FROM episodes e
+                WHERE e.eval_category = %s
+            ),
+            episode_agent_metrics_with_group_id AS (
+                SELECT
+                    eam.episode_id,
+                    eam.agent_id,
+                    eam.value,
+                    CAST ((fe.attributes->'agent_groups')[eam.agent_id] AS INTEGER) as group_id,
+                    fe.env_name,
+                    fe.primary_policy_id,
+                    fe.replay_url
+                FROM episode_agent_metrics eam
+                JOIN filtered_episodes fe ON fe.id = eam.episode_id
+                WHERE eam.metric = %s
+            ),
+            {}
+
             SELECT
-                eam.episode_id,
-                eam.agent_id,
-                eam.value,
-                CAST ((fe.attributes->'agent_groups')[eam.agent_id] AS INTEGER) as group_id,
-                fe.env_name,
-                fe.primary_policy_id,
-                fe.replay_url
-            FROM episode_agent_metrics eam
-            JOIN filtered_episodes fe ON fe.id = eam.episode_id
-            WHERE eam.metric = %s
-        ),
-        {}
+              p.name as policy_uri,
+              eam.env_name as eval_name,
+              ANY_VALUE(eam.replay_url) as replay_url,
+              COUNT(*) AS num_agents,
+              SUM(eam.value) AS total_value,
+              p.run_id,
+              p.end_training_epoch
+            FROM episode_agent_metrics_with_group_id eam
+            JOIN filtered_policies p ON eam.primary_policy_id = p.id
+            {}
+            GROUP BY p.name, eam.env_name, p.run_id, p.end_training_epoch
+            ORDER BY p.run_id, p.end_training_epoch DESC
+        """)
 
-        SELECT
-          p.name as policy_uri,
-          eam.env_name as eval_name,
-          ANY_VALUE(eam.replay_url) as replay_url,
-          COUNT(*) AS num_agents,
-          SUM(eam.value) AS total_value,
-          p.run_id,
-          p.end_training_epoch
-        FROM episode_agent_metrics_with_group_id eam
-        JOIN filtered_policies p ON eam.primary_policy_id = p.id
-        {}
-        GROUP BY p.name, eam.env_name, p.run_id, p.end_training_epoch
-        ORDER BY p.run_id, p.end_training_epoch DESC
-    """)
+        where_clause = SQL("")
+        if group != "":
+            where_clause = SQL("WHERE eam.group_id = %s")
 
-    where_clause = SQL("")
-    if group != "":
-        where_clause = SQL("WHERE eam.group_id = %s")
+        query = query_template.format(policy_cte, where_clause)
+        base_params = (suite, metric) + extra_params
+        params = base_params + (group,) if group != "" else base_params
 
-    query = query_template.format(policy_cte, where_clause)
-    base_params = (suite, metric) + extra_params
-    params = base_params + (group,) if group != "" else base_params
-
-    with con.cursor(row_factory=class_row(GroupDataRow)) as cursor:
-        cursor.execute(query, params)
-        return cursor.fetchall()
+        query_start = time.time()
+        logger.info(f"Executing database query with params: {params}")
+        
+        with con.cursor(row_factory=class_row(GroupDataRow)) as cursor:
+            cursor.execute(query, params)
+            results = cursor.fetchall()
+            
+        query_time = time.time() - query_start
+        total_time = time.time() - start_time
+        
+        logger.info(f"Core query completed: {len(results)} rows in {query_time:.3f}s (total: {total_time:.3f}s)")
+        return results
+        
+    except Exception as e:
+        total_time = time.time() - start_time
+        logger.error(f"Core query failed after {total_time:.3f}s: {e}")
+        raise
 
 
 def get_training_run_group_data(
@@ -242,12 +266,25 @@ def _apply_policy_selector(
     """
     Apply the specified policy selection strategy to the rows.
     """
-    if policy_selector == "latest":
-        return _select_latest_policies_per_run(rows)
-    elif policy_selector == "best":
-        return _select_best_policies_per_run(rows, suite, con)
-    else:
-        raise ValueError(f"Invalid policy_selector: {policy_selector}")
+    start_time = time.time()
+    logger.info(f"Applying policy selector '{policy_selector}' to {len(rows)} rows")
+    
+    try:
+        if policy_selector == "latest":
+            result = _select_latest_policies_per_run(rows)
+        elif policy_selector == "best":
+            result = _select_best_policies_per_run(rows, suite, con)
+        else:
+            raise ValueError(f"Invalid policy_selector: {policy_selector}")
+        
+        selector_time = time.time() - start_time
+        logger.info(f"Policy selector '{policy_selector}' completed: {len(result)} rows in {selector_time:.3f}s")
+        return result
+        
+    except Exception as e:
+        selector_time = time.time() - start_time
+        logger.error(f"Policy selector '{policy_selector}' failed after {selector_time:.3f}s: {e}")
+        raise
 
 
 def _select_latest_policies_per_run(rows: List[GroupDataRow]) -> List[GroupDataRow]:
@@ -255,6 +292,8 @@ def _select_latest_policies_per_run(rows: List[GroupDataRow]) -> List[GroupDataR
     Select the latest policy per training run based on end_training_epoch.
     For policies with no run_id (epoch_id is NULL), include them as-is.
     """
+    start_time = time.time()
+    logger.debug(f"Selecting latest policies from {len(rows)} rows")
     # Group rows by run_id
     run_policies: DefaultDict[str, List[GroupDataRow]] = defaultdict(list)
     no_run_rows: List[GroupDataRow] = []
@@ -292,6 +331,8 @@ def _select_latest_policies_per_run(rows: List[GroupDataRow]) -> List[GroupDataR
     # Add policies without run_id
     selected_rows.extend(no_run_rows)
 
+    latest_time = time.time() - start_time
+    logger.debug(f"Latest policy selection completed: {len(selected_rows)} rows in {latest_time:.3f}s")
     return selected_rows
 
 
@@ -303,6 +344,9 @@ def _select_best_policies_per_run(rows: List[GroupDataRow], suite: str, con: Con
 
     Optimized version that avoids extra database queries and simplifies scoring logic.
     """
+    start_time = time.time()
+    logger.debug(f"Selecting best policies from {len(rows)} rows")
+    
     # Group rows by run_id and policy_uri
     run_policies: DefaultDict[str, DefaultDict[str, List[GroupDataRow]]] = defaultdict(lambda: defaultdict(list))
     no_run_rows: List[GroupDataRow] = []
@@ -347,6 +391,8 @@ def _select_best_policies_per_run(rows: List[GroupDataRow], suite: str, con: Con
     # Add policies without run_id
     selected_rows.extend(no_run_rows)
 
+    best_time = time.time() - start_time
+    logger.debug(f"Best policy selection completed: {len(selected_rows)} rows in {best_time:.3f}s")
     return selected_rows
 
 
@@ -385,56 +431,90 @@ def create_dashboard_router(metta_repo: MettaRepo) -> APIRouter:
         Returns:
             HeatmapData containing evaluation cells, policy averages, and evaluation names
         """
-        eval_rows = con.execute(
-            "SELECT DISTINCT env_name FROM episodes WHERE eval_category = %s", (data_retriever.suite,)
-        )
-        all_eval_names: List[str] = [row[0] for row in eval_rows]
+        total_start = time.time()
+        logger.info(f"Building heatmap data: suite={data_retriever.suite}, metric={data_retriever.metric}")
+        
+        try:
+            # Step 1: Get evaluation names
+            eval_start = time.time()
+            eval_rows = con.execute(
+                "SELECT DISTINCT env_name FROM episodes WHERE eval_category = %s", (data_retriever.suite,)
+            )
+            all_eval_names: List[str] = [row[0] for row in eval_rows]
+            eval_time = time.time() - eval_start
+            logger.info(f"Retrieved {len(all_eval_names)} evaluation names in {eval_time:.3f}s")
 
-        if isinstance(group_metric.group_metric, GroupDiff):
-            group1_rows = data_retriever.get_group_data(con, group_metric.group_metric.group_1)
-            group2_rows = data_retriever.get_group_data(con, group_metric.group_metric.group_2)
-        else:
-            group1_rows = data_retriever.get_group_data(con, group_metric.group_metric)
-            group2_rows: List[GroupDataRow] = []
+            # Step 2: Get group data
+            groups_start = time.time()
+            if isinstance(group_metric.group_metric, GroupDiff):
+                logger.info(f"Fetching group difference data: {group_metric.group_metric.group_1} vs {group_metric.group_metric.group_2}")
+                group1_rows = data_retriever.get_group_data(con, group_metric.group_metric.group_1)
+                group2_rows = data_retriever.get_group_data(con, group_metric.group_metric.group_2)
+            else:
+                logger.info(f"Fetching single group data: '{group_metric.group_metric}'")
+                group1_rows = data_retriever.get_group_data(con, group_metric.group_metric)
+                group2_rows: List[GroupDataRow] = []
+            groups_time = time.time() - groups_start
+            logger.info(f"Retrieved group data: {len(group1_rows)} + {len(group2_rows)} rows in {groups_time:.3f}s")
 
-        all_policy_uris: Set[str] = set()
-        for row in group1_rows:
-            all_policy_uris.add(row.policy_uri)
-        for row in group2_rows:
-            all_policy_uris.add(row.policy_uri)
+            # Step 3: Process policy URIs and values
+            processing_start = time.time()
+            all_policy_uris: Set[str] = set()
+            for row in group1_rows:
+                all_policy_uris.add(row.policy_uri)
+            for row in group2_rows:
+                all_policy_uris.add(row.policy_uri)
+            logger.info(f"Found {len(all_policy_uris)} unique policies")
 
-        group_1_values: Dict[Tuple[str, str], Tuple[float, str | None]] = {}
-        group_2_values: Dict[Tuple[str, str], Tuple[float, str | None]] = {}
-        for row in group1_rows:
-            group_1_values[(row.policy_uri, row.eval_name)] = (row.total_value / row.num_agents, row.replay_url)
-        for row in group2_rows:
-            group_2_values[(row.policy_uri, row.eval_name)] = (row.total_value / row.num_agents, row.replay_url)
+            group_1_values: Dict[Tuple[str, str], Tuple[float, str | None]] = {}
+            group_2_values: Dict[Tuple[str, str], Tuple[float, str | None]] = {}
+            for row in group1_rows:
+                group_1_values[(row.policy_uri, row.eval_name)] = (row.total_value / row.num_agents, row.replay_url)
+            for row in group2_rows:
+                group_2_values[(row.policy_uri, row.eval_name)] = (row.total_value / row.num_agents, row.replay_url)
 
-        cells: Dict[str, Dict[str, HeatmapCell]] = {}
-        for policy_uri in all_policy_uris:
-            cells[policy_uri] = {}  # Dict[str, HeatmapCell]
-            for eval_name in all_eval_names:
-                group_1_value = group_1_values.get((policy_uri, eval_name), (0, None))
-                group_2_value = group_2_values.get((policy_uri, eval_name), (0, None))
+            # Step 4: Build heatmap cells
+            cells_start = time.time()
+            cells: Dict[str, Dict[str, HeatmapCell]] = {}
+            for policy_uri in all_policy_uris:
+                cells[policy_uri] = {}  # Dict[str, HeatmapCell]
+                for eval_name in all_eval_names:
+                    group_1_value = group_1_values.get((policy_uri, eval_name), (0, None))
+                    group_2_value = group_2_values.get((policy_uri, eval_name), (0, None))
 
-                cells[policy_uri][eval_name] = HeatmapCell(
-                    evalName=eval_name,
-                    replayUrl=group_1_value[1] if group_1_value[1] is not None else group_2_value[1],
-                    value=group_1_value[0] - group_2_value[0],
-                )
+                    cells[policy_uri][eval_name] = HeatmapCell(
+                        evalName=eval_name,
+                        replayUrl=group_1_value[1] if group_1_value[1] is not None else group_2_value[1],
+                        value=group_1_value[0] - group_2_value[0],
+                    )
+            cells_time = time.time() - cells_start
+            logger.info(f"Built {len(all_policy_uris) * len(all_eval_names)} heatmap cells in {cells_time:.3f}s")
 
-        policy_average_scores: Dict[str, float] = {}
-        for policy_uri in all_policy_uris:
-            policy_cells = cells[policy_uri]
-            policy_average_scores[policy_uri] = sum(cell.value for cell in policy_cells.values()) / len(policy_cells)
+            # Step 5: Calculate policy averages
+            averages_start = time.time()
+            policy_average_scores: Dict[str, float] = {}
+            for policy_uri in all_policy_uris:
+                policy_cells = cells[policy_uri]
+                policy_average_scores[policy_uri] = sum(cell.value for cell in policy_cells.values()) / len(policy_cells)
+            averages_time = time.time() - averages_start
+            logger.info(f"Calculated {len(policy_average_scores)} policy averages in {averages_time:.3f}s")
 
-        return HeatmapData(
-            evalNames=all_eval_names,
-            cells=cells,
-            policyAverageScores=policy_average_scores,
-            evalAverageScores={},
-            evalMaxScores={},
-        )
+            processing_time = time.time() - processing_start
+            total_time = time.time() - total_start
+            logger.info(f"Heatmap data building completed in {total_time:.3f}s (processing: {processing_time:.3f}s)")
+
+            return HeatmapData(
+                evalNames=all_eval_names,
+                cells=cells,
+                policyAverageScores=policy_average_scores,
+                evalAverageScores={},
+                evalMaxScores={},
+            )
+            
+        except Exception as e:
+            total_time = time.time() - total_start
+            logger.error(f"Heatmap data building failed after {total_time:.3f}s: {e}")
+            raise
 
     @router.post("/suites/{suite}/metrics/{metric}/heatmap")
     async def get_heatmap_data(  # type: ignore[reportUnusedFunction]
@@ -443,9 +523,32 @@ def create_dashboard_router(metta_repo: MettaRepo) -> APIRouter:
         group_metric: GroupHeatmapMetric,
     ) -> HeatmapData:
         """Get heatmap data for a given suite, metric, and group metric."""
-        with metta_repo.connect() as con:
-            data_retriever = PolicySelectorDataRetriever(suite, metric, group_metric.policy_selector)
-            return _build_heatmap_data(con, group_metric, data_retriever)
+        request_start = time.time()
+        request_id = f"{suite}/{metric}/{group_metric.group_metric}/{group_metric.policy_selector}"
+        logger.info(f"HEATMAP REQUEST START: {request_id}")
+        
+        try:
+            # Step 1: Database connection
+            conn_start = time.time()
+            with metta_repo.connect() as con:
+                conn_time = time.time() - conn_start
+                logger.info(f"Database connection established in {conn_time:.3f}s")
+                
+                # Step 2: Data retrieval and processing
+                data_retriever = PolicySelectorDataRetriever(suite, metric, group_metric.policy_selector)
+                result = _build_heatmap_data(con, group_metric, data_retriever)
+                
+                # Step 3: Final response
+                total_time = time.time() - request_start
+                result_size = len(result.cells) * len(result.evalNames) if result.cells else 0
+                logger.info(f"HEATMAP REQUEST COMPLETE: {request_id} - {result_size} cells in {total_time:.3f}s")
+                
+                return result
+                
+        except Exception as e:
+            total_time = time.time() - request_start
+            logger.error(f"HEATMAP REQUEST FAILED: {request_id} after {total_time:.3f}s - {e}")
+            raise
 
     @router.get("/saved")
     async def list_saved_dashboards() -> SavedDashboardListResponse:  # type: ignore[reportUnusedFunction]
@@ -604,13 +707,29 @@ def create_dashboard_router(metta_repo: MettaRepo) -> APIRouter:
         group_metric: GroupHeatmapMetric,
     ) -> HeatmapData:
         """Get heatmap data for a specific training run."""
-        # Verify training run exists
-        training_run = metta_repo.get_training_run(run_id)
-        if not training_run:
-            raise HTTPException(status_code=404, detail="Training run not found")
+        request_start = time.time()
+        request_id = f"run:{run_id}/{suite}/{metric}/{group_metric.group_metric}"
+        logger.info(f"TRAINING RUN HEATMAP REQUEST START: {request_id}")
+        
+        try:
+            # Verify training run exists
+            training_run = metta_repo.get_training_run(run_id)
+            if not training_run:
+                raise HTTPException(status_code=404, detail="Training run not found")
 
-        with metta_repo.connect() as con:
-            data_retriever = TrainingRunDataRetriever(suite, metric, run_id)
-            return _build_heatmap_data(con, group_metric, data_retriever)
+            with metta_repo.connect() as con:
+                data_retriever = TrainingRunDataRetriever(suite, metric, run_id)
+                result = _build_heatmap_data(con, group_metric, data_retriever)
+                
+                total_time = time.time() - request_start
+                result_size = len(result.cells) * len(result.evalNames) if result.cells else 0
+                logger.info(f"TRAINING RUN HEATMAP COMPLETE: {request_id} - {result_size} cells in {total_time:.3f}s")
+                
+                return result
+                
+        except Exception as e:
+            total_time = time.time() - request_start
+            logger.error(f"TRAINING RUN HEATMAP FAILED: {request_id} after {total_time:.3f}s - {e}")
+            raise
 
     return router
