@@ -20,18 +20,14 @@ from metta.common.util.logging import setup_mettagrid_logger
 from metta.common.util.script_decorators import metta_script
 from metta.meta_analysis import TrainingDataCollector, MetaAnalysisModel, MetaAnalysisTrainer, TrainingCurveDataset
 
-try:
-    import wandb
-except ImportError:
-    wandb = None
 
-@hydra.main(config_path="../configs", config_name="meta_analysis_demo", version_base=None)
+@hydra.main(config_path="../configs", config_name="meta_learning_demo", version_base=None)
 @metta_script
 def main(cfg: DictConfig) -> int:
     """Main demonstration script."""
 
     logger = setup_mettagrid_logger()
-    logger.info("Starting meta-analysis demonstration")
+    logger.info("Starting meta-learning demonstration")
 
     # Create output directory
     output_dir = Path(cfg.output_dir)
@@ -49,9 +45,7 @@ def main(cfg: DictConfig) -> int:
         # Collect training runs
         training_data = collector.collect_training_runs(
             run_filters=cfg.run_filters,
-            max_runs=cfg.max_runs,
-            start_date=getattr(cfg, "start_date", None),
-            end_date=getattr(cfg, "end_date", None)
+            max_runs=cfg.max_runs
         )
 
         if not training_data:
@@ -71,9 +65,9 @@ def main(cfg: DictConfig) -> int:
         logger.info(f"  Agent features: {list(df.columns[8:-1])}")  # Skip training_curve
         logger.info(f"  Average final performance: {df['final_performance'].mean():.3f}")
 
-    # Step 2: Train meta-analysis model
+    # Step 2: Train meta-learning model
     if cfg.train_model:
-        logger.info("Training meta-analysis model...")
+        logger.info("Training meta-learning model...")
 
         # Define features
         env_features = [
@@ -104,18 +98,6 @@ def main(cfg: DictConfig) -> int:
         train_loader = DataLoader(train_dataset, batch_size=cfg.batch_size, shuffle=True)
         val_loader = DataLoader(val_dataset, batch_size=cfg.batch_size, shuffle=False)
 
-        # Optionally initialize wandb
-        wandb_run = None
-        if getattr(cfg, "wandb_log", False) and wandb is not None:
-            wandb_run = wandb.init(
-                project=cfg.wandb.project,
-                entity=cfg.wandb.entity,
-                name="meta_analysis_training",
-                config=dict(cfg),
-                dir=str(output_dir),
-                reinit=True,
-            )
-
         # Create model
         model = MetaAnalysisModel(
             env_input_dim=len(env_features),
@@ -132,21 +114,16 @@ def main(cfg: DictConfig) -> int:
             device=cfg.device,
             learning_rate=cfg.learning_rate,
             beta=cfg.beta,
-            curve_weight=cfg.curve_weight,
-            wandb_run=wandb_run,
-            tsne_interval=getattr(cfg, "tsne_interval", 10),
-            tsne_sample_size=getattr(cfg, "tsne_sample_size", 128),
+            curve_weight=cfg.curve_weight
         )
 
         # Train model
-        save_path = output_dir / "meta_analysis_model"
+        save_path = output_dir / "meta_learning_model"
         training_results = trainer.train(
             train_dataloader=train_loader,
             val_dataloader=val_loader,
             num_epochs=cfg.num_epochs,
-            save_path=str(save_path),
-            train_dataset=train_dataset,
-            val_dataset=val_dataset,
+            save_path=str(save_path)
         )
 
         logger.info("Training completed!")
@@ -158,15 +135,13 @@ def main(cfg: DictConfig) -> int:
             json.dump(training_results, f, indent=2)
 
         logger.info(f"Training results saved to {results_path}")
-        if wandb_run is not None:
-            wandb_run.finish()
 
     # Step 3: Demonstrate predictions
     if cfg.demo_predictions:
         logger.info("Demonstrating predictions...")
 
         # Load trained model
-        model_path = output_dir / "meta_analysis_model_final.pt"
+        model_path = output_dir / "meta_learning_model_final.pt"
         if not model_path.exists():
             logger.error(f"Trained model not found at {model_path}")
             return 1
@@ -217,7 +192,7 @@ def main(cfg: DictConfig) -> int:
 
         logger.info(f"Predictions saved to {predictions_path}")
 
-    logger.info("Meta-analysis demonstration completed!")
+    logger.info("Meta-learning demonstration completed!")
     return 0
 
 

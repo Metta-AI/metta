@@ -27,37 +27,12 @@ class TrainingDataCollector:
     def collect_training_runs(
         self,
         run_filters: Optional[Dict] = None,
-        max_runs: int = 100,
-        start_date: Optional[str] = None,
-        end_date: Optional[str] = None
+        max_runs: int = 100
     ) -> List[Dict]:
-        """Collect training runs from wandb with their configs and curves.
-
-        Args:
-            run_filters: Additional wandb filters
-            max_runs: Maximum number of runs to collect
-            start_date: Start date filter (ISO format: YYYY-MM-DD)
-            end_date: End date filter (ISO format: YYYY-MM-DD)
-        """
-
-        # Build filters
-        filters = run_filters or {}
-
-        # Add date filters if provided
-        if start_date:
-            filters["created_at"] = {"$gte": start_date}
-        if end_date:
-            if "created_at" in filters:
-                filters["created_at"]["$lte"] = end_date
-            else:
-                filters["created_at"] = {"$lte": end_date}
+        """Collect training runs from wandb with their configs and curves."""
 
         # Query wandb runs
-        if start_date or end_date:
-            date_range = f"from {start_date or 'beginning'} to {end_date or 'now'}"
-            logger.info(f"Filtering runs {date_range}")
-
-        runs = self.api.runs(f"{self.wandb_entity}/{self.wandb_project}", filters=filters)
+        runs = self.api.runs(f"{self.wandb_entity}/{self.wandb_project}", filters=run_filters)
         runs = list(runs)[:max_runs]
 
         training_data = []
