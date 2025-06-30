@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 
 from app_backend.auth import create_user_or_token_dependency
 from app_backend.metta_repo import MettaRepo
+from app_backend.route_logger import timed_route
 
 
 # Request/Response Models
@@ -67,6 +68,7 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
     user_or_token = Depends(create_user_or_token_dependency(stats_repo))
 
     @router.get("/policies/ids", response_model=PolicyIdResponse)
+    @timed_route("get_policy_ids")
     async def get_policy_ids(
         policy_names: List[str] = Query(default=[]), user: str = user_or_token
     ) -> PolicyIdResponse:
@@ -80,6 +82,7 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
             raise HTTPException(status_code=500, detail=f"Failed to get policy IDs: {str(e)}") from e
 
     @router.post("/training-runs", response_model=TrainingRunResponse)
+    @timed_route("create_training_run")
     async def create_training_run(training_run: TrainingRunCreate, user: str = user_or_token) -> TrainingRunResponse:
         """Create a new training run."""
         try:
@@ -94,6 +97,7 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
             raise HTTPException(status_code=500, detail=f"Failed to create training run: {str(e)}") from e
 
     @router.post("/training-runs/{run_id}/epochs", response_model=EpochResponse)
+    @timed_route("create_epoch")
     async def create_epoch(run_id: str, epoch: EpochCreate, user: str = user_or_token) -> EpochResponse:
         """Create a new policy epoch."""
         try:
@@ -111,6 +115,7 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
             raise HTTPException(status_code=500, detail=f"Failed to create policy epoch: {str(e)}") from e
 
     @router.post("/policies", response_model=PolicyResponse)
+    @timed_route("create_policy")
     async def create_policy(policy: PolicyCreate, user: str = user_or_token) -> PolicyResponse:
         """Create a new policy."""
         try:
@@ -125,6 +130,7 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
             raise HTTPException(status_code=500, detail=f"Failed to create policy: {str(e)}") from e
 
     @router.post("/episodes", response_model=EpisodeResponse)
+    @timed_route("record_episode")
     async def record_episode(episode: EpisodeCreate, user: str = user_or_token) -> EpisodeResponse:
         """Record a new episode with agent policies and metrics."""
         try:
