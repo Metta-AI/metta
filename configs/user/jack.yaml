@@ -12,8 +12,10 @@ policy_uri: wandb://run/b.daphne.navigation_multiagent_24_rewardsharing_maxinv
 eval_db_uri: wandb://stats/jack_db
 
 trainer:
-  evaluate_interval: 10
-  checkpoint_interval: 5
+  simulation:
+    evaluate_interval: 10
+  checkpoint:
+    checkpoint_interval: 5
 
 sim_job:
   policy_uris:

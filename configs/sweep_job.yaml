@@ -16,7 +16,8 @@ metric: reward
 num_random_samples: 10
 
 trainer:
-  evaluate_interval: 300
+  simulation:
+    evaluate_interval: 300
 
 sim:
   num_episodes: 5
