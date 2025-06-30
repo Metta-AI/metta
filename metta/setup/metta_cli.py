@@ -3,10 +3,12 @@ import argparse
 import sys
 from pathlib import Path
 
-import devops.setup.components  # noqa: F401 - Import to register all component modules
-from devops.setup.config import SetupConfig, UserType
-from devops.setup.registry import get_all_modules, get_applicable_modules
-from devops.setup.utils import error, header, info, success, warning
+from metta.setup.config import SetupConfig, UserType
+from metta.setup.registry import get_all_modules, get_applicable_modules
+from metta.setup.utils import error, header, import_all_modules_from_subpackage, info, success, warning
+
+# Import all component modules to register them with the registry
+import_all_modules_from_subpackage("metta.setup", "components")
 
 
 class MettaCLI:
@@ -208,14 +210,15 @@ class MettaCLI:
             if not installed:
                 status = "NOT INSTALLED"
                 status_color = error
-            elif connected_as is None and expected is None:
-                # No connection needed
-                status = "OK"
-                status_color = success
-            elif connected_as is None and expected is not None:
-                # Should be connected but isn't
-                status = "NOT CONNECTED"
-                status_color = error
+            elif connected_as is None:
+                if expected is None:
+                    # No connection needed
+                    status = "OK"
+                    status_color = success
+                else:
+                    # Should be connected but isn't
+                    status = "NOT CONNECTED"
+                    status_color = error
             elif expected is None:
                 # Connected but no expectation
                 status = "OK"

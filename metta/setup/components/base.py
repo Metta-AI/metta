@@ -2,11 +2,13 @@ import subprocess
 from abc import ABC, abstractmethod
 from pathlib import Path
 
+from metta.setup.config import SetupConfig
+
 
 class SetupModule(ABC):
-    def __init__(self, config):
-        self.config = config
-        self.repo_root = Path(__file__).parent.parent.parent.parent
+    def __init__(self, config: SetupConfig):
+        self.config: SetupConfig = config
+        self.repo_root: Path = Path(__file__).parent.parent.parent.parent
 
     @property
     def name(self) -> str:
@@ -31,20 +33,22 @@ class SetupModule(ABC):
 
     def install(self) -> None:
         if self.setup_script_location:
-            self.run_script(self.setup_script_location)
+            _ = self.run_script(self.setup_script_location)
         else:
             raise NotImplementedError(
                 f"{self.__class__.__name__} must implement install() or define setup_script_location"
             )
 
-    def run_command(self, cmd: list[str], cwd: Path = None, check: bool = True) -> subprocess.CompletedProcess:
+    def run_command(
+        self, cmd: list[str], cwd: Path | None = None, check: bool = True
+    ) -> subprocess.CompletedProcess[str]:
         if cwd is None:
             cwd = self.repo_root
 
         print(f"Running: {' '.join(cmd)}")
         return subprocess.run(cmd, cwd=cwd, check=check, capture_output=True, text=True)
 
-    def run_script(self, script_path: str, args: list[str] = None) -> subprocess.CompletedProcess:
+    def run_script(self, script_path: str, args: list[str] | None = None) -> subprocess.CompletedProcess[str]:
         script = self.repo_root / script_path
         if not script.exists():
             raise FileNotFoundError(f"Script not found: {script}")

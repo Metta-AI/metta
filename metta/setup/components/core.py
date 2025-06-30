@@ -1,9 +1,9 @@
 import subprocess
 import sys
 
-from devops.setup.components.base import SetupModule
-from devops.setup.registry import register_module
-from devops.setup.utils import error, success
+from metta.setup.components.base import SetupModule
+from metta.setup.registry import register_module
+from metta.setup.utils import error, success
 
 
 @register_module

@@ -111,7 +111,7 @@ cd metta
 ./metta.sh install    # Install configured components
 ```
 
-For more information on setup options and managing components, run `./metta.sh --help` or see the [setup documentation](devops/setup/README.md).
+For more information on setup options and managing components, run `./metta.sh --help` or see the [setup documentation](metta/setup/README.md).
 
 
 ## Usage

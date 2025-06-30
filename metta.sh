@@ -1,1 +1,1 @@
-./devops/setup/metta.sh
+./metta/setup/metta.sh

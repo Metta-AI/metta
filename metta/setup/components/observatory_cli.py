@@ -1,9 +1,9 @@
 import subprocess
 from pathlib import Path
 
-from devops.setup.components.base import SetupModule
-from devops.setup.registry import register_module
-from devops.setup.utils import info, success, warning
+from metta.setup.components.base import SetupModule
+from metta.setup.registry import register_module
+from metta.setup.utils import info, success, warning
 
 
 @register_module

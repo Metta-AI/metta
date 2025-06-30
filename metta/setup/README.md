@@ -17,12 +17,12 @@ A modular setup system for configuring the Metta AI development environment.
 
 ## Adding a New Component
 
-1. Create `devops/setup/components/your_component.py`:
+1. Create `metta/setup/components/your_component.py`:
 
 ```python
 import shutil
-from devops.setup.registry import register_module
-from devops.setup.components.base import SetupModule
+from metta.setup.registry import register_module
+from metta.setup.components.base import SetupModule
 
 @register_module
 class YourComponentSetup(SetupModule):
@@ -48,15 +48,7 @@ class YourComponentSetup(SetupModule):
         return result.stdout.strip() if result.returncode == 0 else None
 ```
 
-2. Add import to `devops/setup/component/__init__.py`:
-```python
-from devops.setup.components import (
-    aws,
-    core,
-    # ... other imports ...
-    your_component,  # Add this line
-)
-```
+2. Since we're using PEP 420 namespace packages, no __init__.py is needed. The module will be auto-discovered.
 
 3. (Optional) Add to default profiles in `config.py`:
 ```python

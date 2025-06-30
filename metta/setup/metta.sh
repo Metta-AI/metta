@@ -26,4 +26,4 @@ if [ ! -d ".venv" ] || [ ! -f ".venv/bin/python" ]; then
 fi
 
 # Run the metta CLI with uv run as a module
-exec uv run python -m devops.setup.metta_cli "$@"
+exec uv run python -m metta.setup.metta_cli "$@"

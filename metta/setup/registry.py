@@ -1,7 +1,7 @@
 from typing import TYPE_CHECKING, Type
 
 if TYPE_CHECKING:
-    from devops.setup.components.base import SetupModule
+    from metta.setup.components.base import SetupModule
 
 _REGISTRY: list[Type["SetupModule"]] = []
 

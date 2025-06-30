@@ -1,5 +1,5 @@
-from devops.setup.components.base import SetupModule
-from devops.setup.registry import register_module
+from metta.setup.components.base import SetupModule
+from metta.setup.registry import register_module
 
 
 @register_module
