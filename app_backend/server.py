@@ -1,5 +1,8 @@
 #!/usr/bin/env -S uv run
 
+import logging
+import sys
+
 import fastapi
 import uvicorn
 from fastapi.middleware.cors import CORSMiddleware
@@ -9,8 +12,42 @@ from app_backend.metta_repo import MettaRepo
 from app_backend.routes import dashboard_routes, sql_routes, stats_routes, token_routes
 
 
+_logging_configured = False
+
+def setup_logging():
+    """Configure logging for the application, including heatmap performance logging."""
+    global _logging_configured
+    
+    if _logging_configured:
+        return
+    
+    # Configure root logger
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s [%(name)s] %(levelname)s: %(message)s',
+        handlers=[logging.StreamHandler(sys.stdout)]
+    )
+    
+    # Configure heatmap performance logger specifically
+    heatmap_logger = logging.getLogger("heatmap_performance")
+    heatmap_logger.setLevel(logging.INFO)
+    
+    # Ensure the logger doesn't duplicate messages from root logger
+    heatmap_logger.propagate = True
+    
+    _logging_configured = True
+    print("Logging configured - heatmap performance logging enabled")
+    
+    # Test log to verify it's working
+    test_logger = logging.getLogger("heatmap_performance")
+    test_logger.info("Heatmap performance logging is active and ready")
+
+
 def create_app(stats_repo: MettaRepo) -> fastapi.FastAPI:
     """Create a FastAPI app with the given StatsRepo instance."""
+    # Ensure logging is configured
+    setup_logging()
+    
     app = fastapi.FastAPI()
 
     # Add CORS middleware
@@ -44,6 +81,9 @@ def create_app(stats_repo: MettaRepo) -> fastapi.FastAPI:
 if __name__ == "__main__":
     from app_backend.config import host, port, stats_db_uri
 
+    # Setup logging first
+    setup_logging()
+    
     stats_repo = MettaRepo(stats_db_uri)
     app = create_app(stats_repo)
 
