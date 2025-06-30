@@ -14,6 +14,19 @@ from tqdm import tqdm
 
 from .models import MetaAnalysisModel
 
+# Optional imports for wandb and visualization
+try:
+    import wandb
+except ImportError:
+    wandb = None
+
+try:
+    from sklearn.manifold import TSNE
+    import matplotlib.pyplot as plt
+except ImportError:
+    TSNE = None
+    plt = None
+
 logger = logging.getLogger(__name__)
 
 
@@ -84,6 +97,9 @@ class MetaAnalysisTrainer:
         learning_rate: float = 1e-3,
         beta: float = 1.0,  # VAE KL loss weight
         curve_weight: float = 1.0,  # Reward prediction loss weight
+        wandb_run=None,
+        tsne_interval: int = 10,
+        tsne_sample_size: int = 128,
     ):
         self.model = model.to(device)
         self.device = device
@@ -96,6 +112,11 @@ class MetaAnalysisTrainer:
         # Loss functions
         self.reconstruction_loss = nn.MSELoss()
         self.curve_loss = nn.MSELoss()
+
+        # Wandb and visualization settings
+        self.wandb_run = wandb_run
+        self.tsne_interval = tsne_interval
+        self.tsne_sample_size = tsne_sample_size
 
     def vae_loss(
         self,
@@ -226,6 +247,8 @@ class MetaAnalysisTrainer:
         val_dataloader: Optional[DataLoader] = None,
         num_epochs: int = 100,
         save_path: Optional[str] = None,
+        train_dataset: Optional[Dataset] = None,
+        val_dataset: Optional[Dataset] = None,
     ) -> Dict[str, List[float]]:
         """Train the model."""
 
@@ -251,6 +274,28 @@ class MetaAnalysisTrainer:
             else:
                 logger.info(f"Epoch {epoch}: Train Loss: {train_metrics['total_loss']:.4f}")
 
+            # Wandb logging
+            if self.wandb_run is not None:
+                log_dict = {
+                    "train/total_loss": train_metrics["total_loss"],
+                    "train/recon_loss": train_metrics["recon_loss"],
+                    "train/kl_loss": train_metrics["kl_loss"],
+                    "train/curve_loss": train_metrics["curve_loss"],
+                }
+                if val_dataloader is not None:
+                    log_dict.update({
+                        "val/total_loss": val_metrics["val_loss"],
+                        "val/curve_loss": val_metrics["val_curve_loss"],
+                    })
+                self.wandb_run.log(log_dict, step=epoch)
+
+            # TSNE visualization
+            if self.wandb_run is not None and epoch % self.tsne_interval == 0:
+                if train_dataset is not None:
+                    self._log_tsne(train_dataset, epoch, prefix="train")
+                if val_dataset is not None:
+                    self._log_tsne(val_dataset, epoch, prefix="val")
+
             # Save model
             if save_path and (epoch + 1) % 10 == 0:
                 torch.save(self.model.state_dict(), f"{save_path}_epoch_{epoch+1}.pt")
@@ -263,6 +308,56 @@ class MetaAnalysisTrainer:
             "train_losses": train_losses,
             "val_losses": val_losses,
         }
+
+    def _log_tsne(self, dataset: Dataset, epoch: int, prefix: str = "train"):
+        """Create and log TSNE visualization of latent spaces."""
+        if TSNE is None or plt is None or self.wandb_run is None:
+            return
+
+        # Sample a subset of the dataset
+        sample_size = min(self.tsne_sample_size, len(dataset))
+        indices = np.random.choice(len(dataset), sample_size, replace=False)
+
+        env_latents = []
+        agent_latents = []
+
+        self.model.eval()
+        with torch.no_grad():
+            for idx in indices:
+                env_config, agent_config, _ = dataset[idx]
+                env_config = env_config.unsqueeze(0).to(self.device)
+                agent_config = agent_config.unsqueeze(0).to(self.device)
+
+                # Get latent representations
+                env_mu, agent_mu = self.model.encode_only(env_config, agent_config)
+                env_latents.append(env_mu.cpu().numpy())
+                agent_latents.append(agent_mu.cpu().numpy())
+
+        env_latents = np.vstack(env_latents)
+        agent_latents = np.vstack(agent_latents)
+
+        # Create TSNE embeddings
+        env_tsne = TSNE(n_components=2, random_state=42).fit_transform(env_latents)
+        agent_tsne = TSNE(n_components=2, random_state=42).fit_transform(agent_latents)
+
+        # Create plots
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
+
+        ax1.scatter(env_tsne[:, 0], env_tsne[:, 1], alpha=0.7)
+        ax1.set_title(f'Environment Latent Space (Epoch {epoch})')
+        ax1.set_xlabel('TSNE 1')
+        ax1.set_ylabel('TSNE 2')
+
+        ax2.scatter(agent_tsne[:, 0], agent_tsne[:, 1], alpha=0.7)
+        ax2.set_title(f'Agent Latent Space (Epoch {epoch})')
+        ax2.set_xlabel('TSNE 1')
+        ax2.set_ylabel('TSNE 2')
+
+        plt.tight_layout()
+
+        # Log to wandb
+        self.wandb_run.log({f"{prefix}/tsne_latents": wandb.Image(fig)}, step=epoch)
+        plt.close(fig)
 
     def predict_curve(
         self,
