@@ -17,9 +17,9 @@ class KickstartConfig(BaseModelWithForbidExtra):
     action_loss_coef: float = Field(default=1, ge=0)
     # Value loss: Weight 1.0 matches action loss for balanced learning
     value_loss_coef: float = Field(default=1, ge=0)
-    # Anneal ratio 0.65: Decay teacher influence to 35% over kickstart period
+    # Anneal ratio 0.65: Type 2 default chosen arbitrarily
     anneal_ratio: float = Field(default=0.65, ge=0, le=1.0)
-    # Kickstart for 1B steps: Substantial pretraining phase, ~2% of total training
+    # Kickstart for 1B steps: Type 2 default chosen arbitrarily
     kickstart_steps: int = Field(default=1_000_000_000, gt=0)
     # Additional teachers: Multi-teacher distillation for diverse behaviors
     additional_teachers: list[KickstartTeacherConfig] | None = None
