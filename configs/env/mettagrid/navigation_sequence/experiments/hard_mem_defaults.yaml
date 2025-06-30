@@ -4,7 +4,7 @@
 #Currently objects are only altars, mines, and generators, of single color.
 
 defaults:
-  - /env/mettagrid/full@
+  - /env/mettagrid/mettagrid@
   - _self_
 
 sampling: 1

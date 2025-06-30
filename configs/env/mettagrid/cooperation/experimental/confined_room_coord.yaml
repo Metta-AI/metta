@@ -1,6 +1,6 @@
 # Config: Confined Room Coord (Overcooked-style)
 defaults:
-  - /env/mettagrid/full@
+  - /env/mettagrid/mettagrid@
   - _self_
 
 sampling: 1

@@ -1,7 +1,7 @@
 # Multi-room version of `left_or_right.yaml`.
 
 defaults:
-  - /env/mettagrid/full@
+  - /env/mettagrid/mettagrid@
   - _self_
 
 game:

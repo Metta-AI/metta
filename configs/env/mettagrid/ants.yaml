@@ -1,7 +1,7 @@
 defaults:
   - mettagrid
-  - game/groups: teams
-  - game/objects:
+  - override game/groups: teams
+  - override game/objects:
       - basic
       - mines
   - _self_

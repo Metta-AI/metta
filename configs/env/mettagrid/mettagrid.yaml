@@ -3,16 +3,10 @@ defaults:
   - game/groups: solo
   - game/objects:
       - basic
-      - mines
   - _self_
 
-<<<<<<< HEAD
-sampling: 0
-=======
-replay_level_prob: 0.2
 sampling: 0
 
->>>>>>> 9db25a334 (cp)
 game:
   num_agents: ???
   obs_width: 11

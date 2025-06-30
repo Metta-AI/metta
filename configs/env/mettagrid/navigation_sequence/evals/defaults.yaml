@@ -1,5 +1,5 @@
 defaults:
-  - /env/mettagrid/full@
+  - /env/mettagrid/mettagrid@
   - _self_
 
 agents: 1

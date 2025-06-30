@@ -1,5 +1,12 @@
 defaults:
-  - full
+  - mettagrid
+  - game/objects:
+      - basic
+      - mines
+      - generators
+      - combat
+      - advanced
+  - override game/groups: teams
   - _self_
 
 game:
