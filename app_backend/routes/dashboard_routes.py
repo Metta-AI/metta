@@ -1,4 +1,5 @@
 import logging
+import time
 from abc import ABC, abstractmethod
 from collections import defaultdict
 from dataclasses import dataclass
@@ -10,6 +11,7 @@ from psycopg.rows import class_row
 from psycopg.sql import SQL
 from pydantic import BaseModel
 
+from app_backend import query_logger
 from app_backend.auth import create_user_or_token_dependency
 from app_backend.metta_repo import MettaRepo
 from app_backend.query_logger import log_query_execution
@@ -214,9 +216,15 @@ def _get_group_data_with_policy_filter(
         base_params = (suite, metric) + extra_params
         params = base_params + (group,)
 
+    start_time = time.time()
     with con.cursor(row_factory=class_row(GroupDataRow)) as cursor:
         cursor.execute(query, params)
         results = cursor.fetchall()
+
+    end_time = time.time()
+    logger.info(f"Query execution time: {end_time - start_time:.3f}s")
+    if end_time - start_time > query_logger.SLOW_QUERY_THRESHOLD_SECONDS:
+        logger.warning(f"SLOW QUERY ({end_time - start_time:.3f}s): {query.as_string(con)}, Params: {params}")
 
     return results
 
