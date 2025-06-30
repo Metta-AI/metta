@@ -15,14 +15,17 @@ FeatureId = Byte
 class ActionConfig_cpp(BaseModelWithForbidExtra):
     """Action configuration."""
 
+    # Required resources should be a superset of consumed resources.
+    # E.g., maybe you need a laser and a battery to attack, but only consume the laser.
+    required_resources: Dict[FeatureId, int]
+    consumed_resources: Dict[FeatureId, int]
     enabled: bool
 
 
 class AttackActionConfig_cpp(ActionConfig_cpp):
     """Attack action configuration."""
 
-    attack_resources: Dict[FeatureId, int]
-    # Note: if there are no defense resources, the attack will always succeed.
+    # If there are no defense resources, the attack will always succeed.
     # Otherwise, you need to have enough defense resources to block the attack.
     defense_resources: Dict[FeatureId, int]
 
@@ -194,16 +197,20 @@ def from_mettagrid_config(mettagrid_config: GameConfig_py) -> GameConfig_cpp:
         else:
             raise ValueError(f"Unknown object type: {object_type}")
 
-    attack_resources = dict(
-        (inventory_item_ids[k], v) for k, v in mettagrid_config.actions.attack.attack_resources.items()
-    )
-    defense_resources = dict(
-        (inventory_item_ids[k], v) for k, v in mettagrid_config.actions.attack.defense_resources.items()
-    )
-
     game_config = mettagrid_config.model_dump(by_alias=True, exclude_none=True)
-    game_config["actions"]["attack"]["attack_resources"] = attack_resources
-    game_config["actions"]["attack"]["defense_resources"] = defense_resources
+
+    # Add required and consumed resources to the attack action
+    for action_name, action_config in mettagrid_config.actions.items():
+        game_config["actions"][action_name]["required_resources"] = dict(
+            (inventory_item_ids[k], v) for k, v in action_config.required_resources.items()
+        )
+        game_config["actions"][action_name]["consumed_resources"] = dict(
+            (inventory_item_ids[k], v) for k, v in action_config.consumed_resources.items()
+        )
+        if action_name == "attack":
+            game_config["actions"][action_name]["defense_resources"] = dict(
+                (inventory_item_ids[k], v) for k, v in action_config.defense_resources.items()
+            )
 
     del game_config["agent"]
     del game_config["groups"]

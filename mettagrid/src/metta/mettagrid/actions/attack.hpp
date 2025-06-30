@@ -11,13 +11,14 @@
 #include "objects/metta_object.hpp"
 #include "types.hpp"
 
+struct AttackConfig : public ActionConfig {
+  std::map<InventoryItem, int> defense_resources;
+};
+
 class Attack : public ActionHandler {
 public:
-  explicit Attack(const ActionConfig& cfg,
-                  const std::map<InventoryItem, int>& attack_resources,
-                  const std::map<InventoryItem, int>& defense_resources,
-                  const std::string& action_name = "attack")
-      : ActionHandler(cfg, action_name), _attack_resources(attack_resources), _defense_resources(defense_resources) {
+  explicit Attack(const AttackConfig& cfg, const std::string& action_name = "attack")
+      : ActionHandler(cfg, action_name), _defense_resources(cfg.defense_resources) {
     priority = 1;
   }
 
@@ -32,17 +33,6 @@ protected:
   bool _handle_action(Agent* actor, ActionArg arg) override {
     if (arg > 9 || arg < 1) {
       return false;
-    }
-
-    for (const auto& [item, amount] : _attack_resources) {
-      if (actor->inventory[item] < amount) {
-        return false;
-      }
-    }
-
-    for (const auto& [item, amount] : _attack_resources) {
-      int used_amount = std::abs(actor->update_inventory(item, -amount));
-      assert(used_amount == amount);
     }
 
     short distance = 1 + (arg - 1) / 3;
