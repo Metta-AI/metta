@@ -50,7 +50,7 @@ def metta_script(func: Callable[..., T]) -> Callable[..., T]:
                         f"CUDA devices are available (0-{torch.cuda.device_count() - 1})."
                     )
             except ValueError:
-                raise ValueError(f"Invalid device ID in '{device}'. Device ID must be an integer.")
+                raise ValueError(f"Invalid device ID in '{device}'. Device ID must be an integer.") from None
 
         logger.info(f"Device check passed: {device}")
 
