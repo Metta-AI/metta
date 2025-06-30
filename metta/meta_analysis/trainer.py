@@ -21,8 +21,8 @@ except ImportError:
     wandb = None
 
 try:
-    from sklearn.manifold import TSNE
     import matplotlib.pyplot as plt
+    from sklearn.manifold import TSNE
 except ImportError:
     TSNE = None
     plt = None
@@ -80,11 +80,7 @@ class TrainingCurveDataset(Dataset):
         curve = json.loads(row["training_curve"])
         curve = np.array(curve, dtype=np.float32)
 
-        return (
-            torch.FloatTensor(env_data[0]),
-            torch.FloatTensor(agent_data[0]),
-            torch.FloatTensor(curve)
-        )
+        return (torch.FloatTensor(env_data[0]), torch.FloatTensor(agent_data[0]), torch.FloatTensor(curve))
 
 
 class MetaAnalysisTrainer:
@@ -119,11 +115,7 @@ class MetaAnalysisTrainer:
         self.tsne_sample_size = tsne_sample_size
 
     def vae_loss(
-        self,
-        recon_x: torch.Tensor,
-        x: torch.Tensor,
-        mu: torch.Tensor,
-        logvar: torch.Tensor
+        self, recon_x: torch.Tensor, x: torch.Tensor, mu: torch.Tensor, logvar: torch.Tensor
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """Compute VAE loss components."""
 
@@ -138,10 +130,7 @@ class MetaAnalysisTrainer:
 
         return vae_loss, recon_loss, kl_loss
 
-    def train_epoch(
-        self,
-        dataloader: DataLoader
-    ) -> Dict[str, float]:
+    def train_epoch(self, dataloader: DataLoader) -> Dict[str, float]:
         """Train for one epoch."""
 
         self.model.train()
@@ -150,24 +139,19 @@ class MetaAnalysisTrainer:
         total_kl_loss = 0.0
         total_curve_loss = 0.0
 
-        for batch_idx, (env_config, agent_config, target_curve) in enumerate(dataloader):
-
+        for _batch_idx, (env_config, agent_config, target_curve) in enumerate(dataloader):
             # Move to device
             env_config = env_config.to(self.device)
             agent_config = agent_config.to(self.device)
             target_curve = target_curve.to(self.device)
 
             # Forward pass
-            (
-                env_recon, env_mu, env_logvar,
-                agent_recon, agent_mu, agent_logvar,
-                predicted_curve
-            ) = self.model(env_config, agent_config)
+            (env_recon, env_mu, env_logvar, agent_recon, agent_mu, agent_logvar, predicted_curve) = self.model(
+                env_config, agent_config
+            )
 
             # Compute losses
-            env_vae_loss, env_recon_loss, env_kl_loss = self.vae_loss(
-                env_recon, env_config, env_mu, env_logvar
-            )
+            env_vae_loss, env_recon_loss, env_kl_loss = self.vae_loss(env_recon, env_config, env_mu, env_logvar)
             agent_vae_loss, agent_recon_loss, agent_kl_loss = self.vae_loss(
                 agent_recon, agent_config, agent_mu, agent_logvar
             )
@@ -198,10 +182,7 @@ class MetaAnalysisTrainer:
             "curve_loss": total_curve_loss / num_batches,
         }
 
-    def validate(
-        self,
-        dataloader: DataLoader
-    ) -> Dict[str, float]:
+    def validate(self, dataloader: DataLoader) -> Dict[str, float]:
         """Validate the model."""
 
         self.model.eval()
@@ -212,22 +193,21 @@ class MetaAnalysisTrainer:
 
         with torch.no_grad():
             for env_config, agent_config, target_curve in dataloader:
-
                 # Move to device
                 env_config = env_config.to(self.device)
                 agent_config = agent_config.to(self.device)
                 target_curve = target_curve.to(self.device)
 
                 # Forward pass
-                (
-                    env_recon, env_mu, env_logvar,
-                    agent_recon, agent_mu, agent_logvar,
-                    predicted_curve
-                ) = self.model(env_config, agent_config)
+                (env_recon, env_mu, env_logvar, agent_recon, agent_mu, agent_logvar, predicted_curve) = self.model(
+                    env_config, agent_config
+                )
 
                 # Compute losses
                 env_vae_loss, env_recon_loss, env_kl_loss = self.vae_loss(env_recon, env_config, env_mu, env_logvar)
-                agent_vae_loss, agent_recon_loss, agent_kl_loss = self.vae_loss(agent_recon, agent_config, agent_mu, agent_logvar)
+                agent_vae_loss, agent_recon_loss, agent_kl_loss = self.vae_loss(
+                    agent_recon, agent_config, agent_mu, agent_logvar
+                )
                 curve_loss = self.curve_loss(predicted_curve, target_curve)
 
                 # Total loss
@@ -262,7 +242,6 @@ class MetaAnalysisTrainer:
         val_losses = []
 
         for epoch in tqdm(range(num_epochs), desc="Training"):
-
             # Train
             train_metrics = self.train_epoch(train_dataloader)
             train_losses.append(train_metrics)
@@ -289,12 +268,14 @@ class MetaAnalysisTrainer:
                     "train/curve_loss": train_metrics["curve_loss"],
                 }
                 if val_dataloader is not None:
-                    log_dict.update({
-                        "val/total_loss": val_metrics["val_loss"],
-                        "val/recon_loss": val_metrics["val_recon_loss"],
-                        "val/kl_loss": val_metrics["val_kl_loss"],
-                        "val/curve_loss": val_metrics["val_curve_loss"],
-                    })
+                    log_dict.update(
+                        {
+                            "val/total_loss": val_metrics["val_loss"],
+                            "val/recon_loss": val_metrics["val_recon_loss"],
+                            "val/kl_loss": val_metrics["val_kl_loss"],
+                            "val/curve_loss": val_metrics["val_curve_loss"],
+                        }
+                    )
                 self.wandb_run.log(log_dict, step=epoch)
 
             # TSNE visualization
@@ -306,7 +287,7 @@ class MetaAnalysisTrainer:
 
             # Save model
             if save_path and (epoch + 1) % 10 == 0:
-                torch.save(self.model.state_dict(), f"{save_path}_epoch_{epoch+1}.pt")
+                torch.save(self.model.state_dict(), f"{save_path}_epoch_{epoch + 1}.pt")
 
         # Save final model
         if save_path:
@@ -352,14 +333,14 @@ class MetaAnalysisTrainer:
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
 
         ax1.scatter(env_tsne[:, 0], env_tsne[:, 1], alpha=0.7)
-        ax1.set_title(f'Environment Latent Space (Epoch {epoch})')
-        ax1.set_xlabel('TSNE 1')
-        ax1.set_ylabel('TSNE 2')
+        ax1.set_title(f"Environment Latent Space (Epoch {epoch})")
+        ax1.set_xlabel("TSNE 1")
+        ax1.set_ylabel("TSNE 2")
 
         ax2.scatter(agent_tsne[:, 0], agent_tsne[:, 1], alpha=0.7)
-        ax2.set_title(f'Agent Latent Space (Epoch {epoch})')
-        ax2.set_xlabel('TSNE 1')
-        ax2.set_ylabel('TSNE 2')
+        ax2.set_title(f"Agent Latent Space (Epoch {epoch})")
+        ax2.set_xlabel("TSNE 1")
+        ax2.set_ylabel("TSNE 2")
 
         plt.tight_layout()
 
@@ -367,11 +348,7 @@ class MetaAnalysisTrainer:
         self.wandb_run.log({f"{prefix}/tsne_latents": wandb.Image(fig)}, step=epoch)
         plt.close(fig)
 
-    def predict_curve(
-        self,
-        env_config: torch.Tensor,
-        agent_config: torch.Tensor
-    ) -> torch.Tensor:
+    def predict_curve(self, env_config: torch.Tensor, agent_config: torch.Tensor) -> torch.Tensor:
         """Predict reward curve for given configs."""
 
         self.model.eval()
@@ -387,10 +364,7 @@ class MetaAnalysisTrainer:
 
             return predicted_curve.cpu()
 
-    def sample_latent_space(
-        self,
-        num_samples: int = 100
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+    def sample_latent_space(self, num_samples: int = 100) -> Tuple[torch.Tensor, torch.Tensor]:
         """Sample from the learned latent spaces."""
 
         # Sample from standard normal

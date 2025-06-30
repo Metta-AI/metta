@@ -6,9 +6,6 @@ This script demonstrates the proof of principle for predicting training curves
 from environment and agent configurations using VAEs.
 """
 
-import argparse
-import logging
-import os
 from pathlib import Path
 
 import hydra
@@ -18,7 +15,7 @@ from torch.utils.data import DataLoader, random_split
 
 from metta.common.util.logging import setup_mettagrid_logger
 from metta.common.util.script_decorators import metta_script
-from metta.meta_analysis import TrainingDataCollector, MetaAnalysisModel, MetaAnalysisTrainer, TrainingCurveDataset
+from metta.meta_analysis import MetaAnalysisModel, MetaAnalysisTrainer, TrainingCurveDataset, TrainingDataCollector
 
 try:
     import wandb
@@ -42,17 +39,14 @@ def main(cfg: DictConfig) -> int:
     if cfg.collect_data:
         logger.info("Collecting training data from wandb...")
 
-        collector = TrainingDataCollector(
-            wandb_entity=cfg.wandb.entity,
-            wandb_project=cfg.wandb.project
-        )
+        collector = TrainingDataCollector(wandb_entity=cfg.wandb.entity, wandb_project=cfg.wandb.project)
 
         # Collect training runs
         training_data = collector.collect_training_runs(
             run_filters=cfg.run_filters,
             max_runs=cfg.max_runs,
             start_date=getattr(cfg, "start_date", None),
-            end_date=getattr(cfg, "end_date", None)
+            end_date=getattr(cfg, "end_date", None),
         )
 
         if not training_data:
@@ -78,14 +72,30 @@ def main(cfg: DictConfig) -> int:
 
         # Define features
         env_features = [
-            "max_steps", "num_agents", "map_width", "map_height",
-            "num_rooms", "num_altars", "num_mines", "num_generators", "num_walls"
+            "max_steps",
+            "num_agents",
+            "map_width",
+            "map_height",
+            "num_rooms",
+            "num_altars",
+            "num_mines",
+            "num_generators",
+            "num_walls",
         ]
 
         agent_features = [
-            "learning_rate", "batch_size", "minibatch_size", "gamma",
-            "gae_lambda", "clip_coef", "ent_coef", "vf_coef",
-            "hidden_size", "num_layers", "cnn_channels", "cnn_kernel_size"
+            "learning_rate",
+            "batch_size",
+            "minibatch_size",
+            "gamma",
+            "gae_lambda",
+            "clip_coef",
+            "ent_coef",
+            "vf_coef",
+            "hidden_size",
+            "num_layers",
+            "cnn_channels",
+            "cnn_kernel_size",
         ]
 
         # Load dataset
@@ -96,7 +106,7 @@ def main(cfg: DictConfig) -> int:
 
         dataset = TrainingCurveDataset(str(dataset_path), env_features, agent_features)
 
-                # Split dataset with reproducible random seed
+        # Split dataset with reproducible random seed
         train_split_ratio = getattr(cfg, "train_val_split", 0.8)
         random_seed = getattr(cfg, "random_seed", 42)
 
@@ -107,7 +117,10 @@ def main(cfg: DictConfig) -> int:
         torch.manual_seed(random_seed)
         train_dataset, val_dataset = random_split(dataset, [train_size, val_size])
 
-        logger.info(f"Dataset split: {len(train_dataset)} train, {len(val_dataset)} validation samples (ratio: {train_split_ratio:.1%})")
+        logger.info(
+            f"Dataset split: {len(train_dataset)} train, {len(val_dataset)} validation samples "
+            f"(ratio: {train_split_ratio:.1%})"
+        )
 
         # Create dataloaders
         train_loader = DataLoader(train_dataset, batch_size=cfg.batch_size, shuffle=True)
@@ -132,7 +145,7 @@ def main(cfg: DictConfig) -> int:
             env_latent_dim=cfg.env_latent_dim,
             agent_latent_dim=cfg.agent_latent_dim,
             curve_length=cfg.curve_length,
-            hidden_dim=cfg.hidden_dim
+            hidden_dim=cfg.hidden_dim,
         )
 
         # Create trainer
@@ -171,8 +184,9 @@ def main(cfg: DictConfig) -> int:
 
         # Save training results
         import json
+
         results_path = output_dir / "training_results.json"
-        with open(results_path, 'w') as f:
+        with open(results_path, "w") as f:
             json.dump(training_results, f, indent=2)
 
         logger.info(f"Training results saved to {results_path}")
@@ -191,13 +205,29 @@ def main(cfg: DictConfig) -> int:
 
         # Create model and load weights
         env_features = [
-            "max_steps", "num_agents", "map_width", "map_height",
-            "num_rooms", "num_altars", "num_mines", "num_generators", "num_walls"
+            "max_steps",
+            "num_agents",
+            "map_width",
+            "map_height",
+            "num_rooms",
+            "num_altars",
+            "num_mines",
+            "num_generators",
+            "num_walls",
         ]
         agent_features = [
-            "learning_rate", "batch_size", "minibatch_size", "gamma",
-            "gae_lambda", "clip_coef", "ent_coef", "vf_coef",
-            "hidden_size", "num_layers", "cnn_channels", "cnn_kernel_size"
+            "learning_rate",
+            "batch_size",
+            "minibatch_size",
+            "gamma",
+            "gae_lambda",
+            "clip_coef",
+            "ent_coef",
+            "vf_coef",
+            "hidden_size",
+            "num_layers",
+            "cnn_channels",
+            "cnn_kernel_size",
         ]
 
         model = MetaAnalysisModel(
@@ -206,7 +236,7 @@ def main(cfg: DictConfig) -> int:
             env_latent_dim=cfg.env_latent_dim,
             agent_latent_dim=cfg.agent_latent_dim,
             curve_length=cfg.curve_length,
-            hidden_dim=cfg.hidden_dim
+            hidden_dim=cfg.hidden_dim,
         )
 
         model.load_state_dict(torch.load(model_path, map_location=cfg.device))
@@ -221,16 +251,17 @@ def main(cfg: DictConfig) -> int:
 
         logger.info("Generated predicted training curves:")
         for i, curve in enumerate(predicted_curves):
-            logger.info(f"  Sample {i+1}: Final reward = {curve[-1]:.3f}")
+            logger.info(f"  Sample {i + 1}: Final reward = {curve[-1]:.3f}")
 
         # Save predictions
         import numpy as np
+
         predictions_path = output_dir / "latent_space_predictions.npz"
         np.savez(
             predictions_path,
             env_latent=env_latent.cpu().numpy(),
             agent_latent=agent_latent.cpu().numpy(),
-            predicted_curves=predicted_curves.cpu().numpy()
+            predicted_curves=predicted_curves.cpu().numpy(),
         )
 
         logger.info(f"Predictions saved to {predictions_path}")

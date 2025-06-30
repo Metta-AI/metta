@@ -1,9 +1,9 @@
 """Neural network models for meta-analysis training curve prediction."""
 
+from typing import Tuple
+
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-from typing import Tuple
 
 
 class EnvironmentVAE(nn.Module):
@@ -114,11 +114,7 @@ class RewardPredictor(nn.Module):
     """Predicts reward curves from environment and agent latent representations."""
 
     def __init__(
-        self,
-        env_latent_dim: int = 32,
-        agent_latent_dim: int = 32,
-        curve_length: int = 100,
-        hidden_dim: int = 256
+        self, env_latent_dim: int = 32, agent_latent_dim: int = 32, curve_length: int = 100, hidden_dim: int = 256
     ):
         super().__init__()
 
@@ -138,11 +134,7 @@ class RewardPredictor(nn.Module):
             nn.Linear(hidden_dim, curve_length),
         )
 
-    def forward(
-        self,
-        env_latent: torch.Tensor,
-        agent_latent: torch.Tensor
-    ) -> torch.Tensor:
+    def forward(self, env_latent: torch.Tensor, agent_latent: torch.Tensor) -> torch.Tensor:
         """Predict reward curve from latent representations."""
 
         # Concatenate latent representations
@@ -164,20 +156,16 @@ class MetaAnalysisModel(nn.Module):
         env_latent_dim: int = 32,
         agent_latent_dim: int = 32,
         curve_length: int = 100,
-        hidden_dim: int = 128
+        hidden_dim: int = 128,
     ):
         super().__init__()
 
         self.env_vae = EnvironmentVAE(env_input_dim, env_latent_dim, hidden_dim)
         self.agent_vae = AgentVAE(agent_input_dim, agent_latent_dim, hidden_dim)
-        self.reward_predictor = RewardPredictor(
-            env_latent_dim, agent_latent_dim, curve_length, hidden_dim * 2
-        )
+        self.reward_predictor = RewardPredictor(env_latent_dim, agent_latent_dim, curve_length, hidden_dim * 2)
 
     def forward(
-        self,
-        env_config: torch.Tensor,
-        agent_config: torch.Tensor
+        self, env_config: torch.Tensor, agent_config: torch.Tensor
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         """Forward pass through all components."""
 
@@ -192,17 +180,9 @@ class MetaAnalysisModel(nn.Module):
         # Predict reward curve
         predicted_curve = self.reward_predictor(env_latent, agent_latent)
 
-        return (
-            env_recon, env_mu, env_logvar,
-            agent_recon, agent_mu, agent_logvar,
-            predicted_curve
-        )
+        return (env_recon, env_mu, env_logvar, agent_recon, agent_mu, agent_logvar, predicted_curve)
 
-    def encode_only(
-        self,
-        env_config: torch.Tensor,
-        agent_config: torch.Tensor
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+    def encode_only(self, env_config: torch.Tensor, agent_config: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         """Encode configs to latent space without sampling."""
 
         env_mu, env_logvar = self.env_vae.encode(env_config)
@@ -210,11 +190,7 @@ class MetaAnalysisModel(nn.Module):
 
         return env_mu, agent_mu
 
-    def predict_curve(
-        self,
-        env_latent: torch.Tensor,
-        agent_latent: torch.Tensor
-    ) -> torch.Tensor:
+    def predict_curve(self, env_latent: torch.Tensor, agent_latent: torch.Tensor) -> torch.Tensor:
         """Predict reward curve from latent representations."""
 
         return self.reward_predictor(env_latent, agent_latent)
