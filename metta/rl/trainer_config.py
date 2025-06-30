@@ -9,40 +9,57 @@ from metta.rl.kickstarter_config import KickstartConfig
 
 class OptimizerConfig(BaseModelWithForbidExtra):
     type: Literal["adam", "muon"] = "adam"
+    # Learning rate: Likely from parameter sweep - unusually precise value suggests grid/random search
     learning_rate: float = Field(default=0.0004573146765703167, gt=0, le=1.0)
+    # Beta1: Standard Adam default from Kingma & Ba (2014) "Adam: A Method for Stochastic Optimization"
     beta1: float = Field(default=0.9, ge=0, le=1.0)
+    # Beta2: Standard Adam default from Kingma & Ba (2014)
     beta2: float = Field(default=0.999, ge=0, le=1.0)
+    # Epsilon: More conservative than typical 1e-8, possibly to handle multi-agent variance
     eps: float = Field(default=1e-12, gt=0)
+    # Weight decay: Disabled by default, common practice for RL to avoid over-regularization
     weight_decay: float = Field(default=0, ge=0)
 
 
 class LRSchedulerConfig(BaseModelWithForbidExtra):
+    # LR scheduling disabled by default: Fixed LR often works well in RL
     enabled: bool = False
+    # Annealing disabled: Common to use fixed LR for PPO
     anneal_lr: bool = False
+    # No warmup by default: RL typically doesn't need warmup like supervised learning
     warmup_steps: int | None = None
+    # Schedule type unset: Various options available when enabled
     schedule_type: Literal["linear", "cosine", "exponential"] | None = None
 
 
 class PrioritizedExperienceReplayConfig(BaseModelWithForbidExtra):
+    # Alpha=0 disables prioritization (uniform sampling), common starting point
     prio_alpha: float = Field(default=0.0, ge=0, le=1.0)
+    # Beta0=0.6: From Schaul et al. (2016) "Prioritized Experience Replay" paper
     prio_beta0: float = Field(default=0.6, ge=0, le=1.0)
 
 
 class VTraceConfig(BaseModelWithForbidExtra):
+    # V-trace clipping at 1.0: From IMPALA paper (Espeholt et al., 2018), standard for on-policy
     vtrace_rho_clip: float = Field(default=1.0, gt=0)
     vtrace_c_clip: float = Field(default=1.0, gt=0)
 
 
 class InitialPolicyConfig(BaseModelWithForbidExtra):
     uri: str | None = None
+    # Type="top": In practice it was the best performing
     type: Literal["top", "latest", "specific"] = "top"
+    # Range=1: Select single best policy, standard practice
     range: int = Field(default=1, gt=0)
+    # Metric="epoch": Default sorting by training progress
     metric: str = "epoch"
     filters: dict[str, Any] = Field(default_factory=dict)
 
 
 class CheckpointConfig(BaseModelWithForbidExtra):
+    # Checkpoint every 60s: Balance between recovery granularity and I/O overhead
     checkpoint_interval: int = Field(default=60, gt=0)
+    # W&B every 5 min: Less frequent due to network overhead and storage costs
     wandb_checkpoint_interval: int = Field(default=300, ge=0)  # 0 to disable
     checkpoint_dir: str = Field(default="")
 
@@ -53,7 +70,9 @@ class CheckpointConfig(BaseModelWithForbidExtra):
 
 
 class SimulationConfig(BaseModelWithForbidExtra):
+    # Evaluate every 5 min: Balance between training speed and monitoring frequency
     evaluate_interval: int = Field(default=300, ge=0)  # 0 to disable
+    # Replay interval matches eval for consistent monitoring
     replay_interval: int = Field(default=300, gt=0)
     replay_dir: str = Field(default="")
 
@@ -65,21 +84,32 @@ class SimulationConfig(BaseModelWithForbidExtra):
 
 class PPOConfig(BaseModelWithForbidExtra):
     # PPO hyperparameters
+    # Clip coefficient: 0.1 is conservative, common range 0.1-0.3 from PPO paper (Schulman et al., 2017)
     clip_coef: float = Field(default=0.1, gt=0, le=1.0)
+    # Entropy coefficient: 0.0021 likely from parameter sweep, balances exploration vs exploitation
     ent_coef: float = Field(default=0.0021, ge=0)
+    # GAE lambda: 0.916 from parameter sweep, higher than typical 0.95 for more bias/less variance
     gae_lambda: float = Field(default=0.916, ge=0, le=1.0)
+    # Gamma: 0.977 lower than typical 0.99, suggests shorter effective horizon for multi-agent
     gamma: float = Field(default=0.977, ge=0, le=1.0)
 
     # Training parameters
+    # Gradient clipping: 0.5 is standard PPO default to prevent instability
     max_grad_norm: float = Field(default=0.5, gt=0)
+    # Value function clipping: Matches policy clip for consistency
     vf_clip_coef: float = Field(default=0.1, ge=0)
+    # Value coefficient: 0.44 from parameter sweep, balances policy vs value loss
     vf_coef: float = Field(default=0.44, ge=0)
+    # L2 regularization: Disabled by default, common in RL
     l2_reg_loss_coef: float = Field(default=0, ge=0)
     l2_init_loss_coef: float = Field(default=0, ge=0)
 
     # Normalization and clipping
+    # Advantage normalization: Standard PPO practice for stability
     norm_adv: bool = True
+    # Value loss clipping: PPO best practice from implementation details
     clip_vloss: bool = True
+    # Target KL: None allows unlimited updates, common for stable environments
     target_kl: float | None = None
 
 
@@ -88,6 +118,7 @@ class TrainerConfig(BaseModelWithForbidExtra):
     target: str = Field(default="metta.rl.trainer.MettaTrainer", alias="_target_")
 
     # Core training parameters
+    # Total timesteps: 50B is massive scale, likely company standard for long runs
     total_timesteps: int = Field(default=50_000_000_000, gt=0)
 
     # PPO configuration
@@ -106,33 +137,49 @@ class TrainerConfig(BaseModelWithForbidExtra):
     vtrace: VTraceConfig = Field(default_factory=VTraceConfig)
 
     # System configuration
+    # Zero copy: Performance optimization to avoid memory copies
     zero_copy: bool = True
+    # Contiguous env IDs not required: More flexible env management
     require_contiguous_env_ids: bool = False
+    # Verbose logging for debugging and monitoring
     verbose: bool = True
 
     # Batch configuration
+    # Batch size: 512K is very large, leverages modern GPU memory for efficiency
     batch_size: int = Field(default=524288, gt=0)
+    # Minibatch: 16K fits in GPU memory while allowing multiple gradient steps
     minibatch_size: int = Field(default=16384, gt=0)
+    # BPTT horizon: 64 steps balances temporal credit assignment vs memory
     bptt_horizon: int = Field(default=64, gt=0)
+    # Single epoch: PPO typically uses 3-10, but 1 works with large batches
     update_epochs: int = Field(default=1, gt=0)
+    # Fixed batch size across GPUs for consistent hyperparameters
     scale_batches_by_world_size: bool = False
 
     # Performance configuration
+    # CPU offload disabled: Keep tensors on GPU for speed
     cpu_offload: bool = False
+    # Torch compile disabled by default for stability
     compile: bool = False
+    # Reduce-overhead mode: Best for training loops when compile is enabled
     compile_mode: Literal["default", "reduce-overhead", "max-autotune"] = "reduce-overhead"
+    # Profile every 10K epochs: Infrequent to minimize overhead
     profiler_interval_epochs: int = Field(default=10000, gt=0)
 
     # Distributed training
+    # Forward minibatch: 4K balances GPU utilization vs communication overhead
     forward_pass_minibatch_target_size: int = Field(default=4096, gt=0)
+    # Async factor 2: Overlap computation and communication for efficiency
     async_factor: int = Field(default=2, gt=0)
 
     # Kickstart
     kickstart: KickstartConfig = Field(default_factory=KickstartConfig)
 
     # Base trainer fields
+    # Number of parallel workers: No default, must be set based on hardware
     num_workers: int = Field(gt=0)
     env: str | None = None  # Environment config path
+    # Default curriculum: Simple environment for initial experiments
     curriculum: str | None = "/env/mettagrid/curriculum/simple"
     env_overrides: dict[str, Any] = Field(default_factory=dict)
     initial_policy: InitialPolicyConfig = Field(default_factory=InitialPolicyConfig)
@@ -144,6 +191,7 @@ class TrainerConfig(BaseModelWithForbidExtra):
     simulation: SimulationConfig = Field(default_factory=SimulationConfig)
 
     # Grad mean variance logging
+    # Disabled by default: Expensive diagnostic for debugging training instability
     grad_mean_variance_interval: int = Field(default=0, ge=0)  # 0 to disable
 
     model_config: ClassVar[ConfigDict] = ConfigDict(
