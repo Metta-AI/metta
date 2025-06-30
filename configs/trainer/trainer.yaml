@@ -24,10 +24,10 @@ replay_dir: s3://softmax-public/replays/${run}
 
 total_timesteps: 50_000_000_000
 
-clip_coef: 0.14919147162017737
-ent_coef: 0.016700174334611493
-gae_lambda: 0.8443676864928215
-gamma: 0.997950174315581
+clip_coef: 0.15
+ent_coef: 0.0167
+gae_lambda: 0.8443
+gamma: 0.99
 
 # optimizer:
 #   type: muon
@@ -75,8 +75,8 @@ zero_copy: true
 require_contiguous_env_ids: false
 verbose: true
 
-batch_size: 262144
-minibatch_size: 32768
+batch_size: 524288
+minibatch_size: 16384
 bptt_horizon: 64
 update_epochs: 1
 
@@ -85,8 +85,9 @@ compile: false
 compile_mode: reduce-overhead
 profiler_interval_epochs: 10000
 
-forward_pass_minibatch_target_size: 2048
+forward_pass_minibatch_target_size: 4096
 async_factor: 2
+scale_batches_by_world_size: false
 
 kickstart:
   teacher_uri: null

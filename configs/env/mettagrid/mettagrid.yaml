@@ -36,15 +36,15 @@ game:
       # action_failure_penalty: 0.00001
       action_failure_penalty: 0
 
-      ore.red: 0.17088483842567775
-      ore.blue: 0.17088483842567775
-      ore.green: 0.17088483842567775
+      ore.red: 0.0
+      ore.blue: 0.0
+      ore.green: 0.0
       ore.red_max: 4
       ore.blue_max: 4
       ore.green_max: 4
-      battery.red: 0.9882859711234822
-      battery.blue: 0.9882859711234822
-      battery.green: 0.9882859711234822
+      battery.red: 0.0
+      battery.blue: 0.0
+      battery.green: 0.0
       battery.red_max: 5
       battery.blue_max: 5
       battery.green_max: 5
