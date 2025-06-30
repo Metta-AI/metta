@@ -19,8 +19,10 @@ run_dir: ${data_dir}/${run}
 trainer:
   curriculum: /env/mettagrid/curriculum/navigation/progressive
   num_workers: 4
-  evaluate_interval: 100
-  wandb_checkpoint_interval: 100
+  simulation:
+    evaluate_interval: 100
+  checkpoint:
+    wandb_checkpoint_interval: 100
   total_timesteps: 1_000_000_000  # Shorter run for testing
 
 # Add any other user-specific overrides below
