@@ -3,6 +3,7 @@ from __future__ import annotations
 import datetime
 import logging
 import random
+import time
 import uuid
 from typing import Any, Dict, Optional, cast
 
@@ -151,14 +152,14 @@ class MettaGridEnv(PufferEnv, GymEnv):
         if self._is_training and self._resets == 0:
             max_steps = game_config_dict["max_steps"]
             game_config_dict["max_steps"] = int(np.random.randint(1, max_steps + 1))
-            logger.info(f"Desync episode with max_steps {game_config_dict['max_steps']}")
+            # logger.info(f"Desync episode with max_steps {game_config_dict['max_steps']}")
 
         self._map_labels = level.labels
 
         # Convert string array to list of strings for C++ compatibility
         # TODO: push the not-numpy-array higher up the stack, and consider pushing not-a-sparse-list lower.
         with self.timer("_initialize_c_env.make_c_env"):
-            self._c_env = MettaGrid(cpp_config_dict(game_config_dict), level.grid.tolist())
+            self._c_env = MettaGrid(cpp_config_dict(game_config_dict), level.grid.tolist(), self._current_seed)
 
         self._grid_env = self._c_env
 
@@ -249,6 +250,8 @@ class MettaGridEnv(PufferEnv, GymEnv):
     def process_episode_stats(self, infos: Dict[str, Any]):
         self.timer.start("process_episode_stats")
 
+        infos.clear()
+
         episode_rewards = self._c_env.get_episode_rewards()
         episode_rewards_sum = episode_rewards.sum()
         episode_rewards_mean = episode_rewards_sum / self._c_env.num_agents
@@ -257,6 +260,11 @@ class MettaGridEnv(PufferEnv, GymEnv):
             infos[f"map_reward/{label}"] = episode_rewards_mean
 
         infos.update(self._curriculum.get_completion_rates())
+
+        # Add curriculum-specific stats
+        curriculum_stats = self._curriculum.get_curriculum_stats()
+        for key, value in curriculum_stats.items():
+            infos[f"curriculum/{key}"] = value
 
         with self.timer("_c_env.get_episode_stats"):
             stats = self._c_env.get_episode_stats()
@@ -277,6 +285,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
             "steps": self._steps,
             "resets": self._resets,
             "max_steps": self.max_steps,
+            "completion_time": time.time(),
         }
         infos["attributes"] = attributes
 

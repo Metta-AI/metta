@@ -39,10 +39,11 @@ def write_map_preview_file(preview_path: str, env: MettaGridEnv, gzipped: bool):
 
 
 def write_local_map_preview(env: MettaGridEnv):
-    with tempfile.NamedTemporaryFile(delete=False, dir="./mettascope/local/", suffix=".json") as temp_file:
-        # Create directory and save compressed file
-        preview_path = temp_file.name
-        os.makedirs(os.path.dirname(preview_path), exist_ok=True)
+    maps_dir = "./outputs/maps"
+    os.makedirs(maps_dir, exist_ok=True)
+
+    with tempfile.NamedTemporaryFile(delete=False, dir=maps_dir, suffix=".json") as temp_file:
+        preview_path = os.path.relpath(temp_file.name)
 
         # no gzip locally - fastapi doesn't recognize .json.z files
         write_map_preview_file(preview_path, env, gzipped=False)

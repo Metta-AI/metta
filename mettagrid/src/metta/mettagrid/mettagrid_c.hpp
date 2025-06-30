@@ -15,6 +15,7 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <random>
 
 #include "types.hpp"
 
@@ -33,7 +34,7 @@ namespace py = pybind11;
 
 class METTAGRID_API MettaGrid {
 public:
-  MettaGrid(py::dict env_cfg, py::list map);
+  MettaGrid(py::dict env_cfg, py::list map, int seed);
   ~MettaGrid();
 
   unsigned short obs_width;
@@ -43,6 +44,7 @@ public:
   unsigned int max_steps;
 
   std::vector<std::string> inventory_item_names;
+  std::vector<std::string> object_type_names;
 
   // Python API methods
   py::tuple reset();
@@ -67,7 +69,7 @@ public:
   py::object observation_space();
   py::list action_success();
   py::list max_action_args();
-  py::list object_type_names();
+  py::list object_type_names_py();
   py::list inventory_item_names_py();
   py::array_t<unsigned int> get_agent_groups() const;
   Agent* create_agent(int r, int c, const py::dict& agent_group_cfg_py);
@@ -107,6 +109,9 @@ private:
   std::map<uint8_t, float> _feature_normalizations;
 
   std::vector<bool> _action_success;
+
+  std::mt19937 _rng;
+  int _seed;
 
   void init_action_handlers();
   void add_agent(Agent* agent);

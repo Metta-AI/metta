@@ -1,0 +1,5 @@
+# This crontab is installed by running `./devops/skypilot/configure_jobs_controller.py`.
+
+0 * * * * find /tmp -maxdepth 1 -type d -mtime +1 -name 'tmp*' | xargs rm -rf
+1 * * * * find /home/ubuntu/sky_logs -maxdepth 1 -type d -mtime +30 -name 'sky-*'  | xargs rm -rf
+2 * * * * find /home/ubuntu/sky_logs/managed_jobs -maxdepth 1 -type d -mtime +14 -name 'sky-*' | xargs rm -rf
