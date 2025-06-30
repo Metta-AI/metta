@@ -641,6 +641,7 @@ class MettaTrainer:
                 self.losses.ks_value_loss_sum += ks_value_loss.item()
                 self.losses.importance_sum += importance_sampling_ratio.mean().item()
                 self.losses.minibatches_processed += 1
+                self.losses.current_logprobs_sum += new_logprobs.mean().item()
 
                 self.optimizer.zero_grad()
                 loss.backward()
