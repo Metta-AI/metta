@@ -5,7 +5,7 @@ Clean API for Metta - provides direct instantiation without Hydra.
 import os
 import pickle
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import torch
@@ -30,6 +30,38 @@ TYPE_LAB = 11
 TYPE_FACTORY = 12
 TYPE_TEMPLE = 13
 TYPE_GENERIC_CONVERTER = 14
+
+# Default training parameters
+DEFAULT_PARAMS = {
+    "learning_rate": 0.0004573146765703167,
+    "batch_size": 262_144,
+    "minibatch_size": 16_384,
+    "bptt_horizon": 64,
+    "update_epochs": 1,
+    "max_grad_norm": 0.5,
+    "beta1": 0.9,
+    "beta2": 0.999,
+    "eps": 1e-12,
+    "weight_decay": 0,
+    "vf_coef": 0.44,
+    "ent_coef": 0.0021,
+    "clip_coef": 0.1,
+    "vf_clip_coef": 0.1,
+    "gamma": 0.977,
+    "gae_lambda": 0.916,
+    "vtrace_rho_clip": 1.0,
+    "vtrace_c_clip": 1.0,
+}
+
+# Default environment parameters
+DEFAULT_ENV_PARAMS = {
+    "width": 15,
+    "height": 10,
+    "obs_width": 11,
+    "obs_height": 11,
+    "max_steps": 1000,
+    "num_agents": 2,
+}
 
 
 # Data structures for enhanced training state
@@ -141,68 +173,7 @@ def make_agent(
         "clip_range": clip_range,
         "analyze_weights_interval": analyze_weights_interval,
         "l2_init_weight_update_interval": l2_init_weight_update_interval,
-        "components": {
-            "_obs_": {"_target_": "metta.agent.lib.obs_token_to_box_shaper.ObsTokenToBoxShaper", "sources": None},
-            "obs_normalizer": {
-                "_target_": "metta.agent.lib.observation_normalizer.ObservationNormalizer",
-                "sources": [{"name": "_obs_"}],
-            },
-            "cnn1": {
-                "_target_": "metta.agent.lib.nn_layer_library.Conv2d",
-                "sources": [{"name": "obs_normalizer"}],
-                "nn_params": {"out_channels": 64, "kernel_size": 5, "stride": 3},
-            },
-            "cnn2": {
-                "_target_": "metta.agent.lib.nn_layer_library.Conv2d",
-                "sources": [{"name": "cnn1"}],
-                "nn_params": {"out_channels": 64, "kernel_size": 3, "stride": 1},
-            },
-            "obs_flattener": {"_target_": "metta.agent.lib.nn_layer_library.Flatten", "sources": [{"name": "cnn2"}]},
-            "fc1": {
-                "_target_": "metta.agent.lib.nn_layer_library.Linear",
-                "sources": [{"name": "obs_flattener"}],
-                "nn_params": {"out_features": 128},
-            },
-            "encoded_obs": {
-                "_target_": "metta.agent.lib.nn_layer_library.Linear",
-                "sources": [{"name": "fc1"}],
-                "nn_params": {"out_features": 128},
-            },
-            "_core_": {
-                "_target_": "metta.agent.lib.lstm.LSTM",
-                "sources": [{"name": "encoded_obs"}],
-                "output_size": 128,
-                "nn_params": {"num_layers": 2},
-            },
-            "core_relu": {"_target_": "metta.agent.lib.nn_layer_library.ReLU", "sources": [{"name": "_core_"}]},
-            "critic_1": {
-                "_target_": "metta.agent.lib.nn_layer_library.Linear",
-                "sources": [{"name": "core_relu"}],
-                "nn_params": {"out_features": 1024},
-                "nonlinearity": "nn.Tanh",
-                "effective_rank": True,
-            },
-            "_value_": {
-                "_target_": "metta.agent.lib.nn_layer_library.Linear",
-                "sources": [{"name": "critic_1"}],
-                "nn_params": {"out_features": 1},
-                "nonlinearity": None,
-            },
-            "actor_1": {
-                "_target_": "metta.agent.lib.nn_layer_library.Linear",
-                "sources": [{"name": "core_relu"}],
-                "nn_params": {"out_features": 512},
-            },
-            "_action_embeds_": {
-                "_target_": "metta.agent.lib.action.ActionEmbedding",
-                "sources": None,
-                "nn_params": {"num_embeddings": 100, "embedding_dim": 16},
-            },
-            "_action_": {
-                "_target_": "metta.agent.lib.actor.MettaActorSingleHead",
-                "sources": [{"name": "actor_1"}, {"name": "_action_embeds_"}],
-            },
-        },
+        "components": _get_default_agent_components(),
     }
 
     return MettaAgent(
@@ -217,96 +188,144 @@ def make_agent(
     )
 
 
-def make_optimizer(
-    parameters,
-    learning_rate: float = 0.0004573146765703167,
-    beta1: float = 0.9,
-    beta2: float = 0.999,
-    eps: float = 1e-12,
-    weight_decay: float = 0,
-    type: str = "adam",
-) -> torch.optim.Optimizer:
+def _get_default_agent_components():
+    """Get default agent component configuration."""
+    return {
+        "_obs_": {"_target_": "metta.agent.lib.obs_token_to_box_shaper.ObsTokenToBoxShaper", "sources": None},
+        "obs_normalizer": {
+            "_target_": "metta.agent.lib.observation_normalizer.ObservationNormalizer",
+            "sources": [{"name": "_obs_"}],
+        },
+        "cnn1": {
+            "_target_": "metta.agent.lib.nn_layer_library.Conv2d",
+            "sources": [{"name": "obs_normalizer"}],
+            "nn_params": {"out_channels": 64, "kernel_size": 5, "stride": 3},
+        },
+        "cnn2": {
+            "_target_": "metta.agent.lib.nn_layer_library.Conv2d",
+            "sources": [{"name": "cnn1"}],
+            "nn_params": {"out_channels": 64, "kernel_size": 3, "stride": 1},
+        },
+        "obs_flattener": {"_target_": "metta.agent.lib.nn_layer_library.Flatten", "sources": [{"name": "cnn2"}]},
+        "fc1": {
+            "_target_": "metta.agent.lib.nn_layer_library.Linear",
+            "sources": [{"name": "obs_flattener"}],
+            "nn_params": {"out_features": 128},
+        },
+        "encoded_obs": {
+            "_target_": "metta.agent.lib.nn_layer_library.Linear",
+            "sources": [{"name": "fc1"}],
+            "nn_params": {"out_features": 128},
+        },
+        "_core_": {
+            "_target_": "metta.agent.lib.lstm.LSTM",
+            "sources": [{"name": "encoded_obs"}],
+            "output_size": 128,
+            "nn_params": {"num_layers": 2},
+        },
+        "core_relu": {"_target_": "metta.agent.lib.nn_layer_library.ReLU", "sources": [{"name": "_core_"}]},
+        "critic_1": {
+            "_target_": "metta.agent.lib.nn_layer_library.Linear",
+            "sources": [{"name": "core_relu"}],
+            "nn_params": {"out_features": 1024},
+            "nonlinearity": "nn.Tanh",
+            "effective_rank": True,
+        },
+        "_value_": {
+            "_target_": "metta.agent.lib.nn_layer_library.Linear",
+            "sources": [{"name": "critic_1"}],
+            "nn_params": {"out_features": 1},
+            "nonlinearity": None,
+        },
+        "actor_1": {
+            "_target_": "metta.agent.lib.nn_layer_library.Linear",
+            "sources": [{"name": "core_relu"}],
+            "nn_params": {"out_features": 512},
+        },
+        "_action_embeds_": {
+            "_target_": "metta.agent.lib.action.ActionEmbedding",
+            "sources": None,
+            "nn_params": {"num_embeddings": 100, "embedding_dim": 16},
+        },
+        "_action_": {
+            "_target_": "metta.agent.lib.actor.MettaActorSingleHead",
+            "sources": [{"name": "actor_1"}, {"name": "_action_embeds_"}],
+        },
+    }
+
+
+def make_optimizer(parameters, **kwargs) -> torch.optim.Optimizer:
     """Create an optimizer directly."""
-    if type == "adam":
+    params = {**DEFAULT_PARAMS, **kwargs}
+    opt_type = params.pop("type", "adam")
+
+    if opt_type == "adam":
         return torch.optim.Adam(
             parameters,
-            lr=learning_rate,
-            betas=(beta1, beta2),
-            eps=eps,
-            weight_decay=weight_decay,
+            lr=params["learning_rate"],
+            betas=(params["beta1"], params["beta2"]),
+            eps=params["eps"],
+            weight_decay=params["weight_decay"],
         )
     else:
-        raise ValueError(f"Unsupported optimizer type: {type}")
+        raise ValueError(f"Unsupported optimizer type: {opt_type}")
 
 
 def make_experience_buffer(
     total_agents: int,
     batch_size: int,
-    bptt_horizon: int,
-    minibatch_size: int,
-    max_minibatch_size: int,
     obs_space,
     atn_space,
     device: torch.device,
     hidden_size: int,
-    cpu_offload: bool = False,
-    num_lstm_layers: int = 2,
-    agents_per_batch: Optional[int] = None,
+    **kwargs,
 ):
     """Create an experience buffer directly."""
     from metta.rl.experience import Experience
 
+    params = {
+        "bptt_horizon": DEFAULT_PARAMS["bptt_horizon"],
+        "minibatch_size": DEFAULT_PARAMS["minibatch_size"],
+        "max_minibatch_size": DEFAULT_PARAMS["minibatch_size"],
+        "cpu_offload": False,
+        "num_lstm_layers": 2,
+        "agents_per_batch": None,
+        **kwargs,
+    }
+
     return Experience(
         total_agents=total_agents,
         batch_size=batch_size,
-        bptt_horizon=bptt_horizon,
-        minibatch_size=minibatch_size,
-        max_minibatch_size=max_minibatch_size,
         obs_space=obs_space,
         atn_space=atn_space,
         device=device,
         hidden_size=hidden_size,
-        cpu_offload=cpu_offload,
-        num_lstm_layers=num_lstm_layers,
-        agents_per_batch=agents_per_batch,
+        **params,
     )
 
 
-def make_loss_module(
-    policy: torch.nn.Module,
-    vf_coef: float = 0.44,
-    ent_coef: float = 0.0021,
-    clip_coef: float = 0.1,
-    vf_clip_coef: float = 0.1,
-    norm_adv: bool = True,
-    clip_vloss: bool = True,
-    gamma: float = 0.977,
-    gae_lambda: float = 0.916,
-    vtrace_rho_clip: float = 1.0,
-    vtrace_c_clip: float = 1.0,
-    l2_reg_loss_coef: float = 0.0,
-    l2_init_loss_coef: float = 0.0,
-    kickstarter: Optional[Any] = None,
-):
+def make_loss_module(policy: torch.nn.Module, **kwargs):
     """Create a PPO loss module directly."""
     from metta.rl.objectives import ClipPPOLoss
 
-    return ClipPPOLoss(
-        policy=policy,
-        vf_coef=vf_coef,
-        ent_coef=ent_coef,
-        clip_coef=clip_coef,
-        vf_clip_coef=vf_clip_coef,
-        norm_adv=norm_adv,
-        clip_vloss=clip_vloss,
-        gamma=gamma,
-        gae_lambda=gae_lambda,
-        vtrace_rho_clip=vtrace_rho_clip,
-        vtrace_c_clip=vtrace_c_clip,
-        l2_reg_loss_coef=l2_reg_loss_coef,
-        l2_init_loss_coef=l2_init_loss_coef,
-        kickstarter=kickstarter,
-    )
+    params = {
+        "vf_coef": DEFAULT_PARAMS["vf_coef"],
+        "ent_coef": DEFAULT_PARAMS["ent_coef"],
+        "clip_coef": DEFAULT_PARAMS["clip_coef"],
+        "vf_clip_coef": DEFAULT_PARAMS["vf_clip_coef"],
+        "gamma": DEFAULT_PARAMS["gamma"],
+        "gae_lambda": DEFAULT_PARAMS["gae_lambda"],
+        "vtrace_rho_clip": DEFAULT_PARAMS["vtrace_rho_clip"],
+        "vtrace_c_clip": DEFAULT_PARAMS["vtrace_c_clip"],
+        "norm_adv": True,
+        "clip_vloss": True,
+        "l2_reg_loss_coef": 0.0,
+        "l2_init_loss_coef": 0.0,
+        "kickstarter": None,
+        **kwargs,
+    }
+
+    return ClipPPOLoss(policy=policy, **params)
 
 
 def make_vecenv(
@@ -335,32 +354,23 @@ def make_vecenv(
     )
 
 
-def env(
-    num_agents: int = 2,
-    width: int = 15,
-    height: int = 10,
-    max_steps: int = 1000,
-    obs_width: int = 11,
-    obs_height: int = 11,
-) -> Dict[str, Any]:
+def env(num_agents: int = None, **kwargs) -> Dict[str, Any]:
     """Create a default MetaGrid environment configuration."""
+    params = {**DEFAULT_ENV_PARAMS, **kwargs}
+    if num_agents is not None:
+        params["num_agents"] = num_agents
+
     return {
         "sampling": 0,
         "desync_episodes": False,
         "replay_level_prob": 0.0,
         "game": {
-            "num_agents": num_agents,
-            "obs_width": obs_width,
-            "obs_height": obs_height,
+            "num_agents": params["num_agents"],
+            "obs_width": params["obs_width"],
+            "obs_height": params["obs_height"],
             "num_observation_tokens": 200,
-            "max_steps": max_steps,
-            "inventory_item_names": [
-                "ore.red",
-                "battery.red",
-                "heart",
-                "laser",
-                "armor",
-            ],
+            "max_steps": params["max_steps"],
+            "inventory_item_names": ["ore.red", "battery.red", "heart", "laser", "armor"],
             "diversity_bonus": {"enabled": False, "similarity_coef": 0.5, "diversity_coef": 0.5},
             "agent": {
                 "default_item_max": 50,
@@ -377,64 +387,68 @@ def env(
                 },
             },
             "groups": {"agent": {"id": 0, "sprite": 0, "props": {}}},
-            "objects": {
-                "altar": {
-                    "type_id": TYPE_ALTAR,
-                    "input_battery.red": 1,
-                    "output_heart": 1,
-                    "max_output": 5,
-                    "conversion_ticks": 1,
-                    "cooldown": 10,
-                    "initial_items": 1,
-                },
-                "mine_red": {
-                    "type_id": TYPE_MINE_RED,
-                    "output_ore.red": 1,
-                    "color": 0,
-                    "max_output": 5,
-                    "conversion_ticks": 1,
-                    "cooldown": 50,
-                    "initial_items": 1,
-                },
-                "generator_red": {
-                    "type_id": TYPE_GENERATOR_RED,
-                    "input_ore.red": 1,
-                    "output_battery.red": 1,
-                    "color": 0,
-                    "max_output": 5,
-                    "conversion_ticks": 1,
-                    "cooldown": 50,
-                    "initial_items": 1,
-                },
-                "wall": {
-                    "type_id": TYPE_WALL,
-                    "swappable": False,
-                },
-                "block": {
-                    "type_id": TYPE_WALL,
-                    "swappable": True,
-                },
-            },
-            "actions": {
-                "noop": {"enabled": True},
-                "move": {"enabled": True},
-                "rotate": {"enabled": True},
-                "put_items": {"enabled": True},
-                "get_items": {"enabled": True},
-                "attack": {"enabled": False},
-                "swap": {"enabled": True},
-                "change_color": {"enabled": False},
-            },
+            "objects": _get_default_objects(),
+            "actions": _get_default_actions(),
             "reward_sharing": {"groups": {}},
             "map_builder": {
                 "_target_": "metta.mettagrid.room.random.Random",
-                "width": width,
-                "height": height,
+                "width": params["width"],
+                "height": params["height"],
                 "border_width": 2,
-                "agents": num_agents,
+                "agents": params["num_agents"],
                 "objects": {"mine_red": 2, "generator_red": 1, "altar": 1, "wall": 5, "block": 3},
             },
         },
+    }
+
+
+def _get_default_objects():
+    """Get default game objects configuration."""
+    return {
+        "altar": {
+            "type_id": TYPE_ALTAR,
+            "input_battery.red": 1,
+            "output_heart": 1,
+            "max_output": 5,
+            "conversion_ticks": 1,
+            "cooldown": 10,
+            "initial_items": 1,
+        },
+        "mine_red": {
+            "type_id": TYPE_MINE_RED,
+            "output_ore.red": 1,
+            "color": 0,
+            "max_output": 5,
+            "conversion_ticks": 1,
+            "cooldown": 50,
+            "initial_items": 1,
+        },
+        "generator_red": {
+            "type_id": TYPE_GENERATOR_RED,
+            "input_ore.red": 1,
+            "output_battery.red": 1,
+            "color": 0,
+            "max_output": 5,
+            "conversion_ticks": 1,
+            "cooldown": 50,
+            "initial_items": 1,
+        },
+        "wall": {"type_id": TYPE_WALL, "swappable": False},
+        "block": {"type_id": TYPE_WALL, "swappable": True},
+    }
+
+
+def _get_default_actions():
+    """Get default action configuration."""
+    return {
+        "noop": {"enabled": True},
+        "move": {"enabled": True},
+        "rotate": {"enabled": True},
+        "put_items": {"enabled": True},
+        "get_items": {"enabled": True},
+        "attack": {"enabled": False},
+        "swap": {"enabled": True},
+        "change_color": {"enabled": False},
     }
 
 
@@ -484,123 +498,19 @@ def get_logger(name: str):
 # High-level convenience functions
 
 
-def quick_train(
-    run_name: str = "default_run",
-    timesteps: int = 50_000_000_000,  # Match original default
-    batch_size: int = 262_144,  # Match original default
-    num_agents: int = 2,
-    num_workers: int = 1,
-    learning_rate: float = 0.0004573146765703167,  # Match original default
-    checkpoint_interval: int = 60,  # epochs, not seconds
-    evaluate_interval: int = 300,  # epochs
-    device: str = "cuda",
-    vectorization: str = "serial",
-    env_width: int = 15,
-    env_height: int = 10,
-    bptt_horizon: int = 64,  # Match original default
-    minibatch_size: int = 16_384,  # Match original default
-    update_epochs: int = 1,  # Match original default
-    max_grad_norm: float = 0.5,  # Match original default
-    # New parameters for enhanced features
-    target_kl: Optional[float] = None,  # Early stopping based on KL divergence
-    anneal_lr: bool = False,  # Enable learning rate annealing
-    lr_schedule_type: str = "linear",  # Type of LR schedule
-    warmup_steps: Optional[int] = None,  # Warmup steps for LR scheduler
-    l2_init_weight_update_interval: int = 0,  # L2 weight update interval
-    grad_stats_interval: int = 0,  # Gradient statistics logging interval
-    save_full_state: bool = True,  # Save full training state
-    wandb_enabled: bool = False,  # Enable wandb logging
-    wandb_project: str = "metta",  # Wandb project name
-    wandb_entity: Optional[str] = None,  # Wandb entity
-    wandb_tags: Optional[List[str]] = None,  # Wandb tags
-    resume_from: Optional[str] = None,  # Resume from checkpoint
-    logger=None,
-) -> str:
-    """Quick training function with sensible defaults matching the original trainer.
-
-    Args:
-        run_name: Name of the training run
-        timesteps: Total timesteps to train
-        batch_size: Batch size for training
-        num_agents: Number of agents per environment
-        num_workers: Number of workers
-        learning_rate: Learning rate
-        checkpoint_interval: How often to save checkpoints (in epochs)
-        evaluate_interval: How often to evaluate (in epochs)
-        device: Device to use
-        vectorization: Vectorization mode
-        env_width: Environment width
-        env_height: Environment height
-        bptt_horizon: BPTT horizon for LSTM training
-        minibatch_size: Minibatch size
-        update_epochs: Number of epochs to update per rollout
-        max_grad_norm: Maximum gradient norm for clipping
-        target_kl: Stop training if KL divergence exceeds this value
-        anneal_lr: Whether to anneal learning rate
-        lr_schedule_type: Type of LR schedule ("linear" or "cosine")
-        warmup_steps: Number of warmup steps for LR scheduler
-        l2_init_weight_update_interval: How often to update L2 init weights (epochs)
-        grad_stats_interval: How often to compute gradient statistics (epochs)
-        save_full_state: Whether to save full training state (optimizer, etc.)
-        wandb_enabled: Whether to enable wandb logging
-        wandb_project: Wandb project name
-        wandb_entity: Wandb entity
-        wandb_tags: Wandb tags
-        resume_from: Path to checkpoint to resume from
-        logger: Optional logger instance
-
-    Returns:
-        Path to the final checkpoint
-    """
-    import os
-    import time
-
+def _setup_training_environment(
+    run_name: str,
+    num_agents: int,
+    batch_size: int,
+    num_workers: int,
+    device: str,
+    vectorization: str,
+    env_width: int,
+    env_height: int,
+    logger,
+) -> Tuple[Any, Any, torch.nn.Module, Any]:
+    """Setup training environment, policy, and experience buffer."""
     import gymnasium as gym
-
-    from metta.common.stopwatch import Stopwatch
-    from metta.rl.functional_trainer import (
-        compute_initial_advantages,
-        perform_rollout_step,
-        process_rollout_infos,
-    )
-    from metta.rl.losses import Losses
-
-    if logger is None:
-        logger = get_logger("quick_train")
-
-    # Initialize wandb if enabled
-    wandb_run = None
-    if wandb_enabled:
-        try:
-            import wandb
-
-            wandb_run = wandb.init(
-                project=wandb_project,
-                entity=wandb_entity,
-                tags=wandb_tags,
-                name=run_name,
-                config={
-                    "run_name": run_name,
-                    "timesteps": timesteps,
-                    "batch_size": batch_size,
-                    "num_agents": num_agents,
-                    "learning_rate": learning_rate,
-                    "device": device,
-                    "bptt_horizon": bptt_horizon,
-                    "minibatch_size": minibatch_size,
-                    "update_epochs": update_epochs,
-                    "target_kl": target_kl,
-                    "anneal_lr": anneal_lr,
-                },
-            )
-            logger.info(f"Initialized wandb run: {wandb_run.name}")
-        except ImportError:
-            logger.warning("Wandb enabled but not installed. Install with: pip install wandb")
-            wandb_enabled = False
-
-    # Setup directories
-    checkpoint_dir = f"./train_dir/{run_name}/checkpoints"
-    os.makedirs(checkpoint_dir, exist_ok=True)
 
     # Create environment
     env_config = env(
@@ -611,12 +521,7 @@ def quick_train(
     )
 
     # Calculate environment count for batch size
-    # The number of environments should be calculated to achieve desired batch size
-    # batch_size = num_envs * num_agents * steps_per_rollout
-    # For single-step rollouts, we need: num_envs = batch_size / num_agents
     target_num_envs = batch_size // num_agents
-
-    # Ensure we have at least as many envs as workers
     if target_num_envs < num_workers:
         target_num_envs = num_workers
         logger.warning(
@@ -631,7 +536,6 @@ def quick_train(
         num_envs = num_workers
 
     logger.info(f"Using {num_envs} environments to achieve batch size ~{num_envs * num_agents}")
-    logger.info(f"Total agents: {num_envs * num_agents}")
 
     # Create vectorized environment
     vecenv = make_vecenv(
@@ -666,41 +570,288 @@ def quick_train(
     )
     policy.activate_actions(env_info.action_names, env_info.max_action_args, device_obj)
 
-    # For experience buffer, use actual batch_size parameter
-    # The original trainer uses a different batch_size for experience vs environments
+    # Create experience buffer
     total_agents = vecenv.num_agents
-
-    # Validate batch_size is large enough
-    min_batch_size = total_agents * bptt_horizon
-    if batch_size < min_batch_size:
-        logger.warning(
-            f"Batch size {batch_size} is too small for {total_agents} agents with "
-            f"bptt_horizon {bptt_horizon}. Adjusting to minimum {min_batch_size}."
-        )
-        batch_size = min_batch_size
-
-    # Create experience buffer with proper minibatch calculation
-    # Ensure minibatch_size divides batch_size evenly
-    while batch_size % minibatch_size != 0 and minibatch_size > 1:
-        minibatch_size -= 1
-
     experience = make_experience_buffer(
         total_agents=total_agents,
         batch_size=batch_size,
-        bptt_horizon=bptt_horizon,
-        minibatch_size=minibatch_size,
-        max_minibatch_size=minibatch_size,
         obs_space=env_info.single_observation_space,
         atn_space=env_info.single_action_space,
         device=device_obj,
         hidden_size=policy.hidden_size,
-        num_lstm_layers=policy.core_num_layers,
-        agents_per_batch=getattr(vecenv, "agents_per_batch", None),
+    )
+
+    return vecenv, env_info, policy, experience
+
+
+def _train_epoch(
+    policy,
+    experience,
+    loss_module,
+    optimizer,
+    losses,
+    advantages,
+    update_epochs: int,
+    max_grad_norm: float,
+    target_kl: Optional[float],
+    grad_stats_interval: int,
+    epoch: int,
+    agent_step: int,
+    device,
+    logger,
+) -> Tuple[bool, List[Tuple[int, Dict[str, float]]]]:
+    """Train for one epoch, return early_stop flag and gradient stats."""
+    kl_values = []
+    gradient_stats_history = []
+    early_stop = False
+
+    minibatch_idx = 0
+    total_minibatches = experience.num_minibatches * update_epochs
+
+    for update_epoch in range(update_epochs):
+        for mb_idx in range(experience.num_minibatches):
+            minibatch = experience.sample_minibatch(
+                advantages=advantages,
+                prio_alpha=0.0,
+                prio_beta=0.6,
+                minibatch_idx=minibatch_idx,
+                total_minibatches=total_minibatches,
+            )
+
+            loss = loss_module(
+                minibatch=minibatch,
+                experience=experience,
+                losses=losses,
+                agent_step=agent_step,
+                device=device,
+            )
+            losses.minibatches_processed += 1
+
+            optimizer.zero_grad()
+            loss.backward()
+
+            # Compute gradient statistics if enabled
+            if grad_stats_interval > 0 and epoch % grad_stats_interval == 0:
+                grad_stats = compute_gradient_stats(policy)
+                gradient_stats_history.append((epoch, grad_stats))
+
+            if (minibatch_idx + 1) % experience.accumulate_minibatches == 0:
+                torch.nn.utils.clip_grad_norm_(policy.parameters(), max_grad_norm)
+                optimizer.step()
+                if hasattr(policy, "clip_weights"):
+                    policy.clip_weights()
+
+            minibatch_idx += 1
+
+            # Track KL for early stopping
+            if hasattr(losses, "approx_kl_sum") and losses.minibatches_processed > 0:
+                avg_kl = losses.approx_kl_sum / losses.minibatches_processed
+                kl_values.append(avg_kl)
+
+        # Check for early stopping based on KL divergence
+        if target_kl is not None and kl_values:
+            mean_kl = np.mean(kl_values)
+            if mean_kl > target_kl:
+                logger.info(f"Early stopping: KL divergence ({mean_kl:.4f}) exceeded target ({target_kl})")
+                early_stop = True
+                break
+
+    return early_stop, gradient_stats_history
+
+
+def _log_metrics(
+    epoch: int,
+    agent_step: int,
+    losses,
+    optimizer,
+    timer,
+    all_rollout_stats: Dict[str, Any],
+    gradient_stats_history: List[Tuple[int, Dict[str, float]]],
+    wandb_run,
+    logger,
+) -> float:
+    """Log metrics and return mean reward."""
+    loss_dict = losses.stats()
+
+    # Log to wandb if enabled
+    if wandb_run:
+        try:
+            import wandb
+
+            metrics = {
+                "epoch": epoch,
+                "agent_step": agent_step,
+                "loss/policy": loss_dict.get("policy_loss", 0),
+                "loss/value": loss_dict.get("value_loss", 0),
+                "loss/entropy": loss_dict.get("entropy", 0),
+                "metrics/approx_kl": loss_dict.get("approx_kl", 0),
+                "metrics/clipfrac": loss_dict.get("clipfrac", 0),
+                "metrics/explained_variance": loss_dict.get("explained_variance", 0),
+                "learning_rate": optimizer.param_groups[0]["lr"],
+            }
+
+            # Add rollout stats
+            if all_rollout_stats:
+                for key, values in all_rollout_stats.items():
+                    if isinstance(values, list) and values:
+                        metrics[f"rollout/{key}"] = np.mean(values)
+
+            # Add gradient stats
+            if gradient_stats_history and gradient_stats_history[-1][0] == epoch:
+                for key, value in gradient_stats_history[-1][1].items():
+                    metrics[f"gradients/{key}"] = value
+
+            wandb.log(metrics, step=agent_step)
+        except Exception as e:
+            logger.warning(f"Failed to log to wandb: {e}")
+
+    # Calculate timing metrics
+    rollout_time = timer.get_last_elapsed("rollout")
+    train_time = timer.get_last_elapsed("train")
+    stats_time = timer.get_last_elapsed("stats")
+    total_time = rollout_time + train_time + stats_time
+
+    train_pct = (train_time / total_time) * 100 if total_time > 0 else 0
+    rollout_pct = (rollout_time / total_time) * 100 if total_time > 0 else 0
+    stats_pct = (stats_time / total_time) * 100 if total_time > 0 else 0
+
+    # Calculate average reward
+    mean_reward = 0.0
+    if all_rollout_stats:
+        reward_keys = [k for k in all_rollout_stats.keys() if "reward" in k and "mean" in k]
+        if reward_keys:
+            all_rewards = []
+            for k in reward_keys:
+                if isinstance(all_rollout_stats[k], list):
+                    all_rewards.extend(all_rollout_stats[k])
+                else:
+                    all_rewards.append(all_rollout_stats[k])
+            if all_rewards:
+                mean_reward = np.mean(all_rewards)
+
+    # Log training progress
+    logger.info(
+        f"Epoch {epoch} - "
+        f"{agent_step / total_time:.0f} steps/sec "
+        f"({train_pct:.0f}% train / {rollout_pct:.0f}% rollout / {stats_pct:.0f}% stats) - "
+        f"reward: {mean_reward:.2f}, "
+        f"policy_loss: {loss_dict.get('policy_loss', 0):.4f}, "
+        f"value_loss: {loss_dict.get('value_loss', 0):.4f}, "
+        f"kl: {loss_dict.get('approx_kl', 0):.4f}"
+    )
+
+    return mean_reward
+
+
+def quick_train(
+    run_name: str = "default_run",
+    timesteps: int = 50_000_000_000,
+    batch_size: int = None,
+    num_agents: int = None,
+    num_workers: int = 1,
+    learning_rate: float = None,
+    checkpoint_interval: int = 60,
+    evaluate_interval: int = 300,
+    device: str = "cuda",
+    vectorization: str = "serial",
+    env_width: int = None,
+    env_height: int = None,
+    bptt_horizon: int = None,
+    minibatch_size: int = None,
+    update_epochs: int = None,
+    max_grad_norm: float = None,
+    target_kl: Optional[float] = None,
+    anneal_lr: bool = False,
+    lr_schedule_type: str = "linear",
+    warmup_steps: Optional[int] = None,
+    l2_init_weight_update_interval: int = 0,
+    grad_stats_interval: int = 0,
+    save_full_state: bool = True,
+    wandb_enabled: bool = False,
+    wandb_project: str = "metta",
+    wandb_entity: Optional[str] = None,
+    wandb_tags: Optional[List[str]] = None,
+    resume_from: Optional[str] = None,
+    logger=None,
+    **kwargs,
+) -> str:
+    """Quick training function with sensible defaults.
+
+    Returns:
+        Path to the final checkpoint
+    """
+    import os
+    import time
+
+    from metta.common.stopwatch import Stopwatch
+    from metta.rl.functional_trainer import (
+        compute_initial_advantages,
+        perform_rollout_step,
+        process_rollout_infos,
+    )
+    from metta.rl.losses import Losses
+
+    # Apply defaults
+    params = {**DEFAULT_PARAMS, **kwargs}
+    batch_size = batch_size or params["batch_size"]
+    num_agents = num_agents or DEFAULT_ENV_PARAMS["num_agents"]
+    learning_rate = learning_rate or params["learning_rate"]
+    env_width = env_width or DEFAULT_ENV_PARAMS["width"]
+    env_height = env_height or DEFAULT_ENV_PARAMS["height"]
+    bptt_horizon = bptt_horizon or params["bptt_horizon"]
+    minibatch_size = minibatch_size or params["minibatch_size"]
+    update_epochs = update_epochs or params["update_epochs"]
+    max_grad_norm = max_grad_norm or params["max_grad_norm"]
+
+    if logger is None:
+        logger = get_logger("quick_train")
+
+    # Initialize wandb if enabled
+    wandb_run = None
+    if wandb_enabled:
+        try:
+            import wandb
+
+            wandb_run = wandb.init(
+                project=wandb_project,
+                entity=wandb_entity,
+                tags=wandb_tags,
+                name=run_name,
+                config={
+                    "run_name": run_name,
+                    "timesteps": timesteps,
+                    "batch_size": batch_size,
+                    "num_agents": num_agents,
+                    "learning_rate": learning_rate,
+                    "device": device,
+                    **params,
+                },
+            )
+            logger.info(f"Initialized wandb run: {wandb_run.name}")
+        except ImportError:
+            logger.warning("Wandb enabled but not installed. Install with: pip install wandb")
+            wandb_enabled = False
+
+    # Setup directories
+    checkpoint_dir = f"./train_dir/{run_name}/checkpoints"
+    os.makedirs(checkpoint_dir, exist_ok=True)
+
+    # Setup training environment
+    vecenv, env_info, policy, experience = _setup_training_environment(
+        run_name=run_name,
+        num_agents=num_agents,
+        batch_size=batch_size,
+        num_workers=num_workers,
+        device=device,
+        vectorization=vectorization,
+        env_width=env_width,
+        env_height=env_height,
+        logger=logger,
     )
 
     # Create optimizer and loss module
     optimizer = make_optimizer(policy.parameters(), learning_rate=learning_rate)
-    loss_module = make_loss_module(policy=policy)
+    loss_module = make_loss_module(policy=policy, **params)
     losses = Losses()
 
     # Create learning rate scheduler
@@ -718,19 +869,10 @@ def quick_train(
     # Initialize training variables
     epoch = 0
     agent_step = 0
-    steps_per_epoch = batch_size  # Steps taken per rollout
-    total_epochs = timesteps // batch_size  # Total number of rollout+train cycles
     latest_policy_path = None
     early_stop = False
-
-    # Timing
     timer = Stopwatch(logger)
     start_time = time.time()
-
-    # For distributed training (currently single GPU)
-    world_size = 1
-
-    # Stats
     all_rollout_stats = {}
     gradient_stats_history = []
 
@@ -750,28 +892,26 @@ def quick_train(
         logger.info(f"Resumed from epoch {epoch}, agent_step {agent_step}")
 
     logger.info(
-        f"Starting training with {num_envs} environments, "
-        f"{total_agents} total agents, "
+        f"Starting training with {vecenv.num_envs} environments, "
+        f"{vecenv.num_agents} total agents, "
         f"batch size {batch_size}, "
         f"minibatch size {experience.minibatch_size}"
     )
 
     # Reset environments
     vecenv.async_reset(seed=0)
+    device_obj = torch.device(device)
 
-    # Main training loop - matches original trainer structure
+    # Main training loop
     while agent_step < timesteps and not early_stop:
         steps_before = agent_step
 
         # Rollout phase
         with timer("rollout"):
             raw_infos = []
-
-            # Reset experience buffer for new rollout
             experience.reset_for_rollout()
 
             while not experience.ready_for_training:
-                # Rollout single step
                 num_steps, info, _ = perform_rollout_step(
                     policy=policy,
                     vecenv=vecenv,
@@ -785,8 +925,6 @@ def quick_train(
 
             # Process rollout stats
             rollout_stats = process_rollout_infos(raw_infos)
-
-            # Accumulate stats
             for k, v in rollout_stats.items():
                 if k not in all_rollout_stats:
                     all_rollout_stats[k] = []
@@ -802,67 +940,33 @@ def quick_train(
 
             # Compute advantages
             advantages = compute_initial_advantages(
-                experience, gamma=0.977, gae_lambda=0.916, vtrace_rho_clip=1.0, vtrace_c_clip=1.0, device=device_obj
+                experience,
+                gamma=params["gamma"],
+                gae_lambda=params["gae_lambda"],
+                vtrace_rho_clip=params["vtrace_rho_clip"],
+                vtrace_c_clip=params["vtrace_c_clip"],
+                device=device_obj,
             )
 
-            # Track KL divergence for early stopping
-            kl_values = []
-
-            # Update epochs (inner loop)
-            minibatch_idx = 0
-            total_minibatches = experience.num_minibatches * update_epochs
-
-            for update_epoch in range(update_epochs):
-                # Train minibatches
-                for mb_idx in range(experience.num_minibatches):
-                    minibatch = experience.sample_minibatch(
-                        advantages=advantages,
-                        prio_alpha=0.0,  # No prioritized replay by default
-                        prio_beta=0.6,
-                        minibatch_idx=minibatch_idx,
-                        total_minibatches=total_minibatches,
-                    )
-
-                    loss = loss_module(
-                        minibatch=minibatch,
-                        experience=experience,
-                        losses=losses,
-                        agent_step=agent_step,
-                        device=device_obj,
-                    )
-                    losses.minibatches_processed += 1
-
-                    optimizer.zero_grad()
-                    loss.backward()
-
-                    # Compute gradient statistics if enabled
-                    if grad_stats_interval > 0 and epoch % grad_stats_interval == 0:
-                        grad_stats = compute_gradient_stats(policy)
-                        gradient_stats_history.append((epoch, grad_stats))
-
-                    if (minibatch_idx + 1) % experience.accumulate_minibatches == 0:
-                        torch.nn.utils.clip_grad_norm_(policy.parameters(), max_grad_norm)
-                        optimizer.step()
-                        if hasattr(policy, "clip_weights"):
-                            policy.clip_weights()
-
-                    minibatch_idx += 1
-
-                    # Track KL for early stopping
-                    if hasattr(losses, "approx_kl_sum") and losses.minibatches_processed > 0:
-                        avg_kl = losses.approx_kl_sum / losses.minibatches_processed
-                        kl_values.append(avg_kl)
-
-                # Check for early stopping based on KL divergence
-                if target_kl is not None and kl_values:
-                    mean_kl = np.mean(kl_values)
-                    if mean_kl > target_kl:
-                        logger.info(f"Early stopping: KL divergence ({mean_kl:.4f}) exceeded target ({target_kl})")
-                        early_stop = True
-                        break
-
-                # Increment epoch after all minibatches in update_epoch
-                epoch += 1
+            # Train for one epoch
+            early_stop, new_grad_stats = _train_epoch(
+                policy=policy,
+                experience=experience,
+                loss_module=loss_module,
+                optimizer=optimizer,
+                losses=losses,
+                advantages=advantages,
+                update_epochs=update_epochs,
+                max_grad_norm=max_grad_norm,
+                target_kl=target_kl,
+                grad_stats_interval=grad_stats_interval,
+                epoch=epoch,
+                agent_step=agent_step,
+                device=device_obj,
+                logger=logger,
+            )
+            gradient_stats_history.extend(new_grad_stats)
+            epoch += update_epochs
 
             # Update learning rate scheduler
             if lr_scheduler:
@@ -876,79 +980,17 @@ def quick_train(
 
         # Process stats
         with timer("stats"):
-            loss_dict = losses.stats()
-
-            # Log to wandb if enabled
-            if wandb_enabled and wandb_run:
-                try:
-                    import wandb
-
-                    # Prepare metrics
-                    metrics = {
-                        "epoch": epoch,
-                        "agent_step": agent_step,
-                        "loss/policy": loss_dict.get("policy_loss", 0),
-                        "loss/value": loss_dict.get("value_loss", 0),
-                        "loss/entropy": loss_dict.get("entropy", 0),
-                        "metrics/approx_kl": loss_dict.get("approx_kl", 0),
-                        "metrics/clipfrac": loss_dict.get("clipfrac", 0),
-                        "metrics/explained_variance": loss_dict.get("explained_variance", 0),
-                        "learning_rate": optimizer.param_groups[0]["lr"],
-                    }
-
-                    # Add rollout stats
-                    if all_rollout_stats:
-                        for key, values in all_rollout_stats.items():
-                            if isinstance(values, list) and values:
-                                metrics[f"rollout/{key}"] = np.mean(values)
-
-                    # Add gradient stats
-                    if gradient_stats_history and gradient_stats_history[-1][0] == epoch:
-                        for key, value in gradient_stats_history[-1][1].items():
-                            metrics[f"gradients/{key}"] = value
-
-                    wandb.log(metrics, step=agent_step)
-                except Exception as e:
-                    logger.warning(f"Failed to log to wandb: {e}")
-
-        # Calculate and log metrics (per rollout+train cycle, not per epoch)
-        steps_in_cycle = agent_step - steps_before
-        rollout_time = timer.get_last_elapsed("rollout")
-        train_time = timer.get_last_elapsed("train")
-        stats_time = timer.get_last_elapsed("stats")
-        total_time = rollout_time + train_time + stats_time
-        steps_per_sec = steps_in_cycle / total_time if total_time > 0 else 0
-
-        train_pct = (train_time / total_time) * 100 if total_time > 0 else 0
-        rollout_pct = (rollout_time / total_time) * 100 if total_time > 0 else 0
-        stats_pct = (stats_time / total_time) * 100 if total_time > 0 else 0
-
-        # Calculate average reward from stats
-        mean_reward = 0.0
-        if all_rollout_stats:
-            reward_keys = [k for k in all_rollout_stats.keys() if "reward" in k and "mean" in k]
-            if reward_keys:
-                all_rewards = []
-                for k in reward_keys:
-                    if isinstance(all_rollout_stats[k], list):
-                        all_rewards.extend(all_rollout_stats[k])
-                    else:
-                        all_rewards.append(all_rollout_stats[k])
-                if all_rewards:
-                    mean_reward = np.mean(all_rewards)
-
-        loss_stats = losses.stats()
-
-        # Enhanced logging with loss stats
-        logger.info(
-            f"Epoch {epoch} - "
-            f"{steps_per_sec * world_size:.0f} steps/sec "
-            f"({train_pct:.0f}% train / {rollout_pct:.0f}% rollout / {stats_pct:.0f}% stats) - "
-            f"reward: {mean_reward:.2f}, "
-            f"policy_loss: {loss_stats.get('policy_loss', 0):.4f}, "
-            f"value_loss: {loss_stats.get('value_loss', 0):.4f}, "
-            f"kl: {loss_stats.get('approx_kl', 0):.4f}"
-        )
+            mean_reward = _log_metrics(
+                epoch=epoch,
+                agent_step=agent_step,
+                losses=losses,
+                optimizer=optimizer,
+                timer=timer,
+                all_rollout_stats=all_rollout_stats,
+                gradient_stats_history=gradient_stats_history,
+                wandb_run=wandb_run,
+                logger=logger,
+            )
 
         # Epoch-based checkpoint saving
         if epoch % checkpoint_interval == 0:
@@ -962,7 +1004,7 @@ def quick_train(
                 training_state = TrainingState(
                     epoch=epoch,
                     agent_step=agent_step,
-                    total_agent_step=agent_step * world_size,
+                    total_agent_step=agent_step,
                     optimizer_state_dict=optimizer.state_dict(),
                     lr_scheduler_state_dict=lr_scheduler.state_dict() if lr_scheduler else None,
                     policy_path=checkpoint_path,
@@ -978,7 +1020,7 @@ def quick_train(
             eval_results = quick_eval(
                 checkpoint_path=latest_policy_path or f"{checkpoint_dir}/policy_epoch_{epoch}.pt",
                 num_episodes=10,
-                num_envs=min(32, num_envs),
+                num_envs=min(32, vecenv.num_envs),
                 num_agents=num_agents,
                 device=device,
                 logger=logger,
@@ -1019,7 +1061,7 @@ def quick_train(
         final_state = TrainingState(
             epoch=epoch,
             agent_step=agent_step,
-            total_agent_step=agent_step * world_size,
+            total_agent_step=agent_step,
             optimizer_state_dict=optimizer.state_dict(),
             lr_scheduler_state_dict=lr_scheduler.state_dict() if lr_scheduler else None,
             policy_path=final_checkpoint,
@@ -1060,43 +1102,35 @@ def quick_eval(
     checkpoint_path: str,
     num_episodes: int = 10,
     num_envs: int = 32,
-    num_agents: int = 2,
+    num_agents: int = None,
     device: str = "cuda",
     vectorization: str = "multiprocessing",
-    env_width: int = 15,
-    env_height: int = 10,
+    env_width: int = None,
+    env_height: int = None,
     logger=None,
+    **kwargs,
 ) -> Dict[str, Any]:
     """Quick evaluation function.
-
-    Args:
-        checkpoint_path: Path to checkpoint to evaluate
-        num_episodes: Number of episodes to run
-        num_envs: Number of parallel environments
-        num_agents: Number of agents per environment
-        device: Device to use
-        vectorization: Vectorization mode
-        env_width: Environment width
-        env_height: Environment height
-        logger: Optional logger instance
 
     Returns:
         Dictionary with evaluation results
     """
     import gymnasium as gym
 
+    from metta.agent.policy_state import PolicyState
+    from metta.mettagrid.mettagrid_env import dtype_actions
+    from metta.mettagrid.util.dict_utils import unroll_nested_dict
+
+    # Apply defaults
+    num_agents = num_agents or DEFAULT_ENV_PARAMS["num_agents"]
+    env_width = env_width or DEFAULT_ENV_PARAMS["width"]
+    env_height = env_height or DEFAULT_ENV_PARAMS["height"]
+
     if logger is None:
         logger = get_logger("quick_eval")
 
     # Create environment
-    env_config = env(
-        num_agents=num_agents,
-        width=env_width,
-        height=env_height,
-        max_steps=1000,
-    )
-
-    # Create vectorized environment
+    env_config = env(num_agents=num_agents, width=env_width, height=env_height, **kwargs)
     vecenv = make_vecenv(
         env_config=env_config,
         num_envs=num_envs,
@@ -1106,8 +1140,9 @@ def quick_eval(
     )
 
     env_info = vecenv.driver_env
+    device_obj = torch.device(device)
 
-    # Create observation space
+    # Create observation space and agent
     obs_space = gym.spaces.Dict(
         {
             "grid_obs": env_info.single_observation_space,
@@ -1115,8 +1150,6 @@ def quick_eval(
         }
     )
 
-    # Create agent
-    device_obj = torch.device(device)
     policy = make_agent(
         obs_space=obs_space,
         action_space=env_info.single_action_space,
@@ -1128,101 +1161,60 @@ def quick_eval(
     )
     policy.activate_actions(env_info.action_names, env_info.max_action_args, device_obj)
 
-    # Load checkpoint
+    # Load checkpoint and set to eval mode
     policy.load_state_dict(torch.load(checkpoint_path, map_location=device))
     policy.eval()
-
     logger.info(f"Loaded checkpoint: {checkpoint_path}")
+
+    # Initialize state
+    state = PolicyState()
+    if hasattr(policy, "core_num_layers"):
+        state.lstm_h = torch.zeros(policy.core_num_layers, vecenv.num_agents, policy.hidden_size, device=device_obj)
+        state.lstm_c = torch.zeros(policy.core_num_layers, vecenv.num_agents, policy.hidden_size, device=device_obj)
 
     # Run evaluation
     rewards = []
     episode_lengths = []
     episodes_completed = 0
 
-    # Reset and start environments
     vecenv.async_reset(seed=42)
-
-    # Initialize hidden state
-    from metta.agent.policy_state import PolicyState
-    from metta.mettagrid.mettagrid_env import dtype_actions
-
-    state = PolicyState()
-    if hasattr(policy, "core_num_layers"):
-        state.lstm_h = torch.zeros(policy.core_num_layers, vecenv.num_agents, policy.hidden_size, device=device_obj)
-        state.lstm_c = torch.zeros(policy.core_num_layers, vecenv.num_agents, policy.hidden_size, device=device_obj)
-
-    step_count = 0
-
     logger.info(f"Starting evaluation with {num_envs} environments, collecting {num_episodes} episodes")
 
     while episodes_completed < num_episodes:
-        # Receive from environment
+        # Receive and process
         o, r, d, t, info, env_id, mask = vecenv.recv()
-        step_count += 1
-
-        # Convert observations to tensors
         o = torch.as_tensor(o).to(device_obj, non_blocking=True)
 
         with torch.no_grad():
             actions, _, _, _, _ = policy(o, state)
 
-        # Send actions to environment
         vecenv.send(actions.cpu().numpy().astype(dtype_actions))
 
         # Process episode completions
         if info:
-            # Debug first few steps to see info structure
-            if step_count <= 5:
-                logger.info(f"Info at step {step_count}: {info}")
-
-            # Process info like in training - it might be nested
-            from metta.mettagrid.util.dict_utils import unroll_nested_dict
-
-            for idx, info_dict in enumerate(info):
+            for info_dict in info:
                 if info_dict:
-                    # Unroll nested dictionary
                     flat_info = dict(unroll_nested_dict(info_dict))
 
-                    # Check various possible keys for episode completion
-                    episode_done = False
-                    episode_return = None
-                    episode_length = None
-
-                    # Look for task_reward pattern (e.g., "task_reward/task/rewards.mean")
+                    # Look for episode completion
                     for key, value in flat_info.items():
                         if key.startswith("task_reward/") and key.endswith("/rewards.mean"):
-                            episode_return = value
-                            episode_done = True
-                            logger.info(f"Found episode completion with key: {key} = {value}")
-                            break
+                            rewards.append(float(value))
 
-                    # Also check for episode length/steps
-                    if "attributes" in flat_info and isinstance(flat_info["attributes"], dict):
-                        if "steps" in flat_info["attributes"]:
-                            episode_length = flat_info["attributes"]["steps"]
+                            # Get episode length if available
+                            if "attributes" in flat_info and isinstance(flat_info["attributes"], dict):
+                                if "steps" in flat_info["attributes"]:
+                                    episode_lengths.append(int(flat_info["attributes"]["steps"]))
 
-                    if episode_done and episode_return is not None:
-                        rewards.append(float(episode_return))
-                        if episode_length is not None:
-                            episode_lengths.append(int(episode_length))
-                        episodes_completed += 1
+                            episodes_completed += 1
+                            if episodes_completed % max(1, num_episodes // 10) == 0:
+                                logger.info(f"Episodes completed: {episodes_completed}/{num_episodes}")
 
-                        logger.info(
-                            f"Episode {episodes_completed}/{num_episodes} completed: "
-                            f"reward={episode_return:.2f}, length={episode_length or 'N/A'}"
-                        )
+                            if episodes_completed >= num_episodes:
+                                break
 
-                        if episodes_completed >= num_episodes:
-                            logger.info(f"Collected {num_episodes} episodes after {step_count} steps")
-                            break
-
-        # Debug: check what's in info periodically
-        if step_count % 5000 == 0 and info:
-            logger.info(f"Sample info at step {step_count}: {info[0] if info else 'None'}")
-
-        # Log progress every 1000 steps
-        if step_count % 1000 == 0:
-            logger.info(f"Evaluation step {step_count}, episodes completed: {episodes_completed}/{num_episodes}")
+                if episodes_completed >= num_episodes:
+                    break
 
     vecenv.close()
 
@@ -1237,7 +1229,6 @@ def quick_eval(
 
     if episode_lengths:
         results["avg_episode_length"] = np.mean(episode_lengths)
-        results["episode_lengths"] = episode_lengths
 
     return results
 
@@ -1247,20 +1238,12 @@ def quick_sim(
     policy_uri: str,
     num_episodes: int = 10,
     num_envs: int = 32,
-    num_agents: int = 2,
+    num_agents: int = None,
     device: str = "cuda",
     logger=None,
+    **kwargs,
 ) -> Dict[str, Any]:
     """Quick simulation/evaluation function using direct evaluation.
-
-    Args:
-        run_name: Name of the run
-        policy_uri: URI of the policy to evaluate
-        num_episodes: Number of episodes to run
-        num_envs: Number of parallel environments
-        num_agents: Number of agents per environment
-        device: Device to use
-        logger: Optional logger instance
 
     Returns:
         Dictionary with simulation results
@@ -1271,14 +1254,8 @@ def quick_sim(
         logger = get_logger("quick_sim")
 
     # Extract checkpoint path from URI
-    if policy_uri.startswith("file://"):
-        checkpoint_path = policy_uri[7:]
-    else:
-        checkpoint_path = policy_uri
-
-    # Make sure path is absolute
-    if not os.path.isabs(checkpoint_path):
-        checkpoint_path = os.path.abspath(checkpoint_path)
+    checkpoint_path = policy_uri[7:] if policy_uri.startswith("file://") else policy_uri
+    checkpoint_path = os.path.abspath(checkpoint_path)
 
     logger.info(f"Evaluating policy: {checkpoint_path}")
 
@@ -1291,14 +1268,14 @@ def quick_sim(
         device=device,
         vectorization="multiprocessing",
         logger=logger,
+        **kwargs,
     )
 
     # Format results
-    policy_name = os.path.basename(checkpoint_path)
     return {
         "policies": [
             {
-                "name": policy_name,
+                "name": os.path.basename(checkpoint_path),
                 "uri": policy_uri,
                 "metrics": results,
             }
@@ -1310,14 +1287,7 @@ def quick_sim(
 
 
 def create_policy_store(config: Dict[str, Any]) -> Any:
-    """Create a PolicyStore instance for managing policies.
-
-    Args:
-        config: Runtime configuration dict
-
-    Returns:
-        PolicyStore instance
-    """
+    """Create a PolicyStore instance for managing policies."""
     from metta.agent.policy_store import PolicyStore
 
     return PolicyStore(DictConfig(config), stats_client=None)
@@ -1329,17 +1299,7 @@ def save_policy_to_store(
     name: str,
     metadata: Optional[Dict[str, Any]] = None,
 ) -> Any:
-    """Save a policy to the PolicyStore with metadata.
-
-    Args:
-        policy_store: PolicyStore instance
-        policy: Policy to save
-        name: Name for the policy
-        metadata: Optional metadata dict
-
-    Returns:
-        PolicyRecord instance
-    """
+    """Save a policy to the PolicyStore with metadata."""
     import os
 
     # Create path for policy
@@ -1358,19 +1318,10 @@ def run_simulation_suite(
     device: str = "cuda",
     logger=None,
 ) -> Dict[str, Any]:
-    """Run a full simulation suite evaluation.
+    """Run a full simulation suite evaluation."""
+    import os
 
-    Args:
-        policy_path: Path to policy checkpoint
-        suite_name: Name of the simulation suite
-        num_envs: Number of environments
-        num_episodes: Number of episodes per task
-        device: Device to use
-        logger: Optional logger
-
-    Returns:
-        Dictionary with evaluation results for all tasks
-    """
+    from metta.agent.policy_record import PolicyRecord
     from metta.sim.simulation import SimulationSuite
     from metta.sim.simulation_config import SimulationSuiteConfig
 
@@ -1387,8 +1338,6 @@ def run_simulation_suite(
     )
 
     # Create policy record
-    from metta.agent.policy_record import PolicyRecord
-
     policy_record = PolicyRecord(
         name=os.path.basename(policy_path),
         uri=f"file://{os.path.abspath(policy_path)}",
@@ -1397,12 +1346,7 @@ def run_simulation_suite(
 
     # Run simulation suite
     logger.info(f"Running simulation suite '{suite_name}' with policy: {policy_path}")
-    sim_suite = SimulationSuite(
-        config=suite_config,
-        policy_pr=policy_record,
-        device=device,
-    )
-
+    sim_suite = SimulationSuite(config=suite_config, policy_pr=policy_record, device=device)
     results = sim_suite.run()
 
     # Format results
@@ -1427,20 +1371,11 @@ def generate_replay(
 ) -> List[str]:
     """Generate replay files for visualization.
 
-    Args:
-        policy_path: Path to policy checkpoint
-        num_episodes: Number of episodes to record
-        output_dir: Directory to save replays
-        device: Device to use
-        logger: Optional logger
-
-    Returns:
-        List of replay file paths
+    Note: This is a placeholder - actual replay generation would require
+    integration with the replay recording system.
     """
     if logger is None:
         logger = get_logger("replay_generator")
 
-    # This is a placeholder - actual replay generation would require
-    # integration with the replay recording system
     logger.info("Replay generation not yet implemented in functional API")
     return []

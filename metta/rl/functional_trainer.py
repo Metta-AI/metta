@@ -9,7 +9,6 @@ from collections import defaultdict
 from contextlib import nullcontext
 from typing import Any, Dict, Optional, Tuple
 
-import einops
 import numpy as np
 import torch
 import torch.distributed
@@ -39,13 +38,7 @@ def process_rollout_infos(raw_infos: list) -> Dict[str, Any]:
         if isinstance(v, list):
             stats.setdefault(k, []).extend(v)
         else:
-            if k not in stats:
-                stats[k] = v
-            else:
-                try:
-                    stats[k] += v
-                except TypeError:
-                    stats[k] = [stats[k], v]
+            stats[k] = [stats[k], v] if k in stats else v
     return stats
 
 
@@ -57,17 +50,16 @@ def perform_rollout_step(
     timer: Optional[Any],
 ) -> Tuple[int, list, int]:
     """Performs a single step of the rollout, interacting with the environment."""
-    with timer("_rollout.env"):
+    with timer("_rollout.env") if timer else nullcontext():
         o, r, d, t, info, env_id, mask = vecenv.recv()
         training_env_id = slice(env_id[0], env_id[-1] + 1)
 
     mask = torch.as_tensor(mask)
     num_steps = int(mask.sum().item())
 
-    o = torch.as_tensor(o).to(device, non_blocking=True)
-    r = torch.as_tensor(r).to(device, non_blocking=True)
-    d = torch.as_tensor(d).to(device, non_blocking=True)
-    t = torch.as_tensor(t).to(device, non_blocking=True)
+    # Convert to tensors
+    tensors = [o, r, d, t]
+    o, r, d, t = [torch.as_tensor(x).to(device, non_blocking=True) for x in tensors]
 
     with torch.no_grad():
         state = PolicyState()
@@ -85,8 +77,6 @@ def perform_rollout_step(
         if str(device).startswith("cuda"):
             torch.cuda.synchronize()
 
-    value = value.flatten()
-
     experience.store(
         obs=o,
         actions=actions,
@@ -94,13 +84,13 @@ def perform_rollout_step(
         rewards=r,
         dones=d,
         truncations=t,
-        values=value,
+        values=value.flatten(),
         env_id=training_env_id,
         mask=mask,
         lstm_state=lstm_state_to_store,
     )
 
-    with timer("_rollout.env"):
+    with timer("_rollout.env") if timer else nullcontext():
         vecenv.send(actions.cpu().numpy().astype(dtype_actions))
 
     return num_steps, info, 0
@@ -119,7 +109,7 @@ def compute_advantage(
     device: torch.device,
 ) -> Tensor:
     """CUDA kernel for puffer advantage with automatic CPU fallback."""
-    # Move tensors to device and compute advantage
+    # Move tensors to device
     tensors = [values, rewards, dones, importance_sampling_ratio, advantages]
     tensors = [t.to(device) for t in tensors]
     values, rewards, dones, importance_sampling_ratio, advantages = tensors
@@ -150,21 +140,22 @@ def normalize_advantage_distributed(adv: Tensor, norm_adv: bool = True) -> Tenso
     if torch.distributed.is_initialized():
         # Compute local statistics
         adv_flat = adv.view(-1)
-        local_sum = einops.rearrange(adv_flat.sum(), "-> 1")
-        local_sq_sum = einops.rearrange((adv_flat * adv_flat).sum(), "-> 1")
-        local_count = torch.tensor([adv_flat.numel()], dtype=adv.dtype, device=adv.device)
+        local_stats = torch.tensor(
+            [adv_flat.sum().item(), (adv_flat * adv_flat).sum().item(), adv_flat.numel()],
+            dtype=adv.dtype,
+            device=adv.device,
+        )
 
-        # Combine statistics for single all_reduce
-        stats = einops.rearrange([local_sum, local_sq_sum, local_count], "one float -> (float one)")
-        torch.distributed.all_reduce(stats, op=torch.distributed.ReduceOp.SUM)
+        # All-reduce statistics
+        torch.distributed.all_reduce(local_stats, op=torch.distributed.ReduceOp.SUM)
 
         # Extract global statistics
-        global_sum, global_sq_sum, global_count = stats[0], stats[1], stats[2]
+        global_sum, global_sq_sum, global_count = local_stats
         global_mean = global_sum / global_count
         global_var = (global_sq_sum / global_count) - (global_mean * global_mean)
         global_std = torch.sqrt(global_var.clamp(min=1e-8))
 
-        # Normalize and reshape back
+        # Normalize
         adv = (adv - global_mean) / (global_std + 1e-8)
     else:
         # Local normalization
