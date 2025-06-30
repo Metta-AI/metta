@@ -10,7 +10,7 @@ MaybeSeed = Union[int, np.random.Generator, None]
 
 
 class BaseIntDistribution(BaseModel):
-    def sample(self, rng: np.random.Generator) -> int: ...
+    def sample(self, _: np.random.Generator) -> int: ...
 
 
 class IntConstantDistribution(BaseIntDistribution):

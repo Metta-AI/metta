@@ -135,7 +135,8 @@ class Scene(Generic[ParamsT]):
         for query in self.get_children():
             areas = self.select_areas(query)
             for area in areas:
-                child_scene = make_scene(query.scene, area)
+                child_rng = self.rng.spawn(1)[0]
+                child_scene = make_scene(cfg=query.scene, area=area, rng=child_rng)
                 self.register_child(area, child_scene)
                 child_scene.render_with_children()
 
@@ -209,7 +210,7 @@ class Scene(Generic[ParamsT]):
     @classmethod
     def factory(
         cls: Type[SceneT],
-        params: dict,
+        params: dict | Config,
         children: Optional[list[ChildrenAction]] = None,
         seed: MaybeSeed = None,
     ) -> SceneCfg:
@@ -225,11 +226,11 @@ def load_class(full_class_name: str) -> type[Scene]:
     return cls
 
 
-def make_scene(cfg: SceneCfg, area: Area) -> Scene:
+def make_scene(cfg: SceneCfg, area: Area, rng: np.random.Generator) -> Scene:
     if callable(cfg):
         # Some scene configs are lambdas, usually produced by `Scene.factory()` helper.
         # These are often useful for dynamically produced children actions in `get_children()`.
-        scene = cfg(area, np.random.default_rng())
+        scene = cfg(area, rng)
         if not isinstance(scene, Scene):
             raise ValueError(f"Scene callback didn't return a valid scene: {scene}")
         return scene
@@ -243,4 +244,9 @@ def make_scene(cfg: SceneCfg, area: Area) -> Scene:
         raise ValueError(f"Invalid scene config: {cfg}, type: {type(cfg)}")
 
     cls = load_class(cfg["type"])
-    return cls(area=area, params=cfg.get("params", {}), children=cfg.get("children", []))
+    return cls(
+        area=area,
+        params=cfg.get("params", {}),
+        children=cfg.get("children", []),
+        seed=cfg.get("seed", rng),
+    )
