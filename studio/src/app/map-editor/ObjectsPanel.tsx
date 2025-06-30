@@ -30,9 +30,6 @@ const ObjectIcon: FC<{
   name: string;
   drawer: Drawer;
 }> = ({ name, drawer }) => {
-  if (name === "empty") {
-    return <div className="h-8 w-8 bg-gray-200" />;
-  }
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const size = 32;
@@ -52,6 +49,10 @@ const ObjectIcon: FC<{
 
     drawer.drawObject(name, ctx, 0, 0, scaledSize);
   }, [name, drawer]);
+
+  if (name === "empty") {
+    return <div className="h-8 w-8 bg-gray-200" />;
+  }
 
   return (
     <canvas
