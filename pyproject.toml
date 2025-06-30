@@ -59,6 +59,8 @@ dependencies = [
   "wandb>=0.19.11",
   "wandb-carbs",
   "wandb-core>=0.17.0b11",
+  "pyro-ppl>=1.9.1",
+  "torch>=2.7.1",
 ]
 
 [dependency-groups]

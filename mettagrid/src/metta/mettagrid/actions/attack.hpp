@@ -54,11 +54,10 @@ protected:
     bool was_frozen = false;
     if (agent_target) {
       // Track attack targets
-      actor->stats.incr("action." + _action_name + "." + ObjectTypeNames[agent_target->type_id]);
-      actor->stats.incr("action." + _action_name + "." + ObjectTypeNames[agent_target->type_id] + "." +
-                        actor->group_name);
-      actor->stats.incr("action." + _action_name + "." + ObjectTypeNames[agent_target->type_id] + "." +
-                        actor->group_name + "." + agent_target->group_name);
+      actor->stats.incr("action." + _action_name + "." + agent_target->type_name);
+      actor->stats.incr("action." + _action_name + "." + agent_target->type_name + "." + actor->group_name);
+      actor->stats.incr("action." + _action_name + "." + agent_target->type_name + "." + actor->group_name + "." +
+                        agent_target->group_name);
 
       if (agent_target->group_name == actor->group_name) {
         actor->stats.incr("attack.own_team." + actor->group_name);

@@ -8,63 +8,154 @@
 
 import json
 import logging
-import os
 import random
 import sys
 import time
 import zipfile
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from dataclasses import asdict
+from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from gemini_analyze_pr import PRAnalyzer, PRSummary
 from gemini_client import MODEL_CONFIG, GeminiAIClient
 
 
-class CacheManager:
-    """Manages caching of PR summaries to avoid re-analyzing unchanged PRs."""
+@dataclass
+class PRSummaryData:
+    """Extended PRSummary with source tracking."""
 
-    def __init__(self, cache_dir: str = ".pr-digest-cache"):
-        self.cache_dir = Path(cache_dir)
-        self.cache_file = self.cache_dir / "pr_summaries_cache.json"
+    pr_number: int
+    title: str
+    summary: str
+    key_changes: List[str]
+    developer_impact: str
+    technical_notes: Optional[str]
+    category: str
+    impact_level: str
+    author: str
+    merged_at: str
+    html_url: str
+    source: str  # "cache" or "new"
 
-    def load_cache(self) -> Dict:
-        """Load cached PR summaries."""
-        force_refresh = os.getenv("FORCE_REFRESH", "false").lower() == "true"
-        if force_refresh:
-            logging.info("Force refresh enabled, skipping cache load")
-            return {}
+    def to_pr_summary(self) -> PRSummary:
+        """Convert to PRSummary object."""
+        return PRSummary(
+            pr_number=self.pr_number,
+            title=self.title,
+            summary=self.summary,
+            key_changes=self.key_changes,
+            developer_impact=self.developer_impact,
+            technical_notes=self.technical_notes,
+            category=self.category,
+            impact_level=self.impact_level,
+            author=self.author,
+            merged_at=self.merged_at,
+            html_url=self.html_url,
+        )
 
-        if self.cache_file.exists():
-            try:
-                with open(self.cache_file) as f:
-                    cache_data = json.load(f)
-                    if isinstance(cache_data, dict) and "model" in cache_data:
-                        logging.info(f"Loaded cache with {len(cache_data.get('summaries', {}))} entries")
-                        return cache_data
-                return {}
-            except Exception as e:
-                logging.error(f"Error loading cache: {e}")
-        return {}
 
-    def save_cache(self, summaries: Dict, model_name: str) -> None:
-        """Save PR summaries to cache."""
-        self.cache_dir.mkdir(exist_ok=True)
+class CachedSummaryLoader:
+    """Loads PR summaries from cache files."""
 
-        cache_data = {"model": model_name, "generated_at": datetime.now().isoformat(), "summaries": summaries}
+    def __init__(self, summaries_dir: Path = Path("pr-summaries")):
+        self.summaries_dir = summaries_dir
+
+    def load_summary(self, pr_number: int) -> Optional[PRSummaryData]:
+        """Load a single PR summary from cache."""
+        summary_file = self.summaries_dir / f"pr_{pr_number}.txt"
+
+        if not summary_file.exists():
+            return None
 
         try:
-            with open(self.cache_file, "w") as f:
-                json.dump(cache_data, f, indent=2)
-            logging.info(f"Saved cache with {len(summaries)} entries")
-        except Exception as e:
-            logging.error(f"Error saving cache: {e}")
+            content = summary_file.read_text(encoding="utf-8")
 
-    def get_cache_key(self, pr_data: Dict) -> str:
-        """Generate a cache key for a PR."""
-        return f"{pr_data['number']}-{pr_data['merged_at']}"
+            # Parse the structured summary file
+            sections = {
+                "title": "",
+                "author": "",
+                "merged_at": "",
+                "category": "",
+                "impact_level": "",
+                "html_url": "",
+                "summary": "",
+                "key_changes": [],
+                "developer_impact": "",
+                "technical_notes": "",
+            }
+
+            current_section = None
+            lines = content.split("\n")
+
+            for line in lines:
+                # Parse header
+                if line.startswith(f"PR #{pr_number}: "):
+                    sections["title"] = line.split(": ", 1)[1]
+                elif line.startswith("Author: "):
+                    sections["author"] = line.replace("Author: ", "").strip()
+                elif line.startswith("Merged: "):
+                    sections["merged_at"] = line.replace("Merged: ", "").strip()
+                elif line.startswith("Category: "):
+                    sections["category"] = line.replace("Category: ", "").strip().lower()
+                elif line.startswith("Impact: "):
+                    sections["impact_level"] = line.replace("Impact: ", "").strip().lower()
+                elif line.startswith("GitHub: "):
+                    sections["html_url"] = line.replace("GitHub: ", "").strip()
+
+                # Section markers
+                elif line.strip() == "SUMMARY":
+                    current_section = "summary"
+                elif line.strip() == "KEY CHANGES":
+                    current_section = "key_changes"
+                elif line.strip() == "DEVELOPER IMPACT":
+                    current_section = "developer_impact"
+                elif line.strip() == "TECHNICAL NOTES":
+                    current_section = "technical_notes"
+                elif line.startswith("=" * 20):
+                    current_section = None
+
+                # Content within sections
+                elif current_section and line.strip():
+                    if current_section == "key_changes" and line.startswith("• "):
+                        sections["key_changes"].append(line[2:].strip())
+                    elif current_section in ["summary", "developer_impact", "technical_notes"]:
+                        if sections[current_section]:
+                            sections[current_section] += " "
+                        sections[current_section] += line.strip()
+
+            # Create PRSummaryData object
+            return PRSummaryData(
+                pr_number=pr_number,
+                title=sections["title"],
+                summary=sections["summary"],
+                key_changes=sections["key_changes"],
+                developer_impact=sections["developer_impact"],
+                technical_notes=sections["technical_notes"] if sections["technical_notes"] else None,
+                category=sections["category"],
+                impact_level=sections["impact_level"],
+                author=sections["author"],
+                merged_at=sections["merged_at"],
+                html_url=sections["html_url"],
+                source="cache",
+            )
+
+        except Exception as e:
+            logging.error(f"Error loading cached summary for PR #{pr_number}: {e}")
+            return None
+
+    def load_summaries(self, pr_numbers: List[int]) -> List[PRSummaryData]:
+        """Load multiple PR summaries from cache."""
+        summaries = []
+        for pr_num in pr_numbers:
+            summary = self.load_summary(pr_num)
+            if summary:
+                summaries.append(summary)
+                logging.info(f"Loaded cached summary for PR #{pr_num}")
+            else:
+                logging.warning(f"Failed to load cached summary for PR #{pr_num}")
+        return summaries
 
 
 class PreviousNewsletterExtractor:
@@ -74,11 +165,7 @@ class PreviousNewsletterExtractor:
         self.newsletter_dir = Path(newsletter_dir)
 
     def extract_discord_summaries(self) -> List[Dict[str, str]]:
-        """Extract discord summaries from previous newsletter artifacts.
-
-        Returns:
-            List of dicts with 'content', 'run_id', and 'date' keys, sorted by date (oldest first)
-        """
+        """Extract discord summaries from previous newsletter artifacts."""
         if not self.newsletter_dir.exists():
             logging.info(f"Previous newsletters directory '{self.newsletter_dir}' not found")
             return []
@@ -94,13 +181,10 @@ class PreviousNewsletterExtractor:
 
         for zip_path in zip_files:
             try:
-                # Extract run ID from filename (format: newsletter-X_RUNID.zip)
-                artifact_name = zip_path.stem  # Remove .zip extension
+                artifact_name = zip_path.stem
                 run_id = artifact_name.split("_")[-1] if "_" in artifact_name else artifact_name
 
-                # Extract and read discord summary
                 with zipfile.ZipFile(zip_path, "r") as zf:
-                    # Look for discord_summary_output.txt
                     discord_file = None
                     for name in zf.namelist():
                         if name.endswith("discord_summary_output.txt"):
@@ -108,16 +192,9 @@ class PreviousNewsletterExtractor:
                             break
 
                     if discord_file:
-                        # Read the content
                         content = zf.read(discord_file).decode("utf-8")
-
-                        # Get file info for timestamp
                         file_info = zf.getinfo(discord_file)
                         file_date = file_info.date_time
-
-                        # Convert to readable date string
-                        from datetime import datetime
-
                         timestamp = datetime(*file_date[:6])
 
                         summaries.append(
@@ -137,37 +214,24 @@ class PreviousNewsletterExtractor:
                 logging.error(f"❌ Error processing {zip_path.name}: {e}")
                 continue
 
-        # Sort by date (oldest first)
         summaries.sort(key=lambda x: x["date"])
-
         logging.info(f"Successfully extracted {len(summaries)} discord summaries")
         return summaries
 
     def get_previous_summaries_context(self, max_summaries: int = 3) -> str:
-        """Get formatted context from previous summaries for AI prompt.
-
-        Args:
-            max_summaries: Maximum number of previous summaries to include
-
-        Returns:
-            Formatted string with previous summaries context
-        """
+        """Get formatted context from previous summaries for AI prompt."""
         summaries = self.extract_discord_summaries()
 
         if not summaries:
             return ""
 
-        # Take the most recent summaries (last N items since list is sorted oldest first)
         recent_summaries = summaries[-max_summaries:] if len(summaries) > max_summaries else summaries
 
-        # Extract previous shout outs to help AI avoid repetition
         all_shout_outs = []
         for summary in recent_summaries:
             content = summary["content"]
-            # Look for shout out section
             if "**Shout Outs:**" in content:
                 shout_section = content.split("**Shout Outs:**")[1].split("**")[0]
-                # Extract usernames mentioned (looking for @username pattern)
                 import re
 
                 mentioned_users = re.findall(r"👏 @(\w+)", shout_section)
@@ -193,7 +257,7 @@ class PreviousNewsletterExtractor:
             context_parts.extend(
                 [
                     f"---Newsletter from {summary['date']}---",
-                    summary["content"][:1500],  # Limit each summary to avoid prompt bloat
+                    summary["content"][:1500],
                     "...[truncated]" if len(summary["content"]) > 1500 else "",
                     "",
                 ]
@@ -222,7 +286,6 @@ class CollectionAnalyzer:
 
         top_authors = sorted(stats["by_author"].items(), key=lambda x: x[1], reverse=True)[:5]
 
-        # Group PRs by category for detailed context
         by_category = {}
         for pr in pr_summaries:
             if pr.category not in by_category:
@@ -240,10 +303,9 @@ class CollectionAnalyzer:
             "**Detailed PR Context:**",
         ]
 
-        # Add detailed info for each category
         for category, prs in by_category.items():
             context_lines.append(f"\n**{category.upper()} ({len(prs)} PRs):**")
-            for pr in prs[:6]:  # Limit to top 6 per category
+            for pr in prs[:6]:
                 context_lines.append(f"• #{pr.pr_number}: {pr.title} ({pr.impact_level}) by {pr.author}")
                 context_lines.append(f"  Summary: {pr.summary[:120]}...")
                 if pr.developer_impact and pr.developer_impact != "Minimal developer impact.":
@@ -254,11 +316,8 @@ class CollectionAnalyzer:
     def generate_collection_summary(self, pr_summaries: List[PRSummary], date_range: str, repository: str) -> str:
         """Generate a comprehensive collection summary."""
         context = self.prepare_context(pr_summaries, date_range, repository)
-
-        # Get previous newsletter context
         previous_context = self.newsletter_extractor.get_previous_summaries_context()
 
-        # Random creative element for closing thoughts
         bonus_prompts = [
             "A haiku capturing the essence of this development cycle - focus on the rhythm of progress, "
             "bugs conquered, or features born",
@@ -329,7 +388,6 @@ include brief descriptions and PR links]
 **Closing Thoughts:** [{selected_bonus_prompt}]
 """
 
-        # Use best model for comprehensive collection analysis
         ai_response = self.ai_client.generate_with_retry(prompt, "best")
 
         if not ai_response:
@@ -381,21 +439,29 @@ Generated using {MODEL_CONFIG["default"]} on {datetime.now().isoformat()}
 
     @staticmethod
     def create_discord_summary(
-        pr_summaries: List[PRSummary], collection_summary: str, date_range: str, github_run_url: str
+        pr_summaries: List[PRSummary],
+        collection_summary: str,
+        date_range: str,
+        github_run_url: str,
+        stats: Dict[str, int],
+        github_repository: str,
     ) -> str:
         """Create Discord-formatted summary with statistics."""
-        stats = {"by_category": {}, "by_impact": {}}
+        category_stats = {}
+        impact_stats = {}
         for pr in pr_summaries:
-            stats["by_category"][pr.category] = stats["by_category"].get(pr.category, 0) + 1
-            stats["by_impact"][pr.impact_level] = stats["by_impact"].get(pr.impact_level, 0) + 1
+            category_stats[pr.category] = category_stats.get(pr.category, 0) + 1
+            impact_stats[pr.impact_level] = impact_stats.get(pr.impact_level, 0) + 1
 
         lines = [
-            f"📊 **Enhanced PR Summary Report** • {date_range}",
+            f"📊 ** {github_repository} Newsletter ** • {date_range}",
             "",
             "**📈 Statistics**",
-            f"• Total PRs: {len(pr_summaries)}",
-            f"• Categories: {', '.join(f'{k}: {v}' for k, v in stats['by_category'].items())}",
-            f"• Impact: {', '.join(f'{k}: {v}' for k, v in stats['by_impact'].items())}",
+            f"• Total PRs analyzed: {len(pr_summaries)}",
+            f"• New PRs summarized: {stats.get('new_prs_to_fetch', 0)}",
+            f"• Previously cached: {stats.get('cached_pr_count', 0)}",
+            f"• Categories: {', '.join(f'{k}: {v}' for k, v in category_stats.items())}",
+            f"• Impact: {', '.join(f'{k}: {v}' for k, v in impact_stats.items())}",
             f"• Generated: <t:{int(time.time())}:R> using Gemini 2.5 with full context analysis",
             "",
             collection_summary,
@@ -407,70 +473,67 @@ Generated using {MODEL_CONFIG["default"]} on {datetime.now().isoformat()}
 
 
 class PRDigestAnalyzer:
-    """Main orchestrator for analyzing PR digests with caching and parallel processing."""
+    """Main orchestrator for analyzing PR digests."""
 
     def __init__(self, api_key: str):
         self.ai_client = GeminiAIClient(api_key)
         self.pr_analyzer = PRAnalyzer(self.ai_client)
-        self.cache_manager = CacheManager()
         self.collection_analyzer = CollectionAnalyzer(self.ai_client)
         self.output_formatter = OutputFormatter()
+        self.cached_loader = CachedSummaryLoader()
 
     def analyze_digest(
-        self, pr_data_list: List[Dict], use_parallel: bool = True, max_workers: int = 5
-    ) -> List[PRSummary]:
-        """Analyze a digest of PRs with caching and optional parallel processing."""
-        # Load cache
-        cache_data = self.cache_manager.load_cache()
-        model_name = MODEL_CONFIG["default"]
+        self, new_prs: List[Dict], cached_pr_numbers: List[int], use_parallel: bool = True, max_workers: int = 5
+    ) -> List[PRSummaryData]:
+        """Analyze new PRs and combine with cached summaries."""
+        all_summaries = []
 
-        if cache_data.get("model") != model_name:
-            logging.info(f"Cache is for different model ({cache_data.get('model')}), regenerating")
-            cached_summaries = {}
-        else:
-            cached_summaries = cache_data.get("summaries", {})
+        # Step 1: Load cached summaries
+        if cached_pr_numbers:
+            logging.info(f"Loading {len(cached_pr_numbers)} cached PR summaries...")
+            cached_summaries = self.cached_loader.load_summaries(cached_pr_numbers)
+            all_summaries.extend(cached_summaries)
+            logging.info(f"Successfully loaded {len(cached_summaries)} cached summaries")
 
-        updated_cache = cached_summaries.copy()
-        results = []
-        prs_to_process = []
+        # Step 2: Process new PRs
+        if new_prs:
+            logging.info(f"Processing {len(new_prs)} new PRs...")
 
-        # Separate cached and uncached PRs
-        for pr_data in pr_data_list:
-            cache_key = self.cache_manager.get_cache_key(pr_data)
-            if cache_key in cached_summaries:
-                logging.info(f"Using cached summary for PR #{pr_data['number']}")
-                results.append(PRSummary(**cached_summaries[cache_key]))
-            else:
-                prs_to_process.append(pr_data)
-
-        logging.info(f"Found {len(results)} cached summaries, processing {len(prs_to_process)} new PRs")
-
-        # Process uncached PRs
-        if prs_to_process:
-            if use_parallel and len(prs_to_process) > 2:
+            if use_parallel and len(new_prs) > 2:
                 logging.info(f"Using parallel processing with {max_workers} workers")
-                new_summaries = self._process_parallel(prs_to_process, max_workers)
+                new_summaries = self._process_parallel(new_prs, max_workers)
             else:
                 logging.info("Using sequential processing")
-                new_summaries = self._process_sequential(prs_to_process)
+                new_summaries = self._process_sequential(new_prs)
 
-            # Add new summaries to results and cache
-            for summary_data in new_summaries:
-                if summary_data:
-                    summary = PRSummary(**summary_data)
-                    results.append(summary)
-
-                    cache_key = self.cache_manager.get_cache_key(
-                        {"number": summary.pr_number, "merged_at": summary.merged_at}
+            # Convert to PRSummaryData and add to results
+            for summary_dict in new_summaries:
+                if summary_dict:
+                    summary_data = PRSummaryData(
+                        pr_number=summary_dict["pr_number"],
+                        title=summary_dict["title"],
+                        summary=summary_dict["summary"],
+                        key_changes=summary_dict["key_changes"],
+                        developer_impact=summary_dict["developer_impact"],
+                        technical_notes=summary_dict.get("technical_notes"),
+                        category=summary_dict["category"],
+                        impact_level=summary_dict["impact_level"],
+                        author=summary_dict["author"],
+                        merged_at=summary_dict["merged_at"],
+                        html_url=summary_dict["html_url"],
+                        source="new",
                     )
-                    updated_cache[cache_key] = summary_data
-
-            # Save updated cache
-            self.cache_manager.save_cache(updated_cache, model_name)
+                    all_summaries.append(summary_data)
 
         # Sort by PR number (newest first)
-        results.sort(key=lambda x: x.pr_number, reverse=True)
-        return results
+        all_summaries.sort(key=lambda x: x.pr_number, reverse=True)
+
+        logging.info(
+            f"Total summaries: {len(all_summaries)} ({len([s for s in all_summaries if s.source == 'cache'])} cached,"
+            f" {len([s for s in all_summaries if s.source == 'new'])} new)"
+        )
+
+        return all_summaries
 
     def _process_parallel(self, prs: List[Dict], max_workers: int) -> List[Dict]:
         """Process PRs in parallel."""
@@ -530,62 +593,94 @@ def main():
 
     optional_vars = {
         "PR_DIGEST_FILE": "pr_digest_output.json",
+        "PR_DIGEST_STATS_FILE": "pr_digest_stats.json",
         "REPORT_PERIOD": "(unknown)",
     }
 
     # Parse configuration
     env_values = parse_config(required_vars, optional_vars)
 
-    # Extract values for easier use
+    # Extract values
     api_key = env_values["GEMINI_API_KEY"]
     github_repository = env_values["GITHUB_REPOSITORY"]
     github_server_url = env_values["GITHUB_SERVER_URL"]
     github_run_id = env_values["GITHUB_RUN_ID"]
     pr_digest_file = env_values["PR_DIGEST_FILE"]
+    stats_file = env_values["PR_DIGEST_STATS_FILE"]
     report_period = env_values["REPORT_PERIOD"]
 
     # Construct GitHub run URL
     github_run_url = f"{github_server_url}/{github_repository}/actions/runs/{github_run_id}"
 
-    # Validate file existence
+    # Load PR digest and stats
     if not Path(pr_digest_file).exists():
         print(f"Error: PR digest file {pr_digest_file} not found")
         sys.exit(1)
 
-    # Load and validate PR data
-    with open(pr_digest_file, "r") as f:
-        pr_data_list = json.load(f)
+    if not Path(stats_file).exists():
+        print(f"Error: Stats file {stats_file} not found")
+        sys.exit(1)
 
-    if not pr_data_list:
-        print("No PRs found in digest")
+    with open(pr_digest_file, "r") as f:
+        new_prs = json.load(f)
+
+    with open(stats_file, "r") as f:
+        stats = json.load(f)
+
+    # Check if there are any PRs in the time period
+    if stats["total_prs_in_range"] == 0:
+        print("No PRs found in the specified time period")
+
+        # Create minimal output files
+        with open("discord_summary_output.txt", "w") as f:
+            f.write(f"📊 **PR Summary Report** • {report_period}\n\n")
+            f.write("ℹ️ No PRs were merged during this period.\n")
+
+        with open("collection_summary_output.txt", "w") as f:
+            f.write("No PRs to summarize in this period.")
+
+        with open("pr_summary_data.json", "w") as f:
+            json.dump([], f)
+
+        print("Created minimal output files")
         sys.exit(0)
 
-    print(f"Processing {len(pr_data_list)} PRs with AI analysis...")
+    cached_pr_numbers = stats.get("cached_pr_numbers", [])
 
-    # Initialize analyzer and process PRs
+    print("Processing PR digest:")
+    print(f"  - Total PRs in period: {stats['total_prs_in_range']}")
+    print(f"  - New PRs to analyze: {len(new_prs)}")
+    print(f"  - Cached PRs to load: {len(cached_pr_numbers)}")
+
+    # Initialize analyzer and process
     analyzer = PRDigestAnalyzer(api_key)
-    pr_summaries = analyzer.analyze_digest(pr_data_list)
+    all_summaries = analyzer.analyze_digest(new_prs, cached_pr_numbers)
 
-    if not pr_summaries:
+    if not all_summaries:
         print("No summaries generated")
         sys.exit(1)
 
-    print(f"✅ Generated {len(pr_summaries)} PR summaries")
+    print(f"✅ Processed {len(all_summaries)} total PR summaries")
 
-    # Create output directory and save individual PR files
+    # Convert to PRSummary objects for collection analysis
+    pr_summaries = [s.to_pr_summary() for s in all_summaries]
+
+    # Save individual PR files for newly processed PRs only
     pr_summaries_dir = Path("pr-summaries")
     pr_summaries_dir.mkdir(exist_ok=True)
 
-    print(f"Saving individual PR summaries to {pr_summaries_dir}/...")
-    for pr_summary in pr_summaries:
-        filepath = analyzer.output_formatter.save_individual_pr_file(pr_summary, pr_summaries_dir)
-        logging.debug(f"Saved {filepath}")
+    new_summaries = [s for s in all_summaries if s.source == "new"]
+    if new_summaries:
+        print(f"Saving {len(new_summaries)} new PR summaries to {pr_summaries_dir}/...")
+        for summary_data in new_summaries:
+            pr_summary = summary_data.to_pr_summary()
+            filepath = analyzer.output_formatter.save_individual_pr_file(pr_summary, pr_summaries_dir)
+            logging.debug(f"Saved {filepath}")
+        print(f"✅ Saved {len(new_summaries)} new PR files")
 
-    print(f"✅ Saved {len(pr_summaries)} individual PR files")
-
-    # Save structured data
+    # Save structured data (all summaries)
     with open("pr_summary_data.json", "w") as f:
-        json.dump([asdict(pr) for pr in pr_summaries], f, indent=2)
+        json.dump([asdict(pr.to_pr_summary()) for pr in all_summaries], f, indent=2)
     print("✅ Saved pr_summary_data.json")
 
     # Generate collection summary
@@ -601,7 +696,7 @@ def main():
     # Create Discord-formatted output
     print("Generating Discord summary...")
     discord_summary = analyzer.output_formatter.create_discord_summary(
-        pr_summaries, collection_summary, report_period, github_run_url
+        pr_summaries, collection_summary, report_period, github_run_url, stats, github_repository
     )
 
     with open("discord_summary_output.txt", "w") as f:

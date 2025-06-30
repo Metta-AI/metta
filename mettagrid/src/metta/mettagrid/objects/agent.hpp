@@ -51,7 +51,8 @@ public:
         color(0),
         current_resource_reward(0),
         stats(inventory_item_names) {
-    GridObject::init(type_id, GridLocation(r, c, GridLayer::Agent_Layer));
+    // #HardCodedConfig -- "agent" is hard coded.
+    GridObject::init(type_id, "agent", GridLocation(r, c, GridLayer::Agent_Layer));
 
     this->frozen = 0;
     this->orientation = 0;

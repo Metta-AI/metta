@@ -9,7 +9,8 @@
 #include "metta_object.hpp"
 
 struct WallConfig {
-  int type_id;
+  TypeId type_id;
+  std::string type_name;
   bool swappable;
 };
 
@@ -18,7 +19,7 @@ public:
   bool _swappable;
 
   Wall(GridCoord r, GridCoord c, WallConfig cfg) {
-    GridObject::init(cfg.type_id, GridLocation(r, c, GridLayer::Object_Layer));
+    GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c, GridLayer::Object_Layer));
     this->_swappable = cfg.swappable;
   }
 

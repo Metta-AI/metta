@@ -17,8 +17,7 @@ NAME_TO_CHAR: dict[str, list[str]] = {
     "mine_blue": ["b"],
     "mine_green": ["g"],
     # generators
-    "generator": ["n"],
-    "generator_red": ["R"],
+    "generator_red": ["n", "R"],
     "generator_blue": ["B"],
     "generator_green": ["G"],
     # other objects
