@@ -18,53 +18,53 @@ _logging_configured = False
 
 class NoWhoAmIFilter(logging.Filter):
     """Filter out /whoami requests from uvicorn access logs."""
-    
+
     def filter(self, record):
         # Filter out /whoami requests from uvicorn access logs
-        if hasattr(record, 'getMessage'):
+        if hasattr(record, "getMessage"):
             message = record.getMessage()
-            return not ('/whoami' in message and 'GET' in message)
+            return not ("/whoami" in message and "GET" in message)
         return True
 
 
 def setup_logging():
     """Configure logging for the application, including heatmap performance logging."""
     global _logging_configured
-    
+
     if _logging_configured:
         return
-    
+
     # Configure root logger
     logging.basicConfig(
         level=logging.INFO,
-        format='%(asctime)s [%(name)s] %(levelname)s: %(message)s',
-        handlers=[logging.StreamHandler(sys.stdout)]
+        format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
+        handlers=[logging.StreamHandler(sys.stdout)],
     )
-    
+
     # Configure heatmap performance logger specifically
     heatmap_logger = logging.getLogger("heatmap_performance")
     heatmap_logger.setLevel(logging.INFO)
-    
+
     # Configure database query performance logger
     db_logger = logging.getLogger("db_performance")
     db_logger.setLevel(logging.INFO)
-    
+
     # Configure route performance logger
     route_logger = logging.getLogger("route_performance")
     route_logger.setLevel(logging.INFO)
-    
+
     # Ensure the loggers don't duplicate messages from root logger
     heatmap_logger.propagate = True
     db_logger.propagate = True
     route_logger.propagate = True
-    
+
     # Filter out /whoami requests from uvicorn access logs
     uvicorn_access_logger = logging.getLogger("uvicorn.access")
     uvicorn_access_logger.addFilter(NoWhoAmIFilter())
-    
+
     _logging_configured = True
     print("Logging configured - performance logging enabled (routes, db queries, heatmaps), /whoami requests filtered")
-    
+
     # Test log to verify it's working
     test_logger = logging.getLogger("heatmap_performance")
     test_logger.info("Heatmap performance logging is active and ready")
@@ -74,7 +74,7 @@ def create_app(stats_repo: MettaRepo) -> fastapi.FastAPI:
     """Create a FastAPI app with the given StatsRepo instance."""
     # Ensure logging is configured
     setup_logging()
-    
+
     app = fastapi.FastAPI()
 
     # Add CORS middleware
@@ -111,7 +111,7 @@ if __name__ == "__main__":
 
     # Setup logging first
     setup_logging()
-    
+
     stats_repo = MettaRepo(stats_db_uri)
     app = create_app(stats_repo)
 
