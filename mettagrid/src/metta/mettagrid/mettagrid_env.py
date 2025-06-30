@@ -133,8 +133,6 @@ class MettaGridEnv(PufferEnv, GymEnv):
         # have GameConfig validate strictly. I'm less sure about diversity_bonus, but it's not used in the C++ code.
         if "map_builder" in game_config_dict:
             del game_config_dict["map_builder"]
-        if "diversity_bonus" in game_config_dict:
-            del game_config_dict["diversity_bonus"]
 
         # During training, we run a lot of envs in parallel, and it's better if they are not
         # all synced together. The desync_episodes flag is used to desync the episodes.
