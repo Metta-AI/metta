@@ -68,7 +68,6 @@ py::dict CreateBenchmarkConfig(int num_agents) {
   game_cfg["actions"] = actions_cfg;
 
   // Groups configuration
-  py::dict agent_groups;
   py::dict agent_group1, agent_group2;
 
   agent_group1["freeze_duration"] = 0;
@@ -79,6 +78,9 @@ py::dict CreateBenchmarkConfig(int num_agents) {
   agent_group1["group_name"] = "team1";
   agent_group1["group_id"] = 0;
   agent_group1["group_reward_pct"] = 0.0f;
+  agent_group1["type_id"] = 0;
+  agent_group1["type_name"] = "agent";
+  agent_group1["object_type"] = "agent";
 
   agent_group2["freeze_duration"] = 0;
   agent_group2["action_failure_penalty"] = 0;
@@ -88,11 +90,9 @@ py::dict CreateBenchmarkConfig(int num_agents) {
   agent_group2["group_name"] = "team2";
   agent_group2["group_id"] = 1;
   agent_group2["group_reward_pct"] = 0.0f;
-
-  agent_groups["agent.team1"] = agent_group1;
-  agent_groups["agent.team2"] = agent_group2;
-
-  game_cfg["agent_groups"] = agent_groups;
+  agent_group2["type_id"] = 0;
+  agent_group2["type_name"] = "agent";
+  agent_group2["object_type"] = "agent";
 
   // Objects configuration
   py::dict objects_cfg;
@@ -100,6 +100,10 @@ py::dict CreateBenchmarkConfig(int num_agents) {
 
   objects_cfg["wall"] = wall_cfg;
   objects_cfg["wall"]["type_id"] = 1;
+  objects_cfg["wall"]["type_name"] = "wall";
+  objects_cfg["wall"]["object_type"] = "wall";
+  objects_cfg["agent.team1"] = agent_group1;
+  objects_cfg["agent.team2"] = agent_group2;
 
   game_cfg["objects"] = objects_cfg;
 
