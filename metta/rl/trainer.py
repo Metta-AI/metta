@@ -200,9 +200,13 @@ class MettaTrainer:
             self.policy = policy_record.policy
             self.policy.activate_actions(actions_names, actions_max_params, self.device)
 
+            # Initialize latest_saved_policy_record for non-master processes
+            if not self._master:
+                self.latest_saved_policy_record = policy_record
+
         assert self.policy is not None, "Failed to obtain policy"
 
-        logging.info(f"USING {self.latest_saved_policy_record.uri}")
+        logging.info(f"USING {self.initial_policy_record.uri}")
 
         if self._master:
             logger.info(f"MettaTrainer loaded: {self.policy}")
@@ -866,7 +870,9 @@ class MettaTrainer:
             "epoch_steps": epoch_steps,
             "num_minibatches": self.experience.num_minibatches,
             "generation": self.current_policy_generation,
-            "policy_record_version": self.latest_saved_policy_record.key_and_version()[1],
+            "policy_record_version": self.latest_saved_policy_record.key_and_version()[1]
+            if self.latest_saved_policy_record
+            else 0,
         }
 
         self.wandb_run.log(
