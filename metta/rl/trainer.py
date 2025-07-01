@@ -453,26 +453,6 @@ class MettaTrainer:
                     losses=self.losses,
                     device=self.device,
                 )
-
-                # Update values in experience buffer
-                experience.update_values(minibatch["indices"], newvalue.view(minibatch["values"].shape))
-
-                if self.losses is None:
-                    raise ValueError("self.losses is None")
-
-                # Update loss tracking for logging
-                self.losses.policy_loss_sum += pg_loss.item()
-                self.losses.value_loss_sum += v_loss.item()
-                self.losses.entropy_sum += entropy_loss.item()
-                self.losses.approx_kl_sum += approx_kl.item()
-                self.losses.clipfrac_sum += clipfrac.item()
-                self.losses.l2_init_loss_sum += l2_init_loss.item() if torch.is_tensor(l2_init_loss) else l2_init_loss
-                self.losses.ks_action_loss_sum += ks_action_loss.item()
-                self.losses.ks_value_loss_sum += ks_value_loss.item()
-                self.losses.importance_sum += importance_sampling_ratio.mean().item()
-                self.losses.minibatches_processed += 1
-                self.losses.current_logprobs_sum += new_logprobs.mean().item()
-
                 self.optimizer.zero_grad()
                 loss.backward()
                 if (minibatch_idx + 1) % self.experience.accumulate_minibatches == 0:
