@@ -39,9 +39,13 @@ cpplint_output*
 
 observatory/node_modules/
 observatory/.vite/
+observatory/dist/
 
 wandb
 
 /devops/charts/**/charts
 
 .claude/settings.local.json
+
+# can be created by skypilot
+/Miniconda3-Linux.sh

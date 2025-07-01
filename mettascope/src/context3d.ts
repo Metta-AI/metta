@@ -812,19 +812,20 @@ export class Context3d {
     }
 
     // Handle high-DPI displays by resizing the canvas if necessary.
-    const { clientWidth, clientHeight } = this.canvas
-    const newWidth = Math.round(clientWidth * this.dpr)
-    const newHeight = Math.round(clientHeight * this.dpr)
-    if (this.canvas.width !== newWidth || this.canvas.height !== newHeight) {
-      this.canvas.width = newWidth
-      this.canvas.height = newHeight
+    const clientWidth = window.innerWidth
+    const clientHeight = window.innerHeight
+    const screenWidth = Math.round(clientWidth * this.dpr)
+    const screenHeight = Math.round(clientHeight * this.dpr)
+    if (this.canvas.width !== screenWidth || this.canvas.height !== screenHeight) {
+      this.canvas.width = screenWidth
+      this.canvas.height = screenHeight
       this.canvas.style.width = `${clientWidth}px`
       this.canvas.style.height = `${clientHeight}px`
     }
 
     // Setup for rendering
     const device = this.device
-    this.canvasSize = new Vec2f(this.canvas.width, this.canvas.height)
+    this.canvasSize = new Vec2f(screenWidth, screenHeight)
     device.queue.writeBuffer(
       this.canvasSizeUniformBuffer!,
       0, // Buffer offset.
@@ -870,8 +871,8 @@ export class Context3d {
         // Apply scissor if enabled for this mesh
         if (mesh.scissorEnabled) {
           const [x, y, width, height] = mesh.scissorRect
-          const w = Math.floor(this.canvas.width)
-          const h = Math.floor(this.canvas.height)
+          const w = Math.floor(screenWidth)
+          const h = Math.floor(screenHeight)
           passEncoder.setScissorRect(
             clamp(Math.floor(x), 0, w),
             clamp(Math.floor(y), 0, h),
@@ -880,7 +881,7 @@ export class Context3d {
           )
         } else {
           // Reset scissor to full canvas if previously set
-          passEncoder.setScissorRect(0, 0, this.canvas.width, this.canvas.height)
+          passEncoder.setScissorRect(0, 0, screenWidth, screenHeight)
         }
 
         // Draw the mesh

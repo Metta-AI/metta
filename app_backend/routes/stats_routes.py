@@ -1,10 +1,12 @@
 import uuid
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
+from app_backend.auth import create_user_or_token_dependency
 from app_backend.metta_repo import MettaRepo
+from app_backend.route_logger import timed_route
 
 
 # Request/Response Models
@@ -14,7 +16,6 @@ class PolicyIdResponse(BaseModel):
 
 class TrainingRunCreate(BaseModel):
     name: str
-    user_id: str
     attributes: Dict[str, str] = Field(default_factory=dict)
     url: Optional[str] = None
 
@@ -63,8 +64,14 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
     """Create a stats router with the given StatsRepo instance."""
     router = APIRouter(prefix="/stats", tags=["stats"])
 
+    # Create the user-or-token authentication dependency
+    user_or_token = Depends(create_user_or_token_dependency(stats_repo))
+
     @router.get("/policies/ids", response_model=PolicyIdResponse)
-    async def get_policy_ids(policy_names: List[str] = Query(default=[])) -> PolicyIdResponse:
+    @timed_route("get_policy_ids")
+    async def get_policy_ids(
+        policy_names: List[str] = Query(default=[]), user: str = user_or_token
+    ) -> PolicyIdResponse:
         """Get policy IDs for given policy names."""
         try:
             policy_ids = stats_repo.get_policy_ids(policy_names)
@@ -75,12 +82,13 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
             raise HTTPException(status_code=500, detail=f"Failed to get policy IDs: {str(e)}") from e
 
     @router.post("/training-runs", response_model=TrainingRunResponse)
-    async def create_training_run(training_run: TrainingRunCreate) -> TrainingRunResponse:
+    @timed_route("create_training_run")
+    async def create_training_run(training_run: TrainingRunCreate, user: str = user_or_token) -> TrainingRunResponse:
         """Create a new training run."""
         try:
             run_id = stats_repo.create_training_run(
                 name=training_run.name,
-                user_id=training_run.user_id,
+                user_id=user,
                 attributes=training_run.attributes,
                 url=training_run.url,
             )
@@ -89,7 +97,8 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
             raise HTTPException(status_code=500, detail=f"Failed to create training run: {str(e)}") from e
 
     @router.post("/training-runs/{run_id}/epochs", response_model=EpochResponse)
-    async def create_epoch(run_id: str, epoch: EpochCreate) -> EpochResponse:
+    @timed_route("create_epoch")
+    async def create_epoch(run_id: str, epoch: EpochCreate, user: str = user_or_token) -> EpochResponse:
         """Create a new policy epoch."""
         try:
             run_id_uuid = uuid.UUID(run_id)
@@ -106,7 +115,8 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
             raise HTTPException(status_code=500, detail=f"Failed to create policy epoch: {str(e)}") from e
 
     @router.post("/policies", response_model=PolicyResponse)
-    async def create_policy(policy: PolicyCreate) -> PolicyResponse:
+    @timed_route("create_policy")
+    async def create_policy(policy: PolicyCreate, user: str = user_or_token) -> PolicyResponse:
         """Create a new policy."""
         try:
             epoch_id_uuid = uuid.UUID(policy.epoch_id) if policy.epoch_id else None
@@ -120,7 +130,8 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
             raise HTTPException(status_code=500, detail=f"Failed to create policy: {str(e)}") from e
 
     @router.post("/episodes", response_model=EpisodeResponse)
-    async def record_episode(episode: EpisodeCreate) -> EpisodeResponse:
+    @timed_route("record_episode")
+    async def record_episode(episode: EpisodeCreate, user: str = user_or_token) -> EpisodeResponse:
         """Record a new episode with agent policies and metrics."""
         try:
             # Convert string UUIDs to UUID objects

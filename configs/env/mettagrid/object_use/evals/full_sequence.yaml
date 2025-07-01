@@ -22,5 +22,5 @@ game:
   map_builder:
     objects:
       altar: 1
-      generator: 1
-      mine: 1
+      generator_red: 1
+      mine_red: 1

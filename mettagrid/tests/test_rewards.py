@@ -40,20 +40,22 @@ def create_heart_reward_test_env(max_steps=50, num_agents=NUM_AGENTS):
         "obs_width": OBS_WIDTH,
         "obs_height": OBS_HEIGHT,
         "num_observation_tokens": NUM_OBS_TOKENS,
+        "inventory_item_names": ["laser", "armor", "heart"],
         "actions": {
             "noop": {"enabled": True},
             "get_items": {"enabled": True},
             "move": {"enabled": True},
             "rotate": {"enabled": True},
             "put_items": {"enabled": True},
-            "attack": {"enabled": True},
+            "attack": {"enabled": True, "attack_resources": {"laser": 1}, "defense_resources": {"armor": 1}},
             "swap": {"enabled": True},
             "change_color": {"enabled": True},
         },
         "groups": {"red": {"id": 0, "props": {}}},
         "objects": {
-            "wall": {},
+            "wall": {"type_id": 1},
             "altar": {
+                "type_id": 8,
                 "output_heart": 1,
                 "initial_items": 5,  # Start with some hearts
                 "max_output": 50,
@@ -67,7 +69,7 @@ def create_heart_reward_test_env(max_steps=50, num_agents=NUM_AGENTS):
         },
     }
 
-    return MettaGrid(cpp_config_dict(game_config), game_map)
+    return MettaGrid(cpp_config_dict(game_config), game_map, 42)
 
 
 def create_reward_test_env(max_steps=10, width=5, height=5, num_agents=NUM_AGENTS):
@@ -89,11 +91,12 @@ def create_reward_test_env(max_steps=10, width=5, height=5, num_agents=NUM_AGENT
         "obs_width": OBS_WIDTH,
         "obs_height": OBS_HEIGHT,
         "num_observation_tokens": NUM_OBS_TOKENS,
+        "inventory_item_names": ["laser", "armor", "heart"],
         "actions": {
             "noop": {"enabled": True},
             "move": {"enabled": True},
             "rotate": {"enabled": False},
-            "attack": {"enabled": False},
+            "attack": {"enabled": False, "attack_resources": {"laser": 1}, "defense_resources": {"armor": 1}},
             "put_items": {"enabled": False},
             "get_items": {"enabled": False},
             "swap": {"enabled": False},
@@ -104,13 +107,13 @@ def create_reward_test_env(max_steps=10, width=5, height=5, num_agents=NUM_AGENT
             "blue": {"id": 2, "group_reward_pct": 0.0},
         },
         "objects": {
-            "wall": {},
-            "block": {},
+            "wall": {"type_id": 1},
+            "block": {"type_id": 1},
         },
         "agent": {"freeze_duration": 100, "rewards": {"heart": 1.0}},
     }
 
-    return MettaGrid(cpp_config_dict(game_config), game_map.tolist())
+    return MettaGrid(cpp_config_dict(game_config), game_map.tolist(), 42)
 
 
 def perform_action(env, action_name, arg=0):

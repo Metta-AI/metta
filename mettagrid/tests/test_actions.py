@@ -30,18 +30,22 @@ def base_config():
         "obs_width": OBS_WIDTH,
         "obs_height": OBS_HEIGHT,
         "num_observation_tokens": NUM_OBS_TOKENS,
+        "inventory_item_names": ["laser", "armor"],
         "actions": {
             "noop": {"enabled": True},
             "move": {"enabled": True},
             "rotate": {"enabled": True},
             "get_items": {"enabled": True},  # maps to get_output
-            "attack": {"enabled": True},
+            "attack": {"enabled": True, "attack_resources": {"laser": 1}, "defense_resources": {"armor": 1}},
             "put_items": {"enabled": True},  # maps to get_recipe_items
             "swap": {"enabled": True},
             "change_color": {"enabled": True},
         },
         "groups": {"red": {"id": 0, "props": {}}},
-        "objects": {"wall": {}, "altar": {"max_output": -1, "conversion_ticks": 1, "cooldown": 10, "initial_items": 0}},
+        "objects": {
+            "wall": {"type_id": 1},
+            "altar": {"type_id": 8, "max_output": -1, "conversion_ticks": 1, "cooldown": 10, "initial_items": 0},
+        },
         "agent": {"rewards": {}},
     }
 
@@ -89,7 +93,9 @@ def configured_env(base_config):
         if config_overrides:
             game_config.update(config_overrides)
 
-        env = MettaGrid(cpp_config_dict(game_config), game_map)
+        print(cpp_config_dict(game_config))
+
+        env = MettaGrid(cpp_config_dict(game_config), game_map, 42)
 
         # Set up buffers
         observations = np.zeros((1, NUM_OBS_TOKENS, OBS_TOKEN_SIZE), dtype=dtype_observations)

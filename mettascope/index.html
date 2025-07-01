@@ -37,6 +37,7 @@
         <img src="data/ui/controls.png" alt="#controls-toggle.hover-icon" id="controls-toggle" class="hover-icon">
         <img src="data/ui/info.png" alt="#info-toggle.hover-icon" id="info-toggle" class="hover-icon">
         <img src="data/ui/table.png" alt="#agent-panel-toggle.hover-icon" id="agent-panel-toggle" class="hover-icon">
+        <img src="data/ui/traces.png" alt="#traces-toggle.hover-icon" id="traces-toggle" class="hover-icon">
         <div class="sep2"></div>
         <img src="data/ui/heart.png" alt="#resources-toggle.hover-icon" id="resources-toggle" class="hover-icon">
         <img src="data/ui/grid.png" alt="#grid-toggle.hover-icon" id="grid-toggle" class="hover-icon">
@@ -49,7 +50,9 @@
         <span id="step-counter">1999</span>
       </div>
     </div>
-    <div id="trace-panel"></div>
+    <div id="trace-panel">
+      <img src="data/ui/close.png" alt="close.hover-icon" class="close hover-icon">
+    </div>
     <div id="worldmap-panel"></div>
     <div id="header">
       <img src="data/ui/header-bg.png" alt="ui/header-bg" class="ui/header-bg">
@@ -73,67 +76,110 @@
     </div>
     <div id="info-panel">
       <span class="info">Starting MettaScope ...</span>
+      <img src="data/ui/close.png" alt="close.hover-icon" class="close hover-icon">
     </div>
-    <div id="minimap-panel"></div>
+    <div id="minimap-panel">
+      <img src="data/ui/close.png" alt="close.hover-icon" class="close hover-icon">
+    </div>
     <div id="action-buttons">
       <div class="west">
         <div class="bg"></div>
         <img src="data/ui/actions/buttons/rotate.png" alt="west-image" class="west-image">
+        <div class="key">
+          <span class="a">A</span>
+        </div>
       </div>
       <div class="north">
         <div class="bg"></div>
         <img src="data/ui/actions/buttons/rotate.png" alt="north-image" class="north-image">
+        <div class="key">
+          <span class="w">W</span>
+        </div>
       </div>
       <div class="forward">
         <div class="bg"></div>
         <img src="data/ui/actions/buttons/move.png" alt="forward-image" class="forward-image">
+        <div class="key">
+          <span class="f">F</span>
+        </div>
       </div>
       <div class="attack-nearest">
         <div class="bg"></div>
         <img src="data/ui/actions/icons/attack_nearest.png" alt="attack-nearest-image" class="attack-nearest-image">
+        <div class="key">
+          <span class="z">Z</span>
+        </div>
       </div>
       <div class="south">
         <div class="bg"></div>
         <img src="data/ui/actions/buttons/rotate.png" alt="south-image" class="south-image">
+        <div class="key">
+          <span class="s">S</span>
+        </div>
       </div>
       <div class="backward">
         <div class="bg"></div>
         <img src="data/ui/actions/buttons/move.png" alt="backward-image" class="backward-image">
+        <div class="key">
+          <span class="r">R</span>
+        </div>
       </div>
       <div class="attack">
         <div class="bg"></div>
         <img src="data/ui/actions/icons/attack.png" alt="attack-image" class="attack-image">
+        <div class="key">
+          <span class="z">Shift+Z</span>
+        </div>
       </div>
       <div class="east">
         <div class="bg"></div>
         <img src="data/ui/actions/buttons/rotate.png" alt="east-image" class="east-image">
+        <div class="key">
+          <span class="d">D</span>
+        </div>
       </div>
       <div class="put-recipe-items">
         <div class="bg"></div>
         <img src="data/ui/actions/buttons/put_recipe_items.png" alt="put-recipe-items-image" class="put-recipe-items-image">
+        <div class="key">
+          <span class="q">Q</span>
+        </div>
       </div>
       <div class="swap">
         <div class="bg"></div>
         <img src="data/ui/actions/icons/swap.png" alt="swap-image" class="swap-image">
+        <div class="key">
+          <span class="g">G</span>
+        </div>
       </div>
       <div class="get-output">
         <div class="bg"></div>
         <img src="data/ui/actions/buttons/get_output.png" alt="get-output-image" class="get-output-image">
+        <div class="key">
+          <span class="e">E</span>
+        </div>
       </div>
       <div class="change-color">
         <div class="bg"></div>
         <img src="data/ui/actions/icons/change_color.png" alt="change-color-image" class="change-color-image">
+        <div class="key">
+          <span class="c">C</span>
+        </div>
       </div>
       <div class="noop">
         <div class="bg"></div>
         <img src="data/ui/actions/buttons/noop.png" alt="noop-image" class="noop-image">
+        <div class="key">
+          <span class="x">X</span>
+        </div>
       </div>
+      <img src="data/ui/close.png" alt="close.hover-icon" class="close hover-icon">
     </div>
     <div id="agent-panel">
       <div class="table">
         <div class="column">
           <div class="header-cell">
-            <img src="data/icon.png" alt="icon" class="icon">
+            <img src="data/ui/table/agent_id.png" alt="icon" class="icon">
             <span class="name">Agent Id</span>
             <img src="data/ui/sort-up.png" alt="sort-icon" class="sort-icon">
             <div class="dropdown show-on-hover">
@@ -151,6 +197,7 @@
           <div class="data-cell"></div>
         </div>
       </div>
+      <img src="data/ui/close.png" alt="close.hover-icon" class="close hover-icon">
     </div>
     <div id="scrim"></div>
     <div id="new-column-dropdown">
@@ -169,7 +216,7 @@
         <div class="column-option">
           <img src="data/ui/check-on.png" alt="step-check" class="step-check">
           <img src="data/ui/check-off.png" alt="final-check" class="final-check">
-          <img src="data/icon.png" alt="icon" class="icon">
+          <img src="data/ui/table/total_reward.png" alt="icon" class="icon">
           <span class="name">Total Reward</span>
         </div>
       </div>
@@ -216,7 +263,7 @@
           <div class="inventory">
             <div class="item">
               <span class="amount">20</span>
-              <img src="data/icon.png" alt="icon" class="icon">
+              <img src="data/ui/generic_resource.png" alt="icon" class="icon">
             </div>
           </div>
         </div>
@@ -225,12 +272,12 @@
           <div class="recipe">
             <div class="item">
               <span class="amount">20</span>
-              <img src="data/icon.png" alt="icon" class="icon">
+              <img src="data/ui/generic_resource.png" alt="icon" class="icon">
             </div>
             <img src="data/ui/right-arrow.png" alt="arrow" class="arrow">
             <div class="item">
               <span class="amount">20</span>
-              <img src="data/icon.png" alt="icon" class="icon">
+              <img src="data/ui/generic_resource.png" alt="icon" class="icon">
             </div>
           </div>
         </div>

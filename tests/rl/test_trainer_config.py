@@ -1,0 +1,293 @@
+import math
+from pathlib import Path
+
+import pytest
+from hydra import compose, initialize_config_dir
+from omegaconf import DictConfig
+from pydantic import ValidationError
+
+from metta.rl.trainer_config import OptimizerConfig, parse_trainer_config
+
+valid_optimizer_config = {
+    "type": "adam",
+    "learning_rate": 0.001,
+    "beta1": 0.9,
+    "beta2": 0.999,
+    "eps": 1e-8,
+    "weight_decay": 0.0,
+}
+
+# Complete valid trainer config with all required fields
+valid_trainer_config = {
+    "_target_": "metta.rl.trainer.MettaTrainer",
+    "total_timesteps": 1000000,
+    "batch_size": 1024,
+    "minibatch_size": 256,
+    "bptt_horizon": 32,
+    "update_epochs": 1,
+    "forward_pass_minibatch_target_size": 512,
+    "async_factor": 2,
+    "zero_copy": True,
+    "require_contiguous_env_ids": False,
+    "verbose": True,
+    "cpu_offload": False,
+    "compile": False,
+    "compile_mode": "reduce-overhead",
+    "profiler_interval_epochs": 10000,
+    "num_workers": 1,
+    "env": "/env/mettagrid/simple",
+    "curriculum": None,
+    "env_overrides": {},
+    "grad_mean_variance_interval": 0,
+    "ppo": {
+        "clip_coef": 0.1,
+        "ent_coef": 0.01,
+        "gae_lambda": 0.95,
+        "gamma": 0.99,
+        "max_grad_norm": 0.5,
+        "vf_clip_coef": 0.1,
+        "vf_coef": 0.5,
+        "l2_reg_loss_coef": 0,
+        "l2_init_loss_coef": 0,
+        "norm_adv": True,
+        "clip_vloss": True,
+        "target_kl": None,
+    },
+    "optimizer": valid_optimizer_config,
+    "lr_scheduler": {
+        "enabled": False,
+        "anneal_lr": False,
+        "warmup_steps": None,
+        "schedule_type": None,
+    },
+    "prioritized_experience_replay": {
+        "prio_alpha": 0.0,
+        "prio_beta0": 0.6,
+    },
+    "vtrace": {
+        "vtrace_rho_clip": 1.0,
+        "vtrace_c_clip": 1.0,
+    },
+    "kickstart": {
+        "teacher_uri": None,
+        "action_loss_coef": 1.0,
+        "value_loss_coef": 1.0,
+        "anneal_ratio": 0.65,
+        "kickstart_steps": 1_000_000_000,
+        "additional_teachers": None,
+    },
+    "initial_policy": {
+        "uri": None,
+        "type": "top",
+        "range": 1,
+        "metric": "epoch",
+        "filters": {},
+    },
+    "checkpoint": {
+        "checkpoint_interval": 60,
+        "wandb_checkpoint_interval": 300,
+    },
+    "simulation": {
+        "evaluate_interval": 300,
+        "replay_interval": 300,
+    },
+}
+
+
+def make_cfg(trainer_cfg: dict) -> DictConfig:
+    return DictConfig(
+        {
+            "run_dir": "/tmp/test_run",
+            "run": "test_run",
+            "trainer": trainer_cfg,
+        }
+    )
+
+
+class TestTypedConfigs:
+    def test_basic_typed_config_parsing(self):
+        trainer_config = parse_trainer_config(make_cfg(valid_trainer_config))
+        assert trainer_config.optimizer.type == "adam"
+        assert trainer_config.optimizer.learning_rate == 0.001
+        assert trainer_config.bptt_horizon == 32
+
+        # Test that runtime paths are set correctly
+        assert trainer_config.checkpoint.checkpoint_dir == "/tmp/test_run/checkpoints"
+        assert trainer_config.simulation.replay_dir == "s3://softmax-public/replays/test_run"
+
+    def test_config_field_validation(self):
+        # invalid field
+        with pytest.raises(ValidationError) as err:
+            _ = OptimizerConfig.model_validate({**valid_optimizer_config, "learning_rate": -1.0})
+        assert "learning_rate" in str(err)
+
+        # invalid field
+        with pytest.raises(ValidationError) as err:
+            _ = OptimizerConfig.model_validate({**valid_optimizer_config, "beta1": 1.5})
+        assert "beta1" in str(err)
+
+    def test_config_missing_or_extra_field(self):
+        # default
+        missing_field_config = valid_optimizer_config.copy()
+        del missing_field_config["learning_rate"]
+        optimizer_cfg = OptimizerConfig.model_validate(missing_field_config)
+        assert math.isclose(optimizer_cfg.learning_rate, 0.0004573146765703167)  # default value
+
+        # extra field
+        with pytest.raises(ValidationError) as err:
+            _ = OptimizerConfig.model_validate({**valid_optimizer_config, "extra_field": "extra_value"})
+        assert "extra_field" in str(err)
+
+    def test_trainer_config_defaults(self):
+        """Test that optimizer fields use defaults when not provided."""
+        # Create config with minimal optimizer fields
+        incomplete_config = valid_trainer_config.copy()
+        incomplete_config["optimizer"] = {
+            "type": "adam",
+            "learning_rate": 0.001,
+            # Missing beta1, beta2, eps, weight_decay
+        }
+
+        # Should not raise - defaults will be used
+        trainer_config = parse_trainer_config(make_cfg(incomplete_config))
+
+        # Check that defaults were applied
+        assert trainer_config.optimizer.beta1 == 0.9
+        assert trainer_config.optimizer.beta2 == 0.999
+        assert trainer_config.optimizer.eps == 1e-12
+        assert trainer_config.optimizer.weight_decay == 0
+
+    def test_trainer_config_to_dictconfig_conversion(self):
+        """Test that TrainerConfig fields can be converted back to DictConfig without issues.
+
+        This is important because in some parts of the codebase we need to create new DictConfig
+        objects from subparts of a validated TrainerConfig (e.g., when passing env_overrides
+        to environment constructors or when using hydra.utils.instantiate).
+        """
+        # Create a test config with env_overrides and kickstart
+        test_config_dict = {
+            **valid_trainer_config,
+            "env_overrides": {
+                "desync_episodes": True,
+                "max_steps": 1000,
+                "num_agents": 4,
+            },
+            "kickstart": {
+                "teacher_uri": None,
+                "action_loss_coef": 1.0,
+                "value_loss_coef": 1.0,
+                "anneal_ratio": 0.65,
+                "kickstart_steps": 1_000_000_000,
+                "additional_teachers": [],
+            },
+        }
+
+        validated_config = parse_trainer_config(make_cfg(test_config_dict))
+
+        # Test that env_overrides can be converted to DictConfig
+        env_overrides_dict = DictConfig(validated_config.env_overrides)
+        assert isinstance(env_overrides_dict, DictConfig)
+        assert env_overrides_dict.desync_episodes is True
+        assert env_overrides_dict.max_steps == 1000
+        assert env_overrides_dict.num_agents == 4
+
+        # Test that we can convert the entire config back to dict for hydra.utils.instantiate
+        config_dict = validated_config.model_dump(by_alias=True)
+        assert config_dict["_target_"] == "metta.rl.trainer.MettaTrainer"
+        assert config_dict["batch_size"] == 1024
+        assert config_dict["env_overrides"]["desync_episodes"] is True
+        assert config_dict["env_overrides"]["max_steps"] == 1000
+
+    def test_runtime_path_overrides(self):
+        """Test that checkpoint_dir and replay_dir can be overridden in config."""
+        config_with_paths = valid_trainer_config.copy()
+        config_with_paths["checkpoint"]["checkpoint_dir"] = "/custom/checkpoint/path"
+        config_with_paths["simulation"]["replay_dir"] = "s3://custom-bucket/replays"
+
+        trainer_config = parse_trainer_config(make_cfg(config_with_paths))
+
+        # Should use the provided paths, not the runtime defaults
+        assert trainer_config.checkpoint.checkpoint_dir == "/custom/checkpoint/path"
+        assert trainer_config.simulation.replay_dir == "s3://custom-bucket/replays"
+
+
+configs_dir = str(Path(__file__).parent.parent.parent / "configs" / "trainer")
+
+
+def load_config_with_hydra(trainer_name: str, overrides: list[str] | None = None) -> DictConfig:
+    configs_dir = str(Path(__file__).parent.parent.parent / "configs")
+    default_overrides = [
+        "run=test_run",
+        f"trainer={trainer_name}",
+        "wandb=off",  # Disable wandb for tests
+    ]
+
+    with initialize_config_dir(config_dir=configs_dir, version_base=None):
+        return compose(
+            config_name="train_job",
+            overrides=default_overrides + (overrides or []),
+        )
+
+
+class TestRealTypedConfigs:
+    def test_all_trainer_configs_comprehensive(self):
+        config_files = [f.stem for f in Path(configs_dir).glob("*.yaml")]
+
+        for config_name in config_files:
+            try:
+                # some of the configs don't have num_workers specified because train.sh provides it
+                cfg = load_config_with_hydra(config_name, overrides=["trainer.num_workers=1"])
+
+                validated_config = parse_trainer_config(cfg)
+
+                # Verify some basic fields and  constraints
+                assert validated_config.batch_size > 0
+                assert validated_config.batch_size >= validated_config.minibatch_size
+                assert validated_config.batch_size % validated_config.minibatch_size == 0
+                assert 0 < validated_config.ppo.gamma <= 1
+                assert 0 <= validated_config.ppo.gae_lambda <= 1
+                assert 0 < validated_config.optimizer.learning_rate <= 1
+            except Exception as e:
+                print(f"Error loading config {config_name}: {e}")
+                raise e
+
+    def test_all_config_overrides_comprehensive(self):
+        """Test all config files that override trainer settings (hardware and user configs)."""
+        configs_root = Path(__file__).parent.parent.parent / "configs"
+
+        # Collect all config files that might have trainer overrides
+        config_files_to_test: list[tuple[str, str, str]] = []
+
+        # Hardware configs
+        hardware_configs = list((configs_root / "hardware").glob("*.yaml"))
+        for config in hardware_configs:
+            config_files_to_test.append(("hardware", config.stem, f"+hardware={config.stem}"))
+
+        # User configs
+        user_configs = list((configs_root / "user").glob("*.yaml"))
+        for config in user_configs:
+            config_files_to_test.append(("user", config.stem, f"+user={config.stem}"))
+
+        # Test each config file
+        for config_type, config_name, override in config_files_to_test:
+            # Check if the config file has a trainer section
+            config_path = configs_root / f"{config_type}/{config_name}.yaml"
+
+            # Quick check if file contains trainer section
+            with open(config_path, "r") as f:
+                content = f.read()
+                if "trainer:" not in content:
+                    continue  # Skip configs without trainer overrides
+
+            print(f"Testing {config_type} config: {config_name}")
+
+            try:
+                # For hardware/user configs, apply them as overrides
+                overrides_list = [override, "trainer.num_workers=1"]
+                cfg = load_config_with_hydra("trainer", overrides=overrides_list)
+
+                _ = parse_trainer_config(cfg)
+
+            except Exception as e:
+                print(f"Error loading {config_type} config {config_name}: {e}")
+                raise AssertionError(f"Failed to load {config_type} config {config_name}: {e}") from e

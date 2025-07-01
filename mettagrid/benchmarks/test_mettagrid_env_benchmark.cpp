@@ -33,6 +33,12 @@ py::dict CreateBenchmarkConfig(int num_agents) {
   game_cfg["obs_height"] = 11;
   game_cfg["num_observation_tokens"] = 100;
 
+  // Inventory item names configuration
+  py::list inventory_item_names;
+  inventory_item_names.append("ore");
+  inventory_item_names.append("heart");
+  game_cfg["inventory_item_names"] = inventory_item_names;
+
   // Actions configuration
   py::dict actions_cfg;
   py::dict noop_cfg, move_cfg, rotate_cfg, attack_cfg, swap_cfg, put_cfg, get_cfg, change_color_cfg;
@@ -41,6 +47,8 @@ py::dict CreateBenchmarkConfig(int num_agents) {
   move_cfg["enabled"] = true;
   rotate_cfg["enabled"] = true;
   attack_cfg["enabled"] = true;
+  attack_cfg["attack_resources"] = py::dict();
+  attack_cfg["defense_resources"] = py::dict();
   swap_cfg["enabled"] = true;
   put_cfg["enabled"] = true;
   get_cfg["enabled"] = true;
@@ -58,10 +66,8 @@ py::dict CreateBenchmarkConfig(int num_agents) {
   game_cfg["actions"] = actions_cfg;
 
   // Groups configuration
-  py::dict agent_groups;
   py::dict agent_group1, agent_group2;
 
-  agent_group1["default_item_max"] = 0;
   agent_group1["freeze_duration"] = 0;
   agent_group1["action_failure_penalty"] = 0;
   agent_group1["max_items_per_type"] = py::dict();
@@ -70,8 +76,10 @@ py::dict CreateBenchmarkConfig(int num_agents) {
   agent_group1["group_name"] = "team1";
   agent_group1["group_id"] = 0;
   agent_group1["group_reward_pct"] = 0.0f;
+  agent_group1["type_id"] = 0;
+  agent_group1["type_name"] = "agent";
+  agent_group1["object_type"] = "agent";
 
-  agent_group2["default_item_max"] = 0;
   agent_group2["freeze_duration"] = 0;
   agent_group2["action_failure_penalty"] = 0;
   agent_group2["max_items_per_type"] = py::dict();
@@ -80,21 +88,20 @@ py::dict CreateBenchmarkConfig(int num_agents) {
   agent_group2["group_name"] = "team2";
   agent_group2["group_id"] = 1;
   agent_group2["group_reward_pct"] = 0.0f;
-
-  agent_groups["agent.team1"] = agent_group1;
-  agent_groups["agent.team2"] = agent_group2;
-
-  game_cfg["agent_groups"] = agent_groups;
+  agent_group2["type_id"] = 0;
+  agent_group2["type_name"] = "agent";
+  agent_group2["object_type"] = "agent";
 
   // Objects configuration
   py::dict objects_cfg;
-  py::dict wall_cfg, block_cfg, mine_cfg, generator_cfg, altar_cfg;
+  py::dict wall_cfg;
 
   objects_cfg["wall"] = wall_cfg;
-  objects_cfg["block"] = block_cfg;
-  objects_cfg["mine_red"] = mine_cfg;
-  objects_cfg["generator_red"] = generator_cfg;
-  objects_cfg["altar"] = altar_cfg;
+  objects_cfg["wall"]["type_id"] = 1;
+  objects_cfg["wall"]["type_name"] = "wall";
+  objects_cfg["wall"]["object_type"] = "wall";
+  objects_cfg["agent.team1"] = agent_group1;
+  objects_cfg["agent.team2"] = agent_group2;
 
   game_cfg["objects"] = objects_cfg;
 
@@ -195,7 +202,7 @@ static void BM_MettaGridStep(benchmark::State& state) {  // NOLINT(runtime/refer
   auto cfg = CreateBenchmarkConfig(num_agents);
   auto map = CreateDefaultMap(2);
 
-  auto env = std::make_unique<MettaGrid>(cfg, map);
+  auto env = std::make_unique<MettaGrid>(cfg, map, 42);
   env->reset();
 
   // Verify agent count

@@ -15,20 +15,20 @@ import os
 import random
 import sys
 import warnings
-from typing import List, Optional, Union
+from typing import Any, List, Optional, Union
 
 import gymnasium as gym
 import numpy as np
 import torch
 import wandb
-import wandb.sdk.wandb_run
 from omegaconf import DictConfig, ListConfig
-from torch import nn
-from torch.package import PackageExporter, PackageImporter
+from torch.package.package_exporter import PackageExporter
+from torch.package.package_importer import PackageImporter
 
 from metta.agent.metta_agent import make_policy
 from metta.agent.policy_record import PolicyRecord
 from metta.rl.policy import load_pytorch_policy
+from metta.rl.trainer_config import TrainerConfig, parse_trainer_config
 
 logger = logging.getLogger("policy_store")
 
@@ -44,185 +44,263 @@ class PolicySelectorConfig:
 class PolicyStore:
     def __init__(self, cfg: ListConfig | DictConfig, wandb_run):
         self._cfg = cfg
+        self._trainer_cfg: TrainerConfig | None = parse_trainer_config(cfg) if "trainer" in cfg else None
         self._device = cfg.device
         self._wandb_run = wandb_run
         self._cached_prs = {}
 
-    def policy(
-        self, policy: Union[str, ListConfig | DictConfig], selector_type: str = "top", n=1, metric="score"
+    def policy_record(
+        self, uri_or_config: Union[str, ListConfig | DictConfig], selector_type: str = "top", metric="score"
     ) -> PolicyRecord:
-        if not isinstance(policy, str):
-            policy = policy.uri
-        prs = self._policy_records(policy, selector_type, n, metric)
-        assert len(prs) == 1, f"Expected 1 policy, got {len(prs)}"
+        prs = self.policy_records(uri_or_config, selector_type, 1, metric)
+        assert len(prs) == 1, f"Expected 1 policy record, got {len(prs)} policy records!"
         return prs[0]
 
-    def policies(
-        self, policy: Union[str, ListConfig | DictConfig], selector_type: str = "top", n: int = 1, metric: str = "score"
+    def policy_records(
+        self, uri_or_config: Union[str, ListConfig | DictConfig], selector_type: str = "top", n=1, metric="score"
     ) -> List[PolicyRecord]:
-        if not isinstance(policy, str):
-            policy = policy.uri
-        return self._policy_records(policy, selector_type=selector_type, n=n, metric=metric)
+        uri = uri_or_config if isinstance(uri_or_config, str) else uri_or_config.uri
+        return self._select_policy_records(uri, selector_type, n, metric)
 
-    def _policy_records(self, uri, selector_type="top", n=1, metric: str = "score"):
-        version = None
-        if uri.startswith("wandb://"):
-            wandb_uri = uri[len("wandb://") :]
-            if ":" in wandb_uri:
-                wandb_uri, version = wandb_uri.split(":")
-            if wandb_uri.startswith("run/"):
-                run_id = wandb_uri[len("run/") :]
-                prs = self._prs_from_wandb_run(run_id, version)
-            elif wandb_uri.startswith("sweep/"):
-                sweep_name = wandb_uri[len("sweep/") :]
-                prs = self._prs_from_wandb_sweep(sweep_name, version)
-            else:
-                prs = self._prs_from_wandb_artifact(wandb_uri, version)
-        elif uri.startswith("file://"):
-            prs = self._prs_from_path(uri[len("file://") :])
-        elif uri.startswith("pytorch://"):
-            prs = self._prs_from_pytorch(uri[len("pytorch://") :])
-        else:
-            prs = self._prs_from_path(uri)
+    def _select_policy_records(
+        self, uri: str, selector_type: str = "top", n: int = 1, metric: str = "score"
+    ) -> List[PolicyRecord]:
+        """
+        Select policy records based on URI and selection criteria.
 
-        if len(prs) == 0:
-            raise ValueError(f"No policies found at {uri}")
+        Args:
+            uri: Resource identifier (wandb://, file://, pytorch://, or path)
+            selector_type: Selection strategy ('all', 'latest', 'rand', 'top')
+            n: Number of policy records to select (for 'top' selector)
+            metric: Metric to use for 'top' selection
 
-        logger.info(f"Found {len(prs)} policies at {uri}")
+        Returns:
+            List of selected PolicyRecord objects
+        """
+        # Load policy records from URI
+        prs = self._load_policy_records_from_uri(uri)
 
+        if not prs:
+            raise ValueError(f"No policy records found at {uri}")
+
+        logger.info(f"Found {len(prs)} policy records at {uri}")
+
+        # Apply selector
         if selector_type == "all":
-            logger.info(f"Returning all {len(prs)} policies")
+            logger.info(f"Returning all {len(prs)} policy records")
             return prs
+
         elif selector_type == "latest":
-            selected = [prs[0]]
-            logger.info(f"Selected latest policy: {selected[0].name}")
-            return selected
+            logger.info(f"Selected latest policy: {prs[0].name}")
+            return [prs[0]]
+
         elif selector_type == "rand":
-            selected = [random.choice(prs)]
-            logger.info(f"Selected random policy: {selected[0].name}")
-            return selected
+            selected = random.choice(prs)
+            logger.info(f"Selected random policy: {selected.name}")
+            return [selected]
+
         elif selector_type == "top":
-            if (
-                "eval_scores" in prs[0].metadata
-                and prs[0].metadata["eval_scores"] is not None
-                and metric in prs[0].metadata["eval_scores"]
-            ):
-                # Metric is in eval_scores
-                logger.info(f"Found metric '{metric}' in metadata['eval_scores']")
-                policy_scores = {p: p.metadata.get("eval_scores", {}).get(metric, None) for p in prs}
-            elif metric in prs[0].metadata:
-                # Metric is directly in metadata
-                logger.info(f"Found metric '{metric}' directly in metadata")
-                policy_scores = {p: p.metadata.get(metric, None) for p in prs}
-            else:
-                # Metric not found anywhere
-                logger.warning(
-                    f"Metric '{metric}' not found in policy metadata or eval_scores, returning latest policy"
-                )
-                selected = [prs[0]]
-                logger.info(f"Selected latest policy (due to missing metric): {selected[0].name}")
-                return selected
+            return self._select_top_prs_by_metric(prs, n, metric)
 
-            policies_with_scores = [p for p, s in policy_scores.items() if s is not None]
-
-            # If more than 20% of the policies have no score, return the latest policy
-            if len(policies_with_scores) < len(prs) * 0.8:
-                logger.warning("Too many invalid scores, returning latest policy")
-                selected = [prs[0]]  # return latest if metric not found
-                logger.info(f"Selected latest policy (due to too many invalid scores): {selected[0].name}")
-                return selected
-
-            # Sort by metric score (assuming higher is better)
-            def get_policy_score(policy: PolicyRecord) -> float:  # Explicitly return a comparable type
-                score = policy_scores.get(policy)
-                if score is None:
-                    return float("-inf")  # Or another appropriate default
-                return score
-
-            top = sorted(policies_with_scores, key=get_policy_score)[-n:]
-
-            if len(top) < n:
-                logger.warning(f"Only found {len(top)} policies matching criteria, requested {n}")
-
-            logger.info(f"Top {len(top)} policies by {metric}:")
-            logger.info(f"{'Policy':<40} | {metric:<20}")
-            logger.info("-" * 62)
-            for pr in top:
-                score = policy_scores[pr]
-                logger.info(f"{pr.name:<40} | {score:<20.4f}")
-
-            selected = top[-n:]
-            logger.info(f"Selected {len(selected)} top policies by {metric}")
-            for i, pr in enumerate(selected):
-                logger.info(f"  {i + 1}. {pr.name} (score: {policy_scores[pr]:.4f})")
-
-            return selected
         else:
-            raise ValueError(f"Invalid selector type {selector_type}")
+            raise ValueError(f"Invalid selector type: {selector_type}")
+
+    def _load_policy_records_from_uri(self, uri: str) -> List[PolicyRecord]:
+        """Load policy records from various URI schemes."""
+        if uri.startswith("wandb://"):
+            wandb_uri = uri[8:]
+            version = None
+
+            if ":" in wandb_uri:
+                wandb_uri, version = wandb_uri.split(":", 1)
+
+            if wandb_uri.startswith("run/"):
+                return self._prs_from_wandb_run(wandb_uri[4:], version)
+            elif wandb_uri.startswith("sweep/"):
+                return self._prs_from_wandb_sweep(wandb_uri[6:], version)
+            else:
+                return self._prs_from_wandb_artifact(wandb_uri, version)
+
+        elif uri.startswith("file://"):
+            return self._prs_from_path(uri[7:])
+
+        elif uri.startswith("pytorch://"):
+            return self._prs_from_pytorch(uri[10:])
+
+        else:
+            return self._prs_from_path(uri)
+
+    def _select_top_prs_by_metric(self, prs: List[PolicyRecord], n: int, metric: str) -> List[PolicyRecord]:
+        """Select top N policy records based on metric score."""
+        # Extract scores
+        policy_scores = self._get_pr_scores(prs, metric)
+
+        # Filter policy records with valid scores
+        valid_policies = [(p, score) for p, score in policy_scores.items() if score is not None]
+
+        if not valid_policies:
+            logger.warning(f"No valid scores found for metric '{metric}', returning latest policy")
+            return [prs[0]]
+
+        # Check if we have enough valid scores (80% threshold)
+        if len(valid_policies) < len(prs) * 0.8:
+            logger.warning("Too many invalid scores (>20%), returning latest policy")
+            return [prs[0]]
+
+        # Sort by score (highest first) and take top n
+        sorted_policies = sorted(valid_policies, key=lambda x: x[1], reverse=True)
+        selected = [p for p, _ in sorted_policies[:n]]
+
+        # Log results
+        if len(selected) < n:
+            logger.warning(f"Only found {len(selected)} policy records matching criteria, requested {n}")
+
+        logger.info(f"Top {len(selected)} policy records by {metric}:")
+        logger.info(f"{'Policy':<40} | {metric:<20}")
+        logger.info("-" * 62)
+
+        for policy in selected:
+            score = policy_scores[policy]
+            logger.info(f"{policy.name:<40} | {score:<20.4f}")
+
+        return selected
+
+    def _get_pr_scores(self, prs: List[PolicyRecord], metric: str) -> dict[PolicyRecord, Optional[float]]:
+        """Extract metric scores from policy metadata."""
+        if not prs:
+            return {}
+
+        # Check where the metric is stored in the first policy
+        sample = prs[0]
+
+        # Check in eval_scores first
+        if (
+            "eval_scores" in sample.metadata
+            and sample.metadata["eval_scores"] is not None
+            and metric in sample.metadata["eval_scores"]
+        ):
+            logger.info(f"Found metric '{metric}' in metadata['eval_scores']")
+            return {p: p.metadata.get("eval_scores", {}).get(metric) for p in prs}
+
+        # Check directly in metadata
+        elif metric in sample.metadata:
+            logger.info(f"Found metric '{metric}' directly in metadata")
+            return {p: p.metadata.get(metric) for p in prs}
+
+        # Metric not found
+        else:
+            logger.warning(f"Metric '{metric}' not found in policy metadata")
+            return {p: None for p in prs}
 
     def make_model_name(self, epoch: int):
         return f"model_{epoch:04d}.pt"
 
-    def create(self, env) -> PolicyRecord:
-        policy = make_policy(env, self._cfg)
-        name = self.make_model_name(0)
-        path = os.path.join(self._cfg.trainer.checkpoint_dir, name)
-        pr = PolicyRecord(
+    def create_empty_policy_record(self, name: str, override_path: str | None = None) -> PolicyRecord:
+        path = (
+            override_path
+            if override_path is not None
+            else os.path.join(self._trainer_cfg.checkpoint.checkpoint_dir, name)
+        )
+        return PolicyRecord(
             self,
             name,
             f"file://{path}",
             {
-                "action_names": env.action_names,
                 "agent_step": 0,
                 "epoch": 0,
                 "generation": 0,
                 "train_time": 0,
             },
         )
-        self.save_policy(path, policy, pr)
-        pr._policy = policy
-        return pr
 
-    def save(self, name: str, path: str, policy: nn.Module, metadata: dict) -> PolicyRecord:
-        """Convenience method to create and save a policy in one step."""
-        pr = PolicyRecord(self, name, "file://" + path, metadata)
-        return self.save_policy(path, policy, pr)
-
-    def save_policy(self, path: str, policy: nn.Module, pr: PolicyRecord) -> PolicyRecord:
+    def save(self, pr: PolicyRecord) -> PolicyRecord:
         """Save a policy and its metadata using torch.package."""
-        logger.info(f"Saving policy to {path} using torch.package")
+        path = pr.uri.split("file://")[1]
+
+        if os.path.exists(path):
+            logger.warning(f"Overwriting existing policy at {path} using torch.package")
+        else:
+            logger.info(f"Saving policy to {path} using torch.package")
+
+        policy_class_name = pr.policy.__class__.__module__
+        if "torch_package_" in policy_class_name:
+            logger.error("Policy class name with torch_package_ prefixes! Did you forget to rebuild the agent?")
+            logger.error("Skipping save to prevent pickle errors.")
+            return pr
 
         try:
+            # Sanitize metadata -- removes unresolved omegaconf objects and wandb references
+            def sanitize_dict(v) -> dict:
+                def sanitize_value(val):
+                    # Skip wandb-related objects
+                    if hasattr(val, "__module__") and val.__module__ and "wandb" in val.__module__:
+                        return None
+
+                    # Recursively clean dictionaries
+                    if isinstance(val, dict):
+                        return {k: sanitize_value(v) for k, v in val.items() if sanitize_value(v) is not None}
+
+                    # Recursively clean lists
+                    if isinstance(val, list):
+                        return [sanitize_value(item) for item in val if sanitize_value(item) is not None]
+
+                    # Keep primitive types as-is
+                    if isinstance(val, (str, int, float, bool, type(None))):
+                        return val
+
+                    # Convert objects to strings, return None if conversion fails
+                    if hasattr(val, "__dict__"):
+                        try:
+                            return str(val)
+                        except Exception:
+                            return None
+
+                    # Keep everything else as-is
+                    return val
+
+                # Process the input value
+                result = sanitize_value(v)
+
+                # Ensure we always return a dict
+                if not isinstance(result, dict):
+                    return {} if result is None else {"value": result}
+
+                return result
+
+            sanitized_metadata = sanitize_dict(pr.metadata)
+
             with PackageExporter(path, debug=False) as exporter:
                 # Apply all packaging rules
-                self._apply_packaging_rules(exporter, policy.__class__.__module__, policy.__class__)
+                self._apply_packaging_rules(exporter, pr.policy.__class__.__module__, pr.policy.__class__)
 
                 # Save the policy and metadata
-                clean_metadata = pr._clean_metadata_for_packaging(pr.metadata)
-                exporter.save_pickle("policy_record", "data.pkl", PolicyRecord(None, pr.name, pr.uri, clean_metadata))
-                exporter.save_pickle("policy", "model.pkl", policy)
+                exporter.save_pickle(
+                    "policy_record", "data.pkl", PolicyRecord(None, pr.name, pr.uri, sanitized_metadata)
+                )
+                exporter.save_pickle("policy", "model.pkl", pr.policy)
 
         except Exception as e:
             logger.error(f"torch.package save failed: {e}")
             raise RuntimeError(f"Failed to save policy using torch.package: {e}") from e
 
-        pr._local_path = path
         pr.uri = "file://" + path
         return pr
 
-    def add_to_wandb_run(self, run_id: str, pr: PolicyRecord, additional_files=None):
+    def add_to_wandb_run(self, run_id: str, pr: PolicyRecord, additional_files: list[str] | None = None) -> str:
         local_path = pr.local_path()
         if local_path is None:
             raise ValueError("PolicyRecord has no local path")
         return self.add_to_wandb_artifact(run_id, "model", pr.metadata, local_path, additional_files)
 
-    def add_to_wandb_sweep(self, sweep_name: str, pr: PolicyRecord, additional_files=None):
+    def add_to_wandb_sweep(self, sweep_name: str, pr: PolicyRecord, additional_files: list[str] | None = None) -> str:
         local_path = pr.local_path()
         if local_path is None:
             raise ValueError("PolicyRecord has no local path")
         return self.add_to_wandb_artifact(sweep_name, "sweep_model", pr.metadata, local_path, additional_files)
 
-    def add_to_wandb_artifact(self, name: str, type: str, metadata: dict, local_path: str, additional_files=None):
+    def add_to_wandb_artifact(
+        self, name: str, type: str, metadata: dict[str, Any], local_path: str, additional_files: list[str] | None = None
+    ) -> str:
         if self._wandb_run is None:
             raise ValueError("PolicyStore was not initialized with a wandb run")
 
@@ -236,6 +314,7 @@ class PolicyStore:
         artifact.wait()
         logger.info(f"Added artifact {artifact.qualified_name}")
         self._wandb_run.log_artifact(artifact)
+        return artifact.qualified_name
 
     def _prs_from_path(self, path: str) -> List[PolicyRecord]:
         paths = []
@@ -352,15 +431,25 @@ class PolicyStore:
             "pytorch://" + name,
             {"action_names": [], "agent_step": 0, "epoch": 0, "generation": 0, "train_time": 0},
         )
-        pr._policy = load_pytorch_policy(path, self._device, pytorch_cfg=self._cfg.get("pytorch"))
+        pr._cached_policy = load_pytorch_policy(path, self._device, pytorch_cfg=self._cfg.get("pytorch"))
         return pr
 
     def _load_from_file(self, path: str, metadata_only: bool = False) -> PolicyRecord:
-        if path in self._cached_prs and (metadata_only or self._cached_prs[path]._policy is not None):
-            return self._cached_prs[path]
+        if path in self._cached_prs:
+            cached_pr = self._cached_prs[path]
+            # For metadata_only, we can return the cached record immediately
+            if metadata_only:
+                return cached_pr
+            # For full load, check if the policy is already loaded
+            # Only check the _cached_policy attribute directly to avoid triggering
+            # the property getter which may cause recursion or errors
+            if hasattr(cached_pr, "_cached_policy") and cached_pr._cached_policy is not None:
+                return cached_pr
+            # If no cached policy, we need to reload it below
 
         if not path.endswith(".pt") and os.path.isdir(path):
             path = os.path.join(path, os.listdir(path)[-1])
+
         logger.info(f"Loading policy from {path}")
 
         self._make_codebase_backwards_compatible()
@@ -374,8 +463,7 @@ class PolicyStore:
             pr = importer.load_pickle("policy_record", "data.pkl")
             pr._policy_store = self
             if not metadata_only:
-                pr._policy = pr.load(path, self._device)
-            pr._local_path = path
+                pr._cached_policy = pr.load(path, self._device)
             self._cached_prs[path] = pr
             return pr
         except Exception as e:
@@ -408,9 +496,29 @@ class PolicyStore:
         if isinstance(checkpoint, PolicyRecord):
             pr = checkpoint
             pr._policy_store = self
-            pr._local_path = path
-            if pr._policy is None and not metadata_only:
-                raise ValueError("Legacy PolicyRecord has no policy attached")
+
+            if not metadata_only:
+                # Check for policy under different possible attribute names
+                policy_cache_attributes = ["_cached_policy", "_policy"]
+                policy = None
+
+                for attr in policy_cache_attributes:
+                    if hasattr(pr, attr):
+                        policy = getattr(pr, attr)
+                        if policy is not None:
+                            # If we found it under a different name, set it to the current standard
+                            if attr != "_cached_policy":
+                                pr._cached_policy = policy
+                                logger.info(
+                                    f"Found policy under legacy attribute '{attr}', migrated to '_cached_policy'"
+                                )
+                            break
+
+                if policy is None:
+                    raise ValueError(
+                        f"Legacy PolicyRecord has no policy attached (checked attributes: {policy_cache_attributes})"
+                    )
+
             self._cached_prs[path] = pr
             return pr
 
@@ -427,7 +535,6 @@ class PolicyStore:
                 for k in ["action_names", "agent_step", "epoch", "generation", "train_time"]
             },
         )
-        pr._local_path = path
 
         if not metadata_only:
             try:
@@ -444,13 +551,13 @@ class PolicyStore:
                     global_features=[],
                 )
 
-                policy = make_policy(env, self._cfg)
+                policy = make_policy(env, self._cfg)  # type:ignore
 
                 # Load state dict
                 state_key = next((k for k in ["model_state_dict", "state_dict"] if k in checkpoint), None)
                 policy.load_state_dict(checkpoint.get(state_key, checkpoint))
+                pr.policy = policy
 
-                pr._policy = policy
                 logger.info("Successfully loaded legacy checkpoint as MettaAgent")
             except Exception as e:
                 raise ValueError(f"Cannot load legacy checkpoint as MettaAgent: {e}") from e
@@ -480,14 +587,14 @@ class PolicyStore:
                     "omegaconf.**",
                     "mettagrid.**",
                     "metta.mettagrid.**",
-                    "metta.util.config",
+                    "metta.common.util.config",
                     "metta.rl.vecenv",
                     "metta.eval.dashboard_data",
                     "metta.sim.simulation_config",
                     "metta.agent.policy_store",
                 ],
             ),
-            # Intern rules: Essential metta code for loading policies
+            # Intern rules: Essential metta code for loading policy records
             (
                 "intern",
                 [
@@ -497,11 +604,11 @@ class PolicyStore:
                     "metta.agent.metta_agent",
                     "metta.agent.brain_policy",
                     "metta.agent.policy_state",
-                    "metta.util.omegaconf",
-                    "metta.util.runtime_configuration",
-                    "metta.util.logger",
-                    "metta.util.decorators",
-                    "metta.util.resolvers",
+                    "metta.common.util.omegaconf",
+                    "metta.common.util.runtime_configuration",
+                    "metta.common.util.logger",
+                    "metta.common.util.decorators",
+                    "metta.common.util.resolvers",
                 ],
             ),
             # Mock rules: Exclude these completely

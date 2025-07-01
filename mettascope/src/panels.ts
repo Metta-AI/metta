@@ -37,19 +37,21 @@ export class PanelInfo {
   /** Gets the transformation matrix for the panel. */
   transform(): Mat3f {
     const rect = this.rectInner()
-    return Mat3f.translate(rect.x + rect.width / 2, rect.y + rect.height / 2)
+    return Mat3f.scale(1 / ui.dpr, 1 / ui.dpr)
+      .mul(Mat3f.translate(rect.x + rect.width / 2, rect.y + rect.height / 2))
       .mul(Mat3f.scale(this.zoomLevel, this.zoomLevel))
       .mul(Mat3f.translate(this.panPos.x(), this.panPos.y()))
+
   }
 
   /** Transforms a point from the outer coordinate system to the panel's inner coordinate system. */
   transformOuter(point: Vec2f): Vec2f {
-    return this.transform().inverse().transform(point.mul(ui.dpr))
+    return this.transform().inverse().transform(point)
   }
 
   /** Transforms a point from the panel's inner coordinate system to the outer coordinate system. */
   transformInner(point: Vec2f): Vec2f {
-    return this.transform().transform(point).mul(1 / ui.dpr)
+    return this.transform().transform(point)
   }
 
   rectInner(): Rect {
@@ -64,7 +66,7 @@ export class PanelInfo {
   /** Makes the panel focus on a specific position in the panel. */
   focusPos(x: number, y: number, zoomLevel: number) {
     this.panPos = new Vec2f(-x, -y)
-    this.zoomLevel = zoomLevel
+    this.zoomLevel = zoomLevel * ui.dpr
   }
 
   /** Updates the pan and zoom level based on the mouse position and scroll delta. */

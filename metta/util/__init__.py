@@ -1,3 +1,1 @@
-# This module contains various utilities used throughout the metta package
-
-__all__ = []
+"""Utility modules for the Metta project."""

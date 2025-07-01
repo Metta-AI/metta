@@ -6,8 +6,15 @@ import sky
 import sky.jobs
 import sky.server.common
 
-from metta.util.colorama import blue, bold, cyan, green, magenta, red, yellow
-from metta.util.git import get_commit_message, get_matched_pr, has_unstaged_changes, is_commit_pushed
+from metta.common.util.colorama import blue, bold, cyan, green, magenta, red, yellow
+from metta.common.util.git import get_commit_message, get_matched_pr, has_unstaged_changes, is_commit_pushed
+
+
+def get_jobs_controller_name() -> str:
+    job_clusters = sky.get(sky.status(all_users=True, cluster_names=["sky-jobs-controller*"]))
+    if len(job_clusters) == 0:
+        raise ValueError("No job controller cluster found, is it running?")
+    return job_clusters[0]["name"]
 
 
 def print_tip(text: str):

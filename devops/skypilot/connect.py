@@ -7,14 +7,8 @@ import subprocess
 
 import sky.jobs
 
-from metta.util.colorama import bold
-
-
-def get_jobs_controller_name():
-    job_clusters = sky.get(sky.status(all_users=True, cluster_names=["sky-jobs-controller*"]))
-    if len(job_clusters) == 0:
-        raise ValueError("No job controller cluster found, is it running?")
-    return job_clusters[0]["name"]
+from devops.skypilot.utils import get_jobs_controller_name
+from metta.common.util.colorama import bold
 
 
 def main():

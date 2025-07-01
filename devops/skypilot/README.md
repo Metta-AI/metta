@@ -61,7 +61,7 @@ done
 
 2. **Launch with custom hyperparameters:**
    ```bash
-   devops/skypilot/launch.py train run=my_experiment_002 trainer.learning_rate=0.001 trainer.batch_size=32
+   devops/skypilot/launch.py train run=my_experiment_002 trainer.optimizer.learning_rate=0.001 trainer.rollout.batch_size=32
    ```
 
 ### Resource Configuration
@@ -131,7 +131,7 @@ Git Reference: 56e04aa725000f186ec1bb2de84b359b4f273947
 Command: train
 Task Arguments:
 1. trainer.curriculum=env/mettagrid/curriculum/navigation
-2. trainer.learning_rate=0.001
+2. trainer.optimizer.learning_rate=0.001
 ============================================================
 Should we launch this task? (Y/n):
 ```

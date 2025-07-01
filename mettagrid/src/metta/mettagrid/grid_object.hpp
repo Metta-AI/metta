@@ -12,6 +12,7 @@ typedef unsigned short Layer;
 typedef uint8_t TypeId;
 typedef unsigned int GridCoord;
 using ObsType = uint8_t;
+using InventoryItem = uint8_t;
 
 // These may make more sense in observation_encoder.hpp, but we need to include that
 // header in a lot of places, and it's nice to have these types defined in one place.
@@ -57,12 +58,14 @@ class GridObject {
 public:
   GridObjectId id;
   GridLocation location;
-  TypeId _type_id;
+  TypeId type_id;
+  std::string type_name;
 
   virtual ~GridObject() = default;
 
-  void init(TypeId type_id, const GridLocation& loc) {
-    this->_type_id = type_id;
+  void init(TypeId type_id, const std::string& type_name, const GridLocation& loc) {
+    this->type_id = type_id;
+    this->type_name = type_name;
     this->location = loc;
   }
 
