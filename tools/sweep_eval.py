@@ -38,8 +38,6 @@ def load_file(run_dir, name):
 @hydra.main(config_path="../configs", config_name="sweep_job", version_base=None)
 @metta_script
 def main(cfg: DictConfig | ListConfig) -> int:
-    setup_mettagrid_environment(cfg)
-
     logger = setup_mettagrid_logger("sweep_eval")
 
     logger.info("Sweep configuration:")

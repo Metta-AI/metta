@@ -115,8 +115,6 @@ def simulate_policy(
 @hydra.main(version_base=None, config_path="../configs", config_name="sim_job")
 @metta_script
 def main(cfg: DictConfig) -> None:
-    setup_mettagrid_environment(cfg)
-
     logger = setup_mettagrid_logger("metta.tools.sim")
     logger.info(f"Sim job config:\n{OmegaConf.to_yaml(cfg, resolve=True)}")
 

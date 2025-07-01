@@ -1,60 +1,76 @@
 """Decorators for Metta scripts."""
 
 import functools
+import logging
+import os
+import sys
 from typing import Callable, TypeVar
 
 import torch
 from omegaconf import DictConfig, ListConfig
 
 from metta.common.util.logging import setup_mettagrid_logger
+from metta.common.util.runtime_configuration import setup_mettagrid_environment
 
 T = TypeVar("T")
 
 
 def metta_script(func: Callable[..., T]) -> Callable[..., T]:
     """
-    Decorator for Metta script entry points that performs device validation.
+    Decorator for Metta script entry points that performs environment setup.
 
-    This decorator checks that the requested device is available and valid.
-    It will raise an error if CUDA is requested but not available.
+    This decorator:
+    1. Sets up logging to both stdout and run_dir/logs/
+    2. Calls setup_mettagrid_environment for full environment initialization
+    3. Performs device validation
     """
 
     @functools.wraps(func)
     def wrapper(cfg: DictConfig | ListConfig, *args, **kwargs) -> T:
+        # Set up console logging first
         logger = setup_mettagrid_logger("metta_script")
+        
+        # Then add file logging (after console handlers are set up)
+        _setup_script_logging(cfg)
+        
+        logger.info(f"Starting {func.__name__} with run_dir: {cfg.get('run_dir', 'not set')}")
 
-        # Get the device from config
-        device = cfg.get("device", "cpu")
-
-        # Check if CUDA is requested but not available
-        if device.startswith("cuda") and not torch.cuda.is_available():
-            raise RuntimeError(
-                f"Device '{device}' was requested but CUDA is not available. "
-                "Please either install CUDA/PyTorch with GPU support or set device: cpu in your config."
-            )
-
-        # Validate device format
-        if device != "cpu" and not device.startswith("cuda"):
-            raise ValueError(
-                f"Invalid device '{device}'. Device must be 'cpu' or start with 'cuda' (e.g., 'cuda', 'cuda:0')."
-            )
-
-        # If device is cuda:X, check that the specific device exists
-        if ":" in device:
-            device_id = device.split(":")[1]
-            try:
-                device_id = int(device_id)
-                if device_id >= torch.cuda.device_count():
-                    raise RuntimeError(
-                        f"Device '{device}' was requested but only {torch.cuda.device_count()} "
-                        f"CUDA devices are available (0-{torch.cuda.device_count() - 1})."
-                    )
-            except ValueError:
-                raise ValueError(f"Invalid device ID in '{device}'. Device ID must be an integer.") from None
-
-        logger.info(f"Device check passed: {device}")
+        # Set up the full mettagrid environment (includes device validation)
+        setup_mettagrid_environment(cfg)
+        
+        logger.info("Environment setup completed")
 
         # Call the original function
         return func(cfg, *args, **kwargs)
 
     return wrapper
+
+
+def _setup_script_logging(cfg: DictConfig | ListConfig) -> None:
+    """Set up file logging in addition to stdout logging."""
+    run_dir = cfg.get("run_dir")
+    if not run_dir:
+        return
+    
+    # Create logs directory
+    logs_dir = os.path.join(run_dir, "logs")
+    os.makedirs(logs_dir, exist_ok=True)
+    
+    # Set up file handler for the root logger
+    log_file = os.path.join(logs_dir, "script.log")
+    file_handler = logging.FileHandler(log_file, mode='a')
+    
+    # Use the same formatter as the existing console handler
+    formatter = logging.Formatter(
+        fmt='%(asctime)s [%(levelname)s] %(name)s: %(message)s',
+        datefmt='%H:%M:%S'
+    )
+    file_handler.setFormatter(formatter)
+    file_handler.setLevel(logging.INFO)  # Ensure file handler level is set
+    
+    # Add to root logger so all log messages go to file
+    root_logger = logging.getLogger()
+    root_logger.addHandler(file_handler)
+    
+    # Force a flush to make sure the file is created properly
+    file_handler.flush()
