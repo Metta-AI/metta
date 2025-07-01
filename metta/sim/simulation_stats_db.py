@@ -182,7 +182,7 @@ class SimulationStatsDB(EpisodeStatsDB):
 
     def _insert_simulation(
         self, sim_id: str, name: str, suite: str, env: str, policy_key: str, policy_version: int
-    ) -> str:
+    ) -> None:
         self.con.execute(
             """
             INSERT OR REPLACE INTO simulations (id, name, suite, env, policy_key, policy_version)
@@ -240,10 +240,15 @@ class SimulationStatsDB(EpisodeStatsDB):
         if Path(self.path).samefile(other_path):
             return
 
+        def select_count() -> int:
+            result = self.con.execute("SELECT COUNT(*) FROM episodes").fetchone()
+            assert result is not None, "SELECT COUNT(*) returned None"
+            return result[0]
+
         # Merge
-        logger.debug(f"Before merge: {self.con.execute('SELECT COUNT(*) FROM episodes').fetchone()[0]} episodes")
+        logger.debug(f"Before merge: {select_count()} episodes")
         self._merge_db(other.path)
-        logger.debug(f"After merge: {self.con.execute('SELECT COUNT(*) FROM episodes').fetchone()[0]} episodes")
+        logger.debug(f"After merge: {select_count()} episodes")
         logger.debug(f"Merged {other_path} into {self.path}")
 
     # ------------------------------------------------------------------ #
