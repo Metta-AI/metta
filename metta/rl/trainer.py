@@ -15,9 +15,7 @@ from omegaconf import DictConfig
 
 from app_backend.stats_client import StatsClient
 from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent, make_policy
-from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyRecord, PolicyStore
-from metta.agent.util.debug import assert_shape
 from metta.common.memory_monitor import MemoryMonitor
 from metta.common.stopwatch import Stopwatch, with_instance_timer
 from metta.common.util.heartbeat import record_heartbeat
@@ -25,7 +23,7 @@ from metta.common.util.system_monitor import SystemMonitor
 from metta.common.util.wandb.wandb_context import WandbRun
 from metta.eval.eval_stats_db import EvalStatsDB
 from metta.mettagrid.curriculum.util import curriculum_from_config_path
-from metta.mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
+from metta.mettagrid.mettagrid_env import MettaGridEnv
 from metta.rl.experience import Experience
 from metta.rl.functions import (
     accumulate_rollout_stats,
@@ -34,6 +32,7 @@ from metta.rl.functions import (
     calculate_prioritized_sampling_params,
     compute_advantage,
     get_lstm_config,
+    perform_rollout_step,
     process_minibatch_update,
     validate_policy_environment_match,
 )
@@ -376,75 +375,24 @@ class MettaTrainer:
         """Perform rollout phase of training."""
         experience = self.experience
         trainer_cfg = self.trainer_cfg
-        device = self.device
 
-        policy = self.policy
         raw_infos = []  # Collect raw info for batch processing later
         experience.reset_for_rollout()
 
         while not experience.ready_for_training:
-            with self.timer("_rollout.env"):
-                o, r, d, t, info, env_id, mask = self.vecenv.recv()
-                if trainer_cfg.require_contiguous_env_ids:
-                    raise ValueError(
-                        "We are assuming contiguous eng id is always False. async_factor == num_workers = "
-                        f"{trainer_cfg.async_factor} != {trainer_cfg.num_workers}"
-                    )
+            # Check for contiguous env ids constraint
+            if trainer_cfg.require_contiguous_env_ids:
+                raise ValueError(
+                    "We are assuming contiguous eng id is always False. async_factor == num_workers = "
+                    f"{trainer_cfg.async_factor} != {trainer_cfg.num_workers}"
+                )
 
-                training_env_id = slice(env_id[0], env_id[-1] + 1)
+            # Perform single rollout step
+            num_steps, info = perform_rollout_step(self.policy, self.vecenv, experience, self.device, self.timer)
 
-            # Convert mask to tensor once
-            mask = torch.as_tensor(mask)
-            num_steps = int(mask.sum().item())
             self.agent_step += num_steps
 
-            # Convert to tensors once
-            o = torch.as_tensor(o).to(device, non_blocking=True)
-            r = torch.as_tensor(r).to(device, non_blocking=True)
-            d = torch.as_tensor(d).to(device, non_blocking=True)
-            t = torch.as_tensor(t).to(device, non_blocking=True)
-
-            with torch.no_grad():
-                state = PolicyState()
-
-                # Use LSTM state access for performance
-                lstm_h, lstm_c = experience.get_lstm_state(training_env_id.start)
-                if lstm_h is not None:
-                    state.lstm_h = lstm_h
-                    state.lstm_c = lstm_c
-
-                # Use pre-moved tensor
-                actions, selected_action_log_probs, _, value, _ = policy(o, state)
-
-                if __debug__:
-                    assert_shape(selected_action_log_probs, ("BT",), "selected_action_log_probs")
-                    assert_shape(actions, ("BT", 2), "actions")
-
-                # Store LSTM state for performance
-                lstm_state_to_store = None
-                if state.lstm_h is not None:
-                    lstm_state_to_store = {"lstm_h": state.lstm_h.detach(), "lstm_c": state.lstm_c.detach()}
-
-                if str(self.device).startswith("cuda"):
-                    torch.cuda.synchronize()
-
-            value = value.flatten()
-            # mask already converted to tensor above
-
-            # All tensors are already on device, avoid redundant transfers
-            experience.store(
-                obs=o,
-                actions=actions,
-                logprobs=selected_action_log_probs,
-                rewards=r,
-                dones=d,
-                truncations=t,
-                values=value,
-                env_id=training_env_id,
-                mask=mask,
-                lstm_state=lstm_state_to_store,
-            )
-
+            # Collect info for batch processing
             # At this point, infos contains lists of values collected across:
             # 1. Multiple vectorized environments managed by this GPU's vecenv
             # 2. Multiple rollout steps (until experience buffer is full)
@@ -457,9 +405,6 @@ class MettaTrainer:
             # distributed training) are handled separately and not aggregated here.
             if info:
                 raw_infos.extend(info)
-
-            with self.timer("_rollout.env"):
-                self.vecenv.send(actions.cpu().numpy().astype(dtype_actions))
 
         # Batch process info dictionaries after rollout
         accumulate_rollout_stats(raw_infos, self.stats)

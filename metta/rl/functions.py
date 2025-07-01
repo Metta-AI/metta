@@ -26,40 +26,22 @@ from metta.rl.losses import Losses
 logger = logging.getLogger(__name__)
 
 
-def process_rollout_infos(raw_infos: list) -> Dict[str, Any]:
-    """Process raw info dictionaries from the environment."""
-    infos = defaultdict(list)
-    for i in raw_infos:
-        for k, v in unroll_nested_dict(i):
-            infos[k].append(v)
-
-    stats = {}
-    for k, v in infos.items():
-        if isinstance(v, np.ndarray):
-            v = v.tolist()
-
-        if isinstance(v, list):
-            stats.setdefault(k, []).extend(v)
-        else:
-            if k not in stats:
-                stats[k] = v
-            else:
-                try:
-                    stats[k] += v
-                except TypeError:
-                    stats[k] = [stats[k], v]  # fallback: bundle as list
-    return stats
-
-
 def perform_rollout_step(
     policy: torch.nn.Module,
     vecenv: Any,
     experience: Experience,
     device: torch.device,
-    timer: Optional[Any],
-) -> Tuple[int, list, int]:
-    """Performs a single step of the rollout, interacting with the environment."""
-    with timer("_rollout.env") if timer else nullcontext():
+    timer: Optional[Any] = None,
+) -> Tuple[int, list]:
+    """Performs a single step of the rollout, interacting with the environment.
+
+    Returns:
+        Tuple of (num_steps, info_list)
+    """
+    # Use timer if provided, otherwise use nullcontext
+    timer_context = timer("_rollout.env") if timer else nullcontext()
+
+    with timer_context:
         o, r, d, t, info, env_id, mask = vecenv.recv()
         training_env_id = slice(env_id[0], env_id[-1] + 1)
 
@@ -107,10 +89,10 @@ def perform_rollout_step(
         lstm_state=lstm_state_to_store,
     )
 
-    with timer("_rollout.env") if timer else nullcontext():
+    with timer_context:
         vecenv.send(actions.cpu().numpy().astype(dtype_actions))
 
-    return num_steps, info, 0
+    return num_steps, info
 
 
 def compute_ppo_losses(
