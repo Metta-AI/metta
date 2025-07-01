@@ -1,3 +1,5 @@
+import logging
+import time
 from abc import ABC, abstractmethod
 from collections import defaultdict
 from dataclasses import dataclass
@@ -9,8 +11,15 @@ from psycopg.rows import class_row
 from psycopg.sql import SQL
 from pydantic import BaseModel
 
+from app_backend import query_logger
 from app_backend.auth import create_user_or_token_dependency
 from app_backend.metta_repo import MettaRepo
+from app_backend.query_logger import execute_query_and_log
+from app_backend.route_logger import timed_route
+
+# Set up logging for heatmap performance analysis
+logger = logging.getLogger("dashboard_performance")
+logger.setLevel(logging.INFO)
 
 
 # Pydantic models for API responses
@@ -138,45 +147,95 @@ def _get_group_data_with_policy_filter(
     con: Connection, suite: str, metric: str, group: str, policy_cte: SQL, extra_params: Tuple[Any, ...] = ()
 ) -> List[GroupDataRow]:
     """Core group data query with configurable policy filtering."""
-    query_template: SQL = SQL("""
-        WITH
-        episode_agent_metrics_with_group_id AS (
+    if group == "":
+        # Optimized query for all groups - avoids expensive JSON parsing and reduces CTEs
+        query_template = SQL("""
+            WITH
+            {} ,
+
+            pre_aggregated AS (
+              SELECT
+                episode_id,
+                SUM(value) as total_value,
+                COUNT(*) as agent_count
+              FROM episode_agent_metrics
+              WHERE metric = %s
+              GROUP BY episode_id
+            )
             SELECT
-                eam.*,
-                CAST ((e.attributes->'agent_groups')[eam.agent_id] AS INTEGER) as group_id
-            FROM episode_agent_metrics eam
-            JOIN episodes e ON e.id = eam.episode_id
-            WHERE e.eval_category = %s AND eam.metric = %s
-        ),
-        {}
+              p.name as policy_uri,
+              e.env_name as eval_name,
+              ANY_VALUE(e.replay_url) as replay_url,
+              pa.agent_count AS num_agents,
+              pa.total_value AS total_value,
+              p.run_id,
+              p.end_training_epoch
+            FROM episodes e
+            JOIN pre_aggregated pa ON e.id = pa.episode_id
+            JOIN filtered_policies p ON e.primary_policy_id = p.id
+            WHERE e.eval_category = %s
+            GROUP BY p.name, e.env_name, p.run_id, p.end_training_epoch, pa.agent_count, pa.total_value
+            ORDER BY p.run_id, p.end_training_epoch DESC;
+        """)
 
-        SELECT
-          p.name as policy_uri,
-          e.env_name as eval_name,
-          ANY_VALUE(e.replay_url) as replay_url,
-          COUNT(*) AS num_agents,
-          SUM(eam.value) AS total_value,
-          p.run_id,
-          p.end_training_epoch
-        FROM episode_agent_metrics_with_group_id eam
-        JOIN episodes e ON e.id = eam.episode_id
-        JOIN filtered_policies p ON e.primary_policy_id = p.id
-        {}
-        GROUP BY p.name, e.env_name, p.run_id, p.end_training_epoch
-        ORDER BY p.run_id, p.end_training_epoch DESC
-    """)
+        query = query_template.format(policy_cte)
+        # For optimized query: extra_params come first (for CTE), then base params (for main query)
+        params = extra_params + (metric, suite)
 
-    where_clause = SQL("")
-    if group != "":
-        where_clause = SQL("WHERE eam.group_id = %s")
+    else:
+        # Original query with group filtering - includes JSON parsing only when needed
+        query_template = SQL("""
+            WITH
+            filtered_episodes AS (
+                SELECT e.id, e.env_name, e.primary_policy_id, e.replay_url, e.attributes
+                FROM episodes e
+                WHERE e.eval_category = %s
+            ),
+            episode_agent_metrics_with_group_id AS (
+                SELECT
+                    eam.episode_id,
+                    eam.agent_id,
+                    eam.value,
+                    CAST ((fe.attributes->'agent_groups')[eam.agent_id] AS INTEGER) as group_id,
+                    fe.env_name,
+                    fe.primary_policy_id,
+                    fe.replay_url
+                FROM episode_agent_metrics eam
+                JOIN filtered_episodes fe ON fe.id = eam.episode_id
+                WHERE eam.metric = %s
+            ),
+            {}
 
-    query = query_template.format(policy_cte, where_clause)
-    base_params = (suite, metric) + extra_params
-    params = base_params + (group,) if group != "" else base_params
+            SELECT
+              p.name as policy_uri,
+              eam.env_name as eval_name,
+              ANY_VALUE(eam.replay_url) as replay_url,
+              COUNT(*) AS num_agents,
+              SUM(eam.value) AS total_value,
+              p.run_id,
+              p.end_training_epoch
+            FROM episode_agent_metrics_with_group_id eam
+            JOIN filtered_policies p ON eam.primary_policy_id = p.id
+            WHERE eam.group_id = %s
+            GROUP BY p.name, eam.env_name, p.run_id, p.end_training_epoch
+            ORDER BY p.run_id, p.end_training_epoch DESC
+        """)
 
+        query = query_template.format(policy_cte)
+        base_params = (suite, metric) + extra_params
+        params = base_params + (group,)
+
+    start_time = time.time()
     with con.cursor(row_factory=class_row(GroupDataRow)) as cursor:
         cursor.execute(query, params)
-        return cursor.fetchall()
+        results = cursor.fetchall()
+
+    end_time = time.time()
+    logger.info(f"Get group data execution time: {end_time - start_time:.3f}s")
+    if end_time - start_time > query_logger.SLOW_QUERY_THRESHOLD_SECONDS:
+        logger.warning(f"SLOW QUERY ({end_time - start_time:.3f}s): {query.as_string(con)}, Params: {params}")
+
+    return results
 
 
 def get_training_run_group_data(
@@ -355,14 +414,17 @@ def create_dashboard_router(metta_repo: MettaRepo) -> APIRouter:
     user_or_token = Depends(create_user_or_token_dependency(metta_repo))
 
     @router.get("/suites")
+    @timed_route("get_suites")
     async def get_suites() -> List[str]:  # type: ignore[reportUnusedFunction]
         return metta_repo.get_suites()
 
     @router.get("/suites/{suite}/metrics")
+    @timed_route("get_metrics")
     async def get_metrics(suite: str) -> List[str]:  # type: ignore[reportUnusedFunction]
         return metta_repo.get_metrics(suite)
 
     @router.get("/suites/{suite}/group-ids")
+    @timed_route("get_group_ids")
     async def get_group_ids(suite: str) -> List[str]:  # type: ignore[reportUnusedFunction]
         return metta_repo.get_group_ids(suite)
 
@@ -382,11 +444,17 @@ def create_dashboard_router(metta_repo: MettaRepo) -> APIRouter:
         Returns:
             HeatmapData containing evaluation cells, policy averages, and evaluation names
         """
-        eval_rows = con.execute(
-            "SELECT DISTINCT env_name FROM episodes WHERE eval_category = %s", (data_retriever.suite,)
+
+        # Step 1: Get evaluation names
+        eval_rows = execute_query_and_log(
+            con,
+            "SELECT DISTINCT env_name FROM episodes WHERE eval_category = %s",
+            (data_retriever.suite,),
+            "get_evaluation_names",
         )
         all_eval_names: List[str] = [row[0] for row in eval_rows]
 
+        # Step 2: Get group data
         if isinstance(group_metric.group_metric, GroupDiff):
             group1_rows = data_retriever.get_group_data(con, group_metric.group_metric.group_1)
             group2_rows = data_retriever.get_group_data(con, group_metric.group_metric.group_2)
@@ -394,6 +462,7 @@ def create_dashboard_router(metta_repo: MettaRepo) -> APIRouter:
             group1_rows = data_retriever.get_group_data(con, group_metric.group_metric)
             group2_rows: List[GroupDataRow] = []
 
+        # Step 3: Process policy URIs and values
         all_policy_uris: Set[str] = set()
         for row in group1_rows:
             all_policy_uris.add(row.policy_uri)
@@ -407,6 +476,7 @@ def create_dashboard_router(metta_repo: MettaRepo) -> APIRouter:
         for row in group2_rows:
             group_2_values[(row.policy_uri, row.eval_name)] = (row.total_value / row.num_agents, row.replay_url)
 
+        # Step 4: Build heatmap cells
         cells: Dict[str, Dict[str, HeatmapCell]] = {}
         for policy_uri in all_policy_uris:
             cells[policy_uri] = {}  # Dict[str, HeatmapCell]
@@ -420,6 +490,7 @@ def create_dashboard_router(metta_repo: MettaRepo) -> APIRouter:
                     value=group_1_value[0] - group_2_value[0],
                 )
 
+        # Step 5: Calculate policy averages
         policy_average_scores: Dict[str, float] = {}
         for policy_uri in all_policy_uris:
             policy_cells = cells[policy_uri]
@@ -434,6 +505,7 @@ def create_dashboard_router(metta_repo: MettaRepo) -> APIRouter:
         )
 
     @router.post("/suites/{suite}/metrics/{metric}/heatmap")
+    @timed_route("get_heatmap_data")
     async def get_heatmap_data(  # type: ignore[reportUnusedFunction]
         suite: str,
         metric: str,
@@ -445,6 +517,7 @@ def create_dashboard_router(metta_repo: MettaRepo) -> APIRouter:
             return _build_heatmap_data(con, group_metric, data_retriever)
 
     @router.get("/saved")
+    @timed_route("list_saved_dashboards")
     async def list_saved_dashboards() -> SavedDashboardListResponse:  # type: ignore[reportUnusedFunction]
         """List all saved dashboards."""
         dashboards = metta_repo.list_saved_dashboards()
@@ -465,6 +538,7 @@ def create_dashboard_router(metta_repo: MettaRepo) -> APIRouter:
         )
 
     @router.get("/saved/{dashboard_id}")
+    @timed_route("get_saved_dashboard")
     async def get_saved_dashboard(dashboard_id: str) -> SavedDashboardResponse:  # type: ignore[reportUnusedFunction]
         """Get a specific saved dashboard by ID."""
         dashboard = metta_repo.get_saved_dashboard(dashboard_id)
@@ -483,6 +557,7 @@ def create_dashboard_router(metta_repo: MettaRepo) -> APIRouter:
         )
 
     @router.post("/saved")
+    @timed_route("create_saved_dashboard")
     async def create_saved_dashboard(  # type: ignore[reportUnusedFunction]
         dashboard_data: SavedDashboardCreate,
         user_or_token: str = user_or_token,
@@ -513,6 +588,7 @@ def create_dashboard_router(metta_repo: MettaRepo) -> APIRouter:
         )
 
     @router.put("/saved/{dashboard_id}")
+    @timed_route("update_saved_dashboard")
     async def update_saved_dashboard(  # type: ignore[reportUnusedFunction]
         dashboard_id: str,
         dashboard_data: SavedDashboardCreate,
@@ -548,6 +624,7 @@ def create_dashboard_router(metta_repo: MettaRepo) -> APIRouter:
         )
 
     @router.delete("/saved/{dashboard_id}")
+    @timed_route("delete_saved_dashboard")
     async def delete_saved_dashboard(  # type: ignore[reportUnusedFunction]
         dashboard_id: str, user_or_token: str = user_or_token
     ) -> Dict[str, str]:
@@ -558,6 +635,7 @@ def create_dashboard_router(metta_repo: MettaRepo) -> APIRouter:
         return {"message": "Dashboard deleted successfully"}
 
     @router.get("/training-runs")
+    @timed_route("get_training_runs")
     async def get_training_runs() -> TrainingRunListResponse:  # type: ignore[reportUnusedFunction]
         """Get all training runs."""
         training_runs = metta_repo.get_training_runs()
@@ -577,6 +655,7 @@ def create_dashboard_router(metta_repo: MettaRepo) -> APIRouter:
         )
 
     @router.get("/training-runs/{run_id}")
+    @timed_route("get_training_run")
     async def get_training_run(run_id: str) -> TrainingRun:  # type: ignore[reportUnusedFunction]
         """Get a specific training run by ID."""
         training_run = metta_repo.get_training_run(run_id)
@@ -594,6 +673,7 @@ def create_dashboard_router(metta_repo: MettaRepo) -> APIRouter:
         )
 
     @router.post("/training-runs/{run_id}/suites/{suite}/metrics/{metric}/heatmap")
+    @timed_route("get_training_run_heatmap_data")
     async def get_training_run_heatmap_data(  # type: ignore[reportUnusedFunction]
         run_id: str,
         suite: str,

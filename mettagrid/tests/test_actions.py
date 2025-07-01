@@ -36,7 +36,7 @@ def base_config():
             "move": {"enabled": True},
             "rotate": {"enabled": True},
             "get_items": {"enabled": True},  # maps to get_output
-            "attack": {"enabled": True},
+            "attack": {"enabled": True, "consumed_resources": {"laser": 1}, "defense_resources": {"armor": 1}},
             "put_items": {"enabled": True},  # maps to get_recipe_items
             "swap": {"enabled": True},
             "change_color": {"enabled": True},

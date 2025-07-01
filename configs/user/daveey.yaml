@@ -13,7 +13,8 @@ trainer:
     game:
       max_steps: 13
 
-  evaluate_interval: 200
+  # simulation:
+  #   evaluate_interval: 200
   # optimizer:
   #   type: muon
 
@@ -75,7 +76,7 @@ sim_job:
   #         agents: 4
   #       num_rooms: 4
 
-run_id: 1
+run_id: 1.7
 run: ${oc.env:USER}.local.${run_id}
 trained_policy_uri: ${run_dir}/checkpoints
 

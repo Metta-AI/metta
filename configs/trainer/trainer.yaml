@@ -12,30 +12,21 @@ initial_policy:
   metric: epoch
   filters: {}
 
-checkpoint_dir: ${run_dir}/checkpoints
+checkpoint:
+  checkpoint_dir: ${run_dir}/checkpoints
+  checkpoint_interval: 60
+  wandb_checkpoint_interval: 300
 
-evaluate_interval: 300
-checkpoint_interval: 60
-wandb_checkpoint_interval: 300
+simulation:
+  evaluate_interval: 300
+  replay_interval: ${trainer.simulation.evaluate_interval}
+  replay_dir: s3://softmax-public/replays/${run}
+
 grad_mean_variance_interval: 0 # 0 to disable
-replay_interval: ${trainer.evaluate_interval}
-replay_dir: s3://softmax-public/replays/${run}
 
 
 total_timesteps: 50_000_000_000
 
-clip_coef: 0.1
-ent_coef: 0.0021
-gae_lambda: 0.916
-gamma: 0.977
-
-# optimizer:
-#   type: muon
-#   beta1: 0.943
-#   beta2: 0.9997
-#   eps: 1.82e-13
-#   learning_rate: 0.000238167
-#   weight_decay: 0
 
 optimizer:
   type: adam
@@ -51,20 +42,29 @@ lr_scheduler:
   warmup_steps: null
   schedule_type: null
 
-max_grad_norm: 0.5
-vf_clip_coef: 0.1
-vf_coef: 0.44
-l2_reg_loss_coef: 0
-l2_init_loss_coef: 0
+ppo:
+  # Core PPO hyperparameters
+  clip_coef: 0.1
+  ent_coef: 0.0021
+  gae_lambda: 0.916
+  gamma: 0.977
+
+  # Training parameters
+  max_grad_norm: 0.5
+  vf_clip_coef: 0.1
+  vf_coef: 0.44
+  l2_reg_loss_coef: 0
+  l2_init_loss_coef: 0
+  norm_adv: true
+  clip_vloss: true
+  target_kl: null
 
 # Prioritized experience replay parameters
 prioritized_experience_replay:
   prio_alpha: 0.0  # Default to uniform sampling (0.0 = uniform, >0 = prioritized)
   prio_beta0: 0.6  # Initial importance sampling correction
 
-norm_adv: true
-clip_vloss: true
-target_kl: null
+
 
 # V-trace clipping parameters (for off-policy corrections)
 vtrace:

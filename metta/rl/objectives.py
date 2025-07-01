@@ -110,15 +110,15 @@ class ClipPPOLoss(nn.Module):
             v_loss = 0.5 * ((newvalue_reshaped - minibatch["returns"]) ** 2).mean()
 
         entropy_loss = entropy.mean()
-        ks_action_loss, ks_value_loss = torch.tensor(0.0), torch.tensor(0.0)
+        ks_action_loss, ks_value_loss = torch.tensor(0.0, dtype=torch.float32), torch.tensor(0.0, dtype=torch.float32)
         if self.kickstarter is not None:
             ks_action_loss, ks_value_loss = self.kickstarter.loss(agent_step, full_logprobs, newvalue, obs, [])
 
-        l2_reg_loss = torch.tensor(0.0)
+        l2_reg_loss = torch.tensor(0.0, dtype=torch.float32)
         if self.l2_reg_loss_coef > 0 and hasattr(self.policy, "l2_reg_loss"):
             l2_reg_loss = self.l2_reg_loss_coef * self.policy.l2_reg_loss().to(device)
 
-        l2_init_loss = torch.tensor(0.0)
+        l2_init_loss = torch.tensor(0.0, dtype=torch.float32)
         if self.l2_init_loss_coef > 0 and hasattr(self.policy, "l2_init_loss"):
             l2_init_loss = self.l2_init_loss_coef * self.policy.l2_init_loss().to(device)
 
