@@ -283,6 +283,7 @@ export function TrainingRunDetail({ repo }: TrainingRunDetailProps) {
   const [editDescription, setEditDescription] = useState('')
   const [saving, setSaving] = useState(false)
   const [currentUser, setCurrentUser] = useState<string | null>(null)
+  const [generating, setGenerating] = useState(false)
 
 
   // Load training run and initial data
@@ -424,6 +425,21 @@ export function TrainingRunDetail({ repo }: TrainingRunDetailProps) {
   const handleCancelEdit = () => {
     setEditingDescription(false)
     setEditDescription('')
+  }
+
+  const handleGenerateDescription = async () => {
+    if (!runId || !trainingRun) return
+
+    try {
+      setGenerating(true)
+      const generatedDescription = await repo.generateTrainingRunDescription(runId)
+      setEditDescription(generatedDescription)
+      setEditingDescription(true)
+    } catch (err: any) {
+      setError(`Failed to generate description: ${err.message}`)
+    } finally {
+      setGenerating(false)
+    }
   }
 
   // Create the modified heatmap with policies on X-axis and evals on Y-axis
@@ -589,20 +605,30 @@ export function TrainingRunDetail({ repo }: TrainingRunDetailProps) {
               <span>{trainingRun.user_id}</span>
             </div>
           </div>
-          
+
           <div className="training-run-description-section">
             <div style={{ display: 'flex', alignItems: 'center' }}>
               <strong>Description:</strong>
               {canEditRun(trainingRun) && !editingDescription && (
+                <>
                 <button
                   onClick={handleEditDescription}
                   className="edit-description-btn"
                 >
                   Edit
                 </button>
+                  <button
+                    onClick={handleGenerateDescription}
+                    disabled={generating}
+                    className="edit-description-btn"
+                    style={{ marginLeft: '8px' }}
+                  >
+                    {generating ? 'Generating...' : 'Generate Description'}
+                  </button>
+                </>
               )}
             </div>
-            
+
             {editingDescription ? (
               <div className="edit-description-form">
                 <textarea

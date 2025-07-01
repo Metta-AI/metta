@@ -1,5 +1,6 @@
 import logging
 import os
+import subprocess
 import time
 from collections import defaultdict
 from contextlib import nullcontext
@@ -328,8 +329,15 @@ class MettaTrainer:
         if self._stats_client is not None:
             name = self.wandb_run.name if self.wandb_run is not None and self.wandb_run.name is not None else "unknown"
             url = self.wandb_run.url if self.wandb_run is not None else None
+
+            # Get git hash and store in attributes
+            git_hash = self.get_git_hash()
+            attributes = {"git_hash": git_hash} if git_hash else {}
+
             try:
-                self._stats_run_id = self._stats_client.create_training_run(name=name, attributes={}, url=url).id
+                self._stats_run_id = self._stats_client.create_training_run(
+                    name=name, attributes=attributes, url=url
+                ).id
             except Exception as e:
                 logger.warning(f"Failed to create training run: {e}")
 
@@ -1305,6 +1313,21 @@ class MettaTrainer:
                 f"var={self.grad_stats['grad/variance']:.2e}, "
                 f"norm={self.grad_stats['grad/norm']:.2e}"
             )
+
+    def get_git_hash(self) -> str:
+        """Get the current git commit hash."""
+        try:
+            result = subprocess.run(
+                ["git", "rev-parse", "HEAD"],
+                capture_output=True,
+                text=True,
+                check=True,
+                cwd=Path(__file__).parent.parent.parent,  # Navigate to repo root
+            )
+            return result.stdout.strip()
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            # If git command fails or git is not available, return empty string
+            return ""
 
 
 class AbortingTrainer(MettaTrainer):
