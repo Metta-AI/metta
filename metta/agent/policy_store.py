@@ -222,10 +222,17 @@ class PolicyStore:
         pr._policy_store = None
         try:
             torch.save(pr, temp_path)
-            # Atomically rename the temporary file to the final path
-            os.rename(temp_path, path)
+            # Atomically replace the file (works even if target exists)
+            # os.replace is atomic on POSIX systems and handles existing files
+            os.replace(temp_path, path)
         finally:
             pr._policy_store = self
+            # Clean up temp file if it still exists (in case of error)
+            if os.path.exists(temp_path):
+                try:
+                    os.remove(temp_path)
+                except OSError:
+                    pass
 
         # Don't cache the policy that we just saved,
         # since it might be updated later. We always

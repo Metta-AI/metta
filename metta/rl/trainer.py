@@ -113,17 +113,21 @@ class MettaTrainer:
         self.sim_suite_config = sim_suite_config
         self._stats_client = stats_client
 
-        self._master = True
-        self._world_size = 1
-        self.device: torch.device = torch.device(cfg.device) if isinstance(cfg.device, str) else cfg.device
-        self._batch_size = trainer_cfg.batch_size
-        self._minibatch_size = trainer_cfg.minibatch_size
         if torch.distributed.is_initialized():
-            self._master = int(os.environ["RANK"]) == 0
+            self._master = torch.distributed.get_rank() == 0
             self._world_size = torch.distributed.get_world_size()
+            self._rank = torch.distributed.get_rank()
             logger.info(
                 f"Rank: {os.environ['RANK']}, Local rank: {os.environ['LOCAL_RANK']}, World size: {self._world_size}"
             )
+        else:
+            self._master = True
+            self._world_size = 1
+            self._rank = 0
+
+        self.device: torch.device = torch.device(cfg.device) if isinstance(cfg.device, str) else cfg.device
+        self._batch_size = trainer_cfg.batch_size
+        self._minibatch_size = trainer_cfg.minibatch_size
 
         self.torch_profiler = TorchProfiler(self._master, cfg.run_dir, trainer_cfg.profiler_interval_epochs, wandb_run)
         self.losses = Losses()
@@ -518,10 +522,13 @@ class MettaTrainer:
 
     def _maybe_save_training_state(self, force=False):
         """Save training state if on checkpoint interval"""
-        if not self._should_run(self.trainer_cfg.checkpoint.checkpoint_interval, force):
-            return
+        # Check interval for all ranks to ensure synchronization
+        if not force and self.trainer_cfg.checkpoint.checkpoint_interval:
+            if self.epoch % self.trainer_cfg.checkpoint.checkpoint_interval != 0:
+                return
 
-        # Only master saves training state
+        # Now all ranks that should save are here
+        # Only master saves training state, but all ranks must participate in barrier
         if not self._master:
             # Non-master ranks need to participate in the barrier below
             if torch.distributed.is_initialized():
@@ -550,14 +557,19 @@ class MettaTrainer:
 
     def _maybe_save_policy(self, force=False):
         """Save policy locally if on checkpoint interval"""
-        if not self._should_run(self.trainer_cfg.checkpoint.checkpoint_interval, force):
-            return
+        # Check interval for all ranks to ensure synchronization
+        if not force and self.trainer_cfg.checkpoint.checkpoint_interval:
+            if self.epoch % self.trainer_cfg.checkpoint.checkpoint_interval != 0:
+                return
 
-        # Only master saves policies
+        # Now all ranks that should save are here
+        # Only master saves policies, but all ranks must participate in barrier
         if not self._master:
             # Non-master ranks need to participate in the barrier below
             if torch.distributed.is_initialized():
+                logger.debug(f"Non-master rank {self._rank} entering barrier in _maybe_save_policy")
                 torch.distributed.barrier()
+                logger.debug(f"Non-master rank {self._rank} exited barrier in _maybe_save_policy")
             return
 
         name = self.policy_store.make_model_name(self.epoch)
@@ -613,7 +625,9 @@ class MettaTrainer:
 
         # Synchronize all ranks to ensure the policy is fully saved before continuing
         if torch.distributed.is_initialized():
+            logger.debug(f"Rank {self._rank} entering barrier after save")
             torch.distributed.barrier()
+            logger.debug(f"Rank {self._rank} exited barrier after save")
 
     def _wait_for_policy_record(self, policy_path: str, timeout: int = 300) -> PolicyRecord | None:
         """Wait for a policy file to be created by the master rank.
