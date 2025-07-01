@@ -47,13 +47,13 @@ game:
     rewards:
       heart: 1
       heart_max: 1000
-      ore.red: 0.005
-      ore.red_max: 1000
+      ore_red: 0.005
+      ore_red_max: 1000
 
   objects:
     altar:
-      input_battery.red: 0
-      input_ore.red: 2
+      input_battery_red: 0
+      input_ore_red: 2
       output_heart: 1
       max_output: 50
       conversion_ticks: 1
@@ -61,7 +61,7 @@ game:
       initial_items: 1
 
     mine_red:
-      output_ore.red: 1
+      output_ore_red: 1
       color: 0
       max_output: 10
       conversion_ticks: 1

@@ -5,7 +5,7 @@ Generates a network of 1-tile-wide tubes (cylinders) that snake around the map.
 • Tubes are carved by a biased random walk, segment length 4-12.
 • Random turns create a winding network; a handful of exterior openings are carved as entry points.
 • Passing bays: with small probability, a side alcove cell is carved (still sealed externally) so agents can step aside.
-• Objects (altar / mine_red / ore.red) are placed inside widened pockets that do not block the main tube –
+• Objects (altar / mine_red / ore_red) are placed inside widened pockets that do not block the main tube –
   a 3×3 chamber is carved around the object, centred on the tube cell.
 • Agents are then placed on remaining empty cells; agent count is configurable.
 """
