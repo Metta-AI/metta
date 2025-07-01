@@ -41,8 +41,7 @@ def test_policy_save_load_without_pydantic():
     # Create PolicyStore (without wandb_run for simplicity)
     policy_store = PolicyStore(cfg, wandb_run=None)
 
-    # Create a test MettaAgent directly (simulating what make_policy would do)
-    # For testing, we'll use MinimalPolicy but save it as if it's a MettaAgent
+    # Create a test policy
     policy = MinimalPolicy()
 
     # Create metadata using PolicyMetadata class
@@ -61,7 +60,7 @@ def test_policy_save_load_without_pydantic():
     try:
         print(temp_path)
 
-        # create a policy
+        # Create a policy record
         pr = policy_store.create_empty_policy_record(name=temp_path)
         pr.metadata = metadata
         pr.policy = policy
@@ -69,8 +68,7 @@ def test_policy_save_load_without_pydantic():
         # Save
         policy_store.save(pr)
 
-        # Test that the save format is correct (without loading back)
-        # This tests the critical part - that we don't have pydantic issues
+        # Test that the save format is correct
         checkpoint = torch.load(temp_path, map_location="cpu", weights_only=False)
 
         # With the old simple approach, we save the entire PolicyRecord
@@ -84,6 +82,94 @@ def test_policy_save_load_without_pydantic():
         assert checkpoint.metadata["train_time"] == 60.0
 
         print("✅ Checkpoint format verified - using simple torch.save approach!")
+
+        # Load the policy back and verify it works
+        loaded_pr = policy_store.load_from_uri(f"file://{temp_path}")
+        loaded_policy = loaded_pr.policy
+
+        # Verify the loaded policy works with a forward pass
+        test_input = torch.randn(1, 10)
+        output = loaded_policy(test_input)
+
+        # Assertions
+        assert type(loaded_policy).__name__ == "MinimalPolicy"
+        assert loaded_pr.metadata == metadata
+        assert output.shape == torch.Size([1, 10])
+
+        # Verify the loaded policy has the expected structure
+        assert hasattr(loaded_policy, "fc")
+        assert hasattr(loaded_policy, "components")
+        assert hasattr(loaded_policy.components, "_core_")
+        assert hasattr(loaded_policy.components, "_value_")
+        assert hasattr(loaded_policy.components, "_action_")
+
+        print("✅ Policy loading and forward pass verified!")
+
+    finally:
+        # Cleanup
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+
+
+def test_policy_save_load_with_dict_metadata():
+    """Test that we can save and load a policy with plain dict metadata"""
+
+    from metta.agent.policy_store import PolicyStore
+
+    # Create minimal config
+    cfg = OmegaConf.create(
+        {
+            "device": "cpu",
+            "run": "test_run",
+            "run_dir": tempfile.mkdtemp(),
+            "trainer": {
+                "checkpoint": {"checkpoint_dir": tempfile.mkdtemp()},
+                "num_workers": 1,
+            },
+            "data_dir": tempfile.mkdtemp(),
+        }
+    )
+
+    # Create PolicyStore (without wandb_run for simplicity)
+    policy_store = PolicyStore(cfg, wandb_run=None)
+
+    # Create a test policy
+    policy = MinimalPolicy()
+
+    # Create metadata as plain dict (testing backwards compatibility)
+    metadata = {
+        "action_names": ["move", "turn"],
+        "agent_step": 100,
+        "epoch": 5,
+        "generation": 1,
+        "train_time": 60.0,
+    }
+
+    # Save the policy
+    with tempfile.NamedTemporaryFile(suffix=".pt", delete=False) as f:
+        temp_path = f.name
+
+    try:
+        # Create a policy record
+        pr = policy_store.create_empty_policy_record(name=temp_path)
+        pr.metadata = metadata
+        pr.policy = policy
+
+        # Save
+        policy_store.save(pr)
+
+        # Load it back
+        loaded_pr = policy_store.load_from_uri(f"file://{temp_path}")
+        loaded_policy = loaded_pr.policy
+
+        # Verify the loaded policy works
+        test_input = torch.randn(1, 10)
+        output = loaded_policy(test_input)
+
+        assert output.shape == torch.Size([1, 10])
+        assert loaded_pr.metadata["action_names"] == ["move", "turn"]
+
+        print("✅ Policy save/load with dict metadata verified!")
 
     finally:
         # Cleanup
@@ -172,5 +258,6 @@ def test_policy_record_backwards_compatibility():
 
 if __name__ == "__main__":
     test_policy_save_load_without_pydantic()
+    test_policy_save_load_with_dict_metadata()
     test_policy_record_backwards_compatibility()
     print("✅ All tests passed!")
