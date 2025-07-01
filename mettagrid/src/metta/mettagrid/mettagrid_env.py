@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import datetime
 import logging
-import random
 import time
 import uuid
 from typing import Any, Dict, Optional, cast
@@ -82,7 +81,6 @@ class MettaGridEnv(PufferEnv, GymEnv):
         self._curriculum = curriculum
         self._task = self._curriculum.get_task()
         self._level = level
-        self._last_level_per_task = {}
         self._renderer = None
         self._map_labels: list[str] = []
         self._stats_writer = stats_writer
@@ -117,20 +115,12 @@ class MettaGridEnv(PufferEnv, GymEnv):
         """Initialize the C++ environment."""
         task = self._task
         level = self._level
-        last_level = self._last_level_per_task.get(task.id(), None)
-        if level is None and last_level is not None and random.random() < task.env_cfg().get("replay_level_prob", 0):
-            # Replay the last level we had for this task, rather than building a new one.
-            # This will be less adaptive to changes in the task config, but will save a lot
-            # of CPU, and so is helpful if we're CPU bound.
-            level = last_level
 
         if level is None:
             map_builder_config = task.env_cfg().game.map_builder
             with self.timer("_initialize_c_env.build_map"):
                 map_builder = instantiate(map_builder_config, _recursive_=True, _convert_="all")
                 level = map_builder.build()
-
-        self._last_level_per_task[task.id()] = level
 
         # Validate the level
         level_agents = np.count_nonzero(np.char.startswith(level.grid, "agent"))
