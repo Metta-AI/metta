@@ -109,15 +109,30 @@ git clone https://github.com/Metta-AI/metta.git
 cd metta
 ./install.sh  # Install uv and Python dependencies
 
-# Then use the metta command (choose one approach):
-# Option 1: Using uv run (recommended - no activation needed)
-uv run metta configure
-uv run metta install
+# Then you can use metta directly:
+metta configure
+metta install
+metta status
+```
+
+### Alternative Usage Methods
+
+If you chose not to add metta to your PATH, you can still use it in these ways:
+
+```bash
+# Add the bin directory to PATH manually if you didn't during install
+export PATH="$PWD/metta/setup/installer/bin:$PATH"
+metta configure
+metta install
 
 # Option 2: Activate the virtual environment first
 source .venv/bin/activate
 metta configure
 metta install
+
+# Option 3: Add the bin directory to PATH manually
+export PATH="$PWD/bin:$PATH"
+metta configure
 ```
 
 For more information on setup options and managing components, see the [setup documentation](metta/setup/README.md).

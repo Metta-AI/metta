@@ -18,16 +18,14 @@ The codebase consists of:
 # Initial setup (installs uv if needed and sets up environment)
 ./install.sh
 
-# Then use metta command (choose one approach):
+# The installer will add metta to your PATH, then you can use:
+metta configure --profile=softmax  # For Softmax employees
+metta configure --profile=cloud    # For users with cloud accounts
+metta configure --profile=external # For external contributors
+metta install
+metta status
 
-# Option 1: Using uv run (recommended - works from anywhere)
-uv run metta configure --profile=softmax  # For Softmax employees
-uv run metta configure --profile=cloud    # For users with cloud accounts
-uv run metta configure --profile=external # For external contributors
-uv run metta install
-uv run metta status
-
-# Option 2: Activate venv first (traditional approach)
+# Alternative: Activate venv first
 source .venv/bin/activate
 metta configure
 metta install

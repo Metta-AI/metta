@@ -13,5 +13,8 @@ if [ ! -d ".venv" ]; then
     ./install.sh
 fi
 
+# Export PATH to use metta directly
+export PATH="$(pwd)/metta/setup/installer/bin:$PATH"
+
 # Configure as a softmax user and install all configured components
-uv run metta configure --profile=softmax && uv run metta install
+metta configure --profile=softmax && metta install

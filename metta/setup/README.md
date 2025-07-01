@@ -9,13 +9,13 @@ Modular dependency management for the Metta AI development environment.
 ./install.sh
 
 # Configure
-uv run metta configure
+metta configure
 
 # Install everything
-uv run metta install
+metta install
 
 # Check status
-uv run metta status
+metta status
 ```
 
 ## Updating these setup scripts
@@ -38,8 +38,8 @@ To add a new tool or service dependency:
 
 ## Commands
 
-- `uv run metta configure --profile=external` - Set up as external contributor
-- `uv run metta install nodejs` - Install specific component
-- `uv run metta install --force` - Reinstall all components
-- `uv run metta status` - Show installation and auth status
+- `metta configure --profile=external` - Set up as external contributor
+- `metta install nodejs` - Install specific component
+- `metta install --force` - Reinstall all components
+- `metta status` - Show installation and auth status
 
