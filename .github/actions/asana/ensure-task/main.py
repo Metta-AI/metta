@@ -434,7 +434,7 @@ if __name__ == "__main__":
     gh_login_field_id = os.getenv("INPUT_GH_LOGIN_FIELD_ID")
     asana_email_field_id = os.getenv("INPUT_ASANA_EMAIL_FIELD_ID")
     roster_project_id = os.getenv("INPUT_ROSTER_PROJECT_ID")
-    pr_author_field_id = os.getenv("INPUT_ASANA_PR_AUTHOR_FIELD_ID")
+    pr_author_field_id = os.getenv("INPUT_PR_AUTHOR_FIELD_ID")
 
     github_logins = set(assignees + reviewers + [author])
     github_login_to_asana_email = get_asana_users_by_github_logins(
@@ -453,7 +453,7 @@ if __name__ == "__main__":
     ]
 
     # Get the author's Asana ID for the custom field
-    pr_author_asana_id = github_login_to_asana_email.get(author)
+    pr_author_asana = github_login_to_asana_email.get(author)
 
     task_completed = pr_state == "closed"
 
@@ -470,7 +470,7 @@ if __name__ == "__main__":
         github_url_field_id,
         asana_token,
         pr_author_field_id,
-        pr_author_asana_id,
+        pr_author_asana,
     )
 
     with open(os.environ["GITHUB_OUTPUT"], "a") as f:
