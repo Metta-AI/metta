@@ -11,14 +11,14 @@ interface DescriptionEditorProps {
   placeholder?: string
 }
 
-export function DescriptionEditor({ 
-  description, 
-  canEdit, 
-  onDescriptionChange, 
-  onError, 
+export function DescriptionEditor({
+  description,
+  canEdit,
+  onDescriptionChange,
+  onError,
   disabled = false,
   compact = false,
-  placeholder = "Enter description..."
+  placeholder = 'Enter description...',
 }: DescriptionEditorProps) {
   const [editing, setEditing] = useState(false)
   const [editValue, setEditValue] = useState('')
@@ -66,18 +66,10 @@ export function DescriptionEditor({
           autoFocus
         />
         <div className={styles.editDescriptionActions}>
-          <button
-            onClick={handleSave}
-            disabled={disabled}
-            className={styles.saveBtn}
-          >
+          <button onClick={handleSave} disabled={disabled} className={styles.saveBtn}>
             Save
           </button>
-          <button
-            onClick={handleCancel}
-            disabled={disabled}
-            className={styles.cancelBtn}
-          >
+          <button onClick={handleCancel} disabled={disabled} className={styles.cancelBtn}>
             Cancel
           </button>
         </div>
@@ -92,11 +84,7 @@ export function DescriptionEditor({
         {description || (compact ? '—' : 'No description provided')}
       </span>
       {canEdit && (
-        <button
-          onClick={handleStartEditing}
-          className={styles.editDescriptionBtn}
-          disabled={disabled}
-        >
+        <button onClick={handleStartEditing} className={styles.editDescriptionBtn} disabled={disabled}>
           Edit
         </button>
       )}

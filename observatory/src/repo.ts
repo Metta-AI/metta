@@ -301,17 +301,13 @@ export class ServerRepo implements Repo {
   }
 
   async updateTrainingRunDescription(runId: string, description: string): Promise<TrainingRun> {
-    return this.apiCallWithBodyPut<TrainingRun>(
-      `/dashboard/training-runs/${encodeURIComponent(runId)}/description`,
-      { description }
-    )
+    return this.apiCallWithBodyPut<TrainingRun>(`/dashboard/training-runs/${encodeURIComponent(runId)}/description`, {
+      description,
+    })
   }
 
   async updateTrainingRunTags(runId: string, tags: string[]): Promise<TrainingRun> {
-    return this.apiCallWithBodyPut<TrainingRun>(
-      `/dashboard/training-runs/${encodeURIComponent(runId)}/tags`,
-      { tags }
-    )
+    return this.apiCallWithBodyPut<TrainingRun>(`/dashboard/training-runs/${encodeURIComponent(runId)}/tags`, { tags })
   }
 
   async getTrainingRunHeatmapData(
@@ -326,4 +322,3 @@ export class ServerRepo implements Repo {
     )
   }
 }
-

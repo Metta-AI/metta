@@ -10,14 +10,7 @@ interface TagEditorProps {
   compact?: boolean // For table rows vs detail pages
 }
 
-export function TagEditor({ 
-  tags, 
-  canEdit, 
-  onTagsChange, 
-  onError, 
-  disabled = false,
-  compact = false 
-}: TagEditorProps) {
+export function TagEditor({ tags, canEdit, onTagsChange, onError, disabled = false, compact = false }: TagEditorProps) {
   const [addingTag, setAddingTag] = useState(false)
   const [newTag, setNewTag] = useState('')
   const [confirmDeleteTag, setConfirmDeleteTag] = useState<string | null>(null)
@@ -30,7 +23,7 @@ export function TagEditor({
   const handleAddTag = async () => {
     const trimmedTag = newTag.trim()
     if (!trimmedTag) return
-    
+
     if (tags.includes(trimmedTag)) {
       onError('Tag already exists')
       return
@@ -59,7 +52,7 @@ export function TagEditor({
     if (!confirmDeleteTag) return
 
     try {
-      const updatedTags = tags.filter(t => t !== confirmDeleteTag)
+      const updatedTags = tags.filter((t) => t !== confirmDeleteTag)
       await onTagsChange(updatedTags)
       setConfirmDeleteTag(null)
     } catch (err: any) {
@@ -98,7 +91,7 @@ export function TagEditor({
           <span style={{ color: '#999', fontStyle: 'italic' }}>No tags</span>
         )}
       </div>
-      
+
       {/* Add Tag Section */}
       {canEdit && (
         <div>
@@ -123,54 +116,32 @@ export function TagEditor({
                   disabled={disabled}
                 />
                 <div className={styles.tagInputActions}>
-                  <button
-                    onClick={handleAddTag}
-                    disabled={!newTag.trim() || disabled}
-                    className={styles.saveBtn}
-                  >
+                  <button onClick={handleAddTag} disabled={!newTag.trim() || disabled} className={styles.saveBtn}>
                     Save
                   </button>
-                  <button
-                    onClick={handleCancelAddTag}
-                    disabled={disabled}
-                    className={styles.cancelBtn}
-                  >
+                  <button onClick={handleCancelAddTag} disabled={disabled} className={styles.cancelBtn}>
                     Cancel
                   </button>
                 </div>
               </div>
             </div>
           ) : (
-            <button
-              onClick={handleStartAddingTag}
-              className={styles.addTagBtnMain}
-              disabled={disabled}
-            >
+            <button onClick={handleStartAddingTag} className={styles.addTagBtnMain} disabled={disabled}>
               Add Tag
             </button>
           )}
         </div>
       )}
-      
+
       {/* Confirmation Dialog */}
       {confirmDeleteTag && (
         <div className={styles.confirmDeleteContainer}>
-          <div className={styles.confirmDeleteText}>
-            Remove tag "{confirmDeleteTag}"?
-          </div>
+          <div className={styles.confirmDeleteText}>Remove tag "{confirmDeleteTag}"?</div>
           <div className={styles.confirmDeleteActions}>
-            <button
-              onClick={handleConfirmRemoveTag}
-              disabled={disabled}
-              className={styles.confirmDeleteBtn}
-            >
+            <button onClick={handleConfirmRemoveTag} disabled={disabled} className={styles.confirmDeleteBtn}>
               Remove
             </button>
-            <button
-              onClick={handleCancelRemoveTag}
-              disabled={disabled}
-              className={styles.confirmCancelBtn}
-            >
+            <button onClick={handleCancelRemoveTag} disabled={disabled} className={styles.confirmCancelBtn}>
               Cancel
             </button>
           </div>

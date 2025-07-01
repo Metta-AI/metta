@@ -216,7 +216,6 @@ export function TrainingRunDetail({ repo }: TrainingRunDetailProps) {
   const [saving, setSaving] = useState(false)
   const [currentUser, setCurrentUser] = useState<string | null>(null)
 
-
   // Load training run and initial data
   useEffect(() => {
     const initializeData = async () => {
@@ -227,7 +226,7 @@ export function TrainingRunDetail({ repo }: TrainingRunDetailProps) {
         const [runData, suitesData, userResponse] = await Promise.all([
           repo.getTrainingRun(runId),
           repo.getSuites(),
-          repo.whoami().catch(() => ({ user_email: '' }))
+          repo.whoami().catch(() => ({ user_email: '' })),
         ])
 
         setTrainingRun(runData)
@@ -498,9 +497,7 @@ export function TrainingRunDetail({ repo }: TrainingRunDetailProps) {
           <div className="training-run-meta">
             <div className="training-run-meta-item">
               <span>Status:</span>
-              <span className={`training-run-status ${getStatusClass(trainingRun.status)}`}>
-                {trainingRun.status}
-              </span>
+              <span className={`training-run-status ${getStatusClass(trainingRun.status)}`}>{trainingRun.status}</span>
             </div>
             <div className="training-run-meta-item">
               <span>Created:</span>
@@ -548,11 +545,7 @@ export function TrainingRunDetail({ repo }: TrainingRunDetailProps) {
           </div>
         </div>
 
-        <SuiteTabs
-          suites={suites}
-          selectedSuite={selectedSuite}
-          onSuiteChange={setSelectedSuite}
-        />
+        <SuiteTabs suites={suites} selectedSuite={selectedSuite} onSuiteChange={setSelectedSuite} />
 
         {heatmapData && renderHeatmap()}
 

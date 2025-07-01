@@ -13,13 +13,7 @@ interface TrainingRunRowProps {
   onError: (error: string) => void
 }
 
-export function TrainingRunRow({ 
-  run, 
-  canEdit, 
-  repo, 
-  onRunUpdate, 
-  onError 
-}: TrainingRunRowProps) {
+export function TrainingRunRow({ run, canEdit, repo, onRunUpdate, onError }: TrainingRunRowProps) {
   const [saving, setSaving] = useState(false)
 
   const formatDate = (dateString: string) => {
@@ -66,7 +60,7 @@ export function TrainingRunRow({
           {run.name}
         </Link>
       </td>
-      
+
       <td className={styles.editDescriptionCell}>
         <DescriptionEditor
           description={run.description}
@@ -77,7 +71,7 @@ export function TrainingRunRow({
           compact={true}
         />
       </td>
-      
+
       <td className={styles.tagsCell}>
         <TagEditor
           tags={run.tags}
@@ -88,17 +82,15 @@ export function TrainingRunRow({
           compact={true}
         />
       </td>
-      
+
       <td>
-        <span className={`${styles.trainingRunStatus} ${getStatusClass(run.status)}`}>
-          {run.status}
-        </span>
+        <span className={`${styles.trainingRunStatus} ${getStatusClass(run.status)}`}>{run.status}</span>
       </td>
-      
+
       <td>{formatDate(run.created_at)}</td>
-      
+
       <td>{run.finished_at ? formatDate(run.finished_at) : '—'}</td>
-      
+
       <td>
         <span className={styles.trainingRunUser}>{run.user_id}</span>
       </td>

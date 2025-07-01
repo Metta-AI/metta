@@ -23,7 +23,10 @@ export function TrainingRuns({ repo }: TrainingRunsProps) {
     const tagFilters = searchParams.get('tag_filters')
     if (tagFilters) {
       // Parse comma-separated values
-      const tags = tagFilters.split(',').map(tag => decodeURIComponent(tag.trim())).filter(tag => tag.length > 0)
+      const tags = tagFilters
+        .split(',')
+        .map((tag) => decodeURIComponent(tag.trim()))
+        .filter((tag) => tag.length > 0)
       if (tags.length > 0) {
         setSelectedTagFilters(tags)
       }
@@ -33,15 +36,15 @@ export function TrainingRuns({ repo }: TrainingRunsProps) {
   // Update URL when tag filters change
   useEffect(() => {
     const newSearchParams = new URLSearchParams(searchParams)
-    
+
     if (selectedTagFilters.length > 0) {
       // Join tags with commas and URL encode each tag
-      const tagParam = selectedTagFilters.map(tag => encodeURIComponent(tag)).join(',')
+      const tagParam = selectedTagFilters.map((tag) => encodeURIComponent(tag)).join(',')
       newSearchParams.set('tag_filters', tagParam)
     } else {
       newSearchParams.delete('tag_filters')
     }
-    
+
     setSearchParams(newSearchParams, { replace: true })
   }, [selectedTagFilters, searchParams, setSearchParams])
 
@@ -51,7 +54,7 @@ export function TrainingRuns({ repo }: TrainingRunsProps) {
         setLoading(true)
         const [response, userResponse] = await Promise.all([
           repo.getTrainingRuns(),
-          repo.whoami().catch(() => ({ user_email: '' }))
+          repo.whoami().catch(() => ({ user_email: '' })),
         ])
         setTrainingRuns(response.training_runs)
         setCurrentUser(userResponse.user_email)
@@ -71,31 +74,30 @@ export function TrainingRuns({ repo }: TrainingRunsProps) {
   }
 
   const handleRunUpdate = (updatedRun: TrainingRun) => {
-    setTrainingRuns(prev => prev.map(run => run.id === updatedRun.id ? updatedRun : run))
+    setTrainingRuns((prev) => prev.map((run) => (run.id === updatedRun.id ? updatedRun : run)))
   }
 
   // Get all unique tags from all training runs
   const getAllTags = () => {
     const allTags = new Set<string>()
-    trainingRuns.forEach(run => {
-      run.tags.forEach(tag => allTags.add(tag))
+    trainingRuns.forEach((run) => {
+      run.tags.forEach((tag) => allTags.add(tag))
     })
     return Array.from(allTags).sort()
   }
 
-  const filteredTrainingRuns = trainingRuns.filter(run => {
+  const filteredTrainingRuns = trainingRuns.filter((run) => {
     const query = searchQuery.toLowerCase()
-    const matchesSearch = (
+    const matchesSearch =
       run.name.toLowerCase().includes(query) ||
       run.status.toLowerCase().includes(query) ||
       run.user_id.toLowerCase().includes(query) ||
       (run.description && run.description.toLowerCase().includes(query)) ||
-      run.tags.some(tag => tag.toLowerCase().includes(query))
-    )
+      run.tags.some((tag) => tag.toLowerCase().includes(query))
 
     // Check if run has ALL selected tag filters
-    const matchesTagFilters = selectedTagFilters.length === 0 || 
-      selectedTagFilters.every(filterTag => run.tags.includes(filterTag))
+    const matchesTagFilters =
+      selectedTagFilters.length === 0 || selectedTagFilters.every((filterTag) => run.tags.includes(filterTag))
 
     return matchesSearch && matchesTagFilters
   })
@@ -141,10 +143,9 @@ export function TrainingRuns({ repo }: TrainingRunsProps) {
           <div className={styles.trainingRunsHeader}>
             <h1 className={styles.trainingRunsTitle}>Training Runs</h1>
             <div className={styles.trainingRunsCount}>
-              {searchQuery || selectedTagFilters.length > 0 ?
-                `${filteredTrainingRuns.length} of ${trainingRuns.length} training runs` :
-                `${trainingRuns.length} training run${trainingRuns.length !== 1 ? 's' : ''}`
-              }
+              {searchQuery || selectedTagFilters.length > 0
+                ? `${filteredTrainingRuns.length} of ${trainingRuns.length} training runs`
+                : `${trainingRuns.length} training run${trainingRuns.length !== 1 ? 's' : ''}`}
             </div>
           </div>
 
@@ -158,30 +159,30 @@ export function TrainingRuns({ repo }: TrainingRunsProps) {
             </div>
           ) : (
             <table className={styles.trainingRunsTable}>
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Description</th>
-                <th>Tags</th>
-                <th>Status</th>
-                <th>Created</th>
-                <th>Finished</th>
-                <th>User</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredTrainingRuns.map((run) => (
-                <TrainingRunRow
-                  key={run.id}
-                  run={run}
-                  canEdit={canEditRun(run)}
-                  repo={repo}
-                  onRunUpdate={handleRunUpdate}
-                  onError={setError}
-                />
-              ))}
-            </tbody>
-          </table>
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Description</th>
+                  <th>Tags</th>
+                  <th>Status</th>
+                  <th>Created</th>
+                  <th>Finished</th>
+                  <th>User</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredTrainingRuns.map((run) => (
+                  <TrainingRunRow
+                    key={run.id}
+                    run={run}
+                    canEdit={canEditRun(run)}
+                    repo={repo}
+                    onRunUpdate={handleRunUpdate}
+                    onError={setError}
+                  />
+                ))}
+              </tbody>
+            </table>
           )}
         </div>
       </div>

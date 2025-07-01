@@ -14,22 +14,20 @@ export function SearchAndFiltersSidebar({
   onSearchQueryChange,
   selectedTagFilters,
   onTagFiltersChange,
-  availableTags
+  availableTags,
 }: SearchAndFiltersSidebarProps) {
   const [tagFilterInput, setTagFilterInput] = useState('')
   const [showTagDropdown, setShowTagDropdown] = useState(false)
 
   // Filter available tags based on input and exclude already selected ones
   const getFilteredAvailableTags = () => {
-    const availableTagsFiltered = availableTags.filter(tag => !selectedTagFilters.includes(tag))
-    
+    const availableTagsFiltered = availableTags.filter((tag) => !selectedTagFilters.includes(tag))
+
     if (!tagFilterInput.trim()) {
       return availableTagsFiltered
     }
-    
-    return availableTagsFiltered.filter(tag => 
-      tag.toLowerCase().includes(tagFilterInput.toLowerCase())
-    )
+
+    return availableTagsFiltered.filter((tag) => tag.toLowerCase().includes(tagFilterInput.toLowerCase()))
   }
 
   const handleTagFilterInputChange = (value: string) => {
@@ -55,7 +53,7 @@ export function SearchAndFiltersSidebar({
   }
 
   const handleRemoveTagFilter = (tagToRemove: string) => {
-    onTagFiltersChange(selectedTagFilters.filter(tag => tag !== tagToRemove))
+    onTagFiltersChange(selectedTagFilters.filter((tag) => tag !== tagToRemove))
   }
 
   const handleClearAllFilters = () => {
@@ -65,7 +63,7 @@ export function SearchAndFiltersSidebar({
   return (
     <div className={styles.sidebar}>
       <h2 className={styles.sidebarTitle}>Search & Filters</h2>
-      
+
       <div className={styles.sidebarSection}>
         <label className={styles.sidebarLabel}>Search</label>
         <input
@@ -94,11 +92,7 @@ export function SearchAndFiltersSidebar({
               <div className={styles.tagDropdown}>
                 {getFilteredAvailableTags().length > 0 ? (
                   getFilteredAvailableTags().map((tag) => (
-                    <div
-                      key={tag}
-                      className={styles.tagDropdownItem}
-                      onMouseDown={() => handleSelectTagFilter(tag)}
-                    >
+                    <div key={tag} className={styles.tagDropdownItem} onMouseDown={() => handleSelectTagFilter(tag)}>
                       {tag}
                     </div>
                   ))
@@ -126,10 +120,7 @@ export function SearchAndFiltersSidebar({
                     </button>
                   </span>
                 ))}
-                <button
-                  onClick={handleClearAllFilters}
-                  className={styles.clearAllFiltersBtn}
-                >
+                <button onClick={handleClearAllFilters} className={styles.clearAllFiltersBtn}>
                   Clear All
                 </button>
               </div>
