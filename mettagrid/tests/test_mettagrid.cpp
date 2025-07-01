@@ -185,13 +185,16 @@ TEST_F(MettaGridCppTest, AttackAction) {
   EXPECT_EQ(attacker->orientation, Orientation::Up);
 
   // Create attack action handler
-  ActionConfig attack_cfg;
-  std::map<InventoryItem, int> attack_resources;
+  AttackConfig attack_cfg;
+  std::map<InventoryItem, int> required_resources;
   std::map<InventoryItem, int> defense_resources;
-  attack_resources[TestItems::LASER] = 1;
+  required_resources[TestItems::LASER] = 1;
   // In this case, defense takes 3 armor!
   defense_resources[TestItems::ARMOR] = 3;
-  Attack attack(attack_cfg, attack_resources, defense_resources);
+  attack_cfg.required_resources = required_resources;
+  attack_cfg.consumed_resources = required_resources;
+  attack_cfg.defense_resources = defense_resources;
+  Attack attack(attack_cfg);
   attack.init(&grid);
 
   // Perform attack (arg 5 targets directly in front)

@@ -13,12 +13,12 @@ labels:
 game:
   num_agents: 4
   agent:
-    ore.red_max: ${sampling:1,10,5}
-    battery.red_max: ${sampling:1,10,5}
+    ore_red_max: ${sampling:1,10,5}
+    battery_red_max: ${sampling:1,10,5}
     rewards:
       action_failure_penalty: 0
-      ore.red: ${sampling:0.005,0.05, 0.01}
-      battery.red: ${sampling:0.01,0.1, 0.1}
+      ore_red: ${sampling:0.005,0.05, 0.01}
+      battery_red: ${sampling:0.01,0.1, 0.1}
       heart: 1
       heart_max: 1000
   map_builder:
@@ -37,7 +37,7 @@ game:
 
   objects:
     altar:
-      input_battery.red: 1
+      input_battery_red: 1
       initial_items: ${choose:0,0,0,1}
       cooldown: ${sampling:1, 20, 10}
     generator_red:

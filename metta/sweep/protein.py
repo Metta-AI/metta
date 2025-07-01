@@ -20,6 +20,12 @@ class Space:
         self.norm_mean = self.normalize(mean)
         self.is_integer = is_integer
 
+    def normalize(self, value):
+        raise NotImplementedError
+
+    def unnormalize(self, value):
+        raise NotImplementedError
+
 
 class Linear(Space):
     def __init__(self, min, max, scale, mean, is_integer=False):

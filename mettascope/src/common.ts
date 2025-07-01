@@ -57,6 +57,7 @@ export const ui = {
   scrollDelta: 0,
   lastClickTime: 0, // For double-click detection.
   mainScrubberDown: false,
+  mainTraceMinimapDown: false,
 
   dpr: 1, // DPI scale factor used for Retina displays.
 
