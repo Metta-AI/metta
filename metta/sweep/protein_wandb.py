@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 
 import wandb
 
-from metta.common.util.wandb.wandb_context import WandbRun
+from metta.common.wandb.wandb_context import WandbRun
 
 from .protein import Protein
 
