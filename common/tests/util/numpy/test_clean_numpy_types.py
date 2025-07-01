@@ -1,8 +1,7 @@
 """Tests for clean_numpy_types function."""
 
 import numpy as np
-
-from metta.util.numpy import clean_numpy_types
+from metta.common.util.numpy import clean_numpy_types
 
 
 class TestCleanNumpyTypes:
