@@ -65,12 +65,12 @@ game:
       initial_items: 1
 
     lasery:
-      input_ore.red: 0
-      input_battery.red: 0
+      input_ore_red: 0
+      input_battery_red: 0
       cooldown: 5
       initial_items: 5
 
     armory:
-      input_ore.red: 0
+      input_ore_red: 0
       initial_items: 5
       cooldown: 5
