@@ -90,10 +90,10 @@ MettaGrid::MettaGrid(py::dict cfg, py::list map, int seed) {
         cfg["actions"]["attack"]["attack_resources"].cast<std::map<InventoryItem, int>>();
     std::map<InventoryItem, int> defense_resources =
         cfg["actions"]["attack"]["defense_resources"].cast<std::map<InventoryItem, int>>();
-    _action_handlers.push_back(
-        std::make_unique<Attack>(cfg["actions"]["attack"].cast<ActionConfig>(), attack_resources, defense_resources));
-    _action_handlers.push_back(std::make_unique<AttackNearest>(
-        cfg["actions"]["attack"].cast<ActionConfig>(), attack_resources, defense_resources));
+
+    ActionConfig attack_cfg;
+    _action_handlers.push_back(std::make_unique<Attack>(attack_cfg, attack_resources, defense_resources));
+    _action_handlers.push_back(std::make_unique<AttackNearest>(attack_cfg, attack_resources, defense_resources));
   }
   if (cfg["actions"]["swap"]["enabled"].cast<bool>()) {
     _action_handlers.push_back(std::make_unique<Swap>(cfg["actions"]["swap"].cast<ActionConfig>()));

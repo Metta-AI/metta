@@ -194,14 +194,17 @@ def from_mettagrid_config(mettagrid_config: GameConfig_py) -> GameConfig_cpp:
         else:
             raise ValueError(f"Unknown object type: {object_type}")
 
-    attack_resources = dict((inventory_item_ids[k], v) for k, v in mettagrid_config.actions.attack.attack_resources.items())
+    attack_resources = dict(
+        (inventory_item_ids[k], v) for k, v in mettagrid_config.actions.attack.attack_resources.items()
+    )
     defense_resources = dict(
         (inventory_item_ids[k], v) for k, v in mettagrid_config.actions.attack.defense_resources.items()
     )
+
+    game_config = mettagrid_config.model_dump(by_alias=True, exclude_none=True)
     game_config["actions"]["attack"]["attack_resources"] = attack_resources
     game_config["actions"]["attack"]["defense_resources"] = defense_resources
 
-    game_config = mettagrid_config.model_dump(by_alias=True, exclude_none=True)
     del game_config["agent"]
     del game_config["groups"]
     game_config["objects"] = object_configs
