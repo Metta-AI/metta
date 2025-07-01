@@ -640,8 +640,8 @@ class MettaTrainer:
         if self._master:
             self._memory_monitor.add(self, name="MettaTrainer", track_attributes=True)
 
-        # Initialize memory tracker for debugging - uncomment to enable
-        # self.memory_tracker = MemoryTracker(device=self.device, log_interval=10)
+        # Initialize memory tracker for debugging - ENABLED for memory leak detection
+        self.memory_tracker = MemoryTracker(device=self.device, log_interval=10)
 
         logger.info(f"MettaTrainer initialization complete on device: {self.device}")
 
@@ -861,9 +861,9 @@ class MettaTrainer:
         infos = defaultdict(list)
         experience.reset_for_rollout()
 
-        # Memory profiling - uncomment to enable
-        # if self.epoch % 5 == 0:  # Profile every 5 epochs to reduce log spam
-        #     profile_memory(locals(), prefix="ROLLOUT START", device=self.device)
+        # Memory profiling - ENABLED for memory leak detection
+        if self.epoch % 5 == 0:  # Profile every 5 epochs to reduce log spam
+            profile_memory(locals(), prefix="ROLLOUT START", device=self.device)
 
         while not experience.ready_for_training:
             with self.timer("_rollout.env"):
@@ -964,9 +964,9 @@ class MettaTrainer:
                                 locals(), prefix=f"LEAK DETECTED - ROLLOUT STEP {self.agent_step}", device=self.device
                             )
 
-        # Memory profiling - uncomment to check at end of rollout
-        # if self.epoch % 5 == 0:  # Profile every 5 epochs to reduce log spam
-        #     profile_memory(locals(), prefix="ROLLOUT END", device=self.device)
+        # Memory profiling - ENABLED for memory leak detection
+        if self.epoch % 5 == 0:  # Profile every 5 epochs to reduce log spam
+            profile_memory(locals(), prefix="ROLLOUT END", device=self.device)
 
         # Debug: Check sizes of collections
         if self.epoch % 20 == 0:
@@ -1016,9 +1016,9 @@ class MettaTrainer:
 
         self.losses.zero()
 
-        # Memory profiling - uncomment to enable
-        # if self.epoch % 5 == 0:  # Profile every 5 epochs to reduce log spam
-        #     profile_memory(locals(), prefix="TRAIN START", device=self.device)
+        # Memory profiling - ENABLED for memory leak detection
+        if self.epoch % 5 == 0:  # Profile every 5 epochs to reduce log spam
+            profile_memory(locals(), prefix="TRAIN START", device=self.device)
 
         prio_cfg = trainer_cfg.prioritized_experience_replay
         vtrace_cfg = trainer_cfg.vtrace
@@ -1175,9 +1175,9 @@ class MettaTrainer:
 
                 minibatch_idx += 1
 
-                # Memory profiling - uncomment to track memory per minibatch
-                # if minibatch_idx % 10 == 0:  # Check every 10 minibatches
-                #     profile_memory(locals(), prefix=f"TRAIN MINIBATCH {minibatch_idx}", device=self.device)
+                # Memory profiling - ENABLED for memory leak detection
+                if minibatch_idx % 10 == 0:  # Check every 10 minibatches
+                    profile_memory(locals(), prefix=f"TRAIN MINIBATCH {minibatch_idx}", device=self.device)
                 # end loop over minibatches
 
             self.epoch += 1
@@ -1199,19 +1199,20 @@ class MettaTrainer:
         explained_var = torch.nan if var_y == 0 else 1 - (y_true - y_pred).var() / var_y
         self.losses.explained_variance = explained_var.item() if torch.is_tensor(explained_var) else float("nan")
 
-        # Memory profiling - uncomment to check at end of training
-        # if self.epoch % 5 == 0:  # Profile every 5 epochs to reduce log spam
-        #     profile_memory(locals(), prefix="TRAIN END", device=self.device)
-        #
-        #     # Check for tensors with gradients
-        #     import gc
-        #     grad_tensors = 0
-        #     for obj in gc.get_objects():
-        #         if isinstance(obj, torch.Tensor) and obj.grad is not None:
-        #             grad_tensors += 1
-        #
-        #     if grad_tensors > 50:  # Arbitrary threshold
-        #         logger.warning(f"WARNING: {grad_tensors} tensors with gradients found after training!")
+        # Memory profiling - ENABLED for memory leak detection
+        if self.epoch % 5 == 0:  # Profile every 5 epochs to reduce log spam
+            profile_memory(locals(), prefix="TRAIN END", device=self.device)
+
+            # Check for tensors with gradients
+            import gc
+
+            grad_tensors = 0
+            for obj in gc.get_objects():
+                if isinstance(obj, torch.Tensor) and obj.grad is not None:
+                    grad_tensors += 1
+
+            if grad_tensors > 50:  # Arbitrary threshold
+                logger.warning(f"WARNING: {grad_tensors} tensors with gradients found after training!")
 
     def _should_run(self, interval: int, force: bool = False) -> bool:
         """Check if a periodic task should run based on interval and force flag."""
