@@ -22,9 +22,9 @@ import torch
 import wandb
 from omegaconf import DictConfig, ListConfig
 
+from metta.agent.external.pytorch_adapter import load_pytorch_policy
 from metta.agent.policy_metadata import PolicyMetadata
 from metta.agent.policy_record import PolicyRecord
-from metta.rl.policy import load_pytorch_policy
 from metta.rl.trainer_config import TrainerConfig, parse_trainer_config
 
 logger = logging.getLogger("policy_store")
