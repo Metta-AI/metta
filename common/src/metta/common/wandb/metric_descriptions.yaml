@@ -1,0 +1,152 @@
+# Metric Descriptions
+# This file contains extended descriptions for specific metrics and sections
+# Format:
+#   sections:
+#     section_name:
+#       description: Overview of what this section contains
+#
+#   metrics:
+#     metric_path:
+#       description: Extended description of the metric
+#       unit: (optional) Unit of measurement
+#       interpretation: (optional) How to interpret the values
+
+sections:
+  metric:
+    description: |
+      Core tracking metrics that serve as x-axis values for other plots. These metrics track
+      fundamental progress indicators like steps, epochs, and time. When analyzing other metrics,
+      these values provide the temporal context for understanding changes over the training run.
+
+  overview:
+    description: High-level summary metrics that provide a quick assessment of training progress and performance.
+
+  env_agent:
+    description: |
+      Detailed agent behavior metrics including actions taken, items collected, combat outcomes,
+      and other agent-specific events. These metrics help understand what agents are actually doing
+      in the environment.
+
+  env_timing_per_epoch:
+    description: |
+      Performance profiling metrics measured per epoch. Useful for identifying bottlenecks and
+      optimizing environment execution speed.
+
+  losses:
+    description: |
+      Training loss components that indicate learning progress and stability. Monitor these to
+      ensure healthy training dynamics.
+
+metrics:
+  # Overview metrics
+  overview/reward:
+    description: The mean reward achieved per episode per agent, averaged over all environments and agents over the previous epoch.
+    interpretation: Higher values indicate better agent performance. Monitor for consistent improvement during training.
+
+  overview/reward_vs_total_time:
+    description: Reward plotted against total training time, showing learning efficiency.
+    unit: reward per second
+    interpretation: Steeper curves indicate faster learning. Plateaus may suggest convergence or need for hyperparameter adjustment.
+
+  overview/sps:
+    description: Steps per second - the throughput of the training system.
+    unit: steps/second
+    interpretation: Higher is better. Drops may indicate resource contention or environment complexity changes.
+
+  # Core tracking metrics (x-axis values)
+  metric/agent_step:
+    description: |
+      Total number of agent steps taken across all environments. This is the primary x-axis value
+      for most training curves as it represents actual experience collected.
+    interpretation: Use this as x-axis when comparing runs with different environment counts or speeds.
+
+  metric/epoch:
+    description: |
+      Current training epoch number. Each epoch represents one cycle of rollout collection and training.
+      Useful as x-axis for metrics that update once per epoch.
+    interpretation: Good for comparing architectural changes where steps-per-epoch may vary.
+
+  metric/total_time:
+    description: |
+      Total wall-clock time since training started. Use as x-axis when comparing real-world efficiency
+      or when coordinating with external events.
+    unit: seconds
+
+  metric/train_time:
+    description: Time spent in the training/optimization phase, excluding environment rollouts.
+    unit: seconds
+    interpretation: Compare with total_time to understand training vs rollout balance.
+
+  # Loss metrics
+  losses/policy_loss:
+    description: Actor network loss measuring action prediction quality.
+    interpretation: Should decrease over time but not to zero. Sudden spikes may indicate instability.
+
+  losses/value_loss:
+    description: Critic network loss measuring value prediction accuracy.
+    interpretation: Lower is better, but some noise is expected. High values suggest poor value estimates.
+
+  losses/entropy:
+    description: Policy entropy measuring action distribution randomness.
+    interpretation: Higher entropy encourages exploration. Should gradually decrease but not reach zero.
+
+  losses/approx_kl:
+    description: Approximate KL divergence between old and new policies.
+    interpretation: Should stay below target threshold (typically 0.01-0.02). High values trigger early stopping.
+
+  losses/clipfrac:
+    description: Fraction of samples clipped by PPO's objective function.
+    interpretation: Typically 0.1-0.3. Very high values suggest too large policy updates.
+
+  # Environment timing
+  env_timing_per_epoch/msec/step:
+    description: Average milliseconds per environment step in the epoch.
+    unit: milliseconds
+    interpretation: Lower is better. Spikes indicate environment bottlenecks.
+
+  env_timing_per_epoch/frac/thread_idle:
+    description: Fraction of time worker threads spend idle.
+    interpretation: High values (>0.9) suggest CPU underutilization. Consider more environments.
+
+  # Agent actions
+  env_agent/action.move.success.rate:
+    description: Success rate of agent movement actions.
+    interpretation: Low rates may indicate crowded environments or poor navigation policy.
+
+  env_agent/action.attack.success.rate:
+    description: Success rate of attack actions when attempted.
+    interpretation: Balance between too aggressive (low success) and too passive (few attempts).
+
+  env_agent/action.failure_penalty:
+    description: Penalty applied when agents attempt invalid actions.
+    interpretation: High values indicate agents haven't learned action preconditions.
+
+  # System monitoring
+  monitor/monitor/gpu_utilization_avg:
+    description: Average GPU utilization across all available GPUs.
+    unit: percentage
+    interpretation: Low values suggest compute bottleneck elsewhere. Aim for >80% during training.
+
+  monitor/monitor/memory_percent:
+    description: System RAM usage percentage.
+    unit: percentage
+    interpretation: High values (>90%) risk OOM errors. Consider reducing batch size or environment count.
+
+# Common patterns for auto-generated descriptions
+patterns:
+  "*.avg":
+    suffix: " (average value)"
+  "*.std_dev":
+    suffix: " (standard deviation)"
+  "*.min":
+    suffix: " (minimum value)"
+  "*.max":
+    suffix: " (maximum value)"
+  "*.rate":
+    suffix: " (occurrences per step)"
+  "*.first_step":
+    suffix: " (first step where this occurred)"
+  "*.last_step":
+    suffix: " (last step where this occurred)"
+  "*.activity_rate":
+    suffix: " (fraction of steps where this was active)"
