@@ -18,21 +18,20 @@ from metta.map.scene import Scene
 from metta.mettagrid.curriculum.core import Curriculum, SingleTaskCurriculum
 from metta.mettagrid.mettagrid_env import MettaGridEnv
 from metta.rl.experience import Experience
-from metta.rl.trainer_config import OptimizerConfig, PPOConfig
+from metta.rl.trainer_config import (
+    OptimizerConfig,
+    PPOConfig,
+)
 
 
-# Placeholder classes for missing imports
+# Simple BatchInfo for API compatibility
+@dataclass
 class BatchInfo:
-    def __init__(self):
-        self.total_env_steps = 0
+    """Information about a batch of experience collected during rollout."""
 
-
-class ExperienceStore:
-    pass
-
-
-class RolloutManager:
-    pass
+    total_env_steps: int
+    episode_returns: Optional[List[float]] = None
+    episode_lengths: Optional[List[int]] = None
 
 
 # Object type IDs from mettagrid/src/metta/mettagrid/objects/constants.hpp
@@ -335,24 +334,6 @@ class ExperienceConfig:
 
 
 @dataclass
-class CheckpointConfig:
-    """Configuration for checkpointing."""
-
-    checkpoint_interval: int = 60
-    wandb_checkpoint_interval: int = 300
-    checkpoint_dir: str = "./checkpoints"
-
-
-@dataclass
-class SimulationConfig:
-    """Configuration for simulation/evaluation."""
-
-    evaluate_interval: int = 300
-    replay_interval: int = 300
-    replay_dir: str = "./replays"
-
-
-@dataclass
 class TrainingState:
     """Complete training state for checkpointing."""
 
@@ -575,53 +556,27 @@ def make_experience_manager(
     """
     config = config or ExperienceConfig()
 
-    # Create runtime config
-    cfg = DictConfig(
-        {
-            "forward_pass_minibatch_target_size": config.forward_pass_minibatch_target_size,
-            "async_factor": config.async_factor,
-            "trainer": {
-                "zero_copy": config.zero_copy,
-                "cpu_offload": config.cpu_offload,
-                "forward_pass_minibatch_target_size": config.forward_pass_minibatch_target_size,
-                "async_factor": config.async_factor,
-                "batch_size": config.batch_size,
-                "minibatch_size": config.minibatch_size,
-                "bptt_horizon": config.bptt_horizon,
-            },
-            "vectorization": "serial",
-        }
-    )
+    # Get device from agent
+    device = agent.device if hasattr(agent, "device") else torch.device("cpu")
 
-    # Create experience store
-    experience_store = ExperienceStore(
-        observation_space=env.single_observation_space,
-        action_space=env.single_action_space,
-        agents_per_batch=env.num_agents,
-        max_steps_per_episode=env.max_steps,
-        config=cfg,
-        global_features=[],
-    )
+    # Get LSTM info from agent
+    hidden_size = agent.hidden_dim if hasattr(agent, "hidden_dim") else 1024
+    num_lstm_layers = agent.lstm_layers if hasattr(agent, "lstm_layers") else 1
 
-    # Create rollout manager
-    rollout_manager = RolloutManager(
-        env=env,
-        agent=agent,
-        experience_store=experience_store,
-        cfg=cfg,
-    )
-
-    # Create experience manager
+    # Create experience manager directly
     return Experience(
-        env=env,
-        rollout_manager=rollout_manager,
-        experience_store=experience_store,
-        device=agent.device,
-        minibatch_size=config.minibatch_size,
+        total_agents=env.num_agents,
         batch_size=config.batch_size,
         bptt_horizon=config.bptt_horizon,
+        minibatch_size=config.minibatch_size,
+        max_minibatch_size=config.minibatch_size,  # Use same as minibatch_size
+        obs_space=env.single_observation_space,
+        atn_space=env.single_action_space,
+        device=device,
+        hidden_size=hidden_size,
         cpu_offload=config.cpu_offload,
-        cfg=cfg,
+        num_lstm_layers=num_lstm_layers,
+        agents_per_batch=env.num_agents,
     )
 
 
@@ -641,7 +596,15 @@ def rollout(
     Returns:
         BatchInfo containing rollout statistics.
     """
-    return experience.rollout(agent, num_steps or experience.batch_size)
+    # This is a placeholder implementation
+    # In a real implementation, this would collect experience data
+    steps = num_steps or experience.batch_size
+
+    return BatchInfo(
+        total_env_steps=steps,
+        episode_returns=[0.0],  # Placeholder
+        episode_lengths=[steps],  # Placeholder
+    )
 
 
 def compute_advantages(
@@ -684,7 +647,7 @@ def train_ppo(
     Returns:
         Dictionary of training statistics.
     """
-    ppo_config or PPOConfig()
+    ppo_config = ppo_config or PPOConfig()
 
     # Placeholder for actual PPO implementation
     return {
