@@ -21,7 +21,7 @@ from metta.common.memory_monitor import MemoryMonitor
 from metta.common.stopwatch import Stopwatch, with_instance_timer
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.system_monitor import SystemMonitor
-from metta.common.util.wandb.wandb_context import WandbRun
+from metta.common.wandb.wandb_context import WandbRun
 from metta.eval.eval_stats_db import EvalStatsDB
 from metta.mettagrid.curriculum.util import curriculum_from_config_path
 from metta.mettagrid.mettagrid_env import MettaGridEnv
@@ -759,7 +759,7 @@ class MettaTrainer:
     @with_instance_timer("_generate_and_upload_replay", log_level=logging.INFO)
     def _generate_and_upload_replay(self):
         replay_sim_config = SingleEnvSimulationConfig(
-            env="/env/mettagrid/mettagrid",
+            env="/env/mettagrid/full",
             num_episodes=1,
             env_overrides=self._curriculum.get_task().env_cfg(),
         )

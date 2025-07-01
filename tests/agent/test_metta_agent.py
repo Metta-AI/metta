@@ -748,6 +748,7 @@ def test_forward_training_integration(create_metta_agent):
         assert 0 <= action_type < len(action_max_params), f"Invalid action type {action_type}"
 
         # Check action parameter is valid for this action type
+        assert isinstance(action_type, int)
         max_param = action_max_params[action_type]
         assert 0 <= action_param <= max_param, (
             f"Invalid param {action_param} for action type {action_type}, max is {max_param}"

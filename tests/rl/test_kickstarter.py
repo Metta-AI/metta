@@ -56,6 +56,7 @@ class TestKickstarter:
         kickstarter = Kickstarter(mock_config, "cpu", mock_policy_store, action_names, action_max_params)
 
         assert kickstarter.enabled is True
+        assert kickstarter.teacher_cfgs is not None
         assert len(kickstarter.teacher_cfgs) == 1
         assert kickstarter.teacher_cfgs[0].teacher_uri == "wandb://teacher/uri"
         assert kickstarter.teacher_cfgs[0].action_loss_coef == 0.5
@@ -73,6 +74,7 @@ class TestKickstarter:
         kickstarter = Kickstarter(mock_config, "cpu", mock_policy_store, action_names, action_max_params)
 
         assert kickstarter.enabled is True
+        assert kickstarter.teacher_cfgs is not None
         assert len(kickstarter.teacher_cfgs) == 2
         assert kickstarter.teacher_cfgs[0].teacher_uri == "wandb://teacher1/uri"
         assert kickstarter.teacher_cfgs[1].teacher_uri == "wandb://teacher2/uri"
