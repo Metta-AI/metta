@@ -28,6 +28,3 @@ buckets:
 
 env_overrides:
   sampling: 0
-  # Disable level replay since TerrainFromNumpy picks random files each time
-  # making the cache ineffective
-  replay_level_prob: 0

@@ -2,9 +2,6 @@ defaults:
   - mettagrid
   - _self_
 
-# Disable level replay since TerrainFromNumpy picks random files each time
-replay_level_prob: 0
-
 game:
   num_agents: 24
   map_builder:
