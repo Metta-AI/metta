@@ -139,6 +139,13 @@ async function loadReplayText(url: string, replayData: string) {
 // adding missing keys, recomputing invalid values, etc.
 // It also creates some internal data structures for faster access to images.
 function fixReplay() {
+  // Fix "agent.agent" -> "agent".
+  for (let i = 0; i < state.replay.object_types.length; i++) {
+    if (state.replay.object_types[i] == 'agent.agent') {
+      state.replay.object_types[i] = 'agent'
+    }
+  }
+
   // Create action image mappings for faster access.
   state.replay.action_images = []
   for (const actionName of state.replay.action_names) {
