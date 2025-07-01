@@ -367,19 +367,21 @@ def generate_section_readme(section, subsections, output_dir, descriptions):
         content += "This section contains metrics with the following statistical suffixes:\n\n"
 
         suffix_explanations = {
-            ".avg": "**`.avg`** - Average value of the metric across updates within an episode\n "
-            " - Formula: `sum(values) / update_count`",
-            ".std_dev": "**`.std_dev`** - Standard deviation across episodes (variance measure)\n "
-            " - Formula: `sqrt(sum((x - mean)²) / n)`",
+            ".avg": "**`.avg`** - Average value of the metric across updates within an episode\n"
+            "  - Formula: `sum(values) / update_count`",
+            ".std_dev": "**`.std_dev`** - Standard deviation across episodes (variance measure)\n"
+            "  - Formula: `sqrt(sum((x - mean)²) / n)`",
             ".min": "**`.min`** - Minimum value observed during the episode",
             ".max": "**`.max`** - Maximum value observed during the episode",
             ".first_step": "**`.first_step`** - First step where this metric was recorded",
             ".last_step": "**`.last_step`** - Last step where this metric was recorded",
-            ".rate": "**`.rate`** - Frequency of updates (updates per step over entire episode)\n "
-            " - Formula: `update_count / current_step`",
-            ".updates": "**`.updates`** - Total number of times this metric was updated",
-            ".activity_rate": "**`.activity_rate`** - Frequency during active period only (updates "
-            "per step between first and last occurrence)\n  - Formula: `(update_count - 1) / (last_step - first_step)`",
+            ".rate": "**`.rate`** - Frequency of updates (updates per step over entire episode)\n"
+            "  - Formula: `update_count / current_step`",
+            ".updates": "**`.updates`** - Total number of times this metric was updated in an episode",
+            ".activity_rate": "**`.activity_rate`** - Frequency during active period only "
+            "(updates per step between first and last occurrence)\n"
+            "  - Formula: `(update_count - 1) / (last_step - first_step)`\n"
+            "  - Note: Subtracts 1 because the first update just marks the start of activity",
         }
 
         for suffix in sorted(suffixes_found):

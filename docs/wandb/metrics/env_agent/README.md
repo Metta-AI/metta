@@ -14,6 +14,7 @@ This section contains metrics with the following statistical suffixes:
 
 - **`.activity_rate`** - Frequency during active period only (updates per step between first and last occurrence)
   - Formula: `(update_count - 1) / (last_step - first_step)`
+  - Note: Subtracts 1 because the first update just marks the start of activity
 - **`.avg`** - Average value of the metric across updates within an episode
   - Formula: `sum(values) / update_count`
 - **`.first_step`** - First step where this metric was recorded
@@ -24,7 +25,7 @@ This section contains metrics with the following statistical suffixes:
   - Formula: `update_count / current_step`
 - **`.std_dev`** - Standard deviation across episodes (variance measure)
   - Formula: `sqrt(sum((x - mean)²) / n)`
-- **`.updates`** - Total number of times this metric was updated
+- **`.updates`** - Total number of times this metric was updated in an episode
 
 ## Subsections
 
