@@ -83,10 +83,39 @@ Per-Agent Values → Per-Episode Means → Cross-Episode Means → WandB Logs
 | **Agent Rewards** | Sum across agents ÷ num_agents | Collect all episode means into list | Mean of all episodes | `env_map_reward/*` = mean<br>`env_map_reward/*.std_dev` = std |
 | **Agent Stats**<br>(e.g., actions, items) | Sum across agents ÷ num_agents | Collect all episode values into list | Mean of all episodes | `env_agent/*` = mean<br>`env_agent/*.std_dev` = std |
 | **Game Stats**<br>(environment-level) | Single value (no aggregation) | Collect all episode values | Mean of all episodes | `env_game/*` = mean<br>`env_game/*.std_dev` = std |
-| **Timing Metrics** | Single value per operation | Collect across rollout steps | Mean across steps | `env_timing_per_epoch/*` = mean |
+| **Per-Epoch Timing** | Single value per operation | Keep latest value only | Pass through latest | `env_timing_per_epoch/*` = latest<br>`timing_per_epoch/*` = latest |
+| **Cumulative Timing** | Single value per operation | Running average over all steps | Current running average | `env_timing_cumulative/*` = running avg<br>`timing_cumulative/*` = running avg |
 | **Attributes**<br>(seed, map size, etc.) | Single value (no aggregation) | Last value overwrites | Pass through | `env_attributes/*` = value |
 | **Task Rewards** | Mean across agents | Collect all episode means | Mean of all episodes | `env_task_reward/*` = mean |
 | **Curriculum Stats** | Single value | Last value overwrites | Pass through | `env_curriculum/*` = value |
+
+### Timing Metrics Explained
+
+Metta tracks two types of timing metrics:
+
+1. **Per-Epoch Timing** (`*_per_epoch`):
+   - Shows the time taken for the most recent epoch/step only
+   - Not averaged - each logged value represents that specific step's timing
+   - Useful for: Identifying performance changes or spikes in specific steps
+
+2. **Cumulative Timing** (`*_cumulative`):
+   - Shows the running average of all steps up to the current point
+   - At step N, this is the average of steps 1 through N
+   - Useful for: Understanding overall performance trends and smoothing out variance
+
+### Example: Timing Metrics Over 3 Steps
+
+If rollout timing has values [100ms, 150ms, 120ms]:
+
+- **Per-Epoch**:
+  - Step 1: `env_timing_per_epoch/rollout` = 100ms
+  - Step 2: `env_timing_per_epoch/rollout` = 150ms
+  - Step 3: `env_timing_per_epoch/rollout` = 120ms
+
+- **Cumulative**:
+  - Step 1: `env_timing_cumulative/rollout` = 100ms (avg of: 100)
+  - Step 2: `env_timing_cumulative/rollout` = 125ms (avg of: 100, 150)
+  - Step 3: `env_timing_cumulative/rollout` = 123ms (avg of: 100, 150, 120)
 
 ### Key Points
 
