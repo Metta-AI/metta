@@ -192,11 +192,7 @@ class MettaTrainer:
             ):
                 loaded_policy.restore_original_feature_mapping(policy_record.metadata["original_feature_mapping"])
 
-            if hasattr(loaded_policy, "initialize_to_environment"):
-                features = metta_grid_env.get_observation_features()
-                loaded_policy.initialize_to_environment(features, actions_names, actions_max_params, self.device)
-            else:
-                loaded_policy.activate_actions(actions_names, actions_max_params, self.device)
+            self._initialize_policy_to_environment(loaded_policy, metta_grid_env, self.device)
 
             fresh_policy_record = policy_store.create_empty_policy_record(policy_record.name)
             fresh_policy_record.metadata = policy_record.metadata
@@ -210,11 +206,7 @@ class MettaTrainer:
             ):
                 fresh_policy.restore_original_feature_mapping(policy_record.metadata["original_feature_mapping"])
 
-            if hasattr(fresh_policy, "initialize_to_environment"):
-                features = metta_grid_env.get_observation_features()
-                fresh_policy.initialize_to_environment(features, actions_names, actions_max_params, self.device)
-            else:
-                fresh_policy.activate_actions(actions_names, actions_max_params, self.device)
+            self._initialize_policy_to_environment(fresh_policy, metta_grid_env, self.device)
             fresh_policy.load_state_dict(loaded_policy.state_dict(), strict=False)
 
             self.initial_policy_record = policy_record
@@ -238,11 +230,7 @@ class MettaTrainer:
                 self.policy = policy_record.policy
 
                 # Initialize the policy to the environment (supports both new and old methods)
-                if hasattr(self.policy, "initialize_to_environment"):
-                    features = metta_grid_env.get_observation_features()
-                    self.policy.initialize_to_environment(features, actions_names, actions_max_params, self.device)
-                else:
-                    self.policy.activate_actions(actions_names, actions_max_params, self.device)
+                self._initialize_policy_to_environment(self.policy, metta_grid_env, self.device)
             else:
                 # Master creates and saves new policy
                 policy_record = self._create_and_save_policy_record(policy_store, metta_grid_env)
@@ -251,11 +239,7 @@ class MettaTrainer:
                 self.policy = policy_record.policy
 
                 # Initialize the policy to the environment (supports both new and old methods)
-                if hasattr(self.policy, "initialize_to_environment"):
-                    features = metta_grid_env.get_observation_features()
-                    self.policy.initialize_to_environment(features, actions_names, actions_max_params, self.device)
-                else:
-                    self.policy.activate_actions(actions_names, actions_max_params, self.device)
+                self._initialize_policy_to_environment(self.policy, metta_grid_env, self.device)
 
         logging.info(f"USING {self.initial_policy_record.uri}")
 
@@ -1153,6 +1137,16 @@ class MettaTrainer:
 
         except Exception as e:
             logger.warning(f"Error during policy cleanup: {e}")
+
+    def _initialize_policy_to_environment(self, policy, metta_grid_env, device):
+        """Helper method to initialize a policy to the environment using the appropriate interface."""
+        if hasattr(policy, "initialize_to_environment"):
+            features = metta_grid_env.get_observation_features()
+            policy.initialize_to_environment(
+                features, metta_grid_env.action_names, metta_grid_env.max_action_args, device
+            )
+        else:
+            policy.activate_actions(metta_grid_env.action_names, metta_grid_env.max_action_args, device)
 
 
 class AbortingTrainer(MettaTrainer):
