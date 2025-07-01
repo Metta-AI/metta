@@ -1,7 +1,7 @@
 generator_red:
   type_id: 5
-  input_ore.red: 1
-  output_battery.red: 1
+  input_ore_red: 1
+  output_battery_red: 1
   color: 0
   max_output: 5
   conversion_ticks: 1
@@ -10,8 +10,8 @@ generator_red:
 
 generator_blue:
   type_id: 6
-  input_ore.blue: 1
-  output_battery.blue: 1
+  input_ore_blue: 1
+  output_battery_blue: 1
   color: 1
   max_output: 5
   conversion_ticks: 1
@@ -20,8 +20,8 @@ generator_blue:
 
 generator_green:
   type_id: 7
-  input_ore.green: 1
-  output_battery.green: 1
+  input_ore_green: 1
+  output_battery_green: 1
   color: 2
   max_output: 5
   conversion_ticks: 1
