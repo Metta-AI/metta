@@ -15,12 +15,27 @@ The codebase consists of:
 ## Development Environment Setup
 
 ```bash
-# Install uv if not already installed
-curl -LsSf https://astral.sh/uv/install.sh | sh
+# Initial setup (installs uv if needed and sets up environment)
+./install.sh
 
-# Run setup script (creates virtual environment automatically)
-./devops/setup_dev.sh
+# Then use metta command (choose one approach):
+
+# Option 1: Using uv run (recommended - works from anywhere)
+uv run metta configure --profile=softmax  # For Softmax employees
+uv run metta configure --profile=cloud    # For users with cloud accounts
+uv run metta configure --profile=external # For external contributors
+uv run metta install
+uv run metta status
+
+# Option 2: Activate venv first (traditional approach)
+source .venv/bin/activate
+metta configure
+metta install
+metta status
+
 ```
+
+Note: The legacy `./devops/setup_dev.sh` script still works and will automatically set up a Softmax profile.
 
 ## Common Commands
 

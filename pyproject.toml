@@ -65,6 +65,7 @@ license = "MIT"
 dev = ["skypilot==0.9.3"]
 
 [project.scripts]
+metta = "metta.setup.metta_cli:main"
 skypilot = "devops.skypilot.launch:main"
 skypilot-sandbox = "devops.skypilot.sandbox:main"
 mapgen = "tools.map.gen:main"

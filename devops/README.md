@@ -8,8 +8,9 @@ To set up your development environment:
 
 ```bash
 # From the metta root directory
-./metta.sh configure
-./metta.sh install
+./install.sh              # Install uv and Python dependencies
+uv run metta configure    # Configure your environment
+uv run metta install      # Install configured components
 ```
 
 The setup wizard will:
@@ -19,10 +20,11 @@ The setup wizard will:
 
 For specific components:
 ```bash
-./metta.sh install system     # Just system dependencies
-./metta.sh install aws        # Just AWS configuration
-./metta.sh install --force    # Force reinstall everything
+uv run metta install system     # Just system dependencies
+uv run metta install aws        # Just AWS configuration
+uv run metta install --force    # Force reinstall everything
 ```
+
 
 ## Git Hooks
 
