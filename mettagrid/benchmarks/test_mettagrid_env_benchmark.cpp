@@ -37,8 +37,6 @@ py::dict CreateBenchmarkConfig(int num_agents) {
   py::list inventory_item_names;
   inventory_item_names.append("ore");
   inventory_item_names.append("heart");
-  inventory_item_names.append("armor");
-  inventory_item_names.append("laser");
   game_cfg["inventory_item_names"] = inventory_item_names;
 
   // Actions configuration
@@ -49,6 +47,8 @@ py::dict CreateBenchmarkConfig(int num_agents) {
   move_cfg["enabled"] = true;
   rotate_cfg["enabled"] = true;
   attack_cfg["enabled"] = true;
+  attack_cfg["attack_resources"] = py::dict();
+  attack_cfg["defense_resources"] = py::dict();
   swap_cfg["enabled"] = true;
   put_cfg["enabled"] = true;
   get_cfg["enabled"] = true;
@@ -62,8 +62,6 @@ py::dict CreateBenchmarkConfig(int num_agents) {
   actions_cfg["put_items"] = put_cfg;
   actions_cfg["get_items"] = get_cfg;
   actions_cfg["change_color"] = change_color_cfg;
-  actions_cfg["armor_item_id"] = 2;
-  actions_cfg["laser_item_id"] = 3;
 
   game_cfg["actions"] = actions_cfg;
 
@@ -96,7 +94,7 @@ py::dict CreateBenchmarkConfig(int num_agents) {
 
   // Objects configuration
   py::dict objects_cfg;
-  py::dict wall_cfg, block_cfg, mine_cfg, generator_cfg, altar_cfg;
+  py::dict wall_cfg;
 
   objects_cfg["wall"] = wall_cfg;
   objects_cfg["wall"]["type_id"] = 1;

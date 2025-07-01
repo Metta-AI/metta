@@ -22,6 +22,10 @@ game:
       enabled: true
     attack:
       enabled: false
+      attack_resources:
+        laser: 1
+      defense_resources:
+        armor: 1
     swap:
       enabled: false
     change_color:
