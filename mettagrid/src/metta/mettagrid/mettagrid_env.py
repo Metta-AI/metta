@@ -416,6 +416,28 @@ class MettaGridEnv(PufferEnv, GymEnv):
     def feature_normalizations(self) -> dict[int, float]:
         return self._c_env.feature_normalizations()
 
+    def get_observation_features(self) -> dict[str, dict]:
+        """
+        Build the features dictionary for initialize_to_environment.
+
+        Returns:
+            Dictionary mapping feature names to their properties
+        """
+        # Get feature spec from C++ environment
+        feature_spec = self._c_env.feature_spec()
+
+        features = {}
+        for feature_name, feature_info in feature_spec.items():
+            feature_dict = {"id": feature_info["id"]}
+
+            # Add normalization if present
+            if "normalization" in feature_info:
+                feature_dict["normalization"] = feature_info["normalization"]
+
+            features[feature_name] = feature_dict
+
+        return features
+
     @property
     def global_features(self):
         return []
