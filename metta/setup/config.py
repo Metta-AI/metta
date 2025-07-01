@@ -79,13 +79,13 @@ class SetupConfig:
     def __init__(self, config_path: Path | None = None):
         self.config_path: Path = config_path or Path.home() / ".metta" / "config.yaml"
         self.config_path.parent.mkdir(parents=True, exist_ok=True)
-        self._config: ComponentConfig = self._load_config()
+        self._config: dict = self._load_config()
 
-    def _load_config(self) -> ComponentConfig:
+    def _load_config(self) -> dict:
         if self.config_path.exists():
             with open(self.config_path, "r") as f:
-                return yaml.safe_load(f) or ComponentConfig(enabled=False)
-        return ComponentConfig(enabled=False)
+                return yaml.safe_load(f) or {}
+        return {}
 
     def save(self) -> None:
         with open(self.config_path, "w") as f:

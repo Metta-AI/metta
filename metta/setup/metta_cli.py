@@ -300,6 +300,12 @@ Examples:
 
         args = parser.parse_args()
 
+        # Auto-run configure if no config exists and no command given
+        if not args.command and not self.config.config_path.exists():
+            info("No configuration found. Running setup wizard...\n")
+            self.setup_wizard()
+            return
+
         if args.command != "configure":
             if not self.config.config_path.exists():
                 error("No configuration found. Please run './metta.sh configure' first.")
