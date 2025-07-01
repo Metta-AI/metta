@@ -51,6 +51,9 @@ ppo:
   norm_adv: true
   clip_vloss: true
   target_kl: null
+  clip_coef: 0.2
+  ent_coef: 0.01
+
 
 # Prioritized experience replay parameters
 prioritized_experience_replay:

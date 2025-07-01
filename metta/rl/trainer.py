@@ -40,6 +40,8 @@ from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
 from metta.sim.simulation_suite import SimulationSuite
 
+from .hyperparameter_scheduler import HyperparameterScheduler
+
 try:
     from pufferlib import _C  # noqa: F401 - Required for torch.ops.pufferlib
 except ImportError:
@@ -75,6 +77,8 @@ class MettaTrainer:
 
         self.cfg = cfg
         self.trainer_cfg = trainer_cfg = parse_trainer_config(cfg)
+
+        self.hyperparameter_scheduler = HyperparameterScheduler(trainer_cfg, trainer_cfg.total_timesteps, logging)
 
         # it doesn't make sense to evaluate more often than we checkpoint since we need a saved policy to evaluate
         if (
@@ -274,11 +278,11 @@ class MettaTrainer:
                     f"Environment observation shape: {environment_shape}"
                 )
 
-        self.lr_scheduler = None
-        if trainer_cfg.lr_scheduler.enabled:
-            self.lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-                self.optimizer, T_max=trainer_cfg.total_timesteps // trainer_cfg.batch_size
-            )
+        # self.lr_scheduler = None
+        # if trainer_cfg.lr_scheduler.enabled:
+        #     self.lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+        #         self.optimizer, T_max=trainer_cfg.total_timesteps // trainer_cfg.batch_size
+        #     )
 
         if checkpoint and checkpoint.optimizer_state_dict:
             try:
@@ -677,8 +681,10 @@ class MettaTrainer:
                     break
             # end loop over epochs
 
-        if self.lr_scheduler is not None:
-            self.lr_scheduler.step()
+        # if self.lr_scheduler is not None:
+        #     self.lr_scheduler.step()
+
+        self.hyperparameter_scheduler.step(self, self.agent_step)
 
         # Calculate explained variance
         y_pred = experience.values.flatten()
@@ -1008,6 +1014,15 @@ class MettaTrainer:
             "policy_record_version": self.latest_saved_policy_record.key_and_version()[1],
         }
 
+        hyperparameters = {
+            "hyperparameters/learning_rate": self.optimizer.param_groups[0]["lr"],
+            "hyperparameters/ppo_clip_coef": self.trainer_cfg.ppo.clip_coef,
+            "hyperparameters/ppo_vf_clip_coef": self.trainer_cfg.ppo.vf_clip_coef,
+            "hyperparameters/ppo_ent_coef": self.trainer_cfg.ppo.ent_coef,
+            "hyperparameters/ppo_l2_reg_loss_coef": self.trainer_cfg.ppo.l2_reg_loss_coef,
+            "hyperparameters/ppo_l2_init_loss_coef": self.trainer_cfg.ppo.l2_init_loss_coef,
+        }
+
         self.wandb_run.log(
             {
                 **{f"overview/{k}": v for k, v in overview.items()},
@@ -1022,6 +1037,7 @@ class MettaTrainer:
                 **timing_stats,
                 **metric_stats,
                 **self.grad_stats,
+                **hyperparameters,
             },
             # WandB can automatically increment step on each call to log, but we force the value here
             # to make WandB reject any non-monotonic data points. This hides duplicate data when resuming
