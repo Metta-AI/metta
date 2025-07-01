@@ -131,7 +131,12 @@ class MettaTrainer:
 
         if self._master:
             self._memory_monitor = MemoryMonitor()
-            self._system_monitor = SystemMonitor(logger=logger)
+            self._system_monitor = SystemMonitor(
+                sampling_interval_sec=1.0,  # Sample every second
+                history_size=100,  # Keep last 100 samples
+                logger=logger,
+                auto_start=True,  # Start monitoring immediately
+            )
 
         curriculum_config = trainer_cfg.curriculum_or_env
         env_overrides = DictConfig(trainer_cfg.env_overrides)
