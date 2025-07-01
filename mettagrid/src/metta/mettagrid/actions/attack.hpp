@@ -27,7 +27,6 @@ public:
   }
 
 protected:
-  std::map<InventoryItem, int> _attack_resources;
   std::map<InventoryItem, int> _defense_resources;
 
   bool _handle_action(Agent* actor, ActionArg arg) override {

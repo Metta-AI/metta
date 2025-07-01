@@ -47,8 +47,6 @@ py::dict CreateBenchmarkConfig(int num_agents) {
   move_cfg["enabled"] = true;
   rotate_cfg["enabled"] = true;
   attack_cfg["enabled"] = true;
-  attack_cfg["attack_resources"] = py::dict();
-  attack_cfg["defense_resources"] = py::dict();
   swap_cfg["enabled"] = true;
   put_cfg["enabled"] = true;
   get_cfg["enabled"] = true;
