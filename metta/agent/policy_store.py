@@ -44,10 +44,6 @@ class PolicySelectorConfig:
 class PolicyStore:
     def __init__(self, cfg: DictConfig, wandb_run):
         self._cfg = cfg
-        if "trainer" not in cfg:
-            raise AttributeError("cfg object has no attribute 'trainer'")
-
-        self._trainer_cfg: TrainerConfig = parse_trainer_config(cfg)
         self._device = cfg.device
         self._wandb_run = wandb_run
         cache_size = cfg.get("policy_cache_size", 10)  # Default to 10 if not specified
@@ -201,11 +197,12 @@ class PolicyStore:
         return f"model_{epoch:04d}.pt"
 
     def create_empty_policy_record(self, name: str, override_path: str | None = None) -> PolicyRecord:
-        path = (
-            override_path
-            if override_path is not None
-            else os.path.join(self._trainer_cfg.checkpoint.checkpoint_dir, name)
-        )
+        if "trainer" not in self._cfg:
+            raise AttributeError("New policies can't be created by a PolicyStore with no 'cfg.trainer' attribute.")
+
+        trainer_cfg: TrainerConfig = parse_trainer_config(self._cfg)
+
+        path = override_path if override_path is not None else os.path.join(trainer_cfg.checkpoint.checkpoint_dir, name)
         metadata = PolicyMetadata()
         return PolicyRecord(self, name, f"file://{path}", metadata)
 
