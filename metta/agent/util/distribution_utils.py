@@ -35,7 +35,7 @@ def sample_actions(action_logits: Tensor) -> Tuple[Tensor, Tensor, Tensor, Tenso
 
     # Extract log-probabilities for sampled actions using advanced indexing
     batch_indices = torch.arange(actions.shape[0], device=actions.device)
-    log_probs = action_log_probs[batch_indices, actions]  # [batch_size]
+    log_probs = action_logits[batch_indices, actions]  # [batch_size]
 
     # Compute policy entropy: H(π) = -∑π(a|s)log π(a|s)
     entropy = -torch.sum(action_probs * action_log_probs, dim=-1)  # [batch_size]
@@ -71,7 +71,7 @@ def evaluate_actions(action_logits: Tensor, actions: Tensor) -> Tuple[Tensor, Te
 
     # Extract log-probabilities for the provided actions using advanced indexing
     batch_indices = torch.arange(actions.shape[0], device=actions.device)
-    log_probs = action_log_probs[batch_indices, actions]  # [batch_size]
+    log_probs = action_logits[batch_indices, actions]  # [batch_size]
 
     # Compute policy entropy: H(π) = -∑π(a|s)log π(a|s)
     entropy = -torch.sum(action_probs * action_log_probs, dim=-1)  # [batch_size]
