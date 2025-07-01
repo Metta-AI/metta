@@ -86,10 +86,8 @@ def wait_for_file(
     timeout: float = 300.0,
     check_interval: float = 0.1,
     stability_duration: float = 0.5,
-    stability_check_interval: float = 0.05,
     min_size: int = 1,
-    logger: Optional[Any] = None,
-    rank: Optional[int] = None,
+    progress_callback: Optional[Callable[[float, str], None]] = None,
 ) -> bool:
     """
     Wait for a file to be created and fully written.
@@ -100,74 +98,70 @@ def wait_for_file(
     Args:
         file_path: Path to the file to wait for
         timeout: Maximum time to wait in seconds (default: 300)
-        check_interval: How often to check for file existence in seconds (default: 0.1)
+        check_interval: How often to check in seconds (default: 0.1)
         stability_duration: How long the file size must be stable in seconds (default: 0.5)
-        stability_check_interval: How often to check file size stability in seconds (default: 0.05)
         min_size: Minimum file size in bytes to consider valid (default: 1)
-        logger: Optional logger for status messages
-        rank: Optional rank identifier for distributed systems
+        progress_callback: Optional callback called on each check with (elapsed_time, status)
+                          where status is one of: "waiting", "found", "stabilizing", "stable"
 
     Returns:
         True if file was found and is stable, False if timeout
 
     Example:
-        if wait_for_file("model.pt", timeout=60):
+        def progress(elapsed, status):
+            logger.info(f"Rank {rank}: {status} ({elapsed:.1f}s)")
+
+        if wait_for_file("model.pt", timeout=60, progress_callback=progress):
             model = torch.load("model.pt")
         else:
             raise TimeoutError("Model file not found")
     """
     file_path = Path(file_path)
-    rank_prefix = f"Rank {rank}: " if rank is not None else ""
-
-    def log(message: str, level: str = "info"):
-        if logger:
-            getattr(logger, level)(f"{rank_prefix}{message}")
-
-    log(f"Waiting for file at {file_path}")
     start_time = time.time()
 
     # Wait for file to exist
     while not file_path.exists():
-        time.sleep(check_interval)
         elapsed = time.time() - start_time
+        if progress_callback:
+            progress_callback(elapsed, "waiting")
 
         if elapsed > timeout:
-            log(f"Timeout after {timeout}s waiting for file at {file_path}", "error")
             return False
 
-        if int(elapsed) % 10 == 0 and elapsed > 0:
-            log(f"Still waiting for file... ({elapsed:.0f}s elapsed)")
+        time.sleep(check_interval)
 
     # File exists, wait for it to be fully written
-    log("File found, waiting for write to complete...")
+    if progress_callback:
+        progress_callback(time.time() - start_time, "found")
 
-    stable_duration_elapsed = 0.0
+    stable_checks = 0
+    required_stable_checks = int(stability_duration / check_interval)
     last_size = -1
 
-    while stable_duration_elapsed < stability_duration:
+    while stable_checks < required_stable_checks:
+        elapsed = time.time() - start_time
+        if elapsed > timeout:
+            return False
+
         try:
             current_size = file_path.stat().st_size
 
             if current_size == last_size and current_size >= min_size:
-                stable_duration_elapsed += stability_check_interval
+                stable_checks += 1
+                if progress_callback:
+                    progress_callback(elapsed, "stabilizing")
             else:
-                stable_duration_elapsed = 0.0
+                stable_checks = 0
                 last_size = current_size
-
-            time.sleep(stability_check_interval)
-
-            # Check total timeout
-            if time.time() - start_time > timeout:
-                log(f"Timeout after {timeout}s waiting for file stability", "error")
-                return False
 
         except OSError:
             # File might be in the process of being renamed/moved
-            stable_duration_elapsed = 0.0
-            time.sleep(stability_check_interval)
+            stable_checks = 0
 
-    elapsed = time.time() - start_time
-    log(f"File stable after {elapsed:.1f}s")
+        time.sleep(check_interval)
+
+    if progress_callback:
+        progress_callback(time.time() - start_time, "stable")
 
     # Small delay to ensure filesystem propagation
     time.sleep(0.1)

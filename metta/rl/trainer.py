@@ -212,7 +212,15 @@ class MettaTrainer:
                 # Synchronize with master before attempting to load
                 torch.distributed.barrier()
 
-                if not wait_for_file(default_policy_path, timeout=300, logger=logger, rank=self._rank):
+                def log_progress(elapsed: float, status: str) -> None:
+                    if status == "waiting" and int(elapsed) % 10 == 0 and elapsed > 0:
+                        logger.info(f"Rank {self._rank}: Still waiting for policy file... ({elapsed:.0f}s elapsed)")
+                    elif status == "found":
+                        logger.info(f"Rank {self._rank}: Policy file found, waiting for write to complete...")
+                    elif status == "stable":
+                        logger.info(f"Rank {self._rank}: Policy file stable after {elapsed:.1f}s")
+
+                if not wait_for_file(default_policy_path, timeout=300, progress_callback=log_progress):
                     raise RuntimeError(f"Rank {self._rank}: Timeout waiting for policy at {default_policy_path}")
 
                 try:
