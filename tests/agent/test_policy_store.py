@@ -180,7 +180,7 @@ def test_policy_record_backwards_compatibility():
     # This should raise AttributeError
     try:
         _ = pr_no_metadata.metadata
-        assert False, "Expected AttributeError when no metadata found"
+        raise AssertionError("Expected AttributeError when no metadata found")
     except AttributeError as e:
         assert "No metadata found" in str(e)
         print("✅ Correctly raised AttributeError when no metadata found")
