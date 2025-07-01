@@ -40,7 +40,7 @@ def create_minimal_mettagrid_c_env(max_steps=10, width=5, height=5):
             "noop": {"enabled": True},
             "move": {"enabled": True},
             "rotate": {"enabled": True},
-            "attack": {"enabled": False, "consumed_resources": {"laser": 1}, "defense_resources": {"armor": 1}},
+            "attack": {"enabled": False},
             "put_items": {"enabled": False},
             "get_items": {"enabled": False},
             "swap": {"enabled": False},

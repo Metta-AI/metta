@@ -96,7 +96,7 @@ def create_reward_test_env(max_steps=10, width=5, height=5, num_agents=NUM_AGENT
             "noop": {"enabled": True},
             "move": {"enabled": True},
             "rotate": {"enabled": False},
-            "attack": {"enabled": False, "attack_resources": {"laser": 1}, "defense_resources": {"armor": 1}},
+            "attack": {"enabled": False},
             "put_items": {"enabled": False},
             "get_items": {"enabled": False},
             "swap": {"enabled": False},

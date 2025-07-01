@@ -200,19 +200,19 @@ def from_mettagrid_config(mettagrid_config: GameConfig_py) -> GameConfig_cpp:
     game_config = mettagrid_config.model_dump(by_alias=True, exclude_none=True)
 
     # Add required and consumed resources to the attack action
-    for action_name, action_config in mettagrid_config.actions.items():
+    for action_name, action_config in game_config["actions"].items():
         game_config["actions"][action_name]["consumed_resources"] = dict(
-            (inventory_item_ids[k], v) for k, v in action_config.consumed_resources.items()
+            (inventory_item_ids[k], v) for k, v in action_config["consumed_resources"].items()
         )
-        if action_config.required_resources:
+        if action_config.get("required_resources", None) is not None:
             game_config["actions"][action_name]["required_resources"] = dict(
-                (inventory_item_ids[k], v) for k, v in action_config.required_resources.items()
+                (inventory_item_ids[k], v) for k, v in action_config["required_resources"].items()
             )
         else:
             game_config["actions"][action_name]["required_resources"] = game_config["actions"][action_name]["consumed_resources"]
         if action_name == "attack":
             game_config["actions"][action_name]["defense_resources"] = dict(
-                (inventory_item_ids[k], v) for k, v in action_config.defense_resources.items()
+                (inventory_item_ids[k], v) for k, v in action_config["defense_resources"].items()
             )
 
     del game_config["agent"]
