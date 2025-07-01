@@ -99,7 +99,7 @@ def load_pytorch_policy(path: str, device: str = "cpu", pytorch_cfg: DictConfig 
     try:
         weights = torch.load(path, map_location=device, weights_only=True)
     except Exception as e:
-        raise ValueError(f"Failed to load checkpoint from {path}: {e}")
+        raise ValueError(f"Failed to load checkpoint from {path}: {e}") from None
 
     # Validate checkpoint structure
     required_keys = ["policy.actor.0.weight", "policy.network.0.weight"]
