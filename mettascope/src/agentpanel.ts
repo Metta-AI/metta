@@ -1,6 +1,7 @@
 import {
   find,
   finds,
+  findIn,
   removeChildren,
   findAttr,
   onEvent,
@@ -14,6 +15,7 @@ import {
 import { state, setFollowSelection, html } from './common.js'
 import { getAttr, propertyName, propertyIcon } from './replay.js'
 import { updateSelection } from './main.js'
+import { addSearchTerm, removeSearchTerm, hasSearchTerm } from './search.js'
 
 enum SortDirection {
   None = 0,
@@ -138,6 +140,10 @@ onEvent('click', '#agent-panel .header-cell .dropdown', (target: HTMLElement, e:
   let columnMenu = find('#column-menu')
   columnMenu.setAttribute('data-column-field', columnField)
   columnMenu.setAttribute('data-column-is-final', columnIsFinal.toString())
+
+  findIn(columnMenu, '.add-to-search').classList.toggle('hidden', hasSearchTerm(columnField))
+  findIn(columnMenu, '.remove-from-search').classList.toggle('hidden', !hasSearchTerm(columnField))
+
   showMenu(target, columnMenu)
 })
 
@@ -190,6 +196,29 @@ onEvent('click', '#column-menu .move-right', (target: HTMLElement, e: Event) => 
     saveAgentTable()
   }
   hideMenu()
+})
+
+/** Clicking on the add to search button should add the column to the search. */
+onEvent('click', '#column-menu .add-to-search', (target: HTMLElement, e: Event) => {
+  let { columnField, columnIsFinal } = getFieldInfo(target)
+  addSearchTerm(columnField)
+})
+
+/** Clicking on the remove from search button should remove the column from the search. */
+onEvent('click', '#column-menu .remove-from-search', (target: HTMLElement, e: Event) => {
+  let { columnField, columnIsFinal } = getFieldInfo(target)
+  removeSearchTerm(columnField)
+})
+/** Clicking on the add to timeline button should add the column to the timeline. */
+onEvent('click', '#column-menu .add-to-timeline', (target: HTMLElement, e: Event) => {
+  let { columnField, columnIsFinal } = getFieldInfo(target)
+  console.log('add to timeline', columnField)
+})
+
+/** Clicking on the remove from timeline button should remove the column from the timeline. */
+onEvent('click', '#column-menu .remove-from-timeline', (target: HTMLElement, e: Event) => {
+  let { columnField, columnIsFinal } = getFieldInfo(target)
+  console.log('remove from timeline', columnField)
 })
 
 /** Clicking on the hide column button should remove the column from the columns array. */
@@ -293,6 +322,7 @@ onEvent('click', '#new-column-dropdown .step-check', (target: HTMLElement, e: Ev
 onEvent('click', '#new-column-dropdown .final-check', (target: HTMLElement, e: Event) => {
   toggleColumn(findAttr(target, 'data-column-field'), true)
 })
+
 
 /** Update the available columns. */
 export function updateAvailableColumns() {

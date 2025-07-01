@@ -21,6 +21,34 @@ export const search = {
   parts: [] as string[],
 }
 
+/** Add a keyword to the search and update the search dropdown. */
+export function addSearchTerm(k: string) {
+  let key = k.replace('inv:', '').replace('agent:', '')
+  search.parts.push(key)
+  search.query = search.parts.join(' ')
+  searchInput.value = search.query
+  search.active = search.parts.length > 0
+  updateSearchDropdown()
+  requestFrame()
+}
+
+/** Remove a keyword from the search and update the search dropdown. */
+export function removeSearchTerm(k: string) {
+  let key = k.replace('inv:', '').replace('agent:', '')
+  search.parts = search.parts.filter(part => part !== key)
+  search.query = search.parts.join(' ')
+  searchInput.value = search.query
+  search.active = search.parts.length > 0
+  updateSearchDropdown()
+  requestFrame()
+}
+
+/** Check if the search has a term that matches the given key. */
+export function hasSearchTerm(k: string) {
+  let key = k.replace('inv:', '').replace('agent:', '')
+  return search.parts.includes(key)
+}
+
 function updateSearchDropdown() {
   removeChildren(searchDropdown)
   // Add all of the resources to the search dropdown.
