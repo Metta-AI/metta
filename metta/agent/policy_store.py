@@ -9,23 +9,16 @@ It provides functionality to:
 The PolicyStore is used by the training system to manage opponent policies and checkpoints.
 """
 
-import collections
 import logging
 import os
 import random
-import sys
-import warnings
 from typing import Any, List, Optional, Union
 
-import gymnasium as gym
-import numpy as np
 import torch
 import wandb
 from omegaconf import DictConfig, ListConfig
-from torch.package.package_exporter import PackageExporter
-from torch.package.package_importer import PackageImporter
 
-from metta.agent.metta_agent import make_policy
+from metta.agent.policy_metadata import PolicyMetadata
 from metta.agent.policy_record import PolicyRecord
 from metta.rl.policy import load_pytorch_policy
 from metta.rl.trainer_config import TrainerConfig, parse_trainer_config
@@ -201,105 +194,39 @@ class PolicyStore:
             if override_path is not None
             else os.path.join(self._trainer_cfg.checkpoint.checkpoint_dir, name)
         )
-        return PolicyRecord(
-            self,
-            name,
-            f"file://{path}",
-            {
-                "agent_step": 0,
-                "epoch": 0,
-                "generation": 0,
-                "train_time": 0,
-            },
-        )
+        metadata = PolicyMetadata()
+        return PolicyRecord(self, name, f"file://{path}", metadata)
 
-    def save(self, pr: PolicyRecord) -> PolicyRecord:
-        """Save a policy and its metadata using torch.package."""
-        path = pr.uri.split("file://")[1]
+    def save(self, pr: PolicyRecord, path: str | None = None) -> PolicyRecord:
+        """Save a policy record using the simple torch.save approach."""
+        if path is None:
+            if hasattr(pr, "file_path"):
+                path = pr.file_path
+            else:
+                path = pr.uri[7:] if pr.uri.startswith("file://") else pr.uri
 
-        if os.path.exists(path):
-            logger.warning(f"Overwriting existing policy at {path} using torch.package")
-        else:
-            logger.info(f"Saving policy to {path} using torch.package")
+        logger.info(f"Saving policy to {path}")
 
-        policy_class_name = pr.policy.__class__.__module__
-        if "torch_package_" in policy_class_name:
-            logger.error("Policy class name with torch_package_ prefixes! Did you forget to rebuild the agent?")
-            logger.error("Skipping save to prevent pickle errors.")
-            return pr
+        # Temporarily remove the policy store reference to avoid pickling issues
+        pr._policy_store = None
+        torch.save(pr, path)
+        pr._policy_store = self
 
-        try:
-            # Sanitize metadata -- removes unresolved omegaconf objects and wandb references
-            def sanitize_dict(v) -> dict:
-                def sanitize_value(val):
-                    # Skip wandb-related objects
-                    if hasattr(val, "__module__") and val.__module__ and "wandb" in val.__module__:
-                        return None
-
-                    # Recursively clean dictionaries
-                    if isinstance(val, dict):
-                        return {k: sanitize_value(v) for k, v in val.items() if sanitize_value(v) is not None}
-
-                    # Recursively clean lists
-                    if isinstance(val, list):
-                        return [sanitize_value(item) for item in val if sanitize_value(item) is not None]
-
-                    # Keep primitive types as-is
-                    if isinstance(val, (str, int, float, bool, type(None))):
-                        return val
-
-                    # Convert objects to strings, return None if conversion fails
-                    if hasattr(val, "__dict__"):
-                        try:
-                            return str(val)
-                        except Exception:
-                            return None
-
-                    # Keep everything else as-is
-                    return val
-
-                # Process the input value
-                result = sanitize_value(v)
-
-                # Ensure we always return a dict
-                if not isinstance(result, dict):
-                    return {} if result is None else {"value": result}
-
-                return result
-
-            sanitized_metadata = sanitize_dict(pr.metadata)
-
-            with PackageExporter(path, debug=False) as exporter:
-                # Apply all packaging rules
-                self._apply_packaging_rules(exporter, pr.policy.__class__.__module__, pr.policy.__class__)
-
-                # Save the policy and metadata
-                exporter.save_pickle(
-                    "policy_record", "data.pkl", PolicyRecord(None, pr.name, pr.uri, sanitized_metadata)
-                )
-                exporter.save_pickle("policy", "model.pkl", pr.policy)
-
-        except Exception as e:
-            logger.error(f"torch.package save failed: {e}")
-            raise RuntimeError(f"Failed to save policy using torch.package: {e}") from e
-
-        pr.uri = "file://" + path
+        # Don't cache the policy that we just saved,
+        # since it might be updated later. We always
+        # load the policy from the file when needed.
+        pr._cached_policy = None
+        self._cached_prs[path] = pr
         return pr
 
     def add_to_wandb_run(self, run_id: str, pr: PolicyRecord, additional_files: list[str] | None = None) -> str:
-        local_path = pr.local_path()
-        if local_path is None:
-            raise ValueError("PolicyRecord has no local path")
-        return self.add_to_wandb_artifact(run_id, "model", pr.metadata, local_path, additional_files)
+        return self.add_to_wandb_artifact(run_id, "model", pr.metadata, pr.file_path, additional_files)
 
     def add_to_wandb_sweep(self, sweep_name: str, pr: PolicyRecord, additional_files: list[str] | None = None) -> str:
-        local_path = pr.local_path()
-        if local_path is None:
-            raise ValueError("PolicyRecord has no local path")
-        return self.add_to_wandb_artifact(sweep_name, "sweep_model", pr.metadata, local_path, additional_files)
+        return self.add_to_wandb_artifact(sweep_name, "sweep_model", pr.metadata, pr.file_path, additional_files)
 
     def add_to_wandb_artifact(
-        self, name: str, type: str, metadata: dict[str, Any], local_path: str, additional_files: list[str] | None = None
+        self, name: str, type: str, metadata: dict[str, Any], file_path: str, additional_files: list[str] | None = None
     ) -> str:
         if self._wandb_run is None:
             raise ValueError("PolicyStore was not initialized with a wandb run")
@@ -307,7 +234,7 @@ class PolicyStore:
         additional_files = additional_files or []
 
         artifact = wandb.Artifact(name, type=type, metadata=metadata)
-        artifact.add_file(local_path, name="model.pt")
+        artifact.add_file(file_path, name="model.pt")
         for file in additional_files:
             artifact.add_file(file)
         artifact.save()
@@ -377,101 +304,45 @@ class PolicyStore:
 
         raise ValueError(f"Invalid URI: {uri}")
 
-    def _make_codebase_backwards_compatible(self):
-        """
-        torch.load expects the codebase to be in the same structure as when the model was saved.
-
-        We can use this function to alias old layout structures. For now we are supporting:
-        - agent --> metta.agent
-        """
-        # Memoize
-        if getattr(self, "_made_codebase_backwards_compatible", False):
-            return
-        self._made_codebase_backwards_compatible = True
-
-        # Handle agent --> metta.agent
-        sys.modules["agent"] = sys.modules["metta.agent"]
-        modules_queue = collections.deque(["metta.agent"])
-
-        processed = set()
-        while modules_queue:
-            module_name = modules_queue.popleft()
-            if module_name in processed:
-                continue
-            processed.add(module_name)
-
-            if module_name not in sys.modules:
-                continue
-            module = sys.modules[module_name]
-            old_name = module_name.replace("metta.agent", "agent")
-            sys.modules[old_name] = module
-
-            # Find all submodules
-            for attr_name in dir(module):
-                try:
-                    attr = getattr(module, attr_name)
-                except (ImportError, AttributeError):
-                    continue
-                if hasattr(attr, "__module__"):
-                    attr_module = getattr(attr, "__module__", None)
-
-                    # If it's a module and part of metta.agent, queue it
-                    if attr_module and attr_module.startswith("metta.agent"):
-                        modules_queue.append(attr_module)
-
-                submodule_name = f"{module_name}.{attr_name}"
-                if submodule_name in sys.modules:
-                    modules_queue.append(submodule_name)
-
-    def _load_from_pytorch(self, path: str, metadata_only: bool = False) -> PolicyRecord:
+    def _load_from_pytorch(self, path: str) -> PolicyRecord:
         name = os.path.basename(path)
-        pr = PolicyRecord(
-            self,
-            name,
-            "pytorch://" + name,
-            {"action_names": [], "agent_step": 0, "epoch": 0, "generation": 0, "train_time": 0},
-        )
+        # PolicyMetadata only requires: agent_step, epoch, generation, train_time
+        # action_names is optional and not used by pytorch:// checkpoints
+        metadata = PolicyMetadata()
+        pr = PolicyRecord(self, name, "pytorch://" + name, metadata)
         pr._cached_policy = load_pytorch_policy(path, self._device, pytorch_cfg=self._cfg.get("pytorch"))
         return pr
 
     def _load_from_file(self, path: str, metadata_only: bool = False) -> PolicyRecord:
+        """Load a PolicyRecord from a file using simple torch.load."""
         if path in self._cached_prs:
             cached_pr = self._cached_prs[path]
-            # For metadata_only, we can return the cached record immediately
-            if metadata_only:
+            if metadata_only or cached_pr._cached_policy is not None:
                 return cached_pr
-            # For full load, check if the policy is already loaded
-            # Only check the _cached_policy attribute directly to avoid triggering
-            # the property getter which may cause recursion or errors
-            if hasattr(cached_pr, "_cached_policy") and cached_pr._cached_policy is not None:
-                return cached_pr
-            # If no cached policy, we need to reload it below
 
         if not path.endswith(".pt") and os.path.isdir(path):
             path = os.path.join(path, os.listdir(path)[-1])
 
         logger.info(f"Loading policy from {path}")
 
-        self._make_codebase_backwards_compatible()
-
         assert path.endswith(".pt"), f"Policy file {path} does not have a .pt extension"
-        with warnings.catch_warnings():
-            warnings.filterwarnings("ignore", category=FutureWarning)
 
-        try:
-            importer = PackageImporter(path)
-            pr = importer.load_pickle("policy_record", "data.pkl")
-            pr._policy_store = self
-            if not metadata_only:
-                pr._cached_policy = pr.load(path, self._device)
-            self._cached_prs[path] = pr
-            return pr
-        except Exception as e:
-            logger.debug(f"Not a torch.package file: {e}")
-            if "PytorchStreamReader failed locating file .data/extern_modules" in str(e):
-                logger.info("Detected old checkpoint format, loading as regular PyTorch checkpoint")
-                return self._load_legacy_checkpoint(path, metadata_only)
-            raise ValueError(f"Failed to load policy from {path}: {e}") from e
+        # Simple torch.load approach - expects a PolicyRecord object
+        pr = torch.load(path, map_location=self._device, weights_only=False)
+
+        if not isinstance(pr, PolicyRecord):
+            raise ValueError(
+                f"Expected PolicyRecord object in {path}, got {type(pr).__name__}. "
+                "This codebase only supports checkpoints saved with the current format."
+            )
+
+        pr._policy_store = self
+        self._cached_prs[path] = pr
+
+        if metadata_only:
+            pr._cached_policy = None
+
+        return pr
 
     def _load_wandb_artifact(self, qualified_name: str):
         logger.info(f"Loading policy from wandb artifact {qualified_name}")
@@ -488,162 +359,3 @@ class PolicyStore:
         pr = self._load_from_file(os.path.join(artifact_path, "model.pt"))
         pr.metadata.update(artifact.metadata)
         return pr
-
-    def _load_legacy_checkpoint(self, path: str, metadata_only: bool = False) -> PolicyRecord:
-        logger.info(f"Loading legacy checkpoint from {path}")
-        checkpoint = torch.load(path, map_location=self._device, weights_only=False)
-
-        if isinstance(checkpoint, PolicyRecord):
-            pr = checkpoint
-            pr._policy_store = self
-
-            if not metadata_only:
-                # Check for policy under different possible attribute names
-                policy_cache_attributes = ["_cached_policy", "_policy"]
-                policy = None
-
-                for attr in policy_cache_attributes:
-                    if hasattr(pr, attr):
-                        policy = getattr(pr, attr)
-                        if policy is not None:
-                            # If we found it under a different name, set it to the current standard
-                            if attr != "_cached_policy":
-                                pr._cached_policy = policy
-                                logger.info(
-                                    f"Found policy under legacy attribute '{attr}', migrated to '_cached_policy'"
-                                )
-                            break
-
-                if policy is None:
-                    raise ValueError(
-                        f"Legacy PolicyRecord has no policy attached (checked attributes: {policy_cache_attributes})"
-                    )
-
-            self._cached_prs[path] = pr
-            return pr
-
-        if not isinstance(checkpoint, dict):
-            raise ValueError(f"Unexpected checkpoint format: {type(checkpoint)}")
-
-        # Create PolicyRecord with metadata
-        pr = PolicyRecord(
-            self,
-            os.path.basename(path),
-            f"file://{path}",
-            {
-                k: checkpoint.get(k, 0 if k != "action_names" else [])
-                for k in ["action_names", "agent_step", "epoch", "generation", "train_time"]
-            },
-        )
-
-        if not metadata_only:
-            try:
-                from types import SimpleNamespace
-
-                # Create mock environment
-                obs_shape = checkpoint.get("obs_shape", [34, 11, 11])
-                env = SimpleNamespace(
-                    single_observation_space=gym.spaces.Box(low=0, high=255, shape=obs_shape, dtype=np.uint8),
-                    obs_width=obs_shape[1],
-                    obs_height=obs_shape[2],
-                    single_action_space=gym.spaces.MultiDiscrete(checkpoint.get("action_space_nvec", [9, 10])),
-                    feature_normalizations=checkpoint.get("feature_normalizations", {}),
-                    global_features=[],
-                )
-
-                policy = make_policy(env, self._cfg)  # type:ignore
-
-                # Load state dict
-                state_key = next((k for k in ["model_state_dict", "state_dict"] if k in checkpoint), None)
-                policy.load_state_dict(checkpoint.get(state_key, checkpoint))
-                pr.policy = policy
-
-                logger.info("Successfully loaded legacy checkpoint as MettaAgent")
-            except Exception as e:
-                raise ValueError(f"Cannot load legacy checkpoint as MettaAgent: {e}") from e
-
-        self._cached_prs[path] = pr
-        return pr
-
-    def _apply_packaging_rules(self, exporter, policy_module: Optional[str], policy_class: type) -> None:
-        """Apply packaging rules to the exporter based on a configuration."""
-        # Define packaging rules using wildcards for conciseness
-        rules = [
-            # Extern rules: Third-party libs and modules with pydantic dependencies
-            (
-                "extern",
-                [
-                    "sys",
-                    "torch.**",
-                    "numpy.**",
-                    "scipy.**",
-                    "sklearn.**",
-                    "matplotlib.**",
-                    "gymnasium.**",
-                    "gym.**",
-                    "tensordict.**",
-                    "einops.**",
-                    "hydra.**",
-                    "omegaconf.**",
-                    "mettagrid.**",
-                    "metta.mettagrid.**",
-                    "metta.common.util.config",
-                    "metta.rl.vecenv",
-                    "metta.eval.dashboard_data",
-                    "metta.sim.simulation_config",
-                    "metta.agent.policy_store",
-                ],
-            ),
-            # Intern rules: Essential metta code for loading policy records
-            (
-                "intern",
-                [
-                    "metta.agent.policy_record",
-                    "metta.agent.lib.**",
-                    "metta.agent.util.**",
-                    "metta.agent.metta_agent",
-                    "metta.agent.brain_policy",
-                    "metta.agent.policy_state",
-                    "metta.common.util.omegaconf",
-                    "metta.common.util.runtime_configuration",
-                    "metta.common.util.logger",
-                    "metta.common.util.decorators",
-                    "metta.common.util.resolvers",
-                ],
-            ),
-            # Mock rules: Exclude these completely
-            (
-                "mock",
-                [
-                    "wandb.**",
-                    "pufferlib.**",
-                    "pydantic.**",
-                    "boto3.**",
-                    "botocore.**",
-                    "duckdb.**",
-                    "pandas.**",
-                    "typing_extensions",
-                    "seaborn",
-                    "plotly",
-                ],
-            ),
-        ]
-
-        # Apply rules from the configuration
-        for action, patterns in rules:
-            for pattern in patterns:
-                getattr(exporter, action)(pattern)
-
-        # Handle special cases for the policy's own module
-        if policy_module:
-            if policy_module == "__main__":
-                import inspect
-
-                try:
-                    source = inspect.getsource(policy_class)
-                    exporter.save_source_string("__main__", f"import torch\nimport torch.nn as nn\n\n{source}")
-                except Exception:
-                    exporter.extern("__main__")
-            elif "test" in policy_module:
-                # Extern test modules to prevent them from being packaged
-                exporter.extern(policy_module)

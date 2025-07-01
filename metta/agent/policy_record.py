@@ -4,36 +4,63 @@ This is separated from PolicyStore to enable cleaner packaging of saved policies
 """
 
 import logging
-from typing import Optional
+import os
+from typing import Union
 
 import torch
 from torch import nn
-from torch.package.package_importer import PackageImporter
 
-logger = logging.getLogger("policy_record")
+from metta.agent.policy_metadata import PolicyMetadata
+
+logger = logging.getLogger(__name__)
 
 
 class PolicyRecord:
     """A record containing a policy and its metadata."""
 
-    def __init__(self, policy_store, name: str, uri: str, metadata: dict):
+    def __init__(self, policy_store, name: str, uri: str, metadata: Union[PolicyMetadata, dict]):
         self._policy_store = policy_store
-        self.name = name
+        self.name = name  # Human-readable identifier (e.g., from wandb)
         self.uri: str = uri
+        # Use the setter to ensure proper type
         self.metadata = metadata
         self._cached_policy = None
+
+    @property
+    def metadata(self) -> PolicyMetadata:
+        """Get the metadata."""
+        return self._metadata
+
+    @metadata.setter
+    def metadata(self, value) -> None:
+        """Set metadata, ensuring it's a PolicyMetadata instance."""
+        if isinstance(value, PolicyMetadata):
+            self._metadata = value
+        elif isinstance(value, dict):
+            # Automatically convert dict to PolicyMetadata
+            self._metadata = PolicyMetadata(**value)
+        else:
+            raise TypeError(f"metadata must be PolicyMetadata or dict, got {type(value).__name__}")
+
+    @property
+    def file_path(self) -> str:
+        """Extract the file_path from the URI"""
+        file_uri_prefix = "file://"
+        if not self.uri.startswith(file_uri_prefix):
+            raise ValueError(f"file_path() only applies to {file_uri_prefix} URIs, but got: {self.uri}.")
+
+        return self.uri[len(file_uri_prefix) :]
 
     @property
     def policy(self) -> nn.Module:
         """Load and return the policy, using cache if available."""
         if self._cached_policy is None:
             if self._policy_store is None:
-                # If no policy store, try to load directly (for packaged policies)
-                local_path = self.local_path()
-                if local_path is not None:
-                    self._cached_policy = self.load(local_path)
-                else:
-                    raise ValueError("Cannot load policy without policy_store or a file:// local path uri")
+                # Standalone loading is not supported
+                raise ValueError(
+                    "Cannot load policy without a PolicyStore. "
+                    "PolicyRecord must be created through PolicyStore for loading functionality."
+                )
             else:
                 pr = self._policy_store.load_from_uri(self.uri)
                 # FIX: Access _cached_policy directly to avoid recursion
@@ -67,51 +94,65 @@ class PolicyRecord:
         """Count the number of trainable parameters."""
         return sum(p.numel() for p in self.policy.parameters() if p.requires_grad)
 
-    def local_path(self) -> Optional[str]:
-        """Return the local file path if available."""
-        if self.uri.startswith("file://"):
-            return self.uri[len("file://") :]
-        else:
-            return None
-
-    def load(self, path: str, device: str = "cpu") -> nn.Module:
-        """Load a policy from a torch package file."""
-        logger.info(f"Loading policy from {path}")
-        try:
-            importer = PackageImporter(path)
-            try:
-                return importer.load_pickle("policy", "model.pkl", map_location=device)
-            except Exception as e:
-                logger.warning(f"Could not load policy directly: {e}")
-                pr = importer.load_pickle("policy_record", "data.pkl", map_location=device)
-                if hasattr(pr, "_policy") and pr._cached_policy is not None:
-                    return pr._cached_policy
-                raise ValueError("PolicyRecord in package does not contain a policy") from e
-        except Exception as e:
-            logger.info(f"Not a torch.package file ({e})")
-            raise ValueError(f"Cannot load policy from {path}: This file is not a valid torch.package file.") from e
-
     def key_and_version(self) -> tuple[str, int]:
-        """Extract the policy key and version from the URI."""
+        """Extract key and version from the URI, handling both wandb:// and file:// URIs.
 
-        # Get the last part after splitting by slash
-        base_name = self.uri.split("/")[-1]
+        Returns:
+            Tuple of (key, version_number)
+            - For wandb:// URIs: (artifact_name, wandb_version)
+            - For file:// URIs: (filename_without_extension, epoch_from_metadata)
+        """
+        if self.uri.startswith("wandb://"):
+            # Remove wandb:// prefix and get the last part
+            artifact_path = self.uri[8:]
+            base_name = artifact_path.split("/")[-1]
 
-        # Check if it has a version number in format ":vNUM"
-        if ":" in base_name and ":v" in base_name:
-            parts = base_name.split(":v")
-            try:
-                version = int(parts[1])
-                key = parts[0]
-            except ValueError:
+            # Check if it has a version number in format ":vNUM"
+            if ":" in base_name and ":v" in base_name:
+                parts = base_name.split(":v")
+                try:
+                    version = int(parts[1])
+                    key = parts[0]
+                except ValueError:
+                    key = base_name
+                    version = 0
+            else:
+                # No version, use the whole thing as key and version = 0
                 key = base_name
                 version = 0
-        else:
-            # No version, use the whole thing as key and version = 0
-            key = base_name
-            version = 0
 
-        return key, version
+            return key, version
+
+        elif self.uri.startswith("file://"):
+            # For file URIs, use filename as key and epoch as version
+            path = self.file_path
+            filename = os.path.basename(path)
+            # Remove extension to get key
+            key = os.path.splitext(filename)[0]
+            # Use epoch from metadata as version, defaulting to 0
+            version = self.metadata.get("epoch", 0)
+            return key, version
+
+        else:
+            # For other URIs, return a sensible default
+            return self.name, self.metadata.get("epoch", 0)
+
+    def wandb_key_and_version(self) -> tuple[str, int]:
+        """Extract the wandb artifact key and version from the URI.
+
+        Returns:
+            Tuple of (artifact_key, version_number)
+
+        Raises:
+            ValueError: If the URI is not a wandb:// URI
+        """
+        if not self.uri.startswith("wandb://"):
+            raise ValueError(
+                f"wandb_key_and_version() only applies to wandb:// URIs, "
+                f"but got: {self.uri}. Use key_and_version() for a general method that handles all URI types."
+            )
+
+        return self.key_and_version()  # Delegate to general method
 
     def __repr__(self):
         """Generate a detailed representation of the PolicyRecord."""
