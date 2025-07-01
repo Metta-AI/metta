@@ -9,11 +9,15 @@ It provides functionality to:
 The PolicyStore is used by the training system to manage opponent policies and checkpoints.
 """
 
+import collections
 import logging
 import os
 import random
+import sys
 from typing import Any, List, Optional, Union
 
+import gymnasium as gym
+import numpy as np
 import torch
 import wandb
 from omegaconf import DictConfig, ListConfig
@@ -41,6 +45,7 @@ class PolicyStore:
         self._device = cfg.device
         self._wandb_run = wandb_run
         self._cached_prs = {}
+        self._made_codebase_backwards_compatible = False
 
     def policy_record(
         self, uri_or_config: Union[str, ListConfig | DictConfig], selector_type: str = "top", metric="score"
@@ -313,6 +318,51 @@ class PolicyStore:
         pr._cached_policy = load_pytorch_policy(path, self._device, pytorch_cfg=self._cfg.get("pytorch"))
         return pr
 
+    def _make_codebase_backwards_compatible(self):
+        """
+        torch.load expects the codebase to be in the same structure as when the model was saved.
+        We can use this function to alias old layout structures. For now we are supporting:
+        - agent --> metta.agent
+        """
+        # Memoize
+        if self._made_codebase_backwards_compatible:
+            return
+        self._made_codebase_backwards_compatible = True
+
+        # Handle agent --> metta.agent
+        sys.modules["agent"] = sys.modules["metta.agent"]
+        modules_queue = collections.deque(["metta.agent"])
+
+        processed = set()
+        while modules_queue:
+            module_name = modules_queue.popleft()
+            if module_name in processed:
+                continue
+            processed.add(module_name)
+
+            if module_name not in sys.modules:
+                continue
+            module = sys.modules[module_name]
+            old_name = module_name.replace("metta.agent", "agent")
+            sys.modules[old_name] = module
+
+            # Find all submodules
+            for attr_name in dir(module):
+                try:
+                    attr = getattr(module, attr_name)
+                except (ImportError, AttributeError):
+                    continue
+                if hasattr(attr, "__module__"):
+                    attr_module = getattr(attr, "__module__", None)
+
+                    # If it's a module and part of metta.agent, queue it
+                    if attr_module and attr_module.startswith("metta.agent"):
+                        modules_queue.append(attr_module)
+
+                submodule_name = f"{module_name}.{attr_name}"
+                if submodule_name in sys.modules:
+                    modules_queue.append(submodule_name)
+
     def _load_from_file(self, path: str, metadata_only: bool = False) -> PolicyRecord:
         """Load a PolicyRecord from a file using simple torch.load."""
         if path in self._cached_prs:
@@ -327,21 +377,102 @@ class PolicyStore:
 
         assert path.endswith(".pt"), f"Policy file {path} does not have a .pt extension"
 
-        # Simple torch.load approach - expects a PolicyRecord object
-        pr = torch.load(path, map_location=self._device, weights_only=False)
+        # Make codebase backwards compatible before loading
+        self._make_codebase_backwards_compatible()
 
-        if not isinstance(pr, PolicyRecord):
-            raise ValueError(
-                f"Expected PolicyRecord object in {path}, got {type(pr).__name__}. "
-                "This codebase only supports checkpoints saved with the current format."
-            )
+        # Load checkpoint - could be PolicyRecord or legacy format
+        checkpoint = torch.load(path, map_location=self._device, weights_only=False)
 
-        pr._policy_store = self
+        if isinstance(checkpoint, PolicyRecord):
+            # New format - PolicyRecord object
+            pr = checkpoint
+            pr._policy_store = self
+
+            # Ensure _cached_policy attribute exists
+            if not hasattr(pr, "_cached_policy"):
+                pr._cached_policy = None
+
+            # Check if this is a legacy PolicyRecord with metadata under old names
+            if not hasattr(pr, "_metadata"):
+                # Access metadata property to trigger backwards compatibility
+                try:
+                    _ = pr.metadata  # This will convert old attributes to new format
+                    logger.info("Converted legacy PolicyRecord metadata to new format")
+                except AttributeError:
+                    logger.warning("PolicyRecord has no metadata - creating default metadata")
+                    pr._metadata = PolicyMetadata()
+
+            # Also check for policy under old attribute names
+            if not metadata_only and pr._cached_policy is None:
+                policy_cache_attributes = ["_cached_policy", "_policy", "policy_cache"]
+                for attr in policy_cache_attributes:
+                    if hasattr(pr, attr):
+                        policy = getattr(pr, attr)
+                        if policy is not None:
+                            pr._cached_policy = policy
+                            if attr != "_cached_policy":
+                                logger.info(f"Found policy under legacy attribute '{attr}'")
+                            break
+
+            self._cached_prs[path] = pr
+
+            if metadata_only:
+                pr._cached_policy = None
+
+            return pr
+
+        # Legacy format - try to load as old checkpoint
+        return self._load_legacy_checkpoint(path, checkpoint, metadata_only)
+
+    def _load_legacy_checkpoint(self, path: str, checkpoint: Any, metadata_only: bool = False) -> PolicyRecord:
+        """Load a legacy checkpoint format (dict or old PolicyRecord)."""
+        logger.info(f"Loading legacy checkpoint from {path}")
+
+        if not isinstance(checkpoint, dict):
+            raise ValueError(f"Unexpected checkpoint format: {type(checkpoint)}")
+
+        # Create PolicyRecord with metadata from checkpoint
+        metadata_dict = {
+            k: checkpoint.get(k, 0 if k != "action_names" else [])
+            for k in ["action_names", "agent_step", "epoch", "generation", "train_time"]
+        }
+
+        pr = PolicyRecord(self, os.path.basename(path), f"file://{path}", PolicyMetadata(**metadata_dict))
+
+        if not metadata_only:
+            try:
+                from types import SimpleNamespace
+
+                # Create mock environment for policy creation
+                obs_shape = checkpoint.get("obs_shape", [34, 11, 11])
+                env = SimpleNamespace(
+                    single_observation_space=gym.spaces.Box(low=0, high=255, shape=obs_shape, dtype=np.uint8),
+                    obs_width=obs_shape[1],
+                    obs_height=obs_shape[2],
+                    single_action_space=gym.spaces.MultiDiscrete(checkpoint.get("action_space_nvec", [9, 10])),
+                    feature_normalizations=checkpoint.get("feature_normalizations", {}),
+                    global_features=[],
+                )
+
+                # Import make_policy here to avoid circular imports
+                from metta.rl.util import make_policy
+
+                policy = make_policy(env, self._cfg)
+
+                # Load state dict from checkpoint
+                state_key = next((k for k in ["model_state_dict", "state_dict"] if k in checkpoint), None)
+                if state_key:
+                    policy.load_state_dict(checkpoint[state_key])
+                else:
+                    # If no state dict key found, assume the checkpoint itself is the state dict
+                    policy.load_state_dict(checkpoint)
+
+                pr._cached_policy = policy
+                logger.info("Successfully loaded legacy checkpoint as MettaAgent")
+            except Exception as e:
+                raise ValueError(f"Cannot load legacy checkpoint as MettaAgent: {e}") from e
+
         self._cached_prs[path] = pr
-
-        if metadata_only:
-            pr._cached_policy = None
-
         return pr
 
     def _load_wandb_artifact(self, qualified_name: str):
