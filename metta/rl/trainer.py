@@ -211,7 +211,7 @@ class MettaTrainer:
                 self.latest_saved_policy_record = policy_record
                 self.policy = policy_record.policy
 
-                # Initialize the policy to the environment (supports both new and old methods)
+                # Initialize the policy to the environment
                 self._initialize_policy_to_environment(self.policy, metta_grid_env, self.device)
             else:
                 # Master creates and saves new policy
@@ -220,7 +220,7 @@ class MettaTrainer:
                 self.latest_saved_policy_record = policy_record
                 self.policy = policy_record.policy
 
-                # Initialize the policy to the environment (supports both new and old methods)
+                # Initialize the policy to the environment
                 self._initialize_policy_to_environment(self.policy, metta_grid_env, self.device)
 
         logging.info(f"USING {self.initial_policy_record.uri}")
@@ -521,6 +521,13 @@ class MettaTrainer:
         if not self._should_run(self.trainer_cfg.checkpoint.checkpoint_interval, force):
             return
 
+        # Only master saves training state
+        if not self._master:
+            # Non-master ranks need to participate in the barrier below
+            if torch.distributed.is_initialized():
+                torch.distributed.barrier()
+            return
+
         extra_args = {}
         if self.kickstarter.enabled and self.kickstarter.teacher_uri is not None:
             extra_args["teacher_pr_uri"] = self.kickstarter.teacher_uri
@@ -537,6 +544,10 @@ class MettaTrainer:
         checkpoint.save(self.cfg.run_dir)
         logger.info(f"Saved training state at epoch {self.epoch}")
 
+        # Synchronize all ranks to ensure the checkpoint is fully saved before continuing
+        if torch.distributed.is_initialized():
+            torch.distributed.barrier()
+
     def _maybe_save_policy(self, force=False):
         """Save policy locally if on checkpoint interval"""
         if not self._should_run(self.trainer_cfg.checkpoint.checkpoint_interval, force):
@@ -544,6 +555,9 @@ class MettaTrainer:
 
         # Only master saves policies
         if not self._master:
+            # Non-master ranks need to participate in the barrier below
+            if torch.distributed.is_initialized():
+                torch.distributed.barrier()
             return
 
         name = self.policy_store.make_model_name(self.epoch)
@@ -597,6 +611,10 @@ class MettaTrainer:
         if self.epoch % 10 == 0:  # Clean up every 10 epochs
             self._cleanup_old_policies(keep_last_n=5)
 
+        # Synchronize all ranks to ensure the policy is fully saved before continuing
+        if torch.distributed.is_initialized():
+            torch.distributed.barrier()
+
     def _wait_for_policy_record(self, policy_path: str, timeout: int = 300) -> PolicyRecord | None:
         """Wait for a policy file to be created by the master rank.
 
@@ -625,10 +643,27 @@ class MettaTrainer:
             if int(elapsed) % 10 == 0:  # Log every 10 seconds
                 logger.info(f"Still waiting for policy... ({elapsed:.0f}s elapsed)")
 
-        # File exists, but may still be writing. Wait a bit more to ensure it's complete.
-        time.sleep(2)
+        # File exists, but may still be writing. Wait for file size to stabilize.
+        logger.info("Policy file found, waiting for write to complete...")
 
-        logger.info(f"Policy file found after {time.time() - start_time:.1f}s, loading...")
+        # Wait for file size to be stable for at least 1 second
+        stable_duration = 0
+        last_size = -1
+        while stable_duration < 1.0:
+            try:
+                current_size = os.path.getsize(policy_path)
+                if current_size == last_size and current_size > 0:
+                    stable_duration += 0.1
+                else:
+                    stable_duration = 0
+                    last_size = current_size
+                time.sleep(0.1)
+            except OSError:
+                # File might be in the process of being renamed
+                stable_duration = 0
+                time.sleep(0.1)
+
+        logger.info(f"Policy file stable after {time.time() - start_time:.1f}s, loading...")
         return self.policy_store.policy_record(policy_path)
 
     def _maybe_upload_policy_record_to_wandb(self, force: bool = False) -> str | None:
