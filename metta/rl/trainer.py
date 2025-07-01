@@ -399,7 +399,6 @@ class MettaTrainer:
 
         policy = self.policy
         infos = defaultdict(list)
-        raw_infos = []  # Collect raw info for batch processing later
         experience.reset_for_rollout()
 
         while not experience.ready_for_training:
@@ -476,15 +475,16 @@ class MettaTrainer:
             # across all environments on this GPU. Stats from other GPUs (if using
             # distributed training) are handled separately and not aggregated here.
             if info:
-                raw_infos.extend(info)
+                # Process info dicts immediately to avoid memory accumulation
+                for i in info:
+                    for k, v in unroll_nested_dict(i):
+                        # Detach any tensors to prevent gradient accumulation
+                        if torch.is_tensor(v):
+                            v = v.detach().cpu().item() if v.numel() == 1 else v.detach().cpu().numpy()
+                        infos[k].append(v)
 
             with self.timer("_rollout.env"):
                 self.vecenv.send(actions.cpu().numpy().astype(dtype_actions))
-
-        # Batch process info dictionaries after rollout
-        for i in raw_infos:
-            for k, v in unroll_nested_dict(i):
-                infos[k].append(v)
 
         # Batch process stats more efficiently
         for k, v in infos.items():
