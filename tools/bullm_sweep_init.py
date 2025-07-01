@@ -92,19 +92,17 @@ def create_run(sweep_name: str, cfg: DictConfig | ListConfig, logger: Logger) ->
                 wandb_run,
                 "protein_state.yaml",
                 {
-                    "generation": protein.generation,
                     "observations": protein._observations,
-                    "params": str(protein._protein.params),
                 },
             )
 
-            suggestion = protein.suggest()
+            suggestion_dict, info = protein.suggest()
             logger.info("Generated Protein suggestion: ")
-            logger.info(f"\n{'-' * 10}\n{yaml.dump(suggestion, default_flow_style=False)}\n{'-' * 10}")
-            _log_file(run_dir, wandb_run, "protein_suggestion.yaml", suggestion)
+            logger.info(f"\n{'-' * 10}\n{yaml.dump((suggestion_dict, info), default_flow_style=False)}\n{'-' * 10}")
+            _log_file(run_dir, wandb_run, "protein_suggestion.yaml", (suggestion_dict, info))
 
-            train_cfg = OmegaConf.create({key: cfg[key] for key in cfg.parameters.keys()})
-            apply_protein_suggestion(train_cfg, suggestion)
+            train_cfg = OmegaConf.create({key: value for key, value in cfg.parameters.items()})
+            apply_protein_suggestion(train_cfg, suggestion_dict)
             save_path = os.path.join(run_dir, "train_config_overrides.yaml")
             OmegaConf.save(train_cfg, save_path)
             logger.info(f"Saved train config overrides to {save_path}")

@@ -1,5 +1,5 @@
 run: bullm_sweep_run
-run_dir: ./train_dir/bullm_sweep_run
+run_dir: ./train_dir/bullm_LP_run
 dist_cfg_path: null
 torch_deterministic: true
 seed: 0
@@ -60,7 +60,7 @@ parameters:
     progress_smoothing:
       distribution: logit_normal
       min: 0.01
-      max: 0.5
+      max: 0.99
       scale: auto
       mean: 0.1
     num_active_tasks:
@@ -72,7 +72,7 @@ parameters:
     rand_task_rate:
       distribution: logit_normal
       min: 0.01
-      max: 0.5
+      max: 0.99
       scale: auto
       mean: 0.1
     sample_threshold:
@@ -96,20 +96,20 @@ parameters:
       mean: 1e-3
     gamma:
       distribution: logit_normal
-      min: 0.0
-      max: 1.0
+      min: 0.01
+      max: 0.99
       scale: auto
       mean: 0.99
     gae_lambda:
       distribution: logit_normal
-      min: 0.0
-      max: 1.0
+      min: 0.01
+      max: 0.99
       scale: auto
       mean: 0.95
     vf_coef:
       distribution: logit_normal
-      min: 0.0
-      max: 1.0
+      min: 0.01
+      max: 0.99
       scale: auto
       mean: 0.5
     ent_coef:

@@ -17,6 +17,11 @@ class MettaProtein(WandbProtein):
         wandb_run=None,
     ):
         parameters_dict = OmegaConf.to_container(cfg.parameters, resolve=True)
+        # Patch: add metric and goal to parameters_dict for Protein
+        if 'metric' not in parameters_dict and hasattr(cfg, 'metric'):
+            parameters_dict['metric'] = cfg.metric
+        if 'goal' not in parameters_dict:
+            parameters_dict['goal'] = 'maximize'
 
         protein = Protein(
             parameters_dict,
