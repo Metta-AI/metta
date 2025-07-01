@@ -72,6 +72,13 @@ class ActionConfig(BaseModelWithForbidExtra):
     enabled: bool
 
 
+class AttackActionConfig(ActionConfig):
+    """Attack action configuration."""
+
+    attack_resources: Dict[str, int]
+    defense_resources: Dict[str, int]
+
+
 class ActionsConfig(BaseModelWithForbidExtra):
     """Actions configuration."""
 
@@ -80,7 +87,7 @@ class ActionsConfig(BaseModelWithForbidExtra):
     rotate: ActionConfig
     put_items: ActionConfig
     get_items: ActionConfig
-    attack: ActionConfig
+    attack: AttackActionConfig
     swap: ActionConfig
     change_color: ActionConfig
 

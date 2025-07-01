@@ -243,12 +243,6 @@ class MettaTrainer:
             weight_decay=trainer_cfg.optimizer.weight_decay,
         )
 
-        # Basic policy type validation
-        if isinstance(self.policy, DistributedMettaAgent):
-            agent = self.policy.module
-        else:
-            agent = self.policy
-
         self.lr_scheduler = None
         if trainer_cfg.lr_scheduler.enabled:
             self.lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
@@ -375,7 +369,6 @@ class MettaTrainer:
 
         policy = self.policy
         infos = defaultdict(list)
-        raw_infos = []  # Collect raw info for batch processing later
         experience.reset_for_rollout()
 
         while not experience.ready_for_training:
@@ -451,15 +444,16 @@ class MettaTrainer:
             # We need to flatten these into arrays for aggregation.
             # This happens later, after the rollout is complete (see below).
             if info:
-                raw_infos.extend(info)
+                # Process info dicts immediately to avoid memory accumulation
+                for i in info:
+                    for k, v in unroll_nested_dict(i):
+                        # Detach any tensors to prevent gradient accumulation
+                        if torch.is_tensor(v):
+                            v = v.detach().cpu().item() if v.numel() == 1 else v.detach().cpu().numpy()
+                        infos[k].append(v)
 
             with self.timer("_rollout.env"):
                 self.vecenv.send(actions.cpu().numpy().astype(dtype_actions))
-
-        # Batch process info dictionaries after rollout
-        for i in raw_infos:
-            for k, v in unroll_nested_dict(i):
-                infos[k].append(v)
 
         # Batch process stats more efficiently
         for k, v in infos.items():
