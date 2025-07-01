@@ -8,6 +8,7 @@ from metta.api import (
     CheckpointConfig,
     EnvConfig,
     ExperienceConfig,
+    GameConfig,
     OptimizerConfig,
     PPOConfig,
     SimulationConfig,
@@ -29,14 +30,13 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"Using device: {device}")
 
 # Create environment with typed config
-env_config = EnvConfig(
-    game={
-        "max_steps": 1000,
-        "num_agents": 4,
-        "width": 32,
-        "height": 32,
-    }
+game_config = GameConfig(
+    max_steps=1000,
+    num_agents=4,
+    width=32,
+    height=32,
 )
+env_config = EnvConfig(game=game_config)
 env = make_environment(env_config)
 
 # Create agent with typed config
