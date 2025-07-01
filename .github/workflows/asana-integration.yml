@@ -19,16 +19,21 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install jq
-        run: sudo apt-get update && sudo apt-get install -y jq
-
       - name: Extract Assignees and Reviewers
         id: extract-assignees-reviewers
         run: |
-          assignees=$(echo '${{ toJSON(github.event.pull_request.assignees) }}' | jq -r '.[].login' | tr '\n' ',' | sed 's/,$//')
-          reviewers=$(echo '${{ toJSON(github.event.pull_request.requested_reviewers) }}' | jq -r '.[].login' | tr '\n' ',' | sed 's/,$//')
-          echo "assignees=$assignees" >> $GITHUB_OUTPUT
-          echo "reviewers=$reviewers" >> $GITHUB_OUTPUT
+          python3 -c "
+          import json
+
+          assignees_data = json.loads('${{ toJSON(github.event.pull_request.assignees) }}')
+          reviewers_data = json.loads('${{ toJSON(github.event.pull_request.requested_reviewers) }}')
+
+          assignees = ','.join([user['login'] for user in assignees_data])
+          reviewers = ','.join([user['login'] for user in reviewers_data])
+
+          print(f'assignees={assignees}')
+          print(f'reviewers={reviewers}')
+          " >> $GITHUB_OUTPUT
 
       - name: Ensure Asana Task
         id: ensure-asana-task
