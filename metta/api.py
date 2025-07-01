@@ -504,14 +504,16 @@ def make_optimizer(
             weight_decay=config.weight_decay,
         )
     elif config.type == "muon":
-        from metta.rl.muon import Muon
+        # TODO: Muon optimizer not yet implemented
+        # For now, fall back to Adam with a warning
+        import warnings
 
-        return Muon(
+        warnings.warn("Muon optimizer not yet implemented, falling back to Adam", stacklevel=2)
+        return torch.optim.Adam(
             agent.parameters(),
             lr=config.learning_rate,
-            momentum=config.beta1,
-            nesterov=True,
-            ns_steps=6,
+            betas=(config.beta1, config.beta2),
+            eps=config.eps,
             weight_decay=config.weight_decay,
         )
     else:
@@ -532,11 +534,15 @@ def make_curriculum(
         Curriculum instance.
     """
     if scenes is None:
-        return SingleTaskCurriculum(env_path, {})
+        # SingleTaskCurriculum expects a DictConfig
+        return SingleTaskCurriculum(env_path, DictConfig({}))
     else:
-        from metta.env.curriculum import MultiSceneCurriculum
+        # TODO: MultiSceneCurriculum not yet implemented
+        # For now, return a single task curriculum with a warning
+        import warnings
 
-        return MultiSceneCurriculum(scenes, {})
+        warnings.warn("MultiSceneCurriculum not yet implemented, using SingleTaskCurriculum", stacklevel=2)
+        return SingleTaskCurriculum(env_path, DictConfig({}))
 
 
 def make_experience_manager(
@@ -559,9 +565,9 @@ def make_experience_manager(
     # Get device from agent
     device = agent.device if hasattr(agent, "device") else torch.device("cpu")
 
-    # Get LSTM info from agent
-    hidden_size = agent.hidden_dim if hasattr(agent, "hidden_dim") else 1024
-    num_lstm_layers = agent.lstm_layers if hasattr(agent, "lstm_layers") else 1
+    # Get LSTM info from agent - ensure they are ints
+    hidden_size = int(agent.hidden_dim) if hasattr(agent, "hidden_dim") else 1024
+    num_lstm_layers = int(agent.lstm_layers) if hasattr(agent, "lstm_layers") else 1
 
     # Create experience manager directly
     return Experience(
@@ -724,7 +730,14 @@ def eval_policy(
         done = False
         episode_reward = 0
         episode_length = 0
-        hidden_state = agent.initial_hidden_state(env.num_agents)
+        # Get initial hidden state - agent.initial_hidden_state is a property, not a method
+        if hasattr(agent, "initial_hidden_state"):
+            hidden_state = agent.initial_hidden_state
+        else:
+            # Fallback to zeros if not available
+            hidden_size = int(agent.hidden_dim) if hasattr(agent, "hidden_dim") else 1024
+            num_layers = int(agent.lstm_layers) if hasattr(agent, "lstm_layers") else 1
+            hidden_state = torch.zeros(num_layers, env.num_agents, hidden_size, device=agent.device)
 
         while not done:
             with torch.no_grad():
@@ -741,10 +754,10 @@ def eval_policy(
         episode_lengths.append(episode_length)
 
     return {
-        "mean_reward": np.mean(total_rewards),
-        "std_reward": np.std(total_rewards),
-        "mean_length": np.mean(episode_lengths),
-        "std_length": np.std(episode_lengths),
+        "mean_reward": float(np.mean(total_rewards)),
+        "std_reward": float(np.std(total_rewards)),
+        "mean_length": float(np.mean(episode_lengths)),
+        "std_length": float(np.std(episode_lengths)),
     }
 
 
@@ -756,7 +769,7 @@ def make_lr_scheduler(
     warmup_steps: Optional[int] = None,
     schedule_type: str = "linear",
     anneal_lr: bool = True,
-) -> Optional[torch.optim.lr_scheduler._LRScheduler]:
+) -> Optional[torch.optim.lr_scheduler.LRScheduler]:
     """Create a learning rate scheduler."""
     if not anneal_lr:
         return None
@@ -794,10 +807,10 @@ def compute_gradient_stats(model: nn.Module) -> Dict[str, float]:
         return {}
 
     return {
-        "grad_norm_mean": np.mean(grad_norms),
-        "grad_norm_max": np.max(grad_norms),
-        "grad_norm_min": np.min(grad_norms),
-        "param_norm_mean": np.mean(param_norms),
+        "grad_norm_mean": float(np.mean(grad_norms)),
+        "grad_norm_max": float(np.max(grad_norms)),
+        "grad_norm_min": float(np.min(grad_norms)),
+        "param_norm_mean": float(np.mean(param_norms)),
     }
 
 
