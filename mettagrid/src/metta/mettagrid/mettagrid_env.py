@@ -23,7 +23,6 @@ from metta.mettagrid.mettagrid_c_config import cpp_config_dict
 from metta.mettagrid.replay_writer import ReplayWriter
 from metta.mettagrid.stats_writer import StatsWriter
 from metta.mettagrid.util.dict_utils import unroll_nested_dict
-from metta.mettagrid.util.diversity import calculate_diversity_bonus
 
 # These data types must match PufferLib -- see pufferlib/vector.py
 #
@@ -133,8 +132,6 @@ class MettaGridEnv(PufferEnv, GymEnv):
         # have GameConfig validate strictly. I'm less sure about diversity_bonus, but it's not used in the C++ code.
         if "map_builder" in game_config_dict:
             del game_config_dict["map_builder"]
-        if "diversity_bonus" in game_config_dict:
-            del game_config_dict["diversity_bonus"]
 
         # During training, we run a lot of envs in parallel, and it's better if they are not
         # all synced together. The desync_episodes flag is used to desync the episodes.
@@ -215,13 +212,14 @@ class MettaGridEnv(PufferEnv, GymEnv):
 
         infos = {}
         if self.terminals.all() or self.truncations.all():
-            if self._task.env_cfg().game.diversity_bonus.enabled:
-                self.rewards *= calculate_diversity_bonus(
-                    self._c_env.get_episode_rewards(),
-                    self._c_env.get_agent_groups(),
-                    self._task.env_cfg().game.diversity_bonus.similarity_coef,
-                    self._task.env_cfg().game.diversity_bonus.diversity_coef,
-                )
+            # TODO: re-enable diversity bonus
+            # if self._task.env_cfg().game.diversity_bonus.enabled:
+            #     self.rewards *= calculate_diversity_bonus(
+            #         self._c_env.get_episode_rewards(),
+            #         self._c_env.get_agent_groups(),
+            #         self._task.env_cfg().game.diversity_bonus.similarity_coef,
+            #         self._task.env_cfg().game.diversity_bonus.diversity_coef,
+            #     )
 
             self.process_episode_stats(infos)
             self._should_reset = True
