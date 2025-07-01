@@ -149,13 +149,13 @@ MIGRATIONS = [
         description="Add heatmap performance indexes",
         sql_statements=[
             # Critical index for episode_agent_metrics main query
-            """CREATE INDEX idx_episode_agent_metrics_episode_metric 
+            """CREATE INDEX idx_episode_agent_metrics_episode_metric
                ON episode_agent_metrics(episode_id, metric)""",
             # Composite index for episodes eval filtering and joins
-            """CREATE INDEX idx_episodes_eval_category_env_policy 
+            """CREATE INDEX idx_episodes_eval_category_env_policy
                ON episodes(eval_category, env_name, primary_policy_id)""",
             # Index to optimize the JSON agent_groups lookup
-            """CREATE INDEX idx_episodes_attributes_agent_groups 
+            """CREATE INDEX idx_episodes_attributes_agent_groups
                ON episodes USING GIN ((attributes->'agent_groups'))""",
             # Index for policy-epoch joins
             """CREATE INDEX idx_policies_epoch_id ON policies(epoch_id)""",
@@ -202,18 +202,26 @@ class MettaRepo:
             ).fetchall()
             return {row[1]: row[0] for row in res}
 
-    def create_training_run(self, name: str, user_id: str, attributes: Dict[str, str], url: str | None) -> uuid.UUID:
+    def create_training_run(
+        self,
+        name: str,
+        user_id: str,
+        attributes: Dict[str, str],
+        url: str | None,
+        description: str | None,
+        tags: List[str] | None,
+    ) -> uuid.UUID:
         status = "running"
         with self.connect() as con:
             # Try to insert a new training run, but if it already exists, return the existing ID
             result = con.execute(
                 """
-                INSERT INTO training_runs (name, user_id, attributes, status, url)
-                VALUES (%s, %s, %s, %s, %s)
+                INSERT INTO training_runs (name, user_id, attributes, status, url, description, tags)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (user_id, name) DO NOTHING
                 RETURNING id
                 """,
-                (name, user_id, Jsonb(attributes), status, url),
+                (name, user_id, Jsonb(attributes), status, url, description, tags),
             ).fetchone()
             if result is None:
                 # If no result, the run already exists, so fetch its ID
