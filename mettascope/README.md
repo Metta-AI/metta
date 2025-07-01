@@ -11,7 +11,7 @@ This advanced WebGPU viewer allows you to watch and replay any metta replay. It 
 
 ## Installation
 
-Ensure Observatory is installed through the Metta setup tool:
+Ensure MettaScope is installed through the Metta setup tool:
 ```bash
 # From the metta root directory
 ./metta.sh install mettascope
