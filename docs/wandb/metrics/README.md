@@ -30,7 +30,7 @@ behavior, environment dynamics, and system performance.
 | [`env_map_reward/`](./env_map_reward/) | Map-specific reward statistics | 11 |
 | [`timing_per_epoch/`](./timing_per_epoch/) | Per-epoch training timing | 11 |
 | [`experience/`](./experience/) | Training experience buffer statistics | 9 |
-| [`losses/`](./losses/) | Training loss components that indicate learning progress and stability. Monitor these to... | 8 |
+| [`losses/`](./losses/) | Training loss components that indicate learning progress and stability. Monitor these to... | 9 |
 | [`overview/`](./overview/) | High-level summary metrics that provide a quick assessment of training progress and performance. | 7 |
 | [`timing_cumulative/`](./timing_cumulative/) | Cumulative training timing | 7 |
 | [`parameters/`](./parameters/) | Training hyperparameters | 5 |
@@ -38,7 +38,7 @@ behavior, environment dynamics, and system performance.
 | [`replays/`](./replays/) | Metrics for replays | 1 |
 | [`torch_traces/`](./torch_traces/) | Metrics for torch traces | 1 |
 
-**Total Metrics:** 1731
+**Total Metrics:** 1732
 
 ## Metric Aggregation Strategy
 

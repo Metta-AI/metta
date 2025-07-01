@@ -81,7 +81,7 @@ def main() -> None:
     entity = "metta-research"
     project = "metta"
     default_run_names = [
-        "github.sky.main.93e1165.20250630_183832",
+        "github.sky.main.f634b79.20250701_203512",
         "daphne.moretime.nav_memory_sequence.navigation_finetuned.06-25",
         # Add more default run IDs here
     ]

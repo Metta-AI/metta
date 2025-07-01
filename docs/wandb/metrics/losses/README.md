@@ -5,13 +5,13 @@
 Training loss components that indicate learning progress and stability. Monitor these to
 ensure healthy training dynamics.
 
-**Total metrics in this section:** 8
+**Total metrics in this section:** 9
 
 ## Subsections
 
 ### General Metrics
 
-**Count:** 8 metrics
+**Count:** 9 metrics
 
 **approx_kl:** (1 value)
 - `losses/approx_kl`
@@ -24,6 +24,9 @@ ensure healthy training dynamics.
   - Fraction of samples clipped by PPO's objective function.
   - **Interpretation:** Typically 0.1-0.3. Very high values suggest too large policy updates.
 
+
+**current_logprobs:** (1 value)
+- `losses/current_logprobs`
 
 **entropy:** (1 value)
 - `losses/entropy`

@@ -1651,6 +1651,7 @@ experience/truncateds
 experience/values
 losses/approx_kl
 losses/clipfrac
+losses/current_logprobs
 losses/entropy
 losses/explained_variance
 losses/importance
