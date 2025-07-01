@@ -77,10 +77,15 @@ class TrainingRun(BaseModel):
     finished_at: Optional[str]
     status: str
     url: Optional[str]
+    description: Optional[str]
 
 
 class TrainingRunListResponse(BaseModel):
     training_runs: List[TrainingRun]
+
+
+class TrainingRunDescriptionUpdate(BaseModel):
+    description: str
 
 
 @dataclass
@@ -649,6 +654,7 @@ def create_dashboard_router(metta_repo: MettaRepo) -> APIRouter:
                     finished_at=run["finished_at"],
                     status=run["status"],
                     url=run["url"],
+                    description=run["description"],
                 )
                 for run in training_runs
             ]
@@ -670,6 +676,40 @@ def create_dashboard_router(metta_repo: MettaRepo) -> APIRouter:
             finished_at=training_run["finished_at"],
             status=training_run["status"],
             url=training_run["url"],
+            description=training_run["description"],
+        )
+
+    @router.put("/training-runs/{run_id}/description")
+    @timed_route("update_training_run_description")
+    async def update_training_run_description(  # type: ignore[reportUnusedFunction]
+        run_id: str,
+        description_update: TrainingRunDescriptionUpdate,
+        user_or_token: str = user_or_token,
+    ) -> TrainingRun:
+        """Update the description of a training run."""
+        success = metta_repo.update_training_run_description(
+            user_id=user_or_token,
+            run_id=run_id,
+            description=description_update.description,
+        )
+
+        if not success:
+            raise HTTPException(status_code=404, detail="Training run not found or access denied")
+
+        # Return the updated training run
+        training_run = metta_repo.get_training_run(run_id)
+        if not training_run:
+            raise HTTPException(status_code=500, detail="Failed to fetch updated training run")
+
+        return TrainingRun(
+            id=training_run["id"],
+            name=training_run["name"],
+            created_at=training_run["created_at"],
+            user_id=training_run["user_id"],
+            finished_at=training_run["finished_at"],
+            status=training_run["status"],
+            url=training_run["url"],
+            description=training_run["description"],
         )
 
     @router.post("/training-runs/{run_id}/suites/{suite}/metrics/{metric}/heatmap")

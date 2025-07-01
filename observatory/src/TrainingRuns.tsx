@@ -118,6 +118,94 @@ const TRAINING_RUNS_CSS = `
   font-size: 12px;
 }
 
+.training-run-description {
+  color: #666;
+  font-style: italic;
+  max-width: 300px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.edit-description-cell {
+  position: relative;
+}
+
+.edit-description-btn {
+  background: none;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  color: #007bff;
+  cursor: pointer;
+  font-size: 12px;
+  margin-left: 8px;
+  padding: 2px 6px;
+}
+
+.edit-description-btn:hover {
+  background: #f8f9fa;
+  border-color: #007bff;
+}
+
+.edit-description-form {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 4px;
+}
+
+.edit-description-input {
+  flex: 1;
+  padding: 4px 8px;
+  font-size: 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  outline: none;
+}
+
+.edit-description-input:focus {
+  border-color: #007bff;
+  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+}
+
+.edit-description-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.save-btn {
+  background: #28a745;
+  border: none;
+  border-radius: 4px;
+  color: white;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 4px 8px;
+}
+
+.save-btn:hover {
+  background: #218838;
+}
+
+.save-btn:disabled {
+  background: #6c757d;
+  cursor: not-allowed;
+}
+
+.cancel-btn {
+  background: #6c757d;
+  border: none;
+  border-radius: 4px;
+  color: white;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 4px 8px;
+}
+
+.cancel-btn:hover {
+  background: #5a6268;
+}
+
 .loading-container {
   display: flex;
   justify-content: center;
@@ -145,13 +233,21 @@ export function TrainingRuns({ repo }: TrainingRunsProps) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editDescription, setEditDescription] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [currentUser, setCurrentUser] = useState<string | null>(null)
 
   useEffect(() => {
-    const loadTrainingRuns = async () => {
+    const loadData = async () => {
       try {
         setLoading(true)
-        const response = await repo.getTrainingRuns()
+        const [response, userResponse] = await Promise.all([
+          repo.getTrainingRuns(),
+          repo.whoami().catch(() => ({ user_email: '' }))
+        ])
         setTrainingRuns(response.training_runs)
+        setCurrentUser(userResponse.user_email)
         setError(null)
       } catch (err: any) {
         setError(`Failed to load training runs: ${err.message}`)
@@ -160,7 +256,7 @@ export function TrainingRuns({ repo }: TrainingRunsProps) {
       }
     }
 
-    loadTrainingRuns()
+    loadData()
   }, [repo])
 
   const formatDate = (dateString: string) => {
@@ -180,12 +276,41 @@ export function TrainingRuns({ repo }: TrainingRunsProps) {
     }
   }
 
+  const handleEditDescription = (run: TrainingRun) => {
+    setEditingId(run.id)
+    setEditDescription(run.description || '')
+  }
+
+  const handleSaveDescription = async (runId: string) => {
+    try {
+      setSaving(true)
+      const updatedRun = await repo.updateTrainingRunDescription(runId, editDescription)
+      setTrainingRuns(prev => prev.map(run => run.id === runId ? updatedRun : run))
+      setEditingId(null)
+      setEditDescription('')
+    } catch (err: any) {
+      setError(`Failed to update description: ${err.message}`)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleCancelEdit = () => {
+    setEditingId(null)
+    setEditDescription('')
+  }
+
+  const canEditRun = (run: TrainingRun) => {
+    return currentUser && run.user_id === currentUser
+  }
+
   const filteredTrainingRuns = trainingRuns.filter(run => {
     const query = searchQuery.toLowerCase()
     return (
       run.name.toLowerCase().includes(query) ||
       run.status.toLowerCase().includes(query) ||
-      run.user_id.toLowerCase().includes(query)
+      run.user_id.toLowerCase().includes(query) ||
+      (run.description && run.description.toLowerCase().includes(query))
     )
   })
 
@@ -251,6 +376,7 @@ export function TrainingRuns({ repo }: TrainingRunsProps) {
             <thead>
               <tr>
                 <th>Name</th>
+                <th>Description</th>
                 <th>Status</th>
                 <th>Created</th>
                 <th>Finished</th>
@@ -264,6 +390,56 @@ export function TrainingRuns({ repo }: TrainingRunsProps) {
                     <Link to={`/training-run/${run.id}`} className="training-run-name">
                       {run.name}
                     </Link>
+                  </td>
+                  <td className="edit-description-cell">
+                    {editingId === run.id ? (
+                      <div className="edit-description-form">
+                        <input
+                          type="text"
+                          value={editDescription}
+                          onChange={(e) => setEditDescription(e.target.value)}
+                          className="edit-description-input"
+                          placeholder="Enter description..."
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              handleSaveDescription(run.id)
+                            } else if (e.key === 'Escape') {
+                              handleCancelEdit()
+                            }
+                          }}
+                        />
+                        <div className="edit-description-actions">
+                          <button
+                            onClick={() => handleSaveDescription(run.id)}
+                            disabled={saving}
+                            className="save-btn"
+                          >
+                            Save
+                          </button>
+                          <button
+                            onClick={handleCancelEdit}
+                            disabled={saving}
+                            className="cancel-btn"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div>
+                        <span className="training-run-description">
+                          {run.description || '—'}
+                        </span>
+                        {canEditRun(run) && (
+                          <button
+                            onClick={() => handleEditDescription(run)}
+                            className="edit-description-btn"
+                          >
+                            Edit
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </td>
                   <td>
                     <span className={`training-run-status ${getStatusClass(run.status)}`}>

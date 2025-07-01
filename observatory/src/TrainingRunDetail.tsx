@@ -150,6 +150,100 @@ const TRAINING_RUN_DETAIL_CSS = `
 .error-container {
   color: #c62828;
 }
+
+.training-run-description-section {
+  margin-top: 15px;
+  padding-top: 15px;
+  border-top: 1px solid #eee;
+}
+
+.description-display {
+  color: #666;
+  font-style: italic;
+  margin: 8px 0;
+  line-height: 1.4;
+}
+
+.description-empty {
+  color: #999;
+  font-style: italic;
+}
+
+.edit-description-btn {
+  background: none;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  color: #007bff;
+  cursor: pointer;
+  font-size: 14px;
+  margin-left: 12px;
+  padding: 6px 12px;
+}
+
+.edit-description-btn:hover {
+  background: #f8f9fa;
+  border-color: #007bff;
+}
+
+.edit-description-form {
+  margin-top: 15px;
+}
+
+.edit-description-textarea {
+  width: 100%;
+  min-height: 80px;
+  padding: 8px 12px;
+  font-size: 14px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  outline: none;
+  resize: vertical;
+  font-family: inherit;
+}
+
+.edit-description-textarea:focus {
+  border-color: #007bff;
+  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+}
+
+.edit-description-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.save-btn {
+  background: #28a745;
+  border: none;
+  border-radius: 4px;
+  color: white;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 8px 16px;
+}
+
+.save-btn:hover {
+  background: #218838;
+}
+
+.save-btn:disabled {
+  background: #6c757d;
+  cursor: not-allowed;
+}
+
+.cancel-btn {
+  background: #6c757d;
+  border: none;
+  border-radius: 4px;
+  color: white;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 8px 16px;
+}
+
+.cancel-btn:hover {
+  background: #5a6268;
+}
 `
 
 interface TrainingRunDetailProps {
@@ -185,6 +279,10 @@ export function TrainingRunDetail({ repo }: TrainingRunDetailProps) {
     policyUri: string
     evalName: string
   } | null>(null)
+  const [editingDescription, setEditingDescription] = useState(false)
+  const [editDescription, setEditDescription] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [currentUser, setCurrentUser] = useState<string | null>(null)
 
 
   // Load training run and initial data
@@ -194,14 +292,16 @@ export function TrainingRunDetail({ repo }: TrainingRunDetailProps) {
 
       try {
         setLoading(true)
-        const [runData, suitesData] = await Promise.all([
+        const [runData, suitesData, userResponse] = await Promise.all([
           repo.getTrainingRun(runId),
           repo.getSuites(),
+          repo.whoami().catch(() => ({ user_email: '' }))
         ])
 
         setTrainingRun(runData)
         setSuites(suitesData)
         setSelectedSuite(suitesData[0])
+        setCurrentUser(userResponse.user_email)
         setError(null)
       } catch (err: any) {
         setError(`Failed to load training run: ${err.message}`)
@@ -292,6 +392,38 @@ export function TrainingRunDetail({ repo }: TrainingRunDetailProps) {
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleString()
+  }
+
+  const canEditRun = (run: TrainingRun) => {
+    return currentUser && run.user_id === currentUser
+  }
+
+  const handleEditDescription = () => {
+    if (trainingRun) {
+      setEditingDescription(true)
+      setEditDescription(trainingRun.description || '')
+    }
+  }
+
+  const handleSaveDescription = async () => {
+    if (!runId) return
+
+    try {
+      setSaving(true)
+      const updatedRun = await repo.updateTrainingRunDescription(runId, editDescription)
+      setTrainingRun(updatedRun)
+      setEditingDescription(false)
+      setEditDescription('')
+    } catch (err: any) {
+      setError(`Failed to update description: ${err.message}`)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleCancelEdit = () => {
+    setEditingDescription(false)
+    setEditDescription('')
   }
 
   // Create the modified heatmap with policies on X-axis and evals on Y-axis
@@ -456,6 +588,51 @@ export function TrainingRunDetail({ repo }: TrainingRunDetailProps) {
               <span>User:</span>
               <span>{trainingRun.user_id}</span>
             </div>
+          </div>
+          
+          <div className="training-run-description-section">
+            <div style={{ display: 'flex', alignItems: 'center' }}>
+              <strong>Description:</strong>
+              {canEditRun(trainingRun) && !editingDescription && (
+                <button
+                  onClick={handleEditDescription}
+                  className="edit-description-btn"
+                >
+                  Edit
+                </button>
+              )}
+            </div>
+            
+            {editingDescription ? (
+              <div className="edit-description-form">
+                <textarea
+                  value={editDescription}
+                  onChange={(e) => setEditDescription(e.target.value)}
+                  className="edit-description-textarea"
+                  placeholder="Enter a description for this training run..."
+                />
+                <div className="edit-description-actions">
+                  <button
+                    onClick={handleSaveDescription}
+                    disabled={saving}
+                    className="save-btn"
+                  >
+                    Save
+                  </button>
+                  <button
+                    onClick={handleCancelEdit}
+                    disabled={saving}
+                    className="cancel-btn"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className={`description-display ${!trainingRun.description ? 'description-empty' : ''}`}>
+                {trainingRun.description || 'No description provided'}
+              </div>
+            )}
           </div>
         </div>
 

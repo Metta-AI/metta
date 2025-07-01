@@ -71,10 +71,15 @@ export type TrainingRun = {
   finished_at: string | null
   status: string
   url: string | null
+  description: string | null
 }
 
 export type TrainingRunListResponse = {
   training_runs: TrainingRun[]
+}
+
+export type TrainingRunDescriptionUpdate = {
+  description: string
 }
 
 export type TableInfo = {
@@ -145,6 +150,7 @@ export interface Repo {
   // Training run methods
   getTrainingRuns(): Promise<TrainingRunListResponse>
   getTrainingRun(runId: string): Promise<TrainingRun>
+  updateTrainingRunDescription(runId: string, description: string): Promise<TrainingRun>
   getTrainingRunHeatmapData(
     runId: string,
     metric: string,
@@ -286,6 +292,13 @@ export class ServerRepo implements Repo {
 
   async getTrainingRun(runId: string): Promise<TrainingRun> {
     return this.apiCall<TrainingRun>(`/dashboard/training-runs/${encodeURIComponent(runId)}`)
+  }
+
+  async updateTrainingRunDescription(runId: string, description: string): Promise<TrainingRun> {
+    return this.apiCallWithBodyPut<TrainingRun>(
+      `/dashboard/training-runs/${encodeURIComponent(runId)}/description`,
+      { description }
+    )
   }
 
   async getTrainingRunHeatmapData(
