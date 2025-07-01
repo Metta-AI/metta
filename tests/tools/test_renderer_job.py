@@ -111,9 +111,9 @@ class TestRendererJob:
                 "-m",
                 "tools.train",
                 f"run={run_name}",
-                "+env=mettagrid/debug",
                 "+hardware=macbook",
                 f"data_dir={temp_dir}",
+                "trainer.curriculum=/env/mettagrid/debug",
                 "trainer.total_timesteps=50",  # Minimal training
                 "trainer.num_workers=1",
                 "wandb=off",

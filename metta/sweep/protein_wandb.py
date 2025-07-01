@@ -5,6 +5,8 @@ from datetime import datetime, timezone
 
 import wandb
 
+from metta.common.util.wandb.wandb_context import WandbRun
+
 from .protein import Protein
 
 logger = logging.getLogger("wandb_protein")
@@ -14,7 +16,7 @@ class WandbProtein:
     def __init__(
         self,
         protein: Protein,
-        wandb_run=None,
+        wandb_run: WandbRun | None = None,
     ):
         """
         Initialize WandbProtein with a Protein instance and optionally a wandb run.
@@ -23,8 +25,10 @@ class WandbProtein:
             protein (Protein): The Protein instance to use for suggestions.
             wandb_run (wandb.Run, optional): The wandb run to use. If None, uses the current run.
         """
-        self._wandb_run = wandb_run or wandb.run
-        assert self._wandb_run is not None, "No active wandb run found"
+        _wandb_run = wandb_run or wandb.run
+        assert _wandb_run is not None, "No active wandb run found"
+        self._wandb_run = _wandb_run
+
         self._sweep_id = self._wandb_run.sweep_id
         self._api = wandb.Api()
 

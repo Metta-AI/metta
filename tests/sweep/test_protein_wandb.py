@@ -184,6 +184,8 @@ class TestWandbProtein:
         try:
             mock_protein.suggest.return_value = ({"param": 1}, {"cost": 10.0})
 
+            assert wandb.run is not None
+
             # Initially, there should be no protein state
             assert wandb.run.summary.get("protein.state") is None
 
