@@ -70,13 +70,15 @@ class ActionConfig(BaseModelWithForbidExtra):
     """Action configuration."""
 
     enabled: bool
+    # defaults to consumed_resources. Otherwise, should be a superset of consumed_resources.
+    required_resources: Optional[Dict[str, int]] = None
+    consumed_resources: Optional[Dict[str, int]] = Field(default_factory=dict)
 
 
 class AttackActionConfig(ActionConfig):
     """Attack action configuration."""
 
-    attack_resources: Dict[str, int]
-    defense_resources: Dict[str, int]
+    defense_resources: Optional[Dict[str, int]] = Field(default_factory=dict)
 
 
 class ActionsConfig(BaseModelWithForbidExtra):

@@ -79,7 +79,7 @@ game:
       enabled: true
     attack:
       enabled: true
-      attack_resources:
+      consumed_resources:
         laser: 1
       defense_resources:
         armor: 1
