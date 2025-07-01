@@ -21,10 +21,10 @@ def evaluate_external_policy():
 
     # Load the external policy
     checkpoint_path = "checkpoints/metta_6-8/metta_6-8.pt"
-    policy = load_pytorch_policy(checkpoint_path, device="cuda", pytorch_cfg=pytorch_cfg)
+    load_pytorch_policy(checkpoint_path, device="cuda", pytorch_cfg=pytorch_cfg)
 
     # Create environment config
-    env_cfg = OmegaConf.create(
+    OmegaConf.create(
         {
             "mettagrid": {
                 "observation_space": "tokenized",
@@ -69,7 +69,7 @@ def compare_policies():
     """Example: Compare external vs native policies."""
 
     # Load external policy
-    external_policy = load_pytorch_policy(
+    load_pytorch_policy(
         "checkpoints/pufferlib_model.pt", pytorch_cfg={"_target_": "metta.agent.external.torch.Recurrent"}
     )
 
@@ -77,7 +77,7 @@ def compare_policies():
     from metta.agent.policy_store import PolicyStore
 
     store = PolicyStore(cfg={}, wandb_run=None)
-    native_pr = store.load_from_uri("file://checkpoints/metta_native.pt")
+    store.load_from_uri("file://checkpoints/metta_native.pt")
 
     # Compare performance
     # ... comparison code ...
