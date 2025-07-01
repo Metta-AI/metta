@@ -684,7 +684,7 @@ def train_ppo(
     Returns:
         Dictionary of training statistics.
     """
-    config = ppo_config or PPOConfig()
+    ppo_config or PPOConfig()
 
     # Placeholder for actual PPO implementation
     return {
@@ -822,7 +822,7 @@ def compute_gradient_stats(model: nn.Module) -> Dict[str, float]:
     grad_norms = []
     param_norms = []
 
-    for name, param in model.named_parameters():
+    for _name, param in model.named_parameters():
         if param.grad is not None:
             grad_norms.append(param.grad.norm().item())
             param_norms.append(param.norm().item())
