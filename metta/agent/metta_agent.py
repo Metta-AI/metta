@@ -21,7 +21,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger("metta_agent")
 
 
-def make_policy(env: "MettaGridEnv", cfg: ListConfig | DictConfig):
+def make_policy(env: "MettaGridEnv", cfg: ListConfig | DictConfig) -> "MettaAgent":
     obs_space = gym.spaces.Dict(
         {
             "grid_obs": env.single_observation_space,

@@ -41,7 +41,7 @@ def analyze(policy_record: PolicyRecord, config: AnalysisConfig) -> None:
 #   helpers                                                                   #
 # --------------------------------------------------------------------------- #
 def get_available_metrics(stats_db: EvalStatsDB, policy_record: PolicyRecord) -> List[str]:
-    policy_key, policy_version = policy_record.key_and_version()
+    policy_key, policy_version = policy_record.wandb_key_and_version()
     result = stats_db.query(
         f"""
         SELECT DISTINCT metric
@@ -77,7 +77,7 @@ def get_metrics_data(
         • K_recorded  – rows in policy_simulation_agent_metrics.
         • N_potential – total agent-episode pairs for that filter.
     """
-    policy_key, policy_version = policy_record.key_and_version()
+    policy_key, policy_version = policy_record.wandb_key_and_version()
     filter_condition = f"sim_suite = '{suite}'" if suite else None
 
     data: Dict[str, Dict[str, float]] = {}

@@ -1,7 +1,7 @@
 """
 Integration tests for metta.eval.eval_stats_db.EvalStatsDB.
 
-They confirm correct normalisation when metrics are recorded only
+They confirm correct normalization when metrics are recorded only
 for non‑zero values.
 """
 
@@ -16,19 +16,9 @@ from typing import List, Tuple
 import pytest
 
 from metta.eval.eval_stats_db import EvalStatsDB
+from tests.fixtures import MockPolicyRecord
 
 
-# -------- Mock PolicyRecord ----------------------------------------------- #
-class MockPolicyRecord:
-    def __init__(self, policy_key: str, policy_version: int):
-        self._policy_key = policy_key
-        self._policy_version = policy_version
-
-    def key_and_version(self) -> Tuple[str, int]:
-        return self._policy_key, self._policy_version
-
-
-# -------- Helpers --------------------------------------------------------- #
 def _create_test_db_with_missing_metrics(db_path: Path) -> Tuple[EvalStatsDB, List[str], str]:
     db = EvalStatsDB(db_path)
 

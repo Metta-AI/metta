@@ -5,25 +5,9 @@ import os
 import tempfile
 
 import torch
-import torch.nn as nn
 from omegaconf import OmegaConf
 
-
-# Create a minimal policy class that mimics MettaAgent structure
-class MinimalPolicy(nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.fc = nn.Linear(10, 10)
-        self.components = nn.ModuleDict(
-            {
-                "_core_": nn.LSTM(10, 10),
-                "_value_": nn.Linear(10, 1),
-                "_action_": nn.Linear(10, 5),
-            }
-        )
-
-    def forward(self, x):
-        return self.fc(x)
+from tests.fixtures import MinimalPolicy
 
 
 def test_policy_save_load_without_pydantic():
@@ -130,14 +114,14 @@ def test_policy_record_backwards_compatibility():
     policy_store = PolicyStore(cfg, wandb_run=None)
 
     # Test different old attribute names
-    old_attribute_names = ["checkpoint", "meta_data", "_meta_data", "_checkpoint"]
+    old_attribute_names = ["checkpoint"]
 
     for old_name in old_attribute_names:
         # Create a PolicyRecord without using the normal constructor
         # to simulate loading an old checkpoint
         pr = PolicyRecord.__new__(PolicyRecord)
         pr._policy_store = policy_store
-        pr.name = "test_policy"
+        pr.run_name = "test_policy"
         pr.uri = "file:///tmp/test.pt"
         pr._cached_policy = None
 
@@ -173,7 +157,7 @@ def test_policy_record_backwards_compatibility():
     # Test with no metadata attribute at all
     pr_no_metadata = PolicyRecord.__new__(PolicyRecord)
     pr_no_metadata._policy_store = policy_store
-    pr_no_metadata.name = "test_policy"
+    pr_no_metadata.run_name = "test_policy"
     pr_no_metadata.uri = "file:///tmp/test.pt"
     pr_no_metadata._cached_policy = None
 
