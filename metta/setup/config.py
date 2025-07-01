@@ -21,6 +21,9 @@ class ProfileConfig(TypedDict):
     components: dict[str, ComponentConfig]
 
 
+CURRENT_CONFIG_VERSION = 1
+
+
 PROFILE_DEFINITIONS: dict[UserType, ProfileConfig] = {
     UserType.EXTERNAL: {
         "components": {
@@ -30,6 +33,7 @@ PROFILE_DEFINITIONS: dict[UserType, ProfileConfig] = {
             "mettascope": {"enabled": True},
             "observatory-fe": {"enabled": False},
             "observatory-cli": {"enabled": False},
+            "studio": {"enabled": True},
             "aws": {"enabled": False},
             "wandb": {"enabled": False},
             "skypilot": {"enabled": False},
@@ -44,6 +48,7 @@ PROFILE_DEFINITIONS: dict[UserType, ProfileConfig] = {
             "mettascope": {"enabled": True},
             "observatory-fe": {"enabled": True},
             "observatory-cli": {"enabled": False},
+            "studio": {"enabled": True},
             "aws": {"enabled": True},
             "wandb": {"enabled": True},
             "skypilot": {"enabled": True},
@@ -58,6 +63,7 @@ PROFILE_DEFINITIONS: dict[UserType, ProfileConfig] = {
             "mettascope": {"enabled": True},
             "observatory-fe": {"enabled": True},
             "observatory-cli": {"enabled": True, "expected_connection": "@stem.ai"},
+            "studio": {"enabled": True},
             "aws": {"enabled": True, "expected_connection": "751442549699"},
             "wandb": {"enabled": True, "expected_connection": "metta-research"},
             "skypilot": {"enabled": True, "expected_connection": "skypilot-api.softmax-research.net"},
@@ -73,13 +79,13 @@ class SetupConfig:
     def __init__(self, config_path: Path | None = None):
         self.config_path: Path = config_path or Path.home() / ".metta" / "config.yaml"
         self.config_path.parent.mkdir(parents=True, exist_ok=True)
-        self._config: ComponentConfig = self._load_config()
+        self._config: dict = self._load_config()
 
-    def _load_config(self) -> ComponentConfig:
+    def _load_config(self) -> dict:
         if self.config_path.exists():
             with open(self.config_path, "r") as f:
-                return yaml.safe_load(f) or ComponentConfig(enabled=False)
-        return ComponentConfig(enabled=False)
+                return yaml.safe_load(f) or {}
+        return {}
 
     def save(self) -> None:
         with open(self.config_path, "w") as f:
@@ -116,18 +122,52 @@ class SetupConfig:
     def user_type(self, value: UserType) -> None:
         self.set("user_type", value.value)
 
+    @property
+    def config_version(self) -> int:
+        return self.get("config_version", 0)
+
+    @property
+    def is_custom_config(self) -> bool:
+        return self.get("custom_config", False)
+
+    def get_components(self) -> dict[str, ComponentConfig]:
+        """Get the components configuration based on mode."""
+        if not self.is_custom_config:
+            # Use dynamic profile resolution
+            profile_config = PROFILE_DEFINITIONS.get(self.user_type, {})
+            return profile_config.get("components", {})
+        else:
+            # Use saved configuration
+            return self.get("components", {})
+
     def is_component_enabled(self, component: str) -> bool:
-        comp_config: ComponentConfig = self.get(f"components.{component}", ComponentConfig(enabled=False))
-        return comp_config["enabled"]
+        components = self.get_components()
+        comp_settings = components.get(component, {})
+        return comp_settings.get("enabled", False)
 
     def get_expected_connection(self, component: str) -> str | None:
-        comp_config: ComponentConfig = self.get(f"components.{component}", ComponentConfig(enabled=False))
-        return comp_config.get("expected_connection")
+        components = self.get_components()
+        comp_settings = components.get(component, {})
+        return comp_settings.get("expected_connection")
 
     def apply_profile(self, profile: UserType) -> None:
+        """Apply a profile configuration (uses dynamic resolution)."""
         self.user_type = profile
+        self.set("custom_config", False)
+        self.set("config_version", CURRENT_CONFIG_VERSION)
+        # Remove any saved components to ensure dynamic resolution
+        if "components" in self._config:
+            del self._config["components"]
+            self.save()
 
-        profile_config = PROFILE_DEFINITIONS.get(profile, {})
+    def setup_custom_profile(self, base_profile: UserType) -> None:
+        """Set up a custom configuration based on a profile."""
+        self.user_type = base_profile
+        self.set("custom_config", True)
+        self.set("config_version", CURRENT_CONFIG_VERSION)
+
+        # Copy all component settings from the base profile
+        profile_config = PROFILE_DEFINITIONS.get(base_profile, {})
         for component, settings in profile_config.get("components", {}).items():
             for key, value in settings.items():
                 self.set(f"components.{component}.{key}", value)
