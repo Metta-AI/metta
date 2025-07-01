@@ -32,6 +32,60 @@ behavior, environment dynamics, and system performance.
 
 **Total Metrics:** 1501
 
+## Metric Aggregation Strategy
+
+Metta uses a multi-stage aggregation pipeline to produce the final metrics logged to WandB:
+
+### Aggregation Pipeline
+
+```
+Per-Agent Values → Per-Episode Means → Cross-Episode Means → WandB Logs
+```
+
+### Detailed Aggregation Table
+
+| Metric Category | Stage 1: Environment<br>(per episode) | Stage 2: Rollout<br>(collection) | Stage 3: Trainer<br>(final processing) | Final Output |
+|----------------|------------------------|------------------|----------------------|--------------|
+| **Agent Rewards** | Sum across agents ÷ num_agents | Collect all episode means into list | Mean of all episodes | `env_map_reward/*` = mean<br>`env_map_reward/*.std_dev` = std |
+| **Agent Stats**<br>(e.g., actions, items) | Sum across agents ÷ num_agents | Collect all episode values into list | Mean of all episodes | `env_agent/*` = mean<br>`env_agent/*.std_dev` = std |
+| **Game Stats**<br>(environment-level) | Single value (no aggregation) | Collect all episode values | Mean of all episodes | `env_game/*` = mean<br>`env_game/*.std_dev` = std |
+| **Timing Metrics** | Single value per operation | Collect across rollout steps | Mean across steps | `env_timing_per_epoch/*` = mean |
+| **Attributes**<br>(seed, map size, etc.) | Single value (no aggregation) | Last value overwrites | Pass through | `env_attributes/*` = value |
+| **Task Rewards** | Mean across agents | Collect all episode means | Mean of all episodes | `env_task_reward/*` = mean |
+| **Curriculum Stats** | Single value | Last value overwrites | Pass through | `env_curriculum/*` = value |
+
+### Key Points
+
+1. **Double Averaging**: Most metrics undergo two averaging operations:
+   - First: Average across all agents in an episode
+   - Second: Average across all episodes in the rollout
+
+2. **Standard Deviation**: The trainer adds `.std_dev` variants showing variance across episodes
+
+3. **Episode Granularity**: Aggregation preserves episode boundaries - partial episodes are not mixed with complete ones
+
+4. **Multi-GPU Training**: Each GPU computes its own statistics independently; WandB handles any cross-GPU aggregation
+
+### Example: Tracing a Reward Metric
+
+Consider `env_map_reward/collectibles` with 4 agents and 3 completed episodes:
+
+1. **Episode 1**: Agents score [2, 3, 1, 4] → Mean: 2.5
+2. **Episode 2**: Agents score [3, 3, 2, 2] → Mean: 2.5
+3. **Episode 3**: Agents score [1, 2, 3, 2] → Mean: 2.0
+
+**Rollout Collection**: `[2.5, 2.5, 2.0]`
+
+**Final Processing**:
+- `env_map_reward/collectibles` = 2.33 (mean)
+- `env_map_reward/collectibles.std_dev` = 0.29 (standard deviation)
+
+### Special Cases
+
+- **Diversity Bonus**: Applied to individual agent rewards before any aggregation
+- **Kickstarter Losses**: Not aggregated by episode, averaged across all training steps
+- **Gradient Stats**: Computed across all parameters, not per-episode
+
 ## Metric Naming Convention
 
 Metrics follow a hierarchical naming structure:

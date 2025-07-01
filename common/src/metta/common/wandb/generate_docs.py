@@ -1,18 +1,13 @@
-#!/usr/bin/env -S uv run
-# /// script
-# requires-python = ">=3.11"
-# dependencies = [
-#     "wandb>=0.16.0",
-#     "requests>=2.31.0",
-#     "pyyaml>=6.0",
-# ]
-# ///
+#!/usr/bin/env python3
+# This script should be run from within the metta workspace environment
 
 import os
 from collections import defaultdict
 from pathlib import Path
 
 import yaml
+
+from metta.common.fs import get_repo_root
 
 
 def parse_metrics_file(filepath):
@@ -68,6 +63,66 @@ def analyze_metric_patterns(metrics):
     return dict(categorized)
 
 
+def generate_aggregation_section():
+    """Generate the metric aggregation documentation section."""
+    aggregation_section = """
+## Metric Aggregation Strategy
+
+Metta uses a multi-stage aggregation pipeline to produce the final metrics logged to WandB:
+
+### Aggregation Pipeline
+
+```
+Per-Agent Values → Per-Episode Means → Cross-Episode Means → WandB Logs
+```
+
+### Detailed Aggregation Table
+
+| Metric Category | Stage 1: Environment<br>(per episode) | Stage 2: Rollout<br>(collection) | Stage 3: Trainer<br>(final processing) | Final Output |
+|----------------|------------------------|------------------|----------------------|--------------|
+| **Agent Rewards** | Sum across agents ÷ num_agents | Collect all episode means into list | Mean of all episodes | `env_map_reward/*` = mean<br>`env_map_reward/*.std_dev` = std |
+| **Agent Stats**<br>(e.g., actions, items) | Sum across agents ÷ num_agents | Collect all episode values into list | Mean of all episodes | `env_agent/*` = mean<br>`env_agent/*.std_dev` = std |
+| **Game Stats**<br>(environment-level) | Single value (no aggregation) | Collect all episode values | Mean of all episodes | `env_game/*` = mean<br>`env_game/*.std_dev` = std |
+| **Timing Metrics** | Single value per operation | Collect across rollout steps | Mean across steps | `env_timing_per_epoch/*` = mean |
+| **Attributes**<br>(seed, map size, etc.) | Single value (no aggregation) | Last value overwrites | Pass through | `env_attributes/*` = value |
+| **Task Rewards** | Mean across agents | Collect all episode means | Mean of all episodes | `env_task_reward/*` = mean |
+| **Curriculum Stats** | Single value | Last value overwrites | Pass through | `env_curriculum/*` = value |
+
+### Key Points
+
+1. **Double Averaging**: Most metrics undergo two averaging operations:
+   - First: Average across all agents in an episode
+   - Second: Average across all episodes in the rollout
+
+2. **Standard Deviation**: The trainer adds `.std_dev` variants showing variance across episodes
+
+3. **Episode Granularity**: Aggregation preserves episode boundaries - partial episodes are not mixed with complete ones
+
+4. **Multi-GPU Training**: Each GPU computes its own statistics independently; WandB handles any cross-GPU aggregation
+
+### Example: Tracing a Reward Metric
+
+Consider `env_map_reward/collectibles` with 4 agents and 3 completed episodes:
+
+1. **Episode 1**: Agents score [2, 3, 1, 4] → Mean: 2.5
+2. **Episode 2**: Agents score [3, 3, 2, 2] → Mean: 2.5
+3. **Episode 3**: Agents score [1, 2, 3, 2] → Mean: 2.0
+
+**Rollout Collection**: `[2.5, 2.5, 2.0]`
+
+**Final Processing**:
+- `env_map_reward/collectibles` = 2.33 (mean)
+- `env_map_reward/collectibles.std_dev` = 0.29 (standard deviation)
+
+### Special Cases
+
+- **Diversity Bonus**: Applied to individual agent rewards before any aggregation
+- **Kickstarter Losses**: Not aggregated by episode, averaged across all training steps
+- **Gradient Stats**: Computed across all parameters, not per-episode
+"""  # noqa: E501
+    return aggregation_section
+
+
 def generate_main_readme(sections, output_dir, descriptions):
     """Generate the main README.md file."""
     content = """# WandB Metrics Documentation
@@ -98,6 +153,9 @@ behavior, environment dynamics, and system performance.
         content += f"| [`{section}/`](./{section}/) | {desc} | {count} |\n"
 
     content += f"\n**Total Metrics:** {sum(c for _, c in section_counts)}\n"
+
+    # Add the aggregation section
+    content += generate_aggregation_section()
 
     content += """
 ## Metric Naming Convention
@@ -332,7 +390,9 @@ def get_metric_description(metric, descriptions):
 def main():
     script_dir = os.path.dirname(os.path.abspath(__file__))
     metrics_file = os.path.join(script_dir, "wandb_metrics.txt")
-    output_dir = os.path.join(script_dir, "docs", "metrics")
+
+    root_dir = get_repo_root()
+    output_dir = os.path.join(root_dir, "docs", "wandb", "metrics")
 
     if not os.path.exists(metrics_file):
         print(f"Error: {metrics_file} not found!")
@@ -348,11 +408,9 @@ def main():
     print(f"Found {len(sections)} sections")
     print(f"Generating documentation in {output_dir}/")
 
-    # Generate main README
     main_readme = generate_main_readme(sections, output_dir, descriptions)
     print(f"Created: {main_readme}")
 
-    # Generate section READMEs
     for section, subsections in sections.items():
         section_readme = generate_section_readme(section, subsections, output_dir, descriptions)
         print(f"Created: {section_readme}")
