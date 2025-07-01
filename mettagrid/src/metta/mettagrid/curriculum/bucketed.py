@@ -50,6 +50,8 @@ def get_id(parameters, values):
     for k, v in zip(parameters, values, strict=False):
         if isinstance(v, dict):
             v = v.get("range", "values")
+        if isinstance(v, float):
+            v = round(v, 3)
         curriculum_id += f"{'.'.join(k.split('.')[-3:])}={v};"
     return curriculum_id
 
