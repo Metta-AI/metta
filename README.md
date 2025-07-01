@@ -107,11 +107,20 @@ Clone the repository and run the setup:
 ```bash
 git clone https://github.com/Metta-AI/metta.git
 cd metta
-./metta.sh configure  # Interactive setup wizard
-./metta.sh install    # Install configured components
+./install.sh  # Install uv and Python dependencies
+
+# Then use the metta command (choose one approach):
+# Option 1: Using uv run (recommended - no activation needed)
+uv run metta configure
+uv run metta install
+
+# Option 2: Activate the virtual environment first
+source .venv/bin/activate
+metta configure
+metta install
 ```
 
-For more information on setup options and managing components, run `./metta.sh --help` or see the [setup documentation](metta/setup/README.md).
+For more information on setup options and managing components, see the [setup documentation](metta/setup/README.md).
 
 
 ## Usage

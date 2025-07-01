@@ -5,14 +5,17 @@ Modular dependency management for the Metta AI development environment.
 ## Quick Start
 
 ```bash
-# Configure (first time only)
-./metta.sh configure
+# Initial setup (first time only)
+./install.sh
+
+# Configure
+uv run metta configure
 
 # Install everything
-./metta.sh install
+uv run metta install
 
 # Check status
-./metta.sh status
+uv run metta status
 ```
 
 ## Updating these setup scripts
@@ -35,7 +38,8 @@ To add a new tool or service dependency:
 
 ## Commands
 
-- `./metta.sh configure --profile=external` - Set up as external contributor
-- `./metta.sh install nodejs` - Install specific component
-- `./metta.sh install --force` - Reinstall all components
-- `./metta.sh status` - Show installation and auth status
+- `uv run metta configure --profile=external` - Set up as external contributor
+- `uv run metta install nodejs` - Install specific component
+- `uv run metta install --force` - Reinstall all components
+- `uv run metta status` - Show installation and auth status
+

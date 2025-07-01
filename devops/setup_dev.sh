@@ -2,10 +2,16 @@
 
 set -euo pipefail
 
-echo "This script has been replaced by metta.sh. Will run it with some default settings..."
+echo "This script has been replaced by the metta command. Setting up with default settings..."
 
 # Navigate to the repo root
 cd "$(dirname "$0")/.."
 
+# First ensure environment is set up
+if [ ! -d ".venv" ]; then
+    echo "Running initial setup..."
+    ./install.sh
+fi
+
 # Configure as a softmax user and install all configured components
-./metta.sh configure --profile=softmax && ./metta.sh install
+uv run metta configure --profile=softmax && uv run metta install
