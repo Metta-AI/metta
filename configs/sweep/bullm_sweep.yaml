@@ -1,0 +1,152 @@
+run: bullm_sweep_run
+run_dir: ./train_dir/bullm_sweep_run
+dist_cfg_path: null
+torch_deterministic: true
+seed: 0
+device: cpu
+vectorization: multiprocessing
+wandb:
+  enabled: true
+  project: metta
+  entity: metta-research
+  group: ${run}
+  name: ${run}
+  run_id: ${run}
+  data_dir: ${run_dir}
+  job_type: sweep
+  tags: []
+  notes: ""
+
+metric: reward
+
+test: raw
+
+rollout_count: 100000
+num_random_samples: 10
+
+eval:
+  name: bullm_sweep_suite
+  num_episodes: 100
+  max_time_s: 600
+  policy_agents_pct: 1.0
+  simulations:
+    navigation:
+      env: configs/env/mettagrid/navigation/evals/labyrinth.yaml
+    navigation2:
+      env: configs/env/mettagrid/navigation/evals/obstacles1.yaml
+    navigation3:
+      env: configs/env/mettagrid/navigation/evals/radialmaze.yaml
+    object_use:
+      env: configs/env/mettagrid/object_use/evals/full_sequence.yaml
+    object_use2:
+      env: configs/env/mettagrid/object_use/evals/armory_use.yaml
+    memory:
+      env: configs/env/mettagrid/memory/evals/spacey_memory.yaml
+    memory2:
+      env: configs/env/mettagrid/memory/evals/venture_out.yaml
+    navigation_sequence:
+      env: configs/env/mettagrid/navigation_sequence/evals/full_sequence.yaml
+    navigation_sequence2:
+      env: configs/env/mettagrid/navigation_sequence/evals/radial_large.yaml
+
+parameters:
+  curriculum:
+    ema_timescale:
+      distribution: log_normal
+      min: 0.0001
+      max: 0.1
+      scale: auto
+      mean: 0.01
+    progress_smoothing:
+      distribution: logit_normal
+      min: 0.01
+      max: 0.5
+      scale: auto
+      mean: 0.1
+    num_active_tasks:
+      distribution: int_uniform
+      min: 4
+      max: 32
+      scale: auto
+      mean: 16
+    rand_task_rate:
+      distribution: logit_normal
+      min: 0.01
+      max: 0.5
+      scale: auto
+      mean: 0.1
+    sample_threshold:
+      distribution: int_uniform
+      min: 1
+      max: 50
+      scale: auto
+      mean: 10
+    memory:
+      distribution: int_uniform
+      min: 5
+      max: 100
+      scale: auto
+      mean: 25
+  trainer:
+    learning_rate:
+      distribution: log_normal
+      min: 1e-5
+      max: 1e-1
+      scale: auto
+      mean: 1e-3
+    gamma:
+      distribution: logit_normal
+      min: 0.0
+      max: 1.0
+      scale: auto
+      mean: 0.99
+    gae_lambda:
+      distribution: logit_normal
+      min: 0.0
+      max: 1.0
+      scale: auto
+      mean: 0.95
+    vf_coef:
+      distribution: logit_normal
+      min: 0.0
+      max: 1.0
+      scale: auto
+      mean: 0.5
+    ent_coef:
+      distribution: log_normal
+      min: 1e-4
+      max: 1e-1
+      scale: auto
+      mean: 1e-3
+    batch_size:
+      distribution: uniform_pow2
+      min: 131072
+      max: 524288
+      scale: auto
+      mean: 262144
+    minibatch_size:
+      distribution: uniform_pow2
+      min: 1024
+      max: 131072
+      scale: auto
+      mean: 16384
+    bptt_horizon:
+      distribution: uniform_pow2
+      min: 1
+      max: 128
+      scale: auto
+      mean: 32
+    total_timesteps:
+      distribution: log_normal
+      min: 1e9
+      max: 6e9
+      scale: auto
+      mean: 1.1e9
+
+protein:
+  max_suggestion_cost: 3600
+  resample_frequency: 0
+  num_random_samples: 50
+  global_search_scale: 1
+  random_suggestions: 1024
+  suggestions_per_pareto: 256

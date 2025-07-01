@@ -264,7 +264,7 @@ def create_sweep(sweep_name: str, wandb_entity: str, wandb_project: str):
             "name": sweep_name,
             "method": "bayes",  # This won't actually be used since we override suggestions
             "metric": {"name": "protein.objective", "goal": "maximize"},
-            "parameters": {},  # Empty - Protein controls all parameters
+            "parameters": {"_dummy": {"values": [0, 1]}},  # Add dummy param to satisfy W&B
         },
         project=wandb_project,
         entity=wandb_entity,
