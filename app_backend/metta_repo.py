@@ -163,6 +163,20 @@ MIGRATIONS = [
             """CREATE INDEX idx_epochs_run_id ON epochs(run_id, end_training_epoch DESC)""",
         ],
     ),
+    SqlMigration(
+        version=7,
+        description="Add description field to training_runs table",
+        sql_statements=[
+            """ALTER TABLE training_runs ADD COLUMN description TEXT""",
+        ],
+    ),
+    SqlMigration(
+        version=8,
+        description="Add tags field to training_runs table",
+        sql_statements=[
+            """ALTER TABLE training_runs ADD COLUMN tags TEXT[]""",
+        ],
+    ),
 ]
 
 
@@ -373,7 +387,7 @@ class MettaRepo:
         with self.connect() as con:
             result = con.execute(
                 """
-                SELECT id, name, created_at, user_id, finished_at, status, url
+                SELECT id, name, created_at, user_id, finished_at, status, url, description, tags
                 FROM training_runs
                 ORDER BY created_at DESC
                 """
@@ -387,6 +401,8 @@ class MettaRepo:
                     "finished_at": row[4].isoformat() if row[4] else None,
                     "status": row[5],
                     "url": row[6],
+                    "description": row[7],
+                    "tags": row[8] or [],
                 }
                 for row in result
             ]
@@ -401,7 +417,7 @@ class MettaRepo:
         with self.connect() as con:
             result = con.execute(
                 """
-                SELECT id, name, created_at, user_id, finished_at, status, url
+                SELECT id, name, created_at, user_id, finished_at, status, url, description, tags
                 FROM training_runs
                 WHERE id = %s
                 """,
@@ -419,6 +435,8 @@ class MettaRepo:
                 "finished_at": result[4].isoformat() if result[4] else None,
                 "status": result[5],
                 "url": result[6],
+                "description": result[7],
+                "tags": result[8] or [],
             }
 
     def _hash_token(self, token: str) -> str:
@@ -622,5 +640,41 @@ class MettaRepo:
                 WHERE id = %s AND user_id = %s
                 """,
                 (name, description, dashboard_type, Jsonb(dashboard_state), dashboard_uuid, user_id),
+            )
+            return result.rowcount > 0
+
+    def update_training_run_description(self, user_id: str, run_id: str, description: str) -> bool:
+        """Update the description of a training run."""
+        try:
+            run_uuid = uuid.UUID(run_id)
+        except ValueError:
+            return False
+
+        with self.connect() as con:
+            result = con.execute(
+                """
+                UPDATE training_runs
+                SET description = %s
+                WHERE id = %s AND user_id = %s
+                """,
+                (description, run_uuid, user_id),
+            )
+            return result.rowcount > 0
+
+    def update_training_run_tags(self, user_id: str, run_id: str, tags: List[str]) -> bool:
+        """Update the tags of a training run."""
+        try:
+            run_uuid = uuid.UUID(run_id)
+        except ValueError:
+            return False
+
+        with self.connect() as con:
+            result = con.execute(
+                """
+                UPDATE training_runs
+                SET tags = %s
+                WHERE id = %s AND user_id = %s
+                """,
+                (tags, run_uuid, user_id),
             )
             return result.rowcount > 0

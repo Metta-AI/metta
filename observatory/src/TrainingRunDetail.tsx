@@ -5,6 +5,8 @@ import { TrainingRun, HeatmapData, Repo } from './repo'
 import { MapViewer } from './MapViewer'
 import { SuiteTabs } from './SuiteTabs'
 import { GroupSelector, parseGroupMetric } from './GroupSelector'
+import { TagEditor } from './TagEditor'
+import { DescriptionEditor } from './DescriptionEditor'
 
 const TRAINING_RUN_DETAIL_CSS = `
 .training-run-detail-container {
@@ -150,6 +152,32 @@ const TRAINING_RUN_DETAIL_CSS = `
 .error-container {
   color: #c62828;
 }
+
+.training-run-description-section {
+  margin-top: 15px;
+  padding-top: 15px;
+  border-top: 1px solid #eee;
+}
+
+.training-run-description-section-header {
+  margin-bottom: 10px;
+  font-size: 16px;
+  font-weight: 600;
+  color: #333;
+}
+
+.training-run-tags-section {
+  margin-top: 15px;
+  padding-top: 15px;
+  border-top: 1px solid #eee;
+}
+
+.training-run-tags-section-header {
+  margin-bottom: 10px;
+  font-size: 16px;
+  font-weight: 600;
+  color: #333;
+}
 `
 
 interface TrainingRunDetailProps {
@@ -185,6 +213,8 @@ export function TrainingRunDetail({ repo }: TrainingRunDetailProps) {
     policyUri: string
     evalName: string
   } | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [currentUser, setCurrentUser] = useState<string | null>(null)
 
 
   // Load training run and initial data
@@ -194,14 +224,16 @@ export function TrainingRunDetail({ repo }: TrainingRunDetailProps) {
 
       try {
         setLoading(true)
-        const [runData, suitesData] = await Promise.all([
+        const [runData, suitesData, userResponse] = await Promise.all([
           repo.getTrainingRun(runId),
           repo.getSuites(),
+          repo.whoami().catch(() => ({ user_email: '' }))
         ])
 
         setTrainingRun(runData)
         setSuites(suitesData)
         setSelectedSuite(suitesData[0])
+        setCurrentUser(userResponse.user_email)
         setError(null)
       } catch (err: any) {
         setError(`Failed to load training run: ${err.message}`)
@@ -292,6 +324,34 @@ export function TrainingRunDetail({ repo }: TrainingRunDetailProps) {
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleString()
+  }
+
+  const canEditRun = (run: TrainingRun) => {
+    return Boolean(currentUser && run.user_id === currentUser)
+  }
+
+  const handleDescriptionChange = async (newDescription: string) => {
+    if (!runId) return
+
+    setSaving(true)
+    try {
+      const updatedRun = await repo.updateTrainingRunDescription(runId, newDescription)
+      setTrainingRun(updatedRun)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleTagsChange = async (newTags: string[]) => {
+    if (!runId || !trainingRun) return
+
+    setSaving(true)
+    try {
+      const updatedRun = await repo.updateTrainingRunTags(runId, newTags)
+      setTrainingRun(updatedRun)
+    } finally {
+      setSaving(false)
+    }
   }
 
   // Create the modified heatmap with policies on X-axis and evals on Y-axis
@@ -456,6 +516,35 @@ export function TrainingRunDetail({ repo }: TrainingRunDetailProps) {
               <span>User:</span>
               <span>{trainingRun.user_id}</span>
             </div>
+          </div>
+
+          <div className="training-run-description-section">
+            <div className="training-run-description-section-header">
+              <strong>Description:</strong>
+            </div>
+            <DescriptionEditor
+              description={trainingRun.description}
+              canEdit={canEditRun(trainingRun)}
+              onDescriptionChange={handleDescriptionChange}
+              onError={setError}
+              disabled={saving}
+              compact={false}
+              placeholder="Enter a description for this training run..."
+            />
+          </div>
+
+          <div className="training-run-tags-section">
+            <div className="training-run-tags-section-header">
+              <strong>Tags:</strong>
+            </div>
+            <TagEditor
+              tags={trainingRun.tags}
+              canEdit={canEditRun(trainingRun)}
+              onTagsChange={handleTagsChange}
+              onError={setError}
+              disabled={saving}
+              compact={false}
+            />
           </div>
         </div>
 
