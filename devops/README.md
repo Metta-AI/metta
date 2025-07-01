@@ -4,10 +4,24 @@ Scripts for setting up a Metta AI development environment and launching cloud jo
 
 ## Initial Setup
 
-To set up a new Mac machine:
+To set up your development environment:
 
 ```bash
-python devops/macos/setup_machine.py
+# From the metta root directory
+./metta.sh configure
+./metta.sh install
+```
+
+The setup wizard will:
+- Detect your user type (external, cloud, internal, devops)
+- Configure appropriate components
+- Install system dependencies, Python environment, and optional tools
+
+For specific components:
+```bash
+./metta.sh install system     # Just system dependencies
+./metta.sh install aws        # Just AWS configuration
+./metta.sh install --force    # Force reinstall everything
 ```
 
 ## Git Hooks

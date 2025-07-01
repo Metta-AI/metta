@@ -1,11 +1,19 @@
 # Observatory FE
 
-This is the FE for the app deployed at https://observatory.softmax-research.net/ 
+This is the FE for the app deployed at https://observatory.softmax-research.net/
 Talks to the server in `/app_backend` - see instructions on how to run it in `/app_backend/README.md`
+
+## Setup
+
+Ensure Observatory is installed through the Metta setup tool:
+```bash
+# From the metta root directory
+./metta.sh install observatory-fe
+```
 
 ## Development
 
-1. Install dependencies:
+1. If you need to manually install dependencies:
    ```bash
    npm install
    ```
@@ -23,4 +31,3 @@ Talks to the server in `/app_backend` - see instructions on how to run it in `/a
    ```bash
    npm run build
    ```
-
