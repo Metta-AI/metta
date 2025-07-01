@@ -42,7 +42,42 @@ target_include_directories(mettagrid_obj PUBLIC
 
 target_compile_definitions(mettagrid_obj PUBLIC "NPY_NO_DEPRECATED_API=NPY_1_7_API_VERSION")
 
-target_compile_options(mettagrid_obj PUBLIC "-fvisibility=hidden")
+# Add comprehensive warning flags for better code safety
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+  target_compile_options(mettagrid_obj PUBLIC 
+    "-fvisibility=hidden"
+    "-Wall"
+    "-Wextra" 
+    "-Wpedantic"
+    "-Wconversion"
+    "-Wsign-conversion"
+    "-Wunused"
+    "-Wuninitialized"
+    "-Wmissing-declarations"
+    "-Wformat=2"
+    "-Wcast-qual"
+    "-Wcast-align"
+    "-Wlogical-op"
+    "-Wredundant-decls"
+    "-Wshadow"
+    "-Wpointer-arith"
+    "-Wno-missing-field-initializers"  # pybind11 uses this pattern
+  )
+elseif(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+  target_compile_options(mettagrid_obj PUBLIC 
+    "/W4"
+    "/WX"  # Treat warnings as errors
+    "/permissive-"
+  )
+endif()
+
+# Enable AddressSanitizer in Debug builds for leak detection
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+  if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(mettagrid_obj PUBLIC "-fsanitize=address" "-fno-omit-frame-pointer")
+    target_link_options(mettagrid_obj PUBLIC "-fsanitize=address")
+  endif()
+endif()
 
 pybind11_add_module(mettagrid_c $<TARGET_OBJECTS:mettagrid_obj>)
 

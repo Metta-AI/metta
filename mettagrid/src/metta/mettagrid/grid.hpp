@@ -48,6 +48,21 @@ public:
   // Since the caller is now the owner, this can make the raw pointer invalid, if the
   // returned unique_ptr is destroyed.
   inline unique_ptr<GridObject> remove_object(GridObject* obj) {
+    if (!obj) {
+      return nullptr;
+    }
+    
+    // Validate bounds
+    if (obj->location.r >= height || obj->location.c >= width || 
+        obj->location.layer >= GridLayer::GridLayerCount) {
+      return nullptr;
+    }
+    
+    // Validate object ID
+    if (obj->id >= objects.size() || !objects[obj->id]) {
+      return nullptr;
+    }
+    
     this->grid[obj->location.r][obj->location.c][obj->location.layer] = 0;
     auto obj_ptr = this->objects[obj->id].release();
     this->objects[obj->id] = nullptr;
@@ -92,6 +107,9 @@ public:
   }
 
   inline GridObject* object(GridObjectId obj_id) {
+    if (obj_id >= objects.size()) {
+      return nullptr;
+    }
     return objects[obj_id].get();
   }
 
