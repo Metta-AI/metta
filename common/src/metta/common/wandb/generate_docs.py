@@ -177,7 +177,7 @@ behavior, environment dynamics, and system performance.
     for section, count in section_counts:
         desc = get_section_description(section, descriptions)
         # Truncate long descriptions for the table
-        if "\n" in desc:
+        if desc is not None and "\n" in desc:
             desc = desc.split("\n")[0] + "..."
         content += f"| [`{section}/`](./{section}/) | {desc} | {count} |\n"
 
@@ -316,22 +316,23 @@ def generate_section_readme(section, subsections, output_dir, descriptions):
         for group_name, group_metrics in sorted(metric_groups.items()):
             content += f"**{group_name}:**\n"
 
-            # Check if we have a description for the primary metric
-            primary_metric = f"{section}/{subsection}/{group_name}".replace("/general/", "/")
-            if subsection == "general":
-                primary_metric = f"{section}/{group_name}"
+            # Sort metrics by replacing .std_dev with _ to group them with their base
+            # This ensures .std_dev variants appear right after their base metrics
+            sorted_metrics = sorted(group_metrics, key=lambda m: m.replace(".std_dev", "._"))
 
-            metric_desc = get_metric_description(primary_metric, descriptions)
-
-            # List the metrics
-            for metric in sorted(group_metrics)[:10]:  # Limit to 10 examples
+            # List all metrics in this group
+            for metric in sorted_metrics:
                 content += f"- `{metric}`\n"
-            if len(group_metrics) > 10:
-                content += f"- ... and {len(group_metrics) - 10} more\n"
 
-            # Add description if available
-            if metric_desc:
-                content += f"\n{metric_desc}\n"
+                # Check if we have a description for this specific metric
+                metric_desc = get_metric_description(metric, descriptions)
+                if metric_desc:
+                    # Indent the description
+                    desc_lines = metric_desc.split("\n")
+                    for line in desc_lines:
+                        if line.strip():
+                            content += f"  {line}\n"
+                    content += "\n"
 
             content += "\n"
 
@@ -345,13 +346,32 @@ def generate_section_readme(section, subsections, output_dir, descriptions):
 
 
 def group_related_metrics(metrics):
-    """Group metrics by their base name."""
+    """Group metrics by their base name, consolidating all related statistics."""
     groups = defaultdict(list)
 
     for metric in metrics:
-        # Extract base metric name (before statistics suffixes)
-        base = metric
-        for suffix in [
+        # Remove the section prefix to get the metric path
+        parts = metric.split("/")
+        if len(parts) > 2:
+            metric_path = "/".join(parts[2:])
+        else:
+            metric_path = parts[-1]
+
+        # Find the base metric name by removing all known suffixes
+        base = metric_path
+
+        # List of statistic suffixes to check, ordered by specificity
+        stat_suffixes = [
+            ".activity_rate.std_dev",
+            ".avg.std_dev",
+            ".std_dev.std_dev",
+            ".min.std_dev",
+            ".max.std_dev",
+            ".first_step.std_dev",
+            ".last_step.std_dev",
+            ".rate.std_dev",
+            ".updates.std_dev",
+            ".activity_rate",
             ".avg",
             ".std_dev",
             ".min",
@@ -360,20 +380,15 @@ def group_related_metrics(metrics):
             ".last_step",
             ".rate",
             ".updates",
-            ".activity_rate",
-        ]:
+        ]
+
+        # Remove the suffix to find the base
+        for suffix in stat_suffixes:
             if base.endswith(suffix):
                 base = base[: -len(suffix)]
                 break
 
-        # Further group by removing the section prefix
-        parts = base.split("/")
-        if len(parts) > 2:
-            group_key = "/".join(parts[2:])
-        else:
-            group_key = parts[-1]
-
-        groups[group_key].append(metric)
+        groups[base].append(metric)
 
     return dict(groups)
 
