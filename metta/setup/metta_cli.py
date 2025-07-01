@@ -59,7 +59,7 @@ class MettaCLI:
 
             self.config.apply_profile(user_type)
             success(f"\nConfigured as {user_type.value} user.")
-        info("\nRun 'uv run metta install' to set up your environment.")
+        info("\nRun 'metta install' to set up your environment.")
 
     def _custom_setup(self) -> None:
         info("\nSelect base profile for custom configuration:")
@@ -89,7 +89,7 @@ class MettaCLI:
                 self.config.set(f"components.{comp}.enabled", choice == "y")
 
         success("\nCustom configuration saved.")
-        info("\nRun 'uv run metta install' to set up your environment.")
+        info("\nRun 'metta install' to set up your environment.")
 
     def cmd_configure(self, args) -> None:
         if args.profile:
@@ -98,7 +98,7 @@ class MettaCLI:
             if args.profile in profile_map:
                 self.config.apply_profile(profile_map[args.profile])
                 success(f"Configured as {profile_map[args.profile].value} user.")
-                info("\nRun 'uv run metta install' to set up your environment.")
+                info("\nRun 'metta install' to set up your environment.")
             else:
                 error(f"Unknown profile: {args.profile}")
                 available_profiles = [ut.value for ut in UserType if ut != UserType.SOFTMAX_DOCKER]
@@ -320,11 +320,11 @@ class MettaCLI:
             formatter_class=argparse.RawDescriptionHelpFormatter,
             epilog="""
 Examples:
-  uv run metta configure                      # Run interactive setup wizard
-  uv run metta configure --profile=softmax    # Configure for Softmax employee
-  uv run metta install                        # Install all configured components
-  uv run metta install aws wandb              # Install specific components
-  uv run metta status                         # Show component status
+  metta configure                      # Run interactive setup wizard
+  metta configure --profile=softmax    # Configure for Softmax employee
+  metta install                        # Install all configured components
+  metta install aws wandb              # Install specific components
+  metta status                         # Show component status
   metta clean                          # Clean build artifacts
             """,
         )
@@ -371,12 +371,12 @@ Examples:
 
         if args.command != "configure":
             if not self.config.config_path.exists():
-                error("No configuration found. Please run 'uv run metta configure' first.")
+                error("No configuration found. Please run 'metta configure' first.")
                 sys.exit(1)
             elif self.config.config_version < CURRENT_CONFIG_VERSION:
                 # Old config format detected
                 warning(f"Your configuration is from an older version (v{self.config.config_version}).")
-                info("Please run 'uv run metta configure' to update your configuration.")
+                info("Please run 'metta configure' to update your configuration.")
                 sys.exit(1)
 
         # Dispatch to command handler
