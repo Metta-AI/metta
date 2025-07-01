@@ -38,4 +38,4 @@ install:
 
 pytest: install
 	@echo "Running Python tests..."
-	uv run pytest
+	UV_PROJECT_ENVIRONMENT=../.venv uv run pytest

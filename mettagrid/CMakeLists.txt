@@ -38,6 +38,7 @@ target_link_libraries(mettagrid_obj PUBLIC pybind11::pybind11 Python3::Python)
 target_include_directories(mettagrid_obj PUBLIC
   ${NUMPY_INCLUDE_DIR}
   ${CMAKE_CURRENT_SOURCE_DIR}/src/metta/mettagrid
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/third_party
 )
 
 target_compile_definitions(mettagrid_obj PUBLIC "NPY_NO_DEPRECATED_API=NPY_1_7_API_VERSION")

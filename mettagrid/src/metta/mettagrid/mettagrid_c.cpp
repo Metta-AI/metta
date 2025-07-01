@@ -185,7 +185,7 @@ MettaGrid::MettaGrid(py::dict cfg, py::list map, int seed) {
   }
 
   // Use wyhash for deterministic, high-performance grid fingerprinting across platforms
-  initial_grid_hash = wyhash::hash_string(grid_hash_data);
+  initial_grid_hash = hash_string(grid_hash_data);
 
   // Initialize buffers. The buffers are likely to be re-set by the user anyways,
   // so nothing above should depend on them before this point.
