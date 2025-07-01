@@ -32,12 +32,12 @@ const ParamsViewer: FC<{ params: Record<string, unknown> }> = ({ params }) => {
 };
 
 const ChildrenViewer: FC<{
-  children: SceneTree[];
+  childrenScenes: SceneTree[];
   isExpanded: boolean;
   onToggle: () => void;
   depth: number;
-}> = ({ children, isExpanded, onToggle }) => {
-  if (children.length === 0) return null;
+}> = ({ childrenScenes, isExpanded, onToggle }) => {
+  if (childrenScenes.length === 0) return null;
 
   return (
     <div className="mt-2">
@@ -53,7 +53,7 @@ const ChildrenViewer: FC<{
         >
           ▶
         </span>
-        Children ({children.length})
+        Children ({childrenScenes.length})
       </button>
     </div>
   );
@@ -144,7 +144,7 @@ const InnerSceneTreeViewer: FC<TreeProps> = ({ sceneTree, depth = 0 }) => {
 
             <ParamsViewer params={sceneTree.params} />
             <ChildrenViewer
-              children={sceneTree.children}
+              childrenScenes={sceneTree.children}
               isExpanded={isExpanded}
               onToggle={() => setIsExpanded(!isExpanded)}
               depth={depth}
