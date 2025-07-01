@@ -20,12 +20,52 @@ Requirements:
 """
 
 import uuid
-from datetime import datetime, timedelta
-from typing import Any, Dict, List
+from typing import Dict, List, Optional, TypedDict
 
 import httpx
 
-from app_backend.stats_client import StatsClient
+from app_backend.stats_client import (
+    ClientEpochResponse,
+    ClientPolicyResponse,
+    ClientTrainingRunResponse,
+    StatsClient,
+)
+
+
+class EpochConfig(TypedDict):
+    start: int
+    end: int
+    lr: str
+    performance: str
+
+
+class TrainingRunConfig(TypedDict):
+    user: str
+    token: str
+    name: str
+    description: str
+    tags: List[str]
+    url: Optional[str]
+    algorithm: str
+    env_type: str
+    epochs: List[EpochConfig]
+
+
+class TaskSuite(TypedDict):
+    tasks: List[str]
+    metrics: List[str]
+
+
+class PolicyData(TypedDict):
+    policy: ClientPolicyResponse
+    epoch: ClientEpochResponse
+    config: EpochConfig
+    name: str
+
+
+class CreatedRunData(TypedDict):
+    run: ClientTrainingRunResponse
+    config: TrainingRunConfig
 
 
 def create_machine_token(base_url: str, user_email: str, token_name: str) -> str:
@@ -77,13 +117,13 @@ def generate_test_data():
     user3_token = create_machine_token(base_url, "charlie@example.com", "test_data_generator_charlie")
 
     # Training run configurations with rich metadata
-    training_runs_config = [
+    training_runs_config: List[TrainingRunConfig] = [
         # Alice's runs - Deep Learning experiments
         {
             "user": "alice@example.com",
             "token": user1_token,
             "name": "deep_rl_navigation_v1",
-            "description": "Deep reinforcement learning experiment for navigation tasks using PPO with curriculum learning. Focus on sparse reward environments.",
+            "description": "Deep reinforcement learning experiment for navigation tasks using PPO with curriculum.",
             "tags": ["deep-learning", "navigation", "ppo", "curriculum", "baseline"],
             "url": "https://wandb.ai/alice/deep-rl-nav/runs/nav-v1",
             "algorithm": "PPO",
@@ -98,7 +138,7 @@ def generate_test_data():
             "user": "alice@example.com",
             "token": user1_token,
             "name": "multi_agent_cooperation",
-            "description": "Multi-agent cooperation study with varying team sizes and communication protocols. Investigating emergence of coordination strategies.",
+            "description": "Multi-agent cooperation study with varying team sizes and communication protocols.",
             "tags": ["multi-agent", "cooperation", "communication", "emergence", "research"],
             "url": "https://wandb.ai/alice/multi-agent/runs/coop-v2",
             "algorithm": "MADDPG",
@@ -114,7 +154,7 @@ def generate_test_data():
             "user": "bob@example.com",
             "token": user2_token,
             "name": "hyperparameter_optimization_study",
-            "description": "Systematic hyperparameter optimization using Optuna for robotic manipulation tasks. Testing different network architectures and learning rates.",
+            "description": "Systematic hyperparameter optimization using Optuna for robotic manipulation tasks.",
             "tags": ["optimization", "manipulation", "optuna", "hyperparameters", "systematic"],
             "url": None,
             "algorithm": "SAC",
@@ -128,7 +168,7 @@ def generate_test_data():
             "user": "bob@example.com",
             "token": user2_token,
             "name": "curriculum_learning_experiment",
-            "description": "Curriculum learning approach for complex navigation environments. Progressive difficulty increase with automatic task scheduling.",
+            "description": "Curriculum learning approach for complex navigation environments.",
             "tags": ["curriculum", "navigation", "progressive", "scheduling", "adaptive"],
             "url": "https://wandb.ai/bob/curriculum/runs/nav-curr-v1",
             "algorithm": "PPO",
@@ -144,7 +184,7 @@ def generate_test_data():
             "user": "charlie@example.com",
             "token": user3_token,
             "name": "safety_constrained_rl",
-            "description": "Safety-constrained reinforcement learning with cost functions and safe exploration. Ensuring agent behavior remains within safe operational bounds.",
+            "description": "Safety-constrained reinforcement learning with cost functions and safe exploration.",
             "tags": ["safety", "constraints", "exploration", "cost-functions", "robustness"],
             "url": "https://wandb.ai/charlie/safety-rl/runs/safe-v1",
             "algorithm": "CPO",
@@ -158,7 +198,7 @@ def generate_test_data():
             "user": "charlie@example.com",
             "token": user3_token,
             "name": "adversarial_robustness_test",
-            "description": "Testing agent robustness against adversarial perturbations and domain shift. Evaluating generalization capabilities across different environments.",
+            "description": "Testing agent robustness against adversarial perturbations and domain shift.",
             "tags": ["robustness", "adversarial", "generalization", "domain-shift", "testing"],
             "url": None,
             "algorithm": "TRPO",
@@ -171,7 +211,7 @@ def generate_test_data():
     ]
 
     # Evaluation suites and tasks for comprehensive testing
-    eval_suites = {
+    eval_suites: Dict[str, TaskSuite] = {
         "navigation": {
             "tasks": ["maze_easy", "maze_hard", "obstacle_course", "multi_goal", "dynamic_obstacles"],
             "metrics": ["reward", "success_rate", "path_efficiency", "collision_count", "time_to_goal"],
@@ -196,7 +236,7 @@ def generate_test_data():
 
     print("🏃 Creating training runs and episodes...")
 
-    created_runs = []
+    created_runs: List[CreatedRunData] = []
 
     for run_config in training_runs_config:
         print(f"  📊 Creating training run: {run_config['name']} for {run_config['user']}")
@@ -224,8 +264,8 @@ def generate_test_data():
             created_runs.append({"run": training_run, "config": run_config})
 
             # Create epochs and policies for this run
-            policies = []
-            for i, epoch_config in enumerate(run_config["epochs"]):
+            policies: List[PolicyData] = []
+            for _i, epoch_config in enumerate(run_config["epochs"]):
                 epoch = stats_client.create_epoch(
                     run_id=training_run.id,
                     start_training_epoch=epoch_config["start"],
@@ -299,13 +339,10 @@ def generate_test_data():
                         difficulty_factor = task_difficulty.get(task, 0.8)
 
                         # Generate metrics for this episode
-                        agent_metrics = {}
+                        agent_metrics: Dict[int, Dict[str, float]] = {}
                         num_agents = 2 if suite_name == "cooperation" else 1
 
                         for agent_id in range(num_agents):
-                            # Group assignment for multi-group analysis
-                            group_id = 1 if agent_id == 0 else 2
-
                             metrics = {}
                             for metric in suite["metrics"]:
                                 if metric == "reward":
