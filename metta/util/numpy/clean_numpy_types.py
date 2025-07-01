@@ -1,7 +1,8 @@
 import numpy as np
+from typing_extensions import Any
 
 
-def clean_numpy_types(obj):
+def clean_numpy_types(obj: Any) -> Any:
     """Recursively convert numpy types to Python native types."""
     if isinstance(obj, np.ndarray):
         return obj.item() if obj.size == 1 else obj.tolist()

@@ -93,9 +93,9 @@ def test_policy_save_load_without_pydantic():
         # Verify the loaded policy has the expected structure
         assert hasattr(loaded_policy, "fc")
         assert hasattr(loaded_policy, "components")
-        assert "_core_" in loaded_policy.components
-        assert "_value_" in loaded_policy.components
-        assert "_action_" in loaded_policy.components
+        assert hasattr(loaded_policy.components, "_core_")
+        assert hasattr(loaded_policy.components, "_value_")
+        assert hasattr(loaded_policy.components, "_action_")
 
     finally:
         # Cleanup
