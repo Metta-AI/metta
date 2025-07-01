@@ -11,10 +11,11 @@ import datetime
 import tempfile
 import uuid
 from pathlib import Path
-from typing import List, Tuple
+from typing import List, Tuple, cast
 
 import pytest
 
+from metta.agent.policy_record import PolicyRecord
 from metta.eval.eval_stats_db import EvalStatsDB
 from tests.fixtures import MockPolicyRecord
 
@@ -156,7 +157,7 @@ def test_empty_database():
         db = EvalStatsDB(Path(tmp) / "empty.duckdb")
         policy = MockPolicyRecord("test", 1)
 
-        assert db.get_average_metric_by_filter("reward", policy) is None
+        assert db.get_average_metric_by_filter("reward", cast(PolicyRecord, policy)) is None
         assert db.potential_samples_for_metric("test", 1) == 0
         db.close()
 

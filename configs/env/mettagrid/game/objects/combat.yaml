@@ -1,0 +1,18 @@
+armory:
+  type_id: 9
+  input_ore.red: 3
+  output_armor: 1
+  max_output: 5
+  conversion_ticks: 1
+  cooldown: 10
+  initial_items: 1
+
+lasery:
+  type_id: 10
+  input_ore.red: 1
+  input_battery.red: 2
+  output_laser: 1
+  max_output: 5
+  conversion_ticks: 1
+  cooldown: 10
+  initial_items: 1
