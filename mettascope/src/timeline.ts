@@ -38,7 +38,6 @@ export function onScrubberChange(event: MouseEvent) {
 export function onTraceMinimapChange(event: MouseEvent) {
   let mouseX = event.clientX
   let step = getStepFromX(mouseX)
-  console.log('click on trace window, step:', step)
   ui.tracePanel.panPos.setX(-step * Common.TRACE_WIDTH)
 }
 
@@ -48,9 +47,7 @@ onEvent('mousedown', '#timeline-panel', (target: HTMLElement, e: Event) => {
   let event = e as MouseEvent
   let mouseY = event.clientY - target.getBoundingClientRect().top
   let mouseX = event.clientX
-  console.log('mouseY', mouseY)
   if (mouseY > 34 && mouseY < 51) {
-    console.log('click on scrubber')
     ui.mainScrubberDown = true
     onScrubberChange(event)
   } else {
@@ -80,7 +77,6 @@ export function drawTimeline(panel: PanelInfo) {
   }
 
   if (ui.mouseDoubleClick) {
-    console.log('mouse double click')
     let step = getStepFromX(ui.mousePos.x())
     ui.tracePanel.panPos.setX(-step * Common.TRACE_WIDTH)
     requestFrame()
