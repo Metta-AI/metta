@@ -179,38 +179,20 @@ class MettaTrainer:
             logging.info(f"LOADED {policy_record.uri}")
             self.latest_saved_policy_record = policy_record
 
-            # Models loaded via torch.package have modified class names (prefixed with <torch_package_N>)
-            # which prevents them from being saved again. We work around this by creating a fresh
-            # instance of the policy class and copying the state dict, allowing successful re-saving.
-            # TODO: Remove this workaround when checkpointing refactor is complete
-            loaded_policy = policy_record.policy
+            # Get the policy from the record
+            self.policy = policy_record.policy
 
             # Restore original_feature_mapping from metadata if available
             if (
-                hasattr(loaded_policy, "restore_original_feature_mapping")
+                hasattr(self.policy, "restore_original_feature_mapping")
                 and "original_feature_mapping" in policy_record.metadata
             ):
-                loaded_policy.restore_original_feature_mapping(policy_record.metadata["original_feature_mapping"])
+                self.policy.restore_original_feature_mapping(policy_record.metadata["original_feature_mapping"])
 
-            self._initialize_policy_to_environment(loaded_policy, metta_grid_env, self.device)
-
-            fresh_policy_record = policy_store.create_empty_policy_record(policy_record.name)
-            fresh_policy_record.metadata = policy_record.metadata
-
-            fresh_policy = fresh_policy_record.policy
-
-            # Also restore original_feature_mapping to fresh policy
-            if (
-                hasattr(fresh_policy, "restore_original_feature_mapping")
-                and "original_feature_mapping" in policy_record.metadata
-            ):
-                fresh_policy.restore_original_feature_mapping(policy_record.metadata["original_feature_mapping"])
-
-            self._initialize_policy_to_environment(fresh_policy, metta_grid_env, self.device)
-            fresh_policy.load_state_dict(loaded_policy.state_dict(), strict=False)
+            # Initialize the policy to the environment
+            self._initialize_policy_to_environment(self.policy, metta_grid_env, self.device)
 
             self.initial_policy_record = policy_record
-            self.policy = fresh_policy
 
         else:
             # In distributed mode, handle policy creation/loading differently
@@ -587,10 +569,6 @@ class MettaTrainer:
             eval_scores=category_scores_map,
         )
 
-        # Create a policy record and assign our current policy to it
-        policy_record = self.policy_store.create_empty_policy_record(name)
-        policy_record.metadata = metadata
-
         # Extract the actual policy module from distributed wrapper if needed
         if isinstance(self.policy, DistributedMettaAgent):
             policy_to_save = self.policy.module
@@ -606,27 +584,13 @@ class MettaTrainer:
                     f"Saving original_feature_mapping with {len(original_feature_mapping)} features to metadata"
                 )
 
-        # Models loaded via torch.package have modified class names (prefixed with <torch_package_N>)
-        # which prevents them from being saved again. We work around this by creating a fresh
-        # instance of the policy class and copying the state dict, allowing successful re-saving.
-        # TODO: Remove this workaround when checkpointing refactor is complete
-        logger.info("Creating a fresh policy instance for torch.package to save")
-        fresh_policy_record = self.policy_store.create_empty_policy_record(name)
-        # copy in the values we want to keep
-        fresh_policy_record.metadata = metadata
+        # Create a policy record and assign our current policy to it
+        policy_record = self.policy_store.create_empty_policy_record(name)
+        policy_record.metadata = metadata
+        policy_record.policy = policy_to_save
 
-        # Create a fresh policy using make_policy instead of accessing the property
-        fresh_policy = make_policy(metta_grid_env, self.cfg)
-
-        # Directly set the policy on the record to avoid file loading
-        fresh_policy_record.policy = fresh_policy
-
-        # Initialize the fresh policy to the environment
-        self._initialize_policy_to_environment(fresh_policy, metta_grid_env, self.device)
-        fresh_policy.load_state_dict(policy_to_save.state_dict(), strict=False)
-
-        # Save the fresh policy
-        self.latest_saved_policy_record = self.policy_store.save(fresh_policy_record)
+        # Save the policy
+        self.latest_saved_policy_record = self.policy_store.save(policy_record)
         logger.info(f"Successfully saved policy at epoch {self.epoch}")
 
         # Clean up old policies to prevent disk space issues
