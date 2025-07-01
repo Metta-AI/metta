@@ -16,10 +16,10 @@ from heavyball import ForeachMuon
 from omegaconf import DictConfig
 
 from app_backend.stats_client import StatsClient
-from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent, make_policy
+from metta.agent.metta_agent import DistributedMettaAgent, make_policy
+from metta.agent.policy_metadata import PolicyMetadata
 from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyRecord, PolicyStore
-from metta.agent.util.debug import assert_shape
 from metta.common.memory_monitor import MemoryMonitor
 from metta.common.stopwatch import Stopwatch, with_instance_timer
 from metta.common.util.heartbeat import record_heartbeat
@@ -165,41 +165,39 @@ class MettaTrainer:
         actions_names = metta_grid_env.action_names
         actions_max_params = metta_grid_env.max_action_args
 
-        # Load or create policy with proper distributed coordination
+        # Load or create policy with distributed coordination
         policy_record = self._load_policy(checkpoint, policy_store)
 
         if policy_record is not None:
             logging.info(f"LOADED {policy_record.uri}")
             self.latest_saved_policy_record = policy_record
-
-            # Models loaded via torch.package have modified class names (prefixed with <torch_package_N>)
-            # which prevents them from being saved again. We work around this by creating a fresh
-            # instance of the policy class and copying the state dict, allowing successful re-saving.
-            # TODO: Remove this workaround when checkpointing refactor is complete
-            loaded_policy = policy_record.policy
-            loaded_policy.activate_actions(actions_names, actions_max_params, self.device)
-
-            fresh_policy_record = policy_store.create_empty_policy_record(policy_record.name)
-            fresh_policy_record.metadata = policy_record.metadata
-
-            fresh_policy = fresh_policy_record.policy
-            fresh_policy.activate_actions(actions_names, actions_max_params, self.device)
-            fresh_policy.load_state_dict(loaded_policy.state_dict(), strict=False)
-
-            self.initial_policy_record = fresh_policy_record
-            self.policy = fresh_policy
-
-        else:
-            if self._master:
-                policy_record = self._create_and_save_policy_record(policy_store, metta_grid_env)
-            else:
-                policy_record = self._wait_for_policy_record(policy_store)
-
             self.initial_policy_record = policy_record
             self.policy = policy_record.policy
             self.policy.activate_actions(actions_names, actions_max_params, self.device)
+        else:
+            # In distributed mode, handle policy creation/loading differently
+            if torch.distributed.is_initialized() and not self._master:
+                # Non-master ranks wait for master to create and save the policy
+                default_policy_path = os.path.join(
+                    trainer_cfg.checkpoint.checkpoint_dir, policy_store.make_model_name(0)
+                )
+                logger.info(f"Non-master rank waiting for policy to be created at {default_policy_path}")
 
-        assert self.policy is not None, "Failed to obtain policy"
+                policy_record = self._wait_for_policy_record(default_policy_path)
+                if policy_record is None:
+                    raise RuntimeError(f"Failed to load policy from {default_policy_path} after waiting")
+
+                self.initial_policy_record = policy_record
+                self.latest_saved_policy_record = policy_record
+                self.policy = policy_record.policy
+                self.policy.activate_actions(actions_names, actions_max_params, self.device)
+            else:
+                # Master creates and saves new policy
+                policy_record = self._create_and_save_policy_record(policy_store, metta_grid_env)
+                self.initial_policy_record = policy_record
+                self.latest_saved_policy_record = policy_record
+                self.policy = policy_record.policy
+                self.policy.activate_actions(actions_names, actions_max_params, self.device)
 
         logging.info(f"USING {self.latest_saved_policy_record.uri}")
 
@@ -240,40 +238,6 @@ class MettaTrainer:
             weight_decay=trainer_cfg.optimizer.weight_decay,
         )
 
-        # validate that policy matches environment
-        if isinstance(self.policy, MettaAgent):
-            agent = self.policy
-        elif isinstance(self.policy, DistributedMettaAgent):
-            agent = self.policy.module
-        else:
-            raise ValueError(f"Policy must be of type MettaAgent or DistributedMettaAgent, got {type(self.policy)}")
-
-        _env_shape = metta_grid_env.single_observation_space.shape
-        environment_shape = tuple(_env_shape) if isinstance(_env_shape, list) else _env_shape
-
-        # The rest of the validation logic continues to work with duck typing
-        if hasattr(agent, "components"):
-            found_match = False
-            for component_name, component in agent.components.items():
-                if hasattr(component, "_obs_shape"):
-                    found_match = True
-                    component_shape = (
-                        tuple(component._obs_shape) if isinstance(component._obs_shape, list) else component._obs_shape
-                    )
-                    if component_shape != environment_shape:
-                        raise ValueError(
-                            f"Observation space mismatch error:\n"
-                            f"[policy] component_name: {component_name}\n"
-                            f"[policy] component_shape: {component_shape}\n"
-                            f"environment_shape: {environment_shape}\n"
-                        )
-
-            if not found_match:
-                raise ValueError(
-                    "No component with observation shape found in policy. "
-                    f"Environment observation shape: {environment_shape}"
-                )
-
         self.lr_scheduler = None
         if trainer_cfg.lr_scheduler.enabled:
             self.lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
@@ -284,20 +248,8 @@ class MettaTrainer:
             try:
                 self.optimizer.load_state_dict(checkpoint.optimizer_state_dict)
                 logger.info("Successfully loaded optimizer state from checkpoint")
-            except ValueError as e:
-                if "doesn't match the size of optimizer's group" in str(e):
-                    # Extract some info about the mismatch
-                    old_params = len(checkpoint.optimizer_state_dict.get("param_groups", [{}])[0].get("params", []))
-                    new_params = sum(1 for _ in self.policy.parameters())
-                    logger.warning(
-                        f"Optimizer state dict doesn't match current model architecture. "
-                        f"Checkpoint has {old_params} parameter groups, current model has {new_params}. "
-                        "This typically happens when layers are added/removed. "
-                        "Starting with fresh optimizer state."
-                    )
-                else:
-                    # Re-raise if it's a different ValueError
-                    raise
+            except ValueError:
+                logger.warning("Optimizer state dict doesn't match. Starting with fresh optimizer state.")
 
         if wandb_run and self._master:
             # Define metrics (wandb x-axis values)
@@ -399,7 +351,6 @@ class MettaTrainer:
 
         policy = self.policy
         infos = defaultdict(list)
-        raw_infos = []  # Collect raw info for batch processing later
         experience.reset_for_rollout()
 
         while not experience.ready_for_training:
@@ -437,8 +388,11 @@ class MettaTrainer:
                 actions, selected_action_log_probs, _, value, _ = policy(o, state)
 
                 if __debug__:
-                    assert_shape(selected_action_log_probs, ("BT",), "selected_action_log_probs")
-                    assert_shape(actions, ("BT", 2), "actions")
+                    # Check for NaN/Inf values in outputs
+                    if torch.isnan(actions).any() or torch.isinf(actions).any():
+                        logger.error("NaN or Inf detected in actions!")
+                    if torch.isnan(value).any() or torch.isinf(value).any():
+                        logger.error("NaN or Inf detected in values!")
 
                 # Store LSTM state for performance
                 lstm_state_to_store = None
@@ -466,25 +420,22 @@ class MettaTrainer:
             )
 
             # At this point, infos contains lists of values collected across:
-            # 1. Multiple vectorized environments managed by this GPU's vecenv
-            # 2. Multiple rollout steps (until experience buffer is full)
-            #
-            # - Some stats (like "episode/reward") appear only when episodes complete
-            # - Other stats might appear every step
-            #
-            # These will later be averaged in _process_stats() to get mean values
-            # across all environments on this GPU. Stats from other GPUs (if using
-            # distributed training) are handled separately and not aggregated here.
+            # 1. All agents in the environment
+            # 2. All rollout steps
+            # Each info is a dict mapping metric names to values.
+            # We need to flatten these into arrays for aggregation.
+            # This happens later, after the rollout is complete (see below).
             if info:
-                raw_infos.extend(info)
+                # Process info dicts immediately to avoid memory accumulation
+                for i in info:
+                    for k, v in unroll_nested_dict(i):
+                        # Detach any tensors to prevent gradient accumulation
+                        if torch.is_tensor(v):
+                            v = v.detach().cpu().item() if v.numel() == 1 else v.detach().cpu().numpy()
+                        infos[k].append(v)
 
             with self.timer("_rollout.env"):
                 self.vecenv.send(actions.cpu().numpy().astype(dtype_actions))
-
-        # Batch process info dictionaries after rollout
-        for i in raw_infos:
-            for k, v in unroll_nested_dict(i):
-                infos[k].append(v)
 
         # Batch process stats more efficiently
         for k, v in infos.items():
@@ -647,6 +598,7 @@ class MettaTrainer:
                 self.losses.entropy_sum += entropy_loss.item()
                 self.losses.approx_kl_sum += approx_kl.item()
                 self.losses.clipfrac_sum += clipfrac.item()
+                self.losses.l2_reg_loss_sum += l2_reg_loss.item() if torch.is_tensor(l2_reg_loss) else l2_reg_loss
                 self.losses.l2_init_loss_sum += l2_init_loss.item() if torch.is_tensor(l2_init_loss) else l2_init_loss
                 self.losses.ks_action_loss_sum += ks_action_loss.item()
                 self.losses.ks_value_loss_sum += ks_value_loss.item()
@@ -729,6 +681,10 @@ class MettaTrainer:
         if not self._should_run(self.trainer_cfg.checkpoint.checkpoint_interval, force):
             return
 
+        # Only master saves policies
+        if not self._master:
+            return
+
         name = self.policy_store.make_model_name(self.epoch)
 
         metta_grid_env: MettaGridEnv = self.vecenv.driver_env  # type: ignore
@@ -740,39 +696,69 @@ class MettaTrainer:
         category_score_values = [v for k, v in category_scores_map.items()]
         overall_score = sum(category_score_values) / len(category_score_values) if category_score_values else 0
 
-        metadata = {
-            "agent_step": self.agent_step,
-            "epoch": self.epoch,
-            "run": self.cfg.run,
-            "action_names": metta_grid_env.action_names,
-            "generation": self.current_policy_generation,
-            "initial_uri": self.initial_policy_uri,
-            "train_time": training_time,
-            "score": overall_score,
-            "eval_scores": category_scores_map,
-        }
+        metadata = PolicyMetadata(
+            agent_step=self.agent_step,
+            epoch=self.epoch,
+            run=self.cfg.run,
+            action_names=metta_grid_env.action_names,
+            generation=self.current_policy_generation,
+            initial_uri=self.initial_policy_uri,
+            train_time=training_time,
+            score=overall_score,
+            eval_scores=category_scores_map,
+        )
 
-        if isinstance(self.policy, MettaAgent):
-            policy_to_save = self.policy
-        elif isinstance(self.policy, DistributedMettaAgent):
-            policy_to_save = self.policy.module
+        # Create a policy record and assign our current policy to it
+        policy_record = self.policy_store.create_empty_policy_record(name)
+        policy_record.metadata = metadata
+
+        # Extract the actual policy module from distributed wrapper if needed
+        if isinstance(self.policy, DistributedMettaAgent):
+            policy_record.policy = self.policy.module
         else:
-            raise ValueError(f"Policy must be of type MettaAgent or DistributedMettaAgent, got {type(self.policy)}")
+            policy_record.policy = self.policy
 
-        # Models loaded via torch.package have modified class names (prefixed with <torch_package_N>)
-        # which prevents them from being saved again. We work around this by creating a fresh
-        # instance of the policy class and copying the state dict, allowing successful re-saving.
-        # TODO: Remove this workaround when checkpointing refactor is complete
-        logger.info("Creating a fresh policy instance for torch.package to save")
-        fresh_policy_record = self.policy_store.create_empty_policy_record(name)
-        # copy in the values we want to keep
-        fresh_policy_record.metadata = metadata
-        fresh_policy_record.policy = policy_to_save
-        policy_to_save.activate_actions(metta_grid_env.action_names, metta_grid_env.max_action_args, self.device)
-        policy_to_save.load_state_dict(self.policy.state_dict(), strict=False)
+        # Save the policy record
+        self.latest_saved_policy_record = self.policy_store.save(policy_record)
+        logger.info(f"Successfully saved policy at epoch {self.epoch}")
 
-        self.latest_saved_policy_record = self.policy_store.save(fresh_policy_record)
-        return self.latest_saved_policy_record
+        # Clean up old policies to prevent disk space issues
+        if self.epoch % 10 == 0:  # Clean up every 10 epochs
+            self._cleanup_old_policies(keep_last_n=5)
+
+    def _wait_for_policy_record(self, policy_path: str, timeout: int = 300) -> PolicyRecord | None:
+        """Wait for a policy file to be created by the master rank.
+
+        Args:
+            policy_path: Path to the policy file to wait for
+            timeout: Maximum time to wait in seconds
+
+        Returns:
+            PolicyRecord if found, None if timeout
+        """
+        if self._master:
+            # Master doesn't need to wait
+            return None
+
+        logger.info(f"Non-master rank waiting for policy at {policy_path}")
+        start_time = time.time()
+
+        while not os.path.exists(policy_path):
+            time.sleep(1)
+            elapsed = time.time() - start_time
+
+            if elapsed > timeout:
+                logger.error(f"Timeout after {timeout}s waiting for policy at {policy_path}")
+                return None
+
+            if int(elapsed) % 10 == 0:  # Log every 10 seconds
+                logger.info(f"Still waiting for policy... ({elapsed:.0f}s elapsed)")
+
+        # File exists, but may still be writing. Wait a bit more to ensure it's complete.
+        time.sleep(2)
+
+        logger.info(f"Policy file found after {time.time() - start_time:.1f}s, loading...")
+        return self.policy_store.policy_record(policy_path)
 
     def _maybe_upload_policy_record_to_wandb(self, force: bool = False) -> str | None:
         """Upload policy to wandb if on wandb interval"""
@@ -1045,8 +1031,6 @@ class MettaTrainer:
         vtrace_rho_clip,
         vtrace_c_clip,
     ):
-        """CUDA kernel for puffer advantage with automatic CPU fallback."""
-
         # Get correct device for this process
         device = torch.device(self.device) if isinstance(self.device, str) else self.device
 
@@ -1117,23 +1101,19 @@ class MettaTrainer:
 
     @property
     def initial_policy_uri(self) -> str | None:
-        """Get the URI of the initial policy, if any."""
+        """Get the URI of the initial policy used to start training."""
         if self.initial_policy_record is None:
             return None
         return self.initial_policy_record.uri
 
     @property
     def current_policy_generation(self) -> int:
-        """Get the generation number for new policies saved in this training run.
-        This is the initial policy's generation + 1, representing that we're
-        training the next generation from that starting point.
-        """
+        """Get the current generation number of the policy."""
         if self.initial_policy_record is None:
             return 0
         return self.initial_policy_record.metadata.get("generation", 0) + 1
 
     def _make_experience_buffer(self):
-        """Create experience buffer with tensor-based storage for prioritized sampling."""
         vecenv = self.vecenv
         trainer_cfg = self.trainer_cfg
 
@@ -1242,34 +1222,19 @@ class MettaTrainer:
         return None
 
     def _create_and_save_policy_record(self, policy_store: PolicyStore, env: MettaGridEnv) -> PolicyRecord:
-        """Create a new policy. Only master should call this."""
-        if not self._master:
-            raise RuntimeError("Only master process should create and save a policy record")
-
+        """Create a new policy and save it."""
         name = policy_store.make_model_name(self.epoch)
         logger.info(f"Creating new policy record: {name}")
+
+        # Create the policy record with a new policy instance
         pr = policy_store.create_empty_policy_record(name)
         pr.policy = make_policy(env, self.cfg)
-        policy_store.save(pr)
-        self.latest_saved_policy_record = pr
 
-        return self.latest_saved_policy_record
+        # Save the policy record
+        saved_pr = policy_store.save(pr)
+        logger.info(f"Successfully saved initial policy to {saved_pr.uri}")
 
-    def _wait_for_policy_record(self, policy_store, timeout_attempts: int = 10) -> PolicyRecord:
-        """Non-master processes wait for master to create policy."""
-        if self._master:
-            raise RuntimeError("Master process should not wait for policy")
-
-        policy_path = os.path.join(self.trainer_cfg.checkpoint.checkpoint_dir, policy_store.make_model_name(0))
-
-        for attempt in range(timeout_attempts):
-            if os.path.exists(policy_path):
-                logger.info(f"Found policy created by master: {policy_path}")
-                return policy_store.policy_record(policy_path)
-            logger.info(f"Waiting for master to create policy... attempt {attempt + 1}/{timeout_attempts}")
-            time.sleep(5)
-
-        raise RuntimeError(f"Timeout: Master failed to create policy at {policy_path}")
+        return saved_pr
 
     def _maybe_compute_grad_stats(self, force=False):
         """Compute and store gradient statistics if on interval."""
@@ -1305,6 +1270,37 @@ class MettaTrainer:
                 f"var={self.grad_stats['grad/variance']:.2e}, "
                 f"norm={self.grad_stats['grad/norm']:.2e}"
             )
+
+    def _cleanup_old_policies(self, keep_last_n: int = 5):
+        """Clean up old saved policies to prevent memory accumulation.
+
+        Args:
+            keep_last_n: Number of most recent policies to keep
+        """
+        if not self._master or not hasattr(self, "policy_store"):
+            return
+
+        try:
+            # Get checkpoint directory
+            checkpoint_dir = Path(self.trainer_cfg.checkpoint.checkpoint_dir)
+            if not checkpoint_dir.exists():
+                return
+
+            # List all policy files
+            policy_files = sorted(checkpoint_dir.glob("policy_*.pt"))
+
+            # Keep only the most recent ones
+            if len(policy_files) > keep_last_n:
+                files_to_remove = policy_files[:-keep_last_n]
+                for file_path in files_to_remove:
+                    try:
+                        file_path.unlink()
+                        logger.info(f"Removed old policy file: {file_path}")
+                    except Exception as e:
+                        logger.warning(f"Failed to remove old policy file {file_path}: {e}")
+
+        except Exception as e:
+            logger.warning(f"Error during policy cleanup: {e}")
 
 
 class AbortingTrainer(MettaTrainer):
