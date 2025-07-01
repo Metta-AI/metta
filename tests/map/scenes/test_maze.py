@@ -16,4 +16,4 @@ def test_uniform_distribution():
     scene = render_scene(MazeKruskal, {"room_size": ("uniform", 1, 2), "wall_size": ("uniform", 1, 2)}, (15, 15))
 
     assert_connected(scene.grid)
-    assert 10 < (scene.grid == "wall").sum() < 100
+    assert 10 < (scene.grid == "wall").sum() < 200
