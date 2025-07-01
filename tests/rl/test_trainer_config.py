@@ -146,7 +146,7 @@ class TestTypedConfigs:
         missing_field_config = valid_optimizer_config.copy()
         del missing_field_config["learning_rate"]
         optimizer_cfg = OptimizerConfig.model_validate(missing_field_config)
-        assert math.isclose(optimizer_cfg.learning_rate, 0.0004573146765703167)  # default value
+        assert math.isclose(optimizer_cfg.learning_rate, 0.019)  # default value
 
         # extra field
         with pytest.raises(ValidationError) as err:
@@ -167,9 +167,9 @@ class TestTypedConfigs:
         trainer_config = parse_trainer_config(make_cfg(incomplete_config))
 
         # Check that defaults were applied
-        assert trainer_config.optimizer.beta1 == 0.9
-        assert trainer_config.optimizer.beta2 == 0.999
-        assert trainer_config.optimizer.eps == 1e-12
+        assert trainer_config.optimizer.beta1 == 0.89
+        assert trainer_config.optimizer.beta2 == 0.96
+        assert trainer_config.optimizer.eps == 1.4e-7
         assert trainer_config.optimizer.weight_decay == 0
 
     def test_trainer_config_to_dictconfig_conversion(self):
