@@ -8,6 +8,24 @@ in the environment.
 
 **Total metrics in this section:** 1120
 
+## Metric Suffixes
+
+This section contains metrics with the following statistical suffixes:
+
+- **`.activity_rate`** - Frequency during active period only (updates per step between first and last occurrence)
+  - Formula: `(update_count - 1) / (last_step - first_step)`
+- **`.avg`** - Average value of the metric across updates within an episode
+  - Formula: `sum(values) / update_count`
+- **`.first_step`** - First step where this metric was recorded
+- **`.last_step`** - Last step where this metric was recorded
+- **`.max`** - Maximum value observed during the episode
+- **`.min`** - Minimum value observed during the episode
+- **`.rate`** - Frequency of updates (updates per step over entire episode)
+  - Formula: `update_count / current_step`
+- **`.std_dev`** - Standard deviation across episodes (variance measure)
+  - Formula: `sqrt(sum((x - mean)²) / n)`
+- **`.updates`** - Total number of times this metric was updated
+
 ## Subsections
 
 ### General Metrics

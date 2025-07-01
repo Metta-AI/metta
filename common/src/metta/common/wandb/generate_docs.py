@@ -294,17 +294,8 @@ def group_related_metrics(metrics):
         # Find the base metric name by removing all known suffixes
         base = metric_path
 
-        # List of statistic suffixes to check, ordered by specificity
-        stat_suffixes = [
-            ".activity_rate.std_dev",
-            ".avg.std_dev",
-            ".std_dev.std_dev",
-            ".min.std_dev",
-            ".max.std_dev",
-            ".first_step.std_dev",
-            ".last_step.std_dev",
-            ".rate.std_dev",
-            ".updates.std_dev",
+        # List of base statistic suffixes
+        base_suffixes = [
             ".activity_rate",
             ".avg",
             ".std_dev",
@@ -315,6 +306,9 @@ def group_related_metrics(metrics):
             ".rate",
             ".updates",
         ]
+
+        # Create list with .std_dev variants first (more specific patterns first)
+        stat_suffixes = [s + ".std_dev" for s in base_suffixes] + base_suffixes
 
         # Remove the suffix to find the base
         for suffix in stat_suffixes:
@@ -345,9 +339,61 @@ def generate_section_readme(section, subsections, output_dir, descriptions):
 
 **Total metrics in this section:** {len(all_metrics)}
 
-## Subsections
-
 """
+
+    # Check if we need to add suffix explanations
+    # Look for common suffixes in the metrics
+    suffixes_found = set()
+    suffix_patterns = [
+        ".avg",
+        ".std_dev",
+        ".min",
+        ".max",
+        ".first_step",
+        ".last_step",
+        ".rate",
+        ".updates",
+        ".activity_rate",
+    ]
+
+    for metric in all_metrics:
+        for suffix in suffix_patterns:
+            if suffix in metric:
+                suffixes_found.add(suffix)
+
+    # Add suffix explanations if any are found
+    if suffixes_found:
+        content += "## Metric Suffixes\n\n"
+        content += "This section contains metrics with the following statistical suffixes:\n\n"
+
+        suffix_explanations = {
+            ".avg": "**`.avg`** - Average value of the metric across updates within an episode\n "
+            " - Formula: `sum(values) / update_count`",
+            ".std_dev": "**`.std_dev`** - Standard deviation across episodes (variance measure)\n "
+            " - Formula: `sqrt(sum((x - mean)²) / n)`",
+            ".min": "**`.min`** - Minimum value observed during the episode",
+            ".max": "**`.max`** - Maximum value observed during the episode",
+            ".first_step": "**`.first_step`** - First step where this metric was recorded",
+            ".last_step": "**`.last_step`** - Last step where this metric was recorded",
+            ".rate": "**`.rate`** - Frequency of updates (updates per step over entire episode)\n "
+            " - Formula: `update_count / current_step`",
+            ".updates": "**`.updates`** - Total number of times this metric was updated",
+            ".activity_rate": "**`.activity_rate`** - Frequency during active period only (updates "
+            "per step between first and last occurrence)\n  - Formula: `(update_count - 1) / (last_step - first_step)`",
+        }
+
+        for suffix in sorted(suffixes_found):
+            if suffix in suffix_explanations:
+                content += f"- {suffix_explanations[suffix]}\n"
+
+        # Add note about .std_dev variants
+        if any(".std_dev" in m for m in all_metrics if m.count(".std_dev") > 1):
+            content += "\n**Note:** Metrics ending in `.std_dev` (e.g., `.avg.std_dev`) represent the standard "
+            content += "deviation of that statistic across episodes.\n"
+
+        content += "\n"
+
+    content += "## Subsections\n\n"
 
     # Document subsections
     for subsection, metrics in sorted(subsections.items()):
