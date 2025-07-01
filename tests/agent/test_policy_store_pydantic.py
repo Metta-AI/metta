@@ -36,7 +36,12 @@ def test_policy_save_load_without_pydantic():
     cfg = OmegaConf.create(
         {
             "device": "cpu",
-            "trainer": {"checkpoint_dir": tempfile.mkdtemp()},
+            "run": "test_run",
+            "run_dir": tempfile.mkdtemp(),
+            "trainer": {
+                "checkpoint": {"checkpoint_dir": tempfile.mkdtemp()},
+                "num_workers": 1,
+            },
             "data_dir": tempfile.mkdtemp(),
         }
     )

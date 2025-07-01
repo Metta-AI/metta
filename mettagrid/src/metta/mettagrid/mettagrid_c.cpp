@@ -68,38 +68,37 @@ MettaGrid::MettaGrid(py::dict cfg, py::list map, int seed) {
 
   _action_success.resize(num_agents);
 
-  // TODO: These conversions to ActionConfig are copying. I don't want to pass python objects down further,
-  // but maybe it would be better to just do the conversion once?
-  if (cfg["actions"]["put_items"]["enabled"].cast<bool>()) {
-    _action_handlers.push_back(std::make_unique<PutRecipeItems>(cfg["actions"]["put_items"].cast<ActionConfig>()));
+  for (const auto& [action_name, action_cfg] : cfg["actions"].cast<py::dict>()) {
+    std::string action_name_str = action_name.cast<std::string>();
+    auto action_cfg_dict = action_cfg.cast<py::dict>();
+    auto action_config = ActionConfig(action_cfg_dict["enabled"].cast<bool>(),
+                                      action_cfg_dict["required_resources"].cast<std::map<InventoryItem, int>>(),
+                                      action_cfg_dict["consumed_resources"].cast<std::map<InventoryItem, int>>());
+    if (action_name_str == "put_items") {
+      _action_handlers.push_back(std::make_unique<PutRecipeItems>(action_config));
+    } else if (action_name_str == "get_items") {
+      _action_handlers.push_back(std::make_unique<GetOutput>(action_config));
+    } else if (action_name_str == "noop") {
+      _action_handlers.push_back(std::make_unique<Noop>(action_config));
+    } else if (action_name_str == "move") {
+      _action_handlers.push_back(std::make_unique<Move>(action_config));
+    } else if (action_name_str == "rotate") {
+      _action_handlers.push_back(std::make_unique<Rotate>(action_config));
+    } else if (action_name_str == "attack") {
+      // Attacks have an additional property.
+      auto attack_config =
+          AttackConfig(action_config, action_cfg_dict["defense_resources"].cast<std::map<InventoryItem, int>>());
+      _action_handlers.push_back(std::make_unique<Attack>(attack_config));
+      _action_handlers.push_back(std::make_unique<AttackNearest>(attack_config));
+    } else if (action_name_str == "swap") {
+      _action_handlers.push_back(std::make_unique<Swap>(action_config));
+    } else if (action_name_str == "change_color") {
+      _action_handlers.push_back(std::make_unique<ChangeColorAction>(action_config));
+    } else {
+      throw std::runtime_error("Unknown action: " + action_name_str);
+    }
   }
-  if (cfg["actions"]["get_items"]["enabled"].cast<bool>()) {
-    _action_handlers.push_back(std::make_unique<GetOutput>(cfg["actions"]["get_items"].cast<ActionConfig>()));
-  }
-  if (cfg["actions"]["noop"]["enabled"].cast<bool>()) {
-    _action_handlers.push_back(std::make_unique<Noop>(cfg["actions"]["noop"].cast<ActionConfig>()));
-  }
-  if (cfg["actions"]["move"]["enabled"].cast<bool>()) {
-    _action_handlers.push_back(std::make_unique<Move>(cfg["actions"]["move"].cast<ActionConfig>()));
-  }
-  if (cfg["actions"]["rotate"]["enabled"].cast<bool>()) {
-    _action_handlers.push_back(std::make_unique<Rotate>(cfg["actions"]["rotate"].cast<ActionConfig>()));
-  }
-  if (cfg["actions"]["attack"]["enabled"].cast<bool>()) {
-    _action_handlers.push_back(std::make_unique<Attack>(cfg["actions"]["attack"].cast<ActionConfig>(),
-                                                        cfg["actions"]["laser_item_id"].cast<InventoryItem>(),
-                                                        cfg["actions"]["armor_item_id"].cast<InventoryItem>()));
-    _action_handlers.push_back(std::make_unique<AttackNearest>(cfg["actions"]["attack"].cast<ActionConfig>(),
-                                                               cfg["actions"]["laser_item_id"].cast<InventoryItem>(),
-                                                               cfg["actions"]["armor_item_id"].cast<InventoryItem>()));
-  }
-  if (cfg["actions"]["swap"]["enabled"].cast<bool>()) {
-    _action_handlers.push_back(std::make_unique<Swap>(cfg["actions"]["swap"].cast<ActionConfig>()));
-  }
-  if (cfg["actions"]["change_color"]["enabled"].cast<bool>()) {
-    _action_handlers.push_back(
-        std::make_unique<ChangeColorAction>(cfg["actions"]["change_color"].cast<ActionConfig>()));
-  }
+
   init_action_handlers();
 
   auto object_configs = cfg["objects"].cast<py::dict>();
@@ -169,7 +168,8 @@ MettaGrid::MettaGrid(py::dict cfg, py::list map, int seed) {
         converter->set_event_manager(_event_manager.get());
         converter->stats.set_environment(this);
       } else if (object_type == "agent") {
-        Agent* agent = MettaGrid::create_agent(r, c, object_cfg);
+        auto agent_cfg = _create_agent_config(object_cfg);
+        Agent* agent = new Agent(r, c, agent_cfg);
         _grid->add_object(agent);
         agent->agent_id = _agents.size();
         agent->stats.set_environment(this);
@@ -689,7 +689,7 @@ py::list MettaGrid::inventory_item_names_py() {
   return py::cast(inventory_item_names);
 }
 
-Agent* MettaGrid::create_agent(int r, int c, const py::dict& agent_group_cfg_py) {
+AgentConfig MettaGrid::_create_agent_config(const py::dict& agent_group_cfg_py) {
   unsigned char freeze_duration = agent_group_cfg_py["freeze_duration"].cast<unsigned char>();
   float action_failure_penalty = agent_group_cfg_py["action_failure_penalty"].cast<float>();
   std::map<InventoryItem, uint8_t> max_items_per_type =
@@ -699,19 +699,17 @@ Agent* MettaGrid::create_agent(int r, int c, const py::dict& agent_group_cfg_py)
   std::map<InventoryItem, float> resource_reward_max =
       agent_group_cfg_py["resource_reward_max"].cast<std::map<InventoryItem, float>>();
   std::string group_name = agent_group_cfg_py["group_name"].cast<std::string>();
-  unsigned int group_id = agent_group_cfg_py["group_id"].cast<unsigned int>();
+  unsigned char group_id = agent_group_cfg_py["group_id"].cast<unsigned char>();
   TypeId type_id = agent_group_cfg_py["type_id"].cast<TypeId>();
-  return new Agent(r,
-                   c,
-                   freeze_duration,
-                   action_failure_penalty,
-                   max_items_per_type,
-                   resource_rewards,
-                   resource_reward_max,
-                   group_name,
-                   group_id,
-                   inventory_item_names,
-                   type_id);
+  return AgentConfig{group_name,
+                     group_id,
+                     freeze_duration,
+                     action_failure_penalty,
+                     max_items_per_type,
+                     resource_rewards,
+                     resource_reward_max,
+                     inventory_item_names,
+                     type_id};
 }
 
 py::array_t<unsigned int> MettaGrid::get_agent_groups() const {
