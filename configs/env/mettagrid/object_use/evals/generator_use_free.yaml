@@ -10,7 +10,7 @@ game:
       cooldown: 255
   agent:
     rewards:
-      battery.red: 1
+      battery_red: 1
   map_builder:
     objects:
       generator_red: 1
