@@ -172,13 +172,13 @@ TEST_F(MettaGridCppTest, AttackAction) {
   grid.add_object(target);
 
   // Give attacker a laser
-  attacker->update_inventory(TestItems::LASER, 1);
-  EXPECT_EQ(attacker->inventory[TestItems::LASER], 1);
+  attacker->update_inventory(TestItems::LASER, 2);
+  EXPECT_EQ(attacker->inventory[TestItems::LASER], 2);
 
-  // Give target some items
-  target->update_inventory(TestItems::ORE, 2);
+  // Give target some items and armor
+  target->update_inventory(TestItems::ARMOR, 5);
   target->update_inventory(TestItems::HEART, 3);
-  EXPECT_EQ(target->inventory[TestItems::ORE], 2);
+  EXPECT_EQ(target->inventory[TestItems::ARMOR], 5);
   EXPECT_EQ(target->inventory[TestItems::HEART], 3);
 
   // Verify attacker orientation
@@ -186,24 +186,37 @@ TEST_F(MettaGridCppTest, AttackAction) {
 
   // Create attack action handler
   ActionConfig attack_cfg;
-  Attack attack(attack_cfg, TestItems::LASER, TestItems::ARMOR);
+  std::map<InventoryItem, int> attack_resources;
+  std::map<InventoryItem, int> defense_resources;
+  attack_resources[TestItems::LASER] = 1;
+  // In this case, defense takes 3 armor!
+  defense_resources[TestItems::ARMOR] = 3;
+  Attack attack(attack_cfg, attack_resources, defense_resources);
   attack.init(&grid);
 
   // Perform attack (arg 5 targets directly in front)
   bool success = attack.handle_action(attacker->id, 5);
+  // Hitting a target with armor counts as success
   EXPECT_TRUE(success);
 
-  // Verify laser was consumed
-  EXPECT_EQ(attacker->inventory[TestItems::LASER], 0);
+  // Verify that the combat material was consumed
+  EXPECT_EQ(attacker->inventory[TestItems::LASER], 1);
+  EXPECT_EQ(target->inventory[TestItems::ARMOR], 2);
 
-  // Verify target was frozen
-  EXPECT_GT(target->frozen, 0);
+  // Verify target was not frozen or robbed
+  EXPECT_EQ(target->frozen, 0);
+  EXPECT_EQ(target->inventory[TestItems::HEART], 3);
+
+  // Attack again, now that armor is gone
+  success = attack.handle_action(attacker->id, 5);
+  EXPECT_TRUE(success);
 
   // Verify target's inventory was stolen
-  EXPECT_EQ(target->inventory[TestItems::ORE], 0);
   EXPECT_EQ(target->inventory[TestItems::HEART], 0);
-  EXPECT_EQ(attacker->inventory[TestItems::ORE], 2);
   EXPECT_EQ(attacker->inventory[TestItems::HEART], 3);
+  // Humorously, the defender's armor was also stolen!
+  EXPECT_EQ(target->inventory[TestItems::ARMOR], 0);
+  EXPECT_EQ(attacker->inventory[TestItems::ARMOR], 2);
 }
 
 TEST_F(MettaGridCppTest, PutRecipeItems) {
