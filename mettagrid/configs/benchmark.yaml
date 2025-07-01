@@ -109,11 +109,6 @@ game:
       sprite: 6
       props: {}
 
-  diversity_bonus:
-    enabled: false
-    similarity_coef: 0.5
-    diversity_coef: 0.5
-
   objects:
     altar:
       type_id: 8

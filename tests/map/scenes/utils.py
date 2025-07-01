@@ -55,7 +55,7 @@ def is_connected(grid: MapGrid):
             nr, nc = r + dr, c + dc
 
             # Check bounds and if it's an empty cell we haven't visited
-            if 0 <= nr < height and 0 <= nc < width and (nr, nc) not in visited and is_empty(grid[nr, nc]):
+            if 0 <= nr < height and 0 <= nc < width and (nr, nc) not in visited and is_empty(str(grid[nr, nc])):
                 visited.add((nr, nc))
                 queue.append((nr, nc))
 

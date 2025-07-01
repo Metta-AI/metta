@@ -22,8 +22,7 @@ def map_or_env_configs() -> list[MettagridCfgFileMetadata]:
         # usually incomplete
         "defaults",
         # have unset params
-        "game/map_builder/load.yaml",
-        "game/map_builder/load_random.yaml",
+        "game/",
     ]
 
     # exclude some configs that won't work
