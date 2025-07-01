@@ -3,7 +3,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from metta.setup.config import ComponentConfig, SetupConfig, UserType
+from metta.setup.config import CURRENT_CONFIG_VERSION, PROFILE_DEFINITIONS, SetupConfig, UserType
 from metta.setup.registry import get_all_modules, get_applicable_modules
 from metta.setup.utils import error, header, import_all_modules_from_subpackage, info, success, warning
 
@@ -22,10 +22,11 @@ class MettaCLI:
         if self.config.config_path.exists():
             info("Current configuration:")
             info(f"Profile: {self.config.user_type.value}")
+            info(f"Mode: {'custom' if self.config.is_custom_config else 'profile'}")
             info("\nEnabled components:")
-            components: dict[str, ComponentConfig] = self.config.get("components", {})
-            for comp, value in components.items():
-                if value.get("enabled"):
+            components = self.config.get_components()
+            for comp, settings in components.items():
+                if settings.get("enabled"):
                     success(f"  + {comp}")
             info("\n")
 
@@ -70,11 +71,12 @@ class MettaCLI:
         else:
             user_type = UserType.EXTERNAL
 
-        self.config.apply_profile(user_type)
+        self.config.setup_custom_profile(user_type)
 
         info("\nCustomize components:")
-        components: dict[str, ComponentConfig] = self.config.get("components", {})
-        for comp in components:
+        # Get all available components from the base profile
+        base_components = PROFILE_DEFINITIONS.get(user_type, {}).get("components", {})
+        for comp in base_components:
             current = self.config.is_component_enabled(comp)
             prompt = f"Enable {comp}? (y/n, current: {'y' if current else 'n'}): "
             choice = input(prompt).strip().lower()
@@ -298,9 +300,21 @@ Examples:
 
         args = parser.parse_args()
 
-        if args.command != "configure" and not self.config.config_path.exists():
-            error("No configuration found. Please run './metta.sh configure' first.")
-            sys.exit(1)
+        # Auto-run configure if no config exists and no command given
+        if not args.command and not self.config.config_path.exists():
+            info("No configuration found. Running setup wizard...\n")
+            self.setup_wizard()
+            return
+
+        if args.command != "configure":
+            if not self.config.config_path.exists():
+                error("No configuration found. Please run './metta.sh configure' first.")
+                sys.exit(1)
+            elif self.config.config_version < CURRENT_CONFIG_VERSION:
+                # Old config format detected
+                warning(f"Your configuration is from an older version (v{self.config.config_version}).")
+                info("Please run './metta.sh configure' to update your configuration.")
+                sys.exit(1)
 
         # Dispatch to command handler
         if args.command == "configure":
