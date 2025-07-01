@@ -2,8 +2,6 @@ defaults:
   - /env/mettagrid/mettagrid@
   - _self_
 
-agents: 1
-
 game:
   num_agents: 1
   max_steps: 700
@@ -37,7 +35,7 @@ game:
 
     generator_red:
       input_ore.red: 1
-      output_battery.red: 3
+      output_battery.red: 1
       color: 0
       max_output: 3
       conversion_ticks: 1
