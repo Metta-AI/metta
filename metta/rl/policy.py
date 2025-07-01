@@ -80,6 +80,27 @@ class PytorchAgent(nn.Module):
             self.policy.activate_actions(action_names, action_max_params, device)
         self.device = device
 
+    def initialize_to_environment(
+        self,
+        features: dict[str, dict],
+        action_names: list[str],
+        action_max_params: list[int],
+        device,
+        is_training: bool = True,
+    ):
+        """Initialize to environment - forward to wrapped policy if it has this method."""
+        # is_training parameter is deprecated and ignored - mode is auto-detected
+
+        # TODO: This hasattr pattern is a transitional state to support both old and new interfaces.
+        # Once all policies have been migrated to implement initialize_to_environment,
+        # we should remove these checks and make the interface mandatory.
+        if hasattr(self.policy, "initialize_to_environment"):
+            self.policy.initialize_to_environment(features, action_names, action_max_params, device)
+        elif hasattr(self.policy, "activate_actions"):
+            # Fallback to old interface if available
+            self.policy.activate_actions(action_names, action_max_params, device)
+        self.device = device
+
     def l2_reg_loss(self) -> torch.Tensor:
         """L2 regularization loss."""
         if hasattr(self.policy, "l2_reg_loss"):
