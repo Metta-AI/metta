@@ -37,7 +37,7 @@ game:
 
     generator_red:
       input_ore.red: 1
-      output_battery.red: 3
+      output_battery.red: 1
       color: 0
       max_output: 3
       conversion_ticks: 1
