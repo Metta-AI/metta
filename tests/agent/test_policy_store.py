@@ -107,6 +107,86 @@ def test_policy_save_load_without_pydantic():
             os.remove(temp_path)
 
 
+def test_policy_record_backwards_compatibility():
+    """Test that PolicyRecord can handle old metadata attribute names"""
+    from metta.agent.policy_metadata import PolicyMetadata
+    from metta.agent.policy_record import PolicyRecord
+    from metta.agent.policy_store import PolicyStore
+
+    # Create minimal config for PolicyStore
+    cfg = OmegaConf.create(
+        {
+            "device": "cpu",
+            "run": "test_run",
+            "run_dir": tempfile.mkdtemp(),
+            "trainer": {
+                "checkpoint": {"checkpoint_dir": tempfile.mkdtemp()},
+                "num_workers": 1,
+            },
+            "data_dir": tempfile.mkdtemp(),
+        }
+    )
+
+    policy_store = PolicyStore(cfg, wandb_run=None)
+
+    # Test different old attribute names
+    old_attribute_names = ["checkpoint", "meta_data", "_meta_data", "_checkpoint"]
+
+    for old_name in old_attribute_names:
+        # Create a PolicyRecord without using the normal constructor
+        # to simulate loading an old checkpoint
+        pr = PolicyRecord.__new__(PolicyRecord)
+        pr._policy_store = policy_store
+        pr.name = "test_policy"
+        pr.uri = "file:///tmp/test.pt"
+        pr._cached_policy = None
+
+        # Set metadata using the old attribute name
+        old_metadata = {
+            "action_names": ["move", "turn"],
+            "agent_step": 100,
+            "epoch": 5,
+            "generation": 1,
+            "train_time": 60.0,
+        }
+        setattr(pr, old_name, old_metadata)
+
+        # Access metadata property - this should trigger backwards compatibility
+        metadata = pr.metadata
+
+        # Verify it was converted properly
+        assert isinstance(metadata, PolicyMetadata)
+        assert metadata["action_names"] == ["move", "turn"]
+        assert metadata["agent_step"] == 100
+        assert metadata["epoch"] == 5
+        assert metadata["generation"] == 1
+        assert metadata["train_time"] == 60.0
+
+        # Verify the old attribute was not removed (for safety)
+        assert hasattr(pr, old_name)
+
+        # Verify the new _metadata attribute exists
+        assert hasattr(pr, "_metadata")
+
+        print(f"✅ Backwards compatibility test passed for old attribute name: {old_name}")
+
+    # Test with no metadata attribute at all
+    pr_no_metadata = PolicyRecord.__new__(PolicyRecord)
+    pr_no_metadata._policy_store = policy_store
+    pr_no_metadata.name = "test_policy"
+    pr_no_metadata.uri = "file:///tmp/test.pt"
+    pr_no_metadata._cached_policy = None
+
+    # This should raise AttributeError
+    try:
+        _ = pr_no_metadata.metadata
+        assert False, "Expected AttributeError when no metadata found"
+    except AttributeError as e:
+        assert "No metadata found" in str(e)
+        print("✅ Correctly raised AttributeError when no metadata found")
+
+
 if __name__ == "__main__":
     test_policy_save_load_without_pydantic()
-    print("✅ Test passed: PolicyStore can save/load policies.")
+    test_policy_record_backwards_compatibility()
+    print("✅ All tests passed!")

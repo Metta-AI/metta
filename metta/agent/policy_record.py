@@ -29,6 +29,27 @@ class PolicyRecord:
     @property
     def metadata(self) -> PolicyMetadata:
         """Get the metadata."""
+        if not hasattr(self, "_metadata"):
+            # Try backwards compatibility names
+            old_metadata_names = ["checkpoint", "meta_data", "_meta_data", "_checkpoint"]
+
+            for name in old_metadata_names:
+                if hasattr(self, name):
+                    logger.warning(
+                        f"Found metadata under old attribute name '{name}'. "
+                        f"This PolicyRecord was saved with an older version of the code. "
+                        f"Converting to new format."
+                    )
+                    # Set using the property setter for proper conversion
+                    self.metadata = getattr(self, name)
+                    return self._metadata
+
+            # If no old names found
+            raise AttributeError(
+                "No metadata found under any known attribute names. "
+                "This PolicyRecord may be corrupted or from an incompatible version."
+            )
+
         return self._metadata
 
     @metadata.setter
