@@ -194,7 +194,7 @@ function fixReplay() {
 
   // Create a resource inventory mapping for faster access.
   // Example: "inv:heart" -> ["resources/heart.png", [1, 1, 1, 1]]
-  // Example: "inv:ore.red" -> ["resources/ore.red.png", [1, 1, 1, 1]]
+  // Example: "inv:ore_red" -> ["resources/ore_red.png", [1, 1, 1, 1]]
   // Example: "agent:inv:heart.blue" -> ["resources/heart.png", [0, 0, 1, 1]]
   // Example: "inv:cat_food.red" -> ["resources/unknown.png", [1, 0, 0, 1]]
   state.replay.resource_inventory = new Map()
