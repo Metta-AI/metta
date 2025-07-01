@@ -1028,6 +1028,10 @@ class MettaTrainer:
                 **metric_stats,
                 **self.grad_stats,
             },
+            # WandB can automatically increment step on each call to log, but we force the value here
+            # to make WandB reject any non-monotonic data points. This hides duplicate data when resuming
+            # from checkpoints and keeps graphs clean. The policy is reset to the checkpoint too so the
+            # count of steps that contribute to training the saved policies is consistent.
             step=self.agent_step,
         )
 
