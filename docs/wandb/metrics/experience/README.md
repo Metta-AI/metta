@@ -12,31 +12,31 @@ Training experience buffer statistics
 
 **Count:** 9 metrics
 
-**actions_mean:**
+**actions_mean:** (1 value)
 - `experience/actions_mean`
 
-**actions_std:**
+**actions_std:** (1 value)
 - `experience/actions_std`
 
-**dones:**
+**dones:** (1 value)
 - `experience/dones`
 
-**ep_lengths:**
+**ep_lengths:** (1 value)
 - `experience/ep_lengths`
 
-**logprobs:**
+**logprobs:** (1 value)
 - `experience/logprobs`
 
-**ratio:**
+**ratio:** (1 value)
 - `experience/ratio`
 
-**rewards:**
+**rewards:** (1 value)
 - `experience/rewards`
 
-**truncateds:**
+**truncateds:** (1 value)
 - `experience/truncateds`
 
-**values:**
+**values:** (1 value)
 - `experience/values`
 
 

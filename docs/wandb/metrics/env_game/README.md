@@ -12,9 +12,8 @@ Game object counts and token tracking
 
 **Count:** 214 metrics
 
-**objects.altar:**
+**objects.altar:** (8 values / 8 std_devs)
 - `env_game/objects.altar`
-- `env_game/objects.altar.std_dev`
 - `env_game/objects.altar.avg`
 - `env_game/objects.altar.avg.std_dev`
 - `env_game/objects.altar.first_step`
@@ -29,10 +28,10 @@ Game object counts and token tracking
 - `env_game/objects.altar.rate.std_dev`
 - `env_game/objects.altar.updates`
 - `env_game/objects.altar.updates.std_dev`
+- `env_game/objects.altar.std_dev`
 
-**objects.armory:**
+**objects.armory:** (8 values / 8 std_devs)
 - `env_game/objects.armory`
-- `env_game/objects.armory.std_dev`
 - `env_game/objects.armory.avg`
 - `env_game/objects.armory.avg.std_dev`
 - `env_game/objects.armory.first_step`
@@ -47,10 +46,10 @@ Game object counts and token tracking
 - `env_game/objects.armory.rate.std_dev`
 - `env_game/objects.armory.updates`
 - `env_game/objects.armory.updates.std_dev`
+- `env_game/objects.armory.std_dev`
 
-**objects.block:**
+**objects.block:** (8 values / 8 std_devs)
 - `env_game/objects.block`
-- `env_game/objects.block.std_dev`
 - `env_game/objects.block.avg`
 - `env_game/objects.block.avg.std_dev`
 - `env_game/objects.block.first_step`
@@ -65,10 +64,10 @@ Game object counts and token tracking
 - `env_game/objects.block.rate.std_dev`
 - `env_game/objects.block.updates`
 - `env_game/objects.block.updates.std_dev`
+- `env_game/objects.block.std_dev`
 
-**objects.factory:**
+**objects.factory:** (8 values / 8 std_devs)
 - `env_game/objects.factory`
-- `env_game/objects.factory.std_dev`
 - `env_game/objects.factory.avg`
 - `env_game/objects.factory.avg.std_dev`
 - `env_game/objects.factory.first_step`
@@ -83,10 +82,10 @@ Game object counts and token tracking
 - `env_game/objects.factory.rate.std_dev`
 - `env_game/objects.factory.updates`
 - `env_game/objects.factory.updates.std_dev`
+- `env_game/objects.factory.std_dev`
 
-**objects.generator_red:**
+**objects.generator_red:** (8 values / 8 std_devs)
 - `env_game/objects.generator_red`
-- `env_game/objects.generator_red.std_dev`
 - `env_game/objects.generator_red.avg`
 - `env_game/objects.generator_red.avg.std_dev`
 - `env_game/objects.generator_red.first_step`
@@ -101,10 +100,10 @@ Game object counts and token tracking
 - `env_game/objects.generator_red.rate.std_dev`
 - `env_game/objects.generator_red.updates`
 - `env_game/objects.generator_red.updates.std_dev`
+- `env_game/objects.generator_red.std_dev`
 
-**objects.lab:**
+**objects.lab:** (8 values / 8 std_devs)
 - `env_game/objects.lab`
-- `env_game/objects.lab.std_dev`
 - `env_game/objects.lab.avg`
 - `env_game/objects.lab.avg.std_dev`
 - `env_game/objects.lab.first_step`
@@ -119,10 +118,10 @@ Game object counts and token tracking
 - `env_game/objects.lab.rate.std_dev`
 - `env_game/objects.lab.updates`
 - `env_game/objects.lab.updates.std_dev`
+- `env_game/objects.lab.std_dev`
 
-**objects.lasery:**
+**objects.lasery:** (8 values / 8 std_devs)
 - `env_game/objects.lasery`
-- `env_game/objects.lasery.std_dev`
 - `env_game/objects.lasery.avg`
 - `env_game/objects.lasery.avg.std_dev`
 - `env_game/objects.lasery.first_step`
@@ -137,10 +136,10 @@ Game object counts and token tracking
 - `env_game/objects.lasery.rate.std_dev`
 - `env_game/objects.lasery.updates`
 - `env_game/objects.lasery.updates.std_dev`
+- `env_game/objects.lasery.std_dev`
 
-**objects.mine_red:**
+**objects.mine_red:** (8 values / 8 std_devs)
 - `env_game/objects.mine_red`
-- `env_game/objects.mine_red.std_dev`
 - `env_game/objects.mine_red.avg`
 - `env_game/objects.mine_red.avg.std_dev`
 - `env_game/objects.mine_red.first_step`
@@ -155,10 +154,10 @@ Game object counts and token tracking
 - `env_game/objects.mine_red.rate.std_dev`
 - `env_game/objects.mine_red.updates`
 - `env_game/objects.mine_red.updates.std_dev`
+- `env_game/objects.mine_red.std_dev`
 
-**objects.temple:**
+**objects.temple:** (8 values / 8 std_devs)
 - `env_game/objects.temple`
-- `env_game/objects.temple.std_dev`
 - `env_game/objects.temple.avg`
 - `env_game/objects.temple.avg.std_dev`
 - `env_game/objects.temple.first_step`
@@ -173,10 +172,10 @@ Game object counts and token tracking
 - `env_game/objects.temple.rate.std_dev`
 - `env_game/objects.temple.updates`
 - `env_game/objects.temple.updates.std_dev`
+- `env_game/objects.temple.std_dev`
 
-**objects.wall:**
+**objects.wall:** (8 values / 8 std_devs)
 - `env_game/objects.wall`
-- `env_game/objects.wall.std_dev`
 - `env_game/objects.wall.avg`
 - `env_game/objects.wall.avg.std_dev`
 - `env_game/objects.wall.first_step`
@@ -191,10 +190,10 @@ Game object counts and token tracking
 - `env_game/objects.wall.rate.std_dev`
 - `env_game/objects.wall.updates`
 - `env_game/objects.wall.updates.std_dev`
+- `env_game/objects.wall.std_dev`
 
-**tokens_dropped:**
+**tokens_dropped:** (9 values / 9 std_devs)
 - `env_game/tokens_dropped`
-- `env_game/tokens_dropped.std_dev`
 - `env_game/tokens_dropped.activity_rate`
 - `env_game/tokens_dropped.activity_rate.std_dev`
 - `env_game/tokens_dropped.avg`
@@ -211,10 +210,10 @@ Game object counts and token tracking
 - `env_game/tokens_dropped.rate.std_dev`
 - `env_game/tokens_dropped.updates`
 - `env_game/tokens_dropped.updates.std_dev`
+- `env_game/tokens_dropped.std_dev`
 
-**tokens_free_space:**
+**tokens_free_space:** (9 values / 9 std_devs)
 - `env_game/tokens_free_space`
-- `env_game/tokens_free_space.std_dev`
 - `env_game/tokens_free_space.activity_rate`
 - `env_game/tokens_free_space.activity_rate.std_dev`
 - `env_game/tokens_free_space.avg`
@@ -231,10 +230,10 @@ Game object counts and token tracking
 - `env_game/tokens_free_space.rate.std_dev`
 - `env_game/tokens_free_space.updates`
 - `env_game/tokens_free_space.updates.std_dev`
+- `env_game/tokens_free_space.std_dev`
 
-**tokens_written:**
+**tokens_written:** (9 values / 9 std_devs)
 - `env_game/tokens_written`
-- `env_game/tokens_written.std_dev`
 - `env_game/tokens_written.activity_rate`
 - `env_game/tokens_written.activity_rate.std_dev`
 - `env_game/tokens_written.avg`
@@ -251,5 +250,6 @@ Game object counts and token tracking
 - `env_game/tokens_written.rate.std_dev`
 - `env_game/tokens_written.updates`
 - `env_game/tokens_written.updates.std_dev`
+- `env_game/tokens_written.std_dev`
 
 

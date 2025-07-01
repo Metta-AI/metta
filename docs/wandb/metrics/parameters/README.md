@@ -12,19 +12,19 @@ Training hyperparameters
 
 **Count:** 5 metrics
 
-**epoch_steps:**
+**epoch_steps:** (1 value)
 - `parameters/epoch_steps`
 
-**generation:**
+**generation:** (1 value)
 - `parameters/generation`
 
-**learning_rate:**
+**learning_rate:** (1 value)
 - `parameters/learning_rate`
 
-**num_minibatches:**
+**num_minibatches:** (1 value)
 - `parameters/num_minibatches`
 
-**policy_record_version:**
+**policy_record_version:** (1 value)
 - `parameters/policy_record_version`
 
 

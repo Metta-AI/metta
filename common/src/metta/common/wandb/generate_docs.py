@@ -279,72 +279,6 @@ def get_section_description(section, descriptions=None):
     return default_descriptions.get(section, "Metrics for " + section.replace("_", " "))
 
 
-def generate_section_readme(section, subsections, output_dir, descriptions):
-    """Generate README for a specific section."""
-    section_dir = Path(output_dir) / section
-    section_dir.mkdir(parents=True, exist_ok=True)
-
-    # Analyze all metrics in this section
-    all_metrics = []
-    for metrics in subsections.values():
-        all_metrics.extend(metrics)
-
-    content = f"""# {section.replace("_", " ").title()} Metrics
-
-## Overview
-
-{get_section_description(section, descriptions)}
-
-**Total metrics in this section:** {len(all_metrics)}
-
-## Subsections
-
-"""
-
-    # Document subsections
-    for subsection, metrics in sorted(subsections.items()):
-        if subsection == "general":
-            content += "### General Metrics\n\n"
-        else:
-            content += f"### {subsection.replace('_', ' ').title()}\n\n"
-
-        content += f"**Count:** {len(metrics)} metrics\n\n"
-
-        # Group related metrics
-        metric_groups = group_related_metrics(metrics)
-
-        for group_name, group_metrics in sorted(metric_groups.items()):
-            content += f"**{group_name}:**\n"
-
-            # Sort metrics by replacing .std_dev with _ to group them with their base
-            # This ensures .std_dev variants appear right after their base metrics
-            sorted_metrics = sorted(group_metrics, key=lambda m: m.replace(".std_dev", "._"))
-
-            # List all metrics in this group
-            for metric in sorted_metrics:
-                content += f"- `{metric}`\n"
-
-                # Check if we have a description for this specific metric
-                metric_desc = get_metric_description(metric, descriptions)
-                if metric_desc:
-                    # Indent the description
-                    desc_lines = metric_desc.split("\n")
-                    for line in desc_lines:
-                        if line.strip():
-                            content += f"  {line}\n"
-                    content += "\n"
-
-            content += "\n"
-
-        content += "\n"
-
-    readme_path = section_dir / "README.md"
-    with open(readme_path, "w") as f:
-        f.write(content)
-
-    return readme_path
-
-
 def group_related_metrics(metrics):
     """Group metrics by their base name, consolidating all related statistics."""
     groups = defaultdict(list)
@@ -391,6 +325,83 @@ def group_related_metrics(metrics):
         groups[base].append(metric)
 
     return dict(groups)
+
+
+def generate_section_readme(section, subsections, output_dir, descriptions):
+    """Generate README for a specific section."""
+    section_dir = Path(output_dir) / section
+    section_dir.mkdir(parents=True, exist_ok=True)
+
+    # Analyze all metrics in this section
+    all_metrics = []
+    for metrics in subsections.values():
+        all_metrics.extend(metrics)
+
+    content = f"""# {section.replace("_", " ").title()} Metrics
+
+## Overview
+
+{get_section_description(section, descriptions)}
+
+**Total metrics in this section:** {len(all_metrics)}
+
+## Subsections
+
+"""
+
+    # Document subsections
+    for subsection, metrics in sorted(subsections.items()):
+        if subsection == "general":
+            content += "### General Metrics\n\n"
+        else:
+            content += f"### {subsection.replace('_', ' ').title()}\n\n"
+
+        content += f"**Count:** {len(metrics)} metrics\n\n"
+
+        # Group related metrics
+        metric_groups = group_related_metrics(metrics)
+
+        for group_name, group_metrics in sorted(metric_groups.items()):
+            # Count base metrics and std_dev variants
+            base_count = sum(1 for m in group_metrics if ".std_dev" not in m)
+            std_dev_count = sum(1 for m in group_metrics if ".std_dev" in m)
+
+            # Proper pluralization
+            value_word = "value" if base_count == 1 else "values"
+            std_dev_word = "std_dev" if std_dev_count == 1 else "std_devs"
+
+            content += f"**{group_name}:** ({base_count} {value_word}"
+            if std_dev_count > 0:
+                content += f" / {std_dev_count} {std_dev_word}"
+            content += ")\n"
+
+            # Sort metrics by replacing .std_dev with _ to group them with their base
+            # This ensures .std_dev variants appear right after their base metrics
+            sorted_metrics = sorted(group_metrics, key=lambda m: m.replace(".std_dev", "_"))
+
+            # List all metrics in this group
+            for metric in sorted_metrics:
+                content += f"- `{metric}`\n"
+
+                # Check if we have a description for this specific metric
+                metric_desc = get_metric_description(metric, descriptions)
+                if metric_desc:
+                    # Double indent the description
+                    desc_lines = metric_desc.split("\n")
+                    for line in desc_lines:
+                        if line.strip():
+                            content += f"    {line}\n"
+                    content += "\n"
+
+            content += "\n"
+
+        content += "\n"
+
+    readme_path = section_dir / "README.md"
+    with open(readme_path, "w") as f:
+        f.write(content)
+
+    return readme_path
 
 
 def load_metric_descriptions(script_dir):

@@ -12,16 +12,16 @@ Per-epoch training timing
 
 **Count:** 4 metrics
 
-**_process_stats:**
+**_process_stats:** (1 value)
 - `timing_per_epoch/frac/_process_stats`
 
-**_rollout:**
+**_rollout:** (1 value)
 - `timing_per_epoch/frac/_rollout`
 
-**_rollout.env:**
+**_rollout.env:** (1 value)
 - `timing_per_epoch/frac/_rollout.env`
 
-**_train:**
+**_train:** (1 value)
 - `timing_per_epoch/frac/_train`
 
 
@@ -29,7 +29,7 @@ Per-epoch training timing
 
 **Count:** 1 metrics
 
-**sps:**
+**sps:** (1 value)
 - `timing_per_epoch/sps`
 
 
@@ -37,16 +37,16 @@ Per-epoch training timing
 
 **Count:** 4 metrics
 
-**_process_stats:**
+**_process_stats:** (1 value)
 - `timing_per_epoch/msec/_process_stats`
 
-**_rollout:**
+**_rollout:** (1 value)
 - `timing_per_epoch/msec/_rollout`
 
-**_rollout.env:**
+**_rollout.env:** (1 value)
 - `timing_per_epoch/msec/_rollout.env`
 
-**_train:**
+**_train:** (1 value)
 - `timing_per_epoch/msec/_train`
 
 

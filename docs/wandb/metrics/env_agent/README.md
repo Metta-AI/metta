@@ -14,9 +14,8 @@ in the environment.
 
 **Count:** 1120 metrics
 
-**action.attack.agent:**
+**action.attack.agent:** (8 values / 8 std_devs)
 - `env_agent/action.attack.agent`
-- `env_agent/action.attack.agent.std_dev`
 - `env_agent/action.attack.agent.avg`
 - `env_agent/action.attack.agent.avg.std_dev`
 - `env_agent/action.attack.agent.first_step`
@@ -31,10 +30,10 @@ in the environment.
 - `env_agent/action.attack.agent.rate.std_dev`
 - `env_agent/action.attack.agent.updates`
 - `env_agent/action.attack.agent.updates.std_dev`
+- `env_agent/action.attack.agent.std_dev`
 
-**action.attack.agent.agent:**
+**action.attack.agent.agent:** (8 values / 8 std_devs)
 - `env_agent/action.attack.agent.agent`
-- `env_agent/action.attack.agent.agent.std_dev`
 - `env_agent/action.attack.agent.agent.avg`
 - `env_agent/action.attack.agent.agent.avg.std_dev`
 - `env_agent/action.attack.agent.agent.first_step`
@@ -49,10 +48,10 @@ in the environment.
 - `env_agent/action.attack.agent.agent.rate.std_dev`
 - `env_agent/action.attack.agent.agent.updates`
 - `env_agent/action.attack.agent.agent.updates.std_dev`
+- `env_agent/action.attack.agent.agent.std_dev`
 
-**action.attack.agent.agent.agent:**
+**action.attack.agent.agent.agent:** (8 values / 8 std_devs)
 - `env_agent/action.attack.agent.agent.agent`
-- `env_agent/action.attack.agent.agent.agent.std_dev`
 - `env_agent/action.attack.agent.agent.agent.avg`
 - `env_agent/action.attack.agent.agent.agent.avg.std_dev`
 - `env_agent/action.attack.agent.agent.agent.first_step`
@@ -67,10 +66,10 @@ in the environment.
 - `env_agent/action.attack.agent.agent.agent.rate.std_dev`
 - `env_agent/action.attack.agent.agent.agent.updates`
 - `env_agent/action.attack.agent.agent.agent.updates.std_dev`
+- `env_agent/action.attack.agent.agent.agent.std_dev`
 
-**action.attack.failed:**
+**action.attack.failed:** (9 values / 9 std_devs)
 - `env_agent/action.attack.failed`
-- `env_agent/action.attack.failed.std_dev`
 - `env_agent/action.attack.failed.activity_rate`
 - `env_agent/action.attack.failed.activity_rate.std_dev`
 - `env_agent/action.attack.failed.avg`
@@ -87,10 +86,10 @@ in the environment.
 - `env_agent/action.attack.failed.rate.std_dev`
 - `env_agent/action.attack.failed.updates`
 - `env_agent/action.attack.failed.updates.std_dev`
+- `env_agent/action.attack.failed.std_dev`
 
-**action.attack.success:**
+**action.attack.success:** (8 values / 8 std_devs)
 - `env_agent/action.attack.success`
-- `env_agent/action.attack.success.std_dev`
 - `env_agent/action.attack.success.avg`
 - `env_agent/action.attack.success.avg.std_dev`
 - `env_agent/action.attack.success.first_step`
@@ -102,18 +101,18 @@ in the environment.
 - `env_agent/action.attack.success.min`
 - `env_agent/action.attack.success.min.std_dev`
 - `env_agent/action.attack.success.rate`
-  Success rate of attack actions when attempted.
-  **Interpretation:** Balance between too aggressive (low success) and too passive (few attempts).
+    Success rate of attack actions when attempted.
+    **Interpretation:** Balance between too aggressive (low success) and too passive (few attempts).
 
 - `env_agent/action.attack.success.rate.std_dev`
-  Success rate of attack actions when attempted. (standard deviation)
+    Success rate of attack actions when attempted. (standard deviation)
 
 - `env_agent/action.attack.success.updates`
 - `env_agent/action.attack.success.updates.std_dev`
+- `env_agent/action.attack.success.std_dev`
 
-**action.attack_nearest.agent:**
+**action.attack_nearest.agent:** (8 values / 8 std_devs)
 - `env_agent/action.attack_nearest.agent`
-- `env_agent/action.attack_nearest.agent.std_dev`
 - `env_agent/action.attack_nearest.agent.avg`
 - `env_agent/action.attack_nearest.agent.avg.std_dev`
 - `env_agent/action.attack_nearest.agent.first_step`
@@ -128,10 +127,10 @@ in the environment.
 - `env_agent/action.attack_nearest.agent.rate.std_dev`
 - `env_agent/action.attack_nearest.agent.updates`
 - `env_agent/action.attack_nearest.agent.updates.std_dev`
+- `env_agent/action.attack_nearest.agent.std_dev`
 
-**action.attack_nearest.agent.agent:**
+**action.attack_nearest.agent.agent:** (8 values / 8 std_devs)
 - `env_agent/action.attack_nearest.agent.agent`
-- `env_agent/action.attack_nearest.agent.agent.std_dev`
 - `env_agent/action.attack_nearest.agent.agent.avg`
 - `env_agent/action.attack_nearest.agent.agent.avg.std_dev`
 - `env_agent/action.attack_nearest.agent.agent.first_step`
@@ -146,10 +145,10 @@ in the environment.
 - `env_agent/action.attack_nearest.agent.agent.rate.std_dev`
 - `env_agent/action.attack_nearest.agent.agent.updates`
 - `env_agent/action.attack_nearest.agent.agent.updates.std_dev`
+- `env_agent/action.attack_nearest.agent.agent.std_dev`
 
-**action.attack_nearest.agent.agent.agent:**
+**action.attack_nearest.agent.agent.agent:** (8 values / 8 std_devs)
 - `env_agent/action.attack_nearest.agent.agent.agent`
-- `env_agent/action.attack_nearest.agent.agent.agent.std_dev`
 - `env_agent/action.attack_nearest.agent.agent.agent.avg`
 - `env_agent/action.attack_nearest.agent.agent.agent.avg.std_dev`
 - `env_agent/action.attack_nearest.agent.agent.agent.first_step`
@@ -164,10 +163,10 @@ in the environment.
 - `env_agent/action.attack_nearest.agent.agent.agent.rate.std_dev`
 - `env_agent/action.attack_nearest.agent.agent.agent.updates`
 - `env_agent/action.attack_nearest.agent.agent.agent.updates.std_dev`
+- `env_agent/action.attack_nearest.agent.agent.agent.std_dev`
 
-**action.attack_nearest.failed:**
+**action.attack_nearest.failed:** (9 values / 9 std_devs)
 - `env_agent/action.attack_nearest.failed`
-- `env_agent/action.attack_nearest.failed.std_dev`
 - `env_agent/action.attack_nearest.failed.activity_rate`
 - `env_agent/action.attack_nearest.failed.activity_rate.std_dev`
 - `env_agent/action.attack_nearest.failed.avg`
@@ -184,10 +183,10 @@ in the environment.
 - `env_agent/action.attack_nearest.failed.rate.std_dev`
 - `env_agent/action.attack_nearest.failed.updates`
 - `env_agent/action.attack_nearest.failed.updates.std_dev`
+- `env_agent/action.attack_nearest.failed.std_dev`
 
-**action.attack_nearest.success:**
+**action.attack_nearest.success:** (8 values / 8 std_devs)
 - `env_agent/action.attack_nearest.success`
-- `env_agent/action.attack_nearest.success.std_dev`
 - `env_agent/action.attack_nearest.success.avg`
 - `env_agent/action.attack_nearest.success.avg.std_dev`
 - `env_agent/action.attack_nearest.success.first_step`
@@ -202,10 +201,10 @@ in the environment.
 - `env_agent/action.attack_nearest.success.rate.std_dev`
 - `env_agent/action.attack_nearest.success.updates`
 - `env_agent/action.attack_nearest.success.updates.std_dev`
+- `env_agent/action.attack_nearest.success.std_dev`
 
-**action.change_color.success:**
+**action.change_color.success:** (9 values / 9 std_devs)
 - `env_agent/action.change_color.success`
-- `env_agent/action.change_color.success.std_dev`
 - `env_agent/action.change_color.success.activity_rate`
 - `env_agent/action.change_color.success.activity_rate.std_dev`
 - `env_agent/action.change_color.success.avg`
@@ -222,63 +221,63 @@ in the environment.
 - `env_agent/action.change_color.success.rate.std_dev`
 - `env_agent/action.change_color.success.updates`
 - `env_agent/action.change_color.success.updates.std_dev`
+- `env_agent/action.change_color.success.std_dev`
 
-**action.failure_penalty:**
+**action.failure_penalty:** (9 values / 9 std_devs)
 - `env_agent/action.failure_penalty`
-  Penalty applied when agents attempt invalid actions.
-  **Interpretation:** High values indicate agents haven't learned action preconditions.
-
-- `env_agent/action.failure_penalty.std_dev`
-  Penalty applied when agents attempt invalid actions. (standard deviation)
+    Penalty applied when agents attempt invalid actions.
+    **Interpretation:** High values indicate agents haven't learned action preconditions.
 
 - `env_agent/action.failure_penalty.activity_rate`
-  Penalty applied when agents attempt invalid actions. (fraction of steps where this was active)
+    Penalty applied when agents attempt invalid actions. (fraction of steps where this was active)
 
 - `env_agent/action.failure_penalty.activity_rate.std_dev`
-  Penalty applied when agents attempt invalid actions. (fraction of steps where this was active) (standard deviation)
+    Penalty applied when agents attempt invalid actions. (fraction of steps where this was active) (standard deviation)
 
 - `env_agent/action.failure_penalty.avg`
-  Penalty applied when agents attempt invalid actions. (average value)
+    Penalty applied when agents attempt invalid actions. (average value)
 
 - `env_agent/action.failure_penalty.avg.std_dev`
-  Penalty applied when agents attempt invalid actions. (average value) (standard deviation)
+    Penalty applied when agents attempt invalid actions. (average value) (standard deviation)
 
 - `env_agent/action.failure_penalty.first_step`
-  Penalty applied when agents attempt invalid actions. (first step where this occurred)
+    Penalty applied when agents attempt invalid actions. (first step where this occurred)
 
 - `env_agent/action.failure_penalty.first_step.std_dev`
-  Penalty applied when agents attempt invalid actions. (first step where this occurred) (standard deviation)
+    Penalty applied when agents attempt invalid actions. (first step where this occurred) (standard deviation)
 
 - `env_agent/action.failure_penalty.last_step`
-  Penalty applied when agents attempt invalid actions. (last step where this occurred)
+    Penalty applied when agents attempt invalid actions. (last step where this occurred)
 
 - `env_agent/action.failure_penalty.last_step.std_dev`
-  Penalty applied when agents attempt invalid actions. (last step where this occurred) (standard deviation)
+    Penalty applied when agents attempt invalid actions. (last step where this occurred) (standard deviation)
 
 - `env_agent/action.failure_penalty.max`
-  Penalty applied when agents attempt invalid actions. (maximum value)
+    Penalty applied when agents attempt invalid actions. (maximum value)
 
 - `env_agent/action.failure_penalty.max.std_dev`
-  Penalty applied when agents attempt invalid actions. (maximum value) (standard deviation)
+    Penalty applied when agents attempt invalid actions. (maximum value) (standard deviation)
 
 - `env_agent/action.failure_penalty.min`
-  Penalty applied when agents attempt invalid actions. (minimum value)
+    Penalty applied when agents attempt invalid actions. (minimum value)
 
 - `env_agent/action.failure_penalty.min.std_dev`
-  Penalty applied when agents attempt invalid actions. (minimum value) (standard deviation)
+    Penalty applied when agents attempt invalid actions. (minimum value) (standard deviation)
 
 - `env_agent/action.failure_penalty.rate`
-  Penalty applied when agents attempt invalid actions. (occurrences per step)
+    Penalty applied when agents attempt invalid actions. (occurrences per step)
 
 - `env_agent/action.failure_penalty.rate.std_dev`
-  Penalty applied when agents attempt invalid actions. (occurrences per step) (standard deviation)
+    Penalty applied when agents attempt invalid actions. (occurrences per step) (standard deviation)
 
 - `env_agent/action.failure_penalty.updates`
 - `env_agent/action.failure_penalty.updates.std_dev`
+- `env_agent/action.failure_penalty.std_dev`
+    Penalty applied when agents attempt invalid actions. (standard deviation)
 
-**action.get_output.failed:**
+
+**action.get_output.failed:** (9 values / 9 std_devs)
 - `env_agent/action.get_output.failed`
-- `env_agent/action.get_output.failed.std_dev`
 - `env_agent/action.get_output.failed.activity_rate`
 - `env_agent/action.get_output.failed.activity_rate.std_dev`
 - `env_agent/action.get_output.failed.avg`
@@ -295,10 +294,10 @@ in the environment.
 - `env_agent/action.get_output.failed.rate.std_dev`
 - `env_agent/action.get_output.failed.updates`
 - `env_agent/action.get_output.failed.updates.std_dev`
+- `env_agent/action.get_output.failed.std_dev`
 
-**action.get_output.success:**
+**action.get_output.success:** (9 values / 9 std_devs)
 - `env_agent/action.get_output.success`
-- `env_agent/action.get_output.success.std_dev`
 - `env_agent/action.get_output.success.activity_rate`
 - `env_agent/action.get_output.success.activity_rate.std_dev`
 - `env_agent/action.get_output.success.avg`
@@ -315,10 +314,10 @@ in the environment.
 - `env_agent/action.get_output.success.rate.std_dev`
 - `env_agent/action.get_output.success.updates`
 - `env_agent/action.get_output.success.updates.std_dev`
+- `env_agent/action.get_output.success.std_dev`
 
-**action.move.failed:**
+**action.move.failed:** (9 values / 9 std_devs)
 - `env_agent/action.move.failed`
-- `env_agent/action.move.failed.std_dev`
 - `env_agent/action.move.failed.activity_rate`
 - `env_agent/action.move.failed.activity_rate.std_dev`
 - `env_agent/action.move.failed.avg`
@@ -335,10 +334,10 @@ in the environment.
 - `env_agent/action.move.failed.rate.std_dev`
 - `env_agent/action.move.failed.updates`
 - `env_agent/action.move.failed.updates.std_dev`
+- `env_agent/action.move.failed.std_dev`
 
-**action.move.success:**
+**action.move.success:** (9 values / 9 std_devs)
 - `env_agent/action.move.success`
-- `env_agent/action.move.success.std_dev`
 - `env_agent/action.move.success.activity_rate`
 - `env_agent/action.move.success.activity_rate.std_dev`
 - `env_agent/action.move.success.avg`
@@ -352,18 +351,18 @@ in the environment.
 - `env_agent/action.move.success.min`
 - `env_agent/action.move.success.min.std_dev`
 - `env_agent/action.move.success.rate`
-  Success rate of agent movement actions.
-  **Interpretation:** Low rates may indicate crowded environments or poor navigation policy.
+    Success rate of agent movement actions.
+    **Interpretation:** Low rates may indicate crowded environments or poor navigation policy.
 
 - `env_agent/action.move.success.rate.std_dev`
-  Success rate of agent movement actions. (standard deviation)
+    Success rate of agent movement actions. (standard deviation)
 
 - `env_agent/action.move.success.updates`
 - `env_agent/action.move.success.updates.std_dev`
+- `env_agent/action.move.success.std_dev`
 
-**action.noop.success:**
+**action.noop.success:** (9 values / 9 std_devs)
 - `env_agent/action.noop.success`
-- `env_agent/action.noop.success.std_dev`
 - `env_agent/action.noop.success.activity_rate`
 - `env_agent/action.noop.success.activity_rate.std_dev`
 - `env_agent/action.noop.success.avg`
@@ -380,10 +379,10 @@ in the environment.
 - `env_agent/action.noop.success.rate.std_dev`
 - `env_agent/action.noop.success.updates`
 - `env_agent/action.noop.success.updates.std_dev`
+- `env_agent/action.noop.success.std_dev`
 
-**action.put_recipe_items.failed:**
+**action.put_recipe_items.failed:** (9 values / 9 std_devs)
 - `env_agent/action.put_recipe_items.failed`
-- `env_agent/action.put_recipe_items.failed.std_dev`
 - `env_agent/action.put_recipe_items.failed.activity_rate`
 - `env_agent/action.put_recipe_items.failed.activity_rate.std_dev`
 - `env_agent/action.put_recipe_items.failed.avg`
@@ -400,10 +399,10 @@ in the environment.
 - `env_agent/action.put_recipe_items.failed.rate.std_dev`
 - `env_agent/action.put_recipe_items.failed.updates`
 - `env_agent/action.put_recipe_items.failed.updates.std_dev`
+- `env_agent/action.put_recipe_items.failed.std_dev`
 
-**action.put_recipe_items.success:**
+**action.put_recipe_items.success:** (9 values / 9 std_devs)
 - `env_agent/action.put_recipe_items.success`
-- `env_agent/action.put_recipe_items.success.std_dev`
 - `env_agent/action.put_recipe_items.success.activity_rate`
 - `env_agent/action.put_recipe_items.success.activity_rate.std_dev`
 - `env_agent/action.put_recipe_items.success.avg`
@@ -420,10 +419,10 @@ in the environment.
 - `env_agent/action.put_recipe_items.success.rate.std_dev`
 - `env_agent/action.put_recipe_items.success.updates`
 - `env_agent/action.put_recipe_items.success.updates.std_dev`
+- `env_agent/action.put_recipe_items.success.std_dev`
 
-**action.rotate.success:**
+**action.rotate.success:** (9 values / 9 std_devs)
 - `env_agent/action.rotate.success`
-- `env_agent/action.rotate.success.std_dev`
 - `env_agent/action.rotate.success.activity_rate`
 - `env_agent/action.rotate.success.activity_rate.std_dev`
 - `env_agent/action.rotate.success.avg`
@@ -440,10 +439,10 @@ in the environment.
 - `env_agent/action.rotate.success.rate.std_dev`
 - `env_agent/action.rotate.success.updates`
 - `env_agent/action.rotate.success.updates.std_dev`
+- `env_agent/action.rotate.success.std_dev`
 
-**action.swap.agent:**
+**action.swap.agent:** (8 values / 8 std_devs)
 - `env_agent/action.swap.agent`
-- `env_agent/action.swap.agent.std_dev`
 - `env_agent/action.swap.agent.avg`
 - `env_agent/action.swap.agent.avg.std_dev`
 - `env_agent/action.swap.agent.first_step`
@@ -458,10 +457,10 @@ in the environment.
 - `env_agent/action.swap.agent.rate.std_dev`
 - `env_agent/action.swap.agent.updates`
 - `env_agent/action.swap.agent.updates.std_dev`
+- `env_agent/action.swap.agent.std_dev`
 
-**action.swap.block:**
+**action.swap.block:** (9 values / 9 std_devs)
 - `env_agent/action.swap.block`
-- `env_agent/action.swap.block.std_dev`
 - `env_agent/action.swap.block.activity_rate`
 - `env_agent/action.swap.block.activity_rate.std_dev`
 - `env_agent/action.swap.block.avg`
@@ -478,10 +477,10 @@ in the environment.
 - `env_agent/action.swap.block.rate.std_dev`
 - `env_agent/action.swap.block.updates`
 - `env_agent/action.swap.block.updates.std_dev`
+- `env_agent/action.swap.block.std_dev`
 
-**action.swap.failed:**
+**action.swap.failed:** (9 values / 9 std_devs)
 - `env_agent/action.swap.failed`
-- `env_agent/action.swap.failed.std_dev`
 - `env_agent/action.swap.failed.activity_rate`
 - `env_agent/action.swap.failed.activity_rate.std_dev`
 - `env_agent/action.swap.failed.avg`
@@ -498,10 +497,10 @@ in the environment.
 - `env_agent/action.swap.failed.rate.std_dev`
 - `env_agent/action.swap.failed.updates`
 - `env_agent/action.swap.failed.updates.std_dev`
+- `env_agent/action.swap.failed.std_dev`
 
-**action.swap.success:**
+**action.swap.success:** (9 values / 9 std_devs)
 - `env_agent/action.swap.success`
-- `env_agent/action.swap.success.std_dev`
 - `env_agent/action.swap.success.activity_rate`
 - `env_agent/action.swap.success.activity_rate.std_dev`
 - `env_agent/action.swap.success.avg`
@@ -518,10 +517,10 @@ in the environment.
 - `env_agent/action.swap.success.rate.std_dev`
 - `env_agent/action.swap.success.updates`
 - `env_agent/action.swap.success.updates.std_dev`
+- `env_agent/action.swap.success.std_dev`
 
-**armor.gained:**
+**armor.gained:** (9 values / 9 std_devs)
 - `env_agent/armor.gained`
-- `env_agent/armor.gained.std_dev`
 - `env_agent/armor.gained.activity_rate`
 - `env_agent/armor.gained.activity_rate.std_dev`
 - `env_agent/armor.gained.avg`
@@ -538,10 +537,10 @@ in the environment.
 - `env_agent/armor.gained.rate.std_dev`
 - `env_agent/armor.gained.updates`
 - `env_agent/armor.gained.updates.std_dev`
+- `env_agent/armor.gained.std_dev`
 
-**armor.get:**
+**armor.get:** (9 values / 9 std_devs)
 - `env_agent/armor.get`
-- `env_agent/armor.get.std_dev`
 - `env_agent/armor.get.activity_rate`
 - `env_agent/armor.get.activity_rate.std_dev`
 - `env_agent/armor.get.avg`
@@ -558,10 +557,10 @@ in the environment.
 - `env_agent/armor.get.rate.std_dev`
 - `env_agent/armor.get.updates`
 - `env_agent/armor.get.updates.std_dev`
+- `env_agent/armor.get.std_dev`
 
-**armor.lost:**
+**armor.lost:** (8 values / 8 std_devs)
 - `env_agent/armor.lost`
-- `env_agent/armor.lost.std_dev`
 - `env_agent/armor.lost.avg`
 - `env_agent/armor.lost.avg.std_dev`
 - `env_agent/armor.lost.first_step`
@@ -576,10 +575,10 @@ in the environment.
 - `env_agent/armor.lost.rate.std_dev`
 - `env_agent/armor.lost.updates`
 - `env_agent/armor.lost.updates.std_dev`
+- `env_agent/armor.lost.std_dev`
 
-**attack.blocked.agent:**
+**attack.blocked.agent:** (8 values / 8 std_devs)
 - `env_agent/attack.blocked.agent`
-- `env_agent/attack.blocked.agent.std_dev`
 - `env_agent/attack.blocked.agent.avg`
 - `env_agent/attack.blocked.agent.avg.std_dev`
 - `env_agent/attack.blocked.agent.first_step`
@@ -594,10 +593,10 @@ in the environment.
 - `env_agent/attack.blocked.agent.rate.std_dev`
 - `env_agent/attack.blocked.agent.updates`
 - `env_agent/attack.blocked.agent.updates.std_dev`
+- `env_agent/attack.blocked.agent.std_dev`
 
-**attack.blocked.agent.agent:**
+**attack.blocked.agent.agent:** (8 values / 8 std_devs)
 - `env_agent/attack.blocked.agent.agent`
-- `env_agent/attack.blocked.agent.agent.std_dev`
 - `env_agent/attack.blocked.agent.agent.avg`
 - `env_agent/attack.blocked.agent.agent.avg.std_dev`
 - `env_agent/attack.blocked.agent.agent.first_step`
@@ -612,10 +611,10 @@ in the environment.
 - `env_agent/attack.blocked.agent.agent.rate.std_dev`
 - `env_agent/attack.blocked.agent.agent.updates`
 - `env_agent/attack.blocked.agent.agent.updates.std_dev`
+- `env_agent/attack.blocked.agent.agent.std_dev`
 
-**attack.loss.agent:**
+**attack.loss.agent:** (8 values / 8 std_devs)
 - `env_agent/attack.loss.agent`
-- `env_agent/attack.loss.agent.std_dev`
 - `env_agent/attack.loss.agent.avg`
 - `env_agent/attack.loss.agent.avg.std_dev`
 - `env_agent/attack.loss.agent.first_step`
@@ -630,10 +629,10 @@ in the environment.
 - `env_agent/attack.loss.agent.rate.std_dev`
 - `env_agent/attack.loss.agent.updates`
 - `env_agent/attack.loss.agent.updates.std_dev`
+- `env_agent/attack.loss.agent.std_dev`
 
-**attack.loss.agent.agent:**
+**attack.loss.agent.agent:** (8 values / 8 std_devs)
 - `env_agent/attack.loss.agent.agent`
-- `env_agent/attack.loss.agent.agent.std_dev`
 - `env_agent/attack.loss.agent.agent.avg`
 - `env_agent/attack.loss.agent.agent.avg.std_dev`
 - `env_agent/attack.loss.agent.agent.first_step`
@@ -648,10 +647,10 @@ in the environment.
 - `env_agent/attack.loss.agent.agent.rate.std_dev`
 - `env_agent/attack.loss.agent.agent.updates`
 - `env_agent/attack.loss.agent.agent.updates.std_dev`
+- `env_agent/attack.loss.agent.agent.std_dev`
 
-**attack.loss.from_own_team.agent:**
+**attack.loss.from_own_team.agent:** (8 values / 8 std_devs)
 - `env_agent/attack.loss.from_own_team.agent`
-- `env_agent/attack.loss.from_own_team.agent.std_dev`
 - `env_agent/attack.loss.from_own_team.agent.avg`
 - `env_agent/attack.loss.from_own_team.agent.avg.std_dev`
 - `env_agent/attack.loss.from_own_team.agent.first_step`
@@ -666,10 +665,10 @@ in the environment.
 - `env_agent/attack.loss.from_own_team.agent.rate.std_dev`
 - `env_agent/attack.loss.from_own_team.agent.updates`
 - `env_agent/attack.loss.from_own_team.agent.updates.std_dev`
+- `env_agent/attack.loss.from_own_team.agent.std_dev`
 
-**attack.own_team.agent:**
+**attack.own_team.agent:** (9 values / 9 std_devs)
 - `env_agent/attack.own_team.agent`
-- `env_agent/attack.own_team.agent.std_dev`
 - `env_agent/attack.own_team.agent.activity_rate`
 - `env_agent/attack.own_team.agent.activity_rate.std_dev`
 - `env_agent/attack.own_team.agent.avg`
@@ -686,10 +685,10 @@ in the environment.
 - `env_agent/attack.own_team.agent.rate.std_dev`
 - `env_agent/attack.own_team.agent.updates`
 - `env_agent/attack.own_team.agent.updates.std_dev`
+- `env_agent/attack.own_team.agent.std_dev`
 
-**attack.win.agent:**
+**attack.win.agent:** (9 values / 9 std_devs)
 - `env_agent/attack.win.agent`
-- `env_agent/attack.win.agent.std_dev`
 - `env_agent/attack.win.agent.activity_rate`
 - `env_agent/attack.win.agent.activity_rate.std_dev`
 - `env_agent/attack.win.agent.avg`
@@ -706,10 +705,10 @@ in the environment.
 - `env_agent/attack.win.agent.rate.std_dev`
 - `env_agent/attack.win.agent.updates`
 - `env_agent/attack.win.agent.updates.std_dev`
+- `env_agent/attack.win.agent.std_dev`
 
-**attack.win.agent.agent:**
+**attack.win.agent.agent:** (9 values / 9 std_devs)
 - `env_agent/attack.win.agent.agent`
-- `env_agent/attack.win.agent.agent.std_dev`
 - `env_agent/attack.win.agent.agent.activity_rate`
 - `env_agent/attack.win.agent.agent.activity_rate.std_dev`
 - `env_agent/attack.win.agent.agent.avg`
@@ -726,10 +725,10 @@ in the environment.
 - `env_agent/attack.win.agent.agent.rate.std_dev`
 - `env_agent/attack.win.agent.agent.updates`
 - `env_agent/attack.win.agent.agent.updates.std_dev`
+- `env_agent/attack.win.agent.agent.std_dev`
 
-**attack.win.own_team.agent:**
+**attack.win.own_team.agent:** (9 values / 9 std_devs)
 - `env_agent/attack.win.own_team.agent`
-- `env_agent/attack.win.own_team.agent.std_dev`
 - `env_agent/attack.win.own_team.agent.activity_rate`
 - `env_agent/attack.win.own_team.agent.activity_rate.std_dev`
 - `env_agent/attack.win.own_team.agent.avg`
@@ -746,10 +745,10 @@ in the environment.
 - `env_agent/attack.win.own_team.agent.rate.std_dev`
 - `env_agent/attack.win.own_team.agent.updates`
 - `env_agent/attack.win.own_team.agent.updates.std_dev`
+- `env_agent/attack.win.own_team.agent.std_dev`
 
-**battery.red.gained:**
+**battery.red.gained:** (9 values / 9 std_devs)
 - `env_agent/battery.red.gained`
-- `env_agent/battery.red.gained.std_dev`
 - `env_agent/battery.red.gained.activity_rate`
 - `env_agent/battery.red.gained.activity_rate.std_dev`
 - `env_agent/battery.red.gained.avg`
@@ -766,10 +765,10 @@ in the environment.
 - `env_agent/battery.red.gained.rate.std_dev`
 - `env_agent/battery.red.gained.updates`
 - `env_agent/battery.red.gained.updates.std_dev`
+- `env_agent/battery.red.gained.std_dev`
 
-**battery.red.get:**
+**battery.red.get:** (9 values / 9 std_devs)
 - `env_agent/battery.red.get`
-- `env_agent/battery.red.get.std_dev`
 - `env_agent/battery.red.get.activity_rate`
 - `env_agent/battery.red.get.activity_rate.std_dev`
 - `env_agent/battery.red.get.avg`
@@ -786,10 +785,10 @@ in the environment.
 - `env_agent/battery.red.get.rate.std_dev`
 - `env_agent/battery.red.get.updates`
 - `env_agent/battery.red.get.updates.std_dev`
+- `env_agent/battery.red.get.std_dev`
 
-**battery.red.lost:**
+**battery.red.lost:** (9 values / 9 std_devs)
 - `env_agent/battery.red.lost`
-- `env_agent/battery.red.lost.std_dev`
 - `env_agent/battery.red.lost.activity_rate`
 - `env_agent/battery.red.lost.activity_rate.std_dev`
 - `env_agent/battery.red.lost.avg`
@@ -806,10 +805,10 @@ in the environment.
 - `env_agent/battery.red.lost.rate.std_dev`
 - `env_agent/battery.red.lost.updates`
 - `env_agent/battery.red.lost.updates.std_dev`
+- `env_agent/battery.red.lost.std_dev`
 
-**battery.red.put:**
+**battery.red.put:** (9 values / 9 std_devs)
 - `env_agent/battery.red.put`
-- `env_agent/battery.red.put.std_dev`
 - `env_agent/battery.red.put.activity_rate`
 - `env_agent/battery.red.put.activity_rate.std_dev`
 - `env_agent/battery.red.put.avg`
@@ -826,10 +825,10 @@ in the environment.
 - `env_agent/battery.red.put.rate.std_dev`
 - `env_agent/battery.red.put.updates`
 - `env_agent/battery.red.put.updates.std_dev`
+- `env_agent/battery.red.put.std_dev`
 
-**battery.red.stolen.agent:**
+**battery.red.stolen.agent:** (8 values / 8 std_devs)
 - `env_agent/battery.red.stolen.agent`
-- `env_agent/battery.red.stolen.agent.std_dev`
 - `env_agent/battery.red.stolen.agent.avg`
 - `env_agent/battery.red.stolen.agent.avg.std_dev`
 - `env_agent/battery.red.stolen.agent.first_step`
@@ -844,10 +843,10 @@ in the environment.
 - `env_agent/battery.red.stolen.agent.rate.std_dev`
 - `env_agent/battery.red.stolen.agent.updates`
 - `env_agent/battery.red.stolen.agent.updates.std_dev`
+- `env_agent/battery.red.stolen.agent.std_dev`
 
-**battery.red.stolen_from.agent:**
+**battery.red.stolen_from.agent:** (8 values / 8 std_devs)
 - `env_agent/battery.red.stolen_from.agent`
-- `env_agent/battery.red.stolen_from.agent.std_dev`
 - `env_agent/battery.red.stolen_from.agent.avg`
 - `env_agent/battery.red.stolen_from.agent.avg.std_dev`
 - `env_agent/battery.red.stolen_from.agent.first_step`
@@ -862,10 +861,10 @@ in the environment.
 - `env_agent/battery.red.stolen_from.agent.rate.std_dev`
 - `env_agent/battery.red.stolen_from.agent.updates`
 - `env_agent/battery.red.stolen_from.agent.updates.std_dev`
+- `env_agent/battery.red.stolen_from.agent.std_dev`
 
-**blueprint.gained:**
+**blueprint.gained:** (9 values / 9 std_devs)
 - `env_agent/blueprint.gained`
-- `env_agent/blueprint.gained.std_dev`
 - `env_agent/blueprint.gained.activity_rate`
 - `env_agent/blueprint.gained.activity_rate.std_dev`
 - `env_agent/blueprint.gained.avg`
@@ -882,10 +881,10 @@ in the environment.
 - `env_agent/blueprint.gained.rate.std_dev`
 - `env_agent/blueprint.gained.updates`
 - `env_agent/blueprint.gained.updates.std_dev`
+- `env_agent/blueprint.gained.std_dev`
 
-**blueprint.get:**
+**blueprint.get:** (9 values / 9 std_devs)
 - `env_agent/blueprint.get`
-- `env_agent/blueprint.get.std_dev`
 - `env_agent/blueprint.get.activity_rate`
 - `env_agent/blueprint.get.activity_rate.std_dev`
 - `env_agent/blueprint.get.avg`
@@ -902,10 +901,10 @@ in the environment.
 - `env_agent/blueprint.get.rate.std_dev`
 - `env_agent/blueprint.get.updates`
 - `env_agent/blueprint.get.updates.std_dev`
+- `env_agent/blueprint.get.std_dev`
 
-**blueprint.lost:**
+**blueprint.lost:** (8 values / 8 std_devs)
 - `env_agent/blueprint.lost`
-- `env_agent/blueprint.lost.std_dev`
 - `env_agent/blueprint.lost.avg`
 - `env_agent/blueprint.lost.avg.std_dev`
 - `env_agent/blueprint.lost.first_step`
@@ -920,10 +919,10 @@ in the environment.
 - `env_agent/blueprint.lost.rate.std_dev`
 - `env_agent/blueprint.lost.updates`
 - `env_agent/blueprint.lost.updates.std_dev`
+- `env_agent/blueprint.lost.std_dev`
 
-**blueprint.put:**
+**blueprint.put:** (8 values / 8 std_devs)
 - `env_agent/blueprint.put`
-- `env_agent/blueprint.put.std_dev`
 - `env_agent/blueprint.put.avg`
 - `env_agent/blueprint.put.avg.std_dev`
 - `env_agent/blueprint.put.first_step`
@@ -938,10 +937,10 @@ in the environment.
 - `env_agent/blueprint.put.rate.std_dev`
 - `env_agent/blueprint.put.updates`
 - `env_agent/blueprint.put.updates.std_dev`
+- `env_agent/blueprint.put.std_dev`
 
-**blueprint.stolen.agent:**
+**blueprint.stolen.agent:** (8 values / 8 std_devs)
 - `env_agent/blueprint.stolen.agent`
-- `env_agent/blueprint.stolen.agent.std_dev`
 - `env_agent/blueprint.stolen.agent.avg`
 - `env_agent/blueprint.stolen.agent.avg.std_dev`
 - `env_agent/blueprint.stolen.agent.first_step`
@@ -956,10 +955,10 @@ in the environment.
 - `env_agent/blueprint.stolen.agent.rate.std_dev`
 - `env_agent/blueprint.stolen.agent.updates`
 - `env_agent/blueprint.stolen.agent.updates.std_dev`
+- `env_agent/blueprint.stolen.agent.std_dev`
 
-**blueprint.stolen_from.agent:**
+**blueprint.stolen_from.agent:** (8 values / 8 std_devs)
 - `env_agent/blueprint.stolen_from.agent`
-- `env_agent/blueprint.stolen_from.agent.std_dev`
 - `env_agent/blueprint.stolen_from.agent.avg`
 - `env_agent/blueprint.stolen_from.agent.avg.std_dev`
 - `env_agent/blueprint.stolen_from.agent.first_step`
@@ -974,10 +973,10 @@ in the environment.
 - `env_agent/blueprint.stolen_from.agent.rate.std_dev`
 - `env_agent/blueprint.stolen_from.agent.updates`
 - `env_agent/blueprint.stolen_from.agent.updates.std_dev`
+- `env_agent/blueprint.stolen_from.agent.std_dev`
 
-**heart.gained:**
+**heart.gained:** (9 values / 9 std_devs)
 - `env_agent/heart.gained`
-- `env_agent/heart.gained.std_dev`
 - `env_agent/heart.gained.activity_rate`
 - `env_agent/heart.gained.activity_rate.std_dev`
 - `env_agent/heart.gained.avg`
@@ -994,10 +993,10 @@ in the environment.
 - `env_agent/heart.gained.rate.std_dev`
 - `env_agent/heart.gained.updates`
 - `env_agent/heart.gained.updates.std_dev`
+- `env_agent/heart.gained.std_dev`
 
-**heart.get:**
+**heart.get:** (9 values / 9 std_devs)
 - `env_agent/heart.get`
-- `env_agent/heart.get.std_dev`
 - `env_agent/heart.get.activity_rate`
 - `env_agent/heart.get.activity_rate.std_dev`
 - `env_agent/heart.get.avg`
@@ -1014,10 +1013,10 @@ in the environment.
 - `env_agent/heart.get.rate.std_dev`
 - `env_agent/heart.get.updates`
 - `env_agent/heart.get.updates.std_dev`
+- `env_agent/heart.get.std_dev`
 
-**heart.lost:**
+**heart.lost:** (9 values / 9 std_devs)
 - `env_agent/heart.lost`
-- `env_agent/heart.lost.std_dev`
 - `env_agent/heart.lost.activity_rate`
 - `env_agent/heart.lost.activity_rate.std_dev`
 - `env_agent/heart.lost.avg`
@@ -1034,10 +1033,10 @@ in the environment.
 - `env_agent/heart.lost.rate.std_dev`
 - `env_agent/heart.lost.updates`
 - `env_agent/heart.lost.updates.std_dev`
+- `env_agent/heart.lost.std_dev`
 
-**heart.put:**
+**heart.put:** (9 values / 9 std_devs)
 - `env_agent/heart.put`
-- `env_agent/heart.put.std_dev`
 - `env_agent/heart.put.activity_rate`
 - `env_agent/heart.put.activity_rate.std_dev`
 - `env_agent/heart.put.avg`
@@ -1054,10 +1053,10 @@ in the environment.
 - `env_agent/heart.put.rate.std_dev`
 - `env_agent/heart.put.updates`
 - `env_agent/heart.put.updates.std_dev`
+- `env_agent/heart.put.std_dev`
 
-**heart.stolen.agent:**
+**heart.stolen.agent:** (8 values / 8 std_devs)
 - `env_agent/heart.stolen.agent`
-- `env_agent/heart.stolen.agent.std_dev`
 - `env_agent/heart.stolen.agent.avg`
 - `env_agent/heart.stolen.agent.avg.std_dev`
 - `env_agent/heart.stolen.agent.first_step`
@@ -1072,10 +1071,10 @@ in the environment.
 - `env_agent/heart.stolen.agent.rate.std_dev`
 - `env_agent/heart.stolen.agent.updates`
 - `env_agent/heart.stolen.agent.updates.std_dev`
+- `env_agent/heart.stolen.agent.std_dev`
 
-**heart.stolen_from.agent:**
+**heart.stolen_from.agent:** (8 values / 8 std_devs)
 - `env_agent/heart.stolen_from.agent`
-- `env_agent/heart.stolen_from.agent.std_dev`
 - `env_agent/heart.stolen_from.agent.avg`
 - `env_agent/heart.stolen_from.agent.avg.std_dev`
 - `env_agent/heart.stolen_from.agent.first_step`
@@ -1090,10 +1089,10 @@ in the environment.
 - `env_agent/heart.stolen_from.agent.rate.std_dev`
 - `env_agent/heart.stolen_from.agent.updates`
 - `env_agent/heart.stolen_from.agent.updates.std_dev`
+- `env_agent/heart.stolen_from.agent.std_dev`
 
-**laser.gained:**
+**laser.gained:** (9 values / 9 std_devs)
 - `env_agent/laser.gained`
-- `env_agent/laser.gained.std_dev`
 - `env_agent/laser.gained.activity_rate`
 - `env_agent/laser.gained.activity_rate.std_dev`
 - `env_agent/laser.gained.avg`
@@ -1110,10 +1109,10 @@ in the environment.
 - `env_agent/laser.gained.rate.std_dev`
 - `env_agent/laser.gained.updates`
 - `env_agent/laser.gained.updates.std_dev`
+- `env_agent/laser.gained.std_dev`
 
-**laser.get:**
+**laser.get:** (9 values / 9 std_devs)
 - `env_agent/laser.get`
-- `env_agent/laser.get.std_dev`
 - `env_agent/laser.get.activity_rate`
 - `env_agent/laser.get.activity_rate.std_dev`
 - `env_agent/laser.get.avg`
@@ -1130,10 +1129,10 @@ in the environment.
 - `env_agent/laser.get.rate.std_dev`
 - `env_agent/laser.get.updates`
 - `env_agent/laser.get.updates.std_dev`
+- `env_agent/laser.get.std_dev`
 
-**laser.lost:**
+**laser.lost:** (9 values / 9 std_devs)
 - `env_agent/laser.lost`
-- `env_agent/laser.lost.std_dev`
 - `env_agent/laser.lost.activity_rate`
 - `env_agent/laser.lost.activity_rate.std_dev`
 - `env_agent/laser.lost.avg`
@@ -1150,10 +1149,10 @@ in the environment.
 - `env_agent/laser.lost.rate.std_dev`
 - `env_agent/laser.lost.updates`
 - `env_agent/laser.lost.updates.std_dev`
+- `env_agent/laser.lost.std_dev`
 
-**ore.red.gained:**
+**ore.red.gained:** (9 values / 9 std_devs)
 - `env_agent/ore.red.gained`
-- `env_agent/ore.red.gained.std_dev`
 - `env_agent/ore.red.gained.activity_rate`
 - `env_agent/ore.red.gained.activity_rate.std_dev`
 - `env_agent/ore.red.gained.avg`
@@ -1170,10 +1169,10 @@ in the environment.
 - `env_agent/ore.red.gained.rate.std_dev`
 - `env_agent/ore.red.gained.updates`
 - `env_agent/ore.red.gained.updates.std_dev`
+- `env_agent/ore.red.gained.std_dev`
 
-**ore.red.get:**
+**ore.red.get:** (9 values / 9 std_devs)
 - `env_agent/ore.red.get`
-- `env_agent/ore.red.get.std_dev`
 - `env_agent/ore.red.get.activity_rate`
 - `env_agent/ore.red.get.activity_rate.std_dev`
 - `env_agent/ore.red.get.avg`
@@ -1190,10 +1189,10 @@ in the environment.
 - `env_agent/ore.red.get.rate.std_dev`
 - `env_agent/ore.red.get.updates`
 - `env_agent/ore.red.get.updates.std_dev`
+- `env_agent/ore.red.get.std_dev`
 
-**ore.red.lost:**
+**ore.red.lost:** (9 values / 9 std_devs)
 - `env_agent/ore.red.lost`
-- `env_agent/ore.red.lost.std_dev`
 - `env_agent/ore.red.lost.activity_rate`
 - `env_agent/ore.red.lost.activity_rate.std_dev`
 - `env_agent/ore.red.lost.avg`
@@ -1210,10 +1209,10 @@ in the environment.
 - `env_agent/ore.red.lost.rate.std_dev`
 - `env_agent/ore.red.lost.updates`
 - `env_agent/ore.red.lost.updates.std_dev`
+- `env_agent/ore.red.lost.std_dev`
 
-**ore.red.put:**
+**ore.red.put:** (9 values / 9 std_devs)
 - `env_agent/ore.red.put`
-- `env_agent/ore.red.put.std_dev`
 - `env_agent/ore.red.put.activity_rate`
 - `env_agent/ore.red.put.activity_rate.std_dev`
 - `env_agent/ore.red.put.avg`
@@ -1230,10 +1229,10 @@ in the environment.
 - `env_agent/ore.red.put.rate.std_dev`
 - `env_agent/ore.red.put.updates`
 - `env_agent/ore.red.put.updates.std_dev`
+- `env_agent/ore.red.put.std_dev`
 
-**ore.red.stolen.agent:**
+**ore.red.stolen.agent:** (8 values / 8 std_devs)
 - `env_agent/ore.red.stolen.agent`
-- `env_agent/ore.red.stolen.agent.std_dev`
 - `env_agent/ore.red.stolen.agent.avg`
 - `env_agent/ore.red.stolen.agent.avg.std_dev`
 - `env_agent/ore.red.stolen.agent.first_step`
@@ -1248,10 +1247,10 @@ in the environment.
 - `env_agent/ore.red.stolen.agent.rate.std_dev`
 - `env_agent/ore.red.stolen.agent.updates`
 - `env_agent/ore.red.stolen.agent.updates.std_dev`
+- `env_agent/ore.red.stolen.agent.std_dev`
 
-**ore.red.stolen_from.agent:**
+**ore.red.stolen_from.agent:** (8 values / 8 std_devs)
 - `env_agent/ore.red.stolen_from.agent`
-- `env_agent/ore.red.stolen_from.agent.std_dev`
 - `env_agent/ore.red.stolen_from.agent.avg`
 - `env_agent/ore.red.stolen_from.agent.avg.std_dev`
 - `env_agent/ore.red.stolen_from.agent.first_step`
@@ -1266,10 +1265,10 @@ in the environment.
 - `env_agent/ore.red.stolen_from.agent.rate.std_dev`
 - `env_agent/ore.red.stolen_from.agent.updates`
 - `env_agent/ore.red.stolen_from.agent.updates.std_dev`
+- `env_agent/ore.red.stolen_from.agent.std_dev`
 
-**status.frozen.ticks:**
+**status.frozen.ticks:** (9 values / 9 std_devs)
 - `env_agent/status.frozen.ticks`
-- `env_agent/status.frozen.ticks.std_dev`
 - `env_agent/status.frozen.ticks.activity_rate`
 - `env_agent/status.frozen.ticks.activity_rate.std_dev`
 - `env_agent/status.frozen.ticks.avg`
@@ -1286,10 +1285,10 @@ in the environment.
 - `env_agent/status.frozen.ticks.rate.std_dev`
 - `env_agent/status.frozen.ticks.updates`
 - `env_agent/status.frozen.ticks.updates.std_dev`
+- `env_agent/status.frozen.ticks.std_dev`
 
-**status.frozen.ticks.agent:**
+**status.frozen.ticks.agent:** (9 values / 9 std_devs)
 - `env_agent/status.frozen.ticks.agent`
-- `env_agent/status.frozen.ticks.agent.std_dev`
 - `env_agent/status.frozen.ticks.agent.activity_rate`
 - `env_agent/status.frozen.ticks.agent.activity_rate.std_dev`
 - `env_agent/status.frozen.ticks.agent.avg`
@@ -1306,5 +1305,6 @@ in the environment.
 - `env_agent/status.frozen.ticks.agent.rate.std_dev`
 - `env_agent/status.frozen.ticks.agent.updates`
 - `env_agent/status.frozen.ticks.agent.updates.std_dev`
+- `env_agent/status.frozen.ticks.agent.std_dev`
 
 
