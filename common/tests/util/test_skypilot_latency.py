@@ -1,20 +1,82 @@
 import datetime
 import importlib
 import os
-import time
+import re
+import subprocess
+import sys
 import uuid
 
 import pytest
 
 
-@pytest.mark.parametrize("prefix", ["sky-", "managed-sky-", "sky-managed-"])
-def test_queue_latency_helper(prefix):
-    ts = datetime.datetime.utcnow().strftime("%Y-%m-%d-%H-%M-%S-%f")
-    os.environ["SKYPILOT_TASK_ID"] = f"{prefix}{ts}_demo_{uuid.uuid4().hex[:3]}"
-    mod = importlib.import_module("metta.common.util.skypilot_latency")
-    t0 = mod.queue_latency_s()
-    assert t0 is not None and 0 <= t0 < 1
-    time.sleep(0.02)
-    t1 = mod.queue_latency_s()
-    assert t1 is not None and t1 >= t0 < 2
-    del os.environ["SKYPILOT_TASK_ID"]
+class TestSkyPilotLatency:
+    """Tests for the SkyPilot latency helper."""
+
+    @pytest.fixture(autouse=True)
+    def preserve_env(self):
+        """Preserve original environment variables."""
+        original_task_id = os.environ.get("SKYPILOT_TASK_ID")
+        yield
+        if original_task_id is None:
+            os.environ.pop("SKYPILOT_TASK_ID", None)
+        else:
+            os.environ["SKYPILOT_TASK_ID"] = original_task_id
+
+    @pytest.mark.parametrize("prefix", ["sky-", "managed-sky-", "sky-managed-"])
+    def test_queue_latency_with_prefixes(self, prefix):
+        """Test with different valid prefixes."""
+        ts = datetime.datetime.utcnow().strftime("%Y-%m-%d-%H-%M-%S-%f")
+        os.environ["SKYPILOT_TASK_ID"] = f"{prefix}{ts}_demo_{uuid.uuid4().hex[:3]}"
+
+        mod = importlib.import_module("metta.common.util.skypilot_latency")
+        latency = mod.queue_latency_s()
+        assert latency is not None and 0 <= latency < 1
+
+    def test_queue_latency_no_env(self):
+        """Test when SKYPILOT_TASK_ID is not set."""
+        os.environ.pop("SKYPILOT_TASK_ID", None)
+        mod = importlib.import_module("metta.common.util.skypilot_latency")
+        assert mod.queue_latency_s() is None
+
+    def test_queue_latency_invalid_format(self):
+        """Test with invalid task ID format."""
+        os.environ["SKYPILOT_TASK_ID"] = "invalid-format"
+        mod = importlib.import_module("metta.common.util.skypilot_latency")
+        assert mod.queue_latency_s() is None
+
+    def test_queue_latency_with_9_digit_microseconds(self):
+        """Test handling of 9-digit microseconds (macOS format)."""
+        base_ts = datetime.datetime.utcnow()
+        ts_str = base_ts.strftime("%Y-%m-%d-%H-%M-%S-") + "123456789"
+        os.environ["SKYPILOT_TASK_ID"] = f"sky-{ts_str}_cluster_1"
+
+        mod = importlib.import_module("metta.common.util.skypilot_latency")
+        latency = mod.queue_latency_s()
+        assert latency is not None and latency >= 0
+
+    def test_main_function_output(self):
+        """Test the main() function's output."""
+        ts = datetime.datetime.utcnow() - datetime.timedelta(seconds=5)
+        task_id = f"sky-{ts:%Y-%m-%d-%H-%M-%S-%f}_test_123"
+
+        env = os.environ.copy()
+        env["SKYPILOT_TASK_ID"] = task_id
+        env.pop("WANDB_API_KEY", None)
+        env.pop("WANDB_RUN_NAME", None)
+
+        result = subprocess.run(
+            [sys.executable, "-m", "metta.common.util.skypilot_latency"],
+            capture_output=True,
+            text=True,
+            env=env
+        )
+
+        assert result.returncode == 0
+        assert "SkyPilot queue latency:" in result.stdout
+        assert task_id in result.stdout
+
+        # Check latency is approximately correct
+        match = re.search(r"SkyPilot queue latency: ([\d.]+) s", result.stdout)
+        assert match is not None
+        latency = float(match.group(1))
+        assert 4 < latency < 6  # Should be around 5 seconds
