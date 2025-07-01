@@ -614,14 +614,15 @@ class MettaTrainer:
         fresh_policy_record = self.policy_store.create_empty_policy_record(name)
         # copy in the values we want to keep
         fresh_policy_record.metadata = metadata
-        fresh_policy = fresh_policy_record.policy
-        if hasattr(fresh_policy, "initialize_to_environment"):
-            features = metta_grid_env.get_observation_features()
-            fresh_policy.initialize_to_environment(
-                features, metta_grid_env.action_names, metta_grid_env.max_action_args, self.device
-            )
-        else:
-            fresh_policy.activate_actions(metta_grid_env.action_names, metta_grid_env.max_action_args, self.device)
+
+        # Create a fresh policy using make_policy instead of accessing the property
+        fresh_policy = make_policy(metta_grid_env, self.cfg)
+
+        # Directly set the policy on the record to avoid file loading
+        fresh_policy_record.policy = fresh_policy
+
+        # Initialize the fresh policy to the environment
+        self._initialize_policy_to_environment(fresh_policy, metta_grid_env, self.device)
         fresh_policy.load_state_dict(policy_to_save.state_dict(), strict=False)
 
         # Save the fresh policy
