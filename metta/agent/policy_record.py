@@ -122,36 +122,6 @@ class PolicyRecord:
         """Count the number of trainable parameters."""
         return sum(p.numel() for p in self.policy.parameters() if p.requires_grad)
 
-    def wandb_key_and_version(self) -> tuple[str, int]:
-        """Extract key and version from a wandb:// uri
-
-        Returns:
-            Tuple of (artifact_name, wandb_version)
-        """
-        wandb_uri_prefix = "wandb://"
-        if not self.uri.startswith(wandb_uri_prefix):
-            raise ValueError(f"wandb_key_and_version() only applies to {wandb_uri_prefix} URIs, but got: {self.uri}.")
-
-        # Remove wandb:// prefix and get the last part
-        artifact_path = self.uri[len(wandb_uri_prefix) :]
-        base_name = artifact_path.split("/")[-1]
-
-        # Check if it has a version number in format ":vNUM"
-        if ":" in base_name and ":v" in base_name:
-            parts = base_name.split(":v")
-            try:
-                version = int(parts[1])
-                key = parts[0]
-            except ValueError:
-                key = base_name
-                version = 0
-        else:
-            # No version, use the whole thing as key and version = 0
-            key = base_name
-            version = 0
-
-        return key, version
-
     def __repr__(self):
         """Generate a detailed representation of the PolicyRecord."""
         # Basic policy record info

@@ -56,7 +56,7 @@ def main(cfg):
             replay_dir=replay_dir,
         )
         result = sim.simulate()
-        key, version = policy_record.wandb_key_and_version()
+        key, version = result.stats_db.key_and_version(policy_record)
         replay_url = result.stats_db.get_replay_urls(key, version)[0]
 
         # Only on macos open a browser to the replay

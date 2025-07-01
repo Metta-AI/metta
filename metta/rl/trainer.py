@@ -713,7 +713,7 @@ class MettaTrainer:
         results = replay_simulator.simulate()
 
         if self.wandb_run is not None:
-            key, version = self.latest_saved_policy_record.wandb_key_and_version()
+            key, version = results.stats_db.key_and_version(self.latest_saved_policy_record)
             replay_urls = results.stats_db.get_replay_urls(key, version)
             if len(replay_urls) > 0:
                 replay_url = replay_urls[0]
