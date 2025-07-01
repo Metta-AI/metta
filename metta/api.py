@@ -324,6 +324,24 @@ class ExperienceConfig:
 
 
 @dataclass
+class CheckpointConfig:
+    """Configuration for checkpointing."""
+
+    checkpoint_interval: int = 60
+    wandb_checkpoint_interval: int = 300
+    checkpoint_dir: str = "./checkpoints"
+
+
+@dataclass
+class SimulationConfig:
+    """Configuration for simulation/evaluation."""
+
+    evaluate_interval: int = 300
+    replay_interval: int = 300
+    replay_dir: str = "./replays"
+
+
+@dataclass
 class TrainingState:
     """Complete training state for checkpointing."""
 

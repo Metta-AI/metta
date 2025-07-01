@@ -41,10 +41,10 @@ config = EnvConfig(
         "max_steps": 1000,
         "num_agents": 64,
         "width": 64,
-        "height": 64
-    },
-    observation_height=11,
-    observation_width=11
+        "height": 64,
+        "observation_height": 11,
+        "observation_width": 11
+    }
 )
 ```
 
@@ -206,8 +206,7 @@ metadata = load_checkpoint(agent, "./checkpoints/checkpoint_000100.pt")
 results = eval_policy(
     agent,
     env,
-    num_episodes=10,
-    device=torch.device("cuda")
+    num_episodes=10
 )
 ```
 
@@ -308,12 +307,14 @@ The API is designed to:
 5. **Be framework-agnostic** - Integrate into any training pipeline
 
 ```python
-from metta import api as metta
+from metta.api import EnvConfig
 
 # Define your environment
-env_config = metta.env(
-    num_agents=2,
-    width=15,
-    height=10,
-    max_steps=1000,
+env_config = EnvConfig(
+    game={
+        "num_agents": 2,
+        "width": 15,
+        "height": 10,
+        "max_steps": 1000,
+    }
 )
