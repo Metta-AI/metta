@@ -31,11 +31,17 @@ class FakeAgent(MettaAgent):
         return (torch.zeros((num_agents, 2)), None, None, None, None)
 
     def initialize_to_environment(
-        self, features: dict[str, dict], action_names: list[str], action_max_params: list[int], device
+        self,
+        features: dict[str, dict],
+        action_names: list[str],
+        action_max_params: list[int],
+        device,
+        is_training: bool = True,
     ):
         """
         Dummy implementation to satisfy the simulation interface.
         FakeAgent doesn't need to actually initialize anything.
+        Note: is_training parameter is deprecated and ignored.
         """
         pass
 

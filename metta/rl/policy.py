@@ -81,12 +81,20 @@ class PytorchAgent(nn.Module):
         self.device = device
 
     def initialize_to_environment(
-        self, features: dict[str, dict], action_names: list[str], action_max_params: list[int], device
+        self,
+        features: dict[str, dict],
+        action_names: list[str],
+        action_max_params: list[int],
+        device,
+        is_training: bool = True,
     ):
         """Initialize to environment - forward to wrapped policy if it has this method."""
+        # is_training parameter is deprecated and ignored - mode is auto-detected
         if hasattr(self.policy, "initialize_to_environment"):
             self.policy.initialize_to_environment(features, action_names, action_max_params, device)
-        # If the method doesn't exist, that's OK - some simple policies don't need initialization
+        elif hasattr(self.policy, "activate_actions"):
+            # Fallback to old interface if available
+            self.policy.activate_actions(action_names, action_max_params, device)
         self.device = device
 
     def l2_reg_loss(self) -> torch.Tensor:
