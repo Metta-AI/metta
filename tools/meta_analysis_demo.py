@@ -12,6 +12,7 @@ import hydra
 import torch
 from omegaconf import DictConfig
 from torch.utils.data import DataLoader, random_split
+import logging
 
 from metta.common.util.logging import setup_mettagrid_logger
 from metta.common.util.script_decorators import metta_script
@@ -28,7 +29,8 @@ except ImportError:
 def main(cfg: DictConfig) -> int:
     """Main demonstration script."""
 
-    logger = setup_mettagrid_logger()
+    logger = setup_mettagrid_logger("meta_analysis_demo")
+    logger.setLevel(logging.DEBUG)  # Enable debug logging
     logger.info("Starting meta-analysis demonstration")
 
     # Create output directory
@@ -43,7 +45,7 @@ def main(cfg: DictConfig) -> int:
 
         # Collect training runs
         training_data = collector.collect_training_runs(
-            run_filters=cfg.run_filters,
+            run_filters=getattr(cfg, "run_filters", None),
             max_runs=cfg.max_runs,
             start_date=getattr(cfg, "start_date", None),
             end_date=getattr(cfg, "end_date", None),

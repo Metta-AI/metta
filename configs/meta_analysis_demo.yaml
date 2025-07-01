@@ -1,4 +1,6 @@
 # Meta-analysis demonstration configuration
+defaults:
+  - common
 
 # Output directory for results
 output_dir: ${run_dir}/meta_analysis_demo
@@ -19,13 +21,13 @@ train_val_split: 0.8  # 80% train, 20% validation
 random_seed: 42  # For reproducible splits
 
 # Date filtering (ISO format: YYYY-MM-DD)
-start_date: "2025-04-30"  # Filter runs from April 30th, 2025
+#start_date: "2025-04-30"  # Filter runs from April 30th, 2025
 # end_date: "2024-12-31"    # Uncomment to filter runs until this date (leave commented for "until present")
 
-run_filters:
-  # Example filters - adjust based on your data
-  "config.trainer.curriculum": {"$regex": "navigation"}
-  "state": "finished"
+# run_filters:
+#   # Example filters - adjust based on your data
+#   "config.trainer.curriculum": {"$regex": "navigation"}
+#   "state": "finished"
 
 # Model architecture
 env_latent_dim: 16

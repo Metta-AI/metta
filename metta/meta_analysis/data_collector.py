@@ -19,22 +19,45 @@ class TrainingDataCollector:
         self.wandb_project = wandb_project
         self.api = wandb.Api()
 
-    def collect_training_runs(self, run_filters: Optional[Dict] = None, max_runs: int = 100) -> List[Dict]:
+    def collect_training_runs(
+        self,
+        run_filters: Optional[Dict] = None,
+        max_runs: int = 100,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None
+    ) -> List[Dict]:
         """Collect training runs from wandb with their configs and curves."""
 
-        # Query wandb runs
-        runs = self.api.runs(f"{self.wandb_entity}/{self.wandb_project}", filters=run_filters)
+                                # Build filters - start with empty dict to avoid OmegaConf issues
+        filters = {}
+
+        # Add date filters if provided
+        if start_date:
+            filters["created_at"] = {"$gte": start_date}
+        if end_date:
+            if "created_at" in filters:
+                filters["created_at"]["$lte"] = end_date
+            else:
+                filters["created_at"] = {"$lte": end_date}
+
+        # Query wandb runs - get most recent first
+        logger.info(f"Querying wandb runs with filters: {filters}")
+        runs = self.api.runs(f"{self.wandb_entity}/{self.wandb_project}", filters=filters, order="-created_at")
         runs = list(runs)[:max_runs]
+        logger.info(f"Found {len(runs)} most recent runs from wandb")
 
         training_data = []
 
-        for run in runs:
+        for i, run in enumerate(runs):
+            logger.info(f"Processing run {i+1}/{len(runs)}: {run.name}")
             try:
                 # Extract run data
                 run_data = self._extract_run_data(run)
                 if run_data:
                     training_data.append(run_data)
                     logger.info(f"Collected data from run: {run.name}")
+                else:
+                    logger.info(f"No data extracted from run: {run.name}")
 
             except Exception as e:
                 logger.warning(f"Failed to collect data from run {run.name}: {e}")
@@ -49,21 +72,25 @@ class TrainingDataCollector:
         # Get run config
         config = run.config
         if not config:
+            print(f"Run {run.name}: No config found")
             return None
 
         # Extract environment config
         env_config = self._extract_env_config(config)
         if not env_config:
+            print(f"Run {run.name}: No environment config extracted")
             return None
 
         # Extract agent config
         agent_config = self._extract_agent_config(config)
         if not agent_config:
+            print(f"Run {run.name}: No agent config extracted")
             return None
 
         # Extract training curve (hearts vs timesteps)
         training_curve = self._extract_training_curve(run)
         if not training_curve:
+            print(f"Run {run.name}: No training curve extracted")
             return None
 
         return {
@@ -179,6 +206,23 @@ class TrainingDataCollector:
                         break
 
         return agent_config if agent_config else None
+
+    def _convert_omegaconf_to_dict(self, obj):
+        """Recursively convert OmegaConf objects to regular Python types."""
+        if hasattr(obj, '_content'):
+            # OmegaConf object
+            if isinstance(obj._content, dict):
+                return {k: self._convert_omegaconf_to_dict(v) for k, v in obj._content.items()}
+            elif isinstance(obj._content, list):
+                return [self._convert_omegaconf_to_dict(v) for v in obj._content]
+            else:
+                return obj._content
+        elif isinstance(obj, dict):
+            return {k: self._convert_omegaconf_to_dict(v) for k, v in obj.items()}
+        elif isinstance(obj, list):
+            return [self._convert_omegaconf_to_dict(v) for v in obj]
+        else:
+            return obj
 
     def _extract_training_curve(self, run) -> Optional[np.ndarray]:
         """Extract training curve (hearts vs timesteps) from wandb history."""
