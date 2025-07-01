@@ -37,38 +37,34 @@ py::dict CreateBenchmarkConfig(int num_agents) {
   py::list inventory_item_names;
   inventory_item_names.append("ore");
   inventory_item_names.append("heart");
-  inventory_item_names.append("armor");
-  inventory_item_names.append("laser");
   game_cfg["inventory_item_names"] = inventory_item_names;
 
   // Actions configuration
   py::dict actions_cfg;
-  py::dict noop_cfg, move_cfg, rotate_cfg, attack_cfg, swap_cfg, put_cfg, get_cfg, change_color_cfg;
+  py::dict action_cfg;
+  py::dict attack_cfg;
 
-  noop_cfg["enabled"] = true;
-  move_cfg["enabled"] = true;
-  rotate_cfg["enabled"] = true;
+  action_cfg["enabled"] = true;
+  action_cfg["consumed_resources"] = py::dict();
+  action_cfg["required_resources"] = py::dict();
+
   attack_cfg["enabled"] = true;
-  swap_cfg["enabled"] = true;
-  put_cfg["enabled"] = true;
-  get_cfg["enabled"] = true;
-  change_color_cfg["enabled"] = true;
+  attack_cfg["consumed_resources"] = py::dict();
+  attack_cfg["required_resources"] = py::dict();
+  attack_cfg["defense_resources"] = py::dict();
 
-  actions_cfg["noop"] = noop_cfg;
-  actions_cfg["move"] = move_cfg;
-  actions_cfg["rotate"] = rotate_cfg;
+  actions_cfg["noop"] = action_cfg;
+  actions_cfg["move"] = action_cfg;
+  actions_cfg["rotate"] = action_cfg;
   actions_cfg["attack"] = attack_cfg;
-  actions_cfg["swap"] = swap_cfg;
-  actions_cfg["put_items"] = put_cfg;
-  actions_cfg["get_items"] = get_cfg;
-  actions_cfg["change_color"] = change_color_cfg;
-  actions_cfg["armor_item_id"] = 2;
-  actions_cfg["laser_item_id"] = 3;
+  actions_cfg["swap"] = action_cfg;
+  actions_cfg["put_items"] = action_cfg;
+  actions_cfg["get_items"] = action_cfg;
+  actions_cfg["change_color"] = action_cfg;
 
   game_cfg["actions"] = actions_cfg;
 
   // Groups configuration
-  py::dict agent_groups;
   py::dict agent_group1, agent_group2;
 
   agent_group1["freeze_duration"] = 0;
@@ -80,6 +76,8 @@ py::dict CreateBenchmarkConfig(int num_agents) {
   agent_group1["group_id"] = 0;
   agent_group1["group_reward_pct"] = 0.0f;
   agent_group1["type_id"] = 0;
+  agent_group1["type_name"] = "agent";
+  agent_group1["object_type"] = "agent";
 
   agent_group2["freeze_duration"] = 0;
   agent_group2["action_failure_penalty"] = 0;
@@ -90,18 +88,19 @@ py::dict CreateBenchmarkConfig(int num_agents) {
   agent_group2["group_id"] = 1;
   agent_group2["group_reward_pct"] = 0.0f;
   agent_group2["type_id"] = 0;
-
-  agent_groups["agent.team1"] = agent_group1;
-  agent_groups["agent.team2"] = agent_group2;
-
-  game_cfg["agent_groups"] = agent_groups;
+  agent_group2["type_name"] = "agent";
+  agent_group2["object_type"] = "agent";
 
   // Objects configuration
   py::dict objects_cfg;
-  py::dict wall_cfg, block_cfg, mine_cfg, generator_cfg, altar_cfg;
+  py::dict wall_cfg;
 
   objects_cfg["wall"] = wall_cfg;
   objects_cfg["wall"]["type_id"] = 1;
+  objects_cfg["wall"]["type_name"] = "wall";
+  objects_cfg["wall"]["object_type"] = "wall";
+  objects_cfg["agent.team1"] = agent_group1;
+  objects_cfg["agent.team2"] = agent_group2;
 
   game_cfg["objects"] = objects_cfg;
 

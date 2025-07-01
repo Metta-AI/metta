@@ -22,6 +22,7 @@ from metta.agent.policy_store import PolicyStore
 from metta.common.util.config import Config
 from metta.common.util.logging import setup_mettagrid_logger
 from metta.common.util.runtime_configuration import setup_mettagrid_environment
+from metta.common.util.script_decorators import metta_script
 from metta.common.util.stats_client_cfg import get_stats_client
 from metta.sim.simulation_config import SimulationSuiteConfig
 from metta.sim.simulation_suite import SimulationSuite
@@ -65,7 +66,7 @@ def simulate_policy(
     policy_store = PolicyStore(cfg, None)
     # TODO: institutionalize this better?
     metric = sim_job.simulation_suite.name + "_score"
-    policy_prs = policy_store.policies(policy_uri, sim_job.selector_type, n=1, metric=metric)
+    policy_prs = policy_store.policy_records(policy_uri, sim_job.selector_type, n=1, metric=metric)
 
     stats_client: StatsClient | None = get_stats_client(cfg, logger)
 
@@ -112,6 +113,7 @@ def simulate_policy(
 
 
 @hydra.main(version_base=None, config_path="../configs", config_name="sim_job")
+@metta_script
 def main(cfg: DictConfig) -> None:
     setup_mettagrid_environment(cfg)
 

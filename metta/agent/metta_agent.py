@@ -241,7 +241,8 @@ class MettaAgent(nn.Module):
 
         if remapped_count > 0 or unknown_features:
             logger.info(
-                f"Created feature remapping with {remapped_count} remapped features and {len(unknown_features)} unknown features"
+                f"Created feature remapping with {remapped_count} remapped features "
+                f"and {len(unknown_features)} unknown features"
             )
 
             # Update observation component if it supports remapping
