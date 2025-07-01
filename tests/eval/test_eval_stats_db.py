@@ -126,7 +126,7 @@ def test_simulation_scores_normalisation(test_db):
     assert key == ("test_suite", "test_sim", "env_test")
     assert 1.15 <= exp <= 1.25
 
-    # Compare to raw (non‑normalised) mean
+    # Compare to raw (non‑normalized) mean
     raw = db.query("""
         SELECT AVG(value) AS a FROM policy_simulation_agent_metrics
          WHERE policy_key='test_policy' AND policy_version=1 AND metric='hearts_collected'
@@ -163,7 +163,7 @@ def test_empty_database():
 
 
 def test_metric_by_policy_eval(test_db):
-    """metric_by_policy_eval should return a normalised mean per policy and eval."""
+    """metric_by_policy_eval should return a normalized mean per policy and eval."""
     db, _, _ = test_db
 
     policy = MockPolicyRecord("test_policy", 1)
