@@ -34,7 +34,7 @@ clean:
 # Install package in editable mode
 install:
 	@echo "Installing package in editable mode..."
-	uv sync --inexact
+	UV_PROJECT_ENVIRONMENT=../.venv uv sync --inexact
 
 pytest: install
 	@echo "Running Python tests..."

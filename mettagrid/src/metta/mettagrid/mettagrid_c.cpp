@@ -135,17 +135,10 @@ MettaGrid::MettaGrid(py::dict cfg, py::list map, int seed) {
     }
   }
 
-  // Initialize objects from map
-  std::string grid_hash_data;                   // String to accumulate grid data for hashing
-  grid_hash_data.reserve(height * width * 20);  // Pre-allocate for efficiency
-
   for (int r = 0; r < height; r++) {
     for (int c = 0; c < width; c++) {
       auto py_cell = map[r].cast<py::list>()[c].cast<py::str>();
       auto cell = py_cell.cast<std::string>();
-
-      // Add cell position and type to hash data
-      grid_hash_data += std::to_string(r) + "," + std::to_string(c) + ":" + cell + ";";
 
       // #HardCodedConfig
       if (cell == "empty" || cell == "." || cell == " ") {
@@ -184,8 +177,8 @@ MettaGrid::MettaGrid(py::dict cfg, py::list map, int seed) {
     }
   }
 
-  // Use wyhash for deterministic, high-performance grid fingerprinting across platforms
-  initial_grid_hash = hash_string(grid_hash_data);
+  // Use rapidhash for deterministic, high-performance grid fingerprinting across platforms
+  initial_grid_hash = hash_mettagrid_map(map);
 
   // Initialize buffers. The buffers are likely to be re-set by the user anyways,
   // so nothing above should depend on them before this point.
