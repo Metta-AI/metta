@@ -11,9 +11,9 @@ buckets:
     bins: 2
   game.map_builder.room.objects.altar:
     range: [1, 3]
-  game.map_builder.room.objects.generator.red:
+  game.map_builder.room.objects.generator_red:
     range: [1, 3]
-  game.map_builder.room.objects.mine.red:
+  game.map_builder.room.objects.mine_red:
     range: [1, 3]
   game.map_builder.room.objects.wall:
     range: [1, 3]
@@ -33,12 +33,12 @@ buckets:
   objects.altar.cooldown:
     range: [10, 60]
     bins: 2
-  objects.generator.red.initial_items:
+  objects.generator_red.initial_items:
     range: [0, 1]
-  objects.generator.red.cooldown:
+  objects.generator_red.cooldown:
     range: [10, 60]
     bins: 2
-  objects.mine.red.cooldown:
+  objects.mine_red.cooldown:
     range: [10, 60]
     bins: 2
 env_overrides:
