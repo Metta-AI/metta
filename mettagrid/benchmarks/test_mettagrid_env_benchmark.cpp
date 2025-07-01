@@ -41,27 +41,26 @@ py::dict CreateBenchmarkConfig(int num_agents) {
 
   // Actions configuration
   py::dict actions_cfg;
-  py::dict noop_cfg, move_cfg, rotate_cfg, attack_cfg, swap_cfg, put_cfg, get_cfg, change_color_cfg;
+  py::dict action_cfg;
+  py::dict attack_cfg;
 
-  noop_cfg["enabled"] = true;
-  move_cfg["enabled"] = true;
-  rotate_cfg["enabled"] = true;
+  action_cfg["enabled"] = true;
+  action_cfg["consumed_resources"] = py::dict();
+  action_cfg["required_resources"] = py::dict();
+
   attack_cfg["enabled"] = true;
-  attack_cfg["attack_resources"] = py::dict();
+  attack_cfg["consumed_resources"] = py::dict();
+  attack_cfg["required_resources"] = py::dict();
   attack_cfg["defense_resources"] = py::dict();
-  swap_cfg["enabled"] = true;
-  put_cfg["enabled"] = true;
-  get_cfg["enabled"] = true;
-  change_color_cfg["enabled"] = true;
 
-  actions_cfg["noop"] = noop_cfg;
-  actions_cfg["move"] = move_cfg;
-  actions_cfg["rotate"] = rotate_cfg;
+  actions_cfg["noop"] = action_cfg;
+  actions_cfg["move"] = action_cfg;
+  actions_cfg["rotate"] = action_cfg;
   actions_cfg["attack"] = attack_cfg;
-  actions_cfg["swap"] = swap_cfg;
-  actions_cfg["put_items"] = put_cfg;
-  actions_cfg["get_items"] = get_cfg;
-  actions_cfg["change_color"] = change_color_cfg;
+  actions_cfg["swap"] = action_cfg;
+  actions_cfg["put_items"] = action_cfg;
+  actions_cfg["get_items"] = action_cfg;
+  actions_cfg["change_color"] = action_cfg;
 
   game_cfg["actions"] = actions_cfg;
 
