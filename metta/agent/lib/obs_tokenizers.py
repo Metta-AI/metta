@@ -28,12 +28,26 @@ class ObsTokenPadStrip(LayerBase):
         super().__init__(**cfg)
         self._obs_shape = obs_shape
         self._M = obs_shape[0]
+        # Initialize feature remapping as identity by default
+        self.register_buffer("feature_id_remap", torch.arange(256, dtype=torch.uint8))
+        self._remapping_active = False
 
     def _make_net(self) -> None:
         # unfortunately, we can't know the output shape's 0th dim (seq length) until we see the data. however,
         # downstream layers should not need to know this in initializing any of their learnable parameters.
         # so we just set it to 0 for now.
         self._out_tensor_shape = [0, 3]
+
+    def update_feature_remapping(self, feature_id_remap: torch.Tensor):
+        """
+        Update the feature ID remapping table.
+
+        Args:
+            feature_id_remap: A 256-element tensor where index is new_id and value is original_id
+        """
+        self.register_buffer("feature_id_remap", feature_id_remap.to(self.feature_id_remap.device))
+        identity = torch.arange(256, dtype=torch.uint8, device=self.feature_id_remap.device)
+        self._remapping_active = not torch.equal(self.feature_id_remap, identity)
 
     def _forward(self, td: TensorDict) -> TensorDict:
         # [B, M, 3] the 3 vector is: coord (unit8), attr_idx, attr_val
@@ -48,6 +62,13 @@ class ObsTokenPadStrip(LayerBase):
             td["_TT_"] = TT
             observations = einops.rearrange(observations, "b t h c -> (b t) h c")
         td["_BxTT_"] = B * TT
+
+        # Apply feature remapping if active
+        if self._remapping_active:
+            observations = observations.clone()
+            feature_ids = observations[..., 1].long()
+            remapped_ids = self.feature_id_remap[feature_ids]
+            observations[..., 1] = remapped_ids
 
         coords = observations[..., 0]
         obs_mask = coords == 255  # important! true means mask me

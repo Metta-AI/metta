@@ -6,12 +6,12 @@ game:
   num_observation_tokens: 100
 
   inventory_item_names:
-    - ore.red
-    - ore.blue
-    - ore.green
-    - battery.red
-    - battery.blue
-    - battery.green
+    - ore_red
+    - ore_blue
+    - ore_green
+    - battery_red
+    - battery_blue
+    - battery_green
     - heart
     - armor
     - laser
