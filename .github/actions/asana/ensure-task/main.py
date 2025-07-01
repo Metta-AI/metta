@@ -196,6 +196,8 @@ def create_asana_task(
     github_url: str,
     github_url_field_id: str,
     asana_token: str,
+    pr_author_field_id: str,
+    pr_author_asana: str | None,
 ) -> str:
     """Create a new Asana task with the GitHub URL field populated."""
     url = "https://app.asana.com/api/1.0/tasks"
@@ -216,9 +218,14 @@ def create_asana_task(
     if assignee:
         payload["data"]["assignee"] = assignee
 
+    custom_fields = {}
     # Add the GitHub URL custom field
-    if github_url_field_id:
-        payload["data"]["custom_fields"] = {github_url_field_id: github_url}
+    custom_fields[github_url_field_id] = github_url
+
+    # Add the PR author custom field
+    custom_fields[pr_author_field_id] = pr_author_asana
+
+    payload["data"]["custom_fields"] = custom_fields
 
     # Set completion status if PR is closed
     if completed:
@@ -241,8 +248,10 @@ def update_asana_task(
     completed: bool,
     assignee: str | None,
     asana_token: str,
-    github_url: str | None = None,
-    github_url_field_id: str | None = None,
+    github_url: str,
+    github_url_field_id: str,
+    pr_author_field_id: str,
+    pr_author_asana: str | None,
 ):
     """Update an existing Asana task with new title and description."""
     url = f"https://app.asana.com/api/1.0/tasks/{task_gid}"
@@ -257,9 +266,13 @@ def update_asana_task(
     if assignee:
         payload["data"]["assignee"] = assignee
 
-    # Add the GitHub URL custom field if provided
-    if github_url and github_url_field_id:
-        payload["data"]["custom_fields"] = {github_url_field_id: github_url}
+    # Add custom fields if provided
+    custom_fields = {}
+    custom_fields[github_url_field_id] = github_url
+    custom_fields[pr_author_field_id] = pr_author_asana
+
+    if custom_fields:
+        payload["data"]["custom_fields"] = custom_fields
 
     print(f"Updating task {task_gid} with payload: {payload}")
 
@@ -277,8 +290,10 @@ def update_task_if_needed(
     task_completed: bool,
     asana_assignee: str | None,
     asana_token: str,
-    github_url: str | None = None,
-    github_url_field_id: str | None = None,
+    github_url: str,
+    github_url_field_id: str,
+    pr_author_field_id: str,
+    pr_author_asana: str | None,
 ) -> None:
     """Update a task if its current data differs from the provided data."""
     current_title = task_data.get("name") or ""
@@ -303,6 +318,8 @@ def update_task_if_needed(
             asana_token,
             github_url,
             github_url_field_id,
+            pr_author_field_id,
+            pr_author_asana,
         )
 
 
@@ -336,6 +353,8 @@ def ensure_asana_task_exists(
     github_url: str,
     github_url_field_id: str,
     asana_token: str,
+    pr_author_field_id: str,
+    pr_author_asana: str | None,
 ) -> str:
     """Ensure an Asana task exists with the given GitHub URL. Return existing or create new."""
 
@@ -374,6 +393,8 @@ def ensure_asana_task_exists(
             asana_token,
             github_url,
             github_url_field_id,
+            pr_author_field_id,
+            pr_author_asana,
         )
         return existing_task["permalink_url"]
 
@@ -390,6 +411,8 @@ def ensure_asana_task_exists(
         github_url,
         github_url_field_id,
         asana_token,
+        pr_author_field_id,
+        pr_author_asana,
     )
     print(f"Created new Asana task: {new_task_url}")
     return new_task_url
@@ -411,6 +434,7 @@ if __name__ == "__main__":
     gh_login_field_id = os.getenv("INPUT_GH_LOGIN_FIELD_ID")
     asana_email_field_id = os.getenv("INPUT_ASANA_EMAIL_FIELD_ID")
     roster_project_id = os.getenv("INPUT_ROSTER_PROJECT_ID")
+    pr_author_field_id = os.getenv("INPUT_PR_AUTHOR_FIELD_ID")
 
     github_logins = set(assignees + reviewers + [author])
     github_login_to_asana_email = get_asana_users_by_github_logins(
@@ -428,6 +452,9 @@ if __name__ == "__main__":
         github_login_to_asana_email[login] for login in github_logins if login in github_login_to_asana_email
     ]
 
+    # Get the author's Asana ID for the custom field
+    pr_author_asana = github_login_to_asana_email.get(author)
+
     task_completed = pr_state == "closed"
 
     # Ensure task exists and output URL
@@ -442,6 +469,8 @@ if __name__ == "__main__":
         github_url,
         github_url_field_id,
         asana_token,
+        pr_author_field_id,
+        pr_author_asana,
     )
 
     with open(os.environ["GITHUB_OUTPUT"], "a") as f:
