@@ -12,18 +12,33 @@ class MockAgent(MettaAgent):
     """Mock agent for testing feature remapping without full setup."""
 
     def __init__(self):
-        # Skip the full MettaAgent.__init__ but set up necessary attributes
+        # Initialize nn.Module to get the training attribute
+        import torch.nn as nn
+
+        nn.Module.__init__(self)
+
+        # Set up necessary attributes without full MettaAgent.__init__
         self.device = "cpu"
-        self.components = {}
+        self.components = nn.ModuleDict()
         self._mock_is_training = True
 
     def _is_training_context(self):
         """Mock the training context detection for testing."""
         return self._mock_is_training
 
+    def activate_actions(self, action_names, action_max_params, device):
+        """Mock version that doesn't require action embeddings."""
+        self.action_names = action_names
+        self.action_max_params = action_max_params
+        self.device = device
 
-class MockObsComponent:
+
+class MockObsComponent(torch.nn.Module):
     """Mock observation component for testing remapping updates."""
+
+    def __init__(self):
+        super().__init__()
+        self.remap_table = None
 
     def update_feature_remapping(self, remap_table):
         self.remap_table = remap_table
@@ -260,3 +275,171 @@ def test_feature_mapping_persistence_via_metadata():
     assert eval_agent.feature_id_remap[5] == 0  # type_id: 5->0
     assert eval_agent.feature_id_remap[7] == 2  # hp: 7->2
     assert eval_agent.feature_id_remap[9] == 3  # mineral: 9->3
+
+
+def test_end_to_end_initialize_to_environment_workflow():
+    """Test the full end-to-end workflow of initialize_to_environment."""
+    import tempfile
+    from pathlib import Path
+
+    import torch
+
+    from metta.agent.policy_metadata import PolicyMetadata
+    from metta.agent.policy_record import PolicyRecord
+
+    # Create a temporary directory for saving policies
+    with tempfile.TemporaryDirectory() as tmpdir:
+        # Mock environment class that provides features
+        class MockMettaGridEnv:
+            """Mock environment that simulates feature changes between runs."""
+
+            def __init__(self, feature_mapping):
+                self.feature_mapping = feature_mapping
+                self.action_names = ["move", "turn", "interact"]
+                self.max_action_args = [3, 2, 1]
+
+            def get_observation_features(self):
+                """Return features in the format expected by initialize_to_environment."""
+                return {
+                    name: {"id": id_val, "type": "scalar", "normalization": 10.0}
+                    for name, id_val in self.feature_mapping.items()
+                }
+
+        # Step 1: Create a policy with original features
+        original_env = MockMettaGridEnv(
+            {
+                "health": 1,
+                "energy": 2,
+                "gold": 3,
+                "position_x": 4,
+                "position_y": 5,
+            }
+        )
+
+        # Create a mock policy (we use MockAgent for simplicity)
+        policy = MockAgent()
+
+        # Initialize the policy to the original environment
+        features = original_env.get_observation_features()
+        policy.initialize_to_environment(features, original_env.action_names, original_env.max_action_args, "cpu")
+
+        # Get the original feature mapping
+        original_mapping = policy.get_original_feature_mapping()
+        assert original_mapping == {
+            "health": 1,
+            "energy": 2,
+            "gold": 3,
+            "position_x": 4,
+            "position_y": 5,
+        }
+
+        # Create metadata with the mapping
+        metadata = PolicyMetadata(
+            agent_step=1000,
+            epoch=10,
+            run="test_run",
+            action_names=original_env.action_names,
+        )
+        metadata["original_feature_mapping"] = original_mapping
+
+        # Simulate saving by creating a PolicyRecord
+        save_path = Path(tmpdir) / "test_policy.pt"
+        pr = PolicyRecord(
+            policy_store=None,  # We don't need a real PolicyStore for this test
+            name="test_policy",
+            uri=f"file://{save_path}",
+            metadata=metadata,
+        )
+        pr._cached_policy = policy
+
+        # Save using torch.save (mimicking what PolicyStore.save does)
+        pr._policy_store = None  # Remove circular reference
+        torch.save(pr, save_path)
+
+        # Step 2: Load the policy in a new environment with different feature IDs
+        new_env = MockMettaGridEnv(
+            {
+                "health": 10,  # Was 1, now 10
+                "energy": 20,  # Was 2, now 20
+                "gold": 30,  # Was 3, now 30
+                "position_x": 40,  # Was 4, now 40
+                "position_y": 50,  # Was 5, now 50
+                "mana": 60,  # New feature not in original
+            }
+        )
+
+        # Load the saved policy
+        loaded_pr = torch.load(save_path, map_location="cpu", weights_only=False)
+        loaded_policy = MockAgent()  # Create a fresh policy
+
+        # Restore the original feature mapping from metadata
+        if "original_feature_mapping" in loaded_pr.metadata:
+            loaded_policy.restore_original_feature_mapping(loaded_pr.metadata["original_feature_mapping"])
+
+        # Create a mock observation component to verify remapping
+        mock_obs = MockObsComponent()
+        loaded_policy.components["_obs_"] = mock_obs
+
+        # Initialize to the new environment (in eval mode)
+        loaded_policy.eval()  # Set to evaluation mode
+        new_features = new_env.get_observation_features()
+        loaded_policy.initialize_to_environment(new_features, new_env.action_names, new_env.max_action_args, "cpu")
+
+        # Step 3: Verify the remapping was applied correctly
+        # All known features should be remapped to their original IDs
+        assert loaded_policy.feature_id_remap[10] == 1  # health: 10->1
+        assert loaded_policy.feature_id_remap[20] == 2  # energy: 20->2
+        assert loaded_policy.feature_id_remap[30] == 3  # gold: 30->3
+        assert loaded_policy.feature_id_remap[40] == 4  # position_x: 40->4
+        assert loaded_policy.feature_id_remap[50] == 5  # position_y: 50->5
+
+        # Unknown feature should map to 255 in eval mode
+        assert loaded_policy.feature_id_remap[60] == 255  # mana -> UNKNOWN
+
+        # Verify the observation component received the remapping
+        assert mock_obs.remap_table[10] == 1
+        assert mock_obs.remap_table[20] == 2
+        assert mock_obs.remap_table[30] == 3
+        assert mock_obs.remap_table[40] == 4
+        assert mock_obs.remap_table[50] == 5
+        assert mock_obs.remap_table[60] == 255
+
+        # Step 4: Test training mode with the loaded policy
+        loaded_policy.train()  # Set to training mode
+
+        # Create another environment with yet different features
+        training_env = MockMettaGridEnv(
+            {
+                "health": 100,  # Different ID again
+                "energy": 150,  # Changed from 200 to stay within 0-255
+                "gold": 180,  # Changed from 300 to stay within 0-255
+                "stamina": 200,  # Changed from 400 to stay within 0-255
+            }
+        )
+
+        # Re-initialize in training mode
+        training_features = training_env.get_observation_features()
+        loaded_policy.initialize_to_environment(
+            training_features, training_env.action_names, training_env.max_action_args, "cpu"
+        )
+
+        # In training mode, new features should be learned
+        updated_mapping = loaded_policy.get_original_feature_mapping()
+        assert "stamina" in updated_mapping
+        assert updated_mapping["stamina"] == 200
+
+        # Known features should still remap correctly
+        assert loaded_policy.feature_id_remap[100] == 1  # health
+        assert loaded_policy.feature_id_remap[150] == 2  # energy
+        assert loaded_policy.feature_id_remap[180] == 3  # gold
+
+        # Step 5: Verify complete workflow - train -> save -> load -> eval with remapping
+        # This demonstrates the full lifecycle
+        assert loaded_policy.original_feature_mapping == {
+            "health": 1,
+            "energy": 2,
+            "gold": 3,
+            "position_x": 4,
+            "position_y": 5,
+            "stamina": 200,  # New feature learned during training
+        }
