@@ -281,35 +281,8 @@ class PytorchAdapter(nn.Module):
                 valid_mask & (normalizers > 0), feature_values / normalizers, feature_values
             )
 
-            # Debug normalization
-            if torch.rand(1).item() < 0.05:  # 5% chance
-                sample_idx = valid_mask.nonzero()[:5]  # First 5 valid tokens
-                if len(sample_idx) > 0:
-                    for idx in sample_idx:
-                        b, t = idx[0].item(), idx[1].item()
-                        logger.info(
-                            f"Token {t}: feature_id={feature_ids[b, t]}, raw_value={feature_values[b, t]:.1f}, normalizer={normalizers[b, t]:.1f}, normalized={normalized_values[b, t]:.4f}"
-                        )
-
             # Update the observation tensor
             obs[:, :, 2] = normalized_values
-
-        # Debug logging to understand observations (after normalization)
-        if torch.rand(1).item() < 0.01:  # Log 1% of the time to avoid spam
-            logger.info(f"Observation shape: {obs.shape}")
-            logger.info(f"Observation min/max: {obs.min().item():.2f} / {obs.max().item():.2f}")
-            if len(obs.shape) == 3 and obs.shape[-1] == 3:
-                # Token observations
-                coords = obs[0, :, 0]
-                features = obs[0, :, 1]
-                values = obs[0, :, 2]
-                valid_tokens = coords != 0  # After zeroing out 255
-                logger.info(f"Valid tokens: {valid_tokens.sum().item()} / {obs.shape[1]}")
-                if valid_tokens.sum() > 0:
-                    logger.info(f"Feature IDs: {features[valid_tokens][:10].tolist()}")
-                    logger.info(
-                        f"Feature values (normalized): {[f'{v:.4f}' for v in values[valid_tokens][:10].tolist()]}"
-                    )
 
         # Convert state format if needed
         if self.is_lstm_wrapper and state is not None:
