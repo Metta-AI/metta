@@ -18,6 +18,7 @@ dependencies = [
   "jmespath>=1.0.1",
   "matplotlib>=3.10.3",
   "metta-mettagrid",
+  "metta-agent",
   "metta-common",
   "numpy>=2.2.6",
   "omegaconf>=2.4.0.dev3",
@@ -71,7 +72,7 @@ mapgen = "tools.map.gen:main"
 mapgen-scene = "tools.map.gen_scene:main"
 
 [tool.coverage.run]
-source = ["metta", "metta.mettagrid", "metta.common"]
+source = ["metta", "metta.mettagrid", "metta.common", "metta.agent"]
 
 [tool.scikit-build.cmake.define]
 CMAKE_BUILD_TYPE = "Release"
@@ -93,10 +94,11 @@ cache-keys = [
 default-groups = ["dev"]
 
 [tool.uv.workspace]
-members = ["mettagrid", "app_backend", "common"]
+members = ["mettagrid", "app_backend", "common", "agent"]
 
 [tool.uv.sources]
 pufferlib = { git = "https://github.com/Metta-AI/PufferLib.git", rev = "dcd597ef1a094cc2da886f5a4ab2c7f1b27d0183" }
 app_backend = { workspace = true }
 metta-mettagrid = { workspace = true }
 metta-common = { workspace = true }
+metta-agent = { workspace = true }

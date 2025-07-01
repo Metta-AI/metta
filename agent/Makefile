@@ -1,5 +1,5 @@
 
-.PHONY: help install test
+.PHONY: help install test clean
 
 help:
 	@echo "Available targets:"
@@ -8,9 +8,13 @@ help:
 
 install:
 	@echo "Installing package in editable mode..."
-	uv sync --inexact
+	UV_PROJECT_ENVIRONMENT=../.venv uv sync --inexact
 
 test:
 	@echo "Running tests with coverage..."
-	uv run pytest --cov=metta.common --cov-report=term-missing
+	UV_PROJECT_ENVIRONMENT=../.venv uv run pytest --cov=metta.common --cov-report=term-missing
 
+clean:
+	@echo "Cleaning extra venv..."
+	rm -rf .venv
+	rm uv.lock

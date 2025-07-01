@@ -26,7 +26,7 @@ include = ["metta.agent"]
 
 [tool.setuptools.package-data]
 "metta" = ["__init__.py"]
-"metta.common" = ["py.typed"]
+"metta.agent" = ["py.typed"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
