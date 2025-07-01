@@ -149,7 +149,7 @@ class Simulation:
             except Exception as e:
                 logger.error(f"Error activating NPC actions: {e}")
                 raise SimulationCompatibilityError(
-                    f"[{self._name}] Error activating NPC actions for {self._npc_pr.name}: {e}"
+                    f"[{self._name}] Error activating NPC actions for {self._npc_pr.run_name}: {e}"
                 ) from e
 
         # ---------------- agent-index bookkeeping ---------------------- #

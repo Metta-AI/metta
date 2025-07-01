@@ -103,7 +103,7 @@ class SimulationStatsDB(EpisodeStatsDB):
 
         merged = SimulationStatsDB(merged_path)
 
-        policy_key, policy_version = policy_record.wandb_key_and_version()
+        policy_key, policy_version = merged.key_and_version(policy_record)
         merged._insert_simulation(sim_id, sim_name, sim_suite, env, policy_key, policy_version)
 
         # Merge each shard
@@ -117,7 +117,7 @@ class SimulationStatsDB(EpisodeStatsDB):
 
         if all_episode_ids:
             # Convert agent_map with PolicyRecord to agent_map with (key, version) tuples
-            agent_tuple_map = {agent_id: record.wandb_key_and_version() for agent_id, record in agent_map.items()}
+            agent_tuple_map = {agent_id: merged.key_and_version(record) for agent_id, record in agent_map.items()}
 
             merged._insert_agent_policies(all_episode_ids, agent_tuple_map)
             merged._update_episode_simulations(all_episode_ids, sim_id)
@@ -251,9 +251,9 @@ class SimulationStatsDB(EpisodeStatsDB):
         logger.debug(f"After merge: {select_count()} episodes")
         logger.debug(f"Merged {other_path} into {self.path}")
 
-    # ------------------------------------------------------------------ #
-    #   internal: merge one external DB into this DB                      #
-    # ------------------------------------------------------------------ #
+    def key_and_version(self, pr: PolicyRecord) -> tuple[str, int]:
+        return pr.uri, pr.metadata.epoch
+
     def _merge_db(self, other_path: Path) -> None:
         """
         Merge the database at `other_path` into **self**.

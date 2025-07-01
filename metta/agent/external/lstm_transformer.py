@@ -132,7 +132,7 @@ class Policy(nn.Module):
         )
         self.value = pufferlib.pytorch.layer_init(nn.Linear(hidden_size, 1), std=1)
 
-        # Keep the original scaling vector so normalisation remains identical
+        # Keep the original scaling vector so normalization remains identical
         # TODO - fix magic numbers!
         # fmt: off
         max_vec = torch.tensor([
