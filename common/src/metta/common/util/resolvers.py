@@ -24,41 +24,6 @@ def oc_choose(*args: Any) -> Any:
     return random.choice(args)
 
 
-def oc_device_with_cuda_check(requested_device: str = "cuda") -> str:
-    """
-    Check if CUDA is available and return appropriate device.
-
-    Parameters:
-    -----------
-    requested_device : str
-        The requested device (default: "cuda")
-
-    Returns:
-    --------
-    str
-        "cpu" if requested device is CUDA-based but CUDA is not available,
-        otherwise returns the requested device
-    """
-    if requested_device == "cpu":
-        return "cpu"
-
-    # Check if the requested device is CUDA-based
-    if requested_device.startswith("cuda"):
-        try:
-            import torch
-
-            if not torch.cuda.is_available():
-                # Log warning about fallback
-                logger = setup_mettagrid_logger("DeviceResolver")
-                logger.warning(f"CUDA not available, falling back to CPU instead of {requested_device}")
-                return "cpu"
-        except ImportError:
-            # If torch is not available, fallback to CPU
-            return "cpu"
-
-    return requested_device
-
-
 def oc_divide(a: Numeric, b: Numeric) -> Numeric:
     """
     Divide a by b, returning an int if both inputs are ints and result is a whole number,
@@ -378,8 +343,6 @@ class ResolverRegistrar(Callback):
         OmegaConf.register_new_resolver("iir", oc_iir, replace=True)
         self.resolver_count += 1
         OmegaConf.register_new_resolver("now", oc_date_format, replace=True)
-        self.resolver_count += 1
-        OmegaConf.register_new_resolver("device_with_cuda_check", oc_device_with_cuda_check, replace=True)
         self.resolver_count += 1
         return self
 
