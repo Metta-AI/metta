@@ -5,8 +5,8 @@ import pytest
 import wandb
 from omegaconf import OmegaConf
 
-from metta.util.logging import setup_mettagrid_logger
-from metta.util.wandb.wandb_context import WandbConfigOff, WandbConfigOn, WandbContext
+from metta.common.util.logging import setup_mettagrid_logger
+from metta.common.wandb.wandb_context import WandbConfigOff, WandbConfigOn, WandbContext
 
 logger = setup_mettagrid_logger("Test")
 
