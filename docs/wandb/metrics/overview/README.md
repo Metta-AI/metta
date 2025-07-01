@@ -4,13 +4,25 @@
 
 High-level summary metrics that provide a quick assessment of training progress and performance.
 
-**Total metrics in this section:** 3
+**Total metrics in this section:** 7
 
 ## Subsections
 
 ### General Metrics
 
-**Count:** 3 metrics
+**Count:** 7 metrics
+
+**memory_score:** (1 value)
+- `overview/memory_score`
+
+**navigation_score:** (1 value)
+- `overview/navigation_score`
+
+**navsequence_score:** (1 value)
+- `overview/navsequence_score`
+
+**objectuse_score:** (1 value)
+- `overview/objectuse_score`
 
 **reward:** (1 value)
 - `overview/reward`

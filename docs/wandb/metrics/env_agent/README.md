@@ -6,7 +6,7 @@ Detailed agent behavior metrics including actions taken, items collected, combat
 and other agent-specific events. These metrics help understand what agents are actually doing
 in the environment.
 
-**Total metrics in this section:** 1120
+**Total metrics in this section:** 1164
 
 ## Metric Suffixes
 
@@ -31,7 +31,7 @@ This section contains metrics with the following statistical suffixes:
 
 ### General Metrics
 
-**Count:** 1120 metrics
+**Count:** 1164 metrics
 
 **action.attack.agent:** (8 values / 8 std_devs)
 - `env_agent/action.attack.agent`
@@ -130,8 +130,10 @@ This section contains metrics with the following statistical suffixes:
 - `env_agent/action.attack.success.updates.std_dev`
 - `env_agent/action.attack.success.std_dev`
 
-**action.attack_nearest.agent:** (8 values / 8 std_devs)
+**action.attack_nearest.agent:** (9 values / 9 std_devs)
 - `env_agent/action.attack_nearest.agent`
+- `env_agent/action.attack_nearest.agent.activity_rate`
+- `env_agent/action.attack_nearest.agent.activity_rate.std_dev`
 - `env_agent/action.attack_nearest.agent.avg`
 - `env_agent/action.attack_nearest.agent.avg.std_dev`
 - `env_agent/action.attack_nearest.agent.first_step`
@@ -148,8 +150,10 @@ This section contains metrics with the following statistical suffixes:
 - `env_agent/action.attack_nearest.agent.updates.std_dev`
 - `env_agent/action.attack_nearest.agent.std_dev`
 
-**action.attack_nearest.agent.agent:** (8 values / 8 std_devs)
+**action.attack_nearest.agent.agent:** (9 values / 9 std_devs)
 - `env_agent/action.attack_nearest.agent.agent`
+- `env_agent/action.attack_nearest.agent.agent.activity_rate`
+- `env_agent/action.attack_nearest.agent.agent.activity_rate.std_dev`
 - `env_agent/action.attack_nearest.agent.agent.avg`
 - `env_agent/action.attack_nearest.agent.agent.avg.std_dev`
 - `env_agent/action.attack_nearest.agent.agent.first_step`
@@ -166,8 +170,10 @@ This section contains metrics with the following statistical suffixes:
 - `env_agent/action.attack_nearest.agent.agent.updates.std_dev`
 - `env_agent/action.attack_nearest.agent.agent.std_dev`
 
-**action.attack_nearest.agent.agent.agent:** (8 values / 8 std_devs)
+**action.attack_nearest.agent.agent.agent:** (9 values / 9 std_devs)
 - `env_agent/action.attack_nearest.agent.agent.agent`
+- `env_agent/action.attack_nearest.agent.agent.agent.activity_rate`
+- `env_agent/action.attack_nearest.agent.agent.agent.activity_rate.std_dev`
 - `env_agent/action.attack_nearest.agent.agent.agent.avg`
 - `env_agent/action.attack_nearest.agent.agent.agent.avg.std_dev`
 - `env_agent/action.attack_nearest.agent.agent.agent.first_step`
@@ -632,8 +638,10 @@ This section contains metrics with the following statistical suffixes:
 - `env_agent/attack.blocked.agent.agent.updates.std_dev`
 - `env_agent/attack.blocked.agent.agent.std_dev`
 
-**attack.loss.agent:** (8 values / 8 std_devs)
+**attack.loss.agent:** (9 values / 9 std_devs)
 - `env_agent/attack.loss.agent`
+- `env_agent/attack.loss.agent.activity_rate`
+- `env_agent/attack.loss.agent.activity_rate.std_dev`
 - `env_agent/attack.loss.agent.avg`
 - `env_agent/attack.loss.agent.avg.std_dev`
 - `env_agent/attack.loss.agent.first_step`
@@ -650,8 +658,10 @@ This section contains metrics with the following statistical suffixes:
 - `env_agent/attack.loss.agent.updates.std_dev`
 - `env_agent/attack.loss.agent.std_dev`
 
-**attack.loss.agent.agent:** (8 values / 8 std_devs)
+**attack.loss.agent.agent:** (9 values / 9 std_devs)
 - `env_agent/attack.loss.agent.agent`
+- `env_agent/attack.loss.agent.agent.activity_rate`
+- `env_agent/attack.loss.agent.agent.activity_rate.std_dev`
 - `env_agent/attack.loss.agent.agent.avg`
 - `env_agent/attack.loss.agent.agent.avg.std_dev`
 - `env_agent/attack.loss.agent.agent.first_step`
@@ -668,8 +678,10 @@ This section contains metrics with the following statistical suffixes:
 - `env_agent/attack.loss.agent.agent.updates.std_dev`
 - `env_agent/attack.loss.agent.agent.std_dev`
 
-**attack.loss.from_own_team.agent:** (8 values / 8 std_devs)
+**attack.loss.from_own_team.agent:** (9 values / 9 std_devs)
 - `env_agent/attack.loss.from_own_team.agent`
+- `env_agent/attack.loss.from_own_team.agent.activity_rate`
+- `env_agent/attack.loss.from_own_team.agent.activity_rate.std_dev`
 - `env_agent/attack.loss.from_own_team.agent.avg`
 - `env_agent/attack.loss.from_own_team.agent.avg.std_dev`
 - `env_agent/attack.loss.from_own_team.agent.first_step`
@@ -1169,6 +1181,42 @@ This section contains metrics with the following statistical suffixes:
 - `env_agent/laser.lost.updates`
 - `env_agent/laser.lost.updates.std_dev`
 - `env_agent/laser.lost.std_dev`
+
+**laser.stolen.agent:** (8 values / 8 std_devs)
+- `env_agent/laser.stolen.agent`
+- `env_agent/laser.stolen.agent.avg`
+- `env_agent/laser.stolen.agent.avg.std_dev`
+- `env_agent/laser.stolen.agent.first_step`
+- `env_agent/laser.stolen.agent.first_step.std_dev`
+- `env_agent/laser.stolen.agent.last_step`
+- `env_agent/laser.stolen.agent.last_step.std_dev`
+- `env_agent/laser.stolen.agent.max`
+- `env_agent/laser.stolen.agent.max.std_dev`
+- `env_agent/laser.stolen.agent.min`
+- `env_agent/laser.stolen.agent.min.std_dev`
+- `env_agent/laser.stolen.agent.rate`
+- `env_agent/laser.stolen.agent.rate.std_dev`
+- `env_agent/laser.stolen.agent.updates`
+- `env_agent/laser.stolen.agent.updates.std_dev`
+- `env_agent/laser.stolen.agent.std_dev`
+
+**laser.stolen_from.agent:** (8 values / 8 std_devs)
+- `env_agent/laser.stolen_from.agent`
+- `env_agent/laser.stolen_from.agent.avg`
+- `env_agent/laser.stolen_from.agent.avg.std_dev`
+- `env_agent/laser.stolen_from.agent.first_step`
+- `env_agent/laser.stolen_from.agent.first_step.std_dev`
+- `env_agent/laser.stolen_from.agent.last_step`
+- `env_agent/laser.stolen_from.agent.last_step.std_dev`
+- `env_agent/laser.stolen_from.agent.max`
+- `env_agent/laser.stolen_from.agent.max.std_dev`
+- `env_agent/laser.stolen_from.agent.min`
+- `env_agent/laser.stolen_from.agent.min.std_dev`
+- `env_agent/laser.stolen_from.agent.rate`
+- `env_agent/laser.stolen_from.agent.rate.std_dev`
+- `env_agent/laser.stolen_from.agent.updates`
+- `env_agent/laser.stolen_from.agent.updates.std_dev`
+- `env_agent/laser.stolen_from.agent.std_dev`
 
 **ore.red.gained:** (9 values / 9 std_devs)
 - `env_agent/ore.red.gained`

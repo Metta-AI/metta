@@ -4,13 +4,19 @@
 
 Per-epoch training timing
 
-**Total metrics in this section:** 9
+**Total metrics in this section:** 11
 
 ## Subsections
 
 ### Frac
 
-**Count:** 4 metrics
+**Count:** 6 metrics
+
+**_evaluate_policy:** (1 value)
+- `timing_per_epoch/frac/_evaluate_policy`
+
+**_generate_and_upload_replay:** (1 value)
+- `timing_per_epoch/frac/_generate_and_upload_replay`
 
 **_process_stats:** (1 value)
 - `timing_per_epoch/frac/_process_stats`

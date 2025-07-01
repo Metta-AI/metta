@@ -12,25 +12,33 @@ behavior, environment dynamics, and system performance.
 
 | Section | Description | Metric Count |
 |---------|-------------|--------------|
-| [`env_agent/`](./env_agent/) | Detailed agent behavior metrics including actions taken, items collected, combat outcomes,... | 1120 |
+| [`env_agent/`](./env_agent/) | Detailed agent behavior metrics including actions taken, items collected, combat outcomes,... | 1164 |
 | [`env_game/`](./env_game/) | Game object counts and token tracking | 214 |
 | [`env_timing_per_epoch/`](./env_timing_per_epoch/) | Performance profiling metrics measured per epoch. Useful for identifying bottlenecks and... | 42 |
+| [`eval_memory/`](./eval_memory/) | Metrics for eval memory | 26 |
+| [`eval_navigation/`](./eval_navigation/) | Metrics for eval navigation | 26 |
+| [`env_task_reward/`](./env_task_reward/) | Task completion rewards | 23 |
+| [`env_task_timing/`](./env_task_timing/) | Task initialization timing | 23 |
+| [`env_curriculum_task_probs/`](./env_curriculum_task_probs/) | Metrics for env curriculum task probs | 22 |
+| [`env_task_completions/`](./env_task_completions/) | Metrics for env task completions | 22 |
 | [`env_timing_cumulative/`](./env_timing_cumulative/) | Cumulative environment timing statistics | 22 |
 | [`monitor/`](./monitor/) | System resource monitoring | 18 |
 | [`trainer_memory/`](./trainer_memory/) | Memory usage by trainer components | 18 |
+| [`eval_navsequence/`](./eval_navsequence/) | Metrics for eval navsequence | 17 |
 | [`env_attributes/`](./env_attributes/) | Environment configuration and episode attributes | 16 |
+| [`eval_objectuse/`](./eval_objectuse/) | Metrics for eval objectuse | 14 |
+| [`env_map_reward/`](./env_map_reward/) | Map-specific reward statistics | 11 |
+| [`timing_per_epoch/`](./timing_per_epoch/) | Per-epoch training timing | 11 |
 | [`experience/`](./experience/) | Training experience buffer statistics | 9 |
-| [`timing_per_epoch/`](./timing_per_epoch/) | Per-epoch training timing | 9 |
 | [`losses/`](./losses/) | Training loss components that indicate learning progress and stability. Monitor these to... | 8 |
+| [`overview/`](./overview/) | High-level summary metrics that provide a quick assessment of training progress and performance. | 7 |
+| [`timing_cumulative/`](./timing_cumulative/) | Cumulative training timing | 7 |
 | [`parameters/`](./parameters/) | Training hyperparameters | 5 |
-| [`timing_cumulative/`](./timing_cumulative/) | Cumulative training timing | 5 |
-| [`env_map_reward/`](./env_map_reward/) | Map-specific reward statistics | 4 |
 | [`metric/`](./metric/) | Core tracking metrics that serve as x-axis values for other plots. These metrics track... | 4 |
-| [`overview/`](./overview/) | High-level summary metrics that provide a quick assessment of training progress and performance. | 3 |
-| [`env_task_reward/`](./env_task_reward/) | Task completion rewards | 2 |
-| [`env_task_timing/`](./env_task_timing/) | Task initialization timing | 2 |
+| [`replays/`](./replays/) | Metrics for replays | 1 |
+| [`torch_traces/`](./torch_traces/) | Metrics for torch traces | 1 |
 
-**Total Metrics:** 1501
+**Total Metrics:** 1731
 
 ## Metric Aggregation Strategy
 
@@ -163,6 +171,6 @@ To explore specific metric categories:
 To update this documentation with metrics from a new run:
 ```bash
 cd common/src/metta/common/wandb
-./collect_metrics.py <run_id>  # Fetches metrics to wandb_metrics.txt
+./collect_metrics.py <run_id>  # Fetches metrics to wandb_metrics.csv
 ./generate_docs.py             # Regenerates documentation
 ```

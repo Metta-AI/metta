@@ -11,23 +11,18 @@ from metta.common.fs import get_repo_root
 
 
 def parse_metrics_file(filepath):
-    """Parse the wandb_metrics.txt file and return organized metrics."""
+    """Parse the wandb_metrics.csv file and return organized metrics."""
     sections = defaultdict(lambda: defaultdict(list))
 
     with open(filepath, "r") as f:
         lines = f.readlines()
 
-    # Parse metrics, skipping header and footer
+    # Parse metrics - each line is a metric
     for line in lines:
         line = line.strip()
 
-        # Skip empty lines, headers, and footer
-        if (
-            not line
-            or line.startswith("=")
-            or line.startswith("WandB Metrics for")
-            or line.startswith("Total metrics:")
-        ):
+        # Skip empty lines
+        if not line:
             continue
 
         # Only process lines that look like metrics (contain '/')
@@ -235,7 +230,7 @@ To explore specific metric categories:
 To update this documentation with metrics from a new run:
 ```bash
 cd common/src/metta/common/wandb
-./collect_metrics.py <run_id>  # Fetches metrics to wandb_metrics.txt
+./collect_metrics.py <run_id>  # Fetches metrics to wandb_metrics.csv
 ./generate_docs.py             # Regenerates documentation
 ```
 """
@@ -500,7 +495,7 @@ def get_metric_description(metric, descriptions):
 
 def main():
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    metrics_file = os.path.join(script_dir, "wandb_metrics.txt")
+    metrics_file = os.path.join(script_dir, "wandb_metrics.csv")
 
     root_dir = get_repo_root()
     output_dir = os.path.join(root_dir, "docs", "wandb", "metrics")

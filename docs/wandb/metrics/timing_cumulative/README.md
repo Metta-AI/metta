@@ -4,13 +4,19 @@
 
 Cumulative training timing
 
-**Total metrics in this section:** 5
+**Total metrics in this section:** 7
 
 ## Subsections
 
 ### Frac
 
-**Count:** 4 metrics
+**Count:** 6 metrics
+
+**_evaluate_policy:** (1 value)
+- `timing_cumulative/frac/_evaluate_policy`
+
+**_generate_and_upload_replay:** (1 value)
+- `timing_cumulative/frac/_generate_and_upload_replay`
 
 **_process_stats:** (1 value)
 - `timing_cumulative/frac/_process_stats`
