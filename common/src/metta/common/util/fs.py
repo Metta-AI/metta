@@ -40,19 +40,19 @@ def cd_repo_root():
     os.chdir(repo_root)
 
 
-def save_atomic(
-    save_func: Callable[[Path], Any],
+def atomic_write(
+    write_func: Callable[[Path], Any],
     target_path: Path | str,
     suffix: str = ".tmp",
 ) -> None:
     """
-    Save a file atomically by writing to a temporary file and then moving it.
+    Write a file atomically by writing to a temporary file and then moving it.
 
     This ensures that the target file is either fully written or not written at all,
     preventing corruption from partial writes or concurrent access.
 
     Args:
-        save_func: A function that takes a path and saves to it
+        write_func: A function that takes a path and saves to it
         target_path: The final destination path for the file
         suffix: Suffix for the temporary file (default: ".tmp")
 
@@ -60,7 +60,7 @@ def save_atomic(
         def save_model(path):
             torch.save(model.state_dict(), path)
 
-        save_atomic(save_model, "model.pt")
+        atomic_write(save_model, "model.pt")
     """
     target_path = Path(target_path)
     target_dir = target_path.parent
@@ -71,9 +71,7 @@ def save_atomic(
         tmp_path = Path(tmp_file.name)
 
     try:
-        # Save to temporary file
-        save_func(tmp_path)
-
+        write_func(tmp_path)
         # Atomic move (on same filesystem)
         shutil.move(str(tmp_path), str(target_path))
     except Exception:
