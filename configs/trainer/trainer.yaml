@@ -43,6 +43,13 @@ lr_scheduler:
   schedule_type: null
 
 ppo:
+  # Core PPO hyperparameters
+  clip_coef: 0.1
+  ent_coef: 0.0021
+  gae_lambda: 0.916
+  gamma: 0.977
+
+  # Training parameters
   max_grad_norm: 0.5
   vf_clip_coef: 0.1
   vf_coef: 0.44

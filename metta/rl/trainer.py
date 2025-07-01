@@ -2,12 +2,10 @@ import logging
 import os
 import time
 from collections import defaultdict
-from contextlib import nullcontext
 from pathlib import Path
 from typing import Any, Set
 from uuid import UUID
 
-import einops
 import numpy as np
 import torch
 import torch.distributed
@@ -18,7 +16,6 @@ from omegaconf import DictConfig
 from app_backend.stats_client import StatsClient
 from metta.agent.metta_agent import DistributedMettaAgent, make_policy
 from metta.agent.policy_metadata import PolicyMetadata
-from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyRecord, PolicyStore
 from metta.common.memory_monitor import MemoryMonitor
 from metta.common.stopwatch import Stopwatch, with_instance_timer
@@ -27,9 +24,19 @@ from metta.common.util.system_monitor import SystemMonitor
 from metta.common.wandb.wandb_context import WandbRun
 from metta.eval.eval_stats_db import EvalStatsDB
 from metta.mettagrid.curriculum.util import curriculum_from_config_path
-from metta.mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
-from metta.mettagrid.util.dict_utils import unroll_nested_dict
+from metta.mettagrid.mettagrid_env import MettaGridEnv
 from metta.rl.experience import Experience
+from metta.rl.functions import (
+    accumulate_rollout_stats,
+    calculate_batch_sizes,
+    calculate_explained_variance,
+    calculate_prioritized_sampling_params,
+    compute_advantage,
+    get_lstm_config,
+    perform_rollout_step,
+    process_minibatch_update,
+    validate_policy_environment_match,
+)
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses
 from metta.rl.torch_profiler import TorchProfiler
@@ -199,7 +206,7 @@ class MettaTrainer:
                 self.policy = policy_record.policy
                 self.policy.activate_actions(actions_names, actions_max_params, self.device)
 
-        logging.info(f"USING {self.latest_saved_policy_record.uri}")
+        logging.info(f"USING {self.initial_policy_record.uri}")
 
         if self._master:
             logger.info(f"MettaTrainer loaded: {self.policy}")
@@ -237,6 +244,9 @@ class MettaTrainer:
             eps=trainer_cfg.optimizer.eps,
             weight_decay=trainer_cfg.optimizer.weight_decay,
         )
+
+        # Validate that policy matches environment
+        validate_policy_environment_match(self.policy, metta_grid_env)
 
         self.lr_scheduler = None
         if trainer_cfg.lr_scheduler.enabled:
@@ -345,119 +355,39 @@ class MettaTrainer:
 
     @with_instance_timer("_rollout")
     def _rollout(self):
+        """Perform rollout phase of training."""
         experience = self.experience
         trainer_cfg = self.trainer_cfg
-        device = self.device
 
-        policy = self.policy
-        infos = defaultdict(list)
+        raw_infos = []  # Collect raw info for batch processing later
         experience.reset_for_rollout()
 
         while not experience.ready_for_training:
-            with self.timer("_rollout.env"):
-                o, r, d, t, info, env_id, mask = self.vecenv.recv()
-                if trainer_cfg.require_contiguous_env_ids:
-                    raise ValueError(
-                        "We are assuming contiguous eng id is always False. async_factor == num_workers = "
-                        f"{trainer_cfg.async_factor} != {trainer_cfg.num_workers}"
-                    )
+            # Check for contiguous env ids constraint
+            if trainer_cfg.require_contiguous_env_ids:
+                raise ValueError(
+                    "We are assuming contiguous eng id is always False. async_factor == num_workers = "
+                    f"{trainer_cfg.async_factor} != {trainer_cfg.num_workers}"
+                )
 
-                training_env_id = slice(env_id[0], env_id[-1] + 1)
+            # Perform single rollout step
+            num_steps, info = perform_rollout_step(self.policy, self.vecenv, experience, self.device, self.timer)
 
-            # Convert mask to tensor once
-            mask = torch.as_tensor(mask)
-            num_steps = int(mask.sum().item())
             self.agent_step += num_steps
 
-            # Convert to tensors once
-            o = torch.as_tensor(o).to(device, non_blocking=True)
-            r = torch.as_tensor(r).to(device, non_blocking=True)
-            d = torch.as_tensor(d).to(device, non_blocking=True)
-            t = torch.as_tensor(t).to(device, non_blocking=True)
-
-            with torch.no_grad():
-                state = PolicyState()
-
-                # Use LSTM state access for performance
-                lstm_h, lstm_c = experience.get_lstm_state(training_env_id.start)
-                if lstm_h is not None:
-                    state.lstm_h = lstm_h
-                    state.lstm_c = lstm_c
-
-                # Use pre-moved tensor
-                actions, selected_action_log_probs, _, value, _ = policy(o, state)
-
-                if __debug__:
-                    # Check for NaN/Inf values in outputs
-                    if torch.isnan(actions).any() or torch.isinf(actions).any():
-                        logger.error("NaN or Inf detected in actions!")
-                    if torch.isnan(value).any() or torch.isinf(value).any():
-                        logger.error("NaN or Inf detected in values!")
-
-                # Store LSTM state for performance
-                lstm_state_to_store = None
-                if state.lstm_h is not None:
-                    lstm_state_to_store = {"lstm_h": state.lstm_h.detach(), "lstm_c": state.lstm_c.detach()}
-
-                if str(self.device).startswith("cuda"):
-                    torch.cuda.synchronize()
-
-            value = value.flatten()
-            # mask already converted to tensor above
-
-            # All tensors are already on device, avoid redundant transfers
-            experience.store(
-                obs=o,
-                actions=actions,
-                logprobs=selected_action_log_probs,
-                rewards=r,
-                dones=d,
-                truncations=t,
-                values=value,
-                env_id=training_env_id,
-                mask=mask,
-                lstm_state=lstm_state_to_store,
-            )
-
-            # At this point, infos contains lists of values collected across:
-            # 1. All agents in the environment
-            # 2. All rollout steps
-            # Each info is a dict mapping metric names to values.
-            # We need to flatten these into arrays for aggregation.
-            # This happens later, after the rollout is complete (see below).
+            # Collect info for batch processing
             if info:
-                # Process info dicts immediately to avoid memory accumulation
-                for i in info:
-                    for k, v in unroll_nested_dict(i):
-                        # Detach any tensors to prevent gradient accumulation
-                        if torch.is_tensor(v):
-                            v = v.detach().cpu().item() if v.numel() == 1 else v.detach().cpu().numpy()
-                        infos[k].append(v)
+                raw_infos.extend(info)
 
-            with self.timer("_rollout.env"):
-                self.vecenv.send(actions.cpu().numpy().astype(dtype_actions))
-
-        # Batch process stats more efficiently
-        for k, v in infos.items():
-            if isinstance(v, np.ndarray):
-                v = v.tolist()
-
-            if isinstance(v, list):
-                self.stats.setdefault(k, []).extend(v)
-            else:
-                if k not in self.stats:
-                    self.stats[k] = v
-                else:
-                    try:
-                        self.stats[k] += v
-                    except TypeError:
-                        self.stats[k] = [self.stats[k], v]  # fallback: bundle as list
+        # Batch process info dictionaries after rollout
+        accumulate_rollout_stats(raw_infos, self.stats)
 
         # TODO: Better way to enable multiple collects
-        return self.stats, infos
+        return self.stats, self.stats
 
     @with_instance_timer("_train")
     def _train(self):
+        """Perform training phase."""
         experience = self.experience
         trainer_cfg = self.trainer_cfg
 
@@ -470,10 +400,13 @@ class MettaTrainer:
         experience.reset_importance_sampling_ratios()
 
         # Prioritized sampling parameters
-        b0 = prio_cfg.prio_beta0
-        a = prio_cfg.prio_alpha
-        total_epochs = max(1, trainer_cfg.total_timesteps // trainer_cfg.batch_size)
-        anneal_beta = b0 + (1 - b0) * a * self.epoch / total_epochs
+        anneal_beta = calculate_prioritized_sampling_params(
+            epoch=self.epoch,
+            total_timesteps=trainer_cfg.total_timesteps,
+            batch_size=trainer_cfg.batch_size,
+            prio_alpha=prio_cfg.prio_alpha,
+            prio_beta0=prio_cfg.prio_beta0,
+        )
 
         # Compute advantages using puff_advantage
         advantages = torch.zeros(experience.values.shape, device=self.device)
@@ -481,7 +414,7 @@ class MettaTrainer:
         # Initial importance sampling ratio is all ones
         initial_importance_sampling_ratio = torch.ones_like(experience.values)
 
-        advantages = self._compute_advantage(
+        advantages = compute_advantage(
             experience.values,
             experience.rewards,
             experience.dones,
@@ -491,6 +424,7 @@ class MettaTrainer:
             trainer_cfg.ppo.gae_lambda,
             vtrace_cfg.vtrace_rho_clip,
             vtrace_cfg.vtrace_c_clip,
+            self.device,
         )
 
         # Optimizing the policy and value network
@@ -501,110 +435,24 @@ class MettaTrainer:
             for _ in range(experience.num_minibatches):
                 minibatch = experience.sample_minibatch(
                     advantages=advantages,
-                    prio_alpha=a,
+                    prio_alpha=prio_cfg.prio_alpha,
                     prio_beta=anneal_beta,
                     minibatch_idx=minibatch_idx,
                     total_minibatches=_total_minibatches,
                 )
 
-                obs = minibatch["obs"]
-
-                lstm_state = PolicyState()
-                _, new_logprobs, entropy, newvalue, full_logprobs = self.policy(
-                    obs, lstm_state, action=minibatch["actions"]
+                # Use the helper function to process minibatch update
+                loss = process_minibatch_update(
+                    policy=self.policy,
+                    experience=experience,
+                    minibatch=minibatch,
+                    advantages=advantages,
+                    trainer_cfg=trainer_cfg,
+                    kickstarter=self.kickstarter,
+                    agent_step=self.agent_step,
+                    losses=self.losses,
+                    device=self.device,
                 )
-
-                new_logprobs = new_logprobs.reshape(minibatch["logprobs"].shape)
-                logratio = new_logprobs - minibatch["logprobs"]
-                importance_sampling_ratio = logratio.exp()
-                experience.update_ratio(minibatch["indices"], importance_sampling_ratio)
-
-                with torch.no_grad():
-                    approx_kl = ((importance_sampling_ratio - 1) - logratio).mean()
-                    clipfrac = ((importance_sampling_ratio - 1.0).abs() > trainer_cfg.ppo.clip_coef).float().mean()
-
-                # Re-compute advantages with new ratios (V-trace)
-                adv = self._compute_advantage(
-                    minibatch["values"],
-                    minibatch["rewards"],
-                    minibatch["dones"],
-                    importance_sampling_ratio,
-                    minibatch["advantages"],
-                    trainer_cfg.ppo.gamma,
-                    trainer_cfg.ppo.gae_lambda,
-                    vtrace_cfg.vtrace_rho_clip,
-                    vtrace_cfg.vtrace_c_clip,
-                )
-
-                # Normalize advantages with distributed support, then apply prioritized weights
-                adv = self._normalize_advantage_distributed(adv)
-                adv = minibatch["prio_weights"] * adv
-
-                # Policy loss
-                pg_loss1 = -adv * importance_sampling_ratio
-                pg_loss2 = -adv * torch.clamp(
-                    importance_sampling_ratio, 1 - trainer_cfg.ppo.clip_coef, 1 + trainer_cfg.ppo.clip_coef
-                )
-                pg_loss = torch.max(pg_loss1, pg_loss2).mean()
-
-                # Value loss
-                newvalue_reshaped = newvalue.view(minibatch["returns"].shape)
-                if trainer_cfg.ppo.clip_vloss:
-                    v_loss_unclipped = (newvalue_reshaped - minibatch["returns"]) ** 2
-                    vf_clip_coef = trainer_cfg.ppo.vf_clip_coef
-                    v_clipped = minibatch["values"] + torch.clamp(
-                        newvalue_reshaped - minibatch["values"],
-                        -vf_clip_coef,
-                        vf_clip_coef,
-                    )
-                    v_loss_clipped = (v_clipped - minibatch["returns"]) ** 2
-                    v_loss = 0.5 * torch.max(v_loss_unclipped, v_loss_clipped).mean()
-                else:
-                    v_loss = 0.5 * ((newvalue_reshaped - minibatch["returns"]) ** 2).mean()
-
-                entropy_loss = entropy.mean()
-
-                ks_action_loss, ks_value_loss = self.kickstarter.loss(
-                    self.agent_step, full_logprobs, newvalue, obs, teacher_lstm_state=[]
-                )
-
-                l2_reg_loss = torch.tensor(0.0, device=self.device, dtype=torch.float32)
-                if trainer_cfg.ppo.l2_reg_loss_coef > 0:
-                    l2_reg_loss = trainer_cfg.ppo.l2_reg_loss_coef * self.policy.l2_reg_loss().to(self.device)
-
-                l2_init_loss = torch.tensor(0.0, device=self.device, dtype=torch.float32)
-                if trainer_cfg.ppo.l2_init_loss_coef > 0:
-                    l2_init_loss = trainer_cfg.ppo.l2_init_loss_coef * self.policy.l2_init_loss().to(self.device)
-
-                loss = (
-                    pg_loss
-                    - trainer_cfg.ppo.ent_coef * entropy_loss
-                    + v_loss * trainer_cfg.ppo.vf_coef
-                    + l2_reg_loss
-                    + l2_init_loss
-                    + ks_action_loss
-                    + ks_value_loss
-                )
-
-                # Update values in experience buffer
-                experience.update_values(minibatch["indices"], newvalue.view(minibatch["values"].shape))
-
-                if self.losses is None:
-                    raise ValueError("self.losses is None")
-
-                # Update loss tracking for logging
-                self.losses.policy_loss_sum += pg_loss.item()
-                self.losses.value_loss_sum += v_loss.item()
-                self.losses.entropy_sum += entropy_loss.item()
-                self.losses.approx_kl_sum += approx_kl.item()
-                self.losses.clipfrac_sum += clipfrac.item()
-                self.losses.l2_reg_loss_sum += l2_reg_loss.item() if torch.is_tensor(l2_reg_loss) else l2_reg_loss
-                self.losses.l2_init_loss_sum += l2_init_loss.item() if torch.is_tensor(l2_init_loss) else l2_init_loss
-                self.losses.ks_action_loss_sum += ks_action_loss.item()
-                self.losses.ks_value_loss_sum += ks_value_loss.item()
-                self.losses.importance_sum += importance_sampling_ratio.mean().item()
-                self.losses.minibatches_processed += 1
-
                 self.optimizer.zero_grad()
                 loss.backward()
                 if (minibatch_idx + 1) % self.experience.accumulate_minibatches == 0:
@@ -632,12 +480,8 @@ class MettaTrainer:
         if self.lr_scheduler is not None:
             self.lr_scheduler.step()
 
-        # Calculate explained variance
-        y_pred = experience.values.flatten()
-        y_true = advantages.flatten() + experience.values.flatten()
-        var_y = y_true.var()
-        explained_var = torch.nan if var_y == 0 else 1 - (y_true - y_pred).var() / var_y
-        self.losses.explained_variance = explained_var.item() if torch.is_tensor(explained_var) else float("nan")
+        # Calculate explained variance using helper function
+        self.losses.explained_variance = calculate_explained_variance(experience.values, advantages)
 
     def _should_run(self, interval: int, force: bool = False) -> bool:
         """Check if a periodic task should run based on interval and force flag."""
@@ -991,7 +835,9 @@ class MettaTrainer:
             "epoch_steps": epoch_steps,
             "num_minibatches": self.experience.num_minibatches,
             "generation": self.current_policy_generation,
-            "policy_record_version": self.latest_saved_policy_record.key_and_version()[1],
+            "policy_record_version": self.latest_saved_policy_record.key_and_version()[1]
+            if self.latest_saved_policy_record
+            else 0,
         }
 
         self.wandb_run.log(
@@ -1018,73 +864,6 @@ class MettaTrainer:
 
         self.stats.clear()
         self.grad_stats.clear()
-
-    def _compute_advantage(
-        self,
-        values,
-        rewards,
-        dones,
-        importance_sampling_ratio,
-        advantages,
-        gamma,
-        gae_lambda,
-        vtrace_rho_clip,
-        vtrace_c_clip,
-    ):
-        # Get correct device for this process
-        device = torch.device(self.device) if isinstance(self.device, str) else self.device
-
-        # Move tensors to device and compute advantage
-        tensors = [values, rewards, dones, importance_sampling_ratio, advantages]
-        tensors = [t.to(device) for t in tensors]
-        values, rewards, dones, importance_sampling_ratio, advantages = tensors
-
-        # Create context manager that only applies CUDA device context if needed
-        device_context = torch.cuda.device(device) if str(device).startswith("cuda") else nullcontext()
-        with device_context:
-            torch.ops.pufferlib.compute_puff_advantage(
-                values,
-                rewards,
-                dones,
-                importance_sampling_ratio,
-                advantages,
-                gamma,
-                gae_lambda,
-                vtrace_rho_clip,
-                vtrace_c_clip,
-            )
-
-        return advantages
-
-    def _normalize_advantage_distributed(self, adv: torch.Tensor) -> torch.Tensor:
-        """Normalize advantages with distributed training support while preserving shape."""
-        if not self.trainer_cfg.ppo.norm_adv:
-            return adv
-
-        if torch.distributed.is_initialized():
-            # Compute local statistics
-            adv_flat = adv.view(-1)
-            local_sum = einops.rearrange(adv_flat.sum(), "-> 1")
-            local_sq_sum = einops.rearrange((adv_flat * adv_flat).sum(), "-> 1")
-            local_count = torch.tensor([adv_flat.numel()], dtype=adv.dtype, device=adv.device)
-
-            # Combine statistics for single all_reduce
-            stats = einops.rearrange([local_sum, local_sq_sum, local_count], "one float -> (float one)")
-            torch.distributed.all_reduce(stats, op=torch.distributed.ReduceOp.SUM)
-
-            # Extract global statistics
-            global_sum, global_sq_sum, global_count = stats[0], stats[1], stats[2]
-            global_mean = global_sum / global_count
-            global_var = (global_sq_sum / global_count) - (global_mean * global_mean)
-            global_std = torch.sqrt(global_var.clamp(min=1e-8))
-
-            # Normalize and reshape back
-            adv = (adv - global_mean) / (global_std + 1e-8)
-        else:
-            # Local normalization
-            adv = (adv - adv.mean()) / (adv.std() + 1e-8)
-
-        return adv
 
     def close(self):
         self.vecenv.close()
@@ -1125,15 +904,8 @@ class MettaTrainer:
         # Calculate minibatch parameters
         max_minibatch_size = trainer_cfg.minibatch_size
 
-        # Get LSTM parameters
-        hidden_size = getattr(self.policy, "hidden_size", 256)
-        num_lstm_layers = 2  # Default value
-
-        # Try to get actual number of LSTM layers from policy
-        if hasattr(self.policy, "components") and "_core_" in self.policy.components:
-            lstm_module = self.policy.components["_core_"]
-            if hasattr(lstm_module, "_net") and hasattr(lstm_module._net, "num_layers"):
-                num_lstm_layers = lstm_module._net.num_layers
+        # Get LSTM parameters using helper function
+        hidden_size, num_lstm_layers = get_lstm_config(self.policy)
 
         # Create experience buffer
         self.experience = Experience(
@@ -1157,22 +929,24 @@ class MettaTrainer:
 
         num_agents = self._curriculum.get_task().env_cfg().game.num_agents
 
-        self.target_batch_size = trainer_cfg.forward_pass_minibatch_target_size // num_agents
-        if self.target_batch_size < max(2, trainer_cfg.num_workers):  # pufferlib bug requires batch size >= 2
-            self.target_batch_size = trainer_cfg.num_workers
+        # Calculate batch sizes using helper function
+        self.target_batch_size, self.batch_size, num_envs = calculate_batch_sizes(
+            forward_pass_minibatch_target_size=trainer_cfg.forward_pass_minibatch_target_size,
+            num_agents=num_agents,
+            num_workers=trainer_cfg.num_workers,
+            async_factor=trainer_cfg.async_factor,
+        )
 
         logger.info(
             f"target_batch_size: {self.target_batch_size} = "
             f"min ({trainer_cfg.forward_pass_minibatch_target_size} // {num_agents} , {trainer_cfg.num_workers})"
         )
 
-        self.batch_size = (self.target_batch_size // trainer_cfg.num_workers) * trainer_cfg.num_workers
         logger.info(
             f"forward_pass_batch_size: {self.batch_size} = "
             f"({self.target_batch_size} // {trainer_cfg.num_workers}) * {trainer_cfg.num_workers}"
         )
 
-        num_envs = self.batch_size * trainer_cfg.async_factor
         logger.info(f"num_envs: {num_envs}")
 
         if num_envs < 1:
