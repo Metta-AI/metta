@@ -307,9 +307,17 @@ class PytorchAdapter(nn.Module):
 
         # Unpack outputs
         if isinstance(outputs, tuple) and len(outputs) == 2:
-            (logits, value), new_state = outputs
+            # Check if this is ((logits, value), new_state) or just (logits, value)
+            first_elem = outputs[0]
+            if isinstance(first_elem, tuple):
+                # Format: ((logits, value), new_state)
+                (logits, value), new_state = outputs
+            else:
+                # Format: (logits, value)
+                logits, value = outputs
+                new_state = state_dict
         else:
-            # Handle case where policy doesn't return state
+            # Handle other cases (single output, etc.)
             logits, value = outputs
             new_state = state_dict
 
