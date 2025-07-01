@@ -1,5 +1,4 @@
 sampling: 0
-replay_level_prob: 0.2
 game:
   num_agents: ???
   obs_width: 11
@@ -230,6 +229,10 @@ game:
       enabled: true
     attack:
       enabled: true
+      consumed_resources:
+        laser: 1
+      defense_resources:
+        armor: 1
     swap:
       enabled: true
     change_color:

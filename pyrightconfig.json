@@ -11,6 +11,7 @@
     "./common/src",
     "./mettagrid/src"
   ],
+  "typeCheckingMode": "basic",
   "reportMissingModuleSource": false,
   "pythonVersion": "3.11",
   "venvPath": ".",
