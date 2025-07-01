@@ -418,6 +418,11 @@ def accumulate_rollout_stats(
     # Batch process info dictionaries
     for i in raw_infos:
         for k, v in unroll_nested_dict(i):
+            # Detach any tensors before accumulating to prevent memory leaks
+            if torch.is_tensor(v):
+                v = v.detach().cpu().item() if v.numel() == 1 else v.detach().cpu().numpy()
+            elif isinstance(v, np.ndarray) and v.size == 1:
+                v = v.item()
             infos[k].append(v)
 
     # Batch process stats
