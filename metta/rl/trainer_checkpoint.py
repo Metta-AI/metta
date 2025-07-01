@@ -1,11 +1,11 @@
 import logging
-import os
-import tempfile
 import warnings
 from pathlib import Path
 from typing import Any, Optional
 
 import torch
+
+from metta.common.util.fs import save_atomic
 
 logger = logging.getLogger("TrainerCheckpoint")
 
@@ -41,21 +41,7 @@ class TrainerCheckpoint:
         }
 
         checkpoint_path = Path(run_dir) / filename
-
-        # Write to a temporary file first to avoid leaving a partially written checkpoint
-        # if the program crashes or is interrupted. We then atomically replace the final
-        # state file using os.replace(), which ensures that either the old file remains,
-        # or the new file is fully written — never a corrupted intermediate.
-        with tempfile.NamedTemporaryFile(dir=run_dir, delete=False, suffix=".pt") as tmp_file:
-            torch.save(state, tmp_file.name)
-            tmp_path = tmp_file.name
-
-        try:
-            os.replace(tmp_path, checkpoint_path)
-        except Exception:
-            # Clean up temp file if replace fails to avoid cluttering disk
-            os.unlink(tmp_path)
-            raise
+        save_atomic(lambda path: torch.save(state, path), checkpoint_path, suffix=".pt")
 
         logger.info(f"[TrainerCheckpoint] Saved trainer state to {checkpoint_path}")
 
