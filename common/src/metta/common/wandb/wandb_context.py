@@ -8,7 +8,6 @@ from typing import Annotated, Literal, Union, cast
 import wandb
 import wandb.errors
 import wandb.sdk.wandb_run
-import wandb.util
 from omegaconf import OmegaConf
 from pydantic import Field, TypeAdapter
 
