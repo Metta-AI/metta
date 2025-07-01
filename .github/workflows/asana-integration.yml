@@ -53,3 +53,12 @@ jobs:
           repo: ${{ github.repository }}
           token: ${{ secrets.GITHUB_TOKEN }}
           task_url: ${{ steps.ensure-asana-task.outputs.task_url }}
+
+      - name: Create pull request attachments
+        uses: Asana/create-app-attachment-github-action@latest
+        id: postAttachment
+        with:
+          asana-secret: ${{ secrets.ASANA_ATTACHMENT_SECRET }}
+
+      - name: Log output status
+        run: echo "Status is ${{ steps.postAttachment.outputs.status }}"
