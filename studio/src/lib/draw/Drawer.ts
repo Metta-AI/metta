@@ -3,7 +3,7 @@ import { TileSetCollection } from "./TileSetCollection";
 
 // based on mettascope's colorFromId
 const colorFromId = (agentId: number) => {
-  let n = agentId + Math.PI + Math.E + Math.SQRT2;
+  const n = agentId + Math.PI + Math.E + Math.SQRT2;
   return {
     r: (n * Math.PI) % 1.0,
     g: (n * Math.E) % 1.0,
