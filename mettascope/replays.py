@@ -46,14 +46,11 @@ class FakePolicyRecord:
     """
 
     def __init__(self):
-        self.fake_agent = FakeAgent()
+        self.policy = FakeAgent()
         self.policy_id = "fake"
 
     def policy_as_metta_agent(self):
-        return self.fake_agent
-
-    def policy(self, *args):
-        return self.fake_agent
+        return self.policy
 
 
 def create_simulation(cfg):
