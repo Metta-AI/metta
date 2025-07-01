@@ -242,7 +242,7 @@ class SimulationStatsDB(EpisodeStatsDB):
 
         def select_count() -> int:
             result = self.con.execute("SELECT COUNT(*) FROM episodes").fetchone()
-            assert result is not None, "SELECT COUNT(*) returned None"
+            assert result is not None
             return result[0]
 
         # Merge

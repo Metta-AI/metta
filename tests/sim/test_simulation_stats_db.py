@@ -13,10 +13,8 @@ from metta.sim.simulation_stats_db import SimulationStatsDB
 
 def get_count(con: DuckDBPyConnection, query: str) -> int:
     result = con.execute(query).fetchone()
-    assert result is not None, f"COUNT query returned None: {query}"
-    count = result[0]
-    assert isinstance(count, int), f"COUNT query returned non-int: {count}"
-    return count
+    assert result is not None
+    return result[0]
 
 
 class MockPolicyRecord:
