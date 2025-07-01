@@ -60,11 +60,11 @@ optimizing environment execution speed.
 
 **thread_idle:** (1 value / 1 std_dev)
 - `env_timing_per_epoch/frac/thread_idle`
-    Fraction of time worker threads spend idle.
-    **Interpretation:** High values (>0.9) suggest CPU underutilization. Consider more environments.
+  - Fraction of time worker threads spend idle.
+  - **Interpretation:** High values (>0.9) suggest CPU underutilization. Consider more environments.
 
 - `env_timing_per_epoch/frac/thread_idle.std_dev`
-    Fraction of time worker threads spend idle. (standard deviation)
+  - Fraction of time worker threads spend idle. (standard deviation)
 
 
 
@@ -110,11 +110,11 @@ optimizing environment execution speed.
 
 **step:** (1 value / 1 std_dev)
 - `env_timing_per_epoch/msec/step`
-    Average milliseconds per environment step in the epoch. (Unit: milliseconds)
-    **Interpretation:** Lower is better. Spikes indicate environment bottlenecks.
+  - Average milliseconds per environment step in the epoch. (Unit: milliseconds)
+  - **Interpretation:** Lower is better. Spikes indicate environment bottlenecks.
 
 - `env_timing_per_epoch/msec/step.std_dev`
-    Average milliseconds per environment step in the epoch. (Unit: milliseconds) (standard deviation)
+  - Average milliseconds per environment step in the epoch. (Unit: milliseconds) (standard deviation)
 
 
 

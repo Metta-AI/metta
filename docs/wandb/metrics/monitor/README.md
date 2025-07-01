@@ -44,8 +44,8 @@ System resource monitoring
 
 **gpu_utilization_avg:** (1 value)
 - `monitor/monitor/gpu_utilization_avg`
-    Average GPU utilization across all available GPUs. (Unit: percentage)
-    **Interpretation:** Low values suggest compute bottleneck elsewhere. Aim for >80% during training.
+  - Average GPU utilization across all available GPUs. (Unit: percentage)
+  - **Interpretation:** Low values suggest compute bottleneck elsewhere. Aim for >80% during training.
 
 
 **memory_available_mb:** (1 value)
@@ -53,8 +53,8 @@ System resource monitoring
 
 **memory_percent:** (1 value)
 - `monitor/monitor/memory_percent`
-    System RAM usage percentage. (Unit: percentage)
-    **Interpretation:** High values (>90%) risk OOM errors. Consider reducing batch size or environment count.
+  - System RAM usage percentage. (Unit: percentage)
+  - **Interpretation:** High values (>90%) risk OOM errors. Consider reducing batch size or environment count.
 
 
 **memory_total_mb:** (1 value)

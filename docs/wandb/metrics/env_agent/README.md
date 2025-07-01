@@ -101,11 +101,11 @@ in the environment.
 - `env_agent/action.attack.success.min`
 - `env_agent/action.attack.success.min.std_dev`
 - `env_agent/action.attack.success.rate`
-    Success rate of attack actions when attempted.
-    **Interpretation:** Balance between too aggressive (low success) and too passive (few attempts).
+  - Success rate of attack actions when attempted.
+  - **Interpretation:** Balance between too aggressive (low success) and too passive (few attempts).
 
 - `env_agent/action.attack.success.rate.std_dev`
-    Success rate of attack actions when attempted. (standard deviation)
+  - Success rate of attack actions when attempted. (standard deviation)
 
 - `env_agent/action.attack.success.updates`
 - `env_agent/action.attack.success.updates.std_dev`
@@ -225,55 +225,55 @@ in the environment.
 
 **action.failure_penalty:** (9 values / 9 std_devs)
 - `env_agent/action.failure_penalty`
-    Penalty applied when agents attempt invalid actions.
-    **Interpretation:** High values indicate agents haven't learned action preconditions.
+  - Penalty applied when agents attempt invalid actions.
+  - **Interpretation:** High values indicate agents haven't learned action preconditions.
 
 - `env_agent/action.failure_penalty.activity_rate`
-    Penalty applied when agents attempt invalid actions. (fraction of steps where this was active)
+  - Penalty applied when agents attempt invalid actions. (fraction of steps where this was active)
 
 - `env_agent/action.failure_penalty.activity_rate.std_dev`
-    Penalty applied when agents attempt invalid actions. (fraction of steps where this was active) (standard deviation)
+  - Penalty applied when agents attempt invalid actions. (fraction of steps where this was active) (standard deviation)
 
 - `env_agent/action.failure_penalty.avg`
-    Penalty applied when agents attempt invalid actions. (average value)
+  - Penalty applied when agents attempt invalid actions. (average value)
 
 - `env_agent/action.failure_penalty.avg.std_dev`
-    Penalty applied when agents attempt invalid actions. (average value) (standard deviation)
+  - Penalty applied when agents attempt invalid actions. (average value) (standard deviation)
 
 - `env_agent/action.failure_penalty.first_step`
-    Penalty applied when agents attempt invalid actions. (first step where this occurred)
+  - Penalty applied when agents attempt invalid actions. (first step where this occurred)
 
 - `env_agent/action.failure_penalty.first_step.std_dev`
-    Penalty applied when agents attempt invalid actions. (first step where this occurred) (standard deviation)
+  - Penalty applied when agents attempt invalid actions. (first step where this occurred) (standard deviation)
 
 - `env_agent/action.failure_penalty.last_step`
-    Penalty applied when agents attempt invalid actions. (last step where this occurred)
+  - Penalty applied when agents attempt invalid actions. (last step where this occurred)
 
 - `env_agent/action.failure_penalty.last_step.std_dev`
-    Penalty applied when agents attempt invalid actions. (last step where this occurred) (standard deviation)
+  - Penalty applied when agents attempt invalid actions. (last step where this occurred) (standard deviation)
 
 - `env_agent/action.failure_penalty.max`
-    Penalty applied when agents attempt invalid actions. (maximum value)
+  - Penalty applied when agents attempt invalid actions. (maximum value)
 
 - `env_agent/action.failure_penalty.max.std_dev`
-    Penalty applied when agents attempt invalid actions. (maximum value) (standard deviation)
+  - Penalty applied when agents attempt invalid actions. (maximum value) (standard deviation)
 
 - `env_agent/action.failure_penalty.min`
-    Penalty applied when agents attempt invalid actions. (minimum value)
+  - Penalty applied when agents attempt invalid actions. (minimum value)
 
 - `env_agent/action.failure_penalty.min.std_dev`
-    Penalty applied when agents attempt invalid actions. (minimum value) (standard deviation)
+  - Penalty applied when agents attempt invalid actions. (minimum value) (standard deviation)
 
 - `env_agent/action.failure_penalty.rate`
-    Penalty applied when agents attempt invalid actions. (occurrences per step)
+  - Penalty applied when agents attempt invalid actions. (occurrences per step)
 
 - `env_agent/action.failure_penalty.rate.std_dev`
-    Penalty applied when agents attempt invalid actions. (occurrences per step) (standard deviation)
+  - Penalty applied when agents attempt invalid actions. (occurrences per step) (standard deviation)
 
 - `env_agent/action.failure_penalty.updates`
 - `env_agent/action.failure_penalty.updates.std_dev`
 - `env_agent/action.failure_penalty.std_dev`
-    Penalty applied when agents attempt invalid actions. (standard deviation)
+  - Penalty applied when agents attempt invalid actions. (standard deviation)
 
 
 **action.get_output.failed:** (9 values / 9 std_devs)
@@ -351,11 +351,11 @@ in the environment.
 - `env_agent/action.move.success.min`
 - `env_agent/action.move.success.min.std_dev`
 - `env_agent/action.move.success.rate`
-    Success rate of agent movement actions.
-    **Interpretation:** Low rates may indicate crowded environments or poor navigation policy.
+  - Success rate of agent movement actions.
+  - **Interpretation:** Low rates may indicate crowded environments or poor navigation policy.
 
 - `env_agent/action.move.success.rate.std_dev`
-    Success rate of agent movement actions. (standard deviation)
+  - Success rate of agent movement actions. (standard deviation)
 
 - `env_agent/action.move.success.updates`
 - `env_agent/action.move.success.updates.std_dev`

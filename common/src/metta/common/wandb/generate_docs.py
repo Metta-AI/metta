@@ -386,11 +386,19 @@ def generate_section_readme(section, subsections, output_dir, descriptions):
                 # Check if we have a description for this specific metric
                 metric_desc = get_metric_description(metric, descriptions)
                 if metric_desc:
-                    # Double indent the description
+                    # Format description as sub-bullets
                     desc_lines = metric_desc.split("\n")
-                    for line in desc_lines:
+                    for i, line in enumerate(desc_lines):
                         if line.strip():
-                            content += f"    {line}\n"
+                            # First line of description
+                            if i == 0:
+                                content += f"  - {line}\n"
+                            # Interpretation or other formatted lines
+                            elif line.strip().startswith("**"):
+                                content += f"  - {line}\n"
+                            # Continuation of previous line
+                            else:
+                                content += f"    {line}\n"
                     content += "\n"
 
             content += "\n"
