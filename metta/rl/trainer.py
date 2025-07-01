@@ -201,11 +201,6 @@ class MettaTrainer:
 
         logging.info(f"USING {self.latest_saved_policy_record.uri}")
 
-        # Synchronize all ranks after policy loading/creation
-        if torch.distributed.is_initialized():
-            torch.distributed.barrier()
-            logger.info("All ranks synchronized after policy loading")
-
         if self._master:
             logger.info(f"MettaTrainer loaded: {self.policy}")
 
@@ -326,14 +321,6 @@ class MettaTrainer:
             self._maybe_record_heartbeat()
             self._maybe_save_policy()
             self._maybe_save_training_state()
-
-            # Synchronize all ranks after potential policy save
-            # This is critical to prevent memory leaks and ensure all ranks stay in sync
-            if torch.distributed.is_initialized():
-                torch.distributed.barrier()
-                if self._master and self.epoch % 10 == 0:
-                    logger.info(f"All ranks synchronized after checkpoint at epoch {self.epoch}")
-
             wandb_policy_name = self._maybe_upload_policy_record_to_wandb()
             self._maybe_evaluate_policy(wandb_policy_name)
             self._maybe_generate_replay()
@@ -352,11 +339,6 @@ class MettaTrainer:
         self._maybe_save_policy(force=True)
         self._maybe_save_training_state(force=True)
         self._maybe_upload_policy_record_to_wandb(force=True)
-
-        # Final synchronization before training completes
-        if torch.distributed.is_initialized():
-            torch.distributed.barrier()
-            logger.info("All ranks synchronized after final saves")
 
     def _on_train_step(self):
         pass
