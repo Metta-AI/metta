@@ -15,14 +15,14 @@ game:
   max_steps: 1000
 
   # We could figure this out implicitly, but being explicit reduces the risk of people accidentally configuring
-  # inventory they didn't intend (e.g., "ore" instead of "ore.red").
+  # inventory they didn't intend (e.g., "ore" instead of "ore_red").
   inventory_item_names:
-    - ore.red
-    - ore.blue
-    - ore.green
-    - battery.red
-    - battery.blue
-    - battery.green
+    - ore_red
+    - ore_blue
+    - ore_green
+    - battery_red
+    - battery_blue
+    - battery_green
     - heart
     - armor
     - laser
