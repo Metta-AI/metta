@@ -28,7 +28,10 @@ class StudioSetup(SetupModule):
             warning("Studio directory not found")
             return
 
-        self.run_command(["corepack", "enable"])
-        self.run_command(["pnpm", "install"], cwd=studio_dir)
+        # Corepack enable with auto-yes (no prompts needed, runs with current user)
+        self.run_command(["corepack", "enable"], capture_output=False)
+
+        # pnpm install with frozen lockfile to avoid prompts
+        self.run_command(["pnpm", "install", "--frozen-lockfile"], cwd=studio_dir, capture_output=False)
 
         success("Studio frontend installed")
