@@ -16,6 +16,7 @@ Key features:
 import importlib
 import logging
 from types import SimpleNamespace
+from typing import Optional
 
 import torch
 from hydra.utils import instantiate
@@ -24,6 +25,7 @@ from pufferlib.pytorch import sample_logits
 from torch import nn
 
 from metta.agent.policy_state import PolicyState
+from metta.agent.util.distribution_utils import sample_actions
 
 logger = logging.getLogger("pytorch_adapter")
 
@@ -94,7 +96,16 @@ def load_pytorch_policy(path: str, device: str = "cpu", pytorch_cfg: DictConfig 
     Returns:
         PytorchAdapter wrapping the loaded policy
     """
-    weights = torch.load(path, map_location=device, weights_only=True)
+    try:
+        weights = torch.load(path, map_location=device, weights_only=True)
+    except Exception as e:
+        raise ValueError(f"Failed to load checkpoint from {path}: {e}")
+
+    # Validate checkpoint structure
+    required_keys = ["policy.actor.0.weight", "policy.network.0.weight"]
+    missing_keys = [k for k in required_keys if k not in weights]
+    if missing_keys and not ("lstm.weight_ih_l0" in weights or "cell.weight_ih" in weights):
+        logger.warning(f"Checkpoint may be incompatible. Missing expected keys: {missing_keys}")
 
     try:
         num_actions, hidden_size = weights["policy.actor.0.weight"].shape
@@ -178,15 +189,192 @@ class PytorchAdapter(nn.Module):
 
         self.components = nn.ModuleDict()  # Empty for compatibility
 
-    def forward(self, obs: torch.Tensor, state: PolicyState, action=None):
-        """Forward pass with MettaAgent-compatible interface.
-
-        Handles both standard PyTorch policies and PufferLib LSTMWrapper policies.
-        """
-        if self.is_lstm_wrapper:
-            return self._forward_lstm_wrapper(obs, state, action)
+        # Get max_vec for normalization from the external policy
+        self.max_vec = None
+        if hasattr(policy, "max_vec"):
+            self.max_vec = policy.max_vec
+        elif hasattr(policy, "policy") and hasattr(policy.policy, "max_vec"):
+            self.max_vec = policy.policy.max_vec
         else:
-            return self._forward_standard(obs, state, action)
+            # Default max_vec based on external torch.py values
+            self.max_vec = torch.tensor(
+                [
+                    9.0,
+                    1.0,
+                    1.0,
+                    10.0,
+                    3.0,
+                    254.0,
+                    1.0,
+                    1.0,
+                    235.0,
+                    8.0,
+                    9.0,
+                    250.0,
+                    29.0,
+                    1.0,
+                    1.0,
+                    8.0,
+                    1.0,
+                    1.0,
+                    6.0,
+                    3.0,
+                    1.0,
+                    2.0,
+                ],
+                dtype=torch.float32,
+            )
+
+        # Ensure max_vec is 1D for easier indexing
+        if self.max_vec is not None and self.max_vec.dim() > 1:
+            self.max_vec = self.max_vec.squeeze()
+
+    def forward(
+        self, obs: torch.Tensor, state: Optional[PolicyState] = None, action: Optional[torch.Tensor] = None
+    ) -> tuple:
+        """Forward pass through the wrapped policy.
+
+        Args:
+            obs: Observation tensor
+            state: Optional LSTM state
+            action: Optional action tensor (for training mode)
+
+        Returns:
+            Tuple of (action, action_log_prob, entropy, value, log_probs)
+            - action: Sampled action, shape (BT, 2)
+            - action_log_prob: Log probability of the sampled action, shape (BT,)
+            - entropy: Entropy of the action distribution, shape (BT,)
+            - value: Value estimate, shape (BT, 1)
+            - log_probs: Log-softmax of logits, shape (BT, A)
+        """
+        # Critical fix: Zero out 255 values in observations before processing
+        # This matches the preprocessing done in the original PufferLib policy
+        obs = obs.clone()  # Clone to avoid modifying the original
+        obs[obs == 255] = 0
+
+        # Apply normalization if we have tokenized observations and max_vec
+        if self.max_vec is not None and len(obs.shape) == 3 and obs.shape[-1] == 3:
+            # Token observations: [B, M, 3] where 3 = (coord, feature_id, feature_value)
+            # We need to normalize the feature values based on their feature IDs
+            batch_size, num_tokens, _ = obs.shape
+            coords = obs[:, :, 0]
+            feature_ids = obs[:, :, 1].long()
+            feature_values = obs[:, :, 2]
+
+            # Create normalization tensor on the same device
+            if self.max_vec.device != obs.device:
+                self.max_vec = self.max_vec.to(obs.device)
+
+            # Get normalization values for each feature ID
+            # Use a mask to only normalize valid tokens (coord != 0)
+            valid_mask = coords != 0
+
+            # Clamp feature IDs to valid range and flatten for indexing
+            feature_ids_flat = torch.clamp(feature_ids.view(-1), 0, len(self.max_vec) - 1)
+
+            # Get normalization values for each token
+            normalizers_flat = self.max_vec[feature_ids_flat]
+            normalizers = normalizers_flat.view(batch_size, num_tokens)
+
+            # Apply normalization only to valid tokens
+            normalized_values = torch.where(
+                valid_mask & (normalizers > 0), feature_values / normalizers, feature_values
+            )
+
+            # Debug normalization
+            if torch.rand(1).item() < 0.05:  # 5% chance
+                sample_idx = valid_mask.nonzero()[:5]  # First 5 valid tokens
+                if len(sample_idx) > 0:
+                    for idx in sample_idx:
+                        b, t = idx[0].item(), idx[1].item()
+                        logger.info(
+                            f"Token {t}: feature_id={feature_ids[b, t]}, raw_value={feature_values[b, t]:.1f}, normalizer={normalizers[b, t]:.1f}, normalized={normalized_values[b, t]:.4f}"
+                        )
+
+            # Update the observation tensor
+            obs[:, :, 2] = normalized_values
+
+        # Debug logging to understand observations (after normalization)
+        if torch.rand(1).item() < 0.01:  # Log 1% of the time to avoid spam
+            logger.info(f"Observation shape: {obs.shape}")
+            logger.info(f"Observation min/max: {obs.min().item():.2f} / {obs.max().item():.2f}")
+            if len(obs.shape) == 3 and obs.shape[-1] == 3:
+                # Token observations
+                coords = obs[0, :, 0]
+                features = obs[0, :, 1]
+                values = obs[0, :, 2]
+                valid_tokens = coords != 0  # After zeroing out 255
+                logger.info(f"Valid tokens: {valid_tokens.sum().item()} / {obs.shape[1]}")
+                if valid_tokens.sum() > 0:
+                    logger.info(f"Feature IDs: {features[valid_tokens][:10].tolist()}")
+                    logger.info(
+                        f"Feature values (normalized): {[f'{v:.4f}' for v in values[valid_tokens][:10].tolist()]}"
+                    )
+
+        # Convert state format if needed
+        if self.is_lstm_wrapper and state is not None:
+            # Convert PolicyState to dict format expected by PufferLib
+            state_dict = {"lstm_h": state.lstm_h, "lstm_c": state.lstm_c}
+        else:
+            state_dict = None
+
+        # Forward through the wrapped policy
+        if action is not None:
+            # Training mode - use forward_train if available
+            if hasattr(self.policy, "forward_train"):
+                outputs = self.policy.forward_train(obs, state_dict, action)
+            else:
+                outputs = self.policy(obs, state_dict)
+        else:
+            # Inference mode - use forward_eval if available
+            if hasattr(self.policy, "forward_eval"):
+                outputs = self.policy.forward_eval(obs, state_dict)
+            else:
+                outputs = self.policy(obs, state_dict)
+
+        # Unpack outputs
+        if isinstance(outputs, tuple) and len(outputs) == 2:
+            (logits, value), new_state = outputs
+        else:
+            # Handle case where policy doesn't return state
+            logits, value = outputs
+            new_state = state_dict
+
+        # Convert state format back if needed
+        if self.is_lstm_wrapper and new_state is not None:
+            # Convert from dict back to PolicyState
+            if isinstance(new_state, dict):
+                if state is not None:
+                    state.lstm_h = new_state["lstm_h"]
+                    state.lstm_c = new_state["lstm_c"]
+                else:
+                    # Create new state if none was provided
+                    state = PolicyState(lstm_h=new_state["lstm_h"], lstm_c=new_state["lstm_c"])
+            else:
+                # new_state might already be a PolicyState or tensor
+                if state is None:
+                    state = PolicyState()
+        elif state is None:
+            # Ensure we have a state object
+            state = PolicyState()
+
+        # Convert logits to MettaAgent-compatible format
+        if isinstance(logits, list):
+            # Multi-discrete actions - concatenate logits
+            logits = torch.cat(logits, dim=-1)
+
+        # Ensure value has correct shape
+        if value.dim() == 1:
+            value = value.unsqueeze(-1)
+
+        # Sample actions and compute probabilities
+        action_logit_index, action_log_prob, entropy, log_probs = sample_actions(logits)
+
+        # Convert logit index to (action_type, action_param) format
+        # This is necessary for MettaAgent compatibility
+        action = self._convert_logit_index_to_action(action_logit_index)
+
+        return action, action_log_prob, entropy, value, log_probs
 
     def _forward_standard(self, obs: torch.Tensor, state: PolicyState, action=None):
         """Handle standard PyTorch policies without LSTMWrapper."""
@@ -341,10 +529,52 @@ class PytorchAdapter(nn.Module):
             )
 
     def activate_actions(self, action_names: list[str], action_max_params: list[int], device):
-        """Forward to wrapped policy if it has this method."""
+        """Forward to wrapped policy if it has this method, and set up action conversion."""
         if hasattr(self.policy, "activate_actions"):
             self.policy.activate_actions(action_names, action_max_params, device)
         self.device = device
+
+        # Set up action conversion similar to MettaAgent
+        self.action_max_params = action_max_params
+        self.action_names = action_names
+
+        # Precompute cumulative sums for faster conversion
+        self.cum_action_max_params = torch.cumsum(
+            torch.tensor([0] + action_max_params, device=device, dtype=torch.long), dim=0
+        )
+
+        # Create action_index tensor for converting logit indices to action pairs
+        action_index = []
+        for action_type_idx, max_param in enumerate(action_max_params):
+            for j in range(max_param + 1):
+                action_index.append([action_type_idx, j])
+
+        self.action_index_tensor = torch.tensor(action_index, device=device, dtype=torch.int32)
+
+    def _convert_logit_index_to_action(self, action_logit_index: torch.Tensor) -> torch.Tensor:
+        """
+        Convert logit indices back to action pairs using tensor indexing.
+
+        Args:
+            action_logit_index: Tensor of shape [B*T] containing flattened action indices
+
+        Returns:
+            action: Tensor of shape [B*T, 2] containing (action_type, action_param) pairs
+        """
+        if not hasattr(self, "action_index_tensor"):
+            # Fallback for policies that haven't called activate_actions
+            # Assume default action space [9, 10] for MettaGrid
+            if not hasattr(self, "_default_action_index"):
+                action_index = []
+                for i in range(9):  # 9 action types
+                    for j in range(11):  # up to 10 params (0-10)
+                        action_index.append([i, j])
+                self._default_action_index = torch.tensor(
+                    action_index, device=action_logit_index.device, dtype=torch.int32
+                )
+            return self._default_action_index[action_logit_index]
+
+        return self.action_index_tensor[action_logit_index]
 
     def l2_reg_loss(self) -> torch.Tensor:
         """L2 regularization loss."""
