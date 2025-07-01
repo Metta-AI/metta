@@ -38,12 +38,14 @@ def perform_rollout_step(
     Returns:
         Tuple of (num_steps, info_list)
     """
-    # Use timer if provided, otherwise use nullcontext
-    timer_context = timer("_rollout.env") if timer else nullcontext()
-
-    with timer_context:
+    # Receive environment data
+    if timer:
+        with timer("_rollout.env"):
+            o, r, d, t, info, env_id, mask = vecenv.recv()
+    else:
         o, r, d, t, info, env_id, mask = vecenv.recv()
-        training_env_id = slice(env_id[0], env_id[-1] + 1)
+
+    training_env_id = slice(env_id[0], env_id[-1] + 1)
 
     mask = torch.as_tensor(mask)
     num_steps = int(mask.sum().item())
@@ -89,7 +91,11 @@ def perform_rollout_step(
         lstm_state=lstm_state_to_store,
     )
 
-    with timer_context:
+    # Send actions back to environment
+    if timer:
+        with timer("_rollout.env"):
+            vecenv.send(actions.cpu().numpy().astype(dtype_actions))
+    else:
         vecenv.send(actions.cpu().numpy().astype(dtype_actions))
 
     return num_steps, info
