@@ -203,7 +203,7 @@ class PolicyStore:
         return PolicyRecord(self, name, f"file://{path}", metadata)
 
     def save(self, pr: PolicyRecord, path: str | None = None) -> PolicyRecord:
-        """Save a policy record using the simple torch.save approach."""
+        """Save a policy record using the simple torch.save approach with atomic file operations."""
         if path is None:
             if hasattr(pr, "file_path"):
                 path = pr.file_path
@@ -212,10 +212,27 @@ class PolicyStore:
 
         logger.info(f"Saving policy to {path}")
 
+        # Ensure directory exists
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+
+        # Save to a temporary file first to ensure atomic writes
+        temp_path = path + ".tmp"
+
         # Temporarily remove the policy store reference to avoid pickling issues
         pr._policy_store = None
-        torch.save(pr, path)
-        pr._policy_store = self
+        try:
+            torch.save(pr, temp_path)
+            # Atomically replace the file (works even if target exists)
+            # os.replace is atomic on POSIX systems and handles existing files
+            os.replace(temp_path, path)
+        finally:
+            pr._policy_store = self
+            # Clean up temp file if it still exists (in case of error)
+            if os.path.exists(temp_path):
+                try:
+                    os.remove(temp_path)
+                except OSError:
+                    pass
 
         # Don't cache the policy that we just saved,
         # since it might be updated later. We always
