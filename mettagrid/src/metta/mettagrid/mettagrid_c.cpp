@@ -86,12 +86,14 @@ MettaGrid::MettaGrid(py::dict cfg, py::list map, int seed) {
     _action_handlers.push_back(std::make_unique<Rotate>(cfg["actions"]["rotate"].cast<ActionConfig>()));
   }
   if (cfg["actions"]["attack"]["enabled"].cast<bool>()) {
-    _action_handlers.push_back(std::make_unique<Attack>(cfg["actions"]["attack"].cast<ActionConfig>(),
-                                                        cfg["actions"]["laser_item_id"].cast<InventoryItem>(),
-                                                        cfg["actions"]["armor_item_id"].cast<InventoryItem>()));
-    _action_handlers.push_back(std::make_unique<AttackNearest>(cfg["actions"]["attack"].cast<ActionConfig>(),
-                                                               cfg["actions"]["laser_item_id"].cast<InventoryItem>(),
-                                                               cfg["actions"]["armor_item_id"].cast<InventoryItem>()));
+    std::map<InventoryItem, int> attack_resources =
+        cfg["actions"]["attack"]["attack_resources"].cast<std::map<InventoryItem, int>>();
+    std::map<InventoryItem, int> defense_resources =
+        cfg["actions"]["attack"]["defense_resources"].cast<std::map<InventoryItem, int>>();
+
+    ActionConfig attack_cfg;
+    _action_handlers.push_back(std::make_unique<Attack>(attack_cfg, attack_resources, defense_resources));
+    _action_handlers.push_back(std::make_unique<AttackNearest>(attack_cfg, attack_resources, defense_resources));
   }
   if (cfg["actions"]["swap"]["enabled"].cast<bool>()) {
     _action_handlers.push_back(std::make_unique<Swap>(cfg["actions"]["swap"].cast<ActionConfig>()));
