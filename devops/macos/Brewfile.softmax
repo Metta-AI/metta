@@ -1,7 +1,6 @@
 # Employee-specific applications and tools
 cask "discord"
 cask "cursor"
-cask "tailscale"
 
 
 brew "kubernetes-cli"

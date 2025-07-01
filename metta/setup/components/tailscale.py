@@ -1,10 +1,11 @@
 import json
+import platform
 import subprocess
 
 from metta.setup.components.base import SetupModule
 from metta.setup.config import UserType
 from metta.setup.registry import register_module
-from metta.setup.utils import error, info, success, warning
+from metta.setup.utils import info, success, warning
 
 
 @register_module
@@ -14,7 +15,11 @@ class TailscaleSetup(SetupModule):
         return "Tailscale VPN for internal network access"
 
     def is_applicable(self) -> bool:
-        return self.config.user_type == UserType.SOFTMAX and self.config.is_component_enabled("tailscale")
+        return (
+            platform.system() == "Darwin"
+            and self.config.user_type == UserType.SOFTMAX
+            and self.config.is_component_enabled("tailscale")
+        )
 
     def check_installed(self) -> bool:
         try:
@@ -65,7 +70,7 @@ class TailscaleSetup(SetupModule):
 
                     To connect:
                     1. Run: tailscale up
-                    2. Authenticate with Google using your @stem.ai account
+                    2. Authenticate with Google using your @stem.ai account if prompted
                     3. Grant system extension permissions if prompted
 
                     See: https://tailscale.com/kb/1340/macos-sysext
@@ -77,26 +82,32 @@ class TailscaleSetup(SetupModule):
         info("""
             Your Tailscale access should have been provisioned.
             If you don't have access, contact your team lead.
-
-            Installing Tailscale...
-
-            Note: Tailscale installation requires sudo privileges.
-            You may be prompted for your password.
         """)
 
         try:
-            self.run_command(["brew", "install", "--cask", "tailscale"])
-            success("Tailscale installed")
+            info("Installing Tailscale via Homebrew...")
+            # Use subprocess directly to preserve TTY for sudo prompts
+            subprocess.run(["brew", "install", "--cask", "tailscale"], check=True)
+            success("Tailscale installed via Homebrew!")
 
-            info("""
-                To complete setup:
-                1. Look for the Tailscale application in your Applications folder
-                2. Run: tailscale up
-                3. Log in with Google using your @stem.ai account
-                4. Grant system extension permissions when prompted
+            warning("""
+                IMPORTANT: Now you need to launch Tailscale manually
+
+                Please do the following:
+                1. Open Tailscale from Applications folder
+                2. Grant system extension permissions if prompted
+                3. Authenticate with Google using your @stem.ai account if prompted
 
                 For more info: https://tailscale.com/kb/1340/macos-sysext
             """)
 
-        except subprocess.CalledProcessError as e:
-            error(f"Failed to install Tailscale: {e}")
+        except subprocess.CalledProcessError:
+            warning("""
+                Tailscale installation failed. You can install manually:
+                1. Run: brew install --cask tailscale
+                2. Open Tailscale from Applications folder
+                3. Grant permissions in System Settings → Privacy & Security
+                4. Re-run this setup wizard
+
+                For now, we'll skip Tailscale setup and continue with other components.
+            """)
