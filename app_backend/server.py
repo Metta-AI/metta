@@ -1,5 +1,8 @@
 #!/usr/bin/env -S uv run
 
+import logging
+import sys
+
 import fastapi
 import uvicorn
 from fastapi.middleware.cors import CORSMiddleware
@@ -8,9 +11,64 @@ from app_backend.auth import user_from_header_or_token
 from app_backend.metta_repo import MettaRepo
 from app_backend.routes import dashboard_routes, sql_routes, stats_routes, token_routes
 
+_logging_configured = False
+
+
+class NoWhoAmIFilter(logging.Filter):
+    """Filter out /whoami requests from uvicorn access logs."""
+
+    def filter(self, record):
+        # Filter out /whoami requests from uvicorn access logs
+        if hasattr(record, "getMessage"):
+            message = record.getMessage()
+            return not ("/whoami" in message and "GET" in message)
+        return True
+
+
+def setup_logging():
+    """Configure logging for the application, including heatmap performance logging."""
+    global _logging_configured
+
+    if _logging_configured:
+        return
+
+    # Configure root logger
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
+        handlers=[logging.StreamHandler(sys.stdout)],
+    )
+
+    # Configure heatmap performance logger specifically
+    heatmap_logger = logging.getLogger("dashboard_performance")
+    heatmap_logger.setLevel(logging.INFO)
+
+    # Configure database query performance logger
+    db_logger = logging.getLogger("db_performance")
+    db_logger.setLevel(logging.INFO)
+
+    # Configure route performance logger
+    route_logger = logging.getLogger("route_performance")
+    route_logger.setLevel(logging.INFO)
+
+    # Ensure the loggers don't duplicate messages from root logger
+    heatmap_logger.propagate = True
+    db_logger.propagate = True
+    route_logger.propagate = True
+
+    # Filter out /whoami requests from uvicorn access logs
+    uvicorn_access_logger = logging.getLogger("uvicorn.access")
+    uvicorn_access_logger.addFilter(NoWhoAmIFilter())
+
+    _logging_configured = True
+    print("Logging configured - performance logging enabled (routes, db queries, heatmaps), /whoami requests filtered")
+
 
 def create_app(stats_repo: MettaRepo) -> fastapi.FastAPI:
     """Create a FastAPI app with the given StatsRepo instance."""
+    # Ensure logging is configured
+    setup_logging()
+
     app = fastapi.FastAPI()
 
     # Add CORS middleware
@@ -34,7 +92,7 @@ def create_app(stats_repo: MettaRepo) -> fastapi.FastAPI:
     app.include_router(token_router)
 
     @app.get("/whoami")
-    def whoami(request: fastapi.Request):  # type: ignore
+    async def whoami(request: fastapi.Request):  # type: ignore
         user_id = user_from_header_or_token(request, stats_repo)
         return {"user_email": user_id or "unknown"}
 
@@ -43,6 +101,9 @@ def create_app(stats_repo: MettaRepo) -> fastapi.FastAPI:
 
 if __name__ == "__main__":
     from app_backend.config import host, port, stats_db_uri
+
+    # Setup logging first
+    # setup_logging()
 
     stats_repo = MettaRepo(stats_db_uri)
     app = create_app(stats_repo)
