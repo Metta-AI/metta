@@ -8,6 +8,7 @@ class MockPolicyRecord:
     def __init__(self, policy_key: str, policy_version: int):
         self._policy_key = policy_key
         self._policy_version = policy_version
+        self.uri = "mock://uri"
 
     def wandb_key_and_version(self) -> Tuple[str, int]:
         """Return the policy key and version as a tuple."""
