@@ -12,7 +12,7 @@ install:
 
 test:
 	@echo "Running tests with coverage..."
-	UV_PROJECT_ENVIRONMENT=../.venv uv run pytest --cov=metta.common --cov-report=term-missing
+	UV_PROJECT_ENVIRONMENT=../.venv uv run pytest --cov=metta.agent --cov-report=term-missing
 
 clean:
 	@echo "Cleaning extra venv..."
