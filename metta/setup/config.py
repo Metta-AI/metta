@@ -21,6 +21,9 @@ class ProfileConfig(TypedDict):
     components: dict[str, ComponentConfig]
 
 
+CURRENT_CONFIG_VERSION = 1
+
+
 PROFILE_DEFINITIONS: dict[UserType, ProfileConfig] = {
     UserType.EXTERNAL: {
         "components": {
@@ -119,18 +122,52 @@ class SetupConfig:
     def user_type(self, value: UserType) -> None:
         self.set("user_type", value.value)
 
+    @property
+    def config_version(self) -> int:
+        return self.get("config_version", 0)
+
+    @property
+    def is_custom_config(self) -> bool:
+        return self.get("custom_config", False)
+
+    def get_components(self) -> dict[str, ComponentConfig]:
+        """Get the components configuration based on mode."""
+        if not self.is_custom_config:
+            # Use dynamic profile resolution
+            profile_config = PROFILE_DEFINITIONS.get(self.user_type, {})
+            return profile_config.get("components", {})
+        else:
+            # Use saved configuration
+            return self.get("components", {})
+
     def is_component_enabled(self, component: str) -> bool:
-        comp_config: ComponentConfig = self.get(f"components.{component}", ComponentConfig(enabled=False))
-        return comp_config["enabled"]
+        components = self.get_components()
+        comp_settings = components.get(component, {})
+        return comp_settings.get("enabled", False)
 
     def get_expected_connection(self, component: str) -> str | None:
-        comp_config: ComponentConfig = self.get(f"components.{component}", ComponentConfig(enabled=False))
-        return comp_config.get("expected_connection")
+        components = self.get_components()
+        comp_settings = components.get(component, {})
+        return comp_settings.get("expected_connection")
 
     def apply_profile(self, profile: UserType) -> None:
+        """Apply a profile configuration (uses dynamic resolution)."""
         self.user_type = profile
+        self.set("custom_config", False)
+        self.set("config_version", CURRENT_CONFIG_VERSION)
+        # Remove any saved components to ensure dynamic resolution
+        if "components" in self._config:
+            del self._config["components"]
+            self.save()
 
-        profile_config = PROFILE_DEFINITIONS.get(profile, {})
+    def setup_custom_profile(self, base_profile: UserType) -> None:
+        """Set up a custom configuration based on a profile."""
+        self.user_type = base_profile
+        self.set("custom_config", True)
+        self.set("config_version", CURRENT_CONFIG_VERSION)
+
+        # Copy all component settings from the base profile
+        profile_config = PROFILE_DEFINITIONS.get(base_profile, {})
         for component, settings in profile_config.get("components", {}).items():
             for key, value in settings.items():
                 self.set(f"components.{component}.{key}", value)

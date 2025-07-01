@@ -28,7 +28,7 @@ class StudioSetup(SetupModule):
             warning("Studio directory not found")
             return
 
-        self.run_command(["corepack", "enable"])
-        self.run_command(["pnpm", "install"], cwd=studio_dir)
+        self.run_command(["corepack", "enable"], capture_output=False)
+        self.run_command(["pnpm", "install"], cwd=studio_dir, capture_output=False)
 
         success("Studio frontend installed")
