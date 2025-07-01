@@ -1,5 +1,4 @@
 sampling: 0
-replay_level_prob: 0.2
 game:
   num_agents: ???
   obs_width: 11
