@@ -115,29 +115,6 @@ metta install
 metta status
 ```
 
-### Alternative Usage Methods
-
-If you chose not to add metta to your PATH, you can still use it in these ways:
-
-```bash
-# Add the bin directory to PATH manually if you didn't during install
-export PATH="$PWD/metta/setup/installer/bin:$PATH"
-metta configure
-metta install
-
-# Option 2: Activate the virtual environment first
-source .venv/bin/activate
-metta configure
-metta install
-
-# Option 3: Add the bin directory to PATH manually
-export PATH="$PWD/bin:$PATH"
-metta configure
-```
-
-For more information on setup options and managing components, see the [setup documentation](metta/setup/README.md).
-
-
 ## Usage
 
 The repository contains command-line tools in the `tools/` directory. Most of these tools use [Hydra](https://hydra.cc/) for configuration management, which allows flexible parameter overrides and composition.
