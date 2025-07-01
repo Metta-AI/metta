@@ -126,14 +126,16 @@ def compute_ppo_losses(
     """Compute PPO losses for policy and value functions."""
     # Policy loss
     pg_loss1 = -adv * importance_sampling_ratio
-    pg_loss2 = -adv * torch.clamp(importance_sampling_ratio, 1 - trainer_cfg.clip_coef, 1 + trainer_cfg.clip_coef)
+    pg_loss2 = -adv * torch.clamp(
+        importance_sampling_ratio, 1 - trainer_cfg.ppo.clip_coef, 1 + trainer_cfg.ppo.clip_coef
+    )
     pg_loss = torch.max(pg_loss1, pg_loss2).mean()
 
     # Value loss
     newvalue_reshaped = newvalue.view(minibatch["returns"].shape)
-    if trainer_cfg.clip_vloss:
+    if trainer_cfg.ppo.clip_vloss:
         v_loss_unclipped = (newvalue_reshaped - minibatch["returns"]) ** 2
-        vf_clip_coef = trainer_cfg.vf_clip_coef
+        vf_clip_coef = trainer_cfg.ppo.vf_clip_coef
         v_clipped = minibatch["values"] + torch.clamp(
             newvalue_reshaped - minibatch["values"],
             -vf_clip_coef,
@@ -150,7 +152,7 @@ def compute_ppo_losses(
     with torch.no_grad():
         logratio = new_logprobs - minibatch["logprobs"]
         approx_kl = ((importance_sampling_ratio - 1) - logratio).mean()
-        clipfrac = ((importance_sampling_ratio - 1.0).abs() > trainer_cfg.clip_coef).float().mean()
+        clipfrac = ((importance_sampling_ratio - 1.0).abs() > trainer_cfg.ppo.clip_coef).float().mean()
 
     return pg_loss, v_loss, entropy_loss, approx_kl, clipfrac
 
@@ -184,15 +186,15 @@ def process_minibatch_update(
         minibatch["dones"],
         importance_sampling_ratio,
         minibatch["advantages"],
-        trainer_cfg.gamma,
-        trainer_cfg.gae_lambda,
+        trainer_cfg.ppo.gamma,
+        trainer_cfg.ppo.gae_lambda,
         trainer_cfg.vtrace.vtrace_rho_clip,
         trainer_cfg.vtrace.vtrace_c_clip,
         device,
     )
 
     # Normalize advantages with distributed support, then apply prioritized weights
-    adv = normalize_advantage_distributed(adv, trainer_cfg.norm_adv)
+    adv = normalize_advantage_distributed(adv, trainer_cfg.ppo.norm_adv)
     adv = minibatch["prio_weights"] * adv
 
     # Compute losses
@@ -205,14 +207,14 @@ def process_minibatch_update(
 
     # L2 init loss
     l2_init_loss = torch.tensor(0.0, device=device, dtype=torch.float32)
-    if trainer_cfg.l2_init_loss_coef > 0:
-        l2_init_loss = trainer_cfg.l2_init_loss_coef * policy.l2_init_loss().to(device)
+    if trainer_cfg.ppo.l2_init_loss_coef > 0:
+        l2_init_loss = trainer_cfg.ppo.l2_init_loss_coef * policy.l2_init_loss().to(device)
 
     # Total loss
     loss = (
         pg_loss
-        - trainer_cfg.ent_coef * entropy_loss
-        + v_loss * trainer_cfg.vf_coef
+        - trainer_cfg.ppo.ent_coef * entropy_loss
+        + v_loss * trainer_cfg.ppo.vf_coef
         + l2_init_loss
         + ks_action_loss
         + ks_value_loss
