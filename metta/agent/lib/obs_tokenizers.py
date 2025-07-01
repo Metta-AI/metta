@@ -45,7 +45,7 @@ class ObsTokenPadStrip(LayerBase):
         Args:
             feature_id_remap: A 256-element tensor where index is new_id and value is original_id
         """
-        self.feature_id_remap = feature_id_remap.to(self.feature_id_remap.device)
+        self.register_buffer("feature_id_remap", feature_id_remap.to(self.feature_id_remap.device))
         identity = torch.arange(256, dtype=torch.uint8, device=self.feature_id_remap.device)
         self._remapping_active = not torch.equal(self.feature_id_remap, identity)
 

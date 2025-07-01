@@ -261,7 +261,6 @@ class MettaTrainer:
             self.policy = DistributedMettaAgent(self.policy, self.device)
             # Ensure all ranks have initialized DDP before proceeding
             torch.distributed.barrier()
-            logger.info(f"Rank {self._rank}: DistributedDataParallel initialization complete")
 
         self._make_experience_buffer()
 
@@ -547,9 +546,7 @@ class MettaTrainer:
         if not self._master:
             # Non-master ranks need to participate in the barrier below
             if torch.distributed.is_initialized():
-                logger.debug(f"Rank {self._rank}: Entering barrier in _maybe_save_training_state")
                 torch.distributed.barrier()
-                logger.debug(f"Rank {self._rank}: Exited barrier in _maybe_save_training_state")
             return
 
         extra_args = {}
@@ -584,9 +581,7 @@ class MettaTrainer:
         if not self._master:
             # Non-master ranks need to participate in the barrier below
             if torch.distributed.is_initialized():
-                logger.debug(f"Non-master rank {self._rank} entering barrier in _maybe_save_policy")
                 torch.distributed.barrier()
-                logger.debug(f"Non-master rank {self._rank} exited barrier in _maybe_save_policy")
             return
 
         name = self.policy_store.make_model_name(self.epoch)
@@ -642,9 +637,7 @@ class MettaTrainer:
 
         # Synchronize all ranks to ensure the policy is fully saved before continuing
         if torch.distributed.is_initialized():
-            logger.debug(f"Rank {self._rank} entering barrier after save")
             torch.distributed.barrier()
-            logger.debug(f"Rank {self._rank} exited barrier after save")
 
     def _wait_for_policy_record(self, policy_path: str, timeout: int = 300) -> PolicyRecord | None:
         """Wait for a policy file to be created by the master rank.
