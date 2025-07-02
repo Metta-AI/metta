@@ -1,7 +1,7 @@
 import torch.nn as nn
 
 
-class MinimalPolicy(nn.Module):
+class MockPolicy(nn.Module):
     def __init__(self):
         super().__init__()
         self.fc = nn.Linear(10, 10)
