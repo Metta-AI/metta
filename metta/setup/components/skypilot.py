@@ -1,7 +1,6 @@
 import subprocess
 
 from metta.setup.components.base import SetupModule
-from metta.setup.config import UserType
 from metta.setup.registry import register_module
 from metta.setup.utils import info, success
 
@@ -13,11 +12,7 @@ class SkypilotSetup(SetupModule):
         return "SkyPilot cloud compute orchestration"
 
     def is_applicable(self) -> bool:
-        return (
-            self.config.user_type in [UserType.SOFTMAX, UserType.CLOUD]
-            and self.config.is_component_enabled("skypilot")
-            and self.config.is_component_enabled("aws")
-        )
+        return self.config.is_component_enabled("skypilot") and self.config.is_component_enabled("aws")
 
     def check_installed(self) -> bool:
         try:
@@ -35,7 +30,7 @@ class SkypilotSetup(SetupModule):
 
     @property
     def setup_script_location(self) -> str | None:
-        if self.config.user_type == UserType.SOFTMAX:
+        if self.config.user_type.is_softmax:
             return "devops/skypilot/install.sh"
         return None
 
@@ -53,7 +48,7 @@ class SkypilotSetup(SetupModule):
                 info("GitHub authentication may have been cancelled or failed.")
                 info("You can complete it later with: gh auth login")
 
-        if self.config.user_type == UserType.SOFTMAX:
+        if self.config.user_type.is_softmax:
             super().install()
             success("SkyPilot installed")
         else:
@@ -67,7 +62,7 @@ class SkypilotSetup(SetupModule):
         if not self.check_installed():
             return None
 
-        if self.config.user_type == UserType.SOFTMAX:
+        if self.config.user_type.is_softmax:
             try:
                 result = subprocess.run(["sky", "api", "info"], capture_output=True, text=True)
                 softmax_url = "skypilot-api.softmax-research.net"

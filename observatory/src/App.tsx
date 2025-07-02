@@ -195,7 +195,10 @@ function App() {
               >
                 Dashboard
               </Link>
-              <Link to="/training-runs" className={`nav-tab ${location.pathname.startsWith('/training-run') ? 'active' : ''}`}>
+              <Link
+                to="/training-runs"
+                className={`nav-tab ${location.pathname.startsWith('/training-run') ? 'active' : ''}`}
+              >
                 Training Runs
               </Link>
               <Link to="/saved" className={`nav-tab ${location.pathname === '/saved' ? 'active' : ''}`}>
