@@ -21,14 +21,17 @@ class SystemSetup(SetupModule):
     def is_applicable(self) -> bool:
         return self.config.is_component_enabled("system")
 
+    @property
+    def supported_for_platform(self) -> bool:
+        return platform.system() == "Darwin" or self._find_brew_path() is not None
+
     @override
     def check_installed(self) -> bool:
-        if platform.system() != "Darwin":
+        if not self.supported_for_platform:
             # NOTE: need to implement this at some point
             return True
 
-        brew_path = self._find_brew_path()
-        if not brew_path:
+        if not (brew_path := self._find_brew_path()):
             return False
 
         brewfile_path = self.repo_root / "devops" / "macos" / "Brewfile"
@@ -45,8 +48,11 @@ class SystemSetup(SetupModule):
     def install(self) -> None:
         info("Setting up system dependencies...")
 
-        if platform.system() == "Darwin":
-            self._install_macos()
+        if self.supported_for_platform:
+            if platform.system() == "Darwin" and not self._find_brew_path():
+                self._install_homebrew()
+            self._run_brew_bundle("Brewfile")
+            success("System dependencies installed")
         else:
             # NOTE: need to implement this at some point
             info("""
@@ -55,16 +61,6 @@ class SystemSetup(SetupModule):
 
                 If you are on a mettabox, you can run `./devops/mettabox/setup_machine.sh`.
             """)
-
-    def _install_macos(self) -> None:
-        brew_path = self._find_brew_path()
-        if not brew_path:
-            self._install_homebrew()
-            brew_path = self._find_brew_path()
-
-        self._run_brew_bundle("Brewfile")
-
-        success("System dependencies installed")
 
     def _install_homebrew(self) -> None:
         info("Installing Homebrew...")
