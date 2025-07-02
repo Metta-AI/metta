@@ -1,0 +1,29 @@
+# External collaborator configuration
+# This config disables cloud services (wandb, aws) by default
+# @package __global__
+
+# Disable wandb for external users by default
+wandb: off
+
+
+# To enable specific features, uncomment and configure:
+
+# Enable with your own wandb account:
+#  - Edit metta/configs/wandb/external_user.yaml
+#  - Ensure you are authenticated with wandb. Our setup script should assist you with this.
+# wandb: external_user
+
+# Enable torch profiling with local storage:
+# trainer:
+#   profiler:
+#     interval_epochs: 10000
+#     upload_dir: ${run_dir}/torch_traces  # local directory
+
+# Enable uploads to your own S3 bucket
+#  - Ensure you are authenticated with aws. Our setup script should assist you with this.
+# trainer:
+#   profiler:
+#     interval_epochs: 10000
+#     upload_dir: s3://your-bucket/torch_traces
+#   simulation:
+#     replay_dir: s3://your-bucket/replays/${run}

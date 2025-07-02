@@ -115,6 +115,22 @@ class PPOConfig(BaseModelWithForbidExtra):
     target_kl: float | None = None
 
 
+class TorchProfilerConfig(BaseModelWithForbidExtra):
+    interval_epochs: int = Field(default=0, ge=0)  # 0 to disable
+    # Upload location: None disables uploads, supports s3:// or local paths
+    upload_dir: str | None = Field(default=None)
+
+    @property
+    def enabled(self) -> bool:
+        return self.interval_epochs > 0 and self.upload_dir is not None
+
+    @model_validator(mode="after")
+    def validate_fields(self) -> "TorchProfilerConfig":
+        if self.interval_epochs and self.upload_dir is None:
+            raise ValueError("profiler.upload_dir must be set if profiler.interval_epochs > 0")
+        return self
+
+
 class TrainerConfig(BaseModelWithForbidExtra):
     # Target for hydra instantiation
     target: str = Field(default="metta.rl.trainer.MettaTrainer", alias="_target_")
@@ -166,7 +182,7 @@ class TrainerConfig(BaseModelWithForbidExtra):
     # Reduce-overhead mode: Best for training loops when compile is enabled
     compile_mode: Literal["default", "reduce-overhead", "max-autotune"] = "reduce-overhead"
     # Profile every 10K epochs: Infrequent to minimize overhead
-    profiler_interval_epochs: int = Field(default=10000, gt=0)
+    profiler: TorchProfilerConfig = Field(default_factory=TorchProfilerConfig)
 
     # Distributed training
     # Forward minibatch: Type 2 default chosen arbitrarily
@@ -253,6 +269,6 @@ def parse_trainer_config(
         config_dict["checkpoint"]["checkpoint_dir"] = f"{cfg.run_dir}/checkpoints"
 
     if "replay_dir" not in config_dict.setdefault("simulation", {}):
-        config_dict["simulation"]["replay_dir"] = f"s3://softmax-public/replays/{cfg.run}"
+        config_dict["simulation"]["replay_dir"] = f"${cfg.run_dir}/replays"
 
     return TrainerConfig.model_validate(config_dict)

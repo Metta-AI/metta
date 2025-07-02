@@ -134,26 +134,40 @@ Parameters:
 - `wandb=off` - Disables Weights & Biases logging
 - `+user=<name>` - Loads your personal settings from `configs/user/<name>.yaml`
 
-### Setting up Weights & Biases for Personal Use
+### Connecting to Your S3 or WandB
 
-To use WandB with your personal account:
+External users can optionally enable cloud services (WandB logging, S3 uploads) with their own accounts.
 
-1. Get your WandB API key from [wandb.ai](https://wandb.ai) (click your profile → API keys)
-2. Add it to your `~/.netrc` file:
-   ```
-   machine api.wandb.ai
-     login user
-     password YOUR_API_KEY_HERE
-   ```
-3. Edit `configs/wandb/external_user.yaml` and replace `???` with your WandB username:
-   ```yaml
-   entity: ???  # Replace with your WandB username
+#### Configuration Guide
+
+See [`configs/user/external.yaml`](configs/user/external.yaml) for detailed instructions on:
+- Enabling WandB with your personal account
+- Configuring S3 uploads to your own buckets
+- Setting up torch profiling with custom storage locations
+
+#### Setup Steps
+
+1. **Enable cloud components** (if not already done during initial setup):
+   ```bash
+   ./metta.sh configure  # Choose which components to enable (aws, wandb)
+   ./metta.sh install    # Install the newly enabled components
    ```
 
-Now you can run training with your personal WandB config:
-```
-./tools/train.py run=local.yourname.123 +hardware=macbook wandb=user
-```
+2. **Use the external config** in your training runs:
+   ```bash
+   ./tools/train.py run=my_experiment +user=external +hardware=macbook
+   ```
+
+3. **Override specific settings** as needed:
+   ```bash
+   # Enable WandB
+   ./tools/train.py run=my_experiment +user=external wandb=external_user
+
+   # Use custom S3 bucket for replays
+   ./tools/train.py run=my_experiment +user=external trainer.simulation.replay_dir=s3://my-bucket/replays/${run}
+   ```
+
+The `external.yaml` config file contains commented examples for common cloud service configurations.
 
 ## Visualizing a Model
 

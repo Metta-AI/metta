@@ -33,7 +33,7 @@ valid_trainer_config = {
     "cpu_offload": False,
     "compile": False,
     "compile_mode": "reduce-overhead",
-    "profiler_interval_epochs": 10000,
+    "profiler": {"interval_epochs": 10000, "upload_dir": "/test/upload/dir"},
     "num_workers": 1,
     "env": "/env/mettagrid/simple",
     "curriculum": None,
