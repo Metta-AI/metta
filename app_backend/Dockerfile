@@ -29,4 +29,4 @@ ENV HOST=0.0.0.0
 ENV PORT=8000
 
 # Run the application
-CMD ["uv", "run", "python", "app_backend/server.py"]
+CMD ["uv", "run", "python", "app_backend/src/metta/app_backend/server.py"]
