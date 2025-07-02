@@ -4,8 +4,8 @@
 
 # Get the directory where this script is located
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-# Get the project root directory (parent of bin)
-PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+# Get the project root directory (three levels up from metta/setup/installer/bin)
+PROJECT_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 
 # Run metta using uv with the project directory
 exec uv run --project "$PROJECT_DIR" python -m metta.setup.metta_cli "$@"
