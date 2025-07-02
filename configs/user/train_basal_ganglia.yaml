@@ -1,11 +1,10 @@
 env: simple
 
 defaults:
-  - common
-  - agent: basal_ganglia
-  - trainer: trainer
-  - sim: simple
-  - wandb: metta_research
+  - /common
+  - /agent/fast
+  - /trainer/trainer
+  - /sim/all@evals
   - _self_
 
 seed: 42
@@ -48,3 +47,14 @@ sim:
   num_episodes: 1
   max_time_s: 120  # Longer episodes for reward shaping to take effect
   env_overrides: {}
+
+wandb:
+  enabled: true
+  project: metta
+  entity: metta-research
+  group: ${run}
+  name: ${run}
+  run_id: ${run}
+  data_dir: ${run_dir}
+  job_type: ${cmd}
+  tags: ["msb_nav_ProgressiveLearning_comparison"]
