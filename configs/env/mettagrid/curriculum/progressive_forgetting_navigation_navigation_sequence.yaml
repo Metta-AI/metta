@@ -1,0 +1,25 @@
+_target_: metta.curriculum.progressive_forgetting.ProgressiveForgettingCurriculum
+task_sets:
+  navigation:
+    /env/mettagrid/navigation/evals/emptyspace_withinsight: 1
+    /env/mettagrid/navigation/evals/obstacles1: 1
+    /env/mettagrid/navigation/evals/radialmaze: 1
+    /env/mettagrid/navigation/evals/walls_withinsight: 1
+    /env/mettagrid/navigation/evals/corridors: 1
+    /env/mettagrid/navigation/evals/cylinder: 1
+  navigation_sequence:
+    /env/mettagrid/navigation_sequence/evals/corridors: 1
+    /env/mettagrid/navigation_sequence/evals/obstacles1: 1
+    /env/mettagrid/navigation_sequence/evals/radial_large: 1
+    /env/mettagrid/navigation_sequence/evals/swirls: 1
+    /env/mettagrid/navigation_sequence/evals/thecube: 1
+    /env/mettagrid/navigation_sequence/evals/walkaround: 1
+performance_threshold: 0.8
+smoothing: 0.1
+switch_interval: 1000
+eval_interval: 100
+randomize_order: true
+env_overrides:
+  desync_episodes: true
+  game:
+    num_agents: 4

@@ -1,0 +1,25 @@
+_target_: metta.curriculum.progressive_forgetting.ProgressiveForgettingCurriculum
+task_sets:
+  memory:
+    /env/mettagrid/memory/evals/easy: 1
+    /env/mettagrid/memory/evals/medium: 1
+    /env/mettagrid/memory/evals/hard: 1
+    /env/mettagrid/memory/evals/spacey_memory: 1
+    /env/mettagrid/memory/evals/tease: 1
+    /env/mettagrid/memory/evals/which_way: 1
+  object_use:
+    /env/mettagrid/object_use/evals/armory_use: 1
+    /env/mettagrid/object_use/evals/generator_use: 1
+    /env/mettagrid/object_use/evals/lasery_use: 1
+    /env/mettagrid/object_use/evals/mine_use: 1
+    /env/mettagrid/object_use/evals/swap_in: 1
+    /env/mettagrid/object_use/evals/shoot_out: 1
+performance_threshold: 0.8
+smoothing: 0.1
+switch_interval: 1000
+eval_interval: 100
+randomize_order: true
+env_overrides:
+  desync_episodes: true
+  game:
+    num_agents: 4

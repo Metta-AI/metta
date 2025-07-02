@@ -1,0 +1,38 @@
+# @package __global__
+
+# User config for progressive forgetting curriculum experiments
+
+defaults:
+  - /common
+  - /agent/fast
+  - /trainer/trainer
+  - /sim/all@evals
+  - _self_
+
+# Basic run configuration
+run: progressive_forgetting_experiment
+cmd: train
+
+data_dir: ${oc.env:DATA_DIR,./train_dir}
+run_dir: ${data_dir}/${run}
+
+trainer:
+  curriculum: /env/mettagrid/curriculum/progressive_forgetting
+  num_workers: 4
+  simulation:
+    evaluate_interval: 100
+  checkpoint:
+    wandb_checkpoint_interval: 100
+  total_timesteps: 10_000_000  # Shorter run for testing
+
+# Progressive forgetting specific settings
+wandb:
+  enabled: false  # Disable wandb for these experiments to avoid clutter
+  project: metta
+  entity: metta-research
+  group: ${run}
+  name: ${run}
+  run_id: ${run}
+  data_dir: ${run_dir}
+  job_type: ${cmd}
+  tags: ["progressive_forgetting", "catastrophic_forgetting"]
