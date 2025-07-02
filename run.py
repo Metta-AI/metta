@@ -2,17 +2,9 @@
 
 This example shows how to use the Metta API to train an agent with full
 control over the training loop, using the same components as the main trainer.
-
-Note: If you encounter "Unable to cast Python instance to C++ type" errors,
-the mettagrid C++ module may need to be rebuilt:
-  cd mettagrid && make clean && make build
-
-This can happen after pulling changes or switching branches.
 """
 
 import logging
-import os
-import subprocess
 import sys
 
 import torch
@@ -28,45 +20,21 @@ from metta.api import (
     save_checkpoint,
 )
 
-
-def ensure_mettagrid_built():
-    """Ensure the mettagrid C++ module is built."""
-    mettagrid_dir = os.path.join(os.path.dirname(__file__), "mettagrid")
-    build_dir = os.path.join(mettagrid_dir, "build-debug")
-
-    # Check if the build directory exists
-    if not os.path.exists(build_dir):
-        logger.info("MetaGrid C++ module not found, building...")
-
-        # Check if cmake is available
-        try:
-            subprocess.run(["cmake", "--version"], capture_output=True, check=True)
-        except (subprocess.CalledProcessError, FileNotFoundError):
-            logger.error(
-                "cmake is not available. Please install cmake to build the MetaGrid C++ module.\n"
-                "On macOS: brew install cmake\n"
-                "On Ubuntu: sudo apt-get install cmake"
-            )
-            sys.exit(1)
-
-        # Build the module
-        try:
-            logger.info("Configuring MetaGrid build...")
-            subprocess.run(["cmake", "--preset", "debug"], cwd=mettagrid_dir, check=True)
-            logger.info("Building MetaGrid C++ module...")
-            subprocess.run(["cmake", "--build", "build-debug"], cwd=mettagrid_dir, check=True)
-            logger.info("MetaGrid C++ module built successfully")
-        except subprocess.CalledProcessError as e:
-            logger.error(f"Failed to build MetaGrid C++ module: {e}")
-            sys.exit(1)
-
-
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Ensure mettagrid is built before importing anything that depends on it
-ensure_mettagrid_built()
+# Check if mettagrid is available
+try:
+    from metta.mettagrid import mettagrid_c  # noqa: F401
+except ImportError:
+    logger.error(
+        "MetaGrid C++ module not available. Please install the package:\n"
+        "  uv sync --inexact\n"
+        "or if you don't have uv:\n"
+        "  pip install -e ."
+    )
+    sys.exit(1)
 
 # Configuration
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")

@@ -629,7 +629,7 @@ def evaluate_policy(
     episode_lengths = []
 
     for _ in range(num_episodes):
-        obs = vecenv.reset()
+        obs = vecenv.reset()  # type: ignore
         done = False
         episode_reward = 0
         episode_length = 0
@@ -639,18 +639,18 @@ def evaluate_policy(
                 # Note: Real implementation would handle LSTM states properly
                 action = policy(obs)
 
-            obs, reward, terminated, truncated, info = vecenv.step(action)
+            obs, reward, terminated, truncated, info = vecenv.step(action)  # type: ignore
             done = terminated or truncated
             episode_reward += reward.sum()
             episode_length += 1
 
             if render:
-                vecenv.render()
+                vecenv.render()  # type: ignore
 
         total_rewards.append(episode_reward)
         episode_lengths.append(episode_length)
 
-    vecenv.close()
+    vecenv.close()  # type: ignore
 
     return {
         "mean_reward": float(torch.tensor(total_rewards).mean()),

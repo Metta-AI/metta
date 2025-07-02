@@ -1,8 +1,20 @@
 # Metta API Documentation
 
-The Metta API provides a clean interface for using Metta as a library without Hydra configuration management. This allows you to integrate Metta into your own training pipelines with full control over the training loop, using the same production-grade components as the main trainer.
+The Metta API provides a clean, programmatic interface to the Metta training framework without requiring Hydra configuration files. This allows you to use Metta components directly in your Python code while maintaining full compatibility with the existing infrastructure.
 
-## Overview
+## Quick Start
+
+First, ensure the package is installed:
+```bash
+./setup_api.sh
+```
+
+Then run the example:
+```bash
+python run.py
+```
+
+## Design Philosophy
 
 The API provides:
 - **Direct instantiation** of environments, agents, and training components
@@ -10,59 +22,7 @@ The API provides:
 - **Exposed training loop components** giving you full visibility and control
 - **Real training infrastructure** - not simplified wrappers, but the actual components used by MettaTrainer
 
-## Quick Start
-
-Here's a minimal example showing the training loop structure:
-
-```python
-import torch
-from metta.api import (
-    Agent,
-    Environment,
-    TrainingComponents,
-    calculate_anneal_beta,
-    create_default_trainer_config,
-)
-
-# Create trainer config
-trainer_config = create_default_trainer_config(
-    num_workers=4,
-    total_timesteps=10_000_000,
-    batch_size=8192,
-)
-
-# Create environment
-env = Environment(
-    curriculum_path="/env/mettagrid/simple",
-    num_workers=trainer_config.num_workers,
-    batch_size=trainer_config.batch_size // trainer_config.num_workers,
-)
-
-# Create agent
-agent = Agent(env, config=agent_config, device="cuda")
-
-# Create training components
-training = TrainingComponents.create(
-    vecenv=env,
-    policy=agent,
-    trainer_config=trainer_config,
-)
-
-# Training loop with full control
-while training.agent_step < trainer_config.total_timesteps:
-    # Rollout phase
-    training.reset_for_rollout()
-    while not training.is_ready_for_training():
-        num_steps, info = training.rollout_step()
-        training.agent_step += num_steps
-
-    # Training phase
-    advantages = training.compute_advantages()
-    for epoch in range(trainer_config.update_epochs):
-        for minibatch in training.experience.iterate_minibatches():
-            loss = training.train_minibatch(minibatch, advantages)
-            training.optimize_step(loss)
-```
+## Overview
 
 ## Configuration Classes
 
@@ -296,31 +256,28 @@ This ensures that training behavior is identical whether you use the API or the 
 
 ## Troubleshooting
 
-### "Unable to cast Python instance to C++ type" Error
+### ImportError: No module named 'metta.mettagrid.mettagrid_c'
 
-If you encounter this error when creating environments:
-```
-RuntimeError: Unable to cast Python instance to C++ type
-```
-
-This typically means the mettagrid C++ module needs to be rebuilt:
+If you get this error, the package needs to be installed:
 ```bash
-cd mettagrid
-make clean
-make build
+uv sync --inexact
 ```
 
-This can happen after:
-- Pulling changes from git
-- Switching branches
-- Updating Python dependencies
-- Changes to the C++ code
-
-### Import Errors
-
-If you get import errors for `metta` modules, ensure you've installed the package in development mode:
+Or if you don't have uv:
 ```bash
 pip install -e .
+```
+
+### "Unable to cast Python instance to C++ type" Error
+
+This error typically means the C++ extension needs to be rebuilt. This can happen after:
+- Pulling changes from git
+- Switching branches
+- Updating dependencies
+
+To fix, reinstall the package:
+```bash
+uv sync --inexact --reinstall-package metta-mettagrid
 ```
 
 ## Advanced Usage
