@@ -151,6 +151,7 @@ export interface Repo {
   getTrainingRuns(): Promise<TrainingRunListResponse>
   getTrainingRun(runId: string): Promise<TrainingRun>
   updateTrainingRunDescription(runId: string, description: string): Promise<TrainingRun>
+  generateTrainingRunDescription(runId: string): Promise<string>
   getTrainingRunHeatmapData(
     runId: string,
     metric: string,
@@ -299,6 +300,14 @@ export class ServerRepo implements Repo {
       `/dashboard/training-runs/${encodeURIComponent(runId)}/description`,
       { description }
     )
+  }
+
+  async generateTrainingRunDescription(runId: string): Promise<string> {
+    const response = await this.apiCallWithBody<{ description: string }>(
+      `/dashboard/training-runs/${encodeURIComponent(runId)}/generate-description`,
+      {}
+    )
+    return response.description
   }
 
   async getTrainingRunHeatmapData(

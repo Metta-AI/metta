@@ -149,13 +149,13 @@ MIGRATIONS = [
         description="Add heatmap performance indexes",
         sql_statements=[
             # Critical index for episode_agent_metrics main query
-            """CREATE INDEX idx_episode_agent_metrics_episode_metric 
+            """CREATE INDEX idx_episode_agent_metrics_episode_metric
                ON episode_agent_metrics(episode_id, metric)""",
             # Composite index for episodes eval filtering and joins
-            """CREATE INDEX idx_episodes_eval_category_env_policy 
+            """CREATE INDEX idx_episodes_eval_category_env_policy
                ON episodes(eval_category, env_name, primary_policy_id)""",
             # Index to optimize the JSON agent_groups lookup
-            """CREATE INDEX idx_episodes_attributes_agent_groups 
+            """CREATE INDEX idx_episodes_attributes_agent_groups
                ON episodes USING GIN ((attributes->'agent_groups'))""",
             # Index for policy-epoch joins
             """CREATE INDEX idx_policies_epoch_id ON policies(epoch_id)""",
@@ -651,3 +651,26 @@ class MettaRepo:
                 (description, run_uuid, user_id),
             )
             return result.rowcount > 0
+
+    def get_training_run_git_hash(self, run_id: str) -> str | None:
+        """Get the git hash from a training run's attributes."""
+        try:
+            run_uuid = uuid.UUID(run_id)
+        except ValueError:
+            return None
+
+        with self.connect() as con:
+            result = con.execute(
+                """
+                SELECT attributes
+                FROM training_runs
+                WHERE id = %s
+                """,
+                (run_uuid,),
+            ).fetchone()
+
+            if result is None:
+                return None
+
+            attributes = result[0] or {}
+            return attributes.get("git_hash")

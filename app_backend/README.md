@@ -29,7 +29,8 @@ If you are running a postgres instance locally, use `host.docker.internal` as ho
 - `HOST`: Server host (default: `127.0.0.1`)
 - `PORT`: Server port (default: `8000`)
 - `DEBUG_USER_EMAIL` : In production, your auth token is managed by oauth2_proxy. This is a way to run locally
-without the oauth2_proxy.
+  without the oauth2_proxy.
+- `ANTHROPIC_API_KEY`: API key for Anthropic Claude (required for training run description generation feature)
 
 ## Development
 

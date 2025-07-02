@@ -13,6 +13,7 @@ from pydantic import BaseModel
 
 from app_backend import query_logger
 from app_backend.auth import create_user_or_token_dependency
+from app_backend.description_generator import DescriptionGenerator
 from app_backend.metta_repo import MettaRepo
 from app_backend.query_logger import execute_query_and_log
 from app_backend.route_logger import timed_route
@@ -85,6 +86,10 @@ class TrainingRunListResponse(BaseModel):
 
 
 class TrainingRunDescriptionUpdate(BaseModel):
+    description: str
+
+
+class TrainingRunDescriptionResponse(BaseModel):
     description: str
 
 
@@ -687,19 +692,13 @@ def create_dashboard_router(metta_repo: MettaRepo) -> APIRouter:
         user_or_token: str = user_or_token,
     ) -> TrainingRun:
         """Update the description of a training run."""
-        success = metta_repo.update_training_run_description(
-            user_id=user_or_token,
-            run_id=run_id,
-            description=description_update.description,
-        )
-
+        success = metta_repo.update_training_run_description(user_or_token, run_id, description_update.description)
         if not success:
             raise HTTPException(status_code=404, detail="Training run not found or access denied")
 
-        # Return the updated training run
         training_run = metta_repo.get_training_run(run_id)
-        if not training_run:
-            raise HTTPException(status_code=500, detail="Failed to fetch updated training run")
+        if training_run is None:
+            raise HTTPException(status_code=404, detail="Training run not found")
 
         return TrainingRun(
             id=training_run["id"],
@@ -711,6 +710,35 @@ def create_dashboard_router(metta_repo: MettaRepo) -> APIRouter:
             url=training_run["url"],
             description=training_run["description"],
         )
+
+    @router.post("/training-runs/{run_id}/generate-description")
+    @timed_route("generate_training_run_description")
+    async def generate_training_run_description(  # type: ignore[reportUnusedFunction]
+        run_id: str,
+        user_or_token: str = user_or_token,
+    ) -> TrainingRunDescriptionResponse:
+        """Generate a description for a training run based on its git changes."""
+        # Get the training run to verify it exists and user has access
+        training_run = metta_repo.get_training_run(run_id)
+        if training_run is None:
+            raise HTTPException(status_code=404, detail="Training run not found")
+
+        # Check if user has access to this training run
+        if training_run["user_id"] != user_or_token:
+            raise HTTPException(status_code=403, detail="Access denied")
+
+        # Get the git hash from the training run attributes
+        git_hash = metta_repo.get_training_run_git_hash(run_id)
+        if not git_hash:
+            raise HTTPException(status_code=400, detail="Training run does not have a git hash in attributes")
+
+        try:
+            # Generate description using Claude
+            description_generator = DescriptionGenerator()
+            description = description_generator.generate_description(git_hash)
+            return TrainingRunDescriptionResponse(description=description)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to generate description: {str(e)}") from None
 
     @router.post("/training-runs/{run_id}/suites/{suite}/metrics/{metric}/heatmap")
     @timed_route("get_training_run_heatmap_data")
