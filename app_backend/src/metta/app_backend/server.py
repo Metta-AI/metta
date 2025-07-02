@@ -7,9 +7,9 @@ import fastapi
 import uvicorn
 from fastapi.middleware.cors import CORSMiddleware
 
-from app_backend.auth import user_from_header_or_token
-from app_backend.metta_repo import MettaRepo
-from app_backend.routes import dashboard_routes, sql_routes, stats_routes, token_routes
+from metta.app_backend.auth import user_from_header_or_token
+from metta.app_backend.metta_repo import MettaRepo
+from metta.app_backend.routes import dashboard_routes, sql_routes, stats_routes, token_routes
 
 _logging_configured = False
 
@@ -100,7 +100,7 @@ def create_app(stats_repo: MettaRepo) -> fastapi.FastAPI:
 
 
 if __name__ == "__main__":
-    from app_backend.config import host, port, stats_db_uri
+    from metta.app_backend.config import host, port, stats_db_uri
 
     # Setup logging first
     # setup_logging()

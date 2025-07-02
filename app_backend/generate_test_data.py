@@ -24,7 +24,7 @@ from typing import Dict, List, Optional, TypedDict
 
 import httpx
 
-from app_backend.stats_client import (
+from metta.app_backend.stats_client import (
     ClientEpochResponse,
     ClientPolicyResponse,
     ClientTrainingRunResponse,

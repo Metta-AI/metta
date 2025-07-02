@@ -10,7 +10,8 @@
   "extraPaths": [
     "./common/src",
     "./mettagrid/src",
-    "./agent/src"
+    "./agent/src",
+    "./app_backend/src"
   ],
   "typeCheckingMode": "basic",
   "reportMissingModuleSource": false,
