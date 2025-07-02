@@ -7,7 +7,7 @@ from typing import cast
 
 from duckdb import DuckDBPyConnection
 
-from metta.agent.policy_store import PolicyRecord
+from metta.agent.policy_record import PolicyRecord
 from metta.sim.simulation_stats_db import SimulationStatsDB
 from tests.fixtures import MockPolicyRecord
 
