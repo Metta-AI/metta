@@ -209,17 +209,6 @@ onEvent('click', '#column-menu .remove-from-search', (target: HTMLElement, e: Ev
   let { columnField, columnIsFinal } = getFieldInfo(target)
   removeSearchTerm(columnField)
 })
-/** Clicking on the add to timeline button should add the column to the timeline. */
-onEvent('click', '#column-menu .add-to-timeline', (target: HTMLElement, e: Event) => {
-  let { columnField, columnIsFinal } = getFieldInfo(target)
-  console.log('add to timeline', columnField)
-})
-
-/** Clicking on the remove from timeline button should remove the column from the timeline. */
-onEvent('click', '#column-menu .remove-from-timeline', (target: HTMLElement, e: Event) => {
-  let { columnField, columnIsFinal } = getFieldInfo(target)
-  console.log('remove from timeline', columnField)
-})
 
 /** Clicking on the hide column button should remove the column from the columns array. */
 onEvent('click', '#column-menu .hide-column', (target: HTMLElement, e: Event) => {

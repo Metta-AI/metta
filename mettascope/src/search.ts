@@ -49,6 +49,16 @@ export function hasSearchTerm(k: string) {
   return search.parts.includes(key)
 }
 
+/** Check if the text matches the search query. */
+export function searchMatch(text: string): boolean {
+  for (const part of search.parts) {
+    if (text.toLowerCase().includes(part)) {
+      return true
+    }
+  }
+  return false
+}
+
 function updateSearchDropdown() {
   removeChildren(searchDropdown)
   // Add all of the resources to the search dropdown.
@@ -120,13 +130,3 @@ onEvent('click', '#search-dropdown .search-item', (target: HTMLElement, event: E
   search.active = search.parts.length > 0
   updateSearchDropdown()
 })
-
-/** Check if the text matches the search query. */
-export function searchMatch(text: string): boolean {
-  for (const part of search.parts) {
-    if (text.toLowerCase().includes(part)) {
-      return true
-    }
-  }
-  return false
-}

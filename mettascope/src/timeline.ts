@@ -14,6 +14,8 @@ import { onEvent } from './htmlutils.js'
 import { updateStep, requestFrame } from './main.js'
 import { clamp } from './context3d.js'
 import { getAttr } from './replay.js'
+import { search, searchMatch, hasSearchTerm } from './search.js'
+import { Vec2f } from './vector_math.js'
 
 /** Initializes the timeline. */
 export function initTimeline() {
@@ -70,6 +72,12 @@ export function updateTimeline() {
     (16 + (state.step / fullSteps) * scrubberWidth - 46 / 2).toString() + 'px'
 }
 
+function inside(point: Vec2f, x: number, y: number, w: number, h: number): boolean {
+  return (
+    point.x() >= x && point.x() < x + w && point.y() >= y && point.y() < y + h
+  )
+}
+
 /** Draws the timeline. */
 export function drawTimeline(panel: PanelInfo) {
   if (state.replay === null || ctx === null || ctx.ready === false) {
@@ -112,18 +120,76 @@ export function drawTimeline(panel: PanelInfo) {
     ctx.drawStrokeRect(16 + tracesX - tracesW / 2 - 1, 0, tracesW, 64, 1, [1, 1, 1, 1])
   }
 
-  // Draw key actions on the timeline.
-  for (let agent of state.replay.agents) {
-    let prevFrozen = 0
-    for (let j = 0; j < state.replay.max_steps; j++) {
-      // Draw the frozen state.
-      let frozen = getAttr(agent, 'agent:frozen', j)
-      if (frozen > 0 && prevFrozen == 0) {
-        let x = (j / fullSteps) * scrubberWidth
-        ctx.drawSprite('agents/frozen.png', x, 12, [1, 1, 1, 1], 0.1, 0)
-        ctx.drawSolidRect(x, 24, 1, 8, [1, 1, 1, 1])
+  if (search.active) {
+    // Draw searched states, actions or items on the timeline.
+
+    let localMousePos = new Vec2f(ui.mousePos.x(), ui.mousePos.y() - ui.timelinePanel.y)
+    console.log('localMousePos', localMousePos.x(), localMousePos.y())
+
+    // Draw frozen special state.
+    if (hasSearchTerm("frozen")) {
+      for (let agent of state.replay.agents) {
+        let prevFrozen = 0
+        for (let j = 0; j < state.replay.max_steps; j++) {
+          // Draw the frozen state.
+          let frozen = getAttr(agent, 'agent:frozen', j)
+          if (frozen > 0 && prevFrozen == 0) {
+            let x = (j / fullSteps) * scrubberWidth
+            ctx.drawSprite('agents/frozen.png', x, 12, [1, 1, 1, 1], 0.1, 0)
+            ctx.drawSolidRect(x, 24, 1, 8, [1, 1, 1, 1])
+            // Do click on the item icon.
+            if (ui.mouseDown && inside(localMousePos, x, 12, 16, 16)) {
+              console.log('clicked on frozen', "agent:", agent.id, "step:", j)
+              setFollowSelection(agent.id)
+              updateStep(j)
+              ui.mouseDown = false
+            }
+          }
+          prevFrozen = frozen
+        }
       }
-      prevFrozen = frozen
+    }
+
+    // Search is active, so we need to look for actions.
+    for (let agent of state.replay.agents) {
+      for (let j = 0; j < state.replay.max_steps; j++) {
+        let action = getAttr(agent, 'action', j)
+        let action_success = getAttr(agent, 'action_success', j)
+        if (action !== undefined && action_success) {
+          let actionName = state.replay.action_names[action[0]]
+          if (searchMatch(actionName)) {
+            let x = (j / fullSteps) * scrubberWidth
+            ctx.drawSprite('actions/' + actionName + '.png', x, 12, [1, 1, 1, 1], 0.05, 0)
+            ctx.drawSolidRect(x, 24, 1, 8, [1, 1, 1, 1])
+            // Do click on the item icon.
+            if (inside(localMousePos, x, 12, 16, 16)) {
+              console.log('clicked on action', "agent:", agent.id, "step:", j, "action:", actionName)
+            }
+          }
+        }
+      }
+    }
+
+    // Draw resources.
+    for (let [key, value] of state.replay.resource_inventory) {
+      if (searchMatch(key)) {
+        for (let agent of state.replay.agents) {
+          let prevAmount = 0
+          for (let j = 0; j < state.replay.max_steps; j++) {
+            let amount = getAttr(agent, key, j)
+            if (amount > prevAmount) {
+              let x = (j / fullSteps) * scrubberWidth
+              ctx.drawSprite(value[0], x, 12, [1, 1, 1, 1], 0.05, 0)
+              ctx.drawSolidRect(x, 24, 1, 8, [1, 1, 1, 1])
+              // Do click on the item icon.
+              if (inside(localMousePos, x, 12, 16, 16)) {
+                console.log('clicked on resource', "agent:", agent.id, "step:", j, "resource:", key)
+              }
+            }
+            prevAmount = amount
+          }
+        }
+      }
     }
   }
 
