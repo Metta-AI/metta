@@ -346,7 +346,7 @@ def test_end_to_end_initialize_to_environment_workflow():
         save_path = Path(tmpdir) / "test_policy.pt"
         pr = PolicyRecord(
             policy_store=None,  # We don't need a real PolicyStore for this test
-            name="test_policy",
+            run_name="test_policy",
             uri=f"file://{save_path}",
             metadata=metadata,
         )
