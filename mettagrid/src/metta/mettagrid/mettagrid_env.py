@@ -15,7 +15,7 @@ from pufferlib import PufferEnv
 from pydantic import validate_call
 from typing_extensions import override
 
-from metta.common.stopwatch import Stopwatch, with_instance_timer
+from metta.common.profiling.stopwatch import Stopwatch, with_instance_timer
 from metta.mettagrid.curriculum.core import Curriculum
 from metta.mettagrid.level_builder import Level
 from metta.mettagrid.mettagrid_c import MettaGrid
