@@ -14,7 +14,8 @@ from omegaconf import DictConfig
 
 from metta.agent.metta_agent import DistributedMettaAgent, make_policy
 from metta.agent.policy_metadata import PolicyMetadata
-from metta.agent.policy_store import PolicyRecord, PolicyStore
+from metta.agent.policy_record import PolicyRecord
+from metta.agent.policy_store import PolicyStore
 from metta.app_backend.stats_client import StatsClient
 from metta.common.profiling.memory_monitor import MemoryMonitor
 from metta.common.profiling.stopwatch import Stopwatch, with_instance_timer
