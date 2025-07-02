@@ -35,10 +35,11 @@ class TorchProfiler:
     Future work could include support for TensorBoard.
     """
 
-    def __init__(self, master: bool, profiler_config: TorchProfilerConfig, wandb_run):
+    def __init__(self, master: bool, profiler_config: TorchProfilerConfig, wandb_run, run_dir: str):
         self._master = master
         self._profiler_config = profiler_config
         self._wandb_run = wandb_run
+        self._run_dir = run_dir
 
         self._profiler = None
         self._active = False
@@ -75,8 +76,7 @@ class TorchProfiler:
 
         self._active = True
         self._start_epoch = epoch
-        # Generate a simple filename without run_dir dependency
-        self._profile_filename_base = f"trace_epoch_{self._start_epoch}"
+        self._profile_filename_base = f"trace_{os.path.basename(self._run_dir)}_epoch_{self._start_epoch}"
         logger.info(f"Torch profiler armed for epoch {epoch}. Will start profiling on context entry.")
 
     def __enter__(self):
@@ -158,8 +158,7 @@ class TorchProfiler:
         """Compresses the raw JSON trace using gzip and removes the original file."""
         logger.info(f"Compressing trace to {output_path}...")
         with open(input_path, "rb") as f_in, gzip.open(output_path, "wb") as f_out:
-            for chunk in iter(lambda: f_in.read(4096), b""):
-                f_out.write(chunk)
+            f_out.writelines(f_in)
         logger.info(f"Successfully saved compressed profile trace to {output_path} for epoch {self._start_epoch}.")
         try:
             os.remove(input_path)

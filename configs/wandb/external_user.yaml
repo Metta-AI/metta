@@ -1,7 +1,7 @@
 enabled: true
 
-project: metta
-entity: ???  # Replace with your WandB username
+project: ???  # Replace with your WandB project name
+entity: ???  # Replace with your WandB username/organization
 group: ${run}
 name: ${run}
 run_id: ${run}

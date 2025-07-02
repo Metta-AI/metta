@@ -134,18 +134,16 @@ Parameters:
 - `wandb=off` - Disables Weights & Biases logging
 - `+user=<name>` - Loads your personal settings from `configs/user/<name>.yaml`
 
-### Connecting to Your S3 or WandB
+### Integration with S3 and Wandb: disabling or connecting to your own
 
-External users can optionally enable cloud services (WandB logging, S3 uploads) with their own accounts.
+To run fully locally, explicitly disable wandb and sending stats:
 
-#### Configuration Guide
+```bash
+./tools/train.py run=my_experiment +user=external wandb=off stats_server_uri=null
+```
 
-See [`configs/user/external.yaml`](configs/user/external.yaml) for detailed instructions on:
-- Enabling WandB with your personal account
-- Configuring S3 uploads to your own buckets
-- Setting up torch profiling with custom storage locations
+#### Connecting to your S3 and Wandb
 
-#### Setup Steps
 
 1. **Enable cloud components** (if not already done during initial setup):
    ```bash
@@ -153,21 +151,19 @@ See [`configs/user/external.yaml`](configs/user/external.yaml) for detailed inst
    ./metta.sh install    # Install the newly enabled components
    ```
 
-2. **Use the external config** in your training runs:
-   ```bash
-   ./tools/train.py run=my_experiment +user=external +hardware=macbook
-   ```
+2. **Specify your training command arguments**
 
-3. **Override specific settings** as needed:
-   ```bash
-   # Enable WandB
-   ./tools/train.py run=my_experiment +user=external wandb=external_user
+Update [configs/user/external.yaml](configs/user/external.yaml). It provides instructions on:
+- Enabling WandB with your personal account
+- Configuring S3 uploads to your own buckets
+- Setting up torch profiling with custom storage locations
 
-   # Use custom S3 bucket for replays
-   ./tools/train.py run=my_experiment +user=external trainer.simulation.replay_dir=s3://my-bucket/replays/${run}
-   ```
+Once set, you can use the same command as above
+  ```bash
+  ./tools/train.py run=my_experiment +user=external wandb=off stats_server_uri=null
+  ```
 
-The `external.yaml` config file contains commented examples for common cloud service configurations.
+The `WANDB_ENTITY={your entity}` environment variable is required for uploading files to WandB (replays, checkpoints, etc.). This is separate from the `wandb.entity` in your config which is used for metrics/logging.
 
 ## Visualizing a Model
 
