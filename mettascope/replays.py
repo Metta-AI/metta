@@ -54,6 +54,7 @@ class FakePolicyRecord:
     def __init__(self):
         self.policy = FakeAgent()
         self.policy_id = "fake"
+        self.metadata = {}
 
     def policy_as_metta_agent(self):
         return self.policy
