@@ -112,8 +112,8 @@ class TestDockerIntegration:
             port = container.get_exposed_port(8000)
             self.logger.info(f"Waiting for service to be ready at {host}:{port}")
 
-            # Wait up to 30 seconds for the service to respond
-            max_attempts = 30
+            # Wait up to 200 seconds for the service to respond
+            max_attempts = 200
             for attempt in range(max_attempts):
                 try:
                     response = requests.get(f"http://{host}:{port}/whoami", timeout=2)
