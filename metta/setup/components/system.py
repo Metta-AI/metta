@@ -71,7 +71,11 @@ class SystemSetup(SetupModule):
                 '/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"'
             )
             subprocess.run(install_cmd, shell=True, check=True)
-            success("Homebrew installed successfully")
+            success(
+                "Homebrew installed successfully. Please source your shell to add it to your path "
+                "and re-run metta installation."
+            )
+            sys.exit(0)
         except subprocess.CalledProcessError as e:
             error(f"Error installing Homebrew: {e}")
             sys.exit(1)
