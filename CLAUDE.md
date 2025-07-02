@@ -20,20 +20,8 @@ The codebase consists of:
 
 # The installer will add metta to your PATH, then you can use:
 metta configure --profile=softmax  # For Softmax employees
-metta configure --profile=cloud    # For users with cloud accounts
-metta configure --profile=external # For external contributors
 metta install
-metta status
-
-# Alternative: Activate venv first
-source .venv/bin/activate
-metta configure
-metta install
-metta status
-
 ```
-
-Note: The legacy `./devops/setup_dev.sh` script still works and will automatically set up a Softmax profile.
 
 ## Common Commands
 

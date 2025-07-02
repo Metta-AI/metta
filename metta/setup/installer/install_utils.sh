@@ -19,7 +19,7 @@ get_home() {
 replace_home_with_var() {
     local _path="$1"
     local _home="${HOME:-$(get_home)}"
-    
+
     if [ -n "$_home" ]; then
         echo "$_path" | sed "s,^$_home,\$HOME,"
     else
@@ -30,7 +30,7 @@ replace_home_with_var() {
 # Function to detect user's shell
 detect_shell() {
     local detected_shell=""
-    
+
     # First, check the current shell
     if [ -n "$BASH_VERSION" ]; then
         detected_shell="bash"
@@ -46,7 +46,7 @@ detect_shell() {
             *) detected_shell="sh" ;;  # Default fallback
         esac
     fi
-    
+
     echo "$detected_shell"
 }
 
@@ -54,7 +54,7 @@ detect_shell() {
 write_env_script_sh() {
     local _install_dir="$1"
     local _env_script_path="$2"
-    
+
     cat > "$_env_script_path" << EOF
 #!/bin/sh
 # add binaries to PATH if they aren't added yet
@@ -75,7 +75,7 @@ EOF
 write_env_script_fish() {
     local _install_dir="$1"
     local _env_script_path="$2"
-    
+
     cat > "$_env_script_path" << EOF
 if not contains "$_install_dir" \$PATH
     # Prepending path in case a system-installed binary needs to be overridden
@@ -89,7 +89,7 @@ EOF
 add_to_profile() {
     local _profile="$1"
     local _line="$2"
-    
+
     if [ -f "$_profile" ]; then
         if ! grep -F "$_line" "$_profile" > /dev/null 2>&1; then
             echo >> "$_profile"
@@ -104,7 +104,7 @@ add_to_profile() {
 get_shell_config() {
     local shell_type="$1"
     local config_file=""
-    
+
     case "$shell_type" in
         bash)
             # On macOS, .bash_profile is preferred for login shells
@@ -139,7 +139,7 @@ get_shell_config() {
             config_file="$HOME/.profile"
             ;;
     esac
-    
+
     echo "$config_file"
 }
 
@@ -150,11 +150,11 @@ apply_path_modifications() {
     local _env_script="$2"
     local _fish_env_script="$3"
     local _shell_type="$4"
-    
+
     local _env_script_expr=$(replace_home_with_var "$_env_script")
     local _fish_env_script_expr=$(replace_home_with_var "$_fish_env_script")
     local _modified=0
-    
+
     case "$_shell_type" in
         bash|sh)
             # Try multiple bash config files
@@ -166,7 +166,7 @@ apply_path_modifications() {
                     fi
                 fi
             done
-            
+
             # If none exist, create .profile
             if [ "$_modified" = "0" ]; then
                 if add_to_profile "$HOME/.profile" ". \"$_env_script_expr\""; then
@@ -175,15 +175,15 @@ apply_path_modifications() {
                 fi
             fi
             ;;
-            
+
         zsh)
             local _zdotdir="${ZDOTDIR:-$HOME}"
-            
+
             if add_to_profile "$_zdotdir/.zshrc" ". \"$_env_script_expr\""; then
                 echo "Updated $_zdotdir/.zshrc"
                 _modified=1
             fi
-            
+
             # On macOS, also check .zprofile
             if [ "$(uname -s)" = "Darwin" ] && [ -f "$_zdotdir/.zprofile" ]; then
                 if add_to_profile "$_zdotdir/.zprofile" ". \"$_env_script_expr\""; then
@@ -192,11 +192,11 @@ apply_path_modifications() {
                 fi
             fi
             ;;
-            
+
         fish)
             # Create fish config directory
             mkdir -p "$HOME/.config/fish/conf.d"
-            
+
             # Create a dedicated config file for metta
             local _fish_config="$HOME/.config/fish/conf.d/metta.fish"
             echo "source \"$_fish_env_script_expr\"" > "$_fish_config"
@@ -204,7 +204,7 @@ apply_path_modifications() {
             _modified=1
             ;;
     esac
-    
+
     return $([ "$_modified" = "1" ] && echo 0 || echo 1)
 }
 
@@ -212,7 +212,7 @@ apply_path_modifications() {
 check_shadowed_binary() {
     local _bin_name="$1"
     local _expected_path="$2"
-    
+
     if command -v "$_bin_name" > /dev/null 2>&1; then
         local _actual_path=$(command -v "$_bin_name")
         if [ "$_actual_path" != "$_expected_path" ]; then
@@ -227,7 +227,7 @@ check_shadowed_binary() {
 # Add to GITHUB_PATH if in CI
 add_to_ci_path() {
     local _install_dir="$1"
-    
+
     if [ -n "${GITHUB_PATH:-}" ]; then
         echo "$_install_dir" >> "$GITHUB_PATH"
         echo "Added $_install_dir to GITHUB_PATH for CI"

@@ -7,14 +7,8 @@ echo "This script has been replaced by the metta command. Setting up with defaul
 # Navigate to the repo root
 cd "$(dirname "$0")/.."
 
-# First ensure environment is set up
-if [ ! -d ".venv" ]; then
-    echo "Running initial setup..."
-    ./install.sh
-fi
+# Run installer with --add-to-path flag for non-interactive setup
+./install.sh --add-to-path
 
-# Export PATH to use metta directly
-export PATH="$(pwd)/metta/setup/installer/bin:$PATH"
-
-# Configure as a softmax user and install all configured components
-metta configure --profile=softmax && metta install
+# Use the metta wrapper directly with full path (since PATH changes won't take effect until new shell)
+./metta/setup/installer/bin/metta configure --profile=softmax && ./metta/setup/installer/bin/metta install
