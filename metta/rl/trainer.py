@@ -12,10 +12,10 @@ import wandb
 from heavyball import ForeachMuon
 from omegaconf import DictConfig
 
-from app_backend.stats_client import StatsClient
 from metta.agent.metta_agent import DistributedMettaAgent, make_policy
 from metta.agent.policy_metadata import PolicyMetadata
 from metta.agent.policy_store import PolicyRecord, PolicyStore
+from metta.app_backend.stats_client import StatsClient
 from metta.common.profiling.memory_monitor import MemoryMonitor
 from metta.common.profiling.stopwatch import Stopwatch, with_instance_timer
 from metta.common.util.fs import wait_for_file
