@@ -491,8 +491,8 @@ class TestSweepPipelineIntegration:
             # Create MettaProtein instance
             metta_protein = MettaProtein(base_sweep_config, wandb.run)
 
-            # Verify protein state in wandb
-            assert wandb.run.summary.get("protein.state") == "initializing"
+            # Verify protein state in wandb - after initialization it should be "running"
+            assert wandb.run.summary.get("protein.state") == "running"
 
             # Generate suggestion and verify it's stored in wandb
             suggestion, info = metta_protein.suggest()

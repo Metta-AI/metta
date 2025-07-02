@@ -78,7 +78,8 @@ def main(cfg: DictConfig | ListConfig) -> int:
         except Exception as e:
             logger.error(f"Error getting policy for run {cfg.run}: {e}")
             # Record failure in WandB directly since we don't have a Protein instance yet
-            wandb_run.summary.update({"protein.state": "failure", "protein.error": f"Policy loading failed: {e}"})
+            if wandb_run:
+                wandb_run.summary.update({"protein.state": "failure", "protein.error": f"Policy loading failed: {e}"})
             return 1
 
         eval = SimulationSuite(

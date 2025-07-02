@@ -5,7 +5,10 @@ from omegaconf import DictConfig, ListConfig, OmegaConf
 from pydantic import ValidationError
 
 from metta.common.util.config import copy_omegaconf_config
+from metta.common.util.logging import setup_mettagrid_logger
 from metta.rl.trainer_config import parse_trainer_config
+
+# ===== Legacy functions kept for backwards compatibility and tests =====
 
 
 def validate_merged_config(
@@ -53,9 +56,58 @@ def apply_carbs_suggestion(config: DictConfig | ListConfig, suggestion: DictConf
         OmegaConf.update(config, str_key, value)
 
 
+# ===== Main function used by the sweep process =====
+
+
 def load_train_job_config_with_overrides(cfg: DictConfig | ListConfig) -> DictConfig | ListConfig:
+    """Load training config with sweep overrides applied.
+
+    Priority order (highest to lowest):
+    1. Raw Protein suggestions (protein_suggestions.yaml)
+    2. Sweep job overrides (train_config_overrides.yaml)
+    3. Base config
+    """
+    logger = setup_mettagrid_logger("sweep_config")
+
+    # Step 1: Load sweep job overrides if they exist
     overrides_path = os.path.join(cfg.run_dir, "train_config_overrides.yaml")
     if os.path.exists(overrides_path):
         override_cfg = OmegaConf.load(overrides_path)
-        cfg = validate_merged_config(cfg, override_cfg)
+
+        # Handle sweep_job structure (extract trainer, agent, evals)
+        if "trainer" in override_cfg and "agent" in override_cfg and "evals" in override_cfg:
+            train_overrides = {
+                "trainer": override_cfg.trainer,
+                "agent": override_cfg.agent,
+                "train_job": {"evals": override_cfg.evals},
+            }
+            if "device" in override_cfg:
+                train_overrides["device"] = override_cfg.device
+
+            # Apply overrides
+            OmegaConf.set_struct(cfg, False)
+            cfg = OmegaConf.merge(cfg, train_overrides)
+            OmegaConf.set_struct(cfg, True)
+
+    # Step 2: Apply raw Protein suggestions with highest priority
+    protein_suggestions_path = os.path.join(cfg.run_dir, "protein_suggestions.yaml")
+    if os.path.exists(protein_suggestions_path):
+        protein_suggestions = OmegaConf.load(protein_suggestions_path)
+        logger.info(f"Applying Protein suggestions from {protein_suggestions_path}")
+
+        # Apply with force - Protein always wins
+        OmegaConf.set_struct(cfg, False)
+        for key, value in protein_suggestions.items():
+            if key == "suggestion_uuid":
+                continue
+            if key in cfg and isinstance(value, dict):
+                cfg[key] = OmegaConf.unsafe_merge(cfg[key], value)
+            else:
+                cfg[key] = value
+        OmegaConf.set_struct(cfg, True)
+
+        # Log what was applied for transparency
+        if "trainer" in protein_suggestions:
+            logger.info(f"Applied Protein trainer suggestions: {protein_suggestions['trainer']}")
+
     return cfg

@@ -1,10 +1,11 @@
 """Decorators for Metta scripts."""
 
 import functools
+import os
 from typing import Callable, TypeVar
 
 import torch
-from omegaconf import DictConfig, ListConfig
+from omegaconf import DictConfig, ListConfig, OmegaConf
 
 from metta.common.util.logging import setup_mettagrid_logger
 
@@ -25,6 +26,22 @@ def metta_script(func: Callable[..., T]) -> Callable[..., T]:
 
         # Get the device from config
         device = cfg.get("device", "cpu")
+
+        # TEMPORARY FIX: For sweep runs, check if we have train_config_overrides.yaml
+        # This is needed because sweep configs set device:cpu but the decorator runs
+        # before overrides are loaded
+        try:
+            run_dir = cfg.get("run_dir")
+            if run_dir:
+                overrides_path = os.path.join(run_dir, "train_config_overrides.yaml")
+                if os.path.exists(overrides_path):
+                    override_cfg = OmegaConf.load(overrides_path)
+                    device = override_cfg.get("device", device)
+                    if device != cfg.get("device", "cpu"):
+                        logger.info(f"Using device from sweep override: {device}")
+        except Exception:
+            # Skip override check if run_dir is not available or has interpolation issues
+            pass
 
         # Check if CUDA is requested but not available
         if device.startswith("cuda") and not torch.cuda.is_available():

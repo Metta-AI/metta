@@ -30,8 +30,6 @@ class TrainJob(Config):
 
 
 def train(cfg: ListConfig | DictConfig, wandb_run: WandbRun | None, logger: Logger):
-    cfg = load_train_job_config_with_overrides(cfg)
-
     if os.environ.get("RANK", "0") == "0":
         with open(os.path.join(cfg.run_dir, "config.yaml"), "w") as f:
             OmegaConf.save(cfg, f)
@@ -71,6 +69,10 @@ def main(cfg: ListConfig | DictConfig) -> int:
     record_heartbeat()
 
     logger = setup_mettagrid_logger("train")
+
+    # Load overrides BEFORE logging config
+    cfg = load_train_job_config_with_overrides(cfg)
+
     logger.info(f"Train job config: {OmegaConf.to_yaml(cfg, resolve=True)}")
 
     logger.info(

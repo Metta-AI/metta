@@ -6,6 +6,8 @@ from datetime import datetime, timezone
 
 import wandb
 
+from metta.util.numpy.clean_numpy_types import clean_numpy_types
+
 from .protein import Protein
 
 logger = logging.getLogger("wandb_protein")
@@ -54,8 +56,21 @@ class WandbProtein:
         )
 
         self._wandb_run.summary.update({"protein.state": "initializing"})
-        self._load_runs()
-        self._generate_protein_suggestion()
+
+        try:
+            self._load_runs()
+        except Exception as e:
+            logger.error(f"Error loading previous runs: {e}")
+            logger.info("Continuing with fresh Protein (no previous observations)")
+
+        try:
+            self._generate_protein_suggestion()
+        except Exception as e:
+            logger.error(f"Error generating protein suggestion: {e}")
+            # Fallback to search center if suggestion generation fails
+            logger.info("Falling back to search center suggestion")
+            self._suggestion = self._protein.hyperparameters.to_dict(self._protein.hyperparameters.search_centers)
+            self._suggestion_info = {}
 
         # CRITICAL: Overwrite WandB agent's suggested parameters with Protein's suggestions
         wandb_config = self._transform_suggestion(deepcopy(self._suggestion))
@@ -200,7 +215,13 @@ class WandbProtein:
             return
 
         if run.summary.get("protein.state") == "running":
-            last_hb = datetime.strptime(run._attrs["heartbeatAt"], "%Y-%m-%dT%H:%M:%S.%fZ").replace(tzinfo=timezone.utc)
+            # Handle both formats: with and without microseconds
+            heartbeat_str = run._attrs["heartbeatAt"]
+            try:
+                last_hb = datetime.strptime(heartbeat_str, "%Y-%m-%dT%H:%M:%S.%fZ").replace(tzinfo=timezone.utc)
+            except ValueError:
+                # Try without microseconds
+                last_hb = datetime.strptime(heartbeat_str, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
             if (datetime.now(timezone.utc) - last_hb).total_seconds() > 5 * 60:
                 logger.debug(f"Skipping run {run.name} - no heartbeat in last 5 minutes")
                 self._defunct += 1
@@ -226,12 +247,11 @@ class WandbProtein:
         cost = run.summary.get("protein.cost", 0)
         is_failure = run.summary.get("protein.state") == "failure"
 
+        # Log what we're attempting to load
         if is_failure:
-            self._num_failures += 1
-            logger.info(f"Loaded failed observation from run {run.name}: cost={cost}")
+            logger.info(f"Loading failed observation from run {run.name}: cost={cost}")
         else:
-            self._num_observations += 1
-            logger.info(f"Loaded successful observation from run {run.name}: objective={objective}, cost={cost}")
+            logger.info(f"Loading observation from run {run.name}: objective={objective}, cost={cost}")
 
         logger.debug(
             f"Observation {run.name} "
@@ -240,22 +260,14 @@ class WandbProtein:
             + str(suggestion)  # Use str() instead of json.dumps to avoid serialization issues
         )
 
-        self._observations.append(
-            {
-                "suggestion": suggestion,
-                "objective": objective,
-                "cost": cost,
-                "is_failure": is_failure,
-                "run_id": run.id,
-                "run_name": run.name,
-            }
-        )
-
         # CRITICAL FIX: Flatten the nested suggestion dict before passing to Protein
         # The suggestion from WandB is in nested format: {"trainer": {"optimizer": {"learning_rate": 0.0005}}}
         # But protein.observe() expects flattened format: {"trainer/optimizer/learning_rate": 0.0005}
         try:
             import pufferlib
+
+            # Log the original suggestion for debugging
+            logger.debug(f"Original suggestion from run {run.name}: {suggestion}")
 
             flattened_suggestion = dict(pufferlib.unroll_nested_dict(suggestion))
             logger.debug(f"Flattened suggestion for Protein: {list(flattened_suggestion.keys())}")
@@ -263,9 +275,30 @@ class WandbProtein:
             # Pass flattened suggestion to Protein
             self._protein.observe(flattened_suggestion, objective, cost, is_failure)
             logger.debug(f"Successfully recorded observation in Protein for run {run.name}")
+
+            # Only count as successful/failed AFTER recording in Protein succeeds
+            if is_failure:
+                self._num_failures += 1
+            else:
+                self._num_observations += 1
+
+            # Only add to observations list if successfully recorded in Protein
+            self._observations.append(
+                {
+                    "suggestion": suggestion,
+                    "objective": objective,
+                    "cost": cost,
+                    "is_failure": is_failure,
+                    "run_id": run.id,
+                    "run_name": run.name,
+                }
+            )
+
         except Exception as e:
             logger.warning(f"Failed to record observation in Protein for run {run.name}: {e}")
-            # Still increment invalid count since we couldn't learn from this observation
+            logger.warning(f"Suggestion was: {suggestion}")
+            logger.warning(f"Expected parameters: {list(self._protein.hyperparameters.flat_spaces.keys())}")
+            # Increment invalid count since we couldn't learn from this observation
             self._invalid += 1
 
         self._suggestion_info = info
@@ -276,34 +309,71 @@ class WandbProtein:
         """
         logger.debug(f"Extracting suggestion from run {run.name}")
 
-        # Get the stored suggestion
-        suggestion = run.summary.get("protein.suggestion", {})
-        logger.debug(f"Raw suggestion from run {run.name}: {type(suggestion)} = {suggestion}")
+        # First try to get the flattened suggestion (new format)
+        suggestion = run.summary.get("protein.suggestion_flattened", None)
 
-        # Handle case where WandB stored the suggestion as a string
-        if isinstance(suggestion, str):
-            try:
-                # Try to parse the string back to a dictionary
-                import ast
+        if suggestion:
+            logger.debug(f"Found flattened suggestion for run {run.name}")
+            # The flattened suggestion is already in the format Protein expects
+            # But we need to return it in nested format for consistency
+            # Reconstruct nested structure from flattened keys
+            nested_suggestion = {}
+            for key, value in suggestion.items():
+                if "/" in key:
+                    parts = key.split("/")
+                    current = nested_suggestion
+                    for part in parts[:-1]:
+                        if part not in current:
+                            current[part] = {}
+                        current = current[part]
+                    current[parts[-1]] = value
+                else:
+                    nested_suggestion[key] = value
+            suggestion = nested_suggestion
+        else:
+            # Fall back to old format
+            suggestion = run.summary.get("protein.suggestion", {})
+            logger.debug(f"Raw suggestion from run {run.name}: {type(suggestion)} = {suggestion}")
 
-                suggestion = ast.literal_eval(suggestion)
-                logger.debug(f"Successfully parsed suggestion string for run {run.name}")
-            except (ValueError, SyntaxError) as e:
-                logger.warning(f"Could not parse suggestion string from run {run.name}: {e}")
-                suggestion = {}
+            # Handle case where WandB stored the suggestion as a string
+            if isinstance(suggestion, str):
+                try:
+                    # Try to parse the string back to a dictionary
+                    import ast
 
-        # Fallback: try to extract from run config if summary doesn't have suggestion
-        if not suggestion:
-            logger.warning(f"No protein.suggestion found in summary for run {run.name}, trying config fallback")
-            # Try to extract from the actual WandB config as fallback
-            try:
-                config_dict = dict(run.config)
-                # Filter out WandB internal keys and get actual parameters
-                suggestion = {k: v for k, v in config_dict.items() if not k.startswith("_") and k != "dummy_param"}
-                logger.debug(f"Extracted suggestion from config for run {run.name}: {suggestion}")
-            except Exception as e:
-                logger.warning(f"Could not extract suggestion from config for run {run.name}: {e}")
-                suggestion = {}
+                    suggestion = ast.literal_eval(suggestion)
+                    logger.debug(f"Successfully parsed suggestion string for run {run.name}")
+                except (ValueError, SyntaxError) as e:
+                    logger.warning(f"Could not parse suggestion string from run {run.name}: {e}")
+                    suggestion = {}
+
+            # Fallback: try to extract from run config if summary doesn't have suggestion
+            if not suggestion:
+                logger.warning(f"No protein.suggestion found in summary for run {run.name}, trying config fallback")
+                # Try to extract from the actual WandB config as fallback
+                try:
+                    config_dict = dict(run.config)
+                    # Filter out WandB internal keys and get actual parameters
+                    # Need to reconstruct the nested structure from the config
+                    suggestion = {}
+                    for k, v in config_dict.items():
+                        if k.startswith("_") or k == "dummy_param":
+                            continue
+                        # Handle flattened keys like "trainer/optimizer/learning_rate"
+                        if "/" in k:
+                            parts = k.split("/")
+                            current = suggestion
+                            for part in parts[:-1]:
+                                if part not in current:
+                                    current[part] = {}
+                                current = current[part]
+                            current[parts[-1]] = v
+                        else:
+                            suggestion[k] = v
+                    logger.debug(f"Extracted suggestion from config for run {run.name}: {suggestion}")
+                except Exception as e:
+                    logger.warning(f"Could not extract suggestion from config for run {run.name}: {e}")
+                    suggestion = {}
 
         # Get the stored prediction info
         info = run.summary.get("protein.suggestion_info", {})
@@ -329,15 +399,34 @@ class WandbProtein:
 
     def _generate_protein_suggestion(self):
         """Generate a suggestion from Protein and store it."""
-        suggestion, info = self._protein.suggest(self._suggestion_info)
+        # Pass None as fill parameter if we don't have suggestion_info yet
+        fill = self._suggestion_info if hasattr(self, "_suggestion_info") and self._suggestion_info else None
+        suggestion, info = self._protein.suggest(fill)
         self._suggestion = suggestion
         self._suggestion_info = info
 
-        # Save suggestion to wandb summary for debugging and sweep tracking
+        # Clean the suggestion and info for JSON serialization before saving to WandB
+        # The _transform_suggestion method should handle cleaning for the suggestion
+        cleaned_suggestion = self._transform_suggestion(deepcopy(suggestion))
+
+        # IMPORTANT: Also save the flattened version for consistent loading
+        # This ensures future runs can load observations without format issues
+        import pufferlib
+
+        flattened_suggestion = dict(pufferlib.unroll_nested_dict(suggestion))
+
+        # Clean the flattened suggestion using clean_numpy_types directly to avoid recursion
+        cleaned_flattened = clean_numpy_types(flattened_suggestion)
+
+        # For info, use clean_numpy_types directly as well
+        cleaned_info = clean_numpy_types(info)
+
+        # Save cleaned versions to wandb summary for debugging and sweep tracking
         self._wandb_run.summary.update(
             {
-                "protein.suggestion": suggestion,
-                "protein.suggestion_info": info,
+                "protein.suggestion": cleaned_suggestion,
+                "protein.suggestion_flattened": cleaned_flattened,  # Save cleaned flattened version
+                "protein.suggestion_info": cleaned_info,
             }
         )
 

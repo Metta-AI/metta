@@ -31,8 +31,13 @@ fi
 
 # Training phase - use train_job config
 echo "[SWEEP:$sweep_run] Starting training phase..."
-cmd="./devops/train.sh dist_cfg_path=$DIST_CFG_PATH data_dir=$DATA_DIR/sweep/$sweep_run/runs"
+# Extract hardware and device overrides for training
+hardware_arg=$(echo "$args" | grep -o '+hardware=[^ ]*' || true)
+device_arg=$(echo "$args" | grep -o 'device=[^ ]*' || true)
+train_args="$hardware_arg $device_arg"
+cmd="./devops/train.sh dist_cfg_path=$DIST_CFG_PATH data_dir=$DATA_DIR/sweep/$sweep_run/runs $train_args"
 echo "[SWEEP:$sweep_run] Running: $cmd"
+cat "$DIST_CFG_PATH"
 if ! $cmd; then
   echo "[ERROR] Training failed for sweep: $sweep_run"
   exit 1

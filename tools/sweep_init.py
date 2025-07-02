@@ -132,22 +132,19 @@ def create_run(cfg: DictConfig | ListConfig, logger: Logger) -> str:
                 logger.info(f"Suggestion metadata: {info}")
             _log_file(run_dir, wandb_run, "protein_suggestion.yaml", suggestion)
 
-            # TODO: Add Pydantic validation to ensure no parameter overlap between sweep and sweep_job
-
-            logger.info(f"train_cfg: {cfg.sweep_job.trainer}")
-
-            # Apply Protein suggestions on top of sweep_job overrides
+            # Apply Protein suggestions to sweep_job config
             logger.info("=== APPLYING PROTEIN SUGGESTIONS ===")
             apply_protein_suggestion(cfg.sweep_job, suggestion)
 
+            # Save the merged config that will be used for training
             save_path = os.path.join(run_dir, "train_config_overrides.yaml")
-
-            # TODO: Only the configs exposed in sweep_job are saved.
-            # Is this actually what we want?
-            # Save with resolve=True to resolve all interpolations
             OmegaConf.save(OmegaConf.to_container(cfg.sweep_job, resolve=True), save_path)
 
-            # TODO: Should we be saving the whole config?
+            # Also save raw protein suggestions separately for clarity and debugging
+            protein_suggestions_path = os.path.join(run_dir, "protein_suggestions.yaml")
+            OmegaConf.save(suggestion, protein_suggestions_path)
+            logger.info(f"Saved raw Protein suggestions to {protein_suggestions_path}")
+
             logger.info(f"Saved train config overrides to {save_path}")
             logger.info(f"Saved run details to {cfg.dist_cfg_path}")
             os.makedirs(os.path.dirname(cfg.dist_cfg_path), exist_ok=True)
@@ -181,23 +178,27 @@ def wait_for_run(cfg: DictConfig | ListConfig, path: str, logger: Logger) -> Non
 
 
 def apply_protein_suggestion(config: DictConfig | ListConfig, suggestion: DictConfig):
-    """Apply suggestions to a configuration object using deep merge.
+    """Apply Protein suggestions to a configuration object.
 
-    Args:
-        config: The configuration object to modify
-        suggestion: The suggestions to apply
+    Uses unsafe_merge to ensure suggestions override any existing values.
     """
+    # Temporarily disable struct mode to allow updates
+    struct_mode = OmegaConf.is_struct(config)
+    OmegaConf.set_struct(config, False)
+
     for key, value in suggestion.items():
         if key == "suggestion_uuid":
             continue
 
-        # For nested structures, merge instead of overwrite
-        if key in config and isinstance(config[key], DictConfig) and isinstance(value, dict):
-            # Deep merge for nested configs
-            config[key] = OmegaConf.merge(config[key], value)
+        if key in config and isinstance(value, dict):
+            # Force merge nested configs - Protein suggestions take precedence
+            config[key] = OmegaConf.unsafe_merge(config[key], value)
         else:
             # Direct assignment for non-nested values
             config[key] = value
+
+    # Restore struct mode
+    OmegaConf.set_struct(config, struct_mode)
 
 
 def _log_file(run_dir: str, wandb_run, name: str, data):
