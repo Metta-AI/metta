@@ -1,6 +1,7 @@
 """Tests for clean_numpy_types function."""
 
 import numpy as np
+
 from metta.common.util.numpy_helpers import clean_numpy_types
 
 
