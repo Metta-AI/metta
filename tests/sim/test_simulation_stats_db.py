@@ -3,30 +3,19 @@ from __future__ import annotations
 import datetime
 import uuid
 from pathlib import Path
-from typing import Tuple, cast
+from typing import cast
 
 from duckdb import DuckDBPyConnection
 
 from metta.agent.policy_store import PolicyRecord
 from metta.sim.simulation_stats_db import SimulationStatsDB
+from tests.fixtures import MockPolicyRecord
 
 
 def get_count(con: DuckDBPyConnection, query: str) -> int:
     result = con.execute(query).fetchone()
     assert result is not None
     return result[0]
-
-
-class MockPolicyRecord:
-    """Mock implementation of PolicyRecord for testing."""
-
-    def __init__(self, policy_key: str, policy_version: int):
-        self._policy_key = policy_key
-        self._policy_version = policy_version
-
-    def key_and_version(self) -> Tuple[str, int]:
-        """Return the policy key and version as a tuple."""
-        return self._policy_key, self._policy_version
 
 
 def _create_worker_db(path: Path, sim_steps: int = 0) -> str:
