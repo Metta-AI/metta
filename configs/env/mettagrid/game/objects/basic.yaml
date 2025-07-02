@@ -12,5 +12,5 @@ wall:
   swappable: false
 
 block:
-  type_id: 1
+  type_id: 14
   swappable: true

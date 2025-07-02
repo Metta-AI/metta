@@ -108,7 +108,6 @@ def create_reward_test_env(max_steps=10, width=5, height=5, num_agents=NUM_AGENT
         },
         "objects": {
             "wall": {"type_id": 1},
-            "block": {"type_id": 1},
         },
         "agent": {"freeze_duration": 100, "rewards": {"heart": 1.0}},
     }
