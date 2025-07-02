@@ -153,8 +153,6 @@ class MettaCLI:
                 print()
             except Exception as e:
                 error(f"  Error: {e}\n")
-                if not args.continue_on_error:
-                    sys.exit(1)
 
         success("Installation complete!")
 
