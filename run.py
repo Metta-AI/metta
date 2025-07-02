@@ -6,6 +6,7 @@ control over the training loop, using the same components as the main trainer.
 
 import logging
 import sys
+import time
 
 import torch
 from omegaconf import DictConfig
@@ -19,6 +20,7 @@ from metta.api import (
     create_default_trainer_config,
     save_checkpoint,
 )
+from metta.common.util.heartbeat import record_heartbeat
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -190,10 +192,20 @@ training = TrainingComponents.create(
 )
 
 # Training loop
-logger.info(f"Starting training for {trainer_config.total_timesteps} steps...")
+logger.info("Starting training")
+logger.info(f"Training on {device}")
+
+# Track timing for performance metrics
+rollout_time = 0
+train_time = 0
+epoch_start_time = time.time()
+steps_at_epoch_start = training.agent_step
 
 while training.agent_step < trainer_config.total_timesteps:
+    steps_before = training.agent_step
+
     # ===== ROLLOUT PHASE =====
+    rollout_start = time.time()
     raw_infos = []
     training.reset_for_rollout()
 
@@ -207,8 +219,10 @@ while training.agent_step < trainer_config.total_timesteps:
 
     # Process rollout statistics
     training.accumulate_stats(raw_infos)
+    rollout_time = time.time() - rollout_start
 
     # ===== TRAINING PHASE =====
+    train_start = time.time()
     training.reset_training_state()
 
     # Calculate prioritized replay parameters
@@ -228,7 +242,7 @@ while training.agent_step < trainer_config.total_timesteps:
     total_minibatches = training.experience.num_minibatches * trainer_config.update_epochs
     minibatch_idx = 0
 
-    for update_epoch in range(trainer_config.update_epochs):
+    for _update_epoch in range(trainer_config.update_epochs):
         for _ in range(training.experience.num_minibatches):
             # Sample minibatch
             minibatch = training.sample_minibatch(
@@ -252,23 +266,30 @@ while training.agent_step < trainer_config.total_timesteps:
         if trainer_config.ppo.target_kl is not None:
             average_approx_kl = training.losses.approx_kl_sum / training.losses.minibatches_processed
             if average_approx_kl > trainer_config.ppo.target_kl:
-                logger.info(f"Early stopping at epoch {update_epoch} due to KL divergence")
                 break
 
-    # Log progress
+    train_time = time.time() - train_start
+
+    # Calculate performance metrics
+    steps_calculated = training.agent_step - steps_before
+    total_time = train_time + rollout_time
+    steps_per_sec = steps_calculated / total_time if total_time > 0 else 0
+
+    train_pct = (train_time / total_time) * 100 if total_time > 0 else 0
+    rollout_pct = (rollout_time / total_time) * 100 if total_time > 0 else 0
+
+    # Log progress similar to trainer.py
+    logger.info(
+        f"Epoch {training.epoch} - {steps_per_sec:.0f} steps/sec ({train_pct:.0f}% train / {rollout_pct:.0f}% rollout)"
+    )
+
+    # Heartbeat recording
     if training.epoch % 10 == 0:
-        losses_stats = training.losses.stats()
-        logger.info(
-            f"Epoch {training.epoch} - "
-            f"Steps: {training.agent_step}/{trainer_config.total_timesteps} - "
-            f"Policy Loss: {losses_stats.get('policy_loss', 0):.4f} - "
-            f"Value Loss: {losses_stats.get('value_loss', 0):.4f} - "
-            f"Entropy: {losses_stats.get('entropy', 0):.4f}"
-        )
+        record_heartbeat()
 
     # Save checkpoint periodically
     if training.epoch % trainer_config.checkpoint.checkpoint_interval == 0:
-        logger.info(f"Saving checkpoint at epoch {training.epoch}")
+        logger.info(f"Saving policy at epoch {training.epoch}")
         save_checkpoint(
             policy=agent,
             policy_store=policy_store,
@@ -279,24 +300,32 @@ while training.agent_step < trainer_config.total_timesteps:
                 "stats": dict(training.stats),
             },
         )
+        logger.info(f"Successfully saved policy at epoch {training.epoch}")
 
     # Clear stats for next iteration
     training.stats.clear()
 
+# Training complete
+total_elapsed = time.time() - epoch_start_time
 logger.info("Training complete!")
+logger.info(f"Total training time: {total_elapsed:.1f}s")
+logger.info(f"Final epoch: {training.epoch}")
+logger.info(f"Total steps: {training.agent_step}")
 
-# Final checkpoint
-logger.info("Saving final checkpoint...")
-save_checkpoint(
-    policy=agent,
-    policy_store=policy_store,
-    epoch=training.epoch,
-    metadata={
-        "agent_step": training.agent_step,
-        "epoch": training.epoch,
-        "final": True,
-    },
-)
+# Final checkpoint (force save)
+if training.epoch % trainer_config.checkpoint.checkpoint_interval != 0:
+    logger.info("Saving final checkpoint...")
+    save_checkpoint(
+        policy=agent,
+        policy_store=policy_store,
+        epoch=training.epoch,
+        metadata={
+            "agent_step": training.agent_step,
+            "epoch": training.epoch,
+            "final": True,
+        },
+    )
+    logger.info("Successfully saved final policy")
 
 # Close environment - env is the vecenv returned by Environment()
 env.close()  # type: ignore
