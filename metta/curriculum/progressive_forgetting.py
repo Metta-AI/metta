@@ -1,4 +1,4 @@
-"""Progressive curriculum for measuring catastrophic forgetting with sharp task switching."""
+"""Progressive curriculum for measuring catastrophic forgetting with smooth task switching."""
 
 import logging
 import random
@@ -7,27 +7,28 @@ from typing import Dict, Optional
 import numpy as np
 from omegaconf import DictConfig
 
-from metta.mettagrid.curriculum.random import RandomCurriculum
+from metta.mettagrid.curriculum.progressive import ProgressiveMultiTaskCurriculum
 
 logger = logging.getLogger(__name__)
 
 
-class ProgressiveForgettingCurriculum(RandomCurriculum):
-    """Curriculum that implements sharp switching between task sets to measure catastrophic forgetting.
+class ProgressiveForgettingCurriculum(ProgressiveMultiTaskCurriculum):
+    """Curriculum that implements smooth switching between task sets to measure catastrophic forgetting.
 
-    This curriculum trains on one task set until a performance threshold is reached,
-    then sharply switches to another task set. It tracks performance on both task sets
-    to measure forgetting and transfer learning.
+    This curriculum uses a progress-based approach where:
+    - All tasks in task set A are positioned at progress point 0.0
+    - All tasks in task set B are positioned at progress point 1.0
+    - A small gating function slope creates smooth transitions between task sets
+    - Training continues on one task set until performance threshold is reached
     """
 
-    def __init__(
+        def __init__(
         self,
         task_sets: Dict[str, Dict[str, float]],
         env_overrides: Optional[DictConfig] = None,
         performance_threshold: float = 0.8,
         smoothing: float = 0.1,
-        switch_interval: int = 1000,
-        eval_interval: int = 100,
+        blending_smoothness: float = 0.2,  # Moderate value for smooth transitions
         randomize_order: bool = True,
     ):
         """Initialize the progressive forgetting curriculum.
@@ -37,65 +38,62 @@ class ProgressiveForgettingCurriculum(RandomCurriculum):
             env_overrides: Environment overrides
             performance_threshold: Performance threshold to trigger task switching
             smoothing: Smoothing factor for performance tracking
-            switch_interval: Minimum steps between task switches
-            eval_interval: Steps between evaluations of all task sets
+            blending_smoothness: Smoothness of task transitions (small = sharp, large = smooth)
             randomize_order: Whether to randomize the order of task sets
         """
-        # Flatten all tasks for the base curriculum
+        # Flatten all tasks and assign weights
         all_tasks = {}
         self.task_set_mapping = {}
-        for task_set_name, tasks in task_sets.items():
-            for task_name, weight in tasks.items():
-                all_tasks[task_name] = weight
+
+        task_set_names = list(task_sets.keys())
+        if randomize_order:
+            random.shuffle(task_set_names)
+
+        # Assign equal weights to all tasks within each set
+        for task_set_name in task_set_names:
+            tasks = task_sets[task_set_name]
+            weight_per_task = 1.0 / len(tasks)
+
+            for task_name in tasks:
+                all_tasks[task_name] = weight_per_task
                 self.task_set_mapping[task_name] = task_set_name
 
-        super().__init__(all_tasks, env_overrides)
+        # Store parameters for later initialization
+        self._env_overrides = env_overrides or DictConfig({})
+        self._performance_threshold = performance_threshold
+        self._smoothing = smoothing
+        self._progression_rate = 0.005  # Slower progression for smoother transitions
+        self._progression_mode = "perf"
+        self._blending_smoothness = blending_smoothness
+        self._blending_mode = "logistic"
+
+        # Initialize curricula without validation (bypass MultiTaskCurriculum validation)
+        self._curricula = {t: self._curriculum_from_id(t) for t in all_tasks.keys()}
+        self._task_weights = all_tasks
+        self._task_order = list(all_tasks.keys())
+
+        # Initialize progressive curriculum state
+        self._progress = 0.0
+        self._smoothed_performance = 0.0
+        self._step_count = 0
+        self._last_score = None
+        self._update_progressive_weights()
 
         self.task_sets = task_sets
-        self.performance_threshold = performance_threshold
-        self.smoothing = smoothing
-        self.switch_interval = switch_interval
-        self.eval_interval = eval_interval
-        self.randomize_order = randomize_order
-
-        # Performance tracking
+        self.task_set_order = task_set_names
         self.task_set_performance = {name: 0.0 for name in task_sets.keys()}
         self._task_scores = {}  # Track individual task scores
-        self.current_task_set = None
-        self.steps_since_switch = 0
-        self.steps_since_eval = 0
-        self.task_set_order = list(task_sets.keys())
-
-        if randomize_order:
-            random.shuffle(self.task_set_order)
-
-        # Initialize with first task set
-        if self.task_set_order:
-            self.current_task_set = self.task_set_order[0]
-            self._update_task_weights()
 
         logger.info(f"Initialized ProgressiveForgettingCurriculum with {len(task_sets)} task sets")
         logger.info(f"Task set order: {self.task_set_order}")
+        logger.info(f"Blending smoothness: {blending_smoothness}")
 
-    def _update_task_weights(self):
-        """Update task weights to focus on current task set."""
-        if self.current_task_set is None:
-            return
+    def _curriculum_from_id(self, cfg_path: str):
+        """Create curriculum from config path without agent validation."""
+        from metta.mettagrid.curriculum.util import curriculum_from_config_path
+        return curriculum_from_config_path(cfg_path, self._env_overrides)
 
-        # Set all tasks to zero weight
-        for task_name in self._task_weights:
-            self._task_weights[task_name] = 0.0
-
-        # Set current task set tasks to equal weight
-        current_tasks = self.task_sets[self.current_task_set]
-        weight_per_task = 1.0 / len(current_tasks)
-        for task_name in current_tasks:
-            if task_name in self._task_weights:
-                self._task_weights[task_name] = weight_per_task
-
-        logger.debug(f"Switched to task set: {self.current_task_set}")
-
-    def _evaluate_all_task_sets(self):
+    def _evaluate_task_set_performance(self):
         """Evaluate performance on all task sets."""
         for task_set_name in self.task_sets:
             # Calculate average performance for this task set
@@ -111,66 +109,38 @@ class ProgressiveForgettingCurriculum(RandomCurriculum):
                 # Update with smoothing
                 old_perf = self.task_set_performance[task_set_name]
                 self.task_set_performance[task_set_name] = (
-                    self.smoothing * avg_performance + (1 - self.smoothing) * old_perf
+                    self._smoothing * avg_performance + (1 - self._smoothing) * old_perf
                 )
 
         logger.info(f"Task set performances: {self.task_set_performance}")
 
-    def _should_switch_task_set(self) -> bool:
-        """Determine if we should switch to the next task set."""
-        if self.current_task_set is None:
-            return False
-
-        current_perf = self.task_set_performance[self.current_task_set]
-        return current_perf >= self.performance_threshold and self.steps_since_switch >= self.switch_interval
-
-    def _switch_to_next_task_set(self):
-        """Switch to the next task set in the order."""
-        if self.current_task_set is None:
-            return
-
-        current_idx = self.task_set_order.index(self.current_task_set)
-        next_idx = (current_idx + 1) % len(self.task_set_order)
-        self.current_task_set = self.task_set_order[next_idx]
-
-        self.steps_since_switch = 0
-        self._update_task_weights()
-
-        logger.info(f"Switched to task set: {self.current_task_set}")
-
     def complete_task(self, id: str, score: float):
         """Complete a task and update curriculum state."""
-        super().complete_task(id, score)
-
         # Track individual task scores
         self._task_scores[id] = score
 
-        self.steps_since_switch += 1
-        self.steps_since_eval += 1
+        # Evaluate task set performance periodically
+        if len(self._task_scores) % 10 == 0:  # Every 10 tasks
+            self._evaluate_task_set_performance()
 
-        # Evaluate all task sets periodically
-        if self.steps_since_eval >= self.eval_interval:
-            self._evaluate_all_task_sets()
-            self.steps_since_eval = 0
-
-        # Check if we should switch task sets
-        if self._should_switch_task_set():
-            self._switch_to_next_task_set()
+        # Call parent method to update progress and weights
+        super().complete_task(id, score)
 
     def get_curriculum_stats(self) -> Dict[str, float]:
         """Return curriculum statistics for logging."""
         # Convert task set name to numeric index for stats compatibility
         current_task_set_idx = 0
-        if self.current_task_set is not None:
-            try:
-                current_task_set_idx = self.task_set_order.index(self.current_task_set)
-            except ValueError:
-                current_task_set_idx = 0
+        if self._progress < 0.5:
+            # In first task set
+            current_task_set_idx = 0
+        else:
+            # In second task set
+            current_task_set_idx = 1
 
         stats = {
             "current_task_set": float(current_task_set_idx),
-            "steps_since_switch": float(self.steps_since_switch),
-            "steps_since_eval": float(self.steps_since_eval),
+            "progress": self._progress,
+            "smoothed_performance": self._smoothed_performance,
         }
 
         # Add performance stats for each task set

@@ -16,10 +16,7 @@ task_sets:
     /env/mettagrid/navigation/evals/cylinder: 1
 performance_threshold: 0.8
 smoothing: 0.1
-switch_interval: 1000
-eval_interval: 100
+blending_smoothness: 0.2
 randomize_order: true
 env_overrides:
   desync_episodes: true
-  game:
-    num_agents: 1

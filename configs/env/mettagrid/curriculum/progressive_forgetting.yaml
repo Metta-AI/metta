@@ -38,12 +38,9 @@ task_sets:
 # Progressive forgetting parameters
 performance_threshold: 0.8
 smoothing: 0.1
-switch_interval: 1000
-eval_interval: 100
+blending_smoothness: 0.2  # Moderate value for smooth transitions
 randomize_order: true
 
 # Environment overrides
 env_overrides:
   desync_episodes: true
-  game:
-    num_agents: 1

@@ -73,8 +73,7 @@ def run_single_experiment(
         },
         "performance_threshold": base_config.performance_threshold,
         "smoothing": base_config.smoothing,
-        "switch_interval": base_config.switch_interval,
-        "eval_interval": base_config.eval_interval,
+        "blending_smoothness": base_config.blending_smoothness,
         "randomize_order": base_config.randomize_order,
         "env_overrides": base_config.env_overrides
     })
