@@ -5,7 +5,7 @@ from typing import Any, Optional
 
 import torch
 
-from metta.common.util.fs import save_atomic
+from metta.common.util.fs import atomic_write
 
 logger = logging.getLogger("TrainerCheckpoint")
 
@@ -41,7 +41,7 @@ class TrainerCheckpoint:
         }
 
         checkpoint_path = Path(run_dir) / filename
-        save_atomic(lambda path: torch.save(state, path), checkpoint_path, suffix=".pt")
+        atomic_write(lambda path: torch.save(state, path), checkpoint_path, suffix=".pt")
 
         logger.info(f"[TrainerCheckpoint] Saved trainer state to {checkpoint_path}")
 
