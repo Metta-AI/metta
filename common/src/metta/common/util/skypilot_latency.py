@@ -58,8 +58,8 @@ def queue_latency_s() -> float | None:
 
 def main():
     """Log SkyPilot queue latency to stdout and optionally to wandb."""
-    latency_sec = queue_latency_s()
     task_id = os.environ.get("SKYPILOT_TASK_ID", "unknown")
+    latency_sec = queue_latency_s()
 
     if latency_sec is not None:
         print(f"SkyPilot queue latency: {latency_sec:.1f} s (task: {task_id})")
@@ -68,14 +68,18 @@ def main():
         os.environ["SKYPILOT_QUEUE_LATENCY_S"] = str(latency_sec)
 
         # Log to wandb if configured
-        run_name = os.environ.get("WANDB_RUN_NAME")
+        # Use METTA_RUN_ID as the run name (set by SkyPilot launch script)
+        run_name = os.environ.get("METTA_RUN_ID")
         api_key = os.environ.get("WANDB_API_KEY")
 
-        if run_name and api_key:
+        # If no API key but netrc exists, wandb will use that
+        if run_name and (api_key or os.path.exists(os.path.expanduser("~/.netrc"))):
             try:
                 import wandb
-                # Login first to ensure we're authenticated
-                wandb.login(key=api_key, relogin=True, anonymous="never")
+
+                # Only login if API key is explicitly provided
+                if api_key:
+                    wandb.login(key=api_key, relogin=True, anonymous="never")
 
                 # Initialize wandb with minimal config
                 run = wandb.init(

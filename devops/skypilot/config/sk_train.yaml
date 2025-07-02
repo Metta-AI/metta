@@ -42,6 +42,9 @@ run: |
   cd /workspace/metta
   source ./devops/setup.env
 
+  # Calculate and log SkyPilot queue latency
+  python -m metta.common.util.skypilot_latency || true
+
   export NUM_GPUS=$SKYPILOT_NUM_GPUS_PER_NODE
   export NUM_NODES=$SKYPILOT_NUM_NODES
   export MASTER_ADDR=$(echo "$SKYPILOT_NODE_IPS" | head -n1)
