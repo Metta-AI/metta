@@ -125,7 +125,7 @@ The repository contains command-line tools in the `tools/` directory. Most of th
 ### Training a Model
 
 ```bash
-./tools/train.py run=my_experiment +hardware=macbook wandb=off +user=<name>
+./tools/train.py run=my_experiment +hardware=macbook wandb=off +user=<name> stats_server_uri=null
 ```
 
 Parameters:
@@ -139,7 +139,7 @@ Parameters:
 To run fully locally, explicitly disable wandb and sending stats:
 
 ```bash
-./tools/train.py run=my_experiment +user=external wandb=off stats_server_uri=null
+./tools/train.py run=my_experiment +hardware=macbook wandb=off +user=external_user stats_server_uri=null
 ```
 
 #### Connecting to your S3 and Wandb
@@ -153,17 +153,19 @@ To run fully locally, explicitly disable wandb and sending stats:
 
 2. **Specify your training command arguments**
 
-Update [configs/user/external.yaml](configs/user/external.yaml). It provides instructions on:
-- Enabling WandB with your personal account
+Update [configs/user/external_user.yaml](configs/user/external_user.yaml). It provides instructions on:
 - Configuring S3 uploads to your own buckets
 - Setting up torch profiling with custom storage locations
 
 Once set, you can use the same command as above
   ```bash
-  ./tools/train.py run=my_experiment +user=external wandb=off stats_server_uri=null
+  ./tools/train.py run=my_experiment +hardware=macbook wandb=off +user=external_user stats_server_uri=null
   ```
 
-The `WANDB_ENTITY={your entity}` environment variable is required for uploading files to WandB (replays, checkpoints, etc.). This is separate from the `wandb.entity` in your config which is used for metrics/logging.
+If you want to connect to your own wandb account, you will want to update [configs/wandb/external_user.yaml](configs/wandb/external_user.yaml) as well, and provide `external_user` instead of "off" as the `wandb` value to the above command.
+
+Note that the `WANDB_ENTITY={your entity}` environment variable is required for uploading files to WandB (replays, checkpoints, etc.). This is separate from the `wandb.entity` in your config which is used for metrics/logging.
+
 
 ## Visualizing a Model
 
