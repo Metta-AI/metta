@@ -22,7 +22,7 @@ from typing import Dict, Optional
 
 import pandas as pd
 
-from metta.agent.policy_store import PolicyRecord
+from metta.agent.policy_record import PolicyRecord
 from metta.mettagrid.util.file import local_copy
 from metta.sim.simulation_stats_db import SimulationStatsDB
 
