@@ -7,9 +7,9 @@ from typing import cast
 
 from duckdb import DuckDBPyConnection
 
+from metta.agent.mocks import MockPolicyRecord
 from metta.agent.policy_store import PolicyRecord
 from metta.sim.simulation_stats_db import SimulationStatsDB
-from tests.fixtures import MockPolicyRecord
 
 
 def get_count(con: DuckDBPyConnection, query: str) -> int:

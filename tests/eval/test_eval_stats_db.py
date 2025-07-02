@@ -15,9 +15,9 @@ from typing import List, Tuple, cast
 
 import pytest
 
+from metta.agent.mocks import MockPolicyRecord
 from metta.agent.policy_record import PolicyRecord
 from metta.eval.eval_stats_db import EvalStatsDB
-from tests.fixtures import MockPolicyRecord
 
 
 def _create_test_db_with_missing_metrics(db_path: Path) -> Tuple[EvalStatsDB, List[str], str]:
