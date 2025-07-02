@@ -61,22 +61,45 @@ uv sync
 # BIN_DIR is in metta/setup/installer/bin
 BIN_DIR="$PROJECT_DIR/metta/setup/installer/bin"
 
-# Ensure the wrapper script is executable
-chmod +x "$BIN_DIR/metta"
-
-
-
 # Check if metta is already accessible in PATH
 check_metta_accessible() {
     if command -v metta > /dev/null 2>&1; then
         local existing_metta
         existing_metta="$(command -v metta)"
+
+        # Check if it's our metta (could be the actual file or a symlink to it)
         if [ "$existing_metta" = "$BIN_DIR/metta" ]; then
-            return 0  # metta is already in PATH and points to our installation
+            return 0  # Direct match
+        fi
+
+        # Check if it's the venv shim that runs the same thing
+        if [ "$existing_metta" = "$PROJECT_DIR/.venv/bin/metta" ]; then
+            # The venv metta is just a shim that runs our metta_cli, so it's effectively the same
+            return 0
+        fi
+
+        # Check if they resolve to the same target (handles symlinks)
+        if [ -e "$existing_metta" ] && [ -e "$BIN_DIR/metta" ]; then
+            local existing_target=$(cd "$(dirname "$existing_metta")" && pwd -P)/$(basename "$existing_metta")
+            local our_target=$(cd "$(dirname "$BIN_DIR/metta")" && pwd -P)/$(basename "$BIN_DIR/metta")
+            if [ "$existing_target" = "$our_target" ]; then
+                return 0
+            fi
         fi
     fi
     return 1  # metta is not in PATH or points elsewhere
 }
+
+# Ensure the wrapper script is executable
+chmod +x "$BIN_DIR/metta"
+
+# Check if metta is already properly set up
+if check_metta_accessible; then
+    echo
+    echo "metta is already installed and accessible in your PATH."
+    echo "Setup complete!"
+    exit 0
+fi
 
 # PATH configuration - adapted from uv installer patterns
 if [ -n "$ADD_TO_PATH_ARG" ]; then
@@ -153,8 +176,10 @@ else
     echo "  export PATH=\"$BIN_DIR:\$PATH\""
 fi
 
-# Check for shadowed binaries
-check_shadowed_binary "metta" "$BIN_DIR/metta"
+# Check for shadowed binaries (only warn if it's actually different)
+if ! check_metta_accessible; then
+    check_shadowed_binary "metta" "$BIN_DIR/metta"
+fi
 
 # Add to CI PATH if applicable
 add_to_ci_path "$BIN_DIR"
