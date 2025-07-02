@@ -46,7 +46,7 @@ optimizer:
   beta1: 0.9
   beta2: 0.999
   eps: 1e-12
-  learning_rate: 0.0004573146765703167
+  learning_rate: 0.0008 #0.0004573146765703167
   weight_decay: 0
 
 lr_scheduler:
@@ -93,11 +93,11 @@ async_factor: 2
 kickstart:
   teacher_uri: null
   action_loss_coef: 1
-  value_loss_coef: 1
+  value_loss_coef: 0
   anneal_ratio: 0.3 # ratio of kickstart_steps to anneal to 0 coef
   kickstart_steps: 500_000_000
   additional_teachers:
-    - teacher_uri: wandb://run/m_alexv_solo_ndr_nav_fast_big_306
+    - teacher_uri: wandb://run/m_alexv_teacher_dr_nav_fast_305
       action_loss_coef: 1
       value_loss_coef: 2
     #  - teacher_uri: wandb://run/mettabox_cogeval_defaults_lowent_initialized0005:v95
