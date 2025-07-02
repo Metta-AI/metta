@@ -687,7 +687,7 @@ py::list MettaGrid::inventory_item_names_py() {
 }
 
 AgentConfig MettaGrid::_create_agent_config(const py::dict& agent_group_cfg_py) {
-  unsigned char freeze_duration = agent_group_cfg_py["freeze_duration"].cast<unsigned char>();
+  short freeze_duration = agent_group_cfg_py["freeze_duration"].cast<short>();
   float action_failure_penalty = agent_group_cfg_py["action_failure_penalty"].cast<float>();
   std::map<InventoryItem, uint8_t> max_items_per_type =
       agent_group_cfg_py["max_items_per_type"].cast<std::map<InventoryItem, uint8_t>>();
