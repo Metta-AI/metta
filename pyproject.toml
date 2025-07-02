@@ -17,6 +17,7 @@ dependencies = [
   "imageio>=2.37.0",
   "jmespath>=1.0.1",
   "matplotlib>=3.10.3",
+  "metta-app-backend",
   "metta-mettagrid",
   "metta-common",
   "numpy>=2.2.6",
