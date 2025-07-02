@@ -1,40 +1,48 @@
 """
 Clean API for Metta - provides direct instantiation without Hydra.
+
+This API exposes the core training components from Metta, allowing users to:
+1. Create environments, agents, and training components without Hydra
+2. Use the same Pydantic configuration classes as the main codebase
+3. Control the training loop directly with full visibility
 """
 
-import os
-import pickle
-from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+import logging
+from typing import Any, Dict, List, Optional, Tuple
 
-import numpy as np
 import torch
-import torch.nn as nn
 from omegaconf import DictConfig
-from torch.optim.lr_scheduler import CosineAnnealingLR, LambdaLR
 
-from metta.agent.metta_agent import MettaAgent
+from metta.agent.metta_agent import MettaAgent, make_policy
+from metta.agent.policy_store import PolicyRecord, PolicyStore
+from metta.common.stopwatch import Stopwatch
 from metta.mettagrid.curriculum.core import SingleTaskCurriculum
 from metta.mettagrid.mettagrid_env import MettaGridEnv
 from metta.rl.experience import Experience
+from metta.rl.functions import (
+    accumulate_rollout_stats,
+    compute_advantage,
+    get_lstm_config,
+    perform_rollout_step,
+    process_minibatch_update,
+)
+from metta.rl.kickstarter import Kickstarter
+from metta.rl.kickstarter_config import KickstartConfig
+from metta.rl.losses import Losses
 from metta.rl.trainer_config import (
+    CheckpointConfig,
     OptimizerConfig,
     PPOConfig,
+    PrioritizedExperienceReplayConfig,
+    SimulationConfig,
+    TrainerConfig,
+    VTraceConfig,
 )
+from metta.rl.vecenv import make_vecenv
 
-
-# Simple BatchInfo for API compatibility
-@dataclass
-class BatchInfo:
-    """Information about a batch of experience collected during rollout."""
-
-    total_env_steps: int
-    episode_returns: Optional[List[float]] = None
-    episode_lengths: Optional[List[int]] = None
-
+logger = logging.getLogger(__name__)
 
 # Object type IDs from mettagrid/src/metta/mettagrid/objects/constants.hpp
-# These define the type of object in the environment
 # TODO: These should be imported from mettagrid once they're exposed via Python bindings
 TYPE_AGENT = 0
 TYPE_WALL = 1
@@ -53,884 +61,657 @@ TYPE_TEMPLE = 13
 TYPE_GENERIC_CONVERTER = 14
 
 
-# ============= Helper Functions (moved before typed configs) =============
-def _get_default_objects_config():
-    """Get default objects configuration."""
-    return [
-        {"type": "mine", "name": "mine_red", "color": 0},
-        {"type": "generator", "name": "generator_red", "color": 0},
-        {"type": "converter", "name": "altar", "color": 1},
-        {"type": "wall", "name": "wall", "color": 15},
-        {"type": "wall", "name": "block", "color": 14},
-    ]
-
-
-def _get_default_actions_config():
-    """Get default actions configuration."""
-    return [
-        {"type": "null", "key": "forward"},
-        {"type": "rotate_absolute", "key": "rotate", "delta": 0},
-        {"type": "move_with_rotate", "key": "move", "delta": 0},
-        {"type": "harvest", "key": "harvest"},
-        {"type": "attack", "key": "attack"},
-        {"type": "gift", "key": "gift", "item": "battery.red"},
-        {"type": "toggle_use", "key": "use_shield", "use": "shield"},
-        {"type": "use", "key": "use_energy_red", "use": "channel_red"},
-    ]
-
-
-def _get_default_env_config():
-    """Get default environment configuration as a dictionary."""
+# Helper to create default environment config
+def _get_default_env_config(num_agents: int = 4, width: int = 32, height: int = 32) -> Dict[str, Any]:
+    """Get default environment configuration."""
     return {
         "game": {
             "max_steps": 1000,
-            "time_punishment": -0.0001,
-            "episode_lifetime": 10000,
-            "num_agents": 64,
-            "width": 64,
-            "height": 64,
-            "observation_width": 11,
-            "observation_height": 11,
+            "num_agents": num_agents,
+            "obs_width": 11,
+            "obs_height": 11,
             "num_observation_tokens": 200,
-            "groups": {"agent": {"id": 0, "sprite": 0, "props": {}}},
+            "inventory_item_names": ["ore_red", "battery_red", "heart", "laser", "armor"],
+            "groups": {"agent": {"id": 0, "sprite": 0}},
             "agent": {
                 "default_item_max": 50,
                 "heart_max": 255,
                 "freeze_duration": 10,
                 "rewards": {
                     "action_failure_penalty": 0,
-                    "ore.red": 0.01,
-                    "battery.red": 0.02,
+                    "ore_red": 0.01,
+                    "battery_red": 0.02,
                     "heart": 1,
-                    "ore.red_max": 10,
-                    "battery.red_max": 10,
+                    "ore_red_max": 10,
+                    "battery_red_max": 10,
                     "heart_max": 1000,
                 },
             },
-            "inventory_item_names": ["ore.red", "battery.red", "heart", "laser", "armor"],
-            "diversity_bonus": {"enabled": False, "similarity_coef": 0.5, "diversity_coef": 0.5},
-            "objects": _get_default_objects_config(),
-            "actions": _get_default_actions_config(),
+            "actions": {
+                "noop": {"enabled": True},
+                "move": {"enabled": True},
+                "rotate": {"enabled": True},
+                "put_items": {"enabled": True},
+                "get_items": {"enabled": True},
+                "attack": {"enabled": True},
+                "swap": {"enabled": True},
+                "change_color": {"enabled": True},
+            },
+            "objects": {
+                "mine_red": {
+                    "type_id": TYPE_MINE_RED,
+                    "output_ore_red": 1,
+                    "max_output": -1,
+                    "conversion_ticks": 1,
+                    "cooldown": 0,
+                    "initial_items": 0,
+                    "color": 0,
+                },
+                "generator_red": {
+                    "type_id": TYPE_GENERATOR_RED,
+                    "input_ore_red": 1,
+                    "output_battery_red": 1,
+                    "max_output": -1,
+                    "conversion_ticks": 1,
+                    "cooldown": 0,
+                    "initial_items": 0,
+                    "color": 0,
+                },
+                "altar": {
+                    "type_id": TYPE_ALTAR,
+                    "input_battery_red": 3,
+                    "output_heart": 1,
+                    "max_output": -1,
+                    "conversion_ticks": 1,
+                    "cooldown": 0,
+                    "initial_items": 0,
+                    "color": 1,
+                },
+                "wall": {"type_id": TYPE_WALL, "swappable": False},
+                "block": {"type_id": 14, "swappable": True},  # Different type_id for block
+            },
             "reward_sharing": {"groups": {}},
             "map_builder": {
                 "_target_": "metta.mettagrid.room.random.Random",
-                "width": 64,
-                "height": 64,
+                "width": width,
+                "height": height,
                 "border_width": 2,
-                "agents": 64,
+                "agents": num_agents,
                 "objects": {"mine_red": 2, "generator_red": 1, "altar": 1, "wall": 5, "block": 3},
             },
         },
     }
 
 
-# ============= Typed Configuration Classes =============
-# Note: These are simplified API-friendly versions of the configs.
-# The actual mettagrid uses Pydantic models (see mettagrid_config.py),
-# but these dataclasses provide a simpler interface for users who
-# don't need all the validation and complexity.
-
-
-@dataclass
-class ObjectConfig:
-    """Configuration for an object type."""
-
-    type: str
-    name: str
-    color: int
-
-
-@dataclass
-class ActionConfig:
-    """Configuration for an action type."""
-
-    type: str
-    key: str
-    delta: Optional[int] = None
-    item: Optional[str] = None
-    use: Optional[str] = None
-
-
-@dataclass
-class GameConfig:
-    """Configuration for game mechanics."""
-
-    max_steps: int = 1000
-    time_punishment: float = -0.0001
-    episode_lifetime: int = 10000
-    num_agents: int = 64
-    width: int = 64
-    height: int = 64
-    observation_width: int = 11
-    observation_height: int = 11
-    num_observation_tokens: int = 200
-
-    # Agent configuration
-    default_item_max: int = 50
-    heart_max: int = 255
-    freeze_duration: int = 10
-
-    # Rewards
-    action_failure_penalty: float = 0
-    ore_red_reward: float = 0.01
-    battery_red_reward: float = 0.02
-    heart_reward: float = 1
-    ore_red_max: int = 10
-    battery_red_max: int = 10
-    heart_max_reward: int = 1000
-
-    # Inventory
-    inventory_item_names: List[str] = field(
-        default_factory=lambda: ["ore.red", "battery.red", "heart", "laser", "armor"]
-    )
-
-    # Diversity bonus
-    diversity_bonus_enabled: bool = False
-    similarity_coef: float = 0.5
-    diversity_coef: float = 0.5
-
-    # Groups
-    groups: Dict[str, Dict[str, Any]] = field(default_factory=lambda: {"agent": {"id": 0, "sprite": 0, "props": {}}})
-    reward_sharing_groups: Dict[str, Any] = field(default_factory=dict)
-
-
-@dataclass
-class MapBuilderConfig:
-    """Configuration for map generation."""
-
-    type: str = "Random"
-    width: int = 64
-    height: int = 64
-    border_width: int = 2
-    agents: int = 64
-    objects: Dict[str, int] = field(
-        default_factory=lambda: {"mine_red": 2, "generator_red": 1, "altar": 1, "wall": 5, "block": 3}
-    )
-
-
-@dataclass
-class EnvConfig:
-    """Complete environment configuration."""
-
-    game: GameConfig = field(default_factory=GameConfig)
-    objects: List[ObjectConfig] = field(
-        default_factory=lambda: [
-            ObjectConfig(type="mine", name="mine_red", color=0),
-            ObjectConfig(type="generator", name="generator_red", color=0),
-            ObjectConfig(type="converter", name="altar", color=1),
-            ObjectConfig(type="wall", name="wall", color=15),
-            ObjectConfig(type="wall", name="block", color=14),
-        ]
-    )
-    actions: List[ActionConfig] = field(
-        default_factory=lambda: [
-            ActionConfig(type="null", key="forward"),
-            ActionConfig(type="rotate_absolute", key="rotate", delta=0),
-            ActionConfig(type="move_with_rotate", key="move", delta=0),
-            ActionConfig(type="harvest", key="harvest"),
-            ActionConfig(type="attack", key="attack"),
-            ActionConfig(type="gift", key="gift", item="battery.red"),
-            ActionConfig(type="toggle_use", key="use_shield", use="shield"),
-            ActionConfig(type="use", key="use_energy_red", use="channel_red"),
-        ]
-    )
-    map_builder: MapBuilderConfig = field(default_factory=MapBuilderConfig)
-
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert to dictionary format expected by MettaGrid."""
-        return {
-            "game": {
-                "max_steps": self.game.max_steps,
-                "time_punishment": self.game.time_punishment,
-                "episode_lifetime": self.game.episode_lifetime,
-                "num_agents": self.game.num_agents,
-                "width": self.game.width,
-                "height": self.game.height,
-                "observation_width": self.game.observation_width,
-                "observation_height": self.game.observation_height,
-                "num_observation_tokens": self.game.num_observation_tokens,
-                "groups": self.game.groups,
-                "agent": {
-                    "default_item_max": self.game.default_item_max,
-                    "heart_max": self.game.heart_max,
-                    "freeze_duration": self.game.freeze_duration,
-                    "rewards": {
-                        "action_failure_penalty": self.game.action_failure_penalty,
-                        "ore.red": self.game.ore_red_reward,
-                        "battery.red": self.game.battery_red_reward,
-                        "heart": self.game.heart_reward,
-                        "ore.red_max": self.game.ore_red_max,
-                        "battery.red_max": self.game.battery_red_max,
-                        "heart_max": self.game.heart_max_reward,
-                    },
-                },
-                "inventory_item_names": self.game.inventory_item_names,
-                "diversity_bonus": {
-                    "enabled": self.game.diversity_bonus_enabled,
-                    "similarity_coef": self.game.similarity_coef,
-                    "diversity_coef": self.game.diversity_coef,
-                },
-                "objects": [vars(obj) for obj in self.objects],
-                "actions": [vars(action) for action in self.actions],
-                "reward_sharing": {"groups": self.game.reward_sharing_groups},
-                "map_builder": {
-                    "_target_": f"metta.mettagrid.room.random.{self.map_builder.type}",
-                    "width": self.map_builder.width,
-                    "height": self.map_builder.height,
-                    "border_width": self.map_builder.border_width,
-                    "agents": self.game.num_agents,
-                    "objects": self.map_builder.objects,
-                },
-            },
-        }
-
-
-@dataclass
-class AgentModelConfig:
-    """Configuration for the ML agent model architecture."""
-
-    hidden_dim: int = 1024
-    lstm_layers: int = 1
-    use_prev_action: bool = True
-    use_prev_reward: bool = True
-    mlp_layers: int = 2
-    bptt_horizon: int = 8
-    forward_lstm: bool = True
-    backbone: str = "cnn"
-    dtypes_fp16: bool = False
-    obs_scale: int = 1
-    obs_process_func: str = "flatten_obs_dict"
-    observation_types: List[str] = field(default_factory=lambda: ["entities_state"])
-    clip_range: float = 0
-    analyze_weights_interval: int = 300
-    l2_init_weight_update_interval: int = 0
-
-
-@dataclass
-class ExperienceConfig:
-    """Configuration for experience collection."""
-
-    batch_size: int = 524288
-    minibatch_size: int = 16384
-    bptt_horizon: int = 64
-    update_epochs: int = 1
-    zero_copy: bool = True
-    cpu_offload: bool = False
-    async_factor: int = 2
-    forward_pass_minibatch_target_size: int = 4096
-
-
-@dataclass
-class TrainingState:
-    """Complete training state for checkpointing."""
-
-    epoch: int
-    agent_step: int
-    total_agent_step: int
-    optimizer_state_dict: Dict[str, Any]
-    lr_scheduler_state_dict: Optional[Dict[str, Any]]
-    policy_path: Optional[str]
-    stopwatch_state: Optional[Dict[str, Any]]
-    extra_args: Dict[str, Any] = field(default_factory=dict)
-
-    def save(self, checkpoint_dir: str) -> str:
-        """Save training state to checkpoint file."""
-        os.makedirs(checkpoint_dir, exist_ok=True)
-        path = os.path.join(checkpoint_dir, f"training_state_epoch_{self.epoch}.pkl")
-        with open(path, "wb") as f:
-            pickle.dump(self, f)
-        return path
-
-    @classmethod
-    def load(cls, path: str) -> "TrainingState":
-        """Load training state from checkpoint file."""
-        with open(path, "rb") as f:
-            return pickle.load(f)
-
-
-# ============= API Functions =============
 class Environment:
     """Factory for creating MettaGrid environments with a clean API.
 
-    Usage:
-        env = Environment()  # Default config
-        env = Environment(num_agents=8, width=32, height=32)
-        env = Environment(config=EnvConfig(...))
+    This wraps the environment creation process, handling curriculum setup
+    and configuration without requiring Hydra.
+
+    Note: This returns a vecenv (vectorized environment) wrapper, not an
+    Environment instance. The vecenv has methods like reset(), step(), close().
     """
 
     def __new__(
         cls,
-        config: Optional[EnvConfig] = None,
-        **kwargs,
-    ) -> MettaGridEnv:
-        """Create a MettaGrid environment.
+        curriculum_path: Optional[str] = None,
+        env_config: Optional[Dict[str, Any]] = None,
+        device: str = "cuda",
+        seed: Optional[int] = None,
+        num_envs: int = 1,
+        num_workers: int = 1,
+        batch_size: int = 1,
+        async_factor: int = 1,
+        zero_copy: bool = True,
+        is_training: bool = True,
+        vectorization: str = "serial",
+        # Convenience parameters for quick setup
+        num_agents: Optional[int] = None,
+        width: Optional[int] = None,
+        height: Optional[int] = None,
+    ) -> Any:  # Returns vecenv wrapper
+        """Create a vectorized MettaGrid environment.
 
         Args:
-            config: EnvConfig object. If None, uses defaults.
-            **kwargs: Additional keyword arguments to override config values.
+            curriculum_path: Optional path to environment configuration (e.g., "/env/mettagrid/simple")
+            env_config: Optional complete environment config dict. If not provided, uses defaults.
+            device: Device to use
+            seed: Random seed
+            num_envs: Number of parallel environments
+            num_workers: Number of worker processes
+            batch_size: Batch size for environment steps
+            async_factor: Async factor for environment
+            zero_copy: Whether to use zero-copy optimization
+            is_training: Whether this is for training
+            vectorization: Vectorization mode
+            num_agents: Convenience parameter to set number of agents
+            width: Convenience parameter to set environment width
+            height: Convenience parameter to set environment height
 
         Returns:
-            MettaGridEnv environment instance.
+            Vectorized environment wrapper with reset(), step(), close() methods
         """
-        config = config or EnvConfig()
+        # Create config if not provided
+        if env_config is None:
+            # Use convenience parameters if provided
+            env_config = _get_default_env_config(
+                num_agents=num_agents or 4,
+                width=width or 32,
+                height=height or 32,
+            )
+        else:
+            # Apply convenience parameter overrides to provided config
+            if num_agents is not None:
+                env_config["game"]["num_agents"] = num_agents
+                if "map_builder" in env_config["game"]:
+                    env_config["game"]["map_builder"]["agents"] = num_agents
+            if width is not None:
+                if "map_builder" in env_config["game"]:
+                    env_config["game"]["map_builder"]["width"] = width
+            if height is not None:
+                if "map_builder" in env_config["game"]:
+                    env_config["game"]["map_builder"]["height"] = height
 
-        # Apply kwargs overrides
-        if "num_agents" in kwargs:
-            config.game.num_agents = kwargs["num_agents"]
-            config.map_builder.agents = kwargs["num_agents"]
-        if "width" in kwargs:
-            config.game.width = kwargs["width"]
-            config.map_builder.width = kwargs["width"]
-        if "height" in kwargs:
-            config.game.height = kwargs["height"]
-            config.map_builder.height = kwargs["height"]
-        if "max_steps" in kwargs:
-            config.game.max_steps = kwargs["max_steps"]
+        # Create curriculum
+        task_config = DictConfig(env_config)
+        curriculum_name = curriculum_path or "custom_env"
+        curriculum = SingleTaskCurriculum(curriculum_name, task_config)
 
-        # Create curriculum with the config as DictConfig
-        config_dict = config.to_dict()
-        mettagrid_config = _convert_to_mettagrid_config(config_dict)
-        task_cfg = DictConfig({"game": mettagrid_config})
-        curriculum = SingleTaskCurriculum("custom_env", task_cfg)
+        # Create vectorized environment
+        vecenv = make_vecenv(
+            curriculum=curriculum,
+            vectorization=vectorization,
+            num_envs=num_envs,
+            batch_size=batch_size,
+            num_workers=num_workers,
+            zero_copy=zero_copy,
+            is_training=is_training,
+        )
 
-        # Create environment with curriculum
-        env = MettaGridEnv(curriculum=curriculum, render_mode=None)
+        # Set seed
+        if seed is None:
+            seed = torch.randint(0, 1000000, (1,)).item()
+        vecenv.async_reset(seed)
 
-        return env
+        return vecenv
 
 
 class Agent:
     """Factory for creating Metta agents with a clean API.
 
-    Usage:
-        agent = Agent(obs_space, action_space, global_features, device)
-        agent = Agent(obs_space, action_space, global_features, device, hidden_dim=512)
-        agent = Agent(obs_space, action_space, global_features, device, config=AgentModelConfig(...))
+    This handles agent creation and initialization without Hydra.
     """
 
     def __new__(
         cls,
-        observation_space: Any,
-        action_space: Any,
-        global_features: List[str],
-        device: torch.device,
-        config: Optional[AgentModelConfig] = None,
-        **kwargs,
+        env: Any,  # vecenv wrapper
+        config: DictConfig,
+        device: str = "cuda",
     ) -> MettaAgent:
         """Create a Metta agent.
 
         Args:
-            observation_space: The observation space of the environment.
-            action_space: The action space of the environment.
-            global_features: List of global features.
-            device: Torch device to use.
-            config: AgentModelConfig object. If None, uses defaults.
-            **kwargs: Additional config overrides.
+            env: Vectorized environment (from Environment factory)
+            config: DictConfig with agent configuration
+            device: Device to use
 
         Returns:
-            MettaAgent instance.
+            MettaAgent instance
         """
-        config = config or AgentModelConfig()
+        # Get the actual MettaGridEnv from vecenv wrapper
+        metta_grid_env = env.driver_env
+        assert isinstance(metta_grid_env, MettaGridEnv)
 
-        # Apply kwargs overrides
-        for key, value in kwargs.items():
-            if hasattr(config, key):
-                setattr(config, key, value)
+        # Create agent using make_policy
+        agent = make_policy(metta_grid_env, config)
 
-        # Build components config
-        components = {
-            "_core_": {
-                "_target_": "metta.agent.lib.lstm.FastLSTM",
-                "input_size": config.hidden_dim,
-                "output_size": config.hidden_dim,
-                "nn_params": {
-                    "hidden_size": config.hidden_dim,
-                    "num_layers": config.lstm_layers,
-                    "batch_first": True,
-                },
-            },
-            "_value_": {"_target_": "metta.agent.components.mlp.MLP", "layer_width": 1},
-            "_action_": {
-                "_target_": "metta.agent.components.mlp.MLP",
-                "layer_width": 256,  # This will be set properly by the agent
-            },
-        }
+        # Initialize to environment
+        features = metta_grid_env.get_observation_features()
+        agent.initialize_to_environment(features, metta_grid_env.action_names, metta_grid_env.max_action_args, device)
 
-        # Add observations config
-        observations_config = {
-            "obs_key": "grid_obs",
-            "_target_": "metta.agent.components.observation.Observation",
-        }
-
-        # Configure agent - MettaAgent expects these as kwargs, not in a config
-        obs_width = getattr(observation_space, "shape", [11, 11, 0])[1] if hasattr(observation_space, "shape") else 11
-        obs_height = getattr(observation_space, "shape", [11, 11, 0])[0] if hasattr(observation_space, "shape") else 11
-
-        return MettaAgent(
-            obs_space=observation_space,
-            obs_width=obs_width,
-            obs_height=obs_height,
-            action_space=action_space,
-            feature_normalizations={},
-            global_features=global_features,
-            device=str(device),
-            hidden_dim=config.hidden_dim,
-            lstm_layers=config.lstm_layers,
-            use_prev_action=config.use_prev_action,
-            use_prev_reward=config.use_prev_reward,
-            mlp_layers=config.mlp_layers,
-            bptt_horizon=config.bptt_horizon,
-            clip_range=config.clip_range,
-            forward_lstm=config.forward_lstm,
-            backbone=config.backbone,
-            analyze_weights_interval=config.analyze_weights_interval,
-            l2_init_weight_update_interval=config.l2_init_weight_update_interval,
-            components=components,
-            observations=observations_config,
-            dtypes_fp16=config.dtypes_fp16,
-            observation_types=config.observation_types,
-            obs_scale=config.obs_scale,
-            obs_process_func=config.obs_process_func,
-        )
+        return agent
 
 
-class Optimizer:
-    """Factory for creating optimizers with a clean API.
+class TrainingComponents:
+    """Container for all components needed for training.
 
-    Usage:
-        optimizer = Optimizer(agent)  # Default Adam optimizer
-        optimizer = Optimizer(agent, learning_rate=1e-4)
-        optimizer = Optimizer(agent, config=OptimizerConfig(type="adam", learning_rate=3e-4))
+    This exposes the internal components that MettaTrainer uses,
+    allowing direct control over the training loop.
     """
 
-    def __new__(
+    def __init__(
+        self,
+        vecenv: Any,
+        policy: MettaAgent,
+        experience: Experience,
+        optimizer: torch.optim.Optimizer,
+        losses: Losses,
+        kickstarter: Kickstarter,
+        timer: Stopwatch,
+        trainer_config: TrainerConfig,
+        device: torch.device,
+    ):
+        self.vecenv = vecenv
+        self.policy = policy
+        self.experience = experience
+        self.optimizer = optimizer
+        self.losses = losses
+        self.kickstarter = kickstarter
+        self.timer = timer
+        self.trainer_config = trainer_config
+        self.device = device
+
+        # Training state
+        self.agent_step = 0
+        self.epoch = 0
+        self.stats = {}
+
+    @classmethod
+    def create(
         cls,
-        agent: MettaAgent,
-        config: Optional[OptimizerConfig] = None,
-        **kwargs,
-    ) -> torch.optim.Optimizer:
-        """Create an optimizer for training.
+        vecenv: Any,
+        policy: MettaAgent,
+        trainer_config: TrainerConfig,
+        device: str = "cuda",
+        policy_store: Optional[PolicyStore] = None,
+    ) -> "TrainingComponents":
+        """Create all training components.
 
         Args:
-            agent: The agent to optimize.
-            config: OptimizerConfig object. If None, uses defaults.
-            **kwargs: Additional config overrides.
+            vecenv: Vectorized environment
+            policy: Agent policy
+            trainer_config: Training configuration
+            device: Device to use
+            policy_store: Optional policy store for kickstarter
 
         Returns:
-            Torch optimizer instance.
+            TrainingComponents instance with all components initialized
         """
-        config = config or OptimizerConfig()
+        device = torch.device(device)
 
-        # Apply kwargs overrides
-        for key, value in kwargs.items():
-            if hasattr(config, key):
-                setattr(config, key, value)
+        # Get environment info
+        metta_grid_env = vecenv.driver_env
+        assert isinstance(metta_grid_env, MettaGridEnv)
 
-        if config.type == "adam":
-            return torch.optim.Adam(
-                agent.parameters(),
-                lr=config.learning_rate,
-                betas=(config.beta1, config.beta2),
-                eps=config.eps,
-                weight_decay=config.weight_decay,
-            )
-        elif config.type == "muon":
-            # TODO: Muon optimizer not yet implemented
-            # For now, fall back to Adam with a warning
-            import warnings
-
-            warnings.warn("Muon optimizer not yet implemented, falling back to Adam", stacklevel=2)
-            return torch.optim.Adam(
-                agent.parameters(),
-                lr=config.learning_rate,
-                betas=(config.beta1, config.beta2),
-                eps=config.eps,
-                weight_decay=config.weight_decay,
+        # Create optimizer
+        if trainer_config.optimizer.type == "adam":
+            optimizer = torch.optim.Adam(
+                policy.parameters(),
+                lr=trainer_config.optimizer.learning_rate,
+                betas=(trainer_config.optimizer.beta1, trainer_config.optimizer.beta2),
+                eps=trainer_config.optimizer.eps,
+                weight_decay=trainer_config.optimizer.weight_decay,
             )
         else:
-            raise ValueError(f"Unknown optimizer type: {config.type}")
+            raise ValueError(f"Unsupported optimizer type: {trainer_config.optimizer.type}")
 
+        # Create experience buffer
+        obs_space = vecenv.single_observation_space
+        atn_space = vecenv.single_action_space
+        total_agents = vecenv.num_agents
+        hidden_size, num_lstm_layers = get_lstm_config(policy)
 
-class ExperienceManager:
-    """Factory for creating experience managers with a clean API.
-
-    Usage:
-        experience = ExperienceManager(env, agent)
-        experience = ExperienceManager(env, agent, batch_size=8192)
-        experience = ExperienceManager(env, agent, config=ExperienceConfig(...))
-    """
-
-    def __new__(
-        cls,
-        env: MettaGridEnv,
-        agent: MettaAgent,
-        config: Optional[ExperienceConfig] = None,
-        **kwargs,
-    ) -> Experience:
-        """Create an experience manager for collecting rollouts.
-
-        Args:
-            env: The environment.
-            agent: The agent.
-            config: ExperienceConfig object. If None, uses defaults.
-            **kwargs: Additional config overrides.
-
-        Returns:
-            Experience manager instance.
-        """
-        config = config or ExperienceConfig()
-
-        # Apply kwargs overrides
-        for key, value in kwargs.items():
-            if hasattr(config, key):
-                setattr(config, key, value)
-
-        # Get device from agent
-        device = agent.device if hasattr(agent, "device") else torch.device("cpu")
-
-        # Get LSTM info from agent - ensure they are ints
-        hidden_size = getattr(agent, "hidden_dim", 1024)
-        if not isinstance(hidden_size, int):
-            hidden_size = 1024  # Default if attribute is not an int
-
-        num_lstm_layers = getattr(agent, "lstm_layers", 1)
-        if not isinstance(num_lstm_layers, int):
-            num_lstm_layers = 1  # Default if attribute is not an int
-
-        # Create experience manager directly
-        return Experience(
-            total_agents=env.num_agents,
-            batch_size=config.batch_size,
-            bptt_horizon=config.bptt_horizon,
-            minibatch_size=config.minibatch_size,
-            max_minibatch_size=config.minibatch_size,  # Use same as minibatch_size
-            obs_space=env.single_observation_space,
-            atn_space=env.single_action_space,
+        experience = Experience(
+            total_agents=total_agents,
+            batch_size=trainer_config.batch_size,
+            bptt_horizon=trainer_config.bptt_horizon,
+            minibatch_size=trainer_config.minibatch_size,
+            max_minibatch_size=trainer_config.minibatch_size,
+            obs_space=obs_space,
+            atn_space=atn_space,
             device=device,
             hidden_size=hidden_size,
-            cpu_offload=config.cpu_offload,
+            cpu_offload=trainer_config.cpu_offload,
             num_lstm_layers=num_lstm_layers,
-            agents_per_batch=env.num_agents,
+            agents_per_batch=getattr(vecenv, "agents_per_batch", None),
         )
 
+        # Create kickstarter
+        kickstarter = Kickstarter(
+            trainer_config.kickstart,
+            str(device),
+            policy_store,
+            metta_grid_env.action_names,
+            metta_grid_env.max_action_args,
+        )
 
-# Training functions
-def rollout(
-    experience: Experience,
-    agent: MettaAgent,
-    num_steps: Optional[int] = None,
-) -> BatchInfo:
-    """Collect experience by running the agent in the environment.
+        # Create losses tracker
+        losses = Losses()
+
+        # Create timer
+        timer = Stopwatch(logger)
+        timer.start()
+
+        return cls(
+            vecenv=vecenv,
+            policy=policy,
+            experience=experience,
+            optimizer=optimizer,
+            losses=losses,
+            kickstarter=kickstarter,
+            timer=timer,
+            trainer_config=trainer_config,
+            device=device,
+        )
+
+    def rollout_step(self) -> Tuple[int, List[Any]]:
+        """Perform a single rollout step.
+
+        Returns:
+            Tuple of (num_steps, info_list)
+        """
+        return perform_rollout_step(self.policy, self.vecenv, self.experience, self.device, self.timer)
+
+    def is_ready_for_training(self) -> bool:
+        """Check if experience buffer is ready for training."""
+        return self.experience.ready_for_training
+
+    def reset_for_rollout(self):
+        """Reset experience buffer for new rollout."""
+        self.experience.reset_for_rollout()
+
+    def accumulate_stats(self, raw_infos: List[Any]):
+        """Accumulate rollout statistics."""
+        accumulate_rollout_stats(raw_infos, self.stats)
+
+    def compute_advantages(self) -> torch.Tensor:
+        """Compute advantages using GAE."""
+        advantages = torch.zeros(self.experience.values.shape, device=self.device)
+        initial_importance_sampling_ratio = torch.ones_like(self.experience.values)
+
+        return compute_advantage(
+            self.experience.values,
+            self.experience.rewards,
+            self.experience.dones,
+            initial_importance_sampling_ratio,
+            advantages,
+            self.trainer_config.ppo.gamma,
+            self.trainer_config.ppo.gae_lambda,
+            self.trainer_config.vtrace.vtrace_rho_clip,
+            self.trainer_config.vtrace.vtrace_c_clip,
+            self.device,
+        )
+
+    def train_minibatch(
+        self,
+        minibatch: Dict[str, torch.Tensor],
+        advantages: torch.Tensor,
+    ) -> torch.Tensor:
+        """Train on a single minibatch.
+
+        Args:
+            minibatch: Minibatch data
+            advantages: Computed advantages
+
+        Returns:
+            Loss tensor
+        """
+        return process_minibatch_update(
+            policy=self.policy,
+            experience=self.experience,
+            minibatch=minibatch,
+            advantages=advantages,
+            trainer_cfg=self.trainer_config,
+            kickstarter=self.kickstarter,
+            agent_step=self.agent_step,
+            losses=self.losses,
+            device=self.device,
+        )
+
+    def sample_minibatch(
+        self,
+        advantages: torch.Tensor,
+        minibatch_idx: int,
+        total_minibatches: int,
+        anneal_beta: float,
+    ) -> Dict[str, torch.Tensor]:
+        """Sample a minibatch from experience buffer.
+
+        Args:
+            advantages: Computed advantages
+            minibatch_idx: Current minibatch index
+            total_minibatches: Total number of minibatches
+            anneal_beta: Annealed beta for prioritized replay
+
+        Returns:
+            Minibatch dictionary
+        """
+        prio_cfg = self.trainer_config.prioritized_experience_replay
+        return self.experience.sample_minibatch(
+            advantages=advantages,
+            prio_alpha=prio_cfg.prio_alpha,
+            prio_beta=anneal_beta,
+            minibatch_idx=minibatch_idx,
+            total_minibatches=total_minibatches,
+        )
+
+    def optimize_step(self, loss: torch.Tensor, accumulate_steps: int):
+        """Perform optimizer step with gradient accumulation.
+
+        Args:
+            loss: Loss tensor
+            accumulate_steps: Number of steps to accumulate gradients
+        """
+        self.optimizer.zero_grad()
+        loss.backward()
+
+        if (self.epoch + 1) % accumulate_steps == 0:
+            torch.nn.utils.clip_grad_norm_(self.policy.parameters(), self.trainer_config.ppo.max_grad_norm)
+            self.optimizer.step()
+
+            # Optional weight clipping
+            if hasattr(self.policy, "clip_weights"):
+                self.policy.clip_weights()
+
+    def reset_training_state(self):
+        """Reset state for new training epoch."""
+        self.losses.zero()
+        self.experience.reset_importance_sampling_ratios()
+
+
+# Helper functions for common operations
+def create_default_trainer_config(
+    num_workers: int = 1,
+    total_timesteps: int = 10_000_000,
+    batch_size: int = 8192,
+    minibatch_size: int = 512,
+    checkpoint_dir: str = "./checkpoints",
+    **kwargs,
+) -> TrainerConfig:
+    """Create a default TrainerConfig with sensible values.
 
     Args:
-        experience: Experience manager.
-        agent: The agent to run.
-        num_steps: Number of steps to collect. If None, collects a full batch.
+        num_workers: Number of parallel workers
+        total_timesteps: Total training timesteps
+        batch_size: Batch size
+        minibatch_size: Minibatch size
+        checkpoint_dir: Directory for checkpoints
+        **kwargs: Additional config overrides
 
     Returns:
-        BatchInfo containing rollout statistics.
+        TrainerConfig instance
     """
-    # This is a placeholder implementation
-    # In a real implementation, this would collect experience data
-    steps = num_steps or experience.batch_size
-
-    return BatchInfo(
-        total_env_steps=steps,
-        episode_returns=[0.0],  # Placeholder
-        episode_lengths=[steps],  # Placeholder
-    )
-
-
-def compute_advantages(
-    experience: Experience,
-    gamma: float = 0.977,
-    gae_lambda: float = 0.916,
-) -> torch.Tensor:
-    """Compute advantages using GAE.
-
-    Args:
-        experience: Experience manager containing collected data.
-        gamma: Discount factor.
-        gae_lambda: GAE lambda parameter.
-
-    Returns:
-        Advantages tensor.
-    """
-    # For now, return a placeholder tensor
-    # In a real implementation, this would compute GAE advantages
-    batch_size = experience.batch_size if hasattr(experience, "batch_size") else 8192
-    return torch.zeros(batch_size)
-
-
-def train_ppo(
-    agent: MettaAgent,
-    optimizer: torch.optim.Optimizer,
-    experience: Experience,
-    ppo_config: Optional[PPOConfig] = None,
-    update_epochs: int = 1,
-) -> Dict[str, float]:
-    """Train the agent using PPO.
-
-    Args:
-        agent: The agent to train.
-        optimizer: The optimizer.
-        experience: Experience manager with collected data.
-        ppo_config: PPOConfig object. If None, uses defaults.
-        update_epochs: Number of epochs to train.
-
-    Returns:
-        Dictionary of training statistics.
-    """
-    ppo_config = ppo_config or PPOConfig()
-
-    # Placeholder for actual PPO implementation
-    return {
-        "policy_loss": 0.0,
-        "value_loss": 0.0,
-        "entropy": 0.0,
-        "approx_kl": 0.0,
-        "clipfrac": 0.0,
+    config_dict = {
+        "num_workers": num_workers,
+        "total_timesteps": total_timesteps,
+        "batch_size": batch_size,
+        "minibatch_size": minibatch_size,
+        "checkpoint": {
+            "checkpoint_dir": checkpoint_dir,
+        },
+        "simulation": {
+            "replay_dir": "./replays",
+        },
+        "curriculum": "/env/mettagrid/simple",
     }
+
+    # Apply overrides
+    config_dict.update(kwargs)
+
+    return TrainerConfig.model_validate(config_dict)
 
 
 def save_checkpoint(
-    agent: MettaAgent,
-    path: str,
-    epoch: int = 0,
+    policy: MettaAgent,
+    policy_store: PolicyStore,
+    epoch: int,
     metadata: Optional[Dict[str, Any]] = None,
-) -> None:
-    """Save agent checkpoint.
+) -> PolicyRecord:
+    """Save a policy checkpoint.
 
     Args:
-        agent: The agent to save.
-        path: Directory path to save to.
-        epoch: Training epoch number.
-        metadata: Optional metadata to include.
-    """
-    os.makedirs(path, exist_ok=True)
-    checkpoint_path = os.path.join(path, f"checkpoint_{epoch:06d}.pt")
+        policy: Policy to save
+        policy_store: Policy store to use
+        epoch: Current epoch
+        metadata: Optional metadata
 
-    torch.save(
-        {
-            "epoch": epoch,
-            "model_state_dict": agent.state_dict(),
-            "metadata": metadata or {},
-        },
-        checkpoint_path,
+    Returns:
+        Saved PolicyRecord
+    """
+    name = policy_store.make_model_name(epoch)
+    policy_record = policy_store.create_empty_policy_record(name)
+    policy_record.metadata = metadata or {}
+    policy_record.policy = policy
+
+    return policy_store.save(policy_record)
+
+
+def load_checkpoint(
+    policy_store: PolicyStore,
+    path: str,
+) -> PolicyRecord:
+    """Load a policy checkpoint.
+
+    Args:
+        policy_store: Policy store to use
+        path: Path to checkpoint
+
+    Returns:
+        Loaded PolicyRecord
+    """
+    return policy_store.policy_record(path)
+
+
+def evaluate_policy(
+    policy: MettaAgent,
+    env_config: str,
+    num_episodes: int = 10,
+    device: str = "cuda",
+    render: bool = False,
+) -> Dict[str, float]:
+    """Evaluate a policy on an environment.
+
+    Args:
+        policy: Policy to evaluate
+        env_config: Environment configuration path
+        num_episodes: Number of episodes
+        device: Device to use
+        render: Whether to render
+
+    Returns:
+        Evaluation statistics
+    """
+    # Create evaluation environment
+    vecenv = Environment(
+        curriculum_path=env_config,
+        device=device,
+        num_envs=1,
+        is_training=False,
     )
 
-
-def load_checkpoint(agent: MettaAgent, path: str) -> Dict[str, Any]:
-    """Load agent checkpoint.
-
-    Args:
-        agent: The agent to load into.
-        path: Path to checkpoint file.
-
-    Returns:
-        Checkpoint metadata.
-    """
-    checkpoint = torch.load(path, map_location=agent.device)
-    agent.load_state_dict(checkpoint["model_state_dict"])
-    return checkpoint.get("metadata", {})
-
-
-def eval_policy(
-    agent: MettaAgent,
-    env: MettaGridEnv,
-    num_episodes: int = 10,
-) -> Dict[str, float]:
-    """Evaluate a policy.
-
-    Args:
-        agent: The agent to evaluate.
-        env: The environment.
-        num_episodes: Number of episodes to run.
-
-    Returns:
-        Dictionary of evaluation statistics.
-    """
     total_rewards = []
     episode_lengths = []
 
     for _ in range(num_episodes):
-        obs, _ = env.reset()
+        obs = vecenv.reset()
         done = False
         episode_reward = 0
         episode_length = 0
-        # Get initial hidden state - agent.initial_hidden_state is a property, not a method
-        if hasattr(agent, "initial_hidden_state"):
-            hidden_state = agent.initial_hidden_state
-        else:
-            # Fallback to zeros if not available
-            hidden_size = getattr(agent, "hidden_dim", 1024)
-            if not isinstance(hidden_size, int):
-                hidden_size = 1024
-
-            num_layers = getattr(agent, "lstm_layers", 1)
-            if not isinstance(num_layers, int):
-                num_layers = 1
-
-            hidden_state = torch.zeros(num_layers, env.num_agents, hidden_size, device=agent.device)
 
         while not done:
             with torch.no_grad():
-                obs_tensor = torch.from_numpy(obs).to(agent.device)
-                action, _, _, hidden_state = agent(obs_tensor, hidden_state)
-                action = action.cpu().numpy()
+                # Note: Real implementation would handle LSTM states properly
+                action = policy(obs)
 
-            obs, reward, terminated, truncated, _ = env.step(action)
+            obs, reward, terminated, truncated, info = vecenv.step(action)
             done = terminated or truncated
             episode_reward += reward.sum()
             episode_length += 1
+
+            if render:
+                vecenv.render()
 
         total_rewards.append(episode_reward)
         episode_lengths.append(episode_length)
 
     return {
-        "mean_reward": float(np.mean(total_rewards)),
-        "std_reward": float(np.std(total_rewards)),
-        "mean_length": float(np.mean(episode_lengths)),
-        "std_length": float(np.std(episode_lengths)),
+        "mean_reward": float(torch.tensor(total_rewards).mean()),
+        "std_reward": float(torch.tensor(total_rewards).std()),
+        "mean_length": float(torch.tensor(episode_lengths).mean()),
+        "std_length": float(torch.tensor(episode_lengths).std()),
     }
 
 
-# Helper functions
-def make_lr_scheduler(
-    optimizer: torch.optim.Optimizer,
+def calculate_anneal_beta(
+    epoch: int,
     total_timesteps: int,
     batch_size: int,
-    warmup_steps: Optional[int] = None,
-    schedule_type: str = "linear",
-    anneal_lr: bool = True,
-) -> Optional[torch.optim.lr_scheduler.LRScheduler]:
-    """Create a learning rate scheduler."""
-    if not anneal_lr:
-        return None
+    prio_alpha: float,
+    prio_beta0: float,
+) -> float:
+    """Calculate annealed beta for prioritized experience replay.
 
-    total_updates = total_timesteps // batch_size
+    Args:
+        epoch: Current epoch
+        total_timesteps: Total training timesteps
+        batch_size: Batch size
+        prio_alpha: Priority alpha
+        prio_beta0: Initial beta value
 
-    if schedule_type == "linear":
-
-        def lr_lambda(epoch):
-            if warmup_steps and epoch < warmup_steps:
-                return epoch / warmup_steps
-            if total_updates <= (warmup_steps or 0):
-                return 1.0
-            progress = (epoch - (warmup_steps or 0)) / (total_updates - (warmup_steps or 0))
-            return max(0.0, 1.0 - progress)
-
-        return LambdaLR(optimizer, lr_lambda)
-    elif schedule_type == "cosine":
-        return CosineAnnealingLR(optimizer, T_max=total_updates)
-    else:
-        raise ValueError(f"Unknown schedule type: {schedule_type}")
+    Returns:
+        Annealed beta value
+    """
+    total_epochs = max(1, total_timesteps // batch_size)
+    anneal_beta = prio_beta0 + (1 - prio_beta0) * prio_alpha * epoch / total_epochs
+    return anneal_beta
 
 
-def compute_gradient_stats(model: nn.Module) -> Dict[str, float]:
-    """Compute gradient statistics for monitoring."""
-    grad_norms = []
-    param_norms = []
-
-    for _name, param in model.named_parameters():
-        if param.grad is not None:
-            grad_norms.append(param.grad.norm().item())
-            param_norms.append(param.norm().item())
-
-    if not grad_norms:
-        return {}
-
-    return {
-        "grad_norm_mean": float(np.mean(grad_norms)),
-        "grad_norm_max": float(np.max(grad_norms)),
-        "grad_norm_min": float(np.min(grad_norms)),
-        "param_norm_mean": float(np.mean(param_norms)),
-    }
-
-
-def _convert_to_mettagrid_config(config_dict: Dict[str, Any]) -> Dict[str, Any]:
-    """Convert from simplified API config format to mettagrid config format."""
-    game_config = config_dict["game"]
-
-    # Convert observation dimensions
-    mettagrid_config = {
-        "num_agents": game_config["num_agents"],
-        "max_steps": game_config["max_steps"],
-        "obs_width": game_config["observation_width"],
-        "obs_height": game_config["observation_height"],
-        "num_observation_tokens": game_config["num_observation_tokens"],
-        "inventory_item_names": game_config["inventory_item_names"],
-        # Convert agent config
-        "agent": {
-            "default_item_max": game_config["agent"]["default_item_max"],
-            "heart_max": game_config["agent"]["heart_max"],
-            "freeze_duration": game_config["agent"]["freeze_duration"],
-            "rewards": game_config["agent"]["rewards"],
-        },
-        # Groups are required
-        "groups": game_config["groups"],
-        # Convert actions from list to ActionsConfig format
-        "actions": {
-            "noop": {"enabled": True},
-            "move": {"enabled": True},
-            "rotate": {"enabled": True},
-            "put_items": {"enabled": True},
-            "get_items": {"enabled": True},
-            "attack": {"enabled": True},
-            "swap": {"enabled": True},
-            "change_color": {"enabled": True},
-        },
-        # Convert objects from list to dict
-        "objects": {},
-        # Reward sharing
-        "reward_sharing": game_config["reward_sharing"],
-        # Map builder (required by MettaGridEnv)
-        "map_builder": game_config["map_builder"],
-    }
-
-    # Convert objects list to dict with proper types
-    for obj in game_config["objects"]:
-        obj_name = obj["name"]
-        if obj["type"] == "wall":
-            mettagrid_config["objects"][obj_name] = {"type_id": obj["color"], "swappable": False}
-        elif obj["type"] == "mine":
-            # Mines are converters that convert nothing to ore
-            color_to_ore = {0: "red", 1: "blue", 2: "green"}
-            ore_color = color_to_ore.get(obj["color"], "red")
-            mettagrid_config["objects"][obj_name] = {
-                "type_id": 2 + obj["color"],  # TYPE_MINE_RED=2, etc
-                f"output_ore.{ore_color}": 1,
-                "max_output": -1,
-                "conversion_ticks": 1,
-                "cooldown": 0,
-                "initial_items": 0,
-                "color": obj["color"],
-            }
-        elif obj["type"] == "generator":
-            # Generators convert ore to batteries
-            color_to_resource = {0: "red", 1: "blue", 2: "green"}
-            resource_color = color_to_resource.get(obj["color"], "red")
-            mettagrid_config["objects"][obj_name] = {
-                "type_id": 5 + obj["color"],  # TYPE_GENERATOR_RED=5, etc
-                f"input_ore.{resource_color}": 1,
-                f"output_battery.{resource_color}": 1,
-                "max_output": -1,
-                "conversion_ticks": 1,
-                "cooldown": 0,
-                "initial_items": 0,
-                "color": obj["color"],
-            }
-        elif obj["type"] == "converter":
-            # Generic converter (like altar)
-            mettagrid_config["objects"][obj_name] = {
-                "type_id": 8,  # TYPE_ALTAR
-                "input_battery.red": 3,
-                "output_heart": 1,
-                "max_output": -1,
-                "conversion_ticks": 1,
-                "cooldown": 0,
-                "initial_items": 0,
-                "color": obj["color"],
-            }
-
-    return mettagrid_config
+# Re-export key classes for convenience
+__all__ = [
+    # Factory classes
+    "Environment",
+    "Agent",
+    "TrainingComponents",
+    # Config classes (from trainer_config)
+    "TrainerConfig",
+    "OptimizerConfig",
+    "PPOConfig",
+    "CheckpointConfig",
+    "SimulationConfig",
+    "PrioritizedExperienceReplayConfig",
+    "VTraceConfig",
+    "KickstartConfig",
+    # Helper functions
+    "create_default_trainer_config",
+    "save_checkpoint",
+    "load_checkpoint",
+    "evaluate_policy",
+    "calculate_anneal_beta",
+    # Constants
+    "TYPE_AGENT",
+    "TYPE_WALL",
+    "TYPE_MINE_RED",
+    "TYPE_MINE_BLUE",
+    "TYPE_MINE_GREEN",
+    "TYPE_GENERATOR_RED",
+    "TYPE_GENERATOR_BLUE",
+    "TYPE_GENERATOR_GREEN",
+    "TYPE_ALTAR",
+    "TYPE_ARMORY",
+    "TYPE_LASERY",
+    "TYPE_LAB",
+    "TYPE_FACTORY",
+    "TYPE_TEMPLE",
+    "TYPE_GENERIC_CONVERTER",
+]

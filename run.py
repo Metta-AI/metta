@@ -1,139 +1,222 @@
-"""Example of using Metta as a library without Hydra configuration."""
+"""Example of using Metta as a library without Hydra configuration.
+
+This example shows how to use the Metta API to train an agent with full
+control over the training loop, using the same components as the main trainer.
+"""
+
+import logging
 
 import torch
 from omegaconf import DictConfig
 
+from metta.agent.policy_store import PolicyStore
 from metta.api import (
-    # Configuration classes
     Agent,
-    AgentModelConfig,
-    CheckpointConfig,
-    EnvConfig,
     Environment,
-    ExperienceConfig,
-    ExperienceManager,
-    GameConfig,
-    Optimizer,
-    OptimizerConfig,
-    PPOConfig,
-    SimulationConfig,
-    # Functions
-    compute_advantages,
-    eval_policy,
-    rollout,
+    TrainingComponents,
+    calculate_anneal_beta,
+    create_default_trainer_config,
     save_checkpoint,
-    train_ppo,
 )
-from metta.mettagrid.curriculum.core import SingleTaskCurriculum
 
-# Set device
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Configuration
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-print(f"Using device: {device}")
+logger.info(f"Using device: {device}")
 
-# Create environment with typed config
-game_config = GameConfig(
-    max_steps=1000,
-    num_agents=4,
-    width=32,
-    height=32,
-)
-env_config = EnvConfig(game=game_config)
-env = Environment(config=env_config)
-
-# Create agent with typed config
-agent_config = AgentModelConfig(
-    hidden_dim=512,
-    lstm_layers=1,
-    bptt_horizon=8,
-)
-agent = Agent(
-    observation_space=env.single_observation_space,
-    action_space=env.single_action_space,
-    global_features=[],
-    device=device,
-    config=agent_config,
-)
-
-# Create optimizer with typed config
-optimizer_config = OptimizerConfig(
-    type="adam",
-    learning_rate=3e-4,
-)
-optimizer = Optimizer(agent, config=optimizer_config)
-
-# Create curriculum directly (since make_curriculum was removed)
-curriculum = SingleTaskCurriculum("/env/mettagrid/simple", DictConfig({}))
-
-# Create experience manager with typed config
-experience_config = ExperienceConfig(
+# Create trainer config with Pydantic
+trainer_config = create_default_trainer_config(
+    num_workers=4,
+    total_timesteps=10_000_000,
     batch_size=8192,
     minibatch_size=512,
-    bptt_horizon=8,
-)
-experience = ExperienceManager(env, agent, config=experience_config)
-
-# Training configuration
-ppo_config = PPOConfig(
-    clip_coef=0.1,
-    ent_coef=0.01,
-    gamma=0.99,
-    gae_lambda=0.95,
-)
-
-checkpoint_config = CheckpointConfig(
-    checkpoint_interval=100,
     checkpoint_dir="./checkpoints",
+    # Override specific nested configs
+    ppo={
+        "clip_coef": 0.1,
+        "ent_coef": 0.01,
+        "gamma": 0.99,
+        "gae_lambda": 0.95,
+    },
+    optimizer={
+        "type": "adam",
+        "learning_rate": 3e-4,
+    },
 )
 
-simulation_config = SimulationConfig(
-    evaluate_interval=500,
+# Create environment
+logger.info("Creating environment...")
+env = Environment(
+    num_agents=4,  # Simplified - just specify what we need
+    width=32,
+    height=32,
+    device=str(device),
+    num_envs=trainer_config.batch_size // trainer_config.num_workers,
+    num_workers=trainer_config.num_workers,
+    batch_size=trainer_config.batch_size // trainer_config.num_workers,
+    async_factor=trainer_config.async_factor,
+    zero_copy=trainer_config.zero_copy,
+    is_training=True,
+)
+
+# Create agent using DictConfig (as expected by make_policy)
+logger.info("Creating agent...")
+agent_config = DictConfig(
+    {
+        "device": str(device),
+        "agent": {
+            "hidden_dim": 512,
+            "lstm_layers": 1,
+            "bptt_horizon": 8,
+            "use_prev_action": True,
+            "use_prev_reward": True,
+            "mlp_layers": 2,
+            "forward_lstm": True,
+            "backbone": "cnn",
+            "clip_range": 0,
+            "analyze_weights_interval": 300,
+            "l2_init_weight_update_interval": 0,
+        },
+    }
+)
+agent = Agent(env, agent_config, str(device))
+
+# Create policy store for checkpointing
+# Create a minimal config for PolicyStore - it needs cfg and wandb_run
+policy_store_cfg = DictConfig(
+    {
+        "device": str(device),
+        "policy_cache_size": 10,
+        "trainer": {
+            "checkpoint": {
+                "checkpoint_dir": trainer_config.checkpoint.checkpoint_dir,
+            }
+        },
+    }
+)
+policy_store = PolicyStore(cfg=policy_store_cfg, wandb_run=None)
+
+# Create training components
+logger.info("Initializing training components...")
+training = TrainingComponents.create(
+    vecenv=env,
+    policy=agent,
+    trainer_config=trainer_config,
+    device=str(device),
+    policy_store=policy_store,
 )
 
 # Training loop
-total_steps = 0
-epoch = 0
-target_steps = 100_000
+logger.info(f"Starting training for {trainer_config.total_timesteps} steps...")
 
-print(f"Starting training for {target_steps} steps...")
+while training.agent_step < trainer_config.total_timesteps:
+    # ===== ROLLOUT PHASE =====
+    raw_infos = []
+    training.reset_for_rollout()
 
-while total_steps < target_steps:
     # Collect experience
-    print(f"Epoch {epoch}: Collecting rollouts...")
-    batch_info = rollout(experience, agent)
-    total_steps += batch_info.total_env_steps
+    while not training.is_ready_for_training():
+        num_steps, info = training.rollout_step()
+        training.agent_step += num_steps
 
-    # Compute advantages
-    advantages = compute_advantages(experience, gamma=ppo_config.gamma, gae_lambda=ppo_config.gae_lambda)
+        if info:
+            raw_infos.extend(info)
 
-    # Train
-    print(f"Epoch {epoch}: Training PPO...")
-    train_stats = train_ppo(
-        agent,
-        optimizer,
-        experience,
-        ppo_config=ppo_config,
-        update_epochs=4,
+    # Process rollout statistics
+    training.accumulate_stats(raw_infos)
+
+    # ===== TRAINING PHASE =====
+    training.reset_training_state()
+
+    # Calculate prioritized replay parameters
+    prio_cfg = trainer_config.prioritized_experience_replay
+    anneal_beta = calculate_anneal_beta(
+        epoch=training.epoch,
+        total_timesteps=trainer_config.total_timesteps,
+        batch_size=trainer_config.batch_size,
+        prio_alpha=prio_cfg.prio_alpha,
+        prio_beta0=prio_cfg.prio_beta0,
     )
 
-    # Print stats
-    print(f"Epoch {epoch}: Steps={total_steps}, Stats={train_stats}")
+    # Compute advantages once
+    advantages = training.compute_advantages()
 
-    # Save checkpoint
-    if epoch % checkpoint_config.checkpoint_interval == 0:
-        save_checkpoint(agent, checkpoint_config.checkpoint_dir, epoch)
-        print(f"Saved checkpoint at epoch {epoch}")
+    # Train for multiple epochs
+    total_minibatches = training.experience.num_minibatches * trainer_config.update_epochs
+    minibatch_idx = 0
 
-    # Evaluate
-    if epoch % simulation_config.evaluate_interval == 0 and epoch > 0:
-        print("Evaluating policy...")
-        eval_stats = eval_policy(agent, env, num_episodes=5)
-        print(f"Evaluation stats: {eval_stats}")
+    for update_epoch in range(trainer_config.update_epochs):
+        for _ in range(training.experience.num_minibatches):
+            # Sample minibatch
+            minibatch = training.sample_minibatch(
+                advantages=advantages,
+                minibatch_idx=minibatch_idx,
+                total_minibatches=total_minibatches,
+                anneal_beta=anneal_beta,
+            )
 
-    epoch += 1
+            # Train on minibatch
+            loss = training.train_minibatch(minibatch, advantages)
 
-print("Training complete!")
+            # Optimize
+            training.optimize_step(loss, training.experience.accumulate_minibatches)
 
-# Final evaluation
-print("Running final evaluation...")
-final_stats = eval_policy(agent, env, num_episodes=10)
-print(f"Final evaluation results: {final_stats}")
+            minibatch_idx += 1
+
+        training.epoch += 1
+
+        # Early exit if KL divergence is too high
+        if trainer_config.ppo.target_kl is not None:
+            average_approx_kl = training.losses.approx_kl_sum / training.losses.minibatches_processed
+            if average_approx_kl > trainer_config.ppo.target_kl:
+                logger.info(f"Early stopping at epoch {update_epoch} due to KL divergence")
+                break
+
+    # Log progress
+    if training.epoch % 10 == 0:
+        losses_stats = training.losses.stats()
+        logger.info(
+            f"Epoch {training.epoch} - "
+            f"Steps: {training.agent_step}/{trainer_config.total_timesteps} - "
+            f"Policy Loss: {losses_stats.get('policy_loss', 0):.4f} - "
+            f"Value Loss: {losses_stats.get('value_loss', 0):.4f} - "
+            f"Entropy: {losses_stats.get('entropy', 0):.4f}"
+        )
+
+    # Save checkpoint periodically
+    if training.epoch % trainer_config.checkpoint.checkpoint_interval == 0:
+        logger.info(f"Saving checkpoint at epoch {training.epoch}")
+        save_checkpoint(
+            policy=agent,
+            policy_store=policy_store,
+            epoch=training.epoch,
+            metadata={
+                "agent_step": training.agent_step,
+                "epoch": training.epoch,
+                "stats": dict(training.stats),
+            },
+        )
+
+    # Clear stats for next iteration
+    training.stats.clear()
+
+logger.info("Training complete!")
+
+# Final checkpoint
+logger.info("Saving final checkpoint...")
+save_checkpoint(
+    policy=agent,
+    policy_store=policy_store,
+    epoch=training.epoch,
+    metadata={
+        "agent_step": training.agent_step,
+        "epoch": training.epoch,
+        "final": True,
+    },
+)
+
+# Close environment (env is actually the vecenv)
+env.close()
