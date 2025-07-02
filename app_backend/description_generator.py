@@ -36,10 +36,10 @@ class DescriptionGenerator:
         self.model = "claude-3-5-sonnet-20241022"  # Using a capable model for better code analysis
 
     def get_git_diff_from_main(self, git_hash: str, repo_path: Optional[Path] = None) -> str:
-        """Get the git diff between the specified commit and main branch.
+        """Get the git diff between the specified commit and its branch point from main.
 
         Args:
-            git_hash: The git commit hash to diff against main
+            git_hash: The git commit hash to diff against its branch point from main
             repo_path: Path to the git repository. If None, uses the current working directory.
 
         Returns:
@@ -50,12 +50,19 @@ class DescriptionGenerator:
             repo_path = Path(__file__).parent.parent
 
         try:
+            # First, find the merge base (common ancestor) between main and the commit
+            merge_base_result = subprocess.run(
+                ["git", "merge-base", "main", git_hash], cwd=repo_path, capture_output=True, text=True, check=True
+            )
+            merge_base = merge_base_result.stdout.strip()
+
+            # Now diff between the merge base and the training run commit
             result = subprocess.run(
-                ["git", "diff", "main", git_hash], cwd=repo_path, capture_output=True, text=True, check=True
+                ["git", "diff", merge_base, git_hash], cwd=repo_path, capture_output=True, text=True, check=True
             )
             return result.stdout
         except subprocess.CalledProcessError:
-            # If the above fails, try a different approach
+            # If merge-base fails, try the original approach as fallback
             try:
                 result = subprocess.run(
                     ["git", "diff", f"main...{git_hash}"], cwd=repo_path, capture_output=True, text=True, check=True
