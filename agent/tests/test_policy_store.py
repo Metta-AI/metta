@@ -7,7 +7,7 @@ import tempfile
 import torch
 from omegaconf import OmegaConf
 
-from tests.fixtures import MockPolicy
+from metta.agent.mocks import MockPolicy
 
 
 def test_policy_save_load_without_pydantic():

@@ -7,10 +7,10 @@ import time
 
 import pytest
 
+from metta.agent.mocks import MockPolicy
 from metta.agent.policy_cache import PolicyCache
 from metta.agent.policy_metadata import PolicyMetadata
 from metta.agent.policy_record import PolicyRecord
-from tests.fixtures import MockPolicy
 
 # Create a minimal policy class that mimics MettaAgent structure
 
