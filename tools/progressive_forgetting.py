@@ -28,9 +28,10 @@ def run_single_experiment(
     task_set_1: str,
     task_set_2: str,
     run_id: str,
+    base_run_id: str,
     total_timesteps: int = 10_000_000,
     num_workers: int = 4,
-    device: str = "cpu",
+    device: str = "cuda",
 ) -> str:
     """Run a single progressive forgetting experiment.
 
@@ -38,6 +39,7 @@ def run_single_experiment(
         task_set_1: First task set to train on
         task_set_2: Second task set to train on
         run_id: Unique identifier for this run
+        base_run_id: Base identifier for runs
         total_timesteps: Total training timesteps
         num_workers: Number of parallel workers
         device: Device to use for training
@@ -73,8 +75,7 @@ def run_single_experiment(
         f"trainer.total_timesteps={total_timesteps}",
         f"trainer.num_workers={num_workers}",
         f"device={device}",
-        "wandb=off",  # Disable wandb for these experiments
-        "+hardware=macbook",  # Use local hardware config
+        "+hardware=aws",  # Use AWS for cloud training
     ]
 
     logger.info(f"Running experiment: {task_set_1} -> {task_set_2}")
@@ -143,7 +144,7 @@ def analyze_experiment(run_dir: str, task_set_1: str, task_set_2: str) -> Dict[s
 
 
 def run_all_experiments(
-    task_sets: List[str], base_run_id: str, total_timesteps: int = 10_000_000, num_workers: int = 4, device: str = "cpu"
+    task_sets: List[str], base_run_id: str, total_timesteps: int = 10_000_000, num_workers: int = 4, device: str = "cuda"
 ) -> Dict[str, Dict[str, float]]:
     """Run experiments for all task set pairs.
 
@@ -171,7 +172,7 @@ def run_all_experiments(
 
         try:
             # Run training
-            run_dir = run_single_experiment(task_set_1, task_set_2, run_id, total_timesteps, num_workers, device)
+            run_dir = run_single_experiment(task_set_1, task_set_2, run_id, base_run_id, total_timesteps, num_workers, device)
 
             # Analyze results
             metrics = analyze_experiment(run_dir, task_set_1, task_set_2)
@@ -283,7 +284,7 @@ def main():
         "--total-timesteps", type=int, default=10_000_000, help="Total training timesteps per experiment"
     )
     parser.add_argument("--num-workers", type=int, default=4, help="Number of parallel workers")
-    parser.add_argument("--device", default="cpu", help="Device to use for training")
+    parser.add_argument("--device", default="cuda", help="Device to use for training")
     parser.add_argument("--output-dir", default="progressive_forgetting_results", help="Directory to save results")
 
     args = parser.parse_args()
