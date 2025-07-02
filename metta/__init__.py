@@ -21,10 +21,6 @@ from metta.api import (
     compute_advantages,
     eval_policy,
     load_checkpoint,
-    make_agent,
-    make_environment,
-    make_experience_manager,
-    make_optimizer,
     rollout,
     save_checkpoint,
     train_ppo,
@@ -54,9 +50,4 @@ __all__ = [
     "rollout",
     "save_checkpoint",
     "train_ppo",
-    # Deprecated functions (kept for backward compatibility)
-    "make_agent",
-    "make_environment",
-    "make_experience_manager",
-    "make_optimizer",
 ]

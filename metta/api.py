@@ -399,21 +399,6 @@ class Environment:
         return env
 
 
-# Keep the old function for backward compatibility but deprecate it
-def make_environment(
-    env_config: Optional[EnvConfig] = None,
-    **kwargs,
-) -> MettaGridEnv:
-    """Create a MettaGrid environment.
-
-    DEPRECATED: Use Environment() instead.
-    """
-    import warnings
-
-    warnings.warn("make_environment is deprecated, use Environment() instead", DeprecationWarning, stacklevel=2)
-    return Environment(config=env_config, **kwargs)
-
-
 class Agent:
     """Factory for creating Metta agents with a clean API.
 
@@ -509,24 +494,6 @@ class Agent:
         )
 
 
-# Keep old function for backward compatibility
-def make_agent(
-    observation_space: Any,
-    action_space: Any,
-    global_features: List[str],
-    device: torch.device,
-    config: Optional[AgentModelConfig] = None,
-) -> MettaAgent:
-    """Create a Metta agent.
-
-    DEPRECATED: Use Agent() instead.
-    """
-    import warnings
-
-    warnings.warn("make_agent is deprecated, use Agent() instead", DeprecationWarning, stacklevel=2)
-    return Agent(observation_space, action_space, global_features, device, config)
-
-
 class Optimizer:
     """Factory for creating optimizers with a clean API.
 
@@ -582,21 +549,6 @@ class Optimizer:
             )
         else:
             raise ValueError(f"Unknown optimizer type: {config.type}")
-
-
-# Keep old function for backward compatibility
-def make_optimizer(
-    agent: MettaAgent,
-    config: Optional[OptimizerConfig] = None,
-) -> torch.optim.Optimizer:
-    """Create an optimizer for training.
-
-    DEPRECATED: Use Optimizer() instead.
-    """
-    import warnings
-
-    warnings.warn("make_optimizer is deprecated, use Optimizer() instead", DeprecationWarning, stacklevel=2)
-    return Optimizer(agent, config)
 
 
 class ExperienceManager:
@@ -660,24 +612,6 @@ class ExperienceManager:
             num_lstm_layers=num_lstm_layers,
             agents_per_batch=env.num_agents,
         )
-
-
-# Keep old function for backward compatibility
-def make_experience_manager(
-    env: MettaGridEnv,
-    agent: MettaAgent,
-    config: Optional[ExperienceConfig] = None,
-) -> Experience:
-    """Create an experience manager for collecting rollouts.
-
-    DEPRECATED: Use ExperienceManager() instead.
-    """
-    import warnings
-
-    warnings.warn(
-        "make_experience_manager is deprecated, use ExperienceManager() instead", DeprecationWarning, stacklevel=2
-    )
-    return ExperienceManager(env, agent, config)
 
 
 # Training functions
