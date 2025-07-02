@@ -94,12 +94,12 @@ kickstart:
   teacher_uri: null
   action_loss_coef: 1
   value_loss_coef: 1
-  anneal_ratio: 0.35 # ratio of kickstart_steps to anneal to 0 coef
-  kickstart_steps: 800_000_000
+  anneal_ratio: 0.3 # ratio of kickstart_steps to anneal to 0 coef
+  kickstart_steps: 500_000_000
   additional_teachers:
-    # - teacher_uri: wandb://run/m_alexv_teacher_dr_nav_fast_301
-    #   action_loss_coef: 0.5
-    #   value_loss_coef: 0.6
+    - teacher_uri: wandb://run/m_alexv_teacher_dr_nav_fast_305
+      action_loss_coef: 0.5
+      value_loss_coef: 0.6
     #  - teacher_uri: wandb://run/mettabox_cogeval_defaults_lowent_initialized0005:v95
     #    action_loss_coef: 1
     #    value_loss_coef: 1
