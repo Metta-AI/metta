@@ -7,7 +7,7 @@ from typing import Any, Dict, List
 from psycopg import Connection
 from psycopg.types.json import Jsonb
 
-from app_backend.schema_manager import SqlMigration, run_migrations
+from metta.app_backend.schema_manager import SqlMigration, run_migrations
 
 # This is a list of migrations that will be applied to the eval database.
 # Do not change existing migrations, only add new ones.
