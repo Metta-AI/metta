@@ -7,7 +7,7 @@ import tempfile
 import torch.profiler
 import wandb
 
-from metta.mettagrid.util.file import http_url, write_file
+from metta.mettagrid.util.file import http_url, is_public_uri, write_file
 from metta.rl.trainer_config import TorchProfilerConfig
 
 logger = logging.getLogger(__name__)
@@ -131,7 +131,8 @@ class TorchProfiler:
             self._compress_trace(temp_json_path, final_gz_path)  # final_gz_path is a gzip compressed file
             write_file(upload_path, final_gz_path, content_type="application/gzip")
             upload_url = http_url(upload_path)
-            if upload_url and self._wandb_run:
+
+            if is_public_uri(upload_url) and self._wandb_run:
                 self._wandb_log_trace_link(upload_url)
 
         except Exception as e:
