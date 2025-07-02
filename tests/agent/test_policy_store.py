@@ -7,7 +7,7 @@ import tempfile
 import torch
 from omegaconf import OmegaConf
 
-from tests.fixtures import MinimalPolicy
+from tests.fixtures import MockPolicy
 
 
 def test_policy_save_load_without_pydantic():
@@ -42,7 +42,7 @@ def test_policy_save_load_without_pydantic():
     policy_store = PolicyStore(cfg, wandb_run=None)
 
     # Create a test policy
-    policy = MinimalPolicy()
+    policy = MockPolicy()
 
     # Create metadata using PolicyMetadata class
     metadata = PolicyMetadata(
@@ -92,7 +92,7 @@ def test_policy_save_load_without_pydantic():
         output = loaded_policy(test_input)
 
         # Assertions
-        assert type(loaded_policy).__name__ == "MinimalPolicy"
+        assert type(loaded_policy).__name__ == "MockPolicy"
         assert loaded_pr.metadata == metadata
         assert output.shape == torch.Size([1, 10])
 
@@ -134,7 +134,7 @@ def test_policy_save_load_with_dict_metadata():
     policy_store = PolicyStore(cfg, wandb_run=None)
 
     # Create a test policy
-    policy = MinimalPolicy()
+    policy = MockPolicy()
 
     # Create metadata as plain dict (testing backwards compatibility)
     metadata = {

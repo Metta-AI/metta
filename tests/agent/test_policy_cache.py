@@ -10,7 +10,7 @@ import pytest
 from metta.agent.policy_cache import PolicyCache
 from metta.agent.policy_metadata import PolicyMetadata
 from metta.agent.policy_record import PolicyRecord
-from tests.fixtures import MinimalPolicy
+from tests.fixtures import MockPolicy
 
 # Create a minimal policy class that mimics MettaAgent structure
 
@@ -26,7 +26,7 @@ def policy_record_with_model():
     """Create a PolicyRecord with a loaded model."""
     metadata = PolicyMetadata(epoch=1, agent_step=100, generation=0, train_time=0.5)
     pr = PolicyRecord(None, "test_run", "file://test.pt", metadata)
-    pr._cached_policy = MinimalPolicy()
+    pr._cached_policy = MockPolicy()
     return pr
 
 
@@ -46,7 +46,7 @@ def create_policy_record(name: str, uri: str, with_model: bool = True) -> Policy
     )
     pr = PolicyRecord(None, name, uri, metadata)
     if with_model:
-        pr._cached_policy = MinimalPolicy()
+        pr._cached_policy = MockPolicy()
     return pr
 
 

@@ -4,60 +4,14 @@ import json
 import time
 
 import hydra
-import torch
 
-from metta.agent.metta_agent import MettaAgent
 from metta.agent.policy_store import PolicyStore
 from metta.common.util.logging import setup_mettagrid_logger
 from metta.common.util.runtime_configuration import setup_mettagrid_environment
 from metta.common.wandb.wandb_context import WandbContext
 from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SingleEnvSimulationConfig
-
-
-class FakeAgent(MettaAgent):
-    """
-    A fake agent that does nothing, used to run play without requiring a policy to be trained
-    """
-
-    def __init__(self):
-        pass
-
-    def activate_actions(self, *args):
-        pass
-
-    def __call__(self, obs, state):
-        num_agents = obs.shape[0]
-        return (torch.zeros((num_agents, 2)), None, None, None, None)
-
-    def initialize_to_environment(
-        self,
-        features: dict[str, dict],
-        action_names: list[str],
-        action_max_params: list[int],
-        device,
-        is_training: bool = True,
-    ):
-        """
-        Dummy implementation to satisfy the simulation interface.
-        FakeAgent doesn't need to actually initialize anything.
-        Note: is_training parameter is deprecated and ignored.
-        """
-        pass
-
-
-class FakePolicyRecord:
-    """
-    A fake policy record used to return a fake agent.
-    """
-
-    def __init__(self):
-        self.policy = FakeAgent()
-        self.policy_id = "fake"
-        self.metadata = {}
-
-    def policy_as_metta_agent(self):
-        return self.policy
+from tests.fixtures import MockPolicyRecord
 
 
 def create_simulation(cfg):
@@ -72,7 +26,7 @@ def create_simulation(cfg):
             policy_record = policy_store.policy_record(cfg.replay_job.policy_uri)
         else:
             # Set the policy_uri to None to run play without a policy.
-            policy_record = FakePolicyRecord()
+            policy_record = MockPolicyRecord(policy_store=None, run_name="replay_run", uri="mock://replay_policy")
         sim_config = SingleEnvSimulationConfig(cfg.replay_job.sim)
 
         sim_name = sim_config.env.split("/")[-1]

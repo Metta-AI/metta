@@ -271,7 +271,7 @@ def test_from_shards_and_context(tmp_path: Path):
     assert not merged_path.exists(), "Merged DB already exists"
 
     # Create agent map with our mock PolicyRecord
-    agent_map = {0: MockPolicyRecord("test_policy", 1)}
+    agent_map = {0: MockPolicyRecord.from_key_and_version("test_policy", 1)}
 
     # Now call the actual from_shards_and_context method
     merged_db = SimulationStatsDB.from_shards_and_context(
@@ -281,7 +281,7 @@ def test_from_shards_and_context(tmp_path: Path):
         "test_sim",
         "test_suite",
         "env_test",
-        cast(PolicyRecord, MockPolicyRecord("test_policy", 1)),
+        cast(PolicyRecord, MockPolicyRecord.from_key_and_version("test_policy", 1)),
     )
 
     # Verify merged database was created
