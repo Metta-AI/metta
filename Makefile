@@ -16,6 +16,8 @@ clean:
 	rm -rf build
 	@echo "(Metta) Cleaning mettagrid build artifacts..."
 	cd mettagrid && rm -rf build-debug build-release
+	@echo "(Metta) Cleaning old directories..."
+	devops/tools/cleanup_repo.py
 	@echo "(Metta) Clean completed successfully"
 
 # Dev all project dependencies and external components
