@@ -129,28 +129,50 @@ class Simulation:
         max_args = metta_grid_env.max_action_args
 
         policy = self._policy_pr.policy
+
+        # Restore original_feature_mapping from metadata if available
+        if (
+            hasattr(policy, "restore_original_feature_mapping")
+            and "original_feature_mapping" in self._policy_pr.metadata
+        ):
+            policy.restore_original_feature_mapping(self._policy_pr.metadata["original_feature_mapping"])
+
         # Ensure policy has required interface
-        if not hasattr(policy, "activate_actions"):
+        if hasattr(policy, "initialize_to_environment"):
+            # New interface: pass features and actions
+            features = metta_grid_env.get_observation_features()
+            # Simulations are generally used for evaluation, not training
+            policy.initialize_to_environment(features, action_names, max_args, self._device)
+        elif hasattr(policy, "activate_actions"):
+            # Old interface: just pass actions
+            policy.activate_actions(action_names, max_args, self._device)
+        else:
             raise AttributeError(
-                f"Policy is missing required method 'activate_actions'. "
+                f"Policy is missing required method 'activate_actions' or 'initialize_to_environment'. "
                 f"Expected a MettaAgent-like object but got {type(policy).__name__}"
             )
-        policy.activate_actions(action_names, max_args, self._device)
 
         if self._npc_pr is not None:
             npc_policy = self._npc_pr.policy
-            if not hasattr(npc_policy, "activate_actions"):
+
+            # Restore original_feature_mapping for NPC policy as well
+            if (
+                hasattr(npc_policy, "restore_original_feature_mapping")
+                and "original_feature_mapping" in self._npc_pr.metadata
+            ):
+                npc_policy.restore_original_feature_mapping(self._npc_pr.metadata["original_feature_mapping"])
+
+            if hasattr(npc_policy, "initialize_to_environment"):
+                features = metta_grid_env.get_observation_features()
+                # NPC policies are used during evaluation
+                npc_policy.initialize_to_environment(features, action_names, max_args, self._device)
+            elif hasattr(npc_policy, "activate_actions"):
+                npc_policy.activate_actions(action_names, max_args, self._device)
+            else:
                 raise AttributeError(
-                    f"NPC policy is missing required method 'activate_actions'. "
+                    f"NPC policy is missing required method 'activate_actions' or 'initialize_to_environment'. "
                     f"Expected a MettaAgent-like object but got {type(npc_policy).__name__}"
                 )
-            try:
-                npc_policy.activate_actions(action_names, max_args, self._device)
-            except Exception as e:
-                logger.error(f"Error activating NPC actions: {e}")
-                raise SimulationCompatibilityError(
-                    f"[{self._name}] Error activating NPC actions for {self._npc_pr.name}: {e}"
-                ) from e
 
         # ---------------- agent-index bookkeeping ---------------------- #
         idx_matrix = torch.arange(metta_grid_env.num_agents * self._num_envs, device=self._device).reshape(
@@ -243,7 +265,7 @@ class Simulation:
                 except Exception as e:
                     logger.error(f"Error generating NPC actions: {e}")
                     raise SimulationCompatibilityError(
-                        f"[{self._name}] Error generating NPC actions for {self._npc_pr.name}: {e}"
+                        f"[{self._name}] Error generating NPC actions for {self._npc_pr.run_name}: {e}"
                     ) from e
 
         # ---------------- action stitching ----------------------- #
@@ -344,7 +366,7 @@ class Simulation:
         return policy_ids
 
     def _get_policy_name(self) -> str:
-        return self._wandb_policy_name if self._wandb_policy_name is not None else self._policy_pr.name
+        return self._wandb_policy_name if self._wandb_policy_name is not None else self._policy_pr.run_name
 
     def _get_policy_uri(self) -> str:
         return self._wandb_uri if self._wandb_uri is not None else self._policy_pr.uri
@@ -356,7 +378,7 @@ class Simulation:
             policy_uri = self._get_policy_uri()
             policies = [(policy_name, policy_uri)]
             if self._npc_pr is not None:
-                policies.append((self._npc_pr.name, self._npc_pr.uri))
+                policies.append((self._npc_pr.run_name, self._npc_pr.uri))
             policy_ids = self.get_policy_ids(self._stats_client, policies)
 
             agent_map: Dict[int, uuid.UUID] = {}
@@ -365,7 +387,7 @@ class Simulation:
 
             if self._npc_pr is not None:
                 for idx in self._npc_idxs:
-                    agent_map[int(idx.item())] = policy_ids[self._npc_pr.name]
+                    agent_map[int(idx.item())] = policy_ids[self._npc_pr.run_name]
 
             # Get all episodes from the database
             episodes_df = stats_db.query("SELECT * FROM episodes")
