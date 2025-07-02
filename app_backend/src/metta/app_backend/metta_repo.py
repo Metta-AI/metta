@@ -7,7 +7,7 @@ from typing import Any, Dict, List
 from psycopg import Connection
 from psycopg.types.json import Jsonb
 
-from app_backend.schema_manager import SqlMigration, run_migrations
+from metta.app_backend.schema_manager import SqlMigration, run_migrations
 
 # This is a list of migrations that will be applied to the eval database.
 # Do not change existing migrations, only add new ones.
@@ -149,18 +149,32 @@ MIGRATIONS = [
         description="Add heatmap performance indexes",
         sql_statements=[
             # Critical index for episode_agent_metrics main query
-            """CREATE INDEX idx_episode_agent_metrics_episode_metric 
+            """CREATE INDEX idx_episode_agent_metrics_episode_metric
                ON episode_agent_metrics(episode_id, metric)""",
             # Composite index for episodes eval filtering and joins
-            """CREATE INDEX idx_episodes_eval_category_env_policy 
+            """CREATE INDEX idx_episodes_eval_category_env_policy
                ON episodes(eval_category, env_name, primary_policy_id)""",
             # Index to optimize the JSON agent_groups lookup
-            """CREATE INDEX idx_episodes_attributes_agent_groups 
+            """CREATE INDEX idx_episodes_attributes_agent_groups
                ON episodes USING GIN ((attributes->'agent_groups'))""",
             # Index for policy-epoch joins
             """CREATE INDEX idx_policies_epoch_id ON policies(epoch_id)""",
             # Index for epochs run lookups
             """CREATE INDEX idx_epochs_run_id ON epochs(run_id, end_training_epoch DESC)""",
+        ],
+    ),
+    SqlMigration(
+        version=7,
+        description="Add description field to training_runs table",
+        sql_statements=[
+            """ALTER TABLE training_runs ADD COLUMN description TEXT""",
+        ],
+    ),
+    SqlMigration(
+        version=8,
+        description="Add tags field to training_runs table",
+        sql_statements=[
+            """ALTER TABLE training_runs ADD COLUMN tags TEXT[]""",
         ],
     ),
 ]
@@ -188,18 +202,26 @@ class MettaRepo:
             ).fetchall()
             return {row[1]: row[0] for row in res}
 
-    def create_training_run(self, name: str, user_id: str, attributes: Dict[str, str], url: str | None) -> uuid.UUID:
+    def create_training_run(
+        self,
+        name: str,
+        user_id: str,
+        attributes: Dict[str, str],
+        url: str | None,
+        description: str | None,
+        tags: List[str] | None,
+    ) -> uuid.UUID:
         status = "running"
         with self.connect() as con:
             # Try to insert a new training run, but if it already exists, return the existing ID
             result = con.execute(
                 """
-                INSERT INTO training_runs (name, user_id, attributes, status, url)
-                VALUES (%s, %s, %s, %s, %s)
+                INSERT INTO training_runs (name, user_id, attributes, status, url, description, tags)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (user_id, name) DO NOTHING
                 RETURNING id
                 """,
-                (name, user_id, Jsonb(attributes), status, url),
+                (name, user_id, Jsonb(attributes), status, url, description, tags),
             ).fetchone()
             if result is None:
                 # If no result, the run already exists, so fetch its ID
@@ -373,7 +395,7 @@ class MettaRepo:
         with self.connect() as con:
             result = con.execute(
                 """
-                SELECT id, name, created_at, user_id, finished_at, status, url
+                SELECT id, name, created_at, user_id, finished_at, status, url, description, tags
                 FROM training_runs
                 ORDER BY created_at DESC
                 """
@@ -387,6 +409,8 @@ class MettaRepo:
                     "finished_at": row[4].isoformat() if row[4] else None,
                     "status": row[5],
                     "url": row[6],
+                    "description": row[7],
+                    "tags": row[8] or [],
                 }
                 for row in result
             ]
@@ -401,7 +425,7 @@ class MettaRepo:
         with self.connect() as con:
             result = con.execute(
                 """
-                SELECT id, name, created_at, user_id, finished_at, status, url
+                SELECT id, name, created_at, user_id, finished_at, status, url, description, tags
                 FROM training_runs
                 WHERE id = %s
                 """,
@@ -419,6 +443,8 @@ class MettaRepo:
                 "finished_at": result[4].isoformat() if result[4] else None,
                 "status": result[5],
                 "url": result[6],
+                "description": result[7],
+                "tags": result[8] or [],
             }
 
     def _hash_token(self, token: str) -> str:
@@ -622,5 +648,41 @@ class MettaRepo:
                 WHERE id = %s AND user_id = %s
                 """,
                 (name, description, dashboard_type, Jsonb(dashboard_state), dashboard_uuid, user_id),
+            )
+            return result.rowcount > 0
+
+    def update_training_run_description(self, user_id: str, run_id: str, description: str) -> bool:
+        """Update the description of a training run."""
+        try:
+            run_uuid = uuid.UUID(run_id)
+        except ValueError:
+            return False
+
+        with self.connect() as con:
+            result = con.execute(
+                """
+                UPDATE training_runs
+                SET description = %s
+                WHERE id = %s AND user_id = %s
+                """,
+                (description, run_uuid, user_id),
+            )
+            return result.rowcount > 0
+
+    def update_training_run_tags(self, user_id: str, run_id: str, tags: List[str]) -> bool:
+        """Update the tags of a training run."""
+        try:
+            run_uuid = uuid.UUID(run_id)
+        except ValueError:
+            return False
+
+        with self.connect() as con:
+            result = con.execute(
+                """
+                UPDATE training_runs
+                SET tags = %s
+                WHERE id = %s AND user_id = %s
+                """,
+                (tags, run_uuid, user_id),
             )
             return result.rowcount > 0

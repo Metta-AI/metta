@@ -10,6 +10,20 @@ class UserType(Enum):
     EXTERNAL = "external"
     CLOUD = "cloud"
     SOFTMAX = "softmax"
+    SOFTMAX_DOCKER = "softmax-docker"
+
+    @property
+    def is_softmax(self) -> bool:
+        return self in (UserType.SOFTMAX, UserType.SOFTMAX_DOCKER)
+
+    def get_description(self) -> str:
+        descriptions = {
+            UserType.EXTERNAL: "External contributor",
+            UserType.CLOUD: "User with own cloud account",
+            UserType.SOFTMAX: "Softmax employee",
+            UserType.SOFTMAX_DOCKER: "Softmax (Docker)",
+        }
+        return descriptions.get(self, self.value)
 
 
 class ComponentConfig(TypedDict):
@@ -52,6 +66,21 @@ PROFILE_DEFINITIONS: dict[UserType, ProfileConfig] = {
             "aws": {"enabled": True},
             "wandb": {"enabled": True},
             "skypilot": {"enabled": True},
+            "tailscale": {"enabled": False},
+        }
+    },
+    UserType.SOFTMAX_DOCKER: {
+        "components": {
+            "system": {"enabled": True},
+            "core": {"enabled": True},
+            "githooks": {"enabled": True},
+            "mettascope": {"enabled": False},
+            "observatory-fe": {"enabled": False},
+            "observatory-cli": {"enabled": False},
+            "studio": {"enabled": False},
+            "aws": {"enabled": True, "expected_connection": "751442549699"},
+            "wandb": {"enabled": True, "expected_connection": "metta-research"},
+            "skypilot": {"enabled": False},
             "tailscale": {"enabled": False},
         }
     },

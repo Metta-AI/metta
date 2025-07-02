@@ -5,9 +5,9 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from testcontainers.postgres import PostgresContainer
 
-from app_backend.metta_repo import MettaRepo
-from app_backend.server import create_app
-from app_backend.stats_client import StatsClient
+from metta.app_backend.metta_repo import MettaRepo
+from metta.app_backend.server import create_app
+from metta.app_backend.stats_client import StatsClient
 
 
 class TestTrainingRunsRoutes:
@@ -57,7 +57,7 @@ class TestTrainingRunsRoutes:
         token_response = test_client.post(
             "/tokens",
             json={"name": "test_training_runs_token"},
-            headers={"X-Auth-Request-Email": "test_user"},
+            headers={"X-Auth-Request-Email": "test@example.com"},
         )
         assert token_response.status_code == 200
         token = token_response.json()["token"]
@@ -287,7 +287,7 @@ class TestTrainingRunsRoutes:
         assert "id" in run1
         assert run1["name"] == "training_run_1"
         assert run1["status"] == "running"  # Default status
-        assert run1["user_id"] == "test_user"
+        assert run1["user_id"] == "test@example.com"
         assert "created_at" in run1
         assert run1["url"] == "https://wandb.ai/test/run1"
 
@@ -295,7 +295,7 @@ class TestTrainingRunsRoutes:
         assert "id" in run2
         assert run2["name"] == "training_run_2"
         assert run2["status"] == "running"
-        assert run2["user_id"] == "test_user"
+        assert run2["user_id"] == "test@example.com"
         assert "created_at" in run2
         assert run2["url"] is None
 
@@ -310,7 +310,7 @@ class TestTrainingRunsRoutes:
         assert data["id"] == str(run1.id)
         assert data["name"] == "training_run_1"
         assert data["status"] == "running"
-        assert data["user_id"] == "test_user"
+        assert data["user_id"] == "test@example.com"
         assert "created_at" in data
         assert data["url"] == "https://wandb.ai/test/run1"
 

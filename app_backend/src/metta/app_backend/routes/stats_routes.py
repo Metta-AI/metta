@@ -4,9 +4,9 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from app_backend.auth import create_user_or_token_dependency
-from app_backend.metta_repo import MettaRepo
-from app_backend.route_logger import timed_route
+from metta.app_backend.auth import create_user_or_token_dependency
+from metta.app_backend.metta_repo import MettaRepo
+from metta.app_backend.route_logger import timed_route
 
 
 # Request/Response Models
@@ -18,6 +18,8 @@ class TrainingRunCreate(BaseModel):
     name: str
     attributes: Dict[str, str] = Field(default_factory=dict)
     url: Optional[str] = None
+    description: Optional[str] = None
+    tags: Optional[List[str]] = None
 
 
 class TrainingRunResponse(BaseModel):
@@ -91,6 +93,8 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
                 user_id=user,
                 attributes=training_run.attributes,
                 url=training_run.url,
+                description=training_run.description,
+                tags=training_run.tags,
             )
             return TrainingRunResponse(id=str(run_id))
         except Exception as e:
