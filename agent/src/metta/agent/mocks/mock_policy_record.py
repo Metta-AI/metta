@@ -1,6 +1,7 @@
-from .mock_agent import MockAgent
 from metta.agent.policy_metadata import PolicyMetadata
 from metta.agent.policy_record import PolicyRecord
+
+from .mock_agent import MockAgent
 
 MockPolicyMetadata = PolicyMetadata()
 
