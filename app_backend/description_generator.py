@@ -3,7 +3,13 @@ import subprocess
 from pathlib import Path
 from typing import Optional
 
-import anthropic
+try:
+    import anthropic  # type: ignore[import-untyped]
+
+    _anthropic_available = True
+except ImportError:
+    anthropic = None  # type: ignore[assignment]
+    _anthropic_available = False
 
 
 class DescriptionGenerator:
@@ -14,7 +20,14 @@ class DescriptionGenerator:
 
         Args:
             api_key: Anthropic API key. If not provided, will try to get from environment.
+
+        Raises:
+            ImportError: If anthropic package is not available
+            ValueError: If API key is not provided and not in environment
         """
+        if not _anthropic_available or anthropic is None:
+            raise ImportError("anthropic package is not installed. Install with 'pip install anthropic'")
+
         api_key = api_key or os.environ.get("ANTHROPIC_API_KEY")
         if not api_key:
             raise ValueError("Anthropic API key not provided and ANTHROPIC_API_KEY environment variable not set")

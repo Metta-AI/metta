@@ -1,4 +1,5 @@
 from typing import Dict
+from unittest.mock import Mock, patch
 
 import pytest
 from fastapi import FastAPI
@@ -521,6 +522,183 @@ class TestTrainingRunsRoutes:
 
         # The exact ordering depends on SQL query, but all should be present
         # In the modified heatmap, ordering is handled by the frontend for display
+
+    def test_generate_training_run_description_success(self, test_client: TestClient, test_training_runs: Dict) -> None:
+        """Test successful description generation for a training run with git hash."""
+        training_runs = test_training_runs["runs"]
+        run_id = training_runs[0].id
+
+        # Get current git hash for the test
+        import subprocess
+
+        try:
+            git_hash = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=".", text=True).strip()
+        except subprocess.CalledProcessError:
+            pytest.skip("Git not available or not in a git repository")
+
+        # Mock both the git hash retrieval and description generation
+        with (
+            patch("app_backend.metta_repo.MettaRepo.get_training_run_git_hash") as mock_get_hash,
+            patch("app_backend.routes.dashboard_routes.DescriptionGenerator") as mock_desc_gen,
+        ):
+            # Mock the git hash retrieval
+            mock_get_hash.return_value = git_hash
+
+            # Mock the description generator
+            mock_instance = Mock()
+            mock_instance.generate_description.return_value = "Generated description based on git changes"
+            mock_desc_gen.return_value = mock_instance
+
+            # Test description generation
+            response = test_client.post(
+                f"/dashboard/training-runs/{run_id}/generate-description",
+                headers={"X-Auth-Request-Email": "test_user"},
+            )
+
+            assert response.status_code == 200
+            data = response.json()
+            assert "description" in data
+            assert data["description"] == "Generated description based on git changes"
+
+            # Verify the mocks were called correctly
+            mock_get_hash.assert_called_once_with(str(run_id))
+            mock_desc_gen.assert_called_once()
+            mock_instance.generate_description.assert_called_once_with(git_hash)
+
+    def test_generate_training_run_description_no_git_hash(
+        self, test_client: TestClient, test_training_runs: Dict
+    ) -> None:
+        """Test description generation fails when training run has no git hash."""
+        training_runs = test_training_runs["runs"]
+        run_id = training_runs[0].id
+
+        response = test_client.post(
+            f"/dashboard/training-runs/{run_id}/generate-description",
+            headers={"X-Auth-Request-Email": "test_user"},
+        )
+
+        assert response.status_code == 400
+        assert "does not have a git hash" in response.json()["detail"].lower()
+
+    def test_generate_training_run_description_anthropic_unavailable(
+        self, test_client: TestClient, test_training_runs: Dict
+    ) -> None:
+        """Test description generation fails gracefully when anthropic package is unavailable."""
+        training_runs = test_training_runs["runs"]
+        run_id = training_runs[0].id
+
+        # Mock git hash retrieval to return a hash, but DescriptionGenerator to fail
+        with (
+            patch("app_backend.metta_repo.MettaRepo.get_training_run_git_hash") as mock_get_hash,
+            patch("app_backend.routes.dashboard_routes.DescriptionGenerator") as mock_desc_gen,
+        ):
+            mock_get_hash.return_value = "abc123"
+            mock_desc_gen.side_effect = ImportError("anthropic package is not installed")
+
+            response = test_client.post(
+                f"/dashboard/training-runs/{run_id}/generate-description",
+                headers={"X-Auth-Request-Email": "test_user"},
+            )
+
+            assert response.status_code == 500
+            assert "anthropic package" in response.json()["detail"].lower()
+
+    def test_generate_training_run_description_api_error(
+        self, test_client: TestClient, test_training_runs: Dict
+    ) -> None:
+        """Test description generation handles API errors gracefully."""
+        training_runs = test_training_runs["runs"]
+        run_id = training_runs[0].id
+
+        # Mock the DescriptionGenerator to return an error message
+        with (
+            patch("app_backend.metta_repo.MettaRepo.get_training_run_git_hash") as mock_get_hash,
+            patch("app_backend.routes.dashboard_routes.DescriptionGenerator") as mock_desc_gen,
+        ):
+            mock_get_hash.return_value = "abc123"
+            mock_instance = Mock()
+            mock_instance.generate_description.return_value = (
+                "Unable to generate description: API error: Rate limit exceeded"
+            )
+            mock_desc_gen.return_value = mock_instance
+
+            response = test_client.post(
+                f"/dashboard/training-runs/{run_id}/generate-description",
+                headers={"X-Auth-Request-Email": "test_user"},
+            )
+
+            assert response.status_code == 200
+            data = response.json()
+            assert "Unable to generate description: API error" in data["description"]
+
+    def test_generate_training_run_description_git_error(
+        self, test_client: TestClient, test_training_runs: Dict
+    ) -> None:
+        """Test description generation handles git errors gracefully."""
+        training_runs = test_training_runs["runs"]
+        run_id = training_runs[0].id
+
+        # Mock the DescriptionGenerator to return a git error message
+        with (
+            patch("app_backend.metta_repo.MettaRepo.get_training_run_git_hash") as mock_get_hash,
+            patch("app_backend.routes.dashboard_routes.DescriptionGenerator") as mock_desc_gen,
+        ):
+            mock_get_hash.return_value = "invalid_hash_123"
+            mock_instance = Mock()
+            mock_instance.generate_description.return_value = (
+                "Unable to generate description: Could not retrieve git diff for invalid_: "
+                "Command 'git show' returned non-zero exit status 128"
+            )
+            mock_desc_gen.return_value = mock_instance
+
+            response = test_client.post(
+                f"/dashboard/training-runs/{run_id}/generate-description",
+                headers={"X-Auth-Request-Email": "test_user"},
+            )
+
+            assert response.status_code == 200
+            data = response.json()
+            assert "Unable to generate description" in data["description"]
+            assert "git" in data["description"].lower()
+
+    def test_generate_training_run_description_not_found(self, test_client: TestClient) -> None:
+        """Test description generation for non-existent training run."""
+        fake_run_id = "00000000-0000-0000-0000-000000000000"
+
+        response = test_client.post(
+            f"/dashboard/training-runs/{fake_run_id}/generate-description",
+            headers={"X-Auth-Request-Email": "test_user"},
+        )
+
+        assert response.status_code == 404
+
+    def test_generate_training_run_description_unauthorized(
+        self, test_client: TestClient, test_training_runs: Dict
+    ) -> None:
+        """Test description generation requires proper authorization."""
+        training_runs = test_training_runs["runs"]
+        run_id = training_runs[0].id
+
+        # Mock git hash to exist, DescriptionGenerator, and disable debug auth bypass
+        with (
+            patch("app_backend.metta_repo.MettaRepo.get_training_run_git_hash") as mock_get_hash,
+            patch("app_backend.routes.dashboard_routes.DescriptionGenerator") as mock_desc_gen,
+            patch("app_backend.config.debug_user_email", None),
+        ):
+            mock_get_hash.return_value = "abc123"
+            mock_instance = Mock()
+            mock_instance.generate_description.return_value = "test description"
+            mock_desc_gen.return_value = mock_instance
+
+            # Training runs are created by test@example.com (due to DEBUG_USER_EMAIL),
+            # so use a different user to test access control
+            response = test_client.post(
+                f"/dashboard/training-runs/{run_id}/generate-description",
+                headers={"X-Auth-Request-Email": "different_user@example.com"},
+            )
+
+            # Should return 403 for access denied
+            assert response.status_code == 403
 
 
 if __name__ == "__main__":
