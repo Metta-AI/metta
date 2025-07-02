@@ -23,9 +23,9 @@ import torch
 from einops import rearrange
 from omegaconf import OmegaConf
 
-from app_backend.stats_client import StatsClient
 from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyRecord, PolicyStore
+from metta.app_backend.stats_client import StatsClient
 from metta.mettagrid.curriculum.sampling import SamplingCurriculum
 from metta.mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
 from metta.mettagrid.replay_writer import ReplayWriter
