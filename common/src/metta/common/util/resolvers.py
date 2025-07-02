@@ -11,17 +11,44 @@ from metta.common.util.logging import setup_mettagrid_logger
 T = TypeVar("T")  # For generic conditional function
 Numeric = Union[int, float]  # Type alias for numeric types
 
+# Global counters for deterministic randomness
+NUM_CALLS_TO_SAMPLING = 0
+NUM_CALLS_TO_UNIFORM = 0
+NUM_CALLS_TO_CHOOSE = 0
+
 
 def oc_if(condition: bool, true_value: T, false_value: T) -> T:
     return true_value if condition else false_value
 
 
-def oc_uniform(min_val: Numeric, max_val: Numeric) -> float:
-    return float(np.random.uniform(min_val, max_val))
+def oc_uniform(min_val: Numeric, max_val: Numeric, *, _root_: Dict[str, Any] = None) -> float:
+    """Generate a uniform random float with optional deterministic seeding."""
+    global NUM_CALLS_TO_UNIFORM
+
+    if _root_ and "seed" in _root_:
+        base_seed = _root_.get("seed", 0)
+        seed = base_seed + NUM_CALLS_TO_UNIFORM
+        NUM_CALLS_TO_UNIFORM += 1
+        rng = np.random.RandomState(seed)
+        return float(rng.uniform(min_val, max_val))
+    else:
+        # Non-deterministic fallback
+        return float(np.random.uniform(min_val, max_val))
 
 
-def oc_choose(*args: Any) -> Any:
-    return random.choice(args)
+def oc_choose(*args: Any, _root_: Dict[str, Any] = None) -> Any:
+    """Choose a random element with optional deterministic seeding."""
+    global NUM_CALLS_TO_CHOOSE
+
+    if _root_ and "seed" in _root_:
+        base_seed = _root_.get("seed", 0)
+        seed = base_seed + NUM_CALLS_TO_CHOOSE
+        NUM_CALLS_TO_CHOOSE += 1
+        rng = np.random.RandomState(seed)
+        return args[rng.randint(0, len(args))]
+    else:
+        # Non-deterministic fallback
+        return random.choice(args)
 
 
 def oc_divide(a: Numeric, b: Numeric) -> Numeric:
@@ -178,9 +205,15 @@ def oc_scaled_range(lower_limit: Numeric, upper_limit: Numeric, center: Numeric,
         Returns integer if center is an integer, float otherwise.
     """
 
+    global NUM_CALLS_TO_SAMPLING
+
     # Get sampling parameter from root, defaulting to 0
     _root_ = _root_ or {}
     sampling = _root_.get("sampling", 0)
+
+    base_seed = _root_.get("seed", 0)
+    seed = base_seed + NUM_CALLS_TO_SAMPLING
+    NUM_CALLS_TO_SAMPLING += 1
 
     # Fast path: return center when sampling is 0
     if sampling == 0:
@@ -192,8 +225,11 @@ def oc_scaled_range(lower_limit: Numeric, upper_limit: Numeric, center: Numeric,
     left_range = sampling * (center - lower_limit)
     right_range = sampling * (upper_limit - center)
 
-    # Generate a random value within the scaled range
-    val = np.random.uniform(center - left_range, center + right_range)
+    # Create a new random generator with the deterministic seed
+    rng = np.random.RandomState(seed)
+
+    # Generate a random value within the scaled range using the seeded generator
+    val = rng.uniform(center - left_range, center + right_range)
 
     # Return integer if the center was an integer
     return int(round(val)) if isinstance(center, int) else val
