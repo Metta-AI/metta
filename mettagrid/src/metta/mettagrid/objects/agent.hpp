@@ -14,7 +14,7 @@
 struct AgentConfig {
   std::string group_name;
   unsigned char group_id;
-  unsigned char freeze_duration;
+  short freeze_duration;
   float action_failure_penalty;
   std::map<InventoryItem, uint8_t> max_items_per_type;
   std::map<InventoryItem, float> resource_rewards;
@@ -26,8 +26,8 @@ struct AgentConfig {
 class Agent : public MettaObject {
 public:
   unsigned char group;
-  unsigned char frozen;
-  unsigned char freeze_duration;
+  short frozen;
+  short freeze_duration;
   unsigned char orientation;
   // inventory is a map of item to amount.
   // keys should be deleted when the amount is 0, to keep iteration faster.
@@ -120,7 +120,7 @@ public:
     features.reserve(5 + this->inventory.size());
     features.push_back({ObservationFeature::TypeId, type_id});
     features.push_back({ObservationFeature::Group, group});
-    features.push_back({ObservationFeature::Frozen, frozen});
+    features.push_back({ObservationFeature::Frozen, static_cast<uint8_t>(frozen > 0 ? 1 : 0)});
     features.push_back({ObservationFeature::Orientation, orientation});
     features.push_back({ObservationFeature::Color, color});
     for (const auto& [item, amount] : this->inventory) {
