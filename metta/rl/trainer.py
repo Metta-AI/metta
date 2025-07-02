@@ -441,6 +441,9 @@ class MettaTrainer:
                     total_minibatches=_total_minibatches,
                 )
 
+                # Calculate training progress for VAPOR beta scheduling
+                training_progress = min(1.0, self.agent_step / max(1, trainer_cfg.total_timesteps))
+
                 # Use the helper function to process minibatch update
                 loss = process_minibatch_update(
                     policy=self.policy,
@@ -452,6 +455,7 @@ class MettaTrainer:
                     agent_step=self.agent_step,
                     losses=self.losses,
                     device=self.device,
+                    training_progress=training_progress,
                 )
                 self.optimizer.zero_grad()
                 loss.backward()

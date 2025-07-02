@@ -15,6 +15,13 @@ class Losses:
         self.ks_value_loss_sum = 0.0
         self.importance_sum = 0.0
 
+        # VAPOR-specific losses
+        self.vapor_policy_loss_sum = 0.0
+        self.vapor_kl_penalty_sum = 0.0
+        self.vapor_exploration_bonus_sum = 0.0
+        self.vapor_posterior_entropy_sum = 0.0
+        self.vapor_beta_sum = 0.0
+
         self.explained_variance = 0.0
         self.minibatches_processed = 0
 
@@ -22,7 +29,7 @@ class Losses:
         """Convert losses to dictionary with proper averages"""
         n = max(1, self.minibatches_processed)
 
-        return {
+        stats_dict = {
             "policy_loss": self.policy_loss_sum / n,
             "value_loss": self.value_loss_sum / n,
             "entropy": self.entropy_sum / n,
@@ -35,3 +42,17 @@ class Losses:
             "importance": self.importance_sum / n,
             "explained_variance": self.explained_variance,
         }
+
+        # Add VAPOR stats if any VAPOR losses were recorded
+        if self.vapor_policy_loss_sum != 0.0 or self.vapor_kl_penalty_sum != 0.0:
+            stats_dict.update(
+                {
+                    "vapor_policy_loss": self.vapor_policy_loss_sum / n,
+                    "vapor_kl_penalty": self.vapor_kl_penalty_sum / n,
+                    "vapor_exploration_bonus": self.vapor_exploration_bonus_sum / n,
+                    "vapor_posterior_entropy": self.vapor_posterior_entropy_sum / n,
+                    "vapor_beta": self.vapor_beta_sum / n,
+                }
+            )
+
+        return stats_dict

@@ -5,7 +5,6 @@ extracting the rollout and train logic from MettaTrainer into standalone functio
 """
 
 import logging
-from collections import defaultdict
 from contextlib import nullcontext
 from typing import Any, Dict, Optional, Tuple
 
@@ -22,6 +21,7 @@ from metta.mettagrid.mettagrid_env import dtype_actions
 from metta.mettagrid.util.dict_utils import unroll_nested_dict
 from metta.rl.experience import Experience
 from metta.rl.losses import Losses
+from metta.rl.vapor_losses import compute_vapor_losses
 
 logger = logging.getLogger(__name__)
 
@@ -155,6 +155,7 @@ def process_minibatch_update(
     agent_step: int,
     losses: Losses,
     device: torch.device,
+    training_progress: float = 0.0,
 ) -> Tensor:
     """Process a single minibatch update and return the total loss."""
     obs = minibatch["obs"]
@@ -185,15 +186,46 @@ def process_minibatch_update(
     adv = normalize_advantage_distributed(adv, trainer_cfg.ppo.norm_adv)
     adv = minibatch["prio_weights"] * adv
 
-    # Compute losses
-    pg_loss, v_loss, entropy_loss, approx_kl, clipfrac = compute_ppo_losses(
-        minibatch, new_logprobs, entropy, newvalue, importance_sampling_ratio, adv, trainer_cfg, device
-    )
+    # Choose loss computation method: VAPOR vs standard PPO
+    use_vapor = getattr(trainer_cfg.ppo, "use_vapor", False)
 
-    # Kickstarter losses
+    if use_vapor:
+        # Use VAPOR (Variational Policy Optimization) losses
+        vapor_config = getattr(trainer_cfg.ppo, "vapor", {})
+        pg_loss, v_loss, entropy_loss, vapor_info = compute_vapor_losses(
+            minibatch=minibatch,
+            new_logprobs=new_logprobs,
+            entropy=entropy,
+            newvalue=newvalue,
+            importance_sampling_ratio=importance_sampling_ratio,
+            adv=adv,
+            logits=full_logprobs,  # Use full logits for VAPOR
+            vapor_config=vapor_config,
+            device=device,
+            training_progress=training_progress,
+        )
+
+        # Update VAPOR-specific loss tracking
+        losses.vapor_policy_loss_sum += vapor_info["vapor_policy_loss"]
+        losses.vapor_kl_penalty_sum += vapor_info["vapor_kl_penalty"]
+        losses.vapor_exploration_bonus_sum += vapor_info["vapor_exploration_bonus"]
+        losses.vapor_posterior_entropy_sum += vapor_info["vapor_posterior_entropy"]
+        losses.vapor_beta_sum += vapor_info["vapor_beta"]
+
+        # Set approx_kl and clipfrac to reasonable defaults for VAPOR
+        approx_kl = torch.tensor(0.0, device=device)
+        clipfrac = torch.tensor(0.0, device=device)
+
+    else:
+        # Use standard PPO losses
+        pg_loss, v_loss, entropy_loss, approx_kl, clipfrac = compute_ppo_losses(
+            minibatch, new_logprobs, entropy, newvalue, importance_sampling_ratio, adv, trainer_cfg, device
+        )
+
+    # Kickstarter losses (same for both VAPOR and PPO)
     ks_action_loss, ks_value_loss = kickstarter.loss(agent_step, full_logprobs, newvalue, obs, teacher_lstm_state=[])
 
-    # L2 init loss
+    # L2 init loss (same for both VAPOR and PPO)
     l2_init_loss = torch.tensor(0.0, device=device, dtype=torch.float32)
     if trainer_cfg.ppo.l2_init_loss_coef > 0:
         l2_init_loss = trainer_cfg.ppo.l2_init_loss_coef * policy.l2_init_loss().to(device)
@@ -211,7 +243,7 @@ def process_minibatch_update(
     # Update values in experience buffer
     experience.update_values(minibatch["indices"], newvalue.view(minibatch["values"].shape))
 
-    # Update loss tracking
+    # Update loss tracking (same for both VAPOR and PPO)
     losses.policy_loss_sum += pg_loss.item()
     losses.value_loss_sum += v_loss.item()
     losses.entropy_sum += entropy_loss.item()
@@ -402,31 +434,34 @@ def accumulate_rollout_stats(
     raw_infos: list,
     stats: Dict[str, Any],
 ) -> None:
-    """Accumulate rollout statistics from info dictionaries."""
-    infos = defaultdict(list)
+    """Accumulate rollout statistics from environment info dictionaries.
 
-    # Batch process info dictionaries
-    for i in raw_infos:
-        for k, v in unroll_nested_dict(i):
-            # Detach any tensors before accumulating to prevent memory leaks
-            if torch.is_tensor(v):
-                v = v.detach().cpu().item() if v.numel() == 1 else v.detach().cpu().numpy()
-            elif isinstance(v, np.ndarray) and v.size == 1:
-                v = v.item()
-            infos[k].append(v)
+    Args:
+        raw_infos: List of info dictionaries from environment steps
+        stats: Dictionary to accumulate statistics into
+    """
+    if not raw_infos:
+        return
 
-    # Batch process stats
-    for k, v in infos.items():
-        if isinstance(v, np.ndarray):
-            v = v.tolist()
+    # Unroll nested dictionaries and accumulate statistics
+    for info in raw_infos:
+        if info is None:
+            continue
 
-        if isinstance(v, list):
-            stats.setdefault(k, []).extend(v)
+        # Handle both single info dicts and lists of info dicts
+        if isinstance(info, list):
+            for sub_info in info:
+                if sub_info is not None:
+                    flat_info = unroll_nested_dict(sub_info)
+                    for key, value in flat_info:  # Generator returns (key, value) tuples directly
+                        if isinstance(value, (int, float, np.number)):
+                            if key not in stats:
+                                stats[key] = []
+                            stats[key].append(float(value))
         else:
-            if k not in stats:
-                stats[k] = v
-            else:
-                try:
-                    stats[k] += v
-                except TypeError:
-                    stats[k] = [stats[k], v]  # fallback: bundle as list
+            flat_info = unroll_nested_dict(info)
+            for key, value in flat_info:  # Generator returns (key, value) tuples directly
+                if isinstance(value, (int, float, np.number)):
+                    if key not in stats:
+                        stats[key] = []
+                    stats[key].append(float(value))

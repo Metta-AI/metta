@@ -83,6 +83,21 @@ class SimulationConfig(BaseModelWithForbidExtra):
         return self
 
 
+class VAPORConfig(BaseModelWithForbidExtra):
+    """VAPOR (Variational Policy Optimization) configuration."""
+
+    # Beta coefficient: Controls KL regularization strength (temperature parameter)
+    beta: float = Field(default=1.0, gt=0, le=10.0)
+    # Beta scheduling: How to anneal beta during training
+    beta_schedule: Literal["constant", "linear", "exponential"] = Field(default="constant")
+    # Minimum beta: Lower bound when using beta annealing
+    min_beta: float = Field(default=0.1, gt=0, le=1.0)
+    # Exploration bonus: Coefficient for uncertainty-based exploration
+    exploration_bonus: float = Field(default=0.1, ge=0, le=1.0)
+    # Importance weighting: Whether to use importance sampling for off-policy correction
+    use_importance_weighting: bool = Field(default=True)
+
+
 class PPOConfig(BaseModelWithForbidExtra):
     # PPO hyperparameters
     # Clip coefficient: 0.1 is conservative, common range 0.1-0.3 from PPO paper (Schulman et al., 2017)
@@ -105,6 +120,12 @@ class PPOConfig(BaseModelWithForbidExtra):
     # L2 regularization: Disabled by default, common in RL
     l2_reg_loss_coef: float = Field(default=0, ge=0)
     l2_init_loss_coef: float = Field(default=0, ge=0)
+
+    # Algorithm selection
+    # Use VAPOR: Whether to use VAPOR (Variational Policy Optimization) instead of standard PPO
+    use_vapor: bool = Field(default=False)
+    # VAPOR configuration: Only used when use_vapor=True
+    vapor: VAPORConfig = Field(default_factory=VAPORConfig)
 
     # Normalization and clipping
     # Advantage normalization: Standard PPO practice for stability
