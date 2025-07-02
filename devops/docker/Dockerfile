@@ -23,6 +23,8 @@ RUN ln -snf /usr/share/zoneinfo/America/Los_Angeles /etc/localtime \
         iproute2 \
         netcat-openbsd \
         iputils-ping \
+        nodejs \
+        npm \
     && git lfs install \
     && rm -rf /var/lib/apt/lists/*
 
@@ -62,7 +64,11 @@ RUN git fetch
 RUN --mount=type=cache,target=/root/.cache/uv,id=uv-cache/${TARGETPLATFORM} \
     uv sync --locked
 
-ENV PATH="/workspace/metta/.venv/bin:$PATH"
+# Run the installer to set up the metta command wrapper
+RUN chmod +x ./install.sh && \
+    METTA_NO_MODIFY_PATH=1 ./install.sh --quiet
+
+ENV PATH="/workspace/metta/metta/setup/installer/bin:/workspace/metta/.venv/bin:$PATH"
 
 RUN sed -i '\#cd /puffertank/pufferlib#d' /root/.bashrc \
  && echo 'cd /workspace/metta' >> /root/.bashrc
