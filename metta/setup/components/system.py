@@ -56,7 +56,7 @@ class SystemSetup(SetupModule):
         else:
             # NOTE: need to implement this at some point
             info("""
-                You will need to manage package installation manually.
+                You will need to install brew or can manage package installation manually.
                 See devops/macos/Brewfile for the full list of recommended packages.
 
                 If you are on a mettabox, you can run `./devops/mettabox/setup_machine.sh`.
