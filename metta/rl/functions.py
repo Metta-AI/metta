@@ -431,3 +431,117 @@ def accumulate_rollout_stats(
                     stats[k] += v
                 except TypeError:
                     stats[k] = [stats[k], v]  # fallback: bundle as list
+
+
+def compute_gradient_stats(policy: torch.nn.Module) -> Dict[str, float]:
+    """Compute gradient statistics for the policy.
+
+    Returns:
+        Dictionary with 'grad/mean', 'grad/variance', and 'grad/norm' keys
+    """
+    all_gradients = []
+    for param in policy.parameters():
+        if param.grad is not None:
+            all_gradients.append(param.grad.view(-1))
+
+    if not all_gradients:
+        logger.warning("No gradients found to compute stats.")
+        return {}
+
+    all_gradients_tensor = torch.cat(all_gradients).to(torch.float32)
+
+    grad_mean = all_gradients_tensor.mean()
+    grad_variance = all_gradients_tensor.var()
+    grad_norm = all_gradients_tensor.norm(2)
+
+    grad_stats = {
+        "grad/mean": grad_mean.item(),
+        "grad/variance": grad_variance.item(),
+        "grad/norm": grad_norm.item(),
+    }
+
+    logger.info(
+        f"Computed gradient stats: "
+        f"mean={grad_stats['grad/mean']:.2e}, "
+        f"var={grad_stats['grad/variance']:.2e}, "
+        f"norm={grad_stats['grad/norm']:.2e}"
+    )
+
+    return grad_stats
+
+
+def cleanup_old_policies(checkpoint_dir: str, keep_last_n: int = 5) -> None:
+    """Clean up old saved policies to prevent memory accumulation.
+
+    Args:
+        checkpoint_dir: Directory containing policy checkpoints
+        keep_last_n: Number of most recent policies to keep
+    """
+    from pathlib import Path
+
+    try:
+        # Get checkpoint directory
+        checkpoint_path = Path(checkpoint_dir)
+        if not checkpoint_path.exists():
+            return
+
+        # List all policy files
+        policy_files = sorted(checkpoint_path.glob("policy_*.pt"))
+
+        # Keep only the most recent ones
+        if len(policy_files) > keep_last_n:
+            files_to_remove = policy_files[:-keep_last_n]
+            for file_path in files_to_remove:
+                try:
+                    file_path.unlink()
+                    logger.info(f"Removed old policy file: {file_path}")
+                except Exception as e:
+                    logger.warning(f"Failed to remove old policy file {file_path}: {e}")
+
+    except Exception as e:
+        logger.warning(f"Error during policy cleanup: {e}")
+
+
+def create_optimizer(
+    policy: torch.nn.Module,
+    optimizer_type: str,
+    learning_rate: float,
+    beta1: float = 0.9,
+    beta2: float = 0.999,
+    eps: float = 1e-8,
+    weight_decay: float = 0.0,
+) -> torch.optim.Optimizer:
+    """Create optimizer for the policy.
+
+    Args:
+        policy: Policy to optimize
+        optimizer_type: Type of optimizer ("adam" or "muon")
+        learning_rate: Learning rate
+        beta1: Beta1 parameter
+        beta2: Beta2 parameter
+        eps: Epsilon parameter
+        weight_decay: Weight decay
+
+    Returns:
+        Optimizer instance
+    """
+    assert optimizer_type in ("adam", "muon"), f"Optimizer type must be 'adam' or 'muon', got {optimizer_type}"
+
+    if optimizer_type == "adam":
+        return torch.optim.Adam(
+            policy.parameters(),
+            lr=learning_rate,
+            betas=(beta1, beta2),
+            eps=eps,
+            weight_decay=weight_decay,
+        )
+    else:
+        from heavyball import ForeachMuon
+
+        return ForeachMuon(
+            policy.parameters(),
+            lr=learning_rate,
+            betas=(beta1, beta2),
+            eps=eps,
+            weight_decay=weight_decay,
+        )
