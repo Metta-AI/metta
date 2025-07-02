@@ -46,12 +46,7 @@ interface GroupSelectorProps {
   onGroupMetricChange: (groupMetric: string) => void
 }
 
-export function GroupSelector({
-  repo,
-  selectedSuite,
-  selectedGroupMetric,
-  onGroupMetricChange
-}: GroupSelectorProps) {
+export function GroupSelector({ repo, selectedSuite, selectedGroupMetric, onGroupMetricChange }: GroupSelectorProps) {
   const [availableGroupMetrics, setAvailableGroupMetrics] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
 
@@ -93,4 +88,3 @@ export function GroupSelector({
     </>
   )
 }
-

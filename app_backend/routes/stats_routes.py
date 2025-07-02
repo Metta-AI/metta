@@ -18,6 +18,8 @@ class TrainingRunCreate(BaseModel):
     name: str
     attributes: Dict[str, str] = Field(default_factory=dict)
     url: Optional[str] = None
+    description: Optional[str] = None
+    tags: Optional[List[str]] = None
 
 
 class TrainingRunResponse(BaseModel):
@@ -91,6 +93,8 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
                 user_id=user,
                 attributes=training_run.attributes,
                 url=training_run.url,
+                description=training_run.description,
+                tags=training_run.tags,
             )
             return TrainingRunResponse(id=str(run_id))
         except Exception as e:
