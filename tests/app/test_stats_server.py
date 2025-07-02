@@ -6,9 +6,9 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from testcontainers.postgres import PostgresContainer
 
-from app_backend.metta_repo import MettaRepo
-from app_backend.server import create_app
-from app_backend.stats_client import StatsClient
+from metta.app_backend.metta_repo import MettaRepo
+from metta.app_backend.server import create_app
+from metta.app_backend.stats_client import StatsClient
 
 
 class TestStatsServerSimple:

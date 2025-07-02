@@ -12,10 +12,10 @@ from psycopg.sql import SQL
 from pydantic import BaseModel
 
 from app_backend import query_logger
-from app_backend.auth import create_user_or_token_dependency
-from app_backend.metta_repo import MettaRepo
-from app_backend.query_logger import execute_query_and_log
-from app_backend.route_logger import timed_route
+from metta.app_backend.auth import create_user_or_token_dependency
+from metta.app_backend.metta_repo import MettaRepo
+from metta.app_backend.query_logger import execute_query_and_log
+from metta.app_backend.route_logger import timed_route
 
 # Set up logging for heatmap performance analysis
 logger = logging.getLogger("dashboard_performance")
