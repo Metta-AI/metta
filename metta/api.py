@@ -170,7 +170,7 @@ class Environment:
         num_agents: Optional[int] = None,
         width: Optional[int] = None,
         height: Optional[int] = None,
-    ) -> Any:  # Returns vecenv wrapper
+    ) -> Any:  # Returns pufferlib vecenv wrapper
         """Create a vectorized MettaGrid environment.
 
         Args:
@@ -231,7 +231,7 @@ class Environment:
 
         # Set seed
         if seed is None:
-            seed = torch.randint(0, 1000000, (1,)).item()
+            seed = int(torch.randint(0, 1000000, (1,)).item())
         vecenv.async_reset(seed)
 
         return vecenv
@@ -328,7 +328,7 @@ class TrainingComponents:
         Returns:
             TrainingComponents instance with all components initialized
         """
-        device = torch.device(device)
+        device_obj = torch.device(device)
 
         # Get environment info
         metta_grid_env = vecenv.driver_env
@@ -360,7 +360,7 @@ class TrainingComponents:
             max_minibatch_size=trainer_config.minibatch_size,
             obs_space=obs_space,
             atn_space=atn_space,
-            device=device,
+            device=device_obj,
             hidden_size=hidden_size,
             cpu_offload=trainer_config.cpu_offload,
             num_lstm_layers=num_lstm_layers,
@@ -368,13 +368,18 @@ class TrainingComponents:
         )
 
         # Create kickstarter
-        kickstarter = Kickstarter(
-            trainer_config.kickstart,
-            str(device),
-            policy_store,
-            metta_grid_env.action_names,
-            metta_grid_env.max_action_args,
-        )
+        if policy_store is not None:
+            kickstarter = Kickstarter(
+                trainer_config.kickstart,
+                str(device_obj),
+                policy_store,
+                metta_grid_env.action_names,
+                metta_grid_env.max_action_args,
+            )
+        else:
+            # Create a dummy kickstarter if no policy store is provided
+            # This is fine since kickstart will be disabled anyway
+            raise ValueError("PolicyStore is required for training components")
 
         # Create losses tracker
         losses = Losses()
@@ -392,7 +397,7 @@ class TrainingComponents:
             kickstarter=kickstarter,
             timer=timer,
             trainer_config=trainer_config,
-            device=device,
+            device=device_obj,
         )
 
     def rollout_step(self) -> Tuple[int, List[Any]]:
@@ -612,7 +617,7 @@ def evaluate_policy(
     Returns:
         Evaluation statistics
     """
-    # Create evaluation environment
+    # Create evaluation environment - Environment returns a vecenv
     vecenv = Environment(
         curriculum_path=env_config,
         device=device,
@@ -644,6 +649,8 @@ def evaluate_policy(
 
         total_rewards.append(episode_reward)
         episode_lengths.append(episode_length)
+
+    vecenv.close()
 
     return {
         "mean_reward": float(torch.tensor(total_rewards).mean()),

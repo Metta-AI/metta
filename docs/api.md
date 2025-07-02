@@ -293,3 +293,34 @@ The API is designed to be a thin wrapper around Metta's core functionality:
 - All training functions (`perform_rollout_step`, `process_minibatch_update`, etc.) are the actual implementations from `metta.rl.functions`
 
 This ensures that training behavior is identical whether you use the API or the traditional Hydra-based approach.
+
+## Troubleshooting
+
+### "Unable to cast Python instance to C++ type" Error
+
+If you encounter this error when creating environments:
+```
+RuntimeError: Unable to cast Python instance to C++ type
+```
+
+This typically means the mettagrid C++ module needs to be rebuilt:
+```bash
+cd mettagrid
+make clean
+make build
+```
+
+This can happen after:
+- Pulling changes from git
+- Switching branches
+- Updating Python dependencies
+- Changes to the C++ code
+
+### Import Errors
+
+If you get import errors for `metta` modules, ensure you've installed the package in development mode:
+```bash
+pip install -e .
+```
+
+## Advanced Usage
