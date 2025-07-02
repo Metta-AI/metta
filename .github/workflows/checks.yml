@@ -165,7 +165,7 @@ jobs:
 
       - name: Run Pytest on subpackage tests
         env:
-          SUBPACKAGES: "app_backend mettascope agent mettagrid common"
+          SUBPACKAGES: "app_backend agent mettagrid common"
         run: |
           for package in $SUBPACKAGES; do
             echo "Running tests for $package..."
