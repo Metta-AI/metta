@@ -27,8 +27,8 @@ test: build lint
 
 clean:
 	@echo "Cleaning extra venv..."
-	rm -rf .venv
-	rm uv.lock
+	@rm -rf .venv
+	@rm -f uv.lock
 	@echo "Cleaning build artifacts..."
 	rm -rf build-debug build-release build
 
