@@ -11,9 +11,9 @@ game:
     rewards:
       # action_failure_penalty: 0.00001
       action_failure_penalty: 0
-      ore.red: 0.01
-      battery.red: 0.1
-      battery.red_max: 5
+      ore_red: 0.01
+      battery_red: 0.1
+      battery_red_max: 5
       laser: 0.1
       armor: 0.1
       blueprint: 0.1

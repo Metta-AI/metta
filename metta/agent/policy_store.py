@@ -14,14 +14,17 @@ import logging
 import os
 import random
 import sys
+from types import SimpleNamespace
 from typing import Any, List, Optional, Union
 
 import gymnasium as gym
 import numpy as np
 import torch
 import wandb
-from omegaconf import DictConfig, ListConfig
+from omegaconf import DictConfig
 
+from metta.agent.metta_agent import make_policy
+from metta.agent.policy_cache import PolicyCache
 from metta.agent.policy_metadata import PolicyMetadata
 from metta.agent.policy_record import PolicyRecord
 from metta.rl.policy import load_pytorch_policy
@@ -39,23 +42,23 @@ class PolicySelectorConfig:
 
 
 class PolicyStore:
-    def __init__(self, cfg: ListConfig | DictConfig, wandb_run):
+    def __init__(self, cfg: DictConfig, wandb_run):
         self._cfg = cfg
-        self._trainer_cfg: TrainerConfig | None = parse_trainer_config(cfg) if "trainer" in cfg else None
         self._device = cfg.device
         self._wandb_run = wandb_run
-        self._cached_prs = {}
+        cache_size = cfg.get("policy_cache_size", 10)  # Default to 10 if not specified
+        self._cached_prs = PolicyCache(max_size=cache_size)
         self._made_codebase_backwards_compatible = False
 
     def policy_record(
-        self, uri_or_config: Union[str, ListConfig | DictConfig], selector_type: str = "top", metric="score"
+        self, uri_or_config: Union[str, DictConfig], selector_type: str = "top", metric="score"
     ) -> PolicyRecord:
         prs = self.policy_records(uri_or_config, selector_type, 1, metric)
         assert len(prs) == 1, f"Expected 1 policy record, got {len(prs)} policy records!"
         return prs[0]
 
     def policy_records(
-        self, uri_or_config: Union[str, ListConfig | DictConfig], selector_type: str = "top", n=1, metric="score"
+        self, uri_or_config: Union[str, DictConfig], selector_type: str = "top", n=1, metric="score"
     ) -> List[PolicyRecord]:
         uri = uri_or_config if isinstance(uri_or_config, str) else uri_or_config.uri
         return self._select_policy_records(uri, selector_type, n, metric)
@@ -89,12 +92,12 @@ class PolicyStore:
             return prs
 
         elif selector_type == "latest":
-            logger.info(f"Selected latest policy: {prs[0].name}")
+            logger.info(f"Selected latest policy: {prs[0].run_name}")
             return [prs[0]]
 
         elif selector_type == "rand":
             selected = random.choice(prs)
-            logger.info(f"Selected random policy: {selected.name}")
+            logger.info(f"Selected random policy: {selected.run_name}")
             return [selected]
 
         elif selector_type == "top":
@@ -159,7 +162,7 @@ class PolicyStore:
 
         for policy in selected:
             score = policy_scores[policy]
-            logger.info(f"{policy.name:<40} | {score:<20.4f}")
+            logger.info(f"{policy.run_name:<40} | {score:<20.4f}")
 
         return selected
 
@@ -194,16 +197,17 @@ class PolicyStore:
         return f"model_{epoch:04d}.pt"
 
     def create_empty_policy_record(self, name: str, override_path: str | None = None) -> PolicyRecord:
-        path = (
-            override_path
-            if override_path is not None
-            else os.path.join(self._trainer_cfg.checkpoint.checkpoint_dir, name)
-        )
+        if "trainer" not in self._cfg:
+            raise AttributeError("New policies can't be created by a PolicyStore with no 'cfg.trainer' attribute.")
+
+        trainer_cfg: TrainerConfig = parse_trainer_config(self._cfg)
+
+        path = override_path if override_path is not None else os.path.join(trainer_cfg.checkpoint.checkpoint_dir, name)
         metadata = PolicyMetadata()
         return PolicyRecord(self, name, f"file://{path}", metadata)
 
     def save(self, pr: PolicyRecord, path: str | None = None) -> PolicyRecord:
-        """Save a policy record using the simple torch.save approach."""
+        """Save a policy record using the simple torch.save approach with atomic file operations."""
         if path is None:
             if hasattr(pr, "file_path"):
                 path = pr.file_path
@@ -212,16 +216,33 @@ class PolicyStore:
 
         logger.info(f"Saving policy to {path}")
 
+        # Ensure directory exists
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+
+        # Save to a temporary file first to ensure atomic writes
+        temp_path = path + ".tmp"
+
         # Temporarily remove the policy store reference to avoid pickling issues
         pr._policy_store = None
-        torch.save(pr, path)
-        pr._policy_store = self
+        try:
+            torch.save(pr, temp_path)
+            # Atomically replace the file (works even if target exists)
+            # os.replace is atomic on POSIX systems and handles existing files
+            os.replace(temp_path, path)
+        finally:
+            pr._policy_store = self
+            # Clean up temp file if it still exists (in case of error)
+            if os.path.exists(temp_path):
+                try:
+                    os.remove(temp_path)
+                except OSError:
+                    pass
 
         # Don't cache the policy that we just saved,
         # since it might be updated later. We always
         # load the policy from the file when needed.
         pr._cached_policy = None
-        self._cached_prs[path] = pr
+        self._cached_prs.put(path, pr)
         return pr
 
     def add_to_wandb_run(self, run_id: str, pr: PolicyRecord, additional_files: list[str] | None = None) -> str:
@@ -281,7 +302,10 @@ class PolicyStore:
             artifacts = [a for a in artifacts if a.version == version]
 
         return [
-            PolicyRecord(self, name=a.name, uri="wandb://" + a.qualified_name, metadata=a.metadata) for a in artifacts
+            PolicyRecord(
+                self, run_name=a.name, uri="wandb://" + a.qualified_name, metadata=PolicyMetadata.from_dict(a.metadata)
+            )
+            for a in artifacts
         ]
 
     def _prs_from_wandb_sweep(self, sweep_name: str, version: Optional[str] = None) -> List[PolicyRecord]:
@@ -365,8 +389,8 @@ class PolicyStore:
 
     def _load_from_file(self, path: str, metadata_only: bool = False) -> PolicyRecord:
         """Load a PolicyRecord from a file using simple torch.load."""
-        if path in self._cached_prs:
-            cached_pr = self._cached_prs[path]
+        cached_pr = self._cached_prs.get(path)
+        if cached_pr is not None:
             if metadata_only or cached_pr._cached_policy is not None:
                 return cached_pr
 
@@ -414,7 +438,7 @@ class PolicyStore:
                                 logger.info(f"Found policy under legacy attribute '{attr}'")
                             break
 
-            self._cached_prs[path] = pr
+            self._cached_prs.put(path, pr)
 
             if metadata_only:
                 pr._cached_policy = None
@@ -441,8 +465,6 @@ class PolicyStore:
 
         if not metadata_only:
             try:
-                from types import SimpleNamespace
-
                 # Create mock environment for policy creation
                 obs_shape = checkpoint.get("obs_shape", [34, 11, 11])
                 env = SimpleNamespace(
@@ -454,10 +476,7 @@ class PolicyStore:
                     global_features=[],
                 )
 
-                # Import make_policy here to avoid circular imports
-                from metta.rl.util import make_policy
-
-                policy = make_policy(env, self._cfg)
+                policy = make_policy(env, self._cfg)  # type: ignore
 
                 # Load state dict from checkpoint
                 state_key = next((k for k in ["model_state_dict", "state_dict"] if k in checkpoint), None)
@@ -472,7 +491,7 @@ class PolicyStore:
             except Exception as e:
                 raise ValueError(f"Cannot load legacy checkpoint as MettaAgent: {e}") from e
 
-        self._cached_prs[path] = pr
+        self._cached_prs.put(path, pr)
         return pr
 
     def _load_wandb_artifact(self, qualified_name: str):

@@ -31,4 +31,8 @@ install:
 	@echo "Installing package in editable mode..."
 	uv sync --inexact
 
+pytest: install
+	@echo "Running Python tests..."
+	uv run pytest
+
 all: dev test
