@@ -1,6 +1,6 @@
 import sys
 
-from metta.common.memory_monitor import get_object_size
+from metta.common.profiling.memory_monitor import get_object_size
 
 
 def test_basic_memory_calculation():
