@@ -14,8 +14,7 @@ from omegaconf import DictConfig
 from torch.optim.lr_scheduler import CosineAnnealingLR, LambdaLR
 
 from metta.agent.metta_agent import MettaAgent
-from metta.map.scene import Scene
-from metta.mettagrid.curriculum.core import Curriculum, SingleTaskCurriculum
+from metta.mettagrid.curriculum.core import SingleTaskCurriculum
 from metta.mettagrid.mettagrid_env import MettaGridEnv
 from metta.rl.experience import Experience
 from metta.rl.trainer_config import (
@@ -36,6 +35,7 @@ class BatchInfo:
 
 # Object type IDs from mettagrid/src/metta/mettagrid/objects/constants.hpp
 # These define the type of object in the environment
+# TODO: These should be imported from mettagrid once they're exposed via Python bindings
 TYPE_AGENT = 0
 TYPE_WALL = 1
 TYPE_MINE_RED = 2
@@ -124,26 +124,13 @@ def _get_default_env_config():
     }
 
 
-def _get_runtime_config():
-    """Get runtime configuration for experience manager."""
-    return DictConfig(
-        {
-            "forward_pass_minibatch_target_size": 4096,
-            "async_factor": 2,
-            "trainer": {
-                "zero_copy": True,
-                "cpu_offload": False,
-                "forward_pass_minibatch_target_size": 4096,
-                "async_factor": 2,
-                "batch_size": 524288,
-                "minibatch_size": 16384,
-            },
-            "vectorization": "serial",
-        }
-    )
-
-
 # ============= Typed Configuration Classes =============
+# Note: These are simplified API-friendly versions of the configs.
+# The actual mettagrid uses Pydantic models (see mettagrid_config.py),
+# but these dataclasses provide a simpler interface for users who
+# don't need all the validation and complexity.
+
+
 @dataclass
 class ObjectConfig:
     """Configuration for an object type."""
@@ -362,46 +349,167 @@ class TrainingState:
 
 
 # ============= API Functions =============
+class Environment:
+    """Factory for creating MettaGrid environments with a clean API.
+
+    Usage:
+        env = Environment()  # Default config
+        env = Environment(num_agents=8, width=32, height=32)
+        env = Environment(config=EnvConfig(...))
+    """
+
+    def __new__(
+        cls,
+        config: Optional[EnvConfig] = None,
+        **kwargs,
+    ) -> MettaGridEnv:
+        """Create a MettaGrid environment.
+
+        Args:
+            config: EnvConfig object. If None, uses defaults.
+            **kwargs: Additional keyword arguments to override config values.
+
+        Returns:
+            MettaGridEnv environment instance.
+        """
+        config = config or EnvConfig()
+
+        # Apply kwargs overrides
+        if "num_agents" in kwargs:
+            config.game.num_agents = kwargs["num_agents"]
+            config.map_builder.agents = kwargs["num_agents"]
+        if "width" in kwargs:
+            config.game.width = kwargs["width"]
+            config.map_builder.width = kwargs["width"]
+        if "height" in kwargs:
+            config.game.height = kwargs["height"]
+            config.map_builder.height = kwargs["height"]
+        if "max_steps" in kwargs:
+            config.game.max_steps = kwargs["max_steps"]
+
+        # Create curriculum with the config as DictConfig
+        config_dict = config.to_dict()
+        mettagrid_config = _convert_to_mettagrid_config(config_dict)
+        task_cfg = DictConfig({"game": mettagrid_config})
+        curriculum = SingleTaskCurriculum("custom_env", task_cfg)
+
+        # Create environment with curriculum
+        env = MettaGridEnv(curriculum=curriculum, render_mode=None)
+
+        return env
+
+
+# Keep the old function for backward compatibility but deprecate it
 def make_environment(
     env_config: Optional[EnvConfig] = None,
     **kwargs,
 ) -> MettaGridEnv:
     """Create a MettaGrid environment.
 
-    Args:
-        env_config: EnvConfig object. If None, uses defaults.
-        **kwargs: Additional keyword arguments to override config values.
-
-    Returns:
-        MettaGridEnv environment instance.
+    DEPRECATED: Use Environment() instead.
     """
-    config = env_config or EnvConfig()
+    import warnings
 
-    # Apply kwargs overrides
-    if "num_agents" in kwargs:
-        config.game.num_agents = kwargs["num_agents"]
-        config.map_builder.agents = kwargs["num_agents"]
-    if "width" in kwargs:
-        config.game.width = kwargs["width"]
-        config.map_builder.width = kwargs["width"]
-    if "height" in kwargs:
-        config.game.height = kwargs["height"]
-        config.map_builder.height = kwargs["height"]
-    if "max_steps" in kwargs:
-        config.game.max_steps = kwargs["max_steps"]
-
-    # Create curriculum with the config as DictConfig
-    config_dict = config.to_dict()
-    mettagrid_config = _convert_to_mettagrid_config(config_dict)
-    task_cfg = DictConfig({"game": mettagrid_config})
-    curriculum = SingleTaskCurriculum("custom_env", task_cfg)
-
-    # Create environment with curriculum
-    env = MettaGridEnv(curriculum=curriculum, render_mode=None)
-
-    return env
+    warnings.warn("make_environment is deprecated, use Environment() instead", DeprecationWarning, stacklevel=2)
+    return Environment(config=env_config, **kwargs)
 
 
+class Agent:
+    """Factory for creating Metta agents with a clean API.
+
+    Usage:
+        agent = Agent(obs_space, action_space, global_features, device)
+        agent = Agent(obs_space, action_space, global_features, device, hidden_dim=512)
+        agent = Agent(obs_space, action_space, global_features, device, config=AgentModelConfig(...))
+    """
+
+    def __new__(
+        cls,
+        observation_space: Any,
+        action_space: Any,
+        global_features: List[str],
+        device: torch.device,
+        config: Optional[AgentModelConfig] = None,
+        **kwargs,
+    ) -> MettaAgent:
+        """Create a Metta agent.
+
+        Args:
+            observation_space: The observation space of the environment.
+            action_space: The action space of the environment.
+            global_features: List of global features.
+            device: Torch device to use.
+            config: AgentModelConfig object. If None, uses defaults.
+            **kwargs: Additional config overrides.
+
+        Returns:
+            MettaAgent instance.
+        """
+        config = config or AgentModelConfig()
+
+        # Apply kwargs overrides
+        for key, value in kwargs.items():
+            if hasattr(config, key):
+                setattr(config, key, value)
+
+        # Build components config
+        components = {
+            "_core_": {
+                "_target_": "metta.agent.lib.lstm.FastLSTM",
+                "input_size": config.hidden_dim,
+                "output_size": config.hidden_dim,
+                "nn_params": {
+                    "hidden_size": config.hidden_dim,
+                    "num_layers": config.lstm_layers,
+                    "batch_first": True,
+                },
+            },
+            "_value_": {"_target_": "metta.agent.components.mlp.MLP", "layer_width": 1},
+            "_action_": {
+                "_target_": "metta.agent.components.mlp.MLP",
+                "layer_width": 256,  # This will be set properly by the agent
+            },
+        }
+
+        # Add observations config
+        observations_config = {
+            "obs_key": "grid_obs",
+            "_target_": "metta.agent.components.observation.Observation",
+        }
+
+        # Configure agent - MettaAgent expects these as kwargs, not in a config
+        obs_width = getattr(observation_space, "shape", [11, 11, 0])[1] if hasattr(observation_space, "shape") else 11
+        obs_height = getattr(observation_space, "shape", [11, 11, 0])[0] if hasattr(observation_space, "shape") else 11
+
+        return MettaAgent(
+            obs_space=observation_space,
+            obs_width=obs_width,
+            obs_height=obs_height,
+            action_space=action_space,
+            feature_normalizations={},
+            global_features=global_features,
+            device=str(device),
+            hidden_dim=config.hidden_dim,
+            lstm_layers=config.lstm_layers,
+            use_prev_action=config.use_prev_action,
+            use_prev_reward=config.use_prev_reward,
+            mlp_layers=config.mlp_layers,
+            bptt_horizon=config.bptt_horizon,
+            clip_range=config.clip_range,
+            forward_lstm=config.forward_lstm,
+            backbone=config.backbone,
+            analyze_weights_interval=config.analyze_weights_interval,
+            l2_init_weight_update_interval=config.l2_init_weight_update_interval,
+            components=components,
+            observations=observations_config,
+            dtypes_fp16=config.dtypes_fp16,
+            observation_types=config.observation_types,
+            obs_scale=config.obs_scale,
+            obs_process_func=config.obs_process_func,
+        )
+
+
+# Keep old function for backward compatibility
 def make_agent(
     observation_space: Any,
     action_space: Any,
@@ -411,140 +519,150 @@ def make_agent(
 ) -> MettaAgent:
     """Create a Metta agent.
 
-    Args:
-        observation_space: The observation space of the environment.
-        action_space: The action space of the environment.
-        global_features: List of global features.
-        device: Torch device to use.
-        config: AgentModelConfig object. If None, uses defaults.
-
-    Returns:
-        MettaAgent instance.
+    DEPRECATED: Use Agent() instead.
     """
-    config = config or AgentModelConfig()
+    import warnings
 
-    # Build components config
-    components = {
-        "_core_": {
-            "_target_": "metta.agent.lib.lstm.FastLSTM",
-            "input_size": config.hidden_dim,
-            "output_size": config.hidden_dim,
-            "nn_params": {
-                "hidden_size": config.hidden_dim,
-                "num_layers": config.lstm_layers,
-                "batch_first": True,
-            },
-        },
-        "_value_": {"_target_": "metta.agent.components.mlp.MLP", "layer_width": 1},
-        "_action_": {
-            "_target_": "metta.agent.components.mlp.MLP",
-            "layer_width": 256,  # This will be set properly by the agent
-        },
-    }
-
-    # Add observations config
-    observations_config = {
-        "obs_key": "grid_obs",
-        "_target_": "metta.agent.components.observation.Observation",
-    }
-
-    # Configure agent - MettaAgent expects these as kwargs, not in a config
-    obs_width = getattr(observation_space, "shape", [11, 11, 0])[1] if hasattr(observation_space, "shape") else 11
-    obs_height = getattr(observation_space, "shape", [11, 11, 0])[0] if hasattr(observation_space, "shape") else 11
-
-    return MettaAgent(
-        obs_space=observation_space,
-        obs_width=obs_width,
-        obs_height=obs_height,
-        action_space=action_space,
-        feature_normalizations={},
-        global_features=global_features,
-        device=str(device),
-        hidden_dim=config.hidden_dim,
-        lstm_layers=config.lstm_layers,
-        use_prev_action=config.use_prev_action,
-        use_prev_reward=config.use_prev_reward,
-        mlp_layers=config.mlp_layers,
-        bptt_horizon=config.bptt_horizon,
-        clip_range=config.clip_range,
-        forward_lstm=config.forward_lstm,
-        backbone=config.backbone,
-        analyze_weights_interval=config.analyze_weights_interval,
-        l2_init_weight_update_interval=config.l2_init_weight_update_interval,
-        components=components,
-        observations=observations_config,
-        dtypes_fp16=config.dtypes_fp16,
-        observation_types=config.observation_types,
-        obs_scale=config.obs_scale,
-        obs_process_func=config.obs_process_func,
-    )
+    warnings.warn("make_agent is deprecated, use Agent() instead", DeprecationWarning, stacklevel=2)
+    return Agent(observation_space, action_space, global_features, device, config)
 
 
+class Optimizer:
+    """Factory for creating optimizers with a clean API.
+
+    Usage:
+        optimizer = Optimizer(agent)  # Default Adam optimizer
+        optimizer = Optimizer(agent, learning_rate=1e-4)
+        optimizer = Optimizer(agent, config=OptimizerConfig(type="adam", learning_rate=3e-4))
+    """
+
+    def __new__(
+        cls,
+        agent: MettaAgent,
+        config: Optional[OptimizerConfig] = None,
+        **kwargs,
+    ) -> torch.optim.Optimizer:
+        """Create an optimizer for training.
+
+        Args:
+            agent: The agent to optimize.
+            config: OptimizerConfig object. If None, uses defaults.
+            **kwargs: Additional config overrides.
+
+        Returns:
+            Torch optimizer instance.
+        """
+        config = config or OptimizerConfig()
+
+        # Apply kwargs overrides
+        for key, value in kwargs.items():
+            if hasattr(config, key):
+                setattr(config, key, value)
+
+        if config.type == "adam":
+            return torch.optim.Adam(
+                agent.parameters(),
+                lr=config.learning_rate,
+                betas=(config.beta1, config.beta2),
+                eps=config.eps,
+                weight_decay=config.weight_decay,
+            )
+        elif config.type == "muon":
+            # TODO: Muon optimizer not yet implemented
+            # For now, fall back to Adam with a warning
+            import warnings
+
+            warnings.warn("Muon optimizer not yet implemented, falling back to Adam", stacklevel=2)
+            return torch.optim.Adam(
+                agent.parameters(),
+                lr=config.learning_rate,
+                betas=(config.beta1, config.beta2),
+                eps=config.eps,
+                weight_decay=config.weight_decay,
+            )
+        else:
+            raise ValueError(f"Unknown optimizer type: {config.type}")
+
+
+# Keep old function for backward compatibility
 def make_optimizer(
     agent: MettaAgent,
     config: Optional[OptimizerConfig] = None,
 ) -> torch.optim.Optimizer:
     """Create an optimizer for training.
 
-    Args:
-        agent: The agent to optimize.
-        config: OptimizerConfig object. If None, uses defaults.
-
-    Returns:
-        Torch optimizer instance.
+    DEPRECATED: Use Optimizer() instead.
     """
-    config = config or OptimizerConfig()
+    import warnings
 
-    if config.type == "adam":
-        return torch.optim.Adam(
-            agent.parameters(),
-            lr=config.learning_rate,
-            betas=(config.beta1, config.beta2),
-            eps=config.eps,
-            weight_decay=config.weight_decay,
-        )
-    elif config.type == "muon":
-        # TODO: Muon optimizer not yet implemented
-        # For now, fall back to Adam with a warning
-        import warnings
-
-        warnings.warn("Muon optimizer not yet implemented, falling back to Adam", stacklevel=2)
-        return torch.optim.Adam(
-            agent.parameters(),
-            lr=config.learning_rate,
-            betas=(config.beta1, config.beta2),
-            eps=config.eps,
-            weight_decay=config.weight_decay,
-        )
-    else:
-        raise ValueError(f"Unknown optimizer type: {config.type}")
+    warnings.warn("make_optimizer is deprecated, use Optimizer() instead", DeprecationWarning, stacklevel=2)
+    return Optimizer(agent, config)
 
 
-def make_curriculum(
-    env_path: str = "/env/mettagrid/simple",
-    scenes: Optional[List[Scene]] = None,
-) -> Curriculum:
-    """Create a curriculum for training.
+class ExperienceManager:
+    """Factory for creating experience managers with a clean API.
 
-    Args:
-        env_path: Path to the environment configuration.
-        scenes: Optional list of scenes. If None, creates single task curriculum.
-
-    Returns:
-        Curriculum instance.
+    Usage:
+        experience = ExperienceManager(env, agent)
+        experience = ExperienceManager(env, agent, batch_size=8192)
+        experience = ExperienceManager(env, agent, config=ExperienceConfig(...))
     """
-    if scenes is None:
-        # SingleTaskCurriculum expects a DictConfig
-        return SingleTaskCurriculum(env_path, DictConfig({}))
-    else:
-        # TODO: MultiSceneCurriculum not yet implemented
-        # For now, return a single task curriculum with a warning
-        import warnings
 
-        warnings.warn("MultiSceneCurriculum not yet implemented, using SingleTaskCurriculum", stacklevel=2)
-        return SingleTaskCurriculum(env_path, DictConfig({}))
+    def __new__(
+        cls,
+        env: MettaGridEnv,
+        agent: MettaAgent,
+        config: Optional[ExperienceConfig] = None,
+        **kwargs,
+    ) -> Experience:
+        """Create an experience manager for collecting rollouts.
+
+        Args:
+            env: The environment.
+            agent: The agent.
+            config: ExperienceConfig object. If None, uses defaults.
+            **kwargs: Additional config overrides.
+
+        Returns:
+            Experience manager instance.
+        """
+        config = config or ExperienceConfig()
+
+        # Apply kwargs overrides
+        for key, value in kwargs.items():
+            if hasattr(config, key):
+                setattr(config, key, value)
+
+        # Get device from agent
+        device = agent.device if hasattr(agent, "device") else torch.device("cpu")
+
+        # Get LSTM info from agent - ensure they are ints
+        hidden_size = getattr(agent, "hidden_dim", 1024)
+        if not isinstance(hidden_size, int):
+            hidden_size = 1024  # Default if attribute is not an int
+
+        num_lstm_layers = getattr(agent, "lstm_layers", 1)
+        if not isinstance(num_lstm_layers, int):
+            num_lstm_layers = 1  # Default if attribute is not an int
+
+        # Create experience manager directly
+        return Experience(
+            total_agents=env.num_agents,
+            batch_size=config.batch_size,
+            bptt_horizon=config.bptt_horizon,
+            minibatch_size=config.minibatch_size,
+            max_minibatch_size=config.minibatch_size,  # Use same as minibatch_size
+            obs_space=env.single_observation_space,
+            atn_space=env.single_action_space,
+            device=device,
+            hidden_size=hidden_size,
+            cpu_offload=config.cpu_offload,
+            num_lstm_layers=num_lstm_layers,
+            agents_per_batch=env.num_agents,
+        )
 
 
+# Keep old function for backward compatibility
 def make_experience_manager(
     env: MettaGridEnv,
     agent: MettaAgent,
@@ -552,38 +670,14 @@ def make_experience_manager(
 ) -> Experience:
     """Create an experience manager for collecting rollouts.
 
-    Args:
-        env: The environment.
-        agent: The agent.
-        config: ExperienceConfig object. If None, uses defaults.
-
-    Returns:
-        Experience manager instance.
+    DEPRECATED: Use ExperienceManager() instead.
     """
-    config = config or ExperienceConfig()
+    import warnings
 
-    # Get device from agent
-    device = agent.device if hasattr(agent, "device") else torch.device("cpu")
-
-    # Get LSTM info from agent - ensure they are ints
-    hidden_size = int(agent.hidden_dim) if hasattr(agent, "hidden_dim") else 1024
-    num_lstm_layers = int(agent.lstm_layers) if hasattr(agent, "lstm_layers") else 1
-
-    # Create experience manager directly
-    return Experience(
-        total_agents=env.num_agents,
-        batch_size=config.batch_size,
-        bptt_horizon=config.bptt_horizon,
-        minibatch_size=config.minibatch_size,
-        max_minibatch_size=config.minibatch_size,  # Use same as minibatch_size
-        obs_space=env.single_observation_space,
-        atn_space=env.single_action_space,
-        device=device,
-        hidden_size=hidden_size,
-        cpu_offload=config.cpu_offload,
-        num_lstm_layers=num_lstm_layers,
-        agents_per_batch=env.num_agents,
+    warnings.warn(
+        "make_experience_manager is deprecated, use ExperienceManager() instead", DeprecationWarning, stacklevel=2
     )
+    return ExperienceManager(env, agent, config)
 
 
 # Training functions
@@ -735,8 +829,14 @@ def eval_policy(
             hidden_state = agent.initial_hidden_state
         else:
             # Fallback to zeros if not available
-            hidden_size = int(agent.hidden_dim) if hasattr(agent, "hidden_dim") else 1024
-            num_layers = int(agent.lstm_layers) if hasattr(agent, "lstm_layers") else 1
+            hidden_size = getattr(agent, "hidden_dim", 1024)
+            if not isinstance(hidden_size, int):
+                hidden_size = 1024
+
+            num_layers = getattr(agent, "lstm_layers", 1)
+            if not isinstance(num_layers, int):
+                num_layers = 1
+
             hidden_state = torch.zeros(num_layers, env.num_agents, hidden_size, device=agent.device)
 
         while not done:

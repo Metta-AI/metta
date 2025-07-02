@@ -1,29 +1,30 @@
 """Example of using Metta as a library without Hydra configuration."""
 
 import torch
+from omegaconf import DictConfig
 
 from metta.api import (
     # Configuration classes
+    Agent,
     AgentModelConfig,
     CheckpointConfig,
     EnvConfig,
+    Environment,
     ExperienceConfig,
+    ExperienceManager,
     GameConfig,
+    Optimizer,
     OptimizerConfig,
     PPOConfig,
     SimulationConfig,
     # Functions
     compute_advantages,
     eval_policy,
-    make_agent,
-    make_curriculum,
-    make_environment,
-    make_experience_manager,
-    make_optimizer,
     rollout,
     save_checkpoint,
     train_ppo,
 )
+from metta.mettagrid.curriculum.core import SingleTaskCurriculum
 
 # Set device
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -37,7 +38,7 @@ game_config = GameConfig(
     height=32,
 )
 env_config = EnvConfig(game=game_config)
-env = make_environment(env_config)
+env = Environment(config=env_config)
 
 # Create agent with typed config
 agent_config = AgentModelConfig(
@@ -45,7 +46,7 @@ agent_config = AgentModelConfig(
     lstm_layers=1,
     bptt_horizon=8,
 )
-agent = make_agent(
+agent = Agent(
     observation_space=env.single_observation_space,
     action_space=env.single_action_space,
     global_features=[],
@@ -58,10 +59,10 @@ optimizer_config = OptimizerConfig(
     type="adam",
     learning_rate=3e-4,
 )
-optimizer = make_optimizer(agent, config=optimizer_config)
+optimizer = Optimizer(agent, config=optimizer_config)
 
-# Create curriculum
-curriculum = make_curriculum("/env/mettagrid/simple")
+# Create curriculum directly (since make_curriculum was removed)
+curriculum = SingleTaskCurriculum("/env/mettagrid/simple", DictConfig({}))
 
 # Create experience manager with typed config
 experience_config = ExperienceConfig(
@@ -69,7 +70,7 @@ experience_config = ExperienceConfig(
     minibatch_size=512,
     bptt_horizon=8,
 )
-experience = make_experience_manager(env, agent, config=experience_config)
+experience = ExperienceManager(env, agent, config=experience_config)
 
 # Training configuration
 ppo_config = PPOConfig(

@@ -3,12 +3,17 @@
 
 # Import key API functions and configs for convenience
 from metta.api import (
+    # Factory classes (new API)
+    Agent,
     # Configuration classes
     AgentModelConfig,
     CheckpointConfig,
     EnvConfig,
+    Environment,
     ExperienceConfig,
+    ExperienceManager,
     GameConfig,
+    Optimizer,
     OptimizerConfig,
     PPOConfig,
     SimulationConfig,
@@ -17,7 +22,6 @@ from metta.api import (
     eval_policy,
     load_checkpoint,
     make_agent,
-    make_curriculum,
     make_environment,
     make_experience_manager,
     make_optimizer,
@@ -38,16 +42,21 @@ __all__ = [
     "OptimizerConfig",
     "PPOConfig",
     "SimulationConfig",
+    # Factory classes (new API)
+    "Agent",
+    "Environment",
+    "ExperienceManager",
+    "Optimizer",
     # Core functions
     "compute_advantages",
     "eval_policy",
     "load_checkpoint",
-    "make_agent",
-    "make_curriculum",
-    "make_environment",
-    "make_experience_manager",
-    "make_optimizer",
     "rollout",
     "save_checkpoint",
     "train_ppo",
+    # Deprecated functions (kept for backward compatibility)
+    "make_agent",
+    "make_environment",
+    "make_experience_manager",
+    "make_optimizer",
 ]

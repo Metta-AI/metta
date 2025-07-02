@@ -6,7 +6,7 @@ The Metta API provides a simple interface for using Metta as a library without c
 
 The API provides:
 - **Typed configuration classes** for structured, validated settings
-- **Direct instantiation functions** for creating agents, environments, optimizers, etc.
+- **Constructor-style factory classes** for creating agents, environments, optimizers, etc.
 - **Training and evaluation functions** for standard RL workflows
 - **Full control over the training loop** - no hidden logic or wrappers
 
@@ -116,47 +116,80 @@ config = SimulationConfig(
 )
 ```
 
-## Core Functions
+## Core Factory Classes
 
 ### Creating Components
 
-#### make_environment
+#### Environment
 ```python
-env = make_environment(
-    env_config=EnvConfig(...),  # Optional, uses defaults if None
-    map_builder=None,  # Optional custom map builder
-    num_agents=4,  # Can override config values with kwargs
-    width=32,
-    height=32
+# Simple usage
+env = Environment()  # Default config
+
+# With parameters
+env = Environment(num_agents=4, width=32, height=32)
+
+# With config object
+env = Environment(config=EnvConfig(...))
+
+# Mix config and parameters
+env = Environment(
+    config=EnvConfig(...),
+    num_agents=8  # Override config value
 )
 ```
 
-#### make_agent
+#### Agent
 ```python
-agent = make_agent(
+# Create agent with default config
+agent = Agent(
     observation_space=env.single_observation_space,
     action_space=env.single_action_space,
     global_features=[],
-    device=torch.device("cuda"),
-    config=AgentModelConfig(...)  # Optional, can use kwargs instead
+    device=torch.device("cuda")
+)
+
+# With parameters
+agent = Agent(
+    observation_space=env.single_observation_space,
+    action_space=env.single_action_space,
+    global_features=[],
+    device=device,
+    hidden_dim=512,
+    lstm_layers=2
+)
+
+# With config object
+agent = Agent(
+    observation_space=env.single_observation_space,
+    action_space=env.single_action_space,
+    global_features=[],
+    device=device,
+    config=AgentModelConfig(hidden_dim=1024)
 )
 ```
 
-#### make_optimizer
+#### Optimizer
 ```python
-optimizer = make_optimizer(
-    agent,
-    config=OptimizerConfig(...)  # Optional, can use kwargs instead
-)
+# Default Adam optimizer
+optimizer = Optimizer(agent)
+
+# With parameters
+optimizer = Optimizer(agent, learning_rate=1e-4, weight_decay=0.01)
+
+# With config
+optimizer = Optimizer(agent, config=OptimizerConfig(type="adam", learning_rate=3e-4))
 ```
 
-#### make_experience_manager
+#### ExperienceManager
 ```python
-experience = make_experience_manager(
-    env,
-    agent,
-    config=ExperienceConfig(...)  # Optional, can use kwargs instead
-)
+# Default config
+experience = ExperienceManager(env, agent)
+
+# With parameters
+experience = ExperienceManager(env, agent, batch_size=8192, minibatch_size=512)
+
+# With config
+experience = ExperienceManager(env, agent, config=ExperienceConfig(...))
 ```
 
 ### Training Functions
@@ -220,19 +253,19 @@ from metta.api import *
 # Setup
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# Create environment and agent with configs
-env = make_environment(EnvConfig(game={"num_agents": 4}))
-agent = make_agent(
+# Create environment and agent
+env = Environment(num_agents=4)
+agent = Agent(
     env.single_observation_space,
     env.single_action_space,
     [],
     device,
-    config=AgentModelConfig(hidden_dim=512)
+    hidden_dim=512
 )
 
 # Create optimizer and experience manager
-optimizer = make_optimizer(agent, OptimizerConfig(learning_rate=3e-4))
-experience = make_experience_manager(env, agent)
+optimizer = Optimizer(agent, learning_rate=3e-4)
+experience = ExperienceManager(env, agent)
 
 # Training loop
 for epoch in range(100):
@@ -272,25 +305,28 @@ ppo_config = PPOConfig(
 )
 
 # Create components with configs
-env = make_environment(env_config)
-agent = make_agent(..., config=agent_config)
+env = Environment(config=env_config)
+agent = Agent(..., config=agent_config)
 
 # Train with config
 stats = train_ppo(..., ppo_config=ppo_config)
 ```
 
-### Mixing Configs and Kwargs
+### Mixing Configs and Parameters
 ```python
-# You can mix typed configs with kwargs overrides
-env = make_environment(
-    EnvConfig(),  # Use defaults
-    num_agents=16,  # Override specific values
+# You can mix typed configs with parameter overrides
+env = Environment(
+    config=EnvConfig(),  # Use defaults
+    num_agents=16,      # Override specific values
     max_steps=2000
 )
 
-# Or skip configs entirely and use kwargs
-agent = make_agent(
-    ...,
+# Or skip configs entirely and use parameters
+agent = Agent(
+    observation_space=env.single_observation_space,
+    action_space=env.single_action_space,
+    global_features=[],
+    device=device,
     hidden_dim=256,
     lstm_layers=1
 )
@@ -302,9 +338,24 @@ The API is designed to:
 
 1. **Provide direct access** - No hidden configuration management or complex wrappers
 2. **Use typed configs** - Optional structured configuration with validation
-3. **Allow flexibility** - Mix configs with kwargs, or use kwargs only
+3. **Allow flexibility** - Mix configs with parameters, or use parameters only
 4. **Give full control** - You write the training loop, we provide the building blocks
 5. **Be framework-agnostic** - Integrate into any training pipeline
+
+## Working with Curriculums
+
+For advanced use cases, you can create curriculums directly:
+
+```python
+from metta.mettagrid.curriculum.core import SingleTaskCurriculum
+from omegaconf import DictConfig
+
+# Create a single task curriculum
+curriculum = SingleTaskCurriculum("/env/mettagrid/simple", DictConfig({}))
+
+# Use it to create an environment
+env = MettaGridEnv(curriculum=curriculum, render_mode=None)
+```
 
 ```python
 from metta.api import EnvConfig
