@@ -31,7 +31,7 @@ def run_single_experiment(
     base_run_id: str,
     total_timesteps: int = 10_000_000,
     num_workers: int = 4,
-    device: str = "cuda",
+    device: str = "auto",
 ) -> str:
     """Run a single progressive forgetting experiment.
 
@@ -50,33 +50,58 @@ def run_single_experiment(
     logger = logging.getLogger(__name__)
 
     # Create a temporary config for this specific pair
-    temp_dir = "temp_configs"
+    temp_dir = "configs/env/mettagrid/curriculum/temp"
     os.makedirs(temp_dir, exist_ok=True)
-    config_path = f"{temp_dir}/progressive_forgetting_{task_set_1}_{task_set_2}.yaml"
+    config_file_path = f"{temp_dir}/progressive_forgetting_{task_set_1}_{task_set_2}.yaml"
+    hydra_config_ref = f"env/mettagrid/curriculum/temp/progressive_forgetting_{task_set_1}_{task_set_2}"
 
     # Load base config
+    logger.info(f"Loading base config from: configs/env/mettagrid/curriculum/progressive_forgetting.yaml")
     base_config = OmegaConf.load("configs/env/mettagrid/curriculum/progressive_forgetting.yaml")
+    logger.info(f"Base config loaded successfully. Available task sets: {list(base_config.task_sets.keys())}")
 
     # Modify task sets to only include the two we want
-    base_config.task_sets = {
-        task_set_1: base_config.task_sets[task_set_1],
-        task_set_2: base_config.task_sets[task_set_2],
-    }
+    if task_set_1 not in base_config.task_sets or task_set_2 not in base_config.task_sets:
+        raise ValueError(f"Task sets {task_set_1} or {task_set_2} not found in base config. Available: {list(base_config.task_sets.keys())}")
+
+    # Create modified config with only the two task sets
+    modified_config = OmegaConf.create({
+        "_target_": base_config._target_,
+        "task_sets": {
+            task_set_1: base_config.task_sets[task_set_1],
+            task_set_2: base_config.task_sets[task_set_2]
+        },
+        "performance_threshold": base_config.performance_threshold,
+        "smoothing": base_config.smoothing,
+        "switch_interval": base_config.switch_interval,
+        "eval_interval": base_config.eval_interval,
+        "randomize_order": base_config.randomize_order,
+        "env_overrides": base_config.env_overrides
+    })
 
     # Save modified config
-    OmegaConf.save(base_config, config_path)
+    logger.info(f"Saving modified config to: {config_file_path}")
+    with open(config_file_path, "w") as f:
+        OmegaConf.save(modified_config, f)
 
     # Build training command
     cmd = [
         sys.executable,
         "tools/train.py",
         f"run={run_id}",
-        f"trainer.curriculum={config_path}",
+        f"trainer.curriculum={hydra_config_ref}",
         f"trainer.total_timesteps={total_timesteps}",
         f"trainer.num_workers={num_workers}",
-        f"device={device}",
-        "+hardware=aws",  # Use AWS for cloud training
+        "trainer.batch_size=2048",  # Fix batch size divisibility issue
+        "trainer.minibatch_size=1024",  # Fix minibatch size validation
+        "+hardware=macbook",  # Use macbook for local testing
+        "device=cpu",  # Override to cpu for local testing
+        "wandb.entity=metta-research",  # Specify wandb entity
     ]
+
+    # Only add device override if explicitly specified (not auto)
+    if device != "auto":
+        cmd.append(f"device={device}")
 
     logger.info(f"Running experiment: {task_set_1} -> {task_set_2}")
     logger.info(f"Command: {' '.join(cmd)}")
@@ -92,7 +117,7 @@ def run_single_experiment(
         raise
 
     # Clean up temporary config
-    os.remove(config_path)
+    os.remove(config_file_path)
 
     return f"train_dir/{run_id}"
 
@@ -144,7 +169,7 @@ def analyze_experiment(run_dir: str, task_set_1: str, task_set_2: str) -> Dict[s
 
 
 def run_all_experiments(
-    task_sets: List[str], base_run_id: str, total_timesteps: int = 10_000_000, num_workers: int = 4, device: str = "cuda"
+    task_sets: List[str], base_run_id: str, total_timesteps: int = 10_000_000, num_workers: int = 4, device: str = "auto"
 ) -> Dict[str, Dict[str, float]]:
     """Run experiments for all task set pairs.
 
@@ -284,7 +309,7 @@ def main():
         "--total-timesteps", type=int, default=10_000_000, help="Total training timesteps per experiment"
     )
     parser.add_argument("--num-workers", type=int, default=4, help="Number of parallel workers")
-    parser.add_argument("--device", default="cuda", help="Device to use for training")
+    parser.add_argument("--device", default="auto", help="Device to use for training (auto, cpu, cuda)")
     parser.add_argument("--output-dir", default="progressive_forgetting_results", help="Directory to save results")
 
     args = parser.parse_args()

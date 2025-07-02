@@ -1,13 +1,3 @@
 pair
 navigation_to_memory
-navigation_to_navigation_sequence
-navigation_to_object_use
 memory_to_navigation
-memory_to_navigation_sequence
-memory_to_object_use
-navigation_sequence_to_navigation
-navigation_sequence_to_memory
-navigation_sequence_to_object_use
-object_use_to_navigation
-object_use_to_memory
-object_use_to_navigation_sequence

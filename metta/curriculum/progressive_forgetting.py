@@ -60,6 +60,7 @@ class ProgressiveForgettingCurriculum(RandomCurriculum):
 
         # Performance tracking
         self.task_set_performance = {name: 0.0 for name in task_sets.keys()}
+        self._task_scores = {}  # Track individual task scores
         self.current_task_set = None
         self.steps_since_switch = 0
         self.steps_since_eval = 0
@@ -141,6 +142,9 @@ class ProgressiveForgettingCurriculum(RandomCurriculum):
         """Complete a task and update curriculum state."""
         super().complete_task(id, score)
 
+        # Track individual task scores
+        self._task_scores[id] = score
+
         self.steps_since_switch += 1
         self.steps_since_eval += 1
 
@@ -155,10 +159,18 @@ class ProgressiveForgettingCurriculum(RandomCurriculum):
 
     def get_curriculum_stats(self) -> Dict[str, float]:
         """Return curriculum statistics for logging."""
+        # Convert task set name to numeric index for stats compatibility
+        current_task_set_idx = 0
+        if self.current_task_set is not None:
+            try:
+                current_task_set_idx = self.task_set_order.index(self.current_task_set)
+            except ValueError:
+                current_task_set_idx = 0
+
         stats = {
-            "current_task_set": self.current_task_set or "none",
-            "steps_since_switch": self.steps_since_switch,
-            "steps_since_eval": self.steps_since_eval,
+            "current_task_set": float(current_task_set_idx),
+            "steps_since_switch": float(self.steps_since_switch),
+            "steps_since_eval": float(self.steps_since_eval),
         }
 
         # Add performance stats for each task set
