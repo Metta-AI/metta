@@ -36,6 +36,12 @@ If you are running a postgres instance locally, use `host.docker.internal` as ho
 
 To run locally without Docker:
 
+```bash
+cd app_backend
+uv run python server.py
 ```
 
-```
+## API Endpoints
+
+- `/dashboard/*` - Dashboard-related endpoints
+- `/stats/*` - Statistics and data recording endpoints
