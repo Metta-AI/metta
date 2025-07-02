@@ -323,10 +323,21 @@ class MettaTrainer:
         trainer_cfg = self.trainer_cfg
 
         if self._stats_client is not None:
-            name = self.wandb_run.name if self.wandb_run is not None and self.wandb_run.name is not None else "unknown"
-            url = self.wandb_run.url if self.wandb_run is not None else None
+            if self.wandb_run is not None:
+                name = self.wandb_run.name if self.wandb_run.name is not None else "unknown"
+                url = self.wandb_run.url
+                tags: list[str] | None = list(self.wandb_run.tags) if self.wandb_run.tags is not None else None
+                description = self.wandb_run.notes
+            else:
+                name = "unknown"
+                url = None
+                tags = None
+                description = None
+
             try:
-                self._stats_run_id = self._stats_client.create_training_run(name=name, attributes={}, url=url).id
+                self._stats_run_id = self._stats_client.create_training_run(
+                    name=name, attributes={}, url=url, description=description, tags=tags
+                ).id
             except Exception as e:
                 logger.warning(f"Failed to create training run: {e}")
 

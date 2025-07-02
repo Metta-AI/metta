@@ -117,7 +117,6 @@ export function Dashboard({ repo }: DashboardProps) {
 
   const location = useLocation()
 
-
   // Initialize data and load saved dashboard if provided
   useEffect(() => {
     const initializeData = async () => {

@@ -58,11 +58,7 @@ export function SuiteTabs({ suites, selectedSuite, onSuiteChange, rightContent }
             {suite}
           </button>
         ))}
-        {rightContent && (
-          <div style={{ marginLeft: 'auto' }}>
-            {rightContent}
-          </div>
-        )}
+        {rightContent && <div style={{ marginLeft: 'auto' }}>{rightContent}</div>}
       </div>
     </>
   )
