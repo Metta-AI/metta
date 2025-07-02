@@ -10,6 +10,12 @@ class PolicyMetadata(dict[str, Any]):
     # Define required field names as class constant
     _REQUIRED_FIELDS = {"agent_step", "epoch", "generation", "train_time"}
 
+    # Type hints for IDE support
+    agent_step: int
+    epoch: int
+    generation: int
+    train_time: float
+
     def __init__(self, agent_step=0, epoch=0, generation=0, train_time=0.0, **kwargs: Any):
         """Initialize with required fields and optional additional fields."""
 
@@ -27,6 +33,31 @@ class PolicyMetadata(dict[str, Any]):
 
         data.update(kwargs)
         super().__init__(data)
+
+    def __getattr__(self, name: str) -> Any:
+        """Allow attribute-style access for any field in the dict."""
+        try:
+            return self[name]
+        except KeyError as e:
+            raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'") from e
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        """Allow attribute-style setting for any field."""
+        if name.startswith("_"):
+            # Allow setting private attributes normally
+            super().__setattr__(name, value)
+        else:
+            # Set any field in the dict
+            self[name] = value
+
+    def __delattr__(self, name: str) -> None:
+        """Delete fields via attribute access, but prevent deletion of required fields."""
+        if name in self._REQUIRED_FIELDS:
+            raise AttributeError(f"Cannot delete required field: {name}")
+        try:
+            del self[name]
+        except KeyError as e:
+            raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'") from e
 
     def __delitem__(self, key: str) -> None:
         """Delete item by key, preventing deletion of required fields."""
