@@ -21,36 +21,12 @@ from metta.api import (
     save_checkpoint,
 )
 from metta.common.util.heartbeat import record_heartbeat
-from metta.rl.functions import calculate_explained_variance
+from metta.rl.functions import (
+    calculate_explained_variance,
+    cleanup_old_policies,
+    compute_gradient_stats,
+)
 from metta.rl.trainer_checkpoint import TrainerCheckpoint
-
-
-def _cleanup_old_policies(checkpoint_dir: str, keep_last_n: int = 5):
-    """Clean up old saved policies to prevent memory accumulation."""
-    try:
-        from pathlib import Path
-
-        # Get checkpoint directory
-        checkpoint_path = Path(checkpoint_dir)
-        if not checkpoint_path.exists():
-            return
-
-        # List all policy files
-        policy_files = sorted(checkpoint_path.glob("policy_*.pt"))
-
-        # Keep only the most recent ones
-        if len(policy_files) > keep_last_n:
-            files_to_remove = policy_files[:-keep_last_n]
-            for file_path in files_to_remove:
-                try:
-                    file_path.unlink()
-                    logger.info(f"Removed old policy file: {file_path}")
-                except Exception as e:
-                    logger.warning(f"Failed to remove old policy file {file_path}: {e}")
-
-    except Exception as e:
-        logger.warning(f"Error during policy cleanup: {e}")
-
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -372,23 +348,10 @@ while training.agent_step < trainer_config.total_timesteps:
     if hasattr(trainer_config, "grad_mean_variance_interval"):
         grad_interval = trainer_config.grad_mean_variance_interval
         if grad_interval > 0 and training.epoch % grad_interval == 0:
-            all_gradients = []
-            for param in agent.parameters():
-                if param.grad is not None:
-                    all_gradients.append(param.grad.view(-1))
-
-            if all_gradients:
-                all_gradients_tensor = torch.cat(all_gradients).to(torch.float32)
-                grad_mean = all_gradients_tensor.mean()
-                grad_variance = all_gradients_tensor.var()
-                grad_norm = all_gradients_tensor.norm(2)
-
-                logger.info(
-                    f"Gradient stats at epoch {training.epoch}: "
-                    f"mean={grad_mean.item():.2e}, "
-                    f"var={grad_variance.item():.2e}, "
-                    f"norm={grad_norm.item():.2e}"
-                )
+            grad_stats = compute_gradient_stats(agent)
+            # Log the stats if needed
+            for key, value in grad_stats.items():
+                logger.debug(f"{key}: {value}")
 
     # Save checkpoint periodically
     if training.epoch % trainer_config.checkpoint.checkpoint_interval == 0:
@@ -420,7 +383,7 @@ while training.agent_step < trainer_config.total_timesteps:
 
         # Clean up old policies to prevent disk space issues
         if training.epoch % 10 == 0:  # Clean up every 10 epochs
-            _cleanup_old_policies(checkpoint_path, keep_last_n=5)
+            cleanup_old_policies(checkpoint_path, keep_last_n=5)
 
     # Clear stats for next iteration
     training.stats.clear()

@@ -545,3 +545,65 @@ def create_optimizer(
             eps=eps,
             weight_decay=weight_decay,
         )
+
+
+def create_policy_metadata(
+    agent_step: int,
+    epoch: int,
+    env: Any,
+    run_name: Optional[str] = None,
+    generation: int = 0,
+    initial_uri: Optional[str] = None,
+    train_time: float = 0.0,
+    eval_scores: Optional[Dict[str, float]] = None,
+) -> Any:
+    """Create metadata for a policy save.
+
+    Args:
+        agent_step: Current agent step
+        epoch: Current epoch
+        env: MettaGridEnv instance
+        run_name: Name of the run
+        generation: Policy generation number
+        initial_uri: URI of initial policy
+        train_time: Total training time
+        eval_scores: Optional evaluation scores by category
+
+    Returns:
+        PolicyMetadata object
+    """
+    from metta.agent.policy_metadata import PolicyMetadata
+
+    # Calculate overall score from category scores
+    overall_score = 0.0
+    if eval_scores:
+        score_values = list(eval_scores.values())
+        overall_score = sum(score_values) / len(score_values) if score_values else 0.0
+
+    return PolicyMetadata(
+        agent_step=agent_step,
+        epoch=epoch,
+        run=run_name,
+        action_names=env.action_names,
+        generation=generation,
+        initial_uri=initial_uri,
+        train_time=train_time,
+        score=overall_score,
+        eval_scores=eval_scores or {},
+    )
+
+
+def extract_policy_from_distributed(policy: torch.nn.Module) -> torch.nn.Module:
+    """Extract the actual policy module from distributed wrapper if needed.
+
+    Args:
+        policy: Policy that may be wrapped in DistributedDataParallel
+
+    Returns:
+        The unwrapped policy module
+    """
+    from metta.agent.metta_agent import DistributedMettaAgent
+
+    if isinstance(policy, DistributedMettaAgent):
+        return policy.module
+    return policy
