@@ -1,1 +1,0 @@
-./metta/setup/metta.sh
