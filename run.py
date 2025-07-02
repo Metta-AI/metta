@@ -44,7 +44,7 @@ logger.info(f"Using device: {device}")
 trainer_config = create_default_trainer_config(
     num_workers=4,
     total_timesteps=10_000_000,
-    batch_size=8192,
+    batch_size=16384,  # Increased to accommodate all agents
     minibatch_size=512,
     checkpoint_dir="./checkpoints",
     # Override specific nested configs
@@ -67,9 +67,9 @@ env = Environment(
     width=32,
     height=32,
     device=str(device),
-    num_envs=trainer_config.batch_size // trainer_config.num_workers,
+    num_envs=64,  # Number of parallel environments
     num_workers=trainer_config.num_workers,
-    batch_size=trainer_config.batch_size // trainer_config.num_workers,
+    batch_size=64,  # Batch size per worker
     async_factor=trainer_config.async_factor,
     zero_copy=trainer_config.zero_copy,
     is_training=True,
@@ -77,21 +77,88 @@ env = Environment(
 
 # Create agent using DictConfig (as expected by make_policy)
 logger.info("Creating agent...")
+# Create agent configuration based on the fast.yaml example
 agent_config = DictConfig(
     {
         "device": str(device),
         "agent": {
-            "hidden_dim": 512,
-            "lstm_layers": 1,
-            "bptt_horizon": 8,
-            "use_prev_action": True,
-            "use_prev_reward": True,
-            "mlp_layers": 2,
-            "forward_lstm": True,
-            "backbone": "cnn",
             "clip_range": 0,
             "analyze_weights_interval": 300,
             "l2_init_weight_update_interval": 0,
+            "observations": {"obs_key": "grid_obs"},
+            "components": {
+                "_obs_": {
+                    "_target_": "metta.agent.lib.obs_token_to_box_shaper.ObsTokenToBoxShaper",
+                    "sources": None,
+                },
+                "obs_normalizer": {
+                    "_target_": "metta.agent.lib.observation_normalizer.ObservationNormalizer",
+                    "sources": [{"name": "_obs_"}],
+                },
+                "cnn1": {
+                    "_target_": "metta.agent.lib.nn_layer_library.Conv2d",
+                    "sources": [{"name": "obs_normalizer"}],
+                    "nn_params": {
+                        "out_channels": 32,
+                        "kernel_size": 3,
+                        "stride": 1,
+                        "padding": 1,
+                    },
+                },
+                "cnn2": {
+                    "_target_": "metta.agent.lib.nn_layer_library.Conv2d",
+                    "sources": [{"name": "cnn1"}],
+                    "nn_params": {
+                        "out_channels": 64,
+                        "kernel_size": 3,
+                        "stride": 1,
+                        "padding": 1,
+                    },
+                },
+                "obs_flattener": {
+                    "_target_": "metta.agent.lib.nn_layer_library.Flatten",
+                    "sources": [{"name": "cnn2"}],
+                },
+                "encoded_obs": {
+                    "_target_": "metta.agent.lib.nn_layer_library.Linear",
+                    "sources": [{"name": "obs_flattener"}],
+                    "nn_params": {"out_features": 512},
+                },
+                "_core_": {
+                    "_target_": "metta.agent.lib.lstm.LSTM",
+                    "sources": [{"name": "encoded_obs"}],
+                    "output_size": 512,
+                    "nn_params": {
+                        "num_layers": 1,
+                    },
+                },
+                "_value_": {
+                    "_target_": "metta.agent.lib.nn_layer_library.Linear",
+                    "sources": [{"name": "_core_"}],
+                    "nn_params": {"out_features": 1},
+                    "nonlinearity": None,
+                },
+                "actor_1": {
+                    "_target_": "metta.agent.lib.nn_layer_library.Linear",
+                    "sources": [{"name": "_core_"}],
+                    "nn_params": {"out_features": 512},
+                },
+                "_action_embeds_": {
+                    "_target_": "metta.agent.lib.action.ActionEmbedding",
+                    "sources": None,
+                    "nn_params": {
+                        "num_embeddings": 100,
+                        "embedding_dim": 16,
+                    },
+                },
+                "_action_": {
+                    "_target_": "metta.agent.lib.actor.MettaActorSingleHead",
+                    "sources": [
+                        {"name": "actor_1"},
+                        {"name": "_action_embeds_"},
+                    ],
+                },
+            },
         },
     }
 )

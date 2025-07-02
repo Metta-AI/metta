@@ -10,10 +10,12 @@ This API exposes the core training components from Metta, allowing users to:
 import logging
 from typing import Any, Dict, List, Optional, Tuple
 
+import gymnasium as gym
+import numpy as np
 import torch
 from omegaconf import DictConfig
 
-from metta.agent.metta_agent import MettaAgent, make_policy
+from metta.agent.metta_agent import MettaAgent
 from metta.agent.policy_store import PolicyRecord, PolicyStore
 from metta.common.stopwatch import Stopwatch
 from metta.mettagrid.curriculum.core import SingleTaskCurriculum
@@ -263,8 +265,28 @@ class Agent:
         metta_grid_env = env.driver_env
         assert isinstance(metta_grid_env, MettaGridEnv)
 
-        # Create agent using make_policy
-        agent = make_policy(metta_grid_env, config)
+        # Create observation space matching what make_policy does
+        obs_space = gym.spaces.Dict(
+            {
+                "grid_obs": metta_grid_env.single_observation_space,
+                "global_vars": gym.spaces.Box(low=-np.inf, high=np.inf, shape=[0], dtype=np.int32),
+            }
+        )
+
+        # Extract agent config
+        agent_cfg = config.agent
+
+        # Create MettaAgent directly without Hydra
+        agent = MettaAgent(
+            obs_space=obs_space,
+            obs_width=metta_grid_env.obs_width,
+            obs_height=metta_grid_env.obs_height,
+            action_space=metta_grid_env.single_action_space,
+            feature_normalizations=metta_grid_env.feature_normalizations,
+            global_features=metta_grid_env.global_features,
+            device=str(device),
+            **agent_cfg,
+        )
 
         # Initialize to environment
         features = metta_grid_env.get_observation_features()
