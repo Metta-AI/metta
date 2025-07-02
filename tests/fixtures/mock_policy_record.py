@@ -2,12 +2,18 @@ from metta.agent.policy_metadata import PolicyMetadata
 from metta.agent.policy_record import PolicyRecord
 from tests.fixtures.mock_agent import MockAgent
 
+MockPolicyMetadata = PolicyMetadata()
+
 
 class MockPolicyRecord(PolicyRecord):
     """Mock implementation of PolicyRecord for testing."""
 
     def __init__(
-        self, policy_store=None, run_name: str = "mock_run", uri: str = "mock://policy", metadata: PolicyMetadata = None
+        self,
+        policy_store=None,
+        run_name: str = "mock_run",
+        uri: str = "mock://policy",
+        metadata: PolicyMetadata = MockPolicyMetadata,
     ):
         """Initialize a mock policy record.
 
@@ -17,9 +23,6 @@ class MockPolicyRecord(PolicyRecord):
             uri: Policy URI (defaults to "mock://policy")
             metadata: PolicyMetadata instance (creates default if None)
         """
-        if metadata is None:
-            metadata = PolicyMetadata()
-            metadata.epoch = 0  # Default epoch for mock
 
         super().__init__(policy_store=policy_store, run_name=run_name, uri=uri, metadata=metadata)
 
