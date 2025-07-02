@@ -116,18 +116,17 @@ class PPOConfig(BaseModelWithForbidExtra):
 
 
 class TorchProfilerConfig(BaseModelWithForbidExtra):
-    interval_epochs: int = Field(default=0, ge=0)  # 0 to disable
+    interval_epochs: int = Field(default=10000, ge=0)  # 0 to disable
     # Upload location: None disables uploads, supports s3:// or local paths
-    upload_dir: str | None = Field(default=None)
+    profile_dir: str = Field(default="")
 
     @property
     def enabled(self) -> bool:
-        return self.interval_epochs > 0 and self.upload_dir is not None
+        return self.interval_epochs > 0
 
     @model_validator(mode="after")
     def validate_fields(self) -> "TorchProfilerConfig":
-        if self.interval_epochs and self.upload_dir is None:
-            raise ValueError("profiler.upload_dir must be set if profiler.interval_epochs > 0")
+        assert self.profile_dir, "profile_dir must be set"
         return self
 
 
@@ -270,5 +269,8 @@ def parse_trainer_config(
 
     if "replay_dir" not in config_dict.setdefault("simulation", {}):
         config_dict["simulation"]["replay_dir"] = f"${cfg.run_dir}/replays"
+
+    if "profile_dir" not in config_dict.setdefault("profiler", {}):
+        config_dict["profiler"]["profile_dir"] = f"${cfg.run_dir}/torch_traces"
 
     return TrainerConfig.model_validate(config_dict)

@@ -7,18 +7,16 @@
 # To Enable with your own wandb account:
 #  - Edit configs/wandb/external_user.yaml with your settings
 #  - Ensure you are authenticated with wandb. Our setup script should assist you with this.
-#  - Provide 
+#  - Provide
 
 trainer:
-# Enable torch profiling with local storage:
-#   profiler:
-#     interval_epochs: 10000
-#     upload_dir: ${run_dir}/torch_traces  # local directory
-
-# Enable uploads to your own S3 bucket
+# Enable uploads to your own S3 bucket. By default, these are local.
 #  - Ensure you are authenticated with aws. Our setup script should assist you with this.
 #   profiler:
-#     interval_epochs: 10000
-#     upload_dir: s3://your-bucket/torch_traces
+#     profile_dir: s3://your-bucket/torch_traces
 #   simulation:
 #     replay_dir: s3://your-bucket/replays/${run}
+#   checkpoint:
+#     checkpoint_dir: s3://your-bucket/checkpoints/${run}
+# You can also supply wandb locations for these files if set up with wandb (see above).
+

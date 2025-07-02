@@ -26,12 +26,6 @@ class TorchProfiler:
 
     Set profiler.interval_epochs in the config to zero to turn it off.
 
-    Upload behavior is configured via trainer.profiler config:
-    - trainer.profiler.interval_epochs: profiling interval (0 to disable)
-    - trainer.profiler.upload_dir: upload location (supports s3:// or local paths)
-    - Setting upload_dir to null disables uploads
-    - S3 uploads will be skipped if AWS credentials are not configured
-
     Future work could include support for TensorBoard.
     """
 
@@ -167,11 +161,8 @@ class TorchProfiler:
 
     def _upload(self, local_path, filename_gz):
         """Uploads the compressed trace to configured location and returns URL."""
-        if not self._profiler_config.upload_dir:
-            return None
-
         # Construct the full upload path
-        upload_path = os.path.join(self._profiler_config.upload_dir, filename_gz)
+        upload_path = os.path.join(self._profiler_config.profile_dir, filename_gz)
 
         try:
             # Use write_file which handles local/s3/wandb paths
