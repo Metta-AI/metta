@@ -158,7 +158,7 @@ class TorchProfiler:
             logger.warning(f"Could not remove temporary trace file {input_path}: {e}")
 
     def _wandb_log_trace_link(self, upload_url) -> None:
-        """Logs the S3 link to the profile trace in WandB."""
+        """Logs the public url link to the profile trace in WandB."""
         link_summary = {
             "torch_traces/link": wandb.Html(f'<a href="{upload_url}">Torch Trace (Epoch {self._start_epoch})</a>')
         }
