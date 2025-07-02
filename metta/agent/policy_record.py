@@ -4,8 +4,6 @@ This is separated from PolicyStore to enable cleaner packaging of saved policies
 """
 
 import logging
-import os
-from typing import Union
 
 import torch
 from torch import nn
@@ -18,9 +16,9 @@ logger = logging.getLogger(__name__)
 class PolicyRecord:
     """A record containing a policy and its metadata."""
 
-    def __init__(self, policy_store, name: str, uri: str, metadata: Union[PolicyMetadata, dict]):
+    def __init__(self, policy_store, run_name: str, uri: str, metadata: PolicyMetadata):
         self._policy_store = policy_store
-        self.name = name  # Human-readable identifier (e.g., from wandb)
+        self.run_name = run_name  # Human-readable identifier (e.g., from wandb)
         self.uri: str = uri
         # Use the setter to ensure proper type
         self.metadata = metadata
@@ -31,8 +29,7 @@ class PolicyRecord:
         """Get the metadata."""
         if not hasattr(self, "_metadata"):
             # Try backwards compatibility names
-            old_metadata_names = ["checkpoint", "meta_data", "_meta_data", "_checkpoint"]
-
+            old_metadata_names = ["checkpoint"]
             for name in old_metadata_names:
                 if hasattr(self, name):
                     logger.warning(
@@ -44,12 +41,24 @@ class PolicyRecord:
                     self.metadata = getattr(self, name)
                     return self._metadata
 
-            # If no old names found
-            raise AttributeError(
-                "No metadata found under any known attribute names. "
-                "This PolicyRecord may be corrupted or from an incompatible version."
-            )
+            # If no old names found, collect available attributes
+            available_attrs = {}
+            for attr in dir(self):
+                if attr == "metadata":  # Skip this property to avoid recursion
+                    continue
+                if not attr.startswith("_"):
+                    try:
+                        value = getattr(self, attr)
+                        if not callable(value):
+                            available_attrs[attr] = type(value).__name__
+                    except Exception as e:
+                        available_attrs[attr] = f"<Error accessing: {e}>"
 
+            raise AttributeError(
+                f"No metadata found under any known attribute names. "
+                f"Available attributes: {available_attrs}. "
+                f"This PolicyRecord may be corrupted or from an incompatible version."
+            )
         return self._metadata
 
     @metadata.setter
@@ -99,10 +108,8 @@ class PolicyRecord:
         Raises:
             TypeError: If policy is not a nn.Module.
         """
-        if not isinstance(policy, nn.Module):
-            raise TypeError(f"Policy must be a torch.nn.Module, got {type(policy).__name__}")
         self._cached_policy = policy
-        logger.info(f"Policy overwritten for {self.name}")
+        logger.info(f"Policy overwritten for {self.run_name}")
 
     def policy_as_metta_agent(self):
         """Return the policy, ensuring it's a MettaAgent type."""
@@ -115,70 +122,10 @@ class PolicyRecord:
         """Count the number of trainable parameters."""
         return sum(p.numel() for p in self.policy.parameters() if p.requires_grad)
 
-    def key_and_version(self) -> tuple[str, int]:
-        """Extract key and version from the URI, handling both wandb:// and file:// URIs.
-
-        Returns:
-            Tuple of (key, version_number)
-            - For wandb:// URIs: (artifact_name, wandb_version)
-            - For file:// URIs: (filename_without_extension, epoch_from_metadata)
-        """
-        if self.uri.startswith("wandb://"):
-            # Remove wandb:// prefix and get the last part
-            artifact_path = self.uri[8:]
-            base_name = artifact_path.split("/")[-1]
-
-            # Check if it has a version number in format ":vNUM"
-            if ":" in base_name and ":v" in base_name:
-                parts = base_name.split(":v")
-                try:
-                    version = int(parts[1])
-                    key = parts[0]
-                except ValueError:
-                    key = base_name
-                    version = 0
-            else:
-                # No version, use the whole thing as key and version = 0
-                key = base_name
-                version = 0
-
-            return key, version
-
-        elif self.uri.startswith("file://"):
-            # For file URIs, use filename as key and epoch as version
-            path = self.file_path
-            filename = os.path.basename(path)
-            # Remove extension to get key
-            key = os.path.splitext(filename)[0]
-            # Use epoch from metadata as version, defaulting to 0
-            version = self.metadata.get("epoch", 0)
-            return key, version
-
-        else:
-            # For other URIs, return a sensible default
-            return self.name, self.metadata.get("epoch", 0)
-
-    def wandb_key_and_version(self) -> tuple[str, int]:
-        """Extract the wandb artifact key and version from the URI.
-
-        Returns:
-            Tuple of (artifact_key, version_number)
-
-        Raises:
-            ValueError: If the URI is not a wandb:// URI
-        """
-        if not self.uri.startswith("wandb://"):
-            raise ValueError(
-                f"wandb_key_and_version() only applies to wandb:// URIs, "
-                f"but got: {self.uri}. Use key_and_version() for a general method that handles all URI types."
-            )
-
-        return self.key_and_version()  # Delegate to general method
-
     def __repr__(self):
         """Generate a detailed representation of the PolicyRecord."""
         # Basic policy record info
-        lines = [f"PolicyRecord(name={self.name}, uri={self.uri})"]
+        lines = [f"PolicyRecord(name={self.run_name}, uri={self.uri})"]
 
         # Add key metadata if available
         important_keys = ["epoch", "agent_step", "generation", "score"]

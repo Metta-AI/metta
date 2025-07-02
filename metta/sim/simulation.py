@@ -265,7 +265,7 @@ class Simulation:
                 except Exception as e:
                     logger.error(f"Error generating NPC actions: {e}")
                     raise SimulationCompatibilityError(
-                        f"[{self._name}] Error generating NPC actions for {self._npc_pr.name}: {e}"
+                        f"[{self._name}] Error generating NPC actions for {self._npc_pr.run_name}: {e}"
                     ) from e
 
         # ---------------- action stitching ----------------------- #
@@ -366,7 +366,7 @@ class Simulation:
         return policy_ids
 
     def _get_policy_name(self) -> str:
-        return self._wandb_policy_name if self._wandb_policy_name is not None else self._policy_pr.name
+        return self._wandb_policy_name if self._wandb_policy_name is not None else self._policy_pr.run_name
 
     def _get_policy_uri(self) -> str:
         return self._wandb_uri if self._wandb_uri is not None else self._policy_pr.uri
@@ -378,7 +378,7 @@ class Simulation:
             policy_uri = self._get_policy_uri()
             policies = [(policy_name, policy_uri)]
             if self._npc_pr is not None:
-                policies.append((self._npc_pr.name, self._npc_pr.uri))
+                policies.append((self._npc_pr.run_name, self._npc_pr.uri))
             policy_ids = self.get_policy_ids(self._stats_client, policies)
 
             agent_map: Dict[int, uuid.UUID] = {}
@@ -387,7 +387,7 @@ class Simulation:
 
             if self._npc_pr is not None:
                 for idx in self._npc_idxs:
-                    agent_map[int(idx.item())] = policy_ids[self._npc_pr.name]
+                    agent_map[int(idx.item())] = policy_ids[self._npc_pr.run_name]
 
             # Get all episodes from the database
             episodes_df = stats_db.query("SELECT * FROM episodes")
