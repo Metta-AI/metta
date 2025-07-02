@@ -159,6 +159,22 @@ jobs:
       - name: Setup uv
         uses: ./.github/actions/setup-uv
 
+      - name: Debug Python environment
+        run: |
+          echo "=== Python version ==="
+          python --version
+          echo "=== Pytest version ==="
+          pytest --version
+          python -c "import pytest; print(f'pytest location: {pytest.__file__}')"
+          echo "=== NumPy version ==="
+          python -c "import numpy; print(f'NumPy: {numpy.__version__}')"
+          python -c "import numpy; print(f'NumPy location: {numpy.__file__}')"
+          echo "=== pytest._pytest.python_api info ==="
+          python -c "import _pytest.python_api; print(f'Location: {_pytest.python_api.__file__}')"
+          echo "=== All installed packages ==="
+          uv pip list | grep -E "(pytest|numpy)" || pip list | grep -E "(pytest|numpy)"
+
+
       - name: Run Pytest on core tests
         run: |
           pytest --maxfail=1 --disable-warnings -q
