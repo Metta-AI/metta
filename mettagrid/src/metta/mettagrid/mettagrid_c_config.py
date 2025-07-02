@@ -57,7 +57,7 @@ class AgentGroupConfig_cpp(ObjectConfig_cpp):
     """Agent group configuration."""
 
     object_type: Literal["agent"] = "agent"
-    freeze_duration: int = Field(ge=0)
+    freeze_duration: int = Field(ge=-1)
     action_failure_penalty: float = Field(default=0, ge=0)
     max_items_per_type: Dict[FeatureId, int] = Field(default_factory=dict)
     resource_rewards: Dict[FeatureId, float] = Field(default_factory=dict)
