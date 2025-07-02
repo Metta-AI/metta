@@ -1,0 +1,50 @@
+env: simple
+
+defaults:
+  - common
+  - agent: basal_ganglia
+  - trainer: trainer
+  - sim: simple
+  - wandb: metta_research
+  - _self_
+
+seed: 42
+
+train_job:
+  map_preview_uri: s3://softmax-public/training_runs/${run}/map_preview.json.z
+  evals: ${sim}
+
+cmd: train
+
+# Override trainer settings for basal ganglia experiment
+trainer:
+  num_workers: 8  # Adjust based on available hardware
+  total_timesteps: 10_000_000  # Start with smaller number for testing
+  batch_size: 262144  # Smaller batch size for initial testing
+  minibatch_size: 8192
+  bptt_horizon: 32  # Shorter horizon for initial testing
+
+  optimizer:
+    learning_rate: 0.0003  # Slightly higher learning rate for reward shaping
+    beta1: 0.9
+    beta2: 0.999
+    eps: 1e-8
+    weight_decay: 0
+
+  ppo:
+    clip_coef: 0.2  # Slightly higher clipping for reward shaping
+    ent_coef: 0.01  # Higher entropy for exploration
+    gae_lambda: 0.95
+    gamma: 0.99
+    max_grad_norm: 0.5
+    vf_clip_coef: 0.2
+    vf_coef: 0.5
+    norm_adv: true
+    clip_vloss: true
+    target_kl: null
+
+# Environment settings
+sim:
+  num_episodes: 1
+  max_time_s: 120  # Longer episodes for reward shaping to take effect
+  env_overrides: {}
