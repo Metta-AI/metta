@@ -2,7 +2,7 @@ from typing import Annotated, Callable
 
 from fastapi import Depends, HTTPException, Request, status
 
-from app_backend import config
+from metta.app_backend import config
 from metta.app_backend.metta_repo import MettaRepo
 
 

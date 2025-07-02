@@ -11,7 +11,7 @@ from psycopg.rows import class_row
 from psycopg.sql import SQL
 from pydantic import BaseModel
 
-from app_backend import query_logger
+from metta.app_backend import query_logger
 from metta.app_backend.auth import create_user_or_token_dependency
 from metta.app_backend.metta_repo import MettaRepo
 from metta.app_backend.query_logger import execute_query_and_log
