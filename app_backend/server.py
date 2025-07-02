@@ -5,15 +5,11 @@ import sys
 
 import fastapi
 import uvicorn
-from dotenv import load_dotenv
 from fastapi.middleware.cors import CORSMiddleware
 
 from app_backend.auth import user_from_header_or_token
 from app_backend.metta_repo import MettaRepo
 from app_backend.routes import dashboard_routes, sql_routes, stats_routes, token_routes
-
-# Load environment variables from .env file
-load_dotenv()
 
 _logging_configured = False
 
