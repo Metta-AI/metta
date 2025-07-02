@@ -82,7 +82,12 @@ class StatsClient:
         return ClientPolicyIdResponse(policy_ids=policy_ids_uuid)
 
     def create_training_run(
-        self, name: str, attributes: Optional[Dict[str, str]] = None, url: Optional[str] = None
+        self,
+        name: str,
+        attributes: Optional[Dict[str, str]] = None,
+        url: Optional[str] = None,
+        description: Optional[str] = None,
+        tags: Optional[List[str]] = None,
     ) -> ClientTrainingRunResponse:
         """
         Create a new training run.
@@ -98,7 +103,7 @@ class StatsClient:
         Raises:
             httpx.HTTPStatusError: If the request fails
         """
-        data = TrainingRunCreate(name=name, attributes=attributes or {}, url=url)
+        data = TrainingRunCreate(name=name, attributes=attributes or {}, url=url, description=description, tags=tags)
         headers = {"X-Auth-Token": self.machine_token}
         response = self.http_client.post("/stats/training-runs", json=data.model_dump(), headers=headers)
         response.raise_for_status()
