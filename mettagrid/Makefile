@@ -21,21 +21,21 @@ lint:
 	@echo "Running cpplint..."
 	@bash ./tests/cpplint.sh
 
-# Build and run all tests
 test: build lint
 	@echo "Running C++ tests..."
 	ctest --test-dir build-debug -L benchmark -V --rerun-failed --output-on-failure
 
-# Clean all build artifacts
 clean:
+	@echo "Cleaning extra venv..."
+	rm -rf .venv
+	rm uv.lock
 	@echo "Cleaning build artifacts..."
 	rm -rf build-debug build-release build
 
-# Install package in editable mode
 install:
 	@echo "Installing package in editable mode..."
-	uv sync --inexact
+	UV_PROJECT_ENVIRONMENT=../.venv uv sync --inexact
 
 pytest: install
 	@echo "Running Python tests..."
-	uv run pytest
+	UV_PROJECT_ENVIRONMENT=../.venv uv run pytest

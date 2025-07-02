@@ -31,25 +31,28 @@ class MettaCLI:
             info("\n")
 
         info("Select configuration:")
-        info("1. External contributor")
-        info("2. User with own cloud account")
-        info("3. Softmax employee")
-        info("4. Custom configuration")
+        # Dynamically generate user type options
+        user_types = list(UserType)
+        for i, user_type in enumerate(user_types, 1):
+            info(f"{i}. {user_type.get_description()}")
+        info(f"{len(user_types) + 1}. Custom configuration")
 
-        choice = input("\nEnter choice (1-4, or press Enter to keep current): ").strip()
+        choice = input(f"\nEnter choice (1-{len(user_types) + 1}, or press Enter to keep current): ").strip()
 
         if not choice and self.config.config_path.exists():
             info("Keeping current configuration.")
             return
 
-        if choice == "4":
+        if choice == str(len(user_types) + 1):
             self._custom_setup()
         else:
-            if choice == "2":
-                user_type = UserType.CLOUD
-            elif choice == "3":
-                user_type = UserType.SOFTMAX
-            else:
+            try:
+                choice_idx = int(choice) - 1
+                if 0 <= choice_idx < len(user_types):
+                    user_type = user_types[choice_idx]
+                else:
+                    user_type = UserType.EXTERNAL
+            except (ValueError, IndexError):
                 user_type = UserType.EXTERNAL
 
             self.config.apply_profile(user_type)
@@ -58,18 +61,18 @@ class MettaCLI:
 
     def _custom_setup(self) -> None:
         info("\nSelect base profile for custom configuration:")
-        info("1. External contributor")
-        info("2. User with own cloud account")
-        info("3. Softmax employee")
+        # Dynamically generate user type options
+        user_types = list(UserType)
+        for i, user_type in enumerate(user_types, 1):
+            info(f"{i}. {user_type.get_description()}")
 
-        choice = input("\nEnter choice (1-3): ").strip()
+        choice = input(f"\nEnter choice (1-{len(user_types)}): ").strip()
 
-        if choice == "2":
-            user_type = UserType.CLOUD
-        elif choice == "3":
-            user_type = UserType.SOFTMAX
+        choice_idx = int(choice) - 1
+        if 0 <= choice_idx < len(user_types):
+            user_type = user_types[choice_idx]
         else:
-            user_type = UserType.EXTERNAL
+            raise ValueError(f"Invalid choice: {choice}")
 
         self.config.setup_custom_profile(user_type)
 
@@ -88,18 +91,16 @@ class MettaCLI:
 
     def cmd_configure(self, args) -> None:
         if args.profile:
-            profile_map = {
-                "external": UserType.EXTERNAL,
-                "cloud": UserType.CLOUD,
-                "softmax": UserType.SOFTMAX,
-            }
+            # Dynamically build profile map from UserType enum
+            profile_map = {ut.value: ut for ut in UserType}
             if args.profile in profile_map:
                 self.config.apply_profile(profile_map[args.profile])
                 success(f"Configured as {profile_map[args.profile].value} user.")
                 info("\nRun './metta.sh install' to set up your environment.")
             else:
                 error(f"Unknown profile: {args.profile}")
-                info("Available profiles: external, cloud, softmax")
+                available_profiles = [ut.value for ut in UserType if ut != UserType.SOFTMAX_DOCKER]
+                info(f"Available profiles: {', '.join(available_profiles)}")
                 sys.exit(1)
         else:
             self.setup_wizard()
@@ -278,7 +279,7 @@ Examples:
         configure_parser = subparsers.add_parser("configure", help="Configure Metta for your environment")
         configure_parser.add_argument(
             "--profile",
-            choices=["external", "cloud", "softmax"],
+            choices=[ut.value for ut in UserType if ut != UserType.SOFTMAX_DOCKER],
             help="Set user profile (external, cloud, or softmax)",
         )
 
