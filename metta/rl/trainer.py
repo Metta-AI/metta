@@ -129,7 +129,7 @@ class MettaTrainer:
         self._batch_size = trainer_cfg.batch_size
         self._minibatch_size = trainer_cfg.minibatch_size
 
-        self.torch_profiler = TorchProfiler(self._master, cfg.run_dir, trainer_cfg.profiler_interval_epochs, wandb_run)
+        self.torch_profiler = TorchProfiler(self._master, trainer_cfg.profiler, wandb_run, cfg.run_dir)
         self.losses = Losses()
         self.stats = defaultdict(list)
         self.grad_stats = {}
