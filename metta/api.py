@@ -11,7 +11,7 @@ import logging
 import os
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 import gymnasium as gym
 import numpy as np
@@ -31,17 +31,13 @@ from metta.rl.functions import (
     process_minibatch_update,
 )
 from metta.rl.kickstarter import Kickstarter
-from metta.rl.kickstarter_config import KickstartConfig
 from metta.rl.losses import Losses
 from metta.rl.trainer_config import (
     CheckpointConfig,
     OptimizerConfig,
     PPOConfig,
-    PrioritizedExperienceReplayConfig,
     SimulationConfig,
-    TorchProfilerConfig,
     TrainerConfig,
-    VTraceConfig,
 )
 from metta.rl.vecenv import make_vecenv
 
@@ -168,21 +164,10 @@ def create_policy_store(
 
 # Object type IDs from mettagrid/src/metta/mettagrid/objects/constants.hpp
 # TODO: These should be imported from mettagrid once they're exposed via Python bindings
-TYPE_AGENT = 0
-TYPE_WALL = 1
 TYPE_MINE_RED = 2
-TYPE_MINE_BLUE = 3
-TYPE_MINE_GREEN = 4
 TYPE_GENERATOR_RED = 5
-TYPE_GENERATOR_BLUE = 6
-TYPE_GENERATOR_GREEN = 7
 TYPE_ALTAR = 8
-TYPE_ARMORY = 9
-TYPE_LASERY = 10
-TYPE_LAB = 11
-TYPE_FACTORY = 12
-TYPE_TEMPLE = 13
-TYPE_GENERIC_CONVERTER = 14
+TYPE_WALL = 1
 
 
 # Helper to create default environment config
@@ -507,206 +492,128 @@ class Agent:
         return agent
 
 
-class TrainingComponents:
-    """Container for all components needed for training.
+class Optimizer:
+    """Wrapper for PyTorch optimizers with gradient accumulation and clipping support.
 
-    This exposes the internal components that MettaTrainer uses,
-    allowing direct control over the training loop.
+    This provides a clean interface for the optimization step, handling:
+    - Gradient accumulation across minibatches
+    - Gradient clipping
+    - Optional weight clipping on the policy
     """
 
     def __init__(
         self,
-        vecenv: Any,
-        policy: MettaAgent,
-        experience: Experience,
-        optimizer: torch.optim.Optimizer,
-        losses: Losses,
-        kickstarter: Kickstarter,
-        timer: Stopwatch,
-        trainer_config: TrainerConfig,
-        device: torch.device,
+        optimizer_type: str = "adam",
+        policy: MettaAgent = None,
+        learning_rate: float = 3e-4,
+        betas: Tuple[float, float] = (0.9, 0.999),
+        eps: float = 1e-8,
+        weight_decay: float = 0.0,
+        max_grad_norm: float = 0.5,
     ):
-        self.vecenv = vecenv
+        """Initialize optimizer wrapper.
+
+        Args:
+            optimizer_type: Type of optimizer ("adam" or "muon")
+            policy: Policy to optimize
+            learning_rate: Learning rate
+            betas: Beta parameters for Adam/Muon
+            eps: Epsilon for numerical stability
+            weight_decay: Weight decay coefficient
+            max_grad_norm: Maximum gradient norm for clipping
+        """
         self.policy = policy
-        self.experience = experience
-        self.optimizer = optimizer
-        self.losses = losses
-        self.kickstarter = kickstarter
-        self.timer = timer
-        self.trainer_config = trainer_config
-        self.device = device
+        self.max_grad_norm = max_grad_norm
 
-        # Training state
-        self.agent_step = 0
-        self.epoch = 0
-        self.stats = {}
+        if optimizer_type == "adam":
+            self.optimizer = torch.optim.Adam(
+                policy.parameters(),
+                lr=learning_rate,
+                betas=betas,
+                eps=eps,
+                weight_decay=weight_decay,
+            )
+        elif optimizer_type == "muon":
+            from heavyball import ForeachMuon
 
-    # Note: The create() classmethod has been removed.
-    # Component instantiation should be done explicitly in user code for better visibility.
-    # See run.py for an example of how to create all components.
+            self.optimizer = ForeachMuon(
+                policy.parameters(),
+                lr=learning_rate,
+                betas=betas,
+                eps=eps,
+                weight_decay=weight_decay,
+            )
+        else:
+            raise ValueError(f"Unknown optimizer type: {optimizer_type}. Choose 'adam' or 'muon'")
 
-    def rollout_step(self) -> Tuple[int, List[Any]]:
-        """Perform a single rollout step.
-
-        Returns:
-            Tuple of (num_steps, info_list)
-        """
-        return perform_rollout_step(self.policy, self.vecenv, self.experience, self.device, self.timer)
-
-    def is_ready_for_training(self) -> bool:
-        """Check if experience buffer is ready for training."""
-        return self.experience.ready_for_training
-
-    def reset_for_rollout(self):
-        """Reset experience buffer for new rollout."""
-        self.experience.reset_for_rollout()
-
-    def accumulate_stats(self, raw_infos: List[Any]):
-        """Accumulate rollout statistics."""
-        accumulate_rollout_stats(raw_infos, self.stats)
-
-    def compute_advantages(self) -> torch.Tensor:
-        """Compute advantages using GAE."""
-        advantages = torch.zeros(self.experience.values.shape, device=self.device)
-        initial_importance_sampling_ratio = torch.ones_like(self.experience.values)
-
-        return compute_advantage(
-            self.experience.values,
-            self.experience.rewards,
-            self.experience.dones,
-            initial_importance_sampling_ratio,
-            advantages,
-            self.trainer_config.ppo.gamma,
-            self.trainer_config.ppo.gae_lambda,
-            self.trainer_config.vtrace.vtrace_rho_clip,
-            self.trainer_config.vtrace.vtrace_c_clip,
-            self.device,
-        )
-
-    def train_minibatch(
-        self,
-        minibatch: Dict[str, torch.Tensor],
-        advantages: torch.Tensor,
-    ) -> torch.Tensor:
-        """Train on a single minibatch.
+    def step(self, loss: torch.Tensor, epoch: int, accumulate_steps: int = 1):
+        """Perform optimization step with gradient accumulation.
 
         Args:
-            minibatch: Minibatch data
-            advantages: Computed advantages
-
-        Returns:
-            Loss tensor
-        """
-        return process_minibatch_update(
-            policy=self.policy,
-            experience=self.experience,
-            minibatch=minibatch,
-            advantages=advantages,
-            trainer_cfg=self.trainer_config,
-            kickstarter=self.kickstarter,
-            agent_step=self.agent_step,
-            losses=self.losses,
-            device=self.device,
-        )
-
-    def sample_minibatch(
-        self,
-        advantages: torch.Tensor,
-        minibatch_idx: int,
-        total_minibatches: int,
-        anneal_beta: float,
-    ) -> Dict[str, torch.Tensor]:
-        """Sample a minibatch from experience buffer.
-
-        Args:
-            advantages: Computed advantages
-            minibatch_idx: Current minibatch index
-            total_minibatches: Total number of minibatches
-            anneal_beta: Annealed beta for prioritized replay
-
-        Returns:
-            Minibatch dictionary
-        """
-        prio_cfg = self.trainer_config.prioritized_experience_replay
-        return self.experience.sample_minibatch(
-            advantages=advantages,
-            prio_alpha=prio_cfg.prio_alpha,
-            prio_beta=anneal_beta,
-            minibatch_idx=minibatch_idx,
-            total_minibatches=total_minibatches,
-        )
-
-    def optimize_step(self, loss: torch.Tensor, accumulate_steps: int):
-        """Perform optimizer step with gradient accumulation.
-
-        Args:
-            loss: Loss tensor
+            loss: Loss tensor to backpropagate
+            epoch: Current epoch (for accumulation check)
             accumulate_steps: Number of steps to accumulate gradients
         """
         self.optimizer.zero_grad()
         loss.backward()
 
-        if (self.epoch + 1) % accumulate_steps == 0:
-            torch.nn.utils.clip_grad_norm_(self.policy.parameters(), self.trainer_config.ppo.max_grad_norm)
+        if (epoch + 1) % accumulate_steps == 0:
+            torch.nn.utils.clip_grad_norm_(self.policy.parameters(), self.max_grad_norm)
             self.optimizer.step()
 
             # Optional weight clipping
             if hasattr(self.policy, "clip_weights"):
                 self.policy.clip_weights()
 
-    def reset_training_state(self):
-        """Reset state for new training epoch."""
-        self.losses.zero()
-        self.experience.reset_importance_sampling_ratios()
+    def state_dict(self) -> Dict[str, Any]:
+        """Get optimizer state dict."""
+        return self.optimizer.state_dict()
+
+    def load_state_dict(self, state_dict: Dict[str, Any]):
+        """Load optimizer state dict."""
+        self.optimizer.load_state_dict(state_dict)
+
+    @property
+    def param_groups(self):
+        """Access to optimizer param groups (for learning rate etc)."""
+        return self.optimizer.param_groups
 
 
-# Helper functions for common operations
-def create_default_trainer_config(
-    num_workers: int = 1,
-    total_timesteps: int = 10_000_000,
-    batch_size: int = 8192,
-    minibatch_size: int = 512,
-    checkpoint_dir: Optional[str] = None,
-    **kwargs,
-) -> TrainerConfig:
-    """Create a default TrainerConfig with sensible values.
+def compute_advantages_with_config(
+    experience: Experience,
+    ppo_config: PPOConfig,
+    vtrace_config: Any,
+    device: torch.device,
+) -> torch.Tensor:
+    """Compute advantages using GAE with proper configuration.
+
+    This is a convenience wrapper that handles the tensor creation
+    and initial importance sampling ratio setup.
 
     Args:
-        num_workers: Number of parallel workers
-        total_timesteps: Total training timesteps
-        batch_size: Batch size
-        minibatch_size: Minibatch size
-        checkpoint_dir: Directory for checkpoints. If not provided, uses
-                       $DATA_DIR/$METTA_RUN/checkpoints or ./checkpoints
-        **kwargs: Additional config overrides
+        experience: Experience buffer
+        ppo_config: PPO configuration
+        vtrace_config: V-trace configuration
+        device: Device to use
 
     Returns:
-        TrainerConfig instance
+        Computed advantages tensor
     """
-    # Use environment variables for default paths if not provided
-    if checkpoint_dir is None:
-        run_name = os.environ.get("METTA_RUN", "default_run")
-        data_dir = os.environ.get("DATA_DIR", "./train_dir")
-        checkpoint_dir = os.path.join(data_dir, run_name, "checkpoints")
+    advantages = torch.zeros(experience.values.shape, device=device)
+    initial_importance_sampling_ratio = torch.ones_like(experience.values)
 
-    config_dict = {
-        "num_workers": num_workers,
-        "total_timesteps": total_timesteps,
-        "batch_size": batch_size,
-        "minibatch_size": minibatch_size,
-        "checkpoint": {
-            "checkpoint_dir": checkpoint_dir,
-        },
-        "simulation": {
-            "replay_dir": "./replays",
-        },
-        "curriculum": "/env/mettagrid/simple",
-    }
-
-    # Apply overrides
-    config_dict.update(kwargs)
-
-    return TrainerConfig.model_validate(config_dict)
+    return compute_advantage(
+        experience.values,
+        experience.rewards,
+        experience.dones,
+        initial_importance_sampling_ratio,
+        advantages,
+        ppo_config.gamma,
+        ppo_config.gae_lambda,
+        vtrace_config.vtrace_rho_clip,
+        vtrace_config.vtrace_c_clip,
+        device,
+    )
 
 
 def save_checkpoint(
@@ -732,84 +639,6 @@ def save_checkpoint(
     policy_record.policy = policy
 
     return policy_store.save(policy_record)
-
-
-def load_checkpoint(
-    policy_store: PolicyStore,
-    path: str,
-) -> PolicyRecord:
-    """Load a policy checkpoint.
-
-    Args:
-        policy_store: Policy store to use
-        path: Path to checkpoint
-
-    Returns:
-        Loaded PolicyRecord
-    """
-    return policy_store.policy_record(path)
-
-
-def evaluate_policy(
-    policy: MettaAgent,
-    env_config: str,
-    num_episodes: int = 10,
-    device: str = "cuda",
-    render: bool = False,
-) -> Dict[str, float]:
-    """Evaluate a policy on an environment.
-
-    Args:
-        policy: Policy to evaluate
-        env_config: Environment configuration path
-        num_episodes: Number of episodes
-        device: Device to use
-        render: Whether to render
-
-    Returns:
-        Evaluation statistics
-    """
-    # Create evaluation environment - Environment returns a vecenv
-    vecenv = Environment(
-        curriculum_path=env_config,
-        device=device,
-        num_envs=1,
-        is_training=False,
-    )
-
-    total_rewards = []
-    episode_lengths = []
-
-    for _ in range(num_episodes):
-        obs = vecenv.reset()  # type: ignore
-        done = False
-        episode_reward = 0
-        episode_length = 0
-
-        while not done:
-            with torch.no_grad():
-                # Note: Real implementation would handle LSTM states properly
-                action = policy(obs)
-
-            obs, reward, terminated, truncated, info = vecenv.step(action)  # type: ignore
-            done = terminated or truncated
-            episode_reward += reward.sum()
-            episode_length += 1
-
-            if render:
-                vecenv.render()  # type: ignore
-
-        total_rewards.append(episode_reward)
-        episode_lengths.append(episode_length)
-
-    vecenv.close()  # type: ignore
-
-    return {
-        "mean_reward": float(torch.tensor(total_rewards).mean()),
-        "std_reward": float(torch.tensor(total_rewards).std()),
-        "mean_length": float(torch.tensor(episode_lengths).mean()),
-        "std_length": float(torch.tensor(episode_lengths).std()),
-    }
 
 
 def calculate_anneal_beta(
@@ -841,7 +670,8 @@ __all__ = [
     # Factory classes
     "Environment",
     "Agent",
-    "TrainingComponents",
+    # New wrapper classes
+    "Optimizer",
     # Training components (for direct instantiation)
     "Experience",
     "Kickstarter",
@@ -853,35 +683,17 @@ __all__ = [
     "PPOConfig",
     "CheckpointConfig",
     "SimulationConfig",
-    "PrioritizedExperienceReplayConfig",
-    "VTraceConfig",
-    "KickstartConfig",
-    "TorchProfilerConfig",
     # Helper functions
-    "create_default_trainer_config",
     "save_checkpoint",
-    "load_checkpoint",
-    "evaluate_policy",
     "calculate_anneal_beta",
     "setup_run_directories",
     "save_experiment_config",
     "create_policy_store",
+    "compute_advantages_with_config",
+    # Functions from rl.functions (commonly used)
+    "perform_rollout_step",
+    "process_minibatch_update",
+    "accumulate_rollout_stats",
     # Helper classes
     "RunDirectories",
-    # Constants
-    "TYPE_AGENT",
-    "TYPE_WALL",
-    "TYPE_MINE_RED",
-    "TYPE_MINE_BLUE",
-    "TYPE_MINE_GREEN",
-    "TYPE_GENERATOR_RED",
-    "TYPE_GENERATOR_BLUE",
-    "TYPE_GENERATOR_GREEN",
-    "TYPE_ALTAR",
-    "TYPE_ARMORY",
-    "TYPE_LASERY",
-    "TYPE_LAB",
-    "TYPE_FACTORY",
-    "TYPE_TEMPLE",
-    "TYPE_GENERIC_CONVERTER",
 ]
