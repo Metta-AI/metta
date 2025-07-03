@@ -69,106 +69,37 @@ class PreBuiltConfigCurriculum(Curriculum):
         return {task_name: 1.0}
 
 
-def setup_device_and_distributed(base_device: str = "cuda", logger_name: str = "metta") -> torch.device:
+def setup_device_and_distributed(base_device: str = "cuda") -> torch.device:
     """Set up device and optionally initialize distributed training.
 
-    This function automatically detects multi-GPU setups and initializes
-    distributed training when appropriate.
+    This matches the initialization pattern from tools/train.py.
 
     Args:
         base_device: Base device string ("cuda" or "cpu")
-        logger_name: Name prefix for the logger
 
     Returns:
         torch.device: The device to use for training
     """
-    import os
-
-    # Get rank info from environment
-    rank = int(os.environ.get("RANK", 0))
-    local_rank = int(os.environ.get("LOCAL_RANK", 0))
-    world_size = int(os.environ.get("WORLD_SIZE", 1))
-
-    # Get logger with rank info if available
-    device_logger = logging.getLogger(f"{logger_name}-rank{rank}")
-
     # Check if we're in a distributed environment
-    if "LOCAL_RANK" in os.environ and base_device.startswith("cuda"):
-        device_logger.info(
-            f"Distributed environment detected: RANK={rank}, LOCAL_RANK={local_rank}, WORLD_SIZE={world_size}"
-        )
+    if "LOCAL_RANK" in os.environ:
+        logger.info(f"Initializing distributed training with LOCAL_RANK={os.environ['LOCAL_RANK']}")
+        local_rank = int(os.environ["LOCAL_RANK"])
 
-        # Initialize distributed training
-        if not torch.distributed.is_initialized():
-            # Set up environment variables for NCCL
-            os.environ["NCCL_DEBUG"] = os.environ.get("NCCL_DEBUG", "INFO")
-            # NCCL_TIMEOUT is in seconds, default is 1800 (30 minutes)
-            os.environ["NCCL_TIMEOUT"] = os.environ.get("NCCL_TIMEOUT", "1800")
-            # Also set the PyTorch-specific timeout (in seconds)
-            os.environ["TORCH_NCCL_BLOCKING_WAIT"] = "1"  # Enable blocking wait
-            os.environ["TORCH_NCCL_ASYNC_ERROR_HANDLING"] = "1"  # Better error handling
+        # For CUDA, use device with local rank
+        if base_device.startswith("cuda"):
+            device = torch.device(f"{base_device}:{local_rank}")
+            backend = "nccl"
+        else:
+            # For CPU, just use cpu device (no rank suffix)
+            device = torch.device(base_device)
+            backend = "gloo"
 
-            device_logger.info(
-                f"NCCL Environment: NCCL_DEBUG={os.environ.get('NCCL_DEBUG')}, "
-                f"NCCL_TIMEOUT={os.environ.get('NCCL_TIMEOUT')}"
-            )
-
-            # Set timeout for init_process_group (in seconds)
-            import datetime
-
-            timeout = datetime.timedelta(seconds=1800)  # 30 minutes
-
-            try:
-                device_logger.info("Initializing process group with 30 minute timeout...")
-                torch.distributed.init_process_group(backend="nccl", timeout=timeout)
-                device_logger.info("Process group initialized successfully")
-
-                # Verify initialization
-                actual_rank = torch.distributed.get_rank()
-                actual_world_size = torch.distributed.get_world_size()
-                device_logger.info(
-                    f"Distributed verification: rank={actual_rank}/{actual_world_size} (expected {rank}/{world_size})"
-                )
-
-                if actual_rank != rank or actual_world_size != world_size:
-                    device_logger.warning(
-                        f"Rank mismatch detected! Environment: {rank}/{world_size}, "
-                        f"PyTorch: {actual_rank}/{actual_world_size}"
-                    )
-
-            except Exception as e:
-                device_logger.error(f"Failed to initialize distributed training: {e}")
-                raise
-
-        # Use the local rank for device assignment
-        device = torch.device(f"{base_device}:{local_rank}")
-
-        # Set CUDA device
-        torch.cuda.set_device(device)
-        device_logger.info(f"Set CUDA device to {device}")
-
-    elif torch.cuda.is_available() and torch.cuda.device_count() > 1:
-        # Multiple GPUs available but no distributed setup
-        device_logger.warning(
-            f"Multiple GPUs detected ({torch.cuda.device_count()}) but distributed training not initialized. "
-            "For multi-GPU training, run with torchrun or set LOCAL_RANK environment variable."
-        )
-        device = torch.device(base_device if base_device != "cuda" else "cuda:0")
-
+        torch.distributed.init_process_group(backend=backend)
+        logger.info(f"Distributed training initialized with backend={backend} on {device}")
     else:
         # Single GPU or CPU
         device = torch.device(base_device)
-
-    device_logger.info(f"Using device: {device}")
-
-    # Log distributed status
-    if torch.distributed.is_initialized():
-        world_size = torch.distributed.get_world_size()
-        rank = torch.distributed.get_rank()
-        device_logger.info(f"Distributed mode active: rank {rank} of {world_size} processes")
-
-        # Note: We don't test communication here as it's too early
-        # Some ranks might still be initializing their environments
+        logger.info(f"Using device: {device}")
 
     return device
 
@@ -249,6 +180,10 @@ def save_experiment_config(
         device: Training device
         trainer_config: TrainerConfig object with training parameters
     """
+    # Only save on master rank to avoid file conflicts
+    if torch.distributed.is_initialized() and torch.distributed.get_rank() != 0:
+        return
+
     from omegaconf import OmegaConf
 
     # Build experiment configuration
@@ -849,6 +784,9 @@ def save_checkpoint(
 ) -> Optional[Any]:
     """Save a training checkpoint including policy and training state.
 
+    This is a simplified version that doesn't handle distributed coordination -
+    that's handled by the caller (e.g., MettaTrainer).
+
     Args:
         epoch: Current training epoch
         agent_step: Current agent step count
@@ -869,69 +807,61 @@ def save_checkpoint(
     if not should_save:
         return None
 
-    # Check if we're in distributed mode
-    is_master = True
-    saved_policy_record = None
+    logger.info(f"Saving policy at epoch {epoch}")
 
-    if torch.distributed.is_initialized():
-        is_master = torch.distributed.get_rank() == 0
+    # Extract the actual policy module from distributed wrapper if needed
+    from torch.nn.parallel import DistributedDataParallel
 
-    # Only master saves
-    if is_master:
-        logger.info(f"Saving policy at epoch {epoch}")
+    from metta.agent.metta_agent import DistributedMettaAgent
 
-        # Extract the actual policy module from distributed wrapper if needed
-        from metta.agent.metta_agent import DistributedMettaAgent
+    policy_to_save = agent
+    if isinstance(agent, DistributedMettaAgent):
+        policy_to_save = agent.module
+    elif isinstance(agent, DistributedDataParallel):
+        policy_to_save = agent.module
 
-        policy_to_save = agent
-        if isinstance(agent, DistributedMettaAgent):
-            policy_to_save = agent.module
+    # Create policy record directly
+    name = policy_store.make_model_name(epoch)
+    policy_record = policy_store.create_empty_policy_record(name)
+    policy_record.metadata = {
+        "agent_step": agent_step,
+        "epoch": epoch,
+        "stats": dict(stats) if stats else {},
+        "final": force_save,  # Mark if this is the final checkpoint
+    }
+    policy_record.policy = policy_to_save
 
-        # Create policy record directly
-        name = policy_store.make_model_name(epoch)
-        policy_record = policy_store.create_empty_policy_record(name)
-        policy_record.metadata = {
-            "agent_step": agent_step,
-            "epoch": epoch,
-            "stats": dict(stats) if stats else {},
-            "final": force_save,  # Mark if this is the final checkpoint
-        }
-        policy_record.policy = policy_to_save
+    # Save through policy store
+    saved_policy_record = policy_store.save(policy_record)
+    logger.info(f"Successfully saved policy at epoch {epoch}")
 
-        # Save through policy store
-        saved_policy_record = policy_store.save(policy_record)
-        logger.info(f"Successfully saved policy at epoch {epoch}")
+    # Save training state
+    logger.info("Saving training state...")
 
-        # Save training state
-        logger.info("Saving training state...")
+    # Get optimizer state dict
+    optimizer_state_dict = None
+    if optimizer is not None:
+        if hasattr(optimizer, "optimizer"):
+            # Handle our Optimizer wrapper
+            optimizer_state_dict = optimizer.optimizer.state_dict()
+        elif hasattr(optimizer, "state_dict"):
+            # Handle raw PyTorch optimizer
+            optimizer_state_dict = optimizer.state_dict()
 
-        # Get optimizer state dict if optimizer is provided
-        optimizer_state_dict = None
-        if optimizer is not None:
-            if hasattr(optimizer, "state_dict"):
-                optimizer_state_dict = optimizer.state_dict()
-            elif hasattr(optimizer, "optimizer"):
-                optimizer_state_dict = optimizer.optimizer.state_dict()
+    trainer_checkpoint = TrainerCheckpoint(
+        agent_step=agent_step,
+        epoch=epoch,
+        total_agent_step=agent_step,
+        optimizer_state_dict=optimizer_state_dict,
+        policy_path=saved_policy_record.uri if hasattr(saved_policy_record, "uri") else None,
+        stopwatch_state=None,
+    )
+    trainer_checkpoint.save(checkpoint_path)
+    logger.info(f"Saved training state at epoch {epoch}")
 
-        trainer_checkpoint = TrainerCheckpoint(
-            agent_step=agent_step,
-            epoch=epoch,
-            total_agent_step=agent_step,
-            optimizer_state_dict=optimizer_state_dict,
-            policy_path=saved_policy_record.uri if hasattr(saved_policy_record, "uri") else None,
-            stopwatch_state=None,
-        )
-        trainer_checkpoint.save(checkpoint_path)
-        logger.info(f"Saved training state at epoch {epoch}")
-
-        # Clean up old policies to prevent disk space issues
-        if epoch % 10 == 0:
-            cleanup_old_policies(checkpoint_path, keep_last_n=5)
-
-    # Synchronize all ranks to ensure the checkpoint is fully saved before continuing
-    # ALL ranks must participate in this barrier, not just the master
-    if torch.distributed.is_initialized():
-        torch.distributed.barrier()
+    # Clean up old policies to prevent disk space issues
+    if epoch % 10 == 0:
+        cleanup_old_policies(checkpoint_path, keep_last_n=5)
 
     return saved_policy_record
 
@@ -942,172 +872,68 @@ def load_checkpoint(
     optimizer: Optional[Any] = None,
     policy_store: Optional[Any] = None,
     device: Optional[torch.device] = None,
-) -> Tuple[int, int, Optional[Any]]:
-    """Load training checkpoint and handle distributed initialization.
+) -> Tuple[int, int, Optional[str]]:
+    """Load training checkpoint if it exists.
 
-    This function handles:
-    - Loading checkpoint if it exists
-    - Restoring agent_step and epoch
-    - Loading optimizer state
-    - Distributed coordination for initial policy creation
+    This is a simplified version that just loads the checkpoint without
+    handling distributed coordination or initial policy creation.
 
     Args:
         checkpoint_dir: Directory containing checkpoints
         agent: The agent/policy to potentially update
         optimizer: Optional optimizer to restore state to
-        policy_store: Optional PolicyStore for saving initial policy in distributed mode
-        device: Device for distributed coordination
+        policy_store: Optional PolicyStore (not used in simplified version)
+        device: Device (not used in simplified version)
 
     Returns:
-        Tuple of (agent_step, epoch, saved_policy_path)
+        Tuple of (agent_step, epoch, policy_path)
         - agent_step: Current training step (0 if no checkpoint)
         - epoch: Current epoch (0 if no checkpoint)
-        - saved_policy_path: Path to saved initial policy (only in distributed mode)
+        - policy_path: Path to loaded policy (None if no checkpoint)
     """
     from metta.rl.trainer_checkpoint import TrainerCheckpoint
 
-    # Create rank-specific logger
-    if torch.distributed.is_initialized():
-        rank = torch.distributed.get_rank()
-        world_size = torch.distributed.get_world_size()
-        logger_name = f"load_checkpoint.rank{rank}"
-    else:
-        rank = 0
-        world_size = 1
-        logger_name = "load_checkpoint"
+    # Try to load existing checkpoint
+    existing_checkpoint = TrainerCheckpoint.load(checkpoint_dir)
 
-    checkpoint_logger = logging.getLogger(logger_name)
-    checkpoint_logger.info(f"Starting load_checkpoint (rank {rank}/{world_size})")
+    if existing_checkpoint:
+        logger.info(f"Found checkpoint at {existing_checkpoint.agent_step} steps")
 
-    # Add a small delay for non-master ranks to avoid race conditions
-    # when checking for checkpoint files
-    if torch.distributed.is_initialized() and rank > 0:
-        import time
+        # Restore training state
+        agent_step = existing_checkpoint.agent_step
+        epoch = existing_checkpoint.epoch
 
-        time.sleep(0.1 * rank)  # Small staggered delay
-
-    # Load checkpoint if it exists
-    checkpoint = TrainerCheckpoint.load(checkpoint_dir) if checkpoint_dir else None
-
-    if checkpoint:
-        checkpoint_logger.info(f"Found checkpoint at {checkpoint.agent_step} steps")
-        agent_step = checkpoint.agent_step
-        epoch = checkpoint.epoch
+        # Load policy state if agent provided and policy path exists
+        if agent is not None and existing_checkpoint.policy_path and policy_store is not None:
+            try:
+                policy_pr = policy_store.policy_record(existing_checkpoint.policy_path)
+                agent.load_state_dict(policy_pr.policy.state_dict())
+                logger.info(f"Loaded policy state from {existing_checkpoint.policy_path}")
+            except Exception as e:
+                logger.warning(f"Failed to load policy state: {e}")
 
         # Load optimizer state if provided
-        if optimizer and checkpoint.optimizer_state_dict:
+        if optimizer is not None and existing_checkpoint.optimizer_state_dict:
             try:
-                if hasattr(optimizer, "load_state_dict"):
-                    optimizer.load_state_dict(checkpoint.optimizer_state_dict)
-                elif hasattr(optimizer, "optimizer"):
+                if hasattr(optimizer, "optimizer"):
                     # Handle our Optimizer wrapper
-                    optimizer.optimizer.load_state_dict(checkpoint.optimizer_state_dict)
-                checkpoint_logger.info("Successfully loaded optimizer state from checkpoint")
+                    optimizer.optimizer.load_state_dict(existing_checkpoint.optimizer_state_dict)
+                elif hasattr(optimizer, "load_state_dict"):
+                    # Handle raw PyTorch optimizer
+                    optimizer.load_state_dict(existing_checkpoint.optimizer_state_dict)
+                logger.info("Loaded optimizer state from checkpoint")
             except ValueError:
-                checkpoint_logger.warning("Optimizer state dict doesn't match. Starting with fresh optimizer state.")
+                logger.warning("Optimizer state dict doesn't match. Starting with fresh optimizer state.")
 
-        checkpoint_logger.info("Returning from checkpoint load path")
-        return agent_step, epoch, None
-    else:
-        agent_step = 0
-        epoch = 0
-        checkpoint_logger.info("No checkpoint found, starting fresh")
+        return agent_step, epoch, existing_checkpoint.policy_path
 
-        # In distributed mode, handle initial policy creation
-        if torch.distributed.is_initialized() and policy_store:
-            is_master = torch.distributed.get_rank() == 0
-            rank = torch.distributed.get_rank()
-            world_size = torch.distributed.get_world_size()
-
-            checkpoint_logger.info(f"Distributed mode: rank {rank}/{world_size}, is_master={is_master}")
-
-            if is_master:
-                # Master saves initial policy for other ranks to load
-                checkpoint_logger.info("Master rank: Creating and saving initial policy")
-                initial_policy_path = save_checkpoint(
-                    epoch=0,
-                    agent_step=0,
-                    agent=agent,
-                    optimizer=optimizer,
-                    policy_store=policy_store,
-                    checkpoint_path=checkpoint_dir,
-                    checkpoint_interval=1,  # Force save
-                    stats={},
-                    force_save=True,
-                )
-
-                # Master waits here for all ranks to be ready
-                checkpoint_logger.info("Master rank: Entering barrier after policy save")
-                torch.distributed.barrier()
-                checkpoint_logger.info("Master rank: Exited barrier, all ranks synchronized")
-                return agent_step, epoch, initial_policy_path
-            else:
-                # Non-master ranks wait for initial policy
-                checkpoint_logger.info(f"Rank {rank}: Waiting for initial policy to be created")
-
-                # First barrier: wait for master to create the policy
-                checkpoint_logger.info(f"Rank {rank}: Entering first barrier")
-                torch.distributed.barrier()
-                checkpoint_logger.info(f"Rank {rank}: Exited first barrier")
-
-                # Non-master ranks load the policy that master created
-                default_policy_path = os.path.join(checkpoint_dir, policy_store.make_model_name(0))
-
-                # Wait for file to be available with minimal logging
-                from metta.common.util.fs import wait_for_file
-
-                # Create a rank-specific logger to control output
-                rank_logger = logging.getLogger(f"metta.load_checkpoint.rank{rank}")
-
-                def log_progress(elapsed: float, status: str) -> None:
-                    # Only log significant events from rank 1
-                    if rank == 1:
-                        if status == "waiting" and int(elapsed) % 10 == 0 and elapsed > 0:
-                            rank_logger.info(f"Still waiting for policy file... ({elapsed:.0f}s elapsed)")
-                        elif status == "found":
-                            rank_logger.info("Policy file found, waiting for write to complete...")
-                        elif status == "stable":
-                            rank_logger.info(f"Policy file stable after {elapsed:.1f}s")
-
-                rank_logger.info(f"Waiting for policy file: {default_policy_path}")
-
-                if not wait_for_file(
-                    default_policy_path,
-                    timeout=300,
-                    progress_callback=log_progress if rank == 1 else None,  # Only pass callback for rank 1
-                ):
-                    raise RuntimeError(f"Rank {rank}: Timeout waiting for policy at {default_policy_path}")
-
-                # Load the policy
-                rank_logger.info(f"Loading policy from {default_policy_path}")
-                try:
-                    policy_record = policy_store.policy_record(default_policy_path)
-                    # Load the policy state into our agent
-                    agent.load_state_dict(policy_record.policy.state_dict())
-                    checkpoint_logger.info(
-                        f"Rank {rank}: Successfully loaded initial policy from {default_policy_path}"
-                    )
-                except Exception as e:
-                    checkpoint_logger.error(f"Rank {rank}: Failed to load policy: {type(e).__name__}: {e}")
-                    raise RuntimeError(f"Rank {rank}: Failed to load policy from {default_policy_path}: {e}") from e
-
-                # Second barrier: ensure all non-master ranks have loaded before proceeding
-                # This is critical to prevent some ranks from moving ahead while others are still loading
-                checkpoint_logger.info(f"Rank {rank}: Entering second barrier")
-                torch.distributed.barrier()
-                checkpoint_logger.info(f"Rank {rank}: Exited second barrier, synchronized after loading initial policy")
-
-                return agent_step, epoch, None
-        else:
-            checkpoint_logger.info("Not in distributed mode or no policy_store, returning immediately")
-
-        return agent_step, epoch, None
+    # No checkpoint found
+    logger.info("No checkpoint found, starting fresh")
+    return 0, 0, None
 
 
 def wrap_agent_distributed(agent: Any, device: torch.device) -> Any:
     """Wrap agent in DistributedMettaAgent if distributed training is initialized.
-
-    This should be called AFTER all ranks have synchronized on the same policy state.
 
     Args:
         agent: The agent to potentially wrap
@@ -1117,13 +943,23 @@ def wrap_agent_distributed(agent: Any, device: torch.device) -> Any:
         The agent, possibly wrapped in DistributedMettaAgent
     """
     if torch.distributed.is_initialized():
+        from torch.nn.parallel import DistributedDataParallel
+
         from metta.agent.metta_agent import DistributedMettaAgent
 
         logger.info(f"Initializing DistributedDataParallel on device {device}")
-        agent = DistributedMettaAgent(agent, device)
-        # Ensure all ranks have initialized DDP before proceeding
-        torch.distributed.barrier()
-        logger.info("Agent wrapped in DistributedMettaAgent")
+
+        # For CPU, we need to handle DistributedDataParallel differently
+        if device.type == "cpu":
+            # Convert BatchNorm to SyncBatchNorm
+            agent = torch.nn.SyncBatchNorm.convert_sync_batchnorm(agent)
+            # For CPU, don't pass device_ids
+            agent = DistributedDataParallel(agent)
+            logger.info("Agent wrapped in DistributedDataParallel (CPU mode)")
+        else:
+            # For GPU, use the custom DistributedMettaAgent wrapper
+            agent = DistributedMettaAgent(agent, device)
+            logger.info("Agent wrapped in DistributedMettaAgent (GPU mode)")
 
     return agent
 

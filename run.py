@@ -56,6 +56,7 @@ from metta.api import (
 )
 from metta.common.profiling.memory_monitor import MemoryMonitor
 from metta.common.profiling.stopwatch import Stopwatch
+from metta.common.util.fs import wait_for_file
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.system_monitor import SystemMonitor
 from metta.eval.eval_stats_db import EvalStatsDB
@@ -86,37 +87,24 @@ from metta.sim.simulation_suite import SimulationSuite
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
 
-# Get distributed info early for debugging
-rank = int(os.environ.get("RANK", 0))
-local_rank = int(os.environ.get("LOCAL_RANK", 0))
-world_size = int(os.environ.get("WORLD_SIZE", 1))
-logger.info(f"Script starting: RANK={rank}, LOCAL_RANK={local_rank}, WORLD_SIZE={world_size}")
-
+# Set up directories and device first
 dirs = setup_run_directories()
-logger.info(f"Rank {rank}: Run directories set up")
+logger.info(f"Run directories set up: {dirs.run_dir}")
 
 device = setup_device_and_distributed("cuda" if torch.cuda.is_available() else "cpu")
-logger.info(f"Rank {rank}: Device setup complete: {device}")
+logger.info(f"Device setup complete: {device}")
 
-_master, _world_size, _rank = setup_distributed_vars()
-logger.info(f"Rank {rank}: Distributed vars: master={_master}, world_size={_world_size}, rank={_rank}")
+# Get distributed info after initialization
+is_master, world_size, rank = setup_distributed_vars()
+logger.info(f"Distributed mode: rank {rank}/{world_size}, is_master={is_master}")
 
-# Test barrier to ensure all ranks can communicate
-if torch.distributed.is_initialized():
-    logger.info(f"Rank {rank}: Testing distributed communication with barrier...")
-    try:
-        torch.distributed.barrier()
-        logger.info(f"Rank {rank}: Test barrier passed, all ranks can communicate")
-    except Exception as e:
-        logger.error(f"Rank {rank}: Test barrier failed: {type(e).__name__}: {e}")
-        raise
-
+# Configuration
 trainer_config = TrainerConfig(
     num_workers=4,
     total_timesteps=10_000_000,
     batch_size=16384,
     minibatch_size=512,
-    curriculum="/env/mettagrid/curriculum/navigation/bucketed",  # Add curriculum here
+    curriculum="/env/mettagrid/curriculum/navigation/bucketed",
     ppo=PPOConfig(
         clip_coef=0.1,
         ent_coef=0.01,
@@ -139,18 +127,21 @@ trainer_config = TrainerConfig(
     ),
     profiler=TorchProfilerConfig(
         interval_epochs=0,
-        profile_dir=os.path.join(dirs.run_dir, "torch_traces"),  # Use proper path
+        profile_dir=os.path.join(dirs.run_dir, "torch_traces"),
     ),
     grad_mean_variance_interval=50,
 )
 
-# Only save config on master to avoid file conflicts
-if _master:
-    save_experiment_config(dirs, device, trainer_config)
-logger.info(f"Rank {rank}: Trainer config created")
+# Adjust batch sizes for distributed training
+if torch.distributed.is_initialized() and trainer_config.scale_batches_by_world_size:
+    trainer_config.batch_size = trainer_config.batch_size // world_size
 
-# Create environment with bucketed navigation curriculum
-logger.info(f"Rank {rank}: Creating environment...")
+# Save config only on master
+if is_master:
+    save_experiment_config(dirs, device, trainer_config)
+
+# Create environment
+logger.info("Creating environment...")
 env = Environment(
     curriculum_path="/env/mettagrid/curriculum/navigation/bucketed",
     num_agents=4,
@@ -165,29 +156,13 @@ env = Environment(
     is_training=True,
 )
 metta_grid_env = env.driver_env  # type: ignore - vecenv attribute
-logger.info(f"Rank {rank}: Environment created")
-
-# Synchronize after environment creation
-if torch.distributed.is_initialized():
-    logger.info(f"Rank {rank}: Synchronizing after environment creation...")
-    torch.distributed.barrier()
-    logger.info(f"Rank {rank}: Environment creation synchronized")
 
 # Create agent
-logger.info(f"Rank {rank}: Creating agent...")
+logger.info("Creating agent...")
 agent = Agent(env, device=str(device))
 hidden_size, num_lstm_layers = get_lstm_config(agent)
-logger.info(f"Rank {rank}: Agent created with hidden_size={hidden_size}, num_lstm_layers={num_lstm_layers}")
 
-# Synchronize after agent creation
-if torch.distributed.is_initialized():
-    logger.info(f"Rank {rank}: Synchronizing after agent creation...")
-    torch.distributed.barrier()
-    logger.info(f"Rank {rank}: Agent creation synchronized")
-
-# Create policy store with complete config
-# PolicyStore internally calls parse_trainer_config which expects run, run_dir, and trainer fields
-logger.info(f"Rank {rank}: Creating policy store...")
+# Create policy store
 policy_store = PolicyStore(
     DictConfig(
         {
@@ -195,32 +170,93 @@ policy_store = PolicyStore(
             "policy_cache_size": 10,
             "run": dirs.run_name,
             "run_dir": dirs.run_dir,
-            "trainer": trainer_config.model_dump(),  # Use the fully configured trainer_config
+            "trainer": trainer_config.model_dump(),
         }
     ),
     wandb_run=None,
 )
-logger.info(f"Rank {rank}: Policy store created")
 
-# Load checkpoint and handle distributed initialization
-# This must happen BEFORE wrapping in DistributedMettaAgent
+# Load checkpoint or create initial policy with distributed coordination
 checkpoint_path = trainer_config.checkpoint.checkpoint_dir
-logger.info(f"Rank {rank}: Loading checkpoint from {checkpoint_path}...")
-agent_step, epoch, _ = load_checkpoint(
-    checkpoint_dir=checkpoint_path,
-    agent=agent,
-    optimizer=None,  # We'll create optimizer after distributed wrapping
-    policy_store=policy_store,
-    device=device,
-)
-logger.info(f"Rank {rank}: Checkpoint loaded, agent_step={agent_step}, epoch={epoch}")
+checkpoint = load_checkpoint(checkpoint_path, None, None, policy_store, device)
+agent_step, epoch, loaded_policy_path = checkpoint
 
-# Wrap agent in distributed mode AFTER checkpoint synchronization
-logger.info(f"Rank {rank}: Wrapping agent for distributed...")
+# Handle initial policy creation/loading like MettaTrainer
+if loaded_policy_path is None:
+    # No existing checkpoint - need to coordinate initial policy creation
+    logger.info("No existing checkpoint found, coordinating initial policy creation")
+
+    if torch.distributed.is_initialized():
+        if is_master:
+            # Master creates and saves initial policy
+            logger.info("Master: Creating and saving initial policy")
+            saved_policy = save_checkpoint(
+                epoch=0,
+                agent_step=0,
+                agent=agent,
+                optimizer=None,
+                policy_store=policy_store,
+                checkpoint_path=checkpoint_path,
+                checkpoint_interval=1,  # Force save
+                stats={},
+                force_save=True,
+            )
+            logger.info("Master: Initial policy saved")
+
+            # Master waits at barrier after saving
+            torch.distributed.barrier()
+        else:
+            # Non-master ranks wait at barrier first
+            logger.info(f"Rank {rank}: Waiting at barrier for master to create policy")
+            torch.distributed.barrier()
+
+            # Then load the policy master created
+            default_policy_path = os.path.join(checkpoint_path, policy_store.make_model_name(0))
+            logger.info(f"Rank {rank}: Loading policy from {default_policy_path}")
+
+            def log_progress(elapsed: float, status: str) -> None:
+                if status == "waiting" and int(elapsed) % 10 == 0 and elapsed > 0:
+                    logger.info(f"Rank {rank}: Still waiting for policy file... ({elapsed:.0f}s elapsed)")
+                elif status == "found":
+                    logger.info(f"Rank {rank}: Policy file found, waiting for write to complete...")
+                elif status == "stable":
+                    logger.info(f"Rank {rank}: Policy file stable after {elapsed:.1f}s")
+
+            if not wait_for_file(default_policy_path, timeout=300, progress_callback=log_progress):
+                raise RuntimeError(f"Rank {rank}: Timeout waiting for policy at {default_policy_path}")
+
+            # Load the policy
+            policy_pr = policy_store.policy_record(default_policy_path)
+            agent.load_state_dict(policy_pr.policy.state_dict())
+            logger.info(f"Rank {rank}: Loaded initial policy")
+    else:
+        # Single GPU mode
+        logger.info("Single GPU mode: Creating initial checkpoint")
+        save_checkpoint(
+            epoch=0,
+            agent_step=0,
+            agent=agent,
+            optimizer=None,
+            policy_store=policy_store,
+            checkpoint_path=checkpoint_path,
+            checkpoint_interval=1,
+            stats={},
+            force_save=True,
+        )
+else:
+    # Checkpoint exists - load it
+    logger.info(f"Loading from existing checkpoint at step {agent_step}")
+    # The load_checkpoint function already loaded the policy state into the agent
+
+# Wrap agent in distributed after all ranks have the same policy
+logger.info("Wrapping agent for distributed training...")
 agent = wrap_agent_distributed(agent, device)
-logger.info(f"Rank {rank}: Agent wrapped")
 
-# Create optimizer wrapper from api.py
+# Ensure all ranks have wrapped their agents before proceeding
+if torch.distributed.is_initialized():
+    torch.distributed.barrier()
+
+# Create optimizer
 optimizer = Optimizer(
     optimizer_type=trainer_config.optimizer.type,
     policy=agent,
@@ -232,16 +268,7 @@ optimizer = Optimizer(
 )
 
 # Load optimizer state from checkpoint if it exists
-if checkpoint_path:
-    from metta.rl.trainer_checkpoint import TrainerCheckpoint
-
-    checkpoint = TrainerCheckpoint.load(checkpoint_path)
-    if checkpoint and checkpoint.optimizer_state_dict:
-        try:
-            optimizer.optimizer.load_state_dict(checkpoint.optimizer_state_dict)
-            logger.info("Successfully loaded optimizer state from checkpoint")
-        except ValueError:
-            logger.warning("Optimizer state dict doesn't match. Starting with fresh optimizer state.")
+_, _, checkpoint_path_from_load = load_checkpoint(checkpoint_path, None, optimizer, policy_store, device)
 
 # Create experience buffer
 logger.info("Creating experience buffer...")
@@ -285,25 +312,23 @@ if hasattr(trainer_config, "lr_scheduler") and trainer_config.lr_scheduler.enabl
     )
     logger.info("Created learning rate scheduler")
 
-# Memory and System Monitoring
-memory_monitor = MemoryMonitor()
-memory_monitor.add(experience, name="Experience", track_attributes=True)
-memory_monitor.add(agent, name="Agent", track_attributes=False)
+# Memory and System Monitoring (master only)
+if is_master:
+    memory_monitor = MemoryMonitor()
+    memory_monitor.add(experience, name="Experience", track_attributes=True)
+    memory_monitor.add(agent, name="Agent", track_attributes=False)
 
-system_monitor = SystemMonitor(
-    sampling_interval_sec=1.0,
-    history_size=100,
-    logger=logger,
-    auto_start=True,
-)
+    system_monitor = SystemMonitor(
+        sampling_interval_sec=1.0,
+        history_size=100,
+        logger=logger,
+        auto_start=True,
+    )
 
-# Evaluation Configuration with navigation tasks
-# NOTE: Evaluation and replay generation use Simulation classes but
-# we bypass the Hydra dependency by providing pre-built configs
-# via the env_overrides mechanism.
+# Evaluation configuration
 evaluation_config = create_evaluation_config_suite()
 
-# Starting training
+# Training loop
 saved_policy_path = None
 logger.info(f"Starting training on {device}")
 evaluation_scores = {}
@@ -417,15 +442,15 @@ while agent_step < trainer_config.total_timesteps:
     steps_per_sec = steps_calculated / total_time if total_time > 0 else 0
 
     # Account for distributed training
-    steps_per_sec *= _world_size
+    steps_per_sec *= world_size
 
     train_pct = (train_time / total_time) * 100 if total_time > 0 else 0
     rollout_pct = (rollout_time / total_time) * 100 if total_time > 0 else 0
 
     logger.info(f"Epoch {epoch} - {steps_per_sec:.0f} steps/sec ({train_pct:.0f}% train / {rollout_pct:.0f}% rollout)")
 
-    # Record heartbeat periodically
-    if should_run_on_interval(epoch, 10, _master):
+    # Record heartbeat periodically (master only)
+    if should_run_on_interval(epoch, 10, is_master):
         record_heartbeat()
 
     # Update L2 weights if configured
@@ -434,20 +459,21 @@ while agent_step < trainer_config.total_timesteps:
             agent=agent,
             epoch=epoch,
             interval=getattr(agent, "l2_init_weight_update_interval", 0),
-            is_master=_master,
+            is_master=is_master,
         )
 
-    # Compute gradient statistics
+    # Compute gradient statistics (master only)
     if trainer_config.grad_mean_variance_interval > 0 and epoch % trainer_config.grad_mean_variance_interval == 0:
-        grad_stats = compute_gradient_stats(agent)
-        logger.info(
-            f"Gradient stats - mean: {grad_stats.get('grad/mean', 0):.2e}, "
-            f"variance: {grad_stats.get('grad/variance', 0):.2e}, "
-            f"norm: {grad_stats.get('grad/norm', 0):.2e}"
-        )
+        if is_master:
+            grad_stats = compute_gradient_stats(agent)
+            logger.info(
+                f"Gradient stats - mean: {grad_stats.get('grad/mean', 0):.2e}, "
+                f"variance: {grad_stats.get('grad/variance', 0):.2e}, "
+                f"norm: {grad_stats.get('grad/norm', 0):.2e}"
+            )
 
-    # Log system monitoring stats
-    if epoch % 10 == 0:
+    # Log system monitoring stats (master only)
+    if is_master and epoch % 10 == 0:
         system_stats = system_monitor.get_summary()
         logger.info(
             f"System stats - CPU: {system_stats.get('cpu_percent', 0):.1f}%, "
@@ -467,104 +493,120 @@ while agent_step < trainer_config.total_timesteps:
         if memory_stats:
             logger.info(f"Memory usage: {memory_stats}")
 
-    # Save checkpoint periodically
-    saved_policy_path = save_checkpoint(
-        epoch=epoch,
-        agent_step=agent_step,
-        agent=agent,
-        optimizer=optimizer,
-        policy_store=policy_store,
-        checkpoint_path=checkpoint_path,
-        checkpoint_interval=trainer_config.checkpoint.checkpoint_interval,
-        stats=stats,
-        force_save=False,
-    )
+    # Save checkpoint periodically with distributed coordination
+    if trainer_config.checkpoint.checkpoint_interval > 0 and epoch % trainer_config.checkpoint.checkpoint_interval == 0:
+        if torch.distributed.is_initialized():
+            # All ranks must participate in checkpoint saving
+            if is_master:
+                # Master saves the checkpoint
+                saved_policy_path = save_checkpoint(
+                    epoch=epoch,
+                    agent_step=agent_step,
+                    agent=agent,
+                    optimizer=optimizer,
+                    policy_store=policy_store,
+                    checkpoint_path=checkpoint_path,
+                    checkpoint_interval=trainer_config.checkpoint.checkpoint_interval,
+                    stats=stats,
+                    force_save=False,
+                )
+            # All ranks wait at barrier
+            torch.distributed.barrier()
+        else:
+            # Single GPU mode
+            saved_policy_path = save_checkpoint(
+                epoch=epoch,
+                agent_step=agent_step,
+                agent=agent,
+                optimizer=optimizer,
+                policy_store=policy_store,
+                checkpoint_path=checkpoint_path,
+                checkpoint_interval=trainer_config.checkpoint.checkpoint_interval,
+                stats=stats,
+                force_save=False,
+            )
 
-    # Policy evaluation
+    # Policy evaluation (master only)
     if (
-        trainer_config.simulation.evaluate_interval > 0
+        is_master
+        and trainer_config.simulation.evaluate_interval > 0
         and epoch % trainer_config.simulation.evaluate_interval == 0
         and saved_policy_path
     ):
-        # Only run evaluation on master rank
-        if _master:
-            logger.info(f"Evaluating policy at epoch {epoch}")
+        logger.info(f"Evaluating policy at epoch {epoch}")
 
-            # Run evaluation suite
-            sim_suite = SimulationSuite(
-                config=evaluation_config,
-                policy_pr=saved_policy_path,
-                policy_store=policy_store,
-                device=device,
-                vectorization="serial",
-                stats_dir=dirs.stats_dir,
-                stats_client=None,
-                stats_epoch_id=None,
-                wandb_policy_name=None,
-            )
+        # Run evaluation suite
+        sim_suite = SimulationSuite(
+            config=evaluation_config,
+            policy_pr=saved_policy_path,
+            policy_store=policy_store,
+            device=device,
+            vectorization="serial",
+            stats_dir=dirs.stats_dir,
+            stats_client=None,
+            stats_epoch_id=None,
+            wandb_policy_name=None,
+        )
 
-            results = sim_suite.simulate()
-            stats_db = EvalStatsDB.from_sim_stats_db(results.stats_db)
-            logger.info("Evaluation complete")
+        results = sim_suite.simulate()
+        stats_db = EvalStatsDB.from_sim_stats_db(results.stats_db)
+        logger.info("Evaluation complete")
 
-            # Build evaluation metrics
-            eval_scores = {}
-            categories = set()
-            for sim_name in evaluation_config.simulations.keys():
-                categories.add(sim_name.split("/")[0])
+        # Build evaluation metrics
+        eval_scores = {}
+        categories = set()
+        for sim_name in evaluation_config.simulations.keys():
+            categories.add(sim_name.split("/")[0])
 
-            for category in categories:
-                score = stats_db.get_average_metric_by_filter(
-                    "reward", saved_policy_path, f"sim_name LIKE '%{category}%'"
-                )
-                logger.info(f"{category} score: {score}")
-                record_heartbeat()
-                if score is not None:
-                    eval_scores[f"{category}/score"] = score
+        for category in categories:
+            score = stats_db.get_average_metric_by_filter("reward", saved_policy_path, f"sim_name LIKE '%{category}%'")
+            logger.info(f"{category} score: {score}")
+            record_heartbeat()
+            if score is not None:
+                eval_scores[f"{category}/score"] = score
 
-            # Get detailed per-simulation scores
-            all_scores = stats_db.simulation_scores(saved_policy_path, "reward")
-            for (_, sim_name, _), score in all_scores.items():
-                category = sim_name.split("/")[0]
-                sim_short_name = sim_name.split("/")[-1]
-                eval_scores[f"{category}/{sim_short_name}"] = score
+        # Get detailed per-simulation scores
+        all_scores = stats_db.simulation_scores(saved_policy_path, "reward")
+        for (_, sim_name, _), score in all_scores.items():
+            category = sim_name.split("/")[0]
+            sim_short_name = sim_name.split("/")[-1]
+            eval_scores[f"{category}/{sim_short_name}"] = score
 
-            evaluation_scores[epoch] = eval_scores
-            stats_db.close()
+        evaluation_scores[epoch] = eval_scores
+        stats_db.close()
 
-    # Replay generation
+    # Replay generation (master only)
     if (
-        trainer_config.simulation.replay_interval > 0
+        is_master
+        and trainer_config.simulation.replay_interval > 0
         and epoch % trainer_config.simulation.replay_interval == 0
         and saved_policy_path
     ):
-        # Only run replay generation on master rank
-        if _master:
-            logger.info(f"Generating replay at epoch {epoch}")
+        logger.info(f"Generating replay at epoch {epoch}")
 
-            # Generate replay on the bucketed curriculum environment
-            replay_sim_config = create_replay_config("varied_terrain/balanced_medium")
+        # Generate replay on the bucketed curriculum environment
+        replay_sim_config = create_replay_config("varied_terrain/balanced_medium")
 
-            replay_simulator = Simulation(
-                name=f"replay_{epoch}",
-                config=replay_sim_config,
-                policy_pr=saved_policy_path,
-                policy_store=policy_store,
-                device=device,
-                vectorization="serial",
-                replay_dir=dirs.replay_dir,
-            )
+        replay_simulator = Simulation(
+            name=f"replay_{epoch}",
+            config=replay_sim_config,
+            policy_pr=saved_policy_path,
+            policy_store=policy_store,
+            device=device,
+            vectorization="serial",
+            replay_dir=dirs.replay_dir,
+        )
 
-            results = replay_simulator.simulate()
+        results = replay_simulator.simulate()
 
-            # Get replay URLs from the database
-            replay_urls = results.stats_db.get_replay_urls()
-            if replay_urls:
-                replay_url = replay_urls[0]
-                player_url = f"https://metta-ai.github.io/metta/?replayUrl={replay_url}"
-                logger.info(f"Replay available at: {player_url}")
+        # Get replay URLs from the database
+        replay_urls = results.stats_db.get_replay_urls()
+        if replay_urls:
+            replay_url = replay_urls[0]
+            player_url = f"https://metta-ai.github.io/metta/?replayUrl={replay_url}"
+            logger.info(f"Replay available at: {player_url}")
 
-            results.stats_db.close()
+        results.stats_db.close()
 
     # Clear stats for next iteration
     stats.clear()
@@ -595,24 +637,43 @@ if evaluation_scores:
         for env_name, score in scores.items():
             logger.info(f"    {env_name}: {score:.2f}")
 
-# Log final system stats
-final_system_stats = system_monitor.get_summary()
-logger.info(f"\nFinal system stats: {final_system_stats}")
-system_monitor.stop()
-memory_monitor.clear()
+# Log final system stats (master only)
+if is_master:
+    final_system_stats = system_monitor.get_summary()
+    logger.info(f"\nFinal system stats: {final_system_stats}")
+    system_monitor.stop()
+    memory_monitor.clear()
 
-# Save final checkpoint if we haven't just saved one
-saved_policy_path = save_checkpoint(
-    epoch=epoch,
-    agent_step=agent_step,
-    agent=agent,
-    optimizer=optimizer,
-    policy_store=policy_store,
-    checkpoint_path=checkpoint_path,
-    checkpoint_interval=trainer_config.checkpoint.checkpoint_interval,
-    stats=stats,
-    force_save=True,
-)
+# Save final checkpoint with distributed coordination
+if torch.distributed.is_initialized():
+    if is_master:
+        # Master saves final checkpoint
+        saved_policy_path = save_checkpoint(
+            epoch=epoch,
+            agent_step=agent_step,
+            agent=agent,
+            optimizer=optimizer,
+            policy_store=policy_store,
+            checkpoint_path=checkpoint_path,
+            checkpoint_interval=trainer_config.checkpoint.checkpoint_interval,
+            stats=stats,
+            force_save=True,
+        )
+    # All ranks wait at barrier
+    torch.distributed.barrier()
+else:
+    # Single GPU mode
+    saved_policy_path = save_checkpoint(
+        epoch=epoch,
+        agent_step=agent_step,
+        agent=agent,
+        optimizer=optimizer,
+        policy_store=policy_store,
+        checkpoint_path=checkpoint_path,
+        checkpoint_interval=trainer_config.checkpoint.checkpoint_interval,
+        stats=stats,
+        force_save=True,
+    )
 
 # Close environment
 env.close()  # type: ignore
