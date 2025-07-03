@@ -14,8 +14,8 @@ trainer:
     logsumexp_coef: 0.01
     num_rollout_negatives: 4
     num_cross_rollout_negatives: 4
-  batch_size: 516096
-  minibatch_size: 516096
+  batch_size: 32768
+  minibatch_size: 8192
   total_timesteps: 1000000
   num_workers: 4
 
