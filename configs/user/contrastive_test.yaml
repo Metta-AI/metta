@@ -12,7 +12,7 @@ trainer:
   env: /env/mettagrid/simple
   env_overrides:
     game:
-      num_agents: 24
+      num_agents: 6
   contrastive:
     enabled: true
     loss_coef: 0.1
@@ -27,6 +27,7 @@ trainer:
   num_workers: 2
   cpu_offload: true
   bptt_horizon: 64
+  async_factor: 1
 
 wandb:
   project: metta-contrastive-test
