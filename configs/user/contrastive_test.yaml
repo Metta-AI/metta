@@ -20,7 +20,7 @@ trainer:
   batch_size: 2048
   minibatch_size: 256
   total_timesteps: 1000000
-  num_workers: 8
+  num_workers: 4
   cpu_offload: true
 
 agent:
