@@ -17,7 +17,7 @@ from omegaconf import DictConfig
 
 from metta.agent.metta_agent import MettaAgent
 from metta.agent.policy_store import PolicyRecord, PolicyStore
-from metta.common.stopwatch import Stopwatch
+from metta.common.profiling.stopwatch import Stopwatch
 from metta.mettagrid.curriculum.core import SingleTaskCurriculum
 from metta.mettagrid.mettagrid_env import MettaGridEnv
 from metta.rl.experience import Experience

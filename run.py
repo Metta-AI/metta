@@ -2,6 +2,12 @@
 
 This example shows how to use the Metta API to train an agent with full
 control over the training loop, using the same components as the main trainer.
+
+This version includes advanced features:
+- Policy evaluation on multiple environments
+- Replay generation for visualization
+- Memory and system monitoring
+- Gradient statistics computation
 """
 
 import logging
@@ -27,6 +33,24 @@ from metta.rl.functions import (
     compute_gradient_stats,
 )
 from metta.rl.trainer_checkpoint import TrainerCheckpoint
+from metta.sim.simulation import Simulation
+from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
+from metta.sim.simulation_suite import SimulationSuite
+
+# Import monitoring components - handle different possible locations
+try:
+    from metta.common.profiling.memory_monitor import MemoryMonitor
+    from metta.common.util.system_monitor import SystemMonitor
+except ImportError:
+    # Try alternate import paths for different package structures
+    try:
+        from common.src.metta.common.profiling.memory_monitor import MemoryMonitor
+        from common.src.metta.common.util.system_monitor import SystemMonitor
+    except ImportError:
+        logger = logging.getLogger(__name__)
+        logger.warning("Memory and system monitoring not available - continuing without monitoring")
+        MemoryMonitor = None
+        SystemMonitor = None
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -222,6 +246,133 @@ if checkpoint:
         except ValueError:
             logger.warning("Optimizer state dict doesn't match. Starting with fresh optimizer state.")
 
+# ===== ADVANCED FEATURES SETUP =====
+
+# 1. Memory and System Monitoring
+if MemoryMonitor is not None and SystemMonitor is not None:
+    memory_monitor = MemoryMonitor()
+    memory_monitor.add(training, name="TrainingComponents", track_attributes=True)
+    memory_monitor.add(agent, name="Agent", track_attributes=False)
+
+    system_monitor = SystemMonitor(
+        sampling_interval_sec=1.0,
+        history_size=100,
+        logger=logger,
+        auto_start=True,
+    )
+else:
+    memory_monitor = None
+    system_monitor = None
+
+# 2. Evaluation Configuration
+# Define what environments to evaluate on
+evaluation_config = SimulationSuiteConfig(
+    name="evaluation",
+    simulations={
+        "navigation/simple": SingleEnvSimulationConfig(
+            env="/env/mettagrid/simple",
+            num_episodes=5,
+            max_time_s=30,
+            env_overrides={},
+        ),
+        "navigation/medium": SingleEnvSimulationConfig(
+            env="/env/mettagrid/medium",
+            num_episodes=5,
+            max_time_s=30,
+            env_overrides={},
+        ),
+    },
+    num_episodes=10,  # Will be overridden by individual configs
+    env_overrides={},  # Suite-level overrides
+)
+
+# Intervals for advanced features
+EVAL_INTERVAL = 100  # Evaluate every 100 epochs
+REPLAY_INTERVAL = 200  # Generate replay every 200 epochs
+GRAD_STATS_INTERVAL = 50  # Compute gradient stats every 50 epochs
+SYSTEM_STATS_INTERVAL = 10  # Log system stats every 10 epochs
+
+# Track evaluation scores
+evaluation_scores = {}
+
+
+def evaluate_policy(policy_record, epoch):
+    """Evaluate the policy on multiple environments."""
+    logger.info(f"Evaluating policy at epoch {epoch}")
+
+    # Run evaluation suite
+    sim_suite = SimulationSuite(
+        config=evaluation_config,
+        policy_pr=policy_record,
+        policy_store=policy_store,
+        device=device,
+        vectorization="serial",
+        stats_dir="./eval_stats",
+        replay_dir=None,  # No replays during evaluation
+    )
+
+    results = sim_suite.simulate()
+    stats_db = results.stats_db
+
+    # Extract scores
+    scores = {}
+    all_episode_data = stats_db.query("SELECT * FROM episodes")
+    if not all_episode_data.empty:
+        # Group by simulation name and compute average reward
+        for sim_name in evaluation_config.simulations.keys():
+            sim_episodes = all_episode_data[all_episode_data["simulation_id"].str.contains(sim_name)]
+            if not sim_episodes.empty:
+                # Get rewards from agent_metrics
+                rewards = []
+                for _, episode in sim_episodes.iterrows():
+                    episode_rewards = stats_db.query(
+                        f"SELECT value FROM agent_metrics WHERE episode_id = '{episode['id']}' AND metric = 'reward'"
+                    )
+                    if not episode_rewards.empty:
+                        rewards.append(episode_rewards["value"].sum())
+
+                if rewards:
+                    avg_reward = sum(rewards) / len(rewards)
+                    scores[sim_name] = avg_reward
+                    logger.info(f"  {sim_name}: {avg_reward:.2f}")
+
+    stats_db.close()
+    return scores
+
+
+def generate_replay(policy_record, epoch):
+    """Generate a replay for visualization."""
+    logger.info(f"Generating replay at epoch {epoch}")
+
+    replay_config = SingleEnvSimulationConfig(
+        env="/env/mettagrid/simple",
+        num_episodes=1,
+        max_time_s=60,
+        env_overrides={},
+    )
+
+    replay_sim = Simulation(
+        name=f"replay_epoch_{epoch}",
+        config=replay_config,
+        policy_pr=policy_record,
+        policy_store=policy_store,
+        device=device,
+        vectorization="serial",
+        replay_dir="./replays",
+    )
+
+    results = replay_sim.simulate()
+
+    # Get replay URLs from the database
+    replay_urls = results.stats_db.get_replay_urls()
+    if replay_urls:
+        player_url = f"https://metta-ai.github.io/metta/?replayUrl={replay_urls[0]}"
+        logger.info(f"Replay available at: {player_url}")
+
+    results.stats_db.close()
+    return replay_urls[0] if replay_urls else None
+
+
 # Training loop
 logger.info("Starting training")
 logger.info(f"Training on {device}")
@@ -332,6 +483,8 @@ while training.agent_step < trainer_config.total_timesteps:
         f"Epoch {training.epoch} - {steps_per_sec:.0f} steps/sec ({train_pct:.0f}% train / {rollout_pct:.0f}% rollout)"
     )
 
+    # ===== ADVANCED FEATURES =====
+
     # Heartbeat recording
     if training.epoch % 10 == 0:
         record_heartbeat()
@@ -345,15 +498,38 @@ while training.agent_step < trainer_config.total_timesteps:
                 logger.info(f"Updated L2 init weights at epoch {training.epoch}")
 
     # Compute gradient statistics
-    if hasattr(trainer_config, "grad_mean_variance_interval"):
-        grad_interval = trainer_config.grad_mean_variance_interval
-        if grad_interval > 0 and training.epoch % grad_interval == 0:
-            grad_stats = compute_gradient_stats(agent)
-            # Log the stats if needed
-            for key, value in grad_stats.items():
-                logger.debug(f"{key}: {value}")
+    if GRAD_STATS_INTERVAL > 0 and training.epoch % GRAD_STATS_INTERVAL == 0:
+        grad_stats = compute_gradient_stats(agent)
+        logger.info(
+            f"Gradient stats - mean: {grad_stats.get('grad/mean', 0):.2e}, "
+            f"variance: {grad_stats.get('grad/variance', 0):.2e}, "
+            f"norm: {grad_stats.get('grad/norm', 0):.2e}"
+        )
+
+    # Log system monitoring stats
+    if SYSTEM_STATS_INTERVAL > 0 and training.epoch % SYSTEM_STATS_INTERVAL == 0 and system_monitor is not None:
+        system_stats = system_monitor.get_summary()
+        logger.info(
+            f"System stats - CPU: {system_stats.get('cpu_percent', 0):.1f}%, "
+            f"Memory: {system_stats.get('memory_percent', 0):.1f}%, "
+            f"Process Memory: {system_stats.get('process_memory_mb', 0):.1f}MB"
+        )
+
+        # Log GPU stats if available
+        if "gpu_utilization_avg" in system_stats:
+            logger.info(
+                f"GPU stats - Utilization: {system_stats.get('gpu_utilization_avg', 0):.1f}%, "
+                f"Memory: {system_stats.get('gpu_memory_percent_avg', 0):.1f}%"
+            )
+
+        # Log memory monitor stats
+        if memory_monitor is not None:
+            memory_stats = memory_monitor.stats()
+            if memory_stats:
+                logger.info(f"Memory usage: {memory_stats}")
 
     # Save checkpoint periodically
+    saved_policy_path = None
     if training.epoch % trainer_config.checkpoint.checkpoint_interval == 0:
         logger.info(f"Saving policy at epoch {training.epoch}")
         saved_policy_path = save_checkpoint(
@@ -385,6 +561,15 @@ while training.agent_step < trainer_config.total_timesteps:
         if training.epoch % 10 == 0:  # Clean up every 10 epochs
             cleanup_old_policies(checkpoint_path, keep_last_n=5)
 
+    # Policy evaluation
+    if EVAL_INTERVAL > 0 and training.epoch % EVAL_INTERVAL == 0 and saved_policy_path:
+        eval_scores = evaluate_policy(saved_policy_path, training.epoch)
+        evaluation_scores[training.epoch] = eval_scores
+
+    # Replay generation
+    if REPLAY_INTERVAL > 0 and training.epoch % REPLAY_INTERVAL == 0 and saved_policy_path:
+        replay_url = generate_replay(saved_policy_path, training.epoch)
+
     # Clear stats for next iteration
     training.stats.clear()
 
@@ -406,16 +591,23 @@ if hasattr(training.losses, "stats"):
         f"Explained Variance: {losses_stats.get('explained_variance', 0):.3f}"
     )
 
-# Log timing breakdown if we tracked it
-if hasattr(training, "timer") and hasattr(training.timer, "get_all_summaries"):
-    timing_summary = training.timer.get_all_summaries()
-    logger.info("Timing breakdown:")
-    for name, summary in timing_summary.items():
-        logger.info(f"  {name}: {summary['total_elapsed']:.1f}s")
-else:
-    # Simple timing summary
-    avg_steps_per_sec = training.agent_step / total_elapsed if total_elapsed > 0 else 0
-    logger.info(f"Average speed: {avg_steps_per_sec:.1f} steps/sec")
+# Log evaluation history
+if evaluation_scores:
+    logger.info("\nEvaluation History:")
+    for epoch, scores in sorted(evaluation_scores.items()):
+        logger.info(f"  Epoch {epoch}:")
+        for env_name, score in scores.items():
+            logger.info(f"    {env_name}: {score:.2f}")
+
+# Log final system stats
+if system_monitor is not None:
+    final_system_stats = system_monitor.get_summary()
+    logger.info(f"\nFinal system stats: {final_system_stats}")
+    # Stop monitoring
+    system_monitor.stop()
+
+if memory_monitor is not None:
+    memory_monitor.clear()
 
 # Final checkpoint (force save)
 if training.epoch % trainer_config.checkpoint.checkpoint_interval != 0:
@@ -446,3 +638,5 @@ if training.epoch % trainer_config.checkpoint.checkpoint_interval != 0:
 
 # Close environment - env is the vecenv returned by Environment()
 env.close()  # type: ignore
+
+logger.info("\nTraining run complete! Check ./checkpoints for saved policies and ./replays for visualization.")
