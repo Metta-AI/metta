@@ -12,10 +12,14 @@ from __future__ import annotations
 
 import json
 import logging
+import sys
 from typing import Any, Dict, List
 
 import hydra
 from omegaconf import DictConfig, OmegaConf
+
+# Add agent package to Python path to resolve import issues
+sys.path.insert(0, "/Users/bullm/Documents/GitHub/metta/agent/src")
 
 from metta.agent.policy_store import PolicyStore
 from metta.app_backend.stats_client import StatsClient

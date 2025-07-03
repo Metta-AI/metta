@@ -96,10 +96,35 @@ class ComprehensiveEvaluator:
         """Load policy URIs from file."""
         if uris_file.suffix == ".json":
             with open(uris_file, "r") as f:
-                return json.load(f)
+                uris = json.load(f)
         else:
             with open(uris_file, "r") as f:
-                return [line.strip() for line in f if line.strip()]
+                uris = [line.strip() for line in f if line.strip()]
+
+        # Fix wandb URIs to include artifact type if missing
+        fixed_uris = []
+        for uri in uris:
+            if uri.startswith("wandb://"):
+                parts = uri[8:].split("/")
+                if len(parts) == 2:
+                    # URI format: wandb://entity/name
+                    # Need to add project and artifact type: wandb://entity/project/model/name
+                    entity, name = parts
+                    # Use entity as project name too (common pattern)
+                    fixed_uri = f"wandb://{entity}/{entity}/model/{name}"
+                    fixed_uris.append(fixed_uri)
+                elif len(parts) == 3:
+                    # URI format: wandb://entity/project/name
+                    # Need to add artifact type: wandb://entity/project/model/name
+                    entity, project, name = parts
+                    fixed_uri = f"wandb://{entity}/{project}/model/{name}"
+                    fixed_uris.append(fixed_uri)
+                else:
+                    fixed_uris.append(uri)
+            else:
+                fixed_uris.append(uri)
+
+        return fixed_uris
 
     def run_single_evaluation(self, policy_uri: str, eval_suite: str, run_id: str) -> Dict:
         """
