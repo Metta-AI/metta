@@ -88,7 +88,7 @@ done
 6. **Quick 30-minute experiment:**
 
    ```bash
-   devops/skypilot/launch.py train run=quick_test ---max-runtime-hours 0.5
+   devops/skypilot/launch.py train run=quick_test --max-runtime-hours 0.5
    ```
 
 7. **Long-running job with 8-hour limit:**
