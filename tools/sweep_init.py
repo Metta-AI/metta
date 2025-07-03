@@ -112,16 +112,20 @@ def create_run(cfg: DictConfig | ListConfig, logger: Logger) -> str:
             # Apply Protein suggestions on top of sweep_job overrides
             # Make a deepcopy of the sweep_job config to avoid modifying the original
             # CRITICAL: Resolve interpolations first to avoid recursive references
-            sweep_job_copy = OmegaConf.create(OmegaConf.to_container(cfg.sweep_job, resolve=True))
+            sweep_job_container = OmegaConf.to_container(cfg.sweep_job, resolve=True)
+            assert isinstance(sweep_job_container, dict), "sweep_job must be a dictionary structure"
+            sweep_job_copy = DictConfig(sweep_job_container)
             apply_protein_suggestion(sweep_job_copy, cleaned_suggestion)
             save_path = os.path.join(run_dir, "train_config_overrides.yaml")
             run_seed = random.randint(0, 2**31 - 1)
 
             # Save the merged config that will be used for training
             # This mimics train_job.yaml
-            train_cfg_overrides = OmegaConf.create(
+            sweep_job_final = OmegaConf.to_container(sweep_job_copy, resolve=True)
+            assert isinstance(sweep_job_final, dict), "sweep_job_final must be a dictionary"
+            train_cfg_overrides = DictConfig(
                 {
-                    **OmegaConf.to_container(sweep_job_copy, resolve=True),
+                    **sweep_job_final,
                     "run": run_id,
                     "run_dir": run_dir,
                     "seed": run_seed,
@@ -166,11 +170,11 @@ def wait_for_run(cfg: DictConfig | ListConfig, path: str, logger: Logger) -> Non
     logger.info(f"Run read: {run_id}")
 
 
-def apply_protein_suggestion(config: DictConfig | ListConfig, suggestion: dict):
+def apply_protein_suggestion(config: DictConfig, suggestion: dict):
     """Apply suggestions to a configuration object using deep merge.
 
     Args:
-        config: The configuration object to modify
+        config: The configuration object to modify (must be a DictConfig)
         suggestion: The suggestions to apply (cleaned dict)
     """
     for key, value in suggestion.items():
