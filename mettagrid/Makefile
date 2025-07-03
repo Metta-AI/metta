@@ -3,18 +3,24 @@
 # Default target
 help:
 	@echo "Available targets:"
-	@echo "  build   - Build project with tests"
-	@echo "  lint    - Run cpplint on all C++ source files"
-	@echo "  test    - Build and run all C++ tests"
-	@echo "  pytest  - Install package and run all Python tests"
-	@echo "  clean   - Clean all build artifacts"
-	@echo "  install - Install package in editable mode"
+	@echo "  build      - Build project for tests"
+	@echo "  build-prod - Build project for production"
+	@echo "  lint       - Run cpplint on all C++ source files"
+	@echo "  test       - Build and run all C++ tests"
+	@echo "  pytest     - Install package and run all Python tests"
+	@echo "  clean      - Clean all build artifacts"
+	@echo "  install    - Install package in editable mode"
 
 # Build project with tests
 build:
 	@echo "Building in debug mode..."
 	cmake --preset debug
 	cmake --build build-debug
+
+build-prod:
+	@echo "Building in debug mode..."
+	cmake --preset release-no-tests
+	cmake --build build
 
 # Run cpplint on all C++ source files
 lint:

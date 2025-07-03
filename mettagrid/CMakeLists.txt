@@ -42,7 +42,61 @@ target_include_directories(mettagrid_obj PUBLIC
 
 target_compile_definitions(mettagrid_obj PUBLIC "NPY_NO_DEPRECATED_API=NPY_1_7_API_VERSION")
 
+# ========================= COMPILER FLAGS =========================
+
+# Base visibility flag
 target_compile_options(mettagrid_obj PUBLIC "-fvisibility=hidden")
+
+# Always-on safety flags (minimal performance impact)
+target_compile_options(mettagrid_obj PRIVATE
+  $<$<CXX_COMPILER_ID:GNU,Clang,AppleClang>:
+    -Wall
+    -Wextra
+    -Wuninitialized
+    -Winit-self
+    -Wshadow
+    -Wfloat-equal
+    -Wnull-dereference
+    -Wformat=2
+    -Wconversion
+    -Wsign-conversion
+    -Wcast-align
+    -Wcast-qual
+    -Wold-style-cast
+    -Wpedantic
+    -Woverloaded-virtual
+    -Wnon-virtual-dtor
+    -Wdouble-promotion
+    # Clang-specific useful warnings
+    $<$<CXX_COMPILER_ID:Clang,AppleClang>:
+      -Wthread-safety
+      -Wimplicit-fallthrough
+    >
+    # GCC-specific useful warnings
+    $<$<CXX_COMPILER_ID:GNU>:
+      -Wmaybe-uninitialized
+      -Wduplicated-cond
+      -Wduplicated-branches
+      -Wlogical-op
+      -Wuseless-cast
+    >
+  >
+  $<$<CXX_COMPILER_ID:MSVC>:
+    /W4
+    /permissive-
+    /w14640  # thread unsafe static member init
+    /w14826  # conversion from 'type1' to 'type2' is sign-extended
+    /w14905  # wide string literal cast to 'LPSTR'
+    /w14906  # string literal cast to 'LPWSTR'
+  >
+)
+
+# Frame pointers for better debugging (minimal perf impact)
+target_compile_options(mettagrid_obj PRIVATE
+  $<$<CXX_COMPILER_ID:GNU,Clang,AppleClang>:-fno-omit-frame-pointer>
+)
+
+# ========================= PYTHON MODULE =========================
 
 pybind11_add_module(mettagrid_c $<TARGET_OBJECTS:mettagrid_obj>)
 
