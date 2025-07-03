@@ -90,6 +90,10 @@ trainer_config = create_default_trainer_config(
         "type": "adam",
         "learning_rate": 3e-4,
     },
+    profiler={
+        "interval_epochs": 0,  # 0 disables profiling
+        "profile_dir": "./profiles",
+    },
 )
 
 # Create environment
@@ -211,6 +215,37 @@ policy_store_cfg = DictConfig(
 )
 policy_store = PolicyStore(cfg=policy_store_cfg, wandb_run=None)
 
+# Create optimizer directly - user has explicit choice between Adam and ForeachMuon
+logger.info("Creating optimizer...")
+optimizer_type = trainer_config.optimizer.type  # "adam" or "muon"
+learning_rate = trainer_config.optimizer.learning_rate
+betas = (trainer_config.optimizer.beta1, trainer_config.optimizer.beta2)
+eps = trainer_config.optimizer.eps
+weight_decay = trainer_config.optimizer.weight_decay
+
+if optimizer_type == "adam":
+    logger.info(f"Using Adam optimizer with lr={learning_rate}")
+    optimizer = torch.optim.Adam(
+        agent.parameters(),
+        lr=learning_rate,
+        betas=betas,
+        eps=eps,
+        weight_decay=weight_decay,
+    )
+elif optimizer_type == "muon":
+    logger.info(f"Using ForeachMuon optimizer with lr={learning_rate}")
+    from heavyball import ForeachMuon
+
+    optimizer = ForeachMuon(
+        agent.parameters(),
+        lr=learning_rate,
+        betas=betas,
+        eps=eps,
+        weight_decay=weight_decay,
+    )
+else:
+    raise ValueError(f"Unknown optimizer type: {optimizer_type}. Choose 'adam' or 'muon'")
+
 # Create training components
 logger.info("Initializing training components...")
 training = TrainingComponents.create(
@@ -220,6 +255,9 @@ training = TrainingComponents.create(
     device=str(device),
     policy_store=policy_store,
 )
+
+# Replace the optimizer created by TrainingComponents with our explicitly created one
+training.optimizer = optimizer
 
 # Create learning rate scheduler
 lr_scheduler = None
@@ -269,18 +307,18 @@ else:
 evaluation_config = SimulationSuiteConfig(
     name="evaluation",
     simulations={
-        "navigation/simple": SingleEnvSimulationConfig(
-            env="/env/mettagrid/simple",
-            num_episodes=5,
-            max_time_s=30,
-            env_overrides={},
-        ),
-        "navigation/medium": SingleEnvSimulationConfig(
-            env="/env/mettagrid/medium",
-            num_episodes=5,
-            max_time_s=30,
-            env_overrides={},
-        ),
+        "navigation/simple": {
+            "env": "/env/mettagrid/simple",
+            "num_episodes": 5,
+            "max_time_s": 30,
+            "env_overrides": {},
+        },
+        "navigation/medium": {
+            "env": "/env/mettagrid/medium",
+            "num_episodes": 5,
+            "max_time_s": 30,
+            "env_overrides": {},
+        },
     },
     num_episodes=10,  # Will be overridden by individual configs
     env_overrides={},  # Suite-level overrides
@@ -344,16 +382,16 @@ def generate_replay(policy_record, epoch):
     """Generate a replay for visualization."""
     logger.info(f"Generating replay at epoch {epoch}")
 
-    replay_config = SingleEnvSimulationConfig(
-        env="/env/mettagrid/simple",
-        num_episodes=1,
-        max_time_s=60,
-        env_overrides={},
-    )
+    replay_config = {
+        "env": "/env/mettagrid/simple",
+        "num_episodes": 1,
+        "max_time_s": 60,
+        "env_overrides": {},
+    }
 
     replay_sim = Simulation(
         name=f"replay_epoch_{epoch}",
-        config=replay_config,
+        config=SingleEnvSimulationConfig.model_validate(replay_config),
         policy_pr=policy_record,
         policy_store=policy_store,
         device=device,
