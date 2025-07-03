@@ -35,6 +35,8 @@ from metta.rl.functions import (
     calculate_explained_variance,
     compute_gradient_stats,
     get_lstm_config,
+    maybe_update_l2_weights,
+    setup_distributed_vars,
 )
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses
@@ -55,9 +57,9 @@ from metta.sim.simulation_suite import SimulationSuite
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 dirs = setup_run_directories()
-
-# Set up device and distributed training if available
 device = setup_device_and_distributed("cuda" if torch.cuda.is_available() else "cpu")
+_master, _world_size, _rank = setup_distributed_vars()
+
 trainer_config = TrainerConfig(
     num_workers=4,
     total_timesteps=10_000_000,
@@ -111,15 +113,6 @@ metta_grid_env = env.driver_env  # type: ignore - vecenv attribute
 # Create agent
 agent = Agent(env, device=str(device))
 hidden_size, num_lstm_layers = get_lstm_config(agent)
-
-# Wrap agent in DistributedMettaAgent if using distributed training
-if torch.distributed.is_initialized():
-    from metta.agent.metta_agent import DistributedMettaAgent
-
-    logger.info(f"Initializing DistributedDataParallel on device {device}")
-    agent = DistributedMettaAgent(agent, device)
-    # Ensure all ranks have initialized DDP before proceeding
-    torch.distributed.barrier()
 
 # Create policy store with complete config
 # PolicyStore internally calls parse_trainer_config which expects run, run_dir, and trainer fields
@@ -212,9 +205,7 @@ else:
 
     # In distributed mode, we need to handle initial policy creation
     if torch.distributed.is_initialized():
-        is_master = torch.distributed.get_rank() == 0
-
-        if is_master:
+        if _master:
             # Master saves initial policy for other ranks to load
             logger.info("Master rank: Creating and saving initial policy")
             initial_policy_path = save_checkpoint(
@@ -388,24 +379,25 @@ while agent_step < trainer_config.total_timesteps:
     steps_per_sec = steps_calculated / total_time if total_time > 0 else 0
 
     # Account for distributed training
-    if torch.distributed.is_initialized():
-        world_size = torch.distributed.get_world_size()
-        steps_per_sec *= world_size
+    steps_per_sec *= _world_size
 
     train_pct = (train_time / total_time) * 100 if total_time > 0 else 0
     rollout_pct = (rollout_time / total_time) * 100 if total_time > 0 else 0
 
     logger.info(f"Epoch {epoch} - {steps_per_sec:.0f} steps/sec ({train_pct:.0f}% train / {rollout_pct:.0f}% rollout)")
-    if epoch % 10 == 0:
+
+    # Record heartbeat periodically
+    if should_run_on_interval(epoch, 10, _master):
         record_heartbeat()
 
     # Update L2 weights if configured
     if hasattr(agent, "l2_init_weight_update_interval"):
-        l2_interval = getattr(agent, "l2_init_weight_update_interval", 0)
-        if isinstance(l2_interval, int) and l2_interval > 0 and epoch % l2_interval == 0:
-            if hasattr(agent, "update_l2_init_weight_copy"):
-                agent.update_l2_init_weight_copy()
-                logger.info(f"Updated L2 init weights at epoch {epoch}")
+        maybe_update_l2_weights(
+            agent=agent,
+            epoch=epoch,
+            interval=getattr(agent, "l2_init_weight_update_interval", 0),
+            is_master=_master,
+        )
 
     # Compute gradient statistics
     if trainer_config.grad_mean_variance_interval > 0 and epoch % trainer_config.grad_mean_variance_interval == 0:
@@ -457,8 +449,7 @@ while agent_step < trainer_config.total_timesteps:
         and saved_policy_path
     ):
         # Only run evaluation on master rank
-        is_master = not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0
-        if is_master:
+        if _master:
             logger.info(f"Evaluating policy at epoch {epoch}")
 
             # Run evaluation suite
@@ -510,8 +501,7 @@ while agent_step < trainer_config.total_timesteps:
         and saved_policy_path
     ):
         # Only run replay generation on master rank
-        is_master = not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0
-        if is_master:
+        if _master:
             logger.info(f"Generating replay at epoch {epoch}")
 
             # Generate replay on the bucketed curriculum environment

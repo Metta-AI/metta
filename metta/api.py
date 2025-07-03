@@ -604,7 +604,7 @@ class Agent:
             device: Device to use
 
         Returns:
-            MettaAgent instance
+            MettaAgent instance (or DistributedMettaAgent wrapper if distributed is initialized)
         """
         logger.info("Creating agent...")
 
@@ -642,6 +642,16 @@ class Agent:
         # Initialize to environment
         features = metta_grid_env.get_observation_features()
         agent.initialize_to_environment(features, metta_grid_env.action_names, metta_grid_env.max_action_args, device)
+
+        # Wrap in DistributedMettaAgent if using distributed training
+        if torch.distributed.is_initialized():
+            from metta.agent.metta_agent import DistributedMettaAgent
+
+            logger.info(f"Initializing DistributedDataParallel on device {device}")
+            agent = DistributedMettaAgent(agent, device)
+            # Ensure all ranks have initialized DDP before proceeding
+            torch.distributed.barrier()
+            logger.info("Agent wrapped in DistributedMettaAgent")
 
         return agent
 
