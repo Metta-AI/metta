@@ -2,11 +2,10 @@
 """Example of using Metta as a library without Hydra configuration."""
 
 import logging
-import os
 import time
 
 import torch
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig
 
 from metta.agent.policy_store import PolicyStore
 from metta.api import (
@@ -18,6 +17,7 @@ from metta.api import (
     compute_advantage,
     perform_rollout_step,
     process_minibatch_update,
+    save_experiment_config,
     setup_run_directories,
 )
 from metta.common.profiling.memory_monitor import MemoryMonitor
@@ -108,6 +108,9 @@ metta_grid_env = env.driver_env  # type: ignore - vecenv attribute
 agent = Agent(env, device=str(device))  # Uses default config
 
 # Save configuration to run directory (like train.py does)
+<<<<<<< HEAD
+save_experiment_config(dirs, device, trainer_config)
+=======
 experiment_config = {
     "run": dirs.run_name,
     "run_dir": dirs.run_dir,
@@ -130,6 +133,7 @@ experiment_config = {
 # Save config directly
 OmegaConf.save(experiment_config, os.path.join(dirs.run_dir, "config.yaml"))
 logger.info(f"Saved config to {os.path.join(dirs.run_dir, 'config.yaml')}")
+>>>>>>> 3f716e12c2bde6afd8f9a3e28511a3895c867458
 
 # Create policy store directly with minimal config
 policy_store = PolicyStore(

@@ -18,7 +18,7 @@ The Metta API provides direct instantiation of training components without requi
 import torch
 from metta.api import (
     Environment, Agent, Optimizer,
-    setup_run_directories,
+    setup_run_directories, save_experiment_config,
     perform_rollout_step, process_minibatch_update,
     accumulate_rollout_stats, compute_advantage,
     calculate_anneal_beta
@@ -333,24 +333,25 @@ print(dirs.run_name)        # Run name
 
 ### Configuration Saving
 
-Save experiment configuration directly using OmegaConf:
+Save experiment configuration using the provided helper:
 
 ```python
-from omegaconf import OmegaConf
-import os
+from metta.api import save_experiment_config, setup_run_directories
+from metta.rl.trainer_config import TrainerConfig
 
-config_dict = {
-    "run": "my_experiment",
-    "device": "cuda",
-    "trainer": {
-        "total_timesteps": 10_000_000,
-        "batch_size": 16384,
-        # ... other config ...
-    }
-}
+# Set up directories
+dirs = setup_run_directories()
 
-# Save configuration to run directory
-OmegaConf.save(config_dict, os.path.join(run_dir, "config.yaml"))
+# Create trainer config
+trainer_config = TrainerConfig(
+    total_timesteps=10_000_000,
+    batch_size=16384,
+    # ... other config ...
+)
+
+# Save configuration
+save_experiment_config(dirs, device, trainer_config)
+# Saves to {dirs.run_dir}/config.yaml with full experiment metadata
 ```
 
 ### Policy Store
