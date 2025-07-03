@@ -1016,6 +1016,7 @@ __all__ = [
     "compute_advantage",  # Export the real function directly
     # Helper classes
     "RunDirectories",
+    "PreBuiltConfigCurriculum",
 ]
 
 
