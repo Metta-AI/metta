@@ -12,9 +12,6 @@ game:
     _target_: metta.map.mapgen.MapGen
     num_rooms: 2
 
-    width: 98
-    height: 34
-
     border_width: 1
     room_border_width: 1
     root:

@@ -49,6 +49,19 @@ class Scene(Generic[ParamsT]):
 
         raise TypeError(f"{cls.__name__} must inherit from Scene[…], with a concrete Params class parameter")
 
+    @classmethod
+    def validate_params(cls, params: ParamsT | DictConfig | dict | None) -> ParamsT:
+        if params is None:
+            return cls.Params({})
+        if isinstance(params, DictConfig):
+            return cls.Params(params)
+        elif isinstance(params, dict):
+            return cls.Params(**params)
+        elif isinstance(params, cls.Params):
+            return params
+        else:
+            raise ValueError(f"Invalid params: {params}")
+
     def __init__(
         self,
         area: Area,
@@ -57,16 +70,7 @@ class Scene(Generic[ParamsT]):
         seed: MaybeSeed = None,
     ):
         # Validate params - they can come from untyped yaml or from weakly typed dicts in python code.
-        if params is None:
-            params = {}
-        if isinstance(params, DictConfig):
-            self.params = self.Params(params)
-        elif isinstance(params, dict):
-            self.params = self.Params(**params)
-        elif isinstance(params, self.Params):
-            self.params = params
-        else:
-            raise ValueError(f"Invalid params: {params}")
+        self.params = self.validate_params(params)
 
         # `children` are not scenes, but queries that will be used to select areas and produce scenes in them.
         children = children or []
@@ -216,6 +220,20 @@ class Scene(Generic[ParamsT]):
     ) -> SceneCfg:
         return lambda area, rng: cls(area=area, params=params, seed=seed or rng, children=children)
 
+    @classmethod
+    def intrinsic_size(cls, params: ParamsT) -> tuple[int, int] | None:
+        """
+        Some scenes have a fixed size, which can be used to compute the size of the map.
+
+        For example, an ascii map has a fixed size, which can be used to compute the size of the map.
+
+        This is a class method, because an instantiated scene is already bound to an area, and we can't change it.
+
+        The returned pair is (height, width), same order as in numpy arrays.
+        """
+
+        return None
+
 
 def load_class(full_class_name: str) -> type[Scene]:
     module_name, class_name = full_class_name.rsplit(".", 1)
@@ -224,6 +242,23 @@ def load_class(full_class_name: str) -> type[Scene]:
     if not issubclass(cls, Scene):
         raise ValueError(f"Class {cls} does not inherit from Scene")
     return cls
+
+
+def scene_cfg_to_dict(cfg: SceneCfg) -> dict:
+    if callable(cfg):
+        raise ValueError("Callable scene configs are not supported")
+    if isinstance(cfg, str):
+        if cfg.startswith("/"):
+            cfg = cfg[1:]
+        cfg = OmegaConf.load(f"{scenes_root}/{cfg}")  # type: ignore
+
+    if isinstance(cfg, DictConfig):
+        cfg = OmegaConf.to_container(cfg)  # type: ignore
+
+    if not isinstance(cfg, dict):
+        raise ValueError(f"Invalid scene config: {cfg}, type: {type(cfg)}")
+
+    return cfg
 
 
 def make_scene(cfg: SceneCfg, area: Area, rng: np.random.Generator) -> Scene:
@@ -235,18 +270,12 @@ def make_scene(cfg: SceneCfg, area: Area, rng: np.random.Generator) -> Scene:
             raise ValueError(f"Scene callback didn't return a valid scene: {scene}")
         return scene
 
-    if isinstance(cfg, str):
-        if cfg.startswith("/"):
-            cfg = cfg[1:]
-        cfg = OmegaConf.to_container(OmegaConf.load(f"{scenes_root}/{cfg}"))  # type: ignore
+    dict_cfg = scene_cfg_to_dict(cfg)
 
-    if not isinstance(cfg, dict):
-        raise ValueError(f"Invalid scene config: {cfg}, type: {type(cfg)}")
-
-    cls = load_class(cfg["type"])
+    cls = load_class(dict_cfg["type"])
     return cls(
         area=area,
-        params=cfg.get("params", {}),
-        children=cfg.get("children", []),
-        seed=cfg.get("seed", rng),
+        params=dict_cfg.get("params", {}),
+        children=dict_cfg.get("children", []),
+        seed=dict_cfg.get("seed", rng),
     )
