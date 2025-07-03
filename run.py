@@ -5,8 +5,6 @@ import logging
 import os
 import sys
 import time
-from datetime import datetime
-from pathlib import Path
 
 import torch
 from omegaconf import DictConfig
@@ -18,6 +16,7 @@ from metta.api import (
     TrainingComponents,
     calculate_anneal_beta,
     save_checkpoint,
+    setup_run_directories,
 )
 from metta.common.profiling.memory_monitor import MemoryMonitor
 from metta.common.util.heartbeat import record_heartbeat
@@ -57,23 +56,7 @@ except ImportError:
     sys.exit(1)
 
 # Setup run directory structure like train.py
-RUN_NAME = os.environ.get("METTA_RUN", f"run_{datetime.now().strftime('%Y%m%d_%H%M%S')}")
-DATA_DIR = os.environ.get("DATA_DIR", "./train_dir")
-RUN_DIR = os.path.join(DATA_DIR, RUN_NAME)
-
-# Create run directory structure
-Path(RUN_DIR).mkdir(parents=True, exist_ok=True)
-CHECKPOINT_DIR = os.path.join(RUN_DIR, "checkpoints")
-REPLAY_DIR = os.path.join(RUN_DIR, "replays")
-STATS_DIR = os.path.join(RUN_DIR, "stats")
-
-# Create subdirectories
-Path(CHECKPOINT_DIR).mkdir(parents=True, exist_ok=True)
-Path(REPLAY_DIR).mkdir(parents=True, exist_ok=True)
-Path(STATS_DIR).mkdir(parents=True, exist_ok=True)
-
-logger.info(f"Run directory: {RUN_DIR}")
-logger.info(f"Run name: {RUN_NAME}")
+dirs = setup_run_directories()
 
 # Configuration
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -133,22 +116,22 @@ agent = Agent(env, device=str(device))  # Uses default config
 
 # Save configuration to run directory (like train.py does)
 config_to_save = {
-    "run": RUN_NAME,
-    "run_dir": RUN_DIR,
-    "data_dir": DATA_DIR,
+    "run": dirs.run_name,
+    "run_dir": dirs.run_dir,
+    "data_dir": os.path.dirname(dirs.run_dir),  # Get parent directory
     "device": str(device),
     "trainer": {
         "num_workers": trainer_config.num_workers,
         "total_timesteps": trainer_config.total_timesteps,
         "batch_size": trainer_config.batch_size,
         "minibatch_size": trainer_config.minibatch_size,
-        "checkpoint_dir": CHECKPOINT_DIR,
+        "checkpoint_dir": dirs.checkpoint_dir,
         "optimizer": trainer_config.optimizer.model_dump(),
         "ppo": trainer_config.ppo.model_dump(),
     },
 }
 
-config_path = os.path.join(RUN_DIR, "config.yaml")
+config_path = os.path.join(dirs.run_dir, "config.yaml")
 with open(config_path, "w") as f:
     import yaml
 
@@ -163,7 +146,7 @@ policy_store_cfg = DictConfig(
         "policy_cache_size": 10,
         "trainer": {
             "checkpoint": {
-                "checkpoint_dir": CHECKPOINT_DIR,
+                "checkpoint_dir": dirs.checkpoint_dir,
             }
         },
     }
@@ -296,7 +279,7 @@ def evaluate_policy(policy_record, epoch):
         policy_store=policy_store,
         device=device,
         vectorization="serial",
-        stats_dir=STATS_DIR,
+        stats_dir=dirs.stats_dir,
         replay_dir=None,  # No replays during evaluation
     )
 
@@ -347,7 +330,7 @@ def generate_replay(policy_record, epoch):
         policy_store=policy_store,
         device=device,
         vectorization="serial",
-        replay_dir=REPLAY_DIR,
+        replay_dir=dirs.replay_dir,
     )
 
     results = replay_sim.simulate()
@@ -623,4 +606,4 @@ if training.epoch % trainer_config.checkpoint.checkpoint_interval != 0:
 # Close environment - env is the vecenv returned by Environment()
 env.close()  # type: ignore
 
-logger.info(f"\nTraining run complete! Run saved to: {RUN_DIR}")
+logger.info(f"\nTraining run complete! Run saved to: {dirs.run_dir}")

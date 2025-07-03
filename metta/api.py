@@ -9,6 +9,8 @@ This API exposes the core training components from Metta, allowing users to:
 
 import logging
 import os
+from datetime import datetime
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import gymnasium as gym
@@ -45,6 +47,61 @@ from metta.rl.trainer_config import (
 from metta.rl.vecenv import make_vecenv
 
 logger = logging.getLogger(__name__)
+
+
+# Named tuple for run directories
+class RunDirectories:
+    """Container for run directory paths."""
+
+    def __init__(self, run_dir: str, checkpoint_dir: str, replay_dir: str, stats_dir: str, run_name: str):
+        self.run_dir = run_dir
+        self.checkpoint_dir = checkpoint_dir
+        self.replay_dir = replay_dir
+        self.stats_dir = stats_dir
+        self.run_name = run_name
+
+
+def setup_run_directories(run_name: Optional[str] = None, data_dir: Optional[str] = None) -> RunDirectories:
+    """Set up the directory structure for a training run.
+
+    This creates the same directory structure as tools/train.py:
+    - {data_dir}/{run_name}/
+        - checkpoints/  # Model checkpoints
+        - replays/      # Replay files
+        - stats/        # Evaluation statistics
+
+    Args:
+        run_name: Name for this run. If not provided, uses METTA_RUN env var or timestamp
+        data_dir: Base data directory. If not provided, uses DATA_DIR env var or ./train_dir
+
+    Returns:
+        RunDirectories object with all directory paths
+    """
+    # Get run name and data directory
+    if run_name is None:
+        run_name = os.environ.get("METTA_RUN", f"run_{datetime.now().strftime('%Y%m%d_%H%M%S')}")
+    if data_dir is None:
+        data_dir = os.environ.get("DATA_DIR", "./train_dir")
+
+    # Create paths
+    run_dir = os.path.join(data_dir, run_name)
+    checkpoint_dir = os.path.join(run_dir, "checkpoints")
+    replay_dir = os.path.join(run_dir, "replays")
+    stats_dir = os.path.join(run_dir, "stats")
+
+    # Create directories
+    Path(run_dir).mkdir(parents=True, exist_ok=True)
+    Path(checkpoint_dir).mkdir(parents=True, exist_ok=True)
+    Path(replay_dir).mkdir(parents=True, exist_ok=True)
+    Path(stats_dir).mkdir(parents=True, exist_ok=True)
+
+    logger.info(f"Run directory: {run_dir}")
+    logger.info(f"Run name: {run_name}")
+
+    return RunDirectories(
+        run_dir=run_dir, checkpoint_dir=checkpoint_dir, replay_dir=replay_dir, stats_dir=stats_dir, run_name=run_name
+    )
+
 
 # Object type IDs from mettagrid/src/metta/mettagrid/objects/constants.hpp
 # TODO: These should be imported from mettagrid once they're exposed via Python bindings
@@ -827,6 +884,9 @@ __all__ = [
     "load_checkpoint",
     "evaluate_policy",
     "calculate_anneal_beta",
+    "setup_run_directories",
+    # Helper classes
+    "RunDirectories",
     # Constants
     "TYPE_AGENT",
     "TYPE_WALL",
