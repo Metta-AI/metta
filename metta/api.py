@@ -508,8 +508,8 @@ class Optimizer:
 
     def __init__(
         self,
-        optimizer_type: str,
-        policy: MettaAgent,
+        optimizer_type: str = "adam",
+        policy: Optional[MettaAgent] = None,
         learning_rate: float = 3e-4,
         betas: Tuple[float, float] = (0.9, 0.999),
         eps: float = 1e-8,
@@ -527,6 +527,8 @@ class Optimizer:
             weight_decay: Weight decay coefficient
             max_grad_norm: Maximum gradient norm for clipping
         """
+        if policy is None:
+            raise ValueError("Policy must be provided to Optimizer")
         logger.info(f"Creating optimizer... Using {optimizer_type.capitalize()} optimizer with lr={learning_rate}")
 
         self.policy = policy
@@ -586,68 +588,6 @@ class Optimizer:
         return self.optimizer.param_groups
 
 
-def compute_advantages_with_config(
-    experience: Experience,
-    ppo_config: PPOConfig,
-    vtrace_config: Any,
-    device: torch.device,
-) -> torch.Tensor:
-    """Compute advantages using GAE with proper configuration.
-
-    This is a convenience wrapper that handles the tensor creation
-    and initial importance sampling ratio setup.
-
-    Args:
-        experience: Experience buffer
-        ppo_config: PPO configuration
-        vtrace_config: V-trace configuration
-        device: Device to use
-
-    Returns:
-        Computed advantages tensor
-    """
-    advantages = torch.zeros(experience.values.shape, device=device)
-    initial_importance_sampling_ratio = torch.ones_like(experience.values)
-
-    return compute_advantage(
-        experience.values,
-        experience.rewards,
-        experience.dones,
-        initial_importance_sampling_ratio,
-        advantages,
-        ppo_config.gamma,
-        ppo_config.gae_lambda,
-        vtrace_config.vtrace_rho_clip,
-        vtrace_config.vtrace_c_clip,
-        device,
-    )
-
-
-def save_checkpoint(
-    policy: MettaAgent,
-    policy_store: PolicyStore,
-    epoch: int,
-    metadata: Optional[Dict[str, Any]] = None,
-) -> PolicyRecord:
-    """Save a policy checkpoint.
-
-    Args:
-        policy: Policy to save
-        policy_store: Policy store to use
-        epoch: Current epoch
-        metadata: Optional metadata
-
-    Returns:
-        Saved PolicyRecord
-    """
-    name = policy_store.make_model_name(epoch)
-    policy_record = policy_store.create_empty_policy_record(name)
-    policy_record.metadata = metadata or {}
-    policy_record.policy = policy
-
-    return policy_store.save(policy_record)
-
-
 def calculate_anneal_beta(
     epoch: int,
     total_timesteps: int,
@@ -691,16 +631,17 @@ __all__ = [
     "CheckpointConfig",
     "SimulationConfig",
     # Helper functions
-    "save_checkpoint",
     "calculate_anneal_beta",
     "setup_run_directories",
     "save_experiment_config",
     "create_policy_store",
-    "compute_advantages_with_config",
     # Functions from rl.functions (commonly used)
     "perform_rollout_step",
     "process_minibatch_update",
     "accumulate_rollout_stats",
+    "compute_advantage",  # Export the real function directly
     # Helper classes
     "RunDirectories",
+    # Policy-related classes for direct use
+    "PolicyRecord",
 ]
