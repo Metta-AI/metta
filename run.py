@@ -85,19 +85,19 @@ trainer_config = TrainerConfig(
     ),
     checkpoint=CheckpointConfig(
         checkpoint_dir=dirs.checkpoint_dir,
-        checkpoint_interval=10,
+        checkpoint_interval=300,
         wandb_checkpoint_interval=0,
     ),
     simulation=SimulationConfig(
-        evaluate_interval=100,
-        replay_interval=200,
+        evaluate_interval=300,
+        replay_interval=300,
         replay_dir=dirs.replay_dir,
     ),
     profiler=TorchProfilerConfig(
         interval_epochs=0,
         profile_dir=os.path.join(dirs.run_dir, "torch_traces"),
     ),
-    grad_mean_variance_interval=50,
+    grad_mean_variance_interval=150,
 )
 
 # Adjust batch sizes for distributed training

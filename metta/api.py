@@ -864,7 +864,7 @@ def save_checkpoint(
     trainer_checkpoint.save(checkpoint_path)
 
     # Clean up old policies to prevent disk space issues
-    if epoch % 10 == 0:
+    if force_save or (epoch % checkpoint_interval == 0):
         cleanup_old_policies(checkpoint_path, keep_last_n=5)
 
     # If distributed, master waits for other ranks
