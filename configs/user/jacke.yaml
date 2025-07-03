@@ -1,0 +1,10 @@
+# @package __global__
+
+defaults:
+  - _self_
+
+wandb:
+  enabled: true
+
+run_id: 492
+run: ${oc.env:USER}.local.${run_id}

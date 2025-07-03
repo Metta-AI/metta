@@ -3,21 +3,19 @@ from __future__ import annotations
 import datetime
 import uuid
 from pathlib import Path
-from typing import Tuple
+from typing import cast
 
+from duckdb import DuckDBPyConnection
+
+from metta.agent.mocks import MockPolicyRecord
+from metta.agent.policy_record import PolicyRecord
 from metta.sim.simulation_stats_db import SimulationStatsDB
 
 
-class MockPolicyRecord:
-    """Mock implementation of PolicyRecord for testing."""
-
-    def __init__(self, policy_key: str, policy_version: int):
-        self._policy_key = policy_key
-        self._policy_version = policy_version
-
-    def key_and_version(self) -> Tuple[str, int]:
-        """Return the policy key and version as a tuple."""
-        return self._policy_key, self._policy_version
+def get_count(con: DuckDBPyConnection, query: str) -> int:
+    result = con.execute(query).fetchone()
+    assert result is not None
+    return result[0]
 
 
 def _create_worker_db(path: Path, sim_steps: int = 0) -> str:
@@ -86,7 +84,7 @@ def test_insert_agent_policies_empty_inputs(tmp_path: Path):
     db._insert_agent_policies([], _DUMMY_AGENT_MAP)
     db._insert_agent_policies([str(uuid.uuid4())], {})
 
-    count = db.con.execute("SELECT COUNT(*) FROM agent_policies").fetchone()[0]
+    count = get_count(db.con, "SELECT COUNT(*) FROM agent_policies")
     assert count == 0
 
     db.close()
@@ -273,11 +271,17 @@ def test_from_shards_and_context(tmp_path: Path):
     assert not merged_path.exists(), "Merged DB already exists"
 
     # Create agent map with our mock PolicyRecord
-    agent_map = {0: MockPolicyRecord("test_policy", 1)}
+    agent_map = {0: MockPolicyRecord.from_key_and_version("test_policy", 1)}
 
     # Now call the actual from_shards_and_context method
     merged_db = SimulationStatsDB.from_shards_and_context(
-        "sim_id", shard_dir, agent_map, "test_sim", "test_suite", "env_test", MockPolicyRecord("test_policy", 1)
+        "sim_id",
+        shard_dir,
+        cast(dict[int, PolicyRecord], agent_map),
+        "test_sim",
+        "test_suite",
+        "env_test",
+        cast(PolicyRecord, MockPolicyRecord.from_key_and_version("test_policy", 1)),
     )
 
     # Verify merged database was created
@@ -287,19 +291,19 @@ def test_from_shards_and_context(tmp_path: Path):
     # Rather than looking at SQLite metadata which varies by database type,
     # we'll try to count records in each table
     # Episodes table
-    episodes_count = merged_db.con.execute("SELECT COUNT(*) FROM episodes").fetchone()[0]
+    episodes_count = get_count(merged_db.con, "SELECT COUNT(*) FROM episodes")
     assert episodes_count > 0, "Episodes table exists but is empty"
 
     # Agent metrics table
-    metrics_count = merged_db.con.execute("SELECT COUNT(*) FROM agent_metrics").fetchone()[0]
+    metrics_count = get_count(merged_db.con, "SELECT COUNT(*) FROM agent_metrics")
     assert metrics_count > 0, "Agent metrics table exists but is empty"
 
     # Simulations table
-    sims_count = merged_db.con.execute("SELECT COUNT(*) FROM simulations").fetchone()[0]
+    sims_count = get_count(merged_db.con, "SELECT COUNT(*) FROM simulations")
     assert sims_count > 0, "Simulations table exists but is empty"
 
     # Agent policies table
-    policies_count = merged_db.con.execute("SELECT COUNT(*) FROM agent_policies").fetchone()[0]
+    policies_count = get_count(merged_db.con, "SELECT COUNT(*) FROM agent_policies")
     assert policies_count > 0, "Agent policies table exists but is empty"
 
     # Verify the episode was imported

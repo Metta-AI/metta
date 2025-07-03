@@ -1,6 +1,17 @@
 #!/usr/bin/env -S uv run
+# /// script
+# requires-python = ">=3.11"
+# dependencies = [
+#   "pixie-python>=4.3.0",
+# ]
+# ///
+"""
+Generate texture atlas for Mettascope by packing images using Skyline bin packing algorithm.
+"""
+
 import json
 import os
+import sys
 
 import pixie
 
@@ -70,7 +81,8 @@ def put_image(img, name):
                 min_x = this_x
 
     if min_x == -1:
-        quit("failed to find a place for: " + name)
+        print(f"Failed to find a place for: {name}", file=sys.stderr)
+        sys.exit(1)
 
     # Draw the image at the position
     atlas_image.draw(padded_img, pixie.translate(min_x, min_height))
@@ -84,14 +96,47 @@ def put_image(img, name):
     return images[name]
 
 
-# Walk the data dir:
-for root, _dirs, files in os.walk("data"):
-    for file in files:
-        if file.endswith(".png"):
-            img = pixie.read_image(root + "/" + file)
-            put_image(img, (root + "/" + file).replace("data/", ""))
+def main():
+    """Main entry point for atlas generation."""
+    # Ensure output directory exists
+    os.makedirs("dist", exist_ok=True)
 
-# Write the atlas image and the atlas json file.
-with open("dist/atlas.json", "w") as f:
-    json.dump(images, f)
-atlas_image.write_file("dist/atlas.png")
+    # Walk the data dir:
+    atlas_dir = "data/atlas"
+    if not os.path.exists(atlas_dir):
+        print(f"Error: Atlas directory '{atlas_dir}' not found", file=sys.stderr)
+        sys.exit(1)
+
+    image_count = 0
+    for root, _dirs, files in os.walk(atlas_dir):
+        for file in files:
+            if file.endswith(".png"):
+                img_path = os.path.join(root, file)
+                try:
+                    img = pixie.read_image(img_path)
+                    relative_path = os.path.relpath(img_path, atlas_dir)
+                    put_image(img, relative_path)
+                    image_count += 1
+                    print(f"Added {relative_path} to atlas")
+                except Exception as e:
+                    print(f"Error processing {img_path}: {e}", file=sys.stderr)
+                    sys.exit(1)
+
+    if image_count == 0:
+        print("Warning: No images found to pack into atlas", file=sys.stderr)
+    else:
+        print(f"Successfully packed {image_count} images into atlas")
+
+    # Write the atlas image and the atlas json file.
+    try:
+        with open("dist/atlas.json", "w") as f:
+            json.dump(images, f, indent=2)
+        atlas_image.write_file("dist/atlas.png")
+        print("Atlas generation complete: dist/atlas.png and dist/atlas.json")
+    except Exception as e:
+        print(f"Error writing atlas files: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

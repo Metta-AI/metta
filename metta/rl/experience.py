@@ -3,222 +3,311 @@ This file implements an Experience class for storing and managing experience dat
 learning training.
 
 The Experience class provides:
-- Flat tensor storage for observations, actions, rewards, etc.
-- Array views for faster indexing
-- Support for LSTM state storage
-- Minibatch handling for training
-- CPU/GPU memory management
+- Segmented tensor storage for observations, actions, rewards, etc.
+- Support for BPTT (Backpropagation Through Time) with configurable horizon
+- Prioritized experience replay with importance sampling
+- LSTM state management for recurrent policies
+- Zero-copy operations where possible
+- Efficient minibatch creation for training
 
 Key features:
-- Stores trajectories in fixed-size tensors
+- Stores trajectories in segmented tensors for BPTT
 - Supports both CPU and GPU storage with optional CPU offloading
 - Handles LSTM hidden states if using recurrent policies
-- Provides numpy array views for efficient indexing
+- Provides prioritized sampling for training
 - Manages minibatch creation for training
 """
 
-from typing import Optional, Tuple
+from typing import Dict, Optional
 
 import numpy as np
-import pufferlib
-import pufferlib.pytorch
 import torch
+from torch import Tensor
 
 
 class Experience:
-    """Flat tensor storage and array views for faster indexing"""
+    """Segmented tensor storage for RL experience with BPTT support."""
 
     def __init__(
         self,
+        total_agents: int,
         batch_size: int,
         bptt_horizon: int,
-        minibatch_size: Optional[int],
+        minibatch_size: int,
+        max_minibatch_size: int,
+        obs_space,
+        atn_space,
+        device: torch.device | str,
         hidden_size: int,
-        obs_shape: Tuple[int, ...],
-        obs_dtype: np.dtype,
-        atn_shape: Tuple[int, ...],
-        atn_dtype: np.dtype,
         cpu_offload: bool = False,
-        device: str = "cuda",
-        lstm: Optional[torch.nn.LSTM] = None,
-        lstm_total_agents: int = 0,
+        num_lstm_layers: int = 2,
+        agents_per_batch: Optional[int] = None,
     ):
-        if minibatch_size is None:
-            minibatch_size = batch_size
-
-        # Convert numpy dtypes to torch dtypes
-        obs_dtype_torch = pufferlib.pytorch.numpy_to_torch_dtype_dict[obs_dtype]
-        atn_dtype_torch = pufferlib.pytorch.numpy_to_torch_dtype_dict[atn_dtype]
-        pin = device == "cuda" and cpu_offload
-
-        # Create tensors without using *args unpacking to make Pylance happy
-        tensor_device = "cpu" if pin else device
-
-        # Create a fully specified size tuple for each tensor
-        obs_size = (batch_size,) + obs_shape  # Explicitly create a new tuple
-        atn_size = (batch_size,) + atn_shape  # Explicitly create a new tuple
-
-        # Create tensors with explicit size tuples
-        self.obs = torch.zeros(size=obs_size, dtype=obs_dtype_torch, device=tensor_device)
-        self.actions = torch.zeros(size=atn_size, dtype=atn_dtype_torch, device="cpu")
-        self.logprobs = torch.zeros(size=(batch_size,), device="cpu")
-        self.rewards = torch.zeros(size=(batch_size,), device="cpu")
-        self.dones = torch.zeros(size=(batch_size,), device="cpu")
-        self.truncateds = torch.zeros(size=(batch_size,), device="cpu")
-        self.values = torch.zeros(size=(batch_size,), device="cpu")
-
-        # Apply pin_memory if needed
-        if pin:
-            self.obs = self.obs.pin_memory()
-            self.actions = self.actions.pin_memory()
-            self.logprobs = self.logprobs.pin_memory()
-            self.rewards = self.rewards.pin_memory()
-            self.dones = self.dones.pin_memory()
-            self.truncateds = self.truncateds.pin_memory()
-            self.values = self.values.pin_memory()
-
-        self.e3b_inv = 10 * torch.eye(hidden_size).repeat(lstm_total_agents, 1, 1).to(device)
-
-        # Create numpy views with explicit types
-        self.actions_np: np.ndarray = np.asarray(self.actions)
-        self.logprobs_np: np.ndarray = np.asarray(self.logprobs)
-        self.rewards_np: np.ndarray = np.asarray(self.rewards)
-        self.dones_np: np.ndarray = np.asarray(self.dones)
-        self.truncateds_np: np.ndarray = np.asarray(self.truncateds)
-        self.values_np: np.ndarray = np.asarray(self.values)
-
-        assert lstm is not None, "LSTM instance is required for experience buffer"
-        assert lstm_total_agents > 0, f"lstm_total_agents must be positive, got {lstm_total_agents}"
-        shape = (lstm.num_layers, lstm_total_agents, lstm.hidden_size)
-        self.lstm_h: torch.Tensor = torch.zeros(shape).to(device, non_blocking=True)
-        self.lstm_c: torch.Tensor = torch.zeros(shape).to(device, non_blocking=True)
-
-        num_minibatches = batch_size / minibatch_size
-        self.num_minibatches: int = int(num_minibatches)
-        if self.num_minibatches != num_minibatches:
-            raise ValueError(f"batch_size {batch_size} must be divisible by minibatch_size {minibatch_size}")
-
-        minibatch_rows = minibatch_size / bptt_horizon
-        self.minibatch_rows: int = int(minibatch_rows)
-        if self.minibatch_rows != minibatch_rows:
-            raise ValueError(f"minibatch_size {minibatch_size} must be divisible by bptt_horizon {bptt_horizon}")
-
+        """Initialize experience buffer with segmented storage."""
         # Store parameters
+        self.total_agents = total_agents
         self.batch_size: int = batch_size
         self.bptt_horizon: int = bptt_horizon
-        self.minibatch_size: int = minibatch_size
-        self.device: str = device
+        self.device = device if isinstance(device, torch.device) else torch.device(device)
+        self.cpu_offload = cpu_offload
 
-        # Initialize sort keys
-        self.sort_keys: np.ndarray = np.zeros((batch_size, 3), dtype=np.int32)
-        self.sort_keys[:, 0] = np.arange(batch_size)
-        self.ptr: int = 0
-        self.step: int = 0
+        # Calculate segments
+        self.segments = batch_size // bptt_horizon
+        if total_agents > self.segments:
+            mini_batch_size = total_agents * bptt_horizon
+            raise ValueError(
+                f"batch_size ({batch_size}) is too small for {total_agents} agents.\n"
+                f"Segments = batch_size // bptt_horizon = {batch_size} // {bptt_horizon} = {self.segments}\n"
+                f"But we need segments >= total_agents ({total_agents}).\n"
+                f"Please set trainer.batch_size >= {mini_batch_size} in your configuration."
+            )
 
-        # Batch indices will be set by sort_training_data
-        self.b_idxs_obs: Optional[torch.Tensor] = None
-        self.b_idxs: Optional[torch.Tensor] = None
-        self.b_idxs_flat: Optional[torch.Tensor] = None
-        self.b_actions: Optional[torch.Tensor] = None
-        self.b_logprobs: Optional[torch.Tensor] = None
-        self.b_dones: Optional[torch.Tensor] = None
-        self.b_values: Optional[torch.Tensor] = None
-        self.b_advantages: Optional[torch.Tensor] = None
-        self.b_obs: Optional[torch.Tensor] = None
-        self.b_returns: Optional[torch.Tensor] = None
-        self.returns_np: Optional[np.ndarray] = None
+        # Determine tensor device and dtype
+        obs_device = "cpu" if cpu_offload else self.device
+        obs_dtype = torch.float32 if obs_space.dtype == np.float32 else torch.uint8
+        pin = str(self.device).startswith("cuda") and cpu_offload
+
+        # Create segmented tensor storage
+        self.obs = torch.zeros(
+            self.segments,
+            bptt_horizon,
+            *obs_space.shape,
+            dtype=obs_dtype,
+            pin_memory=pin,
+            device=obs_device,
+        )
+
+        # Action tensor with proper dtype
+        atn_dtype = torch.int32 if np.issubdtype(atn_space.dtype, np.integer) else torch.float32
+        self.actions = torch.zeros(self.segments, bptt_horizon, *atn_space.shape, device=self.device, dtype=atn_dtype)
+
+        # Create value and policy tensors
+        self.values = torch.zeros(self.segments, bptt_horizon, device=self.device)
+        self.logprobs = torch.zeros(self.segments, bptt_horizon, device=self.device)
+        self.rewards = torch.zeros(self.segments, bptt_horizon, device=self.device)
+        self.dones = torch.zeros(self.segments, bptt_horizon, device=self.device)
+        self.truncateds = torch.zeros(self.segments, bptt_horizon, device=self.device)
+        self.ratio = torch.ones(self.segments, bptt_horizon, device=self.device)
+
+        # Episode tracking
+        self.ep_lengths = torch.zeros(total_agents, device=self.device, dtype=torch.int32)
+        self.ep_indices = torch.arange(total_agents, device=self.device, dtype=torch.int32) % self.segments
+        self.free_idx = total_agents % self.segments
+
+        # LSTM state management
+        self.lstm_h: Dict[int, Tensor] = {}
+        self.lstm_c: Dict[int, Tensor] = {}
+        assert num_lstm_layers > 0, f"num_lstm_layers must be positive, got {num_lstm_layers}"
+        assert hidden_size > 0, f"hidden_size must be positive, got {hidden_size}"
+
+        # Use provided agents_per_batch or default to total_agents
+        if agents_per_batch is None:
+            agents_per_batch = total_agents
+
+        # Create LSTM states for each batch
+        for i in range(0, total_agents, agents_per_batch):
+            batch_size = min(agents_per_batch, total_agents - i)
+            self.lstm_h[i] = torch.zeros(num_lstm_layers, batch_size, hidden_size, device=self.device)
+            self.lstm_c[i] = torch.zeros(num_lstm_layers, batch_size, hidden_size, device=self.device)
+
+        # Minibatch configuration
+        self.minibatch_size: int = min(minibatch_size, max_minibatch_size)
+        self.accumulate_minibatches = max(1, minibatch_size // max_minibatch_size)
+
+        minibatch_segments = self.minibatch_size / bptt_horizon
+        self.minibatch_segments: int = int(minibatch_segments)
+        if self.minibatch_segments != minibatch_segments:
+            raise ValueError(f"minibatch_size {self.minibatch_size} must be divisible by bptt_horizon {bptt_horizon}")
+
+        # Tracking for rollout completion
+        self.full_rows = 0
+
+        # Calculate num_minibatches for compatibility
+        num_minibatches = self.segments / self.minibatch_segments
+        self.num_minibatches: int = int(num_minibatches)
+        if self.num_minibatches != num_minibatches:
+            raise ValueError(
+                f"Configuration error: segments ({self.segments}) must be divisible by "
+                f"minibatch_segments ({self.minibatch_segments}).\n"
+                f"segments = batch_size // bptt_horizon = {batch_size} // {bptt_horizon} = {self.segments}\n"
+                f"minibatch_segments = minibatch_size // bptt_horizon = "
+                f"{self.minibatch_size} // {bptt_horizon} = {self.minibatch_segments}\n"
+                f"Please adjust trainer.minibatch_size in your configuration to ensure divisibility."
+            )
+
+        # Pre-allocate tensor to stores how many agents we have for use during environment reset
+        self._range_tensor = torch.arange(total_agents, device=self.device, dtype=torch.int32)
 
     @property
     def full(self) -> bool:
-        return self.ptr >= self.batch_size
+        """Alias for ready_for_training for compatibility."""
+        return self.ready_for_training
+
+    @property
+    def ready_for_training(self) -> bool:
+        """Check if buffer has enough data for training."""
+        return self.full_rows >= self.segments
 
     def store(
         self,
-        obs: torch.Tensor,
-        value: torch.Tensor,
-        action: torch.Tensor,
-        logprob: torch.Tensor,
-        reward: torch.Tensor,
-        done: torch.Tensor,
-        env_id: torch.Tensor,
-        mask: torch.Tensor,
-    ) -> None:
-        assert not isinstance(env_id, slice), (
-            f"TypeError: env_id expected to be a tensor, not a slice. Got {type(env_id).__name__} instead. "
+        obs: Tensor,
+        actions: Tensor,
+        logprobs: Tensor,
+        rewards: Tensor,
+        dones: Tensor,
+        truncations: Tensor,
+        values: Tensor,
+        env_id: slice,
+        mask: Tensor,
+        lstm_state: Optional[Dict[str, Tensor]] = None,
+    ) -> int:
+        """Store a batch of experience."""
+        assert isinstance(env_id, slice), (
+            f"TypeError: env_id expected to be a slice for segmented storage. Got {type(env_id).__name__} instead."
         )
 
-        # Get current pointer and calculate indices
-        ptr = self.ptr
+        num_steps = mask.sum().item()
+        episode_length = self.ep_lengths[env_id.start].item()
+        indices = self.ep_indices[env_id]
 
-        mask_np: np.ndarray = mask.cpu().numpy()
-        indices = np.where(mask_np)[0]
+        # Store data in segmented tensors
+        batch_slice = (indices, episode_length)
+        self.obs[batch_slice] = obs
+        self.actions[batch_slice] = actions
+        self.logprobs[batch_slice] = logprobs
+        self.rewards[batch_slice] = rewards
+        self.dones[batch_slice] = dones.float()
+        self.truncateds[batch_slice] = truncations.float()
+        self.values[batch_slice] = values
 
-        # Calculate how many indices we can actually store
-        remaining_space = self.batch_size - ptr
-        num_indices_to_store = min(indices.size, remaining_space)
+        # Update episode tracking
+        self.ep_lengths[env_id] += 1
 
-        # TODO -- we constantly overrun the buffer and truncate; typically we have 1920 indices for 1024 slots
+        # Check if episodes are complete and reset if needed
+        if episode_length + 1 >= self.bptt_horizon:
+            self._reset_completed_episodes(env_id)
 
-        end = ptr + num_indices_to_store
-        dst = slice(ptr, end)
+        # Update LSTM states if provided
+        if lstm_state is not None and env_id.start in self.lstm_h:
+            self.lstm_h[env_id.start] = lstm_state["lstm_h"]
+            self.lstm_c[env_id.start] = lstm_state["lstm_c"]
 
-        cpu_inds = indices[:num_indices_to_store]
+        return int(num_steps)
 
-        self.obs[dst] = obs.to(self.obs.device, non_blocking=True)[cpu_inds]
-        self.values_np[dst] = value.cpu().numpy()[cpu_inds]
-        self.actions_np[dst] = action.cpu().numpy()[cpu_inds]
-        self.logprobs_np[dst] = logprob.cpu().numpy()[cpu_inds]
-        self.rewards_np[dst] = reward.cpu().numpy()[cpu_inds]
-        self.dones_np[dst] = done.cpu().numpy()[cpu_inds]
+    def _reset_completed_episodes(self, env_id: slice) -> None:
+        """Reset episode tracking for completed episodes."""
+        num_full = env_id.stop - env_id.start
+        # Use pre-allocated range tensor and slice it
+        self.ep_indices[env_id] = (self.free_idx + self._range_tensor[:num_full]) % self.segments
+        self.ep_lengths[env_id] = 0
+        self.free_idx = (self.free_idx + num_full) % self.segments
+        self.full_rows += num_full
 
-        self.sort_keys[dst, 1] = env_id.cpu().numpy()[cpu_inds]
-        self.sort_keys[dst, 2] = self.step
+    def get_lstm_state(self, env_id_start: int) -> tuple[Optional[Tensor], Optional[Tensor]]:
+        """Get LSTM state as tensors."""
+        if env_id_start not in self.lstm_h:
+            return None, None
+        return self.lstm_h[env_id_start], self.lstm_c[env_id_start]
 
-        # Update pointer and step
-        self.ptr = end
-        self.step += 1
+    def set_lstm_state(self, env_id_start: int, lstm_h: Tensor, lstm_c: Tensor) -> None:
+        """Set LSTM state."""
+        if env_id_start in self.lstm_h:
+            self.lstm_h[env_id_start] = lstm_h
+            self.lstm_c[env_id_start] = lstm_c
 
-    def sort_training_data(self) -> np.ndarray:
-        idxs: np.ndarray = np.lexsort((self.sort_keys[:, 2], self.sort_keys[:, 1]))
-        self.b_idxs_obs = (
-            torch.as_tensor(
-                idxs.reshape(self.minibatch_rows, self.num_minibatches, self.bptt_horizon).transpose(1, 0, -1)
-            )
-            .to(self.obs.device)
-            .long()
-        )
-        self.b_idxs = self.b_idxs_obs.to(self.device, non_blocking=True)
-        self.b_idxs_flat = self.b_idxs.reshape(self.num_minibatches, self.minibatch_size)
-        self.sort_keys[:, 1:] = 0
-        return idxs
+    def reset_for_rollout(self) -> None:
+        """Reset tracking variables for a new rollout."""
+        self.full_rows = 0
+        self.free_idx = self.total_agents % self.segments
+        self.ep_indices = self._range_tensor % self.segments
+        self.ep_lengths.zero_()
 
-    def flatten_batch(self, advantages_np: np.ndarray) -> None:
-        advantages: torch.Tensor = torch.as_tensor(advantages_np).to(self.device, non_blocking=True)
+    def reset_importance_sampling_ratios(self) -> None:
+        """Reset the importance sampling ratio to 1.0."""
+        self.ratio.fill_(1.0)
 
-        if self.b_idxs_obs is None:
-            raise ValueError("b_idxs_obs is None - call sort_training_data first")
+    def sample_minibatch(
+        self,
+        advantages: Tensor,
+        prio_alpha: float,
+        prio_beta: float,
+        minibatch_idx: int,
+        total_minibatches: int,
+    ) -> Dict[str, Tensor]:
+        """Sample a prioritized minibatch."""
+        # Prioritized sampling based on advantage magnitude
+        adv_magnitude = advantages.abs().sum(dim=1)
+        prio_weights = torch.nan_to_num(adv_magnitude**prio_alpha, 0, 0, 0)
+        prio_probs = (prio_weights + 1e-6) / (prio_weights.sum() + 1e-6)
 
-        b_idxs, b_flat = self.b_idxs, self.b_idxs_flat
+        # Sample segment indices
+        idx = torch.multinomial(prio_probs, self.minibatch_segments)
 
-        # Process the batch data
-        self.b_actions = self.actions.to(self.device, non_blocking=True, dtype=torch.long)
-        self.b_logprobs = self.logprobs.to(self.device, non_blocking=True)
-        self.b_dones = self.dones.to(self.device, non_blocking=True)
-        self.b_values = self.values.to(self.device, non_blocking=True)
+        # Get minibatch data
+        mb_obs = self.obs[idx]
+        if self.cpu_offload:
+            mb_obs = mb_obs.to(self.device, non_blocking=True)
 
-        # Reshape advantages for minibatches
-        self.b_advantages = (
-            advantages.reshape(self.minibatch_rows, self.num_minibatches, self.bptt_horizon)
-            .transpose(0, 1)
-            .reshape(self.num_minibatches, self.minibatch_size)
-        )
+        return {
+            "obs": mb_obs,
+            "actions": self.actions[idx],
+            "logprobs": self.logprobs[idx],
+            "values": self.values[idx],
+            "rewards": self.rewards[idx],
+            "dones": self.dones[idx],
+            "advantages": advantages[idx],
+            "returns": advantages[idx] + self.values[idx],
+            "indices": idx,
+            "prio_weights": (self.segments * prio_probs[idx, None]) ** -prio_beta,
+            "ratio": self.ratio[idx],
+        }
 
-        self.returns_np = advantages_np + self.values_np
+    def update_values(self, indices: Tensor, new_values: Tensor) -> None:
+        """Update value estimates for given indices."""
+        self.values[indices] = new_values.detach()
 
-        # Process the rest of the batch data
-        self.b_obs = self.obs[self.b_idxs_obs]
-        self.b_actions = self.b_actions[b_idxs].contiguous()
-        self.b_logprobs = self.b_logprobs[b_idxs]
-        self.b_dones = self.b_dones[b_idxs]
-        self.b_values = self.b_values[b_flat]
-        self.b_returns = self.b_advantages + self.b_values
+    def update_ratio(self, indices: Tensor, new_ratio: Tensor) -> None:
+        """Update importance sampling ratios for given indices."""
+        self.ratio[indices] = new_ratio.detach()
+
+    def stats(self) -> Dict[str, float]:
+        """Get mean values of all tracked buffers.
+
+        Returns:
+            Dictionary containing mean values for:
+            - rewards: Mean reward across all stored experiences
+            - values: Mean value estimates
+            - advantages: Mean advantages (if computed)
+            - logprobs: Mean log probabilities of actions
+            - dones: Fraction of episodes that ended
+            - truncateds: Fraction of episodes that were truncated
+            - ratio: Mean importance sampling ratio
+            - ep_lengths: Mean episode length for active episodes
+        """
+        stats = {
+            "rewards": self.rewards.mean().item(),
+            "values": self.values.mean().item(),
+            "logprobs": self.logprobs.mean().item(),
+            "dones": self.dones.mean().item(),
+            "truncateds": self.truncateds.mean().item(),
+            "ratio": self.ratio.mean().item(),
+        }
+
+        # Add episode length stats for active episodes
+        active_episodes = self.ep_lengths > 0
+        if active_episodes.any():
+            stats["ep_lengths"] = self.ep_lengths[active_episodes].float().mean().item()
+        else:
+            stats["ep_lengths"] = 0.0
+
+        # Add action statistics based on action space type
+        if self.actions.dtype in [torch.int32, torch.int64]:
+            # For discrete actions, we can add distribution info
+            stats["actions_mean"] = self.actions.float().mean().item()
+            stats["actions_std"] = self.actions.float().std().item()
+        else:
+            # For continuous actions
+            stats["actions_mean"] = self.actions.mean().item()
+            stats["actions_std"] = self.actions.std().item()
+
+        return stats

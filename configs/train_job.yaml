@@ -1,7 +1,7 @@
 defaults:
   - common
-  - agent: simple_token_to_box
-  - trainer: puffer
+  - agent: fast
+  - trainer: trainer
   - sim: all
   - wandb: metta_research
   - _self_

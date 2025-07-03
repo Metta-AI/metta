@@ -5,17 +5,16 @@ import time
 
 import hydra
 
+from metta.agent.mocks import MockPolicyRecord
 from metta.agent.policy_store import PolicyStore
+from metta.common.util.logging import setup_mettagrid_logger
+from metta.common.util.runtime_configuration import setup_mettagrid_environment
+from metta.common.wandb.wandb_context import WandbContext
 from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SingleEnvSimulationConfig
-from metta.util.config import setup_metta_environment
-from metta.util.logging import setup_mettagrid_logger
-from metta.util.runtime_configuration import setup_mettagrid_environment
-from metta.util.wandb.wandb_context import WandbContext
 
 
 def create_simulation(cfg):
-    setup_metta_environment(cfg)
     setup_mettagrid_environment(cfg)
 
     logger = setup_mettagrid_logger("replay")
@@ -23,13 +22,15 @@ def create_simulation(cfg):
 
     with WandbContext(cfg.wandb, cfg) as wandb_run:
         policy_store = PolicyStore(cfg, wandb_run)
-        policy_record = policy_store.policy(cfg.replay_job.policy_uri)
+        if cfg.replay_job.policy_uri is not None:
+            policy_record = policy_store.policy_record(cfg.replay_job.policy_uri)
+        else:
+            # Set the policy_uri to "" to run play without a policy.
+            policy_record = MockPolicyRecord(policy_store=None, run_name="replay_run", uri="")
         sim_config = SingleEnvSimulationConfig(cfg.replay_job.sim)
 
         sim_name = sim_config.env.split("/")[-1]
         replay_dir = f"{cfg.replay_job.replay_dir}/{cfg.run}"
-        if cfg.trainer.get("replay_dry_run", False):
-            replay_dir = None
 
         sim = Simulation(
             sim_name,
@@ -44,7 +45,7 @@ def create_simulation(cfg):
     return sim
 
 
-def generate_replay(sim) -> dict:
+def generate_replay(sim: Simulation) -> dict:
     assert len(sim._vecenv.envs) == 1, "Replay generation requires a single environment"
     start = time.time()
     sim.simulate()

@@ -8,11 +8,11 @@ import hydra
 from omegaconf import DictConfig, OmegaConf
 from typing_extensions import TypedDict
 
-import mettagrid.util.file
+from metta.map.mapgen import MapGen
 from metta.map.types import MapGrid
 from metta.map.utils.ascii_grid import grid_to_lines, lines_to_grid
 from metta.map.utils.s3utils import list_objects
-from mettagrid.util import file as file_utils
+from metta.mettagrid.util import file as file_utils
 
 logger = logging.getLogger(__name__)
 
@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 class FrontmatterDict(TypedDict):
     metadata: dict
     config: dict
+    scene_tree: dict | None = None
 
 
 class StorableMapDict(TypedDict):
@@ -37,12 +38,14 @@ class StorableMap:
     grid: MapGrid
     metadata: dict
     config: DictConfig  # config that was used to generate the map
+    scene_tree: dict | None = None
 
     def __str__(self) -> str:
         frontmatter = OmegaConf.to_yaml(
             {
                 "metadata": self.metadata,
                 "config": self.config,
+                "scene_tree": self.scene_tree,
             }
         )
         content = frontmatter + "\n---\n" + "\n".join(grid_to_lines(self.grid)) + "\n"
@@ -84,6 +87,7 @@ class StorableMap:
             "frontmatter": {
                 "metadata": self.metadata,
                 "config": config_dict,
+                "scene_tree": self.scene_tree,
             },
             "data": "\n".join(grid_to_lines(self.grid)),
         }
@@ -97,6 +101,10 @@ def map_builder_cfg_to_storable_map(cfg: DictConfig) -> StorableMap:
     gen_time = time.time() - start
     logger.info(f"Time taken to build map: {gen_time}s")
 
+    scene_tree = None
+    if isinstance(map_builder, MapGen):
+        scene_tree = map_builder.get_scene_tree()
+
     storable_map = StorableMap(
         grid=level.grid,
         metadata={
@@ -104,6 +112,7 @@ def map_builder_cfg_to_storable_map(cfg: DictConfig) -> StorableMap:
             "timestamp": datetime.now().isoformat(),
         },
         config=cfg,
+        scene_tree=scene_tree,
     )
     return storable_map
 
@@ -174,12 +183,12 @@ class StorableMapIndex:
 
     def _save(self):
         index_uri = f"{self.dir}/index.json"
-        mettagrid.util.file.write_data(index_uri, json.dumps(self.index_data), content_type="text/plain")
+        file_utils.write_data(index_uri, json.dumps(self.index_data), content_type="text/plain")
 
     @staticmethod
     def load(dir: str):
         """Load an index from `dir`."""
-        index_content = mettagrid.util.file.read(f"{dir}/index.json")
+        index_content = file_utils.read(f"{dir}/index.json")
         index_data = json.loads(index_content.decode("utf-8"))
         index = StorableMapIndex(dir=dir, index_data=index_data)
         return index

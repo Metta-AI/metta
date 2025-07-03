@@ -12,6 +12,7 @@ public:
 class StatsTrackerTest : public ::testing::Test {
 protected:
   StatsTracker stats;
+
   MockMettaGrid mock_env;
 
   void SetUp() override {

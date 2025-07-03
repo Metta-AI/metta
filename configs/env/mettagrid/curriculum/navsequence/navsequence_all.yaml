@@ -1,11 +1,11 @@
-_target_: mettagrid.curriculum.LowRewardCurriculum
+_target_: metta.mettagrid.curriculum.low_reward.LowRewardCurriculum
 
 tasks:
   /env/mettagrid/navigation_sequence/experiments/mem_balanced: 1
   /env/mettagrid/navigation_sequence/experiments/mem_sparse: 1
   /env/mettagrid/navigation_sequence/experiments/mem_maze: 1
   /env/mettagrid/navigation_sequence/experiments/mem_dense: 1
-  /env/mettagrid/navigation_sequence/experiments/terrain_from_numpy: 5
+  /env/mettagrid/navigation_sequence/experiments/terrain_from_numpy: 1
   /env/mettagrid/navigation_sequence/experiments/sequence_sparse: 1
   /env/mettagrid/navigation_sequence/experiments/sequence_balanced: 1
   /env/mettagrid/navigation_sequence/experiments/sequence_maze: 1

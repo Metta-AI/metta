@@ -1,27 +1,16 @@
 defaults:
-  - /env/mettagrid/mettagrid@
+  - /env/mettagrid/navigation/training/defaults@
   - _self_
-
-sampling: 1
 
 game:
   num_agents: 4
-  max_steps: 2000
   map_builder:
-    _target_: mettagrid.room.multi_room.MultiRoom
-    num_rooms: ${..num_agents}
-    border_width: 6
-
     room:
-      _target_: mettagrid.room.terrain_from_numpy.TerrainFromNumpy
-      border_width: ${sampling:1,6,3}
-      agents: 1
-      objects:
-        altar: ${sampling:30,75,50}
+      dir: terrain_maps_nohearts
   objects:
     altar:
       cooldown: 1000
-      input_battery.red: 3
+      input_battery_red: 3
       output_heart: 1
       max_output: 5
       conversion_ticks: 1

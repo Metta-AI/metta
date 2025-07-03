@@ -4,10 +4,16 @@
   "description": "MettaScope - a tool for visualizing and analyzing Metta AI's environments",
   "scripts": {
     "build": "tsc",
-    "watch": "tsc --watch"
+    "watch": "tsc --watch",
+    "lint": "biome lint .",
+    "format": "biome format --write .",
+    "check": "biome check .",
+    "check:fix": "biome check --write .",
+    "ci": "biome ci ."
   },
   "dependencies": {},
   "devDependencies": {
+    "@biomejs/biome": "^1.9.4",
     "@webgpu/types": "^0.1.38",
     "typescript": "^5.2.2"
   }

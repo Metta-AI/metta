@@ -3,14 +3,14 @@ requires = ["scikit-build-core", "wheel", "numpy==2.2.5", "pybind11==2.10.4"]
 build-backend = "scikit_build_core.build"
 
 [project]
-name = "mettagrid"
+name = "metta-mettagrid"
 version = "0.1.6"
 description = "A fast grid-based open-ended MARL environment"
 authors = [{ name = "David Bloomin", email = "daveey@gmail.com" }]
 requires-python = "==3.11.7"
 license = "MIT"
 readme = "README.md"
-urls = { Homepage = "https://daveey.github.io", Repository = "https://github.com/Metta-AI/mettagrid" }
+urls = { Homepage = "https://daveey.github.io", Repository = "https://github.com/Metta-AI/metta" }
 keywords = [
     "gridworld",
     "minigrid",
@@ -49,6 +49,7 @@ dependencies = [
 # uv builds are done in isolated environment, so tests and benchmarks are not built here.
 # See `./README.md` for more details.
 cmake.args = ["--preset", "release-no-tests"]
+wheel.packages = ["src/metta"]
 
 # Note: if you decide to use `editable.rebuild` here, consider that it's not
 # compatible with isolated builds.
@@ -73,8 +74,19 @@ python_classes = ["Test*"]
 cache-keys = [
     { file = "pyproject.toml" },
     { file = "CMakeLists.txt" },
-    { file = "mettagrid/**/*.{cpp,hpp}" },
+    { file = "src/**/*.{cpp,hpp}" },
 ]
 
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["metta.mettagrid"]
+
+[tool.setuptools.package-data]
+"metta" = ["__init__.py"]
+"metta.mettagrid" = ["py.typed"]
+
 [tool.uv.sources]
-pufferlib = { git = "https://github.com/Metta-AI/PufferLib.git", rev = "d3cde3f4107daaf8e195bf87f55742d7cd026ddb" }
+pufferlib = { git = "https://github.com/Metta-AI/PufferLib.git", rev = "dcd597ef1a094cc2da886f5a4ab2c7f1b27d0183" }
+
+[tool.coverage.run]
+source = ["metta.mettagrid"]

@@ -5,9 +5,9 @@ from typing import Dict, List
 
 from pydantic import BaseModel
 
+from metta.common.util.config import Config
+from metta.mettagrid.util.file import write_data
 from metta.sim.simulation_stats_db import SimulationStatsDB
-from metta.util.config import Config
-from mettagrid.util.file import write_data
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +25,8 @@ class PolicyEvalMetric(BaseModel):
 
 
 class PolicyEval(BaseModel):
-    policy_uri: str
+    policy_key: str
+    policy_version: int
     eval_name: str
     suite: str
     replay_url: str | None
@@ -41,15 +42,16 @@ def get_policy_eval_metrics(db: SimulationStatsDB) -> List[PolicyEval]:
     db.con.execute(
         """
       CREATE VIEW IF NOT EXISTS episode_info AS (
-          SELECT 
+          SELECT
             e.id as episode_id,
             s.name as eval_name,
             s.suite,
             s.env,
-            s.policy_key || ':v' || s.policy_version AS policy_uri,
+            s.policy_key,
+            s.policy_version,
             e.created_at,
             e.replay_url,
-          FROM simulations s 
+          FROM simulations s
           JOIN episodes e ON e.simulation_id = s.id)
       """
     )
@@ -58,7 +60,7 @@ def get_policy_eval_metrics(db: SimulationStatsDB) -> List[PolicyEval]:
         """
       CREATE VIEW IF NOT EXISTS episode_metrics AS (
         WITH agent_metrics_with_groups AS (
-            SELECT 
+            SELECT
                 am.episode_id,
                 am.agent_id,
                 ag.group_id,
@@ -67,7 +69,7 @@ def get_policy_eval_metrics(db: SimulationStatsDB) -> List[PolicyEval]:
             FROM agent_metrics am
             JOIN agent_groups ag ON am.episode_id = ag.episode_id AND am.agent_id = ag.agent_id
         )
-        SELECT 
+        SELECT
             episode_id,
             group_id,
             metric,
@@ -78,30 +80,31 @@ def get_policy_eval_metrics(db: SimulationStatsDB) -> List[PolicyEval]:
     """
     )
 
-    # Returns (policy_uri, eval_name, suite, group_id, num_agents, replay_url)
+    # Returns (policy_key, policy_version, eval_name, suite, group_id, num_agents, replay_url)
     eval_info_rows = db.con.execute(
         """
-        SELECT e.policy_uri, e.eval_name, e.suite, ag.group_id, COUNT(*) as num_agents, 
+        SELECT e.policy_key, e.policy_version, e.eval_name, e.suite, ag.group_id, COUNT(*) as num_agents,
           ANY_VALUE(e.replay_url) as replay_url
         FROM episode_info e
         JOIN agent_groups ag ON e.episode_id = ag.episode_id
-        GROUP BY e.policy_uri, e.eval_name, e.suite, ag.group_id
+        GROUP BY e.policy_key, e.policy_version, e.eval_name, e.suite, ag.group_id
         """
     ).fetchall()
 
-    # Returns (policy_uri, eval_name, group_id, metric, value)
+    # Returns (policy_key, policy_version, eval_name, group_id, metric, value)
     metric_rows = db.con.execute(
         """
       SELECT
-        e.policy_uri, 
+        e.policy_key,
+        e.policy_version,
         e.eval_name,
         m.group_id,
         m.metric,
         SUM(m.value) as value
-      FROM episode_metrics m 
-      JOIN episode_info e 
-      ON m.episode_id = e.episode_id 
-      GROUP BY e.policy_uri, e.eval_name, m.group_id, m.metric
+      FROM episode_metrics m
+      JOIN episode_info e
+      ON m.episode_id = e.episode_id
+      GROUP BY e.policy_key, e.policy_version, e.eval_name, m.group_id, m.metric
     """
     ).fetchall()
 
@@ -109,11 +112,12 @@ def get_policy_eval_metrics(db: SimulationStatsDB) -> List[PolicyEval]:
     policy_evals = {}
 
     for eval_info_row in eval_info_rows:
-        policy_uri, eval_name, suite, group_id, num_agents, replay_url = eval_info_row
-        key = (policy_uri, eval_name)
+        policy_key, policy_version, eval_name, suite, group_id, num_agents, replay_url = eval_info_row
+        key = (policy_key, policy_version, eval_name)
         if key not in policy_evals:
             policy_evals[key] = PolicyEval(
-                policy_uri=policy_uri,
+                policy_key=policy_key,
+                policy_version=policy_version,
                 eval_name=eval_name,
                 suite=suite,
                 replay_url=replay_url,
@@ -123,8 +127,8 @@ def get_policy_eval_metrics(db: SimulationStatsDB) -> List[PolicyEval]:
         policy_evals[key].group_num_agents[str(group_id)] = num_agents
 
     for metric_row in metric_rows:
-        policy_uri, eval_name, group_id, metric, value = metric_row
-        key = (policy_uri, eval_name)
+        policy_key, policy_version, eval_name, group_id, metric, value = metric_row
+        key = (policy_key, policy_version, eval_name)
         assert key in policy_evals, f"Policy eval {key} not found"
         policy_evals[key].policy_eval_metrics.append(
             PolicyEvalMetric(metric=metric, group_id=str(group_id), sum_value=value)

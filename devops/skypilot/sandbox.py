@@ -6,7 +6,7 @@ import subprocess
 import sky
 import sky.cli
 
-from metta.util.colorama import blue, green, yellow
+from metta.common.util.colorama import blue, green, yellow
 
 
 def get_existing_clusters():
@@ -29,6 +29,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--git-ref", type=str, default=None)
     parser.add_argument("--new", action="store_true")
+    parser.add_argument("--gpus", type=int, default=1, help="Number of L4 GPUs to use.")
     args = parser.parse_args()
 
     existing_clusters = get_existing_clusters()
@@ -68,6 +69,8 @@ def main():
 
     # Launch the cluster
     task = sky.Task.from_yaml("./devops/skypilot/config/sandbox.yaml")
+    task.set_resources_override({"accelerators": f"L4:{args.gpus}"})
+
     request_id = sky.launch(task, cluster_name=cluster_name, idle_minutes_to_autostop=autostop_hours * 60)
     sky.stream_and_get(request_id)
 

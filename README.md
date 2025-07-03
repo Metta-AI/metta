@@ -100,56 +100,81 @@ This README provides only a brief overview of research explorations. Visit the [
 
 ## Installation
 
-Install uv (a fast Python package installer and resolver):
+### Quick Start
+
+Clone the repository and run the setup:
 
 ```bash
-curl -LsSf https://astral.sh/uv/install.sh | sh
+git clone https://github.com/Metta-AI/metta.git
+cd metta
+./metta.sh configure  # Interactive setup wizard
+./metta.sh install    # Install configured components
 ```
 
-Optional: run the script which will configure the development environment (the script might fail if you're not on the Metta dev team and don't have permissions):
+For more information on setup options and managing components, run `./metta.sh --help` or see the [setup documentation](metta/setup/README.md).
+
+
+## Usage
+
+The repository contains command-line tools in the `tools/` directory. Most of these tools use [Hydra](https://hydra.cc/) for configuration management, which allows flexible parameter overrides and composition.
+
+- **Override parameters**: `param=value` sets configuration values directly
+- **Compose configs**: `+group=option` loads additional configuration files from `configs/group/option.yaml`
+- **Use config groups**: Load user-specific settings with `+user=<name>` from `configs/user/<name>.yaml`
+
+### Training a Model
 
 ```bash
-./devops/setup_dev.sh
+./tools/train.py run=my_experiment +hardware=macbook wandb=off +user=<name>
 ```
 
-After git updates, you might need to run `uv sync` to reinstall all necessary dependencies.
+Parameters:
+- `run=my_experiment` - Names your experiment and controls where checkpoints are saved under `train_dir/<run>`
+- `+hardware=macbook` - Loads hardware-specific settings from `configs/hardware/macbook.yaml`
+- `wandb=off` - Disables Weights & Biases logging
+- `+user=<name>` - Loads your personal settings from `configs/user/<name>.yaml`
 
-## Training a Model
+### Setting up Weights & Biases for Personal Use
 
-### Run the training
+To use WandB with your personal account:
 
+1. Get your WandB API key from [wandb.ai](https://wandb.ai) (click your profile → API keys)
+2. Add it to your `~/.netrc` file:
+   ```
+   machine api.wandb.ai
+     login user
+     password YOUR_API_KEY_HERE
+   ```
+3. Edit `configs/wandb/external_user.yaml` and replace `???` with your WandB username:
+   ```yaml
+   entity: ???  # Replace with your WandB username
+   ```
+
+Now you can run training with your personal WandB config:
 ```
-./tools/train.py run=my_experiment +hardware=macbook wandb=off
+./tools/train.py run=local.yourname.123 +hardware=macbook wandb=user
 ```
-
-`run` names your experiment and controls where checkpoints are saved under
-`train_dir/<run>`. Hardware presets such as `+hardware=macbook` tune the trainer
-for your machine. You can pass `+user=<name>` to load defaults from
-`configs/user/<name>.yaml`. Use `wandb=off` to disable Weights & Biases logging
-if you don't have access.
-
-### Run the evaluation
-
-```
-./tools/sim.py run=my_experiment +hardware=macbook wandb=off
-```
-
-Use the same `run`, `+hardware` and `+user` arguments as in training to control
-where evaluation results are stored and to apply machine or personal presets.
-
-If you're a member of `metta-research` on WandB, or you add your own WandB config in `configs/wandb`, you should be able to remove the `wandb=off` command. This is assumed for the rest of the README.
 
 ## Visualizing a Model
 
-### Run the interactive simulation
+### Mettascope: in-browser viewer
 
-```
-./tools/play.py run=my_experiment +hardware=macbook wandb=off
+Mettascope allows you to run and view episodes in the environment you specify. It goes beyond just spectator mode, and allows taking over an agent and controlling it manually.
+
+For more information, see [./mettascope/README.md](./mettascope/README.md).
+
+#### Run the interactive simulation
+
+```bash
+./tools/play.py run=<name> [options]
 ```
 
-This launches a human-controlled session using the same configuration flags as
-training. It is useful for quickly testing maps or policies on your local
-hardware.
+Arguments:
+- `run=<name>` - **Required**. Experiment identifier
+- `policy_uri=<path>` - Specify the policy the models follow when not manually controller with a model checkpoint (`.pt` file).
+  - For local files, supply the path: `./train_dir/<run_name>/checkpoints/<checkpoint_name>.pt`. These  checkpoint files are created during training
+  - For wandb artifacts, prefix with `wandb://`
+- `+hardware=<config>` - Hardware configuration (see [Training a Model](#training-a-model))
 
 ### Run the terminal simulation
 
@@ -158,20 +183,25 @@ hardware.
 renderer_job.environment.uri="configs/env/mettagrid/maps/debug/simple_obstacles.map"
 ```
 
-## Evaluating a Model
+### Evaluating a Model
 
 When you run training, if you have WandB enabled, then you will be able to see in your WandB run page results for the eval suites.
 
 However, this will not apply for anything trained before April 8th.
 
-### Post Hoc Evaluation
+#### Post Hoc Evaluation
 
 If you want to run evaluation post-training to compare different policies, you can do the following:
 
 To add your policy to the existing navigation evals DB:
 
 ```
-./tools/sim.py eval=navigation run=RUN_NAME eval.policy_uri=POLICY_URI +eval_db_uri=wandb://artifacts/navigation_db
+./tools/sim.py \
+    sim=navigation \
+    run=navigation101 \
+    policy_uri=wandb://run/YOUR_POLICY_URI \
+    sim_job.stats_db_uri=wandb://stats/navigation_db \
+    device=cpu
 ```
 
 This will run your policy through the `configs/eval/navigation` eval_suite and then save it to the `navigation_db` artifact on WandB.
@@ -179,12 +209,8 @@ This will run your policy through the `configs/eval/navigation` eval_suite and t
 Then, to see the results in the heatmap along with the other policies in the database, you can run:
 
 ```
-./tools/analyze.py run=analyze +eval_db_uri=wandb://artifacts/navigation_db analyzer.policy_uri=POLICY_URI
+./tools/dashboard.py +eval_db_uri=wandb://stats/navigation_db run=navigation_db ++dashboard.output_path=s3://softmax-public/policydash/navigation.html
 ```
-
-Currently you need to pass in a policy_uri here, and need to use any policy that is in the navigation DB, for example `wandb://run/b.daveey.t.8.rdr9.3`, but that shouldn't be necessary in the future, and we are working on refactoring that.
-
-You can do the same process for the object-use eval artifact using: `wandb://artifacts/object_use_db`
 
 ## Development Setup
 

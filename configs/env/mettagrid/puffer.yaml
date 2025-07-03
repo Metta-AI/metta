@@ -1,31 +1,35 @@
 defaults:
-  - /env/mettagrid/mettagrid@
+  - full
   - _self_
 
 game:
-  num_agents: 16
+  num_agents: 24
 
   agent:
     default_item_max: 50
-    freeze_duration: 0
+    freeze_duration: 10
 
   map_builder:
-    _target_: mettagrid.room.multi_room.MultiRoom
-    num_rooms: ${div:${..num_agents},4}
+    _target_: metta.mettagrid.room.multi_room.MultiRoom
+    num_rooms: 4
     border_width: 6
+
     room:
-      _target_: mettagrid.room.random.Random
+      _target_: metta.mettagrid.room.random.Random
       width: 25
       height: 25
       border_width: 0
-      agents: 4
+
+      agents: 6
+
       objects:
-        mine: 10
-        generator: 2
+        mine_red: 10
+        generator_red: 2
         altar: 1
         armory: 1
         lasery: 1
         lab: 1
         factory: 1
         temple: 1
-        wall: 40
+        block: 20
+        wall: 20

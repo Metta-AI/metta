@@ -2,19 +2,20 @@
 # Generate a replay file that can be used in MettaScope to visualize a single run.
 
 import platform
-import webbrowser
+from urllib.parse import quote
 
 import hydra
 from omegaconf import OmegaConf
 
+import mettascope.server as server
 from metta.agent.policy_store import PolicyStore
+from metta.common.util.config import Config
+from metta.common.util.logging import setup_mettagrid_logger
+from metta.common.util.runtime_configuration import setup_mettagrid_environment
+from metta.common.util.script_decorators import metta_script
+from metta.common.wandb.wandb_context import WandbContext
 from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SingleEnvSimulationConfig
-from metta.util.config import Config, setup_metta_environment
-from metta.util.logging import setup_mettagrid_logger
-from metta.util.runtime_configuration import setup_mettagrid_environment
-from metta.util.wandb.wandb_context import WandbContext
-from mettagrid.util.file import http_url
 
 
 # TODO: This job can be replaced with sim now that Simulations create replays
@@ -28,8 +29,8 @@ class ReplayJob(Config):
 
 
 @hydra.main(version_base=None, config_path="../configs", config_name="replay_job")
+@metta_script
 def main(cfg):
-    setup_metta_environment(cfg)
     setup_mettagrid_environment(cfg)
 
     logger = setup_mettagrid_logger("metta.tools.replay")
@@ -38,7 +39,7 @@ def main(cfg):
     with WandbContext(cfg.wandb, cfg) as wandb_run:
         policy_store = PolicyStore(cfg, wandb_run)
         replay_job = ReplayJob(cfg.replay_job)
-        policy_record = policy_store.policy(replay_job.policy_uri)
+        policy_record = policy_store.policy_record(replay_job.policy_uri)
         sim_config = SingleEnvSimulationConfig(cfg.replay_job.sim)
 
         sim_name = sim_config.env.split("/")[-1]
@@ -55,13 +56,19 @@ def main(cfg):
             replay_dir=replay_dir,
         )
         result = sim.simulate()
-        replay_url = result.stats_db.get_replay_urls(
-            policy_key=policy_record.key(), policy_version=policy_record.version()
-        )[0]
+        key, version = result.stats_db.key_and_version(policy_record)
+        replay_url = result.stats_db.get_replay_urls(key, version)[0]
 
         # Only on macos open a browser to the replay
         if platform.system() == "Darwin":
-            webbrowser.open(f"https://metta-ai.github.io/metta/?replayUrl={http_url(replay_url)}")
+            if not replay_url.startswith("http"):
+                # Remove ./ prefix if it exists
+                clean_path = replay_url.removeprefix("./")
+                local_url = f"http://localhost:8000/local/{clean_path}"
+                full_url = f"/?replayUrl={quote(local_url)}"
+
+                # Run a metascope server that serves the replay
+                server.run(cfg, open_url=full_url)
 
 
 if __name__ == "__main__":

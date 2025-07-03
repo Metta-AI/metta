@@ -16,24 +16,24 @@ import time
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict
+from typing import Any, Dict, List, Tuple
 
 import numpy as np
 import torch
 from einops import rearrange
 from omegaconf import OmegaConf
 
-from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
+from metta.agent.policy_record import PolicyRecord
 from metta.agent.policy_state import PolicyState
-from metta.agent.policy_store import PolicyRecord, PolicyStore
-from metta.rl.policy import PytorchAgent
+from metta.agent.policy_store import PolicyStore
+from metta.app_backend.stats_client import StatsClient
+from metta.mettagrid.curriculum.sampling import SamplingCurriculum
+from metta.mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
+from metta.mettagrid.replay_writer import ReplayWriter
+from metta.mettagrid.stats_writer import StatsWriter
 from metta.rl.vecenv import make_vecenv
 from metta.sim.simulation_config import SingleEnvSimulationConfig
 from metta.sim.simulation_stats_db import SimulationStatsDB
-from mettagrid.curriculum import SamplingCurriculum
-from mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
-from mettagrid.replay_writer import ReplayWriter
-from mettagrid.stats_writer import StatsWriter
 
 logger = logging.getLogger(__name__)
 
@@ -57,14 +57,26 @@ class Simulation:
         policy_store: PolicyStore,
         device: torch.device,
         vectorization: str,
-        suite=None,
+        sim_suite_name: str | None = None,
         stats_dir: str = "/tmp/stats",
         replay_dir: str | None = None,
+        stats_client: StatsClient | None = None,
+        stats_epoch_id: uuid.UUID | None = None,
+        wandb_policy_name: str | None = None,
     ):
         self._name = name
-        self._suite = suite
+        self._sim_suite_name = sim_suite_name
         self._config = config
         self._id = uuid.uuid4().hex[:12]
+
+        self._wandb_policy_name: str | None = None
+        self._wandb_uri: str | None = None
+        if wandb_policy_name is not None:
+            # wandb_policy_name is a qualified name like 'entity/project/artifact:version'
+            # we store the uris as 'wandb://project/artifact:version', so need to strip 'entity'
+            arr = wandb_policy_name.split("/")
+            self._wandb_policy_name = arr[2]
+            self._wandb_uri = "wandb://" + arr[1] + "/" + arr[2]
 
         # ---------------- env config ----------------------------------- #
         logger.info(f"config.env {config.env}")
@@ -104,8 +116,11 @@ class Simulation:
         # ---------------- policies ------------------------------------- #
         self._policy_pr = policy_pr
         self._policy_store = policy_store
-        self._npc_pr = policy_store.policy(config.npc_policy_uri) if config.npc_policy_uri else None
+        self._npc_pr = policy_store.policy_record(config.npc_policy_uri) if config.npc_policy_uri else None
         self._policy_agents_pct = config.policy_agents_pct if self._npc_pr is not None else 1.0
+
+        self._stats_client: StatsClient | None = stats_client
+        self._stats_epoch_id: uuid.UUID | None = stats_epoch_id
 
         metta_grid_env: MettaGridEnv = self._vecenv.driver_env  # type: ignore
         assert isinstance(metta_grid_env, MettaGridEnv)
@@ -114,20 +129,51 @@ class Simulation:
         action_names = metta_grid_env.action_names
         max_args = metta_grid_env.max_action_args
 
-        metta_agent: MettaAgent | DistributedMettaAgent | PytorchAgent = self._policy_pr.policy_as_metta_agent()
-        assert isinstance(metta_agent, (MettaAgent, DistributedMettaAgent, PytorchAgent)), metta_agent
-        metta_agent.activate_actions(action_names, max_args, self._device)
+        policy = self._policy_pr.policy
+
+        # Restore original_feature_mapping from metadata if available
+        if (
+            hasattr(policy, "restore_original_feature_mapping")
+            and "original_feature_mapping" in self._policy_pr.metadata
+        ):
+            policy.restore_original_feature_mapping(self._policy_pr.metadata["original_feature_mapping"])
+
+        # Ensure policy has required interface
+        if hasattr(policy, "initialize_to_environment"):
+            # New interface: pass features and actions
+            features = metta_grid_env.get_observation_features()
+            # Simulations are generally used for evaluation, not training
+            policy.initialize_to_environment(features, action_names, max_args, self._device)
+        elif hasattr(policy, "activate_actions"):
+            # Old interface: just pass actions
+            policy.activate_actions(action_names, max_args, self._device)
+        else:
+            raise AttributeError(
+                f"Policy is missing required method 'activate_actions' or 'initialize_to_environment'. "
+                f"Expected a MettaAgent-like object but got {type(policy).__name__}"
+            )
 
         if self._npc_pr is not None:
-            npc_agent: MettaAgent | DistributedMettaAgent = self._npc_pr.policy_as_metta_agent()
-            assert isinstance(npc_agent, (MettaAgent, DistributedMettaAgent)), npc_agent
-            try:
-                npc_agent.activate_actions(action_names, max_args, self._device)
-            except Exception as e:
-                logger.error(f"Error activating NPC actions: {e}")
-                raise SimulationCompatibilityError(
-                    f"[{self._name}] Error activating NPC actions for {self._npc_pr.name}: {e}"
-                ) from e
+            npc_policy = self._npc_pr.policy
+
+            # Restore original_feature_mapping for NPC policy as well
+            if (
+                hasattr(npc_policy, "restore_original_feature_mapping")
+                and "original_feature_mapping" in self._npc_pr.metadata
+            ):
+                npc_policy.restore_original_feature_mapping(self._npc_pr.metadata["original_feature_mapping"])
+
+            if hasattr(npc_policy, "initialize_to_environment"):
+                features = metta_grid_env.get_observation_features()
+                # NPC policies are used during evaluation
+                npc_policy.initialize_to_environment(features, action_names, max_args, self._device)
+            elif hasattr(npc_policy, "activate_actions"):
+                npc_policy.activate_actions(action_names, max_args, self._device)
+            else:
+                raise AttributeError(
+                    f"NPC policy is missing required method 'activate_actions' or 'initialize_to_environment'. "
+                    f"Expected a MettaAgent-like object but got {type(npc_policy).__name__}"
+                )
 
         # ---------------- agent-index bookkeeping ---------------------- #
         idx_matrix = torch.arange(metta_grid_env.num_agents * self._num_envs, device=self._device).reshape(
@@ -140,7 +186,7 @@ class Simulation:
         self._npc_idxs = (
             idx_matrix[:, self._policy_agents_per_env :].reshape(-1)
             if self._npc_agents_per_env
-            else torch.tensor([], device=self._device)
+            else torch.tensor([], device=self._device, dtype=torch.long)
         )
         self._episode_counters = np.zeros(self._num_envs, dtype=int)
 
@@ -209,18 +255,18 @@ class Simulation:
             obs_t = torch.as_tensor(self._obs, device=self._device)
             # Candidate-policy agents
             my_obs = obs_t[self._policy_idxs]
-            policy = self._policy_pr.policy()
+            policy = self._policy_pr.policy
             policy_actions, _, _, _, _ = policy(my_obs, self._policy_state)
             # NPC agents (if any)
             if self._npc_pr is not None and len(self._npc_idxs):
                 npc_obs = obs_t[self._npc_idxs]
-                npc_policy = self._npc_pr.policy()
+                npc_policy = self._npc_pr.policy
                 try:
                     npc_actions, _, _, _, _ = npc_policy(npc_obs, self._npc_state)
                 except Exception as e:
                     logger.error(f"Error generating NPC actions: {e}")
                     raise SimulationCompatibilityError(
-                        f"[{self._name}] Error generating NPC actions for {self._npc_pr.name}: {e}"
+                        f"[{self._name}] Error generating NPC actions for {self._npc_pr.run_name}: {e}"
                     ) from e
 
         # ---------------- action stitching ----------------------- #
@@ -267,6 +313,7 @@ class Simulation:
         # ---------------- teardown & DB merge ------------------------ #
         self._vecenv.close()
         db = self._from_shards_and_context()
+        self._write_remote_stats(db)
 
         logger.info(
             "Sim '%s' finished: %d episodes in %.1fs",
@@ -302,11 +349,90 @@ class Simulation:
             for idx in self._npc_idxs:
                 agent_map[int(idx.item())] = self._npc_pr
 
-        suite_name = "" if self._suite is None else self._suite.name
+        suite_name = "" if self._sim_suite_name is None else self._sim_suite_name
         db = SimulationStatsDB.from_shards_and_context(
             self._id, self._stats_dir, agent_map, self._name, suite_name, self._config.env, self._policy_pr
         )
         return db
+
+    def get_policy_ids(self, stats_client: StatsClient, policies: List[Tuple[str, str]]) -> Dict[str, uuid.UUID]:
+        policy_names = [policy[0] for policy in policies]
+        policy_ids_response = stats_client.get_policy_ids(policy_names)
+        policy_ids = policy_ids_response.policy_ids
+
+        for policy in policies:
+            if policy[0] not in policy_ids:
+                policy_response = stats_client.create_policy(policy[0], None, policy[1], epoch_id=self._stats_epoch_id)
+                policy_ids[policy[0]] = policy_response.id
+        return policy_ids
+
+    def _get_policy_name(self) -> str:
+        return self._wandb_policy_name if self._wandb_policy_name is not None else self._policy_pr.run_name
+
+    def _get_policy_uri(self) -> str:
+        return self._wandb_uri if self._wandb_uri is not None else self._policy_pr.uri
+
+    def _write_remote_stats(self, stats_db: SimulationStatsDB) -> None:
+        """Write stats to the remote stats database."""
+        if self._stats_client is not None:
+            policy_name = self._get_policy_name()
+            policy_uri = self._get_policy_uri()
+            policies = [(policy_name, policy_uri)]
+            if self._npc_pr is not None:
+                policies.append((self._npc_pr.run_name, self._npc_pr.uri))
+            policy_ids = self.get_policy_ids(self._stats_client, policies)
+
+            agent_map: Dict[int, uuid.UUID] = {}
+            for idx in self._policy_idxs:
+                agent_map[int(idx.item())] = policy_ids[policy_name]
+
+            if self._npc_pr is not None:
+                for idx in self._npc_idxs:
+                    agent_map[int(idx.item())] = policy_ids[self._npc_pr.run_name]
+
+            # Get all episodes from the database
+            episodes_df = stats_db.query("SELECT * FROM episodes")
+
+            for _, episode_row in episodes_df.iterrows():
+                episode_id = episode_row["id"]
+
+                # Get agent metrics for this episode
+                agent_metrics_df = stats_db.query(f"SELECT * FROM agent_metrics WHERE episode_id = '{episode_id}'")
+                agent_metrics: Dict[int, Dict[str, float]] = {}
+
+                for _, metric_row in agent_metrics_df.iterrows():
+                    agent_id = int(metric_row["agent_id"])
+                    metric_name = metric_row["metric"]
+                    metric_value = float(metric_row["value"])
+
+                    if agent_id not in agent_metrics:
+                        agent_metrics[agent_id] = {}
+                    agent_metrics[agent_id][metric_name] = metric_value
+
+                # Get episode attributes
+                attributes_df = stats_db.query(f"SELECT * FROM episode_attributes WHERE episode_id = '{episode_id}'")
+                attributes: Dict[str, Any] = {}
+
+                for _, attr_row in attributes_df.iterrows():
+                    attr_name = attr_row["attribute"]
+                    attr_value = attr_row["value"]
+                    attributes[attr_name] = attr_value
+
+                # Record the episode remotely
+                try:
+                    self._stats_client.record_episode(
+                        agent_policies=agent_map,
+                        agent_metrics=agent_metrics,
+                        primary_policy_id=policy_ids[policy_name],
+                        stats_epoch=self._stats_epoch_id,
+                        eval_name=self._name,
+                        simulation_suite="" if self._sim_suite_name is None else self._sim_suite_name,
+                        replay_url=episode_row.get("replay_url"),
+                        attributes=attributes,
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to record episode {episode_id} remotely: {e}")
+                    # Continue with other episodes even if one fails
 
     def get_replays(self) -> dict:
         """Get all replays for this simulation."""

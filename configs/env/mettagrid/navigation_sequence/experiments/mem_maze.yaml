@@ -5,4 +5,4 @@ defaults:
 game:
   map_builder:
     room:
-      style: maze
+      dir: varied_terrain/maze_small

@@ -1,7 +1,7 @@
+from metta.common.util.config import Config
 from metta.map.scene import Scene
 from metta.map.scenes.inline_ascii import InlineAscii
 from metta.map.types import ChildrenAction
-from metta.util.config import Config
 
 
 class AsciiParams(Config):
@@ -16,7 +16,7 @@ class Ascii(Scene[AsciiParams]):
     def get_children(self):
         return [
             ChildrenAction(
-                scene=lambda grid: InlineAscii(grid=grid, params={"data": self.ascii_data}),
+                scene=lambda area: InlineAscii(area=area, params={"data": self.ascii_data}),
                 where="full",
             ),
             *self.children,

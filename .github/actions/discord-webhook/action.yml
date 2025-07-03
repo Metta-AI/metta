@@ -31,14 +31,9 @@ runs:
         version: "0.7.3"
         enable-cache: true
 
-    - name: Install dependencies
-      shell: bash
-      run: |
-        uv pip install --system -r ${{ github.action_path }}/requirements.txt
-
     - name: Post to Discord
       run: |
-        python ${{ github.action_path }}/discord_webhook.py
+        uv run ${{ github.action_path }}/discord_webhook.py
       shell: bash
       env:
         DISCORD_WEBHOOK_URL: ${{ inputs.webhook-url }}

@@ -1,21 +1,33 @@
 resources:
+  cloud: aws
   any_of:
-    - cloud: aws
-      region: us-east-1
+    # us-east-1
+    - region: us-east-1
       use_spot: true
       accelerators: "L4:1"
-    - cloud: aws
-      region: us-east-1
+    - region: us-east-1
       use_spot: true
       accelerators: "A10G:1"
-    - cloud: aws
-      region: us-east-1
+    - region: us-east-1
       accelerators: "L4:1"
-    - cloud: aws
-      region: us-east-1
+    - region: us-east-1
+      accelerators: "A10G:1"
+    # us-west-2
+    - region: us-west-2
+      use_spot: true
+      accelerators: "L4:1"
+    - region: us-west-2
+      use_spot: true
+      accelerators: "A10G:1"
+    - region: us-west-2
+      accelerators: "L4:1"
+    - region: us-west-2
       accelerators: "A10G:1"
   cpus: 8+
   image_id: docker:metta:latest
+  job_recovery:
+    strategy: EAGER_NEXT_REGION
+    max_restarts_on_errors: 1000
 
 setup: |
   cd /workspace/metta
@@ -35,15 +47,16 @@ run: |
   export MASTER_ADDR=$(echo "$SKYPILOT_NODE_IPS" | head -n1)
   export MASTER_PORT=8008
   export NODE_INDEX=$SKYPILOT_NODE_RANK
+  export NCCL_SHM_DISABLE=1
 
   ./devops/$METTA_CMD.sh \
-    +hardware=$METTA_HARDWARE \
     run=$METTA_RUN_ID \
     $METTA_CMD_ARGS
 
 file_mounts:
   # Wandb Credentials
   ~/.netrc: ~/.netrc
+  ~/.metta: ~/.metta
 
   /mnt/s3/softmax-public:
     source: s3://softmax-public
@@ -56,11 +69,11 @@ file_mounts:
 
 envs:
   METTA_RUN_ID: ""
-  METTA_HARDWARE: aws
   METTA_CMD: train
   METTA_CMD_ARGS: ""
   METTA_GIT_REF: main
   WANDB_DIR: ./wandb
+  HEARTBEAT_TIMEOUT: 600
 
   # s3 mount slows down uv, so we put DATA_DIR outside of /workspace/metta
   DATA_DIR: /mnt/s3/train_dir

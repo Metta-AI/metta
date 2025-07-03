@@ -1,0 +1,31 @@
+lab:
+  type_id: 11
+  input_ore_red: 3
+  input_battery_red: 3
+  output_blueprint: 1
+  max_output: 5
+  conversion_ticks: 1
+  cooldown: 5
+  initial_items: 0
+
+factory:
+  type_id: 12
+  input_blueprint: 1
+  input_ore_red: 5
+  input_battery_red: 5
+  output_armor: 5
+  output_laser: 5
+  max_output: 5
+  conversion_ticks: 1
+  cooldown: 5
+  initial_items: 0
+
+temple:
+  type_id: 13
+  input_heart: 1
+  input_blueprint: 1
+  output_heart: 5
+  max_output: 5
+  conversion_ticks: 1
+  cooldown: 5
+  initial_items: 0

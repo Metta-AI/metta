@@ -2,7 +2,6 @@
 import os
 import sys
 from logging import Logger
-from typing import Optional
 
 import hydra
 import torch
@@ -11,32 +10,27 @@ from omegaconf import DictConfig, ListConfig, OmegaConf
 from torch.distributed.elastic.multiprocessing.errors import record
 
 from metta.agent.policy_store import PolicyStore
+from metta.app_backend.stats_client import StatsClient
+from metta.common.util.config import Config
+from metta.common.util.heartbeat import record_heartbeat
+from metta.common.util.logging import setup_mettagrid_logger
+from metta.common.util.runtime_configuration import setup_mettagrid_environment
+from metta.common.util.script_decorators import metta_script
+from metta.common.util.stats_client_cfg import get_stats_client
+from metta.common.wandb.wandb_context import WandbContext, WandbRun
 from metta.sim.simulation_config import SimulationSuiteConfig
-from metta.util.config import Config, setup_metta_environment
-from metta.util.heartbeat import start_heartbeat
-from metta.util.logging import setup_mettagrid_logger
-from metta.util.runtime_configuration import setup_mettagrid_environment
-from metta.util.wandb.wandb_context import WandbContext
+from tools.sweep_config_utils import load_train_job_config_with_overrides
 
 
 # TODO: populate this more
 class TrainJob(Config):
     __init__ = Config.__init__
     evals: SimulationSuiteConfig
-    map_preview_uri: Optional[str] = None
+    map_preview_uri: str | None = None
 
 
-def train(cfg, wandb_run, logger: Logger):
-    overrides_path = os.path.join(cfg.run_dir, "train_config_overrides.yaml")
-    if os.path.exists(overrides_path):
-        logger.info(f"Loading train config overrides from {overrides_path}")
-        override_cfg = OmegaConf.load(overrides_path)
-
-        # Set struct flag to False to allow accessing undefined fields
-        OmegaConf.set_struct(cfg, False)
-        cfg = OmegaConf.merge(cfg, override_cfg)
-        # Optionally, restore struct behavior after merge
-        OmegaConf.set_struct(cfg, True)
+def train(cfg: ListConfig | DictConfig, wandb_run: WandbRun | None, logger: Logger):
+    cfg = load_train_job_config_with_overrides(cfg)
 
     if os.environ.get("RANK", "0") == "0":
         with open(os.path.join(cfg.run_dir, "config.yaml"), "w") as f:
@@ -44,28 +38,37 @@ def train(cfg, wandb_run, logger: Logger):
 
     train_job = TrainJob(cfg.train_job)
 
-    policy_store = PolicyStore(cfg, wandb_run)
-
     if torch.distributed.is_initialized():
         world_size = torch.distributed.get_world_size()
-        cfg.trainer.forward_pass_minibatch_target_size = cfg.trainer.forward_pass_minibatch_target_size // world_size
+        if cfg.trainer.scale_batches_by_world_size:
+            cfg.trainer.forward_pass_minibatch_target_size = (
+                cfg.trainer.forward_pass_minibatch_target_size // world_size
+            )
+            cfg.trainer.batch_size = cfg.trainer.batch_size // world_size
 
+    policy_store = PolicyStore(cfg, wandb_run)
+    stats_client: StatsClient | None = get_stats_client(cfg, logger)
+
+    # Instantiate the trainer directly with the typed config
     trainer = hydra.utils.instantiate(
-        cfg.trainer, cfg, wandb_run, policy_store=policy_store, sim_suite_config=train_job.evals
+        cfg.trainer,
+        cfg,
+        wandb_run=wandb_run,
+        policy_store=policy_store,
+        sim_suite_config=train_job.evals,
+        stats_client=stats_client,
     )
     trainer.train()
     trainer.close()
 
 
-@record
 @hydra.main(config_path="../configs", config_name="train_job", version_base=None)
+@metta_script
+@record
 def main(cfg: ListConfig | DictConfig) -> int:
-    setup_metta_environment(cfg)
     setup_mettagrid_environment(cfg)
 
-    hb_file = os.environ.get("HEARTBEAT_FILE")
-    if hb_file:
-        start_heartbeat(hb_file)
+    record_heartbeat()
 
     logger = setup_mettagrid_logger("train")
     logger.info(f"Train job config: {OmegaConf.to_yaml(cfg, resolve=True)}")

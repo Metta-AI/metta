@@ -1,0 +1,23 @@
+team_1:
+  id: 1
+  sprite: 1
+  group_reward_pct: 0.5
+  props: {}
+
+team_2:
+  id: 2
+  sprite: 4
+  group_reward_pct: 0.5
+  props: {}
+
+team_3:
+  id: 3
+  sprite: 8
+  group_reward_pct: 0.5
+  props: {}
+
+team_4:
+  id: 4
+  sprite: 1
+  group_reward_pct: 0.5
+  props: {}

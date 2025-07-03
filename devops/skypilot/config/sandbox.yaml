@@ -8,6 +8,7 @@ resources:
 file_mounts:
   # Wandb Credentials
   ~/.netrc: ~/.netrc
+  ~/.metta: ~/.metta
 
   /mnt/s3/softmax-public:
     source: s3://softmax-public
@@ -31,7 +32,18 @@ setup: |
   echo '. .venv/bin/activate' >> ~/.bashrc
   echo '. devops/setup.env' >> ~/.bashrc
 
+  # Export GPU-related environment variables (evaluated when user logs in)
+  echo 'export NUM_GPUS=${SKYPILOT_NUM_GPUS_PER_NODE}' >> ~/.bashrc
+  echo 'export NUM_NODES=${SKYPILOT_NUM_NODES}' >> ~/.bashrc
+  echo 'export MASTER_ADDR=$(echo "${SKYPILOT_NODE_IPS}" | head -n1)' >> ~/.bashrc
+  echo 'export MASTER_PORT=8008' >> ~/.bashrc
+  echo 'export NODE_INDEX=${SKYPILOT_NODE_RANK}' >> ~/.bashrc
+  echo 'export NCCL_SHM_DISABLE=1' >> ~/.bashrc
+
   echo "Sandbox is ready"
+
+run: |
+  exec bash
 
 envs:
   METTA_GIT_REF: main
