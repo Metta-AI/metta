@@ -34,7 +34,6 @@ from metta.rl.kickstarter_config import KickstartConfig
 from metta.rl.losses import Losses
 from metta.rl.trainer_config import (
     CheckpointConfig,
-    KickstartConfig,
     OptimizerConfig,
     PPOConfig,
     PrioritizedExperienceReplayConfig,
