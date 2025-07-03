@@ -4,12 +4,12 @@ from typing import Any, Dict, List, Literal, Optional
 from pydantic import Field, RootModel, conint
 
 from metta.common.util.typed_config import BaseModelWithForbidExtra
+from metta.mettagrid.mettagrid_c import AgentConfig as AgentConfig_cpp
+from metta.mettagrid.mettagrid_c import ConverterConfig as ConverterConfig_cpp
+from metta.mettagrid.mettagrid_c import WallConfig as WallConfig_cpp
 from metta.mettagrid.mettagrid_config import ConverterConfig as ConverterConfig_py
 from metta.mettagrid.mettagrid_config import GameConfig as GameConfig_py
 from metta.mettagrid.mettagrid_config import WallConfig as WallConfig_py
-from metta.mettagrid.mettagrid_c import WallConfig as WallConfig_cpp
-from metta.mettagrid.mettagrid_c import AgentConfig as AgentConfig_cpp
-from metta.mettagrid.mettagrid_c import ConverterConfig as ConverterConfig_cpp
 
 Byte = conint(ge=0, le=255)
 FeatureId = Byte
