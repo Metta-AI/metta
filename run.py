@@ -22,6 +22,7 @@ from metta.common.profiling.memory_monitor import MemoryMonitor
 from metta.common.profiling.stopwatch import Stopwatch
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.system_monitor import SystemMonitor
+from metta.eval.eval_stats_db import EvalStatsDB
 from metta.mettagrid.mettagrid_env import MettaGridEnv
 from metta.rl.experience import Experience
 from metta.rl.functions import (
@@ -310,84 +311,6 @@ SYSTEM_STATS_INTERVAL = 10  # Log system stats every 10 epochs
 # Track evaluation scores
 evaluation_scores = {}
 
-
-def evaluate_policy(policy_record, epoch):
-    """Evaluate the policy on multiple environments."""
-    logger.info(f"Evaluating policy at epoch {epoch}")
-
-    # Run evaluation suite
-    sim_suite = SimulationSuite(
-        config=evaluation_config,
-        policy_pr=policy_record,
-        policy_store=policy_store,
-        device=device,
-        vectorization="serial",
-        stats_dir=dirs.stats_dir,
-        replay_dir=None,  # No replays during evaluation
-    )
-
-    results = sim_suite.simulate()
-    stats_db = results.stats_db
-
-    # Extract scores
-    scores = {}
-    all_episode_data = stats_db.query("SELECT * FROM episodes")
-    if not all_episode_data.empty:
-        # Group by simulation name and compute average reward
-        for sim_name in evaluation_config.simulations.keys():
-            sim_episodes = all_episode_data[all_episode_data["simulation_id"].str.contains(sim_name)]
-            if not sim_episodes.empty:
-                # Get rewards from agent_metrics
-                rewards = []
-                for _, episode in sim_episodes.iterrows():
-                    episode_rewards = stats_db.query(
-                        f"SELECT value FROM agent_metrics WHERE episode_id = '{episode['id']}' AND metric = 'reward'"
-                    )
-                    if not episode_rewards.empty:
-                        rewards.append(episode_rewards["value"].sum())
-
-                if rewards:
-                    avg_reward = sum(rewards) / len(rewards)
-                    scores[sim_name] = avg_reward
-                    logger.info(f"  {sim_name}: {avg_reward:.2f}")
-
-    stats_db.close()
-    return scores
-
-
-def generate_replay(policy_record, epoch):
-    """Generate a replay for visualization."""
-    logger.info(f"Generating replay at epoch {epoch}")
-
-    replay_config = {
-        "env": "/env/mettagrid/simple",
-        "num_episodes": 1,
-        "max_time_s": 60,
-        "env_overrides": {},
-    }
-
-    replay_sim = Simulation(
-        name=f"replay_epoch_{epoch}",
-        config=SingleEnvSimulationConfig.model_validate(replay_config),
-        policy_pr=policy_record,
-        policy_store=policy_store,
-        device=device,
-        vectorization="serial",
-        replay_dir=dirs.replay_dir,
-    )
-
-    results = replay_sim.simulate()
-
-    # Get replay URLs from the database
-    replay_urls = results.stats_db.get_replay_urls()
-    if replay_urls:
-        player_url = f"https://metta-ai.github.io/metta/?replayUrl={replay_urls[0]}"
-        logger.info(f"Replay available at: {player_url}")
-
-    results.stats_db.close()
-    return replay_urls[0] if replay_urls else None
-
-
 # Training loop
 logger.info("Starting training")
 logger.info(f"Training on {device}")
@@ -576,12 +499,80 @@ while training.agent_step < trainer_config.total_timesteps:
 
     # Policy evaluation
     if EVAL_INTERVAL > 0 and training.epoch % EVAL_INTERVAL == 0 and saved_policy_path:
-        eval_scores = evaluate_policy(saved_policy_path, training.epoch)
+        logger.info(f"Evaluating policy at epoch {training.epoch}")
+
+        # Run evaluation suite (similar to trainer.py's _evaluate_policy)
+        sim_suite = SimulationSuite(
+            config=evaluation_config,
+            policy_pr=saved_policy_path,
+            policy_store=policy_store,
+            device=device,
+            vectorization="serial",
+            stats_dir=dirs.stats_dir,
+            stats_client=None,  # No stats client in this example
+            stats_epoch_id=None,
+            wandb_policy_name=None,  # No wandb in this example
+        )
+
+        results = sim_suite.simulate()
+        stats_db = EvalStatsDB.from_sim_stats_db(results.stats_db)
+        logger.info("Evaluation complete")
+
+        # Build evaluation metrics
+        eval_scores = {}
+        categories = set()
+        for sim_name in evaluation_config.simulations.keys():
+            categories.add(sim_name.split("/")[0])
+
+        for category in categories:
+            score = stats_db.get_average_metric_by_filter("reward", saved_policy_path, f"sim_name LIKE '%{category}%'")
+            logger.info(f"{category} score: {score}")
+            record_heartbeat()
+            if score is not None:
+                eval_scores[f"{category}/score"] = score
+
+        # Get detailed per-simulation scores
+        all_scores = stats_db.simulation_scores(saved_policy_path, "reward")
+        for (_, sim_name, _), score in all_scores.items():
+            category = sim_name.split("/")[0]
+            sim_short_name = sim_name.split("/")[-1]
+            eval_scores[f"{category}/{sim_short_name}"] = score
+
         evaluation_scores[training.epoch] = eval_scores
+        stats_db.close()
 
     # Replay generation
     if REPLAY_INTERVAL > 0 and training.epoch % REPLAY_INTERVAL == 0 and saved_policy_path:
-        replay_url = generate_replay(saved_policy_path, training.epoch)
+        logger.info(f"Generating replay at epoch {training.epoch}")
+
+        # Generate replay (similar to trainer.py's _generate_and_upload_replay)
+        replay_sim_config = SingleEnvSimulationConfig(
+            env="/env/mettagrid/simple",  # You can customize this or use curriculum
+            num_episodes=1,
+            max_time_s=60,
+            env_overrides={},
+        )
+
+        replay_simulator = Simulation(
+            name=f"replay_{training.epoch}",
+            config=replay_sim_config,
+            policy_pr=saved_policy_path,
+            policy_store=policy_store,
+            device=device,
+            vectorization="serial",
+            replay_dir=dirs.replay_dir,
+        )
+
+        results = replay_simulator.simulate()
+
+        # Get replay URLs from the database
+        replay_urls = results.stats_db.get_replay_urls()
+        if replay_urls:
+            replay_url = replay_urls[0]
+            player_url = f"https://metta-ai.github.io/metta/?replayUrl={replay_url}"
+            logger.info(f"Replay available at: {player_url}")
+
+        results.stats_db.close()
 
     # Clear stats for next iteration
     training.stats.clear()
