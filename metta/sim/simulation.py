@@ -87,15 +87,16 @@ class Simulation:
         # This allows us to bypass Hydra entirely when running without it
         pre_built_config = None
 
-        # Make a copy of env_overrides to modify
-        env_overrides_dict = dict(config.env_overrides)
-
-        # Extract pre-built config if present
-        if "_pre_built_env_config" in env_overrides_dict:
+        # Check if _pre_built_env_config is present
+        if "_pre_built_env_config" in config.env_overrides:
+            # Only convert to dict and modify if we need to extract pre_built_config
+            env_overrides_dict = dict(config.env_overrides)
             pre_built_config = env_overrides_dict.pop("_pre_built_env_config")
-
-        # Create OmegaConf from the modified overrides (without _pre_built_env_config)
-        env_overrides = OmegaConf.create(env_overrides_dict)
+            # Create OmegaConf from the modified overrides (without _pre_built_env_config)
+            env_overrides = OmegaConf.create(env_overrides_dict)
+        else:
+            # Preserve original behavior for normal Hydra-based configs
+            env_overrides = OmegaConf.create(config.env_overrides)
 
         self._env_name = config.env
 
