@@ -26,6 +26,7 @@ from metta.api import (
     save_experiment_config,
     setup_device_and_distributed,
     setup_run_directories,
+    wrap_agent_distributed,
 )
 from metta.common.profiling.memory_monitor import MemoryMonitor
 from metta.common.profiling.stopwatch import Stopwatch
@@ -132,6 +133,20 @@ policy_store = PolicyStore(
 )
 logger.info("Created policy store")
 
+# Load checkpoint and handle distributed initialization
+# This must happen BEFORE wrapping in DistributedMettaAgent
+checkpoint_path = trainer_config.checkpoint.checkpoint_dir
+agent_step, epoch, _ = load_checkpoint(
+    checkpoint_dir=checkpoint_path,
+    agent=agent,
+    optimizer=None,  # We'll create optimizer after distributed wrapping
+    policy_store=policy_store,
+    device=device,
+)
+
+# Wrap agent in distributed mode AFTER checkpoint synchronization
+agent = wrap_agent_distributed(agent, device)
+
 # Create optimizer wrapper from api.py
 optimizer = Optimizer(
     optimizer_type=trainer_config.optimizer.type,
@@ -142,6 +157,18 @@ optimizer = Optimizer(
     weight_decay=trainer_config.optimizer.weight_decay,
     max_grad_norm=trainer_config.ppo.max_grad_norm,
 )
+
+# Load optimizer state from checkpoint if it exists
+if checkpoint_path:
+    from metta.rl.trainer_checkpoint import TrainerCheckpoint
+
+    checkpoint = TrainerCheckpoint.load(checkpoint_path)
+    if checkpoint and checkpoint.optimizer_state_dict:
+        try:
+            optimizer.optimizer.load_state_dict(checkpoint.optimizer_state_dict)
+            logger.info("Successfully loaded optimizer state from checkpoint")
+        except ValueError:
+            logger.warning("Optimizer state dict doesn't match. Starting with fresh optimizer state.")
 
 # Create experience buffer
 logger.info("Creating experience buffer...")
@@ -184,16 +211,6 @@ if hasattr(trainer_config, "lr_scheduler") and trainer_config.lr_scheduler.enabl
         optimizer.optimizer, T_max=trainer_config.total_timesteps // trainer_config.batch_size
     )
     logger.info("Created learning rate scheduler")
-
-# Load checkpoint and handle distributed initialization
-checkpoint_path = trainer_config.checkpoint.checkpoint_dir
-agent_step, epoch, _ = load_checkpoint(
-    checkpoint_dir=checkpoint_path,
-    agent=agent,
-    optimizer=optimizer,
-    policy_store=policy_store,
-    device=device,
-)
 
 # Memory and System Monitoring
 memory_monitor = MemoryMonitor()

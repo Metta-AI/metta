@@ -666,16 +666,6 @@ class Agent:
         features = metta_grid_env.get_observation_features()
         agent.initialize_to_environment(features, metta_grid_env.action_names, metta_grid_env.max_action_args, device)
 
-        # Wrap in DistributedMettaAgent if using distributed training
-        if torch.distributed.is_initialized():
-            from metta.agent.metta_agent import DistributedMettaAgent
-
-            logger.info(f"Initializing DistributedDataParallel on device {device}")
-            agent = DistributedMettaAgent(agent, device)
-            # Ensure all ranks have initialized DDP before proceeding
-            torch.distributed.barrier()
-            logger.info("Agent wrapped in DistributedMettaAgent")
-
         return agent
 
 
@@ -866,13 +856,20 @@ def save_checkpoint(
 
     # Save training state
     logger.info("Saving training state...")
+
+    # Get optimizer state dict if optimizer is provided
+    optimizer_state_dict = None
+    if optimizer is not None:
+        if hasattr(optimizer, "state_dict"):
+            optimizer_state_dict = optimizer.state_dict()
+        elif hasattr(optimizer, "optimizer"):
+            optimizer_state_dict = optimizer.optimizer.state_dict()
+
     trainer_checkpoint = TrainerCheckpoint(
         agent_step=agent_step,
         epoch=epoch,
         total_agent_step=agent_step,
-        optimizer_state_dict=optimizer.state_dict()
-        if hasattr(optimizer, "state_dict")
-        else optimizer.optimizer.state_dict(),
+        optimizer_state_dict=optimizer_state_dict,
         policy_path=saved_policy_record.uri if hasattr(saved_policy_record, "uri") else None,
         stopwatch_state=None,
     )
@@ -974,11 +971,59 @@ def load_checkpoint(
                 # All ranks synchronize
                 torch.distributed.barrier()
 
-                # Non-master ranks could load the policy here if needed
-                # For now, we just return and let the caller handle it
+                # Non-master ranks load the policy that master created
+                default_policy_path = os.path.join(checkpoint_dir, policy_store.make_model_name(0))
+
+                # Wait for file to be available
+                from metta.common.util.fs import wait_for_file
+
+                def log_progress(elapsed: float, status: str) -> None:
+                    if status == "waiting" and int(elapsed) % 10 == 0 and elapsed > 0:
+                        logger.info(f"Still waiting for policy file... ({elapsed:.0f}s elapsed)")
+                    elif status == "found":
+                        logger.info("Policy file found, waiting for write to complete...")
+                    elif status == "stable":
+                        logger.info(f"Policy file stable after {elapsed:.1f}s")
+
+                if not wait_for_file(default_policy_path, timeout=300, progress_callback=log_progress):
+                    raise RuntimeError(f"Timeout waiting for policy at {default_policy_path}")
+
+                # Load the policy
+                try:
+                    policy_record = policy_store.policy_record(default_policy_path)
+                    # Load the policy state into our agent
+                    agent.load_state_dict(policy_record.policy.state_dict())
+                    logger.info(f"Non-master rank: Loaded initial policy from {default_policy_path}")
+                except Exception as e:
+                    raise RuntimeError(f"Failed to load policy from {default_policy_path}: {e}") from e
+
                 return agent_step, epoch, None
 
         return agent_step, epoch, None
+
+
+def wrap_agent_distributed(agent: Any, device: torch.device) -> Any:
+    """Wrap agent in DistributedMettaAgent if distributed training is initialized.
+
+    This should be called AFTER all ranks have synchronized on the same policy state.
+
+    Args:
+        agent: The agent to potentially wrap
+        device: The device to use
+
+    Returns:
+        The agent, possibly wrapped in DistributedMettaAgent
+    """
+    if torch.distributed.is_initialized():
+        from metta.agent.metta_agent import DistributedMettaAgent
+
+        logger.info(f"Initializing DistributedDataParallel on device {device}")
+        agent = DistributedMettaAgent(agent, device)
+        # Ensure all ranks have initialized DDP before proceeding
+        torch.distributed.barrier()
+        logger.info("Agent wrapped in DistributedMettaAgent")
+
+    return agent
 
 
 # Re-export key classes for convenience
@@ -1007,6 +1052,7 @@ __all__ = [
     "setup_device_and_distributed",
     "cleanup_distributed",
     "load_checkpoint",
+    "wrap_agent_distributed",
     # Functions from rl.functions (commonly used)
     "perform_rollout_step",
     "process_minibatch_update",
