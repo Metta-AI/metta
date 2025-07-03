@@ -79,8 +79,8 @@ def test_policy_extraction():
         print(f"✅ Successfully extracted {len(policies_df)} policies")
         print("📊 Policy summary:")
         print(
-            f"   - Average reward range: {policies_df['avg_reward'].min():.3f} - "
-            f"{policies_df['avg_reward'].max():.3f}")
+            f"   - Average reward range: {policies_df['avg_reward'].min():.3f} - {policies_df['avg_reward'].max():.3f}"
+        )
         print(f"   - Average episode count: {policies_df['episode_count'].mean():.1f}")
 
         # Show first policy details
