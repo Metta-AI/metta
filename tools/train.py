@@ -66,8 +66,6 @@ def train(cfg: ListConfig | DictConfig, wandb_run: WandbRun | None, logger: Logg
 @metta_script
 @record
 def main(cfg: ListConfig | DictConfig) -> int:
-    setup_mettagrid_environment(cfg)
-
     record_heartbeat()
 
     logger = setup_mettagrid_logger("train")

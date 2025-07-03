@@ -31,8 +31,6 @@ class ReplayJob(Config):
 @hydra.main(version_base=None, config_path="../configs", config_name="replay_job")
 @metta_script
 def main(cfg):
-    setup_mettagrid_environment(cfg)
-
     logger = setup_mettagrid_logger("metta.tools.replay")
     logger.info(f"Replay job config:\n{OmegaConf.to_yaml(cfg, resolve=True)}")
 
