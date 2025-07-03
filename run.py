@@ -26,7 +26,6 @@ from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.system_monitor import SystemMonitor
 from metta.eval.eval_stats_db import EvalStatsDB
 from metta.mettagrid import mettagrid_c  # noqa: F401
-from metta.mettagrid.mettagrid_env import MettaGridEnv
 from metta.rl.experience import Experience
 from metta.rl.functions import (
     calculate_explained_variance,
@@ -74,7 +73,7 @@ trainer_config = TrainerConfig(
     ),
     checkpoint=CheckpointConfig(
         checkpoint_dir=dirs.checkpoint_dir,
-        checkpoint_interval=100,
+        checkpoint_interval=10,  # Updated to match the command line parameter
         wandb_checkpoint_interval=0,  # Disabled for this example
     ),
     simulation=SimulationConfig(
@@ -89,9 +88,10 @@ trainer_config = TrainerConfig(
     grad_mean_variance_interval=50,  # Compute gradient stats every 50 epochs
 )
 
-# Create environment
+# Create environment with bucketed navigation curriculum
 env = Environment(
-    num_agents=4,  # Simplified - just specify what we need
+    curriculum_path="/env/mettagrid/curriculum/navigation/bucketed",
+    num_agents=4,
     width=32,
     height=32,
     device=str(device),
@@ -102,12 +102,38 @@ env = Environment(
     zero_copy=trainer_config.zero_copy,
     is_training=True,
 )
+metta_grid_env = env.driver_env  # type: ignore - vecenv attribute
 
 # Create agent
 agent = Agent(env, device=str(device))  # Uses default config
 
 # Save configuration to run directory (like train.py does)
+<<<<<<< HEAD
 save_experiment_config(dirs, device, trainer_config)
+=======
+experiment_config = {
+    "run": dirs.run_name,
+    "run_dir": dirs.run_dir,
+    "data_dir": os.path.dirname(dirs.run_dir),  # Get parent directory
+    "device": str(device),
+    "trainer": {
+        "num_workers": trainer_config.num_workers,
+        "total_timesteps": trainer_config.total_timesteps,
+        "batch_size": trainer_config.batch_size,
+        "minibatch_size": trainer_config.minibatch_size,
+        "checkpoint_dir": dirs.checkpoint_dir,
+        "optimizer": trainer_config.optimizer.model_dump(),
+        "ppo": trainer_config.ppo.model_dump(),
+        "checkpoint": trainer_config.checkpoint.model_dump(),
+        "simulation": trainer_config.simulation.model_dump(),
+        "profiler": trainer_config.profiler.model_dump(),
+        "curriculum": "/env/mettagrid/curriculum/navigation/bucketed",
+    },
+}
+# Save config directly
+OmegaConf.save(experiment_config, os.path.join(dirs.run_dir, "config.yaml"))
+logger.info(f"Saved config to {os.path.join(dirs.run_dir, 'config.yaml')}")
+>>>>>>> 3f716e12c2bde6afd8f9a3e28511a3895c867458
 
 # Create policy store directly with minimal config
 policy_store = PolicyStore(
@@ -136,11 +162,6 @@ optimizer = Optimizer(
     weight_decay=trainer_config.optimizer.weight_decay,
     max_grad_norm=trainer_config.ppo.max_grad_norm,
 )
-
-# Get environment info from the vecenv (not Environment class)
-# Note: env is actually the vecenv returned by Environment.__new__
-metta_grid_env = env.driver_env  # type: ignore - vecenv attribute
-assert isinstance(metta_grid_env, MettaGridEnv)
 
 # Create experience buffer
 logger.info("Creating experience buffer...")
@@ -220,22 +241,28 @@ system_monitor = SystemMonitor(
     auto_start=True,
 )
 
-# Evaluation Configuration
+# Evaluation Configuration with navigation tasks
 evaluation_config = SimulationSuiteConfig(
     name="evaluation",
     simulations={
-        "navigation/simple": SingleEnvSimulationConfig(
-            env="/env/mettagrid/simple",
-            num_episodes=5,
-            max_time_s=30,
-            env_overrides={},
-        ),
-        "navigation/medium": SingleEnvSimulationConfig(
-            env="/env/mettagrid/medium",
-            num_episodes=5,
-            max_time_s=30,
-            env_overrides={},
-        ),
+        "navigation/terrain_small": {
+            "env": "/env/mettagrid/navigation/training/terrain_from_numpy",
+            "num_episodes": 5,
+            "max_time_s": 30,
+            "env_overrides": {"game": {"map_builder": {"room": {"dir": "varied_terrain/balanced_small"}}}},
+        },
+        "navigation/terrain_medium": {
+            "env": "/env/mettagrid/navigation/training/terrain_from_numpy",
+            "num_episodes": 5,
+            "max_time_s": 30,
+            "env_overrides": {"game": {"map_builder": {"room": {"dir": "varied_terrain/balanced_medium"}}}},
+        },
+        "navigation/terrain_large": {
+            "env": "/env/mettagrid/navigation/training/terrain_from_numpy",
+            "num_episodes": 5,
+            "max_time_s": 30,
+            "env_overrides": {"game": {"map_builder": {"room": {"dir": "varied_terrain/balanced_large"}}}},
+        },
     },
     num_episodes=10,  # Will be overridden by individual configs
     env_overrides={},  # Suite-level overrides
@@ -490,12 +517,12 @@ while agent_step < trainer_config.total_timesteps:
     ):
         logger.info(f"Generating replay at epoch {epoch}")
 
-        # Generate replay (similar to trainer.py's _generate_and_upload_replay)
+        # Generate replay on the bucketed curriculum environment
         replay_sim_config = SingleEnvSimulationConfig(
-            env="/env/mettagrid/simple",  # You can customize this or use curriculum
+            env="/env/mettagrid/navigation/training/terrain_from_numpy",
             num_episodes=1,
             max_time_s=60,
-            env_overrides={},
+            env_overrides={"game": {"map_builder": {"room": {"dir": "varied_terrain/balanced_medium"}}}},
         )
 
         replay_simulator = Simulation(
