@@ -32,7 +32,9 @@ setup: |
   echo "[SETUP] Starting setup phase..."
 
   cd /workspace/metta
-  git fetch
+
+  echo "[SETUP] Fetching latest from origin..."
+  git fetch --depth=1000 origin "$METTA_GIT_REF" || git fetch origin
 
   echo "[SETUP] Checking out ref: $METTA_GIT_REF"
   git checkout $METTA_GIT_REF
