@@ -114,17 +114,14 @@ MettaGrid::MettaGrid(py::dict cfg, py::list map, int seed) {
       object_type_names.resize(type_id + 1);
     }
 
-    if (object_type_names[type_id] == "") {
-      // #HardCodedConfig
-      // The guard here is to avoid overwriting the type_name for the wall object with the block object.
-      object_type_names[type_id] = key.cast<std::string>();
-    }
+    std::string object_type = object_cfg["object_type"].cast<std::string>();
 
-    if (!object_cfg.contains("object_type")) {
-      throw std::runtime_error("Object type not specified for " + key.cast<std::string>());
+    if (object_type_names[type_id] != "" && object_type_names[type_id] != object_type) {
+      throw std::runtime_error("Object type_id " + std::to_string(type_id) + " already exists with type_name " +
+                               object_type_names[type_id] + ". Trying to add " + object_type + ".");
     }
+    object_type_names[type_id] = object_type;
 
-    auto object_type = object_cfg["object_type"].cast<std::string>();
     if (object_type == "agent") {
       unsigned int id = object_cfg["group_id"].cast<unsigned int>();
       _group_sizes[id] = 0;
@@ -690,7 +687,7 @@ py::list MettaGrid::inventory_item_names_py() {
 }
 
 AgentConfig MettaGrid::_create_agent_config(const py::dict& agent_group_cfg_py) {
-  unsigned char freeze_duration = agent_group_cfg_py["freeze_duration"].cast<unsigned char>();
+  short freeze_duration = agent_group_cfg_py["freeze_duration"].cast<short>();
   float action_failure_penalty = agent_group_cfg_py["action_failure_penalty"].cast<float>();
   std::map<InventoryItem, uint8_t> max_items_per_type =
       agent_group_cfg_py["max_items_per_type"].cast<std::map<InventoryItem, uint8_t>>();

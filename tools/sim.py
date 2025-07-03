@@ -17,8 +17,8 @@ from typing import Any, Dict, List
 import hydra
 from omegaconf import DictConfig, OmegaConf
 
-from app_backend.stats_client import StatsClient
 from metta.agent.policy_store import PolicyStore
+from metta.app_backend.stats_client import StatsClient
 from metta.common.util.config import Config
 from metta.common.util.logging import setup_mettagrid_logger
 from metta.common.util.runtime_configuration import setup_mettagrid_environment
@@ -73,7 +73,7 @@ def simulate_policy(
     # For each checkpoint of the policy, simulate
     for pr in policy_prs:
         logger.info(f"Evaluating policy {pr.uri}")
-        replay_dir = f"{sim_job.replay_dir}/{pr.name}"
+        replay_dir = f"{sim_job.replay_dir}/{pr.run_name}"
         sim = SimulationSuite(
             config=sim_job.simulation_suite,
             policy_pr=pr,
@@ -87,7 +87,7 @@ def simulate_policy(
         sim_results = sim.simulate()
 
         # Collect metrics from the results
-        checkpoint_data = {"name": pr.name, "uri": pr.uri, "metrics": {}}
+        checkpoint_data = {"name": pr.run_name, "uri": pr.uri, "metrics": {}}
 
         # Get average reward
         rewards_df = sim_results.stats_db.query(

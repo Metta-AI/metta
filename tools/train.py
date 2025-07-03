@@ -9,15 +9,15 @@ import torch.distributed as dist
 from omegaconf import DictConfig, ListConfig, OmegaConf
 from torch.distributed.elastic.multiprocessing.errors import record
 
-from app_backend.stats_client import StatsClient
 from metta.agent.policy_store import PolicyStore
+from metta.app_backend.stats_client import StatsClient
 from metta.common.util.config import Config
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.logging import setup_mettagrid_logger
 from metta.common.util.runtime_configuration import setup_mettagrid_environment
 from metta.common.util.script_decorators import metta_script
 from metta.common.util.stats_client_cfg import get_stats_client
-from metta.common.util.wandb.wandb_context import WandbContext, WandbRun
+from metta.common.wandb.wandb_context import WandbContext, WandbRun
 from metta.sim.simulation_config import SimulationSuiteConfig
 from tools.sweep_config_utils import load_train_job_config_with_overrides
 

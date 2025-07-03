@@ -1,6 +1,6 @@
 mine_red:
   type_id: 2
-  output_ore.red: 1
+  output_ore_red: 1
   color: 0
   max_output: 5
   conversion_ticks: 1
@@ -10,7 +10,7 @@ mine_red:
 mine_blue:
   type_id: 3
   color: 1
-  output_ore.blue: 1
+  output_ore_blue: 1
   max_output: 5
   conversion_ticks: 1
   cooldown: 50
@@ -18,7 +18,7 @@ mine_blue:
 
 mine_green:
   type_id: 4
-  output_ore.green: 1
+  output_ore_green: 1
   color: 2
   max_output: 5
   conversion_ticks: 1

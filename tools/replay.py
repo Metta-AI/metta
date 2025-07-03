@@ -13,7 +13,7 @@ from metta.common.util.config import Config
 from metta.common.util.logging import setup_mettagrid_logger
 from metta.common.util.runtime_configuration import setup_mettagrid_environment
 from metta.common.util.script_decorators import metta_script
-from metta.common.util.wandb.wandb_context import WandbContext
+from metta.common.wandb.wandb_context import WandbContext
 from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SingleEnvSimulationConfig
 
@@ -54,7 +54,7 @@ def main(cfg):
             replay_dir=replay_dir,
         )
         result = sim.simulate()
-        key, version = policy_record.key_and_version()
+        key, version = result.stats_db.key_and_version(policy_record)
         replay_url = result.stats_db.get_replay_urls(key, version)[0]
 
         # Only on macos open a browser to the replay

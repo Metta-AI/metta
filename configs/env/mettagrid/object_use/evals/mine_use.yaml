@@ -10,7 +10,7 @@ game:
       cooldown: 255
   agent:
     rewards:
-      ore.red: 1
+      ore_red: 1
   map_builder:
     objects:
       mine_red: 1
