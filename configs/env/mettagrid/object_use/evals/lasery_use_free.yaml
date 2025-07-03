@@ -4,10 +4,6 @@ defaults:
 
 game:
   max_steps: 80
-  objects:
-    lasery:
-      initial_items: 1
-      cooldown: 255
   agent:
     rewards:
       laser: 1

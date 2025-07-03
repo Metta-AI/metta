@@ -7,7 +7,3 @@ game:
   map_builder:
     objects:
       altar: 1
-  objects:
-    altar:
-      initial_items: 1
-      cooldown: 255
