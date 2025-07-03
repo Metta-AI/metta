@@ -104,6 +104,7 @@ metta_grid_env = env.driver_env  # type: ignore - vecenv attribute
 
 # Create agent
 agent = Agent(env, device=str(device))
+hidden_size, num_lstm_layers = get_lstm_config(agent)
 
 # Create policy store directly with minimal config
 policy_store = PolicyStore(
@@ -135,8 +136,6 @@ optimizer = Optimizer(
 
 # Create experience buffer
 logger.info("Creating experience buffer...")
-hidden_size, num_lstm_layers = get_lstm_config(agent)
-
 experience = Experience(
     total_agents=env.num_agents,  # type: ignore
     batch_size=trainer_config.batch_size,
