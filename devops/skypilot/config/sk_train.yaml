@@ -28,7 +28,7 @@ resources:
     max_restarts_on_errors: 1000
 
 setup: |
-  set -xe
+  set -e
   echo "[SETUP] Starting setup phase..."
 
   cd /workspace/metta
@@ -42,14 +42,10 @@ setup: |
   uv sync
   mkdir -p $WANDB_DIR
 
-  echo "[SETUP] Current directory: $(pwd)"
-  echo "[SETUP] Directory contents:"
-  ls -lh
   echo "[SETUP] Setup complete."
 
 run: |
-  set -xe
-  START_TIME=$(date)
+  set -e
 
   echo "[RUN] Starting run phase..."
   echo "[RUN] METTA_RUN_ID: $METTA_RUN_ID"
@@ -60,7 +56,18 @@ run: |
 
   # Calculate and log SkyPilot queue latency
   if [ -f common/src/metta/common/util/skypilot_latency.py ]; then
-    python common/src/metta/common/util/skypilot_latency.py || true
+    echo "[RUN] Measuring queue latency..."
+    LATENCY_OUTPUT=$(python common/src/metta/common/util/skypilot_latency.py 2>&1) || true
+    echo "$LATENCY_OUTPUT"
+
+    # Extract latency value from output if present
+    LATENCY=$(echo "$LATENCY_OUTPUT" | grep -oP 'SkyPilot queue latency: \K[\d.]+(?= s)' || true)
+    if [ ! -z "$LATENCY" ]; then
+      echo "[RUN] ✅ Queue latency: ${LATENCY}s"
+      export SKYPILOT_QUEUE_LATENCY_S="$LATENCY"
+    else
+      echo "[RUN] Queue latency: N/A"
+    fi
   fi
 
   export NUM_GPUS=$SKYPILOT_NUM_GPUS_PER_NODE
@@ -78,9 +85,6 @@ run: |
   echo "[RUN] Training script exit code: $TRAIN_EXIT"
 
   echo "[RUN] Job complete."
-  END_TIME=$(date)
-  echo "[RUN] Started at: $START_TIME"
-  echo "[RUN] Ended at:   $END_TIME"
   exit $TRAIN_EXIT
 
 file_mounts:
