@@ -23,8 +23,8 @@ const YamlScalar: FC<{
   let url = "";
   const KNOWN_PACKAGES = [
     "metta.map",
-    "mettagrid.room",
-    "mettagrid.curriculum",
+    "metta.mettagrid.room",
+    "metta.mettagrid.curriculum",
   ];
 
   const repoRoot = use(RepoRootContext);
@@ -36,8 +36,8 @@ const YamlScalar: FC<{
     const parts = value.split(".");
     parts.pop();
     let filename = parts.join("/") + ".py";
-    if (filename.startsWith("mettagrid")) {
-      filename = `mettagrid/${filename}`;
+    if (value.startsWith("metta.mettagrid")) {
+      filename = `mettagrid/src/${filename}`;
     }
     url = `cursor://file${repoRoot}/${filename}`;
   }
@@ -176,6 +176,10 @@ const YamlAny: FC<{
     typeof value === "string"
   ) {
     return <YamlScalar value={value} />;
+  }
+
+  if (value === null) {
+    return <span className="text-gray-500">null</span>;
   }
 
   throw new Error(`Unknown value type: ${typeof value}`);
