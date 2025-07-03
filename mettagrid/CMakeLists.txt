@@ -11,6 +11,11 @@ option(BUILD_TESTS "Build C++ unit tests and benchmarks" OFF)
 
 # ========================= METTAGRID =========================
 
+
+# Force CMake to use virtual environment Python first
+set(Python3_FIND_VIRTUALENV FIRST)
+set(Python3_FIND_STRATEGY LOCATION)
+
 set(PYBIND11_FINDPYTHON ON)
 execute_process(
   COMMAND "python" -c "import pybind11; print(pybind11.get_cmake_dir())"

@@ -18,9 +18,9 @@ build:
 	cmake --build build-debug
 
 build-prod:
-	@echo "Building in debug mode..."
+	@echo "Building in release mode..."
 	cmake --preset release-no-tests
-	cmake --build build
+	cmake --build build-release
 
 # Run cpplint on all C++ source files
 lint:
