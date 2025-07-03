@@ -15,6 +15,7 @@ game:
     width: 98
     height: 34
 
+    border_width: 1
     room_border_width: 1
     root:
       type: metta.map.scenes.ascii.Ascii

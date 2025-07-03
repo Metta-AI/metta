@@ -8,7 +8,7 @@ from metta.map.scenes.room_grid import RoomGrid, RoomGridParams
 from metta.map.types import MapGrid
 from metta.mettagrid.level_builder import Level, LevelBuilder
 
-from .types import Area, ChildrenAction, SceneCfg
+from .types import Area, AreaWhere, ChildrenAction, SceneCfg
 
 
 # Root map generator, based on scenes.
@@ -29,8 +29,8 @@ class MapGen(LevelBuilder):
         room_rows = int(np.ceil(np.sqrt(self.num_rooms)))
         room_cols = int(np.ceil(self.num_rooms / room_rows))
 
-        full_width = self.width + 2 * self.border_width + (room_cols - 1) * self.room_border_width
-        full_height = self.height + 2 * self.border_width + (room_rows - 1) * self.room_border_width
+        self.inner_width = self.width * room_cols + (room_cols - 1) * self.room_border_width
+        self.inner_height = self.height * room_rows + (room_rows - 1) * self.room_border_width
 
         if isinstance(self.root, DictConfig):
             self.root = OmegaConf.to_container(self.root)  # type: ignore
@@ -47,12 +47,16 @@ class MapGen(LevelBuilder):
                 children=[
                     ChildrenAction(
                         scene=self.root,
-                        where="full",
+                        where=AreaWhere(tags=["room"]),
                     )
                 ],
             )
 
-        self.grid: MapGrid = np.full((full_height, full_width), "empty", dtype="<U50")
+        self.grid: MapGrid = np.full(
+            (self.inner_height + 2 * self.border_width, self.inner_width + 2 * self.border_width),
+            "empty",
+            dtype="<U50",
+        )
 
         # draw outer walls
         # note that the inner walls when num_rooms > 1 will be drawn by the RoomGrid scene
@@ -66,7 +70,7 @@ class MapGen(LevelBuilder):
     def inner_area(self) -> Area:
         x = self.border_width
         y = self.border_width
-        grid = self.grid[y : y + self.height, x : x + self.width]
+        grid = self.grid[y : y + self.inner_height, x : x + self.inner_width]
 
         return Area(x=x, y=y, width=self.width, height=self.height, grid=grid, tags=[])
 
