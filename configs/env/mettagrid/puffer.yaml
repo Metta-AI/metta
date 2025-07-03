@@ -1,5 +1,12 @@
 defaults:
-  - full
+  - mettagrid
+  - game/objects:
+      - basic
+      - mines
+      - generators
+      - combat
+      - advanced
+
   - _self_
 
 game:
@@ -38,5 +45,6 @@ game:
                 lab: 1
                 factory: 1
                 temple: 1
+
                 block: 20
                 wall: 20
