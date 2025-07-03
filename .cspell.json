@@ -159,6 +159,7 @@
     "PYTHONPATH",
     "randn",
     "raylib",
+    "reinit",
     "relu",
     "repr",
     "representer",

@@ -7,7 +7,7 @@ from typing import Callable, TypeVar
 
 from omegaconf import DictConfig
 
-from metta.common.util.logging import setup_mettagrid_logger
+from metta.common.util.logging_helpers import setup_mettagrid_logger
 from metta.common.util.runtime_configuration import setup_mettagrid_environment
 
 T = TypeVar("T")
