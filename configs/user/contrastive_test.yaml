@@ -1,9 +1,11 @@
 # @package __global__
 
 # Test configuration for contrastive learning
+run: contrastive_test_run
+
 defaults:
-  - trainer/trainer
-  - agent/fast
+  - /trainer/trainer
+  - /agent/fast
   - _self_
 
 trainer:
