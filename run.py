@@ -26,7 +26,6 @@ from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.system_monitor import SystemMonitor
 from metta.eval.eval_stats_db import EvalStatsDB
 from metta.mettagrid import mettagrid_c  # noqa: F401
-from metta.mettagrid.mettagrid_env import MettaGridEnv
 from metta.rl.experience import Experience
 from metta.rl.functions import (
     calculate_explained_variance,
@@ -103,6 +102,7 @@ env = Environment(
     zero_copy=trainer_config.zero_copy,
     is_training=True,
 )
+metta_grid_env = env.driver_env  # type: ignore - vecenv attribute
 
 # Create agent
 agent = Agent(env, device=str(device))  # Uses default config
@@ -147,11 +147,6 @@ optimizer = Optimizer(
     weight_decay=trainer_config.optimizer.weight_decay,
     max_grad_norm=trainer_config.ppo.max_grad_norm,
 )
-
-# Get environment info from the vecenv (not Environment class)
-# Note: env is actually the vecenv returned by Environment.__new__
-metta_grid_env = env.driver_env  # type: ignore - vecenv attribute
-assert isinstance(metta_grid_env, MettaGridEnv)
 
 # Create experience buffer
 logger.info("Creating experience buffer...")
