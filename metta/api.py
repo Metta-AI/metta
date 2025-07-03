@@ -11,7 +11,7 @@ import logging
 import os
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 import gymnasium as gym
 import numpy as np
@@ -31,17 +31,13 @@ from metta.rl.functions import (
     process_minibatch_update,
 )
 from metta.rl.kickstarter import Kickstarter
-from metta.rl.kickstarter_config import KickstartConfig
 from metta.rl.losses import Losses
 from metta.rl.trainer_config import (
     CheckpointConfig,
     OptimizerConfig,
     PPOConfig,
-    PrioritizedExperienceReplayConfig,
     SimulationConfig,
-    TorchProfilerConfig,
     TrainerConfig,
-    VTraceConfig,
 )
 from metta.rl.vecenv import make_vecenv
 
@@ -168,21 +164,10 @@ def create_policy_store(
 
 # Object type IDs from mettagrid/src/metta/mettagrid/objects/constants.hpp
 # TODO: These should be imported from mettagrid once they're exposed via Python bindings
-TYPE_AGENT = 0
-TYPE_WALL = 1
 TYPE_MINE_RED = 2
-TYPE_MINE_BLUE = 3
-TYPE_MINE_GREEN = 4
 TYPE_GENERATOR_RED = 5
-TYPE_GENERATOR_BLUE = 6
-TYPE_GENERATOR_GREEN = 7
 TYPE_ALTAR = 8
-TYPE_ARMORY = 9
-TYPE_LASERY = 10
-TYPE_LAB = 11
-TYPE_FACTORY = 12
-TYPE_TEMPLE = 13
-TYPE_GENERIC_CONVERTER = 14
+TYPE_WALL = 1
 
 
 # Helper to create default environment config
@@ -541,11 +526,7 @@ class TrainingComponents:
         self.epoch = 0
         self.stats = {}
 
-    # Note: The create() classmethod has been removed.
-    # Component instantiation should be done explicitly in user code for better visibility.
-    # See run.py for an example of how to create all components.
-
-    def rollout_step(self) -> Tuple[int, List[Any]]:
+    def rollout_step(self) -> Tuple[int, list]:
         """Perform a single rollout step.
 
         Returns:
@@ -561,7 +542,7 @@ class TrainingComponents:
         """Reset experience buffer for new rollout."""
         self.experience.reset_for_rollout()
 
-    def accumulate_stats(self, raw_infos: List[Any]):
+    def accumulate_stats(self, raw_infos: list):
         """Accumulate rollout statistics."""
         accumulate_rollout_stats(raw_infos, self.stats)
 
@@ -660,55 +641,6 @@ class TrainingComponents:
         self.experience.reset_importance_sampling_ratios()
 
 
-# Helper functions for common operations
-def create_default_trainer_config(
-    num_workers: int = 1,
-    total_timesteps: int = 10_000_000,
-    batch_size: int = 8192,
-    minibatch_size: int = 512,
-    checkpoint_dir: Optional[str] = None,
-    **kwargs,
-) -> TrainerConfig:
-    """Create a default TrainerConfig with sensible values.
-
-    Args:
-        num_workers: Number of parallel workers
-        total_timesteps: Total training timesteps
-        batch_size: Batch size
-        minibatch_size: Minibatch size
-        checkpoint_dir: Directory for checkpoints. If not provided, uses
-                       $DATA_DIR/$METTA_RUN/checkpoints or ./checkpoints
-        **kwargs: Additional config overrides
-
-    Returns:
-        TrainerConfig instance
-    """
-    # Use environment variables for default paths if not provided
-    if checkpoint_dir is None:
-        run_name = os.environ.get("METTA_RUN", "default_run")
-        data_dir = os.environ.get("DATA_DIR", "./train_dir")
-        checkpoint_dir = os.path.join(data_dir, run_name, "checkpoints")
-
-    config_dict = {
-        "num_workers": num_workers,
-        "total_timesteps": total_timesteps,
-        "batch_size": batch_size,
-        "minibatch_size": minibatch_size,
-        "checkpoint": {
-            "checkpoint_dir": checkpoint_dir,
-        },
-        "simulation": {
-            "replay_dir": "./replays",
-        },
-        "curriculum": "/env/mettagrid/simple",
-    }
-
-    # Apply overrides
-    config_dict.update(kwargs)
-
-    return TrainerConfig.model_validate(config_dict)
-
-
 def save_checkpoint(
     policy: MettaAgent,
     policy_store: PolicyStore,
@@ -732,84 +664,6 @@ def save_checkpoint(
     policy_record.policy = policy
 
     return policy_store.save(policy_record)
-
-
-def load_checkpoint(
-    policy_store: PolicyStore,
-    path: str,
-) -> PolicyRecord:
-    """Load a policy checkpoint.
-
-    Args:
-        policy_store: Policy store to use
-        path: Path to checkpoint
-
-    Returns:
-        Loaded PolicyRecord
-    """
-    return policy_store.policy_record(path)
-
-
-def evaluate_policy(
-    policy: MettaAgent,
-    env_config: str,
-    num_episodes: int = 10,
-    device: str = "cuda",
-    render: bool = False,
-) -> Dict[str, float]:
-    """Evaluate a policy on an environment.
-
-    Args:
-        policy: Policy to evaluate
-        env_config: Environment configuration path
-        num_episodes: Number of episodes
-        device: Device to use
-        render: Whether to render
-
-    Returns:
-        Evaluation statistics
-    """
-    # Create evaluation environment - Environment returns a vecenv
-    vecenv = Environment(
-        curriculum_path=env_config,
-        device=device,
-        num_envs=1,
-        is_training=False,
-    )
-
-    total_rewards = []
-    episode_lengths = []
-
-    for _ in range(num_episodes):
-        obs = vecenv.reset()  # type: ignore
-        done = False
-        episode_reward = 0
-        episode_length = 0
-
-        while not done:
-            with torch.no_grad():
-                # Note: Real implementation would handle LSTM states properly
-                action = policy(obs)
-
-            obs, reward, terminated, truncated, info = vecenv.step(action)  # type: ignore
-            done = terminated or truncated
-            episode_reward += reward.sum()
-            episode_length += 1
-
-            if render:
-                vecenv.render()  # type: ignore
-
-        total_rewards.append(episode_reward)
-        episode_lengths.append(episode_length)
-
-    vecenv.close()  # type: ignore
-
-    return {
-        "mean_reward": float(torch.tensor(total_rewards).mean()),
-        "std_reward": float(torch.tensor(total_rewards).std()),
-        "mean_length": float(torch.tensor(episode_lengths).mean()),
-        "std_length": float(torch.tensor(episode_lengths).std()),
-    }
 
 
 def calculate_anneal_beta(
@@ -853,35 +707,12 @@ __all__ = [
     "PPOConfig",
     "CheckpointConfig",
     "SimulationConfig",
-    "PrioritizedExperienceReplayConfig",
-    "VTraceConfig",
-    "KickstartConfig",
-    "TorchProfilerConfig",
     # Helper functions
-    "create_default_trainer_config",
     "save_checkpoint",
-    "load_checkpoint",
-    "evaluate_policy",
     "calculate_anneal_beta",
     "setup_run_directories",
     "save_experiment_config",
     "create_policy_store",
     # Helper classes
     "RunDirectories",
-    # Constants
-    "TYPE_AGENT",
-    "TYPE_WALL",
-    "TYPE_MINE_RED",
-    "TYPE_MINE_BLUE",
-    "TYPE_MINE_GREEN",
-    "TYPE_GENERATOR_RED",
-    "TYPE_GENERATOR_BLUE",
-    "TYPE_GENERATOR_GREEN",
-    "TYPE_ALTAR",
-    "TYPE_ARMORY",
-    "TYPE_LASERY",
-    "TYPE_LAB",
-    "TYPE_FACTORY",
-    "TYPE_TEMPLE",
-    "TYPE_GENERIC_CONVERTER",
 ]

@@ -160,7 +160,7 @@ elif optimizer_type == "muon":
         lr=learning_rate,
         betas=betas,
         eps=eps,
-        weight_decay=float(weight_decay),
+        weight_decay=weight_decay,
     )
 else:
     raise ValueError(f"Unknown optimizer type: {optimizer_type}. Choose 'adam' or 'muon'")
@@ -168,15 +168,16 @@ else:
 # Create training components individually for visibility
 logger.info("Creating training components...")
 
-# Get environment info
-metta_grid_env = env.driver_env
+# Get environment info from the vecenv (not Environment class)
+# Note: env is actually the vecenv returned by Environment.__new__
+metta_grid_env = env.driver_env  # type: ignore - vecenv attribute
 assert isinstance(metta_grid_env, MettaGridEnv)
 
 # Create experience buffer
 logger.info("Creating experience buffer...")
-obs_space = env.single_observation_space
-atn_space = env.single_action_space
-total_agents = env.num_agents
+obs_space = env.single_observation_space  # type: ignore - vecenv attribute
+atn_space = env.single_action_space  # type: ignore - vecenv attribute
+total_agents = env.num_agents  # type: ignore - vecenv attribute
 hidden_size, num_lstm_layers = get_lstm_config(agent)
 
 experience = Experience(
@@ -191,7 +192,7 @@ experience = Experience(
     hidden_size=hidden_size,
     cpu_offload=trainer_config.cpu_offload,
     num_lstm_layers=num_lstm_layers,
-    agents_per_batch=getattr(env, "agents_per_batch", None),
+    agents_per_batch=getattr(env, "agents_per_batch", None),  # type: ignore
 )
 
 # Create kickstarter
@@ -404,8 +405,8 @@ while training.agent_step < trainer_config.total_timesteps:
 
     # Update L2 weights if configured
     if hasattr(agent, "l2_init_weight_update_interval"):
-        l2_interval = agent.l2_init_weight_update_interval
-        if l2_interval > 0 and training.epoch % l2_interval == 0:
+        l2_interval = getattr(agent, "l2_init_weight_update_interval", 0)
+        if isinstance(l2_interval, int) and l2_interval > 0 and training.epoch % l2_interval == 0:
             if hasattr(agent, "update_l2_init_weight_copy"):
                 agent.update_l2_init_weight_copy()
                 logger.info(f"Updated L2 init weights at epoch {training.epoch}")
