@@ -43,6 +43,68 @@ from metta.rl.vecenv import make_vecenv
 logger = logging.getLogger(__name__)
 
 
+def setup_device_and_distributed(base_device: str = "cuda", logger_name: str = "metta") -> torch.device:
+    """Set up device and optionally initialize distributed training.
+
+    This function automatically detects multi-GPU setups and initializes
+    distributed training when appropriate.
+
+    Args:
+        base_device: Base device string ("cuda" or "cpu")
+        logger_name: Name prefix for the logger
+
+    Returns:
+        torch.device: The device to use for training
+    """
+    import os
+
+    # Get logger with rank info if available
+    rank = int(os.environ.get("RANK", 0))
+    local_rank = int(os.environ.get("LOCAL_RANK", 0))
+    device_logger = logging.getLogger(f"{logger_name}-{rank}-{local_rank}")
+
+    # Check if we're in a distributed environment
+    if "LOCAL_RANK" in os.environ and base_device.startswith("cuda"):
+        device_logger.info(f"Initializing distributed training with LOCAL_RANK={local_rank}")
+
+        # Initialize distributed training
+        if not torch.distributed.is_initialized():
+            torch.distributed.init_process_group(backend="nccl")
+            device_logger.info("Distributed training initialized")
+
+        # Use the local rank for device assignment
+        device = torch.device(f"{base_device}:{local_rank}")
+
+    elif torch.cuda.is_available() and torch.cuda.device_count() > 1:
+        # Multiple GPUs available but no distributed setup
+        device_logger.warning(
+            f"Multiple GPUs detected ({torch.cuda.device_count()}) but distributed training not initialized. "
+            "For multi-GPU training, run with torchrun or set LOCAL_RANK environment variable."
+        )
+        device = torch.device(base_device if base_device != "cuda" else "cuda:0")
+
+    else:
+        # Single GPU or CPU
+        device = torch.device(base_device)
+
+    device_logger.info(f"Using device: {device}")
+
+    # Log distributed status
+    if torch.distributed.is_initialized():
+        world_size = torch.distributed.get_world_size()
+        rank = torch.distributed.get_rank()
+        device_logger.info(f"Distributed mode: rank {rank}/{world_size}")
+
+    return device
+
+
+def cleanup_distributed():
+    """Clean up distributed training if it was initialized."""
+    if torch.distributed.is_initialized():
+        torch.distributed.destroy_process_group()
+        logger.info("Distributed training cleaned up")
+
+
 # Named tuple for run directories
 class RunDirectories:
     """Container for run directory paths."""
@@ -795,6 +857,8 @@ __all__ = [
     "setup_run_directories",
     "save_experiment_config",
     "save_checkpoint",
+    "setup_device_and_distributed",
+    "cleanup_distributed",
     # Functions from rl.functions (commonly used)
     "perform_rollout_step",
     "process_minibatch_update",

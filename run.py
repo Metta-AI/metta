@@ -15,11 +15,13 @@ from metta.api import (
     Optimizer,
     accumulate_rollout_stats,
     calculate_anneal_beta,
+    cleanup_distributed,
     compute_advantage,
     perform_rollout_step,
     process_minibatch_update,
     save_checkpoint,
     save_experiment_config,
+    setup_device_and_distributed,
     setup_run_directories,
 )
 from metta.common.profiling.memory_monitor import MemoryMonitor
@@ -53,7 +55,9 @@ from metta.sim.simulation_suite import SimulationSuite
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 dirs = setup_run_directories()
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+# Set up device and distributed training if available
+device = setup_device_and_distributed("cuda" if torch.cuda.is_available() else "cpu")
 trainer_config = TrainerConfig(
     num_workers=4,
     total_timesteps=10_000_000,
@@ -544,3 +548,6 @@ saved_policy_path = save_checkpoint(
 env.close()  # type: ignore
 
 logger.info(f"\nTraining run complete! Run saved to: {dirs.run_dir}")
+
+# Clean up distributed training if initialized
+cleanup_distributed()
