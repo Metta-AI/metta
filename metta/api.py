@@ -1154,48 +1154,47 @@ def create_evaluation_config_suite() -> SimulationSuiteConfig:
     Returns:
         SimulationSuiteConfig with navigation tasks
     """
-    from metta.sim.simulation_config import SimulationSuiteConfig
+    from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
 
     # Create pre-built navigation evaluation configs
     base_nav_config = _get_default_env_config()
     base_nav_config["sampling"] = 0  # Disable sampling for evaluation
 
     # Create evaluation configs for different terrain sizes
-    # We need to provide dicts, not SingleEnvSimulationConfig objects
     simulations = {}
 
     # Small terrain evaluation
-    simulations["navigation/terrain_small"] = {
-        "env": "/env/mettagrid/navigation/training/terrain_from_numpy",
-        "num_episodes": 5,
-        "max_time_s": 30,
-        "env_overrides": {
+    simulations["navigation/terrain_small"] = SingleEnvSimulationConfig(
+        env="/env/mettagrid/navigation/training/terrain_from_numpy",
+        num_episodes=5,
+        max_time_s=30,
+        env_overrides={
             "game": {"map_builder": {"room": {"dir": "varied_terrain/balanced_small"}}},
             "_pre_built_env_config": DictConfig(base_nav_config.copy()),
         },
-    }
+    )
 
     # Medium terrain evaluation
-    simulations["navigation/terrain_medium"] = {
-        "env": "/env/mettagrid/navigation/training/terrain_from_numpy",
-        "num_episodes": 5,
-        "max_time_s": 30,
-        "env_overrides": {
+    simulations["navigation/terrain_medium"] = SingleEnvSimulationConfig(
+        env="/env/mettagrid/navigation/training/terrain_from_numpy",
+        num_episodes=5,
+        max_time_s=30,
+        env_overrides={
             "game": {"map_builder": {"room": {"dir": "varied_terrain/balanced_medium"}}},
             "_pre_built_env_config": DictConfig(base_nav_config.copy()),
         },
-    }
+    )
 
     # Large terrain evaluation
-    simulations["navigation/terrain_large"] = {
-        "env": "/env/mettagrid/navigation/training/terrain_from_numpy",
-        "num_episodes": 5,
-        "max_time_s": 30,
-        "env_overrides": {
+    simulations["navigation/terrain_large"] = SingleEnvSimulationConfig(
+        env="/env/mettagrid/navigation/training/terrain_from_numpy",
+        num_episodes=5,
+        max_time_s=30,
+        env_overrides={
             "game": {"map_builder": {"room": {"dir": "varied_terrain/balanced_large"}}},
             "_pre_built_env_config": DictConfig(base_nav_config.copy()),
         },
-    }
+    )
 
     # Create suite config
     evaluation_config = SimulationSuiteConfig(
