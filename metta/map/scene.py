@@ -223,11 +223,20 @@ class Scene(Generic[ParamsT]):
     @classmethod
     def intrinsic_size(cls, params: ParamsT) -> tuple[int, int] | None:
         """
-        Some scenes have a fixed size, which can be used to compute the size of the map.
+        Some scenes have a fixed size, which can be used to compute the size of
+        the map.
 
-        For example, an ascii map has a fixed size, which can be used to compute the size of the map.
+        For example, an ascii map has a fixed size, which can be used to compute
+        the size of the map.
 
-        This is a class method, because an instantiated scene is already bound to an area, and we can't change it.
+        This is a class method, because an instantiated scene is already bound
+        to an area, and we can't change it.
+
+        Because of this limitation, the utility of intrinsically sized scenes is
+        limited. The main way of sizing scenes is the top-down algorithm, where
+        the size of the child scenes is computed based on the size of the parent
+        scene, and the size of the top-level scene is determined by MapGen
+        params.
 
         The returned pair is (height, width), same order as in numpy arrays.
         """
