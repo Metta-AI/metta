@@ -1,29 +1,34 @@
-import { z } from "zod";
+import * as z from "zod/v4";
 
 import { API_URL } from "../server/constants";
 import { MapIndex, MapMetadata } from "../server/types";
 
-export type StorableMap = {
-  frontmatter: {
-    metadata: Record<string, unknown>;
-    config: Record<string, unknown>;
-  };
-  data: string;
-};
+const sceneTreeSchema = z.object({
+  type: z.string(),
+  params: z.record(z.string(), z.unknown()),
+  area: z.object({
+    x: z.number(),
+    y: z.number(),
+    width: z.number(),
+    height: z.number(),
+  }),
+  get children() {
+    return z.array(sceneTreeSchema);
+  },
+});
 
-function parseStorableMap(map: unknown): StorableMap {
-  const parsed = z
-    .object({
-      frontmatter: z.object({
-        metadata: z.record(z.string(), z.unknown()),
-        config: z.record(z.string(), z.unknown()),
-      }),
-      data: z.string(),
-    })
-    .parse(map);
+export type SceneTree = z.infer<typeof sceneTreeSchema>;
 
-  return parsed;
-}
+const storableMapSchema = z.object({
+  frontmatter: z.object({
+    metadata: z.record(z.string(), z.unknown()),
+    config: z.record(z.string(), z.unknown()),
+    scene_tree: sceneTreeSchema.nullable(),
+  }),
+  data: z.string(),
+});
+
+export type StorableMap = z.infer<typeof storableMapSchema>;
 
 export async function getStoredMapDirs(): Promise<string[]> {
   const response = await fetch(`${API_URL}/stored-maps/dirs`);
@@ -53,7 +58,7 @@ export async function findStoredMaps(
 export async function getStoredMap(url: string): Promise<StorableMap> {
   const response = await fetch(`${API_URL}/stored-maps/get-map?url=${url}`);
   const data = await response.json();
-  return parseStorableMap(data);
+  return storableMapSchema.parse(data);
 }
 
 export async function loadStoredMapIndex(dir: string): Promise<MapIndex> {
@@ -128,7 +133,7 @@ export async function getMettagridCfgMap(
   if ("error" in data) {
     return { type: "error", error: String(data.error) };
   }
-  return { type: "map", data: parseStorableMap(data) };
+  return { type: "map", data: storableMapSchema.parse(data) };
 }
 
 export async function indexDir(dir: string): Promise<void> {

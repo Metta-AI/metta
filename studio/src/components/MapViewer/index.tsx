@@ -16,12 +16,16 @@ import {
 
 type CellHandler = (cell: Cell | undefined) => void;
 
+// Useful for external components to draw on top of the map, e.g. for drawing areas from the scene tree.
+export type MapDrawer = (context: CanvasRenderingContext2D) => void;
+
 type Props = {
   grid: MettaGrid;
   onCellHover?: CellHandler;
   selectedCell?: Cell;
   onCellSelect?: CellHandler;
   panOnSpace?: boolean;
+  drawExtra?: MapDrawer;
 };
 
 const MapViewerBrowserOnly: FC<Props> = ({
@@ -30,6 +34,7 @@ const MapViewerBrowserOnly: FC<Props> = ({
   onCellSelect,
   selectedCell,
   panOnSpace,
+  drawExtra,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -125,6 +130,8 @@ const MapViewerBrowserOnly: FC<Props> = ({
         context,
         drawer,
       });
+
+      drawExtra?.(context);
     } catch (e) {
       context.resetTransform();
       context.fillStyle = "black";
@@ -157,7 +164,7 @@ const MapViewerBrowserOnly: FC<Props> = ({
       context.roundRect(selectedCell.c, selectedCell.r, 1, 1, 0.1);
       context.stroke();
     }
-  }, [drawer, grid, transform, hoveredCell, selectedCell]);
+  }, [drawer, grid, transform, hoveredCell, selectedCell, drawExtra]);
 
   useCallOnWindowResize(initCanvas);
   useCallOnElementResize(canvasRef.current, initCanvas);
