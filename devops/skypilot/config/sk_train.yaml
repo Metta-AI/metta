@@ -44,11 +44,11 @@ run: |
   cd /workspace/metta
   source ./devops/setup.env
 
-  # Add explicit logging
   echo "METTA_RUN_ID: $METTA_RUN_ID"
   echo "SKYPILOT_TASK_ID: $SKYPILOT_TASK_ID"
   echo "Running latency script..."
 
+  export PYTHONPATH=/workspace/metta/common/src:$PYTHONPATH
   python -m metta.common.util.skypilot_latency 2>&1 | tee latency_output.log
   echo "Latency script exit code: $?"
 
