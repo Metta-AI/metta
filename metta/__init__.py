@@ -26,6 +26,7 @@ from metta.api import (
     compute_advantage,
     perform_rollout_step,
     process_minibatch_update,
+    save_experiment_config,
     setup_run_directories,
 )
 
@@ -49,6 +50,7 @@ __all__ = [
     "Stopwatch",
     # Helper functions
     "calculate_anneal_beta",
+    "save_experiment_config",
     "setup_run_directories",
     # Functions from rl.functions
     "accumulate_rollout_stats",

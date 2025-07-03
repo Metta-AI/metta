@@ -2,11 +2,10 @@
 """Example of using Metta as a library without Hydra configuration."""
 
 import logging
-import os
 import time
 
 import torch
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig
 
 from metta.agent.policy_store import PolicyStore
 from metta.api import (
@@ -18,6 +17,7 @@ from metta.api import (
     compute_advantage,
     perform_rollout_step,
     process_minibatch_update,
+    save_experiment_config,
     setup_run_directories,
 )
 from metta.common.profiling.memory_monitor import MemoryMonitor
@@ -107,27 +107,7 @@ env = Environment(
 agent = Agent(env, device=str(device))  # Uses default config
 
 # Save configuration to run directory (like train.py does)
-experiment_config = {
-    "run": dirs.run_name,
-    "run_dir": dirs.run_dir,
-    "data_dir": os.path.dirname(dirs.run_dir),  # Get parent directory
-    "device": str(device),
-    "trainer": {
-        "num_workers": trainer_config.num_workers,
-        "total_timesteps": trainer_config.total_timesteps,
-        "batch_size": trainer_config.batch_size,
-        "minibatch_size": trainer_config.minibatch_size,
-        "checkpoint_dir": dirs.checkpoint_dir,
-        "optimizer": trainer_config.optimizer.model_dump(),
-        "ppo": trainer_config.ppo.model_dump(),
-        "checkpoint": trainer_config.checkpoint.model_dump(),
-        "simulation": trainer_config.simulation.model_dump(),
-        "profiler": trainer_config.profiler.model_dump(),
-    },
-}
-# Save config directly
-OmegaConf.save(experiment_config, os.path.join(dirs.run_dir, "config.yaml"))
-logger.info(f"Saved config to {os.path.join(dirs.run_dir, 'config.yaml')}")
+save_experiment_config(dirs, device, trainer_config)
 
 # Create policy store directly with minimal config
 policy_store = PolicyStore(

@@ -97,6 +97,49 @@ def setup_run_directories(run_name: Optional[str] = None, data_dir: Optional[str
     )
 
 
+def save_experiment_config(
+    dirs: RunDirectories,
+    device: torch.device,
+    trainer_config: TrainerConfig,
+) -> None:
+    """Save training configuration to config.yaml in the run directory.
+
+    This builds the experiment configuration from the provided components
+    and saves it for reproducibility.
+
+    Args:
+        dirs: RunDirectories object with paths
+        device: Training device
+        trainer_config: TrainerConfig object with training parameters
+    """
+    from omegaconf import OmegaConf
+
+    # Build experiment configuration
+    experiment_config = {
+        "run": dirs.run_name,
+        "run_dir": dirs.run_dir,
+        "data_dir": os.path.dirname(dirs.run_dir),
+        "device": str(device),
+        "trainer": {
+            "num_workers": trainer_config.num_workers,
+            "total_timesteps": trainer_config.total_timesteps,
+            "batch_size": trainer_config.batch_size,
+            "minibatch_size": trainer_config.minibatch_size,
+            "checkpoint_dir": dirs.checkpoint_dir,
+            "optimizer": trainer_config.optimizer.model_dump(),
+            "ppo": trainer_config.ppo.model_dump(),
+            "checkpoint": trainer_config.checkpoint.model_dump(),
+            "simulation": trainer_config.simulation.model_dump(),
+            "profiler": trainer_config.profiler.model_dump(),
+        },
+    }
+
+    # Save to file
+    config_path = os.path.join(dirs.run_dir, "config.yaml")
+    OmegaConf.save(experiment_config, config_path)
+    logger.info(f"Saved config to {config_path}")
+
+
 # Helper to create default environment config
 def _get_default_env_config(num_agents: int = 4, width: int = 32, height: int = 32) -> Dict[str, Any]:
     """Get default environment configuration."""
@@ -566,6 +609,7 @@ __all__ = [
     # Helper functions
     "calculate_anneal_beta",
     "setup_run_directories",
+    "save_experiment_config",
     # Functions from rl.functions (commonly used)
     "perform_rollout_step",
     "process_minibatch_update",
