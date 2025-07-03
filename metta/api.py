@@ -147,6 +147,92 @@ def _get_default_env_config(num_agents: int = 4, width: int = 32, height: int = 
     }
 
 
+def _get_default_agent_config(device: str = "cuda") -> Dict[str, Any]:
+    """Get default agent configuration based on fast.yaml architecture."""
+    return {
+        "device": device,
+        "agent": {
+            "clip_range": 0,
+            "analyze_weights_interval": 300,
+            "l2_init_weight_update_interval": 0,
+            "observations": {"obs_key": "grid_obs"},
+            "components": {
+                "_obs_": {
+                    "_target_": "metta.agent.lib.obs_token_to_box_shaper.ObsTokenToBoxShaper",
+                    "sources": None,
+                },
+                "obs_normalizer": {
+                    "_target_": "metta.agent.lib.observation_normalizer.ObservationNormalizer",
+                    "sources": [{"name": "_obs_"}],
+                },
+                "cnn1": {
+                    "_target_": "metta.agent.lib.nn_layer_library.Conv2d",
+                    "sources": [{"name": "obs_normalizer"}],
+                    "nn_params": {
+                        "out_channels": 32,
+                        "kernel_size": 3,
+                        "stride": 1,
+                        "padding": 1,
+                    },
+                },
+                "cnn2": {
+                    "_target_": "metta.agent.lib.nn_layer_library.Conv2d",
+                    "sources": [{"name": "cnn1"}],
+                    "nn_params": {
+                        "out_channels": 64,
+                        "kernel_size": 3,
+                        "stride": 1,
+                        "padding": 1,
+                    },
+                },
+                "obs_flattener": {
+                    "_target_": "metta.agent.lib.nn_layer_library.Flatten",
+                    "sources": [{"name": "cnn2"}],
+                },
+                "encoded_obs": {
+                    "_target_": "metta.agent.lib.nn_layer_library.Linear",
+                    "sources": [{"name": "obs_flattener"}],
+                    "nn_params": {"out_features": 512},
+                },
+                "_core_": {
+                    "_target_": "metta.agent.lib.lstm.LSTM",
+                    "sources": [{"name": "encoded_obs"}],
+                    "output_size": 512,
+                    "nn_params": {
+                        "num_layers": 1,
+                    },
+                },
+                "_value_": {
+                    "_target_": "metta.agent.lib.nn_layer_library.Linear",
+                    "sources": [{"name": "_core_"}],
+                    "nn_params": {"out_features": 1},
+                    "nonlinearity": None,
+                },
+                "actor_1": {
+                    "_target_": "metta.agent.lib.nn_layer_library.Linear",
+                    "sources": [{"name": "_core_"}],
+                    "nn_params": {"out_features": 512},
+                },
+                "_action_embeds_": {
+                    "_target_": "metta.agent.lib.action.ActionEmbedding",
+                    "sources": None,
+                    "nn_params": {
+                        "num_embeddings": 100,
+                        "embedding_dim": 16,
+                    },
+                },
+                "_action_": {
+                    "_target_": "metta.agent.lib.actor.MettaActorSingleHead",
+                    "sources": [
+                        {"name": "actor_1"},
+                        {"name": "_action_embeds_"},
+                    ],
+                },
+            },
+        },
+    }
+
+
 class Environment:
     """Factory for creating MettaGrid environments with a clean API.
 
@@ -250,19 +336,23 @@ class Agent:
     def __new__(
         cls,
         env: Any,  # vecenv wrapper
-        config: DictConfig,
+        config: Optional[DictConfig] = None,
         device: str = "cuda",
     ) -> MettaAgent:
         """Create a Metta agent.
 
         Args:
             env: Vectorized environment (from Environment factory)
-            config: DictConfig with agent configuration
+            config: Optional DictConfig with agent configuration. If not provided, uses a default configuration.
             device: Device to use
 
         Returns:
             MettaAgent instance
         """
+        # Use default config if none provided
+        if config is None:
+            config = DictConfig(_get_default_agent_config(device))
+
         # Get the actual MettaGridEnv from vecenv wrapper
         metta_grid_env = env.driver_env
         assert isinstance(metta_grid_env, MettaGridEnv)
