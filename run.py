@@ -53,8 +53,6 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 dirs = setup_run_directories()
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-# Create trainer config with structured Pydantic classes
 trainer_config = TrainerConfig(
     num_workers=4,
     total_timesteps=10_000_000,
@@ -87,6 +85,7 @@ trainer_config = TrainerConfig(
     ),
     grad_mean_variance_interval=50,  # Compute gradient stats every 50 epochs
 )
+save_experiment_config(dirs, device, trainer_config)
 
 # Create environment with bucketed navigation curriculum
 env = Environment(
@@ -106,34 +105,6 @@ metta_grid_env = env.driver_env  # type: ignore - vecenv attribute
 
 # Create agent
 agent = Agent(env, device=str(device))  # Uses default config
-
-# Save configuration to run directory (like train.py does)
-<<<<<<< HEAD
-save_experiment_config(dirs, device, trainer_config)
-=======
-experiment_config = {
-    "run": dirs.run_name,
-    "run_dir": dirs.run_dir,
-    "data_dir": os.path.dirname(dirs.run_dir),  # Get parent directory
-    "device": str(device),
-    "trainer": {
-        "num_workers": trainer_config.num_workers,
-        "total_timesteps": trainer_config.total_timesteps,
-        "batch_size": trainer_config.batch_size,
-        "minibatch_size": trainer_config.minibatch_size,
-        "checkpoint_dir": dirs.checkpoint_dir,
-        "optimizer": trainer_config.optimizer.model_dump(),
-        "ppo": trainer_config.ppo.model_dump(),
-        "checkpoint": trainer_config.checkpoint.model_dump(),
-        "simulation": trainer_config.simulation.model_dump(),
-        "profiler": trainer_config.profiler.model_dump(),
-        "curriculum": "/env/mettagrid/curriculum/navigation/bucketed",
-    },
-}
-# Save config directly
-OmegaConf.save(experiment_config, os.path.join(dirs.run_dir, "config.yaml"))
-logger.info(f"Saved config to {os.path.join(dirs.run_dir, 'config.yaml')}")
->>>>>>> 3f716e12c2bde6afd8f9a3e28511a3895c867458
 
 # Create policy store directly with minimal config
 policy_store = PolicyStore(
@@ -207,10 +178,6 @@ if hasattr(trainer_config, "lr_scheduler") and trainer_config.lr_scheduler.enabl
     )
     logger.info("Created learning rate scheduler")
 
-# Training state variables
-agent_step = 0
-epoch = 0
-stats = {}
 
 # Load checkpoint if exists
 checkpoint_path = trainer_config.checkpoint.checkpoint_dir
@@ -228,6 +195,9 @@ if checkpoint:
             logger.info("Successfully loaded optimizer state from checkpoint")
         except ValueError:
             logger.warning("Optimizer state dict doesn't match. Starting with fresh optimizer state.")
+else:
+    agent_step = 0
+    epoch = 0
 
 # Memory and System Monitoring
 memory_monitor = MemoryMonitor()
@@ -273,6 +243,7 @@ logger.info(f"Starting training on {device}")
 evaluation_scores = {}
 epoch_start_time = time.time()
 steps_at_epoch_start = agent_step
+stats = {}
 
 while agent_step < trainer_config.total_timesteps:
     steps_before = agent_step
