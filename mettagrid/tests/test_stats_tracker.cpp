@@ -11,8 +11,7 @@ public:
 // Test fixture for StatsTracker
 class StatsTrackerTest : public ::testing::Test {
 protected:
-  std::vector<std::string> empty_inventory_item_names;
-  StatsTracker stats{empty_inventory_item_names};
+  StatsTracker stats;
 
   MockMettaGrid mock_env;
 
