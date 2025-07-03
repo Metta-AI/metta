@@ -82,7 +82,6 @@ def setup_device_and_distributed(base_device: str = "cuda") -> torch.device:
     """
     # Check if we're in a distributed environment
     if "LOCAL_RANK" in os.environ:
-        logger.info(f"Initializing distributed training with LOCAL_RANK={os.environ['LOCAL_RANK']}")
         local_rank = int(os.environ["LOCAL_RANK"])
 
         # For CUDA, use device with local rank
@@ -95,12 +94,11 @@ def setup_device_and_distributed(base_device: str = "cuda") -> torch.device:
             backend = "gloo"
 
         torch.distributed.init_process_group(backend=backend)
-        logger.info(f"Distributed training initialized with backend={backend} on {device}")
     else:
         # Single GPU or CPU
         device = torch.device(base_device)
-        logger.info(f"Using device: {device}")
 
+    logger.info(f"Using device: {device}")
     return device
 
 
@@ -108,7 +106,6 @@ def cleanup_distributed():
     """Clean up distributed training if it was initialized."""
     if torch.distributed.is_initialized():
         torch.distributed.destroy_process_group()
-        logger.info("Distributed training cleaned up")
 
 
 # Named tuple for run directories
@@ -807,7 +804,7 @@ def save_checkpoint(
     if not should_save:
         return None
 
-    logger.info(f"Saving policy at epoch {epoch}")
+    logger.info(f"Saving checkpoint at epoch {epoch}")
 
     # Extract the actual policy module from distributed wrapper if needed
     from torch.nn.parallel import DistributedDataParallel
@@ -833,11 +830,8 @@ def save_checkpoint(
 
     # Save through policy store
     saved_policy_record = policy_store.save(policy_record)
-    logger.info(f"Successfully saved policy at epoch {epoch}")
 
     # Save training state
-    logger.info("Saving training state...")
-
     # Get optimizer state dict
     optimizer_state_dict = None
     if optimizer is not None:
@@ -857,7 +851,6 @@ def save_checkpoint(
         stopwatch_state=None,
     )
     trainer_checkpoint.save(checkpoint_path)
-    logger.info(f"Saved training state at epoch {epoch}")
 
     # Clean up old policies to prevent disk space issues
     if epoch % 10 == 0:
@@ -897,8 +890,6 @@ def load_checkpoint(
     existing_checkpoint = TrainerCheckpoint.load(checkpoint_dir)
 
     if existing_checkpoint:
-        logger.info(f"Found checkpoint at {existing_checkpoint.agent_step} steps")
-
         # Restore training state
         agent_step = existing_checkpoint.agent_step
         epoch = existing_checkpoint.epoch
@@ -908,7 +899,6 @@ def load_checkpoint(
             try:
                 policy_pr = policy_store.policy_record(existing_checkpoint.policy_path)
                 agent.load_state_dict(policy_pr.policy.state_dict())
-                logger.info(f"Loaded policy state from {existing_checkpoint.policy_path}")
             except Exception as e:
                 logger.warning(f"Failed to load policy state: {e}")
 
@@ -921,14 +911,12 @@ def load_checkpoint(
                 elif hasattr(optimizer, "load_state_dict"):
                     # Handle raw PyTorch optimizer
                     optimizer.load_state_dict(existing_checkpoint.optimizer_state_dict)
-                logger.info("Loaded optimizer state from checkpoint")
             except ValueError:
                 logger.warning("Optimizer state dict doesn't match. Starting with fresh optimizer state.")
 
         return agent_step, epoch, existing_checkpoint.policy_path
 
     # No checkpoint found
-    logger.info("No checkpoint found, starting fresh")
     return 0, 0, None
 
 
@@ -947,19 +935,15 @@ def wrap_agent_distributed(agent: Any, device: torch.device) -> Any:
 
         from metta.agent.metta_agent import DistributedMettaAgent
 
-        logger.info(f"Initializing DistributedDataParallel on device {device}")
-
         # For CPU, we need to handle DistributedDataParallel differently
         if device.type == "cpu":
             # Convert BatchNorm to SyncBatchNorm
             agent = torch.nn.SyncBatchNorm.convert_sync_batchnorm(agent)
             # For CPU, don't pass device_ids
             agent = DistributedDataParallel(agent)
-            logger.info("Agent wrapped in DistributedDataParallel (CPU mode)")
         else:
             # For GPU, use the custom DistributedMettaAgent wrapper
             agent = DistributedMettaAgent(agent, device)
-            logger.info("Agent wrapped in DistributedMettaAgent (GPU mode)")
 
     return agent
 
