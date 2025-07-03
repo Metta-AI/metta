@@ -17,8 +17,8 @@ game:
 
     room:
       _target_: metta.mettagrid.room.random.Random
-      width: 25
-      height: 25
+      width: 10 #25
+      height: 10 #25
       border_width: 0
 
       agents: 6
@@ -28,5 +28,5 @@ game:
         generator_red: 5
         altar: 5
 
-        block: 50
-        wall: 50
+        block: 3 #50
+        wall: 3 #50
