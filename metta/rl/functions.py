@@ -91,6 +91,16 @@ def perform_rollout_step(
         lstm_state=lstm_state_to_store,
     )
 
+    # Collect basal ganglia reward components if available
+    basal_ganglia_stats = {}
+    try:
+        # Get basal ganglia stats from the policy if available
+        if hasattr(policy, 'get_basal_ganglia_stats'):
+            basal_ganglia_stats = policy.get_basal_ganglia_stats()
+    except Exception:
+        # If we can't extract the stats, just continue without them
+        pass
+
     # Send actions back to environment
     if timer:
         with timer("_rollout.env"):
@@ -98,7 +108,12 @@ def perform_rollout_step(
     else:
         vecenv.send(actions.cpu().numpy().astype(dtype_actions))
 
-    return num_steps, info
+    # Combine environment info with basal ganglia stats
+    combined_info = info.copy() if info else []
+    if basal_ganglia_stats:
+        combined_info.append(basal_ganglia_stats)
+
+    return num_steps, combined_info
 
 
 def compute_ppo_losses(

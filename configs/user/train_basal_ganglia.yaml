@@ -1,3 +1,8 @@
+# @package __global__
+
+# User config for basal ganglia reward shaping experiment
+run: train_basal_ganglia
+
 env: simple
 
 defaults:
@@ -17,10 +22,10 @@ cmd: train
 
 # Override trainer settings for basal ganglia experiment
 trainer:
-  num_workers: 8  # Adjust based on available hardware
+  num_workers: 1  # Reduced for CPU testing
   total_timesteps: 10_000_000  # Start with smaller number for testing
-  batch_size: 262144  # Smaller batch size for initial testing
-  minibatch_size: 8192
+  batch_size: 340  # Adjusted for num_workers=1 and num_envs=340
+  minibatch_size: 340  # Must be <= batch_size
   bptt_horizon: 32  # Shorter horizon for initial testing
 
   optimizer:

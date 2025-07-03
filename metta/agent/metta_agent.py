@@ -484,6 +484,9 @@ class MettaAgent(nn.Module):
         state.lstm_h = td["state"][:split_size]
         state.lstm_c = td["state"][split_size:]
 
+        # Store TensorDict for stats collection
+        self._last_tensor_dict = td
+
         if action is None:
             return self.forward_inference(value, logits)
         else:
@@ -606,3 +609,43 @@ class MettaAgent(nn.Module):
 
         metrics_list = [metrics for metrics in results.values() if metrics is not None]
         return metrics_list
+
+    def get_basal_ganglia_stats(self) -> dict:
+        """Collect basal ganglia reward components from the last forward pass.
+
+        Returns:
+            Dictionary containing basal ganglia reward components, or empty dict if not available.
+        """
+        if not hasattr(self, '_last_tensor_dict') or self._last_tensor_dict is None:
+            return {}
+
+        td = self._last_tensor_dict
+        stats = {}
+
+        # Check for basal ganglia components in the TensorDict
+        basal_ganglia_keys = [
+            'basal_ganglia_learned_raw',
+            'basal_ganglia_novelty_raw',
+            'basal_ganglia_exploration_raw',
+            'basal_ganglia_mastery_raw',
+            'basal_ganglia_learned_weighted',
+            'basal_ganglia_novelty_weighted',
+            'basal_ganglia_exploration_weighted',
+            'basal_ganglia_mastery_weighted',
+            'basal_ganglia_augmented_total'
+        ]
+
+        for key in basal_ganglia_keys:
+            if key in td:
+                # Convert tensor to scalar if it's a single value
+                value = td[key]
+                if torch.is_tensor(value):
+                    if value.numel() == 1:
+                        stats[key] = value.item()
+                    else:
+                        # For multi-element tensors, take the mean
+                        stats[key] = value.mean().item()
+                else:
+                    stats[key] = value
+
+        return stats

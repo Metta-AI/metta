@@ -91,6 +91,20 @@ class BasalGangliaRewardShaper(LayerBase):
             mastery_bonus * self.mastery_weight
         )
 
+        # Store reward components in tensor dict for trainer stats collection
+        # These will be collected by the trainer's stats system and logged to wandb
+        td["basal_ganglia_learned_raw"] = base_augmented_reward
+        td["basal_ganglia_novelty_raw"] = novelty_bonus
+        td["basal_ganglia_exploration_raw"] = exploration_bonus
+        td["basal_ganglia_mastery_raw"] = mastery_bonus
+
+        td["basal_ganglia_learned_weighted"] = base_augmented_reward * self.reward_scale
+        td["basal_ganglia_novelty_weighted"] = novelty_bonus * self.novelty_weight
+        td["basal_ganglia_exploration_weighted"] = exploration_bonus * self.exploration_weight
+        td["basal_ganglia_mastery_weighted"] = mastery_bonus * self.mastery_weight
+
+        td["basal_ganglia_augmented_total"] = augmented_reward
+
         # Store the augmented reward in the tensor dict
         td[self._name] = augmented_reward
 
