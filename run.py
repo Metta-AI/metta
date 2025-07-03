@@ -6,7 +6,9 @@ import os
 import time
 
 import torch
+from omegaconf import DictConfig, OmegaConf
 
+from metta.agent.policy_store import PolicyStore
 from metta.api import (
     Agent,
     Environment,
@@ -14,10 +16,8 @@ from metta.api import (
     accumulate_rollout_stats,
     calculate_anneal_beta,
     compute_advantage,
-    create_policy_store,
     perform_rollout_step,
     process_minibatch_update,
-    save_experiment_config,
     setup_run_directories,
 )
 from metta.common.profiling.memory_monitor import MemoryMonitor
@@ -125,15 +125,26 @@ experiment_config = {
         "profiler": trainer_config.profiler.model_dump(),
     },
 }
-save_experiment_config(dirs.run_dir, experiment_config)
+# Save config directly
+OmegaConf.save(experiment_config, os.path.join(dirs.run_dir, "config.yaml"))
+logger.info(f"Saved config to {os.path.join(dirs.run_dir, 'config.yaml')}")
 
-# Create policy store for checkpointing
-policy_store = create_policy_store(
-    checkpoint_dir=dirs.checkpoint_dir,
-    device=str(device),
+# Create policy store directly with minimal config
+policy_store = PolicyStore(
+    DictConfig(
+        {
+            "device": str(device),
+            "policy_cache_size": 10,
+            "trainer": {
+                "checkpoint": {
+                    "checkpoint_dir": dirs.checkpoint_dir,
+                }
+            },
+        }
+    ),
     wandb_run=None,  # No wandb in this example
-    policy_cache_size=10,
 )
+logger.info("Created policy store")
 
 # Create optimizer wrapper from api.py
 optimizer = Optimizer(
