@@ -16,12 +16,12 @@ def main(cfg):
 
     open_browser = OmegaConf.select(cfg, "replay_job.open_browser_on_start", default=True)
 
-    local_url = "http://localhost:8000?wsUrl=%2Fws"
+    ws_url = "%2Fws"
 
     if open_browser:
-        server.run(cfg, open_url=local_url)
+        server.run(cfg, open_url=f"?wsUrl={ws_url}")
     else:
-        logger.info(f"Enter MettaGrid @ {local_url}")
+        logger.info(f"Enter MettaGrid @ http://localhost:8000?wsUrl={ws_url}")
         server.run(cfg)
 
 
