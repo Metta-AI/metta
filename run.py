@@ -47,12 +47,18 @@ from metta.api import (
     calculate_anneal_beta,
     save_checkpoint,
 )
+from metta.common.profiling.stopwatch import Stopwatch
 from metta.common.util.heartbeat import record_heartbeat
+from metta.mettagrid.mettagrid_env import MettaGridEnv
+from metta.rl.experience import Experience
 from metta.rl.functions import (
     calculate_explained_variance,
     cleanup_old_policies,
     compute_gradient_stats,
+    get_lstm_config,
 )
+from metta.rl.kickstarter import Kickstarter
+from metta.rl.losses import Losses
 from metta.rl.trainer_checkpoint import TrainerCheckpoint
 from metta.rl.trainer_config import (
     CheckpointConfig,
@@ -138,14 +144,14 @@ trainer_config = TrainerConfig(
         learning_rate=3e-4,
     ),
     checkpoint=CheckpointConfig(
-        checkpoint_dir="./checkpoints",
+        checkpoint_dir=CHECKPOINT_DIR,
         checkpoint_interval=100,
         wandb_checkpoint_interval=0,  # Disabled for this example
     ),
     simulation=SimulationConfig(
         evaluate_interval=100,  # Evaluate every 100 epochs
         replay_interval=200,  # Generate replay every 200 epochs
-        replay_dir="./replays",
+        replay_dir=REPLAY_DIR,
     ),
     profiler=TorchProfilerConfig(
         interval_epochs=0,  # 0 disables profiling
@@ -313,7 +319,7 @@ if optimizer_type == "adam":
         lr=learning_rate,
         betas=betas,
         eps=eps,
-        weight_decay=weight_decay,
+        weight_decay=float(weight_decay),
     )
 elif optimizer_type == "muon":
     logger.info(f"Using ForeachMuon optimizer with lr={learning_rate}")
@@ -324,29 +330,75 @@ elif optimizer_type == "muon":
         lr=learning_rate,
         betas=betas,
         eps=eps,
-        weight_decay=weight_decay,
+        weight_decay=float(weight_decay),
     )
 else:
     raise ValueError(f"Unknown optimizer type: {optimizer_type}. Choose 'adam' or 'muon'")
 
-# Create training components
-logger.info("Initializing training components...")
-training = TrainingComponents.create(
-    vecenv=env,
-    policy=agent,
-    trainer_config=trainer_config,
-    device=str(device),
-    policy_store=policy_store,
+# Create training components individually for visibility
+logger.info("Creating training components...")
+
+# Get environment info
+metta_grid_env = env.driver_env
+assert isinstance(metta_grid_env, MettaGridEnv)
+
+# Create experience buffer
+logger.info("Creating experience buffer...")
+obs_space = env.single_observation_space
+atn_space = env.single_action_space
+total_agents = env.num_agents
+hidden_size, num_lstm_layers = get_lstm_config(agent)
+
+experience = Experience(
+    total_agents=total_agents,
+    batch_size=trainer_config.batch_size,
+    bptt_horizon=trainer_config.bptt_horizon,
+    minibatch_size=trainer_config.minibatch_size,
+    max_minibatch_size=trainer_config.minibatch_size,
+    obs_space=obs_space,
+    atn_space=atn_space,
+    device=device,
+    hidden_size=hidden_size,
+    cpu_offload=trainer_config.cpu_offload,
+    num_lstm_layers=num_lstm_layers,
+    agents_per_batch=getattr(env, "agents_per_batch", None),
 )
 
-# Replace the optimizer created by TrainingComponents with our explicitly created one
-training.optimizer = optimizer
+# Create kickstarter
+logger.info("Creating kickstarter...")
+kickstarter = Kickstarter(
+    trainer_config.kickstart,
+    str(device),
+    policy_store,
+    metta_grid_env.action_names,
+    metta_grid_env.max_action_args,
+)
+
+# Create losses tracker
+losses = Losses()
+
+# Create timer
+timer = Stopwatch(logger)
+timer.start()
+
+# Now create TrainingComponents with all the instantiated components
+training = TrainingComponents(
+    vecenv=env,
+    policy=agent,
+    experience=experience,
+    optimizer=optimizer,
+    losses=losses,
+    kickstarter=kickstarter,
+    timer=timer,
+    trainer_config=trainer_config,
+    device=device,
+)
 
 # Create learning rate scheduler
 lr_scheduler = None
 if hasattr(trainer_config, "lr_scheduler") and trainer_config.lr_scheduler.enabled:
     lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-        training.optimizer, T_max=trainer_config.total_timesteps // trainer_config.batch_size
+        optimizer, T_max=trainer_config.total_timesteps // trainer_config.batch_size
     )
     logger.info("Created learning rate scheduler")
 
@@ -362,7 +414,7 @@ if checkpoint:
     # Load optimizer state
     if checkpoint.optimizer_state_dict:
         try:
-            training.optimizer.load_state_dict(checkpoint.optimizer_state_dict)
+            optimizer.load_state_dict(checkpoint.optimizer_state_dict)
             logger.info("Successfully loaded optimizer state from checkpoint")
         except ValueError:
             logger.warning("Optimizer state dict doesn't match. Starting with fresh optimizer state.")
@@ -671,7 +723,7 @@ while training.agent_step < trainer_config.total_timesteps:
             agent_step=training.agent_step,
             epoch=training.epoch,
             total_agent_step=training.agent_step,
-            optimizer_state_dict=training.optimizer.state_dict(),
+            optimizer_state_dict=optimizer.state_dict(),
             policy_path=saved_policy_path.uri if hasattr(saved_policy_path, "uri") else None,
             stopwatch_state=None,  # Timer state not implemented in this example
         )
@@ -750,7 +802,7 @@ if training.epoch % trainer_config.checkpoint.checkpoint_interval != 0:
         agent_step=training.agent_step,
         epoch=training.epoch,
         total_agent_step=training.agent_step,
-        optimizer_state_dict=training.optimizer.state_dict(),
+        optimizer_state_dict=optimizer.state_dict(),
         policy_path=saved_policy_path.uri if hasattr(saved_policy_path, "uri") else None,
         stopwatch_state=None,
     )

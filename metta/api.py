@@ -25,7 +25,6 @@ from metta.rl.experience import Experience
 from metta.rl.functions import (
     accumulate_rollout_stats,
     compute_advantage,
-    get_lstm_config,
     perform_rollout_step,
     process_minibatch_update,
 )
@@ -331,98 +330,9 @@ class TrainingComponents:
         self.epoch = 0
         self.stats = {}
 
-    @classmethod
-    def create(
-        cls,
-        vecenv: Any,
-        policy: MettaAgent,
-        trainer_config: TrainerConfig,
-        device: str = "cuda",
-        policy_store: Optional[PolicyStore] = None,
-    ) -> "TrainingComponents":
-        """Create all training components.
-
-        Args:
-            vecenv: Vectorized environment
-            policy: Agent policy
-            trainer_config: Training configuration
-            device: Device to use
-            policy_store: Optional policy store for kickstarter
-
-        Returns:
-            TrainingComponents instance with all components initialized
-        """
-        device_obj = torch.device(device)
-
-        # Get environment info
-        metta_grid_env = vecenv.driver_env
-        assert isinstance(metta_grid_env, MettaGridEnv)
-
-        # Create optimizer
-        if trainer_config.optimizer.type == "adam":
-            optimizer = torch.optim.Adam(
-                policy.parameters(),
-                lr=trainer_config.optimizer.learning_rate,
-                betas=(trainer_config.optimizer.beta1, trainer_config.optimizer.beta2),
-                eps=trainer_config.optimizer.eps,
-                weight_decay=trainer_config.optimizer.weight_decay,
-            )
-        else:
-            raise ValueError(f"Unsupported optimizer type: {trainer_config.optimizer.type}")
-
-        # Create experience buffer
-        obs_space = vecenv.single_observation_space
-        atn_space = vecenv.single_action_space
-        total_agents = vecenv.num_agents
-        hidden_size, num_lstm_layers = get_lstm_config(policy)
-
-        experience = Experience(
-            total_agents=total_agents,
-            batch_size=trainer_config.batch_size,
-            bptt_horizon=trainer_config.bptt_horizon,
-            minibatch_size=trainer_config.minibatch_size,
-            max_minibatch_size=trainer_config.minibatch_size,
-            obs_space=obs_space,
-            atn_space=atn_space,
-            device=device_obj,
-            hidden_size=hidden_size,
-            cpu_offload=trainer_config.cpu_offload,
-            num_lstm_layers=num_lstm_layers,
-            agents_per_batch=getattr(vecenv, "agents_per_batch", None),
-        )
-
-        # Create kickstarter
-        if policy_store is not None:
-            kickstarter = Kickstarter(
-                trainer_config.kickstart,
-                str(device_obj),
-                policy_store,
-                metta_grid_env.action_names,
-                metta_grid_env.max_action_args,
-            )
-        else:
-            # Create a dummy kickstarter if no policy store is provided
-            # This is fine since kickstart will be disabled anyway
-            raise ValueError("PolicyStore is required for training components")
-
-        # Create losses tracker
-        losses = Losses()
-
-        # Create timer
-        timer = Stopwatch(logger)
-        timer.start()
-
-        return cls(
-            vecenv=vecenv,
-            policy=policy,
-            experience=experience,
-            optimizer=optimizer,
-            losses=losses,
-            kickstarter=kickstarter,
-            timer=timer,
-            trainer_config=trainer_config,
-            device=device_obj,
-        )
+    # Note: The create() classmethod has been removed.
+    # Component instantiation should be done explicitly in user code for better visibility.
+    # See run.py for an example of how to create all components.
 
     def rollout_step(self) -> Tuple[int, List[Any]]:
         """Perform a single rollout step.
@@ -721,6 +631,11 @@ __all__ = [
     "Environment",
     "Agent",
     "TrainingComponents",
+    # Training components (for direct instantiation)
+    "Experience",
+    "Kickstarter",
+    "Losses",
+    "Stopwatch",
     # Config classes (from trainer_config)
     "TrainerConfig",
     "OptimizerConfig",
@@ -737,6 +652,7 @@ __all__ = [
     "load_checkpoint",
     "evaluate_policy",
     "calculate_anneal_beta",
+    "get_lstm_config",
     # Constants
     "TYPE_AGENT",
     "TYPE_WALL",
