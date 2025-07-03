@@ -83,11 +83,33 @@ from metta.sim.simulation import Simulation
 from metta.sim.simulation_suite import SimulationSuite
 
 # Set up logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
+
+# Get distributed info early for debugging
+rank = int(os.environ.get("RANK", 0))
+local_rank = int(os.environ.get("LOCAL_RANK", 0))
+world_size = int(os.environ.get("WORLD_SIZE", 1))
+logger.info(f"Script starting: RANK={rank}, LOCAL_RANK={local_rank}, WORLD_SIZE={world_size}")
+
 dirs = setup_run_directories()
+logger.info(f"Rank {rank}: Run directories set up")
+
 device = setup_device_and_distributed("cuda" if torch.cuda.is_available() else "cpu")
+logger.info(f"Rank {rank}: Device setup complete: {device}")
+
 _master, _world_size, _rank = setup_distributed_vars()
+logger.info(f"Rank {rank}: Distributed vars: master={_master}, world_size={_world_size}, rank={_rank}")
+
+# Test barrier to ensure all ranks can communicate
+if torch.distributed.is_initialized():
+    logger.info(f"Rank {rank}: Testing distributed communication with barrier...")
+    try:
+        torch.distributed.barrier()
+        logger.info(f"Rank {rank}: Test barrier passed, all ranks can communicate")
+    except Exception as e:
+        logger.error(f"Rank {rank}: Test barrier failed: {type(e).__name__}: {e}")
+        raise
 
 trainer_config = TrainerConfig(
     num_workers=4,
@@ -121,9 +143,14 @@ trainer_config = TrainerConfig(
     ),
     grad_mean_variance_interval=50,
 )
-save_experiment_config(dirs, device, trainer_config)
+
+# Only save config on master to avoid file conflicts
+if _master:
+    save_experiment_config(dirs, device, trainer_config)
+logger.info(f"Rank {rank}: Trainer config created")
 
 # Create environment with bucketed navigation curriculum
+logger.info(f"Rank {rank}: Creating environment...")
 env = Environment(
     curriculum_path="/env/mettagrid/curriculum/navigation/bucketed",
     num_agents=4,
@@ -138,13 +165,29 @@ env = Environment(
     is_training=True,
 )
 metta_grid_env = env.driver_env  # type: ignore - vecenv attribute
+logger.info(f"Rank {rank}: Environment created")
+
+# Synchronize after environment creation
+if torch.distributed.is_initialized():
+    logger.info(f"Rank {rank}: Synchronizing after environment creation...")
+    torch.distributed.barrier()
+    logger.info(f"Rank {rank}: Environment creation synchronized")
 
 # Create agent
+logger.info(f"Rank {rank}: Creating agent...")
 agent = Agent(env, device=str(device))
 hidden_size, num_lstm_layers = get_lstm_config(agent)
+logger.info(f"Rank {rank}: Agent created with hidden_size={hidden_size}, num_lstm_layers={num_lstm_layers}")
+
+# Synchronize after agent creation
+if torch.distributed.is_initialized():
+    logger.info(f"Rank {rank}: Synchronizing after agent creation...")
+    torch.distributed.barrier()
+    logger.info(f"Rank {rank}: Agent creation synchronized")
 
 # Create policy store with complete config
 # PolicyStore internally calls parse_trainer_config which expects run, run_dir, and trainer fields
+logger.info(f"Rank {rank}: Creating policy store...")
 policy_store = PolicyStore(
     DictConfig(
         {
@@ -157,11 +200,12 @@ policy_store = PolicyStore(
     ),
     wandb_run=None,
 )
-logger.info("Created policy store")
+logger.info(f"Rank {rank}: Policy store created")
 
 # Load checkpoint and handle distributed initialization
 # This must happen BEFORE wrapping in DistributedMettaAgent
 checkpoint_path = trainer_config.checkpoint.checkpoint_dir
+logger.info(f"Rank {rank}: Loading checkpoint from {checkpoint_path}...")
 agent_step, epoch, _ = load_checkpoint(
     checkpoint_dir=checkpoint_path,
     agent=agent,
@@ -169,9 +213,12 @@ agent_step, epoch, _ = load_checkpoint(
     policy_store=policy_store,
     device=device,
 )
+logger.info(f"Rank {rank}: Checkpoint loaded, agent_step={agent_step}, epoch={epoch}")
 
 # Wrap agent in distributed mode AFTER checkpoint synchronization
+logger.info(f"Rank {rank}: Wrapping agent for distributed...")
 agent = wrap_agent_distributed(agent, device)
+logger.info(f"Rank {rank}: Agent wrapped")
 
 # Create optimizer wrapper from api.py
 optimizer = Optimizer(

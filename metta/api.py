@@ -101,11 +101,27 @@ def setup_device_and_distributed(base_device: str = "cuda", logger_name: str = "
         # Initialize distributed training
         if not torch.distributed.is_initialized():
             # Set up environment variables for NCCL
-            os.environ["NCCL_DEBUG"] = os.environ.get("NCCL_DEBUG", "WARN")
+            os.environ["NCCL_DEBUG"] = os.environ.get("NCCL_DEBUG", "INFO")
+            # NCCL_TIMEOUT is in seconds, default is 1800 (30 minutes)
+            os.environ["NCCL_TIMEOUT"] = os.environ.get("NCCL_TIMEOUT", "1800")
+            # Also set the PyTorch-specific timeout (in seconds)
+            os.environ["TORCH_NCCL_BLOCKING_WAIT"] = "1"  # Enable blocking wait
+            os.environ["TORCH_NCCL_ASYNC_ERROR_HANDLING"] = "1"  # Better error handling
+
+            device_logger.info(
+                f"NCCL Environment: NCCL_DEBUG={os.environ.get('NCCL_DEBUG')}, "
+                f"NCCL_TIMEOUT={os.environ.get('NCCL_TIMEOUT')}"
+            )
+
+            # Set timeout for init_process_group (in seconds)
+            import datetime
+
+            timeout = datetime.timedelta(seconds=1800)  # 30 minutes
 
             try:
-                torch.distributed.init_process_group(backend="nccl")
-                device_logger.info("Distributed training initialized successfully")
+                device_logger.info("Initializing process group with 30 minute timeout...")
+                torch.distributed.init_process_group(backend="nccl", timeout=timeout)
+                device_logger.info("Process group initialized successfully")
 
                 # Verify initialization
                 actual_rank = torch.distributed.get_rank()
@@ -129,6 +145,7 @@ def setup_device_and_distributed(base_device: str = "cuda", logger_name: str = "
 
         # Set CUDA device
         torch.cuda.set_device(device)
+        device_logger.info(f"Set CUDA device to {device}")
 
     elif torch.cuda.is_available() and torch.cuda.device_count() > 1:
         # Multiple GPUs available but no distributed setup
@@ -150,14 +167,8 @@ def setup_device_and_distributed(base_device: str = "cuda", logger_name: str = "
         rank = torch.distributed.get_rank()
         device_logger.info(f"Distributed mode active: rank {rank} of {world_size} processes")
 
-        # Test distributed communication
-        try:
-            test_tensor = torch.tensor([rank], device=device)
-            torch.distributed.all_reduce(test_tensor)
-            device_logger.info(f"Distributed communication test passed. Sum of ranks: {test_tensor.item()}")
-        except Exception as e:
-            device_logger.error(f"Distributed communication test failed: {e}")
-            raise
+        # Note: We don't test communication here as it's too early
+        # Some ranks might still be initializing their environments
 
     return device
 
@@ -955,11 +966,31 @@ def load_checkpoint(
     """
     from metta.rl.trainer_checkpoint import TrainerCheckpoint
 
+    # Create rank-specific logger
+    if torch.distributed.is_initialized():
+        rank = torch.distributed.get_rank()
+        world_size = torch.distributed.get_world_size()
+        logger_name = f"load_checkpoint.rank{rank}"
+    else:
+        rank = 0
+        world_size = 1
+        logger_name = "load_checkpoint"
+
+    checkpoint_logger = logging.getLogger(logger_name)
+    checkpoint_logger.info(f"Starting load_checkpoint (rank {rank}/{world_size})")
+
+    # Add a small delay for non-master ranks to avoid race conditions
+    # when checking for checkpoint files
+    if torch.distributed.is_initialized() and rank > 0:
+        import time
+
+        time.sleep(0.1 * rank)  # Small staggered delay
+
     # Load checkpoint if it exists
     checkpoint = TrainerCheckpoint.load(checkpoint_dir) if checkpoint_dir else None
 
     if checkpoint:
-        logger.info(f"Restoring from checkpoint at {checkpoint.agent_step} steps")
+        checkpoint_logger.info(f"Found checkpoint at {checkpoint.agent_step} steps")
         agent_step = checkpoint.agent_step
         epoch = checkpoint.epoch
 
@@ -971,23 +1002,28 @@ def load_checkpoint(
                 elif hasattr(optimizer, "optimizer"):
                     # Handle our Optimizer wrapper
                     optimizer.optimizer.load_state_dict(checkpoint.optimizer_state_dict)
-                logger.info("Successfully loaded optimizer state from checkpoint")
+                checkpoint_logger.info("Successfully loaded optimizer state from checkpoint")
             except ValueError:
-                logger.warning("Optimizer state dict doesn't match. Starting with fresh optimizer state.")
+                checkpoint_logger.warning("Optimizer state dict doesn't match. Starting with fresh optimizer state.")
 
+        checkpoint_logger.info("Returning from checkpoint load path")
         return agent_step, epoch, None
     else:
         agent_step = 0
         epoch = 0
+        checkpoint_logger.info("No checkpoint found, starting fresh")
 
         # In distributed mode, handle initial policy creation
         if torch.distributed.is_initialized() and policy_store:
             is_master = torch.distributed.get_rank() == 0
             rank = torch.distributed.get_rank()
+            world_size = torch.distributed.get_world_size()
+
+            checkpoint_logger.info(f"Distributed mode: rank {rank}/{world_size}, is_master={is_master}")
 
             if is_master:
                 # Master saves initial policy for other ranks to load
-                logger.info("Master rank: Creating and saving initial policy")
+                checkpoint_logger.info("Master rank: Creating and saving initial policy")
                 initial_policy_path = save_checkpoint(
                     epoch=0,
                     agent_step=0,
@@ -1001,15 +1037,18 @@ def load_checkpoint(
                 )
 
                 # Master waits here for all ranks to be ready
+                checkpoint_logger.info("Master rank: Entering barrier after policy save")
                 torch.distributed.barrier()
-                logger.info("Master rank: All ranks synchronized after initial policy creation")
+                checkpoint_logger.info("Master rank: Exited barrier, all ranks synchronized")
                 return agent_step, epoch, initial_policy_path
             else:
                 # Non-master ranks wait for initial policy
-                logger.info(f"Rank {rank}: Waiting for initial policy to be created")
+                checkpoint_logger.info(f"Rank {rank}: Waiting for initial policy to be created")
 
                 # First barrier: wait for master to create the policy
+                checkpoint_logger.info(f"Rank {rank}: Entering first barrier")
                 torch.distributed.barrier()
+                checkpoint_logger.info(f"Rank {rank}: Exited first barrier")
 
                 # Non-master ranks load the policy that master created
                 default_policy_path = os.path.join(checkpoint_dir, policy_store.make_model_name(0))
@@ -1045,16 +1084,22 @@ def load_checkpoint(
                     policy_record = policy_store.policy_record(default_policy_path)
                     # Load the policy state into our agent
                     agent.load_state_dict(policy_record.policy.state_dict())
-                    logger.info(f"Rank {rank}: Loaded initial policy from {default_policy_path}")
+                    checkpoint_logger.info(
+                        f"Rank {rank}: Successfully loaded initial policy from {default_policy_path}"
+                    )
                 except Exception as e:
+                    checkpoint_logger.error(f"Rank {rank}: Failed to load policy: {type(e).__name__}: {e}")
                     raise RuntimeError(f"Rank {rank}: Failed to load policy from {default_policy_path}: {e}") from e
 
                 # Second barrier: ensure all non-master ranks have loaded before proceeding
                 # This is critical to prevent some ranks from moving ahead while others are still loading
+                checkpoint_logger.info(f"Rank {rank}: Entering second barrier")
                 torch.distributed.barrier()
-                logger.info(f"Rank {rank}: Synchronized after loading initial policy")
+                checkpoint_logger.info(f"Rank {rank}: Exited second barrier, synchronized after loading initial policy")
 
                 return agent_step, epoch, None
+        else:
+            checkpoint_logger.info("Not in distributed mode or no policy_store, returning immediately")
 
         return agent_step, epoch, None
 
