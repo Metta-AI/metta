@@ -133,8 +133,8 @@ public:
     return this->frozen;
   }
 
-  virtual vector<PartialObservationToken> obs_features() const override {
-    vector<PartialObservationToken> features;
+  virtual std::vector<PartialObservationToken> obs_features() const override {
+    std::vector<PartialObservationToken> features;
     features.reserve(5 + this->inventory.size());
     features.push_back({ObservationFeature::TypeId, type_id});
     features.push_back({ObservationFeature::Group, group});
