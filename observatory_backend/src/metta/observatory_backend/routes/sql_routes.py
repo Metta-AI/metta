@@ -7,10 +7,10 @@ from fastapi import APIRouter, Depends, HTTPException
 from psycopg import errors as pg_errors
 from pydantic import BaseModel
 
-from metta.app_backend.auth import create_user_or_token_dependency
-from metta.app_backend.metta_repo import MettaRepo
-from metta.app_backend.query_logger import execute_query_and_log
-from metta.app_backend.route_logger import timed_route
+from metta.observatory_backend.auth import create_user_or_token_dependency
+from metta.observatory_backend.metta_repo import MettaRepo
+from metta.observatory_backend.query_logger import execute_query_and_log
+from metta.observatory_backend.route_logger import timed_route
 
 
 class SQLQueryRequest(BaseModel):

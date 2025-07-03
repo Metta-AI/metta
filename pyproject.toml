@@ -17,7 +17,8 @@ dependencies = [
   "imageio>=2.37.0",
   "jmespath>=1.0.1",
   "matplotlib>=3.10.3",
-  "metta-app-backend",
+  "metta-studio-backend",
+  "metta-observatory-backend",
   "metta-mettagrid",
   "metta-agent",
   "metta-common",
@@ -78,7 +79,8 @@ source = [
   "metta.mettagrid",
   "metta.common",
   "metta.agent",
-  "metta.app_backend",
+  "metta.observatory_backend",
+  "metta.studio_backend",
 ]
 
 [tool.scikit-build.cmake.define]
@@ -101,11 +103,18 @@ cache-keys = [
 default-groups = ["dev"]
 
 [tool.uv.workspace]
-members = ["mettagrid", "app_backend", "common", "agent"]
+members = [
+  "mettagrid",
+  "observatory_backend",
+  "common",
+  "agent",
+  "studio_backend",
+]
 
 [tool.uv.sources]
 pufferlib = { git = "https://github.com/Metta-AI/PufferLib.git", rev = "dcd597ef1a094cc2da886f5a4ab2c7f1b27d0183" }
-metta-app-backend = { workspace = true }
+metta-observatory-backend = { workspace = true }
 metta-mettagrid = { workspace = true }
 metta-common = { workspace = true }
 metta-agent = { workspace = true }
+metta-studio-backend = { workspace = true }

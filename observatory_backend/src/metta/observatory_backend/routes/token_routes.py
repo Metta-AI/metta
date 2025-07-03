@@ -4,9 +4,9 @@ from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 
-from metta.app_backend.auth import UserEmail
-from metta.app_backend.metta_repo import MettaRepo
-from metta.app_backend.route_logger import timed_route
+from metta.observatory_backend.auth import UserEmail
+from metta.observatory_backend.metta_repo import MettaRepo
+from metta.observatory_backend.route_logger import timed_route
 
 
 # Request/Response Models

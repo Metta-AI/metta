@@ -9,7 +9,7 @@ from testcontainers.postgres import PostgresContainer
 
 
 class TestDockerIntegration:
-    """Integration tests for the app_backend Docker container."""
+    """Integration tests for the observatory_backend Docker container."""
 
     @classmethod
     def setup_class(cls):
@@ -52,7 +52,7 @@ class TestDockerIntegration:
 
     @pytest.fixture(scope="class")
     def app_backend_container(self, postgres_container: PostgresContainer):
-        """Build and start the app_backend Docker container."""
+        """Build and start the observatory_backend Docker container."""
         try:
             import docker
 
@@ -60,10 +60,13 @@ class TestDockerIntegration:
             project_root = Path(__file__).parent.parent.parent
 
             # Build the Docker image first
-            self.logger.info("Building Docker image for app_backend")
+            self.logger.info("Building Docker image for observatory_backend")
             client = docker.from_env()
             image, build_logs = client.images.build(
-                path=str(project_root), dockerfile="app_backend/Dockerfile", tag="test-app-backend:latest", rm=True
+                path=str(project_root),
+                dockerfile="observatory_backend/Dockerfile",
+                tag="test-app-backend:latest",
+                rm=True,
             )
             self.logger.info("Successfully built Docker image")
 
@@ -173,7 +176,7 @@ class TestDockerIntegration:
 
             self.logger.info("Cleanup process completed")
         except Exception as e:
-            pytest.skip(f"Failed to start app_backend container: {e}")
+            pytest.skip(f"Failed to start observatory_backend container: {e}")
 
     def test_whoami_endpoint_no_auth(self, app_backend_container):
         """Test /whoami endpoint without authentication returns 'unknown'."""

@@ -18,10 +18,10 @@ import hydra
 from omegaconf import DictConfig, OmegaConf
 
 from metta.agent.policy_store import PolicyStore
-from metta.app_backend.stats_client import StatsClient
 from metta.common.util.config import Config
 from metta.common.util.script_decorators import get_metta_logger, metta_script
 from metta.common.util.stats_client_cfg import get_stats_client
+from metta.observatory_backend.stats_client import StatsClient
 from metta.sim.simulation_config import SimulationSuiteConfig
 from metta.sim.simulation_suite import SimulationSuite
 

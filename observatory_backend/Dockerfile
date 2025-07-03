@@ -17,10 +17,10 @@ WORKDIR /app
 COPY . .
 
 # Install dependencies using uv
-RUN cd app_backend && uv sync --frozen
+RUN cd observatory_backend && uv sync --frozen
 
-# Set working directory to app_backend
-WORKDIR /app/app_backend
+# Set working directory to observatory_backend
+WORKDIR /app/observatory_backend
 
 # Expose port
 EXPOSE 8000
@@ -30,4 +30,4 @@ ENV HOST=0.0.0.0
 ENV PORT=8000
 
 # Run the application
-CMD ["uv", "run", "python", "src/metta/app_backend/server.py"]
+CMD ["uv", "run", "python", "src/metta/observatory_backend/server.py"]

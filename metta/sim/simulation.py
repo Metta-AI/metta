@@ -26,11 +26,11 @@ from omegaconf import OmegaConf
 from metta.agent.policy_record import PolicyRecord
 from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyStore
-from metta.app_backend.stats_client import StatsClient
 from metta.mettagrid.curriculum.sampling import SamplingCurriculum
 from metta.mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
 from metta.mettagrid.replay_writer import ReplayWriter
 from metta.mettagrid.stats_writer import StatsWriter
+from metta.observatory_backend.stats_client import StatsClient
 from metta.rl.vecenv import make_vecenv
 from metta.sim.simulation_config import SingleEnvSimulationConfig
 from metta.sim.simulation_stats_db import SimulationStatsDB

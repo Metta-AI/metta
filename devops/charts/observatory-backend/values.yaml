@@ -7,7 +7,7 @@ host: api.observatory.softmax-research.net
 
 image:
   registry: 751442549699.dkr.ecr.us-east-1.amazonaws.com
-  name: metta-app-backend
+  name: metta-observatory-backend
   tag: "" # will be set by CI/CD pipeline
 
 # created by terraform
