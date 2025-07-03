@@ -35,7 +35,7 @@ Here's a minimal example showing the core training loop:
 
 from metta.api import (
     Environment, Agent, TrainingComponents,
-    setup_run_directories, save_training_config,
+    setup_run_directories, save_experiment_config,
     create_policy_store, create_default_trainer_config,
     save_checkpoint
 )
@@ -51,7 +51,7 @@ config = create_default_trainer_config(
 )
 
 # Save configuration
-save_training_config(dirs.run_dir, {
+save_experiment_config(dirs.run_dir, {
     "run": dirs.run_name,
     "trainer": config.model_dump()
 })
@@ -652,12 +652,12 @@ print(dirs.stats_dir)      # Stats directory
 print(dirs.run_name)       # Run name
 ```
 
-### save_training_config
+### save_experiment_config
 
 Save training configuration to `config.yaml`, matching the behavior of `tools/train.py`:
 
 ```python
-from metta.api import save_training_config
+from metta.api import save_experiment_config
 
 config = {
     "run": "my_experiment",
@@ -669,7 +669,7 @@ config = {
     }
 }
 
-save_training_config(run_dir, config)
+save_experiment_config(run_dir, config)
 # Saves to {run_dir}/config.yaml using OmegaConf
 ```
 

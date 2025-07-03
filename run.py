@@ -3,7 +3,6 @@
 
 import logging
 import os
-import sys
 import time
 
 import torch
@@ -15,7 +14,7 @@ from metta.api import (
     calculate_anneal_beta,
     create_policy_store,
     save_checkpoint,
-    save_training_config,
+    save_experiment_config,
     setup_run_directories,
 )
 from metta.common.profiling.memory_monitor import MemoryMonitor
@@ -23,6 +22,7 @@ from metta.common.profiling.stopwatch import Stopwatch
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.system_monitor import SystemMonitor
 from metta.eval.eval_stats_db import EvalStatsDB
+from metta.mettagrid import mettagrid_c  # noqa: F401
 from metta.mettagrid.mettagrid_env import MettaGridEnv
 from metta.rl.experience import Experience
 from metta.rl.functions import (
@@ -49,25 +49,8 @@ from metta.sim.simulation_suite import SimulationSuite
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-# Check if mettagrid is available
-try:
-    from metta.mettagrid import mettagrid_c  # noqa: F401
-except ImportError:
-    logger.error(
-        "MetaGrid C++ module not available. Please install the package:\n"
-        "  uv sync --inexact\n"
-        "or if you don't have uv:\n"
-        "  pip install -e ."
-    )
-    sys.exit(1)
-
-# Setup run directory structure like train.py
 dirs = setup_run_directories()
-
-# Configuration
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-logger.info(f"Using device: {device}")
 
 # Create trainer config with structured Pydantic classes
 trainer_config = TrainerConfig(
@@ -122,7 +105,7 @@ logger.info("Creating agent...")
 agent = Agent(env, device=str(device))  # Uses default config
 
 # Save configuration to run directory (like train.py does)
-config_to_save = {
+experiment_config = {
     "run": dirs.run_name,
     "run_dir": dirs.run_dir,
     "data_dir": os.path.dirname(dirs.run_dir),  # Get parent directory
@@ -140,8 +123,7 @@ config_to_save = {
         "profiler": trainer_config.profiler.model_dump(),
     },
 }
-
-save_training_config(dirs.run_dir, config_to_save)
+save_experiment_config(dirs.run_dir, experiment_config)
 
 # Create policy store for checkpointing
 policy_store = create_policy_store(

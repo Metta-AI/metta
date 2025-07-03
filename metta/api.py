@@ -102,7 +102,7 @@ def setup_run_directories(run_name: Optional[str] = None, data_dir: Optional[str
     )
 
 
-def save_training_config(run_dir: str, config_dict: Dict[str, Any]) -> None:
+def save_experiment_config(run_dir: str, config_dict: Dict[str, Any]) -> None:
     """Save training configuration to config.yaml in the run directory.
 
     This matches the behavior of tools/train.py which saves the full
@@ -864,7 +864,7 @@ __all__ = [
     "evaluate_policy",
     "calculate_anneal_beta",
     "setup_run_directories",
-    "save_training_config",
+    "save_experiment_config",
     "create_policy_store",
     # Helper classes
     "RunDirectories",
