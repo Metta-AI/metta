@@ -19,9 +19,9 @@ import torch
 from metta.api import (
     Environment, Agent, Optimizer,
     setup_run_directories, create_policy_store,
-    save_experiment_config, save_checkpoint,
+    save_experiment_config, PolicyRecord,
     perform_rollout_step, process_minibatch_update,
-    accumulate_rollout_stats, compute_advantages_with_config,
+    accumulate_rollout_stats, compute_advantage,
     calculate_anneal_beta
 )
 from metta.rl.experience import Experience
@@ -63,8 +63,16 @@ while agent_step < total_timesteps:
     losses.zero()
     experience.reset_importance_sampling_ratios()
 
-    advantages = compute_advantages_with_config(
-        experience, ppo_config, vtrace_config, device
+    # Compute advantages directly
+    advantages = torch.zeros(experience.values.shape, device=device)
+    initial_importance_sampling_ratio = torch.ones_like(experience.values)
+
+    advantages = compute_advantage(
+        experience.values, experience.rewards, experience.dones,
+        initial_importance_sampling_ratio, advantages,
+        ppo_config.gamma, ppo_config.gae_lambda,
+        vtrace_config.vtrace_rho_clip, vtrace_config.vtrace_c_clip,
+        device,
     )
 
     # Train on minibatches
@@ -264,18 +272,29 @@ loss = process_minibatch_update(
 )
 ```
 
-### compute_advantages_with_config
+### compute_advantage
 
-Compute advantages using GAE with proper configuration:
+Compute advantages using GAE. Note that you need to create the initial tensors:
 
 ```python
-from metta.api import compute_advantages_with_config
+from metta.api import compute_advantage
 
-advantages = compute_advantages_with_config(
-    experience=experience,
-    ppo_config=trainer_config.ppo,
-    vtrace_config=trainer_config.vtrace,
-    device=device,
+# Create initial tensors
+advantages = torch.zeros(experience.values.shape, device=device)
+initial_importance_sampling_ratio = torch.ones_like(experience.values)
+
+# Compute advantages using GAE
+advantages = compute_advantage(
+    experience.values,
+    experience.rewards,
+    experience.dones,
+    initial_importance_sampling_ratio,
+    advantages,
+    trainer_config.ppo.gamma,
+    trainer_config.ppo.gae_lambda,
+    trainer_config.vtrace.vtrace_rho_clip,
+    trainer_config.vtrace.vtrace_c_clip,
+    device,
 )
 ```
 
@@ -457,20 +476,26 @@ logger.info(
 
 ## Checkpointing
 
-Save and load policies using PolicyStore:
+Save policies using PolicyStore and PolicyRecord directly:
 
 ```python
-from metta.api import save_checkpoint
+from metta.api import PolicyRecord
 
-# Save checkpoint
-policy_record = save_checkpoint(
-    policy=agent,
-    policy_store=policy_store,
-    epoch=100,
-    metadata={"score": 0.95}
-)
+# Create a policy record
+name = policy_store.make_model_name(epoch)
+policy_record = policy_store.create_empty_policy_record(name)
+policy_record.metadata = {
+    "agent_step": agent_step,
+    "epoch": epoch,
+    "score": 0.95,
+    # any other metadata you want
+}
+policy_record.policy = agent
 
-# The PolicyStore handles loading
+# Save through policy store
+saved_record = policy_store.save(policy_record)
+
+# Load checkpoint
 loaded_record = policy_store.policy_record("path/to/checkpoint")
 ```
 

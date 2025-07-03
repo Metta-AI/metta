@@ -13,11 +13,10 @@ from metta.api import (
     Optimizer,
     accumulate_rollout_stats,
     calculate_anneal_beta,
-    compute_advantages_with_config,
+    compute_advantage,
     create_policy_store,
     perform_rollout_step,
     process_minibatch_update,
-    save_checkpoint,
     save_experiment_config,
     setup_run_directories,
 )
@@ -309,11 +308,20 @@ while agent_step < trainer_config.total_timesteps:
     )
 
     # Compute advantages once
-    advantages = compute_advantages_with_config(
-        experience=experience,
-        ppo_config=trainer_config.ppo,
-        vtrace_config=trainer_config.vtrace,
-        device=device,
+    advantages = torch.zeros(experience.values.shape, device=device)
+    initial_importance_sampling_ratio = torch.ones_like(experience.values)
+
+    advantages = compute_advantage(
+        experience.values,
+        experience.rewards,
+        experience.dones,
+        initial_importance_sampling_ratio,
+        advantages,
+        trainer_config.ppo.gamma,
+        trainer_config.ppo.gae_lambda,
+        trainer_config.vtrace.vtrace_rho_clip,
+        trainer_config.vtrace.vtrace_c_clip,
+        device,
     )
 
     # Train for multiple epochs
@@ -429,16 +437,19 @@ while agent_step < trainer_config.total_timesteps:
     saved_policy_path = None
     if epoch % trainer_config.checkpoint.checkpoint_interval == 0:
         logger.info(f"Saving policy at epoch {epoch}")
-        latest_saved_policy_record = save_checkpoint(
-            policy=agent,
-            policy_store=policy_store,
-            epoch=epoch,
-            metadata={
-                "agent_step": agent_step,
-                "epoch": epoch,
-                "stats": dict(stats),
-            },
-        )
+
+        # Create policy record directly
+        name = policy_store.make_model_name(epoch)
+        policy_record = policy_store.create_empty_policy_record(name)
+        policy_record.metadata = {
+            "agent_step": agent_step,
+            "epoch": epoch,
+            "stats": dict(stats),
+        }
+        policy_record.policy = agent
+
+        # Save through policy store
+        latest_saved_policy_record = policy_store.save(policy_record)
         saved_policy_path = latest_saved_policy_record
         logger.info(f"Successfully saved policy at epoch {epoch}")
 
@@ -582,16 +593,19 @@ memory_monitor.clear()
 # Final checkpoint (force save)
 if epoch % trainer_config.checkpoint.checkpoint_interval != 0:
     logger.info("Saving final checkpoint...")
-    saved_policy_path = save_checkpoint(
-        policy=agent,
-        policy_store=policy_store,
-        epoch=epoch,
-        metadata={
-            "agent_step": agent_step,
-            "epoch": epoch,
-            "final": True,
-        },
-    )
+
+    # Create final policy record
+    name = policy_store.make_model_name(epoch)
+    policy_record = policy_store.create_empty_policy_record(name)
+    policy_record.metadata = {
+        "agent_step": agent_step,
+        "epoch": epoch,
+        "final": True,
+    }
+    policy_record.policy = agent
+
+    # Save through policy store
+    saved_policy_path = policy_store.save(policy_record)
     logger.info("Successfully saved final policy")
 
     # Save final training state

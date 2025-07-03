@@ -14,21 +14,21 @@ from metta.api import (
     Losses,
     Optimizer,
     OptimizerConfig,
-    PPOConfig,
     # Helper classes
+    PolicyRecord,
+    PPOConfig,
     RunDirectories,
     SimulationConfig,
     Stopwatch,
     TrainerConfig,
+    # Functions from rl.functions
     accumulate_rollout_stats,
     # Helper functions
     calculate_anneal_beta,
-    compute_advantages_with_config,
+    compute_advantage,
     create_policy_store,
-    # Functions from rl.functions
     perform_rollout_step,
     process_minibatch_update,
-    save_checkpoint,
     save_experiment_config,
     setup_run_directories,
 )
@@ -46,22 +46,22 @@ __all__ = [
     "PPOConfig",
     "SimulationConfig",
     "TrainerConfig",
-    # Helper functions
-    "calculate_anneal_beta",
-    "save_checkpoint",
-    "setup_run_directories",
-    "save_experiment_config",
-    "create_policy_store",
-    "compute_advantages_with_config",
-    # Functions from rl.functions
-    "perform_rollout_step",
-    "process_minibatch_update",
-    "accumulate_rollout_stats",
     # Training components
     "Experience",
     "Kickstarter",
     "Losses",
     "Stopwatch",
+    # Helper functions
+    "calculate_anneal_beta",
+    "create_policy_store",
+    "save_experiment_config",
+    "setup_run_directories",
+    # Functions from rl.functions
+    "accumulate_rollout_stats",
+    "compute_advantage",
+    "perform_rollout_step",
+    "process_minibatch_update",
     # Helper classes
+    "PolicyRecord",
     "RunDirectories",
 ]
