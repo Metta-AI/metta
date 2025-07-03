@@ -6,6 +6,9 @@ defaults:
 
 trainer:
   env: /env/mettagrid/simple
+  env_overrides:
+    game:
+      num_agents: 32
   contrastive:
     enabled: true
     loss_coef: 0.1
@@ -17,7 +20,8 @@ trainer:
   batch_size: 32768
   minibatch_size: 8192
   total_timesteps: 1000000
-  num_workers: 2
+  num_workers: 1
+  cpu_offload: true
 
 agent:
   _target_: metta.agent.metta_agent.MettaAgent
