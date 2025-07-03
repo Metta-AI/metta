@@ -856,13 +856,20 @@ def save_checkpoint(
 
     # Save training state
     logger.info("Saving training state...")
+
+    # Get optimizer state dict if optimizer is provided
+    optimizer_state_dict = None
+    if optimizer is not None:
+        if hasattr(optimizer, "state_dict"):
+            optimizer_state_dict = optimizer.state_dict()
+        elif hasattr(optimizer, "optimizer"):
+            optimizer_state_dict = optimizer.optimizer.state_dict()
+
     trainer_checkpoint = TrainerCheckpoint(
         agent_step=agent_step,
         epoch=epoch,
         total_agent_step=agent_step,
-        optimizer_state_dict=optimizer.state_dict()
-        if hasattr(optimizer, "state_dict")
-        else optimizer.optimizer.state_dict(),
+        optimizer_state_dict=optimizer_state_dict,
         policy_path=saved_policy_record.uri if hasattr(saved_policy_record, "uri") else None,
         stopwatch_state=None,
     )
