@@ -23,7 +23,7 @@ from metta.api import (
     process_minibatch_update,
     save_checkpoint,
     save_experiment_config,
-    setup_device_and_distributed,
+    setup_distributed_training,
     setup_run_directories,
     wrap_agent_distributed,
 )
@@ -39,7 +39,6 @@ from metta.rl.functions import (
     compute_gradient_stats,
     get_lstm_config,
     maybe_update_l2_weights,
-    setup_distributed_vars,
     should_run_on_interval,
 )
 from metta.rl.kickstarter import Kickstarter
@@ -59,12 +58,9 @@ from metta.sim.simulation_suite import SimulationSuite
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
 
-# Set up directories and device first
+# Set up directories and distributed training
 dirs = setup_run_directories()
-device = setup_device_and_distributed("cuda" if torch.cuda.is_available() else "cpu")
-
-# Get distributed info after initialization
-is_master, world_size, rank = setup_distributed_vars()
+device, is_master, world_size, rank = setup_distributed_training("cuda" if torch.cuda.is_available() else "cpu")
 
 # Configuration
 trainer_config = TrainerConfig(
