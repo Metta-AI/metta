@@ -112,6 +112,8 @@ policy_store = PolicyStore(
         {
             "device": str(device),
             "policy_cache_size": 10,
+            "run": dirs.run_name,  # Required by parse_trainer_config
+            "run_dir": dirs.run_dir,  # Required by parse_trainer_config
             "trainer": {
                 "checkpoint": {
                     "checkpoint_dir": dirs.checkpoint_dir,
