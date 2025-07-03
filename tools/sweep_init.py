@@ -18,7 +18,7 @@ from omegaconf import DictConfig, ListConfig, OmegaConf
 
 from metta.common.util.lock import run_once
 from metta.common.util.logging import setup_mettagrid_logger
-from metta.common.util.numpy.clean_numpy_types import clean_numpy_types
+from metta.common.util.numpy_helpers import clean_numpy_types
 from metta.common.util.script_decorators import metta_script
 from metta.common.wandb.sweep import generate_run_id_for_sweep, sweep_id_from_name
 from metta.common.wandb.wandb_context import WandbContext
@@ -179,11 +179,14 @@ def apply_protein_suggestion(config: DictConfig | ListConfig, suggestion: dict):
         if key == "suggestion_uuid":
             continue
 
+        # Clean numpy types from the value before applying
+        cleaned_value = clean_numpy_types(value)
+
         # For nested structures, merge instead of overwrite
-        if key in config and isinstance(config[key], DictConfig) and isinstance(value, dict):
-            config[key] = OmegaConf.merge(config[key], value)
+        if key in config and isinstance(config[key], DictConfig) and isinstance(cleaned_value, dict):
+            config[key] = OmegaConf.merge(config[key], cleaned_value)
         else:
-            config[key] = value
+            config[key] = cleaned_value
 
 
 if __name__ == "__main__":

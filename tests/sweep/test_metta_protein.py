@@ -72,7 +72,7 @@ class TestMettaProtein:
         mock_api.return_value.runs.return_value = []
 
         # Create MettaProtein
-        metta_protein = MettaProtein(sweep_config, mock_wandb_run)
+        MettaProtein(sweep_config, mock_wandb_run)
 
         # Verify Protein was initialized with correct sweep_config
         mock_protein_class.assert_called_once()
@@ -169,7 +169,7 @@ class TestMettaProtein:
         mock_api.return_value.runs.return_value = []
 
         # Create MettaProtein
-        metta_protein = MettaProtein(minimal_config, mock_wandb_run)
+        MettaProtein(minimal_config, mock_wandb_run)
 
         # Verify defaults were used
         call_args = mock_protein_class.call_args[0][0]
@@ -193,7 +193,7 @@ class TestMettaProtein:
         mock_api.return_value.runs.return_value = []
 
         # Create MettaProtein
-        metta_protein = MettaProtein(sweep_config, mock_wandb_run)
+        MettaProtein(sweep_config, mock_wandb_run)
 
         # Verify WandB config was updated
         mock_wandb_run.config.update.assert_called()

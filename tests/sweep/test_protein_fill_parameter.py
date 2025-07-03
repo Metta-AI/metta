@@ -53,7 +53,7 @@ class TestProteinFillParameter:
         mock_api.return_value.runs.return_value = []
 
         # Create WandbProtein
-        wandb_protein = WandbProtein(mock_protein, mock_wandb_run)
+        WandbProtein(mock_protein, mock_wandb_run)
 
         # Verify that suggest was called with fill=None
         assert len(mock_protein.suggest_calls) == 1
@@ -111,7 +111,7 @@ class TestProteinFillParameter:
         mock_api.return_value.runs.return_value = [historical_run]
 
         # This should not raise TypeError anymore
-        wandb_protein = WandbProtein(mock_protein, mock_wandb_run)
+        WandbProtein(mock_protein, mock_wandb_run)
 
         # Verify no error and suggest was called with None
         assert len(mock_protein.suggest_calls) == 1
