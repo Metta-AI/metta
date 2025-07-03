@@ -50,8 +50,8 @@ MettaGrid::MettaGrid(py::dict cfg, py::list map, int seed) {
 
   current_step = 0;
 
-  int height = map.size();
-  int width = map[0].cast<py::list>().size();
+  unsigned int height = map.size();
+  unsigned int width = map[0].cast<py::list>().size();
 
   _grid = std::make_unique<Grid>(width, height);
   _obs_encoder = std::make_unique<ObservationEncoder>(inventory_item_names);
@@ -133,8 +133,8 @@ MettaGrid::MettaGrid(py::dict cfg, py::list map, int seed) {
   std::string grid_hash_data;                   // String to accumulate grid data for hashing
   grid_hash_data.reserve(height * width * 20);  // Pre-allocate for efficiency
 
-  for (int r = 0; r < height; r++) {
-    for (int c = 0; c < width; c++) {
+  for (GridCoord r = 0; r < height; r++) {
+    for (GridCoord c = 0; c < width; c++) {
       auto py_cell = map[r].cast<py::list>()[c].cast<py::str>();
       auto cell = py_cell.cast<std::string>();
 
@@ -221,14 +221,14 @@ void MettaGrid::add_agent(Agent* agent) {
 
 void MettaGrid::_compute_observation(unsigned int observer_row,
                                      unsigned int observer_col,
-                                     unsigned short obs_width,
-                                     unsigned short obs_height,
+                                     unsigned short observable_width,
+                                     unsigned short observable_height,
                                      size_t agent_idx,
                                      ActionType action,
                                      ActionArg action_arg) {
   // Calculate observation boundaries
-  unsigned int obs_width_radius = obs_width >> 1;
-  unsigned int obs_height_radius = obs_height >> 1;
+  unsigned int obs_width_radius = observable_width >> 1;
+  unsigned int obs_height_radius = observable_height >> 1;
 
   unsigned int r_start = observer_row >= obs_height_radius ? observer_row - obs_height_radius : 0;
   unsigned int c_start = observer_col >= obs_width_radius ? observer_col - obs_width_radius : 0;
@@ -282,9 +282,10 @@ void MettaGrid::_compute_observation(unsigned int observer_row,
       for (int i = 0; i < 2; i++) {
         if (c_dist == 0 && i == 1) continue;
         int c_offset = i == 0 ? c_dist : -c_dist;
-        int c = observer_col + c_offset;
+
+        int c = static_cast<int>(observer_col) + c_offset;
         // c could still be outside of our bounds.
-        if (c < c_start || c >= c_end) continue;
+        if (c < static_cast<int>(c_start) || c >= static_cast<int>(c_end)) continue;
 
         for (unsigned int layer = 0; layer < GridLayer::GridLayerCount; layer++) {
           GridLocation object_loc(r, c, layer);
@@ -292,14 +293,14 @@ void MettaGrid::_compute_observation(unsigned int observer_row,
           if (!obj) continue;
 
           uint8_t* obs_data = observation_view.mutable_data(agent_idx, tokens_written, 0);
-          ObservationToken* agent_obs_ptr = reinterpret_cast<ObservationToken*>(obs_data);
-          ObservationTokens agent_obs_tokens(agent_obs_ptr, observation_view.shape(1) - tokens_written);
+          ObservationToken* this_agent_obs_ptr = reinterpret_cast<ObservationToken*>(obs_data);
+          ObservationTokens this_agent_obs_tokens(this_agent_obs_ptr, observation_view.shape(1) - tokens_written);
 
           int obs_r = object_loc.r + obs_height_radius - observer_row;
           int obs_c = object_loc.c + obs_width_radius - observer_col;
-          uint8_t location = obs_r << 4 | obs_c;
+          uint8_t location = static_cast<uint8_t>(obs_r << 4 | obs_c);
 
-          attempted_tokens_written += _obs_encoder->encode_tokens(obj, agent_obs_tokens, location);
+          attempted_tokens_written += _obs_encoder->encode_tokens(obj, this_agent_obs_tokens, location);
           tokens_written = std::min(attempted_tokens_written, static_cast<size_t>(observation_view.shape(1)));
         }
       }
@@ -312,7 +313,8 @@ void MettaGrid::_compute_observation(unsigned int observer_row,
 
 void MettaGrid::_compute_observations(py::array_t<ActionType, py::array::c_style> actions) {
   auto actions_view = actions.unchecked<2>();
-  auto observation_view = _observations.mutable_unchecked<3>();
+  // TODO: did we mean to use observation_view?
+  // auto observation_view = _observations.mutable_unchecked<3>();
   for (size_t idx = 0; idx < _agents.size(); idx++) {
     auto& agent = _agents[idx];
     _compute_observation(
@@ -440,37 +442,35 @@ void MettaGrid::validate_buffers() {
   // data types and contiguity are handled by pybind11. We still need to check
   // shape.
   unsigned int num_agents = _agents.size();
+
   auto observation_info = _observations.request();
-  auto shape = observation_info.shape;
+  auto obs_shape = observation_info.shape;
   if (observation_info.ndim != 3) {
     std::stringstream ss;
     ss << "observations has " << observation_info.ndim << " dimensions but expected 3";
     throw std::runtime_error(ss.str());
   }
-  if (shape[0] != num_agents || shape[2] != 3) {
+  if (obs_shape[0] != num_agents || obs_shape[2] != 3) {
     std::stringstream ss;
-    ss << "observations has shape [" << shape[0] << ", " << shape[1] << ", " << shape[2] << "] but expected ["
-       << num_agents << ", [something], 3]";
+    ss << "observations has shape [" << obs_shape[0] << ", " << obs_shape[1] << ", " << obs_shape[2]
+       << "] but expected [" << num_agents << ", [something], 3]";
     throw std::runtime_error(ss.str());
   }
   {
     auto terminals_info = _terminals.request();
-    auto shape = terminals_info.shape;
-    if (terminals_info.ndim != 1 || shape[0] != num_agents) {
+    if (terminals_info.ndim != 1 || terminals_info.shape[0] != num_agents) {
       throw std::runtime_error("terminals has the wrong shape");
     }
   }
   {
     auto truncations_info = _truncations.request();
-    auto shape = truncations_info.shape;
-    if (truncations_info.ndim != 1 || shape[0] != num_agents) {
+    if (truncations_info.ndim != 1 || truncations_info.shape[0] != num_agents) {
       throw std::runtime_error("truncations has the wrong shape");
     }
   }
   {
     auto rewards_info = _rewards.request();
-    auto shape = rewards_info.shape;
-    if (rewards_info.ndim != 1 || shape[0] != num_agents) {
+    if (rewards_info.ndim != 1 || rewards_info.shape[0] != num_agents) {
       throw std::runtime_error("rewards has the wrong shape");
     }
   }
@@ -505,7 +505,7 @@ py::tuple MettaGrid::step(py::array_t<ActionType, py::array::c_style> actions) {
   // create it if we need it, but that would increase complexity.
   std::vector<double> group_rewards(_group_sizes.size());
   for (size_t agent_idx = 0; agent_idx < _agents.size(); agent_idx++) {
-    if (rewards_view(agent_idx) != 0) {
+    if (std::abs(rewards_view(agent_idx)) > 0.0f) {
       share_rewards = true;
       auto& agent = _agents[agent_idx];
       unsigned int group_id = agent->group;

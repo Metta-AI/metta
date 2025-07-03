@@ -43,24 +43,29 @@ public:
   float* reward;
 
   Agent(GridCoord r, GridCoord c, const AgentConfig& config)
-      : freeze_duration(config.freeze_duration),
-        action_failure_penalty(config.action_failure_penalty),
-        max_items_per_type(config.max_items_per_type),
+      :  // public
+        group(config.group_id),
+        frozen(0),
+        freeze_duration(config.freeze_duration),
+        // inventory - default constructed
+        orientation(0),
         resource_rewards(config.resource_rewards),
         resource_reward_max(config.resource_reward_max),
-        group(config.group_id),
+        action_failure_penalty(config.action_failure_penalty),
         group_name(config.group_name),
         color(0),
+        agent_id(0),
+        // stats - default constructed
         current_resource_reward(0),
-        frozen(0),
-        orientation(0),
-        reward(nullptr) {
+        reward(nullptr),
+        // private
+        max_items_per_type(config.max_items_per_type) {
     // #HardCodedConfig -- "agent" is hard coded.
     GridObject::init(config.type_id, "agent", GridLocation(r, c, GridLayer::Agent_Layer));
   }
 
-  void init(float* reward) {
-    this->reward = reward;
+  void init(float* reward_ptr) {
+    this->reward = reward_ptr;
   }
 
   int update_inventory(InventoryItem item, short amount) {
@@ -70,7 +75,7 @@ public:
 
     int delta = new_amount - current_amount;
     if (new_amount > 0) {
-      this->inventory[item] = new_amount;
+      this->inventory[item] = static_cast<uint8_t>(new_amount);
     } else {
       this->inventory.erase(item);
     }
@@ -98,19 +103,19 @@ public:
     // item that was added or removed.
     // TODO: consider doing this only once per step, and not every time the inventory changes.
     float new_reward = 0;
-    for (const auto& [item, amount] : this->inventory) {
+    for (const auto& [inventory_item, amount] : this->inventory) {
       float max_val = static_cast<float>(amount);
-      if (this->resource_reward_max.count(item) > 0 && max_val > this->resource_reward_max[item]) {
-        max_val = this->resource_reward_max[item];
+      if (this->resource_reward_max.count(inventory_item) > 0 && max_val > this->resource_reward_max[inventory_item]) {
+        max_val = this->resource_reward_max[inventory_item];
       }
-      new_reward += this->resource_rewards[item] * max_val;
+      new_reward += this->resource_rewards[inventory_item] * max_val;
     }
     *this->reward += (new_reward - this->current_resource_reward);
     this->current_resource_reward = new_reward;
   }
 
   virtual bool swappable() const override {
-    return this->frozen;
+    return this->frozen;  // TODO: double check based on intended meaning of "swappable"
   }
 
   virtual vector<PartialObservationToken> obs_features() const override {

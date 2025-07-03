@@ -17,7 +17,7 @@ public:
   }
 
 protected:
-  bool _handle_action(Agent* actor, ActionArg arg) override {
+  bool _handle_action(Agent* actor, [[maybe_unused]] ActionArg arg) override {
     // Scan the space to find the nearest agent. Prefer the middle (offset 0) before the edges (offset -1, 1).
     for (int distance = 1; distance < 4; distance++) {
       for (int i = 0; i < 3; i++) {

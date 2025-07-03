@@ -17,16 +17,20 @@ public:
     return true;
   }
 
-  virtual int update_inventory(InventoryItem item, short amount) {
+  virtual int update_inventory(InventoryItem item, short delta_amount) {
     int initial_amount = this->inventory[item];
-    int new_amount = initial_amount + amount;
-    new_amount = std::clamp(new_amount, 0, 255);
-    if (new_amount == 0) {
+    // Convert to int to handle negative amounts properly
+    int new_amount = initial_amount + delta_amount;
+
+    // Clamp to valid uint8_t range
+    uint8_t clamped_amount = std::clamp(new_amount, 0, 255);
+
+    if (clamped_amount == 0) {
       this->inventory.erase(item);
     } else {
-      this->inventory[item] = new_amount;
+      this->inventory[item] = clamped_amount;
     }
-    return new_amount - initial_amount;
+    return static_cast<int>(clamped_amount) - initial_amount;  // actual change
   }
 };
 

@@ -14,11 +14,11 @@ using InventoryItem = uint8_t;
 class StatsTracker {
 private:
   std::map<std::string, float> _stats;
-  std::map<std::string, int> _first_seen_at;
-  std::map<std::string, int> _last_seen_at;
+  std::map<std::string, unsigned int> _first_seen_at;
+  std::map<std::string, unsigned int> _last_seen_at;
   std::map<std::string, float> _min_value;
   std::map<std::string, float> _max_value;
-  std::map<std::string, int> _update_count;
+  std::map<std::string, unsigned int> _update_count;
   MettaGrid* _env;
 
   // Track timing for any update
@@ -116,10 +116,11 @@ public:
       result[key + ".avg"] = result[key] / count;
 
       // Also calculate activity rate if there's a time span
-      auto first_it = _first_seen_at.find(key);
-      auto last_it = _last_seen_at.find(key);
-      if (first_it != _first_seen_at.end() && last_it != _last_seen_at.end()) {
-        int duration = last_it->second - first_it->second;
+      if (_first_seen_at.count(key) && _last_seen_at.count(key)) {
+        unsigned int first_step = _first_seen_at.at(key);  // Use .at() for const access
+        unsigned int last_step = _last_seen_at.at(key);    // Use .at() for const access
+        unsigned int duration = last_step - first_step;
+
         if (duration > 0 && count > 1) {
           result[key + ".activity_rate"] = static_cast<float>(count - 1) / static_cast<float>(duration);
         }

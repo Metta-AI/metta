@@ -11,7 +11,6 @@ option(BUILD_TESTS "Build C++ unit tests and benchmarks" OFF)
 
 # ========================= METTAGRID =========================
 
-
 # Force CMake to use virtual environment Python first
 set(Python3_FIND_VIRTUALENV FIRST)
 set(Python3_FIND_STRATEGY LOCATION)
@@ -101,9 +100,113 @@ target_compile_options(mettagrid_obj PRIVATE
   $<$<CXX_COMPILER_ID:GNU,Clang,AppleClang>:-fno-omit-frame-pointer>
 )
 
+# Debug-only additional warnings
+target_compile_options(mettagrid_obj PRIVATE
+  $<$<AND:$<CONFIG:Debug>,$<CXX_COMPILER_ID:GNU,Clang,AppleClang>>:
+    # Additional warnings for debug builds
+    -Wstrict-overflow=5
+    -Wundef
+    -Wredundant-decls
+    -Wwrite-strings
+    -Wpointer-arith
+    -Wdate-time
+    -Wmissing-declarations
+    -Wfloat-conversion
+    -Wshift-overflow=2
+
+    # Lifetime and memory warnings (Clang)
+    $<$<CXX_COMPILER_ID:Clang,AppleClang>:
+      -Wdangling
+      -Wdangling-gsl
+      -Wreturn-stack-address
+      -Wloop-analysis
+      -Wstring-conversion
+      -Wconditional-uninitialized
+      -Wsometimes-uninitialized
+      -Wstatic-in-inline
+      -Wunreachable-code-aggressive
+      -Wthread-safety-analysis
+      -Wthread-safety-beta
+      -Wshorten-64-to-32  # Especially important on 64-bit systems
+    >
+
+    # GCC-specific debug warnings
+    $<$<CXX_COMPILER_ID:GNU>:
+      -Wstack-usage=8192  # Warn on functions using more than 8KB stack
+      -Wtrampolines
+      -Wvector-operation-performance
+      -Wdisabled-optimization
+      -Waggressive-loop-optimizations
+      -Wstringop-truncation
+      -Wformat-truncation=2
+      -Wformat-overflow=2
+      -Wstringop-overflow=4
+      -Warray-bounds=2
+      -Wrestrict
+      -Wattribute-alias=2
+    >
+  >
+)
+
+# Debug-only runtime sanitizers
+target_compile_options(mettagrid_obj PRIVATE
+  $<$<AND:$<CONFIG:Debug>,$<CXX_COMPILER_ID:GNU,Clang,AppleClang>>:
+    -fsanitize=address
+    -fsanitize=undefined
+    -fsanitize=float-divide-by-zero
+    -fsanitize=float-cast-overflow
+    -fno-sanitize-recover=all
+    -fstack-protector-strong
+    # Disable problematic checks that cause false positives in macOS STL
+    -fno-sanitize=shift-base
+    -fno-sanitize=shift-exponent
+    # Clang-specific sanitizers
+    $<$<CXX_COMPILER_ID:Clang,AppleClang>:
+      -fsanitize=nullability
+      -fsanitize=integer
+      -fsanitize=implicit-conversion
+      -fsanitize=local-bounds
+      # Additional exclusions for macOS STL compatibility
+      -fno-sanitize=unsigned-shift-base
+    >
+  >
+)
+
+# Debug-only linker flags for sanitizers
+target_link_options(mettagrid_obj PUBLIC
+  $<$<AND:$<CONFIG:Debug>,$<CXX_COMPILER_ID:GNU,Clang,AppleClang>>:
+    -fsanitize=address
+    -fsanitize=undefined
+  >
+)
+
+# Debug-only definitions
+target_compile_definitions(mettagrid_obj PRIVATE
+  $<$<CONFIG:Debug>:
+    _GLIBCXX_DEBUG  # STL debug mode (GCC)
+    _LIBCPP_DEBUG=1  # STL debug mode (Clang)
+    METTAGRID_DEBUG_ASSERTIONS  # Your own debug assertions
+  >
+)
+
+# FORTIFY_SOURCE is incompatible with AddressSanitizer, so only add it for Release builds
+target_compile_definitions(mettagrid_obj PRIVATE
+  $<$<CONFIG:Release>:
+    _FORTIFY_SOURCE=2  # Runtime buffer overflow detection (Release only)
+  >
+)
+
 # ========================= PYTHON MODULE =========================
 
 pybind11_add_module(mettagrid_c $<TARGET_OBJECTS:mettagrid_obj>)
+
+# Apply sanitizer linker flags to the Python module in debug builds
+target_link_options(mettagrid_c PRIVATE
+  $<$<AND:$<CONFIG:Debug>,$<CXX_COMPILER_ID:GNU,Clang,AppleClang>>:
+    -fsanitize=address
+    -fsanitize=undefined
+  >
+)
 
 install(TARGETS mettagrid_c DESTINATION "metta/mettagrid")
 

@@ -27,9 +27,9 @@ class ActionHandler;
 class Agent;
 class ObservationEncoder;
 class GridObject;
-class ConverterConfig;
-class WallConfig;
-class AgentConfig;
+struct ConverterConfig;
+struct WallConfig;
+struct AgentConfig;
 
 namespace py = pybind11;
 

@@ -38,7 +38,7 @@ public:
       return false;
     }
 
-    obj->id = this->objects.size();
+    obj->id = static_cast<GridObjectId>(this->objects.size());
     this->objects.push_back(std::unique_ptr<GridObject>(obj));
     this->grid[obj->location.r][obj->location.c][obj->location.layer] = obj->id;
     return true;
@@ -113,30 +113,35 @@ public:
                                               Orientation orientation,
                                               GridCoord distance,
                                               GridCoord offset) {
-    int new_r = loc.r;
-    int new_c = loc.c;
+    const int r = static_cast<int>(loc.r);
+    const int c = static_cast<int>(loc.c);
+    const int dist = static_cast<int>(distance);
+    const int off = static_cast<int>(offset);
+
+    int new_r = r;
+    int new_c = c;
 
     switch (orientation) {
       case Up:
-        new_r = loc.r - distance;
-        new_c = loc.c - offset;
+        new_r = r - dist;
+        new_c = c - off;
         break;
       case Down:
-        new_r = loc.r + distance;
-        new_c = loc.c + offset;
+        new_r = r + dist;
+        new_c = c + off;
         break;
       case Left:
-        new_r = loc.r + offset;
-        new_c = loc.c - distance;
+        new_r = r + off;
+        new_c = c - dist;
         break;
       case Right:
-        new_r = loc.r - offset;
-        new_c = loc.c + distance;
+        new_r = r - off;
+        new_c = c + dist;
         break;
     }
     new_r = max(0, new_r);
     new_c = max(0, new_c);
-    return GridLocation(new_r, new_c, loc.layer);
+    return GridLocation(static_cast<GridCoord>(new_r), static_cast<GridCoord>(new_c), loc.layer);
   }
 
   inline const GridLocation relative_location(const GridLocation& loc, Orientation orientation) {
@@ -148,7 +153,7 @@ public:
     loc.r = row;
     loc.c = col;
     for (int layer = 0; layer < GridLayer::GridLayerCount; ++layer) {
-      loc.layer = layer;
+      loc.layer = static_cast<Layer>(layer);
       if (object_at(loc) != nullptr) {
         return 0;
       }

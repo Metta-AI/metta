@@ -64,6 +64,54 @@ function(mettagrid_add_tests GLOB_PATTERN # e.g. "${CMAKE_CURRENT_SOURCE_DIR}/te
 
     target_link_libraries(${output_name} PRIVATE ${LINK_LIBS})
 
+    # Debug-only runtime sanitizers
+    target_compile_options(mettagrid_obj PRIVATE
+      $<$<AND:$<CONFIG:Debug>,$<CXX_COMPILER_ID:GNU,Clang,AppleClang>>:
+        -fsanitize=address
+        -fsanitize=undefined
+        -fsanitize=float-divide-by-zero
+        -fsanitize=float-cast-overflow
+        -fno-sanitize-recover=all
+        -fstack-protector-strong
+        # Disable problematic checks that cause false positives in macOS STL
+        -fno-sanitize=shift-base
+        -fno-sanitize=shift-exponent
+        # Clang-specific sanitizers
+        $<$<CXX_COMPILER_ID:Clang,AppleClang>:
+          -fsanitize=nullability
+          -fsanitize=integer
+          -fsanitize=implicit-conversion
+          -fsanitize=local-bounds
+          # Additional exclusions for macOS STL compatibility
+          -fno-sanitize=unsigned-shift-base
+        >
+      >
+    )
+
+    # Apply sanitizer linker flags to test executables in debug builds
+    target_link_options(${output_name} PRIVATE
+      $<$<AND:$<CONFIG:Debug>,$<CXX_COMPILER_ID:GNU,Clang,AppleClang>>:
+        -fsanitize=address
+        -fsanitize=undefined
+      >
+    )
+
+    # Apply debug definitions to test executables
+    target_compile_definitions(${output_name} PRIVATE
+      $<$<CONFIG:Debug>:
+        _GLIBCXX_DEBUG  # STL debug mode (GCC)
+        _LIBCPP_DEBUG=1  # STL debug mode (Clang)
+        METTAGRID_DEBUG_ASSERTIONS  # Your own debug assertions
+      >
+    )
+
+    # FORTIFY_SOURCE for Release builds only (incompatible with ASan)
+    target_compile_definitions(${output_name} PRIVATE
+      $<$<CONFIG:Release>:
+        _FORTIFY_SOURCE=2  # Runtime buffer overflow detection
+      >
+    )
+
     set_target_properties(${output_name} PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${output_dir}")
 
     if(TEST_TYPE STREQUAL "test")
