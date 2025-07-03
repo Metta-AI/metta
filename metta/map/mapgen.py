@@ -7,7 +7,7 @@ from metta.map.scene import make_scene
 from metta.map.types import MapGrid
 from metta.mettagrid.level_builder import Level, LevelBuilder
 
-from .types import SceneCfg
+from .types import Area, SceneCfg
 
 
 # Root map generator, based on scenes.
@@ -34,18 +34,19 @@ class MapGen(LevelBuilder):
         if isinstance(self.root, DictConfig):
             self.root = OmegaConf.to_container(self.root)  # type: ignore
 
-        self.root_scene = make_scene(self.root, self.inner_grid())
+        self.root_scene = make_scene(self.root, self.inner_area())
 
-    def inner_grid(self) -> MapGrid:
-        if self.border_width > 0:
-            return self.grid[
-                self.border_width : -self.border_width,
-                self.border_width : -self.border_width,
-            ]
-        else:
-            return self.grid
+    def inner_area(self) -> Area:
+        x = self.border_width
+        y = self.border_width
+        grid = self.grid[y : y + self.height, x : x + self.width]
+
+        return Area(x=x, y=y, width=self.width, height=self.height, grid=grid, tags=[])
 
     def build(self):
         self.root_scene.render_with_children()
         # TODO: support labels, similarly to `mettagrid.room.room.Room`
         return Level(self.grid, [])
+
+    def get_scene_tree(self) -> dict:
+        return self.root_scene.get_scene_tree()
