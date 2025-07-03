@@ -17,10 +17,10 @@ trainer:
     logsumexp_coef: 0.01
     num_rollout_negatives: 4
     num_cross_rollout_negatives: 4
-  batch_size: 32768
-  minibatch_size: 8192
+  batch_size: 2048
+  minibatch_size: 256
   total_timesteps: 1000000
-  num_workers: 1
+  num_workers: 8
   cpu_offload: true
 
 agent:
