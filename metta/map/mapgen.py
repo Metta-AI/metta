@@ -38,9 +38,6 @@ class MapGen(LevelBuilder):
         self.inner_width = self.width * room_cols + (room_cols - 1) * self.room_border_width
         self.inner_height = self.height * room_rows + (room_rows - 1) * self.room_border_width
 
-        print(self.inner_width, self.inner_height)
-        print(self.width, self.height)
-
         if isinstance(self.root, DictConfig):
             self.root = OmegaConf.to_container(self.root)  # type: ignore
 
