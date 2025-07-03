@@ -3,6 +3,8 @@ defaults:
   - game/groups: solo
   - game/objects:
       - basic
+      - mines
+      - generators
   - _self_
 
 sampling: 0
@@ -30,7 +32,7 @@ game:
 
   actions:
     noop:
-      enabled: true
+      enabled: false
     move:
       enabled: true
     rotate:
@@ -40,7 +42,7 @@ game:
     get_items:
       enabled: true
     attack:
-      enabled: true
+      enabled: false
       consumed_resources:
         laser: 1
       defense_resources:
@@ -48,4 +50,4 @@ game:
     swap:
       enabled: true
     change_color:
-      enabled: true
+      enabled: false

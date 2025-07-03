@@ -18,6 +18,11 @@ npc_policy_uri: null
 #   game:
 #     max_steps: 1000
 
+trainer:
+  total_timesteps: 4_000_000_000
+  checkpoint:
+    wandb_checkpoint_interval: 50
+
 eval:
   policy_uri: ${..policy_uri}
   npc_policy_uri: ${..npc_policy_uri}
