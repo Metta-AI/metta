@@ -63,9 +63,15 @@ class TestSkyPilotLatency:
         env["SKYPILOT_TASK_ID"] = task_id
         env.pop("WANDB_API_KEY", None)
         env.pop("WANDB_RUN_NAME", None)
+        env.pop("METTA_RUN_ID", None)  # Also remove METTA_RUN_ID to avoid wandb logging
+
+        # Fix: Find the script relative to the test file
+        # Since we're running from the 'common' directory in CI,
+        # and both files are in the same directory structure
+        script_path = os.path.join(os.path.dirname(__file__), "skypilot_latency.py")
 
         result = subprocess.run(
-            [sys.executable, "common/src/metta/common/util/skypilot_latency.py"],
+            [sys.executable, script_path],
             capture_output=True,
             text=True,
             env=env,
@@ -79,4 +85,4 @@ class TestSkyPilotLatency:
         match = re.search(r"SkyPilot queue latency: ([\d.]+) s", result.stdout)
         assert match is not None
         latency = float(match.group(1))
-        assert 4 < latency < 10  # Should be around 7 seconds
+        assert 4 < latency < 10  # Should be around 5 seconds
