@@ -8,7 +8,7 @@ defaults:
 trainer:
   env: /env/mettagrid/simple
   simulation:
-    evaluate_interval: 200
+    evaluate_interval: 300
 
 policy_uri: null
 npc_policy_uri: null
