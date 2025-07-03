@@ -54,20 +54,12 @@ run: |
   cd /workspace/metta
   source ./devops/setup.env
 
-  # Calculate and log SkyPilot queue latency
   if [ -f common/src/metta/common/util/skypilot_latency.py ]; then
-    echo "[RUN] Measuring queue latency..."
+    echo "[RUN] Collecting skypilot latency..."
     LATENCY_OUTPUT=$(python common/src/metta/common/util/skypilot_latency.py 2>&1) || true
     echo "$LATENCY_OUTPUT"
-
-    # Extract latency value from output if present
-    LATENCY=$(echo "$LATENCY_OUTPUT" | grep -oP 'SkyPilot queue latency: \K[\d.]+(?= s)' || true)
-    if [ ! -z "$LATENCY" ]; then
-      echo "[RUN] ✅ Queue latency: ${LATENCY}s"
-      export SKYPILOT_QUEUE_LATENCY_S="$LATENCY"
-    else
-      echo "[RUN] Queue latency: N/A"
-    fi
+  else
+    echo "[RUN] Latency script is missing!"
   fi
 
   export NUM_GPUS=$SKYPILOT_NUM_GPUS_PER_NODE
