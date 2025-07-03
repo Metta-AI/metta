@@ -1,0 +1,614 @@
+/* Training Runs Component Styles */
+
+.trainingRunsContainer {
+  padding: 20px;
+  background: #f8f9fa;
+  min-height: calc(100vh - 60px);
+}
+
+.trainingRunsContent {
+  max-width: 1400px;
+  margin: 0 auto;
+  display: flex;
+  gap: 20px;
+}
+
+.sidebar {
+  width: 300px;
+  background: #fff;
+  padding: 20px;
+  border-radius: 5px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  height: fit-content;
+  position: sticky;
+  top: 20px;
+}
+
+.mainContent {
+  flex: 1;
+  background: #fff;
+  padding: 20px;
+  border-radius: 5px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.sidebarTitle {
+  margin: 0 0 20px 0;
+  color: #333;
+  font-size: 18px;
+  font-weight: 600;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 15px;
+}
+
+.sidebarSection {
+  margin-bottom: 25px;
+}
+
+.sidebarSection:last-child {
+  margin-bottom: 0;
+}
+
+.sidebarLabel {
+  font-weight: 600;
+  margin-bottom: 8px;
+  font-size: 14px;
+  color: #333;
+  display: block;
+}
+
+.trainingRunsHeader {
+  margin-bottom: 30px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid #eee;
+}
+
+.trainingRunsTitle {
+  margin: 0;
+  color: #333;
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.trainingRunsCount {
+  color: #666;
+  font-size: 14px;
+  margin-top: 5px;
+}
+
+.searchBox {
+  width: 100%;
+  padding: 8px 12px;
+  font-size: 14px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.searchBox:focus {
+  border-color: #007bff;
+  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+}
+
+.trainingRunsTable {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0;
+}
+
+.trainingRunsTable th,
+.trainingRunsTable td {
+  padding: 12px 16px;
+  text-align: left;
+  border-bottom: 1px solid #eee;
+}
+
+.trainingRunsTable th {
+  background: #f8f9fa;
+  font-weight: 600;
+  color: #333;
+  font-size: 14px;
+}
+
+.trainingRunsTable td {
+  font-size: 14px;
+  color: #666;
+}
+
+.trainingRunName {
+  color: #007bff;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.trainingRunName:hover {
+  text-decoration: underline;
+}
+
+.trainingRunStatus {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  text-transform: uppercase;
+}
+
+.trainingRunStatus.running {
+  background: #e3f2fd;
+  color: #1976d2;
+}
+
+.trainingRunStatus.completed {
+  background: #e8f5e8;
+  color: #2e7d32;
+}
+
+.trainingRunStatus.failed {
+  background: #ffebee;
+  color: #c62828;
+}
+
+.trainingRunUser {
+  font-family: monospace;
+  font-size: 12px;
+}
+
+.trainingRunDescription {
+  color: #666;
+  font-style: italic;
+  max-width: 250px;
+  word-wrap: break-word;
+  white-space: normal;
+  line-height: 1.4;
+}
+
+.editDescriptionCell {
+  position: relative;
+  max-width: 250px;
+  width: 250px;
+}
+
+.editDescriptionBtn {
+  background: none;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  color: #007bff;
+  cursor: pointer;
+  font-size: 12px;
+  margin-left: 8px;
+  padding: 2px 6px;
+}
+
+.editDescriptionBtn:hover {
+  background: #f8f9fa;
+  border-color: #007bff;
+}
+
+.editDescriptionForm {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  margin-top: 4px;
+}
+
+.editDescriptionInput {
+  flex: 1;
+  padding: 4px 8px;
+  font-size: 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  outline: none;
+  resize: vertical;
+  min-height: 60px;
+  font-family: inherit;
+  line-height: 1.4;
+}
+
+.editDescriptionInput:focus {
+  border-color: #007bff;
+  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+}
+
+.editDescriptionActions {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 60px;
+}
+
+.saveBtn {
+  background: #28a745;
+  border: none;
+  border-radius: 4px;
+  color: white;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 4px 8px;
+}
+
+.saveBtn:hover {
+  background: #218838;
+}
+
+.saveBtn:disabled {
+  background: #6c757d;
+  cursor: not-allowed;
+}
+
+.cancelBtn {
+  background: #6c757d;
+  border: none;
+  border-radius: 4px;
+  color: white;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 4px 8px;
+}
+
+.cancelBtn:hover {
+  background: #5a6268;
+}
+
+.tagsCell {
+  max-width: 200px;
+}
+
+.tagsDisplay {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 4px;
+}
+
+.tag {
+  background: #e3f2fd;
+  border: 1px solid #90caf9;
+  border-radius: 12px;
+  color: #1565c0;
+  font-size: 11px;
+  padding: 2px 8px 2px 8px;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.tagRemovable {
+  background: #e3f2fd;
+  border: 1px solid #90caf9;
+  border-radius: 12px;
+  color: #1565c0;
+  font-size: 11px;
+  padding: 2px 8px 2px 8px;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.tagInputContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.tagInput {
+  width: 100%;
+  padding: 4px 8px;
+  font-size: 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.tagInput:focus {
+  border-color: #007bff;
+  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+}
+
+.tagInputActions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-start;
+}
+
+.addTagBtn {
+  background: #007bff;
+  border: none;
+  border-radius: 4px;
+  color: white;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 4px 8px;
+}
+
+.addTagBtn:hover {
+  background: #0056b3;
+}
+
+.addTagBtn:disabled {
+  background: #6c757d;
+  cursor: not-allowed;
+}
+
+.addTagBtnMain {
+  background: none;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  color: #007bff;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 2px 6px;
+}
+
+.addTagBtnMain:hover {
+  background: #f8f9fa;
+  border-color: #007bff;
+}
+
+.addTagForm {
+  margin-top: 8px;
+}
+
+.confirmDeleteContainer {
+  margin-top: 4px;
+  padding: 8px;
+  background: #fff3cd;
+  border: 1px solid #ffeaa7;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.confirmDeleteText {
+  margin-bottom: 8px;
+  color: #856404;
+}
+
+.confirmDeleteActions {
+  display: flex;
+  gap: 8px;
+}
+
+.confirmDeleteBtn {
+  background: #dc3545;
+  border: none;
+  border-radius: 4px;
+  color: white;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 4px 8px;
+}
+
+.confirmDeleteBtn:hover {
+  background: #c82333;
+}
+
+.confirmCancelBtn {
+  background: #6c757d;
+  border: none;
+  border-radius: 4px;
+  color: white;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 4px 8px;
+}
+
+.confirmCancelBtn:hover {
+  background: #5a6268;
+}
+
+.tagsEditForm {
+  margin-top: 8px;
+}
+
+.tagsEditing {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.tagEditable {
+  background: #e3f2fd;
+  border: 1px solid #90caf9;
+  border-radius: 12px;
+  color: #1565c0;
+  font-size: 11px;
+  padding: 2px 8px 2px 8px;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.removeTagBtn {
+  background: none;
+  border: none;
+  color: #1565c0;
+  cursor: pointer;
+  font-size: 10px;
+  padding: 0;
+  width: 12px;
+  height: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.removeTagBtn:hover {
+  background: #90caf9;
+  border-radius: 50%;
+}
+
+.clearFilterBtn {
+  background: #6c757d;
+  border: none;
+  border-radius: 4px;
+  color: white;
+  cursor: pointer;
+  font-size: 12px;
+  margin-left: 8px;
+  padding: 4px 8px;
+}
+
+.clearFilterBtn:hover {
+  background: #5a6268;
+}
+
+.tagFilterSection {
+  display: block;
+}
+
+.tagFilterLabel {
+  font-weight: 600;
+  font-size: 14px;
+  color: #333;
+  margin-bottom: 8px;
+  display: block;
+}
+
+.tagFilterInputContainer {
+  position: relative;
+  display: block;
+  width: 100%;
+  margin-bottom: 15px;
+}
+
+.tagFilterDropdownInput {
+  width: 100%;
+  padding: 8px 12px;
+  font-size: 14px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.tagFilterDropdownInput:focus {
+  border-color: #007bff;
+  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+}
+
+.tagDropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: white;
+  border: 1px solid #ddd;
+  border-top: none;
+  border-radius: 0 0 4px 4px;
+  max-height: 200px;
+  overflow-y: auto;
+  z-index: 1000;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.tagDropdownItem {
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 14px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.tagDropdownItem:hover {
+  background: #f8f9fa;
+}
+
+.tagDropdownItem:last-child {
+  border-bottom: none;
+}
+
+.tagDropdownEmpty {
+  padding: 8px 12px;
+  color: #999;
+  font-style: italic;
+  font-size: 14px;
+}
+
+.selectedFiltersSection {
+  display: block;
+}
+
+.selectedFiltersLabel {
+  font-size: 12px;
+  color: #666;
+  font-weight: 500;
+  margin-bottom: 8px;
+  display: block;
+}
+
+.selectedFilters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.filterTag {
+  background: #fff3cd;
+  border: 1px solid #ffeaa7;
+  border-radius: 12px;
+  color: #856404;
+  font-size: 12px;
+  padding: 4px 8px;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.filterTagRemove {
+  background: none;
+  border: none;
+  color: #856404;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 0;
+  width: 14px;
+  height: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.filterTagRemove:hover {
+  background: #ffeaa7;
+  border-radius: 50%;
+}
+
+.clearAllFiltersBtn {
+  background: none;
+  border: 1px solid #ffeaa7;
+  border-radius: 4px;
+  color: #856404;
+  cursor: pointer;
+  font-size: 12px;
+  margin-left: 8px;
+  padding: 4px 8px;
+}
+
+.clearAllFiltersBtn:hover {
+  background: #fff3cd;
+}
+
+.loadingContainer {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 300px;
+  color: #666;
+}
+
+.errorContainer {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 300px;
+  color: #c62828;
+  text-align: center;
+}

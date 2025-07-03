@@ -5,7 +5,7 @@ from typing import Optional, cast
 import hydra
 from omegaconf import DictConfig, ListConfig, OmegaConf
 
-from metta.common.fs import cd_repo_root
+from metta.common.util.fs import cd_repo_root
 
 
 def config_from_path(

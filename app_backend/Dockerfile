@@ -4,6 +4,7 @@ FROM python:3.11-slim
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
     curl \
+    git \
     && rm -rf /var/lib/apt/lists/*
 
 # Install uv
@@ -12,14 +13,14 @@ COPY --from=ghcr.io/astral-sh/uv:0.7.2 /uv /uvx /bin/
 # Set working directory
 WORKDIR /app
 
-# Copy uv configuration files from top-level directory
-COPY uv.lock ./
-COPY app_backend/pyproject.toml ./
-
-COPY app_backend ./app_backend
+# Copy entire project structure
+COPY . .
 
 # Install dependencies using uv
-RUN uv sync --frozen
+RUN cd app_backend && uv sync --frozen
+
+# Set working directory to app_backend
+WORKDIR /app/app_backend
 
 # Expose port
 EXPOSE 8000
@@ -29,4 +30,4 @@ ENV HOST=0.0.0.0
 ENV PORT=8000
 
 # Run the application
-CMD ["uv", "run", "python", "app_backend/server.py"]
+CMD ["uv", "run", "python", "src/metta/app_backend/server.py"]

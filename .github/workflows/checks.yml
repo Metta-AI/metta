@@ -163,10 +163,14 @@ jobs:
         run: |
           pytest --maxfail=1 --disable-warnings -q
 
-      - name: Run Pytest on MettaGrid tests
-        working-directory: mettagrid
+      - name: Run Pytest on subpackage tests
+        env:
+          SUBPACKAGES: "app_backend agent mettagrid common"
         run: |
-          pytest --maxfail=1 --disable-warnings -q
+          for package in $SUBPACKAGES; do
+            echo "Running tests for $package..."
+            (cd "$package" && pytest --maxfail=1 --disable-warnings -q) || exit 1
+          done
 
       - name: Run MettaGrid C++ tests
         run: |

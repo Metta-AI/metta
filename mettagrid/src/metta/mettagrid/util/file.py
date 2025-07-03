@@ -15,6 +15,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Union
+from urllib.parse import urlparse
 
 import boto3
 import wandb
@@ -204,6 +205,16 @@ def http_url(path: str) -> str:
     if path.startswith("wandb://"):
         return WandbURI.parse(path).http_url()
     return path
+
+
+def is_public_uri(url: str | None) -> bool:
+    """
+    Check if a URL is a public HTTP/HTTPS URL.
+    """
+    if not url:
+        return False
+    parsed = urlparse(url)
+    return parsed.scheme in ("http", "https") and bool(parsed.netloc)
 
 
 # --------------------------------------------------------------------------- #

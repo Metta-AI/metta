@@ -11,6 +11,7 @@ resolution-markers = [
 [manifest]
 members = [
     "metta",
+    "metta-agent",
     "metta-app-backend",
     "metta-common",
     "metta-mettagrid",
@@ -712,6 +713,8 @@ dependencies = [
     { name = "imageio" },
     { name = "jmespath" },
     { name = "matplotlib" },
+    { name = "metta-agent" },
+    { name = "metta-app-backend" },
     { name = "metta-common" },
     { name = "metta-mettagrid" },
     { name = "numpy" },
@@ -770,6 +773,8 @@ requires-dist = [
     { name = "imageio", specifier = ">=2.37.0" },
     { name = "jmespath", specifier = ">=1.0.1" },
     { name = "matplotlib", specifier = ">=3.10.3" },
+    { name = "metta-agent", editable = "agent" },
+    { name = "metta-app-backend", editable = "app_backend" },
     { name = "metta-common", editable = "common" },
     { name = "metta-mettagrid", editable = "mettagrid" },
     { name = "numpy", specifier = ">=2.2.6" },
@@ -812,6 +817,27 @@ requires-dist = [
 dev = [{ name = "skypilot", specifier = "==0.9.3" }]
 
 [[package]]
+name = "metta-agent"
+version = "0.1.0"
+source = { editable = "agent" }
+dependencies = [
+    { name = "pyright" },
+    { name = "pytest" },
+    { name = "pytest-benchmark" },
+    { name = "pytest-cov" },
+    { name = "ruff" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "pyright", specifier = ">=1.1.401" },
+    { name = "pytest", specifier = ">=8.3.3" },
+    { name = "pytest-benchmark", specifier = ">=5.1.0" },
+    { name = "pytest-cov", specifier = ">=6.1.1" },
+    { name = "ruff", specifier = ">=0.11.13" },
+]
+
+[[package]]
 name = "metta-app-backend"
 version = "0.1.0"
 source = { editable = "app_backend" }
@@ -819,6 +845,11 @@ dependencies = [
     { name = "fastapi" },
     { name = "psycopg", extra = ["binary"] },
     { name = "pydantic" },
+    { name = "pyright" },
+    { name = "pytest" },
+    { name = "pytest-benchmark" },
+    { name = "pytest-cov" },
+    { name = "ruff" },
     { name = "uvicorn", extra = ["standard"] },
 ]
 
@@ -827,6 +858,11 @@ requires-dist = [
     { name = "fastapi", specifier = ">=0.115.5" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.2.9" },
     { name = "pydantic", specifier = ">=2.11.5" },
+    { name = "pyright", specifier = ">=1.1.401" },
+    { name = "pytest", specifier = ">=8.3.3" },
+    { name = "pytest-benchmark", specifier = ">=5.1.0" },
+    { name = "pytest-cov", specifier = ">=6.1.1" },
+    { name = "ruff", specifier = ">=0.11.13" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.34.2" },
 ]
 

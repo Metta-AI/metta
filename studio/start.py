@@ -10,7 +10,7 @@ import time
 import webbrowser
 from pathlib import Path
 
-from metta.common.fs import cd_repo_root
+from metta.common.util.fs import cd_repo_root
 
 
 def main():

@@ -74,7 +74,7 @@ class SimulationConfig(BaseModelWithForbidExtra):
     # Evaluate interval: Type 2 arbitrary default
     evaluate_interval: int = Field(default=300, ge=0)  # 0 to disable
     # Replay interval: Type 2 arbitrary default
-    replay_interval: int = Field(default=300, gt=0)
+    replay_interval: int = Field(default=300, ge=0)  # 0 to disable
     replay_dir: str = Field(default="")
 
     @model_validator(mode="after")
@@ -113,6 +113,21 @@ class PPOConfig(BaseModelWithForbidExtra):
     clip_vloss: bool = True
     # Target KL: None allows unlimited updates, common for stable environments
     target_kl: float | None = None
+
+
+class TorchProfilerConfig(BaseModelWithForbidExtra):
+    interval_epochs: int = Field(default=10000, ge=0)  # 0 to disable
+    # Upload location: None disables uploads, supports s3:// or local paths
+    profile_dir: str = Field(default="")
+
+    @property
+    def enabled(self) -> bool:
+        return self.interval_epochs > 0
+
+    @model_validator(mode="after")
+    def validate_fields(self) -> "TorchProfilerConfig":
+        assert self.profile_dir, "profile_dir must be set"
+        return self
 
 
 class TrainerConfig(BaseModelWithForbidExtra):
@@ -166,7 +181,7 @@ class TrainerConfig(BaseModelWithForbidExtra):
     # Reduce-overhead mode: Best for training loops when compile is enabled
     compile_mode: Literal["default", "reduce-overhead", "max-autotune"] = "reduce-overhead"
     # Profile every 10K epochs: Infrequent to minimize overhead
-    profiler_interval_epochs: int = Field(default=10000, gt=0)
+    profiler: TorchProfilerConfig = Field(default_factory=TorchProfilerConfig)
 
     # Distributed training
     # Forward minibatch: Type 2 default chosen arbitrarily
@@ -254,5 +269,8 @@ def parse_trainer_config(
 
     if "replay_dir" not in config_dict.setdefault("simulation", {}):
         config_dict["simulation"]["replay_dir"] = f"s3://softmax-public/replays/{cfg.run}"
+
+    if "profile_dir" not in config_dict.setdefault("profiler", {}):
+        config_dict["profiler"]["profile_dir"] = f"{cfg.run_dir}/torch_traces"
 
     return TrainerConfig.model_validate(config_dict)

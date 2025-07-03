@@ -1,10 +1,14 @@
 import gzip
 import logging
 import os
+import shutil
+import tempfile
 
-import boto3
 import torch.profiler
 import wandb
+
+from metta.mettagrid.util.file import http_url, is_public_uri, write_file
+from metta.rl.trainer_config import TorchProfilerConfig
 
 logger = logging.getLogger(__name__)
 
@@ -22,19 +26,16 @@ class TorchProfiler:
     which is fine) and select 'load'. Navigate traces using WASD on your
     keyboard.
 
-    Set profiler_interval_epochs in the config to zero to turn it off.
+    Set profiler.interval_epochs in the config to zero to turn it off.
 
     Future work could include support for TensorBoard.
     """
 
-    def __init__(self, master, run_dir, cfg_profiler_interval_epochs, wandb_run):
+    def __init__(self, master: bool, profiler_config: TorchProfilerConfig, wandb_run, run_dir: str):
         self._master = master
-        self._cfg_profiler_interval_epochs = cfg_profiler_interval_epochs
+        self._profiler_config = profiler_config
         self._run_dir = run_dir
         self._wandb_run = wandb_run
-        self._profile_dir = os.path.join(self._run_dir, "torch_traces")
-        os.makedirs(self._profile_dir, exist_ok=True)
-        self._s3_client = boto3.client("s3")
         self._profiler = None
         self._active = False
         self._start_epoch = None
@@ -45,12 +46,12 @@ class TorchProfiler:
         # We may need to revisit if compiling models under "max-autotune".
         self._first_profile_epoch = 300
 
-    def on_epoch_end(self, epoch):
+    def on_epoch_end(self, epoch: int) -> None:
         should_profile_this_epoch = False
         if not self._active:
             should_profile_this_epoch = (
-                self._cfg_profiler_interval_epochs != 0
-                and (epoch % self._cfg_profiler_interval_epochs == 0 or epoch == self._first_profile_epoch)
+                self._profiler_config.enabled
+                and (epoch % self._profiler_config.interval_epochs == 0 or epoch == self._first_profile_epoch)
                 and self._master
             )
         if should_profile_this_epoch:
@@ -119,17 +120,25 @@ class TorchProfiler:
 
         output_filename_json = f"{self._profile_filename_base}.json"
         output_filename_gz = f"{output_filename_json}.gz"
-        temp_json_path = os.path.join(self._profile_dir, output_filename_json)  # for uncompressed, to be deleted
-        final_gz_path = os.path.join(self._profile_dir, output_filename_gz)  # compressed path
+        temp_dir = tempfile.mkdtemp(prefix="torch_profile_")
+        temp_json_path = os.path.join(temp_dir, output_filename_json)  # for uncompressed, to be deleted
+        final_gz_path = os.path.join(temp_dir, output_filename_gz)  # compressed path
+
+        upload_path = os.path.join(self._profiler_config.profile_dir, output_filename_gz)
 
         try:
             self._export_profile(prof, temp_json_path)  # temp_json_path is a Chrome trace format file
             self._compress_trace(temp_json_path, final_gz_path)  # final_gz_path is a gzip compressed file
-            s3_bucket, s3_path = self._s3_upload(final_gz_path, output_filename_gz)
-            self._wandb_log_trace_link(s3_bucket, s3_path)
+            write_file(upload_path, final_gz_path, content_type="application/gzip")
+            upload_url = http_url(upload_path)
+
+            if is_public_uri(upload_url) and self._wandb_run:
+                self._wandb_log_trace_link(upload_url)
 
         except Exception as e:
             logger.error(f"Error handling profile trace for epoch {self._start_epoch}: {e}", exc_info=True)
+        finally:
+            shutil.rmtree(temp_dir)
 
     # _save_profile() helper methods -----------------------------------------------------
     def _export_profile(self, prof, output_path):
@@ -148,19 +157,9 @@ class TorchProfiler:
         except OSError as e:
             logger.warning(f"Could not remove temporary trace file {input_path}: {e}")
 
-    def _s3_upload(self, local_path, filename_gz):
-        """Uploads the compressed trace to the predefined S3 bucket and returns bucket & key."""
-        s3_bucket = "softmax-public"
-        s3_path = f"torch_traces/{os.path.basename(self._run_dir)}/{filename_gz}"
-        logger.info(f"Uploading profile trace to S3: s3://{s3_bucket}/{s3_path}")
-        self._s3_client.upload_file(local_path, s3_bucket, s3_path)
-        logger.info("Successfully uploaded profile trace to S3.")
-        return s3_bucket, s3_path
-
-    def _wandb_log_trace_link(self, s3_bucket, s3_path):
-        """Logs the S3 link to the profile trace in WandB."""
-        link = f"https://{s3_bucket}.s3.us-east-1.amazonaws.com/{s3_path}"
+    def _wandb_log_trace_link(self, upload_url) -> None:
+        """Logs the public url link to the profile trace in WandB."""
         link_summary = {
-            "torch_traces/link": wandb.Html(f'<a href="{link}">Torch Trace (Epoch {self._start_epoch})</a>')
+            "torch_traces/link": wandb.Html(f'<a href="{upload_url}">Torch Trace (Epoch {self._start_epoch})</a>')
         }
         self._wandb_run.log(link_summary)

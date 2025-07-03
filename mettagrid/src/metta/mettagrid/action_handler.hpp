@@ -43,10 +43,12 @@ public:
     Agent* actor = static_cast<Agent*>(_grid->object(actor_object_id));
 
     // Handle frozen status
-    if (actor->frozen > 0) {
+    if (actor->frozen != 0) {
       actor->stats.incr("status.frozen.ticks");
       actor->stats.incr("status.frozen.ticks." + actor->group_name);
-      actor->frozen -= 1;
+      if (actor->frozen > 0) {
+        actor->frozen -= 1;
+      }
       return false;
     }
 

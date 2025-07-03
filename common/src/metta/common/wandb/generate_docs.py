@@ -7,7 +7,7 @@ from pathlib import Path
 
 import yaml
 
-from metta.common.fs import get_repo_root
+from metta.common.util.fs import get_repo_root
 
 
 def parse_metrics_file(filepath):

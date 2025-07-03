@@ -305,7 +305,7 @@ interface Props {
   repo: Repo
 }
 
-type QueryState = 
+type QueryState =
   | { type: 'idle' }
   | { type: 'loading' }
   | { type: 'success'; data: SQLQueryResponse }
@@ -365,9 +365,9 @@ export function SQLQuery({ repo }: Props) {
       const result = await repo.executeQuery({ query })
       setQueryState({ type: 'success', data: result })
     } catch (error) {
-      setQueryState({ 
-        type: 'error', 
-        error: error instanceof Error ? error.message : 'Query execution failed' 
+      setQueryState({
+        type: 'error',
+        error: error instanceof Error ? error.message : 'Query execution failed',
       })
     }
   }
@@ -420,7 +420,7 @@ export function SQLQuery({ repo }: Props) {
       // String comparison
       const aStr = String(aVal).toLowerCase()
       const bStr = String(bVal).toLowerCase()
-      
+
       if (sortConfig.direction === 'asc') {
         return aStr < bStr ? -1 : aStr > bStr ? 1 : 0
       } else {
@@ -439,7 +439,7 @@ export function SQLQuery({ repo }: Props) {
             <div className="loading-message">Loading tables...</div>
           ) : (
             <ul className="table-list">
-              {tables.map(table => (
+              {tables.map((table) => (
                 <li
                   key={table.table_name}
                   className={`table-item ${selectedTable === table.table_name ? 'selected' : ''}`}
@@ -465,10 +465,14 @@ export function SQLQuery({ repo }: Props) {
               <div className="schema-info">
                 <h4>Schema for {tableSchema.table_name}</h4>
                 <div className="schema-columns">
-                  {tableSchema.columns.map(col => (
+                  {tableSchema.columns.map((col) => (
                     <div key={col.name} className="schema-column">
                       <strong>{col.name}</strong>
-                      <span className="column-type"> ({col.type}{col.nullable ? ', nullable' : ''})</span>
+                      <span className="column-type">
+                        {' '}
+                        ({col.type}
+                        {col.nullable ? ', nullable' : ''})
+                      </span>
                     </div>
                   ))}
                 </div>
@@ -479,17 +483,19 @@ export function SQLQuery({ repo }: Props) {
               <textarea
                 className="query-textarea"
                 value={query}
-                onChange={e => setQuery(e.target.value)}
+                onChange={(e) => setQuery(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder="Enter your SQL query here..."
                 spellCheck={false}
               />
-              <button 
-                className="btn btn-primary execute-button" 
+              <button
+                className="btn btn-primary execute-button"
                 onClick={executeQuery}
                 disabled={!query.trim() || queryState.type === 'loading'}
               >
-                {queryState.type === 'loading' ? 'Executing...' : (
+                {queryState.type === 'loading' ? (
+                  'Executing...'
+                ) : (
                   <>
                     Execute <span style={{ fontSize: '12px', opacity: 0.8 }}>⌘+Enter</span>
                   </>
@@ -502,9 +508,7 @@ export function SQLQuery({ repo }: Props) {
             <div className="results-header">
               <h3>Results</h3>
               {queryState.type === 'success' && (
-                <div className="results-info">
-                  {queryState.data.row_count} rows returned
-                </div>
+                <div className="results-info">{queryState.data.row_count} rows returned</div>
               )}
             </div>
 
@@ -514,9 +518,7 @@ export function SQLQuery({ repo }: Props) {
               </div>
             )}
 
-            {queryState.type === 'loading' && (
-              <div className="loading-message">Executing query...</div>
-            )}
+            {queryState.type === 'loading' && <div className="loading-message">Executing query...</div>}
 
             {queryState.type === 'success' && queryState.data.row_count === 0 && (
               <div className="empty-results">No results returned</div>
@@ -527,8 +529,8 @@ export function SQLQuery({ repo }: Props) {
                 <table className="results-table">
                   <thead>
                     <tr>
-                      {queryState.data.columns.map(col => (
-                        <th 
+                      {queryState.data.columns.map((col) => (
+                        <th
                           key={col}
                           onClick={() => handleSort(col)}
                           className={
@@ -560,9 +562,7 @@ export function SQLQuery({ repo }: Props) {
             )}
 
             {queryState.type === 'idle' && (
-              <div className="empty-results">
-                Select a table or enter a query to see results
-              </div>
+              <div className="empty-results">Select a table or enter a query to see results</div>
             )}
           </div>
         </div>

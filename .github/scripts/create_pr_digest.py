@@ -13,6 +13,7 @@ import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
+from zoneinfo import ZoneInfo
 
 import requests
 
@@ -347,9 +348,15 @@ def main():
                 f.write(f"stats_file={stats_file}\n")
                 f.write(f"has_prs_in_range={'true' if stats['total_prs_in_range'] > 0 else 'false'}\n")
                 f.write(f"has_new_prs={'true' if stats['new_prs_to_fetch'] > 0 else 'false'}\n")
-                # Add formatted date range for display
-                since_formatted = since_date.strftime("%B %d, %Y")
-                until_formatted = until_date.strftime("%B %d, %Y")
+
+                # Convert to PST (note: this handles daylight saving automatically)
+                pst_zone = ZoneInfo("America/Los_Angeles")
+                since_pst = since_date.astimezone(pst_zone)
+                until_pst = until_date.astimezone(pst_zone)
+
+                # Format for display
+                since_formatted = since_pst.strftime("%B %d, %Y")
+                until_formatted = until_pst.strftime("%B %d, %Y")
                 f.write(f"date_range_display={since_formatted} to {until_formatted}\n")
 
     except Exception as e:

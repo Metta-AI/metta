@@ -9,8 +9,8 @@ import torch.distributed as dist
 from omegaconf import DictConfig, ListConfig, OmegaConf
 from torch.distributed.elastic.multiprocessing.errors import record
 
-from app_backend.stats_client import StatsClient
 from metta.agent.policy_store import PolicyStore
+from metta.app_backend.stats_client import StatsClient
 from metta.common.util.config import Config
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.logging import setup_mettagrid_logger
