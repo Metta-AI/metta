@@ -10,9 +10,13 @@ import torch
 from metta.api import (
     Agent,
     Environment,
-    TrainingComponents,
+    Optimizer,
+    accumulate_rollout_stats,
     calculate_anneal_beta,
+    compute_advantages_with_config,
     create_policy_store,
+    perform_rollout_step,
+    process_minibatch_update,
     save_checkpoint,
     save_experiment_config,
     setup_run_directories,
@@ -134,38 +138,19 @@ policy_store = create_policy_store(
     policy_cache_size=10,
 )
 
-# Create optimizer directly - user has explicit choice between Adam and ForeachMuon
+# Create optimizer wrapper from api.py
 logger.info("Creating optimizer...")
-optimizer_type = trainer_config.optimizer.type  # "adam" or "muon"
-learning_rate = trainer_config.optimizer.learning_rate
-betas = (trainer_config.optimizer.beta1, trainer_config.optimizer.beta2)
-eps = trainer_config.optimizer.eps
-weight_decay = trainer_config.optimizer.weight_decay
+optimizer = Optimizer(
+    optimizer_type=trainer_config.optimizer.type,
+    policy=agent,
+    learning_rate=trainer_config.optimizer.learning_rate,
+    betas=(trainer_config.optimizer.beta1, trainer_config.optimizer.beta2),
+    eps=trainer_config.optimizer.eps,
+    weight_decay=trainer_config.optimizer.weight_decay,
+    max_grad_norm=trainer_config.ppo.max_grad_norm,
+)
 
-if optimizer_type == "adam":
-    logger.info(f"Using Adam optimizer with lr={learning_rate}")
-    optimizer = torch.optim.Adam(
-        agent.parameters(),
-        lr=learning_rate,
-        betas=betas,
-        eps=eps,
-        weight_decay=float(weight_decay),
-    )
-elif optimizer_type == "muon":
-    logger.info(f"Using ForeachMuon optimizer with lr={learning_rate}")
-    from heavyball import ForeachMuon
-
-    optimizer = ForeachMuon(
-        agent.parameters(),
-        lr=learning_rate,
-        betas=betas,
-        eps=eps,
-        weight_decay=weight_decay,
-    )
-else:
-    raise ValueError(f"Unknown optimizer type: {optimizer_type}. Choose 'adam' or 'muon'")
-
-# Create training components individually for visibility
+# Create training components individually
 logger.info("Creating training components...")
 
 # Get environment info from the vecenv (not Environment class)
@@ -212,26 +197,18 @@ losses = Losses()
 timer = Stopwatch(logger)
 timer.start()
 
-# Now create TrainingComponents with all the instantiated components
-training = TrainingComponents(
-    vecenv=env,
-    policy=agent,
-    experience=experience,
-    optimizer=optimizer,
-    losses=losses,
-    kickstarter=kickstarter,
-    timer=timer,
-    trainer_config=trainer_config,
-    device=device,
-)
-
 # Create learning rate scheduler
 lr_scheduler = None
 if hasattr(trainer_config, "lr_scheduler") and trainer_config.lr_scheduler.enabled:
     lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-        optimizer, T_max=trainer_config.total_timesteps // trainer_config.batch_size
+        optimizer.optimizer, T_max=trainer_config.total_timesteps // trainer_config.batch_size
     )
     logger.info("Created learning rate scheduler")
+
+# Training state variables
+agent_step = 0
+epoch = 0
+stats = {}
 
 # Load checkpoint if exists
 checkpoint_path = trainer_config.checkpoint.checkpoint_dir
@@ -239,8 +216,8 @@ checkpoint = TrainerCheckpoint.load(checkpoint_path) if checkpoint_path else Non
 
 if checkpoint:
     logger.info(f"Restoring from checkpoint at {checkpoint.agent_step} steps")
-    training.agent_step = checkpoint.agent_step
-    training.epoch = checkpoint.epoch
+    agent_step = checkpoint.agent_step
+    epoch = checkpoint.epoch
 
     # Load optimizer state
     if checkpoint.optimizer_state_dict:
@@ -252,7 +229,7 @@ if checkpoint:
 
 # Memory and System Monitoring
 memory_monitor = MemoryMonitor()
-memory_monitor.add(training, name="TrainingComponents", track_attributes=True)
+memory_monitor.add(experience, name="Experience", track_attributes=True)
 memory_monitor.add(agent, name="Agent", track_attributes=False)
 
 system_monitor = SystemMonitor(
@@ -283,42 +260,48 @@ evaluation_config = SimulationSuiteConfig(
     env_overrides={},  # Suite-level overrides
 )
 
+# Latest saved policy record for evaluations
+latest_saved_policy_record = None
+
 # Starting training
-logger.info("Starting training on {device}")
+logger.info(f"Starting training on {device}")
 evaluation_scores = {}
 rollout_time = 0
 train_time = 0
 epoch_start_time = time.time()
-steps_at_epoch_start = training.agent_step
+steps_at_epoch_start = agent_step
 
-while training.agent_step < trainer_config.total_timesteps:
-    steps_before = training.agent_step
+while agent_step < trainer_config.total_timesteps:
+    steps_before = agent_step
 
     # ===== ROLLOUT PHASE =====
     rollout_start = time.time()
     raw_infos = []
-    training.reset_for_rollout()
+    experience.reset_for_rollout()
 
     # Collect experience
-    while not training.is_ready_for_training():
-        num_steps, info = training.rollout_step()
-        training.agent_step += num_steps
+    while not experience.ready_for_training:
+        num_steps, info = perform_rollout_step(agent, env, experience, device, timer)
+        agent_step += num_steps
 
         if info:
             raw_infos.extend(info)
 
     # Process rollout statistics
-    training.accumulate_stats(raw_infos)
+    accumulate_rollout_stats(raw_infos, stats)
     rollout_time = time.time() - rollout_start
 
     # ===== TRAINING PHASE =====
     train_start = time.time()
-    training.reset_training_state()
+
+    # Reset training state
+    losses.zero()
+    experience.reset_importance_sampling_ratios()
 
     # Calculate prioritized replay parameters
     prio_cfg = trainer_config.prioritized_experience_replay
     anneal_beta = calculate_anneal_beta(
-        epoch=training.epoch,
+        epoch=epoch,
         total_timesteps=trainer_config.total_timesteps,
         batch_size=trainer_config.batch_size,
         prio_alpha=prio_cfg.prio_alpha,
@@ -326,44 +309,56 @@ while training.agent_step < trainer_config.total_timesteps:
     )
 
     # Compute advantages once
-    advantages = training.compute_advantages()
+    advantages = compute_advantages_with_config(
+        experience=experience,
+        ppo_config=trainer_config.ppo,
+        vtrace_config=trainer_config.vtrace,
+        device=device,
+    )
 
     # Train for multiple epochs
-    total_minibatches = training.experience.num_minibatches * trainer_config.update_epochs
+    total_minibatches = experience.num_minibatches * trainer_config.update_epochs
     minibatch_idx = 0
 
     for _update_epoch in range(trainer_config.update_epochs):
-        for _ in range(training.experience.num_minibatches):
+        for _ in range(experience.num_minibatches):
             # Sample minibatch
-            minibatch = training.sample_minibatch(
+            minibatch = experience.sample_minibatch(
                 advantages=advantages,
+                prio_alpha=prio_cfg.prio_alpha,
+                prio_beta=anneal_beta,
                 minibatch_idx=minibatch_idx,
                 total_minibatches=total_minibatches,
-                anneal_beta=anneal_beta,
             )
 
             # Train on minibatch
-            loss = training.train_minibatch(minibatch, advantages)
+            loss = process_minibatch_update(
+                policy=agent,
+                experience=experience,
+                minibatch=minibatch,
+                advantages=advantages,
+                trainer_cfg=trainer_config,
+                kickstarter=kickstarter,
+                agent_step=agent_step,
+                losses=losses,
+                device=device,
+            )
 
-            # Optimize
-            training.optimize_step(loss, training.experience.accumulate_minibatches)
+            # Optimize using wrapper
+            optimizer.step(loss, epoch, experience.accumulate_minibatches)
 
             minibatch_idx += 1
 
-        training.epoch += 1
+        epoch += 1
 
         # Early exit if KL divergence is too high
         if trainer_config.ppo.target_kl is not None:
-            average_approx_kl = training.losses.approx_kl_sum / training.losses.minibatches_processed
+            average_approx_kl = losses.approx_kl_sum / losses.minibatches_processed
             if average_approx_kl > trainer_config.ppo.target_kl:
                 break
 
     # Apply additional training steps
     if minibatch_idx > 0:  # Only if we actually trained
-        # Weight clipping if enabled
-        if hasattr(agent, "clip_weights"):
-            agent.clip_weights()
-
         # CUDA synchronization
         if str(device).startswith("cuda"):
             torch.cuda.synchronize()
@@ -373,12 +368,12 @@ while training.agent_step < trainer_config.total_timesteps:
         lr_scheduler.step()
 
     # Calculate explained variance
-    training.losses.explained_variance = calculate_explained_variance(training.experience.values, advantages)
+    losses.explained_variance = calculate_explained_variance(experience.values, advantages)
 
     train_time = time.time() - train_start
 
     # Calculate performance metrics
-    steps_calculated = training.agent_step - steps_before
+    steps_calculated = agent_step - steps_before
     total_time = train_time + rollout_time
     steps_per_sec = steps_calculated / total_time if total_time > 0 else 0
 
@@ -386,27 +381,22 @@ while training.agent_step < trainer_config.total_timesteps:
     rollout_pct = (rollout_time / total_time) * 100 if total_time > 0 else 0
 
     # Log progress similar to trainer.py
-    logger.info(
-        f"Epoch {training.epoch} - {steps_per_sec:.0f} steps/sec ({train_pct:.0f}% train / {rollout_pct:.0f}% rollout)"
-    )
+    logger.info(f"Epoch {epoch} - {steps_per_sec:.0f} steps/sec ({train_pct:.0f}% train / {rollout_pct:.0f}% rollout)")
 
     # Heartbeat recording
-    if training.epoch % 10 == 0:
+    if epoch % 10 == 0:
         record_heartbeat()
 
     # Update L2 weights if configured
     if hasattr(agent, "l2_init_weight_update_interval"):
         l2_interval = getattr(agent, "l2_init_weight_update_interval", 0)
-        if isinstance(l2_interval, int) and l2_interval > 0 and training.epoch % l2_interval == 0:
+        if isinstance(l2_interval, int) and l2_interval > 0 and epoch % l2_interval == 0:
             if hasattr(agent, "update_l2_init_weight_copy"):
                 agent.update_l2_init_weight_copy()
-                logger.info(f"Updated L2 init weights at epoch {training.epoch}")
+                logger.info(f"Updated L2 init weights at epoch {epoch}")
 
     # Compute gradient statistics
-    if (
-        trainer_config.grad_mean_variance_interval > 0
-        and training.epoch % trainer_config.grad_mean_variance_interval == 0
-    ):
+    if trainer_config.grad_mean_variance_interval > 0 and epoch % trainer_config.grad_mean_variance_interval == 0:
         grad_stats = compute_gradient_stats(agent)
         logger.info(
             f"Gradient stats - mean: {grad_stats.get('grad/mean', 0):.2e}, "
@@ -415,7 +405,7 @@ while training.agent_step < trainer_config.total_timesteps:
         )
 
     # Log system monitoring stats
-    if training.epoch % 10 == 0:
+    if epoch % 10 == 0:
         system_stats = system_monitor.get_summary()
         logger.info(
             f"System stats - CPU: {system_stats.get('cpu_percent', 0):.1f}%, "
@@ -437,44 +427,45 @@ while training.agent_step < trainer_config.total_timesteps:
 
     # Save checkpoint periodically
     saved_policy_path = None
-    if training.epoch % trainer_config.checkpoint.checkpoint_interval == 0:
-        logger.info(f"Saving policy at epoch {training.epoch}")
-        saved_policy_path = save_checkpoint(
+    if epoch % trainer_config.checkpoint.checkpoint_interval == 0:
+        logger.info(f"Saving policy at epoch {epoch}")
+        latest_saved_policy_record = save_checkpoint(
             policy=agent,
             policy_store=policy_store,
-            epoch=training.epoch,
+            epoch=epoch,
             metadata={
-                "agent_step": training.agent_step,
-                "epoch": training.epoch,
-                "stats": dict(training.stats),
+                "agent_step": agent_step,
+                "epoch": epoch,
+                "stats": dict(stats),
             },
         )
-        logger.info(f"Successfully saved policy at epoch {training.epoch}")
+        saved_policy_path = latest_saved_policy_record
+        logger.info(f"Successfully saved policy at epoch {epoch}")
 
         # Save training state
         logger.info("Saving training state...")
         trainer_checkpoint = TrainerCheckpoint(
-            agent_step=training.agent_step,
-            epoch=training.epoch,
-            total_agent_step=training.agent_step,
+            agent_step=agent_step,
+            epoch=epoch,
+            total_agent_step=agent_step,
             optimizer_state_dict=optimizer.state_dict(),
             policy_path=saved_policy_path.uri if hasattr(saved_policy_path, "uri") else None,
             stopwatch_state=None,  # Timer state not implemented in this example
         )
         trainer_checkpoint.save(checkpoint_path)
-        logger.info(f"Saved training state at epoch {training.epoch}")
+        logger.info(f"Saved training state at epoch {epoch}")
 
         # Clean up old policies to prevent disk space issues
-        if training.epoch % 10 == 0:  # Clean up every 10 epochs
+        if epoch % 10 == 0:  # Clean up every 10 epochs
             cleanup_old_policies(checkpoint_path, keep_last_n=5)
 
     # Policy evaluation
     if (
         trainer_config.simulation.evaluate_interval > 0
-        and training.epoch % trainer_config.simulation.evaluate_interval == 0
+        and epoch % trainer_config.simulation.evaluate_interval == 0
         and saved_policy_path
     ):
-        logger.info(f"Evaluating policy at epoch {training.epoch}")
+        logger.info(f"Evaluating policy at epoch {epoch}")
 
         # Run evaluation suite (similar to trainer.py's _evaluate_policy)
         sim_suite = SimulationSuite(
@@ -513,16 +504,16 @@ while training.agent_step < trainer_config.total_timesteps:
             sim_short_name = sim_name.split("/")[-1]
             eval_scores[f"{category}/{sim_short_name}"] = score
 
-        evaluation_scores[training.epoch] = eval_scores
+        evaluation_scores[epoch] = eval_scores
         stats_db.close()
 
     # Replay generation
     if (
         trainer_config.simulation.replay_interval > 0
-        and training.epoch % trainer_config.simulation.replay_interval == 0
+        and epoch % trainer_config.simulation.replay_interval == 0
         and saved_policy_path
     ):
-        logger.info(f"Generating replay at epoch {training.epoch}")
+        logger.info(f"Generating replay at epoch {epoch}")
 
         # Generate replay (similar to trainer.py's _generate_and_upload_replay)
         replay_sim_config = SingleEnvSimulationConfig(
@@ -533,7 +524,7 @@ while training.agent_step < trainer_config.total_timesteps:
         )
 
         replay_simulator = Simulation(
-            name=f"replay_{training.epoch}",
+            name=f"replay_{epoch}",
             config=replay_sim_config,
             policy_pr=saved_policy_path,
             policy_store=policy_store,
@@ -554,18 +545,18 @@ while training.agent_step < trainer_config.total_timesteps:
         results.stats_db.close()
 
     # Clear stats for next iteration
-    training.stats.clear()
+    stats.clear()
 
 # Training complete
 total_elapsed = time.time() - epoch_start_time
 logger.info("Training complete!")
 logger.info(f"Total training time: {total_elapsed:.1f}s")
-logger.info(f"Final epoch: {training.epoch}")
-logger.info(f"Total steps: {training.agent_step}")
+logger.info(f"Final epoch: {epoch}")
+logger.info(f"Total steps: {agent_step}")
 
 # Log final stats if available
-if hasattr(training.losses, "stats"):
-    losses_stats = training.losses.stats()
+if hasattr(losses, "stats"):
+    losses_stats = losses.stats()
     logger.info(
         f"Final losses - "
         f"Policy: {losses_stats.get('policy_loss', 0):.4f}, "
@@ -577,8 +568,8 @@ if hasattr(training.losses, "stats"):
 # Log evaluation history
 if evaluation_scores:
     logger.info("\nEvaluation History:")
-    for epoch, scores in sorted(evaluation_scores.items()):
-        logger.info(f"  Epoch {epoch}:")
+    for eval_epoch, scores in sorted(evaluation_scores.items()):
+        logger.info(f"  Epoch {eval_epoch}:")
         for env_name, score in scores.items():
             logger.info(f"    {env_name}: {score:.2f}")
 
@@ -589,15 +580,15 @@ system_monitor.stop()
 memory_monitor.clear()
 
 # Final checkpoint (force save)
-if training.epoch % trainer_config.checkpoint.checkpoint_interval != 0:
+if epoch % trainer_config.checkpoint.checkpoint_interval != 0:
     logger.info("Saving final checkpoint...")
     saved_policy_path = save_checkpoint(
         policy=agent,
         policy_store=policy_store,
-        epoch=training.epoch,
+        epoch=epoch,
         metadata={
-            "agent_step": training.agent_step,
-            "epoch": training.epoch,
+            "agent_step": agent_step,
+            "epoch": epoch,
             "final": True,
         },
     )
@@ -605,9 +596,9 @@ if training.epoch % trainer_config.checkpoint.checkpoint_interval != 0:
 
     # Save final training state
     final_checkpoint = TrainerCheckpoint(
-        agent_step=training.agent_step,
-        epoch=training.epoch,
-        total_agent_step=training.agent_step,
+        agent_step=agent_step,
+        epoch=epoch,
+        total_agent_step=agent_step,
         optimizer_state_dict=optimizer.state_dict(),
         policy_path=saved_policy_path.uri if hasattr(saved_policy_path, "uri") else None,
         stopwatch_state=None,

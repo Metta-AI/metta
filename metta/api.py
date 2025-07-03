@@ -492,153 +492,128 @@ class Agent:
         return agent
 
 
-class TrainingComponents:
-    """Container for all components needed for training.
+class Optimizer:
+    """Wrapper for PyTorch optimizers with gradient accumulation and clipping support.
 
-    This exposes the internal components that MettaTrainer uses,
-    allowing direct control over the training loop.
+    This provides a clean interface for the optimization step, handling:
+    - Gradient accumulation across minibatches
+    - Gradient clipping
+    - Optional weight clipping on the policy
     """
 
     def __init__(
         self,
-        vecenv: Any,
-        policy: MettaAgent,
-        experience: Experience,
-        optimizer: torch.optim.Optimizer,
-        losses: Losses,
-        kickstarter: Kickstarter,
-        timer: Stopwatch,
-        trainer_config: TrainerConfig,
-        device: torch.device,
+        optimizer_type: str = "adam",
+        policy: MettaAgent = None,
+        learning_rate: float = 3e-4,
+        betas: Tuple[float, float] = (0.9, 0.999),
+        eps: float = 1e-8,
+        weight_decay: float = 0.0,
+        max_grad_norm: float = 0.5,
     ):
-        self.vecenv = vecenv
+        """Initialize optimizer wrapper.
+
+        Args:
+            optimizer_type: Type of optimizer ("adam" or "muon")
+            policy: Policy to optimize
+            learning_rate: Learning rate
+            betas: Beta parameters for Adam/Muon
+            eps: Epsilon for numerical stability
+            weight_decay: Weight decay coefficient
+            max_grad_norm: Maximum gradient norm for clipping
+        """
         self.policy = policy
-        self.experience = experience
-        self.optimizer = optimizer
-        self.losses = losses
-        self.kickstarter = kickstarter
-        self.timer = timer
-        self.trainer_config = trainer_config
-        self.device = device
+        self.max_grad_norm = max_grad_norm
 
-        # Training state
-        self.agent_step = 0
-        self.epoch = 0
-        self.stats = {}
+        if optimizer_type == "adam":
+            self.optimizer = torch.optim.Adam(
+                policy.parameters(),
+                lr=learning_rate,
+                betas=betas,
+                eps=eps,
+                weight_decay=weight_decay,
+            )
+        elif optimizer_type == "muon":
+            from heavyball import ForeachMuon
 
-    def rollout_step(self) -> Tuple[int, list]:
-        """Perform a single rollout step.
+            self.optimizer = ForeachMuon(
+                policy.parameters(),
+                lr=learning_rate,
+                betas=betas,
+                eps=eps,
+                weight_decay=weight_decay,
+            )
+        else:
+            raise ValueError(f"Unknown optimizer type: {optimizer_type}. Choose 'adam' or 'muon'")
 
-        Returns:
-            Tuple of (num_steps, info_list)
-        """
-        return perform_rollout_step(self.policy, self.vecenv, self.experience, self.device, self.timer)
-
-    def is_ready_for_training(self) -> bool:
-        """Check if experience buffer is ready for training."""
-        return self.experience.ready_for_training
-
-    def reset_for_rollout(self):
-        """Reset experience buffer for new rollout."""
-        self.experience.reset_for_rollout()
-
-    def accumulate_stats(self, raw_infos: list):
-        """Accumulate rollout statistics."""
-        accumulate_rollout_stats(raw_infos, self.stats)
-
-    def compute_advantages(self) -> torch.Tensor:
-        """Compute advantages using GAE."""
-        advantages = torch.zeros(self.experience.values.shape, device=self.device)
-        initial_importance_sampling_ratio = torch.ones_like(self.experience.values)
-
-        return compute_advantage(
-            self.experience.values,
-            self.experience.rewards,
-            self.experience.dones,
-            initial_importance_sampling_ratio,
-            advantages,
-            self.trainer_config.ppo.gamma,
-            self.trainer_config.ppo.gae_lambda,
-            self.trainer_config.vtrace.vtrace_rho_clip,
-            self.trainer_config.vtrace.vtrace_c_clip,
-            self.device,
-        )
-
-    def train_minibatch(
-        self,
-        minibatch: Dict[str, torch.Tensor],
-        advantages: torch.Tensor,
-    ) -> torch.Tensor:
-        """Train on a single minibatch.
+    def step(self, loss: torch.Tensor, epoch: int, accumulate_steps: int = 1):
+        """Perform optimization step with gradient accumulation.
 
         Args:
-            minibatch: Minibatch data
-            advantages: Computed advantages
-
-        Returns:
-            Loss tensor
-        """
-        return process_minibatch_update(
-            policy=self.policy,
-            experience=self.experience,
-            minibatch=minibatch,
-            advantages=advantages,
-            trainer_cfg=self.trainer_config,
-            kickstarter=self.kickstarter,
-            agent_step=self.agent_step,
-            losses=self.losses,
-            device=self.device,
-        )
-
-    def sample_minibatch(
-        self,
-        advantages: torch.Tensor,
-        minibatch_idx: int,
-        total_minibatches: int,
-        anneal_beta: float,
-    ) -> Dict[str, torch.Tensor]:
-        """Sample a minibatch from experience buffer.
-
-        Args:
-            advantages: Computed advantages
-            minibatch_idx: Current minibatch index
-            total_minibatches: Total number of minibatches
-            anneal_beta: Annealed beta for prioritized replay
-
-        Returns:
-            Minibatch dictionary
-        """
-        prio_cfg = self.trainer_config.prioritized_experience_replay
-        return self.experience.sample_minibatch(
-            advantages=advantages,
-            prio_alpha=prio_cfg.prio_alpha,
-            prio_beta=anneal_beta,
-            minibatch_idx=minibatch_idx,
-            total_minibatches=total_minibatches,
-        )
-
-    def optimize_step(self, loss: torch.Tensor, accumulate_steps: int):
-        """Perform optimizer step with gradient accumulation.
-
-        Args:
-            loss: Loss tensor
+            loss: Loss tensor to backpropagate
+            epoch: Current epoch (for accumulation check)
             accumulate_steps: Number of steps to accumulate gradients
         """
         self.optimizer.zero_grad()
         loss.backward()
 
-        if (self.epoch + 1) % accumulate_steps == 0:
-            torch.nn.utils.clip_grad_norm_(self.policy.parameters(), self.trainer_config.ppo.max_grad_norm)
+        if (epoch + 1) % accumulate_steps == 0:
+            torch.nn.utils.clip_grad_norm_(self.policy.parameters(), self.max_grad_norm)
             self.optimizer.step()
 
             # Optional weight clipping
             if hasattr(self.policy, "clip_weights"):
                 self.policy.clip_weights()
 
-    def reset_training_state(self):
-        """Reset state for new training epoch."""
-        self.losses.zero()
-        self.experience.reset_importance_sampling_ratios()
+    def state_dict(self) -> Dict[str, Any]:
+        """Get optimizer state dict."""
+        return self.optimizer.state_dict()
+
+    def load_state_dict(self, state_dict: Dict[str, Any]):
+        """Load optimizer state dict."""
+        self.optimizer.load_state_dict(state_dict)
+
+    @property
+    def param_groups(self):
+        """Access to optimizer param groups (for learning rate etc)."""
+        return self.optimizer.param_groups
+
+
+def compute_advantages_with_config(
+    experience: Experience,
+    ppo_config: PPOConfig,
+    vtrace_config: Any,
+    device: torch.device,
+) -> torch.Tensor:
+    """Compute advantages using GAE with proper configuration.
+
+    This is a convenience wrapper that handles the tensor creation
+    and initial importance sampling ratio setup.
+
+    Args:
+        experience: Experience buffer
+        ppo_config: PPO configuration
+        vtrace_config: V-trace configuration
+        device: Device to use
+
+    Returns:
+        Computed advantages tensor
+    """
+    advantages = torch.zeros(experience.values.shape, device=device)
+    initial_importance_sampling_ratio = torch.ones_like(experience.values)
+
+    return compute_advantage(
+        experience.values,
+        experience.rewards,
+        experience.dones,
+        initial_importance_sampling_ratio,
+        advantages,
+        ppo_config.gamma,
+        ppo_config.gae_lambda,
+        vtrace_config.vtrace_rho_clip,
+        vtrace_config.vtrace_c_clip,
+        device,
+    )
 
 
 def save_checkpoint(
@@ -695,7 +670,8 @@ __all__ = [
     # Factory classes
     "Environment",
     "Agent",
-    "TrainingComponents",
+    # New wrapper classes
+    "Optimizer",
     # Training components (for direct instantiation)
     "Experience",
     "Kickstarter",
@@ -713,6 +689,11 @@ __all__ = [
     "setup_run_directories",
     "save_experiment_config",
     "create_policy_store",
+    "compute_advantages_with_config",
+    # Functions from rl.functions (commonly used)
+    "perform_rollout_step",
+    "process_minibatch_update",
+    "accumulate_rollout_stats",
     # Helper classes
     "RunDirectories",
 ]
