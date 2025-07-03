@@ -12,8 +12,8 @@ def test_basic():
         (3, 3),
         children=[
             ChildrenAction(
-                scene=lambda grid: InlineAscii(
-                    grid=grid,
+                scene=lambda area: InlineAscii(
+                    area=area,
                     params={
                         "data": """
                     ###
@@ -25,7 +25,7 @@ def test_basic():
                 where="full",
             ),
             ChildrenAction(
-                scene=lambda grid: RemoveAgents(grid=grid),
+                scene=lambda area: RemoveAgents(area=area),
                 where="full",
             ),
         ],
