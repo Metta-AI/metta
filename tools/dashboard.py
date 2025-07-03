@@ -4,7 +4,7 @@
 import hydra
 from omegaconf import DictConfig, OmegaConf
 
-from metta.common.util.logging import setup_mettagrid_logger
+from metta.common.util.logging_helpers import setup_mettagrid_logger
 from metta.common.util.runtime_configuration import setup_mettagrid_environment
 from metta.eval.dashboard_data import DashboardConfig, write_dashboard_data
 from metta.mettagrid.util.file import http_url
