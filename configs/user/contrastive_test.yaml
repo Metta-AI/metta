@@ -17,7 +17,7 @@ trainer:
   batch_size: 32768
   minibatch_size: 8192
   total_timesteps: 1000000
-  num_workers: 4
+  num_workers: 2
 
 agent:
   _target_: metta.agent.metta_agent.MettaAgent
