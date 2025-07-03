@@ -7,15 +7,15 @@ import sys
 import time
 
 import torch
-from omegaconf import DictConfig
 
-from metta.agent.policy_store import PolicyStore
 from metta.api import (
     Agent,
     Environment,
     TrainingComponents,
     calculate_anneal_beta,
+    create_policy_store,
     save_checkpoint,
+    save_training_config,
     setup_run_directories,
 )
 from metta.common.profiling.memory_monitor import MemoryMonitor
@@ -86,14 +86,14 @@ trainer_config = TrainerConfig(
         learning_rate=3e-4,
     ),
     checkpoint=CheckpointConfig(
-        checkpoint_dir=CHECKPOINT_DIR,
+        checkpoint_dir=dirs.checkpoint_dir,
         checkpoint_interval=100,
         wandb_checkpoint_interval=0,  # Disabled for this example
     ),
     simulation=SimulationConfig(
         evaluate_interval=100,  # Evaluate every 100 epochs
         replay_interval=200,  # Generate replay every 200 epochs
-        replay_dir=REPLAY_DIR,
+        replay_dir=dirs.replay_dir,
     ),
     profiler=TorchProfilerConfig(
         interval_epochs=0,  # 0 disables profiling
@@ -134,30 +134,21 @@ config_to_save = {
         "checkpoint_dir": dirs.checkpoint_dir,
         "optimizer": trainer_config.optimizer.model_dump(),
         "ppo": trainer_config.ppo.model_dump(),
+        "checkpoint": trainer_config.checkpoint.model_dump(),
+        "simulation": trainer_config.simulation.model_dump(),
+        "profiler": trainer_config.profiler.model_dump(),
     },
 }
 
-config_path = os.path.join(dirs.run_dir, "config.yaml")
-with open(config_path, "w") as f:
-    import yaml
-
-    yaml.dump(config_to_save, f, default_flow_style=False)
-logger.info(f"Saved config to {config_path}")
+save_training_config(dirs.run_dir, config_to_save)
 
 # Create policy store for checkpointing
-# Create a minimal config for PolicyStore - it needs cfg and wandb_run
-policy_store_cfg = DictConfig(
-    {
-        "device": str(device),
-        "policy_cache_size": 10,
-        "trainer": {
-            "checkpoint": {
-                "checkpoint_dir": dirs.checkpoint_dir,
-            }
-        },
-    }
+policy_store = create_policy_store(
+    checkpoint_dir=dirs.checkpoint_dir,
+    device=str(device),
+    wandb_run=None,  # No wandb in this example
+    policy_cache_size=10,
 )
-policy_store = PolicyStore(cfg=policy_store_cfg, wandb_run=None)
 
 # Create optimizer directly - user has explicit choice between Adam and ForeachMuon
 logger.info("Creating optimizer...")

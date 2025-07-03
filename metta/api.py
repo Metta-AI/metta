@@ -102,6 +102,70 @@ def setup_run_directories(run_name: Optional[str] = None, data_dir: Optional[str
     )
 
 
+def save_training_config(run_dir: str, config_dict: Dict[str, Any]) -> None:
+    """Save training configuration to config.yaml in the run directory.
+
+    This matches the behavior of tools/train.py which saves the full
+    configuration for reproducibility.
+
+    Args:
+        run_dir: Directory where the run is saved
+        config_dict: Configuration dictionary to save
+    """
+    from omegaconf import OmegaConf
+
+    config_path = os.path.join(run_dir, "config.yaml")
+    OmegaConf.save(config_dict, config_path)
+    logger.info(f"Saved config to {config_path}")
+
+
+def create_policy_store(
+    checkpoint_dir: str,
+    device: str = "cuda",
+    wandb_run: Optional[Any] = None,
+    wandb_entity: Optional[str] = None,
+    wandb_project: Optional[str] = None,
+    policy_cache_size: int = 10,
+) -> PolicyStore:
+    """Create a PolicyStore with proper configuration.
+
+    This creates a PolicyStore that matches what the normal training
+    workflow expects, with all required fields properly set.
+
+    Args:
+        checkpoint_dir: Directory for saving checkpoints
+        device: Device to use (e.g., "cuda", "cpu")
+        wandb_run: Optional wandb run object
+        wandb_entity: Wandb entity (required if using wandb features)
+        wandb_project: Wandb project (required if using wandb features)
+        policy_cache_size: Size of the policy cache (default: 10)
+
+    Returns:
+        Configured PolicyStore instance
+    """
+    # Create a config that matches what PolicyStore expects
+    config = DictConfig(
+        {
+            "device": device,
+            "policy_cache_size": policy_cache_size,
+            "trainer": {
+                "checkpoint": {
+                    "checkpoint_dir": checkpoint_dir,
+                }
+            },
+        }
+    )
+
+    # Add wandb config if provided
+    if wandb_entity and wandb_project:
+        config["wandb"] = {
+            "entity": wandb_entity,
+            "project": wandb_project,
+        }
+
+    return PolicyStore(config, wandb_run)
+
+
 # Object type IDs from mettagrid/src/metta/mettagrid/objects/constants.hpp
 # TODO: These should be imported from mettagrid once they're exposed via Python bindings
 TYPE_AGENT = 0
@@ -800,6 +864,8 @@ __all__ = [
     "evaluate_policy",
     "calculate_anneal_beta",
     "setup_run_directories",
+    "save_training_config",
+    "create_policy_store",
     # Helper classes
     "RunDirectories",
     # Constants

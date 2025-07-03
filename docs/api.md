@@ -26,6 +26,75 @@ uv sync --inexact
 python run.py
 ```
 
+## Basic Example
+
+Here's a minimal example showing the core training loop:
+
+```python
+#!/usr/bin/env -S uv run
+
+from metta.api import (
+    Environment, Agent, TrainingComponents,
+    setup_run_directories, save_training_config,
+    create_policy_store, create_default_trainer_config,
+    save_checkpoint
+)
+
+# Set up run directories
+dirs = setup_run_directories()
+
+# Create trainer configuration
+config = create_default_trainer_config(
+    num_workers=4,
+    total_timesteps=10_000_000,
+    checkpoint_dir=dirs.checkpoint_dir
+)
+
+# Save configuration
+save_training_config(dirs.run_dir, {
+    "run": dirs.run_name,
+    "trainer": config.model_dump()
+})
+
+# Create environment
+env = Environment(num_agents=4, width=32, height=32)
+
+# Create agent (uses default architecture)
+agent = Agent(env)
+
+# Create policy store for checkpointing
+policy_store = create_policy_store(dirs.checkpoint_dir)
+
+# Create training components
+training = TrainingComponents.create(
+    env, agent, config, policy_store=policy_store
+)
+
+# Training loop
+while training.agent_step < config.total_timesteps:
+    # Collect experience
+    training.reset_for_rollout()
+    while not training.is_ready_for_training():
+        num_steps, info = training.rollout_step()
+        training.agent_step += num_steps
+
+    # Train on collected experience
+    advantages = training.compute_advantages()
+    for _ in range(config.update_epochs):
+        for i in range(training.experience.num_minibatches):
+            minibatch = training.sample_minibatch(advantages, i, ...)
+            loss = training.train_minibatch(minibatch, advantages)
+            training.optimize_step(loss)
+
+    # Save checkpoint
+    if training.epoch % 100 == 0:
+        save_checkpoint(agent, policy_store, training.epoch)
+
+    training.epoch += 1
+```
+
+For a complete example with all features, see `run.py`.
+
 ## Design Philosophy
 
 The API provides:
@@ -551,3 +620,81 @@ If imports fail after merging from main, module paths may have changed. Common r
 5. **Integration**: Easy to integrate with existing codebases
 
 This makes it an excellent starting point for researchers and engineers who want full control over the Metta training process while still having access to advanced features like evaluation and monitoring.
+
+## Helper Functions
+
+### setup_run_directories
+
+Set up the directory structure for a training run, matching the layout used by `tools/train.py`:
+
+```python
+from metta.api import setup_run_directories
+
+# Create run directories with defaults
+dirs = setup_run_directories()
+# Creates:
+# - {DATA_DIR}/{METTA_RUN}/
+#   - checkpoints/
+#   - replays/
+#   - stats/
+
+# Or specify custom values
+dirs = setup_run_directories(
+    run_name="my_experiment",
+    data_dir="/path/to/data"
+)
+
+# Access paths
+print(dirs.run_dir)        # Main run directory
+print(dirs.checkpoint_dir) # Checkpoint directory
+print(dirs.replay_dir)     # Replay directory
+print(dirs.stats_dir)      # Stats directory
+print(dirs.run_name)       # Run name
+```
+
+### save_training_config
+
+Save training configuration to `config.yaml`, matching the behavior of `tools/train.py`:
+
+```python
+from metta.api import save_training_config
+
+config = {
+    "run": "my_experiment",
+    "device": "cuda",
+    "trainer": {
+        "num_workers": 4,
+        "total_timesteps": 10_000_000,
+        # ... other config
+    }
+}
+
+save_training_config(run_dir, config)
+# Saves to {run_dir}/config.yaml using OmegaConf
+```
+
+### create_policy_store
+
+Create a properly configured PolicyStore without needing to understand its internal config structure:
+
+```python
+from metta.api import create_policy_store
+
+# Basic usage
+policy_store = create_policy_store(
+    checkpoint_dir="./checkpoints",
+    device="cuda"
+)
+
+# With wandb support
+policy_store = create_policy_store(
+    checkpoint_dir="./checkpoints",
+    device="cuda",
+    wandb_run=wandb_run,
+    wandb_entity="my-entity",
+    wandb_project="my-project",
+    policy_cache_size=20  # Optional, default is 10
+)
+```
+
+### create_default_trainer_config
