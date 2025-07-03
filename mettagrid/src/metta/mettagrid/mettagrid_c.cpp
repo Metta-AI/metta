@@ -708,6 +708,11 @@ unsigned int StatsTracker::get_current_step() const {
   return static_cast<MettaGrid*>(_env)->current_step;
 }
 
+const std::string& StatsTracker::inventory_item_name(InventoryItem item) const {
+  if (!_env) return StatsTracker::NO_ENV_INVENTORY_ITEM_NAME;
+  return _env->inventory_item_names[item];
+}
+
 // Pybind11 module definition
 PYBIND11_MODULE(mettagrid_c, m) {
   m.doc() = "MettaGrid environment";  // optional module docstring
