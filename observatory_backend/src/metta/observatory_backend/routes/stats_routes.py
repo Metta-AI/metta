@@ -4,9 +4,9 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from metta.app_backend.auth import create_user_or_token_dependency
-from metta.app_backend.metta_repo import MettaRepo
-from metta.app_backend.route_logger import timed_route
+from metta.observatory_backend.auth import create_user_or_token_dependency
+from metta.observatory_backend.metta_repo import MettaRepo
+from metta.observatory_backend.route_logger import timed_route
 
 
 # Request/Response Models

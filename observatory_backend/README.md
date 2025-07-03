@@ -1,16 +1,16 @@
-# Metta App Backend
+# Observatory Backend
 
-This is the backend for the app deployed at https://observatory.softmax-research.net/
+This is the backend for the "Metta Observatory" app deployed at https://observatory.softmax-research.net/
 
 ## Building the Docker Image
 
 In the parent directory run the command
 
 ```
-docker build -t metta-app-backend:latest -f app_backend/Dockerfile .
+docker build -t metta-observatory-backend:latest -f observatory_backend/Dockerfile .
 ```
 
-This will build the Docker image tagged as `metta-app-backend:latest`.
+This will build the Docker image tagged as `metta-observatory-backend:latest`.
 The command must be run from the parent directory because we are using the parent `uv.lock` file.
 
 ## Running the Container
@@ -18,7 +18,7 @@ The command must be run from the parent directory because we are using the paren
 ```bash
 docker run -p 8000:8000 \
   -e STATS_DB_URI="postgres://user:password@host:port/db" \
-  metta-app-backend:latest
+  metta-observatory-backend:latest
 ```
 
 If you are running a postgres instance locally, use `host.docker.internal` as host
@@ -36,7 +36,7 @@ without the oauth2_proxy.
 To run locally without Docker:
 
 ```bash
-cd app_backend
+cd observatory_backend
 uv run python server.py
 ```
 

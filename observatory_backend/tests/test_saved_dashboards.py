@@ -5,8 +5,8 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from testcontainers.postgres import PostgresContainer
 
-from metta.app_backend.metta_repo import MettaRepo
-from metta.app_backend.server import create_app
+from metta.observatory_backend.metta_repo import MettaRepo
+from metta.observatory_backend.server import create_app
 
 
 class TestSavedDashboards:

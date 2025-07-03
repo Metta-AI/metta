@@ -12,7 +12,7 @@ install:
 
 test:
 	@echo "Running tests with coverage..."
-	UV_PROJECT_ENVIRONMENT=../.venv uv run pytest --cov=metta.app_backend --cov-report=term-missing
+	UV_PROJECT_ENVIRONMENT=../.venv uv run pytest --cov=metta.observatory_backend --cov-report=term-missing
 
 clean:
 	@echo "Cleaning extra venv..."
@@ -21,4 +21,4 @@ clean:
 
 docker:
 	@echo "Building Docker image..."
-	docker build -t metta-app-backend:latest -f Dockerfile ..
+	docker build -t metta-observatory-backend:latest -f Dockerfile ..

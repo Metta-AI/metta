@@ -8,12 +8,12 @@ on:
     branches:
       - main
     paths:
-      - "app_backend/**"
+      - "observatory_backend/**"
       - ".github/workflows/**"
   workflow_dispatch: {}
 
 env:
-  IMAGE_NAME: metta-app-backend
+  IMAGE_NAME: metta-observatory-backend
 
 jobs:
   build-and-push-image:
@@ -54,7 +54,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: ./app_backend/Dockerfile
+          file: ./observatory_backend/Dockerfile
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

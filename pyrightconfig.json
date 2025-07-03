@@ -11,7 +11,8 @@
     "./common/src",
     "./mettagrid/src",
     "./agent/src",
-    "./app_backend/src"
+    "./observatory_backend/src",
+    "./studio_backend/src"
   ],
   "typeCheckingMode": "basic",
   "reportMissingModuleSource": false,

@@ -3,9 +3,9 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "metta-app-backend"
+name = "metta-studio-backend"
 version = "0.1.0"
-description = "Metta AI App Backend Server"
+description = "Metta Studio App Backend Server"
 authors = [{ name = "David Bloomin", email = "daveey@gmail.com" }]
 requires-python = "==3.11.7"
 license = "MIT"
@@ -26,15 +26,15 @@ dependencies = [
 
 [tool.setuptools.packages.find]
 where = ["src"]
-include = ["metta.app_backend"]
+include = ["metta.studio_backend"]
 
 [tool.setuptools.package-data]
 "metta" = ["__init__.py"]
-"metta.app_backend" = ["py.typed"]
+"metta.studio_backend" = ["py.typed"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
 
 [tool.coverage.run]
-source = ["metta.app_backend"]
+source = ["metta.studio_backend"]

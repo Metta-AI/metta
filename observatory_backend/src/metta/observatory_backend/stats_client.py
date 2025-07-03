@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional
 import httpx
 from pydantic import BaseModel
 
-from metta.app_backend.routes.stats_routes import (
+from metta.observatory_backend.routes.stats_routes import (
     EpisodeCreate,
     EpochCreate,
     PolicyCreate,

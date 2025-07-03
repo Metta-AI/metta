@@ -4,7 +4,7 @@ from logging import Logger
 from httpx import Client
 from omegaconf import DictConfig, ListConfig
 
-from metta.app_backend.stats_client import StatsClient
+from metta.observatory_backend.stats_client import StatsClient
 
 
 def get_machine_token() -> str | None:
