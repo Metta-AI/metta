@@ -83,7 +83,19 @@ class Simulation:
         logger.info(f"config.env {config.env}")
         logger.info(f"config.env_overrides {config.env_overrides}")
 
-        env_overrides = OmegaConf.create(config.env_overrides)
+        # Check if we have a pre-built config to avoid Hydra dependency
+        # This allows us to bypass Hydra entirely when running without it
+        pre_built_config = None
+
+        # Make a copy of env_overrides to modify
+        env_overrides_dict = dict(config.env_overrides)
+
+        # Extract pre-built config if present
+        if "_pre_built_env_config" in env_overrides_dict:
+            pre_built_config = env_overrides_dict.pop("_pre_built_env_config")
+
+        # Create OmegaConf from the modified overrides (without _pre_built_env_config)
+        env_overrides = OmegaConf.create(env_overrides_dict)
 
         self._env_name = config.env
 
@@ -99,15 +111,6 @@ class Simulation:
         # ----------------
         num_envs = min(config.num_episodes, os.cpu_count() or 1)
         logger.info(f"Creating vecenv with {num_envs} environments")
-
-        # Check if we have a pre-built config to avoid Hydra dependency
-        # This allows us to bypass Hydra entirely when running without it
-        pre_built_config = None
-        if hasattr(config, "_pre_built_env_config"):
-            pre_built_config = config._pre_built_env_config
-        elif "_pre_built_env_config" in config.env_overrides:
-            # Extract pre-built config from env_overrides
-            pre_built_config = config.env_overrides.pop("_pre_built_env_config")
 
         if pre_built_config is not None:
             # Use our custom curriculum that doesn't require Hydra
