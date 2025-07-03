@@ -5,7 +5,7 @@ armory:
   max_output: 5
   conversion_ticks: 1
   cooldown: 10
-  initial_items: 1
+  initial_items: 0
 
 lasery:
   type_id: 10
@@ -15,4 +15,4 @@ lasery:
   max_output: 5
   conversion_ticks: 1
   cooldown: 10
-  initial_items: 1
+  initial_items: 0

@@ -1,6 +1,5 @@
 import logging
 import os
-import time
 from collections import defaultdict
 from pathlib import Path
 from typing import Any, Set
@@ -15,10 +14,12 @@ from omegaconf import DictConfig
 
 from metta.agent.metta_agent import DistributedMettaAgent, make_policy
 from metta.agent.policy_metadata import PolicyMetadata
-from metta.agent.policy_store import PolicyRecord, PolicyStore
+from metta.agent.policy_record import PolicyRecord
+from metta.agent.policy_store import PolicyStore
 from metta.app_backend.stats_client import StatsClient
-from metta.common.memory_monitor import MemoryMonitor
-from metta.common.stopwatch import Stopwatch, with_instance_timer
+from metta.common.profiling.memory_monitor import MemoryMonitor
+from metta.common.profiling.stopwatch import Stopwatch, with_instance_timer
+from metta.common.util.fs import wait_for_file
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.system_monitor import SystemMonitor
 from metta.common.wandb.wandb_context import WandbRun
@@ -129,7 +130,7 @@ class MettaTrainer:
         self._batch_size = trainer_cfg.batch_size
         self._minibatch_size = trainer_cfg.minibatch_size
 
-        self.torch_profiler = TorchProfiler(self._master, cfg.run_dir, trainer_cfg.profiler_interval_epochs, wandb_run)
+        self.torch_profiler = TorchProfiler(self._master, trainer_cfg.profiler, wandb_run, cfg.run_dir)
         self.losses = Losses()
         self.stats = defaultdict(list)
         self.grad_stats = {}
@@ -212,17 +213,28 @@ class MettaTrainer:
                 # Synchronize with master before attempting to load
                 torch.distributed.barrier()
 
-                policy_record = self._wait_for_policy_record(default_policy_path)
-                if policy_record is None:
+                def log_progress(elapsed: float, status: str) -> None:
+                    if status == "waiting" and int(elapsed) % 10 == 0 and elapsed > 0:
+                        logger.info(f"Rank {self._rank}: Still waiting for policy file... ({elapsed:.0f}s elapsed)")
+                    elif status == "found":
+                        logger.info(f"Rank {self._rank}: Policy file found, waiting for write to complete...")
+                    elif status == "stable":
+                        logger.info(f"Rank {self._rank}: Policy file stable after {elapsed:.1f}s")
+
+                if not wait_for_file(default_policy_path, timeout=300, progress_callback=log_progress):
+                    raise RuntimeError(f"Rank {self._rank}: Timeout waiting for policy at {default_policy_path}")
+
+                try:
+                    policy_record = self.policy_store.policy_record(default_policy_path)
+                except Exception as e:
                     raise RuntimeError(
-                        f"Rank {self._rank}: Failed to load policy from {default_policy_path} after waiting"
-                    )
+                        f"Rank {self._rank}: Failed to load policy from {default_policy_path}: {e}"
+                    ) from e
 
                 self.initial_policy_record = policy_record
                 self.latest_saved_policy_record = policy_record
                 self.policy = policy_record.policy
 
-                # Initialize the policy to the environment
                 self._initialize_policy_to_environment(self.policy, metta_grid_env, self.device)
             else:
                 # Master creates and saves new policy
@@ -231,7 +243,6 @@ class MettaTrainer:
                 self.latest_saved_policy_record = policy_record
                 self.policy = policy_record.policy
 
-                # Initialize the policy to the environment
                 self._initialize_policy_to_environment(self.policy, metta_grid_env, self.device)
 
                 # Synchronize with non-master ranks after saving
@@ -649,62 +660,6 @@ class MettaTrainer:
         # Synchronize all ranks to ensure the policy is fully saved before continuing
         if torch.distributed.is_initialized():
             torch.distributed.barrier()
-
-    def _wait_for_policy_record(self, policy_path: str, timeout: int = 300) -> PolicyRecord | None:
-        """Wait for a policy file to be created by the master rank.
-
-        Args:
-            policy_path: Path to the policy file to wait for
-            timeout: Maximum time to wait in seconds
-
-        Returns:
-            PolicyRecord if found, None if timeout
-        """
-        logger.info(f"Rank {self._rank} waiting for policy at {policy_path}")
-        start_time = time.time()
-
-        # First wait for the file to exist
-        while not os.path.exists(policy_path):
-            time.sleep(0.1)  # Reduce sleep time for faster detection
-            elapsed = time.time() - start_time
-
-            if elapsed > timeout:
-                logger.error(f"Rank {self._rank}: Timeout after {timeout}s waiting for policy at {policy_path}")
-                return None
-
-            if int(elapsed) % 10 == 0 and elapsed > 0:  # Log every 10 seconds
-                logger.info(f"Rank {self._rank}: Still waiting for policy file... ({elapsed:.0f}s elapsed)")
-
-        # File exists, but may still be writing. Wait for file size to stabilize.
-        logger.info(f"Rank {self._rank}: Policy file found, waiting for write to complete...")
-
-        # Wait for file size to be stable for at least 0.5 seconds
-        stable_duration = 0
-        last_size = -1
-        while stable_duration < 0.5:
-            try:
-                current_size = os.path.getsize(policy_path)
-                if current_size == last_size and current_size > 0:
-                    stable_duration += 0.05
-                else:
-                    stable_duration = 0
-                    last_size = current_size
-                time.sleep(0.05)
-            except OSError:
-                # File might be in the process of being renamed
-                stable_duration = 0
-                time.sleep(0.05)
-
-        logger.info(f"Rank {self._rank}: Policy file stable after {time.time() - start_time:.1f}s, loading...")
-
-        # Add a small delay to ensure file system propagation
-        time.sleep(0.1)
-
-        try:
-            return self.policy_store.policy_record(policy_path)
-        except Exception as e:
-            logger.error(f"Rank {self._rank}: Failed to load policy from {policy_path}: {e}")
-            return None
 
     def _maybe_upload_policy_record_to_wandb(self, force: bool = False) -> str | None:
         """Upload policy to wandb if on wandb interval"""

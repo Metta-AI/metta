@@ -2,7 +2,7 @@ import logging
 
 from omegaconf import DictConfig, ListConfig, OmegaConf
 
-from metta.common.util.numpy.clean_numpy_types import clean_numpy_types
+from metta.common.util.numpy_helpers import clean_numpy_types
 
 from .protein import Protein
 from .protein_wandb import WandbProtein

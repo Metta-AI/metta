@@ -4,7 +4,8 @@ from pathlib import Path
 
 import torch
 
-from metta.agent.policy_store import PolicyRecord, PolicyStore
+from metta.agent.policy_record import PolicyRecord
+from metta.agent.policy_store import PolicyStore
 from metta.app_backend.stats_client import StatsClient
 from metta.sim.simulation import Simulation, SimulationCompatibilityError, SimulationResults
 from metta.sim.simulation_config import SimulationSuiteConfig
