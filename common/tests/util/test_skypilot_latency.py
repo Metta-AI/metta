@@ -68,8 +68,14 @@ class TestSkyPilotLatency:
         # Fix: Find the script relative to the test file
         # Since we're running from the 'common' directory in CI,
         # and both files are in the same directory structure
-        script_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-                                  "src", "metta", "common", "util", "skypilot_latency.py")
+        script_path = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+            "src",
+            "metta",
+            "common",
+            "util",
+            "skypilot_latency.py",
+        )
 
         result = subprocess.run(
             [sys.executable, script_path],
