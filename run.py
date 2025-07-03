@@ -154,19 +154,16 @@ assert isinstance(metta_grid_env, MettaGridEnv)
 
 # Create experience buffer
 logger.info("Creating experience buffer...")
-obs_space = env.single_observation_space  # type: ignore - vecenv attribute
-atn_space = env.single_action_space  # type: ignore - vecenv attribute
-total_agents = env.num_agents  # type: ignore - vecenv attribute
 hidden_size, num_lstm_layers = get_lstm_config(agent)
 
 experience = Experience(
-    total_agents=total_agents,
+    total_agents=env.num_agents,
     batch_size=trainer_config.batch_size,
     bptt_horizon=trainer_config.bptt_horizon,
     minibatch_size=trainer_config.minibatch_size,
     max_minibatch_size=trainer_config.minibatch_size,
-    obs_space=obs_space,
-    atn_space=atn_space,
+    obs_space=env.single_observation_space,
+    atn_space=env.single_action_space,
     device=device,
     hidden_size=hidden_size,
     cpu_offload=trainer_config.cpu_offload,
