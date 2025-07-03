@@ -18,17 +18,18 @@ The Metta API provides direct instantiation of training components without requi
 import torch
 from metta.api import (
     Environment, Agent, Optimizer,
-    setup_run_directories, create_policy_store,
-    save_experiment_config, PolicyRecord,
+    setup_run_directories,
     perform_rollout_step, process_minibatch_update,
     accumulate_rollout_stats, compute_advantage,
     calculate_anneal_beta
 )
+from metta.agent.policy_store import PolicyStore
 from metta.rl.experience import Experience
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses
 from metta.rl.trainer_config import TrainerConfig
 from metta.common.profiling.stopwatch import Stopwatch
+from omegaconf import DictConfig, OmegaConf
 
 # Set up directories
 dirs = setup_run_directories()
@@ -330,48 +331,48 @@ print(dirs.stats_dir)       # Stats directory
 print(dirs.run_name)        # Run name
 ```
 
-### Experiment Configuration
+### Configuration Saving
 
-Save training configuration for reproducibility:
+Save experiment configuration directly using OmegaConf:
 
 ```python
-from metta.api import save_experiment_config
+from omegaconf import OmegaConf
+import os
 
-config = {
+config_dict = {
     "run": "my_experiment",
     "device": "cuda",
     "trainer": {
-        "num_workers": 4,
         "total_timesteps": 10_000_000,
-        # ... other config
+        "batch_size": 16384,
+        # ... other config ...
     }
 }
 
-save_experiment_config(run_dir, config)
-# Saves to {run_dir}/config.yaml using OmegaConf
+# Save configuration to run directory
+OmegaConf.save(config_dict, os.path.join(run_dir, "config.yaml"))
 ```
 
-### PolicyStore Creation
+### Policy Store
 
-Create a properly configured PolicyStore:
+Create a policy store directly with minimal configuration:
 
 ```python
-from metta.api import create_policy_store
+from metta.agent.policy_store import PolicyStore
+from omegaconf import DictConfig
 
-# Basic usage
-policy_store = create_policy_store(
-    checkpoint_dir="./checkpoints",
-    device="cuda"
-)
-
-# With wandb support
-policy_store = create_policy_store(
-    checkpoint_dir="./checkpoints",
-    device="cuda",
-    wandb_run=wandb_run,
-    wandb_entity="my-entity",
-    wandb_project="my-project",
-    policy_cache_size=20  # Optional, default is 10
+# Create minimal config for PolicyStore
+policy_store = PolicyStore(
+    DictConfig({
+        "device": "cuda",
+        "policy_cache_size": 10,
+        "trainer": {
+            "checkpoint": {
+                "checkpoint_dir": "./checkpoints",
+            }
+        },
+    }),
+    wandb_run=None,
 )
 ```
 

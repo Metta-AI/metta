@@ -19,7 +19,6 @@ import torch
 from omegaconf import DictConfig, OmegaConf
 
 from metta.agent.metta_agent import MettaAgent
-from metta.agent.policy_store import PolicyStore
 from metta.common.profiling.stopwatch import Stopwatch
 from metta.mettagrid.curriculum.core import Curriculum, SingleTaskCurriculum, Task
 from metta.mettagrid.mettagrid_env import MettaGridEnv
@@ -98,70 +97,7 @@ def setup_run_directories(run_name: Optional[str] = None, data_dir: Optional[str
     )
 
 
-def save_experiment_config(run_dir: str, config_dict: Dict[str, Any]) -> None:
-    """Save training configuration to config.yaml in the run directory.
-
-    This matches the behavior of tools/train.py which saves the full
-    configuration for reproducibility.
-
-    Args:
-        run_dir: Directory where the run is saved
-        config_dict: Configuration dictionary to save
-    """
-    config_path = os.path.join(run_dir, "config.yaml")
-    OmegaConf.save(config_dict, config_path)
-    logger.info(f"Saved config to {config_path}")
-
-
-def create_policy_store(
-    checkpoint_dir: str,
-    device: str = "cuda",
-    wandb_run: Optional[Any] = None,
-    wandb_entity: Optional[str] = None,
-    wandb_project: Optional[str] = None,
-    policy_cache_size: int = 10,
-) -> PolicyStore:
-    """Create a PolicyStore with proper configuration.
-
-    This creates a PolicyStore that matches what the normal training
-    workflow expects, with all required fields properly set.
-
-    Args:
-        checkpoint_dir: Directory for saving checkpoints
-        device: Device to use (e.g., "cuda", "cpu")
-        wandb_run: Optional wandb run object
-        wandb_entity: Wandb entity (required if using wandb features)
-        wandb_project: Wandb project (required if using wandb features)
-        policy_cache_size: Size of the policy cache (default: 10)
-
-    Returns:
-        Configured PolicyStore instance
-    """
-    logger.info("Creating policy store...")
-    # Create a config that matches what PolicyStore expects
-    config = DictConfig(
-        {
-            "device": device,
-            "policy_cache_size": policy_cache_size,
-            "trainer": {
-                "checkpoint": {
-                    "checkpoint_dir": checkpoint_dir,
-                }
-            },
-        }
-    )
-
-    # Add wandb config if provided
-    if wandb_entity and wandb_project:
-        config["wandb"] = {
-            "entity": wandb_entity,
-            "project": wandb_project,
-        }
-
-    return PolicyStore(config, wandb_run)
-
-
-# Helper to create default environment config - Updated for navigation training
+# Helper to create default environment config
 def _get_default_env_config(num_agents: int = 4, width: int = 32, height: int = 32) -> Dict[str, Any]:
     """Get default environment configuration for navigation training."""
     # Object type IDs from mettagrid/src/metta/mettagrid/objects/constants.hpp
@@ -648,7 +584,7 @@ class Optimizer:
                 lr=learning_rate,
                 betas=betas,
                 eps=eps,
-                weight_decay=weight_decay,
+                weight_decay=float(weight_decay),  # type: ignore - PyTorch accepts float
             )
         elif optimizer_type == "muon":
             from heavyball import ForeachMuon
@@ -658,7 +594,7 @@ class Optimizer:
                 lr=learning_rate,
                 betas=betas,
                 eps=eps,
-                weight_decay=weight_decay,
+                weight_decay=float(weight_decay),  # type: ignore - PyTorch accepts float
             )
         else:
             raise ValueError(f"Unknown optimizer type: {optimizer_type}. Choose 'adam' or 'muon'")
@@ -741,8 +677,6 @@ __all__ = [
     # Helper functions
     "calculate_anneal_beta",
     "setup_run_directories",
-    "save_experiment_config",
-    "create_policy_store",
     # Functions from rl.functions (commonly used)
     "perform_rollout_step",
     "process_minibatch_update",

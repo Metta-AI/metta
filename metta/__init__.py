@@ -24,10 +24,8 @@ from metta.api import (
     # Helper functions
     calculate_anneal_beta,
     compute_advantage,
-    create_policy_store,
     perform_rollout_step,
     process_minibatch_update,
-    save_experiment_config,
     setup_run_directories,
 )
 
@@ -38,7 +36,7 @@ __all__ = [
     "Agent",
     "Environment",
     "Optimizer",
-    # Configuration classes
+    # Configuration classes (Pydantic models)
     "CheckpointConfig",
     "OptimizerConfig",
     "PPOConfig",
@@ -51,8 +49,6 @@ __all__ = [
     "Stopwatch",
     # Helper functions
     "calculate_anneal_beta",
-    "create_policy_store",
-    "save_experiment_config",
     "setup_run_directories",
     # Functions from rl.functions
     "accumulate_rollout_stats",
@@ -61,4 +57,6 @@ __all__ = [
     "process_minibatch_update",
     # Helper classes
     "RunDirectories",
+    # Version
+    "__version__",
 ]
