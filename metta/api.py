@@ -39,6 +39,7 @@ from metta.rl.trainer_config import (
     TrainerConfig,
 )
 from metta.rl.vecenv import make_vecenv
+from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
 
 logger = logging.getLogger(__name__)
 
@@ -992,3 +993,99 @@ __all__ = [
     # Helper classes
     "RunDirectories",
 ]
+
+
+def create_evaluation_config_suite() -> SimulationSuiteConfig:
+    """Create evaluation suite configuration with pre-built configs to bypass Hydra.
+
+    This creates the standard navigation evaluation suite used by the training system,
+    but with pre-built configs that don't require Hydra to be initialized.
+
+    Returns:
+        SimulationSuiteConfig with navigation tasks
+    """
+    from metta.sim.simulation_config import SimulationSuiteConfig
+
+    # Create pre-built navigation evaluation configs
+    base_nav_config = _get_default_env_config()
+    base_nav_config["sampling"] = 0  # Disable sampling for evaluation
+
+    # Create evaluation configs for different terrain sizes
+    # We need to provide dicts, not SingleEnvSimulationConfig objects
+    simulations = {}
+
+    # Small terrain evaluation
+    simulations["navigation/terrain_small"] = {
+        "env": "/env/mettagrid/navigation/training/terrain_from_numpy",
+        "num_episodes": 5,
+        "max_time_s": 30,
+        "env_overrides": {
+            "game": {"map_builder": {"room": {"dir": "varied_terrain/balanced_small"}}},
+            "_pre_built_env_config": DictConfig(base_nav_config.copy()),
+        },
+    }
+
+    # Medium terrain evaluation
+    simulations["navigation/terrain_medium"] = {
+        "env": "/env/mettagrid/navigation/training/terrain_from_numpy",
+        "num_episodes": 5,
+        "max_time_s": 30,
+        "env_overrides": {
+            "game": {"map_builder": {"room": {"dir": "varied_terrain/balanced_medium"}}},
+            "_pre_built_env_config": DictConfig(base_nav_config.copy()),
+        },
+    }
+
+    # Large terrain evaluation
+    simulations["navigation/terrain_large"] = {
+        "env": "/env/mettagrid/navigation/training/terrain_from_numpy",
+        "num_episodes": 5,
+        "max_time_s": 30,
+        "env_overrides": {
+            "game": {"map_builder": {"room": {"dir": "varied_terrain/balanced_large"}}},
+            "_pre_built_env_config": DictConfig(base_nav_config.copy()),
+        },
+    }
+
+    # Create suite config
+    evaluation_config = SimulationSuiteConfig(
+        name="evaluation",
+        simulations=simulations,
+        num_episodes=10,  # Will be overridden by individual configs
+        env_overrides={},  # Suite-level overrides
+    )
+
+    return evaluation_config
+
+
+def create_replay_config(terrain_dir: str = "varied_terrain/balanced_medium") -> SingleEnvSimulationConfig:
+    """Create a pre-built replay configuration to bypass Hydra.
+
+    Args:
+        terrain_dir: Directory for terrain maps (default: varied_terrain/balanced_medium)
+
+    Returns:
+        SingleEnvSimulationConfig with pre-built config attached
+    """
+    from metta.sim.simulation_config import SingleEnvSimulationConfig
+
+    # Create pre-built navigation config for replay
+    replay_config = _get_default_env_config()
+    replay_config["sampling"] = 0  # Disable sampling for replay
+
+    # Create simulation config with pre-built config in env_overrides
+    replay_sim_config = SingleEnvSimulationConfig(
+        env="/env/mettagrid/navigation/training/terrain_from_numpy",
+        num_episodes=1,
+        max_time_s=60,
+        env_overrides={
+            "game": {"map_builder": {"room": {"dir": terrain_dir}}},
+            "_pre_built_env_config": DictConfig(replay_config),
+        },
+    )
+
+    return replay_sim_config
+
+
+__all__.append("create_evaluation_config_suite")
+__all__.append("create_replay_config")

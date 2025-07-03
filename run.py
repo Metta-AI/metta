@@ -17,6 +17,8 @@ from metta.api import (
     calculate_anneal_beta,
     cleanup_distributed,
     compute_advantage,
+    create_evaluation_config_suite,
+    create_replay_config,
     load_checkpoint,
     perform_rollout_step,
     process_minibatch_update,
@@ -51,7 +53,6 @@ from metta.rl.trainer_config import (
     TrainerConfig,
 )
 from metta.sim.simulation import Simulation
-from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
 from metta.sim.simulation_suite import SimulationSuite
 
 # Set up logging
@@ -207,34 +208,10 @@ system_monitor = SystemMonitor(
 )
 
 # Evaluation Configuration with navigation tasks
-# NOTE: Evaluation and replay generation use Simulation classes which
-# internally depend on Hydra (via SamplingCurriculum). This is a known
-# limitation of the current implementation.
-evaluation_config = SimulationSuiteConfig(
-    name="evaluation",
-    simulations={
-        "navigation/terrain_small": SingleEnvSimulationConfig(
-            env="/env/mettagrid/navigation/training/terrain_from_numpy",
-            num_episodes=5,
-            max_time_s=30,
-            env_overrides={"game": {"map_builder": {"room": {"dir": "varied_terrain/balanced_small"}}}},
-        ),
-        "navigation/terrain_medium": SingleEnvSimulationConfig(
-            env="/env/mettagrid/navigation/training/terrain_from_numpy",
-            num_episodes=5,
-            max_time_s=30,
-            env_overrides={"game": {"map_builder": {"room": {"dir": "varied_terrain/balanced_medium"}}}},
-        ),
-        "navigation/terrain_large": SingleEnvSimulationConfig(
-            env="/env/mettagrid/navigation/training/terrain_from_numpy",
-            num_episodes=5,
-            max_time_s=30,
-            env_overrides={"game": {"map_builder": {"room": {"dir": "varied_terrain/balanced_large"}}}},
-        ),
-    },
-    num_episodes=10,  # Will be overridden by individual configs
-    env_overrides={},  # Suite-level overrides
-)
+# NOTE: Evaluation and replay generation use Simulation classes but
+# we bypass the Hydra dependency by providing pre-built configs
+# via the env_overrides mechanism.
+evaluation_config = create_evaluation_config_suite()
 
 # Starting training
 saved_policy_path = None
@@ -476,12 +453,7 @@ while agent_step < trainer_config.total_timesteps:
             logger.info(f"Generating replay at epoch {epoch}")
 
             # Generate replay on the bucketed curriculum environment
-            replay_sim_config = SingleEnvSimulationConfig(
-                env="/env/mettagrid/navigation/training/terrain_from_numpy",
-                num_episodes=1,
-                max_time_s=60,
-                env_overrides={"game": {"map_builder": {"room": {"dir": "varied_terrain/balanced_medium"}}}},
-            )
+            replay_sim_config = create_replay_config("varied_terrain/balanced_medium")
 
             replay_simulator = Simulation(
                 name=f"replay_{epoch}",

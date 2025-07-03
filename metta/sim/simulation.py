@@ -27,6 +27,7 @@ from metta.agent.policy_record import PolicyRecord
 from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyStore
 from metta.app_backend.stats_client import StatsClient
+from metta.mettagrid.curriculum.core import Curriculum, Task
 from metta.mettagrid.curriculum.sampling import SamplingCurriculum
 from metta.mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
 from metta.mettagrid.replay_writer import ReplayWriter
@@ -98,7 +99,28 @@ class Simulation:
         # ----------------
         num_envs = min(config.num_episodes, os.cpu_count() or 1)
         logger.info(f"Creating vecenv with {num_envs} environments")
-        curriculum = SamplingCurriculum(config.env, env_overrides)
+
+        # Check if we have a pre-built config to avoid Hydra dependency
+        # This allows us to bypass Hydra entirely when running without it
+        pre_built_config = None
+        if hasattr(config, "_pre_built_env_config"):
+            pre_built_config = config._pre_built_env_config
+        elif "_pre_built_env_config" in config.env_overrides:
+            # Extract pre-built config from env_overrides
+            pre_built_config = config.env_overrides.pop("_pre_built_env_config")
+
+        if pre_built_config is not None:
+            # Use our custom curriculum that doesn't require Hydra
+            # Merge the pre-built config with any env_overrides
+            if env_overrides:
+                OmegaConf.set_struct(pre_built_config, False)
+                pre_built_config = OmegaConf.merge(pre_built_config, env_overrides)
+                OmegaConf.set_struct(pre_built_config, True)
+            curriculum = PreBuiltConfigCurriculum(config.env, pre_built_config)
+        else:
+            # Use the standard SamplingCurriculum that loads from Hydra
+            curriculum = SamplingCurriculum(config.env, env_overrides)
+
         env_cfg = curriculum.get_task().env_cfg()
         self._vecenv = make_vecenv(
             curriculum,
@@ -468,3 +490,21 @@ class SimulationResults:
     """
 
     stats_db: SimulationStatsDB
+
+
+# Custom curriculum that uses a pre-built config instead of Hydra
+class PreBuiltConfigCurriculum(Curriculum):
+    """A curriculum that uses a pre-built config instead of loading from Hydra."""
+
+    def __init__(self, env_name: str, pre_built_config: Any):
+        self._env_name = env_name
+        self._cfg_template = pre_built_config
+
+    def get_task(self) -> Task:
+        # Return a task with the pre-built config
+        return Task(f"prebuilt({self._env_name})", self, self._cfg_template)
+
+    def get_task_probs(self) -> dict[str, float]:
+        """Return the current task probability for logging purposes."""
+        task_name = f"prebuilt({self._env_name})"
+        return {task_name: 1.0}
