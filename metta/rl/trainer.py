@@ -269,8 +269,9 @@ class MettaTrainer:
 
         # Initialize contrastive learning module
         self.contrastive_module = None
-        if hasattr(trainer_cfg, 'contrastive') and trainer_cfg.contrastive.enabled:
+        if hasattr(trainer_cfg, "contrastive") and trainer_cfg.contrastive.enabled:
             from metta.rl.contrastive import ContrastiveLearning
+
             self.contrastive_module = ContrastiveLearning(
                 hidden_size=self.policy.hidden_size,
                 gamma=trainer_cfg.ppo.gamma,
