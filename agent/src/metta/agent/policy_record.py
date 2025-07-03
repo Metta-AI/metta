@@ -4,11 +4,15 @@ This is separated from PolicyStore to enable cleaner packaging of saved policies
 """
 
 import logging
+from typing import TYPE_CHECKING
 
 import torch
 from torch import nn
 
 from metta.agent.policy_metadata import PolicyMetadata
+
+if TYPE_CHECKING:
+    from metta.agent.policy_store import PolicyStore
 
 logger = logging.getLogger(__name__)
 
@@ -16,10 +20,10 @@ logger = logging.getLogger(__name__)
 class PolicyRecord:
     """A record containing a policy and its metadata."""
 
-    def __init__(self, policy_store, run_name: str, uri: str, metadata: PolicyMetadata):
+    def __init__(self, policy_store: "PolicyStore", run_name: str, uri: str | None, metadata: PolicyMetadata):
         self._policy_store = policy_store
         self.run_name = run_name  # Human-readable identifier (e.g., from wandb)
-        self.uri: str = uri
+        self.uri: str | None = uri
         # Use the setter to ensure proper type
         self.metadata = metadata
         self._cached_policy = None
@@ -76,6 +80,8 @@ class PolicyRecord:
     def file_path(self) -> str:
         """Extract the file_path from the URI"""
         file_uri_prefix = "file://"
+        if self.uri is None:
+            raise ValueError("Cannot get file_path without a valid URI.")
         if not self.uri.startswith(file_uri_prefix):
             raise ValueError(f"file_path() only applies to {file_uri_prefix} URIs, but got: {self.uri}.")
 
@@ -92,8 +98,12 @@ class PolicyRecord:
                     "PolicyRecord must be created through PolicyStore for loading functionality."
                 )
             else:
+                if self.uri is None:
+                    raise ValueError("Cannot load policy without a valid URI.")
                 pr = self._policy_store.load_from_uri(self.uri)
-                # FIX: Access _cached_policy directly to avoid recursion
+                if pr._cached_policy is None:
+                    raise ValueError(f"Policy loaded from {self.uri} has no cached policy!")
+                # access _cached_policy directly to avoid recursion
                 self._cached_policy = pr._cached_policy
 
         return self._cached_policy

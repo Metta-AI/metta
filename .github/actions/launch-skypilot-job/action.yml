@@ -85,7 +85,7 @@ runs:
         chmod +x ./devops/skypilot/launch.py
 
         LAUNCH_ARGS=(
-          "--timeout-hours=${{ inputs.timeout_hours }}"
+          "--max-runtime-hours=${{ inputs.timeout_hours }}"
         )
 
         if [ -n "${{ inputs.num_gpus }}" ]; then
