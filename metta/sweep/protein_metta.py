@@ -1,6 +1,6 @@
 import logging
 
-from omegaconf import DictConfig, ListConfig, OmegaConf
+from omegaconf import DictConfig, OmegaConf
 
 from metta.common.util.numpy_helpers import clean_numpy_types
 
@@ -13,7 +13,7 @@ logger = logging.getLogger("metta_protein")
 class MettaProtein(WandbProtein):
     def __init__(
         self,
-        cfg: DictConfig | ListConfig,
+        cfg: DictConfig,
         wandb_run=None,
     ):
         parameters_dict = OmegaConf.to_container(cfg.parameters, resolve=True)

@@ -1,14 +1,37 @@
 """Decorators for Metta scripts."""
 
 import functools
+import logging
+from contextvars import ContextVar
 from typing import Callable, TypeVar
 
 import torch
-from omegaconf import DictConfig, ListConfig
+from omegaconf import DictConfig
 
 from metta.common.util.logging import setup_mettagrid_logger
 
 T = TypeVar("T")
+
+# Context variable to store the logger
+_metta_logger: ContextVar["logging.Logger | None"] = ContextVar("_metta_logger", default=None)
+
+
+def get_metta_logger():
+    """
+    Get the logger instance from the metta_script decorator.
+
+    Returns:
+        The logger instance set up by the metta_script decorator.
+
+    Raises:
+        RuntimeError: If called outside of a metta_script decorated function.
+    """
+    logger = _metta_logger.get()
+    if logger is None:
+        raise RuntimeError(
+            "No metta logger available. Ensure you're running within a @metta_script decorated function."
+        )
+    return logger
 
 
 def metta_script(func: Callable[..., T]) -> Callable[..., T]:
@@ -17,10 +40,12 @@ def metta_script(func: Callable[..., T]) -> Callable[..., T]:
 
     This decorator checks that the requested device is available and valid.
     It will raise an error if CUDA is requested but not available.
+
+    The decorated function can access the logger using get_metta_logger().
     """
 
     @functools.wraps(func)
-    def wrapper(cfg: DictConfig | ListConfig, *args, **kwargs) -> T:
+    def wrapper(cfg: DictConfig, *args, **kwargs) -> T:
         logger = setup_mettagrid_logger("metta_script")
 
         # Get the device from config
@@ -54,7 +79,13 @@ def metta_script(func: Callable[..., T]) -> Callable[..., T]:
 
         logger.info(f"Device check passed: {device}")
 
-        # Call the original function
-        return func(cfg, *args, **kwargs)
+        # Set the logger in context
+        token = _metta_logger.set(logger)
+        try:
+            # Call the original function
+            return func(cfg, *args, **kwargs)
+        finally:
+            # Reset the context
+            _metta_logger.reset(token)
 
     return wrapper
