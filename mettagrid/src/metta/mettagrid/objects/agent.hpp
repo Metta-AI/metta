@@ -19,7 +19,6 @@ struct AgentConfig {
   std::map<InventoryItem, uint8_t> max_items_per_type;
   std::map<InventoryItem, float> resource_rewards;
   std::map<InventoryItem, float> resource_reward_max;
-  std::vector<std::string> inventory_item_names;
   TypeId type_id;
 };
 
@@ -53,7 +52,6 @@ public:
         group_name(config.group_name),
         color(0),
         current_resource_reward(0),
-        stats(config.inventory_item_names),
         frozen(0),
         orientation(0),
         reward(nullptr) {

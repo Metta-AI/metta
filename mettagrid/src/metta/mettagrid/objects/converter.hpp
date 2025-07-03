@@ -21,7 +21,6 @@ struct ConverterConfig {
   unsigned short cooldown;
   unsigned char initial_items;
   ObsType color;
-  std::vector<std::string> inventory_item_names;
   TypeId type_id;
   std::string type_name;
 };
@@ -104,8 +103,7 @@ public:
         max_output(cfg.max_output),
         conversion_ticks(cfg.conversion_ticks),
         cooldown(cfg.cooldown),
-        color(cfg.color),
-        stats(cfg.inventory_item_names) {
+        color(cfg.color) {
     GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c, GridLayer::Object_Layer));
     this->converting = false;
     this->cooling_down = false;
