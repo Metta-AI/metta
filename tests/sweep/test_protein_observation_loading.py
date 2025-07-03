@@ -368,7 +368,7 @@ class TestProteinObservationLoading:
         mock_protein.suggest.return_value = ({"trainer/optimizer/learning_rate": 0.003}, {"cost": 50.0})
 
         # Create WandbProtein
-        wandb_protein = WandbProtein(mock_protein, mock_wandb_run)
+        WandbProtein(mock_protein, mock_wandb_run)
 
         # Verify that protein.observe was called with FLATTENED parameters
         mock_protein.observe.assert_called_once()
@@ -438,7 +438,7 @@ class TestProteinObservationLoading:
         mock_protein.suggest.return_value = ({"lr": 0.005}, {})
 
         # Create WandbProtein
-        wandb_protein = WandbProtein(mock_protein, mock_wandb_run)
+        WandbProtein(mock_protein, mock_wandb_run)
 
         # Verify all observations were recorded with flattened parameters
         assert mock_protein.observe.call_count == 3
@@ -500,7 +500,7 @@ class TestProteinObservationLoading:
         mock_protein.suggest.return_value = ({"lr": 0.005}, {})
 
         # Create WandbProtein - should handle the error gracefully
-        wandb_protein = WandbProtein(mock_protein, mock_wandb_run)
+        WandbProtein(mock_protein, mock_wandb_run)
 
         # The good observation should still be recorded
         assert mock_protein.observe.call_count >= 1
@@ -551,7 +551,7 @@ class TestProteinObservationLoading:
         mock_protein.suggest.return_value = ({"lr": 0.005}, {})
 
         # Create WandbProtein
-        wandb_protein = WandbProtein(mock_protein, mock_wandb_run)
+        WandbProtein(mock_protein, mock_wandb_run)
 
         # Verify the deeply nested structure was flattened
         mock_protein.observe.assert_called_once()
@@ -599,7 +599,7 @@ class TestProteinObservationLoading:
         mock_protein.suggest.return_value = ({"lr": 0.005}, {})
 
         # Create WandbProtein
-        wandb_protein = WandbProtein(mock_protein, mock_wandb_run)
+        WandbProtein(mock_protein, mock_wandb_run)
 
         # Verify pufferlib.unroll_nested_dict was called
         mock_unroll.assert_called_once_with({"trainer": {"learning_rate": 0.002}})
