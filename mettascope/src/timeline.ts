@@ -101,7 +101,7 @@ export function drawTimeline(panel: PanelInfo) {
   )
 
   // Draw the foreground of the scrubber.
-  ctx.drawSolidRect(16, 34, (scrubberWidth * state.step) / fullSteps, 16, [1, 1, 1, 1])
+  ctx.drawSolidRect(16, 34, (scrubberWidth * state.step) / fullSteps / ui.dpr, 16, [1, 1, 1, 1])
 
   if (state.showTraces) {
     // Draw the position of the traces view.
