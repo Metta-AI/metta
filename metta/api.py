@@ -11,17 +11,17 @@ import logging
 import os
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import gymnasium as gym
 import numpy as np
 import torch
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 
 from metta.agent.metta_agent import MettaAgent
 from metta.agent.policy_store import PolicyStore
 from metta.common.profiling.stopwatch import Stopwatch
-from metta.mettagrid.curriculum.core import SingleTaskCurriculum
+from metta.mettagrid.curriculum.core import Curriculum, SingleTaskCurriculum, Task
 from metta.mettagrid.mettagrid_env import MettaGridEnv
 from metta.rl.experience import Experience
 from metta.rl.functions import (
@@ -108,8 +108,6 @@ def save_experiment_config(run_dir: str, config_dict: Dict[str, Any]) -> None:
         run_dir: Directory where the run is saved
         config_dict: Configuration dictionary to save
     """
-    from omegaconf import OmegaConf
-
     config_path = os.path.join(run_dir, "config.yaml")
     OmegaConf.save(config_dict, config_path)
     logger.info(f"Saved config to {config_path}")
@@ -163,24 +161,36 @@ def create_policy_store(
     return PolicyStore(config, wandb_run)
 
 
-# Helper to create default environment config
+# Helper to create default environment config - Updated for navigation training
 def _get_default_env_config(num_agents: int = 4, width: int = 32, height: int = 32) -> Dict[str, Any]:
-    """Get default environment configuration."""
+    """Get default environment configuration for navigation training."""
     # Object type IDs from mettagrid/src/metta/mettagrid/objects/constants.hpp
-    # TODO: These should be imported from mettagrid once they're exposed via Python bindings
     TYPE_MINE_RED = 2
     TYPE_GENERATOR_RED = 5
     TYPE_ALTAR = 8
     TYPE_WALL = 1
+    TYPE_BLOCK = 14
 
     return {
+        "sampling": 1,  # Enable sampling for navigation
         "game": {
             "max_steps": 1000,
             "num_agents": num_agents,
             "obs_width": 11,
             "obs_height": 11,
             "num_observation_tokens": 200,
-            "inventory_item_names": ["ore_red", "battery_red", "heart", "laser", "armor"],
+            "inventory_item_names": [
+                "ore_red",
+                "ore_blue",
+                "ore_green",
+                "battery_red",
+                "battery_blue",
+                "battery_green",
+                "heart",
+                "armor",
+                "laser",
+                "blueprint",
+            ],
             "groups": {"agent": {"id": 0, "sprite": 0}},
             "agent": {
                 "default_item_max": 50,
@@ -202,7 +212,7 @@ def _get_default_env_config(num_agents: int = 4, width: int = 32, height: int = 
                 "rotate": {"enabled": True},
                 "put_items": {"enabled": True},
                 "get_items": {"enabled": True},
-                "attack": {"enabled": True},
+                "attack": {"enabled": True, "consumed_resources": {"laser": 1}, "defense_resources": {"armor": 1}},
                 "swap": {"enabled": True},
                 "change_color": {"enabled": True},
             },
@@ -230,23 +240,29 @@ def _get_default_env_config(num_agents: int = 4, width: int = 32, height: int = 
                     "type_id": TYPE_ALTAR,
                     "input_battery_red": 3,
                     "output_heart": 1,
-                    "max_output": -1,
+                    "max_output": 5,
                     "conversion_ticks": 1,
-                    "cooldown": 0,
-                    "initial_items": 0,
+                    "cooldown": 1000,
+                    "initial_items": 1,
                     "color": 1,
                 },
                 "wall": {"type_id": TYPE_WALL, "swappable": False},
-                "block": {"type_id": 14, "swappable": True},  # Different type_id for block
+                "block": {"type_id": TYPE_BLOCK, "swappable": True},
             },
             "reward_sharing": {"groups": {}},
             "map_builder": {
-                "_target_": "metta.mettagrid.room.random.Random",
-                "width": width,
-                "height": height,
-                "border_width": 2,
-                "agents": num_agents,
-                "objects": {"mine_red": 2, "generator_red": 1, "altar": 1, "wall": 5, "block": 3},
+                "_target_": "metta.mettagrid.room.multi_room.MultiRoom",
+                "num_rooms": num_agents,
+                "border_width": 6,
+                "room": {
+                    "_target_": "metta.mettagrid.room.terrain_from_numpy.TerrainFromNumpy",
+                    "border_width": 3,
+                    "agents": 1,
+                    "dir": "terrain_maps_nohearts",  # Default terrain directory
+                    "objects": {
+                        "altar": 30,  # Default altar count
+                    },
+                },
             },
         },
     }
@@ -338,6 +354,48 @@ def _get_default_agent_config(device: str = "cuda") -> Dict[str, Any]:
     }
 
 
+# Helper class for navigation curriculum without Hydra
+class NavigationBucketedCurriculum(Curriculum):
+    """Navigation curriculum that cycles through different terrain types without using Hydra."""
+
+    def __init__(self, base_config: Dict[str, Any], terrain_dirs: List[str], altar_range: Tuple[int, int]):
+        self.base_config = DictConfig(base_config)
+        self.terrain_dirs = terrain_dirs
+        self.altar_range = altar_range
+        self.current_idx = 0
+
+    def get_task(self) -> "Task":
+        import random
+
+        from metta.mettagrid.curriculum.core import Task
+
+        # Select a random terrain
+        terrain_dir = random.choice(self.terrain_dirs)
+
+        # Select a random altar count
+        altar_count = random.randint(self.altar_range[0], self.altar_range[1])
+
+        # Create task config
+        task_config = OmegaConf.create(self.base_config)
+        OmegaConf.set_struct(task_config, False)
+
+        # Update the terrain directory
+        task_config.game.map_builder.room.dir = terrain_dir
+
+        # Update the altar count
+        task_config.game.map_builder.room.objects.altar = altar_count
+
+        # Create task name
+        task_name = f"terrain={terrain_dir};altar={altar_count}"
+
+        return Task(task_name, self, task_config)
+
+    def get_task_probs(self) -> dict[str, float]:
+        """Return uniform probabilities for all terrain types."""
+        prob = 1.0 / len(self.terrain_dirs)
+        return {terrain: prob for terrain in self.terrain_dirs}
+
+
 class Environment:
     """Factory for creating MettaGrid environments with a clean API.
 
@@ -369,7 +427,8 @@ class Environment:
         """Create a vectorized MettaGrid environment.
 
         Args:
-            curriculum_path: Optional path to environment configuration (e.g., "/env/mettagrid/simple")
+            curriculum_path: Optional path to environment or curriculum configuration
+                           (e.g., "/env/mettagrid/simple" or "/env/mettagrid/curriculum/navigation/bucketed")
             env_config: Optional complete environment config dict. If not provided, uses defaults.
             device: Device to use
             seed: Random seed
@@ -403,17 +462,67 @@ class Environment:
                 env_config["game"]["num_agents"] = num_agents
                 if "map_builder" in env_config["game"]:
                     env_config["game"]["map_builder"]["agents"] = num_agents
+                    if "num_rooms" in env_config["game"]["map_builder"]:
+                        env_config["game"]["map_builder"]["num_rooms"] = num_agents
             if width is not None:
                 if "map_builder" in env_config["game"]:
-                    env_config["game"]["map_builder"]["width"] = width
+                    if "room" in env_config["game"]["map_builder"]:
+                        env_config["game"]["map_builder"]["room"]["width"] = width
+                    else:
+                        env_config["game"]["map_builder"]["width"] = width
             if height is not None:
                 if "map_builder" in env_config["game"]:
-                    env_config["game"]["map_builder"]["height"] = height
+                    if "room" in env_config["game"]["map_builder"]:
+                        env_config["game"]["map_builder"]["room"]["height"] = height
+                    else:
+                        env_config["game"]["map_builder"]["height"] = height
 
         # Create curriculum
-        task_config = DictConfig(env_config)
-        curriculum_name = curriculum_path or "custom_env"
-        curriculum = SingleTaskCurriculum(curriculum_name, task_config)
+        if curriculum_path == "/env/mettagrid/curriculum/navigation/bucketed":
+            # Special handling for bucketed navigation curriculum
+            terrain_dirs = [
+                "terrain_maps_nohearts",
+                "varied_terrain/balanced_large",
+                "varied_terrain/balanced_medium",
+                "varied_terrain/balanced_small",
+                "varied_terrain/sparse_large",
+                "varied_terrain/sparse_medium",
+                "varied_terrain/sparse_small",
+                "varied_terrain/dense_large",
+                "varied_terrain/dense_medium",
+                "varied_terrain/dense_small",
+                "varied_terrain/maze_large",
+                "varied_terrain/maze_medium",
+                "varied_terrain/maze_small",
+                "varied_terrain/cylinder-world_large",
+                "varied_terrain/cylinder-world_medium",
+                "varied_terrain/cylinder-world_small",
+            ]
+
+            # Create navigation training template config
+            template_config = _get_default_env_config(
+                num_agents=num_agents or 4, width=width or 32, height=height or 32
+            )
+
+            # Ensure sampling is disabled for evaluation
+            template_config["sampling"] = 0
+
+            # Create the custom navigation curriculum
+            curriculum = NavigationBucketedCurriculum(
+                base_config=template_config,
+                terrain_dirs=terrain_dirs,
+                altar_range=(10, 50),
+            )
+        elif curriculum_path:
+            # For other curriculum paths, try to create a simple single-task curriculum
+            # by using the path as a task name with the provided config
+            task_config = DictConfig(env_config)
+            curriculum = SingleTaskCurriculum(curriculum_path, task_config)
+        else:
+            # Create a single task curriculum with the provided config
+            task_config = DictConfig(env_config)
+            curriculum_name = "custom_env"
+            curriculum = SingleTaskCurriculum(curriculum_name, task_config)
 
         # Create vectorized environment
         vecenv = make_vecenv(
@@ -539,7 +648,7 @@ class Optimizer:
                 lr=learning_rate,
                 betas=betas,
                 eps=eps,
-                weight_decay=float(weight_decay),  # Ensure float type
+                weight_decay=weight_decay,
             )
         elif optimizer_type == "muon":
             from heavyball import ForeachMuon
@@ -549,7 +658,7 @@ class Optimizer:
                 lr=learning_rate,
                 betas=betas,
                 eps=eps,
-                weight_decay=float(weight_decay),  # Ensure float type
+                weight_decay=weight_decay,
             )
         else:
             raise ValueError(f"Unknown optimizer type: {optimizer_type}. Choose 'adam' or 'muon'")

@@ -74,7 +74,7 @@ trainer_config = TrainerConfig(
     ),
     checkpoint=CheckpointConfig(
         checkpoint_dir=dirs.checkpoint_dir,
-        checkpoint_interval=100,
+        checkpoint_interval=10,  # Updated to match the command line parameter
         wandb_checkpoint_interval=0,  # Disabled for this example
     ),
     simulation=SimulationConfig(
@@ -89,9 +89,10 @@ trainer_config = TrainerConfig(
     grad_mean_variance_interval=50,  # Compute gradient stats every 50 epochs
 )
 
-# Create environment
+# Create environment with bucketed navigation curriculum
 env = Environment(
-    num_agents=4,  # Simplified - just specify what we need
+    curriculum_path="/env/mettagrid/curriculum/navigation/bucketed",
+    num_agents=4,
     width=32,
     height=32,
     device=str(device),
@@ -123,6 +124,7 @@ experiment_config = {
         "checkpoint": trainer_config.checkpoint.model_dump(),
         "simulation": trainer_config.simulation.model_dump(),
         "profiler": trainer_config.profiler.model_dump(),
+        "curriculum": "/env/mettagrid/curriculum/navigation/bucketed",
     },
 }
 save_experiment_config(dirs.run_dir, experiment_config)
@@ -229,22 +231,28 @@ system_monitor = SystemMonitor(
     auto_start=True,
 )
 
-# Evaluation Configuration
+# Evaluation Configuration with navigation tasks
 evaluation_config = SimulationSuiteConfig(
     name="evaluation",
     simulations={
-        "navigation/simple": SingleEnvSimulationConfig(
-            env="/env/mettagrid/simple",
-            num_episodes=5,
-            max_time_s=30,
-            env_overrides={},
-        ),
-        "navigation/medium": SingleEnvSimulationConfig(
-            env="/env/mettagrid/medium",
-            num_episodes=5,
-            max_time_s=30,
-            env_overrides={},
-        ),
+        "navigation/terrain_small": {
+            "env": "/env/mettagrid/navigation/training/terrain_from_numpy",
+            "num_episodes": 5,
+            "max_time_s": 30,
+            "env_overrides": {"game": {"map_builder": {"room": {"dir": "varied_terrain/balanced_small"}}}},
+        },
+        "navigation/terrain_medium": {
+            "env": "/env/mettagrid/navigation/training/terrain_from_numpy",
+            "num_episodes": 5,
+            "max_time_s": 30,
+            "env_overrides": {"game": {"map_builder": {"room": {"dir": "varied_terrain/balanced_medium"}}}},
+        },
+        "navigation/terrain_large": {
+            "env": "/env/mettagrid/navigation/training/terrain_from_numpy",
+            "num_episodes": 5,
+            "max_time_s": 30,
+            "env_overrides": {"game": {"map_builder": {"room": {"dir": "varied_terrain/balanced_large"}}}},
+        },
     },
     num_episodes=10,  # Will be overridden by individual configs
     env_overrides={},  # Suite-level overrides
@@ -499,12 +507,12 @@ while agent_step < trainer_config.total_timesteps:
     ):
         logger.info(f"Generating replay at epoch {epoch}")
 
-        # Generate replay (similar to trainer.py's _generate_and_upload_replay)
+        # Generate replay on the bucketed curriculum environment
         replay_sim_config = SingleEnvSimulationConfig(
-            env="/env/mettagrid/simple",  # You can customize this or use curriculum
+            env="/env/mettagrid/navigation/training/terrain_from_numpy",
             num_episodes=1,
             max_time_s=60,
-            env_overrides={},
+            env_overrides={"game": {"map_builder": {"room": {"dir": "varied_terrain/balanced_medium"}}}},
         )
 
         replay_simulator = Simulation(
