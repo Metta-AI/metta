@@ -19,7 +19,7 @@ import torch
 from omegaconf import DictConfig
 
 from metta.agent.metta_agent import MettaAgent
-from metta.agent.policy_store import PolicyRecord, PolicyStore
+from metta.agent.policy_store import PolicyStore
 from metta.common.profiling.stopwatch import Stopwatch
 from metta.mettagrid.curriculum.core import SingleTaskCurriculum
 from metta.mettagrid.mettagrid_env import MettaGridEnv
@@ -163,17 +163,16 @@ def create_policy_store(
     return PolicyStore(config, wandb_run)
 
 
-# Object type IDs from mettagrid/src/metta/mettagrid/objects/constants.hpp
-# TODO: These should be imported from mettagrid once they're exposed via Python bindings
-TYPE_MINE_RED = 2
-TYPE_GENERATOR_RED = 5
-TYPE_ALTAR = 8
-TYPE_WALL = 1
-
-
 # Helper to create default environment config
 def _get_default_env_config(num_agents: int = 4, width: int = 32, height: int = 32) -> Dict[str, Any]:
     """Get default environment configuration."""
+    # Object type IDs from mettagrid/src/metta/mettagrid/objects/constants.hpp
+    # TODO: These should be imported from mettagrid once they're exposed via Python bindings
+    TYPE_MINE_RED = 2
+    TYPE_GENERATOR_RED = 5
+    TYPE_ALTAR = 8
+    TYPE_WALL = 1
+
     return {
         "game": {
             "max_steps": 1000,
@@ -642,6 +641,4 @@ __all__ = [
     "compute_advantage",  # Export the real function directly
     # Helper classes
     "RunDirectories",
-    # Policy-related classes for direct use
-    "PolicyRecord",
 ]
