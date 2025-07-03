@@ -749,6 +749,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def("get_agent_groups", &MettaGrid::get_agent_groups)
       .def_readonly("initial_grid_hash", &MettaGrid::initial_grid_hash);
 
+  // Expose this so we can cast python WallConfig / AgentConfig / ConverterConfig to a common GridConfig cpp object.
   py::class_<GridObjectConfig>(m, "GridObjectConfig");
 
   py::class_<WallConfig, GridObjectConfig>(m, "WallConfig")
@@ -757,6 +758,10 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def_readwrite("type_name", &WallConfig::type_name)
       .def_readwrite("swappable", &WallConfig::swappable);
 
+  // ##MettagridConfig
+  // We expose these as much as we can to Python. Defining the initializer (and the object's constructor) means
+  // we can create these in Python as AgentConfig(**agent_config_dict). And then we expose the fields individually.
+  // This is verbose! But it seems like it's the best way to do it.
   py::class_<AgentConfig, GridObjectConfig>(m, "AgentConfig")
       .def(py::init<TypeId,
                     const std::string&,
@@ -769,7 +774,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
                     const std::map<InventoryItem, float>&,
                     float>(),
            py::arg("type_id"),
-           py::arg("type_name"),
+           py::arg("type_name") = "agent",
            py::arg("group_id"),
            py::arg("group_name"),
            py::arg("freeze_duration") = 0,

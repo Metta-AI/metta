@@ -11,6 +11,7 @@
 #include "constants.hpp"
 #include "metta_object.hpp"
 
+// #MettagridConfig
 struct AgentConfig : public GridObjectConfig {
   AgentConfig(TypeId type_id,
               const std::string& type_name,

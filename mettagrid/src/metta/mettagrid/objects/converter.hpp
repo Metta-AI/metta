@@ -13,6 +13,7 @@
 #include "has_inventory.hpp"
 #include "metta_object.hpp"
 
+// #MettagridConfig
 struct ConverterConfig : public GridObjectConfig {
   ConverterConfig(TypeId type_id,
                   const std::string& type_name,
