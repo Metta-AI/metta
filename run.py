@@ -213,27 +213,27 @@ system_monitor = SystemMonitor(
 evaluation_config = SimulationSuiteConfig(
     name="evaluation",
     simulations={
-        "navigation/terrain_small": SingleEnvSimulationConfig(
-            env="/env/mettagrid/navigation/training/terrain_from_numpy",
-            num_episodes=5,
-            max_time_s=30,
-            env_overrides={"game": {"map_builder": {"room": {"dir": "varied_terrain/balanced_small"}}}},
-        ),
-        "navigation/terrain_medium": SingleEnvSimulationConfig(
-            env="/env/mettagrid/navigation/training/terrain_from_numpy",
-            num_episodes=5,
-            max_time_s=30,
-            env_overrides={"game": {"map_builder": {"room": {"dir": "varied_terrain/balanced_medium"}}}},
-        ),
-        "navigation/terrain_large": SingleEnvSimulationConfig(
-            env="/env/mettagrid/navigation/training/terrain_from_numpy",
-            num_episodes=5,
-            max_time_s=30,
-            env_overrides={"game": {"map_builder": {"room": {"dir": "varied_terrain/balanced_large"}}}},
-        ),
+        "navigation/terrain_small": {
+            "env": "/env/mettagrid/navigation/training/terrain_from_numpy",
+            "num_episodes": 5,
+            "max_time_s": 30,
+            "env_overrides": {"game": {"map_builder": {"room": {"dir": "varied_terrain/balanced_small"}}}},
+        },
+        "navigation/terrain_medium": {
+            "env": "/env/mettagrid/navigation/training/terrain_from_numpy",
+            "num_episodes": 5,
+            "max_time_s": 30,
+            "env_overrides": {"game": {"map_builder": {"room": {"dir": "varied_terrain/balanced_medium"}}}},
+        },
+        "navigation/terrain_large": {
+            "env": "/env/mettagrid/navigation/training/terrain_from_numpy",
+            "num_episodes": 5,
+            "max_time_s": 30,
+            "env_overrides": {"game": {"map_builder": {"room": {"dir": "varied_terrain/balanced_large"}}}},
+        },
     },
-    num_episodes=10,
-    env_overrides={},
+    num_episodes=10,  # Will be overridden by individual configs
+    env_overrides={},  # Suite-level overrides
 )
 
 # Starting training
