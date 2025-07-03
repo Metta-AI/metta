@@ -44,6 +44,30 @@ from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulati
 logger = logging.getLogger(__name__)
 
 
+# Custom curriculum that uses a pre-built config instead of Hydra
+class PreBuiltConfigCurriculum:
+    """A curriculum that uses a pre-built config instead of loading from Hydra.
+
+    This allows us to bypass Hydra entirely when running evaluation or replay
+    generation without having Hydra initialized.
+    """
+
+    def __init__(self, env_name: str, pre_built_config: Any):
+        self._env_name = env_name
+        self._cfg_template = pre_built_config
+
+    def get_task(self):
+        """Return a task with the pre-built config."""
+        from metta.mettagrid.curriculum.core import Task
+
+        return Task(f"prebuilt({self._env_name})", self, self._cfg_template)
+
+    def get_task_probs(self) -> Dict[str, float]:
+        """Return the current task probability for logging purposes."""
+        task_name = f"prebuilt({self._env_name})"
+        return {task_name: 1.0}
+
+
 def setup_device_and_distributed(base_device: str = "cuda", logger_name: str = "metta") -> torch.device:
     """Set up device and optionally initialize distributed training.
 

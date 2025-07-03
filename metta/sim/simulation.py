@@ -26,8 +26,8 @@ from omegaconf import OmegaConf
 from metta.agent.policy_record import PolicyRecord
 from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyStore
+from metta.api import PreBuiltConfigCurriculum
 from metta.app_backend.stats_client import StatsClient
-from metta.mettagrid.curriculum.core import Curriculum, Task
 from metta.mettagrid.curriculum.sampling import SamplingCurriculum
 from metta.mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
 from metta.mettagrid.replay_writer import ReplayWriter
@@ -490,21 +490,3 @@ class SimulationResults:
     """
 
     stats_db: SimulationStatsDB
-
-
-# Custom curriculum that uses a pre-built config instead of Hydra
-class PreBuiltConfigCurriculum(Curriculum):
-    """A curriculum that uses a pre-built config instead of loading from Hydra."""
-
-    def __init__(self, env_name: str, pre_built_config: Any):
-        self._env_name = env_name
-        self._cfg_template = pre_built_config
-
-    def get_task(self) -> Task:
-        # Return a task with the pre-built config
-        return Task(f"prebuilt({self._env_name})", self, self._cfg_template)
-
-    def get_task_probs(self) -> dict[str, float]:
-        """Return the current task probability for logging purposes."""
-        task_name = f"prebuilt({self._env_name})"
-        return {task_name: 1.0}
