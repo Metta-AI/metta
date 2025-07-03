@@ -13,7 +13,7 @@ class MockPolicyRecord(PolicyRecord):
         self,
         policy_store=None,
         run_name: str = "mock_run",
-        uri: str = "mock://policy",
+        uri: str | None = "mock://policy",
         metadata: PolicyMetadata = MockPolicyMetadata,
     ):
         """Initialize a mock policy record.
