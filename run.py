@@ -2,6 +2,7 @@
 """Example of using Metta as a library without Hydra configuration."""
 
 import logging
+import os
 import time
 
 import torch
@@ -58,6 +59,7 @@ trainer_config = TrainerConfig(
     total_timesteps=10_000_000,
     batch_size=16384,
     minibatch_size=512,
+    curriculum="/env/mettagrid/curriculum/navigation/bucketed",  # Add curriculum here
     ppo=PPOConfig(
         clip_coef=0.1,
         ent_coef=0.01,
@@ -80,7 +82,7 @@ trainer_config = TrainerConfig(
     ),
     profiler=TorchProfilerConfig(
         interval_epochs=0,
-        profile_dir="./profiles",
+        profile_dir=os.path.join(dirs.run_dir, "torch_traces"),  # Use proper path
     ),
     grad_mean_variance_interval=50,
 )
@@ -106,19 +108,16 @@ metta_grid_env = env.driver_env  # type: ignore - vecenv attribute
 agent = Agent(env, device=str(device))
 hidden_size, num_lstm_layers = get_lstm_config(agent)
 
-# Create policy store directly with minimal config
+# Create policy store with complete config
+# PolicyStore internally calls parse_trainer_config which expects run, run_dir, and trainer fields
 policy_store = PolicyStore(
     DictConfig(
         {
             "device": str(device),
             "policy_cache_size": 10,
-            "run": dirs.run_name,  # Required by parse_trainer_config
-            "run_dir": dirs.run_dir,  # Required by parse_trainer_config
-            "trainer": {
-                "checkpoint": {
-                    "checkpoint_dir": dirs.checkpoint_dir,
-                }
-            },
+            "run": dirs.run_name,
+            "run_dir": dirs.run_dir,
+            "trainer": trainer_config.model_dump(),  # Use the fully configured trainer_config
         }
     ),
     wandb_run=None,
