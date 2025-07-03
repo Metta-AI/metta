@@ -83,19 +83,14 @@ class Simulation:
         logger.info(f"config.env {config.env}")
         logger.info(f"config.env_overrides {config.env_overrides}")
 
-        # Check if we have a pre-built config to avoid Hydra dependency
-        # This allows us to bypass Hydra entirely when running without it
-        pre_built_config = None
+        # Extract pre_built_config if present (for Hydra-free operation)
+        pre_built_config = config.env_overrides.get("_pre_built_env_config", None)
 
-        # Check if _pre_built_env_config is present
-        if "_pre_built_env_config" in config.env_overrides:
-            # Only convert to dict and modify if we need to extract pre_built_config
-            env_overrides_dict = dict(config.env_overrides)
-            pre_built_config = env_overrides_dict.pop("_pre_built_env_config")
-            # Create OmegaConf from the modified overrides (without _pre_built_env_config)
+        # Create env_overrides without _pre_built_env_config
+        if pre_built_config is not None:
+            env_overrides_dict = {k: v for k, v in config.env_overrides.items() if k != "_pre_built_env_config"}
             env_overrides = OmegaConf.create(env_overrides_dict)
         else:
-            # Preserve original behavior for normal Hydra-based configs
             env_overrides = OmegaConf.create(config.env_overrides)
 
         self._env_name = config.env
@@ -115,11 +110,9 @@ class Simulation:
 
         if pre_built_config is not None:
             # Use our custom curriculum that doesn't require Hydra
-            # Merge the pre-built config with any env_overrides
+            # Apply any additional env_overrides to the pre_built config
             if env_overrides:
-                OmegaConf.set_struct(pre_built_config, False)
                 pre_built_config = OmegaConf.merge(pre_built_config, env_overrides)
-                OmegaConf.set_struct(pre_built_config, True)
             curriculum = PreBuiltConfigCurriculum(config.env, pre_built_config)
         else:
             # Use the standard SamplingCurriculum that loads from Hydra

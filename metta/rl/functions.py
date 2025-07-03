@@ -5,7 +5,6 @@ extracting the rollout and train logic from MettaTrainer into standalone functio
 """
 
 import logging
-import os
 from collections import defaultdict
 from contextlib import nullcontext
 from typing import Any, Dict, Optional, Tuple
@@ -446,7 +445,6 @@ def compute_gradient_stats(policy: torch.nn.Module) -> Dict[str, float]:
             all_gradients.append(param.grad.view(-1))
 
     if not all_gradients:
-        logger.warning("No gradients found to compute stats.")
         return {}
 
     all_gradients_tensor = torch.cat(all_gradients).to(torch.float32)
@@ -460,13 +458,6 @@ def compute_gradient_stats(policy: torch.nn.Module) -> Dict[str, float]:
         "grad/variance": grad_variance.item(),
         "grad/norm": grad_norm.item(),
     }
-
-    logger.info(
-        f"Computed gradient stats: "
-        f"mean={grad_stats['grad/mean']:.2e}, "
-        f"var={grad_stats['grad/variance']:.2e}, "
-        f"norm={grad_stats['grad/norm']:.2e}"
-    )
 
     return grad_stats
 
@@ -495,7 +486,6 @@ def cleanup_old_policies(checkpoint_dir: str, keep_last_n: int = 5) -> None:
             for file_path in files_to_remove:
                 try:
                     file_path.unlink()
-                    logger.info(f"Removed old policy file: {file_path}")
                 except Exception as e:
                     logger.warning(f"Failed to remove old policy file {file_path}: {e}")
 
@@ -513,9 +503,6 @@ def setup_distributed_vars() -> Tuple[bool, int, int]:
         _master = torch.distributed.get_rank() == 0
         _world_size = torch.distributed.get_world_size()
         _rank = torch.distributed.get_rank()
-        logger.info(
-            f"Rank: {os.environ.get('RANK', '0')}, Local rank: {os.environ.get('LOCAL_RANK', '0')}, World size: {_world_size}"
-        )
     else:
         _master = True
         _world_size = 1
@@ -574,4 +561,3 @@ def maybe_update_l2_weights(
         if isinstance(l2_interval, int) and l2_interval > 0:
             if hasattr(agent, "update_l2_init_weight_copy"):
                 agent.update_l2_init_weight_copy()
-                logger.info(f"Updated L2 init weights at epoch {epoch}")

@@ -89,14 +89,10 @@ logger = logging.getLogger(__name__)
 
 # Set up directories and device first
 dirs = setup_run_directories()
-logger.info(f"Run directories set up: {dirs.run_dir}")
-
 device = setup_device_and_distributed("cuda" if torch.cuda.is_available() else "cpu")
-logger.info(f"Device setup complete: {device}")
 
 # Get distributed info after initialization
 is_master, world_size, rank = setup_distributed_vars()
-logger.info(f"Distributed mode: rank {rank}/{world_size}, is_master={is_master}")
 
 # Configuration
 trainer_config = TrainerConfig(
@@ -141,7 +137,6 @@ if is_master:
     save_experiment_config(dirs, device, trainer_config)
 
 # Create environment
-logger.info("Creating environment...")
 env = Environment(
     curriculum_path="/env/mettagrid/curriculum/navigation/bucketed",
     num_agents=4,
@@ -158,7 +153,6 @@ env = Environment(
 metta_grid_env = env.driver_env  # type: ignore - vecenv attribute
 
 # Create agent
-logger.info("Creating agent...")
 agent = Agent(env, device=str(device))
 hidden_size, num_lstm_layers = get_lstm_config(agent)
 
@@ -184,12 +178,9 @@ agent_step, epoch, loaded_policy_path = checkpoint
 # Handle initial policy creation/loading like MettaTrainer
 if loaded_policy_path is None:
     # No existing checkpoint - need to coordinate initial policy creation
-    logger.info("No existing checkpoint found, coordinating initial policy creation")
-
     if torch.distributed.is_initialized():
         if is_master:
             # Master creates and saves initial policy
-            logger.info("Master: Creating and saving initial policy")
             saved_policy = save_checkpoint(
                 epoch=0,
                 agent_step=0,
@@ -201,37 +192,23 @@ if loaded_policy_path is None:
                 stats={},
                 force_save=True,
             )
-            logger.info("Master: Initial policy saved")
-
             # Master waits at barrier after saving
             torch.distributed.barrier()
         else:
             # Non-master ranks wait at barrier first
-            logger.info(f"Rank {rank}: Waiting at barrier for master to create policy")
             torch.distributed.barrier()
 
             # Then load the policy master created
             default_policy_path = os.path.join(checkpoint_path, policy_store.make_model_name(0))
-            logger.info(f"Rank {rank}: Loading policy from {default_policy_path}")
 
-            def log_progress(elapsed: float, status: str) -> None:
-                if status == "waiting" and int(elapsed) % 10 == 0 and elapsed > 0:
-                    logger.info(f"Rank {rank}: Still waiting for policy file... ({elapsed:.0f}s elapsed)")
-                elif status == "found":
-                    logger.info(f"Rank {rank}: Policy file found, waiting for write to complete...")
-                elif status == "stable":
-                    logger.info(f"Rank {rank}: Policy file stable after {elapsed:.1f}s")
-
-            if not wait_for_file(default_policy_path, timeout=300, progress_callback=log_progress):
+            if not wait_for_file(default_policy_path, timeout=300):
                 raise RuntimeError(f"Rank {rank}: Timeout waiting for policy at {default_policy_path}")
 
             # Load the policy
             policy_pr = policy_store.policy_record(default_policy_path)
             agent.load_state_dict(policy_pr.policy.state_dict())
-            logger.info(f"Rank {rank}: Loaded initial policy")
     else:
         # Single GPU mode
-        logger.info("Single GPU mode: Creating initial checkpoint")
         save_checkpoint(
             epoch=0,
             agent_step=0,
@@ -245,11 +222,10 @@ if loaded_policy_path is None:
         )
 else:
     # Checkpoint exists - load it
-    logger.info(f"Loading from existing checkpoint at step {agent_step}")
     # The load_checkpoint function already loaded the policy state into the agent
+    pass
 
 # Wrap agent in distributed after all ranks have the same policy
-logger.info("Wrapping agent for distributed training...")
 agent = wrap_agent_distributed(agent, device)
 
 # Ensure all ranks have wrapped their agents before proceeding
@@ -271,7 +247,6 @@ optimizer = Optimizer(
 _, _, checkpoint_path_from_load = load_checkpoint(checkpoint_path, None, optimizer, policy_store, device)
 
 # Create experience buffer
-logger.info("Creating experience buffer...")
 experience = Experience(
     total_agents=env.num_agents,  # type: ignore
     batch_size=trainer_config.batch_size,
@@ -288,7 +263,6 @@ experience = Experience(
 )
 
 # Create kickstarter
-logger.info("Creating kickstarter...")
 kickstarter = Kickstarter(
     trainer_config.kickstart,
     str(device),
@@ -310,7 +284,6 @@ if hasattr(trainer_config, "lr_scheduler") and trainer_config.lr_scheduler.enabl
     lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
         optimizer.optimizer, T_max=trainer_config.total_timesteps // trainer_config.batch_size
     )
-    logger.info("Created learning rate scheduler")
 
 # Memory and System Monitoring (master only)
 if is_master:
