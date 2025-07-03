@@ -19,7 +19,7 @@ public:
   }
 
 protected:
-  bool _handle_action(Agent* actor, ActionArg arg) override {
+  bool _handle_action(Agent* actor, [[maybe_unused]] ActionArg arg) override {
     GridLocation target_loc = _grid->relative_location(actor->location, static_cast<Orientation>(actor->orientation));
     target_loc.layer = GridLayer::Object_Layer;
     // get_output only works on Converters, since only Converters have an output.
@@ -41,7 +41,7 @@ protected:
       if (converter->inventory.count(item) == 0) {
         continue;
       }
-      int taken = actor->update_inventory(item, converter->inventory[item]);
+      short taken = actor->update_inventory(item, converter->inventory[item]);
 
       if (taken > 0) {
         actor->stats.add(actor->stats.inventory_item_name(item) + ".get", taken);

@@ -23,7 +23,7 @@ public:
     int new_amount = initial_amount + delta_amount;
 
     // Clamp to valid uint8_t range
-    uint8_t clamped_amount = std::clamp(new_amount, 0, 255);
+    uint8_t clamped_amount = static_cast<uint8_t>(std::clamp(new_amount, 0, 255));
 
     if (clamped_amount == 0) {
       this->inventory.erase(item);

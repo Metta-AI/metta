@@ -12,7 +12,7 @@
 #include "types.hpp"
 
 struct AttackConfig : public ActionConfig {
-  std::map<InventoryItem, int> defense_resources;
+  std::map<InventoryItem, short> defense_resources;
 };
 
 class Attack : public ActionHandler {
@@ -27,7 +27,7 @@ public:
   }
 
 protected:
-  std::map<InventoryItem, int> _defense_resources;
+  std::map<InventoryItem, short> _defense_resources;
 
   bool _handle_action(Agent* actor, ActionArg arg) override {
     if (arg > 9 || arg < 1) {

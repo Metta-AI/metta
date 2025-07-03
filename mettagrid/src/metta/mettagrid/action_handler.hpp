@@ -12,8 +12,8 @@
 #include "types.hpp"
 struct ActionConfig {
   bool enabled;
-  std::map<InventoryItem, int> required_resources;
-  std::map<InventoryItem, int> consumed_resources;
+  std::map<InventoryItem, short> required_resources;
+  std::map<InventoryItem, short> consumed_resources;
 };
 
 class ActionHandler {
@@ -93,8 +93,8 @@ protected:
   virtual bool _handle_action(Agent* actor, ActionArg arg) = 0;
 
   std::string _action_name;
-  std::map<InventoryItem, int> _required_resources;
-  std::map<InventoryItem, int> _consumed_resources;
+  std::map<InventoryItem, short> _required_resources;
+  std::map<InventoryItem, short> _consumed_resources;
 };
 
 #endif  // ACTION_HANDLER_HPP_

@@ -114,8 +114,8 @@ public:
     }
   }
 
-  void set_event_manager(EventManager* event_manager) {
-    this->event_manager = event_manager;
+  void set_event_manager(EventManager* converter_event_manager) {
+    this->event_manager = converter_event_manager;
     this->maybe_start_converting();
   }
 

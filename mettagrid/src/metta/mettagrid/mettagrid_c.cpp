@@ -72,8 +72,8 @@ MettaGrid::MettaGrid(py::dict cfg, py::list map, int seed) {
     std::string action_name_str = action_name.cast<std::string>();
     auto action_cfg_dict = action_cfg.cast<py::dict>();
     auto action_config = ActionConfig(action_cfg_dict["enabled"].cast<bool>(),
-                                      action_cfg_dict["required_resources"].cast<std::map<InventoryItem, int>>(),
-                                      action_cfg_dict["consumed_resources"].cast<std::map<InventoryItem, int>>());
+                                      action_cfg_dict["required_resources"].cast<std::map<InventoryItem, short>>(),
+                                      action_cfg_dict["consumed_resources"].cast<std::map<InventoryItem, short>>());
     if (action_name_str == "put_items") {
       _action_handlers.push_back(std::make_unique<PutRecipeItems>(action_config));
     } else if (action_name_str == "get_items") {
@@ -87,7 +87,7 @@ MettaGrid::MettaGrid(py::dict cfg, py::list map, int seed) {
     } else if (action_name_str == "attack") {
       // Attacks have an additional property.
       auto attack_config =
-          AttackConfig(action_config, action_cfg_dict["defense_resources"].cast<std::map<InventoryItem, int>>());
+          AttackConfig(action_config, action_cfg_dict["defense_resources"].cast<std::map<InventoryItem, short>>());
       _action_handlers.push_back(std::make_unique<Attack>(attack_config));
       _action_handlers.push_back(std::make_unique<AttackNearest>(attack_config));
     } else if (action_name_str == "swap") {
@@ -265,7 +265,7 @@ void MettaGrid::_compute_observation(unsigned int observer_row,
       {ObservationFeature::LastActionArg, static_cast<uint8_t>(action_arg)},
       {ObservationFeature::LastReward, static_cast<uint8_t>(reward_int)}};
   // Global tokens are always at the center of the observation.
-  uint8_t global_location = obs_height_radius << 4 | obs_width_radius;
+  uint8_t global_location = static_cast<uint8_t>(obs_height_radius << 4 | obs_width_radius);
   attempted_tokens_written +=
       _obs_encoder->append_tokens_if_room_available(agent_obs_tokens, global_tokens, global_location);
   tokens_written = std::min(attempted_tokens_written, static_cast<size_t>(observation_view.shape(1)));
@@ -287,7 +287,7 @@ void MettaGrid::_compute_observation(unsigned int observer_row,
         // c could still be outside of our bounds.
         if (c < static_cast<int>(c_start) || c >= static_cast<int>(c_end)) continue;
 
-        for (unsigned int layer = 0; layer < GridLayer::GridLayerCount; layer++) {
+        for (Layer layer = 0; layer < GridLayer::GridLayerCount; layer++) {
           GridLocation object_loc(r, c, layer);
           auto obj = _grid->object_at(object_loc);
           if (!obj) continue;

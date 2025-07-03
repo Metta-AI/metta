@@ -181,8 +181,8 @@ TEST_F(MettaGridCppTest, AttackAction) {
 
   // Create attack action handler
   AttackConfig attack_cfg;
-  std::map<InventoryItem, int> required_resources;
-  std::map<InventoryItem, int> defense_resources;
+  std::map<InventoryItem, short> required_resources;
+  std::map<InventoryItem, short> defense_resources;
   required_resources[TestItems::LASER] = 1;
   // In this case, defense takes 3 armor!
   defense_resources[TestItems::ARMOR] = 3;
