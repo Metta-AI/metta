@@ -283,8 +283,6 @@ while agent_step < trainer_config.total_timesteps:
 
     # ===== TRAINING PHASE =====
     train_start = time.time()
-
-    # Reset training state
     losses.zero()
     experience.reset_importance_sampling_ratios()
 
@@ -298,7 +296,6 @@ while agent_step < trainer_config.total_timesteps:
         prio_beta0=prio_cfg.prio_beta0,
     )
 
-    # Compute advantages once
     advantages = torch.zeros(experience.values.shape, device=device)
     initial_importance_sampling_ratio = torch.ones_like(experience.values)
 
@@ -343,11 +340,8 @@ while agent_step < trainer_config.total_timesteps:
                 device=device,
             )
 
-            # Optimize using wrapper
             optimizer.step(loss, epoch, experience.accumulate_minibatches)
-
             minibatch_idx += 1
-
         epoch += 1
 
         # Early exit if KL divergence is too high
@@ -356,22 +350,18 @@ while agent_step < trainer_config.total_timesteps:
             if average_approx_kl > trainer_config.ppo.target_kl:
                 break
 
-    # Apply additional training steps
     if minibatch_idx > 0:  # Only if we actually trained
         # CUDA synchronization
         if str(device).startswith("cuda"):
             torch.cuda.synchronize()
 
-    # Step learning rate scheduler
     if lr_scheduler is not None:
         lr_scheduler.step()
 
-    # Calculate explained variance
     losses.explained_variance = calculate_explained_variance(experience.values, advantages)
 
-    train_time = time.time() - train_start
-
     # Calculate performance metrics
+    train_time = time.time() - train_start
     steps_calculated = agent_step - steps_before
     total_time = train_time + rollout_time
     steps_per_sec = steps_calculated / total_time if total_time > 0 else 0
@@ -379,10 +369,7 @@ while agent_step < trainer_config.total_timesteps:
     train_pct = (train_time / total_time) * 100 if total_time > 0 else 0
     rollout_pct = (rollout_time / total_time) * 100 if total_time > 0 else 0
 
-    # Log progress similar to trainer.py
     logger.info(f"Epoch {epoch} - {steps_per_sec:.0f} steps/sec ({train_pct:.0f}% train / {rollout_pct:.0f}% rollout)")
-
-    # Heartbeat recording
     if epoch % 10 == 0:
         record_heartbeat()
 
