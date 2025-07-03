@@ -37,6 +37,7 @@ from metta.rl.functions import (
     get_lstm_config,
     maybe_update_l2_weights,
     setup_distributed_vars,
+    should_run_on_interval,
 )
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses
