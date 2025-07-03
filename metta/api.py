@@ -33,10 +33,12 @@ from metta.rl.kickstarter_config import KickstartConfig
 from metta.rl.losses import Losses
 from metta.rl.trainer_config import (
     CheckpointConfig,
+    KickstartConfig,
     OptimizerConfig,
     PPOConfig,
     PrioritizedExperienceReplayConfig,
     SimulationConfig,
+    TorchProfilerConfig,
     TrainerConfig,
     VTraceConfig,
 )
@@ -721,6 +723,7 @@ __all__ = [
     "PrioritizedExperienceReplayConfig",
     "VTraceConfig",
     "KickstartConfig",
+    "TorchProfilerConfig",
     # Helper functions
     "create_default_trainer_config",
     "save_checkpoint",

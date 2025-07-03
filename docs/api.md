@@ -70,28 +70,68 @@ The enhanced `run.py` example demonstrates professional-grade features:
 
 Metta uses Pydantic models for configuration, providing validation and type safety:
 
+### Why Use Structured Config Classes?
+
+Using the structured Pydantic config classes provides several benefits:
+
+1. **Type Safety**: IDEs can provide autocompletion and catch type errors at development time
+2. **Validation**: Pydantic validates all values and provides clear error messages
+3. **Documentation**: Each field has type annotations and docstrings explaining its purpose
+4. **Defaults**: Smart defaults based on empirical testing and best practices
+5. **Composition**: Config classes can be composed together cleanly
+
+For example, instead of error-prone dictionaries:
+```python
+# Error-prone dictionary approach
+config = {"ppo": {"clip_coef": "0.1"}}  # String instead of float!
+```
+
+Use typed configs:
+```python
+# Type-safe structured approach
+config = TrainerConfig(
+    ppo=PPOConfig(clip_coef=0.1),  # IDE catches type errors
+)
+```
+
 ### TrainerConfig
 The main configuration class containing all training parameters:
 
 ```python
-from metta.api import TrainerConfig, create_default_trainer_config
-
-# Option 1: Use helper with defaults
-config = create_default_trainer_config(
-    num_workers=4,
-    total_timesteps=50_000_000,
-    batch_size=524288,
-    ppo={"clip_coef": 0.2, "ent_coef": 0.01}
+from metta.api import (
+    TrainerConfig, PPOConfig, OptimizerConfig,
+    CheckpointConfig, TorchProfilerConfig
 )
 
-# Option 2: Create directly
+# Option 1: Create with structured config classes (Recommended)
 config = TrainerConfig(
     num_workers=4,
     total_timesteps=50_000_000,
     batch_size=524288,
     minibatch_size=16384,
-    ppo=PPOConfig(clip_coef=0.2),
-    optimizer=OptimizerConfig(learning_rate=3e-4),
+    ppo=PPOConfig(
+        clip_coef=0.2,
+        ent_coef=0.01,
+        gamma=0.99,
+    ),
+    optimizer=OptimizerConfig(
+        type="adam",
+        learning_rate=3e-4,
+    ),
+    checkpoint=CheckpointConfig(
+        checkpoint_dir="./checkpoints",
+        checkpoint_interval=100,
+    ),
+)
+
+# Option 2: Use helper function with dict overrides (for compatibility)
+from metta.api import create_default_trainer_config
+
+config = create_default_trainer_config(
+    num_workers=4,
+    total_timesteps=50_000_000,
+    batch_size=524288,
+    ppo={"clip_coef": 0.2, "ent_coef": 0.01}
 )
 ```
 
@@ -126,6 +166,29 @@ optimizer_config = OptimizerConfig(
     weight_decay=0.0,
 )
 ```
+
+### SimulationConfig
+Simulation and evaluation settings:
+
+```python
+from metta.api import SimulationConfig
+
+simulation_config = SimulationConfig(
+    evaluate_interval=300,    # How often to evaluate (epochs)
+    replay_interval=300,      # How often to generate replays
+    replay_dir="./replays",   # Where to save replays
+)
+```
+
+### Note on Defaults
+
+All config classes come with carefully chosen defaults based on extensive empirical testing. The defaults are documented in the source code with explanations of why each value was chosen. For example:
+
+- `PPOConfig.clip_coef=0.1`: Conservative value from PPO paper for stability
+- `OptimizerConfig.learning_rate=0.0004573...`: Specific value found through hyperparameter sweeps
+- `VTraceConfig.vtrace_rho_clip=1.0`: Standard for on-policy training from IMPALA paper
+
+You can confidently use the defaults for most experiments, only overriding values when you have specific requirements.
 
 ## Core Components
 

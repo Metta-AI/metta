@@ -24,7 +24,6 @@ from metta.api import (
     Environment,
     TrainingComponents,
     calculate_anneal_beta,
-    create_default_trainer_config,
     save_checkpoint,
 )
 from metta.common.util.heartbeat import record_heartbeat
@@ -34,6 +33,14 @@ from metta.rl.functions import (
     compute_gradient_stats,
 )
 from metta.rl.trainer_checkpoint import TrainerCheckpoint
+from metta.rl.trainer_config import (
+    CheckpointConfig,
+    OptimizerConfig,
+    PPOConfig,
+    SimulationConfig,
+    TorchProfilerConfig,
+    TrainerConfig,
+)
 from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
 from metta.sim.simulation_suite import SimulationSuite
@@ -73,28 +80,37 @@ except ImportError:
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 logger.info(f"Using device: {device}")
 
-# Create trainer config with Pydantic
-trainer_config = create_default_trainer_config(
+# Create trainer config with structured Pydantic classes
+trainer_config = TrainerConfig(
     num_workers=4,
     total_timesteps=10_000_000,
-    batch_size=16384,  # Increased to accommodate all agents
+    batch_size=16384,
     minibatch_size=512,
-    checkpoint_dir="./checkpoints",
-    # Override specific nested configs
-    ppo={
-        "clip_coef": 0.1,
-        "ent_coef": 0.01,
-        "gamma": 0.99,
-        "gae_lambda": 0.95,
-    },
-    optimizer={
-        "type": "adam",
-        "learning_rate": 3e-4,
-    },
-    profiler={
-        "interval_epochs": 0,  # 0 disables profiling
-        "profile_dir": "./profiles",
-    },
+    # Use structured config classes instead of dictionaries
+    ppo=PPOConfig(
+        clip_coef=0.1,
+        ent_coef=0.01,
+        gamma=0.99,
+        gae_lambda=0.95,
+    ),
+    optimizer=OptimizerConfig(
+        type="adam",
+        learning_rate=3e-4,
+    ),
+    checkpoint=CheckpointConfig(
+        checkpoint_dir="./checkpoints",
+        checkpoint_interval=100,
+        wandb_checkpoint_interval=0,  # Disabled for this example
+    ),
+    simulation=SimulationConfig(
+        evaluate_interval=100,  # Evaluate every 100 epochs
+        replay_interval=200,  # Generate replay every 200 epochs
+        replay_dir="./replays",
+    ),
+    profiler=TorchProfilerConfig(
+        interval_epochs=0,  # 0 disables profiling
+        profile_dir="./profiles",
+    ),
 )
 
 # Create environment
@@ -326,8 +342,8 @@ evaluation_config = SimulationSuiteConfig(
 )
 
 # Intervals for advanced features
-EVAL_INTERVAL = 100  # Evaluate every 100 epochs
-REPLAY_INTERVAL = 200  # Generate replay every 200 epochs
+EVAL_INTERVAL = trainer_config.simulation.evaluate_interval  # From config
+REPLAY_INTERVAL = trainer_config.simulation.replay_interval  # From config
 GRAD_STATS_INTERVAL = 50  # Compute gradient stats every 50 epochs
 SYSTEM_STATS_INTERVAL = 10  # Log system stats every 10 epochs
 
