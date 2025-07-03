@@ -91,7 +91,6 @@ trainer_config = TrainerConfig(
 )
 
 # Create environment
-logger.info("Creating environment...")
 env = Environment(
     num_agents=4,  # Simplified - just specify what we need
     width=32,
@@ -106,7 +105,6 @@ env = Environment(
 )
 
 # Create agent
-logger.info("Creating agent...")
 agent = Agent(env, device=str(device))  # Uses default config
 
 # Save configuration to run directory (like train.py does)
@@ -139,7 +137,6 @@ policy_store = create_policy_store(
 )
 
 # Create optimizer wrapper from api.py
-logger.info("Creating optimizer...")
 optimizer = Optimizer(
     optimizer_type=trainer_config.optimizer.type,
     policy=agent,
@@ -149,9 +146,6 @@ optimizer = Optimizer(
     weight_decay=trainer_config.optimizer.weight_decay,
     max_grad_norm=trainer_config.ppo.max_grad_norm,
 )
-
-# Create training components individually
-logger.info("Creating training components...")
 
 # Get environment info from the vecenv (not Environment class)
 # Note: env is actually the vecenv returned by Environment.__new__
