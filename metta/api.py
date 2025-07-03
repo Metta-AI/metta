@@ -699,6 +699,79 @@ def calculate_anneal_beta(
     return anneal_beta
 
 
+def save_checkpoint(
+    epoch: int,
+    agent_step: int,
+    agent: Any,
+    optimizer: Any,
+    policy_store: Any,
+    checkpoint_path: str,
+    checkpoint_interval: int,
+    stats: Optional[Dict[str, Any]] = None,
+    force_save: bool = False,
+) -> Optional[Any]:
+    """Save a training checkpoint including policy and training state.
+
+    Args:
+        epoch: Current training epoch
+        agent_step: Current agent step count
+        agent: The agent/policy to save
+        optimizer: The optimizer with state to save
+        policy_store: PolicyStore instance for saving policies
+        checkpoint_path: Directory path for saving checkpoints
+        checkpoint_interval: How often to save checkpoints
+        stats: Optional statistics dictionary to include in metadata
+        force_save: Force save even if not on checkpoint interval
+
+    Returns:
+        The saved policy record if saved, None otherwise
+    """
+    from metta.rl.functions import cleanup_old_policies
+    from metta.rl.trainer_checkpoint import TrainerCheckpoint
+
+    should_save = force_save or (epoch % checkpoint_interval == 0)
+    if not should_save:
+        return None
+
+    logger.info(f"Saving policy at epoch {epoch}")
+
+    # Create policy record directly
+    name = policy_store.make_model_name(epoch)
+    policy_record = policy_store.create_empty_policy_record(name)
+    policy_record.metadata = {
+        "agent_step": agent_step,
+        "epoch": epoch,
+        "stats": dict(stats) if stats else {},
+        "final": force_save,  # Mark if this is the final checkpoint
+    }
+    policy_record.policy = agent
+
+    # Save through policy store
+    saved_policy_record = policy_store.save(policy_record)
+    logger.info(f"Successfully saved policy at epoch {epoch}")
+
+    # Save training state
+    logger.info("Saving training state...")
+    trainer_checkpoint = TrainerCheckpoint(
+        agent_step=agent_step,
+        epoch=epoch,
+        total_agent_step=agent_step,
+        optimizer_state_dict=optimizer.state_dict()
+        if hasattr(optimizer, "state_dict")
+        else optimizer.optimizer.state_dict(),
+        policy_path=saved_policy_record.uri if hasattr(saved_policy_record, "uri") else None,
+        stopwatch_state=None,
+    )
+    trainer_checkpoint.save(checkpoint_path)
+    logger.info(f"Saved training state at epoch {epoch}")
+
+    # Clean up old policies to prevent disk space issues
+    if epoch % 10 == 0:
+        cleanup_old_policies(checkpoint_path, keep_last_n=5)
+
+    return saved_policy_record
+
+
 # Re-export key classes for convenience
 __all__ = [
     # Factory classes
@@ -721,6 +794,7 @@ __all__ = [
     "calculate_anneal_beta",
     "setup_run_directories",
     "save_experiment_config",
+    "save_checkpoint",
     # Functions from rl.functions (commonly used)
     "perform_rollout_step",
     "process_minibatch_update",
