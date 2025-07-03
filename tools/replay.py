@@ -24,6 +24,7 @@ class ReplayJob(Config):
     selector_type: str
     replay_dir: str
     stats_dir: str
+    open_browser_on_start: bool
 
 
 @hydra.main(version_base=None, config_path="../configs", config_name="replay_job")
