@@ -124,3 +124,6 @@ agent:
       sources:
         - name: actor_1
         - name: _action_embeds_
+
+  wandb:
+    project: metta-contrastive-test
