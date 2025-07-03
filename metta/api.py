@@ -2,9 +2,10 @@
 Clean API for Metta - provides direct instantiation without Hydra.
 
 This API exposes the core training components from Metta, allowing users to:
-1. Create environments, agents, and training components without Hydra
+1. Create environments, agents, and training components programmatically
 2. Use the same Pydantic configuration classes as the main codebase
 3. Control the training loop directly with full visibility
+4. Support distributed training with minimal setup
 """
 
 import logging
@@ -47,68 +48,11 @@ from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulati
 logger = logging.getLogger(__name__)
 
 
-# Custom curriculum that uses a pre-built config instead of Hydra
-class PreBuiltConfigCurriculum(Curriculum):
-    """A curriculum that uses a pre-built config instead of loading from Hydra.
-
-    This allows us to bypass Hydra entirely when running evaluation or replay
-    generation without having Hydra initialized.
-    """
-
-    def __init__(self, env_name: str, pre_built_config: Any):
-        self._env_name = env_name
-        self._cfg_template = pre_built_config
-
-    def get_task(self) -> Task:
-        """Return a task with the pre-built config."""
-        return Task(f"prebuilt({self._env_name})", self, self._cfg_template)
-
-    def get_task_probs(self) -> Dict[str, float]:
-        """Return the current task probability for logging purposes."""
-        task_name = f"prebuilt({self._env_name})"
-        return {task_name: 1.0}
+# ============================================================================
+# Directory Management (used first in run.py)
+# ============================================================================
 
 
-def setup_device_and_distributed(base_device: str = "cuda") -> torch.device:
-    """Set up device and optionally initialize distributed training.
-
-    This matches the initialization pattern from tools/train.py.
-
-    Args:
-        base_device: Base device string ("cuda" or "cpu")
-
-    Returns:
-        torch.device: The device to use for training
-    """
-    # Check if we're in a distributed environment
-    if "LOCAL_RANK" in os.environ:
-        local_rank = int(os.environ["LOCAL_RANK"])
-
-        # For CUDA, use device with local rank
-        if base_device.startswith("cuda"):
-            device = torch.device(f"{base_device}:{local_rank}")
-            backend = "nccl"
-        else:
-            # For CPU, just use cpu device (no rank suffix)
-            device = torch.device(base_device)
-            backend = "gloo"
-
-        torch.distributed.init_process_group(backend=backend)
-    else:
-        # Single GPU or CPU
-        device = torch.device(base_device)
-
-    logger.info(f"Using device: {device}")
-    return device
-
-
-def cleanup_distributed():
-    """Clean up distributed training if it was initialized."""
-    if torch.distributed.is_initialized():
-        torch.distributed.destroy_process_group()
-
-
-# Named tuple for run directories
 class RunDirectories:
     """Container for run directory paths."""
 
@@ -162,6 +106,76 @@ def setup_run_directories(run_name: Optional[str] = None, data_dir: Optional[str
     )
 
 
+# ============================================================================
+# Distributed Training Setup
+# ============================================================================
+
+
+def setup_device_and_distributed(base_device: str = "cuda") -> torch.device:
+    """Set up device and optionally initialize distributed training.
+
+    This matches the initialization pattern from tools/train.py.
+
+    Args:
+        base_device: Base device string ("cuda" or "cpu")
+
+    Returns:
+        torch.device: The device to use for training
+    """
+    # Check if we're in a distributed environment
+    if "LOCAL_RANK" in os.environ:
+        local_rank = int(os.environ["LOCAL_RANK"])
+
+        # For CUDA, use device with local rank
+        if base_device.startswith("cuda"):
+            device = torch.device(f"{base_device}:{local_rank}")
+            backend = "nccl"
+        else:
+            # For CPU, just use cpu device (no rank suffix)
+            device = torch.device(base_device)
+            backend = "gloo"
+
+        torch.distributed.init_process_group(backend=backend)
+    else:
+        # Single GPU or CPU
+        device = torch.device(base_device)
+
+    logger.info(f"Using device: {device}")
+    return device
+
+
+def setup_distributed_vars() -> Tuple[bool, int, int]:
+    """Get distributed training variables.
+
+    Returns:
+        Tuple of (is_master, world_size, rank)
+        - is_master: True if this is the master process (rank 0)
+        - world_size: Total number of processes (1 if not distributed)
+        - rank: Current process rank (0 if not distributed)
+    """
+    if torch.distributed.is_initialized():
+        rank = torch.distributed.get_rank()
+        world_size = torch.distributed.get_world_size()
+        is_master = rank == 0
+    else:
+        rank = 0
+        world_size = 1
+        is_master = True
+
+    return is_master, world_size, rank
+
+
+def cleanup_distributed():
+    """Clean up distributed training if it was initialized."""
+    if torch.distributed.is_initialized():
+        torch.distributed.destroy_process_group()
+
+
+# ============================================================================
+# Configuration Management
+# ============================================================================
+
+
 def save_experiment_config(
     dirs: RunDirectories,
     device: torch.device,
@@ -209,7 +223,32 @@ def save_experiment_config(
     logger.info(f"Saved config to {config_path}")
 
 
-# Helper to create default environment config
+# ============================================================================
+# Helper Classes and Functions (used internally by Environment and Agent)
+# ============================================================================
+
+
+class PreBuiltConfigCurriculum(Curriculum):
+    """A curriculum that uses a pre-built config instead of loading from Hydra.
+
+    This allows us to bypass Hydra entirely when running evaluation or replay
+    generation without having Hydra initialized.
+    """
+
+    def __init__(self, env_name: str, pre_built_config: Any):
+        self._env_name = env_name
+        self._cfg_template = pre_built_config
+
+    def get_task(self) -> Task:
+        """Return a task with the pre-built config."""
+        return Task(f"prebuilt({self._env_name})", self, self._cfg_template)
+
+    def get_task_probs(self) -> Dict[str, float]:
+        """Return the current task probability for logging purposes."""
+        task_name = f"prebuilt({self._env_name})"
+        return {task_name: 1.0}
+
+
 def _get_default_env_config(num_agents: int = 4, width: int = 32, height: int = 32) -> Dict[str, Any]:
     """Get default environment configuration for navigation training."""
     # Object type IDs from mettagrid/src/metta/mettagrid/objects/constants.hpp
@@ -402,7 +441,6 @@ def _get_default_agent_config(device: str = "cuda") -> Dict[str, Any]:
     }
 
 
-# Helper class for navigation curriculum without Hydra
 class NavigationBucketedCurriculum(Curriculum):
     """Navigation curriculum that cycles through different terrain types without using Hydra."""
 
@@ -442,6 +480,11 @@ class NavigationBucketedCurriculum(Curriculum):
         """Return uniform probabilities for all terrain types."""
         prob = 1.0 / len(self.terrain_dirs)
         return {terrain: prob for terrain in self.terrain_dirs}
+
+
+# ============================================================================
+# Environment Factory
+# ============================================================================
 
 
 class Environment:
@@ -591,6 +634,11 @@ class Environment:
         return vecenv
 
 
+# ============================================================================
+# Agent Factory
+# ============================================================================
+
+
 class Agent:
     """Factory for creating Metta agents with a clean API.
 
@@ -653,119 +701,70 @@ class Agent:
         return agent
 
 
-class Optimizer:
-    """Wrapper for PyTorch optimizers with gradient accumulation and clipping support.
-
-    This provides a clean interface for the optimization step, handling:
-    - Gradient accumulation across minibatches
-    - Gradient clipping
-    - Optional weight clipping on the policy
-    """
-
-    def __init__(
-        self,
-        optimizer_type: str = "adam",
-        policy: Optional[MettaAgent] = None,
-        learning_rate: float = 3e-4,
-        betas: Tuple[float, float] = (0.9, 0.999),
-        eps: float = 1e-8,
-        weight_decay: float = 0.0,
-        max_grad_norm: float = 0.5,
-    ):
-        """Initialize optimizer wrapper.
-
-        Args:
-            optimizer_type: Type of optimizer ("adam" or "muon")
-            policy: Policy to optimize
-            learning_rate: Learning rate
-            betas: Beta parameters for Adam/Muon
-            eps: Epsilon for numerical stability
-            weight_decay: Weight decay coefficient
-            max_grad_norm: Maximum gradient norm for clipping
-        """
-        if policy is None:
-            raise ValueError("Policy must be provided to Optimizer")
-        logger.info(f"Creating optimizer... Using {optimizer_type.capitalize()} optimizer with lr={learning_rate}")
-
-        self.policy = policy
-        self.max_grad_norm = max_grad_norm
-
-        if optimizer_type == "adam":
-            self.optimizer = torch.optim.Adam(
-                policy.parameters(),
-                lr=learning_rate,
-                betas=betas,
-                eps=eps,
-                weight_decay=float(weight_decay),  # type: ignore - PyTorch accepts float
-            )
-        elif optimizer_type == "muon":
-            from heavyball import ForeachMuon
-
-            self.optimizer = ForeachMuon(
-                policy.parameters(),
-                lr=learning_rate,
-                betas=betas,
-                eps=eps,
-                weight_decay=float(weight_decay),  # type: ignore - PyTorch accepts float
-            )
-        else:
-            raise ValueError(f"Unknown optimizer type: {optimizer_type}. Choose 'adam' or 'muon'")
-
-    def step(self, loss: torch.Tensor, epoch: int, accumulate_steps: int = 1):
-        """Perform optimization step with gradient accumulation.
-
-        Args:
-            loss: Loss tensor to backpropagate
-            epoch: Current epoch (for accumulation check)
-            accumulate_steps: Number of steps to accumulate gradients
-        """
-        self.optimizer.zero_grad()
-        loss.backward()
-
-        if (epoch + 1) % accumulate_steps == 0:
-            torch.nn.utils.clip_grad_norm_(self.policy.parameters(), self.max_grad_norm)
-            self.optimizer.step()
-
-            # Optional weight clipping
-            if hasattr(self.policy, "clip_weights"):
-                self.policy.clip_weights()
-
-    def state_dict(self) -> Dict[str, Any]:
-        """Get optimizer state dict."""
-        return self.optimizer.state_dict()
-
-    def load_state_dict(self, state_dict: Dict[str, Any]):
-        """Load optimizer state dict."""
-        self.optimizer.load_state_dict(state_dict)
-
-    @property
-    def param_groups(self):
-        """Access to optimizer param groups (for learning rate etc)."""
-        return self.optimizer.param_groups
+# ============================================================================
+# Checkpoint Management
+# ============================================================================
 
 
-def calculate_anneal_beta(
-    epoch: int,
-    total_timesteps: int,
-    batch_size: int,
-    prio_alpha: float,
-    prio_beta0: float,
-) -> float:
-    """Calculate annealed beta for prioritized experience replay.
+def load_checkpoint(
+    checkpoint_dir: str,
+    agent: Any,
+    optimizer: Optional[Any] = None,
+    policy_store: Optional[Any] = None,
+    device: Optional[torch.device] = None,
+) -> Tuple[int, int, Optional[str]]:
+    """Load training checkpoint if it exists.
+
+    This is a simplified version that just loads the checkpoint without
+    handling distributed coordination or initial policy creation.
 
     Args:
-        epoch: Current epoch
-        total_timesteps: Total training timesteps
-        batch_size: Batch size
-        prio_alpha: Priority alpha
-        prio_beta0: Initial beta value
+        checkpoint_dir: Directory containing checkpoints
+        agent: The agent/policy to potentially update
+        optimizer: Optional optimizer to restore state to
+        policy_store: Optional PolicyStore (not used in simplified version)
+        device: Device (not used in simplified version)
 
     Returns:
-        Annealed beta value
+        Tuple of (agent_step, epoch, policy_path)
+        - agent_step: Current training step (0 if no checkpoint)
+        - epoch: Current epoch (0 if no checkpoint)
+        - policy_path: Path to loaded policy (None if no checkpoint)
     """
-    total_epochs = max(1, total_timesteps // batch_size)
-    anneal_beta = prio_beta0 + (1 - prio_beta0) * prio_alpha * epoch / total_epochs
-    return anneal_beta
+    from metta.rl.trainer_checkpoint import TrainerCheckpoint
+
+    # Try to load existing checkpoint
+    existing_checkpoint = TrainerCheckpoint.load(checkpoint_dir)
+
+    if existing_checkpoint:
+        # Restore training state
+        agent_step = existing_checkpoint.agent_step
+        epoch = existing_checkpoint.epoch
+
+        # Load policy state if agent provided and policy path exists
+        if agent is not None and existing_checkpoint.policy_path and policy_store is not None:
+            try:
+                policy_pr = policy_store.policy_record(existing_checkpoint.policy_path)
+                agent.load_state_dict(policy_pr.policy.state_dict())
+            except Exception as e:
+                logger.warning(f"Failed to load policy state: {e}")
+
+        # Load optimizer state if provided
+        if optimizer is not None and existing_checkpoint.optimizer_state_dict:
+            try:
+                if hasattr(optimizer, "optimizer"):
+                    # Handle our Optimizer wrapper
+                    optimizer.optimizer.load_state_dict(existing_checkpoint.optimizer_state_dict)
+                elif hasattr(optimizer, "load_state_dict"):
+                    # Handle raw PyTorch optimizer
+                    optimizer.load_state_dict(existing_checkpoint.optimizer_state_dict)
+            except ValueError:
+                logger.warning("Optimizer state dict doesn't match. Starting with fresh optimizer state.")
+
+        return agent_step, epoch, existing_checkpoint.policy_path
+
+    # No checkpoint found
+    return 0, 0, None
 
 
 def save_checkpoint(
@@ -859,67 +858,6 @@ def save_checkpoint(
     return saved_policy_record
 
 
-def load_checkpoint(
-    checkpoint_dir: str,
-    agent: Any,
-    optimizer: Optional[Any] = None,
-    policy_store: Optional[Any] = None,
-    device: Optional[torch.device] = None,
-) -> Tuple[int, int, Optional[str]]:
-    """Load training checkpoint if it exists.
-
-    This is a simplified version that just loads the checkpoint without
-    handling distributed coordination or initial policy creation.
-
-    Args:
-        checkpoint_dir: Directory containing checkpoints
-        agent: The agent/policy to potentially update
-        optimizer: Optional optimizer to restore state to
-        policy_store: Optional PolicyStore (not used in simplified version)
-        device: Device (not used in simplified version)
-
-    Returns:
-        Tuple of (agent_step, epoch, policy_path)
-        - agent_step: Current training step (0 if no checkpoint)
-        - epoch: Current epoch (0 if no checkpoint)
-        - policy_path: Path to loaded policy (None if no checkpoint)
-    """
-    from metta.rl.trainer_checkpoint import TrainerCheckpoint
-
-    # Try to load existing checkpoint
-    existing_checkpoint = TrainerCheckpoint.load(checkpoint_dir)
-
-    if existing_checkpoint:
-        # Restore training state
-        agent_step = existing_checkpoint.agent_step
-        epoch = existing_checkpoint.epoch
-
-        # Load policy state if agent provided and policy path exists
-        if agent is not None and existing_checkpoint.policy_path and policy_store is not None:
-            try:
-                policy_pr = policy_store.policy_record(existing_checkpoint.policy_path)
-                agent.load_state_dict(policy_pr.policy.state_dict())
-            except Exception as e:
-                logger.warning(f"Failed to load policy state: {e}")
-
-        # Load optimizer state if provided
-        if optimizer is not None and existing_checkpoint.optimizer_state_dict:
-            try:
-                if hasattr(optimizer, "optimizer"):
-                    # Handle our Optimizer wrapper
-                    optimizer.optimizer.load_state_dict(existing_checkpoint.optimizer_state_dict)
-                elif hasattr(optimizer, "load_state_dict"):
-                    # Handle raw PyTorch optimizer
-                    optimizer.load_state_dict(existing_checkpoint.optimizer_state_dict)
-            except ValueError:
-                logger.warning("Optimizer state dict doesn't match. Starting with fresh optimizer state.")
-
-        return agent_step, epoch, existing_checkpoint.policy_path
-
-    # No checkpoint found
-    return 0, 0, None
-
-
 def wrap_agent_distributed(agent: Any, device: torch.device) -> Any:
     """Wrap agent in DistributedMettaAgent if distributed training is initialized.
 
@@ -946,27 +884,6 @@ def wrap_agent_distributed(agent: Any, device: torch.device) -> Any:
             agent = DistributedMettaAgent(agent, device)
 
     return agent
-
-
-def setup_distributed_vars() -> Tuple[bool, int, int]:
-    """Get distributed training variables.
-
-    Returns:
-        Tuple of (is_master, world_size, rank)
-        - is_master: True if this is the master process (rank 0)
-        - world_size: Total number of processes (1 if not distributed)
-        - rank: Current process rank (0 if not distributed)
-    """
-    if torch.distributed.is_initialized():
-        rank = torch.distributed.get_rank()
-        world_size = torch.distributed.get_world_size()
-        is_master = rank == 0
-    else:
-        rank = 0
-        world_size = 1
-        is_master = True
-
-    return is_master, world_size, rank
 
 
 def ensure_initial_policy(
@@ -1035,46 +952,134 @@ def ensure_initial_policy(
         )
 
 
-# Re-export key classes for convenience
-__all__ = [
-    # Factory classes
-    "Environment",
-    "Agent",
-    # New wrapper classes
-    "Optimizer",
-    # Training components (for direct instantiation)
-    "Experience",
-    "Kickstarter",
-    "Losses",
-    "Stopwatch",
-    # Config classes (from trainer_config)
-    "TrainerConfig",
-    "OptimizerConfig",
-    "PPOConfig",
-    "CheckpointConfig",
-    "SimulationConfig",
-    # Helper functions
-    "calculate_anneal_beta",
-    "setup_run_directories",
-    "save_experiment_config",
-    "save_checkpoint",
-    "setup_device_and_distributed",
-    "cleanup_distributed",
-    "load_checkpoint",
-    "wrap_agent_distributed",
-    "setup_distributed_vars",
-    "ensure_initial_policy",
-    # Functions from rl.functions (commonly used)
-    "perform_rollout_step",
-    "process_minibatch_update",
-    "accumulate_rollout_stats",
-    "compute_advantage",  # Export the real function directly
-    "should_run_on_interval",
-    "maybe_update_l2_weights",
-    # Helper classes
-    "RunDirectories",
-    "PreBuiltConfigCurriculum",
-]
+# ============================================================================
+# Optimizer Wrapper
+# ============================================================================
+
+
+class Optimizer:
+    """Wrapper for PyTorch optimizers with gradient accumulation and clipping support.
+
+    This provides a clean interface for the optimization step, handling:
+    - Gradient accumulation across minibatches
+    - Gradient clipping
+    - Optional weight clipping on the policy
+    """
+
+    def __init__(
+        self,
+        optimizer_type: str = "adam",
+        policy: Optional[MettaAgent] = None,
+        learning_rate: float = 3e-4,
+        betas: Tuple[float, float] = (0.9, 0.999),
+        eps: float = 1e-8,
+        weight_decay: float = 0.0,
+        max_grad_norm: float = 0.5,
+    ):
+        """Initialize optimizer wrapper.
+
+        Args:
+            optimizer_type: Type of optimizer ("adam" or "muon")
+            policy: Policy to optimize
+            learning_rate: Learning rate
+            betas: Beta parameters for Adam/Muon
+            eps: Epsilon for numerical stability
+            weight_decay: Weight decay coefficient
+            max_grad_norm: Maximum gradient norm for clipping
+        """
+        if policy is None:
+            raise ValueError("Policy must be provided to Optimizer")
+        logger.info(f"Creating optimizer... Using {optimizer_type.capitalize()} optimizer with lr={learning_rate}")
+
+        self.policy = policy
+        self.max_grad_norm = max_grad_norm
+
+        if optimizer_type == "adam":
+            self.optimizer = torch.optim.Adam(
+                policy.parameters(),
+                lr=learning_rate,
+                betas=betas,
+                eps=eps,
+                weight_decay=float(weight_decay),  # type: ignore - PyTorch accepts float
+            )
+        elif optimizer_type == "muon":
+            from heavyball import ForeachMuon
+
+            self.optimizer = ForeachMuon(
+                policy.parameters(),
+                lr=learning_rate,
+                betas=betas,
+                eps=eps,
+                weight_decay=float(weight_decay),  # type: ignore - PyTorch accepts float
+            )
+        else:
+            raise ValueError(f"Unknown optimizer type: {optimizer_type}. Choose 'adam' or 'muon'")
+
+    def step(self, loss: torch.Tensor, epoch: int, accumulate_steps: int = 1):
+        """Perform optimization step with gradient accumulation.
+
+        Args:
+            loss: Loss tensor to backpropagate
+            epoch: Current epoch (for accumulation check)
+            accumulate_steps: Number of steps to accumulate gradients
+        """
+        self.optimizer.zero_grad()
+        loss.backward()
+
+        if (epoch + 1) % accumulate_steps == 0:
+            torch.nn.utils.clip_grad_norm_(self.policy.parameters(), self.max_grad_norm)
+            self.optimizer.step()
+
+            # Optional weight clipping
+            if hasattr(self.policy, "clip_weights"):
+                self.policy.clip_weights()
+
+    def state_dict(self) -> Dict[str, Any]:
+        """Get optimizer state dict."""
+        return self.optimizer.state_dict()
+
+    def load_state_dict(self, state_dict: Dict[str, Any]):
+        """Load optimizer state dict."""
+        self.optimizer.load_state_dict(state_dict)
+
+    @property
+    def param_groups(self):
+        """Access to optimizer param groups (for learning rate etc)."""
+        return self.optimizer.param_groups
+
+
+# ============================================================================
+# Training Loop Helper Functions
+# ============================================================================
+
+
+def calculate_anneal_beta(
+    epoch: int,
+    total_timesteps: int,
+    batch_size: int,
+    prio_alpha: float,
+    prio_beta0: float,
+) -> float:
+    """Calculate annealed beta for prioritized experience replay.
+
+    Args:
+        epoch: Current epoch
+        total_timesteps: Total training timesteps
+        batch_size: Batch size
+        prio_alpha: Priority alpha
+        prio_beta0: Initial beta value
+
+    Returns:
+        Annealed beta value
+    """
+    total_epochs = max(1, total_timesteps // batch_size)
+    anneal_beta = prio_beta0 + (1 - prio_beta0) * prio_alpha * epoch / total_epochs
+    return anneal_beta
+
+
+# ============================================================================
+# Evaluation and Replay Configuration
+# ============================================================================
 
 
 def create_evaluation_config_suite() -> SimulationSuiteConfig:
@@ -1166,6 +1171,52 @@ def create_replay_config(terrain_dir: str = "varied_terrain/balanced_medium") ->
     )
 
     return replay_sim_config
+
+
+# ============================================================================
+# Export List
+# ============================================================================
+
+# Re-export key classes for convenience
+__all__ = [
+    # Factory classes
+    "Environment",
+    "Agent",
+    # New wrapper classes
+    "Optimizer",
+    # Training components (for direct instantiation)
+    "Experience",
+    "Kickstarter",
+    "Losses",
+    "Stopwatch",
+    # Config classes (from trainer_config)
+    "TrainerConfig",
+    "OptimizerConfig",
+    "PPOConfig",
+    "CheckpointConfig",
+    "SimulationConfig",
+    # Helper functions
+    "calculate_anneal_beta",
+    "setup_run_directories",
+    "save_experiment_config",
+    "save_checkpoint",
+    "setup_device_and_distributed",
+    "cleanup_distributed",
+    "load_checkpoint",
+    "wrap_agent_distributed",
+    "setup_distributed_vars",
+    "ensure_initial_policy",
+    # Functions from rl.functions (commonly used)
+    "perform_rollout_step",
+    "process_minibatch_update",
+    "accumulate_rollout_stats",
+    "compute_advantage",  # Export the real function directly
+    "should_run_on_interval",
+    "maybe_update_l2_weights",
+    # Helper classes
+    "RunDirectories",
+    "PreBuiltConfigCurriculum",
+]
 
 
 __all__.append("create_evaluation_config_suite")
