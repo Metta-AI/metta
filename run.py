@@ -248,9 +248,7 @@ if checkpoint:
         except ValueError:
             logger.warning("Optimizer state dict doesn't match. Starting with fresh optimizer state.")
 
-# ===== ADVANCED FEATURES SETUP =====
-
-# 1. Memory and System Monitoring
+# Memory and System Monitoring
 memory_monitor = MemoryMonitor()
 memory_monitor.add(training, name="TrainingComponents", track_attributes=True)
 memory_monitor.add(agent, name="Agent", track_attributes=False)
@@ -262,8 +260,7 @@ system_monitor = SystemMonitor(
     auto_start=True,
 )
 
-# 2. Evaluation Configuration
-# Define what environments to evaluate on
+# Evaluation Configuration
 evaluation_config = SimulationSuiteConfig(
     name="evaluation",
     simulations={
@@ -290,12 +287,9 @@ REPLAY_INTERVAL = trainer_config.simulation.replay_interval  # From config
 GRAD_STATS_INTERVAL = 50  # Compute gradient stats every 50 epochs
 SYSTEM_STATS_INTERVAL = 10  # Log system stats every 10 epochs
 
-# Track evaluation scores
-evaluation_scores = {}
-
 # Training loop
-logger.info("Starting training")
-logger.info(f"Training on {device}")
+evaluation_scores = {}
+logger.info("Starting training on {device}")
 
 # Track timing for performance metrics
 rollout_time = 0
