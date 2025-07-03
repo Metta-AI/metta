@@ -25,9 +25,12 @@ from metta.mettagrid.mettagrid_env import MettaGridEnv
 from metta.rl.experience import Experience
 from metta.rl.functions import (
     accumulate_rollout_stats,
+    cleanup_old_policies,
     compute_advantage,
+    maybe_update_l2_weights,
     perform_rollout_step,
     process_minibatch_update,
+    should_run_on_interval,
 )
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses
@@ -81,22 +84,51 @@ def setup_device_and_distributed(base_device: str = "cuda", logger_name: str = "
     """
     import os
 
-    # Get logger with rank info if available
+    # Get rank info from environment
     rank = int(os.environ.get("RANK", 0))
     local_rank = int(os.environ.get("LOCAL_RANK", 0))
-    device_logger = logging.getLogger(f"{logger_name}-{rank}-{local_rank}")
+    world_size = int(os.environ.get("WORLD_SIZE", 1))
+
+    # Get logger with rank info if available
+    device_logger = logging.getLogger(f"{logger_name}-rank{rank}")
 
     # Check if we're in a distributed environment
     if "LOCAL_RANK" in os.environ and base_device.startswith("cuda"):
-        device_logger.info(f"Initializing distributed training with LOCAL_RANK={local_rank}")
+        device_logger.info(
+            f"Distributed environment detected: RANK={rank}, LOCAL_RANK={local_rank}, WORLD_SIZE={world_size}"
+        )
 
         # Initialize distributed training
         if not torch.distributed.is_initialized():
-            torch.distributed.init_process_group(backend="nccl")
-            device_logger.info("Distributed training initialized")
+            # Set up environment variables for NCCL
+            os.environ["NCCL_DEBUG"] = os.environ.get("NCCL_DEBUG", "WARN")
+
+            try:
+                torch.distributed.init_process_group(backend="nccl")
+                device_logger.info("Distributed training initialized successfully")
+
+                # Verify initialization
+                actual_rank = torch.distributed.get_rank()
+                actual_world_size = torch.distributed.get_world_size()
+                device_logger.info(
+                    f"Distributed verification: rank={actual_rank}/{actual_world_size} (expected {rank}/{world_size})"
+                )
+
+                if actual_rank != rank or actual_world_size != world_size:
+                    device_logger.warning(
+                        f"Rank mismatch detected! Environment: {rank}/{world_size}, "
+                        f"PyTorch: {actual_rank}/{actual_world_size}"
+                    )
+
+            except Exception as e:
+                device_logger.error(f"Failed to initialize distributed training: {e}")
+                raise
 
         # Use the local rank for device assignment
         device = torch.device(f"{base_device}:{local_rank}")
+
+        # Set CUDA device
+        torch.cuda.set_device(device)
 
     elif torch.cuda.is_available() and torch.cuda.device_count() > 1:
         # Multiple GPUs available but no distributed setup
@@ -116,7 +148,16 @@ def setup_device_and_distributed(base_device: str = "cuda", logger_name: str = "
     if torch.distributed.is_initialized():
         world_size = torch.distributed.get_world_size()
         rank = torch.distributed.get_rank()
-        device_logger.info(f"Distributed mode: rank {rank}/{world_size}")
+        device_logger.info(f"Distributed mode active: rank {rank} of {world_size} processes")
+
+        # Test distributed communication
+        try:
+            test_tensor = torch.tensor([rank], device=device)
+            torch.distributed.all_reduce(test_tensor)
+            device_logger.info(f"Distributed communication test passed. Sum of ranks: {test_tensor.item()}")
+        except Exception as e:
+            device_logger.error(f"Distributed communication test failed: {e}")
+            raise
 
     return device
 
@@ -811,7 +852,6 @@ def save_checkpoint(
     Returns:
         The saved policy record if saved, None otherwise
     """
-    from metta.rl.functions import cleanup_old_policies
     from metta.rl.trainer_checkpoint import TrainerCheckpoint
 
     should_save = force_save or (epoch % checkpoint_interval == 0)
@@ -820,67 +860,65 @@ def save_checkpoint(
 
     # Check if we're in distributed mode
     is_master = True
+    saved_policy_record = None
+
     if torch.distributed.is_initialized():
         is_master = torch.distributed.get_rank() == 0
 
-    # Only master saves, but all ranks must participate in barrier
-    if not is_master:
-        # Non-master ranks need to participate in the barrier below
-        if torch.distributed.is_initialized():
-            torch.distributed.barrier()
-        return None
+    # Only master saves
+    if is_master:
+        logger.info(f"Saving policy at epoch {epoch}")
 
-    logger.info(f"Saving policy at epoch {epoch}")
+        # Extract the actual policy module from distributed wrapper if needed
+        from metta.agent.metta_agent import DistributedMettaAgent
 
-    # Extract the actual policy module from distributed wrapper if needed
-    from metta.agent.metta_agent import DistributedMettaAgent
+        policy_to_save = agent
+        if isinstance(agent, DistributedMettaAgent):
+            policy_to_save = agent.module
 
-    policy_to_save = agent
-    if isinstance(agent, DistributedMettaAgent):
-        policy_to_save = agent.module
+        # Create policy record directly
+        name = policy_store.make_model_name(epoch)
+        policy_record = policy_store.create_empty_policy_record(name)
+        policy_record.metadata = {
+            "agent_step": agent_step,
+            "epoch": epoch,
+            "stats": dict(stats) if stats else {},
+            "final": force_save,  # Mark if this is the final checkpoint
+        }
+        policy_record.policy = policy_to_save
 
-    # Create policy record directly
-    name = policy_store.make_model_name(epoch)
-    policy_record = policy_store.create_empty_policy_record(name)
-    policy_record.metadata = {
-        "agent_step": agent_step,
-        "epoch": epoch,
-        "stats": dict(stats) if stats else {},
-        "final": force_save,  # Mark if this is the final checkpoint
-    }
-    policy_record.policy = policy_to_save
+        # Save through policy store
+        saved_policy_record = policy_store.save(policy_record)
+        logger.info(f"Successfully saved policy at epoch {epoch}")
 
-    # Save through policy store
-    saved_policy_record = policy_store.save(policy_record)
-    logger.info(f"Successfully saved policy at epoch {epoch}")
+        # Save training state
+        logger.info("Saving training state...")
 
-    # Save training state
-    logger.info("Saving training state...")
+        # Get optimizer state dict if optimizer is provided
+        optimizer_state_dict = None
+        if optimizer is not None:
+            if hasattr(optimizer, "state_dict"):
+                optimizer_state_dict = optimizer.state_dict()
+            elif hasattr(optimizer, "optimizer"):
+                optimizer_state_dict = optimizer.optimizer.state_dict()
 
-    # Get optimizer state dict if optimizer is provided
-    optimizer_state_dict = None
-    if optimizer is not None:
-        if hasattr(optimizer, "state_dict"):
-            optimizer_state_dict = optimizer.state_dict()
-        elif hasattr(optimizer, "optimizer"):
-            optimizer_state_dict = optimizer.optimizer.state_dict()
+        trainer_checkpoint = TrainerCheckpoint(
+            agent_step=agent_step,
+            epoch=epoch,
+            total_agent_step=agent_step,
+            optimizer_state_dict=optimizer_state_dict,
+            policy_path=saved_policy_record.uri if hasattr(saved_policy_record, "uri") else None,
+            stopwatch_state=None,
+        )
+        trainer_checkpoint.save(checkpoint_path)
+        logger.info(f"Saved training state at epoch {epoch}")
 
-    trainer_checkpoint = TrainerCheckpoint(
-        agent_step=agent_step,
-        epoch=epoch,
-        total_agent_step=agent_step,
-        optimizer_state_dict=optimizer_state_dict,
-        policy_path=saved_policy_record.uri if hasattr(saved_policy_record, "uri") else None,
-        stopwatch_state=None,
-    )
-    trainer_checkpoint.save(checkpoint_path)
-    logger.info(f"Saved training state at epoch {epoch}")
-
-    # Clean up old policies to prevent disk space issues
-    if epoch % 10 == 0:
-        cleanup_old_policies(checkpoint_path, keep_last_n=5)
+        # Clean up old policies to prevent disk space issues
+        if epoch % 10 == 0:
+            cleanup_old_policies(checkpoint_path, keep_last_n=5)
 
     # Synchronize all ranks to ensure the checkpoint is fully saved before continuing
+    # ALL ranks must participate in this barrier, not just the master
     if torch.distributed.is_initialized():
         torch.distributed.barrier()
 
@@ -945,6 +983,7 @@ def load_checkpoint(
         # In distributed mode, handle initial policy creation
         if torch.distributed.is_initialized() and policy_store:
             is_master = torch.distributed.get_rank() == 0
+            rank = torch.distributed.get_rank()
 
             if is_master:
                 # Master saves initial policy for other ranks to load
@@ -961,41 +1000,59 @@ def load_checkpoint(
                     force_save=True,
                 )
 
-                # All ranks synchronize
+                # Master waits here for all ranks to be ready
                 torch.distributed.barrier()
+                logger.info("Master rank: All ranks synchronized after initial policy creation")
                 return agent_step, epoch, initial_policy_path
             else:
                 # Non-master ranks wait for initial policy
-                logger.info("Non-master rank: Waiting for initial policy to be created")
+                logger.info(f"Rank {rank}: Waiting for initial policy to be created")
 
-                # All ranks synchronize
+                # First barrier: wait for master to create the policy
                 torch.distributed.barrier()
 
                 # Non-master ranks load the policy that master created
                 default_policy_path = os.path.join(checkpoint_dir, policy_store.make_model_name(0))
 
-                # Wait for file to be available
+                # Wait for file to be available with minimal logging
                 from metta.common.util.fs import wait_for_file
 
-                def log_progress(elapsed: float, status: str) -> None:
-                    if status == "waiting" and int(elapsed) % 10 == 0 and elapsed > 0:
-                        logger.info(f"Still waiting for policy file... ({elapsed:.0f}s elapsed)")
-                    elif status == "found":
-                        logger.info("Policy file found, waiting for write to complete...")
-                    elif status == "stable":
-                        logger.info(f"Policy file stable after {elapsed:.1f}s")
+                # Create a rank-specific logger to control output
+                rank_logger = logging.getLogger(f"metta.load_checkpoint.rank{rank}")
 
-                if not wait_for_file(default_policy_path, timeout=300, progress_callback=log_progress):
-                    raise RuntimeError(f"Timeout waiting for policy at {default_policy_path}")
+                def log_progress(elapsed: float, status: str) -> None:
+                    # Only log significant events from rank 1
+                    if rank == 1:
+                        if status == "waiting" and int(elapsed) % 10 == 0 and elapsed > 0:
+                            rank_logger.info(f"Still waiting for policy file... ({elapsed:.0f}s elapsed)")
+                        elif status == "found":
+                            rank_logger.info("Policy file found, waiting for write to complete...")
+                        elif status == "stable":
+                            rank_logger.info(f"Policy file stable after {elapsed:.1f}s")
+
+                rank_logger.info(f"Waiting for policy file: {default_policy_path}")
+
+                if not wait_for_file(
+                    default_policy_path,
+                    timeout=300,
+                    progress_callback=log_progress if rank == 1 else None,  # Only pass callback for rank 1
+                ):
+                    raise RuntimeError(f"Rank {rank}: Timeout waiting for policy at {default_policy_path}")
 
                 # Load the policy
+                rank_logger.info(f"Loading policy from {default_policy_path}")
                 try:
                     policy_record = policy_store.policy_record(default_policy_path)
                     # Load the policy state into our agent
                     agent.load_state_dict(policy_record.policy.state_dict())
-                    logger.info(f"Non-master rank: Loaded initial policy from {default_policy_path}")
+                    logger.info(f"Rank {rank}: Loaded initial policy from {default_policy_path}")
                 except Exception as e:
-                    raise RuntimeError(f"Failed to load policy from {default_policy_path}: {e}") from e
+                    raise RuntimeError(f"Rank {rank}: Failed to load policy from {default_policy_path}: {e}") from e
+
+                # Second barrier: ensure all non-master ranks have loaded before proceeding
+                # This is critical to prevent some ranks from moving ahead while others are still loading
+                torch.distributed.barrier()
+                logger.info(f"Rank {rank}: Synchronized after loading initial policy")
 
                 return agent_step, epoch, None
 
@@ -1026,6 +1083,27 @@ def wrap_agent_distributed(agent: Any, device: torch.device) -> Any:
     return agent
 
 
+def setup_distributed_vars() -> Tuple[bool, int, int]:
+    """Get distributed training variables.
+
+    Returns:
+        Tuple of (is_master, world_size, rank)
+        - is_master: True if this is the master process (rank 0)
+        - world_size: Total number of processes (1 if not distributed)
+        - rank: Current process rank (0 if not distributed)
+    """
+    if torch.distributed.is_initialized():
+        rank = torch.distributed.get_rank()
+        world_size = torch.distributed.get_world_size()
+        is_master = rank == 0
+    else:
+        rank = 0
+        world_size = 1
+        is_master = True
+
+    return is_master, world_size, rank
+
+
 # Re-export key classes for convenience
 __all__ = [
     # Factory classes
@@ -1053,11 +1131,14 @@ __all__ = [
     "cleanup_distributed",
     "load_checkpoint",
     "wrap_agent_distributed",
+    "setup_distributed_vars",
     # Functions from rl.functions (commonly used)
     "perform_rollout_step",
     "process_minibatch_update",
     "accumulate_rollout_stats",
     "compute_advantage",  # Export the real function directly
+    "should_run_on_interval",
+    "maybe_update_l2_weights",
     # Helper classes
     "RunDirectories",
     "PreBuiltConfigCurriculum",

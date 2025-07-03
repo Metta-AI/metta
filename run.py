@@ -1,5 +1,31 @@
 #!/usr/bin/env -S uv run
-"""Example of using Metta as a library without Hydra configuration."""
+"""Example of using Metta as a library without Hydra configuration.
+
+This script demonstrates how to use Metta's training components directly
+without going through the Hydra configuration system.
+
+Single GPU training:
+    python run.py
+
+Multi-GPU training (on a single node):
+    torchrun --nproc_per_node=4 run.py
+
+    # Or with specific GPUs:
+    CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 run.py
+
+Multi-node training:
+    # Node 0:
+    torchrun --nproc_per_node=4 --nnodes=2 --node_rank=0 --master_addr=<master_ip> --master_port=29500 run.py
+
+    # Node 1:
+    torchrun --nproc_per_node=4 --nnodes=2 --node_rank=1 --master_addr=<master_ip> --master_port=29500 run.py
+
+The script automatically detects distributed training when launched with torchrun
+and handles multi-GPU coordination, including:
+- Distributed data parallel (DDP) for the agent
+- Checkpoint synchronization across ranks
+- Master-only evaluation and replay generation
+"""
 
 import logging
 import os
