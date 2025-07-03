@@ -28,5 +28,5 @@ game:
         generator_red: 5
         altar: 5
 
-        block: 50
-        wall: 50
+        block: 20
+        wall: 20
