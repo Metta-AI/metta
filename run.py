@@ -283,16 +283,9 @@ evaluation_config = SimulationSuiteConfig(
     env_overrides={},  # Suite-level overrides
 )
 
-# System monitoring interval (hardcoded default)
-SYSTEM_STATS_LOG_INTERVAL = 10  # Log system stats every 10 epochs
-
-# Track evaluation scores
-evaluation_scores = {}
-
-# Training loop
+# Starting training
 logger.info("Starting training on {device}")
-
-# Track timing for performance metrics
+evaluation_scores = {}
 rollout_time = 0
 train_time = 0
 epoch_start_time = time.time()
@@ -397,8 +390,6 @@ while training.agent_step < trainer_config.total_timesteps:
         f"Epoch {training.epoch} - {steps_per_sec:.0f} steps/sec ({train_pct:.0f}% train / {rollout_pct:.0f}% rollout)"
     )
 
-    # ===== ADVANCED FEATURES =====
-
     # Heartbeat recording
     if training.epoch % 10 == 0:
         record_heartbeat()
@@ -424,7 +415,7 @@ while training.agent_step < trainer_config.total_timesteps:
         )
 
     # Log system monitoring stats
-    if SYSTEM_STATS_LOG_INTERVAL > 0 and training.epoch % SYSTEM_STATS_LOG_INTERVAL == 0:
+    if training.epoch % 10 == 0:
         system_stats = system_monitor.get_summary()
         logger.info(
             f"System stats - CPU: {system_stats.get('cpu_percent', 0):.1f}%, "
@@ -594,7 +585,6 @@ if evaluation_scores:
 # Log final system stats
 final_system_stats = system_monitor.get_summary()
 logger.info(f"\nFinal system stats: {final_system_stats}")
-# Stop monitoring
 system_monitor.stop()
 memory_monitor.clear()
 
