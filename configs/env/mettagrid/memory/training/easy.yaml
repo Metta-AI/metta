@@ -11,9 +11,9 @@ game:
   map_builder:
     _target_: metta.map.mapgen.MapGen
     num_rooms: 2
-
     border_width: 1
     room_border_width: 1
+
     root:
       type: metta.map.scenes.ascii.Ascii
       params:
