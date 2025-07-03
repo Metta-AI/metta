@@ -6,7 +6,7 @@ from typing import Callable, TypeVar
 import torch
 from omegaconf import DictConfig, ListConfig
 
-from metta.common.util.logging import setup_mettagrid_logger
+from metta.common.util.logging_helpers import setup_mettagrid_logger
 
 T = TypeVar("T")
 

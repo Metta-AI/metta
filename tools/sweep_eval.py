@@ -9,7 +9,7 @@ import yaml
 from omegaconf import DictConfig, ListConfig, OmegaConf
 
 from metta.agent.policy_store import PolicyStore
-from metta.common.util.logging import setup_mettagrid_logger
+from metta.common.util.logging_helpers import setup_mettagrid_logger
 from metta.common.util.runtime_configuration import setup_mettagrid_environment
 from metta.common.util.script_decorators import metta_script
 from metta.common.wandb.wandb_context import WandbContext

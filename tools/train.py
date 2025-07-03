@@ -13,7 +13,7 @@ from metta.agent.policy_store import PolicyStore
 from metta.app_backend.stats_client import StatsClient
 from metta.common.util.config import Config
 from metta.common.util.heartbeat import record_heartbeat
-from metta.common.util.logging import setup_mettagrid_logger
+from metta.common.util.logging_helpers import setup_mettagrid_logger
 from metta.common.util.runtime_configuration import setup_mettagrid_environment
 from metta.common.util.script_decorators import metta_script
 from metta.common.util.stats_client_cfg import get_stats_client
