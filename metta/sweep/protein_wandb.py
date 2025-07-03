@@ -2,6 +2,7 @@ import json
 import logging
 from copy import deepcopy
 from datetime import datetime, timezone
+from typing import Any, Tuple
 
 import wandb
 
@@ -107,16 +108,14 @@ class WandbProtein:
         logger.info(f"Recording failure for {wandb_run.name}")
         wandb_run.summary.update({"protein.state": "failure"})
 
-    def suggest(self, fill=None):
+    def suggest(self, fill=None) -> Tuple[dict[str, Any], dict[str, Any]]:
         """
         Get the current suggestion.
 
-        Returns:
-            tuple: (suggestion_dict, info_dict)
         """
         return self._transform_suggestion(deepcopy(self._suggestion)), self._suggestion_info
 
-    def _transform_suggestion(self, suggestion):
+    def _transform_suggestion(self, suggestion) -> dict[str, Any]:
         """Transform suggestion format. Override in subclasses if needed."""
         return suggestion
 
@@ -251,7 +250,7 @@ class WandbProtein:
             raise e
 
 
-def create_sweep(sweep_name: str, wandb_entity: str, wandb_project: str):
+def create_wandb_sweep(sweep_name: str, wandb_entity: str, wandb_project: str):
     """
     Create a new wandb sweep without parameters (Protein will control all suggestions).
 
