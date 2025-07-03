@@ -849,10 +849,6 @@ def save_checkpoint(
     if epoch % 10 == 0:
         cleanup_old_policies(checkpoint_path, keep_last_n=5)
 
-    # If distributed, master waits for other ranks
-    if torch.distributed.is_initialized():
-        torch.distributed.barrier()
-
     return saved_policy_record
 
 
@@ -915,30 +911,36 @@ def ensure_initial_policy(
         rank = 0
         is_master = True
 
-    if torch.distributed.is_initialized() and not is_master:
-        # Non-master ranks need to wait for master to create and save policy
-        # save_checkpoint will handle the initial barrier for non-master ranks
-        save_checkpoint(
-            epoch=0,
-            agent_step=0,
-            agent=agent,
-            optimizer=None,
-            policy_store=policy_store,
-            checkpoint_path=checkpoint_path,
-            checkpoint_interval=1,  # Force save
-            stats={},
-            force_save=True,
-        )
+    if torch.distributed.is_initialized():
+        if is_master:
+            # Master creates and saves initial policy
+            save_checkpoint(
+                epoch=0,
+                agent_step=0,
+                agent=agent,
+                optimizer=None,
+                policy_store=policy_store,
+                checkpoint_path=checkpoint_path,
+                checkpoint_interval=1,  # Force save
+                stats={},
+                force_save=True,
+            )
+            # Master waits at barrier after saving
+            torch.distributed.barrier()
+        else:
+            # Non-master ranks wait at barrier first
+            torch.distributed.barrier()
 
-        # Load the policy that master created
-        default_policy_path = os.path.join(checkpoint_path, policy_store.make_model_name(0))
-        if not wait_for_file(default_policy_path, timeout=300):
-            raise RuntimeError(f"Rank {rank}: Timeout waiting for policy at {default_policy_path}")
+            # Then load the policy master created
+            default_policy_path = os.path.join(checkpoint_path, policy_store.make_model_name(0))
+            if not wait_for_file(default_policy_path, timeout=300):
+                raise RuntimeError(f"Rank {rank}: Timeout waiting for policy at {default_policy_path}")
 
-        policy_pr = policy_store.policy_record(default_policy_path)
-        agent.load_state_dict(policy_pr.policy.state_dict())  # type: ignore
+            # Load the policy
+            policy_pr = policy_store.policy_record(default_policy_path)
+            agent.load_state_dict(policy_pr.policy.state_dict())  # type: ignore
     else:
-        # Master or single GPU mode creates and saves initial policy
+        # Single GPU mode creates and saves initial policy
         save_checkpoint(
             epoch=0,
             agent_step=0,
