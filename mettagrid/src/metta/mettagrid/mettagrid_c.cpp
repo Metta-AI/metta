@@ -58,7 +58,7 @@ MettaGrid::MettaGrid(py::dict cfg, py::list map, int seed) {
   _feature_normalizations = _obs_encoder->feature_normalizations();
 
   _event_manager = std::make_unique<EventManager>();
-  _stats = std::make_unique<StatsTracker>(inventory_item_names);
+  _stats = std::make_unique<StatsTracker>();
   _stats->set_environment(this);
 
   _event_manager->init(_grid.get());
@@ -705,7 +705,6 @@ AgentConfig MettaGrid::_create_agent_config(const py::dict& agent_group_cfg_py) 
                      max_items_per_type,
                      resource_rewards,
                      resource_reward_max,
-                     inventory_item_names,
                      type_id};
 }
 
@@ -724,6 +723,11 @@ unsigned int StatsTracker::get_current_step() const {
   return static_cast<MettaGrid*>(_env)->current_step;
 }
 
+const std::string& StatsTracker::inventory_item_name(InventoryItem item) const {
+  if (!_env) return StatsTracker::NO_ENV_INVENTORY_ITEM_NAME;
+  return _env->inventory_item_names[item];
+}
+
 ConverterConfig MettaGrid::_create_converter_config(const py::dict& converter_cfg_py) {
   std::map<InventoryItem, uint8_t> recipe_input =
       converter_cfg_py["recipe_input"].cast<std::map<InventoryItem, uint8_t>>();
@@ -736,16 +740,8 @@ ConverterConfig MettaGrid::_create_converter_config(const py::dict& converter_cf
   ObsType color = converter_cfg_py["color"].cast<ObsType>();
   TypeId type_id = converter_cfg_py["type_id"].cast<TypeId>();
   std::string type_name = converter_cfg_py["type_name"].cast<std::string>();
-  return ConverterConfig{recipe_input,
-                         recipe_output,
-                         max_output,
-                         conversion_ticks,
-                         cooldown,
-                         initial_items,
-                         color,
-                         inventory_item_names,
-                         type_id,
-                         type_name};
+  return ConverterConfig{
+      recipe_input, recipe_output, max_output, conversion_ticks, cooldown, initial_items, color, type_id, type_name};
 }
 
 WallConfig MettaGrid::_create_wall_config(const py::dict& wall_cfg_py) {

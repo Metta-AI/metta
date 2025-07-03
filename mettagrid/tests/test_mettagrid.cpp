@@ -56,10 +56,6 @@ protected:
     return resource_reward_max;
   }
 
-  std::vector<std::string> create_test_inventory_item_names() {
-    return {"ore", "laser", "armor", "heart"};
-  }
-
   AgentConfig create_test_agent_config() {
     AgentConfig agent_cfg;
     agent_cfg.group_name = "test_group";
@@ -69,7 +65,6 @@ protected:
     agent_cfg.max_items_per_type = create_test_max_items_per_type();
     agent_cfg.resource_rewards = create_test_rewards();
     agent_cfg.resource_reward_max = create_test_resource_reward_max();
-    agent_cfg.inventory_item_names = create_test_inventory_item_names();
     agent_cfg.type_id = 0;
     return agent_cfg;
   }
@@ -244,7 +239,6 @@ TEST_F(MettaGridCppTest, PutRecipeItems) {
   generator_cfg.cooldown = 10;
   generator_cfg.initial_items = 0;
   generator_cfg.color = 0;
-  generator_cfg.inventory_item_names = create_test_inventory_item_names();
   generator_cfg.type_id = TestItems::CONVERTER;
   generator_cfg.type_name = "generator";
   EventManager event_manager;
@@ -297,7 +291,6 @@ TEST_F(MettaGridCppTest, GetOutput) {
   generator_cfg.cooldown = 10;
   generator_cfg.initial_items = 1;
   generator_cfg.color = 0;
-  generator_cfg.inventory_item_names = create_test_inventory_item_names();
   generator_cfg.type_id = TestItems::CONVERTER;
   EventManager event_manager;
   Converter* generator = new Converter(0, 0, generator_cfg);
@@ -353,7 +346,6 @@ TEST_F(MettaGridCppTest, ConverterCreation) {
   converter_cfg.cooldown = 10;
   converter_cfg.initial_items = 0;
   converter_cfg.color = 0;
-  converter_cfg.inventory_item_names = create_test_inventory_item_names();
   converter_cfg.type_id = TestItems::CONVERTER;
   converter_cfg.type_name = "converter";
   std::unique_ptr<Converter> converter(new Converter(1, 2, converter_cfg));
