@@ -2,6 +2,7 @@
 import logging
 import os
 import time
+from typing import Any, Dict, Optional
 
 import torch
 from omegaconf import DictConfig
@@ -58,6 +59,58 @@ from metta.sim.simulation_suite import SimulationSuite
 # Set up logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
+
+
+def save_checkpoint_with_distributed_coordination(
+    is_master: bool,
+    epoch: int,
+    agent_step: int,
+    agent: Any,
+    optimizer: Any,
+    policy_store: Any,
+    checkpoint_path: str,
+    checkpoint_interval: int,
+    stats: Dict[str, Any],
+    force_save: bool = False,
+) -> Optional[Any]:
+    """Save checkpoint with proper distributed coordination.
+
+    Only master saves, but all ranks participate in barrier to ensure synchronization.
+    """
+    saved_policy_path = None
+
+    if torch.distributed.is_initialized():
+        if is_master:
+            # Master saves the checkpoint
+            saved_policy_path = save_checkpoint(
+                epoch=epoch,
+                agent_step=agent_step,
+                agent=agent,
+                optimizer=optimizer,
+                policy_store=policy_store,
+                checkpoint_path=checkpoint_path,
+                checkpoint_interval=checkpoint_interval,
+                stats=stats,
+                force_save=force_save,
+            )
+        # All ranks wait at barrier
+        torch.distributed.barrier()
+    else:
+        # Single GPU mode
+        saved_policy_path = save_checkpoint(
+            epoch=epoch,
+            agent_step=agent_step,
+            agent=agent,
+            optimizer=optimizer,
+            policy_store=policy_store,
+            checkpoint_path=checkpoint_path,
+            checkpoint_interval=checkpoint_interval,
+            stats=stats,
+            force_save=force_save,
+        )
+
+    return saved_policy_path
+
 
 # Set up directories and device first
 dirs = setup_run_directories()
@@ -204,7 +257,7 @@ timer.start()
 
 # Create learning rate scheduler
 lr_scheduler = None
-if hasattr(trainer_config, "lr_scheduler") and trainer_config.lr_scheduler.enabled:
+if getattr(trainer_config, "lr_scheduler", None) and trainer_config.lr_scheduler.enabled:
     lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
         optimizer.optimizer, T_max=trainer_config.total_timesteps // trainer_config.batch_size
     )
@@ -322,10 +375,8 @@ while agent_step < trainer_config.total_timesteps:
             if average_approx_kl > trainer_config.ppo.target_kl:
                 break
 
-    if minibatch_idx > 0:
-        # CUDA synchronization
-        if str(device).startswith("cuda"):
-            torch.cuda.synchronize()
+    if minibatch_idx > 0 and str(device).startswith("cuda"):
+        torch.cuda.synchronize()
 
     if lr_scheduler is not None:
         lr_scheduler.step()
@@ -360,17 +411,16 @@ while agent_step < trainer_config.total_timesteps:
         )
 
     # Compute gradient statistics (master only)
-    if trainer_config.grad_mean_variance_interval > 0 and epoch % trainer_config.grad_mean_variance_interval == 0:
-        if is_master:
-            grad_stats = compute_gradient_stats(agent)
-            logger.info(
-                f"Gradient stats - mean: {grad_stats.get('grad/mean', 0):.2e}, "
-                f"variance: {grad_stats.get('grad/variance', 0):.2e}, "
-                f"norm: {grad_stats.get('grad/norm', 0):.2e}"
-            )
+    if should_run_on_interval(epoch, trainer_config.grad_mean_variance_interval, is_master):
+        grad_stats = compute_gradient_stats(agent)
+        logger.info(
+            f"Gradient stats - mean: {grad_stats.get('grad/mean', 0):.2e}, "
+            f"variance: {grad_stats.get('grad/variance', 0):.2e}, "
+            f"norm: {grad_stats.get('grad/norm', 0):.2e}"
+        )
 
     # Log system monitoring stats (master only)
-    if is_master and epoch % 10 == 0:
+    if should_run_on_interval(epoch, 10, is_master):
         system_stats = system_monitor.get_summary()
         logger.info(
             f"System stats - CPU: {system_stats.get('cpu_percent', 0):.1f}%, "
@@ -391,37 +441,19 @@ while agent_step < trainer_config.total_timesteps:
             logger.info(f"Memory usage: {memory_stats}")
 
     # Save checkpoint periodically with distributed coordination
-    if trainer_config.checkpoint.checkpoint_interval > 0 and epoch % trainer_config.checkpoint.checkpoint_interval == 0:
-        if torch.distributed.is_initialized():
-            # All ranks must participate in checkpoint saving
-            if is_master:
-                # Master saves the checkpoint
-                saved_policy_path = save_checkpoint(
-                    epoch=epoch,
-                    agent_step=agent_step,
-                    agent=agent,
-                    optimizer=optimizer,
-                    policy_store=policy_store,
-                    checkpoint_path=checkpoint_path,
-                    checkpoint_interval=trainer_config.checkpoint.checkpoint_interval,
-                    stats=stats,
-                    force_save=False,
-                )
-            # All ranks wait at barrier
-            torch.distributed.barrier()
-        else:
-            # Single GPU mode
-            saved_policy_path = save_checkpoint(
-                epoch=epoch,
-                agent_step=agent_step,
-                agent=agent,
-                optimizer=optimizer,
-                policy_store=policy_store,
-                checkpoint_path=checkpoint_path,
-                checkpoint_interval=trainer_config.checkpoint.checkpoint_interval,
-                stats=stats,
-                force_save=False,
-            )
+    if should_run_on_interval(epoch, trainer_config.checkpoint.checkpoint_interval, True):  # All ranks participate
+        saved_policy_path = save_checkpoint_with_distributed_coordination(
+            is_master,
+            epoch,
+            agent_step,
+            agent,
+            optimizer,
+            policy_store,
+            checkpoint_path,
+            trainer_config.checkpoint.checkpoint_interval,
+            stats,
+            False,
+        )
 
     # Policy evaluation (master only)
     if (
@@ -512,15 +544,13 @@ while agent_step < trainer_config.total_timesteps:
 total_elapsed = time.time() - epoch_start_time
 logger.info("Training complete!")
 logger.info(f"Total training time: {total_elapsed:.1f}s")
-logger.info(f"Final epoch: {epoch}")
-logger.info(f"Total steps: {agent_step}")
+logger.info(f"Final epoch: {epoch}, Total steps: {agent_step}")
 
-# Log final stats if available
+# Log final losses if available
 if hasattr(losses, "stats"):
     losses_stats = losses.stats()
     logger.info(
-        f"Final losses - "
-        f"Policy: {losses_stats.get('policy_loss', 0):.4f}, "
+        f"Final losses - Policy: {losses_stats.get('policy_loss', 0):.4f}, "
         f"Value: {losses_stats.get('value_loss', 0):.4f}, "
         f"Entropy: {losses_stats.get('entropy', 0):.4f}, "
         f"Explained Variance: {losses_stats.get('explained_variance', 0):.3f}"
@@ -542,35 +572,18 @@ if is_master:
     memory_monitor.clear()
 
 # Save final checkpoint with distributed coordination
-if torch.distributed.is_initialized():
-    if is_master:
-        # Master saves final checkpoint
-        saved_policy_path = save_checkpoint(
-            epoch=epoch,
-            agent_step=agent_step,
-            agent=agent,
-            optimizer=optimizer,
-            policy_store=policy_store,
-            checkpoint_path=checkpoint_path,
-            checkpoint_interval=trainer_config.checkpoint.checkpoint_interval,
-            stats=stats,
-            force_save=True,
-        )
-    # All ranks wait at barrier
-    torch.distributed.barrier()
-else:
-    # Single GPU mode
-    saved_policy_path = save_checkpoint(
-        epoch=epoch,
-        agent_step=agent_step,
-        agent=agent,
-        optimizer=optimizer,
-        policy_store=policy_store,
-        checkpoint_path=checkpoint_path,
-        checkpoint_interval=trainer_config.checkpoint.checkpoint_interval,
-        stats=stats,
-        force_save=True,
-    )
+saved_policy_path = save_checkpoint_with_distributed_coordination(
+    is_master,
+    epoch,
+    agent_step,
+    agent,
+    optimizer,
+    policy_store,
+    checkpoint_path,
+    trainer_config.checkpoint.checkpoint_interval,
+    stats,
+    True,
+)
 
 # Close environment
 env.close()  # type: ignore
