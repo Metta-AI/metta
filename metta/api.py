@@ -652,7 +652,6 @@ __all__ = [
     "load_checkpoint",
     "evaluate_policy",
     "calculate_anneal_beta",
-    "get_lstm_config",
     # Constants
     "TYPE_AGENT",
     "TYPE_WALL",
