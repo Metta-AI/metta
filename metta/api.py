@@ -184,7 +184,7 @@ def save_experiment_config(
     """Save training configuration to config.yaml in the run directory.
 
     This builds the experiment configuration from the provided components
-    and saves it for reproducibility.
+    and saves it for reproducibility. Only saves on master rank in distributed mode.
 
     Args:
         dirs: RunDirectories object with paths
@@ -886,6 +886,72 @@ def wrap_agent_distributed(agent: Any, device: torch.device) -> Any:
     return agent
 
 
+def ensure_initial_policy(
+    agent: Any,
+    policy_store: Any,
+    checkpoint_path: str,
+    loaded_policy_path: Optional[str],
+    device: torch.device,
+) -> None:
+    """Ensure all ranks have the same initial policy in distributed training.
+
+    If no checkpoint exists, master creates and saves the initial policy,
+    then all ranks synchronize. In single GPU mode, just saves the initial policy.
+
+    Args:
+        agent: The agent to initialize
+        policy_store: PolicyStore instance
+        checkpoint_path: Directory for checkpoints
+        loaded_policy_path: Path to already loaded policy (None if no checkpoint)
+        device: Training device
+    """
+    # If we already loaded a policy, nothing to do
+    if loaded_policy_path is not None:
+        return
+
+    # Get distributed info
+    is_master, _, rank = setup_distributed_vars()
+
+    if torch.distributed.is_initialized():
+        if is_master:
+            # Master creates and saves initial policy
+            save_checkpoint(
+                epoch=0,
+                agent_step=0,
+                agent=agent,
+                optimizer=None,
+                policy_store=policy_store,
+                checkpoint_path=checkpoint_path,
+                checkpoint_interval=1,  # Force save
+                stats={},
+                force_save=True,
+            )
+            torch.distributed.barrier()
+        else:
+            # Non-master ranks wait then load
+            torch.distributed.barrier()
+
+            default_policy_path = os.path.join(checkpoint_path, policy_store.make_model_name(0))
+            if not wait_for_file(default_policy_path, timeout=300):
+                raise RuntimeError(f"Rank {rank}: Timeout waiting for policy at {default_policy_path}")
+
+            policy_pr = policy_store.policy_record(default_policy_path)
+            agent.load_state_dict(policy_pr.policy.state_dict())  # type: ignore
+    else:
+        # Single GPU mode
+        save_checkpoint(
+            epoch=0,
+            agent_step=0,
+            agent=agent,
+            optimizer=None,
+            policy_store=policy_store,
+            checkpoint_path=checkpoint_path,
+            checkpoint_interval=1,
+            stats={},
+            force_save=True,
+        )
+
+
 # ============================================================================
 # Optimizer Wrapper
 # ============================================================================
@@ -1139,6 +1205,7 @@ __all__ = [
     "load_checkpoint",
     "wrap_agent_distributed",
     "setup_distributed_vars",
+    "ensure_initial_policy",
     # Functions from rl.functions (commonly used)
     "perform_rollout_step",
     "process_minibatch_update",
