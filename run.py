@@ -1,32 +1,4 @@
 #!/usr/bin/env -S uv run
-"""Example of using Metta as a library without Hydra configuration.
-
-This script demonstrates how to use Metta's training components directly
-without going through the Hydra configuration system.
-
-Single GPU training:
-    python run.py
-
-Multi-GPU training (on a single node):
-    torchrun --nproc_per_node=4 run.py
-
-    # Or with specific GPUs:
-    CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 run.py
-
-Multi-node training:
-    # Node 0:
-    torchrun --nproc_per_node=4 --nnodes=2 --node_rank=0 --master_addr=<master_ip> --master_port=29500 run.py
-
-    # Node 1:
-    torchrun --nproc_per_node=4 --nnodes=2 --node_rank=1 --master_addr=<master_ip> --master_port=29500 run.py
-
-The script automatically detects distributed training when launched with torchrun
-and handles multi-GPU coordination, including:
-- Distributed data parallel (DDP) for the agent
-- Checkpoint synchronization across ranks
-- Master-only evaluation and replay generation
-"""
-
 import logging
 import os
 import time
@@ -89,14 +61,8 @@ logger = logging.getLogger(__name__)
 
 # Set up directories and device first
 dirs = setup_run_directories()
-logger.info(f"Run directories set up: {dirs.run_dir}")
-
 device = setup_device_and_distributed("cuda" if torch.cuda.is_available() else "cpu")
-logger.info(f"Device setup complete: {device}")
-
-# Get distributed info after initialization
 is_master, world_size, rank = setup_distributed_vars()
-logger.info(f"Distributed mode: rank {rank}/{world_size}, is_master={is_master}")
 
 # Configuration
 trainer_config = TrainerConfig(
@@ -227,7 +193,8 @@ if loaded_policy_path is None:
 
             # Load the policy
             policy_pr = policy_store.policy_record(default_policy_path)
-            agent.load_state_dict(policy_pr.policy.state_dict())
+            # agent is actually a MettaAgent instance (from Agent factory)
+            agent.load_state_dict(policy_pr.policy.state_dict())  # type: ignore
             logger.info(f"Rank {rank}: Loaded initial policy")
     else:
         # Single GPU mode
