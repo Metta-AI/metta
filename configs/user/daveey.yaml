@@ -36,10 +36,10 @@ trainer:
 # policy_uri: wandb://run/b.daveey.t.1.lra.dr.muon
 # policy_uri: pytorch:///tmp/puffer_metta.pt
 # policy_uri: pytorch:///tmp/puffer_metta.pt
-# policy_uri: wandb://run/daveey.lasertag.r5.2x4:v12
+policy_uri: wandb://run/daveey.res_curr.1x4
 # policy_uri: pytorch://${data_dir}/puffer/puffer_metta.pt
 
-policy_uri: ${trained_policy_uri}
+# policy_uri: ${trained_policy_uri}
 npc_policy_uri: ${policy_uri}
 # npc_policy_uri: ${trained_policy_uri}
 
@@ -76,7 +76,7 @@ sim_job:
   #         agents: 4
   #       num_rooms: 4
 
-run_id: 1.7
+run_id: 1.8
 run: ${oc.env:USER}.local.${run_id}
 trained_policy_uri: ${run_dir}/checkpoints
 
