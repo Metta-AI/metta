@@ -34,10 +34,6 @@ PROJECT_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 # Parse command line arguments
 for arg in "$@"; do
     case "$arg" in
-        --add-to-path)
-            say "--add-to-path has been deprecated; please set METTA_NO_MODIFY_PATH=0 in the environment"
-            NO_MODIFY_PATH=0
-            ;;
         --no-modify-path)
             NO_MODIFY_PATH=1
             ;;
