@@ -9,3 +9,10 @@ buckets:
     values: [0, 0.5, 1]
   game.agent.rewards.heart:
     values: [0, 0.5, 1]
+
+env_overrides:
+  game:
+    agent:
+      rewards:
+        ore_red_max: 5
+        battery_red_max: 5
