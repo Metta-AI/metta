@@ -2,7 +2,6 @@
 import logging
 import os
 import time
-from typing import Any, Dict, Optional
 
 import torch
 from omegaconf import DictConfig
@@ -59,58 +58,6 @@ from metta.sim.simulation_suite import SimulationSuite
 # Set up logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
-
-
-def save_checkpoint_with_distributed_coordination(
-    is_master: bool,
-    epoch: int,
-    agent_step: int,
-    agent: Any,
-    optimizer: Any,
-    policy_store: Any,
-    checkpoint_path: str,
-    checkpoint_interval: int,
-    stats: Dict[str, Any],
-    force_save: bool = False,
-) -> Optional[Any]:
-    """Save checkpoint with proper distributed coordination.
-
-    Only master saves, but all ranks participate in barrier to ensure synchronization.
-    """
-    saved_policy_path = None
-
-    if torch.distributed.is_initialized():
-        if is_master:
-            # Master saves the checkpoint
-            saved_policy_path = save_checkpoint(
-                epoch=epoch,
-                agent_step=agent_step,
-                agent=agent,
-                optimizer=optimizer,
-                policy_store=policy_store,
-                checkpoint_path=checkpoint_path,
-                checkpoint_interval=checkpoint_interval,
-                stats=stats,
-                force_save=force_save,
-            )
-        # All ranks wait at barrier
-        torch.distributed.barrier()
-    else:
-        # Single GPU mode
-        saved_policy_path = save_checkpoint(
-            epoch=epoch,
-            agent_step=agent_step,
-            agent=agent,
-            optimizer=optimizer,
-            policy_store=policy_store,
-            checkpoint_path=checkpoint_path,
-            checkpoint_interval=checkpoint_interval,
-            stats=stats,
-            force_save=force_save,
-        )
-
-    return saved_policy_path
-
 
 # Set up directories and device first
 dirs = setup_run_directories()
@@ -440,19 +387,18 @@ while agent_step < trainer_config.total_timesteps:
         if memory_stats:
             logger.info(f"Memory usage: {memory_stats}")
 
-    # Save checkpoint periodically with distributed coordination
+    # Save checkpoint periodically
     if should_run_on_interval(epoch, trainer_config.checkpoint.checkpoint_interval, True):  # All ranks participate
-        saved_policy_path = save_checkpoint_with_distributed_coordination(
-            is_master,
-            epoch,
-            agent_step,
-            agent,
-            optimizer,
-            policy_store,
-            checkpoint_path,
-            trainer_config.checkpoint.checkpoint_interval,
-            stats,
-            False,
+        saved_policy_path = save_checkpoint(
+            epoch=epoch,
+            agent_step=agent_step,
+            agent=agent,
+            optimizer=optimizer,
+            policy_store=policy_store,
+            checkpoint_path=checkpoint_path,
+            checkpoint_interval=trainer_config.checkpoint.checkpoint_interval,
+            stats=stats,
+            force_save=False,
         )
 
     # Policy evaluation (master only)
@@ -571,18 +517,17 @@ if is_master:
     system_monitor.stop()
     memory_monitor.clear()
 
-# Save final checkpoint with distributed coordination
-saved_policy_path = save_checkpoint_with_distributed_coordination(
-    is_master,
-    epoch,
-    agent_step,
-    agent,
-    optimizer,
-    policy_store,
-    checkpoint_path,
-    trainer_config.checkpoint.checkpoint_interval,
-    stats,
-    True,
+# Save final checkpoint
+saved_policy_path = save_checkpoint(
+    epoch=epoch,
+    agent_step=agent_step,
+    agent=agent,
+    optimizer=optimizer,
+    policy_store=policy_store,
+    checkpoint_path=checkpoint_path,
+    checkpoint_interval=trainer_config.checkpoint.checkpoint_interval,
+    stats=stats,
+    force_save=True,
 )
 
 # Close environment
