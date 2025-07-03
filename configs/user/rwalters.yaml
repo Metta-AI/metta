@@ -31,10 +31,12 @@ analyzer:
 sweep:
   metric: "action.use.altar.agent"
 
-replay_job:
-  open_browser_on_start: false
 
 run_id: 6
 run: ${oc.env:USER}.local.${now:MMDD}.${run_id}
 trained_policy_uri: ${run_dir}/checkpoints
 sweep_name: "${oc.env:USER}.local.sweep.${run_id}"
+
+replay_job:
+  open_browser_on_start: false
+  policy_uri: "wandb://run/${..run}"
