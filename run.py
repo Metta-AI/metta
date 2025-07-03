@@ -1,33 +1,5 @@
 #!/usr/bin/env -S uv run
-"""Example of using Metta as a library without Hydra configuration.
-
-This example shows how to use the Metta API to train an agent with full
-control over the training loop, using the same components as the main trainer.
-
-This version includes advanced features:
-- Policy evaluation on multiple environments
-- Replay generation for visualization
-- Memory and system monitoring
-- Gradient statistics computation
-
-Run Directory Structure:
------------------------
-Like ./tools/train.py, this script creates a structured run directory:
-  train_dir/{run_name}/
-    ├── config.yaml      # Saved configuration
-    ├── checkpoints/     # Policy checkpoints
-    ├── replays/         # Replay files
-    └── stats/          # Evaluation statistics
-
-Environment Variables:
----------------------
-- METTA_RUN: Set the run name (default: run_YYYYMMDD_HHMMSS)
-- DATA_DIR: Set the data directory (default: ./train_dir)
-
-Example:
-  METTA_RUN=my_experiment python run.py
-  DATA_DIR=/path/to/data METTA_RUN=test_run python run.py
-"""
+"""Example of using Metta as a library without Hydra configuration."""
 
 import logging
 import os
@@ -37,7 +9,7 @@ from datetime import datetime
 from pathlib import Path
 
 import torch
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig
 
 from metta.agent.policy_store import PolicyStore
 from metta.api import (
@@ -47,8 +19,10 @@ from metta.api import (
     calculate_anneal_beta,
     save_checkpoint,
 )
+from metta.common.profiling.memory_monitor import MemoryMonitor
 from metta.common.profiling.stopwatch import Stopwatch
 from metta.common.util.heartbeat import record_heartbeat
+from metta.common.util.system_monitor import SystemMonitor
 from metta.mettagrid.mettagrid_env import MettaGridEnv
 from metta.rl.experience import Experience
 from metta.rl.functions import (
@@ -71,21 +45,6 @@ from metta.rl.trainer_config import (
 from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
 from metta.sim.simulation_suite import SimulationSuite
-
-# Import monitoring components - handle different possible locations
-try:
-    from metta.common.profiling.memory_monitor import MemoryMonitor
-    from metta.common.util.system_monitor import SystemMonitor
-except ImportError:
-    # Try alternate import paths for different package structures
-    try:
-        from common.src.metta.common.profiling.memory_monitor import MemoryMonitor
-        from common.src.metta.common.util.system_monitor import SystemMonitor
-    except ImportError:
-        logger = logging.getLogger(__name__)
-        logger.warning("Memory and system monitoring not available - continuing without monitoring")
-        MemoryMonitor = None
-        SystemMonitor = None
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -174,93 +133,9 @@ env = Environment(
     is_training=True,
 )
 
-# Create agent using DictConfig (as expected by make_policy)
+# Create agent
 logger.info("Creating agent...")
-# Create agent configuration based on the fast.yaml example
-agent_config = DictConfig(
-    {
-        "device": str(device),
-        "agent": {
-            "clip_range": 0,
-            "analyze_weights_interval": 300,
-            "l2_init_weight_update_interval": 0,
-            "observations": {"obs_key": "grid_obs"},
-            "components": {
-                "_obs_": {
-                    "_target_": "metta.agent.lib.obs_token_to_box_shaper.ObsTokenToBoxShaper",
-                    "sources": None,
-                },
-                "obs_normalizer": {
-                    "_target_": "metta.agent.lib.observation_normalizer.ObservationNormalizer",
-                    "sources": [{"name": "_obs_"}],
-                },
-                "cnn1": {
-                    "_target_": "metta.agent.lib.nn_layer_library.Conv2d",
-                    "sources": [{"name": "obs_normalizer"}],
-                    "nn_params": {
-                        "out_channels": 32,
-                        "kernel_size": 3,
-                        "stride": 1,
-                        "padding": 1,
-                    },
-                },
-                "cnn2": {
-                    "_target_": "metta.agent.lib.nn_layer_library.Conv2d",
-                    "sources": [{"name": "cnn1"}],
-                    "nn_params": {
-                        "out_channels": 64,
-                        "kernel_size": 3,
-                        "stride": 1,
-                        "padding": 1,
-                    },
-                },
-                "obs_flattener": {
-                    "_target_": "metta.agent.lib.nn_layer_library.Flatten",
-                    "sources": [{"name": "cnn2"}],
-                },
-                "encoded_obs": {
-                    "_target_": "metta.agent.lib.nn_layer_library.Linear",
-                    "sources": [{"name": "obs_flattener"}],
-                    "nn_params": {"out_features": 512},
-                },
-                "_core_": {
-                    "_target_": "metta.agent.lib.lstm.LSTM",
-                    "sources": [{"name": "encoded_obs"}],
-                    "output_size": 512,
-                    "nn_params": {
-                        "num_layers": 1,
-                    },
-                },
-                "_value_": {
-                    "_target_": "metta.agent.lib.nn_layer_library.Linear",
-                    "sources": [{"name": "_core_"}],
-                    "nn_params": {"out_features": 1},
-                    "nonlinearity": None,
-                },
-                "actor_1": {
-                    "_target_": "metta.agent.lib.nn_layer_library.Linear",
-                    "sources": [{"name": "_core_"}],
-                    "nn_params": {"out_features": 512},
-                },
-                "_action_embeds_": {
-                    "_target_": "metta.agent.lib.action.ActionEmbedding",
-                    "sources": None,
-                    "nn_params": {
-                        "num_embeddings": 100,
-                        "embedding_dim": 16,
-                    },
-                },
-                "_action_": {
-                    "_target_": "metta.agent.lib.actor.MettaActorSingleHead",
-                    "sources": [
-                        {"name": "actor_1"},
-                        {"name": "_action_embeds_"},
-                    ],
-                },
-            },
-        },
-    }
-)
+agent = Agent(env, device=str(device))  # Uses default config
 
 # Save configuration to run directory (like train.py does)
 config_to_save = {
@@ -277,7 +152,6 @@ config_to_save = {
         "optimizer": trainer_config.optimizer.model_dump(),
         "ppo": trainer_config.ppo.model_dump(),
     },
-    "agent": OmegaConf.to_container(agent_config),
 }
 
 config_path = os.path.join(RUN_DIR, "config.yaml")
@@ -286,8 +160,6 @@ with open(config_path, "w") as f:
 
     yaml.dump(config_to_save, f, default_flow_style=False)
 logger.info(f"Saved config to {config_path}")
-
-agent = Agent(env, agent_config, str(device))
 
 # Create policy store for checkpointing
 # Create a minimal config for PolicyStore - it needs cfg and wandb_run
@@ -422,20 +294,16 @@ if checkpoint:
 # ===== ADVANCED FEATURES SETUP =====
 
 # 1. Memory and System Monitoring
-if MemoryMonitor is not None and SystemMonitor is not None:
-    memory_monitor = MemoryMonitor()
-    memory_monitor.add(training, name="TrainingComponents", track_attributes=True)
-    memory_monitor.add(agent, name="Agent", track_attributes=False)
+memory_monitor = MemoryMonitor()
+memory_monitor.add(training, name="TrainingComponents", track_attributes=True)
+memory_monitor.add(agent, name="Agent", track_attributes=False)
 
-    system_monitor = SystemMonitor(
-        sampling_interval_sec=1.0,
-        history_size=100,
-        logger=logger,
-        auto_start=True,
-    )
-else:
-    memory_monitor = None
-    system_monitor = None
+system_monitor = SystemMonitor(
+    sampling_interval_sec=1.0,
+    history_size=100,
+    logger=logger,
+    auto_start=True,
+)
 
 # 2. Evaluation Configuration
 # Define what environments to evaluate on
@@ -626,9 +494,8 @@ while training.agent_step < trainer_config.total_timesteps:
     # Apply additional training steps
     if minibatch_idx > 0:  # Only if we actually trained
         # Weight clipping if enabled
-        if hasattr(agent_config.agent, "clip_range") and agent_config.agent.clip_range > 0:
-            if hasattr(agent, "clip_weights"):
-                agent.clip_weights()
+        if hasattr(agent, "clip_weights"):
+            agent.clip_weights()
 
         # CUDA synchronization
         if str(device).startswith("cuda"):
@@ -663,8 +530,8 @@ while training.agent_step < trainer_config.total_timesteps:
         record_heartbeat()
 
     # Update L2 weights if configured
-    if hasattr(agent_config.agent, "l2_init_weight_update_interval"):
-        l2_interval = agent_config.agent.l2_init_weight_update_interval
+    if hasattr(agent, "l2_init_weight_update_interval"):
+        l2_interval = agent.l2_init_weight_update_interval
         if l2_interval > 0 and training.epoch % l2_interval == 0:
             if hasattr(agent, "update_l2_init_weight_copy"):
                 agent.update_l2_init_weight_copy()
@@ -680,7 +547,7 @@ while training.agent_step < trainer_config.total_timesteps:
         )
 
     # Log system monitoring stats
-    if SYSTEM_STATS_INTERVAL > 0 and training.epoch % SYSTEM_STATS_INTERVAL == 0 and system_monitor is not None:
+    if SYSTEM_STATS_INTERVAL > 0 and training.epoch % SYSTEM_STATS_INTERVAL == 0:
         system_stats = system_monitor.get_summary()
         logger.info(
             f"System stats - CPU: {system_stats.get('cpu_percent', 0):.1f}%, "
@@ -696,10 +563,9 @@ while training.agent_step < trainer_config.total_timesteps:
             )
 
         # Log memory monitor stats
-        if memory_monitor is not None:
-            memory_stats = memory_monitor.stats()
-            if memory_stats:
-                logger.info(f"Memory usage: {memory_stats}")
+        memory_stats = memory_monitor.stats()
+        if memory_stats:
+            logger.info(f"Memory usage: {memory_stats}")
 
     # Save checkpoint periodically
     saved_policy_path = None
@@ -773,14 +639,11 @@ if evaluation_scores:
             logger.info(f"    {env_name}: {score:.2f}")
 
 # Log final system stats
-if system_monitor is not None:
-    final_system_stats = system_monitor.get_summary()
-    logger.info(f"\nFinal system stats: {final_system_stats}")
-    # Stop monitoring
-    system_monitor.stop()
-
-if memory_monitor is not None:
-    memory_monitor.clear()
+final_system_stats = system_monitor.get_summary()
+logger.info(f"\nFinal system stats: {final_system_stats}")
+# Stop monitoring
+system_monitor.stop()
+memory_monitor.clear()
 
 # Final checkpoint (force save)
 if training.epoch % trainer_config.checkpoint.checkpoint_interval != 0:
