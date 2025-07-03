@@ -95,6 +95,12 @@ def main():
     parser.add_argument("--no-spot", action="store_true", help="Disable spot instances")
     parser.add_argument("--copies", type=int, default=1, help="Number of identical job copies to launch")
     parser.add_argument(
+        "--heartbeat-timeout-seconds",
+        type=int,
+        default=600,
+        help="Automatically terminate the job after this many seconds",
+    )
+    parser.add_argument(
         "--timeout-hours",
         type=float,
         default=None,
@@ -139,6 +145,7 @@ def main():
             METTA_CMD=args.cmd,
             METTA_CMD_ARGS=" ".join(cmd_args),
             METTA_GIT_REF=commit_hash,
+            HEARTBEAT_TIMEOUT=args.heartbeat_timeout_seconds,
         )
     )
     task.name = run_id
