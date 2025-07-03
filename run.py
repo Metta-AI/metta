@@ -58,7 +58,6 @@ trainer_config = TrainerConfig(
     total_timesteps=10_000_000,
     batch_size=16384,
     minibatch_size=512,
-    # Use structured config classes instead of dictionaries
     ppo=PPOConfig(
         clip_coef=0.1,
         ent_coef=0.01,
@@ -71,19 +70,19 @@ trainer_config = TrainerConfig(
     ),
     checkpoint=CheckpointConfig(
         checkpoint_dir=dirs.checkpoint_dir,
-        checkpoint_interval=10,  # Updated to match the command line parameter
-        wandb_checkpoint_interval=0,  # Disabled for this example
+        checkpoint_interval=10,
+        wandb_checkpoint_interval=0,
     ),
     simulation=SimulationConfig(
-        evaluate_interval=100,  # Evaluate every 100 epochs
-        replay_interval=200,  # Generate replay every 200 epochs
+        evaluate_interval=100,
+        replay_interval=200,
         replay_dir=dirs.replay_dir,
     ),
     profiler=TorchProfilerConfig(
-        interval_epochs=0,  # 0 disables profiling
+        interval_epochs=0,
         profile_dir="./profiles",
     ),
-    grad_mean_variance_interval=50,  # Compute gradient stats every 50 epochs
+    grad_mean_variance_interval=50,
 )
 save_experiment_config(dirs, device, trainer_config)
 
@@ -94,9 +93,9 @@ env = Environment(
     width=32,
     height=32,
     device=str(device),
-    num_envs=64,  # Number of parallel environments
+    num_envs=64,
     num_workers=trainer_config.num_workers,
-    batch_size=64,  # Batch size per worker
+    batch_size=64,
     async_factor=trainer_config.async_factor,
     zero_copy=trainer_config.zero_copy,
     is_training=True,
@@ -104,7 +103,7 @@ env = Environment(
 metta_grid_env = env.driver_env  # type: ignore - vecenv attribute
 
 # Create agent
-agent = Agent(env, device=str(device))  # Uses default config
+agent = Agent(env, device=str(device))
 
 # Create policy store directly with minimal config
 policy_store = PolicyStore(
@@ -119,7 +118,7 @@ policy_store = PolicyStore(
             },
         }
     ),
-    wandb_run=None,  # No wandb in this example
+    wandb_run=None,
 )
 logger.info("Created policy store")
 
@@ -178,7 +177,6 @@ if hasattr(trainer_config, "lr_scheduler") and trainer_config.lr_scheduler.enabl
     )
     logger.info("Created learning rate scheduler")
 
-
 # Load checkpoint if exists
 checkpoint_path = trainer_config.checkpoint.checkpoint_dir
 checkpoint = TrainerCheckpoint.load(checkpoint_path) if checkpoint_path else None
@@ -215,27 +213,27 @@ system_monitor = SystemMonitor(
 evaluation_config = SimulationSuiteConfig(
     name="evaluation",
     simulations={
-        "navigation/terrain_small": {
-            "env": "/env/mettagrid/navigation/training/terrain_from_numpy",
-            "num_episodes": 5,
-            "max_time_s": 30,
-            "env_overrides": {"game": {"map_builder": {"room": {"dir": "varied_terrain/balanced_small"}}}},
-        },
-        "navigation/terrain_medium": {
-            "env": "/env/mettagrid/navigation/training/terrain_from_numpy",
-            "num_episodes": 5,
-            "max_time_s": 30,
-            "env_overrides": {"game": {"map_builder": {"room": {"dir": "varied_terrain/balanced_medium"}}}},
-        },
-        "navigation/terrain_large": {
-            "env": "/env/mettagrid/navigation/training/terrain_from_numpy",
-            "num_episodes": 5,
-            "max_time_s": 30,
-            "env_overrides": {"game": {"map_builder": {"room": {"dir": "varied_terrain/balanced_large"}}}},
-        },
+        "navigation/terrain_small": SingleEnvSimulationConfig(
+            env="/env/mettagrid/navigation/training/terrain_from_numpy",
+            num_episodes=5,
+            max_time_s=30,
+            env_overrides={"game": {"map_builder": {"room": {"dir": "varied_terrain/balanced_small"}}}},
+        ),
+        "navigation/terrain_medium": SingleEnvSimulationConfig(
+            env="/env/mettagrid/navigation/training/terrain_from_numpy",
+            num_episodes=5,
+            max_time_s=30,
+            env_overrides={"game": {"map_builder": {"room": {"dir": "varied_terrain/balanced_medium"}}}},
+        ),
+        "navigation/terrain_large": SingleEnvSimulationConfig(
+            env="/env/mettagrid/navigation/training/terrain_from_numpy",
+            num_episodes=5,
+            max_time_s=30,
+            env_overrides={"game": {"map_builder": {"room": {"dir": "varied_terrain/balanced_large"}}}},
+        ),
     },
-    num_episodes=10,  # Will be overridden by individual configs
-    env_overrides={},  # Suite-level overrides
+    num_episodes=10,
+    env_overrides={},
 )
 
 # Starting training
@@ -334,7 +332,7 @@ while agent_step < trainer_config.total_timesteps:
             if average_approx_kl > trainer_config.ppo.target_kl:
                 break
 
-    if minibatch_idx > 0:  # Only if we actually trained
+    if minibatch_idx > 0:
         # CUDA synchronization
         if str(device).startswith("cuda"):
             torch.cuda.synchronize()
@@ -423,13 +421,13 @@ while agent_step < trainer_config.total_timesteps:
             total_agent_step=agent_step,
             optimizer_state_dict=optimizer.state_dict(),
             policy_path=saved_policy_path.uri if hasattr(saved_policy_path, "uri") else None,
-            stopwatch_state=None,  # Timer state not implemented in this example
+            stopwatch_state=None,
         )
         trainer_checkpoint.save(checkpoint_path)
         logger.info(f"Saved training state at epoch {epoch}")
 
         # Clean up old policies to prevent disk space issues
-        if epoch % 10 == 0:  # Clean up every 10 epochs
+        if epoch % 10 == 0:
             cleanup_old_policies(checkpoint_path, keep_last_n=5)
 
     # Policy evaluation
@@ -440,7 +438,7 @@ while agent_step < trainer_config.total_timesteps:
     ):
         logger.info(f"Evaluating policy at epoch {epoch}")
 
-        # Run evaluation suite (similar to trainer.py's _evaluate_policy)
+        # Run evaluation suite
         sim_suite = SimulationSuite(
             config=evaluation_config,
             policy_pr=saved_policy_path,
@@ -448,9 +446,9 @@ while agent_step < trainer_config.total_timesteps:
             device=device,
             vectorization="serial",
             stats_dir=dirs.stats_dir,
-            stats_client=None,  # No stats client in this example
+            stats_client=None,
             stats_epoch_id=None,
-            wandb_policy_name=None,  # No wandb in this example
+            wandb_policy_name=None,
         )
 
         results = sim_suite.simulate()
@@ -582,7 +580,7 @@ if epoch % trainer_config.checkpoint.checkpoint_interval != 0:
     final_checkpoint.save(checkpoint_path)
     logger.info("Saved final training state")
 
-# Close environment - env is the vecenv returned by Environment()
+# Close environment
 env.close()  # type: ignore
 
 logger.info(f"\nTraining run complete! Run saved to: {dirs.run_dir}")
