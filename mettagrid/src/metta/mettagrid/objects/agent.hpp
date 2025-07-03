@@ -115,7 +115,7 @@ public:
   }
 
   virtual bool swappable() const override {
-    return this->frozen;  // TODO: double check based on intended meaning of "swappable"
+    return this->frozen;  // agents are valid targets for the swap action only if they are frozen
   }
 
   virtual vector<PartialObservationToken> obs_features() const override {
