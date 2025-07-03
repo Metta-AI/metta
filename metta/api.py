@@ -8,6 +8,7 @@ This API exposes the core training components from Metta, allowing users to:
 """
 
 import logging
+import os
 from typing import Any, Dict, List, Optional, Tuple
 
 import gymnasium as gym
@@ -543,7 +544,7 @@ def create_default_trainer_config(
     total_timesteps: int = 10_000_000,
     batch_size: int = 8192,
     minibatch_size: int = 512,
-    checkpoint_dir: str = "./checkpoints",
+    checkpoint_dir: Optional[str] = None,
     **kwargs,
 ) -> TrainerConfig:
     """Create a default TrainerConfig with sensible values.
@@ -553,12 +554,19 @@ def create_default_trainer_config(
         total_timesteps: Total training timesteps
         batch_size: Batch size
         minibatch_size: Minibatch size
-        checkpoint_dir: Directory for checkpoints
+        checkpoint_dir: Directory for checkpoints. If not provided, uses
+                       $DATA_DIR/$METTA_RUN/checkpoints or ./checkpoints
         **kwargs: Additional config overrides
 
     Returns:
         TrainerConfig instance
     """
+    # Use environment variables for default paths if not provided
+    if checkpoint_dir is None:
+        run_name = os.environ.get("METTA_RUN", "default_run")
+        data_dir = os.environ.get("DATA_DIR", "./train_dir")
+        checkpoint_dir = os.path.join(data_dir, run_name, "checkpoints")
+
     config_dict = {
         "num_workers": num_workers,
         "total_timesteps": total_timesteps,

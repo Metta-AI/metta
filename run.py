@@ -9,14 +9,35 @@ This version includes advanced features:
 - Replay generation for visualization
 - Memory and system monitoring
 - Gradient statistics computation
+
+Run Directory Structure:
+-----------------------
+Like ./tools/train.py, this script creates a structured run directory:
+  train_dir/{run_name}/
+    ├── config.yaml      # Saved configuration
+    ├── checkpoints/     # Policy checkpoints
+    ├── replays/         # Replay files
+    └── stats/          # Evaluation statistics
+
+Environment Variables:
+---------------------
+- METTA_RUN: Set the run name (default: run_YYYYMMDD_HHMMSS)
+- DATA_DIR: Set the data directory (default: ./train_dir)
+
+Example:
+  METTA_RUN=my_experiment python run.py
+  DATA_DIR=/path/to/data METTA_RUN=test_run python run.py
 """
 
 import logging
+import os
 import sys
 import time
+from datetime import datetime
+from pathlib import Path
 
 import torch
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 
 from metta.agent.policy_store import PolicyStore
 from metta.api import (
@@ -69,6 +90,25 @@ except ImportError:
     )
     sys.exit(1)
 
+# Setup run directory structure like train.py
+RUN_NAME = os.environ.get("METTA_RUN", f"run_{datetime.now().strftime('%Y%m%d_%H%M%S')}")
+DATA_DIR = os.environ.get("DATA_DIR", "./train_dir")
+RUN_DIR = os.path.join(DATA_DIR, RUN_NAME)
+
+# Create run directory structure
+Path(RUN_DIR).mkdir(parents=True, exist_ok=True)
+CHECKPOINT_DIR = os.path.join(RUN_DIR, "checkpoints")
+REPLAY_DIR = os.path.join(RUN_DIR, "replays")
+STATS_DIR = os.path.join(RUN_DIR, "stats")
+
+# Create subdirectories
+Path(CHECKPOINT_DIR).mkdir(parents=True, exist_ok=True)
+Path(REPLAY_DIR).mkdir(parents=True, exist_ok=True)
+Path(STATS_DIR).mkdir(parents=True, exist_ok=True)
+
+logger.info(f"Run directory: {RUN_DIR}")
+logger.info(f"Run name: {RUN_NAME}")
+
 # Configuration
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 logger.info(f"Using device: {device}")
@@ -79,7 +119,7 @@ trainer_config = create_default_trainer_config(
     total_timesteps=10_000_000,
     batch_size=16384,  # Increased to accommodate all agents
     minibatch_size=512,
-    checkpoint_dir="./checkpoints",
+    checkpoint_dir=CHECKPOINT_DIR,  # Use our run-specific checkpoint dir
     # Override specific nested configs
     ppo={
         "clip_coef": 0.1,
@@ -199,6 +239,32 @@ agent_config = DictConfig(
         },
     }
 )
+
+# Save configuration to run directory (like train.py does)
+config_to_save = {
+    "run": RUN_NAME,
+    "run_dir": RUN_DIR,
+    "data_dir": DATA_DIR,
+    "device": str(device),
+    "trainer": {
+        "num_workers": trainer_config.num_workers,
+        "total_timesteps": trainer_config.total_timesteps,
+        "batch_size": trainer_config.batch_size,
+        "minibatch_size": trainer_config.minibatch_size,
+        "checkpoint_dir": CHECKPOINT_DIR,
+        "optimizer": trainer_config.optimizer.model_dump(),
+        "ppo": trainer_config.ppo.model_dump(),
+    },
+    "agent": OmegaConf.to_container(agent_config),
+}
+
+config_path = os.path.join(RUN_DIR, "config.yaml")
+with open(config_path, "w") as f:
+    import yaml
+
+    yaml.dump(config_to_save, f, default_flow_style=False)
+logger.info(f"Saved config to {config_path}")
+
 agent = Agent(env, agent_config, str(device))
 
 # Create policy store for checkpointing
@@ -209,7 +275,7 @@ policy_store_cfg = DictConfig(
         "policy_cache_size": 10,
         "trainer": {
             "checkpoint": {
-                "checkpoint_dir": trainer_config.checkpoint.checkpoint_dir,
+                "checkpoint_dir": CHECKPOINT_DIR,
             }
         },
     }
@@ -346,7 +412,7 @@ def evaluate_policy(policy_record, epoch):
         policy_store=policy_store,
         device=device,
         vectorization="serial",
-        stats_dir="./eval_stats",
+        stats_dir=STATS_DIR,
         replay_dir=None,  # No replays during evaluation
     )
 
@@ -397,7 +463,7 @@ def generate_replay(policy_record, epoch):
         policy_store=policy_store,
         device=device,
         vectorization="serial",
-        replay_dir="./replays",
+        replay_dir=REPLAY_DIR,
     )
 
     results = replay_sim.simulate()
@@ -678,4 +744,4 @@ if training.epoch % trainer_config.checkpoint.checkpoint_interval != 0:
 # Close environment - env is the vecenv returned by Environment()
 env.close()  # type: ignore
 
-logger.info("\nTraining run complete! Check ./checkpoints for saved policies and ./replays for visualization.")
+logger.info(f"\nTraining run complete! Run saved to: {RUN_DIR}")
