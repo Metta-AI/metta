@@ -19,6 +19,7 @@ npc_policy_uri: null
 #     max_steps: 1000
 
 trainer:
+  grad_mean_variance_interval: 30
   total_timesteps: 4_000_000_000
   checkpoint:
     wandb_checkpoint_interval: 50
