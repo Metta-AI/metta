@@ -39,11 +39,18 @@ setup: |
   mkdir -p $WANDB_DIR
 
 run: |
+  set -x
+
   cd /workspace/metta
   source ./devops/setup.env
 
-  # Calculate and log SkyPilot queue latency
-  python -m metta.common.util.skypilot_latency || true
+  # Add explicit logging
+  echo "METTA_RUN_ID: $METTA_RUN_ID"
+  echo "SKYPILOT_TASK_ID: $SKYPILOT_TASK_ID"
+  echo "Running latency script..."
+
+  python -m metta.common.util.skypilot_latency 2>&1 | tee latency_output.log
+  echo "Latency script exit code: $?"
 
   export NUM_GPUS=$SKYPILOT_NUM_GPUS_PER_NODE
   export NUM_NODES=$SKYPILOT_NUM_NODES
