@@ -34,18 +34,27 @@ setup: |
   if [ ! -d /workspace/metta/.git ]; then
     echo "[SETUP] Cloning repo..."
     git clone https://github.com/Metta-AI/metta.git /workspace/metta
+
   else
     echo "[SETUP] Repo already present, skipping clone."
   fi
 
   cd /workspace/metta
+
   echo "[SETUP] Fetching latest from origin..."
-  git fetch --all --prune
+  git fetch --depth=1000 origin "$METTA_GIT_REF" || git fetch origin
+
   echo "[SETUP] Checking out ref: $METTA_GIT_REF"
   git checkout "$METTA_GIT_REF"
 
+  echo "[SETUP] Current commit:"
+  git rev-parse HEAD
+
   echo "[SETUP] Syncing dependencies with uv..."
-  uv sync
+  if ! uv sync; then
+    echo "[SETUP] ❌ uv sync failed." >&2
+    exit 1
+  fi
 
   echo "[SETUP] Creating wandb directory: $WANDB_DIR"
   mkdir -p "$WANDB_DIR"
@@ -57,6 +66,8 @@ setup: |
 
 run: |
   set -xe
+  START_TIME=$(date)
+
   echo "[RUN] Starting run phase..."
   cd /workspace/metta
   source ./devops/setup.env
@@ -64,6 +75,9 @@ run: |
   echo "[RUN] METTA_RUN_ID: $METTA_RUN_ID"
   echo "[RUN] SKYPILOT_TASK_ID: $SKYPILOT_TASK_ID"
   echo "[RUN] Running latency script..."
+
+  echo "[RUN] Python version:"
+  python --version || { echo "❌ Python not found" >&2; exit 1; }
 
   if [ -f common/src/metta/common/util/skypilot_latency.py ]; then
     echo "[RUN] Found latency script, running..."
@@ -89,8 +103,14 @@ run: |
   ./devops/$METTA_CMD.sh \
     run=$METTA_RUN_ID \
     $METTA_CMD_ARGS
+  TRAIN_EXIT=$?
+  echo "[RUN] Training script exit code: $TRAIN_EXIT"
 
   echo "[RUN] Job complete."
+  END_TIME=$(date)
+  echo "[RUN] Started at: $START_TIME"
+  echo "[RUN] Ended at:   $END_TIME"
+  exit $TRAIN_EXIT
 
 file_mounts:
   ~/.netrc: ~/.netrc
