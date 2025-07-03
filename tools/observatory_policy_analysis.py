@@ -166,7 +166,6 @@ class ObservatoryPolicyAnalyzer:
             eam.agent_id,
             eam.metric,
             eam.value,
-            ep.name as episode_name,
             ep.created_at
         FROM episode_agent_metrics eam
         LEFT JOIN episode_agent_policies eap ON eam.episode_id = eap.episode_id
@@ -193,15 +192,15 @@ class ObservatoryPolicyAnalyzer:
         query = """
         SELECT
             id,
-            name,
             created_at,
-            updated_at,
-            status,
-            seed,
-            max_steps,
-            completed,
-            total_steps,
-            metadata
+            primary_policy_id,
+            stats_epoch,
+            replay_url,
+            eval_name,
+            simulation_suite,
+            attributes,
+            eval_category,
+            env_name
         FROM episodes
         ORDER BY created_at DESC
         """
@@ -233,6 +232,11 @@ class ObservatoryPolicyAnalyzer:
         policies_df.to_json(output_dir / "top_policies.json", orient="records", indent=2)
         evaluations_df.to_json(output_dir / "policy_evaluations.json", orient="records", indent=2)
         environments_df.to_json(output_dir / "environments.json", orient="records", indent=2)
+
+        # Save policy URIs as a simple list for evaluation stage
+        policy_uris = policies_df["policy_url"].tolist()
+        with open(output_dir / "policy_uris.json", "w") as f:
+            json.dump(policy_uris, f, indent=2)
 
         # Create summary statistics
         summary = {

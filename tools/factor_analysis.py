@@ -4,12 +4,13 @@ Factor analysis tool for policy performance data.
 
 Usage:
     ./tools/factor_analysis.py ++performance_matrix=analysis_results/comprehensive_performance_matrix.csv
-    ++output_dir=factor_analysis_results
+    ++output_dir=factor_analysis_results ++enable_wandb=true
 """
 
 import argparse
 import json
 import logging
+import time
 from pathlib import Path
 from typing import Dict, List
 
@@ -17,6 +18,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
+import wandb
 from scipy.cluster.hierarchy import dendrogram, fcluster, linkage
 from sklearn.decomposition import FactorAnalysis
 from sklearn.metrics import mean_squared_error
@@ -29,10 +31,12 @@ from metta.common.util.logging import setup_mettagrid_logger
 class PolicyFactorAnalyzer:
     """Factor analysis for policy performance data using EM and cross-validation."""
 
-    def __init__(self, output_dir: Path):
+    def __init__(self, output_dir: Path, enable_wandb: bool = False):
         self.output_dir = output_dir
         self.logger = logging.getLogger(__name__)
         self.output_dir.mkdir(parents=True, exist_ok=True)
+        self.enable_wandb = enable_wandb
+        self.wandb_run = None
 
         # Set random seed for reproducibility
         np.random.seed(42)
@@ -41,6 +45,62 @@ class PolicyFactorAnalyzer:
         self.max_factors = 20
         self.n_folds = 5
         self.n_repeats = 10
+
+    def init_wandb(self, run_name: str) -> None:
+        """Initialize wandb run for logging."""
+        if self.enable_wandb:
+            self.wandb_run = wandb.init(
+                project="metta-analysis",
+                name=run_name,
+                entity="metta-research",
+                config={
+                    "analysis_type": "factor_analysis",
+                    "max_factors": self.max_factors,
+                    "n_folds": self.n_folds,
+                    "n_repeats": self.n_repeats,
+                },
+            )
+            self.logger.info(f"Initialized wandb run: {self.wandb_run.name}")
+
+    def log_cv_results(self, cv_results: Dict) -> None:
+        """Log cross-validation results to wandb."""
+        if self.enable_wandb and self.wandb_run:
+            # Log cross-validation metrics
+            for i, n_factors in enumerate(cv_results["n_factors"]):
+                self.wandb_run.log(
+                    {
+                        "cv/n_factors": n_factors,
+                        "cv/mean_mse": cv_results["mean_mse"][i],
+                        "cv/std_mse": cv_results["std_mse"][i],
+                    }
+                )
+
+    def log_em_results(self, em_results: Dict, n_factors: int) -> None:
+        """Log EM factor analysis results to wandb."""
+        if self.enable_wandb and self.wandb_run:
+            self.wandb_run.log(
+                {
+                    "em/n_factors": n_factors,
+                    "em/explained_variance_ratio": em_results["explained_variance_ratio"],
+                    "em/noise_variance_mean": np.mean(em_results["noise_variance"]),
+                }
+            )
+
+    def log_clustering_results(self, clustering: Dict) -> None:
+        """Log clustering results to wandb."""
+        if self.enable_wandb and self.wandb_run:
+            self.wandb_run.log(
+                {
+                    "clustering/n_clusters": len(set(clustering["cluster_labels"])),
+                    "clustering/silhouette_score": clustering.get("silhouette_score", 0),
+                }
+            )
+
+    def finish_wandb(self) -> None:
+        """Finish wandb run."""
+        if self.enable_wandb and self.wandb_run:
+            self.wandb_run.finish()
+            self.logger.info("Finished wandb run")
 
     def load_performance_matrix(self, matrix_file: Path) -> pd.DataFrame:
         """Load and preprocess performance matrix."""
@@ -445,6 +505,7 @@ def main():
     )
     parser.add_argument("--max-factors", type=int, default=20, help="Maximum number of factors to test")
     parser.add_argument("--n-folds", type=int, default=5, help="Number of folds for cross-validation")
+    parser.add_argument("--enable-wandb", action="store_true", help="Enable wandb logging")
 
     args = parser.parse_args()
 
@@ -453,11 +514,17 @@ def main():
     logger.info("Starting factor analysis")
 
     # Create analyzer
-    analyzer = PolicyFactorAnalyzer(args.output_dir)
+    analyzer = PolicyFactorAnalyzer(args.output_dir, args.enable_wandb)
     analyzer.max_factors = args.max_factors
     analyzer.n_folds = args.n_folds
 
     try:
+        # Initialize wandb if enabled
+        if args.enable_wandb:
+            run_id = str(int(time.time()))
+            run_name = f"msb_compEval_{run_id}"
+            analyzer.init_wandb(run_name)
+
         # Load performance matrix
         performance_matrix = analyzer.load_performance_matrix(args.performance_matrix)
 
@@ -494,10 +561,17 @@ def main():
         print(f"  Total policies: {len(performance_matrix.index)}")
         print(f"  Total evaluations: {len(performance_matrix.columns)}")
 
+        # Log results to wandb
+        analyzer.log_cv_results(cv_results)
+        analyzer.log_em_results(em_results, optimal_n_factors)
+        analyzer.log_clustering_results(clustering)
+        analyzer.finish_wandb()
+
         return 0
 
     except Exception as e:
         logger.error(f"Factor analysis failed: {e}")
+        analyzer.finish_wandb()  # Ensure wandb is finished even on error
         return 1
 
 

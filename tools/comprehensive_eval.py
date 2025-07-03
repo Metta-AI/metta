@@ -10,7 +10,7 @@ This script:
 
 Usage:
     ./tools/comprehensive_eval.py ++policy_uris_file=analysis_results/policy_uris.json
-    ++output_dir=comprehensive_eval_results
+    ++output_dir=comprehensive_eval_results ++enable_wandb=true
 """
 
 import argparse
@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Dict, List
 
 import pandas as pd
+import wandb
 
 from metta.common.util.logging import setup_mettagrid_logger
 
@@ -29,10 +30,12 @@ from metta.common.util.logging import setup_mettagrid_logger
 class ComprehensiveEvaluator:
     """Runner for comprehensive policy evaluations across all environments."""
 
-    def __init__(self, output_dir: Path):
+    def __init__(self, output_dir: Path, enable_wandb: bool = False):
         self.output_dir = output_dir
         self.logger = logging.getLogger(__name__)
         self.output_dir.mkdir(parents=True, exist_ok=True)
+        self.enable_wandb = enable_wandb
+        self.wandb_run = None
 
         # Define evaluation suites to run
         self.eval_suites = [
@@ -42,6 +45,52 @@ class ComprehensiveEvaluator:
             "nav_sequence",
             "all",  # Comprehensive suite with all environments
         ]
+
+    def init_wandb(self, run_name: str) -> None:
+        """Initialize wandb run for logging."""
+        if self.enable_wandb:
+            self.wandb_run = wandb.init(
+                project="metta-analysis",
+                name=run_name,
+                entity="metta-research",
+                config={
+                    "evaluation_type": "comprehensive_policy_eval",
+                    "eval_suites": self.eval_suites,
+                },
+            )
+            self.logger.info(f"Initialized wandb run: {self.wandb_run.name}")
+
+    def log_evaluation_result(self, result: Dict) -> None:
+        """Log evaluation result to wandb."""
+        if self.enable_wandb and self.wandb_run:
+            # Extract key metrics
+            metrics = {
+                "success": result["success"],
+                "execution_time": result["execution_time"],
+                "eval_suite": result["eval_suite"],
+            }
+
+            # Add performance metrics if available
+            if result["success"] and "results" in result:
+                eval_results = result["results"]
+                if "policies" in eval_results and len(eval_results["policies"]) > 0:
+                    policy_result = eval_results["policies"][0]
+                    if "reward" in policy_result:
+                        metrics["reward"] = policy_result["reward"]
+                    if "success_rate" in policy_result:
+                        metrics["success_rate"] = policy_result["success_rate"]
+                    if "episode_count" in policy_result:
+                        metrics["episode_count"] = policy_result["episode_count"]
+
+            # Log with policy identifier
+            policy_name = result["policy_uri"].replace("wandb://run/", "").replace("/", "_")
+            self.wandb_run.log({f"{policy_name}_{result['eval_suite']}": metrics})
+
+    def finish_wandb(self) -> None:
+        """Finish wandb run."""
+        if self.enable_wandb and self.wandb_run:
+            self.wandb_run.finish()
+            self.logger.info("Finished wandb run")
 
     def load_policy_uris(self, uris_file: Path) -> List[str]:
         """Load policy URIs from file."""
@@ -154,24 +203,36 @@ class ComprehensiveEvaluator:
 
         run_id = str(int(time.time()))
 
-        for i, policy_uri in enumerate(policy_uris):
-            self.logger.info(f"Evaluating policy {i + 1}/{len(policy_uris)}: {policy_uri}")
+        # Initialize wandb if enabled
+        if self.enable_wandb:
+            run_name = f"msb_compEval_{run_id}"
+            self.init_wandb(run_name)
 
-            for eval_suite in self.eval_suites:
-                self.logger.info(f"  Running {eval_suite} evaluation...")
+        try:
+            for i, policy_uri in enumerate(policy_uris):
+                self.logger.info(f"Evaluating policy {i + 1}/{len(policy_uris)}: {policy_uri}")
 
-                result = self.run_single_evaluation(policy_uri, eval_suite, run_id)
-                all_results["evaluations"].append(result)
+                for eval_suite in self.eval_suites:
+                    self.logger.info(f"  Running {eval_suite} evaluation...")
 
-                # Update summary
-                if result["success"]:
-                    all_results["summary"]["successful_evaluations"] += 1
-                    all_results["summary"]["total_execution_time"] += result["execution_time"]
-                else:
-                    all_results["summary"]["failed_evaluations"] += 1
+                    result = self.run_single_evaluation(policy_uri, eval_suite, run_id)
+                    all_results["evaluations"].append(result)
 
-                # Add delay between evaluations to avoid overwhelming the system
-                time.sleep(1)
+                    # Log to wandb if enabled
+                    self.log_evaluation_result(result)
+
+                    # Update summary
+                    if result["success"]:
+                        all_results["summary"]["successful_evaluations"] += 1
+                        all_results["summary"]["total_execution_time"] += result["execution_time"]
+                    else:
+                        all_results["summary"]["failed_evaluations"] += 1
+
+                    # Add delay between evaluations to avoid overwhelming the system
+                    time.sleep(1)
+        finally:
+            # Finish wandb run
+            self.finish_wandb()
 
         return all_results
 
@@ -276,6 +337,7 @@ def main():
         help="Directory to save evaluation results",
     )
     parser.add_argument("--max-concurrent", type=int, default=1, help="Maximum number of concurrent evaluations")
+    parser.add_argument("--enable-wandb", action="store_true", help="Enable wandb logging")
 
     args = parser.parse_args()
 
@@ -284,7 +346,7 @@ def main():
     logger.info("Starting comprehensive evaluation")
 
     # Create evaluator
-    evaluator = ComprehensiveEvaluator(args.output_dir)
+    evaluator = ComprehensiveEvaluator(args.output_dir, args.enable_wandb)
 
     try:
         # Load policy URIs

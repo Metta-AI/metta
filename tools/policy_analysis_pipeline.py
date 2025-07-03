@@ -100,15 +100,19 @@ class PolicyAnalysisPipeline:
         with open(eval_config_file, "w") as f:
             json.dump(eval_config, f, indent=2)
 
-        # Run comprehensive evaluation
+            # Run comprehensive evaluation
         cmd = [
             sys.executable,
             "tools/comprehensive_eval.py",
-            "--config",
-            str(eval_config_file),
+            "--policy-uris-file",
+            str(self.output_dir / "extracted_data" / "policy_uris.json"),
             "--output-dir",
             str(self.output_dir / "evaluations"),
         ]
+
+        # Add wandb flag if enabled
+        if self.config.get("enable_wandb", False):
+            cmd.append("--enable-wandb")
 
         result = subprocess.run(cmd, capture_output=True, text=True)
 
@@ -142,15 +146,19 @@ class PolicyAnalysisPipeline:
         with open(analysis_config_file, "w") as f:
             json.dump(analysis_config, f, indent=2)
 
-        # Run factor analysis
+            # Run factor analysis
         cmd = [
             sys.executable,
             "tools/factor_analysis.py",
-            "--config",
-            str(analysis_config_file),
+            "--performance-matrix",
+            str(self.output_dir / "evaluations" / "comprehensive_performance_matrix.csv"),
             "--output-dir",
             str(self.output_dir / "analysis"),
         ]
+
+        # Add wandb flag if enabled
+        if self.config.get("enable_wandb", False):
+            cmd.append("--enable-wandb")
 
         result = subprocess.run(cmd, capture_output=True, text=True)
 
@@ -244,6 +252,7 @@ def main():
     parser.add_argument("--random-state", type=int, default=42, help="Random state for reproducibility")
     parser.add_argument("--environments", default="all", help="Environments to evaluate (default: all)")
     parser.add_argument("--num-episodes", type=int, default=10, help="Number of episodes per policy-environment pair")
+    parser.add_argument("--enable-wandb", action="store_true", help="Enable wandb logging to metta-analysis project")
 
     args = parser.parse_args()
 
@@ -256,6 +265,7 @@ def main():
         "random_state": args.random_state,
         "environments": args.environments,
         "num_episodes": args.num_episodes,
+        "enable_wandb": args.enable_wandb,
     }
 
     skip_stages = args.skip_stage or []

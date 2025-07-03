@@ -20,6 +20,14 @@ python devops/observatory_login.py
 - Runs comprehensive evaluations
 - Performs factor analysis and generates visualizations
 
+**With wandb logging:**
+```bash
+./tools/policy_analysis_pipeline.py --enable-wandb
+```
+
+- Logs results to `metta-research/metta-analysis` project
+- Run names follow pattern: `msb_compEval_<timestamp>`
+
 ## Usage
 
 - Change the number of policies:
@@ -33,6 +41,10 @@ python devops/observatory_login.py
 - Skip stages (e.g., only analyze):
   ```bash
   ./tools/policy_analysis_pipeline.py --skip-stage extract --skip-stage evaluate
+  ```
+- Enable wandb logging:
+  ```bash
+  ./tools/policy_analysis_pipeline.py --enable-wandb
   ```
 
 ## Output Structure
@@ -63,8 +75,9 @@ policy_analysis_results/
 
 ## Requirements
 - Python 3.9+
-- `uv` or `pip install pandas numpy scikit-learn matplotlib seaborn requests`
+- `uv` or `pip install pandas numpy scikit-learn matplotlib seaborn requests wandb`
 - Observatory API access (token from `observatory_login.py`)
+- wandb account with access to `metta-research` entity (for wandb logging)
 
 ## Notes
 - All authentication is handled via the CLI token (`~/.metta/observatory_token`)
