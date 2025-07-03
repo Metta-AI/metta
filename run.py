@@ -392,6 +392,9 @@ while agent_step < trainer_config.total_timesteps:
             stats=stats,
             force_save=False,
         )
+        # Ensure all ranks synchronize after checkpoint saving
+        if torch.distributed.is_initialized():
+            torch.distributed.barrier()
 
     # Policy evaluation (master only)
     if (
@@ -521,6 +524,10 @@ saved_policy_path = save_checkpoint(
     stats=stats,
     force_save=True,
 )
+
+# Ensure all ranks synchronize after final checkpoint
+if torch.distributed.is_initialized():
+    torch.distributed.barrier()
 
 # Close environment
 env.close()  # type: ignore

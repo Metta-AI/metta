@@ -759,8 +759,8 @@ def save_checkpoint(
 ) -> Optional[Any]:
     """Save a training checkpoint including policy and training state.
 
-    Handles distributed coordination internally - only master saves, but all
-    ranks participate in barriers to ensure synchronization.
+    In distributed mode, only the master process saves. Callers are responsible
+    for adding barriers if synchronization is needed.
 
     Args:
         epoch: Current training epoch
@@ -782,19 +782,9 @@ def save_checkpoint(
     if not should_save:
         return None
 
-    # Get distributed info
-    if torch.distributed.is_initialized():
-        rank = torch.distributed.get_rank()
-        is_master = rank == 0
-    else:
-        is_master = True
-
-    # In distributed mode, only master saves but all ranks participate in barrier
-    if torch.distributed.is_initialized():
-        if not is_master:
-            # Non-master ranks just wait at barrier
-            torch.distributed.barrier()
-            return None
+    # Only master saves in distributed mode
+    if torch.distributed.is_initialized() and torch.distributed.get_rank() != 0:
+        return None
 
     # Master (or single GPU) saves the checkpoint
     logger.info(f"Saving checkpoint at epoch {epoch}")
