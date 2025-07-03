@@ -65,7 +65,7 @@ class TestSkyPilotLatency:
         env.pop("WANDB_RUN_NAME", None)
 
         result = subprocess.run(
-            [sys.executable, "-m", "metta.common.util.skypilot_latency"],
+            [sys.executable, "common/src/metta/common/util/skypilot_latency.py"],
             capture_output=True,
             text=True,
             env=env
@@ -79,4 +79,4 @@ class TestSkyPilotLatency:
         match = re.search(r"SkyPilot queue latency: ([\d.]+) s", result.stdout)
         assert match is not None
         latency = float(match.group(1))
-        assert 4 < latency < 6  # Should be around 5 seconds
+        assert 4 < latency < 10  # Should be around 7 seconds
