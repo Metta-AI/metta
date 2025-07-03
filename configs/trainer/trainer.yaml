@@ -14,7 +14,7 @@ initial_policy:
 
 checkpoint:
   checkpoint_dir: ${run_dir}/checkpoints
-  checkpoint_interval: 60
+  checkpoint_interval: 40
   wandb_checkpoint_interval: 50
 
 simulation:
