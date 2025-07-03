@@ -25,7 +25,6 @@ from metta.mettagrid.curriculum.core import Curriculum, SingleTaskCurriculum, Ta
 from metta.mettagrid.mettagrid_env import MettaGridEnv
 from metta.rl.functions import (
     cleanup_old_policies,
-    setup_distributed_vars,
 )
 from metta.rl.trainer_config import (
     TrainerConfig,
@@ -99,16 +98,21 @@ def setup_run_directories(run_name: Optional[str] = None, data_dir: Optional[str
 # ============================================================================
 
 
-def setup_device_and_distributed(base_device: str = "cuda") -> torch.device:
-    """Set up device and optionally initialize distributed training.
+def setup_distributed_training(base_device: str = "cuda") -> Tuple[torch.device, bool, int, int]:
+    """Set up device and distributed training, returning all needed information.
 
-    This matches the initialization pattern from tools/train.py.
+    This combines device setup and distributed initialization into a single call,
+    matching the initialization pattern from tools/train.py.
 
     Args:
         base_device: Base device string ("cuda" or "cpu")
 
     Returns:
-        torch.device: The device to use for training
+        Tuple of (device, is_master, world_size, rank)
+        - device: The torch.device to use for training
+        - is_master: True if this is the master process (rank 0)
+        - world_size: Total number of processes (1 if not distributed)
+        - rank: Current process rank (0 if not distributed)
     """
     # Check if we're in a distributed environment
     if "LOCAL_RANK" in os.environ:
@@ -124,12 +128,20 @@ def setup_device_and_distributed(base_device: str = "cuda") -> torch.device:
             backend = "gloo"
 
         torch.distributed.init_process_group(backend=backend)
+
+        # Get distributed info after initialization
+        rank = torch.distributed.get_rank()
+        world_size = torch.distributed.get_world_size()
+        is_master = rank == 0
     else:
         # Single GPU or CPU
         device = torch.device(base_device)
+        rank = 0
+        world_size = 1
+        is_master = True
 
-    logger.info(f"Using device: {device}")
-    return device
+    logger.info(f"Using device: {device} (rank {rank}/{world_size})")
+    return device, is_master, world_size, rank
 
 
 def cleanup_distributed():
@@ -771,7 +783,11 @@ def save_checkpoint(
         return None
 
     # Get distributed info
-    is_master, _, _ = setup_distributed_vars()
+    if torch.distributed.is_initialized():
+        rank = torch.distributed.get_rank()
+        is_master = rank == 0
+    else:
+        is_master = True
 
     # In distributed mode, only master saves but all ranks participate in barrier
     if torch.distributed.is_initialized():
@@ -830,7 +846,7 @@ def save_checkpoint(
     trainer_checkpoint.save(checkpoint_path)
 
     # Clean up old policies to prevent disk space issues
-    if force_save or (epoch % checkpoint_interval == 0):
+    if epoch % 10 == 0:
         cleanup_old_policies(checkpoint_path, keep_last_n=5)
 
     # If distributed, master waits for other ranks
@@ -892,7 +908,12 @@ def ensure_initial_policy(
         return
 
     # Get distributed info
-    is_master, _, rank = setup_distributed_vars()
+    if torch.distributed.is_initialized():
+        rank = torch.distributed.get_rank()
+        is_master = rank == 0
+    else:
+        rank = 0
+        is_master = True
 
     if torch.distributed.is_initialized() and not is_master:
         # Non-master ranks need to wait for master to create and save policy
@@ -1168,7 +1189,7 @@ __all__ = [
     "setup_run_directories",
     "save_experiment_config",
     "save_checkpoint",
-    "setup_device_and_distributed",
+    "setup_distributed_training",
     "cleanup_distributed",
     "load_checkpoint",
     "wrap_agent_distributed",
