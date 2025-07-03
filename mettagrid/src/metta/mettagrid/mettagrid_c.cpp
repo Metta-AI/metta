@@ -762,7 +762,6 @@ PYBIND11_MODULE(mettagrid_c, m) {
                     const std::map<InventoryItem, uint8_t>&,
                     const std::map<InventoryItem, float>&,
                     const std::map<InventoryItem, float>&,
-                    const std::vector<std::string>&,
                     float>(),
            py::arg("type_id"),
            py::arg("type_name"),
@@ -773,7 +772,6 @@ PYBIND11_MODULE(mettagrid_c, m) {
            py::arg("max_items_per_type") = std::map<InventoryItem, uint8_t>(),
            py::arg("resource_rewards") = std::map<InventoryItem, float>(),
            py::arg("resource_reward_max") = std::map<InventoryItem, float>(),
-           py::arg("inventory_item_names") = std::vector<std::string>(),
            py::arg("group_reward_pct") = 0)
       .def_readwrite("type_id", &AgentConfig::type_id)
       .def_readwrite("type_name", &AgentConfig::type_name)
@@ -784,7 +782,6 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def_readwrite("max_items_per_type", &AgentConfig::max_items_per_type)
       .def_readwrite("resource_rewards", &AgentConfig::resource_rewards)
       .def_readwrite("resource_reward_max", &AgentConfig::resource_reward_max)
-      .def_readwrite("inventory_item_names", &AgentConfig::inventory_item_names)
       .def_readwrite("group_reward_pct", &AgentConfig::group_reward_pct);
 
   py::class_<ConverterConfig, GridObjectConfig>(m, "ConverterConfig")
@@ -796,8 +793,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
                     unsigned short,
                     unsigned short,
                     unsigned char,
-                    ObsType,
-                    const std::vector<std::string>&>(),
+                    ObsType>(),
            py::arg("type_id"),
            py::arg("type_name"),
            py::arg("recipe_input"),
@@ -806,8 +802,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
            py::arg("conversion_ticks"),
            py::arg("cooldown"),
            py::arg("initial_items") = 0,
-           py::arg("color") = 0,
-           py::arg("inventory_item_names") = std::vector<std::string>())
+           py::arg("color") = 0)
       .def_readwrite("type_id", &ConverterConfig::type_id)
       .def_readwrite("type_name", &ConverterConfig::type_name)
       .def_readwrite("recipe_input", &ConverterConfig::recipe_input)
@@ -816,6 +811,5 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def_readwrite("conversion_ticks", &ConverterConfig::conversion_ticks)
       .def_readwrite("cooldown", &ConverterConfig::cooldown)
       .def_readwrite("initial_items", &ConverterConfig::initial_items)
-      .def_readwrite("color", &ConverterConfig::color)
-      .def_readwrite("inventory_item_names", &ConverterConfig::inventory_item_names);
+      .def_readwrite("color", &ConverterConfig::color);
 }

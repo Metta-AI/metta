@@ -21,7 +21,6 @@ struct AgentConfig : public GridObjectConfig {
               const std::map<InventoryItem, uint8_t>& max_items_per_type,
               const std::map<InventoryItem, float>& resource_rewards,
               const std::map<InventoryItem, float>& resource_reward_max,
-              const std::vector<std::string>& inventory_item_names,
               float group_reward_pct)
       : GridObjectConfig(type_id, type_name),
         group_name(group_name),
@@ -31,7 +30,6 @@ struct AgentConfig : public GridObjectConfig {
         max_items_per_type(max_items_per_type),
         resource_rewards(resource_rewards),
         resource_reward_max(resource_reward_max),
-        inventory_item_names(inventory_item_names),
         group_reward_pct(group_reward_pct) {}
 
   std::string group_name;

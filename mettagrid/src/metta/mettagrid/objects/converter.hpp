@@ -22,8 +22,7 @@ struct ConverterConfig : public GridObjectConfig {
                   unsigned short conversion_ticks,
                   unsigned short cooldown,
                   unsigned char initial_items,
-                  ObsType color,
-                  const std::vector<std::string>& inventory_item_names)
+                  ObsType color)
       : GridObjectConfig(type_id, type_name),
         recipe_input(recipe_input),
         recipe_output(recipe_output),
@@ -31,8 +30,7 @@ struct ConverterConfig : public GridObjectConfig {
         conversion_ticks(conversion_ticks),
         cooldown(cooldown),
         initial_items(initial_items),
-        color(color),
-        inventory_item_names(inventory_item_names) {}
+        color(color) {}
 
   std::map<InventoryItem, uint8_t> recipe_input;
   std::map<InventoryItem, uint8_t> recipe_output;
