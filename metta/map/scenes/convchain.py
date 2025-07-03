@@ -170,8 +170,8 @@ class ConvChainSlow(Scene[ConvChainParams]):
 
         # Run the Metropolis algorithm
         for _ in range(self.params.iterations * self.width * self.height):
-            x = self.rng.integers(0, self.width)
-            y = self.rng.integers(0, self.height)
+            x = self.rng.integers(0, self.width, dtype=int)
+            y = self.rng.integers(0, self.height, dtype=int)
             metropolis(x, y)
 
         # Apply the generated field to the scene grid
