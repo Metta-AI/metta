@@ -4,10 +4,11 @@ import numpy as np
 from omegaconf import DictConfig, OmegaConf
 
 from metta.map.scene import make_scene
+from metta.map.scenes.room_grid import RoomGrid, RoomGridParams
 from metta.map.types import MapGrid
 from metta.mettagrid.level_builder import Level, LevelBuilder
 
-from .types import Area, SceneCfg
+from .types import Area, ChildrenAction, SceneCfg
 
 
 # Root map generator, based on scenes.
@@ -19,22 +20,48 @@ class MapGen(LevelBuilder):
     # Default value guarantees that agents don't see beyond the outer walls.
     # Usually shouldn't be changed.
     border_width: int = 5
+    num_rooms: int = 1
+    room_border_width: int = 5
 
     def __post_init__(self):
         super().__init__()
 
-        self.grid: MapGrid = np.full(
-            (self.height + 2 * self.border_width, self.width + 2 * self.border_width), "empty", dtype="<U50"
-        )
+        room_rows = int(np.ceil(np.sqrt(self.num_rooms)))
+        room_cols = int(np.ceil(self.num_rooms / room_rows))
+
+        full_width = self.width + 2 * self.border_width + (room_cols - 1) * self.room_border_width
+        full_height = self.height + 2 * self.border_width + (room_rows - 1) * self.room_border_width
+
+        if isinstance(self.root, DictConfig):
+            self.root = OmegaConf.to_container(self.root)  # type: ignore
+
+        root_scene_cfg = self.root
+
+        if self.num_rooms > 1:
+            root_scene_cfg = RoomGrid.factory(
+                RoomGridParams(
+                    rows=room_rows,
+                    columns=room_cols,
+                    border_width=self.room_border_width,
+                ),
+                children=[
+                    ChildrenAction(
+                        scene=self.root,
+                        where="full",
+                    )
+                ],
+            )
+
+        self.grid: MapGrid = np.full((full_height, full_width), "empty", dtype="<U50")
+
+        # draw outer walls
+        # note that the inner walls when num_rooms > 1 will be drawn by the RoomGrid scene
         self.grid[: self.border_width, :] = "wall"
         self.grid[-self.border_width :, :] = "wall"
         self.grid[:, : self.border_width] = "wall"
         self.grid[:, -self.border_width :] = "wall"
 
-        if isinstance(self.root, DictConfig):
-            self.root = OmegaConf.to_container(self.root)  # type: ignore
-
-        self.root_scene = make_scene(self.root, self.inner_area(), rng=np.random.default_rng())
+        self.root_scene = make_scene(root_scene_cfg, self.inner_area(), rng=np.random.default_rng())
 
     def inner_area(self) -> Area:
         x = self.border_width
