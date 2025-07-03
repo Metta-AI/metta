@@ -4,7 +4,7 @@ altar:
   output_heart: 1
   max_output: 5
   conversion_ticks: 1
-  cooldown: 10
+  cooldown: 2 #10
   initial_items: 1
 
 wall:

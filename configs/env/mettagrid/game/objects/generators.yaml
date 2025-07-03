@@ -5,7 +5,7 @@ generator_red:
   color: 0
   max_output: 5
   conversion_ticks: 1
-  cooldown: 25
+  cooldown: 3 #25
   initial_items: 1
 
 generator_blue:
@@ -15,7 +15,7 @@ generator_blue:
   color: 1
   max_output: 5
   conversion_ticks: 1
-  cooldown: 25
+  cooldown: 3 #25
   initial_items: 1
 
 generator_green:
@@ -25,5 +25,5 @@ generator_green:
   color: 2
   max_output: 5
   conversion_ticks: 1
-  cooldown: 25
+  cooldown: 3 #25
   initial_items: 1
