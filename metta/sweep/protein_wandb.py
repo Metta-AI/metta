@@ -4,9 +4,10 @@ from copy import deepcopy
 from datetime import datetime, timezone
 from typing import Any, Tuple
 
+import pufferlib
 import wandb
 
-from metta.common.util.numpy.clean_numpy_types import clean_numpy_types
+from metta.common.util.numpy_helpers import clean_numpy_types
 
 from .protein import Protein
 
@@ -319,8 +320,6 @@ class WandbProtein:
                 self._invalid += 1
                 return
 
-            import pufferlib
-
             # Check suggestion type before flattening
             if not isinstance(suggestion, dict):
                 # Handle WandB's SummarySubDict and other dict-like objects
@@ -352,21 +351,6 @@ class WandbProtein:
                 self._invalid += 1
                 return
 
-            # Log expected vs actual parameters
-            expected_params = list(self._protein.hyperparameters.flat_spaces.keys())
-            actual_params = list(flattened_suggestion.keys())
-            logger.info(f"Expected parameters: {expected_params}")
-            logger.info(f"Actual parameters from run: {actual_params}")
-
-            # Check for parameter mismatches
-            missing_params = set(expected_params) - set(actual_params)
-            extra_params = set(actual_params) - set(expected_params)
-
-            if missing_params:
-                logger.warning(f"Missing parameters in run {run.name}: {missing_params}")
-            if extra_params:
-                logger.warning(f"Extra parameters in run {run.name}: {extra_params}")
-
             # Pass flattened suggestion to Protein
             self._protein.observe(flattened_suggestion, objective, cost, is_failure)
             logger.info(f"Successfully recorded observation from run {run.name}: objective={objective}, cost={cost}")
@@ -376,7 +360,10 @@ class WandbProtein:
             if "Missing hyperparameter" in str(e):
                 logger.warning(f"Run {run.name} has incomplete parameters: {e}")
                 logger.debug(f"Available parameters: {list(flattened_suggestion.keys())}")
-                logger.debug(f"Expected parameters: {list(self._protein.hyperparameters.flat_spaces.keys())}")
+                try:
+                    logger.debug(f"Expected parameters: {list(self._protein.hyperparameters.flat_spaces.keys())}")
+                except (AttributeError, TypeError):
+                    logger.debug("Expected parameters: <not available>")
                 # Skip this observation as it's incompatible with current config
                 self._invalid += 1
             else:
@@ -386,7 +373,10 @@ class WandbProtein:
             # Handle missing keys in hyperparameter spaces
             logger.warning(f"Run {run.name} has parameter not in current config: {e}")
             logger.debug(f"Flattened suggestion keys: {list(flattened_suggestion.keys())}")
-            logger.debug(f"Expected parameters: {list(self._protein.hyperparameters.flat_spaces.keys())}")
+            try:
+                logger.debug(f"Expected parameters: {list(self._protein.hyperparameters.flat_spaces.keys())}")
+            except (AttributeError, TypeError):
+                logger.debug("Expected parameters: <not available>")
             self._invalid += 1
         except Exception as e:
             logger.warning(f"Failed to record observation in Protein for run {run.name}: {type(e).__name__}: {e}")

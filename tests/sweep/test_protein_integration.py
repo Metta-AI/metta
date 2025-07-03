@@ -177,7 +177,7 @@ class TestProteinSweepIntegration:
             mock_protein_class.return_value = mock_protein
 
             # Create MettaProtein
-            metta_protein = MettaProtein(cfg, current_run)
+            MettaProtein(cfg, current_run)
 
             # Verify observations were recorded
             assert mock_protein.observe.call_count == 3  # 2 successful + 1 failed
@@ -340,15 +340,15 @@ class TestProteinSweepIntegration:
 
             # Create MettaProtein
             cfg = OmegaConf.create(sweep_config)
-            metta_protein = MettaProtein(cfg, mock_run)
+            MettaProtein(cfg, mock_run)
 
             # Get the saved suggestion from wandb summary
             saved_suggestion = mock_run.summary.get("protein.suggestion")
             saved_info = mock_run.summary.get("protein.suggestion_info")
 
             # Verify everything is JSON serializable
-            json_suggestion = json.dumps(saved_suggestion)
-            json_info = json.dumps(saved_info)
+            json.dumps(saved_suggestion)
+            json.dumps(saved_info)
 
             # Verify types were properly converted
             assert isinstance(saved_suggestion["trainer/optimizer/learning_rate"], float)
@@ -387,7 +387,7 @@ class TestProteinSweepIntegration:
                 json.dump(state_data, f)
 
         # Now clean it using the same logic as WandbProtein
-        from metta.common.util.numpy.clean_numpy_types import clean_numpy_types
+        from metta.common.util.numpy_helpers import clean_numpy_types
 
         cleaned_state = clean_numpy_types(state_data)
 
