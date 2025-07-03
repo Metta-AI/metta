@@ -56,6 +56,8 @@ private:
 public:
   inline static const std::string NO_ENV_INVENTORY_ITEM_NAME = "[unknown -- stats tracker not initialized]";
 
+  StatsTracker() : _env(nullptr) {}
+
   void set_environment(MettaGrid* env) {
     _env = env;
   }
