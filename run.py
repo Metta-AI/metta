@@ -112,6 +112,15 @@ metta_grid_env = env.driver_env  # type: ignore - vecenv attribute
 agent = Agent(env, device=str(device))
 hidden_size, num_lstm_layers = get_lstm_config(agent)
 
+# Wrap agent in DistributedMettaAgent if using distributed training
+if torch.distributed.is_initialized():
+    from metta.agent.metta_agent import DistributedMettaAgent
+
+    logger.info(f"Initializing DistributedDataParallel on device {device}")
+    agent = DistributedMettaAgent(agent, device)
+    # Ensure all ranks have initialized DDP before proceeding
+    torch.distributed.barrier()
+
 # Create policy store with complete config
 # PolicyStore internally calls parse_trainer_config which expects run, run_dir, and trainer fields
 policy_store = PolicyStore(
@@ -200,6 +209,31 @@ if checkpoint:
 else:
     agent_step = 0
     epoch = 0
+
+    # In distributed mode, we need to handle initial policy creation
+    if torch.distributed.is_initialized():
+        is_master = torch.distributed.get_rank() == 0
+
+        if is_master:
+            # Master saves initial policy for other ranks to load
+            logger.info("Master rank: Creating and saving initial policy")
+            initial_policy_path = save_checkpoint(
+                epoch=0,
+                agent_step=0,
+                agent=agent,
+                optimizer=optimizer,
+                policy_store=policy_store,
+                checkpoint_path=checkpoint_path,
+                checkpoint_interval=1,  # Force save
+                stats={},
+                force_save=True,
+            )
+        else:
+            # Non-master ranks wait for initial policy
+            logger.info("Non-master rank: Waiting for initial policy to be created")
+
+        # All ranks synchronize
+        torch.distributed.barrier()
 
 # Memory and System Monitoring
 memory_monitor = MemoryMonitor()
@@ -353,6 +387,11 @@ while agent_step < trainer_config.total_timesteps:
     total_time = train_time + rollout_time
     steps_per_sec = steps_calculated / total_time if total_time > 0 else 0
 
+    # Account for distributed training
+    if torch.distributed.is_initialized():
+        world_size = torch.distributed.get_world_size()
+        steps_per_sec *= world_size
+
     train_pct = (train_time / total_time) * 100 if total_time > 0 else 0
     rollout_pct = (rollout_time / total_time) * 100 if total_time > 0 else 0
 
@@ -417,47 +456,52 @@ while agent_step < trainer_config.total_timesteps:
         and epoch % trainer_config.simulation.evaluate_interval == 0
         and saved_policy_path
     ):
-        logger.info(f"Evaluating policy at epoch {epoch}")
+        # Only run evaluation on master rank
+        is_master = not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0
+        if is_master:
+            logger.info(f"Evaluating policy at epoch {epoch}")
 
-        # Run evaluation suite
-        sim_suite = SimulationSuite(
-            config=evaluation_config,
-            policy_pr=saved_policy_path,
-            policy_store=policy_store,
-            device=device,
-            vectorization="serial",
-            stats_dir=dirs.stats_dir,
-            stats_client=None,
-            stats_epoch_id=None,
-            wandb_policy_name=None,
-        )
+            # Run evaluation suite
+            sim_suite = SimulationSuite(
+                config=evaluation_config,
+                policy_pr=saved_policy_path,
+                policy_store=policy_store,
+                device=device,
+                vectorization="serial",
+                stats_dir=dirs.stats_dir,
+                stats_client=None,
+                stats_epoch_id=None,
+                wandb_policy_name=None,
+            )
 
-        results = sim_suite.simulate()
-        stats_db = EvalStatsDB.from_sim_stats_db(results.stats_db)
-        logger.info("Evaluation complete")
+            results = sim_suite.simulate()
+            stats_db = EvalStatsDB.from_sim_stats_db(results.stats_db)
+            logger.info("Evaluation complete")
 
-        # Build evaluation metrics
-        eval_scores = {}
-        categories = set()
-        for sim_name in evaluation_config.simulations.keys():
-            categories.add(sim_name.split("/")[0])
+            # Build evaluation metrics
+            eval_scores = {}
+            categories = set()
+            for sim_name in evaluation_config.simulations.keys():
+                categories.add(sim_name.split("/")[0])
 
-        for category in categories:
-            score = stats_db.get_average_metric_by_filter("reward", saved_policy_path, f"sim_name LIKE '%{category}%'")
-            logger.info(f"{category} score: {score}")
-            record_heartbeat()
-            if score is not None:
-                eval_scores[f"{category}/score"] = score
+            for category in categories:
+                score = stats_db.get_average_metric_by_filter(
+                    "reward", saved_policy_path, f"sim_name LIKE '%{category}%'"
+                )
+                logger.info(f"{category} score: {score}")
+                record_heartbeat()
+                if score is not None:
+                    eval_scores[f"{category}/score"] = score
 
-        # Get detailed per-simulation scores
-        all_scores = stats_db.simulation_scores(saved_policy_path, "reward")
-        for (_, sim_name, _), score in all_scores.items():
-            category = sim_name.split("/")[0]
-            sim_short_name = sim_name.split("/")[-1]
-            eval_scores[f"{category}/{sim_short_name}"] = score
+            # Get detailed per-simulation scores
+            all_scores = stats_db.simulation_scores(saved_policy_path, "reward")
+            for (_, sim_name, _), score in all_scores.items():
+                category = sim_name.split("/")[0]
+                sim_short_name = sim_name.split("/")[-1]
+                eval_scores[f"{category}/{sim_short_name}"] = score
 
-        evaluation_scores[epoch] = eval_scores
-        stats_db.close()
+            evaluation_scores[epoch] = eval_scores
+            stats_db.close()
 
     # Replay generation
     if (
@@ -465,36 +509,39 @@ while agent_step < trainer_config.total_timesteps:
         and epoch % trainer_config.simulation.replay_interval == 0
         and saved_policy_path
     ):
-        logger.info(f"Generating replay at epoch {epoch}")
+        # Only run replay generation on master rank
+        is_master = not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0
+        if is_master:
+            logger.info(f"Generating replay at epoch {epoch}")
 
-        # Generate replay on the bucketed curriculum environment
-        replay_sim_config = SingleEnvSimulationConfig(
-            env="/env/mettagrid/navigation/training/terrain_from_numpy",
-            num_episodes=1,
-            max_time_s=60,
-            env_overrides={"game": {"map_builder": {"room": {"dir": "varied_terrain/balanced_medium"}}}},
-        )
+            # Generate replay on the bucketed curriculum environment
+            replay_sim_config = SingleEnvSimulationConfig(
+                env="/env/mettagrid/navigation/training/terrain_from_numpy",
+                num_episodes=1,
+                max_time_s=60,
+                env_overrides={"game": {"map_builder": {"room": {"dir": "varied_terrain/balanced_medium"}}}},
+            )
 
-        replay_simulator = Simulation(
-            name=f"replay_{epoch}",
-            config=replay_sim_config,
-            policy_pr=saved_policy_path,
-            policy_store=policy_store,
-            device=device,
-            vectorization="serial",
-            replay_dir=dirs.replay_dir,
-        )
+            replay_simulator = Simulation(
+                name=f"replay_{epoch}",
+                config=replay_sim_config,
+                policy_pr=saved_policy_path,
+                policy_store=policy_store,
+                device=device,
+                vectorization="serial",
+                replay_dir=dirs.replay_dir,
+            )
 
-        results = replay_simulator.simulate()
+            results = replay_simulator.simulate()
 
-        # Get replay URLs from the database
-        replay_urls = results.stats_db.get_replay_urls()
-        if replay_urls:
-            replay_url = replay_urls[0]
-            player_url = f"https://metta-ai.github.io/metta/?replayUrl={replay_url}"
-            logger.info(f"Replay available at: {player_url}")
+            # Get replay URLs from the database
+            replay_urls = results.stats_db.get_replay_urls()
+            if replay_urls:
+                replay_url = replay_urls[0]
+                player_url = f"https://metta-ai.github.io/metta/?replayUrl={replay_url}"
+                logger.info(f"Replay available at: {player_url}")
 
-        results.stats_db.close()
+            results.stats_db.close()
 
     # Clear stats for next iteration
     stats.clear()

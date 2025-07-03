@@ -795,7 +795,26 @@ def save_checkpoint(
     if not should_save:
         return None
 
+    # Check if we're in distributed mode
+    is_master = True
+    if torch.distributed.is_initialized():
+        is_master = torch.distributed.get_rank() == 0
+
+    # Only master saves, but all ranks must participate in barrier
+    if not is_master:
+        # Non-master ranks need to participate in the barrier below
+        if torch.distributed.is_initialized():
+            torch.distributed.barrier()
+        return None
+
     logger.info(f"Saving policy at epoch {epoch}")
+
+    # Extract the actual policy module from distributed wrapper if needed
+    from metta.agent.metta_agent import DistributedMettaAgent
+
+    policy_to_save = agent
+    if isinstance(agent, DistributedMettaAgent):
+        policy_to_save = agent.module
 
     # Create policy record directly
     name = policy_store.make_model_name(epoch)
@@ -806,7 +825,7 @@ def save_checkpoint(
         "stats": dict(stats) if stats else {},
         "final": force_save,  # Mark if this is the final checkpoint
     }
-    policy_record.policy = agent
+    policy_record.policy = policy_to_save
 
     # Save through policy store
     saved_policy_record = policy_store.save(policy_record)
@@ -830,6 +849,10 @@ def save_checkpoint(
     # Clean up old policies to prevent disk space issues
     if epoch % 10 == 0:
         cleanup_old_policies(checkpoint_path, keep_last_n=5)
+
+    # Synchronize all ranks to ensure the checkpoint is fully saved before continuing
+    if torch.distributed.is_initialized():
+        torch.distributed.barrier()
 
     return saved_policy_record
 
