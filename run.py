@@ -1,3 +1,4 @@
+#!/usr/bin/env -S uv run
 """Example of using Metta as a library without Hydra configuration.
 
 This example shows how to use the Metta API to train an agent with full
