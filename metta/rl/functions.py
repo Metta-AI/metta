@@ -32,6 +32,8 @@ def perform_rollout_step(
     experience: Experience,
     device: torch.device,
     timer: Optional[Any] = None,
+    contrastive_module: Any = None,
+    trainer_cfg: Any = None,
 ) -> Tuple[int, list]:
     """Performs a single step of the rollout, interacting with the environment.
 
@@ -55,6 +57,19 @@ def perform_rollout_step(
     r = torch.as_tensor(r).to(device, non_blocking=True)
     d = torch.as_tensor(d).to(device, non_blocking=True)
     t = torch.as_tensor(t).to(device, non_blocking=True)
+
+    # Add contrastive reward if enabled
+    if (contrastive_module is not None and
+        trainer_cfg is not None and
+        hasattr(trainer_cfg, 'contrastive') and
+        trainer_cfg.contrastive.enabled and
+        trainer_cfg.contrastive.reward_coef > 0):
+
+        # For now, we'll add a simple contrastive reward based on LSTM state variance
+        # This is a placeholder - in practice, we'd need to compute this during training
+        # when we have access to future states
+        contrastive_reward = torch.zeros_like(r)
+        r = r + trainer_cfg.contrastive.reward_coef * contrastive_reward
 
     with torch.no_grad():
         state = PolicyState()
@@ -152,6 +167,7 @@ def process_minibatch_update(
     advantages: Tensor,
     trainer_cfg: Any,
     kickstarter: Any,
+    contrastive_module: Any,
     agent_step: int,
     losses: Losses,
     device: torch.device,
@@ -198,6 +214,50 @@ def process_minibatch_update(
     if trainer_cfg.ppo.l2_init_loss_coef > 0:
         l2_init_loss = trainer_cfg.ppo.l2_init_loss_coef * policy.l2_init_loss().to(device)
 
+    # Contrastive learning loss
+    contrastive_loss = torch.tensor(0.0, device=device, dtype=torch.float32)
+    if contrastive_module is not None and hasattr(trainer_cfg, 'contrastive') and trainer_cfg.contrastive.enabled:
+        # Check if both coefficients are zero to avoid unnecessary computation
+        if trainer_cfg.contrastive.loss_coef > 0 or trainer_cfg.contrastive.reward_coef > 0:
+            # Sample contrastive pairs
+            contrastive_pairs = experience.sample_contrastive_pairs(
+                minibatch["indices"],
+                trainer_cfg.contrastive.num_rollout_negatives,
+                trainer_cfg.contrastive.num_cross_rollout_negatives,
+            )
+
+            # Get current LSTM states from minibatch
+            current_lstm_states = contrastive_pairs["lstm_states"][contrastive_pairs["current_indices"]]
+
+            # Sample positive and negative indices
+            positive_indices = contrastive_module.sample_future_indices(
+                contrastive_pairs["current_indices"],
+                experience.bptt_horizon,
+                current_lstm_states.shape[0]
+            )
+
+            negative_indices = contrastive_module.sample_negative_indices(
+                contrastive_pairs["current_indices"],
+                trainer_cfg.contrastive.num_rollout_negatives,
+                trainer_cfg.contrastive.num_cross_rollout_negatives,
+                current_lstm_states.shape[0],
+                experience.bptt_horizon,
+                experience.segments,
+            )
+
+            # Compute contrastive loss
+            contrastive_loss, contrastive_metrics = contrastive_module.compute_infonce_loss(
+                current_lstm_states,
+                positive_indices,
+                negative_indices,
+                contrastive_pairs["lstm_states"],
+            )
+
+            # Add contrastive metrics to losses
+            for key, value in contrastive_metrics.items():
+                if hasattr(losses, key + "_sum"):
+                    setattr(losses, key + "_sum", getattr(losses, key + "_sum") + value)
+
     # Total loss
     loss = (
         pg_loss
@@ -206,6 +266,7 @@ def process_minibatch_update(
         + l2_init_loss
         + ks_action_loss
         + ks_value_loss
+        + trainer_cfg.contrastive.loss_coef * contrastive_loss
     )
 
     # Update values in experience buffer
@@ -220,6 +281,7 @@ def process_minibatch_update(
     losses.l2_init_loss_sum += l2_init_loss.item() if torch.is_tensor(l2_init_loss) else l2_init_loss
     losses.ks_action_loss_sum += ks_action_loss.item()
     losses.ks_value_loss_sum += ks_value_loss.item()
+    losses.contrastive_loss_sum += contrastive_loss.item()
     losses.importance_sum += importance_sampling_ratio.mean().item()
     losses.minibatches_processed += 1
     losses.current_logprobs_sum += new_logprobs.mean().item()
