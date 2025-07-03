@@ -156,13 +156,13 @@ logger.info("Creating experience buffer...")
 hidden_size, num_lstm_layers = get_lstm_config(agent)
 
 experience = Experience(
-    total_agents=env.num_agents,
+    total_agents=env.num_agents,  # type: ignore
     batch_size=trainer_config.batch_size,
     bptt_horizon=trainer_config.bptt_horizon,
     minibatch_size=trainer_config.minibatch_size,
     max_minibatch_size=trainer_config.minibatch_size,
-    obs_space=env.single_observation_space,
-    atn_space=env.single_action_space,
+    obs_space=env.single_observation_space,  # type: ignore
+    atn_space=env.single_action_space,  # type: ignore
     device=device,
     hidden_size=hidden_size,
     cpu_offload=trainer_config.cpu_offload,
@@ -250,14 +250,9 @@ evaluation_config = SimulationSuiteConfig(
     env_overrides={},  # Suite-level overrides
 )
 
-# Latest saved policy record for evaluations
-latest_saved_policy_record = None
-
 # Starting training
 logger.info(f"Starting training on {device}")
 evaluation_scores = {}
-rollout_time = 0
-train_time = 0
 epoch_start_time = time.time()
 steps_at_epoch_start = agent_step
 

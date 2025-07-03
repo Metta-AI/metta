@@ -14,8 +14,6 @@ from metta.api import (
     Losses,
     Optimizer,
     OptimizerConfig,
-    # Helper classes
-    PolicyRecord,
     PPOConfig,
     RunDirectories,
     SimulationConfig,
@@ -62,6 +60,5 @@ __all__ = [
     "perform_rollout_step",
     "process_minibatch_update",
     # Helper classes
-    "PolicyRecord",
     "RunDirectories",
 ]
