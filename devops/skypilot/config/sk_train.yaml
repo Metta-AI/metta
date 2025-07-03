@@ -1,7 +1,6 @@
 resources:
   cloud: aws
   any_of:
-    # us-east-1
     - region: us-east-1
       use_spot: true
       accelerators: "L4:1"
@@ -12,7 +11,6 @@ resources:
       accelerators: "L4:1"
     - region: us-east-1
       accelerators: "A10G:1"
-    # us-west-2
     - region: us-west-2
       use_spot: true
       accelerators: "L4:1"
@@ -30,26 +28,55 @@ resources:
     max_restarts_on_errors: 1000
 
 setup: |
-  cd /workspace/metta
-  git fetch
-  git checkout $METTA_GIT_REF
+  set -xe
+  echo "[SETUP] Starting setup phase..."
 
+  if [ ! -d /workspace/metta/.git ]; then
+    echo "[SETUP] Cloning repo..."
+    git clone https://github.com/Metta-AI/metta.git /workspace/metta
+  else
+    echo "[SETUP] Repo already present, skipping clone."
+  fi
+
+  cd /workspace/metta
+  echo "[SETUP] Fetching latest from origin..."
+  git fetch --all --prune
+  echo "[SETUP] Checking out ref: $METTA_GIT_REF"
+  git checkout "$METTA_GIT_REF"
+
+  echo "[SETUP] Syncing dependencies with uv..."
   uv sync
 
-  mkdir -p $WANDB_DIR
+  echo "[SETUP] Creating wandb directory: $WANDB_DIR"
+  mkdir -p "$WANDB_DIR"
+
+  echo "[SETUP] Current directory: $(pwd)"
+  echo "[SETUP] Directory contents:"
+  ls -lh
+  echo "[SETUP] Setup complete."
 
 run: |
-  set -x
-
+  set -xe
+  echo "[RUN] Starting run phase..."
   cd /workspace/metta
   source ./devops/setup.env
 
-  echo "METTA_RUN_ID: $METTA_RUN_ID"
-  echo "SKYPILOT_TASK_ID: $SKYPILOT_TASK_ID"
-  echo "Running latency script..."
+  echo "[RUN] METTA_RUN_ID: $METTA_RUN_ID"
+  echo "[RUN] SKYPILOT_TASK_ID: $SKYPILOT_TASK_ID"
+  echo "[RUN] Running latency script..."
 
-  python common/src/metta/common/util/skypilot_latency.py 2>&1 | tee latency_output.log
-  echo "Latency script exit code: $?"
+  if [ -f common/src/metta/common/util/skypilot_latency.py ]; then
+    echo "[RUN] Found latency script, running..."
+    python common/src/metta/common/util/skypilot_latency.py 2>&1 | tee latency_output.log
+    LAT_EXIT=$?
+    echo "[RUN] Latency script exit code: $LAT_EXIT"
+  else
+    echo "[RUN] ❌ Latency script not found at common/src/metta/common/util/skypilot_latency.py" >&2
+    echo "[RUN] Working directory: $(pwd)"
+    echo "[RUN] Full tree:"
+    find . | grep skypilot_latency
+    exit 1
+  fi
 
   export NUM_GPUS=$SKYPILOT_NUM_GPUS_PER_NODE
   export NUM_NODES=$SKYPILOT_NUM_NODES
@@ -58,19 +85,19 @@ run: |
   export NODE_INDEX=$SKYPILOT_NODE_RANK
   export NCCL_SHM_DISABLE=1
 
+  echo "[RUN] Running training script..."
   ./devops/$METTA_CMD.sh \
     run=$METTA_RUN_ID \
     $METTA_CMD_ARGS
 
+  echo "[RUN] Job complete."
+
 file_mounts:
-  # Wandb Credentials
   ~/.netrc: ~/.netrc
   ~/.metta: ~/.metta
-
   /mnt/s3/softmax-public:
     source: s3://softmax-public
     mode: MOUNT_CACHED
-
   /mnt/s3/train_dir:
     name: softmax-train-dir
     store: s3
@@ -82,11 +109,7 @@ envs:
   METTA_CMD_ARGS: ""
   METTA_GIT_REF: main
   WANDB_DIR: ./wandb
-
-  # s3 mount slows down uv, so we put DATA_DIR outside of /workspace/metta
   DATA_DIR: /mnt/s3/train_dir
-
-  # username and password are acquired automatically by our api-server patch, see skypilot-chart/files/ecr.patch
   SKYPILOT_DOCKER_USERNAME: ""
   SKYPILOT_DOCKER_PASSWORD: ""
   SKYPILOT_DOCKER_SERVER: 751442549699.dkr.ecr.us-east-1.amazonaws.com
