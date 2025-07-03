@@ -212,7 +212,7 @@ class TestWandbProteinSerialization:
         mock_api.return_value.runs.return_value = []
 
         # Create WandbProtein
-        protein_wandb = WandbProtein(mock_protein, mock_wandb_run)
+        WandbProtein(mock_protein, mock_wandb_run)
 
         # Verify summary was updated with cleaned data
         calls = mock_wandb_run.summary.update.call_args_list
