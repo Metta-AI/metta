@@ -83,6 +83,7 @@ trainer_config = TrainerConfig(
         interval_epochs=0,  # 0 disables profiling
         profile_dir="./profiles",
     ),
+    grad_mean_variance_interval=50,  # Compute gradient stats every 50 epochs
 )
 
 # Create environment
@@ -264,31 +265,30 @@ system_monitor = SystemMonitor(
 evaluation_config = SimulationSuiteConfig(
     name="evaluation",
     simulations={
-        "navigation/simple": {
-            "env": "/env/mettagrid/simple",
-            "num_episodes": 5,
-            "max_time_s": 30,
-            "env_overrides": {},
-        },
-        "navigation/medium": {
-            "env": "/env/mettagrid/medium",
-            "num_episodes": 5,
-            "max_time_s": 30,
-            "env_overrides": {},
-        },
+        "navigation/simple": SingleEnvSimulationConfig(
+            env="/env/mettagrid/simple",
+            num_episodes=5,
+            max_time_s=30,
+            env_overrides={},
+        ),
+        "navigation/medium": SingleEnvSimulationConfig(
+            env="/env/mettagrid/medium",
+            num_episodes=5,
+            max_time_s=30,
+            env_overrides={},
+        ),
     },
     num_episodes=10,  # Will be overridden by individual configs
     env_overrides={},  # Suite-level overrides
 )
 
-# Intervals for advanced features
-EVAL_INTERVAL = trainer_config.simulation.evaluate_interval  # From config
-REPLAY_INTERVAL = trainer_config.simulation.replay_interval  # From config
-GRAD_STATS_INTERVAL = 50  # Compute gradient stats every 50 epochs
-SYSTEM_STATS_INTERVAL = 10  # Log system stats every 10 epochs
+# System monitoring interval (hardcoded default)
+SYSTEM_STATS_LOG_INTERVAL = 10  # Log system stats every 10 epochs
+
+# Track evaluation scores
+evaluation_scores = {}
 
 # Training loop
-evaluation_scores = {}
 logger.info("Starting training on {device}")
 
 # Track timing for performance metrics
@@ -411,7 +411,10 @@ while training.agent_step < trainer_config.total_timesteps:
                 logger.info(f"Updated L2 init weights at epoch {training.epoch}")
 
     # Compute gradient statistics
-    if GRAD_STATS_INTERVAL > 0 and training.epoch % GRAD_STATS_INTERVAL == 0:
+    if (
+        trainer_config.grad_mean_variance_interval > 0
+        and training.epoch % trainer_config.grad_mean_variance_interval == 0
+    ):
         grad_stats = compute_gradient_stats(agent)
         logger.info(
             f"Gradient stats - mean: {grad_stats.get('grad/mean', 0):.2e}, "
@@ -420,7 +423,7 @@ while training.agent_step < trainer_config.total_timesteps:
         )
 
     # Log system monitoring stats
-    if SYSTEM_STATS_INTERVAL > 0 and training.epoch % SYSTEM_STATS_INTERVAL == 0:
+    if SYSTEM_STATS_LOG_INTERVAL > 0 and training.epoch % SYSTEM_STATS_LOG_INTERVAL == 0:
         system_stats = system_monitor.get_summary()
         logger.info(
             f"System stats - CPU: {system_stats.get('cpu_percent', 0):.1f}%, "
@@ -474,7 +477,11 @@ while training.agent_step < trainer_config.total_timesteps:
             cleanup_old_policies(checkpoint_path, keep_last_n=5)
 
     # Policy evaluation
-    if EVAL_INTERVAL > 0 and training.epoch % EVAL_INTERVAL == 0 and saved_policy_path:
+    if (
+        trainer_config.simulation.evaluate_interval > 0
+        and training.epoch % trainer_config.simulation.evaluate_interval == 0
+        and saved_policy_path
+    ):
         logger.info(f"Evaluating policy at epoch {training.epoch}")
 
         # Run evaluation suite (similar to trainer.py's _evaluate_policy)
@@ -518,7 +525,11 @@ while training.agent_step < trainer_config.total_timesteps:
         stats_db.close()
 
     # Replay generation
-    if REPLAY_INTERVAL > 0 and training.epoch % REPLAY_INTERVAL == 0 and saved_policy_path:
+    if (
+        trainer_config.simulation.replay_interval > 0
+        and training.epoch % trainer_config.simulation.replay_interval == 0
+        and saved_policy_path
+    ):
         logger.info(f"Generating replay at epoch {training.epoch}")
 
         # Generate replay (similar to trainer.py's _generate_and_upload_replay)
