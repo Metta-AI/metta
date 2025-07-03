@@ -14,18 +14,31 @@ from .types import Area, AreaWhere, ChildrenAction, SceneCfg
 # Root map generator, based on scenes.
 @dataclass
 class MapGen(LevelBuilder):
+    # Root scene configuration.
+    # In YAML configs, this is usually the dict with `type` and `params` keys, and possible children.
+    # This is the only required parameter.
     root: SceneCfg
+
+    # Inner grid size. Doesn't take outer border into account.
+    # If `instances` is set, this is the size used for each instance.
+    # If width and height are not set, the root scene must provide an intrinsic size.
     width: int | None = None
     height: int | None = None
-    # Default value guarantees that agents don't see beyond the outer walls.
-    # Usually shouldn't be changed.
+
+    # Default border_width value guarantees that agents don't see beyond the outer walls.
+    # This value usually shouldn't be changed.
     border_width: int = 5
-    num_rooms: int = 1
-    room_border_width: int = 5
+
+    # Number of root scene instances to generate.
+    # If set, the map will be generated as a grid of instances, with the given border width.
+    # This is useful for additional parallelization.
+    # By default, the map will be generated as a single root scene instance, with the given width and height.
+    instances: int = 1
+    instance_border_width: int = 5
 
     def build(self):
-        room_rows = int(np.ceil(np.sqrt(self.num_rooms)))
-        room_cols = int(np.ceil(self.num_rooms / room_rows))
+        instance_rows = int(np.ceil(np.sqrt(self.instances)))
+        instance_cols = int(np.ceil(self.instances / instance_rows))
 
         if not self.width or not self.height:
             dict_cfg = scene_cfg_to_dict(self.root)
@@ -35,20 +48,20 @@ class MapGen(LevelBuilder):
                 raise ValueError("width and height must be provided if the root scene has no intrinsic size")
             self.height, self.width = intrinsic_size
 
-        self.inner_width = self.width * room_cols + (room_cols - 1) * self.room_border_width
-        self.inner_height = self.height * room_rows + (room_rows - 1) * self.room_border_width
+        self.inner_width = self.width * instance_cols + (instance_cols - 1) * self.instance_border_width
+        self.inner_height = self.height * instance_rows + (instance_rows - 1) * self.instance_border_width
 
         if isinstance(self.root, DictConfig):
             self.root = OmegaConf.to_container(self.root)  # type: ignore
 
         root_scene_cfg = self.root
 
-        if self.num_rooms > 1:
+        if self.instances > 1:
             root_scene_cfg = RoomGrid.factory(
                 RoomGridParams(
-                    rows=room_rows,
-                    columns=room_cols,
-                    border_width=self.room_border_width,
+                    rows=instance_rows,
+                    columns=instance_cols,
+                    border_width=self.instance_border_width,
                 ),
                 children=[
                     ChildrenAction(
@@ -67,7 +80,7 @@ class MapGen(LevelBuilder):
         )
 
         # draw outer walls
-        # note that the inner walls when num_rooms > 1 will be drawn by the RoomGrid scene
+        # note that the inner walls when instances > 1 will be drawn by the RoomGrid scene
         self.grid[:bw, :] = "wall"
         self.grid[-bw:, :] = "wall"
         self.grid[:, :bw] = "wall"
