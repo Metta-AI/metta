@@ -139,6 +139,7 @@ def create_policy_store(
     Returns:
         Configured PolicyStore instance
     """
+    logger.info("Creating policy store...")
     # Create a config that matches what PolicyStore expects
     config = DictConfig(
         {
@@ -387,6 +388,8 @@ class Environment:
         Returns:
             Vectorized environment wrapper with reset(), step(), close() methods
         """
+        logger.info("Creating environment...")
+
         # Create config if not provided
         if env_config is None:
             # Use convenience parameters if provided
@@ -454,6 +457,8 @@ class Agent:
         Returns:
             MettaAgent instance
         """
+        logger.info("Creating agent...")
+
         # Use default config if none provided
         if config is None:
             config = DictConfig(_get_default_agent_config(device))
@@ -524,6 +529,7 @@ class Optimizer:
         """
         if policy is None:
             raise ValueError("Policy must be provided to Optimizer")
+        logger.info(f"Creating optimizer... Using {optimizer_type.capitalize()} optimizer with lr={learning_rate}")
 
         self.policy = policy
         self.max_grad_norm = max_grad_norm
@@ -534,7 +540,7 @@ class Optimizer:
                 lr=learning_rate,
                 betas=betas,
                 eps=eps,
-                weight_decay=weight_decay,
+                weight_decay=float(weight_decay),  # Ensure float type
             )
         elif optimizer_type == "muon":
             from heavyball import ForeachMuon
@@ -544,7 +550,7 @@ class Optimizer:
                 lr=learning_rate,
                 betas=betas,
                 eps=eps,
-                weight_decay=weight_decay,
+                weight_decay=float(weight_decay),  # Ensure float type
             )
         else:
             raise ValueError(f"Unknown optimizer type: {optimizer_type}. Choose 'adam' or 'muon'")
