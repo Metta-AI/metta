@@ -14,6 +14,10 @@ trainer:
     logsumexp_coef: 0.01
     num_rollout_negatives: 4
     num_cross_rollout_negatives: 4
+  batch_size: 516096
+  minibatch_size: 516096
+  total_timesteps: 1000000
+  num_workers: 4
 
 agent:
   _target_: metta.agent.metta_agent.MettaAgent
@@ -116,9 +120,3 @@ agent:
       sources:
         - name: actor_1
         - name: _action_embeds_
-
-# Use smaller batch sizes for testing
-trainer:
-  batch_size: 65536
-  minibatch_size: 4096
-  total_timesteps: 1000000
