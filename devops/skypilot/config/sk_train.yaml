@@ -98,6 +98,9 @@ envs:
   METTA_CMD_ARGS: ""
   METTA_GIT_REF: main
   WANDB_DIR: ./wandb
+  HEARTBEAT_TIMEOUT: 600
+
+  # s3 mount slows down uv, so we put DATA_DIR outside of /workspace/metta
   DATA_DIR: /mnt/s3/train_dir
   SKYPILOT_DOCKER_USERNAME: ""
   SKYPILOT_DOCKER_PASSWORD: ""
