@@ -1,4 +1,4 @@
-.PHONY: help all dev test clean install
+.PHONY: help all dev test clean install pytest
 
 
 # Default target when just running 'make'

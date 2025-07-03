@@ -12,18 +12,18 @@ from omegaconf import DictConfig, ListConfig, OmegaConf
 
 from metta.common.util.config import config_from_path
 from metta.common.util.lock import run_once
-from metta.common.util.logging_helpers import setup_mettagrid_logger
-from metta.common.util.script_decorators import metta_script
+from metta.common.util.script_decorators import get_metta_logger, metta_script
 from metta.common.wandb.sweep import generate_run_id_for_sweep, sweep_id_from_name
 from metta.common.wandb.wandb_context import WandbContext
 from metta.sim.simulation_config import SimulationSuiteConfig
 from metta.sweep.protein_metta import MettaProtein
+from metta.sweep.protein_wandb import create_wandb_sweep
 
 
 @hydra.main(config_path="../configs", config_name="sweep_job", version_base=None)
 @metta_script
-def main(cfg: DictConfig | ListConfig) -> int:
-    logger = setup_mettagrid_logger("sweep_eval")
+def main(cfg: DictConfig) -> int:
+    logger = get_metta_logger()
     logger.info("Sweep configuration:")
     logger.info(yaml.dump(OmegaConf.to_container(cfg, resolve=True), default_flow_style=False))
     cfg.wandb.name = cfg.sweep_name
@@ -54,7 +54,7 @@ def create_sweep(sweep_name: str, cfg: DictConfig | ListConfig, logger: Logger) 
     logger.info(f"Creating new sweep: {cfg.sweep_dir}")
     os.makedirs(cfg.runs_dir, exist_ok=True)
 
-    sweep_id = MettaProtein.create_sweep(sweep_name, cfg.wandb.entity, cfg.wandb.project)
+    sweep_id = create_wandb_sweep(sweep_name, cfg.wandb.entity, cfg.wandb.project)
     OmegaConf.save(
         {
             "sweep": sweep_name,
@@ -67,7 +67,7 @@ def create_sweep(sweep_name: str, cfg: DictConfig | ListConfig, logger: Logger) 
     )
 
 
-def create_run(sweep_name: str, cfg: DictConfig | ListConfig, logger: Logger) -> str:
+def create_run(sweep_name: str, cfg: DictConfig, logger: Logger) -> str:
     """
     Create a new run for an existing sweep.
     Returns the run ID.
@@ -104,9 +104,9 @@ def create_run(sweep_name: str, cfg: DictConfig | ListConfig, logger: Logger) ->
                 wandb_run,
                 "protein_state.yaml",
                 {
-                    "generation": protein.generation,
+                    "generation": protein.generation,  # TODO: fix missing field
                     "observations": protein._observations,
-                    "params": str(protein._protein.params),
+                    "params": str(protein._protein.params),  # TODO:  fix missing field
                 },
             )
 
@@ -116,7 +116,7 @@ def create_run(sweep_name: str, cfg: DictConfig | ListConfig, logger: Logger) ->
             _log_file(run_dir, wandb_run, "protein_suggestion.yaml", suggestion)
 
             train_cfg = OmegaConf.create({key: cfg[key] for key in cfg.sweep.keys()})
-            apply_protein_suggestion(train_cfg, suggestion)
+            apply_protein_suggestion(train_cfg, suggestion)  # TODO: fix broken type
             save_path = os.path.join(run_dir, "train_config_overrides.yaml")
             OmegaConf.save(train_cfg, save_path)
             logger.info(f"Saved train config overrides to {save_path}")
@@ -139,7 +139,7 @@ def create_run(sweep_name: str, cfg: DictConfig | ListConfig, logger: Logger) ->
     return run_name
 
 
-def wait_for_run(sweep_name: str, cfg: DictConfig | ListConfig, path: str, logger: Logger) -> None:
+def wait_for_run(sweep_name: str, cfg: DictConfig, path: str, logger: Logger) -> None:
     """
     Wait for a run to exist.
     """
@@ -153,11 +153,11 @@ def wait_for_run(sweep_name: str, cfg: DictConfig | ListConfig, path: str, logge
     logger.info(f"Run ID: {run} ready")
 
 
-def apply_protein_suggestion(config: DictConfig | ListConfig, suggestion: DictConfig):
+def apply_protein_suggestion(cfg: DictConfig, suggestion: DictConfig):
     """Apply suggestions to a configuration object using dotted path notation.
 
     Args:
-        config: The configuration object to modify
+        cfg: The configuration object to modify
         suggestion: The suggestions to apply
     """
     for key, value in suggestion.items():
@@ -168,7 +168,7 @@ def apply_protein_suggestion(config: DictConfig | ListConfig, suggestion: DictCo
         str_key = str(key) if not isinstance(key, str) else key
 
         # Use OmegaConf.update with the string key
-        OmegaConf.update(config, str_key, value)
+        OmegaConf.update(cfg, str_key, value)
 
 
 def _log_file(run_dir: str, wandb_run, name: str, data):

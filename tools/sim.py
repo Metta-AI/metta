@@ -20,9 +20,7 @@ from omegaconf import DictConfig, OmegaConf
 from metta.agent.policy_store import PolicyStore
 from metta.app_backend.stats_client import StatsClient
 from metta.common.util.config import Config
-from metta.common.util.logging_helpers import setup_mettagrid_logger
-from metta.common.util.runtime_configuration import setup_mettagrid_environment
-from metta.common.util.script_decorators import metta_script
+from metta.common.util.script_decorators import get_metta_logger, metta_script
 from metta.common.util.stats_client_cfg import get_stats_client
 from metta.sim.simulation_config import SimulationSuiteConfig
 from metta.sim.simulation_suite import SimulationSuite
@@ -115,9 +113,8 @@ def simulate_policy(
 @hydra.main(version_base=None, config_path="../configs", config_name="sim_job")
 @metta_script
 def main(cfg: DictConfig) -> None:
-    setup_mettagrid_environment(cfg)
+    logger = get_metta_logger()
 
-    logger = setup_mettagrid_logger("metta.tools.sim")
     logger.info(f"Sim job config:\n{OmegaConf.to_yaml(cfg, resolve=True)}")
 
     sim_job = SimJob(cfg.sim_job)
