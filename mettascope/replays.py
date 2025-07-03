@@ -7,7 +7,7 @@ import hydra
 
 from metta.agent.mocks import MockPolicyRecord
 from metta.agent.policy_store import PolicyStore
-from metta.common.util.logging import setup_mettagrid_logger
+from metta.common.util.logging_helpers import setup_mettagrid_logger
 from metta.common.util.runtime_configuration import setup_mettagrid_environment
 from metta.common.wandb.wandb_context import WandbContext
 from metta.sim.simulation import Simulation
@@ -25,8 +25,8 @@ def create_simulation(cfg):
         if cfg.replay_job.policy_uri is not None:
             policy_record = policy_store.policy_record(cfg.replay_job.policy_uri)
         else:
-            # Set the policy_uri to "" to run play without a policy.
-            policy_record = MockPolicyRecord(policy_store=None, run_name="replay_run", uri="")
+            # Set the policy_uri to None to run play without a policy.
+            policy_record = MockPolicyRecord(policy_store=None, run_name="replay_run", uri=None)
         sim_config = SingleEnvSimulationConfig(cfg.replay_job.sim)
 
         sim_name = sim_config.env.split("/")[-1]
