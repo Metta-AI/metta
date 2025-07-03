@@ -1,15 +1,6 @@
 # Metta API Documentation
 
-This document describes the clean API for using Metta as a library without Hydra configuration.
-
-## Overview
-
-The Metta API provides direct instantiation of training components without requiring Hydra configuration files. This allows you to:
-
-1. Create environments, agents, and training components programmatically
-2. Use the same Pydantic configuration classes as the main codebase
-3. Control the training loop directly with full visibility
-4. Easily customize any part of the training process
+The Metta API (`metta.api`) provides a clean way to use Metta's training components without Hydra configuration files.
 
 ## Quick Start
 
@@ -17,335 +8,160 @@ The Metta API provides direct instantiation of training components without requi
 #!/usr/bin/env -S uv run
 import torch
 from metta.api import (
-    Environment, Agent, Optimizer,
-    setup_run_directories, save_experiment_config,
-    perform_rollout_step, process_minibatch_update,
-    accumulate_rollout_stats, compute_advantage,
-    calculate_anneal_beta
+    Agent, Environment, Optimizer,
+    setup_device_and_distributed, setup_run_directories,
+    save_checkpoint, load_checkpoint, wrap_agent_distributed,
 )
 from metta.agent.policy_store import PolicyStore
 from metta.rl.experience import Experience
-from metta.rl.kickstarter import Kickstarter
-from metta.rl.losses import Losses
 from metta.rl.trainer_config import TrainerConfig
-from metta.common.profiling.stopwatch import Stopwatch
-from omegaconf import DictConfig
 
-# Set up directories
+# Setup
 dirs = setup_run_directories()
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device = setup_device_and_distributed("cuda" if torch.cuda.is_available() else "cpu")
 
 # Create environment and agent
-env = Environment(num_agents=4, width=32, height=32, device=str(device))
+env = Environment(curriculum_path="/env/mettagrid/curriculum/navigation/bucketed")
 agent = Agent(env, device=str(device))
 
-# Create trainer config
-trainer_config = TrainerConfig(
-    total_timesteps=10_000_000,
-    batch_size=16384,
-    minibatch_size=512,
-)
-
-# Save experiment config
-save_experiment_config(dirs, device, trainer_config)
-
-# Create policy store
-policy_store = PolicyStore(
-    DictConfig({
-        "device": str(device),
-        "policy_cache_size": 10,
-        "trainer": {
-            "checkpoint": {
-                "checkpoint_dir": dirs.checkpoint_dir,
-            }
-        },
-    }),
-    wandb_run=None,
-)
-
-# Create optimizer
-optimizer = Optimizer(
-    optimizer_type="adam",
-    policy=agent,
-    learning_rate=3e-4,
-)
-
-# Training loop
-while agent_step < trainer_config.total_timesteps:
-    # Rollout phase
-    while not experience.ready_for_training:
-        num_steps, info = perform_rollout_step(agent, env, experience, device, timer)
-        agent_step += num_steps
-
-    # Training phase
-    for epoch in range(trainer_config.update_epochs):
-        for minibatch in experience.iter_minibatches():
-            loss = process_minibatch_update(...)
-            optimizer.step(loss, epoch)
+# Training loop (see run.py for complete example)
 ```
 
-## Training Flow in run.py
-
-The `run.py` example demonstrates a complete training flow using the Metta API:
-
-### 1. Setup Phase
-- **Directory Structure**: Create run directories for checkpoints, replays, and stats
-- **Configuration**: Create TrainerConfig with all hyperparameters
-- **Save Config**: Save the full experiment configuration for reproducibility
-
-### 2. Component Creation
-- **Environment**: Create a bucketed navigation curriculum environment with multiple terrain types
-- **Agent**: Create a CNN-LSTM agent using default architecture
-- **PolicyStore**: Direct instantiation with minimal config for checkpoint management
-- **Optimizer**: Adam or Muon optimizer wrapper with gradient clipping
-- **Experience Buffer**: Segmented storage for BPTT with configurable horizon
-- **Kickstarter**: For distillation from teacher policies
-- **Monitoring**: Memory monitor and system monitor for resource tracking
-
-### 3. Training Loop
-The main training loop follows this pattern:
-
-#### Rollout Phase:
-- Reset experience buffer for new rollout
-- Collect environment steps until buffer is full
-- Accumulate rollout statistics
-
-#### Training Phase:
-- Calculate advantages using GAE with V-trace corrections
-- Train for multiple epochs on collected data
-- Sample prioritized minibatches
-- Process each minibatch with PPO loss
-- Handle gradient accumulation and clipping
-- Early exit if KL divergence exceeds target
-
-#### Periodic Tasks:
-- **Checkpointing**: Save policy and training state every N epochs
-- **Evaluation**: Run policy on evaluation environments
-- **Replay Generation**: Create visual replays for inspection
-- **Monitoring**: Log system stats, gradient stats, and training metrics
-- **L2 Weight Updates**: Update L2 regularization reference weights
-
-### 4. Evaluation
-
-The evaluation configuration uses different terrain sizes:
-```python
-evaluation_config = SimulationSuiteConfig(
-    name="evaluation",
-    simulations={
-        "navigation/terrain_small": SingleEnvSimulationConfig(...),
-        "navigation/terrain_medium": SingleEnvSimulationConfig(...),
-        "navigation/terrain_large": SingleEnvSimulationConfig(...),
-    },
-)
-```
-
-### 5. Cleanup
-- Save final checkpoint if needed
-- Log evaluation history and final stats
-- Stop monitors and close environment
-
-## Key Components
+## Core Components
 
 ### Environment
 
-Create MettaGrid environments with or without curriculum:
-
 ```python
 # Simple environment
-env = Environment(
-    num_agents=4,
-    width=32,
-    height=32,
-    device="cuda",
-)
+env = Environment(num_agents=4, width=32, height=32)
 
-# With navigation curriculum
-env = Environment(
-    curriculum_path="/env/mettagrid/curriculum/navigation/bucketed",
-    num_agents=4,
-    device="cuda",
-)
+# With curriculum
+env = Environment(curriculum_path="/env/mettagrid/curriculum/navigation/bucketed")
 ```
 
 ### Agent
 
-Create agents with default or custom configurations:
-
 ```python
-# Default agent
+# Default CNN-LSTM agent
 agent = Agent(env, device="cuda")
 
-# Custom agent config
-config = DictConfig({
-    "device": "cuda",
-    "agent": {
-        "clip_range": 0.2,
-        "l2_init_weight_update_interval": 100,
-        # ... component definitions ...
-    }
-})
+# Custom config
+from omegaconf import DictConfig
+config = DictConfig({"agent": {...}})
 agent = Agent(env, config=config)
 ```
 
 ### Optimizer
-
-Wrapper for PyTorch optimizers with gradient accumulation:
 
 ```python
 optimizer = Optimizer(
     optimizer_type="adam",  # or "muon"
     policy=agent,
     learning_rate=3e-4,
-    max_grad_norm=0.5,
 )
 
 # Training step
-loss = compute_loss(...)
-optimizer.step(loss, epoch, accumulate_steps)
+optimizer.step(loss, epoch)
 ```
 
-### Experience Buffer
-
-Segmented tensor storage for BPTT:
+### Training Loop Functions
 
 ```python
-experience = Experience(
-    total_agents=env.num_agents,
-    batch_size=16384,
-    bptt_horizon=16,
-    minibatch_size=512,
-    obs_space=env.single_observation_space,
-    atn_space=env.single_action_space,
-    device=device,
-    hidden_size=512,
-    num_lstm_layers=1,
+from metta.api import (
+    perform_rollout_step,
+    accumulate_rollout_stats,
+    compute_advantage,
+    process_minibatch_update,
+)
+
+# Rollout
+while not experience.ready_for_training:
+    num_steps, info = perform_rollout_step(agent, env, experience, device, timer)
+
+# Process stats
+accumulate_rollout_stats(info, stats)
+
+# Train
+advantages = compute_advantage(...)
+loss = process_minibatch_update(...)
+```
+
+## Distributed Training
+
+```python
+# Setup
+device = setup_device_and_distributed("cuda")
+is_master, world_size, rank = setup_distributed_vars()
+
+# Wrap agent for distributed
+agent = wrap_agent_distributed(agent, device)
+
+# Run with torchrun
+# torchrun --nproc_per_node=4 run.py
+```
+
+## Checkpointing
+
+```python
+# Save
+saved_policy = save_checkpoint(
+    epoch=epoch,
+    agent_step=agent_step,
+    agent=agent,
+    optimizer=optimizer,
+    policy_store=policy_store,
+    checkpoint_path=checkpoint_dir,
+    checkpoint_interval=10,
+)
+
+# Load
+agent_step, epoch, policy_path = load_checkpoint(
+    checkpoint_dir=checkpoint_dir,
+    agent=agent,
+    optimizer=optimizer,
+    policy_store=policy_store,
 )
 ```
 
-### Policy Store
+## Configuration
 
-Manages policy checkpoints:
-
-```python
-# Create policy record
-policy_record = policy_store.create_empty_policy_record(name)
-policy_record.metadata = {"epoch": epoch, "score": score}
-policy_record.policy = agent
-
-# Save
-saved_record = policy_store.save(policy_record)
-
-# Load
-loaded_record = policy_store.policy_record("path/to/checkpoint")
-```
-
-## Configuration Saving
-
-Save experiment configuration using the provided helper:
+Use Pydantic models for type-safe configuration:
 
 ```python
-from metta.api import save_experiment_config, setup_run_directories
-from metta.rl.trainer_config import TrainerConfig
+from metta.rl.trainer_config import TrainerConfig, PPOConfig
 
-# Set up directories
-dirs = setup_run_directories()
-
-# Create trainer config
 trainer_config = TrainerConfig(
     total_timesteps=10_000_000,
     batch_size=16384,
-    # ... other config ...
-)
-
-# Save configuration
-save_experiment_config(dirs, device, trainer_config)
-# Saves to {dirs.run_dir}/config.yaml with full experiment metadata
-```
-
-### Policy Store
-
-Create a policy store directly with minimal configuration:
-
-```python
-from metta.agent.policy_store import PolicyStore
-from omegaconf import DictConfig
-
-# Create minimal config for PolicyStore
-policy_store = PolicyStore(
-    DictConfig({
-        "device": "cuda",
-        "policy_cache_size": 10,
-        "trainer": {
-            "checkpoint": {
-                "checkpoint_dir": "./checkpoints",
-            }
-        },
-    }),
-    wandb_run=None,
+    ppo=PPOConfig(gamma=0.99, gae_lambda=0.95),
 )
 ```
 
-### Checkpointing
+## Complete Example
 
-Save policies using PolicyStore and PolicyRecord directly:
+See `run.py` for a complete training implementation that includes:
 
-```python
-# Create a policy record
-name = policy_store.make_model_name(epoch)
-policy_record = policy_store.create_empty_policy_record(name)
-policy_record.metadata = {
-    "agent_step": agent_step,
-    "epoch": epoch,
-    "score": 0.95,
-    # any other metadata you want
-}
-policy_record.policy = agent
+- Environment creation with curriculum
+- Agent initialization
+- Distributed training support
+- Checkpointing and recovery
+- Evaluation and replay generation
+- Monitoring and logging
 
-# Save through policy store
-saved_record = policy_store.save(policy_record)
+## Key Exports
 
-# Load checkpoint
-loaded_record = policy_store.policy_record("path/to/checkpoint")
-```
+The `metta.api` module exports:
 
-### compute_advantage
+**Factories**: `Environment`, `Agent`, `Optimizer`
 
-Compute advantages using GAE. Note that you need to create the initial tensors:
+**Training**: `perform_rollout_step`, `process_minibatch_update`, `accumulate_rollout_stats`, `compute_advantage`
 
-```python
-from metta.api import compute_advantage
+**Distributed**: `setup_device_and_distributed`, `setup_distributed_vars`, `wrap_agent_distributed`, `cleanup_distributed`
 
-# Create initial tensors
-advantages = torch.zeros(experience.values.shape, device=device)
-initial_importance_sampling_ratio = torch.ones_like(experience.values)
+**Checkpointing**: `save_checkpoint`, `load_checkpoint`
 
-# Compute advantages using GAE
-advantages = compute_advantage(
-    experience.values,
-    experience.rewards,
-    experience.dones,
-    initial_importance_sampling_ratio,
-    advantages,
-    trainer_config.ppo.gamma,
-    trainer_config.ppo.gae_lambda,
-    trainer_config.vtrace.vtrace_rho_clip,
-    trainer_config.vtrace.vtrace_c_clip,
-    device,
-)
-```
+**Configuration**: `TrainerConfig`, `PPOConfig`, `OptimizerConfig`, `CheckpointConfig`
 
-## Design Philosophy
+**Components**: `Experience`, `Kickstarter`, `Losses`, `Stopwatch`
 
-The API design follows these principles:
-
-1. **Transparency**: All components are visible and their interactions are explicit
-2. **Modularity**: Each component can be used independently
-3. **Compatibility**: Uses the same underlying components as the Hydra-based training
-4. **Type Safety**: Leverages Pydantic models for configuration validation
-5. **Flexibility**: Easy to customize any part of the training process
-
-This makes Metta accessible for:
-- Researchers who need custom training loops
-- Integration into existing ML pipelines
-- Educational purposes to understand RL training
-- Debugging and experimentation
+**Utilities**: `setup_run_directories`, `save_experiment_config`, `create_evaluation_config_suite`, `create_replay_config`
