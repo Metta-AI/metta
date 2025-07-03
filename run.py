@@ -17,6 +17,7 @@ from metta.api import (
     compute_advantage,
     create_evaluation_config_suite,
     create_replay_config,
+    ensure_initial_policy,
     load_checkpoint,
     perform_rollout_step,
     process_minibatch_update,
@@ -28,7 +29,6 @@ from metta.api import (
 )
 from metta.common.profiling.memory_monitor import MemoryMonitor
 from metta.common.profiling.stopwatch import Stopwatch
-from metta.common.util.fs import wait_for_file
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.system_monitor import SystemMonitor
 from metta.eval.eval_stats_db import EvalStatsDB
@@ -104,9 +104,8 @@ trainer_config = TrainerConfig(
 if torch.distributed.is_initialized() and trainer_config.scale_batches_by_world_size:
     trainer_config.batch_size = trainer_config.batch_size // world_size
 
-# Save config only on master
-if is_master:
-    save_experiment_config(dirs, device, trainer_config)
+# Save config
+save_experiment_config(dirs, device, trainer_config)
 
 # Create environment
 env = Environment(
@@ -147,55 +146,8 @@ checkpoint_path = trainer_config.checkpoint.checkpoint_dir
 checkpoint = load_checkpoint(checkpoint_path, None, None, policy_store, device)
 agent_step, epoch, loaded_policy_path = checkpoint
 
-# Handle initial policy creation/loading like MettaTrainer
-if loaded_policy_path is None:
-    # No existing checkpoint - need to coordinate initial policy creation
-    if torch.distributed.is_initialized():
-        if is_master:
-            # Master creates and saves initial policy
-            saved_policy = save_checkpoint(
-                epoch=0,
-                agent_step=0,
-                agent=agent,
-                optimizer=None,
-                policy_store=policy_store,
-                checkpoint_path=checkpoint_path,
-                checkpoint_interval=1,  # Force save
-                stats={},
-                force_save=True,
-            )
-            # Master waits at barrier after saving
-            torch.distributed.barrier()
-        else:
-            # Non-master ranks wait at barrier first
-            torch.distributed.barrier()
-
-            # Then load the policy master created
-            default_policy_path = os.path.join(checkpoint_path, policy_store.make_model_name(0))
-
-            if not wait_for_file(default_policy_path, timeout=300):
-                raise RuntimeError(f"Rank {rank}: Timeout waiting for policy at {default_policy_path}")
-
-            # Load the policy
-            policy_pr = policy_store.policy_record(default_policy_path)
-            agent.load_state_dict(policy_pr.policy.state_dict())  # type: ignore
-    else:
-        # Single GPU mode
-        save_checkpoint(
-            epoch=0,
-            agent_step=0,
-            agent=agent,
-            optimizer=None,
-            policy_store=policy_store,
-            checkpoint_path=checkpoint_path,
-            checkpoint_interval=1,
-            stats={},
-            force_save=True,
-        )
-else:
-    # Checkpoint exists - load it
-    # The load_checkpoint function already loaded the policy state into the agent
-    pass
+# Ensure all ranks have the same initial policy
+ensure_initial_policy(agent, policy_store, checkpoint_path, loaded_policy_path, device)
 
 # Wrap agent in distributed after all ranks have the same policy
 agent = wrap_agent_distributed(agent, device)
