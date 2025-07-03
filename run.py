@@ -11,16 +11,12 @@ from metta.api import (
     Agent,
     Environment,
     Optimizer,
-    accumulate_rollout_stats,
     calculate_anneal_beta,
     cleanup_distributed,
-    compute_advantage,
     create_evaluation_config_suite,
     create_replay_config,
     ensure_initial_policy,
     load_checkpoint,
-    perform_rollout_step,
-    process_minibatch_update,
     save_checkpoint,
     save_experiment_config,
     setup_device_and_distributed,
@@ -35,10 +31,14 @@ from metta.eval.eval_stats_db import EvalStatsDB
 from metta.mettagrid import mettagrid_c  # noqa: F401
 from metta.rl.experience import Experience
 from metta.rl.functions import (
+    accumulate_rollout_stats,
     calculate_explained_variance,
+    compute_advantage,
     compute_gradient_stats,
     get_lstm_config,
     maybe_update_l2_weights,
+    perform_rollout_step,
+    process_minibatch_update,
     setup_distributed_vars,
     should_run_on_interval,
 )
@@ -62,8 +62,6 @@ logger = logging.getLogger(__name__)
 # Set up directories and device first
 dirs = setup_run_directories()
 device = setup_device_and_distributed("cuda" if torch.cuda.is_available() else "cpu")
-
-# Get distributed info after initialization
 is_master, world_size, rank = setup_distributed_vars()
 
 # Configuration
@@ -148,8 +146,6 @@ agent_step, epoch, loaded_policy_path = checkpoint
 
 # Ensure all ranks have the same initial policy
 ensure_initial_policy(agent, policy_store, checkpoint_path, loaded_policy_path, device)
-
-# Wrap agent in distributed after all ranks have the same policy
 agent = wrap_agent_distributed(agent, device)
 
 # Ensure all ranks have wrapped their agents before proceeding
@@ -335,8 +331,6 @@ while agent_step < trainer_config.total_timesteps:
     steps_calculated = agent_step - steps_before
     total_time = train_time + rollout_time
     steps_per_sec = steps_calculated / total_time if total_time > 0 else 0
-
-    # Account for distributed training
     steps_per_sec *= world_size
 
     train_pct = (train_time / total_time) * 100 if total_time > 0 else 0

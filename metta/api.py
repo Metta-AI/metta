@@ -20,27 +20,14 @@ import torch
 from omegaconf import DictConfig, OmegaConf
 
 from metta.agent.metta_agent import MettaAgent
-from metta.common.profiling.stopwatch import Stopwatch
 from metta.common.util.fs import wait_for_file
 from metta.mettagrid.curriculum.core import Curriculum, SingleTaskCurriculum, Task
 from metta.mettagrid.mettagrid_env import MettaGridEnv
-from metta.rl.experience import Experience
 from metta.rl.functions import (
-    accumulate_rollout_stats,
     cleanup_old_policies,
-    compute_advantage,
-    maybe_update_l2_weights,
-    perform_rollout_step,
-    process_minibatch_update,
-    should_run_on_interval,
+    setup_distributed_vars,
 )
-from metta.rl.kickstarter import Kickstarter
-from metta.rl.losses import Losses
 from metta.rl.trainer_config import (
-    CheckpointConfig,
-    OptimizerConfig,
-    PPOConfig,
-    SimulationConfig,
     TrainerConfig,
 )
 from metta.rl.vecenv import make_vecenv
@@ -143,27 +130,6 @@ def setup_device_and_distributed(base_device: str = "cuda") -> torch.device:
 
     logger.info(f"Using device: {device}")
     return device
-
-
-def setup_distributed_vars() -> Tuple[bool, int, int]:
-    """Get distributed training variables.
-
-    Returns:
-        Tuple of (is_master, world_size, rank)
-        - is_master: True if this is the master process (rank 0)
-        - world_size: Total number of processes (1 if not distributed)
-        - rank: Current process rank (0 if not distributed)
-    """
-    if torch.distributed.is_initialized():
-        rank = torch.distributed.get_rank()
-        world_size = torch.distributed.get_world_size()
-        is_master = rank == 0
-    else:
-        rank = 0
-        world_size = 1
-        is_master = True
-
-    return is_master, world_size, rank
 
 
 def cleanup_distributed():
@@ -1197,18 +1163,7 @@ __all__ = [
     "Agent",
     # New wrapper classes
     "Optimizer",
-    # Training components (for direct instantiation)
-    "Experience",
-    "Kickstarter",
-    "Losses",
-    "Stopwatch",
-    # Config classes (from trainer_config)
-    "TrainerConfig",
-    "OptimizerConfig",
-    "PPOConfig",
-    "CheckpointConfig",
-    "SimulationConfig",
-    # Helper functions
+    # Helper functions unique to api.py
     "calculate_anneal_beta",
     "setup_run_directories",
     "save_experiment_config",
@@ -1217,20 +1172,11 @@ __all__ = [
     "cleanup_distributed",
     "load_checkpoint",
     "wrap_agent_distributed",
-    "setup_distributed_vars",
     "ensure_initial_policy",
-    # Functions from rl.functions (commonly used)
-    "perform_rollout_step",
-    "process_minibatch_update",
-    "accumulate_rollout_stats",
-    "compute_advantage",  # Export the real function directly
-    "should_run_on_interval",
-    "maybe_update_l2_weights",
     # Helper classes
     "RunDirectories",
     "PreBuiltConfigCurriculum",
+    # Evaluation/replay configuration
+    "create_evaluation_config_suite",
+    "create_replay_config",
 ]
-
-
-__all__.append("create_evaluation_config_suite")
-__all__.append("create_replay_config")
