@@ -43,21 +43,22 @@ export function onTraceMinimapChange(event: MouseEvent) {
   ui.tracePanel.panPos.setX(-step * Common.TRACE_WIDTH)
 }
 
-/** Handles a mouse down on the timeline, which updates the step. */
-onEvent('mousedown', '#timeline-panel', (target: HTMLElement, e: Event) => {
-  // Are we clicking on the scrubber or behind it (trace window) or event?
-  let event = e as MouseEvent
-  let mouseY = event.clientY - target.getBoundingClientRect().top
-  let mouseX = event.clientX
-  if (mouseY > 34 && mouseY < 51) {
-    ui.mainScrubberDown = true
-    onScrubberChange(event)
-  } else {
-    // Click on the trace window.
-    ui.mainTraceMinimapDown = true
-    onTraceMinimapChange(event)
-  }
-})
+// /** Handles a mouse down on the timeline, which updates the step. */
+// onEvent('mousedown', '#timeline-panel', (target: HTMLElement, e: Event) => {
+//   // Are we clicking on the scrubber or behind it (trace window) or event?
+//   let event = e as MouseEvent
+//   let mouseY = event.clientY - target.getBoundingClientRect().top
+//   let mouseX = event.clientX
+//   if (mouseY > 34 && mouseY < 51) {
+//     ui.mainScrubberDown = true
+//     onScrubberChange(event)
+//   } else {
+//     // Click on the trace window.
+//     ui.mainTraceMinimapDown = true
+//     onTraceMinimapChange(event)
+//   }
+//   requestFrame()
+// })
 
 /** Updates the timeline. */
 export function updateTimeline() {
@@ -82,6 +83,20 @@ function inside(point: Vec2f, x: number, y: number, w: number, h: number): boole
 export function drawTimeline(panel: PanelInfo) {
   if (state.replay === null || ctx === null || ctx.ready === false) {
     return
+  }
+
+  let localMousePos = new Vec2f(ui.mousePos.x(), ui.mousePos.y() - ui.timelinePanel.y)
+
+  if (ui.mouseDown) {
+    let step = getStepFromX(localMousePos.x())
+    if (localMousePos.y() > 34 && localMousePos.y() < 51) {
+      ui.mainScrubberDown = true
+      updateStep(step)
+    } else {
+      // Click on the trace window.
+      ui.mainTraceMinimapDown = true
+      ui.tracePanel.panPos.setX(-step * Common.TRACE_WIDTH)
+    }
   }
 
   if (ui.mouseDoubleClick) {
@@ -123,8 +138,7 @@ export function drawTimeline(panel: PanelInfo) {
   if (search.active) {
     // Draw searched states, actions or items on the timeline.
 
-    let localMousePos = new Vec2f(ui.mousePos.x(), ui.mousePos.y() - ui.timelinePanel.y)
-    console.log('localMousePos', localMousePos.x(), localMousePos.y())
+    // console.log('localMousePos', localMousePos.x(), localMousePos.y())
 
     // Draw frozen special state.
     if (hasSearchTerm("frozen")) {
@@ -134,16 +148,17 @@ export function drawTimeline(panel: PanelInfo) {
           // Draw the frozen state.
           let frozen = getAttr(agent, 'agent:frozen', j)
           if (frozen > 0 && prevFrozen == 0) {
-            let x = (j / fullSteps) * scrubberWidth
-            ctx.drawSprite('agents/frozen.png', x, 12, [1, 1, 1, 1], 0.1, 0)
-            ctx.drawSolidRect(x, 24, 1, 8, [1, 1, 1, 1])
-            // Do click on the item icon.
-            if (ui.mouseDown && inside(localMousePos, x, 12, 16, 16)) {
-              console.log('clicked on frozen', "agent:", agent.id, "step:", j)
-              setFollowSelection(agent.id)
-              updateStep(j)
-              ui.mouseDown = false
+            let x = 16 + (j / fullSteps) * scrubberWidth
+            if (inside(localMousePos, x - 10, 2, 20, 20)) {
+              ctx.drawSolidRect(x - 10, 2, 20, 20, [1, 1, 1, 1])
+              if (ui.mouseClick) {
+                state.selectedGridObject = agent
+                setFollowSelection(true)
+                updateStep(j)
+              }
             }
+            ctx.drawSprite('agents/frozen.png', x, 12, [1, 1, 1, 1], 0.1, 0)
+            ctx.drawSolidRect(x - 1, 24, 2, 8, [1, 1, 1, 1])
           }
           prevFrozen = frozen
         }
@@ -158,13 +173,17 @@ export function drawTimeline(panel: PanelInfo) {
         if (action !== undefined && action_success) {
           let actionName = state.replay.action_names[action[0]]
           if (searchMatch(actionName)) {
-            let x = (j / fullSteps) * scrubberWidth
-            ctx.drawSprite('actions/' + actionName + '.png', x, 12, [1, 1, 1, 1], 0.05, 0)
-            ctx.drawSolidRect(x, 24, 1, 8, [1, 1, 1, 1])
-            // Do click on the item icon.
-            if (inside(localMousePos, x, 12, 16, 16)) {
-              console.log('clicked on action', "agent:", agent.id, "step:", j, "action:", actionName)
+            let x = 16 + (j / fullSteps) * scrubberWidth
+            if (inside(localMousePos, x - 10, 2, 20, 20)) {
+              ctx.drawSolidRect(x - 10, 2, 20, 20, [1, 1, 1, 1])
+              if (ui.mouseClick) {
+                state.selectedGridObject = agent
+                setFollowSelection(true)
+                updateStep(j)
+              }
             }
+            ctx.drawSprite('actions/' + actionName + '.png', x, 12, [1, 1, 1, 1], 0.05, 0)
+            ctx.drawSolidRect(x - 1, 24, 2, 8, [1, 1, 1, 1])
           }
         }
       }
@@ -178,13 +197,19 @@ export function drawTimeline(panel: PanelInfo) {
           for (let j = 0; j < state.replay.max_steps; j++) {
             let amount = getAttr(agent, key, j)
             if (amount > prevAmount) {
-              let x = (j / fullSteps) * scrubberWidth
-              ctx.drawSprite(value[0], x, 12, [1, 1, 1, 1], 0.05, 0)
-              ctx.drawSolidRect(x, 24, 1, 8, [1, 1, 1, 1])
+              let x = 16 + (j / fullSteps) * scrubberWidth
               // Do click on the item icon.
-              if (inside(localMousePos, x, 12, 16, 16)) {
-                console.log('clicked on resource', "agent:", agent.id, "step:", j, "resource:", key)
+              if (inside(localMousePos, x - 10, 2, 20, 20)) {
+                ctx.drawSolidRect(x - 10, 2, 20, 20, [1, 1, 1, 1])
+                if (ui.mouseClick) {
+                  //console.log('clicked on resource', "agent:", agent.id, "step:", j, "resource:", key)
+                  state.selectedGridObject = agent
+                  setFollowSelection(true)
+                  updateStep(j)
+                }
               }
+              ctx.drawSprite(value[0], x, 12, [1, 1, 1, 1], 0.1, 0)
+              ctx.drawSolidRect(x - 1, 24, 2, 8, [1, 1, 1, 1])
             }
             prevAmount = amount
           }
