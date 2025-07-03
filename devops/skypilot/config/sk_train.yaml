@@ -28,15 +28,31 @@ resources:
     max_restarts_on_errors: 1000
 
 setup: |
+  set -xe
+  echo "[SETUP] Starting setup phase..."
+
   cd /workspace/metta
   git fetch
+
+  echo "[SETUP] Checking out ref: $METTA_GIT_REF"
   git checkout $METTA_GIT_REF
 
   uv sync
-
   mkdir -p $WANDB_DIR
 
+  echo "[SETUP] Current directory: $(pwd)"
+  echo "[SETUP] Directory contents:"
+  ls -lh
+  echo "[SETUP] Setup complete."
+
 run: |
+  set -xe
+  START_TIME=$(date)
+
+  echo "[RUN] Starting run phase..."
+  echo "[RUN] METTA_RUN_ID: $METTA_RUN_ID"
+  echo "[RUN] SKYPILOT_TASK_ID: $SKYPILOT_TASK_ID"
+
   cd /workspace/metta
   source ./devops/setup.env
 
@@ -52,9 +68,18 @@ run: |
   export NODE_INDEX=$SKYPILOT_NODE_RANK
   export NCCL_SHM_DISABLE=1
 
+  echo "[RUN] Running training script..."
   ./devops/$METTA_CMD.sh \
     run=$METTA_RUN_ID \
     $METTA_CMD_ARGS
+  TRAIN_EXIT=$?
+  echo "[RUN] Training script exit code: $TRAIN_EXIT"
+
+  echo "[RUN] Job complete."
+  END_TIME=$(date)
+  echo "[RUN] Started at: $START_TIME"
+  echo "[RUN] Ended at:   $END_TIME"
+  exit $TRAIN_EXIT
 
 file_mounts:
   ~/.netrc: ~/.netrc
