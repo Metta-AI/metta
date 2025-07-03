@@ -17,6 +17,7 @@ from metta.api import (
     compute_advantage,
     perform_rollout_step,
     process_minibatch_update,
+    save_checkpoint,
     save_experiment_config,
     setup_run_directories,
 )
@@ -29,7 +30,6 @@ from metta.mettagrid import mettagrid_c  # noqa: F401
 from metta.rl.experience import Experience
 from metta.rl.functions import (
     calculate_explained_variance,
-    cleanup_old_policies,
     compute_gradient_stats,
     get_lstm_config,
 )
@@ -237,6 +237,7 @@ evaluation_config = SimulationSuiteConfig(
 )
 
 # Starting training
+saved_policy_path = None
 logger.info(f"Starting training on {device}")
 evaluation_scores = {}
 epoch_start_time = time.time()
@@ -394,41 +395,17 @@ while agent_step < trainer_config.total_timesteps:
             logger.info(f"Memory usage: {memory_stats}")
 
     # Save checkpoint periodically
-    saved_policy_path = None
-    if epoch % trainer_config.checkpoint.checkpoint_interval == 0:
-        logger.info(f"Saving policy at epoch {epoch}")
-
-        # Create policy record directly
-        name = policy_store.make_model_name(epoch)
-        policy_record = policy_store.create_empty_policy_record(name)
-        policy_record.metadata = {
-            "agent_step": agent_step,
-            "epoch": epoch,
-            "stats": dict(stats),
-        }
-        policy_record.policy = agent
-
-        # Save through policy store
-        latest_saved_policy_record = policy_store.save(policy_record)
-        saved_policy_path = latest_saved_policy_record
-        logger.info(f"Successfully saved policy at epoch {epoch}")
-
-        # Save training state
-        logger.info("Saving training state...")
-        trainer_checkpoint = TrainerCheckpoint(
-            agent_step=agent_step,
-            epoch=epoch,
-            total_agent_step=agent_step,
-            optimizer_state_dict=optimizer.state_dict(),
-            policy_path=saved_policy_path.uri if hasattr(saved_policy_path, "uri") else None,
-            stopwatch_state=None,
-        )
-        trainer_checkpoint.save(checkpoint_path)
-        logger.info(f"Saved training state at epoch {epoch}")
-
-        # Clean up old policies to prevent disk space issues
-        if epoch % 10 == 0:
-            cleanup_old_policies(checkpoint_path, keep_last_n=5)
+    saved_policy_path = save_checkpoint(
+        epoch=epoch,
+        agent_step=agent_step,
+        agent=agent,
+        optimizer=optimizer,
+        policy_store=policy_store,
+        checkpoint_path=checkpoint_path,
+        checkpoint_interval=trainer_config.checkpoint.checkpoint_interval,
+        stats=stats,
+        force_save=False,
+    )
 
     # Policy evaluation
     if (
@@ -550,35 +527,18 @@ logger.info(f"\nFinal system stats: {final_system_stats}")
 system_monitor.stop()
 memory_monitor.clear()
 
-# Final checkpoint (force save)
-if epoch % trainer_config.checkpoint.checkpoint_interval != 0:
-    logger.info("Saving final checkpoint...")
-
-    # Create final policy record
-    name = policy_store.make_model_name(epoch)
-    policy_record = policy_store.create_empty_policy_record(name)
-    policy_record.metadata = {
-        "agent_step": agent_step,
-        "epoch": epoch,
-        "final": True,
-    }
-    policy_record.policy = agent
-
-    # Save through policy store
-    saved_policy_path = policy_store.save(policy_record)
-    logger.info("Successfully saved final policy")
-
-    # Save final training state
-    final_checkpoint = TrainerCheckpoint(
-        agent_step=agent_step,
-        epoch=epoch,
-        total_agent_step=agent_step,
-        optimizer_state_dict=optimizer.state_dict(),
-        policy_path=saved_policy_path.uri if hasattr(saved_policy_path, "uri") else None,
-        stopwatch_state=None,
-    )
-    final_checkpoint.save(checkpoint_path)
-    logger.info("Saved final training state")
+# Save final checkpoint if we haven't just saved one
+saved_policy_path = save_checkpoint(
+    epoch=epoch,
+    agent_step=agent_step,
+    agent=agent,
+    optimizer=optimizer,
+    policy_store=policy_store,
+    checkpoint_path=checkpoint_path,
+    checkpoint_interval=trainer_config.checkpoint.checkpoint_interval,
+    stats=stats,
+    force_save=True,
+)
 
 # Close environment
 env.close()  # type: ignore
