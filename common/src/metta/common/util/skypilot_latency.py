@@ -25,7 +25,7 @@ import sys
 from typing import Final
 
 _EPOCH: Final = datetime.timezone.utc
-_FMT:   Final = "%Y-%m-%d-%H-%M-%S-%f"
+_FMT: Final = "%Y-%m-%d-%H-%M-%S-%f"
 
 # Regex captures the timestamp part, whatever the prefix is
 # Updated to accept 6-9 digit microseconds (macOS can produce 9 digits)
@@ -33,6 +33,7 @@ _TS_RE: Final = re.compile(
     r"^(?:sky-|managed-sky-|sky-managed-)"
     r"(?P<ts>\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2}-\d{6,9})_"
 )
+
 
 def _submission_ts(task_id: str) -> datetime.datetime | None:
     m = _TS_RE.match(task_id)
@@ -44,6 +45,7 @@ def _submission_ts(task_id: str) -> datetime.datetime | None:
         return datetime.datetime.strptime(ts_part, _FMT).replace(tzinfo=_EPOCH)
     except ValueError:
         return None
+
 
 def queue_latency_s() -> float | None:
     """Return SkyPilot queue latency in seconds, or ``None`` if not applicable."""
@@ -67,13 +69,20 @@ def main():
         # Export for other scripts to use
         os.environ["SKYPILOT_QUEUE_LATENCY_S"] = str(latency_sec)
 
+        # Also write to a file that persists across shell invocations
+        latency_file = os.path.expanduser("~/.metta/skypilot_queue_latency")
+        os.makedirs(os.path.dirname(latency_file), exist_ok=True)
+        with open(latency_file, "w") as f:
+            f.write(str(latency_sec))
+
         # Log to wandb if configured
-        # Use METTA_RUN_ID as the run name (set by SkyPilot launch script)
-        run_name = os.environ.get("METTA_RUN_ID")
+        # Use METTA_RUN_ID as both the run name AND the run ID
+        run_id = os.environ.get("METTA_RUN_ID")
         api_key = os.environ.get("WANDB_API_KEY")
+        project = os.environ.get("WANDB_PROJECT", "metta")
 
         # If no API key but netrc exists, wandb will use that
-        if run_name and (api_key or os.path.exists(os.path.expanduser("~/.netrc"))):
+        if run_id and (api_key or os.path.exists(os.path.expanduser("~/.netrc"))):
             try:
                 import wandb
 
@@ -81,17 +90,22 @@ def main():
                 if api_key:
                     wandb.login(key=api_key, relogin=True, anonymous="never")
 
-                # Initialize wandb with minimal config
+                # Initialize wandb with the same run ID that the trainer will use
+                # This creates a placeholder run that the trainer will resume
                 run = wandb.init(
-                    project=os.environ.get("WANDB_PROJECT", "metta"),
-                    name=run_name,
-                    resume="allow",
+                    project=project,
+                    name=run_id,
+                    id=run_id,  # Use run_id as the unique wandb run ID
+                    resume="allow",  # Allow resuming if it exists
                     reinit=True,
                 )
+
+                # Log the latency metric
                 run.summary["skypilot_queue_latency_s"] = latency_sec
                 run.log({"skypilot_queue_latency_s": latency_sec}, step=0)
-                wandb.finish()
-                print(f"Logged queue latency to wandb run: {run_name}")
+
+                # Don't call wandb.finish() - let the trainer resume this run
+                print(f"Logged queue latency to wandb run: {run_id} (run will be resumed by trainer)")
             except Exception as e:
                 print(f"Failed to log to wandb: {e}", file=sys.stderr)
     else:
