@@ -8,7 +8,7 @@ trainer:
   env: /env/mettagrid/simple
   env_overrides:
     game:
-      num_agents: 32
+      num_agents: 24
   contrastive:
     enabled: true
     loss_coef: 0.1
@@ -17,8 +17,8 @@ trainer:
     logsumexp_coef: 0.01
     num_rollout_negatives: 4
     num_cross_rollout_negatives: 4
-  batch_size: 2048
-  minibatch_size: 256
+  batch_size: 12288
+  minibatch_size: 1536
   total_timesteps: 1000000
   num_workers: 4
   cpu_offload: true
