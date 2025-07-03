@@ -867,6 +867,97 @@ def save_checkpoint(
     return saved_policy_record
 
 
+def load_checkpoint(
+    checkpoint_dir: str,
+    agent: Any,
+    optimizer: Optional[Any] = None,
+    policy_store: Optional[Any] = None,
+    device: Optional[torch.device] = None,
+) -> Tuple[int, int, Optional[Any]]:
+    """Load training checkpoint and handle distributed initialization.
+
+    This function handles:
+    - Loading checkpoint if it exists
+    - Restoring agent_step and epoch
+    - Loading optimizer state
+    - Distributed coordination for initial policy creation
+
+    Args:
+        checkpoint_dir: Directory containing checkpoints
+        agent: The agent/policy to potentially update
+        optimizer: Optional optimizer to restore state to
+        policy_store: Optional PolicyStore for saving initial policy in distributed mode
+        device: Device for distributed coordination
+
+    Returns:
+        Tuple of (agent_step, epoch, saved_policy_path)
+        - agent_step: Current training step (0 if no checkpoint)
+        - epoch: Current epoch (0 if no checkpoint)
+        - saved_policy_path: Path to saved initial policy (only in distributed mode)
+    """
+    from metta.rl.trainer_checkpoint import TrainerCheckpoint
+
+    # Load checkpoint if it exists
+    checkpoint = TrainerCheckpoint.load(checkpoint_dir) if checkpoint_dir else None
+
+    if checkpoint:
+        logger.info(f"Restoring from checkpoint at {checkpoint.agent_step} steps")
+        agent_step = checkpoint.agent_step
+        epoch = checkpoint.epoch
+
+        # Load optimizer state if provided
+        if optimizer and checkpoint.optimizer_state_dict:
+            try:
+                if hasattr(optimizer, "load_state_dict"):
+                    optimizer.load_state_dict(checkpoint.optimizer_state_dict)
+                elif hasattr(optimizer, "optimizer"):
+                    # Handle our Optimizer wrapper
+                    optimizer.optimizer.load_state_dict(checkpoint.optimizer_state_dict)
+                logger.info("Successfully loaded optimizer state from checkpoint")
+            except ValueError:
+                logger.warning("Optimizer state dict doesn't match. Starting with fresh optimizer state.")
+
+        return agent_step, epoch, None
+    else:
+        agent_step = 0
+        epoch = 0
+
+        # In distributed mode, handle initial policy creation
+        if torch.distributed.is_initialized() and policy_store:
+            is_master = torch.distributed.get_rank() == 0
+
+            if is_master:
+                # Master saves initial policy for other ranks to load
+                logger.info("Master rank: Creating and saving initial policy")
+                initial_policy_path = save_checkpoint(
+                    epoch=0,
+                    agent_step=0,
+                    agent=agent,
+                    optimizer=optimizer,
+                    policy_store=policy_store,
+                    checkpoint_path=checkpoint_dir,
+                    checkpoint_interval=1,  # Force save
+                    stats={},
+                    force_save=True,
+                )
+
+                # All ranks synchronize
+                torch.distributed.barrier()
+                return agent_step, epoch, initial_policy_path
+            else:
+                # Non-master ranks wait for initial policy
+                logger.info("Non-master rank: Waiting for initial policy to be created")
+
+                # All ranks synchronize
+                torch.distributed.barrier()
+
+                # Non-master ranks could load the policy here if needed
+                # For now, we just return and let the caller handle it
+                return agent_step, epoch, None
+
+        return agent_step, epoch, None
+
+
 # Re-export key classes for convenience
 __all__ = [
     # Factory classes
@@ -892,6 +983,7 @@ __all__ = [
     "save_checkpoint",
     "setup_device_and_distributed",
     "cleanup_distributed",
+    "load_checkpoint",
     # Functions from rl.functions (commonly used)
     "perform_rollout_step",
     "process_minibatch_update",

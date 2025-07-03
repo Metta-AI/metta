@@ -17,6 +17,7 @@ from metta.api import (
     calculate_anneal_beta,
     cleanup_distributed,
     compute_advantage,
+    load_checkpoint,
     perform_rollout_step,
     process_minibatch_update,
     save_checkpoint,
@@ -41,7 +42,6 @@ from metta.rl.functions import (
 )
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses
-from metta.rl.trainer_checkpoint import TrainerCheckpoint
 from metta.rl.trainer_config import (
     CheckpointConfig,
     OptimizerConfig,
@@ -184,48 +184,15 @@ if hasattr(trainer_config, "lr_scheduler") and trainer_config.lr_scheduler.enabl
     )
     logger.info("Created learning rate scheduler")
 
-# Load checkpoint if exists
+# Load checkpoint and handle distributed initialization
 checkpoint_path = trainer_config.checkpoint.checkpoint_dir
-checkpoint = TrainerCheckpoint.load(checkpoint_path) if checkpoint_path else None
-
-if checkpoint:
-    logger.info(f"Restoring from checkpoint at {checkpoint.agent_step} steps")
-    agent_step = checkpoint.agent_step
-    epoch = checkpoint.epoch
-
-    # Load optimizer state
-    if checkpoint.optimizer_state_dict:
-        try:
-            optimizer.load_state_dict(checkpoint.optimizer_state_dict)
-            logger.info("Successfully loaded optimizer state from checkpoint")
-        except ValueError:
-            logger.warning("Optimizer state dict doesn't match. Starting with fresh optimizer state.")
-else:
-    agent_step = 0
-    epoch = 0
-
-    # In distributed mode, we need to handle initial policy creation
-    if torch.distributed.is_initialized():
-        if _master:
-            # Master saves initial policy for other ranks to load
-            logger.info("Master rank: Creating and saving initial policy")
-            initial_policy_path = save_checkpoint(
-                epoch=0,
-                agent_step=0,
-                agent=agent,
-                optimizer=optimizer,
-                policy_store=policy_store,
-                checkpoint_path=checkpoint_path,
-                checkpoint_interval=1,  # Force save
-                stats={},
-                force_save=True,
-            )
-        else:
-            # Non-master ranks wait for initial policy
-            logger.info("Non-master rank: Waiting for initial policy to be created")
-
-        # All ranks synchronize
-        torch.distributed.barrier()
+agent_step, epoch, _ = load_checkpoint(
+    checkpoint_dir=checkpoint_path,
+    agent=agent,
+    optimizer=optimizer,
+    policy_store=policy_store,
+    device=device,
+)
 
 # Memory and System Monitoring
 memory_monitor = MemoryMonitor()
@@ -240,27 +207,30 @@ system_monitor = SystemMonitor(
 )
 
 # Evaluation Configuration with navigation tasks
+# NOTE: Evaluation and replay generation use Simulation classes which
+# internally depend on Hydra (via SamplingCurriculum). This is a known
+# limitation of the current implementation.
 evaluation_config = SimulationSuiteConfig(
     name="evaluation",
     simulations={
-        "navigation/terrain_small": {
-            "env": "/env/mettagrid/navigation/training/terrain_from_numpy",
-            "num_episodes": 5,
-            "max_time_s": 30,
-            "env_overrides": {"game": {"map_builder": {"room": {"dir": "varied_terrain/balanced_small"}}}},
-        },
-        "navigation/terrain_medium": {
-            "env": "/env/mettagrid/navigation/training/terrain_from_numpy",
-            "num_episodes": 5,
-            "max_time_s": 30,
-            "env_overrides": {"game": {"map_builder": {"room": {"dir": "varied_terrain/balanced_medium"}}}},
-        },
-        "navigation/terrain_large": {
-            "env": "/env/mettagrid/navigation/training/terrain_from_numpy",
-            "num_episodes": 5,
-            "max_time_s": 30,
-            "env_overrides": {"game": {"map_builder": {"room": {"dir": "varied_terrain/balanced_large"}}}},
-        },
+        "navigation/terrain_small": SingleEnvSimulationConfig(
+            env="/env/mettagrid/navigation/training/terrain_from_numpy",
+            num_episodes=5,
+            max_time_s=30,
+            env_overrides={"game": {"map_builder": {"room": {"dir": "varied_terrain/balanced_small"}}}},
+        ),
+        "navigation/terrain_medium": SingleEnvSimulationConfig(
+            env="/env/mettagrid/navigation/training/terrain_from_numpy",
+            num_episodes=5,
+            max_time_s=30,
+            env_overrides={"game": {"map_builder": {"room": {"dir": "varied_terrain/balanced_medium"}}}},
+        ),
+        "navigation/terrain_large": SingleEnvSimulationConfig(
+            env="/env/mettagrid/navigation/training/terrain_from_numpy",
+            num_episodes=5,
+            max_time_s=30,
+            env_overrides={"game": {"map_builder": {"room": {"dir": "varied_terrain/balanced_large"}}}},
+        ),
     },
     num_episodes=10,  # Will be overridden by individual configs
     env_overrides={},  # Suite-level overrides
