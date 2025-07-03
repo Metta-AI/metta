@@ -27,6 +27,7 @@ from metta.agent.metta_agent import make_policy
 from metta.agent.policy_cache import PolicyCache
 from metta.agent.policy_metadata import PolicyMetadata
 from metta.agent.policy_record import PolicyRecord
+from metta.common.wandb.wandb_context import WandbRun
 from metta.rl.policy import load_pytorch_policy
 from metta.rl.trainer_config import TrainerConfig, parse_trainer_config
 
@@ -42,10 +43,10 @@ class PolicySelectorConfig:
 
 
 class PolicyStore:
-    def __init__(self, cfg: DictConfig, wandb_run):
+    def __init__(self, cfg: DictConfig, wandb_run: WandbRun | None):
         self._cfg = cfg
         self._device = cfg.device
-        self._wandb_run = wandb_run
+        self._wandb_run: WandbRun | None = wandb_run
         cache_size = cfg.get("policy_cache_size", 10)  # Default to 10 if not specified
         self._cached_prs = PolicyCache(max_size=cache_size)
         self._made_codebase_backwards_compatible = False
