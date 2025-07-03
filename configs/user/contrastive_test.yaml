@@ -28,7 +28,5 @@ trainer:
   cpu_offload: true
   bptt_horizon: 64
 
-
-
-  wandb:
-    project: metta-contrastive-test
+wandb:
+  project: metta-contrastive-test
