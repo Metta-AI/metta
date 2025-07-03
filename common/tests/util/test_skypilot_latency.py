@@ -68,7 +68,7 @@ class TestSkyPilotLatency:
             [sys.executable, "common/src/metta/common/util/skypilot_latency.py"],
             capture_output=True,
             text=True,
-            env=env
+            env=env,
         )
 
         assert result.returncode == 0
