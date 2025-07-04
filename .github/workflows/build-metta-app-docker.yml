@@ -61,3 +61,7 @@ jobs:
           # GitHub cache is too slow and has 10Gb limit so they aren't very useful
           # cache-from: type=gha
           # cache-to: type=gha,mode=max
+
+      - name: k8s access test
+        run: |
+          aws eks update-kubeconfig --name main --region us-east-1
