@@ -1,0 +1,51 @@
+defaults:
+  - mettagrid
+  - game/objects:
+      - basic
+      - mines
+      - generators
+      - combat
+
+  - _self_
+
+game:
+  num_agents: 24
+  map_builder:
+    _target_: metta.mettagrid.room.multi_room.MultiRoom
+    num_rooms: ${div:${..num_agents},6}
+    border_width: 6
+
+    room:
+      _target_: metta.mettagrid.room.random.Random
+      width: 25
+      height: 25
+      border_width: 0
+
+      agents: 6
+
+      objects:
+        mine_red: 10
+        generator_red: 5
+        altar: 5
+
+        block: 20
+        wall: 20
+
+  objects:
+    altar:
+      input_battery_red: 1
+      initial_items: 1
+    mine_red:
+      initial_items: 1
+    generator_red:
+      initial_items: 1
+
+  agent:
+    rewards:
+      ore_red: 0.1
+      ore_red_max: 5
+
+      battery_red: 0.9
+      battery_red_max: 5
+
+      heart: 1
