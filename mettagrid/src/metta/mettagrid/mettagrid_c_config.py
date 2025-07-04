@@ -1,7 +1,7 @@
 import copy
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Dict, List, Literal
 
-from pydantic import Field, RootModel, conint
+from pydantic import Field, conint
 
 from metta.common.util.typed_config import BaseModelWithForbidExtra
 from metta.mettagrid.mettagrid_c import AgentConfig as AgentConfig_cpp
