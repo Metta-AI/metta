@@ -284,6 +284,36 @@ class MettaCLI:
         else:
             warning("\nSome components are not installed. Run 'metta install' to set them up.")
 
+        # Collect components with connection issues
+        not_connected = []
+        for module in modules:
+            if module.is_applicable() and module.check_installed():
+                expected = self.config.get_expected_connection(module.name)
+                if expected and module.check_connected_as() is None:
+                    not_connected.append(module.name)
+
+        # Offer to fix connection issues
+        if not_connected and sys.stdin.isatty():
+            warning(f"\nComponents not connected: {', '.join(not_connected)}")
+            info("This could be due to expired credentials, network issues, or broken installations.")
+            response = input("\nReinstall these components to fix connection issues? (y/n): ").strip().lower()
+            if response == "y":
+                info(f"\nRunning: ./metta.sh install {' '.join(not_connected)} --force")
+                subprocess.run([sys.executable, __file__, "install"] + not_connected + ["--force"], cwd=self.repo_root)
+
+        # Check for not installed components
+        not_installed = []
+        for module in modules:
+            if module.is_applicable() and not module.check_installed():
+                not_installed.append(module.name)
+
+        if not_installed and sys.stdin.isatty():
+            warning(f"\nComponents not installed: {', '.join(not_installed)}")
+            response = input("\nInstall these components? (y/n): ").strip().lower()
+            if response == "y":
+                info(f"\nRunning: ./metta.sh install {' '.join(not_installed)}")
+                subprocess.run([sys.executable, __file__, "install"] + not_installed, cwd=self.repo_root)
+
     def main(self) -> None:
         parser = argparse.ArgumentParser(
             description="Metta Setup Tool - Configure and install development environment",
