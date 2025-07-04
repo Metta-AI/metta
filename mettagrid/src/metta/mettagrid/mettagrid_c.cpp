@@ -27,9 +27,9 @@
 #include "objects/production_handler.hpp"
 #include "objects/wall.hpp"
 #include "observation_encoder.hpp"
+#include "packed_coordinate.hpp"
 #include "stats_tracker.hpp"
 #include "types.hpp"
-
 namespace py = pybind11;
 
 MettaGrid::MettaGrid(py::dict cfg, py::list map, int seed) {
@@ -49,6 +49,14 @@ MettaGrid::MettaGrid(py::dict cfg, py::list map, int seed) {
       cfg.contains("num_observation_tokens") ? cfg["num_observation_tokens"].cast<unsigned int>() : 0;
 
   current_step = 0;
+
+  bool observation_size_is_packable =
+      obs_width <= PackedCoordinate::MAX_PACKABLE_COORD + 1 && obs_height <= PackedCoordinate::MAX_PACKABLE_COORD + 1;
+
+  if (!observation_size_is_packable) {
+    throw std::runtime_error("Observation window size (" + std::to_string(obs_width) + "x" +
+                             std::to_string(obs_height) + ") exceeds maximum packable size (16x16)");
+  }
 
   GridCoord height = static_cast<GridCoord>(py::len(map));
   GridCoord width = static_cast<GridCoord>(py::len(map[0]));
@@ -226,17 +234,6 @@ void MettaGrid::_compute_observation(unsigned int observer_row,
                                      size_t agent_idx,
                                      ActionType action,
                                      ActionArg action_arg) {
-  // Constants for bit packing
-  static constexpr uint8_t LOCATION_ROW_SHIFT = 4;
-  static constexpr uint8_t LOCATION_COL_MASK = 0x0F;
-
-  // Pack observation area coordinates into a single byte
-  // row: row index in observation array (0 to obs_height-1)
-  // col: column index in observation array (0 to obs_width-1)
-  auto _pack_location = [](uint8_t row, uint8_t col) -> uint8_t {
-    return (row << LOCATION_ROW_SHIFT) | (col & LOCATION_COL_MASK);
-  };
-
   // Calculate observation boundaries
   unsigned int obs_width_radius = observable_width >> 1;
   unsigned int obs_height_radius = observable_height >> 1;
@@ -253,8 +250,7 @@ void MettaGrid::_compute_observation(unsigned int observer_row,
     c_end = _grid->width;
   }
 
-  // Fill in visible objects. Observations should have been cleared in _step, so
-  // we don't need to do that here.
+  // Fill in visible objects. Observations should have been cleared in _step, so we don't need to do that here.
   size_t attempted_tokens_written = 0;
   size_t tokens_written = 0;
   auto observation_view = _observations.mutable_unchecked<3>();
@@ -280,7 +276,7 @@ void MettaGrid::_compute_observation(unsigned int observer_row,
 
   // Global tokens are always at the center of the observation.
   uint8_t global_location =
-      _pack_location(static_cast<uint8_t>(obs_height_radius), static_cast<uint8_t>(obs_width_radius));
+      PackedCoordinate::pack(static_cast<uint8_t>(obs_height_radius), static_cast<uint8_t>(obs_width_radius));
 
   attempted_tokens_written +=
       _obs_encoder->append_tokens_if_room_available(agent_obs_tokens, global_tokens, global_location);
@@ -323,7 +319,8 @@ void MettaGrid::_compute_observation(unsigned int observer_row,
           uint8_t obs_r = static_cast<uint8_t>(obs_r_int);
           uint8_t obs_c = static_cast<uint8_t>(obs_c_int);
 
-          uint8_t location = _pack_location(obs_r, obs_c);
+          // Use PackedCoordinate for location encoding
+          uint8_t location = PackedCoordinate::pack(obs_r, obs_c);
 
           attempted_tokens_written += _obs_encoder->encode_tokens(obj, obs_tokens, location);
           tokens_written = std::min(attempted_tokens_written, static_cast<size_t>(observation_view.shape(1)));
@@ -366,8 +363,8 @@ void MettaGrid::_step(py::array_t<ActionType, py::array::c_style> actions) {
 
   auto obs_ptr = static_cast<uint8_t*>(_observations.request().ptr);
   auto obs_size = _observations.size();
-  std::fill(obs_ptr, obs_ptr + obs_size, EmptyTokenByte);
 
+  std::fill(obs_ptr, obs_ptr + obs_size, PackedCoordinate::EMPTY);
   std::fill(_action_success.begin(), _action_success.end(), false);
 
   // Increment timestep and process events
@@ -452,7 +449,7 @@ py::tuple MettaGrid::reset() {
   // Clear observations
   auto obs_ptr = static_cast<uint8_t*>(_observations.request().ptr);
   auto obs_size = _observations.size();
-  std::fill(obs_ptr, obs_ptr + obs_size, EmptyTokenByte);
+  std::fill(obs_ptr, obs_ptr + obs_size, PackedCoordinate::EMPTY);
 
   // Compute initial observations
   std::vector<ssize_t> shape = {static_cast<ssize_t>(_agents.size()), static_cast<ssize_t>(2)};
@@ -781,6 +778,47 @@ WallConfig MettaGrid::_create_wall_config(const py::dict& wall_cfg_py) {
 PYBIND11_MODULE(mettagrid_c, m) {
   m.doc() = "MettaGrid environment";  // optional module docstring
 
+  // Create PackedCoordinate submodule
+  auto pc_m = m.def_submodule("PackedCoordinate", "Packed coordinate encoding utilities");
+
+  // Constants
+  pc_m.attr("EMPTY") = PackedCoordinate::EMPTY;
+  pc_m.attr("MAX_PACKABLE_COORD") = PackedCoordinate::MAX_PACKABLE_COORD;
+
+  // Functions
+  pc_m.def("pack",
+           &PackedCoordinate::pack,
+           py::arg("row"),
+           py::arg("col"),
+           "Pack (row, col) coordinates into a single byte.\n\n"
+           "Args:\n"
+           "    row: Row coordinate (0-15)\n"
+           "    col: Column coordinate (0-15)\n\n"
+           "Returns:\n"
+           "    Packed byte value\n\n"
+           "Raises:\n"
+           "    ValueError: If row or col > 15");
+
+  pc_m.def(
+      "unpack",
+      [](uint8_t packed) -> py::object {
+        auto result = PackedCoordinate::unpack(packed);
+        if (result.has_value()) {
+          return py::make_tuple(result->first, result->second);
+        }
+        return py::none();
+      },
+      py::arg("packed"),
+      "Unpack byte into (row, col) tuple or None if empty.\n\n"
+      "Args:\n"
+      "    packed: Packed coordinate byte\n\n"
+      "Returns:\n"
+      "    tuple[int, int] | None: (row, col) or None if empty location");
+
+  pc_m.def(
+      "is_empty", &PackedCoordinate::is_empty, py::arg("packed"), "Check if packed value represents empty location.");
+
+  // MettaGrid class bindings
   py::class_<MettaGrid>(m, "MettaGrid")
       .def(py::init<py::dict, py::list, int>())
       .def("reset", &MettaGrid::reset)

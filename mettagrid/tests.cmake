@@ -3,7 +3,9 @@
 FetchContent_Declare(
   googletest
   GIT_REPOSITORY https://github.com/google/googletest.git
-  GIT_TAG v1.17.0)
+  GIT_TAG v1.17.0
+  GIT_SHALLOW TRUE
+)
 
 FetchContent_MakeAvailable(googletest)
 
@@ -18,7 +20,9 @@ set(BENCHMARK_ENABLE_GTEST_TESTS
 FetchContent_Declare(
   googlebenchmark
   GIT_REPOSITORY https://github.com/google/benchmark.git
-  GIT_TAG v1.9.4)
+  GIT_TAG v1.9.4
+  GIT_SHALLOW TRUE
+)
 
 FetchContent_MakeAvailable(googlebenchmark)
 
