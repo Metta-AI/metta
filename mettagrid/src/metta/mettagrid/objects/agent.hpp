@@ -78,8 +78,6 @@ public:
         agent_id(0),
         // stats - default constructed
         current_resource_reward(0),
-        frozen(0),
-        orientation(0),
         reward(nullptr) {
     GridObject::init(config.type_id, config.type_name, GridLocation(r, c, GridLayer::Agent_Layer));
   }

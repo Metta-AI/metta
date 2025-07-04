@@ -879,7 +879,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
                     unsigned short,
                     unsigned short,
                     unsigned char,
-                    ObsType>(),
+                    ObservationType>(),
            py::arg("type_id"),
            py::arg("type_name"),
            py::arg("recipe_input"),
