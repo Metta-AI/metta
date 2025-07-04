@@ -1,6 +1,8 @@
 #ifndef METTAGRID_C_HPP_
 #define METTAGRID_C_HPP_
 
+#define PYBIND11_DETAILED_ERROR_MESSAGES
+
 #if defined(_WIN32)
 #define METTAGRID_API __declspec(dllexport)
 #else
@@ -27,6 +29,7 @@ class ActionHandler;
 class Agent;
 class ObservationEncoder;
 class GridObject;
+class GridObjectConfig;
 class ConverterConfig;
 class WallConfig;
 class AgentConfig;
