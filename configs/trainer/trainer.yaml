@@ -25,7 +25,7 @@ simulation:
 grad_mean_variance_interval: 25 # 0 to disable
 
 
-total_timesteps: 50_000_000_000
+total_timesteps: 10_000_000_000
 
 
 optimizer:

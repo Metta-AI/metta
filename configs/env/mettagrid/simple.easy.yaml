@@ -30,3 +30,22 @@ game:
 
         block: 20
         wall: 20
+
+  objects:
+    altar:
+      input_battery_red: 1
+      initial_items: 1
+    mine_red:
+      initial_items: 1
+    generator_red:
+      initial_items: 1
+
+  agent:
+    rewards:
+      ore_red: 0.1
+      ore_red_max: 5
+
+      battery_red: 0.9
+      battery_red_max: 5
+
+      heart: 1

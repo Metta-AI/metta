@@ -9,7 +9,7 @@ from metta.map.scenes.random import Random
 from metta.map.scenes.random_objects import RandomObjects
 from metta.map.scenes.random_scene import RandomScene, RandomSceneCandidate
 from metta.map.scenes.room_grid import RoomGrid
-from metta.map.types import AreaWhere, ChildrenAction, MapGrid
+from metta.map.types import Area, AreaWhere, ChildrenAction
 from metta.map.utils.random import FloatDistribution, IntDistribution, sample_int_distribution
 
 
@@ -49,19 +49,19 @@ class Auto(Scene[AutoParams]):
     def get_children(self) -> list[ChildrenAction]:
         return [
             ChildrenAction(
-                scene=lambda grid: AutoLayout(grid=grid, params=self.params, seed=self.rng),
+                scene=lambda area: AutoLayout(area=area, params=self.params, seed=self.rng),
                 where="full",
             ),
             ChildrenAction(
-                scene=lambda grid: Random(grid=grid, params={"objects": self.params.objects}, seed=self.rng),
+                scene=lambda area: Random(area=area, params={"objects": self.params.objects}, seed=self.rng),
                 where="full",
             ),
             ChildrenAction(
-                scene=lambda grid: MakeConnected(grid=grid, seed=self.rng),
+                scene=lambda area: MakeConnected(area=area, seed=self.rng),
                 where="full",
             ),
             ChildrenAction(
-                scene=lambda grid: Random(grid=grid, params={"agents": self.params.num_agents}, seed=self.rng),
+                scene=lambda area: Random(area=area, params={"agents": self.params.num_agents}, seed=self.rng),
                 where="full",
             ),
         ]
@@ -79,12 +79,12 @@ class AutoLayout(Scene[AutoParams]):
         def children_for_tag(tag: str) -> list[ChildrenAction]:
             return [
                 ChildrenAction(
-                    scene=lambda grid: AutoSymmetry(grid=grid, params=self.params, seed=self.rng),
+                    scene=lambda area: AutoSymmetry(area=area, params=self.params, seed=self.rng),
                     where=AreaWhere(tags=[tag]),
                 ),
                 ChildrenAction(
-                    scene=lambda grid: RandomObjects(
-                        grid=grid, params={"object_ranges": self.params.room_objects}, seed=self.rng
+                    scene=lambda area: RandomObjects(
+                        area=area, params={"object_ranges": self.params.room_objects}, seed=self.rng
                     ),
                     where=AreaWhere(tags=[tag]),
                 ),
@@ -96,8 +96,8 @@ class AutoLayout(Scene[AutoParams]):
 
             return [
                 ChildrenAction(
-                    scene=lambda grid: RoomGrid(
-                        grid=grid,
+                    scene=lambda area: RoomGrid(
+                        area=area,
                         params={
                             "rows": rows,
                             "columns": columns,
@@ -113,8 +113,8 @@ class AutoLayout(Scene[AutoParams]):
 
             return [
                 ChildrenAction(
-                    scene=lambda grid: BSPLayout(
-                        grid=grid,
+                    scene=lambda area: BSPLayout(
+                        area=area,
                         params={"area_count": area_count},
                         children=children_for_tag("zone"),
                         seed=self.rng,
@@ -143,14 +143,14 @@ class AutoSymmetry(Scene[AutoParams]):
         weights /= weights.sum()
         symmetry = self.rng.choice(["none", "horizontal", "vertical", "x4"], p=weights)
 
-        def get_random_scene(grid: MapGrid) -> Scene:
-            return RandomScene(grid=grid, params={"candidates": self.params.content}, seed=self.rng)
+        def get_random_scene(area: Area) -> Scene:
+            return RandomScene(area=area, params={"candidates": self.params.content}, seed=self.rng)
 
-        def get_scene(grid: MapGrid) -> Scene:
+        def get_scene(area: Area) -> Scene:
             if symmetry == "none":
-                return get_random_scene(grid)
+                return get_random_scene(area)
             else:
-                return Mirror(grid=grid, params={"scene": get_random_scene, "symmetry": symmetry}, seed=self.rng)
+                return Mirror(area=area, params={"scene": get_random_scene, "symmetry": symmetry}, seed=self.rng)
 
         return [ChildrenAction(scene=get_scene, where="full")]
 

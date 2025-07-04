@@ -13,7 +13,26 @@
 #include "has_inventory.hpp"
 #include "metta_object.hpp"
 
-struct ConverterConfig {
+// #MettagridConfig
+struct ConverterConfig : public GridObjectConfig {
+  ConverterConfig(TypeId type_id,
+                  const std::string& type_name,
+                  const std::map<InventoryItem, uint8_t>& recipe_input,
+                  const std::map<InventoryItem, uint8_t>& recipe_output,
+                  short max_output,
+                  unsigned short conversion_ticks,
+                  unsigned short cooldown,
+                  unsigned char initial_items,
+                  ObsType color)
+      : GridObjectConfig(type_id, type_name),
+        recipe_input(recipe_input),
+        recipe_output(recipe_output),
+        max_output(max_output),
+        conversion_ticks(conversion_ticks),
+        cooldown(cooldown),
+        initial_items(initial_items),
+        color(color) {}
+
   std::map<InventoryItem, uint8_t> recipe_input;
   std::map<InventoryItem, uint8_t> recipe_output;
   short max_output;
@@ -21,9 +40,6 @@ struct ConverterConfig {
   unsigned short cooldown;
   unsigned char initial_items;
   ObsType color;
-  std::vector<std::string> inventory_item_names;
-  TypeId type_id;
-  std::string type_name;
 };
 
 class Converter : public HasInventory {
@@ -98,14 +114,13 @@ public:
   EventManager* event_manager;
   StatsTracker stats;
 
-  Converter(GridCoord r, GridCoord c, ConverterConfig cfg)
+  Converter(GridCoord r, GridCoord c, const ConverterConfig& cfg)
       : recipe_input(cfg.recipe_input),
         recipe_output(cfg.recipe_output),
         max_output(cfg.max_output),
         conversion_ticks(cfg.conversion_ticks),
         cooldown(cfg.cooldown),
-        color(cfg.color),
-        stats(cfg.inventory_item_names) {
+        color(cfg.color) {
     GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c, GridLayer::Object_Layer));
     this->converting = false;
     this->cooling_down = false;

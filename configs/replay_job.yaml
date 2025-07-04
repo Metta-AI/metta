@@ -13,5 +13,6 @@ replay_job:
   selector_type: top
   stats_dir: ${run_dir}/stats
   replay_dir: ${run_dir}/replays/local
+  open_browser_on_start: true
 
 cmd: play

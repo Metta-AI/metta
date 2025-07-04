@@ -11,7 +11,28 @@
 #include "constants.hpp"
 #include "metta_object.hpp"
 
-struct AgentConfig {
+// #MettagridConfig
+struct AgentConfig : public GridObjectConfig {
+  AgentConfig(TypeId type_id,
+              const std::string& type_name,
+              unsigned char group_id,
+              const std::string& group_name,
+              unsigned char freeze_duration,
+              float action_failure_penalty,
+              const std::map<InventoryItem, uint8_t>& max_items_per_type,
+              const std::map<InventoryItem, float>& resource_rewards,
+              const std::map<InventoryItem, float>& resource_reward_max,
+              float group_reward_pct)
+      : GridObjectConfig(type_id, type_name),
+        group_name(group_name),
+        group_id(group_id),
+        freeze_duration(freeze_duration),
+        action_failure_penalty(action_failure_penalty),
+        max_items_per_type(max_items_per_type),
+        resource_rewards(resource_rewards),
+        resource_reward_max(resource_reward_max),
+        group_reward_pct(group_reward_pct) {}
+
   std::string group_name;
   unsigned char group_id;
   short freeze_duration;
@@ -19,8 +40,7 @@ struct AgentConfig {
   std::map<InventoryItem, uint8_t> max_items_per_type;
   std::map<InventoryItem, float> resource_rewards;
   std::map<InventoryItem, float> resource_reward_max;
-  std::vector<std::string> inventory_item_names;
-  TypeId type_id;
+  float group_reward_pct;
 };
 
 class Agent : public MettaObject {
@@ -53,12 +73,10 @@ public:
         group_name(config.group_name),
         color(0),
         current_resource_reward(0),
-        stats(config.inventory_item_names),
         frozen(0),
         orientation(0),
         reward(nullptr) {
-    // #HardCodedConfig -- "agent" is hard coded.
-    GridObject::init(config.type_id, "agent", GridLocation(r, c, GridLayer::Agent_Layer));
+    GridObject::init(config.type_id, config.type_name, GridLocation(r, c, GridLayer::Agent_Layer));
   }
 
   void init(float* reward) {
@@ -115,8 +133,8 @@ public:
     return this->frozen;
   }
 
-  virtual vector<PartialObservationToken> obs_features() const override {
-    vector<PartialObservationToken> features;
+  virtual std::vector<PartialObservationToken> obs_features() const override {
+    std::vector<PartialObservationToken> features;
     features.reserve(5 + this->inventory.size());
     features.push_back({ObservationFeature::TypeId, type_id});
     features.push_back({ObservationFeature::Group, group});

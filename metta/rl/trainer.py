@@ -32,7 +32,9 @@ from metta.rl.functions import (
     calculate_batch_sizes,
     calculate_explained_variance,
     calculate_prioritized_sampling_params,
+    cleanup_old_policies,
     compute_advantage,
+    compute_gradient_stats,
     get_lstm_config,
     perform_rollout_step,
     process_minibatch_update,
@@ -89,14 +91,18 @@ class MettaTrainer:
             trainer_cfg.simulation.evaluate_interval != 0
             and trainer_cfg.simulation.evaluate_interval < trainer_cfg.checkpoint.checkpoint_interval
         ):
-            raise ValueError("evaluate_interval must be at least as large as checkpoint_interval")
-
+            raise ValueError(
+                f"evaluate_interval must be at least as large as checkpoint_interval "
+                f"({trainer_cfg.simulation.evaluate_interval} < {trainer_cfg.checkpoint.checkpoint_interval})"
+            )
         if (
             trainer_cfg.simulation.evaluate_interval != 0
             and trainer_cfg.simulation.evaluate_interval < trainer_cfg.checkpoint.wandb_checkpoint_interval
         ):
-            raise ValueError("evaluate_interval must be at least as large as wandb_checkpoint_interval")
-
+            raise ValueError(
+                f"evaluate_interval must be at least as large as wandb_checkpoint_interval "
+                f"({trainer_cfg.simulation.evaluate_interval} < {trainer_cfg.checkpoint.wandb_checkpoint_interval})"
+            )
         # Validate that we save policies locally at least as often as we upload to wandb
         if (
             trainer_cfg.checkpoint.wandb_checkpoint_interval != 0
@@ -104,8 +110,9 @@ class MettaTrainer:
             and trainer_cfg.checkpoint.wandb_checkpoint_interval < trainer_cfg.checkpoint.checkpoint_interval
         ):
             raise ValueError(
-                "wandb_checkpoint_interval must be at least as large as checkpoint_interval "
-                "to ensure policies exist locally before uploading to wandb"
+                f"wandb_checkpoint_interval must be at least as large as checkpoint_interval "
+                f"to ensure policies exist locally before uploading to wandb "
+                f"({trainer_cfg.checkpoint.wandb_checkpoint_interval} < {trainer_cfg.checkpoint.checkpoint_interval})"
             )
 
         if trainer_cfg.checkpoint.checkpoint_dir:
@@ -655,7 +662,7 @@ class MettaTrainer:
 
         # Clean up old policies to prevent disk space issues
         if self.epoch % 10 == 0:  # Clean up every 10 epochs
-            self._cleanup_old_policies(keep_last_n=5)
+            cleanup_old_policies(self.trainer_cfg.checkpoint.checkpoint_dir, keep_last_n=5)
 
         # Synchronize all ranks to ensure the policy is fully saved before continuing
         if torch.distributed.is_initialized():
@@ -1072,64 +1079,7 @@ class MettaTrainer:
             return
 
         with self.timer("grad_stats"):
-            all_gradients = []
-            for param in self.policy.parameters():
-                if param.grad is not None:
-                    all_gradients.append(param.grad.view(-1))
-
-            if not all_gradients:
-                logger.warning("No gradients found to compute stats.")
-                self.grad_stats = {}
-                return
-
-            all_gradients_tensor = torch.cat(all_gradients).to(torch.float32)
-
-            grad_mean = all_gradients_tensor.mean()
-            grad_variance = all_gradients_tensor.var()
-            grad_norm = all_gradients_tensor.norm(2)
-
-            self.grad_stats = {
-                "grad/mean": grad_mean.item(),
-                "grad/variance": grad_variance.item(),
-                "grad/norm": grad_norm.item(),
-            }
-            logger.info(
-                f"Computed gradient stats at epoch {self.epoch}: "
-                f"mean={self.grad_stats['grad/mean']:.2e}, "
-                f"var={self.grad_stats['grad/variance']:.2e}, "
-                f"norm={self.grad_stats['grad/norm']:.2e}"
-            )
-
-    def _cleanup_old_policies(self, keep_last_n: int = 5):
-        """Clean up old saved policies to prevent memory accumulation.
-
-        Args:
-            keep_last_n: Number of most recent policies to keep
-        """
-        if not self._master or not hasattr(self, "policy_store"):
-            return
-
-        try:
-            # Get checkpoint directory
-            checkpoint_dir = Path(self.trainer_cfg.checkpoint.checkpoint_dir)
-            if not checkpoint_dir.exists():
-                return
-
-            # List all policy files
-            policy_files = sorted(checkpoint_dir.glob("policy_*.pt"))
-
-            # Keep only the most recent ones
-            if len(policy_files) > keep_last_n:
-                files_to_remove = policy_files[:-keep_last_n]
-                for file_path in files_to_remove:
-                    try:
-                        file_path.unlink()
-                        logger.info(f"Removed old policy file: {file_path}")
-                    except Exception as e:
-                        logger.warning(f"Failed to remove old policy file {file_path}: {e}")
-
-        except Exception as e:
-            logger.warning(f"Error during policy cleanup: {e}")
+            self.grad_stats = compute_gradient_stats(self.policy)
 
     def _initialize_policy_to_environment(self, policy, metta_grid_env, device):
         """Helper method to initialize a policy to the environment using the appropriate interface."""

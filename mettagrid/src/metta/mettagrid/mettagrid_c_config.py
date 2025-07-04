@@ -4,6 +4,9 @@ from typing import Any, Dict, List, Literal, Optional
 from pydantic import Field, RootModel, conint
 
 from metta.common.util.typed_config import BaseModelWithForbidExtra
+from metta.mettagrid.mettagrid_c import AgentConfig as AgentConfig_cpp
+from metta.mettagrid.mettagrid_c import ConverterConfig as ConverterConfig_cpp
+from metta.mettagrid.mettagrid_c import WallConfig as WallConfig_cpp
 from metta.mettagrid.mettagrid_config import ConverterConfig as ConverterConfig_py
 from metta.mettagrid.mettagrid_config import GameConfig as GameConfig_py
 from metta.mettagrid.mettagrid_config import WallConfig as WallConfig_py
@@ -53,43 +56,6 @@ class ObjectConfig_cpp(BaseModelWithForbidExtra):
     type_name: str
 
 
-class AgentGroupConfig_cpp(ObjectConfig_cpp):
-    """Agent group configuration."""
-
-    object_type: Literal["agent"] = "agent"
-    freeze_duration: int = Field(ge=-1)
-    action_failure_penalty: float = Field(default=0, ge=0)
-    max_items_per_type: Dict[FeatureId, int] = Field(default_factory=dict)
-    resource_rewards: Dict[FeatureId, float] = Field(default_factory=dict)
-    resource_reward_max: Dict[FeatureId, float] = Field(default_factory=dict)
-    group_name: str
-    group_id: int
-    group_reward_pct: float = Field(ge=0, le=1)
-    type_id: int = 0
-
-
-class WallConfig_cpp(ObjectConfig_cpp):
-    """Wall/Block configuration."""
-
-    object_type: Literal["wall"] = "wall"
-    swappable: Optional[bool] = None
-    type_id: Byte
-
-
-class ConverterConfig_cpp(ObjectConfig_cpp):
-    """Converter configuration for objects that convert items."""
-
-    object_type: Literal["converter"] = "converter"
-    recipe_input: Dict[FeatureId, int] = Field(default_factory=dict)
-    recipe_output: Dict[FeatureId, int] = Field(default_factory=dict)
-    max_output: int = Field(ge=-1)
-    conversion_ticks: int = Field(ge=0)
-    cooldown: int = Field(ge=0)
-    initial_items: int = Field(ge=0)
-    color: Byte = Field(default=0)
-    type_id: Byte
-
-
 class RewardSharingGroup_cpp(RootModel[Dict[str, float]]):
     """Reward sharing configuration for a group."""
 
@@ -112,7 +78,7 @@ class GameConfig_cpp(BaseModelWithForbidExtra):
     obs_height: int = Field(ge=1)
     num_observation_tokens: int = Field(ge=1)
     actions: ActionsConfig_cpp
-    objects: Dict[str, AgentGroupConfig_cpp | ConverterConfig_cpp | WallConfig_cpp]
+    objects: Dict[str, Any]
     reward_sharing: Optional[RewardSharingConfig_cpp] = None
 
 
@@ -172,7 +138,7 @@ def from_mettagrid_config(mettagrid_config: GameConfig_py) -> GameConfig_cpp:
         # #HardCodedConfig
         agent_group_config["type_id"] = 0
         agent_group_config["type_name"] = "agent"
-        object_configs["agent." + group_name] = AgentGroupConfig_cpp(**agent_group_config)
+        object_configs["agent." + group_name] = AgentConfig_cpp(**agent_group_config)
 
     for object_type, object_config in mettagrid_config.objects.items():
         if isinstance(object_config, ConverterConfig_py):
@@ -191,9 +157,12 @@ def from_mettagrid_config(mettagrid_config: GameConfig_py) -> GameConfig_cpp:
             converter_config_cpp_dict["type_name"] = object_type
             object_configs[object_type] = ConverterConfig_cpp(**converter_config_cpp_dict)
         elif isinstance(object_config, WallConfig_py):
-            object_config_dict = object_config.model_dump(by_alias=True, exclude_unset=True)
-            object_config_dict["type_name"] = object_type
-            object_configs[object_type] = WallConfig_cpp(**object_config_dict)
+            wall_config = WallConfig_cpp(
+                type_id=object_config.type_id,
+                type_name=object_type,
+                swappable=object_config.swappable,
+            )
+            object_configs[object_type] = wall_config
         else:
             raise ValueError(f"Unknown object type: {object_type}")
 
