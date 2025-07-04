@@ -15,12 +15,13 @@ The codebase consists of:
 ## Development Environment Setup
 
 ```bash
-# Initial setup (installs uv if needed and sets up environment)
+# Initial setup - installs uv, configures metta, and installs components
 ./install.sh
 
-# The installer will add metta to your PATH, then you can use:
-metta configure --profile=softmax  # For Softmax employees
-metta install
+# After installation, you can use metta commands directly:
+metta status                         # Check component status
+metta configure --profile=softmax    # Reconfigure for different profile
+metta install aws wandb              # Install specific components
 ```
 
 ## Common Commands
