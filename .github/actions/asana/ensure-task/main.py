@@ -453,8 +453,7 @@ def ensure_github_url_in_asana_task(
     payload = {
         "allowedProjects": [project_id],
         "blockedProjects": [],
-        # Unclear why this is needed. The Asana endpoint wants it. It doesn't seem like it need to
-        # be correct, but may as well?
+        # This is used in the created attachment story.
         "pullRequestName": title,
         # This we fake, since we want Asana to find the right task in the description.
         "pullRequestDescription": task_url,
