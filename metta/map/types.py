@@ -6,7 +6,10 @@ import numpy.typing as npt
 
 from metta.common.util.config import Config
 
-# Shaped version, `np.ndarray[tuple[int, int], np.dtype[np.str_]]`,
+# We store maps as 2D arrays of object names.
+# "empty" means an empty cell; "wall" means a wall, etc. See `metta.mettagrid.char_encoder` for the full list.
+#
+# Properly shaped version, `np.ndarray[tuple[int, int], np.dtype[np.str_]]`,
 # would be better, but slices from numpy arrays are not typed properly, which makes it too annoying to use.
 MapGrid: TypeAlias = npt.NDArray[np.str_]
 
