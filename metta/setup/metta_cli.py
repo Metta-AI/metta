@@ -114,7 +114,7 @@ class MettaCLI:
 
         # Clean build artifacts unless --no-clean is specified
         if not args.no_clean:
-            self._clean_build_artifacts()
+            self.cmd_clean(args)
 
         # If specific components are requested, get all modules so we can install
         # even disabled ones (useful with --force)
