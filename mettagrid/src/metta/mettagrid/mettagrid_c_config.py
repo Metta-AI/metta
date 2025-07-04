@@ -177,7 +177,7 @@ def from_mettagrid_config(mettagrid_config: GameConfig_py) -> GameConfig_cpp:
     for object_type, object_config in mettagrid_config.objects.items():
         if isinstance(object_config, ConverterConfig_py):
             converter_config_dict = object_config.model_dump(by_alias=True, exclude_unset=True)
-            converter_config_cpp_dict = {
+            converter_config_cpp_dict: dict[str, Any] = {
                 "recipe_input": {},
                 "recipe_output": {},
             }

@@ -50,8 +50,8 @@ MettaGrid::MettaGrid(py::dict cfg, py::list map, int seed) {
 
   current_step = 0;
 
-  GridCoord height = map.size();
-  GridCoord width = map[0].cast<py::list>().size();
+  GridCoord height = static_cast<GridCoord>(py::len(map));
+  GridCoord width = static_cast<GridCoord>(py::len(map[0]));
 
   _grid = std::make_unique<Grid>(height, width);
   _obs_encoder = std::make_unique<ObservationEncoder>(inventory_item_names);
@@ -66,9 +66,9 @@ MettaGrid::MettaGrid(py::dict cfg, py::list map, int seed) {
       {EventType::FinishConverting, std::make_unique<ProductionHandler>(_event_manager.get())});
   _event_manager->event_handlers.insert({EventType::CoolDown, std::make_unique<CoolDownHandler>(_event_manager.get())});
 
-  _action_success.resize(num_agents);
+  _action_success.resize(static_cast<size_t>(num_agents));
 
-  for (const auto& [action_name, action_cfg] : cfg["actions"].cast<py::dict>()) {
+  for (auto [action_name, action_cfg] : cfg["actions"].cast<py::dict>()) {
     std::string action_name_str = action_name.cast<std::string>();
     auto action_cfg_dict = action_cfg.cast<py::dict>();
     auto action_config = ActionConfig(action_cfg_dict["enabled"].cast<bool>(),
@@ -105,7 +105,7 @@ MettaGrid::MettaGrid(py::dict cfg, py::list map, int seed) {
 
   object_type_names.resize(object_configs.size());
 
-  for (const auto& [key, value] : object_configs) {
+  for (auto [key, value] : object_configs) {
     auto object_cfg = value.cast<py::dict>();
     TypeId type_id = object_cfg["type_id"].cast<TypeId>();
 
@@ -168,7 +168,7 @@ MettaGrid::MettaGrid(py::dict cfg, py::list map, int seed) {
         auto agent_cfg = _create_agent_config(object_cfg);
         Agent* agent = new Agent(r, c, agent_cfg);
         _grid->add_object(agent);
-        agent->agent_id = _agents.size();
+        agent->agent_id = static_cast<uint8_t>(_agents.size());
         agent->stats.set_environment(this);
         add_agent(agent);
         _group_sizes[agent->group] += 1;
@@ -196,7 +196,7 @@ MettaGrid::MettaGrid(py::dict cfg, py::list map, int seed) {
 MettaGrid::~MettaGrid() = default;
 
 void MettaGrid::init_action_handlers() {
-  _num_action_handlers = _action_handlers.size();
+  _num_action_handlers = static_cast<int>(_action_handlers.size());
   _max_action_priority = 0;
   _max_action_arg = 0;
   _max_action_args.resize(_action_handlers.size());
@@ -226,6 +226,17 @@ void MettaGrid::_compute_observation(unsigned int observer_row,
                                      size_t agent_idx,
                                      ActionType action,
                                      ActionArg action_arg) {
+  // Constants for bit packing
+  static constexpr uint8_t LOCATION_ROW_SHIFT = 4;
+  static constexpr uint8_t LOCATION_COL_MASK = 0x0F;
+
+  // Pack observation area coordinates into a single byte
+  // row: row index in observation array (0 to obs_height-1)
+  // col: column index in observation array (0 to obs_width-1)
+  auto _pack_location = [](uint8_t row, uint8_t col) -> uint8_t {
+    return (row << LOCATION_ROW_SHIFT) | (col & LOCATION_COL_MASK);
+  };
+
   // Calculate observation boundaries
   unsigned int obs_width_radius = observable_width >> 1;
   unsigned int obs_height_radius = observable_height >> 1;
@@ -254,53 +265,67 @@ void MettaGrid::_compute_observation(unsigned int observer_row,
   ObservationTokens agent_obs_tokens(agent_obs_ptr, observation_view.shape(1) - tokens_written);
   unsigned int episode_completion_pct = 0;
   if (max_steps > 0) {
-    episode_completion_pct =
-        static_cast<unsigned int>(std::round((static_cast<double>(current_step) / max_steps) * 255.0));
+    episode_completion_pct = static_cast<unsigned int>(
+        std::round((static_cast<float>(current_step) / max_steps) * std::numeric_limits<ObservationType>::max()));
   }
+
   int reward_int = static_cast<int>(std::round(rewards_view(agent_idx) * 100.0f));
-  reward_int = std::clamp(reward_int, 0, 255);
+  reward_int = std::clamp(reward_int, 0, static_cast<int>(std::numeric_limits<ObservationType>::max()));
+
   std::vector<PartialObservationToken> global_tokens = {
-      {ObservationFeature::EpisodeCompletionPct, static_cast<uint8_t>(episode_completion_pct)},
-      {ObservationFeature::LastAction, static_cast<uint8_t>(action)},
-      {ObservationFeature::LastActionArg, static_cast<uint8_t>(action_arg)},
-      {ObservationFeature::LastReward, static_cast<uint8_t>(reward_int)}};
+      {ObservationFeature::EpisodeCompletionPct, static_cast<ObservationType>(episode_completion_pct)},
+      {ObservationFeature::LastAction, static_cast<ObservationType>(action)},
+      {ObservationFeature::LastActionArg, static_cast<ObservationType>(action_arg)},
+      {ObservationFeature::LastReward, static_cast<ObservationType>(reward_int)}};
+
   // Global tokens are always at the center of the observation.
-  uint8_t global_location = static_cast<uint8_t>(obs_height_radius << 4 | obs_width_radius);
+  uint8_t global_location =
+      _pack_location(static_cast<uint8_t>(obs_height_radius), static_cast<uint8_t>(obs_width_radius));
+
   attempted_tokens_written +=
       _obs_encoder->append_tokens_if_room_available(agent_obs_tokens, global_tokens, global_location);
   tokens_written = std::min(attempted_tokens_written, static_cast<size_t>(observation_view.shape(1)));
 
-  // Order the tokens by distance from the agent, so if we need to drop tokens, we drop the farthest ones first.
+  // Order tokens by distance from agent (drop farthest if buffer fills)
   for (unsigned int distance = 0; distance <= obs_width_radius + obs_height_radius; distance++) {
-    for (unsigned int r = r_start; r < r_end; r++) {
-      // In this row, there should be one or two columns that have the correct [L1] distance.
+    for (GridCoord r = r_start; r < r_end; r++) {
       unsigned int r_dist = std::abs(static_cast<int>(r) - static_cast<int>(observer_row));
       if (r_dist > distance) continue;
+
       int c_dist = distance - r_dist;
-      // This is a bit ugly. We want to run over {c_dist, -c_dist}, but only do it once if c_dist == 0.
-      // Here's how we're trying to do that, and to be performant (e.g., not re-allocating a set).
-      for (int i = 0; i < 2; i++) {
-        if (c_dist == 0 && i == 1) continue;
-        int c_offset = i == 0 ? c_dist : -c_dist;
+
+      // Check columns at ±c_dist from observer
+      for (int c_offset : {c_dist, -c_dist}) {
+        if (c_offset == 0 && &c_offset != &c_dist) continue;  // Skip duplicate when c_dist=0
 
         int c = static_cast<int>(observer_col) + c_offset;
-        // c could still be outside of our bounds.
         if (c < static_cast<int>(c_start) || c >= static_cast<int>(c_end)) continue;
 
+        // Process all layers at this location
         for (Layer layer = 0; layer < GridLayer::GridLayerCount; layer++) {
-          GridLocation object_loc(r, c, layer);
+          GridLocation object_loc(r, static_cast<GridCoord>(c), layer);
           auto obj = _grid->object_at(object_loc);
           if (!obj) continue;
 
-          uint8_t* obs_data = observation_view.mutable_data(agent_idx, tokens_written, 0);
-          ObservationToken* this_agent_obs_ptr = reinterpret_cast<ObservationToken*>(obs_data);
-          ObservationTokens this_agent_obs_tokens(this_agent_obs_ptr, observation_view.shape(1) - tokens_written);
+          // Prepare observation buffer for this object
+          ObservationToken* obs_ptr =
+              reinterpret_cast<ObservationToken*>(observation_view.mutable_data(agent_idx, tokens_written, 0));
+          ObservationTokens obs_tokens(obs_ptr, observation_view.shape(1) - tokens_written);
 
-          int obs_r = object_loc.r + obs_height_radius - observer_row;
-          int obs_c = object_loc.c + obs_width_radius - observer_col;
-          uint8_t location = static_cast<uint8_t>(obs_r << 4 | obs_c);
+          // Grid position relative to observer
+          int rel_r = static_cast<int>(r) - static_cast<int>(observer_row);
+          int rel_c = static_cast<int>(c) - static_cast<int>(observer_col);
 
-          attempted_tokens_written += _obs_encoder->encode_tokens(obj, this_agent_obs_tokens, location);
+          // Convert to observation array indices (0-based)
+          int obs_r_int = rel_r + static_cast<int>(obs_height_radius);
+          int obs_c_int = rel_c + static_cast<int>(obs_width_radius);
+
+          uint8_t obs_r = static_cast<uint8_t>(obs_r_int);
+          uint8_t obs_c = static_cast<uint8_t>(obs_c_int);
+
+          uint8_t location = _pack_location(obs_r, obs_c);
+
+          attempted_tokens_written += _obs_encoder->encode_tokens(obj, obs_tokens, location);
           tokens_written = std::min(attempted_tokens_written, static_cast<size_t>(observation_view.shape(1)));
         }
       }
@@ -441,7 +466,7 @@ void MettaGrid::validate_buffers() {
   // We should validate once buffers and agents are set.
   // data types and contiguity are handled by pybind11. We still need to check
   // shape.
-  unsigned int num_agents = _agents.size();
+  unsigned int num_agents = static_cast<unsigned int>(_agents.size());
 
   auto observation_info = _observations.request();
   auto obs_shape = observation_info.shape;
@@ -476,10 +501,10 @@ void MettaGrid::validate_buffers() {
   }
 }
 
-void MettaGrid::set_buffers(const py::array_t<uint8_t, py::array::c_style>& observations,
-                            const py::array_t<bool, py::array::c_style>& terminals,
-                            const py::array_t<bool, py::array::c_style>& truncations,
-                            const py::array_t<float, py::array::c_style>& rewards) {
+void MettaGrid::set_buffers(const py::array_t<ObservationType, py::array::c_style>& observations,
+                            const py::array_t<TerminalType, py::array::c_style>& terminals,
+                            const py::array_t<TruncationType, py::array::c_style>& truncations,
+                            const py::array_t<RewardType, py::array::c_style>& rewards) {
   _observations = observations;
   _terminals = terminals;
   _truncations = truncations;
@@ -503,13 +528,13 @@ py::tuple MettaGrid::step(py::array_t<ActionType, py::array::c_style> actions) {
   // TODO: We're creating this vector every time we step, even though reward
   // should be sparse, and so we're unlikely to use it. We could decide to only
   // create it if we need it, but that would increase complexity.
-  std::vector<double> group_rewards(_group_sizes.size());
+  std::vector<RewardType> group_rewards(_group_sizes.size());
   for (size_t agent_idx = 0; agent_idx < _agents.size(); agent_idx++) {
     if (std::abs(rewards_view(agent_idx)) > 0.0f) {
       share_rewards = true;
       auto& agent = _agents[agent_idx];
       unsigned int group_id = agent->group;
-      float group_reward = rewards_view(agent_idx) * _group_reward_pct[group_id];
+      RewardType group_reward = rewards_view(agent_idx) * _group_reward_pct[group_id];
       rewards_view(agent_idx) -= group_reward;
       group_rewards[group_id] += group_reward / _group_sizes[group_id];
     }
@@ -519,7 +544,7 @@ py::tuple MettaGrid::step(py::array_t<ActionType, py::array::c_style> actions) {
     for (size_t agent_idx = 0; agent_idx < _agents.size(); agent_idx++) {
       auto& agent = _agents[agent_idx];
       unsigned int group_id = agent->group;
-      float group_reward = group_rewards[group_id];
+      RewardType group_reward = group_rewards[group_id];
       rewards_view(agent_idx) += group_reward;
     }
   }
@@ -593,7 +618,7 @@ py::dict MettaGrid::feature_spec() {
 }
 
 unsigned int MettaGrid::num_agents() {
-  return _agents.size();
+  return static_cast<unsigned int>(_agents.size());
 }
 
 py::array_t<float> MettaGrid::get_episode_rewards() {
@@ -657,8 +682,9 @@ py::object MettaGrid::observation_space() {
 
   auto observation_info = _observations.request();
   auto shape = observation_info.shape;
-  auto space_shape = py::tuple(observation_info.ndim - 1);
-  for (size_t i = 0; i < observation_info.ndim - 1; i++) {
+  size_t ndim = static_cast<size_t>(observation_info.ndim);
+  auto space_shape = py::tuple(ndim - 1);
+  for (size_t i = 0; i < ndim - 1; i++) {
     space_shape[i] = shape[i + 1];
   }
 
@@ -709,7 +735,7 @@ AgentConfig MettaGrid::_create_agent_config(const py::dict& agent_group_cfg_py) 
 }
 
 py::array_t<unsigned int> MettaGrid::get_agent_groups() const {
-  py::array_t<unsigned int> groups(_agents.size());
+  py::array_t<unsigned int> groups(static_cast<ssize_t>(_agents.size()));
   auto groups_view = groups.mutable_unchecked<1>();
   for (size_t i = 0; i < _agents.size(); i++) {
     groups_view(i) = _agents[i]->group;
@@ -737,7 +763,7 @@ ConverterConfig MettaGrid::_create_converter_config(const py::dict& converter_cf
   unsigned short conversion_ticks = converter_cfg_py["conversion_ticks"].cast<unsigned short>();
   unsigned short cooldown = converter_cfg_py["cooldown"].cast<unsigned short>();
   unsigned char initial_items = converter_cfg_py["initial_items"].cast<unsigned char>();
-  ObsType color = converter_cfg_py["color"].cast<ObsType>();
+  ObservationType color = converter_cfg_py["color"].cast<ObservationType>();
   TypeId type_id = converter_cfg_py["type_id"].cast<TypeId>();
   std::string type_name = converter_cfg_py["type_name"].cast<std::string>();
   return ConverterConfig{

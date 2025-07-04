@@ -30,13 +30,32 @@ protected:
   std::map<InventoryItem, short> _defense_resources;
 
   bool _handle_action(Agent* actor, ActionArg arg) override {
-    if (arg > 9 || arg < 1) {
+    if (arg < 1 || arg > 9) {
       return false;
     }
 
-    short distance = 1 + (arg - 1) / 3;
-    short offset = -((arg - 1) % 3 - 1);
+    // Attack positions form a 3x3 grid in front of the agent
+    // Visual representation (agent facing up):
+    //   7  8  9    (3 cells forward)
+    //   4  5  6    (2 cells forward)
+    //   1  2  3    (1 cell forward)
+    //      A       (Agent position)
+    static constexpr std::pair<short, short> ATTACK_POSITIONS[9] = {
+        {1, -1},  // arg 1: 1 forward, 1 left
+        {1, 0},   // arg 2: 1 forward, straight ahead
+        {1, 1},   // arg 3: 1 forward, 1 right
+        {2, -1},  // arg 4: 2 forward, 1 left
+        {2, 0},   // arg 5: 2 forward, straight ahead
+        {2, 1},   // arg 6: 2 forward, 1 right
+        {3, -1},  // arg 7: 3 forward, 1 left
+        {3, 0},   // arg 8: 3 forward, straight ahead
+        {3, 1},   // arg 9: 3 forward, 1 right
+    };
 
+    // Get attack position from lookup table
+    auto [distance, offset] = ATTACK_POSITIONS[arg - 1];  // C++17 structured binding
+
+    // Calculate target location relative to agent's position and orientation
     GridLocation target_loc = _grid->relative_location(actor->location, actor->orientation, distance, offset);
 
     return _handle_target(actor, target_loc);
@@ -109,9 +128,9 @@ protected:
 
           // Now apply the stealing
           for (const auto& [item, amount] : items_to_steal) {
-            int stolen = actor->update_inventory(item, amount);
+            int stolen = actor->update_inventory(item, static_cast<short>(amount));
 
-            agent_target->update_inventory(item, -stolen);
+            agent_target->update_inventory(item, static_cast<short>(-stolen));
             if (stolen > 0) {
               actor->stats.add(actor->stats.inventory_item_name(item) + ".stolen." + actor->group_name, stolen);
               // Also track what was stolen from the victim's perspective

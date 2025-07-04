@@ -41,7 +41,7 @@ protected:
       if (converter->inventory.count(item) == 0) {
         continue;
       }
-      short taken = actor->update_inventory(item, converter->inventory[item]);
+      short taken = actor->update_inventory(item, static_cast<short>(converter->inventory[item]));
 
       if (taken > 0) {
         actor->stats.add(actor->stats.inventory_item_name(item) + ".get", taken);

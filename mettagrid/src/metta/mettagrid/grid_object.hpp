@@ -6,20 +6,21 @@
 #include <string>
 #include <vector>
 
+#include "types.hpp"
 // using namespace std;  // Removed per cpplint
 
 typedef unsigned short Layer;
 typedef uint8_t TypeId;
 typedef unsigned int GridCoord;
-using ObsType = uint8_t;
+
 using InventoryItem = uint8_t;
 
 // These may make more sense in observation_encoder.hpp, but we need to include that
 // header in a lot of places, and it's nice to have these types defined in one place.
 struct alignas(1) ObservationToken {
-  uint8_t location;
-  uint8_t feature_id;
-  uint8_t value;
+  ObservationType location;
+  ObservationType feature_id;
+  ObservationType value;
 };
 
 // The alignas should make sure of this, but let's be explicit.
@@ -30,8 +31,8 @@ static_assert(sizeof(ObservationToken) == 3, "ObservationToken must be 3 bytes")
 using ObservationTokens = std::span<ObservationToken>;
 
 struct PartialObservationToken {
-  uint8_t feature_id;
-  uint8_t value;
+  ObservationType feature_id;
+  ObservationType value;
 };
 
 class GridLocation {

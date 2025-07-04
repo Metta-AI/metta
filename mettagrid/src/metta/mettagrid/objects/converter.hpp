@@ -20,7 +20,7 @@ struct ConverterConfig {
   unsigned short conversion_ticks;
   unsigned short cooldown;
   unsigned char initial_items;
-  ObsType color;
+  ObservationType color;
   TypeId type_id;
   std::string type_name;
 };

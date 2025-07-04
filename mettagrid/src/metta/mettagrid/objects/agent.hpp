@@ -68,12 +68,12 @@ public:
     this->reward = reward_ptr;
   }
 
-  int update_inventory(InventoryItem item, short amount) {
-    int current_amount = this->inventory[item];
+  short update_inventory(InventoryItem item, short amount) {
+    short current_amount = this->inventory[item];
     int new_amount = current_amount + amount;
     new_amount = std::clamp(new_amount, 0, static_cast<int>(this->max_items_per_type[item]));
 
-    int delta = new_amount - current_amount;
+    short delta = new_amount - current_amount;
     if (new_amount > 0) {
       this->inventory[item] = static_cast<uint8_t>(new_amount);
     } else {
