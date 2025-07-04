@@ -91,14 +91,18 @@ class MettaTrainer:
             trainer_cfg.simulation.evaluate_interval != 0
             and trainer_cfg.simulation.evaluate_interval < trainer_cfg.checkpoint.checkpoint_interval
         ):
-            raise ValueError("evaluate_interval must be at least as large as checkpoint_interval")
-
+            raise ValueError(
+                f"evaluate_interval must be at least as large as checkpoint_interval "
+                f"({trainer_cfg.simulation.evaluate_interval} < {trainer_cfg.checkpoint.checkpoint_interval})"
+            )
         if (
             trainer_cfg.simulation.evaluate_interval != 0
             and trainer_cfg.simulation.evaluate_interval < trainer_cfg.checkpoint.wandb_checkpoint_interval
         ):
-            raise ValueError("evaluate_interval must be at least as large as wandb_checkpoint_interval")
-
+            raise ValueError(
+                f"evaluate_interval must be at least as large as wandb_checkpoint_interval "
+                f"({trainer_cfg.simulation.evaluate_interval} < {trainer_cfg.checkpoint.wandb_checkpoint_interval})"
+            )
         # Validate that we save policies locally at least as often as we upload to wandb
         if (
             trainer_cfg.checkpoint.wandb_checkpoint_interval != 0
@@ -106,8 +110,9 @@ class MettaTrainer:
             and trainer_cfg.checkpoint.wandb_checkpoint_interval < trainer_cfg.checkpoint.checkpoint_interval
         ):
             raise ValueError(
-                "wandb_checkpoint_interval must be at least as large as checkpoint_interval "
-                "to ensure policies exist locally before uploading to wandb"
+                f"wandb_checkpoint_interval must be at least as large as checkpoint_interval "
+                f"to ensure policies exist locally before uploading to wandb "
+                f"({trainer_cfg.checkpoint.wandb_checkpoint_interval} < {trainer_cfg.checkpoint.checkpoint_interval})"
             )
 
         if trainer_cfg.checkpoint.checkpoint_dir:
