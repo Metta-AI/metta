@@ -4,8 +4,8 @@ import sys
 from pathlib import Path
 
 from metta.setup.config import CURRENT_CONFIG_VERSION, PROFILE_DEFINITIONS, SetupConfig, UserType
-from metta.setup.path_setup import PathSetup
 from metta.setup.registry import get_all_modules, get_applicable_modules
+from metta.setup.symlink_setup import PathSetup
 from metta.setup.utils import error, header, import_all_modules_from_subpackage, info, success, warning
 
 # Import all component modules to register them with the registry
@@ -61,9 +61,8 @@ class MettaCLI:
             success(f"\nConfigured as {user_type.value} user.")
         info("\nRun 'metta install' to set up your environment.")
 
-        # If not already in PATH, suggest path setup
         if not self.path_setup.check_installation():
-            info("You may also need to run 'metta path-setup' to add metta to your PATH.")
+            info("You may want to run 'metta symlink-setup' to make the metta command globally available.")
 
     def _custom_setup(self) -> None:
         info("\nSelect base profile for custom configuration:")
@@ -168,7 +167,7 @@ class MettaCLI:
             return text
         return text[: max_len - 3] + "..."
 
-    def cmd_path_setup(self, args) -> None:
+    def cmd_symlink_setup(self, args) -> None:
         self.path_setup.setup_path(force=args.force)
 
     def cmd_status(self, _args) -> None:
@@ -277,7 +276,7 @@ Examples:
   metta install                        # Install all configured components
   metta install aws wandb              # Install specific components
   metta status                         # Show component status
-  metta path-setup                     # Set up PATH configuration
+  metta symlink-setup                  # Set up symlink to make metta command globally available
             """,
         )
 
@@ -307,11 +306,11 @@ Examples:
         # Status command
         subparsers.add_parser("status", help="Show installation and authentication status of all components")
 
-        # Path setup command
-        path_parser = subparsers.add_parser(
-            "path-setup", help="Create symlink to make metta command globally available"
+        # Symlink setup command
+        symlink_parser = subparsers.add_parser(
+            "symlink-setup", help="Create symlink to make metta command globally available"
         )
-        path_parser.add_argument("--force", action="store_true", help="Replace existing metta command if it exists")
+        symlink_parser.add_argument("--force", action="store_true", help="Replace existing metta command if it exists")
 
         args = parser.parse_args()
 
@@ -338,8 +337,8 @@ Examples:
             self.cmd_install(args)
         elif args.command == "status":
             self.cmd_status(args)
-        elif args.command == "path-setup":
-            self.cmd_path_setup(args)
+        elif args.command == "symlink-setup":
+            self.cmd_symlink_setup(args)
         else:
             parser.print_help()
 

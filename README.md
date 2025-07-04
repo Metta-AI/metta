@@ -122,7 +122,6 @@ metta configure    # Reconfigure for a different profile
 ```
 ./install.sh --profile=softmax   # For Softmax employees
 ./install.sh --profile=external  # For external collaborators
-./install.sh --no-modify-path   # Skip PATH modification
 ./install.sh --help             # Show all available options
 ```
 

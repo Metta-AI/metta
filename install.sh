@@ -60,12 +60,10 @@ if ! check_cmd uv; then
     echo "\nuv is not installed. Installing uv..."
     curl -LsSf https://astral.sh/uv/install.sh | sh
 
-    # Source uv env to make it available in current session
     if [ -f "$HOME/.cargo/env" ]; then
         . "$HOME/.cargo/env"
     fi
 
-    # Verify uv is now available
     if ! check_cmd uv; then
         err "Failed to install uv. Please install it manually from https://github.com/astral-sh/uv"
     fi
@@ -73,22 +71,15 @@ fi
 
 cd "$SCRIPT_DIR" || err "Failed to change to project directory"
 uv sync || err "Failed to install Python dependencies"
-uv run python -m metta.setup.metta_cli path-setup || err "Failed to set up PATH"
+uv run python -m metta.setup.metta_cli symlink-setup || err "Failed to set up metta command in ~/.local/bin"
 uv run python -m metta.setup.metta_cli configure $PROFILE || err "Failed to run configuration"
 uv run python -m metta.setup.metta_cli install || err "Failed to install components"
 
 echo "\nSetup complete!\n"
 
-# Check if metta command is accessible
-if check_cmd metta; then
-    echo "You can now run commands like:"
-else
+if ! check_cmd metta; then
     echo "To start using metta, ensure ~/.local/bin is in your PATH:"
     echo "  export PATH=\"\$HOME/.local/bin:\$PATH\""
     echo ""
     echo "Add this to your shell profile (~/.bashrc, ~/.zshrc, etc.) to make it permanent."
-    echo ""
-    echo "Then you can use commands like:"
 fi
-echo "  metta status    # Check component status"
-echo "  metta install   # Install additional components"
