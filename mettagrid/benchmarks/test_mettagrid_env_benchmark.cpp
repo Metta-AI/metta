@@ -8,6 +8,9 @@
 #include <vector>
 
 #include "mettagrid_c.hpp"
+#include "objects/agent.hpp"
+#include "objects/converter.hpp"
+#include "objects/wall.hpp"
 
 namespace py = pybind11;
 
@@ -64,43 +67,43 @@ py::dict CreateBenchmarkConfig(int num_agents) {
 
   game_cfg["actions"] = actions_cfg;
 
-  // Groups configuration
-  py::dict agent_group1, agent_group2;
+  // Import mettagrid_c module to get Python configuration classes
+  py::module_ mettagrid_c = py::module_::import("metta.mettagrid.mettagrid_c");
 
-  agent_group1["freeze_duration"] = 0;
-  agent_group1["action_failure_penalty"] = 0;
-  agent_group1["max_items_per_type"] = py::dict();
-  agent_group1["resource_rewards"] = py::dict();
-  agent_group1["resource_reward_max"] = py::dict();
-  agent_group1["group_name"] = "team1";
-  agent_group1["group_id"] = 0;
-  agent_group1["group_reward_pct"] = 0.0f;
-  agent_group1["type_id"] = 0;
-  agent_group1["type_name"] = "agent";
-  agent_group1["object_type"] = "agent";
+  // Create Python AgentConfig objects
+  py::object AgentConfig = mettagrid_c.attr("AgentConfig");
+  py::object WallConfig = mettagrid_c.attr("WallConfig");
 
-  agent_group2["freeze_duration"] = 0;
-  agent_group2["action_failure_penalty"] = 0;
-  agent_group2["max_items_per_type"] = py::dict();
-  agent_group2["resource_rewards"] = py::dict();
-  agent_group2["resource_reward_max"] = py::dict();
-  agent_group2["group_name"] = "team2";
-  agent_group2["group_id"] = 1;
-  agent_group2["group_reward_pct"] = 0.0f;
-  agent_group2["type_id"] = 0;
-  agent_group2["type_name"] = "agent";
-  agent_group2["object_type"] = "agent";
+  py::object agent_cfg1 = AgentConfig(0,           // type_id
+                                      "agent",     // type_name
+                                      0,           // group_id
+                                      "team1",     // group_name
+                                      0,           // freeze_duration
+                                      0.0f,        // action_failure_penalty
+                                      py::dict(),  // max_items_per_type
+                                      py::dict(),  // resource_rewards
+                                      py::dict(),  // resource_reward_max
+                                      0.0f);       // group_reward_pct
+
+  py::object agent_cfg2 = AgentConfig(0,           // type_id
+                                      "agent",     // type_name
+                                      1,           // group_id
+                                      "team2",     // group_name
+                                      0,           // freeze_duration
+                                      0.0f,        // action_failure_penalty
+                                      py::dict(),  // max_items_per_type
+                                      py::dict(),  // resource_rewards
+                                      py::dict(),  // resource_reward_max
+                                      0.0f);       // group_reward_pct
 
   // Objects configuration
   py::dict objects_cfg;
-  py::dict wall_cfg;
+
+  py::object wall_cfg = WallConfig(1, "wall", false);
 
   objects_cfg["wall"] = wall_cfg;
-  objects_cfg["wall"]["type_id"] = 1;
-  objects_cfg["wall"]["type_name"] = "wall";
-  objects_cfg["wall"]["object_type"] = "wall";
-  objects_cfg["agent.team1"] = agent_group1;
-  objects_cfg["agent.team2"] = agent_group2;
+  objects_cfg["agent.team1"] = agent_cfg1;
+  objects_cfg["agent.team2"] = agent_cfg2;
 
   game_cfg["objects"] = objects_cfg;
 
