@@ -137,18 +137,6 @@ class ConverterConfig(BaseModelWithForbidExtra):
     color: Optional[int] = Field(default=None, ge=0, le=255)
 
 
-class RewardSharingGroup(RootModel[Dict[str, float]]):
-    """Reward sharing configuration for a group."""
-
-    pass
-
-
-class RewardSharingConfig(BaseModelWithForbidExtra):
-    """Reward sharing configuration."""
-
-    groups: Optional[Dict[str, RewardSharingGroup]] = None
-
-
 class GameConfig(BaseModelWithForbidExtra):
     """Game configuration."""
 
@@ -164,4 +152,3 @@ class GameConfig(BaseModelWithForbidExtra):
     groups: Dict[str, GroupConfig] = Field(min_length=1)
     actions: ActionsConfig
     objects: Dict[str, ConverterConfig | WallConfig]
-    reward_sharing: Optional[RewardSharingConfig] = None
