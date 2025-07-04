@@ -1,1 +1,2 @@
-./metta/setup/metta.sh
+#!/bin/bash
+./install.sh
