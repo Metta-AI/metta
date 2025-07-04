@@ -33,7 +33,6 @@ game:
         wall: 3 #50
 
   num_agents: 24
-  num_rooms: 4
   # num_agents: ???
   obs_width: 11
   obs_height: 11
