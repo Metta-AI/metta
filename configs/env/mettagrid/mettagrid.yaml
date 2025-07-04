@@ -11,7 +11,30 @@ defaults:
 sampling: 0
 
 game:
-  num_agents: ???
+  map_builder:
+    _target_: metta.mettagrid.room.multi_room.MultiRoom
+    num_rooms: ${..num_rooms}
+    border_width: 6
+
+    room:
+      _target_: metta.mettagrid.room.random.Random
+      width: 10 #25
+      height: 10 #25
+      border_width: 0
+
+      agents: 6
+
+      objects:
+        mine_red: 5 #10
+        generator_red: 5
+        altar: 5
+
+        block: 3 #50
+        wall: 3 #50
+
+  num_agents: 24
+  num_rooms: 4
+  # num_agents: ???
   obs_width: 11
   obs_height: 11
   num_observation_tokens: 200
