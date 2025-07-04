@@ -14,7 +14,8 @@ from metta.common.util.mettagrid_cfgs import (
     MettagridCfgFileMetadata,
 )
 from metta.common.util.resolvers import register_resolvers
-from metta.map.utils.storable_map import StorableMap, StorableMapDict, StorableMapIndex, map_builder_cfg_to_storable_map
+from metta.map.utils.storable_map import StorableMap, StorableMapDict, map_builder_cfg_to_storable_map
+from metta.map.utils.storable_map_index import StorableMapIndex
 from metta.mettagrid.util.file import read
 
 logger = logging.getLogger("metta.studio.server")
