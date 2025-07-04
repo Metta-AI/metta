@@ -75,7 +75,7 @@ class Area:
 # - a function that takes a MapGrid and returns a Scene instance (useful for children values produced in Python code)
 #
 # See `metta.map.scene.make_scene` implementation for more details.
-SceneCfg = dict | str | Callable[[Area], Any]
+SceneCfg = dict | str | Callable[[Area, np.random.Generator], Any]
 
 
 class AreaWhere(Config):
@@ -88,7 +88,6 @@ class AreaQuery(Config):
     lock: str | None = None
     where: Literal["full"] | AreaWhere | None = None
     order_by: Literal["random", "first", "last"] = "random"
-    order_by_seed: int | None = None
 
 
 class ChildrenAction(AreaQuery):

@@ -16,7 +16,7 @@ class Ascii(Scene[AsciiParams]):
     def get_children(self):
         return [
             ChildrenAction(
-                scene=lambda area: InlineAscii(area=area, params={"data": self.ascii_data}),
+                scene=InlineAscii.factory({"data": self.ascii_data}),
                 where="full",
             ),
             *self.children,
