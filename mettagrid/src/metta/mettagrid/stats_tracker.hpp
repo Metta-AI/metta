@@ -113,12 +113,17 @@ public:
     for (const auto& [key, count] : _update_count) {
       result[key + ".updates"] = static_cast<float>(count);
       result[key + ".rate"] = rate(key);
-      result[key + ".avg"] = result[key] / count;
+
+      auto it = _stats.find(key);
+      if (it != _stats.end()) {
+        float value = it->second;
+        result[key + ".avg"] = value / count;
+      }
 
       // Also calculate activity rate if there's a time span
-      if (_first_seen_at.count(key) && _last_seen_at.count(key)) {
+      if (_first_seen_at.contains(key) && _last_seen_at.contains(key)) {
         unsigned int first_step = _first_seen_at.at(key);  // Use .at() for const access
-        unsigned int last_step = _last_seen_at.at(key);    // Use .at() for const access
+        unsigned int last_step = _last_seen_at.at(key);
         unsigned int duration = last_step - first_step;
 
         if (duration > 0 && count > 1) {

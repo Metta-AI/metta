@@ -15,13 +15,13 @@ typedef vector<vector<vector<GridObjectId>>> GridType;
 
 class Grid {
 public:
-  unsigned int width;
-  unsigned int height;
+  GridCoord height;
+  GridCoord width;
 
   GridType grid;
   vector<std::unique_ptr<GridObject>> objects;
 
-  inline Grid(unsigned int width, unsigned int height) : width(width), height(height) {
+  inline Grid(GridCoord height, GridCoord width) : height(height), width(width) {
     grid.resize(height, vector<vector<GridObjectId>>(width, vector<GridObjectId>(GridLayer::GridLayerCount, 0)));
 
     // 0 is reserved for empty space
@@ -30,8 +30,12 @@ public:
 
   virtual ~Grid() = default;
 
-  inline char add_object(GridObject* obj) {
-    if (obj->location.r >= height || obj->location.c >= width || obj->location.layer >= GridLayer::GridLayerCount) {
+  inline bool is_valid_location(const GridLocation& loc) const {
+    return loc.r < height && loc.c < width && loc.layer < GridLayer::GridLayerCount;
+  }
+
+  inline bool add_object(GridObject* obj) {
+    if (!is_valid_location(obj->location)) {
       return false;
     }
     if (this->grid[obj->location.r][obj->location.c][obj->location.layer] != 0) {
@@ -54,8 +58,8 @@ public:
     return std::unique_ptr<GridObject>(obj_ptr);
   }
 
-  inline char move_object(GridObjectId id, const GridLocation& loc) {
-    if (loc.r >= height || loc.c >= width || loc.layer >= GridLayer::GridLayerCount) {
+  inline bool move_object(GridObjectId id, const GridLocation& loc) {
+    if (!is_valid_location(loc)) {
       return false;
     }
 
@@ -72,31 +76,27 @@ public:
 
   inline void swap_objects(GridObjectId id1, GridObjectId id2) {
     GridObject* obj1 = object(id1);
-    GridLocation loc1 = obj1->location;
-    Layer layer1 = loc1.layer;
-    grid[loc1.r][loc1.c][loc1.layer] = 0;
-
     GridObject* obj2 = object(id2);
-    GridLocation loc2 = obj2->location;
-    Layer layer2 = loc2.layer;
-    grid[loc2.r][loc2.c][loc2.layer] = 0;
 
-    // Keep the layer the same
-    obj1->location = loc2;
-    obj1->location.layer = layer1;
-    obj2->location = loc1;
-    obj2->location.layer = layer2;
+    // Clear current positions
+    grid[obj1->location.r][obj1->location.c][obj1->location.layer] = 0;
+    grid[obj2->location.r][obj2->location.c][obj2->location.layer] = 0;
 
+    // Swap locations but keep original layers
+    std::swap(obj1->location.r, obj2->location.r);
+    std::swap(obj1->location.c, obj2->location.c);
+
+    // Update grid
     grid[obj1->location.r][obj1->location.c][obj1->location.layer] = id1;
     grid[obj2->location.r][obj2->location.c][obj2->location.layer] = id2;
   }
 
-  inline GridObject* object(GridObjectId obj_id) {
+  inline GridObject* object(GridObjectId obj_id) const {
     return objects[obj_id].get();
   }
 
-  inline GridObject* object_at(const GridLocation& loc) {
-    if (loc.r >= height || loc.c >= width || loc.layer >= GridLayer::GridLayerCount) {
+  inline GridObject* object_at(const GridLocation& loc) const {
+    if (!is_valid_location(loc)) {
       return nullptr;
     }
     if (grid[loc.r][loc.c][loc.layer] == 0) {
@@ -110,37 +110,35 @@ public:
   }
 
   inline const GridLocation relative_location(const GridLocation& loc,
-                                              Orientation orientation,
-                                              GridCoord distance,
-                                              GridCoord offset) {
+                                              Orientation facing,
+                                              short forward_distance,  // + is forward, - is backward
+                                              short lateral_offset) {  // + is right, - is left
     const int r = static_cast<int>(loc.r);
     const int c = static_cast<int>(loc.c);
-    const int dist = static_cast<int>(distance);
-    const int off = static_cast<int>(offset);
 
     int new_r = r;
     int new_c = c;
 
-    switch (orientation) {
+    switch (facing) {
       case Up:
-        new_r = r - dist;
-        new_c = c - off;
+        new_r = r - forward_distance;  // Up means decreasing row (toward 0)
+        new_c = c - lateral_offset;    // Positive offset = right
         break;
       case Down:
-        new_r = r + dist;
-        new_c = c + off;
+        new_r = r + forward_distance;  // Down means increasing row
+        new_c = c + lateral_offset;    // Positive offset = right
         break;
       case Left:
-        new_r = r + off;
-        new_c = c - dist;
+        new_r = r + lateral_offset;    // Positive offset = right (which is down)
+        new_c = c - forward_distance;  // Left means decreasing column
         break;
       case Right:
-        new_r = r - off;
-        new_c = c + dist;
+        new_r = r - lateral_offset;    // Positive offset = right (which is up)
+        new_c = c + forward_distance;  // Right means increasing column
         break;
     }
-    new_r = max(0, new_r);
-    new_c = max(0, new_c);
+    new_r = std::clamp(new_r, 0, static_cast<int>(height - 1));
+    new_c = std::clamp(new_c, 0, static_cast<int>(width - 1));
     return GridLocation(static_cast<GridCoord>(new_r), static_cast<GridCoord>(new_c), loc.layer);
   }
 
@@ -148,17 +146,11 @@ public:
     return this->relative_location(loc, orientation, 1, 0);
   }
 
-  inline char is_empty(unsigned int row, unsigned int col) {
-    GridLocation loc;
-    loc.r = row;
-    loc.c = col;
-    for (int layer = 0; layer < GridLayer::GridLayerCount; ++layer) {
-      loc.layer = static_cast<Layer>(layer);
-      if (object_at(loc) != nullptr) {
-        return 0;
-      }
+  inline bool is_empty(GridCoord row, GridCoord col) const {
+    for (const auto& layer_objects : grid[row][col]) {
+      if (layer_objects != 0) return false;
     }
-    return 1;
+    return true;
   }
 };
 
