@@ -3,6 +3,7 @@
 #include <pybind11/numpy.h>
 #include <pybind11/stl.h>
 
+#include <iostream>
 #include <memory>
 #include <random>
 #include <vector>
@@ -24,6 +25,16 @@ namespace py = pybind11;
 // 3. Work directly with C++ types (std::vector, std::map, etc.)
 //
 // We'll know we've succeeded when this file has zero references to pybind11!
+
+// Helper to print Python path for debugging
+void PrintPythonPath() {
+  py::module_ sys = py::module_::import("sys");
+  py::list path = sys.attr("path");
+  std::cout << "Python path:" << std::endl;
+  for (auto item : path) {
+    std::cout << "  " << py::str(item) << std::endl;
+  }
+}
 
 // Helper functions for creating configuration and map
 py::dict CreateBenchmarkConfig(int num_agents) {
@@ -67,45 +78,86 @@ py::dict CreateBenchmarkConfig(int num_agents) {
 
   game_cfg["actions"] = actions_cfg;
 
-  // Import mettagrid_c module to get Python configuration classes
-  py::module_ mettagrid_c = py::module_::import("metta.mettagrid.mettagrid_c");
+  try {
+    // Try to import the module with better error handling
+    py::module_ mettagrid_c = py::module_::import("metta.mettagrid.mettagrid_c");
 
-  // Create Python AgentConfig objects
-  py::object AgentConfig = mettagrid_c.attr("AgentConfig");
-  py::object WallConfig = mettagrid_c.attr("WallConfig");
+    // Create Python AgentConfig objects
+    py::object AgentConfig = mettagrid_c.attr("AgentConfig");
+    py::object WallConfig = mettagrid_c.attr("WallConfig");
 
-  py::object agent_cfg1 = AgentConfig(0,           // type_id
-                                      "agent",     // type_name
-                                      0,           // group_id
-                                      "team1",     // group_name
-                                      0,           // freeze_duration
-                                      0.0f,        // action_failure_penalty
-                                      py::dict(),  // max_items_per_type
-                                      py::dict(),  // resource_rewards
-                                      py::dict(),  // resource_reward_max
-                                      0.0f);       // group_reward_pct
+    py::object agent_cfg1 = AgentConfig(0,           // type_id
+                                        "agent",     // type_name
+                                        0,           // group_id
+                                        "team1",     // group_name
+                                        0,           // freeze_duration
+                                        0.0f,        // action_failure_penalty
+                                        py::dict(),  // max_items_per_type
+                                        py::dict(),  // resource_rewards
+                                        py::dict(),  // resource_reward_max
+                                        0.0f);       // group_reward_pct
 
-  py::object agent_cfg2 = AgentConfig(0,           // type_id
-                                      "agent",     // type_name
-                                      1,           // group_id
-                                      "team2",     // group_name
-                                      0,           // freeze_duration
-                                      0.0f,        // action_failure_penalty
-                                      py::dict(),  // max_items_per_type
-                                      py::dict(),  // resource_rewards
-                                      py::dict(),  // resource_reward_max
-                                      0.0f);       // group_reward_pct
+    py::object agent_cfg2 = AgentConfig(0,           // type_id
+                                        "agent",     // type_name
+                                        1,           // group_id
+                                        "team2",     // group_name
+                                        0,           // freeze_duration
+                                        0.0f,        // action_failure_penalty
+                                        py::dict(),  // max_items_per_type
+                                        py::dict(),  // resource_rewards
+                                        py::dict(),  // resource_reward_max
+                                        0.0f);       // group_reward_pct
 
-  // Objects configuration
-  py::dict objects_cfg;
+    // Objects configuration
+    py::dict objects_cfg;
 
-  py::object wall_cfg = WallConfig(1, "wall", false);
+    py::object wall_cfg = WallConfig(1, "wall", false);
 
-  objects_cfg["wall"] = wall_cfg;
-  objects_cfg["agent.team1"] = agent_cfg1;
-  objects_cfg["agent.team2"] = agent_cfg2;
+    objects_cfg["wall"] = wall_cfg;
+    objects_cfg["agent.team1"] = agent_cfg1;
+    objects_cfg["agent.team2"] = agent_cfg2;
 
-  game_cfg["objects"] = objects_cfg;
+    game_cfg["objects"] = objects_cfg;
+  } catch (const py::error_already_set& e) {
+    std::cerr << "Failed to import module or create configs: " << e.what() << std::endl;
+    PrintPythonPath();
+
+    // Alternative: Create configs using C++ objects directly and convert to Python
+    std::cerr << "Attempting to create configs directly..." << std::endl;
+
+    // Create C++ configs
+    AgentConfig cpp_agent_cfg1(0,
+                               "agent",
+                               0,
+                               "team1",
+                               0,
+                               0.0f,
+                               std::map<InventoryItem, uint8_t>(),
+                               std::map<InventoryItem, float>(),
+                               std::map<InventoryItem, float>(),
+                               0.0f);
+
+    AgentConfig cpp_agent_cfg2(0,
+                               "agent",
+                               1,
+                               "team2",
+                               0,
+                               0.0f,
+                               std::map<InventoryItem, uint8_t>(),
+                               std::map<InventoryItem, float>(),
+                               std::map<InventoryItem, float>(),
+                               0.0f);
+
+    WallConfig cpp_wall_cfg(1, "wall", false);
+
+    // Try to convert to Python objects
+    py::dict objects_cfg;
+    objects_cfg["wall"] = py::cast(cpp_wall_cfg);
+    objects_cfg["agent.team1"] = py::cast(cpp_agent_cfg1);
+    objects_cfg["agent.team2"] = py::cast(cpp_agent_cfg2);
+
+    game_cfg["objects"] = objects_cfg;
+  }
 
   return game_cfg;
 }
@@ -199,48 +251,54 @@ std::vector<py::array_t<int>> PreGenerateActionSequence(MettaGrid* env, int num_
 
 // Matching Python test_step_performance_no_reset
 static void BM_MettaGridStep(benchmark::State& state) {  // NOLINT(runtime/references)
-  // Setup with default 4 agents (matching Python benchmark config)
-  int num_agents = 4;
-  auto cfg = CreateBenchmarkConfig(num_agents);
-  auto map = CreateDefaultMap(2);
+  try {
+    // Setup with default 4 agents (matching Python benchmark config)
+    int num_agents = 4;
+    auto cfg = CreateBenchmarkConfig(num_agents);
+    auto map = CreateDefaultMap(2);
 
-  auto env = std::make_unique<MettaGrid>(cfg, map, 42);
-  env->reset();
+    auto env = std::make_unique<MettaGrid>(cfg, map, 42);
+    env->reset();
 
-  // Verify agent count
-  if (env->num_agents() != num_agents) {
-    state.SkipWithError("Agent count mismatch");
-    return;
+    // Verify agent count
+    if (env->num_agents() != num_agents) {
+      state.SkipWithError("Agent count mismatch");
+      return;
+    }
+
+    // Pre-generate action sequence matching Python benchmark
+    // Python uses: iterations = 1000, rounds = 20, total = 20000
+    const int iterations = 1000;
+    const int rounds = 20;
+    const int total_iterations = iterations * rounds;
+
+    auto action_sequence = PreGenerateActionSequence(env.get(), num_agents, total_iterations);
+
+    // Counter to track which action to use
+    size_t iteration_counter = 0;
+
+    // Benchmark loop
+    for (auto _ : state) {
+      // Get the next action from the pre-generated sequence
+      const auto& actions = action_sequence[iteration_counter % action_sequence.size()];
+      iteration_counter++;
+
+      // Perform the step
+      auto result = env->step(actions);
+      benchmark::DoNotOptimize(result);
+
+      // Note: Intentionally ignoring termination states to measure pure step performance,
+      // matching the Python implementation
+    }
+
+    // Report steps/second as custom counters
+    state.counters["env_rate"] = benchmark::Counter(state.iterations(), benchmark::Counter::kIsRate);
+    state.counters["agent_rate"] = benchmark::Counter(state.iterations() * num_agents, benchmark::Counter::kIsRate);
+  } catch (const py::error_already_set& e) {
+    state.SkipWithError(("Python error: " + std::string(e.what())).c_str());
+  } catch (const std::exception& e) {
+    state.SkipWithError(("C++ error: " + std::string(e.what())).c_str());
   }
-
-  // Pre-generate action sequence matching Python benchmark
-  // Python uses: iterations = 1000, rounds = 20, total = 20000
-  const int iterations = 1000;
-  const int rounds = 20;
-  const int total_iterations = iterations * rounds;
-
-  auto action_sequence = PreGenerateActionSequence(env.get(), num_agents, total_iterations);
-
-  // Counter to track which action to use
-  size_t iteration_counter = 0;
-
-  // Benchmark loop
-  for (auto _ : state) {
-    // Get the next action from the pre-generated sequence
-    const auto& actions = action_sequence[iteration_counter % action_sequence.size()];
-    iteration_counter++;
-
-    // Perform the step
-    auto result = env->step(actions);
-    benchmark::DoNotOptimize(result);
-
-    // Note: Intentionally ignoring termination states to measure pure step performance,
-    // matching the Python implementation
-  }
-
-  // Report steps/second as custom counters
-  state.counters["env_rate"] = benchmark::Counter(state.iterations(), benchmark::Counter::kIsRate);
-  state.counters["agent_rate"] = benchmark::Counter(state.iterations() * num_agents, benchmark::Counter::kIsRate);
 }
 
 // Register benchmarks to match Python tests
@@ -248,11 +306,32 @@ BENCHMARK(BM_MettaGridStep)->Unit(benchmark::kMillisecond);
 
 // Custom main that properly initializes Python
 int main(int argc, char** argv) {
-  py::scoped_interpreter guard{};
+  try {
+    py::scoped_interpreter guard{};
 
-  ::benchmark::Initialize(&argc, argv);
-  ::benchmark::RunSpecifiedBenchmarks();
-  ::benchmark::Shutdown();
+    // Add current directory to Python path
+    py::module_ sys = py::module_::import("sys");
+    py::list path = sys.attr("path");
+    path.insert(0, ".");
+
+    // Try to verify module can be imported
+    std::cout << "Attempting to import metta.mettagrid.mettagrid_c..." << std::endl;
+    try {
+      py::module_::import("metta.mettagrid.mettagrid_c");
+      std::cout << "Module imported successfully!" << std::endl;
+    } catch (const py::error_already_set& e) {
+      std::cerr << "Failed to import module: " << e.what() << std::endl;
+      PrintPythonPath();
+      return 1;
+    }
+
+    ::benchmark::Initialize(&argc, argv);
+    ::benchmark::RunSpecifiedBenchmarks();
+    ::benchmark::Shutdown();
+  } catch (const std::exception& e) {
+    std::cerr << "Fatal error: " << e.what() << std::endl;
+    return 1;
+  }
 
   return 0;
 }
