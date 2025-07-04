@@ -1,14 +1,14 @@
 import copy
-from typing import Any, Dict, List, ClassVar
+from typing import Any, ClassVar, Dict, List
 
-from pydantic import Field, conint, ConfigDict
+from pydantic import ConfigDict, Field, conint
 
 from metta.common.util.typed_config import BaseModelWithForbidExtra
+from metta.mettagrid.mettagrid_c import ActionConfig as ActionConfig_cpp
 from metta.mettagrid.mettagrid_c import AgentConfig as AgentConfig_cpp
+from metta.mettagrid.mettagrid_c import AttackActionConfig as AttackActionConfig_cpp
 from metta.mettagrid.mettagrid_c import ConverterConfig as ConverterConfig_cpp
 from metta.mettagrid.mettagrid_c import WallConfig as WallConfig_cpp
-from metta.mettagrid.mettagrid_c import AttackActionConfig as AttackActionConfig_cpp
-from metta.mettagrid.mettagrid_c import ActionConfig as ActionConfig_cpp
 from metta.mettagrid.mettagrid_config import ConverterConfig as ConverterConfig_py
 from metta.mettagrid.mettagrid_config import GameConfig as GameConfig_py
 from metta.mettagrid.mettagrid_config import WallConfig as WallConfig_py
