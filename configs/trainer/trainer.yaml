@@ -1,6 +1,6 @@
 _target_: metta.rl.trainer.MettaTrainer
 
-num_workers: ???
+num_workers: ${detect_num_workers:}
 
 curriculum: /env/mettagrid/curriculum/simple
 env_overrides: {}
