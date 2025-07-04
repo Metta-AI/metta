@@ -1,7 +1,7 @@
 import copy
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Dict, List, Literal
 
-from pydantic import Field, RootModel, conint
+from pydantic import Field, conint
 
 from metta.common.util.typed_config import BaseModelWithForbidExtra
 from metta.mettagrid.mettagrid_c import AgentConfig as AgentConfig_cpp
@@ -56,18 +56,6 @@ class ObjectConfig_cpp(BaseModelWithForbidExtra):
     type_name: str
 
 
-class RewardSharingGroup_cpp(RootModel[Dict[str, float]]):
-    """Reward sharing configuration for a group."""
-
-    pass
-
-
-class RewardSharingConfig_cpp(BaseModelWithForbidExtra):
-    """Reward sharing configuration."""
-
-    groups: Optional[Dict[str, RewardSharingGroup_cpp]] = None
-
-
 class GameConfig_cpp(BaseModelWithForbidExtra):
     """Game configuration."""
 
@@ -79,7 +67,6 @@ class GameConfig_cpp(BaseModelWithForbidExtra):
     num_observation_tokens: int = Field(ge=1)
     actions: ActionsConfig_cpp
     objects: Dict[str, Any]
-    reward_sharing: Optional[RewardSharingConfig_cpp] = None
 
 
 def from_mettagrid_config(mettagrid_config: GameConfig_py) -> GameConfig_cpp:
