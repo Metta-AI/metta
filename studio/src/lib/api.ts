@@ -37,6 +37,20 @@ export async function getStoredMapDirs(): Promise<string[]> {
   return parsed;
 }
 
+async function fetchApi<T extends z.ZodTypeAny>(
+  url: string,
+  schema: T
+): Promise<z.infer<T>> {
+  const response = await fetch(url);
+  if (response.status === 500) {
+    const data = await response.json();
+    const detail = String(data.detail) || "Unknown error";
+    throw new Error(detail);
+  }
+  const data = await response.json();
+  return schema.parse(data);
+}
+
 export async function findStoredMaps(
   dir: string,
   filters: { key: string; value: string }[] = []
@@ -47,31 +61,29 @@ export async function findStoredMaps(
       .map((f) => `${f.key}=${encodeURIComponent(f.value)}`)
       .join(","),
   });
-  const response = await fetch(
-    `${API_URL}/stored-maps/find-maps?${searchParams}`
+  const data = await fetchApi(
+    `${API_URL}/stored-maps/find-maps?${searchParams}`,
+    z.object({ maps: z.array(z.string()) })
   );
-  const data = await response.json();
-  const parsed = z.array(z.string()).parse(data.maps);
-  return parsed.map((url) => ({ url }));
+  return data.maps.map((url) => ({ url }));
 }
 
 export async function getStoredMap(url: string): Promise<StorableMap> {
-  const response = await fetch(`${API_URL}/stored-maps/get-map?url=${url}`);
-  const data = await response.json();
-  return storableMapSchema.parse(data);
+  return fetchApi(
+    `${API_URL}/stored-maps/get-map?url=${url}`,
+    storableMapSchema
+  );
 }
 
 export async function loadStoredMapIndex(dir: string): Promise<MapIndex> {
-  const response = await fetch(
-    `${API_URL}/stored-maps/get-index?dir=${encodeURIComponent(dir)}`
-  );
-  const data = await response.json();
-
   const mapIndexSchema = z.record(
     z.string(),
     z.record(z.string(), z.array(z.string()))
   );
-  return mapIndexSchema.parse(data);
+  return await fetchApi(
+    `${API_URL}/stored-maps/get-index?dir=${encodeURIComponent(dir)}`,
+    mapIndexSchema
+  );
 }
 
 const mettagridCfgFileMetadataSchema = z.object({
@@ -97,43 +109,26 @@ const mettagridCfgsMetadataSchema = z.object({
 type MettagridCfgsMetadata = z.infer<typeof mettagridCfgsMetadataSchema>;
 
 export async function listMettagridCfgsMetadata(): Promise<MettagridCfgsMetadata> {
-  const response = await fetch(`${API_URL}/mettagrid-cfgs`);
-  const data = await response.json();
-  const parsed = mettagridCfgsMetadataSchema.parse(data);
-  return parsed;
+  return await fetchApi(
+    `${API_URL}/mettagrid-cfgs`,
+    mettagridCfgsMetadataSchema
+  );
 }
 
 export async function getMettagridCfgFile(
   path: string
 ): Promise<MettagridCfgFile> {
-  const response = await fetch(
-    `${API_URL}/mettagrid-cfgs/get?path=${encodeURIComponent(path)}`
+  return await fetchApi(
+    `${API_URL}/mettagrid-cfgs/get?path=${encodeURIComponent(path)}`,
+    mettagridCfgFileSchema
   );
-  const data = await response.json();
-  return mettagridCfgFileSchema.parse(data);
 }
 
-export type MaybeStorableMap =
-  | {
-      type: "map";
-      data: StorableMap;
-    }
-  | {
-      type: "error";
-      error: string;
-    };
-
-export async function getMettagridCfgMap(
-  path: string
-): Promise<MaybeStorableMap> {
-  const response = await fetch(
-    `${API_URL}/mettagrid-cfgs/get-map?path=${encodeURIComponent(path)}`
+export async function getMettagridCfgMap(path: string): Promise<StorableMap> {
+  return await fetchApi(
+    `${API_URL}/mettagrid-cfgs/get-map?path=${encodeURIComponent(path)}`,
+    storableMapSchema
   );
-  const data = await response.json();
-  if ("error" in data) {
-    return { type: "error", error: String(data.error) };
-  }
-  return { type: "map", data: storableMapSchema.parse(data) };
 }
 
 export async function indexDir(dir: string): Promise<void> {

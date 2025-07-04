@@ -4,7 +4,7 @@ import os
 from urllib.parse import unquote
 
 import uvicorn
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from typing_extensions import TypedDict
 
@@ -19,6 +19,10 @@ from metta.map.utils.storable_map_index import StorableMapIndex
 from metta.mettagrid.util.file import read
 
 logger = logging.getLogger("metta.studio.server")
+
+
+class ErrorResult(TypedDict):
+    error: str
 
 
 def make_app():
@@ -93,12 +97,13 @@ def make_app():
         return result
 
     @app.get("/mettagrid-cfgs/get")
-    async def route_mettagrid_cfgs_get(path: str) -> MettagridCfgFile.AsDict:
-        cfg = MettagridCfgFile.from_path(path)
-        return cfg.to_dict()
-
-    class ErrorResult(TypedDict):
-        error: str
+    async def route_mettagrid_cfgs_get(path: str) -> MettagridCfgFile.AsDict | ErrorResult:
+        try:
+            cfg = MettagridCfgFile.from_path(path)
+            return cfg.to_dict()
+        except Exception as e:
+            logger.error(f"Error getting mettagrid cfg for {path}: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=str(e)) from e
 
     @app.get("/mettagrid-cfgs/get-map")
     async def route_mettagrid_cfgs_get_map(path: str) -> StorableMapDict | ErrorResult:
@@ -110,9 +115,7 @@ def make_app():
             return storable_map.to_dict()
         except Exception as e:
             logger.error(f"Error getting map for {path}: {e}", exc_info=True)
-            return {
-                "error": str(e),
-            }
+            raise HTTPException(status_code=500, detail=str(e)) from e
 
     class RepoRootResult(TypedDict):
         repo_root: str
