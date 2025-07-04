@@ -1,4 +1,5 @@
 import datetime
+import os
 import platform
 import random
 from typing import Any, Dict, TypeVar, Union
@@ -291,8 +292,6 @@ def oc_detect_num_workers() -> int:
     if vectorization == "serial":
         return 1
     else:
-        import os
-
         # Use half the CPU cores for workers, with a minimum of 1
         return max(1, os.cpu_count() // 2)
 
