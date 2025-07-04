@@ -280,8 +280,8 @@ def oc_detect_vectorization() -> str:
     device = oc_detect_device()
     is_mac = platform.system() == "Darwin"
 
-    # Use serial for Mac or when GPU is available (simpler for development)
-    if is_mac or device == "cuda":
+    # Use serial only for Mac by default for development
+    if is_mac or device == "cpu":
         return "serial"
     else:
         return "multiprocessing"
@@ -292,8 +292,17 @@ def oc_detect_num_workers() -> int:
     if vectorization == "serial":
         return 1
     else:
-        # Use half the CPU cores for workers, with a minimum of 1
-        return max(1, os.cpu_count() // 2)
+        return max(1, (os.cpu_count() or 1) // 2)
+
+
+def oc_detect_async_factor() -> int:
+    vectorization = oc_detect_vectorization()
+    return 1 if vectorization == "serial" else 2
+
+
+def oc_detect_zero_copy() -> bool:
+    vectorization = oc_detect_vectorization()
+    return vectorization == "multiprocessing"
 
 
 class ResolverRegistrar(Callback):
@@ -379,6 +388,10 @@ class ResolverRegistrar(Callback):
         OmegaConf.register_new_resolver("detect_vectorization", oc_detect_vectorization, replace=True)
         self.resolver_count += 1
         OmegaConf.register_new_resolver("detect_num_workers", oc_detect_num_workers, replace=True)
+        self.resolver_count += 1
+        OmegaConf.register_new_resolver("detect_async_factor", oc_detect_async_factor, replace=True)
+        self.resolver_count += 1
+        OmegaConf.register_new_resolver("detect_zero_copy", oc_detect_zero_copy, replace=True)
         self.resolver_count += 1
         return self
 
