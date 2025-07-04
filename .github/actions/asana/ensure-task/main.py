@@ -466,6 +466,7 @@ def ensure_github_url_in_asana_task(
         return response.json()
     else:
         print(f"Asana API Error: {response.status_code} - {response.text}")
+        print(f"api_key: {asana_attachment_secret[:4]}...")
         return None
 
 
