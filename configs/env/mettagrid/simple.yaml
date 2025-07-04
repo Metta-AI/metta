@@ -4,7 +4,6 @@ defaults:
       - basic
       - mines
       - generators
-      - combat
 
   - _self_
 
