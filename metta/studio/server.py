@@ -14,7 +14,7 @@ from metta.common.util.mettagrid_cfgs import (
     MettagridCfgFileMetadata,
 )
 from metta.common.util.resolvers import register_resolvers
-from metta.map.utils.storable_map import StorableMap, StorableMapDict, map_builder_cfg_to_storable_map
+from metta.map.utils.storable_map import StorableMap, StorableMapDict
 from metta.map.utils.storable_map_index import StorableMapIndex
 from metta.mettagrid.util.file import read
 
@@ -106,7 +106,7 @@ def make_app():
 
         try:
             map_cfg = cfg.get_map_cfg()
-            storable_map = map_builder_cfg_to_storable_map(map_cfg)
+            storable_map = StorableMap.from_cfg(map_cfg)
             return storable_map.to_dict()
         except Exception as e:
             logger.error(f"Error getting map for {path}: {e}", exc_info=True)
@@ -126,9 +126,13 @@ def make_app():
     return app
 
 
-def main():
-    app = make_app()
-    uvicorn.run(app, host="0.0.0.0", port=8001)
+def main() -> None:
+    uvicorn.run(
+        "metta.studio.server:make_app",
+        port=8001,
+        factory=True,
+        reload=True,
+    )
 
 
 if __name__ == "__main__":
