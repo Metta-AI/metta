@@ -1,8 +1,10 @@
 import datetime
+import platform
 import random
 from typing import Any, Dict, TypeVar, Union
 
 import numpy as np
+import torch
 from hydra.experimental.callback import Callback
 from omegaconf import DictConfig, OmegaConf
 
@@ -266,6 +268,35 @@ def oc_date_format(format_string: str) -> str:
     return now.strftime(python_format)
 
 
+def oc_detect_device() -> str:
+    if torch.cuda.is_available():
+        return "cuda"
+    else:
+        return "cpu"
+
+
+def oc_detect_vectorization() -> str:
+    device = oc_detect_device()
+    is_mac = platform.system() == "Darwin"
+
+    # Use serial for Mac or when GPU is available (simpler for development)
+    if is_mac or device == "cuda":
+        return "serial"
+    else:
+        return "multiprocessing"
+
+
+def oc_detect_num_workers() -> int:
+    vectorization = oc_detect_vectorization()
+    if vectorization == "serial":
+        return 1
+    else:
+        import os
+
+        # Use half the CPU cores for workers, with a minimum of 1
+        return max(1, os.cpu_count() // 2)
+
+
 class ResolverRegistrar(Callback):
     """Class for registering custom OmegaConf resolvers."""
 
@@ -343,6 +374,12 @@ class ResolverRegistrar(Callback):
         OmegaConf.register_new_resolver("iir", oc_iir, replace=True)
         self.resolver_count += 1
         OmegaConf.register_new_resolver("now", oc_date_format, replace=True)
+        self.resolver_count += 1
+        OmegaConf.register_new_resolver("detect_device", oc_detect_device, replace=True)
+        self.resolver_count += 1
+        OmegaConf.register_new_resolver("detect_vectorization", oc_detect_vectorization, replace=True)
+        self.resolver_count += 1
+        OmegaConf.register_new_resolver("detect_num_workers", oc_detect_num_workers, replace=True)
         self.resolver_count += 1
         return self
 
