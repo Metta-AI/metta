@@ -50,10 +50,10 @@ MettaGrid::MettaGrid(py::dict cfg, py::list map, int seed) {
 
   current_step = 0;
 
-  unsigned int height = map.size();
-  unsigned int width = map[0].cast<py::list>().size();
+  GridCoord height = map.size();
+  GridCoord width = map[0].cast<py::list>().size();
 
-  _grid = std::make_unique<Grid>(width, height);
+  _grid = std::make_unique<Grid>(height, width);
   _obs_encoder = std::make_unique<ObservationEncoder>(inventory_item_names);
   _feature_normalizations = _obs_encoder->feature_normalizations();
 
