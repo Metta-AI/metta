@@ -333,12 +333,8 @@ Examples:
   metta install                        # Install all configured components
   metta install aws wandb              # Install specific components
   metta status                         # Show component status
-<<<<<<< HEAD
   metta clean                          # Clean build artifacts
-  metta path-setup                     # Set up PATH configuration
-=======
   metta symlink-setup                  # Set up symlink to make metta command globally available
->>>>>>> 3978cbe42 (remove extra messaging)
             """,
         )
 
