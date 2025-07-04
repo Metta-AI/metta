@@ -8,17 +8,17 @@ lab:
   cooldown: 5
   initial_items: 1
 
-# factory:
-#   type_id: 12
-#   input_blueprint: 1
-#   input_ore_red: 5
-#   input_battery_red: 5
-#   output_armor: 5
-#   output_laser: 5
-#   max_output: 5
-#   conversion_ticks: 1
-#   cooldown: 5
-#   initial_items: 1
+factory:
+  type_id: 12
+  input_blueprint: 1
+  input_ore_red: 5
+  input_battery_red: 5
+  output_armor: 5
+  output_laser: 5
+  max_output: 5
+  conversion_ticks: 1
+  cooldown: 5
+  initial_items: 1
 
 temple:
   type_id: 13
