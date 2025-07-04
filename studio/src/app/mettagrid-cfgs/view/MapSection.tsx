@@ -3,23 +3,34 @@ import { FC, useEffect, useState } from "react";
 
 import { Button } from "@/components/Button";
 import { StorableMapViewer } from "@/components/StorableMapViewer";
-import {
-  getMettagridCfgMap,
-  MaybeStorableMap,
-  MettagridCfgFile,
-} from "@/lib/api";
+import { getMettagridCfgMap, MettagridCfgFile, StorableMap } from "@/lib/api";
 
 export const MapSection: FC<{ cfg: MettagridCfgFile }> = ({ cfg }) => {
   const [id, setId] = useState(0);
 
-  const [maybeMap, setMaybeMap] = useState<MaybeStorableMap | null>(null);
-  useEffect(() => {
-    getMettagridCfgMap(cfg.metadata.path).then(setMaybeMap);
-  }, [cfg.metadata.path, id]);
+  type MapState =
+    | {
+        type: "loading";
+      }
+    | {
+        type: "error";
+        error: Error;
+      }
+    | {
+        type: "map";
+        map: StorableMap;
+      };
 
-  if (maybeMap === null) {
-    return <div className="h-screen w-full bg-gray-100" />;
-  }
+  const [map, setMap] = useState<MapState>({ type: "loading" });
+  useEffect(() => {
+    setMap({ type: "loading" });
+    getMettagridCfgMap(cfg.metadata.path)
+      .then((map) => setMap({ type: "map", map }))
+      .catch((e) => {
+        console.error(e);
+        setMap({ type: "error", error: e });
+      });
+  }, [cfg.metadata.path, id]);
 
   return (
     <section className="mb-8">
@@ -29,10 +40,13 @@ export const MapSection: FC<{ cfg: MettagridCfgFile }> = ({ cfg }) => {
           Regenerate
         </Button>
       </div>
-      {maybeMap.type === "map" && <StorableMapViewer map={maybeMap.data} />}
-      {maybeMap.type === "error" && (
+      {map.type === "loading" && (
+        <div className="h-screen w-full bg-gray-100" />
+      )}
+      {map.type === "map" && <StorableMapViewer map={map.map} />}
+      {map.type === "error" && (
         <pre className="text-sm text-red-500">
-          Error loading map: {maybeMap.error}
+          Error loading map: {map.error.message}
         </pre>
       )}
     </section>
