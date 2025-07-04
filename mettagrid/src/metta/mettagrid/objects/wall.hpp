@@ -8,9 +8,11 @@
 #include "constants.hpp"
 #include "metta_object.hpp"
 
-struct WallConfig {
-  TypeId type_id;
-  std::string type_name;
+// #MettagridConfig
+struct WallConfig : public GridObjectConfig {
+  WallConfig(TypeId type_id, const std::string& type_name, bool swappable)
+      : GridObjectConfig(type_id, type_name), swappable(swappable) {}
+
   bool swappable;
 };
 
@@ -18,7 +20,7 @@ class Wall : public MettaObject {
 public:
   bool _swappable;
 
-  Wall(GridCoord r, GridCoord c, WallConfig cfg) {
+  Wall(GridCoord r, GridCoord c, const WallConfig& cfg) {
     GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c, GridLayer::Object_Layer));
     this->_swappable = cfg.swappable;
   }
