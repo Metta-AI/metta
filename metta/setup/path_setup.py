@@ -229,11 +229,12 @@ end
             if result.returncode == 0:
                 paths = result.stdout.strip().split("\n")
                 our_metta = str(self.bin_dir / "metta")
-                for path in paths:
-                    if path and path != our_metta:
-                        if paths.index(path) < paths.index(our_metta) if our_metta in paths else True:
-                            shadowed.append("metta")
-                        break
+                our_metta_index = paths.index(our_metta) if our_metta in paths else float("inf")
+
+                for i, path in enumerate(paths):
+                    if path and path != our_metta and i < our_metta_index:
+                        shadowed.append("metta")
+                        break  # Only need to add "metta" once to shadowed list
         except Exception:
             pass
 
