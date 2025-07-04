@@ -1,16 +1,18 @@
 import importlib
 from dataclasses import dataclass
-from typing import Generic, List, Optional, TypeVar, get_args, get_origin
+from typing import Generic, Optional, Type, TypeVar, get_args, get_origin
 
 import numpy as np
 from omegaconf import DictConfig, OmegaConf
 
 from metta.common.util.config import Config
 from metta.map.config import scenes_root
+from metta.map.random.int import MaybeSeed
 from metta.map.types import Area, AreaQuery, ChildrenAction, SceneCfg
-from metta.map.utils.random import MaybeSeed
 
 ParamsT = TypeVar("ParamsT", bound=Config)
+
+SceneT = TypeVar("SceneT", bound="Scene")
 
 
 # This class is useful for debugging: we store every scene we produce dynamically.
@@ -51,7 +53,7 @@ class Scene(Generic[ParamsT]):
         self,
         area: Area,
         params: ParamsT | DictConfig | dict | None = None,
-        children: Optional[List[ChildrenAction]] = None,
+        children: Optional[list[ChildrenAction]] = None,
         seed: MaybeSeed = None,
     ):
         # Validate params - they can come from untyped yaml or from weakly typed dicts in python code.
@@ -110,7 +112,7 @@ class Scene(Generic[ParamsT]):
     # Subclasses can override this to provide a list of children.
     # By default, children are static, which makes them configurable in the config file, but then can't depend
     # on the specific generated content.
-    def get_children(self) -> List[ChildrenAction]:
+    def get_children(self) -> list[ChildrenAction]:
         return self.children
 
     def get_scene_tree(self) -> dict:
@@ -133,11 +135,12 @@ class Scene(Generic[ParamsT]):
         for query in self.get_children():
             areas = self.select_areas(query)
             for area in areas:
-                child_scene = make_scene(query.scene, area)
+                child_rng = self.rng.spawn(1)[0]
+                child_scene = make_scene(cfg=query.scene, area=area, rng=child_rng)
                 self.register_child(area, child_scene)
                 child_scene.render_with_children()
 
-    def make_area(self, x: int, y: int, width: int, height: int, tags: Optional[List[str]] = None) -> Area:
+    def make_area(self, x: int, y: int, width: int, height: int, tags: Optional[list[str]] = None) -> Area:
         area = Area(
             x=x + self.area.x,
             y=y + self.area.y,
@@ -186,8 +189,7 @@ class Scene(Generic[ParamsT]):
             offset = query.offset
             if order_by == "random":
                 assert offset is None, "offset is not supported for random order"
-                rng = np.random.default_rng(query.order_by_seed)
-                selected_areas = list(rng.choice(selected_areas, size=int(limit), replace=False))  # type: ignore
+                selected_areas = list(self.rng.choice(selected_areas, size=int(limit), replace=False))  # type: ignore
             elif order_by == "first":
                 offset = offset or 0
                 selected_areas = selected_areas[offset : offset + limit]
@@ -205,6 +207,15 @@ class Scene(Generic[ParamsT]):
 
         return selected_areas
 
+    @classmethod
+    def factory(
+        cls: Type[SceneT],
+        params: dict | Config,
+        children: Optional[list[ChildrenAction]] = None,
+        seed: MaybeSeed = None,
+    ) -> SceneCfg:
+        return lambda area, rng: cls(area=area, params=params, seed=seed or rng, children=children)
+
 
 def load_class(full_class_name: str) -> type[Scene]:
     module_name, class_name = full_class_name.rsplit(".", 1)
@@ -215,10 +226,11 @@ def load_class(full_class_name: str) -> type[Scene]:
     return cls
 
 
-def make_scene(cfg: SceneCfg, area: Area) -> Scene:
+def make_scene(cfg: SceneCfg, area: Area, rng: np.random.Generator) -> Scene:
     if callable(cfg):
-        # useful for dynamically produced scenes in `get_children()`
-        scene = cfg(area)
+        # Some scene configs are lambdas, usually produced by `Scene.factory()` helper.
+        # These are often useful for dynamically produced children actions in `get_children()`.
+        scene = cfg(area, rng)
         if not isinstance(scene, Scene):
             raise ValueError(f"Scene callback didn't return a valid scene: {scene}")
         return scene
@@ -232,4 +244,9 @@ def make_scene(cfg: SceneCfg, area: Area) -> Scene:
         raise ValueError(f"Invalid scene config: {cfg}, type: {type(cfg)}")
 
     cls = load_class(cfg["type"])
-    return cls(area=area, params=cfg.get("params", {}), children=cfg.get("children", []))
+    return cls(
+        area=area,
+        params=cfg.get("params", {}),
+        children=cfg.get("children", []),
+        seed=cfg.get("seed", rng),
+    )

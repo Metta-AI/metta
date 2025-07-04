@@ -74,8 +74,8 @@ class ConvChain(Scene[ConvChainParams]):
 
         r = 0
         for _ in range(params.iterations * self.width * self.height):
-            x0 = self.rng.integers(0, self.width)
-            y0 = self.rng.integers(0, self.height)
+            x0 = self.rng.integers(0, self.width, dtype=int)
+            y0 = self.rng.integers(0, self.height, dtype=int)
 
             # This algorithm applies some clever bitwise magic to calculate the
             # energy of the field.
