@@ -33,12 +33,13 @@ class GridObjectConfig;
 class ConverterConfig;
 class WallConfig;
 class AgentConfig;
+class GameConfig;
 
 namespace py = pybind11;
 
 class METTAGRID_API MettaGrid {
 public:
-  MettaGrid(py::dict env_cfg, py::list map, int seed);
+  MettaGrid(const GameConfig& cfg, py::list map, int seed);
   ~MettaGrid();
 
   unsigned short obs_width;

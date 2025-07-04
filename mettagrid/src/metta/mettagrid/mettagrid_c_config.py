@@ -1,49 +1,21 @@
 import copy
-from typing import Any, ClassVar, Dict, List
+from typing import Any, Dict
 
-from pydantic import ConfigDict, Field
-
-from metta.common.util.typed_config import BaseModelWithForbidExtra
 from metta.mettagrid.mettagrid_c import ActionConfig as ActionConfig_cpp
 from metta.mettagrid.mettagrid_c import AgentConfig as AgentConfig_cpp
 from metta.mettagrid.mettagrid_c import AttackActionConfig as AttackActionConfig_cpp
 from metta.mettagrid.mettagrid_c import ConverterConfig as ConverterConfig_cpp
+from metta.mettagrid.mettagrid_c import GameConfig as GameConfig_cpp
 from metta.mettagrid.mettagrid_c import WallConfig as WallConfig_cpp
 from metta.mettagrid.mettagrid_config import ConverterConfig as ConverterConfig_py
 from metta.mettagrid.mettagrid_config import GameConfig as GameConfig_py
 from metta.mettagrid.mettagrid_config import WallConfig as WallConfig_py
 
 
-class ActionsConfig_cpp(BaseModelWithForbidExtra):
-    """Actions configuration."""
-
-    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
-
-    noop: ActionConfig_cpp
-    move: ActionConfig_cpp
-    rotate: ActionConfig_cpp
-    put_items: ActionConfig_cpp
-    get_items: ActionConfig_cpp
-    attack: AttackActionConfig_cpp
-    swap: ActionConfig_cpp
-    change_color: ActionConfig_cpp
-
-
-class GameConfig_cpp(BaseModelWithForbidExtra):
-    """Game configuration."""
-
-    inventory_item_names: List[str]
-    num_agents: int = Field(ge=1)
-    max_steps: int = Field(ge=0)
-    obs_width: int = Field(ge=1)
-    obs_height: int = Field(ge=1)
-    num_observation_tokens: int = Field(ge=1)
-    actions: ActionsConfig_cpp
-    objects: Dict[str, Any]
-
-
-def from_mettagrid_config(mettagrid_config: GameConfig_py) -> GameConfig_cpp:
+def from_mettagrid_config(mettagrid_config_dict: GameConfig_py) -> GameConfig_cpp:
     """Convert a mettagrid_config.GameConfig to a mettagrid_c_config.GameConfig."""
+
+    mettagrid_config = GameConfig_py(**mettagrid_config_dict)
 
     inventory_item_names = list(mettagrid_config.inventory_item_names)
     inventory_item_ids = dict((name, i) for i, name in enumerate(inventory_item_names))

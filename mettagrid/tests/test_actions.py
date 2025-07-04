@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 
 from metta.mettagrid.mettagrid_c import MettaGrid
-from metta.mettagrid.mettagrid_c_config import cpp_config_dict
+from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
 from metta.mettagrid.mettagrid_env import (
     dtype_observations,
     dtype_rewards,
@@ -93,9 +93,7 @@ def configured_env(base_config):
         if config_overrides:
             game_config.update(config_overrides)
 
-        print(cpp_config_dict(game_config))
-
-        env = MettaGrid(cpp_config_dict(game_config), game_map, 42)
+        env = MettaGrid(from_mettagrid_config(game_config), game_map, 42)
 
         # Set up buffers
         observations = np.zeros((1, NUM_OBS_TOKENS, OBS_TOKEN_SIZE), dtype=dtype_observations)

@@ -32,21 +32,29 @@
 
 namespace py = pybind11;
 
-MettaGrid::MettaGrid(py::dict cfg, py::list map, int seed) {
+struct GameConfig {
+  int num_agents;
+  unsigned int max_steps;
+  unsigned short obs_width;
+  unsigned short obs_height;
+  std::vector<std::string> inventory_item_names;
+  unsigned int num_observation_tokens;
+  std::map<std::string, std::unique_ptr<ActionConfig>> actions;
+  std::map<std::string, std::unique_ptr<GridObjectConfig>> objects;
+};
+
+MettaGrid::MettaGrid(const GameConfig& cfg, py::list map, int seed)
+    : max_steps(cfg.max_steps),
+      obs_width(cfg.obs_width),
+      obs_height(cfg.obs_height),
+      inventory_item_names(cfg.inventory_item_names),
+      _num_observation_tokens(cfg.num_observation_tokens) {
   _seed = seed;
   _rng = std::mt19937(seed);
 
-  // cfg is a dict-form of the OmegaConf config.
   // `map` is a list of lists of strings, which are the map cells.
 
-  int num_agents = cfg["num_agents"].cast<int>();
-  max_steps = cfg["max_steps"].cast<unsigned int>();
-  obs_width = cfg["obs_width"].cast<unsigned short>();
-  obs_height = cfg["obs_height"].cast<unsigned short>();
-  inventory_item_names = cfg["inventory_item_names"].cast<std::vector<std::string>>();
-
-  _num_observation_tokens =
-      cfg.contains("num_observation_tokens") ? cfg["num_observation_tokens"].cast<unsigned int>() : 0;
+  unsigned int num_agents = cfg.num_agents;
 
   current_step = 0;
 
@@ -68,32 +76,27 @@ MettaGrid::MettaGrid(py::dict cfg, py::list map, int seed) {
 
   _action_success.resize(num_agents);
 
-  for (const auto& [action_name, action_cfg_py] : cfg["actions"].cast<py::dict>()) {
-    std::string action_name_str = action_name.cast<std::string>();
-    ActionConfig* action_config = action_cfg_py.cast<ActionConfig*>();
+  for (const auto& [action_name, action_config] : cfg.actions) {
+    std::string action_name_str = action_name;
 
     if (action_name_str == "put_items") {
-      _action_handlers.push_back(std::make_unique<PutRecipeItems>(*action_config));
+      _action_handlers.push_back(std::make_unique<PutRecipeItems>(action_config));
     } else if (action_name_str == "get_items") {
-      _action_handlers.push_back(std::make_unique<GetOutput>(*action_config));
+      _action_handlers.push_back(std::make_unique<GetOutput>(action_config));
     } else if (action_name_str == "noop") {
-      _action_handlers.push_back(std::make_unique<Noop>(*action_config));
+      _action_handlers.push_back(std::make_unique<Noop>(action_config));
     } else if (action_name_str == "move") {
-      _action_handlers.push_back(std::make_unique<Move>(*action_config));
+      _action_handlers.push_back(std::make_unique<Move>(action_config));
     } else if (action_name_str == "rotate") {
-      _action_handlers.push_back(std::make_unique<Rotate>(*action_config));
+      _action_handlers.push_back(std::make_unique<Rotate>(action_config));
     } else if (action_name_str == "attack") {
-      // Attacks have an additional property.
-      AttackActionConfig* attack_config = dynamic_cast<AttackActionConfig*>(action_config);
-      if (!attack_config) {
-        throw std::runtime_error("AttackActionConfig is not a valid action config");
-      }
-      _action_handlers.push_back(std::make_unique<Attack>(*attack_config));
-      _action_handlers.push_back(std::make_unique<AttackNearest>(*attack_config));
+      const AttackActionConfig& attack_config = dynamic_cast<const AttackActionConfig&>(action_config);
+      _action_handlers.push_back(std::make_unique<Attack>(attack_config));
+      _action_handlers.push_back(std::make_unique<AttackNearest>(attack_config));
     } else if (action_name_str == "swap") {
-      _action_handlers.push_back(std::make_unique<Swap>(*action_config));
+      _action_handlers.push_back(std::make_unique<Swap>(action_config));
     } else if (action_name_str == "change_color") {
-      _action_handlers.push_back(std::make_unique<ChangeColorAction>(*action_config));
+      _action_handlers.push_back(std::make_unique<ChangeColorAction>(action_config));
     } else {
       throw std::runtime_error("Unknown action: " + action_name_str);
     }
@@ -101,31 +104,29 @@ MettaGrid::MettaGrid(py::dict cfg, py::list map, int seed) {
 
   init_action_handlers();
 
-  auto object_configs = cfg["objects"].cast<py::dict>();
+  object_type_names.resize(cfg.objects.size());
 
-  object_type_names.resize(object_configs.size());
-
-  for (const auto& [key, value] : object_configs) {
-    GridObjectConfig* object_cfg = value.cast<GridObjectConfig*>();
-
-    TypeId type_id = object_cfg->type_id;
+  for (const auto& [key, object_cfg] : cfg.objects) {
+    TypeId type_id = object_cfg.type_id;
 
     if (type_id >= object_type_names.size()) {
       // Sometimes the type_ids are not contiguous, so we need to resize the vector.
       object_type_names.resize(type_id + 1);
     }
 
-    if (object_type_names[type_id] != "" && object_type_names[type_id] != object_cfg->type_name) {
+    if (object_type_names[type_id] != "" && object_type_names[type_id] != object_cfg.type_name) {
       throw std::runtime_error("Object type_id " + std::to_string(type_id) + " already exists with type_name " +
-                               object_type_names[type_id] + ". Trying to add " + object_cfg->type_name + ".");
+                               object_type_names[type_id] + ". Trying to add " + object_cfg.type_name + ".");
     }
-    object_type_names[type_id] = object_cfg->type_name;
+    object_type_names[type_id] = object_cfg.type_name;
 
-    AgentConfig* agent_cfg = dynamic_cast<AgentConfig*>(object_cfg);
-    if (agent_cfg) {
-      unsigned int id = agent_cfg->group_id;
+    try {
+      const AgentConfig& agent_config = dynamic_cast<const AgentConfig&>(object_cfg);
+      unsigned int id = agent_config.group_id;
       _group_sizes[id] = 0;
-      _group_reward_pct[id] = agent_cfg->group_reward_pct;
+      _group_reward_pct[id] = agent_config.group_reward_pct;
+    } catch (const std::bad_cast& e) {
+      // Not an agent, so we can ignore it.
     }
   }
 
@@ -135,8 +136,7 @@ MettaGrid::MettaGrid(py::dict cfg, py::list map, int seed) {
 
   for (int r = 0; r < height; r++) {
     for (int c = 0; c < width; c++) {
-      auto py_cell = map[r].cast<py::list>()[c].cast<py::str>();
-      auto cell = py_cell.cast<std::string>();
+      auto cell = map[r].cast<py::list>()[c].cast<std::string>();
 
       // Add cell position and type to hash data
       grid_hash_data += std::to_string(r) + "," + std::to_string(c) + ":" + cell + ";";
@@ -146,42 +146,51 @@ MettaGrid::MettaGrid(py::dict cfg, py::list map, int seed) {
         continue;
       }
 
-      if (!object_configs.contains(py_cell)) {
+      if (!cfg.objects.contains(cell)) {
         throw std::runtime_error("Unknown object type: " + cell);
       }
 
-      GridObjectConfig* object_cfg = object_configs[py_cell].cast<GridObjectConfig*>();
+      const GridObjectConfig& object_cfg = cfg.objects.at(cell);
 
-      WallConfig* wall_cfg = dynamic_cast<WallConfig*>(object_cfg);
-      if (wall_cfg) {
-        Wall* wall = new Wall(r, c, *wall_cfg);
+      // TODO: replace the dynamic casts with virtual dispatch
+
+      try {
+        const WallConfig& wall_config = dynamic_cast<const WallConfig&>(object_cfg);
+        Wall* wall = new Wall(r, c, wall_config);
         _grid->add_object(wall);
         _stats->incr("objects." + cell);
         continue;
+      } catch (const std::bad_cast& e) {
+        // Not a wall -- move along.
       }
 
-      ConverterConfig* converter_cfg = dynamic_cast<ConverterConfig*>(object_cfg);
-      if (converter_cfg) {
-        Converter* converter = new Converter(r, c, *converter_cfg);
+      try {
+        const ConverterConfig& converter_config = dynamic_cast<const ConverterConfig&>(object_cfg);
+        Converter* converter = new Converter(r, c, converter_config);
         _grid->add_object(converter);
         _stats->incr("objects." + cell);
         converter->set_event_manager(_event_manager.get());
         converter->stats.set_environment(this);
         continue;
+      } catch (const std::bad_cast& e) {
+        // Not a converter -- move along.
       }
 
-      AgentConfig* agent_cfg = dynamic_cast<AgentConfig*>(object_cfg);
-      if (agent_cfg) {
-        Agent* agent = new Agent(r, c, *agent_cfg);
+      try {
+        const AgentConfig& agent_config = dynamic_cast<const AgentConfig&>(object_cfg);
+        Agent* agent = new Agent(r, c, agent_config);
         _grid->add_object(agent);
         agent->agent_id = _agents.size();
         agent->stats.set_environment(this);
         add_agent(agent);
         _group_sizes[agent->group] += 1;
         continue;
+      } catch (const std::bad_cast& e) {
+        // Not an agent -- move along.
       }
 
-      throw std::runtime_error("Unable to create object of type " + cell);
+      throw std::runtime_error("Unable to create object of type " + cell + " at (" + std::to_string(r) + ", " +
+                               std::to_string(c) + ")");
     }
   }
 
@@ -722,7 +731,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
   m.doc() = "MettaGrid environment";  // optional module docstring
 
   py::class_<MettaGrid>(m, "MettaGrid")
-      .def(py::init<py::dict, py::list, int>())
+      .def(py::init<const GameConfig&, const py::list&, int>())
       .def("reset", &MettaGrid::reset)
       .def("step", &MettaGrid::step, py::arg("actions").noconvert())
       .def("set_buffers",
@@ -846,4 +855,30 @@ PYBIND11_MODULE(mettagrid_c, m) {
            py::arg("consumed_resources") = std::map<InventoryItem, int>(),
            py::arg("defense_resources") = std::map<InventoryItem, int>())
       .def_readwrite("defense_resources", &AttackActionConfig::defense_resources);
+
+  py::class_<GameConfig>(m, "GameConfig")
+      .def(py::init<int,
+                    unsigned int,
+                    unsigned short,
+                    unsigned short,
+                    const std::vector<std::string>&,
+                    unsigned int,
+                    const std::map<std::string, ActionConfig>&,
+                    const std::map<std::string, GridObjectConfig>&>(),
+           py::arg("num_agents"),
+           py::arg("max_steps"),
+           py::arg("obs_width"),
+           py::arg("obs_height"),
+           py::arg("inventory_item_names"),
+           py::arg("num_observation_tokens"),
+           py::arg("actions"),
+           py::arg("objects"))
+      .def_readwrite("num_agents", &GameConfig::num_agents)
+      .def_readwrite("max_steps", &GameConfig::max_steps)
+      .def_readwrite("obs_width", &GameConfig::obs_width)
+      .def_readwrite("obs_height", &GameConfig::obs_height)
+      .def_readwrite("inventory_item_names", &GameConfig::inventory_item_names)
+      .def_readwrite("num_observation_tokens", &GameConfig::num_observation_tokens)
+      .def_readwrite("actions", &GameConfig::actions)
+      .def_readwrite("objects", &GameConfig::objects);
 }
