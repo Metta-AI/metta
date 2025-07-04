@@ -200,6 +200,7 @@ def create_asana_task(
     asana_token: str,
     pr_author_field_id: str,
     pr_author_asana: str | None,
+    asana_attachment_secret: str,
 ) -> str:
     """Create a new Asana task with the GitHub URL field populated."""
     url = "https://app.asana.com/api/1.0/tasks"
@@ -237,7 +238,11 @@ def create_asana_task(
 
     response = requests.post(url, json=payload, headers=headers, timeout=30)
     if response.status_code == 201:
-        return response.json()["data"]["permalink_url"]
+        task_url = response.json()["data"]["permalink_url"]
+        # For the most part, create_asana_task should do the same work as update_asana_task. This
+        # is a specific exception, since it's an extra call and this should be effectively immutable.
+        ensure_github_url_in_asana_task(asana_attachment_secret, project_id, task_url, title, github_url)
+        return task_url
     else:
         print(f"Asana API Error: {response.status_code} - {response.text}")
         sys.exit(1)
@@ -357,6 +362,7 @@ def ensure_asana_task_exists(
     asana_token: str,
     pr_author_field_id: str,
     pr_author_asana: str | None,
+    asana_attachment_secret: str,
 ) -> str:
     """Ensure an Asana task exists with the given GitHub URL. Return existing or create new."""
 
@@ -415,6 +421,7 @@ def ensure_asana_task_exists(
         asana_token,
         pr_author_field_id,
         pr_author_asana,
+        asana_attachment_secret,
     )
     print(f"Created new Asana task: {new_task_url}")
     return new_task_url
@@ -427,6 +434,12 @@ def ensure_github_url_in_asana_task(
     title: str,
     github_url: str,
 ) -> dict | None:
+    """Ensure the GitHub URL is in the Asana task.
+
+    Asana provides this via https://github.com/Asana/create-app-attachment-github-action, but their
+    workflow only runs in limited contexts. In particular, we don't trust it to pick up the task url
+    from the description when we've added it within the same workflow. So we'll just do it manually.
+    """
     github_url_number = github_url.split("pull/")[-1]
     if not github_url_number.isdigit():
         print(f"Invalid GitHub URL: {github_url}")
@@ -510,9 +523,8 @@ if __name__ == "__main__":
         asana_token,
         pr_author_field_id,
         pr_author_asana,
+        asana_attachment_secret,
     )
-
-    ensure_github_url_in_asana_task(asana_attachment_secret, project_id, task_url, title, github_url)
 
     with open(os.environ["GITHUB_OUTPUT"], "a") as f:
         f.write(f"task_url={task_url}\n")
