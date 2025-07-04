@@ -27,16 +27,14 @@ class PathSetup:
                 metta_path = Path(result.stdout.strip())
                 # Check if it's our metta or a compatible one
                 if metta_path == self.bin_dir / "metta":
+                    print(f"metta_path: {metta_path}")
                     return True
                 # Check if it's a symlink to our metta
                 if metta_path.is_symlink():
                     target = metta_path.resolve()
                     if target == (self.bin_dir / "metta").resolve():
+                        print(f"target: {target}")
                         return True
-                # Check if it's the venv shim
-                venv_metta = self.repo_root / ".venv" / "bin" / "metta"
-                if metta_path == venv_metta and venv_metta.exists():
-                    return True
         except Exception:
             pass
         return False
@@ -233,8 +231,8 @@ end
 
                 for i, path in enumerate(paths):
                     if path and path != our_metta and i < our_metta_index:
-                        shadowed.append("metta")
-                        break  # Only need to add "metta" once to shadowed list
+                        shadowed.append(path)
+                        break
         except Exception:
             pass
 
