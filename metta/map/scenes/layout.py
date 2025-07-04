@@ -7,8 +7,10 @@ from metta.map.scene import Scene
 class LayoutArea(Config):
     width: int
     height: int
-    placement: Literal["center"] = "center"
+    placement: Literal["center"] = "center"  # TODO - in the future, we will support more placements
     tag: str
+    # TODO - should we support `scene: SceneCfg` here directly?
+    # It would be more readable than defining tags and targeting them with `children`.
 
 
 class LayoutParams(Config):
