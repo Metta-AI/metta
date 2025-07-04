@@ -95,3 +95,26 @@ def test_mapgen_dimensions_preserved_when_provided():
     level = mg.build()
     assert (mg.height, mg.width) == (3, 7)
     assert level.grid.shape == (3 + 2, 7 + 2)
+
+
+# 4. size-based labels ----------------------------------------------------------
+@pytest.mark.parametrize(
+    "width,height,expected_label",
+    [
+        (10, 10, "small"),  # area = 100
+        (70, 70, "medium"),  # area = 4 900
+        (100, 80, "large"),  # area = 8 000
+    ],
+)
+def test_mapgen_size_labels(width, height, expected_label):
+    mg = MapGen(
+        root={"type": "metta.map.scenes.nop.Nop"},
+        width=width,
+        height=height,
+    )
+    level = mg.build()
+
+    # Exactly one size label should be present and it must match expectation.
+    size_labels = {"small", "medium", "large"}
+    present = set(level.labels) & size_labels
+    assert present == {expected_label}

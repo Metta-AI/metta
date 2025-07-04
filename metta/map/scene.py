@@ -80,7 +80,7 @@ class Scene(Generic[ParamsT]):
                 action = ChildrenAction(**action)
             self.children.append(action)
 
-        self.child_scenes: list[ChildInfo] = []
+        self.child_infos: list[ChildInfo] = []
 
         self.area = area
         self.grid = area.grid
@@ -105,7 +105,7 @@ class Scene(Generic[ParamsT]):
         pass
 
     def register_child(self, area: Area, child_scene: "Scene"):
-        self.child_scenes.append(ChildInfo(area=area, scene=child_scene))
+        self.child_infos.append(ChildInfo(area=area, scene=child_scene))
 
     # Render implementations can do two things:
     # - update `self.grid` as it sees fit
@@ -124,18 +124,19 @@ class Scene(Generic[ParamsT]):
             "type": self.__class__.__name__,
             "params": self.params.model_dump(),
             "area": self.area.as_dict(),
-            "children": [child.scene.get_scene_tree() for child in self.child_scenes],
+            "children": [child.scene.get_scene_tree() for child in self.child_infos],
         }
 
     def print_scene_tree(self, indent=0):
         print(" " * indent + self.__class__.__name__)
         print(" " * indent + f"area: {self.area.as_dict()}")
         print(" " * indent + f"params: {self.params.model_dump()}")
-        for child in self.child_scenes:
+        for child in self.child_infos:
             child.scene.print_scene_tree(indent + 2)
 
     def render_with_children(self):
         self.render()
+
         for query in self.get_children():
             areas = self.select_areas(query)
             for area in areas:
@@ -242,6 +243,10 @@ class Scene(Generic[ParamsT]):
         """
 
         return None
+
+    def get_labels(self) -> list[str]:
+        # default: use the scene class name as a label
+        return [self.__class__.__name__]
 
 
 def load_class(full_class_name: str) -> type[Scene]:

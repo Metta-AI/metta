@@ -96,8 +96,17 @@ class MapGen(LevelBuilder):
         self.root_scene = make_scene(root_scene_cfg, inner_area, rng=np.random.default_rng())
 
         self.root_scene.render_with_children()
-        # TODO: support labels, similarly to `mettagrid.room.room.Room`
-        return Level(self.grid, [])
+
+        labels = self.root_scene.get_labels()
+        area = self.inner_width * self.inner_height
+        if area < 4000:
+            labels.append("small")
+        elif area < 6000:
+            labels.append("medium")
+        else:
+            labels.append("large")
+
+        return Level(self.grid, labels=labels)
 
     def get_scene_tree(self) -> dict:
         return self.root_scene.get_scene_tree()
