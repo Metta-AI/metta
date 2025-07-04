@@ -13,18 +13,11 @@ class PathSetup:
         self.local_bin = Path.home() / ".local" / "bin"
         self.target_symlink = self.local_bin / "metta"
 
-    def _is_in_path(self) -> bool:
+    def _local_bin_is_in_path(self) -> bool:
         path_dirs = os.environ.get("PATH", "").split(":")
         return str(self.local_bin) in path_dirs
 
     def _check_existing_metta(self) -> Optional[str]:
-        """Check if metta already exists at target location.
-
-        Returns:
-            None if doesn't exist
-            "ours" if it's already linked to our wrapper
-            "other" if it exists but points elsewhere or is a regular file
-        """
         if not self.target_symlink.exists():
             return None
 
@@ -36,12 +29,6 @@ class PathSetup:
         return "other"
 
     def setup_path(self, force: bool = False) -> None:
-        """Create symlink for metta command.
-
-        Args:
-            force: If True, replace existing metta command
-        """
-        # Ensure wrapper script is executable
         self.wrapper_script.chmod(0o755)
 
         # Create ~/.local/bin if it doesn't exist
@@ -52,7 +39,6 @@ class PathSetup:
             info("Please create this directory manually and re-run the installer.")
             return
 
-        # Check if metta already exists
         existing = self._check_existing_metta()
 
         if existing == "ours":
@@ -70,12 +56,8 @@ class PathSetup:
                 warning(f"A 'metta' command already exists at {self.target_symlink}")
                 info("Not overwriting existing command.")
                 info("Run with --force if you want to replace it.")
-                info("Or use one of these alternatives:")
-                info(f"  1. Remove the existing file: rm {self.target_symlink}")
-                info(f"  2. Use the full path: {self.wrapper_script}")
                 return
 
-        # Create the symlink
         try:
             self.target_symlink.symlink_to(self.wrapper_script)
             success(f"Created symlink: {self.target_symlink} → {self.wrapper_script}")
@@ -85,7 +67,7 @@ class PathSetup:
             info(f"  ln -s {self.wrapper_script} {self.target_symlink}")
             return
 
-        if self._is_in_path():
+        if self._local_bin_is_in_path():
             success("metta is now available globally!")
             info("You can run: metta --help")
         else:
@@ -99,13 +81,9 @@ class PathSetup:
             info("  source ~/.bashrc")
 
     def check_installation(self) -> bool:
-        """Check if metta is properly installed and accessible."""
-        # First check if our symlink exists
         existing = self._check_existing_metta()
         if existing != "ours":
             return False
-
-        # Then check if metta command is actually accessible
         try:
             result = subprocess.run(["which", "metta"], capture_output=True, text=True)
             if result.returncode == 0:
