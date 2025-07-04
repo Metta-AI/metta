@@ -14,7 +14,7 @@ class PathSetup:
         self.target_symlink = self.local_bin / "metta"
 
     def _local_bin_is_in_path(self) -> bool:
-        path_dirs = os.environ.get("PATH", "").split(":")
+        path_dirs = os.environ.get("PATH", "").split(os.pathsep)
         return str(self.local_bin) in path_dirs
 
     def _check_existing_metta(self) -> Optional[str]:
