@@ -48,7 +48,7 @@ public:
         frozen(0),
         freeze_duration(config.freeze_duration),
         // inventory - default constructed
-        orientation(0),
+        orientation(Orientation::Up),
         resource_rewards(config.resource_rewards),
         resource_reward_max(config.resource_reward_max),
         action_failure_penalty(config.action_failure_penalty),

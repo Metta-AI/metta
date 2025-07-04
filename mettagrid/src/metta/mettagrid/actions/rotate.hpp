@@ -17,7 +17,7 @@ public:
 
 protected:
   bool _handle_action(Agent* actor, ActionArg arg) override {
-    unsigned short orientation = arg;
+    Orientation orientation = static_cast<Orientation>(arg);
     actor->orientation = orientation;
     return true;
   }
