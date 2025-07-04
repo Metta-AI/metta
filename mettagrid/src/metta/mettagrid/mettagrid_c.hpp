@@ -1,6 +1,8 @@
 #ifndef METTAGRID_C_HPP_
 #define METTAGRID_C_HPP_
 
+#define PYBIND11_DETAILED_ERROR_MESSAGES
+
 #if defined(_WIN32)
 #define METTAGRID_API __declspec(dllexport)
 #else
@@ -31,6 +33,7 @@ class GridObject;
 struct ConverterConfig;
 struct WallConfig;
 struct AgentConfig;
+struct GridObjectConfig;
 
 namespace py = pybind11;
 

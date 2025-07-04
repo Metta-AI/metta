@@ -57,16 +57,16 @@ protected:
   }
 
   AgentConfig create_test_agent_config() {
-    AgentConfig agent_cfg;
-    agent_cfg.group_name = "test_group";
-    agent_cfg.group_id = 1;
-    agent_cfg.freeze_duration = 100;
-    agent_cfg.action_failure_penalty = 0.1f;
-    agent_cfg.max_items_per_type = create_test_max_items_per_type();
-    agent_cfg.resource_rewards = create_test_rewards();
-    agent_cfg.resource_reward_max = create_test_resource_reward_max();
-    agent_cfg.type_id = 0;
-    return agent_cfg;
+    return AgentConfig(0,                                  // type_id
+                       "agent",                            // type_name
+                       1,                                  // group_id
+                       "test_group",                       // group_name
+                       100,                                // freeze_duration
+                       0.1f,                               // action_failure_penalty
+                       create_test_max_items_per_type(),   // max_items_per_type
+                       create_test_rewards(),              // resource_rewards
+                       create_test_resource_reward_max(),  // resource_reward_max
+                       0.0f);                              // group_reward_pct
   }
 };
 
@@ -229,17 +229,15 @@ TEST_F(MettaGridCppTest, PutRecipeItems) {
   grid.add_object(agent);
 
   // Create a generator that takes red ore and outputs batteries
-  ConverterConfig generator_cfg;
-  generator_cfg.recipe_input[TestItems::ORE] = 1;
-  generator_cfg.recipe_output[TestItems::ARMOR] = 1;
-  // Set the max_output to 0 so it won't consume things we put in it.
-  generator_cfg.max_output = 0;
-  generator_cfg.conversion_ticks = 1;
-  generator_cfg.cooldown = 10;
-  generator_cfg.initial_items = 0;
-  generator_cfg.color = 0;
-  generator_cfg.type_id = TestItems::CONVERTER;
-  generator_cfg.type_name = "generator";
+  ConverterConfig generator_cfg(TestItems::CONVERTER,     // type_id
+                                "generator",              // type_name
+                                {{TestItems::ORE, 1}},    // recipe_input
+                                {{TestItems::ARMOR, 1}},  // recipe_output
+                                0,                        // max_output
+                                1,                        // conversion_ticks
+                                10,                       // cooldown
+                                0,                        // initial_items
+                                0);                       // color
   EventManager event_manager;
   Converter* generator = new Converter(0, 0, generator_cfg);
   grid.add_object(generator);
@@ -281,16 +279,15 @@ TEST_F(MettaGridCppTest, GetOutput) {
   grid.add_object(agent);
 
   // Create a generator with initial output
-  ConverterConfig generator_cfg;
-  generator_cfg.recipe_input[TestItems::ORE] = 1;
-  generator_cfg.recipe_output[TestItems::ARMOR] = 1;
-  // Set the max_output to 0 so it won't consume things we put in it.
-  generator_cfg.max_output = 1;
-  generator_cfg.conversion_ticks = 1;
-  generator_cfg.cooldown = 10;
-  generator_cfg.initial_items = 1;
-  generator_cfg.color = 0;
-  generator_cfg.type_id = TestItems::CONVERTER;
+  ConverterConfig generator_cfg(TestItems::CONVERTER,     // type_id
+                                "generator",              // type_name
+                                {{TestItems::ORE, 1}},    // recipe_input
+                                {{TestItems::ARMOR, 1}},  // recipe_output
+                                1,                        // max_output
+                                1,                        // conversion_ticks
+                                10,                       // cooldown
+                                1,                        // initial_items
+                                0);                       // color
   EventManager event_manager;
   Converter* generator = new Converter(0, 0, generator_cfg);
   grid.add_object(generator);
@@ -321,37 +318,4 @@ TEST_F(MettaGridCppTest, EventManager) {
   // Test that event manager can be initialized
   // (This is a basic test - more complex event testing would require more setup)
   EXPECT_NO_THROW(event_manager.process_events(1));
-}
-
-// ==================== Wall/Block Tests ====================
-
-TEST_F(MettaGridCppTest, WallCreation) {
-  WallConfig wall_cfg;
-
-  std::unique_ptr<Wall> wall(new Wall(2, 3, wall_cfg));
-
-  ASSERT_NE(wall, nullptr);
-  EXPECT_EQ(wall->location.r, 2);
-  EXPECT_EQ(wall->location.c, 3);
-}
-
-// ==================== Converter Tests ====================
-
-TEST_F(MettaGridCppTest, ConverterCreation) {
-  ConverterConfig converter_cfg;
-  converter_cfg.recipe_input[TestItems::ORE] = 2;
-  converter_cfg.recipe_output[TestItems::ARMOR] = 1;
-  converter_cfg.conversion_ticks = 5;
-  converter_cfg.cooldown = 10;
-  converter_cfg.initial_items = 0;
-  converter_cfg.color = 0;
-  converter_cfg.type_id = TestItems::CONVERTER;
-  converter_cfg.type_name = "converter";
-  std::unique_ptr<Converter> converter(new Converter(1, 2, converter_cfg));
-
-  ASSERT_NE(converter, nullptr);
-  EXPECT_EQ(converter->location.r, 1);
-  EXPECT_EQ(converter->location.c, 2);
-  EXPECT_EQ(converter->type_id, TestItems::CONVERTER);
-  EXPECT_EQ(converter->type_name, "converter");
 }

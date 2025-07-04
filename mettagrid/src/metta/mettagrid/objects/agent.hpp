@@ -11,7 +11,28 @@
 #include "constants.hpp"
 #include "metta_object.hpp"
 
-struct AgentConfig {
+// #MettagridConfig
+struct AgentConfig : public GridObjectConfig {
+  AgentConfig(TypeId type_id,
+              const std::string& type_name,
+              unsigned char group_id,
+              const std::string& group_name,
+              unsigned char freeze_duration,
+              float action_failure_penalty,
+              const std::map<InventoryItem, uint8_t>& max_items_per_type,
+              const std::map<InventoryItem, float>& resource_rewards,
+              const std::map<InventoryItem, float>& resource_reward_max,
+              float group_reward_pct)
+      : GridObjectConfig(type_id, type_name),
+        group_name(group_name),
+        group_id(group_id),
+        freeze_duration(freeze_duration),
+        action_failure_penalty(action_failure_penalty),
+        max_items_per_type(max_items_per_type),
+        resource_rewards(resource_rewards),
+        resource_reward_max(resource_reward_max),
+        group_reward_pct(group_reward_pct) {}
+
   std::string group_name;
   unsigned char group_id;
   short freeze_duration;
@@ -19,7 +40,7 @@ struct AgentConfig {
   std::map<InventoryItem, uint8_t> max_items_per_type;
   std::map<InventoryItem, float> resource_rewards;
   std::map<InventoryItem, float> resource_reward_max;
-  TypeId type_id;
+  float group_reward_pct;
 };
 
 class Agent : public MettaObject {
@@ -57,11 +78,10 @@ public:
         agent_id(0),
         // stats - default constructed
         current_resource_reward(0),
-        reward(nullptr),
-        // private
-        max_items_per_type(config.max_items_per_type) {
-    // #HardCodedConfig -- "agent" is hard coded.
-    GridObject::init(config.type_id, "agent", GridLocation(r, c, GridLayer::Agent_Layer));
+        frozen(0),
+        orientation(0),
+        reward(nullptr) {
+    GridObject::init(config.type_id, config.type_name, GridLocation(r, c, GridLayer::Agent_Layer));
   }
 
   void init(float* reward_ptr) {
@@ -118,8 +138,8 @@ public:
     return this->frozen;  // agents are valid targets for the swap action only if they are frozen
   }
 
-  virtual vector<PartialObservationToken> obs_features() const override {
-    vector<PartialObservationToken> features;
+  virtual std::vector<PartialObservationToken> obs_features() const override {
+    std::vector<PartialObservationToken> features;
     features.reserve(5 + this->inventory.size());
     features.push_back({ObservationFeature::TypeId, type_id});
     features.push_back({ObservationFeature::Group, group});

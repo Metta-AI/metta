@@ -81,6 +81,15 @@ enum Orientation {
 
 typedef unsigned int GridObjectId;
 
+struct GridObjectConfig {
+  TypeId type_id;
+  std::string type_name;
+
+  GridObjectConfig(TypeId type_id, const std::string& type_name) : type_id(type_id), type_name(type_name) {}
+
+  virtual ~GridObjectConfig() = default;
+};
+
 class GridObject {
 public:
   GridObjectId id;
