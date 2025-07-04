@@ -1,5 +1,7 @@
 #!/usr/bin/env -S uv run
 import argparse
+import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -110,6 +112,10 @@ class MettaCLI:
             warning("No configuration found. Running setup wizard first...")
             self.setup_wizard()
 
+        # Clean build artifacts unless --no-clean is specified
+        if not args.no_clean:
+            self._clean_build_artifacts()
+
         # If specific components are requested, get all modules so we can install
         # even disabled ones (useful with --force)
         if args.components:
@@ -155,6 +161,31 @@ class MettaCLI:
                 error(f"  Error: {e}\n")
 
         success("Installation complete!")
+
+    def _clean_build_artifacts(self) -> None:
+        build_dir = self.repo_root / "build"
+        if build_dir.exists():
+            info("  Removing root build directory...")
+            shutil.rmtree(build_dir)
+        # Clean mettagrid build directories
+        mettagrid_dir = self.repo_root / "mettagrid"
+        for build_name in ["build-debug", "build-release"]:
+            build_path = mettagrid_dir / build_name
+            if build_path.exists():
+                info(f"  Removing mettagrid/{build_name}...")
+                shutil.rmtree(build_path)
+
+        # Run cleanup script to remove empty directories and __pycache__
+        cleanup_script = self.repo_root / "devops" / "tools" / "cleanup_repo.py"
+        if cleanup_script.exists():
+            try:
+                subprocess.run([sys.executable, str(cleanup_script)], check=True)
+            except subprocess.CalledProcessError as e:
+                warning(f"  Cleanup script failed: {e}")
+
+    def cmd_clean(self, args) -> None:
+        """Clean build artifacts."""
+        self._clean_build_artifacts()
 
     def _truncate(self, text: str, max_len: int) -> str:
         """Truncate text to max length with ellipsis."""
@@ -268,6 +299,7 @@ Examples:
   ./metta.sh install                        # Install all configured components
   ./metta.sh install aws wandb              # Install specific components
   ./metta.sh status                         # Show component status
+  ./metta.sh clean                          # Clean build artifacts
             """,
         )
 
@@ -293,9 +325,15 @@ Examples:
             ),
         )
         install_parser.add_argument("--force", action="store_true", help="Force reinstall even if already installed")
+        install_parser.add_argument(
+            "--no-clean", action="store_true", help="Skip cleaning build artifacts before installation"
+        )
 
         # Status command
         subparsers.add_parser("status", help="Show installation and authentication status of all components")
+
+        # Clean command
+        subparsers.add_parser("clean", help="Clean build artifacts and temporary files")
 
         args = parser.parse_args()
 
@@ -322,6 +360,8 @@ Examples:
             self.cmd_install(args)
         elif args.command == "status":
             self.cmd_status(args)
+        elif args.command == "clean":
+            self.cmd_clean(args)
         else:
             parser.print_help()
 

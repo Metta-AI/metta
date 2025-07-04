@@ -12,13 +12,8 @@ help:
 
 # Clean cmake build artifacts
 clean:
-	@echo "(Metta) Cleaning root build artifacts..."
-	rm -rf build
-	@echo "(Metta) Cleaning mettagrid build artifacts..."
-	cd mettagrid && rm -rf build-debug build-release
-	@echo "(Metta) Cleaning old directories..."
-	devops/tools/cleanup_repo.py
-	@echo "(Metta) Clean completed successfully"
+	@echo "(Metta) Running clean command..."
+	uv run python metta/setup/metta_cli.py clean
 
 # Dev all project dependencies and external components
 dev:
