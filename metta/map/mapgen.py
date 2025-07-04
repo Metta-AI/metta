@@ -34,7 +34,7 @@ class MapGen(LevelBuilder):
         if isinstance(self.root, DictConfig):
             self.root = OmegaConf.to_container(self.root)  # type: ignore
 
-        self.root_scene = make_scene(self.root, self.inner_area())
+        self.root_scene = make_scene(self.root, self.inner_area(), rng=np.random.default_rng())
 
     def inner_area(self) -> Area:
         x = self.border_width
