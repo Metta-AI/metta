@@ -48,6 +48,5 @@ observatory/dist/
 # can be created by skypilot
 /Miniconda3-Linux.sh
 
-# Generated environment scripts
-metta/setup/installer/bin/env
-metta/setup/installer/bin/env.fish
+# Metta configuration and environment
+.metta/

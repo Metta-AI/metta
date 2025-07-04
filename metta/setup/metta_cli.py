@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 
 from metta.setup.config import CURRENT_CONFIG_VERSION, PROFILE_DEFINITIONS, SetupConfig, UserType
+from metta.setup.path_setup import PathSetup
 from metta.setup.registry import get_all_modules, get_applicable_modules
 from metta.setup.utils import error, header, import_all_modules_from_subpackage, info, success, warning
 
@@ -17,6 +18,7 @@ class MettaCLI:
     def __init__(self):
         self.repo_root: Path = Path(__file__).parent.parent.parent
         self.config: SetupConfig = SetupConfig()
+        self.path_setup: PathSetup = PathSetup(self.repo_root)
 
     def setup_wizard(self) -> None:
         header("Welcome to Metta!\n\n")
@@ -60,6 +62,10 @@ class MettaCLI:
             self.config.apply_profile(user_type)
             success(f"\nConfigured as {user_type.value} user.")
         info("\nRun 'metta install' to set up your environment.")
+
+        # If not already in PATH, suggest path setup
+        if not self.path_setup.is_in_path():
+            info("You may also need to run 'metta path-setup' to add metta to your PATH.")
 
     def _custom_setup(self) -> None:
         info("\nSelect base profile for custom configuration:")
@@ -189,7 +195,18 @@ class MettaCLI:
             return text
         return text[: max_len - 3] + "..."
 
-    def cmd_status(self, args) -> None:
+    def cmd_path_setup(self, args) -> None:
+        """Set up PATH configuration for metta command."""
+        self.path_setup.setup_path(no_modify=args.no_modify_path)
+
+        # Check for shadowed binaries
+        shadowed = self.path_setup.check_shadowed_binaries()
+        if shadowed:
+            warning(f"\nThe following commands are shadowed by other commands in your PATH: {', '.join(shadowed)}")
+
+        success("\nPath setup complete!")
+
+    def cmd_status(self, _args) -> None:
         """Show status of all components."""
         modules = get_all_modules(self.config)
 
@@ -326,6 +343,7 @@ Examples:
   metta install aws wandb              # Install specific components
   metta status                         # Show component status
   metta clean                          # Clean build artifacts
+  metta path-setup                     # Set up PATH configuration
             """,
         )
 
@@ -358,8 +376,14 @@ Examples:
         # Status command
         subparsers.add_parser("status", help="Show installation and authentication status of all components")
 
+<<<<<<< HEAD
         # Clean command
         subparsers.add_parser("clean", help="Clean build artifacts and temporary files")
+=======
+        # Path setup command
+        path_parser = subparsers.add_parser("path-setup", help="Set up PATH configuration for metta command")
+        path_parser.add_argument("--no-modify-path", action="store_true", help="Don't modify shell configuration files")
+>>>>>>> 0ac44a2f8 (Install.sh now gets uv, metta configures, metta installs supports a flag to not add metta executable to path and to pass profile along. path setup is moved into metta cli)
 
         args = parser.parse_args()
 
@@ -386,8 +410,13 @@ Examples:
             self.cmd_install(args)
         elif args.command == "status":
             self.cmd_status(args)
+<<<<<<< HEAD
         elif args.command == "clean":
             self.cmd_clean(args)
+=======
+        elif args.command == "path-setup":
+            self.cmd_path_setup(args)
+>>>>>>> 0ac44a2f8 (Install.sh now gets uv, metta configures, metta installs supports a flag to not add metta executable to path and to pass profile along. path setup is moved into metta cli)
         else:
             parser.print_help()
 
