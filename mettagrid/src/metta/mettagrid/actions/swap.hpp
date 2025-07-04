@@ -19,7 +19,7 @@ public:
 
 protected:
   bool _handle_action(Agent* actor, [[maybe_unused]] ActionArg arg) override {
-    GridLocation target_loc = _grid->relative_location(actor->location, static_cast<Orientation>(actor->orientation));
+    GridLocation target_loc = _grid->relative_location(actor->location, actor->orientation);
     MettaObject* target = static_cast<MettaObject*>(_grid->object_at(target_loc));
     if (target == nullptr) {
       target_loc.layer = GridLayer::Object_Layer;

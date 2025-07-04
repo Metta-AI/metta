@@ -37,8 +37,7 @@ protected:
     short distance = 1 + (arg - 1) / 3;
     short offset = -((arg - 1) % 3 - 1);
 
-    GridLocation target_loc =
-        _grid->relative_location(actor->location, static_cast<Orientation>(actor->orientation), distance, offset);
+    GridLocation target_loc = _grid->relative_location(actor->location, actor->orientation, distance, offset);
 
     return _handle_target(actor, target_loc);
   }

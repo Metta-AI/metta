@@ -20,7 +20,7 @@ public:
 
 protected:
   bool _handle_action(Agent* actor, [[maybe_unused]] ActionArg arg) override {
-    GridLocation target_loc = _grid->relative_location(actor->location, static_cast<Orientation>(actor->orientation));
+    GridLocation target_loc = _grid->relative_location(actor->location, actor->orientation);
     target_loc.layer = GridLayer::Object_Layer;
     // put_recipe_items only works on Converters, since only Converters have a recipe.
     // Once we generalize this to `put`, we should be able to put to any HasInventory object, which
