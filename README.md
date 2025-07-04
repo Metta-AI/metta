@@ -107,12 +107,23 @@ Clone the repository and run the setup:
 ```bash
 git clone https://github.com/Metta-AI/metta.git
 cd metta
-./install.sh  # Install uv and Python dependencies
+./install.sh  # Interactive setup - installs uv, configures metta, and installs components
+```
 
-# Then you can use metta directly:
-metta configure
-metta install
-metta status
+After installation, you can use metta commands directly:
+```bash
+metta status       # Check component status
+metta install      # Install additional components
+metta configure    # Reconfigure for a different profile
+```
+
+#### Additional installation options
+
+```
+./install.sh --profile=softmax   # For Softmax employees
+./install.sh --profile=external  # For external collaborators
+./install.sh --no-modify-path   # Skip PATH modification
+./install.sh --help             # Show all available options
 ```
 
 ## Usage
