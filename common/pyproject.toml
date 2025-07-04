@@ -24,10 +24,6 @@ dependencies = [
 where = ["src"]
 include = ["metta.common"]
 
-[tool.setuptools.package-data]
-"metta" = ["__init__.py"]
-"metta.common" = ["py.typed"]
-
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]

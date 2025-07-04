@@ -1,6 +1,6 @@
 [build-system]
-requires = ["scikit-build-core", "pybind11==2.10.4"]
-build-backend = "scikit_build_core.build"
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
 
 [project]
 dependencies = [
@@ -81,8 +81,20 @@ source = [
   "metta.app_backend",
 ]
 
-[tool.scikit-build.cmake.define]
-CMAKE_BUILD_TYPE = "Release"
+[tool.setuptools.packages.find]
+where = ["src"]
+include = [
+  "metta.eval",
+  "metta.map",
+  "metta.rl",
+  "metta.setup",
+  "metta.sim",
+  "metta.studio",
+  "metta.sweep",
+]
+
+[tool.setuptools.package-data]
+"metta.app_backend" = ["py.typed"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

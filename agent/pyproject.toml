@@ -24,10 +24,6 @@ dependencies = [
 where = ["src"]
 include = ["metta.agent"]
 
-[tool.setuptools.package-data]
-"metta" = ["__init__.py"]
-"metta.agent" = ["py.typed"]
-
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
