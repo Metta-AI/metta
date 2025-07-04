@@ -62,7 +62,7 @@ class MettaCLI:
         info("\nRun 'metta install' to set up your environment.")
 
         # If not already in PATH, suggest path setup
-        if not self.path_setup.is_in_path():
+        if not self.path_setup.check_installation():
             info("You may also need to run 'metta path-setup' to add metta to your PATH.")
 
     def _custom_setup(self) -> None:
@@ -169,15 +169,7 @@ class MettaCLI:
         return text[: max_len - 3] + "..."
 
     def cmd_path_setup(self, args) -> None:
-        """Set up PATH configuration for metta command."""
-        self.path_setup.setup_path(no_modify=args.no_modify_path)
-
-        # Check for shadowed binaries
-        shadowed = self.path_setup.check_shadowed_binaries()
-        if shadowed:
-            warning(f"\nThe following commands are shadowed by other commands in your PATH: {', '.join(shadowed)}")
-
-        success("\nPath setup complete!")
+        self.path_setup.setup_path(force=args.force)
 
     def cmd_status(self, _args) -> None:
         """Show status of all components."""
@@ -316,8 +308,10 @@ Examples:
         subparsers.add_parser("status", help="Show installation and authentication status of all components")
 
         # Path setup command
-        path_parser = subparsers.add_parser("path-setup", help="Set up PATH configuration for metta command")
-        path_parser.add_argument("--no-modify-path", action="store_true", help="Don't modify shell configuration files")
+        path_parser = subparsers.add_parser(
+            "path-setup", help="Create symlink to make metta command globally available"
+        )
+        path_parser.add_argument("--force", action="store_true", help="Replace existing metta command if it exists")
 
         args = parser.parse_args()
 
