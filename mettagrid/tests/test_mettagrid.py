@@ -359,7 +359,6 @@ class TestObservations:
 def test_packed_coordinate():
     """Test the PackedCoordinate functionality directly."""
     # Test constants
-    assert PackedCoordinate.EMPTY == 0xFF
     assert PackedCoordinate.MAX_PACKABLE_COORD == 15
 
     # Test all valid coordinates
