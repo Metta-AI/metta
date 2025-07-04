@@ -162,7 +162,7 @@ class MettaCLI:
 
         success("Installation complete!")
 
-    def _clean_build_artifacts(self) -> None:
+    def cmd_clean(self, args) -> None:
         build_dir = self.repo_root / "build"
         if build_dir.exists():
             info("  Removing root build directory...")
@@ -182,10 +182,6 @@ class MettaCLI:
                 subprocess.run([sys.executable, str(cleanup_script)], check=True)
             except subprocess.CalledProcessError as e:
                 warning(f"  Cleanup script failed: {e}")
-
-    def cmd_clean(self, args) -> None:
-        """Clean build artifacts."""
-        self._clean_build_artifacts()
 
     def _truncate(self, text: str, max_len: int) -> str:
         """Truncate text to max length with ellipsis."""
