@@ -68,32 +68,32 @@ MettaGrid::MettaGrid(py::dict cfg, py::list map, int seed) {
 
   _action_success.resize(num_agents);
 
-  for (const auto& [action_name, action_cfg] : cfg["actions"].cast<py::dict>()) {
+  for (const auto& [action_name, action_cfg_py] : cfg["actions"].cast<py::dict>()) {
     std::string action_name_str = action_name.cast<std::string>();
-    auto action_cfg_dict = action_cfg.cast<py::dict>();
-    auto action_config = ActionConfig(action_cfg_dict["enabled"].cast<bool>(),
-                                      action_cfg_dict["required_resources"].cast<std::map<InventoryItem, int>>(),
-                                      action_cfg_dict["consumed_resources"].cast<std::map<InventoryItem, int>>());
+    ActionConfig* action_config = action_cfg_py.cast<ActionConfig*>();
+
     if (action_name_str == "put_items") {
-      _action_handlers.push_back(std::make_unique<PutRecipeItems>(action_config));
+      _action_handlers.push_back(std::make_unique<PutRecipeItems>(*action_config));
     } else if (action_name_str == "get_items") {
-      _action_handlers.push_back(std::make_unique<GetOutput>(action_config));
+      _action_handlers.push_back(std::make_unique<GetOutput>(*action_config));
     } else if (action_name_str == "noop") {
-      _action_handlers.push_back(std::make_unique<Noop>(action_config));
+      _action_handlers.push_back(std::make_unique<Noop>(*action_config));
     } else if (action_name_str == "move") {
-      _action_handlers.push_back(std::make_unique<Move>(action_config));
+      _action_handlers.push_back(std::make_unique<Move>(*action_config));
     } else if (action_name_str == "rotate") {
-      _action_handlers.push_back(std::make_unique<Rotate>(action_config));
+      _action_handlers.push_back(std::make_unique<Rotate>(*action_config));
     } else if (action_name_str == "attack") {
       // Attacks have an additional property.
-      auto attack_config =
-          AttackConfig(action_config, action_cfg_dict["defense_resources"].cast<std::map<InventoryItem, int>>());
-      _action_handlers.push_back(std::make_unique<Attack>(attack_config));
-      _action_handlers.push_back(std::make_unique<AttackNearest>(attack_config));
+      AttackActionConfig* attack_config = dynamic_cast<AttackActionConfig*>(action_config);
+      if (!attack_config) {
+        throw std::runtime_error("AttackActionConfig is not a valid action config");
+      }
+      _action_handlers.push_back(std::make_unique<Attack>(*attack_config));
+      _action_handlers.push_back(std::make_unique<AttackNearest>(*attack_config));
     } else if (action_name_str == "swap") {
-      _action_handlers.push_back(std::make_unique<Swap>(action_config));
+      _action_handlers.push_back(std::make_unique<Swap>(*action_config));
     } else if (action_name_str == "change_color") {
-      _action_handlers.push_back(std::make_unique<ChangeColorAction>(action_config));
+      _action_handlers.push_back(std::make_unique<ChangeColorAction>(*action_config));
     } else {
       throw std::runtime_error("Unknown action: " + action_name_str);
     }
@@ -822,4 +822,24 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def_readwrite("cooldown", &ConverterConfig::cooldown)
       .def_readwrite("initial_items", &ConverterConfig::initial_items)
       .def_readwrite("color", &ConverterConfig::color);
+
+  py::class_<ActionConfig>(m, "ActionConfig")
+      .def(py::init<bool, const std::map<InventoryItem, int>&, const std::map<InventoryItem, int>&>(),
+           py::arg("enabled") = true,
+           py::arg("required_resources") = std::map<InventoryItem, int>(),
+           py::arg("consumed_resources") = std::map<InventoryItem, int>())
+      .def_readwrite("enabled", &ActionConfig::enabled)
+      .def_readwrite("required_resources", &ActionConfig::required_resources)
+      .def_readwrite("consumed_resources", &ActionConfig::consumed_resources);
+
+  py::class_<AttackActionConfig, ActionConfig>(m, "AttackActionConfig")
+      .def(py::init<bool,
+                    const std::map<InventoryItem, int>&,
+                    const std::map<InventoryItem, int>&,
+                    const std::map<InventoryItem, int>&>(),
+           py::arg("enabled") = true,
+           py::arg("required_resources") = std::map<InventoryItem, int>(),
+           py::arg("consumed_resources") = std::map<InventoryItem, int>(),
+           py::arg("defense_resources") = std::map<InventoryItem, int>())
+      .def_readwrite("defense_resources", &AttackActionConfig::defense_resources);
 }
