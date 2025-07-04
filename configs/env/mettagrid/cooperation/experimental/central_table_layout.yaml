@@ -79,13 +79,3 @@ game:
       conversion_ticks: 1
       initial_items: 1
 
-  reward_sharing:
-    groups:
-      team_1:
-        team_1: 1
-      team_2:
-        team_2: 1
-      team_3:
-        team_3: 1
-      team_4:
-        team_4: 1
