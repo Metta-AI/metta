@@ -1,7 +1,7 @@
 import copy
 from typing import Any, ClassVar, Dict, List
 
-from pydantic import ConfigDict, Field, conint
+from pydantic import ConfigDict, Field
 
 from metta.common.util.typed_config import BaseModelWithForbidExtra
 from metta.mettagrid.mettagrid_c import ActionConfig as ActionConfig_cpp
@@ -12,9 +12,6 @@ from metta.mettagrid.mettagrid_c import WallConfig as WallConfig_cpp
 from metta.mettagrid.mettagrid_config import ConverterConfig as ConverterConfig_py
 from metta.mettagrid.mettagrid_config import GameConfig as GameConfig_py
 from metta.mettagrid.mettagrid_config import WallConfig as WallConfig_py
-
-Byte = conint(ge=0, le=255)
-FeatureId = Byte
 
 
 class ActionsConfig_cpp(BaseModelWithForbidExtra):
@@ -30,6 +27,7 @@ class ActionsConfig_cpp(BaseModelWithForbidExtra):
     attack: AttackActionConfig_cpp
     swap: ActionConfig_cpp
     change_color: ActionConfig_cpp
+
 
 class GameConfig_cpp(BaseModelWithForbidExtra):
     """Game configuration."""
