@@ -223,6 +223,22 @@ class TestObservations:
         print(f"Agent 0 sees {wall_count_agent0} walls")
         assert wall_count_agent0 == 5, f"Agent 0 should see exactly 5 walls, but sees {wall_count_agent0}"
 
+        # Check that Agent 0 sees itself at (1,1)
+        self_location = PackedCoordinate.pack(1, 1)
+        self_tokens = agent0_obs[agent0_obs[:, 0] == self_location]
+        print("\nAgent 0 self-observation tokens at (1,1):")
+        for token in self_tokens:
+            print(f"  Token: {token}")
+        assert len(self_tokens) > 0, "Agent 0 should see itself at position (1,1)"
+
+        # Check that Agent 0 sees Agent 1
+        # Agent 1 is at grid (4,2), Agent 0 is at (1,1)
+        # Relative position: (4-1, 2-1) = (3, 1)
+        # But (3,1) is outside the 3x3 observation window!
+        # Agent 0's view covers grid positions (0,0) to (2,2)
+        # So Agent 0 should NOT see Agent 1
+        print("\nAgent 0 cannot see Agent 1 (out of observation range)")
+
         # Test Agent 1 (at position 4,2)
         print("\nTesting Agent 1 observation (at position 4,2):")
         agent1_obs = obs[1]
@@ -267,6 +283,25 @@ class TestObservations:
         wall_count_agent1 = np.sum(agent1_obs[:, 2] == WALL_TYPE_ID)
         print(f"Agent 1 sees {wall_count_agent1} walls")
         assert wall_count_agent1 == 3, f"Agent 1 should see exactly 3 walls, but sees {wall_count_agent1}"
+
+        # Check that Agent 1 sees itself at (1,1) in its own view
+        self_location = PackedCoordinate.pack(1, 1)
+        self_tokens = agent1_obs[agent1_obs[:, 0] == self_location]
+        print("\nAgent 1 self-observation tokens at (1,1):")
+        for token in self_tokens:
+            print(f"  Token: {token}")
+        assert len(self_tokens) > 0, "Agent 1 should see itself at position (1,1)"
+
+        # Check that Agent 1 sees Agent 0
+        # Agent 0 is at grid (1,1), Agent 1 is at (4,2)
+        # Relative position: (1-4, 1-2) = (-3, -1)
+        # This is outside Agent 1's 3x3 observation window
+        # Agent 1's view covers grid positions (3,1) to (5,3)
+        # So Agent 1 should NOT see Agent 0
+        print("\nAgent 1 cannot see Agent 0 (out of observation range)")
+
+        # Let's create a scenario where agents CAN see each other
+        print("\n\nTesting agents that can see each other...")
 
         # Verify both agents have the empty terminator tokens
         assert (obs[0, -1, :] == [PackedCoordinate.EMPTY, 0xFF, 0xFF]).all(), "Agent 0: Last token should be empty"
@@ -405,6 +440,113 @@ def test_packed_coordinate():
     print("\nPackedCoordinate tests passed!")
     print(f"Summary: Can pack {successfully_packed}/256 positions (99.6% coverage)")
     print("Limitation: Cannot represent coordinate (15,15) due to EMPTY marker conflict")
+
+
+def test_agents_seeing_each_other():
+    """Test that agents can observe each other when in range."""
+    # Create a simpler environment with agents close together
+    height, width = 5, 5
+    game_map = np.full((height, width), "empty", dtype="<U50")
+
+    # Add walls around perimeter
+    game_map[0, :] = "wall"
+    game_map[-1, :] = "wall"
+    game_map[:, 0] = "wall"
+    game_map[:, -1] = "wall"
+
+    # Place two agents next to each other
+    game_map[2, 1] = "agent.red"  # Agent 0
+    game_map[2, 2] = "agent.red"  # Agent 1
+
+    game_config = {
+        "max_steps": 10,
+        "num_agents": 2,
+        "obs_width": 3,
+        "obs_height": 3,
+        "num_observation_tokens": 100,
+        "inventory_item_names": ["laser", "armor"],
+        "actions": {
+            "noop": {"enabled": True},
+            "move": {"enabled": True},
+            "rotate": {"enabled": True},
+            "attack": {"enabled": False},
+            "put_items": {"enabled": False},
+            "get_items": {"enabled": False},
+            "swap": {"enabled": False},
+            "change_color": {"enabled": False},
+        },
+        "groups": {"red": {"id": 0, "props": {}}},
+        "objects": {"wall": {"type_id": 1}},
+        "agent": {},
+    }
+
+    c_env = MettaGrid(cpp_config_dict(game_config), game_map.tolist(), 42)
+    obs, _info = c_env.reset()
+
+    print("Grid layout:")
+    print("  0 1 2 3 4")
+    for i in range(height):
+        row_str = f"{i} "
+        for j in range(width):
+            if game_map[i, j] == "wall":
+                row_str += "W "
+            elif game_map[i, j] == "agent.red":
+                row_str += "A "
+            else:
+                row_str += ". "
+        print(row_str)
+
+    # Agent 0 is at (2,1), Agent 1 is at (2,2)
+    print("\nAgent 0 at grid position (2,1)")
+    print("Agent 1 at grid position (2,2)")
+
+    # Check Agent 0's view
+    agent0_obs = obs[0]
+    print("\nAgent 0's observation window covers grid positions (1,0) to (3,2)")
+    print("Agent 0 should see Agent 1 at relative position (1,0) - one cell to the right")
+
+    # Agent 1 is at grid (2,2), Agent 0 is at (2,1)
+    # Relative to Agent 0: (2-2, 2-1) = (0, 1)
+    # In observation coordinates: (0+1, 1+1) = (1, 2) BUT this seems wrong...
+    # Actually: relative (row=0, col=1) -> obs coords (row=0+1, col=1+1) = (1, 2)
+    # Wait, that's (x=2, y=1) in our coordinate system
+    agent1_obs_location = PackedCoordinate.pack(1, 2)  # row=1, col=2 in observation
+
+    # Look for agent tokens at this location
+    agent_tokens = agent0_obs[(agent0_obs[:, 0] == agent1_obs_location) & (agent0_obs[:, 1] == 0)]
+    print(f"\nAgent 0 sees {len(agent_tokens)} tokens at location (2,1) where Agent 1 should be")
+
+    if len(agent_tokens) > 0:
+        print("Agent tokens seen by Agent 0:")
+        for token in agent_tokens:
+            print(f"  Token: {token}")
+
+    # Known agent-related type IDs might include color, orientation, etc.
+    # We should see at least one token for Agent 1
+    assert len(agent_tokens) > 0, "Agent 0 should see Agent 1"
+
+    # Check Agent 1's view
+    agent1_obs = obs[1]
+    print("\nAgent 1's observation window covers grid positions (1,1) to (3,3)")
+    print("Agent 1 should see Agent 0 at relative position (-1,0) - one cell to the left")
+
+    # Agent 0 is at grid (2,1), Agent 1 is at (2,2)
+    # Relative to Agent 1: (2-2, 1-2) = (0, -1)
+    # In observation coordinates: (0+1, -1+1) = (1, 0)
+    agent0_obs_location = PackedCoordinate.pack(1, 0)  # row=1, col=0 in observation
+
+    # Look for agent tokens at this location
+    agent_tokens = agent1_obs[(agent1_obs[:, 0] == agent0_obs_location) & (agent1_obs[:, 1] == 0)]
+    print(f"\nAgent 1 sees {len(agent_tokens)} tokens at location (0,1) where Agent 0 should be")
+
+    if len(agent_tokens) > 0:
+        print("Agent tokens seen by Agent 1:")
+        for token in agent_tokens:
+            print(f"  Token: {token}")
+
+    assert len(agent_tokens) > 0, "Agent 1 should see Agent 0"
+
+    print("\nAgents can successfully see each other!")
 
 
 def test_grid_objects():
