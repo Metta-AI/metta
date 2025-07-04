@@ -4,6 +4,7 @@ defaults:
       - basic
       - mines
       - generators
+      - combat
 
   - _self_
 
@@ -16,8 +17,8 @@ game:
 
     room:
       _target_: metta.mettagrid.room.random.Random
-      width: 10 #25
-      height: 10 #25
+      width: 25
+      height: 25
       border_width: 0
 
       agents: 6
@@ -27,5 +28,5 @@ game:
         generator_red: 5
         altar: 5
 
-        block: 3 #50
-        wall: 3 #50
+        block: 50
+        wall: 50

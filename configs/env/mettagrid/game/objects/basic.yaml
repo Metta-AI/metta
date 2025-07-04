@@ -1,10 +1,10 @@
 altar:
   type_id: 8
-  input_battery_red: 1
+  input_battery_red: 3
   output_heart: 1
   max_output: 5
   conversion_ticks: 1
-  cooldown: 5 #10
+  cooldown: 10
   initial_items: 1
 
 wall:

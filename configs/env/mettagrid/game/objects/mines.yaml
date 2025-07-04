@@ -4,7 +4,7 @@ mine_red:
   color: 0
   max_output: 5
   conversion_ticks: 1
-  cooldown: 25 #50
+  cooldown: 50
   initial_items: 1
 
 mine_blue:
@@ -13,7 +13,7 @@ mine_blue:
   output_ore_blue: 1
   max_output: 5
   conversion_ticks: 1
-  cooldown: 25 #50
+  cooldown: 50
   initial_items: 1
 
 mine_green:
@@ -22,5 +22,5 @@ mine_green:
   color: 2
   max_output: 5
   conversion_ticks: 1
-  cooldown: 25 #50
+  cooldown: 50
   initial_items: 1
