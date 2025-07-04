@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "metta-map"
+version = "0.1.0"
+description = "Metta AI Map Module"
+authors = [{ name = "David Bloomin", email = "daveey@gmail.com" }]
+requires-python = "==3.11.7"
+license = "MIT"
+readme = "README.md"
+urls = { Homepage = "https://daveey.github.io", Repository = "https://github.com/Metta-AI/metta" }
+
+dependencies = [
+  "pytest>=8.3.3",
+  "pytest-cov>=6.1.1",
+  "ruff>=0.11.13",
+  "pyright>=1.1.401",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["metta.map"]
+
+[tool.setuptools.package-data]
+"metta" = ["__init__.py"]
+"metta.map" = ["py.typed"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[tool.coverage.run]
+source = ["metta.map"]
