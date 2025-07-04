@@ -383,7 +383,7 @@ void MettaGrid::_step(py::array_t<ActionType, py::array::c_style> actions) {
   auto obs_ptr = static_cast<uint8_t*>(_observations.request().ptr);
   auto obs_size = _observations.size();
 
-  std::fill(obs_ptr, obs_ptr + obs_size, PackedCoordinate::EMPTY);
+  std::fill(obs_ptr, obs_ptr + obs_size, EmptyTokenByte);
   std::fill(_action_success.begin(), _action_success.end(), false);
 
   // Increment timestep and process events
@@ -468,7 +468,7 @@ py::tuple MettaGrid::reset() {
   // Clear observations
   auto obs_ptr = static_cast<uint8_t*>(_observations.request().ptr);
   auto obs_size = _observations.size();
-  std::fill(obs_ptr, obs_ptr + obs_size, PackedCoordinate::EMPTY);
+  std::fill(obs_ptr, obs_ptr + obs_size, EmptyTokenByte);
 
   // Compute initial observations
   std::vector<ssize_t> shape = {static_cast<ssize_t>(_agents.size()), static_cast<ssize_t>(2)};
@@ -756,7 +756,6 @@ PYBIND11_MODULE(mettagrid_c, m) {
   auto pc_m = m.def_submodule("PackedCoordinate", "Packed coordinate encoding utilities");
 
   // Constants
-  pc_m.attr("EMPTY") = PackedCoordinate::EMPTY;
   pc_m.attr("MAX_PACKABLE_COORD") = PackedCoordinate::MAX_PACKABLE_COORD;
 
   // Functions

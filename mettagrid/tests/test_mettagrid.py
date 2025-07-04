@@ -304,8 +304,8 @@ class TestObservations:
         print("\n\nTesting agents that can see each other...")
 
         # Verify both agents have the empty terminator tokens
-        assert (obs[0, -1, :] == [PackedCoordinate.EMPTY, 0xFF, 0xFF]).all(), "Agent 0: Last token should be empty"
-        assert (obs[1, -1, :] == [PackedCoordinate.EMPTY, 0xFF, 0xFF]).all(), "Agent 1: Last token should be empty"
+        assert (obs[0, -1, :] == [0xFF, 0xFF, 0xFF]).all(), "Agent 0: Last token should be empty"
+        assert (obs[1, -1, :] == [0xFF, 0xFF, 0xFF]).all(), "Agent 1: Last token should be empty"
 
         # Verify observation shape
         assert obs.shape[0] == 2, f"Expected 2 agents, got {obs.shape[0]}"

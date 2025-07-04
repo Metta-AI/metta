@@ -14,7 +14,6 @@ class EpisodeStats(TypedDict):
 class PackedCoordinate:
     """Packed coordinate encoding utilities."""
 
-    EMPTY: int
     MAX_PACKABLE_COORD: int
 
     @staticmethod

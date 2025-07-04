@@ -68,7 +68,7 @@ public:
         group(config.group_id),
         frozen(0),
         freeze_duration(config.freeze_duration),
-        // inventory - default constructed
+        max_items_per_type(config.max_items_per_type),  // inventory
         orientation(Orientation::Up),
         resource_rewards(config.resource_rewards),
         resource_reward_max(config.resource_reward_max),

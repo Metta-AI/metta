@@ -27,7 +27,6 @@ namespace PackedCoordinate {
 constexpr uint8_t ROW_SHIFT = 4;
 constexpr uint8_t COL_MASK = 0x0F;
 constexpr uint8_t ROW_MASK = 0xF0;
-constexpr uint8_t EMPTY = EmptyTokenByte;
 
 // Maximum coordinate value that can be packed (4 bits = 0-15)
 constexpr uint8_t MAX_PACKABLE_COORD = 15;
@@ -55,7 +54,7 @@ inline uint8_t pack(uint8_t row, uint8_t col) {
  * @return std::optional<std::pair<row, col>> or std::nullopt if empty
  */
 inline std::optional<std::pair<uint8_t, uint8_t>> unpack(uint8_t packed) {
-  if (packed == EMPTY) {
+  if (packed == EmptyTokenByte) {
     return std::nullopt;
   }
 
@@ -68,7 +67,7 @@ inline std::optional<std::pair<uint8_t, uint8_t>> unpack(uint8_t packed) {
  * Check if a packed coordinate represents an empty/invalid position.
  */
 inline bool is_empty(uint8_t packed) {
-  return packed == EMPTY;
+  return packed == EmptyTokenByte;
 }
 
 }  // namespace PackedCoordinate
