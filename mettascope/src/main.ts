@@ -7,7 +7,7 @@ import { drawTrace } from './traces.js'
 import { drawMiniMap } from './minimap.js'
 import { processActions, initActionButtons } from './actions.js'
 import { initAgentTable, updateAgentTable } from './agentpanel.js'
-import { localStorageSetNumber, onEvent, initHighDpiMode, find } from './htmlutils.js'
+import { localStorageSetNumber, onEvent, initHighDpiMode, find, toggleOpacity } from './htmlutils.js'
 import { updateReadout, hideHoverPanel } from './hoverpanels.js'
 import { initObjectMenu } from './objmenu.js'
 import { drawTimeline, initTimeline, updateTimeline, onScrubberChange, onTraceMinimapChange } from './timeline.js'
@@ -577,15 +577,6 @@ export function setIsPlaying(isPlaying: boolean) {
     html.playButton.setAttribute('src', 'data/ui/play.png')
   }
   requestFrame()
-}
-
-/** Toggles the opacity of a button. */
-function toggleOpacity(button: HTMLElement, show: boolean) {
-  if (show) {
-    button.classList.remove('transparent')
-  } else {
-    button.classList.add('transparent')
-  }
 }
 
 /** Sets the playback speed and updates the speed buttons. */
