@@ -63,8 +63,8 @@ jobs:
           # cache-to: type=gha,mode=max
 
       - name: Deploy helm chart
+        # if: github.ref == 'refs/heads/main'
         run: |
           aws eks update-kubeconfig --name main --region us-east-1
-          echo "helm path: $(which helm)"
-          echo helm upgrade observatory-backend ./devops/charts/observatory-backend -n observatory \
+          helm upgrade observatory-backend ./devops/charts/observatory-backend -n observatory \
             --set image.tag=${{ steps.meta.outputs.version }}
