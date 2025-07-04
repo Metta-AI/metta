@@ -1,37 +1,23 @@
 import copy
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, ClassVar, Dict, List
 
-from pydantic import Field, RootModel, conint
+from pydantic import ConfigDict, Field
 
 from metta.common.util.typed_config import BaseModelWithForbidExtra
+from metta.mettagrid.mettagrid_c import ActionConfig as ActionConfig_cpp
+from metta.mettagrid.mettagrid_c import AgentConfig as AgentConfig_cpp
+from metta.mettagrid.mettagrid_c import AttackActionConfig as AttackActionConfig_cpp
+from metta.mettagrid.mettagrid_c import ConverterConfig as ConverterConfig_cpp
+from metta.mettagrid.mettagrid_c import WallConfig as WallConfig_cpp
 from metta.mettagrid.mettagrid_config import ConverterConfig as ConverterConfig_py
 from metta.mettagrid.mettagrid_config import GameConfig as GameConfig_py
 from metta.mettagrid.mettagrid_config import WallConfig as WallConfig_py
 
-Byte = conint(ge=0, le=255)
-FeatureId = Byte
-
-
-class ActionConfig_cpp(BaseModelWithForbidExtra):
-    """Action configuration."""
-
-    # Required resources should be a superset of consumed resources.
-    # E.g., maybe you need a laser and a battery to attack, but only consume the laser.
-    required_resources: Dict[FeatureId, int]
-    consumed_resources: Dict[FeatureId, int]
-    enabled: bool
-
-
-class AttackActionConfig_cpp(ActionConfig_cpp):
-    """Attack action configuration."""
-
-    # If there are no defense resources, the attack will always succeed.
-    # Otherwise, you need to have enough defense resources to block the attack.
-    defense_resources: Dict[FeatureId, int]
-
 
 class ActionsConfig_cpp(BaseModelWithForbidExtra):
     """Actions configuration."""
+
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
 
     noop: ActionConfig_cpp
     move: ActionConfig_cpp
@@ -41,65 +27,6 @@ class ActionsConfig_cpp(BaseModelWithForbidExtra):
     attack: AttackActionConfig_cpp
     swap: ActionConfig_cpp
     change_color: ActionConfig_cpp
-
-
-class ObjectConfig_cpp(BaseModelWithForbidExtra):
-    """Object configuration."""
-
-    object_type: Literal["agent", "converter", "wall"]
-    # type_id is meant for consumption by the agents, and it should show up in features.
-    type_id: int
-    # type_name is meant for consumption by humans, and will be used in stats and the viewer.
-    type_name: str
-
-
-class AgentGroupConfig_cpp(ObjectConfig_cpp):
-    """Agent group configuration."""
-
-    object_type: Literal["agent"] = "agent"
-    freeze_duration: int = Field(ge=-1)
-    action_failure_penalty: float = Field(default=0, ge=0)
-    max_items_per_type: Dict[FeatureId, int] = Field(default_factory=dict)
-    resource_rewards: Dict[FeatureId, float] = Field(default_factory=dict)
-    resource_reward_max: Dict[FeatureId, float] = Field(default_factory=dict)
-    group_name: str
-    group_id: int
-    group_reward_pct: float = Field(ge=0, le=1)
-    type_id: int = 0
-
-
-class WallConfig_cpp(ObjectConfig_cpp):
-    """Wall/Block configuration."""
-
-    object_type: Literal["wall"] = "wall"
-    swappable: Optional[bool] = None
-    type_id: Byte
-
-
-class ConverterConfig_cpp(ObjectConfig_cpp):
-    """Converter configuration for objects that convert items."""
-
-    object_type: Literal["converter"] = "converter"
-    recipe_input: Dict[FeatureId, int] = Field(default_factory=dict)
-    recipe_output: Dict[FeatureId, int] = Field(default_factory=dict)
-    max_output: int = Field(ge=-1)
-    conversion_ticks: int = Field(ge=0)
-    cooldown: int = Field(ge=0)
-    initial_items: int = Field(ge=0)
-    color: Byte = Field(default=0)
-    type_id: Byte
-
-
-class RewardSharingGroup_cpp(RootModel[Dict[str, float]]):
-    """Reward sharing configuration for a group."""
-
-    pass
-
-
-class RewardSharingConfig_cpp(BaseModelWithForbidExtra):
-    """Reward sharing configuration."""
-
-    groups: Optional[Dict[str, RewardSharingGroup_cpp]] = None
 
 
 class GameConfig_cpp(BaseModelWithForbidExtra):
@@ -112,8 +39,7 @@ class GameConfig_cpp(BaseModelWithForbidExtra):
     obs_height: int = Field(ge=1)
     num_observation_tokens: int = Field(ge=1)
     actions: ActionsConfig_cpp
-    objects: Dict[str, AgentGroupConfig_cpp | ConverterConfig_cpp | WallConfig_cpp]
-    reward_sharing: Optional[RewardSharingConfig_cpp] = None
+    objects: Dict[str, Any]
 
 
 def from_mettagrid_config(mettagrid_config: GameConfig_py) -> GameConfig_cpp:
@@ -172,7 +98,7 @@ def from_mettagrid_config(mettagrid_config: GameConfig_py) -> GameConfig_cpp:
         # #HardCodedConfig
         agent_group_config["type_id"] = 0
         agent_group_config["type_name"] = "agent"
-        object_configs["agent." + group_name] = AgentGroupConfig_cpp(**agent_group_config)
+        object_configs["agent." + group_name] = AgentConfig_cpp(**agent_group_config)
 
     for object_type, object_config in mettagrid_config.objects.items():
         if isinstance(object_config, ConverterConfig_py):
@@ -191,31 +117,39 @@ def from_mettagrid_config(mettagrid_config: GameConfig_py) -> GameConfig_cpp:
             converter_config_cpp_dict["type_name"] = object_type
             object_configs[object_type] = ConverterConfig_cpp(**converter_config_cpp_dict)
         elif isinstance(object_config, WallConfig_py):
-            object_config_dict = object_config.model_dump(by_alias=True, exclude_unset=True)
-            object_config_dict["type_name"] = object_type
-            object_configs[object_type] = WallConfig_cpp(**object_config_dict)
+            wall_config = WallConfig_cpp(
+                type_id=object_config.type_id,
+                type_name=object_type,
+                swappable=object_config.swappable,
+            )
+            object_configs[object_type] = wall_config
         else:
             raise ValueError(f"Unknown object type: {object_type}")
 
     game_config = mettagrid_config.model_dump(by_alias=True, exclude_none=True)
 
+    actions_config_cpp = {}
     # Add required and consumed resources to the attack action
     for action_name, action_config in game_config["actions"].items():
-        game_config["actions"][action_name]["consumed_resources"] = dict(
+        action_config_cpp_params = {}
+        action_config_cpp_params["consumed_resources"] = dict(
             (inventory_item_ids[k], v) for k, v in action_config["consumed_resources"].items()
         )
         if action_config.get("required_resources", None) is not None:
-            game_config["actions"][action_name]["required_resources"] = dict(
+            action_config_cpp_params["required_resources"] = dict(
                 (inventory_item_ids[k], v) for k, v in action_config["required_resources"].items()
             )
         else:
-            game_config["actions"][action_name]["required_resources"] = game_config["actions"][action_name][
-                "consumed_resources"
-            ]
+            action_config_cpp_params["required_resources"] = action_config_cpp_params["consumed_resources"]
         if action_name == "attack":
-            game_config["actions"][action_name]["defense_resources"] = dict(
+            action_config_cpp_params["defense_resources"] = dict(
                 (inventory_item_ids[k], v) for k, v in action_config["defense_resources"].items()
             )
+            actions_config_cpp[action_name] = AttackActionConfig_cpp(**action_config_cpp_params)
+        else:
+            actions_config_cpp[action_name] = ActionConfig_cpp(**action_config_cpp_params)
+
+    game_config["actions"] = actions_config_cpp
 
     del game_config["agent"]
     del game_config["groups"]
