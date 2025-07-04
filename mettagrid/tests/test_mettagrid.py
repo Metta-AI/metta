@@ -191,26 +191,20 @@ class TestObservations:
                 print(f"  Wall at relative ({col}, {row}), token: {token}")
 
         # Agent 0 is at grid position (1,1)
-        # Based on the actual output, Agent 0 sees walls at:
-        # Grid (0,0) -> obs (0,0)
-        # Grid (0,2) -> obs (2,0)
-        # Grid (1,0) -> obs (0,1)
-        # Grid (2,0) -> obs (0,2)
-
-        # Note: It appears wall at grid (0,1) -> obs (1,0) is missing from the output
-        # This might be a bug in the C++ distance ordering, but for now we'll test
-        # what we actually get
-
+        # Agent 0 should see walls at these relative positions:
+        #
+        #   W W W
+        #   W A .
+        #   W . .
+        #
+        # The bottom wall is outside the 3x3 observation window
         wall_positions_agent0 = [
             (0, 0),  # top-left
-            # (1, 0),  # top-center - MISSING in actual output
+            (1, 0),  # top-center
             (2, 0),  # top-right
             (0, 1),  # middle-left
             (0, 2),  # bottom-left
         ]
-
-        # Update the wall count expectation
-        expected_wall_count_agent0 = 4  # Was 5, but we only see 4
 
         all_positions = {(x, y) for x in range(3) for y in range(3)}
         no_wall_positions_agent0 = all_positions - set(wall_positions_agent0)
@@ -227,9 +221,7 @@ class TestObservations:
         # Verify we see the expected number of wall tokens for Agent 0
         wall_count_agent0 = np.sum(agent0_obs[:, 2] == WALL_TYPE_ID)
         print(f"Agent 0 sees {wall_count_agent0} walls")
-        assert wall_count_agent0 == expected_wall_count_agent0, (
-            f"Agent 0 should see exactly {expected_wall_count_agent0} walls, but sees {wall_count_agent0}"
-        )
+        assert wall_count_agent0 == 5, f"Agent 0 should see exactly 5 walls, but sees {wall_count_agent0}"
 
         # Test Agent 1 (at position 4,2)
         print("\nTesting Agent 1 observation (at position 4,2):")
@@ -255,11 +247,10 @@ class TestObservations:
         #   . A .
         #   W W W
         #
-        # The bottom wall is outside the 3x3 observation window
         wall_positions_agent1 = [
-            (0, 2),
-            (1, 2),
-            (2, 2),
+            (0, 2),  # bottom-left
+            (1, 2),  # bottom-center
+            (2, 2),  # bottom-right
         ]
         all_positions = {(x, y) for x in range(3) for y in range(3)}
         no_wall_positions_agent1 = all_positions - set(wall_positions_agent1)

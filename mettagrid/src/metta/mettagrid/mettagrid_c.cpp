@@ -241,14 +241,8 @@ void MettaGrid::_compute_observation(unsigned int observer_row,
   unsigned int r_start = observer_row >= obs_height_radius ? observer_row - obs_height_radius : 0;
   unsigned int c_start = observer_col >= obs_width_radius ? observer_col - obs_width_radius : 0;
 
-  unsigned int r_end = observer_row + obs_height_radius + 1;
-  if (r_end > _grid->height) {
-    r_end = _grid->height;
-  }
-  unsigned int c_end = observer_col + obs_width_radius + 1;
-  if (c_end > _grid->width) {
-    c_end = _grid->width;
-  }
+  unsigned int r_end = std::min(observer_row + obs_height_radius + 1, _grid->height);
+  unsigned int c_end = std::min(observer_col + obs_width_radius + 1, _grid->width);
 
   // Fill in visible objects. Observations should have been cleared in _step, so we don't need to do that here.
   size_t attempted_tokens_written = 0;
@@ -259,22 +253,25 @@ void MettaGrid::_compute_observation(unsigned int observer_row,
   // Global tokens
   ObservationToken* agent_obs_ptr = reinterpret_cast<ObservationToken*>(observation_view.mutable_data(agent_idx, 0, 0));
   ObservationTokens agent_obs_tokens(agent_obs_ptr, observation_view.shape(1) - tokens_written);
+
+  // Calculate episode completion percentage
   unsigned int episode_completion_pct = 0;
   if (max_steps > 0) {
     episode_completion_pct = static_cast<unsigned int>(
         std::round((static_cast<float>(current_step) / max_steps) * std::numeric_limits<ObservationType>::max()));
   }
 
+  // Scale reward to fit in observation
   int reward_int = static_cast<int>(std::round(rewards_view(agent_idx) * 100.0f));
   reward_int = std::clamp(reward_int, 0, static_cast<int>(std::numeric_limits<ObservationType>::max()));
 
+  // Add global tokens at center of observation
   std::vector<PartialObservationToken> global_tokens = {
       {ObservationFeature::EpisodeCompletionPct, static_cast<ObservationType>(episode_completion_pct)},
       {ObservationFeature::LastAction, static_cast<ObservationType>(action)},
       {ObservationFeature::LastActionArg, static_cast<ObservationType>(action_arg)},
       {ObservationFeature::LastReward, static_cast<ObservationType>(reward_int)}};
 
-  // Global tokens are always at the center of the observation.
   uint8_t global_location =
       PackedCoordinate::pack(static_cast<uint8_t>(obs_height_radius), static_cast<uint8_t>(obs_width_radius));
 
@@ -282,52 +279,67 @@ void MettaGrid::_compute_observation(unsigned int observer_row,
       _obs_encoder->append_tokens_if_room_available(agent_obs_tokens, global_tokens, global_location);
   tokens_written = std::min(attempted_tokens_written, static_cast<size_t>(observation_view.shape(1)));
 
-  // Order tokens by distance from agent (drop farthest if buffer fills)
+  // Helper lambda to process a single grid location
+  auto process_location = [&](GridCoord r, GridCoord c) {
+    for (Layer layer = 0; layer < GridLayer::GridLayerCount; layer++) {
+      GridLocation object_loc(r, c, layer);
+      auto obj = _grid->object_at(object_loc);
+      if (!obj) continue;
+
+      // Prepare observation buffer for this object
+      ObservationToken* obs_ptr =
+          reinterpret_cast<ObservationToken*>(observation_view.mutable_data(agent_idx, tokens_written, 0));
+      ObservationTokens obs_tokens(obs_ptr, observation_view.shape(1) - tokens_written);
+
+      // Calculate position relative to observer
+      int rel_r = static_cast<int>(r) - static_cast<int>(observer_row);
+      int rel_c = static_cast<int>(c) - static_cast<int>(observer_col);
+
+      // Convert to observation array indices (0-based)
+      uint8_t obs_r = static_cast<uint8_t>(rel_r + static_cast<int>(obs_height_radius));
+      uint8_t obs_c = static_cast<uint8_t>(rel_c + static_cast<int>(obs_width_radius));
+
+      // Encode location and add tokens
+      uint8_t location = PackedCoordinate::pack(obs_r, obs_c);
+      attempted_tokens_written += _obs_encoder->encode_tokens(obj, obs_tokens, location);
+      tokens_written = std::min(attempted_tokens_written, static_cast<size_t>(observation_view.shape(1)));
+    }
+  };
+
+  // Process objects in order of increasing Manhattan distance from observer
   for (unsigned int distance = 0; distance <= obs_width_radius + obs_height_radius; distance++) {
+    // For each row, calculate which columns have the target distance
     for (GridCoord r = r_start; r < r_end; r++) {
       unsigned int r_dist = std::abs(static_cast<int>(r) - static_cast<int>(observer_row));
       if (r_dist > distance) continue;
 
-      int c_dist = distance - r_dist;
+      unsigned int c_dist = distance - r_dist;
 
-      // Check columns at ±c_dist from observer
-      for (int c_offset : {c_dist, -c_dist}) {
-        if (c_offset == 0 && &c_offset != &c_dist) continue;  // Skip duplicate when c_dist=0
-
-        int c = static_cast<int>(observer_col) + c_offset;
-        if (c < static_cast<int>(c_start) || c >= static_cast<int>(c_end)) continue;
-
-        // Process all layers at this location
-        for (Layer layer = 0; layer < GridLayer::GridLayerCount; layer++) {
-          GridLocation object_loc(r, static_cast<GridCoord>(c), layer);
-          auto obj = _grid->object_at(object_loc);
-          if (!obj) continue;
-
-          // Prepare observation buffer for this object
-          ObservationToken* obs_ptr =
-              reinterpret_cast<ObservationToken*>(observation_view.mutable_data(agent_idx, tokens_written, 0));
-          ObservationTokens obs_tokens(obs_ptr, observation_view.shape(1) - tokens_written);
-
-          // Grid position relative to observer
-          int rel_r = static_cast<int>(r) - static_cast<int>(observer_row);
-          int rel_c = static_cast<int>(c) - static_cast<int>(observer_col);
-
-          // Convert to observation array indices (0-based)
-          int obs_r_int = rel_r + static_cast<int>(obs_height_radius);
-          int obs_c_int = rel_c + static_cast<int>(obs_width_radius);
-
-          uint8_t obs_r = static_cast<uint8_t>(obs_r_int);
-          uint8_t obs_c = static_cast<uint8_t>(obs_c_int);
-
-          // Use PackedCoordinate for location encoding
-          uint8_t location = PackedCoordinate::pack(obs_r, obs_c);
-
-          attempted_tokens_written += _obs_encoder->encode_tokens(obj, obs_tokens, location);
-          tokens_written = std::min(attempted_tokens_written, static_cast<size_t>(observation_view.shape(1)));
+      if (c_dist == 0) {
+        // Only one column to check: the observer's column
+        GridCoord c = observer_col;
+        if (c >= c_start && c < c_end) {
+          process_location(r, c);
+        }
+      } else {
+        // Check columns at ±c_dist from observer
+        // Left side
+        if (observer_col >= c_dist) {
+          GridCoord c = observer_col - c_dist;
+          if (c >= c_start && c < c_end) {
+            process_location(r, c);
+          }
+        }
+        // Right side
+        GridCoord c = observer_col + c_dist;
+        if (c < c_end) {
+          process_location(r, c);
         }
       }
     }
   }
+
+  // Update statistics
   _stats->add("tokens_written", static_cast<float>(tokens_written));
   _stats->add("tokens_dropped", static_cast<float>(attempted_tokens_written - tokens_written));
   _stats->add("tokens_free_space", static_cast<float>(observation_view.shape(1) - tokens_written));

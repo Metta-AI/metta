@@ -1,4 +1,4 @@
-from typing import Dict, List, Tuple, TypeAlias, TypedDict
+from typing import Dict, List, Optional, Tuple, TypeAlias, TypedDict
 
 import gymnasium as gym
 import numpy as np
@@ -10,6 +10,45 @@ class EpisodeStats(TypedDict):
     game: StatsDict
     agent: List[StatsDict]
     converter: List[StatsDict]
+
+class PackedCoordinate:
+    """Packed coordinate encoding utilities."""
+
+    EMPTY: int
+    MAX_PACKABLE_COORD: int
+
+    @staticmethod
+    def pack(row: int, col: int) -> int:
+        """Pack (row, col) coordinates into a single byte.
+
+        Args:
+            row: Row coordinate (0-15)
+            col: Column coordinate (0-15)
+
+        Returns:
+            Packed byte value
+
+        Raises:
+            ValueError: If row or col > 15
+        """
+        ...
+
+    @staticmethod
+    def unpack(packed: int) -> Optional[Tuple[int, int]]:
+        """Unpack byte into (row, col) tuple or None if empty.
+
+        Args:
+            packed: Packed coordinate byte
+
+        Returns:
+            (row, col) tuple or None if empty location
+        """
+        ...
+
+    @staticmethod
+    def is_empty(packed: int) -> bool:
+        """Check if packed value represents empty location."""
+        ...
 
 class MettaGrid:
     obs_width: int
@@ -39,3 +78,4 @@ class MettaGrid:
     def inventory_item_names(self) -> List[str]: ...
     def get_agent_groups(self) -> np.ndarray: ...
     def feature_normalizations(self) -> Dict[int, float]: ...
+    def feature_spec(self) -> Dict[str, dict]: ...
