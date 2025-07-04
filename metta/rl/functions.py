@@ -431,3 +431,133 @@ def accumulate_rollout_stats(
                     stats[k] += v
                 except TypeError:
                     stats[k] = [stats[k], v]  # fallback: bundle as list
+
+
+def compute_gradient_stats(policy: torch.nn.Module) -> Dict[str, float]:
+    """Compute gradient statistics for the policy.
+
+    Returns:
+        Dictionary with 'grad/mean', 'grad/variance', and 'grad/norm' keys
+    """
+    all_gradients = []
+    for param in policy.parameters():
+        if param.grad is not None:
+            all_gradients.append(param.grad.view(-1))
+
+    if not all_gradients:
+        return {}
+
+    all_gradients_tensor = torch.cat(all_gradients).to(torch.float32)
+
+    grad_mean = all_gradients_tensor.mean()
+    grad_variance = all_gradients_tensor.var()
+    grad_norm = all_gradients_tensor.norm(2)
+
+    grad_stats = {
+        "grad/mean": grad_mean.item(),
+        "grad/variance": grad_variance.item(),
+        "grad/norm": grad_norm.item(),
+    }
+
+    return grad_stats
+
+
+def cleanup_old_policies(checkpoint_dir: str, keep_last_n: int = 5) -> None:
+    """Clean up old saved policies to prevent memory accumulation.
+
+    Args:
+        checkpoint_dir: Directory containing policy checkpoints
+        keep_last_n: Number of most recent policies to keep
+    """
+    from pathlib import Path
+
+    try:
+        # Get checkpoint directory
+        checkpoint_path = Path(checkpoint_dir)
+        if not checkpoint_path.exists():
+            return
+
+        # List all policy files
+        policy_files = sorted(checkpoint_path.glob("policy_*.pt"))
+
+        # Keep only the most recent ones
+        if len(policy_files) > keep_last_n:
+            files_to_remove = policy_files[:-keep_last_n]
+            for file_path in files_to_remove:
+                try:
+                    file_path.unlink()
+                except Exception as e:
+                    logger.warning(f"Failed to remove old policy file {file_path}: {e}")
+
+    except Exception as e:
+        logger.warning(f"Error during policy cleanup: {e}")
+
+
+def setup_distributed_vars() -> Tuple[bool, int, int]:
+    """Set up distributed training variables.
+
+    Returns:
+        Tuple of (_master, _world_size, _rank)
+    """
+    if torch.distributed.is_initialized():
+        _master = torch.distributed.get_rank() == 0
+        _world_size = torch.distributed.get_world_size()
+        _rank = torch.distributed.get_rank()
+    else:
+        _master = True
+        _world_size = 1
+        _rank = 0
+
+    return _master, _world_size, _rank
+
+
+def should_run_on_interval(
+    epoch: int,
+    interval: int,
+    is_master: bool = True,
+    force: bool = False,
+) -> bool:
+    """Check if a periodic task should run based on interval and master status.
+
+    Args:
+        epoch: Current epoch
+        interval: Interval to check
+        is_master: Whether this is the master rank
+        force: Force run regardless of interval
+
+    Returns:
+        True if should run, False otherwise
+    """
+    if not is_master or not interval:
+        return False
+
+    if force:
+        return True
+
+    return epoch % interval == 0
+
+
+def maybe_update_l2_weights(
+    agent: Any,
+    epoch: int,
+    interval: int,
+    is_master: bool = True,
+    force: bool = False,
+) -> None:
+    """Update L2 init weights if on update interval.
+
+    Args:
+        agent: The agent/policy
+        epoch: Current epoch
+        interval: Update interval
+        is_master: Whether this is the master rank
+        force: Force update
+    """
+    if not should_run_on_interval(epoch, interval, is_master, force):
+        return
+
+    if hasattr(agent, "l2_init_weight_update_interval"):
+        l2_interval = getattr(agent, "l2_init_weight_update_interval", 0)
+        if isinstance(l2_interval, int) and l2_interval > 0:
+            if hasattr(agent, "update_l2_init_weight_copy"):
+                agent.update_l2_init_weight_copy()
