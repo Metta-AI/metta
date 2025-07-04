@@ -13,6 +13,8 @@ from typing import Generator
 
 import requests
 
+ASANA_GITHUB_ATTACHMENT_ACTION_URL = "https://github.integrations.asana.plus/custom/v1/actions/widget"
+
 
 def extract_asana_urls_from_description(description: str) -> list[str]:
     """Extract Asana task URLs from the description text."""
@@ -418,6 +420,42 @@ def ensure_asana_task_exists(
     return new_task_url
 
 
+def ensure_github_url_in_asana_task(
+    asana_attachment_secret: str,
+    project_id: str,
+    task_url: str,
+    title: str,
+    github_url: str,
+) -> dict | None:
+    github_url_number = github_url.split("pull/")[-1]
+    if not github_url_number.isdigit():
+        print(f"Invalid GitHub URL: {github_url}")
+        return None
+
+    headers = {
+        "Authorization": f"Bearer {asana_attachment_secret}",
+        "Content-Type": "application/json",
+    }
+
+    payload = {
+        "allowedProjects": [project_id],
+        "blockedProjects": [],
+        # Unclear why this is needed. The Asana endpoint wants it. It doesn't seem like it need to
+        # be correct, but may as well?
+        "pullRequestName": title,
+        # This we fake, since we want Asana to find the right task in the description.
+        "pullRequestDescription": task_url,
+        "pullRequestNumber": int(github_url_number),
+        "pullRequestURL": github_url,
+    }
+    response = requests.post(ASANA_GITHUB_ATTACHMENT_ACTION_URL, json=payload, headers=headers, timeout=30)
+    if response.status_code == 200:
+        return response.json()
+    else:
+        print(f"Asana API Error: {response.status_code} - {response.text}")
+        return None
+
+
 if __name__ == "__main__":
     # Inputs from the Action
     title = os.getenv("INPUT_TITLE")
@@ -435,6 +473,7 @@ if __name__ == "__main__":
     asana_email_field_id = os.getenv("INPUT_ASANA_EMAIL_FIELD_ID")
     roster_project_id = os.getenv("INPUT_ROSTER_PROJECT_ID")
     pr_author_field_id = os.getenv("INPUT_PR_AUTHOR_FIELD_ID")
+    asana_attachment_secret = os.getenv("INPUT_ASANA_ATTACHMENT_SECRET")
 
     github_logins = set(assignees + reviewers + [author])
     github_login_to_asana_email = get_asana_users_by_github_logins(
@@ -472,6 +511,8 @@ if __name__ == "__main__":
         pr_author_field_id,
         pr_author_asana,
     )
+
+    ensure_github_url_in_asana_task(asana_attachment_secret, project_id, task_url, title, github_url)
 
     with open(os.environ["GITHUB_OUTPUT"], "a") as f:
         f.write(f"task_url={task_url}\n")
