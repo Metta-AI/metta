@@ -47,6 +47,3 @@ observatory/dist/
 
 # can be created by skypilot
 /Miniconda3-Linux.sh
-
-# Metta configuration and environment
-.metta/
