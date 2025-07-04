@@ -256,14 +256,3 @@ game:
       enabled: true
     change_color:
       enabled: true
-
-  reward_sharing:
-    groups:
-      team_1:
-        team_1: 0.5
-      team_2:
-        team_2: 0.5
-      team_3:
-        team_3: 0.5
-      team_4:
-        team_4: 0.5
