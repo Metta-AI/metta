@@ -109,24 +109,28 @@ def set_hardware_configurations(cfg: DictConfig, logger: logging.Logger) -> None
         )
         cfg.vectorization = "serial"
 
-    # Auto-configure dependent settings based on vectorization
     if "trainer" in cfg:
         if cfg.vectorization == "serial":
-            if not cfg.trainer.get("num_workers"):
-                cfg.trainer.num_workers = 1
+            # Set async_factor and zero_copy defaults for serial vectorization
+            # TrainerConfig already has reasonable defaults for vectorization = "multiprocessing"
             if not cfg.trainer.get("async_factor"):
                 cfg.trainer.async_factor = 1
             if not cfg.trainer.get("zero_copy"):
                 cfg.trainer.zero_copy = False
-        elif not cfg.trainer.get("num_workers"):
-            cpu_count = multiprocessing.cpu_count()
-            ideal_workers = cpu_count // 2
-            cfg.trainer.num_workers = nearest_lower_power_of_2(ideal_workers)
-            logger.info(
-                f"Auto-set num_workers to {cfg.trainer.num_workers} (power of 2 <= half of cpu count of ({cpu_count}))"
-            )
+
+        if not cfg.trainer.get("num_workers"):
+            cfg.trainer.num_workers = calculate_default_num_workers(cfg.vectorization)
 
     OmegaConf.set_struct(cfg, True)
+
+
+def calculate_default_num_workers(vectorization: str) -> int:
+    if vectorization == "serial":
+        return 1
+    # Powers of two make batch_size compatibility more likely
+    cpu_count = multiprocessing.cpu_count()
+    ideal_workers = cpu_count // 2
+    return nearest_lower_power_of_2(ideal_workers)
 
 
 def is_multiprocessing_available() -> bool:
