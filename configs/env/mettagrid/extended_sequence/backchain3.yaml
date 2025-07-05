@@ -1,5 +1,7 @@
 defaults:
   - /env/mettagrid/mettagrid@
+  - /env/mettagrid/game/objects/generators@game.objects
+  - /env/mettagrid/game/objects/mines@game.objects
   - _self_
 
 sampling: 1
