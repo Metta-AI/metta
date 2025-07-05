@@ -130,7 +130,7 @@ jobs:
       - name: Setup Python and uv
         uses: ./.github/actions/setup-uv
         with:
-          install-mode: "minimal"
+          install-mode: "linting"
 
       - name: Run Ruff linter
         run: |
@@ -352,7 +352,7 @@ jobs:
       - name: Setup uv
         uses: ./.github/actions/setup-uv
         with:
-          install-mode: "minimal"
+          install-mode: "cpp-build"
 
       - name: Build and run C++ benchmarks
         run: |

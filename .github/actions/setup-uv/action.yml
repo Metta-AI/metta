@@ -6,7 +6,7 @@ inputs:
     required: false
     default: "false"
   install-mode:
-    description: "Installation mode: 'full' (default), 'no-mettagrid', or 'minimal'"
+    description: "Installation mode: 'full' (default), 'no-mettagrid', 'linting', or 'cpp-build'"
     required: false
     default: "full"
 runs:
@@ -33,9 +33,13 @@ runs:
             # Install everything except mettagrid
             uv sync --no-install-package mettagrid
             ;;
-          "minimal")
-            # Just install the bare minimum for running workflows
-            uv pip install numpy pybind11 ruff
+          "linting")
+            # Just install linting tools
+            uv pip install ruff cpplint
+            ;;
+          "cpp-build")
+            # Just install C++ build dependencies
+            uv pip install numpy pybind11
             ;;
           "full"|*)
             # Normal installation
