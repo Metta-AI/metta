@@ -33,6 +33,7 @@ runs:
           "no-mettagrid")
             # Install everything except mettagrid
             uv sync --no-install-package mettagrid
+            uv pip install scikit-build-core
             ;;
           "linting")
             # Just install linting tools
