@@ -1,3 +1,4 @@
+import multiprocessing
 from typing import Any, ClassVar, Literal
 
 from omegaconf import DictConfig, OmegaConf
@@ -154,7 +155,7 @@ class TrainerConfig(BaseModelWithForbidExtra):
     vtrace: VTraceConfig = Field(default_factory=VTraceConfig)
 
     # System configuration
-    # Zero copy: Performance optimization to avoid memory copies
+    # Zero copy: Performance optimization to avoid memory copies (default assumes multiprocessing)
     zero_copy: bool = True
     # Contiguous env IDs not required: More flexible env management
     require_contiguous_env_ids: bool = False
@@ -187,6 +188,7 @@ class TrainerConfig(BaseModelWithForbidExtra):
     # Forward minibatch: Type 2 default chosen arbitrarily
     forward_pass_minibatch_target_size: int = Field(default=4096, gt=0)
     # Async factor 2: Type 2 default chosen arbitrarily, overlaps computation and communication for efficiency
+    #   (default assumes multiprocessing)
     async_factor: int = Field(default=2, gt=0)
 
     # Kickstart
@@ -238,10 +240,10 @@ class TrainerConfig(BaseModelWithForbidExtra):
         raise ValueError("curriculum or env must be set")
 
 
-def parse_trainer_config(
+def create_trainer_config(
     cfg: DictConfig,
 ) -> TrainerConfig:
-    """Parse trainer config from Hydra config.
+    """Create trainer config from Hydra config.
 
     Args:
         cfg: The complete Hydra config (must contain trainer, run, and run_dir)
@@ -249,6 +251,8 @@ def parse_trainer_config(
     for key in ["trainer", "run", "run_dir"]:
         if not hasattr(cfg, key) or cfg[key] is None:
             raise ValueError(f"cfg must have a '{key}' field")
+
+    is_serial = cfg.get("vectorization") == "serial" if not OmegaConf.is_missing(cfg, "vectorization") else False
 
     trainer_cfg = cfg.trainer
     if not isinstance(trainer_cfg, DictConfig):
@@ -258,10 +262,32 @@ def parse_trainer_config(
         if _target_ != "metta.rl.trainer.MettaTrainer":
             raise ValueError(f"Unsupported trainer config: {_target_}")
 
+    async_factor_missing = OmegaConf.is_missing(trainer_cfg, "async_factor")
+    zero_copy_missing = OmegaConf.is_missing(trainer_cfg, "zero_copy")
+    num_workers_missing = OmegaConf.is_missing(trainer_cfg, "num_workers")
+
     # Convert to dict and let OmegaConf handle all interpolations
     config_dict = OmegaConf.to_container(trainer_cfg, resolve=True)
     if not isinstance(config_dict, dict):
         raise ValueError("trainer config must be a dict")
+
+    # Handle missing values
+    if async_factor_missing:
+        if is_serial:
+            config_dict["async_factor"] = 1
+        else:
+            # Delete the key to use TrainerConfig's default
+            config_dict.pop("async_factor", None)
+
+    if zero_copy_missing:
+        if is_serial:
+            config_dict["zero_copy"] = False
+        else:
+            # Delete the key to use TrainerConfig's default
+            config_dict.pop("zero_copy", None)
+
+    if num_workers_missing:
+        config_dict["num_workers"] = _calculate_default_num_workers(is_serial)
 
     # Set default paths if not provided
     if "checkpoint_dir" not in config_dict.setdefault("checkpoint", {}):
@@ -274,3 +300,19 @@ def parse_trainer_config(
         config_dict["profiler"]["profile_dir"] = f"{cfg.run_dir}/torch_traces"
 
     return TrainerConfig.model_validate(config_dict)
+
+
+def _calculate_default_num_workers(is_serial: bool) -> int:
+    if is_serial:
+        return 1
+
+    # Use power of 2 for better batch size compatibility
+    cpu_count = multiprocessing.cpu_count() or 1
+    ideal_workers = cpu_count // 2
+
+    # Round down to nearest power of 2
+    num_workers = 1
+    while num_workers * 2 <= ideal_workers:
+        num_workers *= 2
+
+    return max(1, num_workers)

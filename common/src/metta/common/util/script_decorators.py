@@ -79,9 +79,8 @@ def metta_script(func: Callable[..., T]) -> Callable[..., T]:
 
 
 def is_unspecified(cfg: DictConfig, key: str) -> bool:
-    """Check if a config value is unspecified (not set, None, or ???)."""
-    value = cfg.get(key)
-    return value is None or value == "???"
+    """Check if a config value is unspecified (not set or ???)."""
+    return not cfg.get(key) or OmegaConf.is_missing(cfg, key)
 
 
 def set_hardware_configurations(cfg: DictConfig, logger: logging.Logger) -> None:
@@ -115,28 +114,7 @@ def set_hardware_configurations(cfg: DictConfig, logger: logging.Logger) -> None
         )
         cfg.vectorization = "serial"
 
-    if "trainer" in cfg:
-        if cfg.vectorization == "serial":
-            # Set async_factor and zero_copy defaults for serial vectorization
-            # TrainerConfig already has reasonable defaults for vectorization = "multiprocessing"
-            if is_unspecified(cfg.trainer, "async_factor"):
-                cfg.trainer.async_factor = 1
-            if is_unspecified(cfg.trainer, "zero_copy"):
-                cfg.trainer.zero_copy = False
-
-        if is_unspecified(cfg.trainer, "num_workers"):
-            cfg.trainer.num_workers = calculate_default_num_workers(cfg.vectorization)
-
     OmegaConf.set_struct(cfg, True)
-
-
-def calculate_default_num_workers(vectorization: str) -> int:
-    if vectorization == "serial":
-        return 1
-    # Powers of two make batch_size compatibility more likely
-    cpu_count = multiprocessing.cpu_count()
-    ideal_workers = cpu_count // 2
-    return nearest_lower_power_of_2(ideal_workers)
 
 
 def is_multiprocessing_available() -> bool:
@@ -147,9 +125,3 @@ def is_multiprocessing_available() -> bool:
         return True
     except Exception:
         return False
-
-
-def nearest_lower_power_of_2(n: int) -> int:
-    if n <= 0:
-        return 1
-    return 1 << (n.bit_length() - 1)

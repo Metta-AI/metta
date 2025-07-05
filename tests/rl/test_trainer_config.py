@@ -6,7 +6,7 @@ from hydra import compose, initialize_config_dir
 from omegaconf import DictConfig
 from pydantic import ValidationError
 
-from metta.rl.trainer_config import OptimizerConfig, parse_trainer_config
+from metta.rl.trainer_config import OptimizerConfig, create_trainer_config
 
 valid_optimizer_config = {
     "type": "adam",
@@ -106,7 +106,7 @@ def make_cfg(trainer_cfg: dict) -> DictConfig:
 
 class TestTypedConfigs:
     def test_basic_typed_config_parsing(self):
-        trainer_config = parse_trainer_config(make_cfg(valid_trainer_config))
+        trainer_config = create_trainer_config(make_cfg(valid_trainer_config))
         assert trainer_config.optimizer.type == "adam"
         assert trainer_config.optimizer.learning_rate == 0.001
         assert trainer_config.bptt_horizon == 32
@@ -149,7 +149,7 @@ class TestTypedConfigs:
         }
 
         # Should not raise - defaults will be used
-        trainer_config = parse_trainer_config(make_cfg(incomplete_config))
+        trainer_config = create_trainer_config(make_cfg(incomplete_config))
 
         # Check that defaults were applied
         assert trainer_config.optimizer.beta1 == 0.9
@@ -182,7 +182,7 @@ class TestTypedConfigs:
             },
         }
 
-        validated_config = parse_trainer_config(make_cfg(test_config_dict))
+        validated_config = create_trainer_config(make_cfg(test_config_dict))
 
         # Test that env_overrides can be converted to DictConfig
         env_overrides_dict = DictConfig(validated_config.env_overrides)
@@ -204,7 +204,7 @@ class TestTypedConfigs:
         config_with_paths["checkpoint"]["checkpoint_dir"] = "/custom/checkpoint/path"
         config_with_paths["simulation"]["replay_dir"] = "s3://custom-bucket/replays"
 
-        trainer_config = parse_trainer_config(make_cfg(config_with_paths))
+        trainer_config = create_trainer_config(make_cfg(config_with_paths))
 
         # Should use the provided paths, not the runtime defaults
         assert trainer_config.checkpoint.checkpoint_dir == "/custom/checkpoint/path"
@@ -235,10 +235,9 @@ class TestRealTypedConfigs:
 
         for config_name in config_files:
             try:
-                # some of the configs don't have num_workers specified because train.sh provides it
-                cfg = load_config_with_hydra(config_name, overrides=["trainer.num_workers=1"])
+                cfg = load_config_with_hydra(config_name)
 
-                validated_config = parse_trainer_config(cfg)
+                validated_config = create_trainer_config(cfg)
 
                 # Verify some basic fields and  constraints
                 assert validated_config.batch_size > 0
@@ -283,10 +282,9 @@ class TestRealTypedConfigs:
 
             try:
                 # For hardware/user configs, apply them as overrides
-                overrides_list = [override, "trainer.num_workers=1"]
-                cfg = load_config_with_hydra("trainer", overrides=overrides_list)
+                cfg = load_config_with_hydra("trainer", overrides=[override])
 
-                _ = parse_trainer_config(cfg)
+                _ = create_trainer_config(cfg)
 
             except Exception as e:
                 print(f"Error loading {config_type} config {config_name}: {e}")

@@ -5,7 +5,7 @@ from omegaconf import DictConfig, ListConfig, OmegaConf
 from pydantic import ValidationError
 
 from metta.common.util.config import copy_omegaconf_config
-from metta.rl.trainer_config import parse_trainer_config
+from metta.rl.trainer_config import create_trainer_config
 
 
 def validate_merged_config(
@@ -20,7 +20,7 @@ def validate_merged_config(
 
     if "trainer" in merged_cfg:
         try:
-            _ = parse_trainer_config(merged_cfg.trainer)
+            _ = create_trainer_config(merged_cfg.trainer)
         except (ValueError, TypeError, ValidationError) as e:
             raise ValueError("Invalid trainer config after applying overrides") from e
 
