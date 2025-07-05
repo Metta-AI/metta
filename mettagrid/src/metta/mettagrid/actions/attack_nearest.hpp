@@ -10,7 +10,7 @@
 
 class AttackNearest : public Attack {
 public:
-  explicit AttackNearest(const AttackConfig& cfg) : Attack(cfg, "attack_nearest") {}
+  explicit AttackNearest(const AttackActionConfig& cfg) : Attack(cfg, "attack_nearest") {}
 
   unsigned char max_arg() const override {
     return 0;
