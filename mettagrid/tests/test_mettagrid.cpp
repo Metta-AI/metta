@@ -179,15 +179,7 @@ TEST_F(MettaGridCppTest, AttackAction) {
   EXPECT_EQ(attacker->orientation, Orientation::Up);
 
   // Create attack action handler
-  AttackConfig attack_cfg;
-  std::map<InventoryItem, short> required_resources;
-  std::map<InventoryItem, short> defense_resources;
-  required_resources[TestItems::LASER] = 1;
-  // In this case, defense takes 3 armor!
-  defense_resources[TestItems::ARMOR] = 3;
-  attack_cfg.required_resources = required_resources;
-  attack_cfg.consumed_resources = required_resources;
-  attack_cfg.defense_resources = defense_resources;
+  AttackActionConfig attack_cfg(true, {{TestItems::LASER, 1}}, {{TestItems::LASER, 1}}, {{TestItems::ARMOR, 3}});
   Attack attack(attack_cfg);
   attack.init(&grid);
 
@@ -248,7 +240,7 @@ TEST_F(MettaGridCppTest, PutRecipeItems) {
   agent->update_inventory(TestItems::HEART, 1);
 
   // Create put_recipe_items action handler
-  ActionConfig put_cfg;
+  ActionConfig put_cfg(true, {}, {});
   PutRecipeItems put(put_cfg);
   put.init(&grid);
 
@@ -297,7 +289,7 @@ TEST_F(MettaGridCppTest, GetOutput) {
   agent->update_inventory(TestItems::ORE, 1);
 
   // Create get_output action handler
-  ActionConfig get_cfg;
+  ActionConfig get_cfg(true, {}, {});
   GetOutput get(get_cfg);
   get.init(&grid);
 

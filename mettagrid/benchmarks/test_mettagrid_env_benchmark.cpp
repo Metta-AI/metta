@@ -47,6 +47,9 @@ py::dict CreateBenchmarkConfig(int num_agents) {
   game_cfg["obs_height"] = 11;
   game_cfg["num_observation_tokens"] = 100;
 
+  // Import mettagrid_c module to get Python configuration classes
+  py::module_ mettagrid_c = py::module_::import("metta.mettagrid.mettagrid_c");
+
   // Inventory item names configuration
   py::list inventory_item_names;
   inventory_item_names.append("ore");
@@ -54,18 +57,12 @@ py::dict CreateBenchmarkConfig(int num_agents) {
   game_cfg["inventory_item_names"] = inventory_item_names;
 
   // Actions configuration
+  py::object ActionConfig = mettagrid_c.attr("ActionConfig");
+  py::object AttackActionConfig = mettagrid_c.attr("AttackActionConfig");
+
   py::dict actions_cfg;
-  py::dict action_cfg;
-  py::dict attack_cfg;
-
-  action_cfg["enabled"] = true;
-  action_cfg["consumed_resources"] = py::dict();
-  action_cfg["required_resources"] = py::dict();
-
-  attack_cfg["enabled"] = true;
-  attack_cfg["consumed_resources"] = py::dict();
-  attack_cfg["required_resources"] = py::dict();
-  attack_cfg["defense_resources"] = py::dict();
+  py::object action_cfg = ActionConfig(true, py::dict(), py::dict());
+  py::object attack_cfg = AttackActionConfig(true, py::dict(), py::dict(), py::dict());  // NOLINT(readability/fn_size)
 
   actions_cfg["noop"] = action_cfg;
   actions_cfg["move"] = action_cfg;

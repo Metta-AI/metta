@@ -13,11 +13,17 @@
 
 struct AttackConfig : public ActionConfig {
   std::map<InventoryItem, short> defense_resources;
+
+  AttackActionConfig(bool enabled,
+                     const std::map<InventoryItem, int>& required_resources,
+                     const std::map<InventoryItem, int>& consumed_resources,
+                     const std::map<InventoryItem, int>& defense_resources)
+      : ActionConfig(enabled, required_resources, consumed_resources), defense_resources(defense_resources) {}
 };
 
 class Attack : public ActionHandler {
 public:
-  explicit Attack(const AttackConfig& cfg, const std::string& action_name = "attack")
+  explicit Attack(const AttackActionConfig& cfg, const std::string& action_name = "attack")
       : ActionHandler(cfg, action_name), _defense_resources(cfg.defense_resources) {
     priority = 1;
   }

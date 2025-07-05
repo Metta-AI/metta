@@ -14,6 +14,12 @@ struct ActionConfig {
   bool enabled;
   std::map<InventoryItem, short> required_resources;
   std::map<InventoryItem, short> consumed_resources;
+  ActionConfig(bool enabled,
+               const std::map<InventoryItem, int>& required_resources,
+               const std::map<InventoryItem, int>& consumed_resources)
+      : enabled(enabled), required_resources(required_resources), consumed_resources(consumed_resources) {}
+
+  virtual ~ActionConfig() {}
 };
 
 class ActionHandler {

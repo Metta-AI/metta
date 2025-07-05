@@ -31,7 +31,9 @@ export const MapSection: FC<{ cfg: MettagridCfgFile }> = ({ cfg }) => {
       </div>
       {maybeMap.type === "map" && <StorableMapViewer map={maybeMap.data} />}
       {maybeMap.type === "error" && (
-        <div className="text-red-500">Error loading map: {maybeMap.error}</div>
+        <pre className="text-sm text-red-500">
+          Error loading map: {maybeMap.error}
+        </pre>
       )}
     </section>
   );

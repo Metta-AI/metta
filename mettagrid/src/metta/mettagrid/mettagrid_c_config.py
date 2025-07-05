@@ -1,10 +1,12 @@
 import copy
-from typing import Annotated, Any, Dict, List, Literal, Optional
+from typing import Annotated, Any, ClassVar, Dict, List
 
-from pydantic import Field, RootModel
+from pydantic import ConfigDict, Field
 
 from metta.common.util.typed_config import BaseModelWithForbidExtra
+from metta.mettagrid.mettagrid_c import ActionConfig as ActionConfig_cpp
 from metta.mettagrid.mettagrid_c import AgentConfig as AgentConfig_cpp
+from metta.mettagrid.mettagrid_c import AttackActionConfig as AttackActionConfig_cpp
 from metta.mettagrid.mettagrid_c import ConverterConfig as ConverterConfig_cpp
 from metta.mettagrid.mettagrid_c import WallConfig as WallConfig_cpp
 from metta.mettagrid.mettagrid_config import ConverterConfig as ConverterConfig_py
@@ -36,6 +38,8 @@ class AttackActionConfig_cpp(ActionConfig_cpp):
 class ActionsConfig_cpp(BaseModelWithForbidExtra):
     """Actions configuration."""
 
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
+
     noop: ActionConfig_cpp
     move: ActionConfig_cpp
     rotate: ActionConfig_cpp
@@ -44,28 +48,6 @@ class ActionsConfig_cpp(BaseModelWithForbidExtra):
     attack: AttackActionConfig_cpp
     swap: ActionConfig_cpp
     change_color: ActionConfig_cpp
-
-
-class ObjectConfig_cpp(BaseModelWithForbidExtra):
-    """Object configuration."""
-
-    object_type: Literal["agent", "converter", "wall"]
-    # type_id is meant for consumption by the agents, and it should show up in features.
-    type_id: int
-    # type_name is meant for consumption by humans, and will be used in stats and the viewer.
-    type_name: str
-
-
-class RewardSharingGroup_cpp(RootModel[Dict[str, float]]):
-    """Reward sharing configuration for a group."""
-
-    pass
-
-
-class RewardSharingConfig_cpp(BaseModelWithForbidExtra):
-    """Reward sharing configuration."""
-
-    groups: Optional[Dict[str, RewardSharingGroup_cpp]] = None
 
 
 class GameConfig_cpp(BaseModelWithForbidExtra):
@@ -79,7 +61,6 @@ class GameConfig_cpp(BaseModelWithForbidExtra):
     num_observation_tokens: int = Field(ge=1)
     actions: ActionsConfig_cpp
     objects: Dict[str, Any]
-    reward_sharing: Optional[RewardSharingConfig_cpp] = None
 
 
 def from_mettagrid_config(mettagrid_config: GameConfig_py) -> GameConfig_cpp:
@@ -168,23 +149,28 @@ def from_mettagrid_config(mettagrid_config: GameConfig_py) -> GameConfig_cpp:
 
     game_config = mettagrid_config.model_dump(by_alias=True, exclude_none=True)
 
+    actions_config_cpp = {}
     # Add required and consumed resources to the attack action
     for action_name, action_config in game_config["actions"].items():
-        game_config["actions"][action_name]["consumed_resources"] = dict(
+        action_config_cpp_params = {}
+        action_config_cpp_params["consumed_resources"] = dict(
             (inventory_item_ids[k], v) for k, v in action_config["consumed_resources"].items()
         )
         if action_config.get("required_resources", None) is not None:
-            game_config["actions"][action_name]["required_resources"] = dict(
+            action_config_cpp_params["required_resources"] = dict(
                 (inventory_item_ids[k], v) for k, v in action_config["required_resources"].items()
             )
         else:
-            game_config["actions"][action_name]["required_resources"] = game_config["actions"][action_name][
-                "consumed_resources"
-            ]
+            action_config_cpp_params["required_resources"] = action_config_cpp_params["consumed_resources"]
         if action_name == "attack":
-            game_config["actions"][action_name]["defense_resources"] = dict(
+            action_config_cpp_params["defense_resources"] = dict(
                 (inventory_item_ids[k], v) for k, v in action_config["defense_resources"].items()
             )
+            actions_config_cpp[action_name] = AttackActionConfig_cpp(**action_config_cpp_params)
+        else:
+            actions_config_cpp[action_name] = ActionConfig_cpp(**action_config_cpp_params)
+
+    game_config["actions"] = actions_config_cpp
 
     del game_config["agent"]
     del game_config["groups"]
