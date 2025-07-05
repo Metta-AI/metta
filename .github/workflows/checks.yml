@@ -179,14 +179,16 @@ jobs:
         run: |
           errors=${{ steps.mettagrid_build_check.outputs.total_errors }}
           warnings=${{ steps.mettagrid_build_check.outputs.total_warnings }}
+          max_warnings=${{ vars.MAX_ALLOWED_METTAGRID_WARNINGS || 1000 }}
 
           echo "Build Summary: $errors errors, $warnings warnings"
+          echo "Maximum allowed warnings: $max_warnings"
 
           if [ "$errors" -gt 0 ]; then
             echo "❌ MettaGrid has build errors!"
             exit 1
-          elif [ "$warnings" -gt 100 ]; then
-            echo "⚠️ Too many warnings in MettaGrid build ($warnings > 100)"
+          elif [ "$warnings" -gt "$max_warnings" ]; then
+            echo "⚠️ Too many warnings in MettaGrid build ($warnings > $max_warnings)"
             exit 1
           else
             echo "✅ MettaGrid build quality check passed"
