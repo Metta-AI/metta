@@ -14,15 +14,15 @@ initial_policy:
 
 checkpoint:
   checkpoint_dir: ${run_dir}/checkpoints
-  checkpoint_interval: 60
-  wandb_checkpoint_interval: 300
+  checkpoint_interval: 50
+  wandb_checkpoint_interval: 50
 
 simulation:
-  evaluate_interval: 300
+  evaluate_interval: 50
   replay_interval: ${trainer.simulation.evaluate_interval}
   replay_dir: s3://softmax-public/replays/${run}
 
-grad_mean_variance_interval: 0 # 0 to disable
+grad_mean_variance_interval: 25 # 0 to disable
 
 
 total_timesteps: 10_000_000_000
@@ -92,15 +92,15 @@ async_factor: 2
 scale_batches_by_world_size: false
 
 kickstart:
-  teacher_uri: null
-  action_loss_coef: 1
-  value_loss_coef: 1
-  anneal_ratio: 0.65 # ratio of kickstart_steps to anneal to 0 coef
+  teacher_uri: wandb://run/m.alexv.solo.fast.probe.20:v911 #null
+  action_loss_coef: 1.5
+  value_loss_coef: 3.5
+  anneal_ratio: 0.3 # ratio of kickstart_steps to anneal to 0 coef
   kickstart_steps: 1_000_000_000
   additional_teachers:
-    # - teacher_uri: wandb://run/m_alexv_ks_dr_lam_001:v22
-    #   action_loss_coef: 0.5
-    #   value_loss_coef: 0.6
+    # - teacher_uri: wandb://run/m.alexv.solo.fast.probe.20:v911
+    #   action_loss_coef: 1.5
+    #   value_loss_coef: 3.5
     #  - teacher_uri: wandb://run/mettabox_cogeval_defaults_lowent_initialized0005:v95
     #    action_loss_coef: 1
     #    value_loss_coef: 1

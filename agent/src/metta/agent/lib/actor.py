@@ -78,6 +78,7 @@ class MettaActorBig(LayerBase):
         # Perform bilinear operation  h W e -> k for each B * num_actions = N
         query = torch.einsum("n h, k h e -> n k e", hidden_reshaped, self.W)  # Shape: [N, K, E]
         query = self._tanh(query)
+        td["_actor_query_"] = query
         scores = torch.einsum("n k e, n e -> n k", query, action_embeds_reshaped)  # Shape: [N, K]
 
         biased_scores = scores + self.bias.reshape(1, -1)  # Shape: [N, K]
