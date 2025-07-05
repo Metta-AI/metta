@@ -262,31 +262,17 @@ def create_trainer_config(
         if _target_ != "metta.rl.trainer.MettaTrainer":
             raise ValueError(f"Unsupported trainer config: {_target_}")
 
-    async_factor_missing = OmegaConf.is_missing(trainer_cfg, "async_factor")
-    zero_copy_missing = OmegaConf.is_missing(trainer_cfg, "zero_copy")
-    num_workers_missing = OmegaConf.is_missing(trainer_cfg, "num_workers")
-
     # Convert to dict and let OmegaConf handle all interpolations
     config_dict = OmegaConf.to_container(trainer_cfg, resolve=True)
     if not isinstance(config_dict, dict):
         raise ValueError("trainer config must be a dict")
 
-    # Handle missing values
-    if async_factor_missing:
-        if is_serial:
-            config_dict["async_factor"] = 1
-        else:
-            # Delete the key to use TrainerConfig's default
-            config_dict.pop("async_factor", None)
+    # Some keys' defaults in TrainerConfig that are appropriate for multiprocessing but not serial
+    if is_serial:
+        config_dict["async_factor"] = config_dict.get("async_factor", 1)
+        config_dict["zero_copy"] = config_dict.get("zero_copy", False)
 
-    if zero_copy_missing:
-        if is_serial:
-            config_dict["zero_copy"] = False
-        else:
-            # Delete the key to use TrainerConfig's default
-            config_dict.pop("zero_copy", None)
-
-    if num_workers_missing:
+    if config_dict.get("num_workers") is None:
         config_dict["num_workers"] = _calculate_default_num_workers(is_serial)
 
     # Set default paths if not provided

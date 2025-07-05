@@ -146,6 +146,7 @@
     "nuqs",
     "nvec",
     "omegaconf",
+    "overrideable",
     "pettingzoo",
     "pipefail",
     "policydash",

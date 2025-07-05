@@ -58,6 +58,7 @@ def metta_script(func: Callable[..., T]) -> Callable[..., T]:
         logger = setup_mettagrid_logger("metta_script")
 
         set_hardware_configurations(cfg, logger)
+        remove_missing_trainer_values(cfg)
 
         # Call setup_mettagrid_environment first - it handles all environment setup
         # including device validation, directory creation, and seed initialization
@@ -113,8 +114,21 @@ def set_hardware_configurations(cfg: DictConfig, logger: logging.Logger) -> None
             "available in this environment. Overriding to 'serial'."
         )
         cfg.vectorization = "serial"
-
     OmegaConf.set_struct(cfg, True)
+
+
+def remove_missing_trainer_values(cfg: DictConfig) -> None:
+    # create_trainer_config is responsible for populating defaults and validating cfg.trainer
+    # cfg.trainer may contain ??? values. they need to be specified for Hydra to recognize them as overrideable values
+    # We need to remove before hydra.instantiate, else it will fail. It is safe to do so because
+    # create_trainer_config will later be called before cfg.trainer is used.
+    if "trainer" in cfg:
+        OmegaConf.set_struct(cfg, False)
+        for key in list(cfg.trainer.keys()):
+            if OmegaConf.is_missing(cfg.trainer, key):
+                del cfg.trainer[key]
+
+        OmegaConf.set_struct(cfg, True)
 
 
 def is_multiprocessing_available() -> bool:
