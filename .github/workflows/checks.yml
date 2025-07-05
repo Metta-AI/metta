@@ -33,6 +33,7 @@ permissions:
 env:
   HYDRA_FULL_ERROR: 1
   VENV_PATH: .venv
+  PYTEST_WORKERS: 2
 
 jobs:
   # check if CI should run based on Graphite's stack position
@@ -161,7 +162,7 @@ jobs:
 
       - name: Run Pytest on core tests
         run: |
-          pytest --maxfail=1 --disable-warnings -q
+          pytest -n ${{ env.PYTEST_WORKERS }} --maxfail=1 --disable-warnings -q
 
       - name: Run Pytest on subpackage tests
         env:
@@ -169,7 +170,7 @@ jobs:
         run: |
           for package in $SUBPACKAGES; do
             echo "Running tests for $package..."
-            (cd "$package" && pytest --maxfail=1 --disable-warnings -q) || exit 1
+            (cd "$package" && pytest -n ${{ env.PYTEST_WORKERS }} --maxfail=1 --disable-warnings -q) || exit 1
           done
 
       - name: Run MettaGrid C++ tests
