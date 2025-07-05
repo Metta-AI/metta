@@ -9,7 +9,14 @@ include(FetchContent)
 
 option(BUILD_TESTS "Build C++ unit tests and benchmarks" OFF)
 
+# Include centralized compiler flags
+include(${CMAKE_CURRENT_LIST_DIR}/compiler_flags.cmake)
+
 # ========================= METTAGRID =========================
+
+# Force CMake to use virtual environment Python first
+set(Python3_FIND_VIRTUALENV FIRST)
+set(Python3_FIND_STRATEGY LOCATION)
 
 set(PYBIND11_FINDPYTHON ON)
 execute_process(
@@ -40,11 +47,15 @@ target_include_directories(mettagrid_obj PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}/src/metta/mettagrid
 )
 
-target_compile_definitions(mettagrid_obj PUBLIC "NPY_NO_DEPRECATED_API=NPY_1_7_API_VERSION")
+# Apply all flags to the object library
+target_link_libraries(mettagrid_obj PRIVATE mettagrid_all_flags)
 
-target_compile_options(mettagrid_obj PUBLIC "-fvisibility=hidden")
+# ========================= PYTHON MODULE =========================
 
 pybind11_add_module(mettagrid_c $<TARGET_OBJECTS:mettagrid_obj>)
+
+# Python module needs sanitizer link flags in debug builds
+target_link_libraries(mettagrid_c PRIVATE mettagrid_sanitizers)
 
 install(TARGETS mettagrid_c DESTINATION "metta/mettagrid")
 

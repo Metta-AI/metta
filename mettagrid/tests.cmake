@@ -3,7 +3,9 @@
 FetchContent_Declare(
   googletest
   GIT_REPOSITORY https://github.com/google/googletest.git
-  GIT_TAG v1.17.0)
+  GIT_TAG v1.17.0
+  GIT_SHALLOW TRUE
+)
 
 FetchContent_MakeAvailable(googletest)
 
@@ -18,7 +20,9 @@ set(BENCHMARK_ENABLE_GTEST_TESTS
 FetchContent_Declare(
   googlebenchmark
   GIT_REPOSITORY https://github.com/google/benchmark.git
-  GIT_TAG v1.9.4)
+  GIT_TAG v1.9.4
+  GIT_SHALLOW TRUE
+)
 
 FetchContent_MakeAvailable(googlebenchmark)
 
@@ -63,6 +67,9 @@ function(mettagrid_add_tests GLOB_PATTERN # e.g. "${CMAKE_CURRENT_SOURCE_DIR}/te
     target_include_directories(${output_name} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src/metta/mettagrid" ${NUMPY_INCLUDE_DIR})
 
     target_link_libraries(${output_name} PRIVATE ${LINK_LIBS})
+
+    # Apply all flags (including sanitizers) to test executables
+    target_link_libraries(${output_name} PRIVATE mettagrid_all_flags)
 
     set_target_properties(${output_name} PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${output_dir}")
 

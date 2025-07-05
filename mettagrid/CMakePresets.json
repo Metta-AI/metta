@@ -25,7 +25,8 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
         "BUILD_TESTS": "OFF"
-      }
+      },
+      "binaryDir": "${sourceDir}/build-release"
     }
   ]
 }
