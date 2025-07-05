@@ -40,9 +40,10 @@ dependencies = [
     "termcolor>=2.4.0",
     "tqdm>=4.67.1",
     "wandb>=0.19.11",
-    "pytest>=8.3.3",
-    "pytest-benchmark>=5.1.0",
 ]
+
+[dependency-groups]
+dev = ["pytest>=8.3.3", "pytest-benchmark>=5.1.0", "pytest-xdist>=3.8.0"]
 
 [tool.scikit-build]
 # `release-no-tests` is faster than `release` preset.

@@ -4,11 +4,12 @@ inputs:
   include-dev:
     description: "Whether to include dev dependencies"
     required: false
-    default: "false"
+    default: "true"
   install-mode:
     description: "Installation mode: 'full' (default), 'no-mettagrid', 'linting', or 'cpp-build'"
     required: false
     default: "full"
+
 runs:
   using: "composite"
   steps:
