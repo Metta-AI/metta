@@ -1,12 +1,14 @@
 name: "Setup uv"
 description: "Set up uv and activate the environment"
-
 inputs:
   include-dev:
     description: "Whether to include dev dependencies"
     required: false
     default: "false"
-
+  install-mode:
+    description: "Installation mode: 'full' (default), 'no-mettagrid', or 'minimal'"
+    required: false
+    default: "full"
 runs:
   using: "composite"
   steps:
@@ -20,10 +22,27 @@ runs:
       shell: bash
       run: |
         uv venv
-        if [ "${{ inputs.include-dev }}" = "true" ]; then
-          uv sync
-        else
-          uv sync --no-default-groups
-        fi
+
+        # Export environment variables
         echo "VIRTUAL_ENV=$(pwd)/.venv" >> $GITHUB_ENV
         echo "$(pwd)/.venv/bin" >> $GITHUB_PATH
+
+        # Handle different installation modes
+        case "${{ inputs.install-mode }}" in
+          "no-mettagrid")
+            # Install everything except mettagrid
+            uv sync --no-install-package mettagrid
+            ;;
+          "minimal")
+            # Just install the bare minimum for running workflows
+            uv pip install numpy pybind11 ruff
+            ;;
+          "full"|*)
+            # Normal installation
+            if [ "${{ inputs.include-dev }}" = "true" ]; then
+              uv sync
+            else
+              uv sync --no-default-groups
+            fi
+            ;;
+        esac

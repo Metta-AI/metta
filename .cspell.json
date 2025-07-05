@@ -74,6 +74,7 @@
     "endforeach",
     "endfunction",
     "errc",
+    "esac",
     "evals",
     "excinfo",
     "FINDPYTHON",
