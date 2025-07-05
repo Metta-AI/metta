@@ -123,7 +123,7 @@ class Swish(nn.Module):
 
     def __init__(self):
         super().__init__()
-        self.beta = nn.Parameter(torch.tensor(1.0), dtype=torch.float32)
+        self.beta = nn.Parameter(torch.tensor(1.0, dtype=torch.float32))
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return x * torch.sigmoid(self.beta * x)
