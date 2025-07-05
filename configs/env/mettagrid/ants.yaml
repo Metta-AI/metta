@@ -6,8 +6,9 @@ defaults:
       - mines
   - _self_
 
+group_reward_pct: 0
+
 game:
-  group_reward_pct: 0
   num_agents: 36
   map_builder:
     _target_: metta.map.mapgen.MapGen
@@ -70,4 +71,4 @@ game:
 
   groups:
     team_1:
-      group_reward_pct: ${...group_reward_pct}
+      group_reward_pct: ${....group_reward_pct}
