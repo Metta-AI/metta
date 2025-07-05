@@ -1,4 +1,4 @@
-name: "Build App Backend Docker Image"
+name: "Build Observatory Backend Docker Image"
 concurrency:
   group: ${{ github.workflow }}
   cancel-in-progress: true
@@ -58,6 +58,13 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          # GitHub cache is too slow and has 10Gb limit so they aren't very useful
+          # GitHub cache is too slow and has 10Gb limit so it's harmful to use it
           # cache-from: type=gha
           # cache-to: type=gha,mode=max
+
+      - name: Deploy helm chart
+        if: github.ref == 'refs/heads/main'
+        run: |
+          aws eks update-kubeconfig --name main --region us-east-1
+          helm upgrade -n observatory observatory-backend ./devops/charts/observatory-backend \
+            --set image.tag=${{ steps.meta.outputs.version }}

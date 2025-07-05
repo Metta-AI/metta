@@ -45,6 +45,23 @@ resource "aws_iam_role_policy_attachment" "github_ecr_poweruser" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryPowerUser"
 }
 
+# This is necessary for github to be able to update the kubeconfig.
+resource "aws_iam_role_policy" "github_eks_describe" {
+  name = "github-actions-eks-describe"
+  role = aws_iam_role.github_actions.name
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = "eks:DescribeCluster"
+        Resource = "*"
+      }
+    ]
+  })
+}
+
 resource "github_actions_variable" "aws_role" {
   repository    = var.github_repo
   variable_name = "AWS_ROLE"
