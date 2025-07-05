@@ -31,8 +31,11 @@ runs:
         # Handle different installation modes
         case "${{ inputs.install-mode }}" in
           "no-mettagrid")
-            # Install everything except mettagrid
-            uv sync --no-install-package mettagrid
+            # Install everything except workspace members (including mettagrid)
+            echo "Installing dependencies without workspace members..."
+            uv sync --no-install-workspace
+            # Also install mettagrid's build dependencies since we'll need them later
+            echo "Installing build dependencies..."
             uv pip install scikit-build-core
             ;;
           "linting")
