@@ -58,7 +58,7 @@ def metta_script(func: Callable[..., T]) -> Callable[..., T]:
         logger = setup_mettagrid_logger("metta_script")
 
         set_hardware_configurations(cfg, logger)
-        remove_missing_trainer_values(cfg)
+        remove_num_workers_if_unspecified(cfg)
 
         # Call setup_mettagrid_environment first - it handles all environment setup
         # including device validation, directory creation, and seed initialization
@@ -117,17 +117,14 @@ def set_hardware_configurations(cfg: DictConfig, logger: logging.Logger) -> None
     OmegaConf.set_struct(cfg, True)
 
 
-def remove_missing_trainer_values(cfg: DictConfig) -> None:
-    # create_trainer_config is responsible for populating defaults and validating cfg.trainer
-    # cfg.trainer may contain ??? values. they need to be specified for Hydra to recognize them as overrideable values
-    # We need to remove before hydra.instantiate, else it will fail. It is safe to do so because
-    # create_trainer_config will later be called before cfg.trainer is used.
+def remove_num_workers_if_unspecified(cfg: DictConfig) -> None:
+    # cfg.trainer.num_workers may be ???. it needs to be specified for Hydra to recognize it overrideable,
+    # but hydra.instantiate will also fail if it is set to ???. We remove it here if so to let
+    # create_trainer_config determine and set the default.
     if "trainer" in cfg:
         OmegaConf.set_struct(cfg, False)
-        for key in list(cfg.trainer.keys()):
-            if OmegaConf.is_missing(cfg.trainer, key):
-                del cfg.trainer[key]
-
+        if OmegaConf.is_missing(cfg.trainer, "num_workers"):
+            del cfg.trainer["num_workers"]
         OmegaConf.set_struct(cfg, True)
 
 

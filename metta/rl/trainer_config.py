@@ -269,10 +269,10 @@ def create_trainer_config(
 
     # Some keys' defaults in TrainerConfig that are appropriate for multiprocessing but not serial
     if is_serial:
-        config_dict["async_factor"] = config_dict.get("async_factor", 1)
-        config_dict["zero_copy"] = config_dict.get("zero_copy", False)
+        config_dict["async_factor"] = 1
+        config_dict["zero_copy"] = False
 
-    if config_dict.get("num_workers") is None:
+    if not config_dict.get("num_workers"):
         config_dict["num_workers"] = _calculate_default_num_workers(is_serial)
 
     # Set default paths if not provided

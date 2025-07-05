@@ -1,5 +1,5 @@
 _target_: metta.rl.trainer.MettaTrainer
-num_workers: ???  # auto-detected by @metta_script decorator if not specified
+num_workers: ???  # determined by create_trainer_config if not specified
 
 curriculum: /env/mettagrid/curriculum/simple
 env_overrides: {}
@@ -70,7 +70,7 @@ vtrace:
   vtrace_rho_clip: 1.0  # Default: on-policy (no off-policy correction)
   vtrace_c_clip: 1.0    # Default: on-policy bootstrapping
 
-zero_copy: ???  # auto-detected by @metta_script decorator if not specified
+zero_copy: true
 require_contiguous_env_ids: false
 verbose: true
 
@@ -87,7 +87,7 @@ profiler:
   profile_dir: s3://softmax-public/torch_traces/${run}
 
 forward_pass_minibatch_target_size: 4096
-async_factor: ???  # auto-detected by @metta_script decorator if not specified
+async_factor: 2
 scale_batches_by_world_size: false
 
 kickstart:
