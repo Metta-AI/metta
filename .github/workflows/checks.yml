@@ -129,6 +129,8 @@ jobs:
 
       - name: Setup Python and uv
         uses: ./.github/actions/setup-uv
+        with:
+          install-mode: "minimal"
 
       - name: Run Ruff linter
         run: |
@@ -195,7 +197,7 @@ jobs:
 
       - name: Run Pytest on subpackage tests
         env:
-          SUBPACKAGES: "app_backend agent common"
+          SUBPACKAGES: "app_backend agent mettagrid common"
         run: |
           for package in $SUBPACKAGES; do
             echo "Running tests for $package..."
@@ -349,6 +351,8 @@ jobs:
 
       - name: Setup uv
         uses: ./.github/actions/setup-uv
+        with:
+          install-mode: "minimal"
 
       - name: Build and run C++ benchmarks
         run: |
