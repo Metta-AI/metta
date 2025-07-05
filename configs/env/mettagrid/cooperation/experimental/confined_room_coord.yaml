@@ -1,6 +1,8 @@
 # Config: Confined Room Coord (Overcooked-style)
 defaults:
   - /env/mettagrid/mettagrid@
+  - /env/mettagrid/game/objects/mines@game.objects
+  - /env/mettagrid/game/objects/generators@game.objects
   - _self_
 
 sampling: 1
@@ -11,7 +13,7 @@ game:
 
   agent:
     default_item_max: 1
-    heart_max: 1000
+    heart_max: 255
     rewards:
       ore_red: 0.005
       ore_blue: 0.005
