@@ -5,8 +5,9 @@ defaults:
   - override game/groups: teams
   - _self_
 
+group_reward_pct: 0
+
 game:
-  group_reward_pct: 0
   num_agents: 36
   map_builder:
     _target_: metta.map.mapgen.MapGen
@@ -74,3 +75,9 @@ game:
       input_ore_red: 0
       initial_items: 5
       cooldown: 5
+
+  groups:
+    team_1:
+      group_reward_pct: ${....group_reward_pct}
+    team_2:
+      group_reward_pct: ${....group_reward_pct}
