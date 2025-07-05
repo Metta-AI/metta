@@ -9,14 +9,14 @@ from metta.rl.kickstarter_config import KickstartConfig
 
 class OptimizerConfig(BaseModelWithForbidExtra):
     type: Literal["adam", "muon"] = "adam"
-    # Learning rate: Type 2 default chosen by sweep
-    learning_rate: float = Field(default=0.0004573146765703167, gt=0, le=1.0)
-    # Beta1: Standard Adam default from Kingma & Ba (2014) "Adam: A Method for Stochastic Optimization"
-    beta1: float = Field(default=0.9, ge=0, le=1.0)
-    # Beta2: Standard Adam default from Kingma & Ba (2014)
-    beta2: float = Field(default=0.999, ge=0, le=1.0)
-    # Epsilon: Type 2 default chosen arbitrarily
-    eps: float = Field(default=1e-12, gt=0)
+    # Learning rate: Updated based on Joseph's sweep results
+    learning_rate: float = Field(default=0.019, gt=0, le=1.0)
+    # Beta1: Updated based on Joseph's sweep results
+    beta1: float = Field(default=0.89, ge=0, le=1.0)
+    # Beta2: Updated based on Joseph's sweep results
+    beta2: float = Field(default=0.96, ge=0, le=1.0)
+    # Epsilon: Updated based on Joseph's sweep results
+    eps: float = Field(default=1.4e-7, gt=0)
     # Weight decay: Disabled by default, common practice for RL to avoid over-regularization
     weight_decay: float = Field(default=0, ge=0)
 
@@ -33,17 +33,17 @@ class LRSchedulerConfig(BaseModelWithForbidExtra):
 
 
 class PrioritizedExperienceReplayConfig(BaseModelWithForbidExtra):
-    # Alpha=0 disables prioritization (uniform sampling), Type 2 default to be updated by sweep
-    prio_alpha: float = Field(default=0.0, ge=0, le=1.0)
-    # Beta0=0.6: From Schaul et al. (2016) "Prioritized Experience Replay" paper
-    prio_beta0: float = Field(default=0.6, ge=0, le=1.0)
+    # Alpha: Updated based on Joseph's sweep results (0.79 enables strong prioritization)
+    prio_alpha: float = Field(default=0.79, ge=0, le=1.0)
+    # Beta0: Updated based on Joseph's sweep results
+    prio_beta0: float = Field(default=0.59, ge=0, le=1.0)
 
 
 class VTraceConfig(BaseModelWithForbidExtra):
-    # V-trace rho clipping at 1.0: From IMPALA paper (Espeholt et al., 2018), standard for on-policy
-    vtrace_rho_clip: float = Field(default=1.0, gt=0)
-    # V-trace c clipping at 1.0: From IMPALA paper (Espeholt et al., 2018), standard for on-policy
-    vtrace_c_clip: float = Field(default=1.0, gt=0)
+    # V-trace rho clipping: Updated based on Joseph's sweep results (2.3 allows more off-policy correction)
+    vtrace_rho_clip: float = Field(default=2.3, gt=0)
+    # V-trace c clipping: Updated based on Joseph's sweep results (2.1 allows more off-policy bootstrapping)
+    vtrace_c_clip: float = Field(default=2.1, gt=0)
 
 
 class InitialPolicyConfig(BaseModelWithForbidExtra):
@@ -85,23 +85,22 @@ class SimulationConfig(BaseModelWithForbidExtra):
 
 class PPOConfig(BaseModelWithForbidExtra):
     # PPO hyperparameters
-    # Clip coefficient: 0.1 is conservative, common range 0.1-0.3 from PPO paper (Schulman et al., 2017)
-    clip_coef: float = Field(default=0.1, gt=0, le=1.0)
-    # Entropy coefficient: Type 2 default chosen from sweep
-    ent_coef: float = Field(default=0.0021, ge=0)
-    # GAE lambda: Type 2 default chosen from sweep, deviates from typical 0.95, bias/variance tradeoff
-    gae_lambda: float = Field(default=0.916, ge=0, le=1.0)
-    # Gamma: Type 2 default chosen from sweep, deviates from typical 0.99, suggests shorter
-    # effective horizon for multi-agent
-    gamma: float = Field(default=0.977, ge=0, le=1.0)
+    # Clip coefficient: Updated based on Joseph's sweep results
+    clip_coef: float = Field(default=0.15, gt=0, le=1.0)
+    # Entropy coefficient: Updated based on Joseph's sweep results
+    ent_coef: float = Field(default=0.017, ge=0)
+    # GAE lambda: Updated based on Joseph's sweep results
+    gae_lambda: float = Field(default=0.84, ge=0, le=1.0)
+    # Gamma: Updated based on Joseph's sweep results (0.99 is standard)
+    gamma: float = Field(default=0.99, ge=0, le=1.0)
 
     # Training parameters
-    # Gradient clipping: 0.5 is standard PPO default to prevent instability
-    max_grad_norm: float = Field(default=0.5, gt=0)
-    # Value function clipping: Matches policy clip for consistency
-    vf_clip_coef: float = Field(default=0.1, ge=0)
-    # Value coefficient: Type 2 default chosen from sweep, balances policy vs value loss
-    vf_coef: float = Field(default=0.44, ge=0)
+    # Gradient clipping: Updated based on Joseph's sweep results
+    max_grad_norm: float = Field(default=2.6, gt=0)
+    # Value function clipping: Updated based on Joseph's sweep results
+    vf_clip_coef: float = Field(default=0.16, ge=0)
+    # Value coefficient: Updated based on Joseph's sweep results
+    vf_coef: float = Field(default=3.2, ge=0)
     # L2 regularization: Disabled by default, common in RL
     l2_reg_loss_coef: float = Field(default=0, ge=0)
     l2_init_loss_coef: float = Field(default=0, ge=0)
