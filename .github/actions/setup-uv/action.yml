@@ -6,7 +6,7 @@ inputs:
     required: false
     default: "true"
   install-mode:
-    description: "Installation mode: 'full' (default), 'no-mettagrid', 'linting', or 'cpp-build'"
+    description: "Installation mode: 'full' (default), 'no-mettagrid', or 'linting'"
     required: false
     default: "full"
 
@@ -37,10 +37,6 @@ runs:
           "linting")
             # Just install linting tools
             uv pip install ruff cpplint
-            ;;
-          "cpp-build")
-            # Just install C++ build dependencies
-            uv pip install numpy pybind11
             ;;
           "full"|*)
             # Normal installation
