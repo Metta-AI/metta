@@ -60,7 +60,11 @@ function(mettagrid_add_tests GLOB_PATTERN # e.g. "${CMAKE_CURRENT_SOURCE_DIR}/te
 
     add_executable(${output_name} ${src} $<TARGET_OBJECTS:mettagrid_obj>)
 
-    target_include_directories(${output_name} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src/metta/mettagrid" ${NUMPY_INCLUDE_DIR})
+    target_include_directories(${output_name} PRIVATE
+      "${CMAKE_CURRENT_SOURCE_DIR}/src/metta/mettagrid"
+      "${CMAKE_CURRENT_SOURCE_DIR}/src/third_party"
+      ${NUMPY_INCLUDE_DIR}
+    )
 
     target_link_libraries(${output_name} PRIVATE ${LINK_LIBS})
 

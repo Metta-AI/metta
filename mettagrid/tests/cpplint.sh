@@ -11,4 +11,5 @@ echo "Running cpplint from $PROJECT_ROOT..."
 
 # Find all C++ files in the relevant directories
 find "$PROJECT_ROOT/src/metta/mettagrid" "$PROJECT_ROOT/tests" "$PROJECT_ROOT/benchmarks" -type f \( -name "*.cpp" -o -name "*.h" -o -name "*.hpp" \) \
+    -not -path "*/third_party/*" \
   | xargs cpplint --filter=-legal,-whitespace/line_length,-readability/casting,-build/include_subdir,-whitespace/indent,-readability/inheritance,-runtime/int,-readability/todo,-build/include_what_you_use

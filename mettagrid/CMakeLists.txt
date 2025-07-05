@@ -29,6 +29,10 @@ file(GLOB_RECURSE METTAGRID_SOURCES CONFIGURE_DEPENDS
   ${CMAKE_CURRENT_SOURCE_DIR}/src/metta/mettagrid/*.hpp
 )
 
+list(REMOVE_ITEM METTAGRID_SOURCES
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/metta/mettagrid/util/hash.cpp
+)
+
 message(STATUS "Found sources: ${METTAGRID_SOURCES}")
 
 add_library(mettagrid_obj OBJECT ${METTAGRID_SOURCES})
@@ -38,15 +42,31 @@ target_link_libraries(mettagrid_obj PUBLIC pybind11::pybind11 Python3::Python)
 target_include_directories(mettagrid_obj PUBLIC
   ${NUMPY_INCLUDE_DIR}
   ${CMAKE_CURRENT_SOURCE_DIR}/src/metta/mettagrid
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/third_party
 )
 
 target_compile_definitions(mettagrid_obj PUBLIC "NPY_NO_DEPRECATED_API=NPY_1_7_API_VERSION")
 
 target_compile_options(mettagrid_obj PUBLIC "-fvisibility=hidden")
 
+# Build the main mettagrid_c module
 pybind11_add_module(mettagrid_c $<TARGET_OBJECTS:mettagrid_obj>)
+target_include_directories(mettagrid_c PRIVATE
+  ${NUMPY_INCLUDE_DIR}
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/metta/mettagrid
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/third_party
+)
 
+# Build the hash utility module
+pybind11_add_module(hash ${CMAKE_CURRENT_SOURCE_DIR}/src/metta/mettagrid/util/hash.cpp)
+target_include_directories(hash PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/metta/mettagrid
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/third_party
+)
+
+# Install targets
 install(TARGETS mettagrid_c DESTINATION "metta/mettagrid")
+install(TARGETS hash DESTINATION "metta/mettagrid/util")
 
 # ========================= TESTS =========================
 

@@ -2,11 +2,13 @@ import random
 
 import numpy as np
 import pytest
+from hydra.utils import instantiate
 from omegaconf import OmegaConf
 
 from metta.mettagrid.curriculum.core import SingleTaskCurriculum
 from metta.mettagrid.mettagrid_env import MettaGridEnv
 from metta.mettagrid.util.actions import generate_valid_random_actions
+from metta.mettagrid.util.hash import hash_mettagrid_map
 from metta.mettagrid.util.hydra import get_cfg
 
 
@@ -25,11 +27,11 @@ def environment(cfg, num_agents):
 
     # Map from num_agents to expected_hash
     grid_hash_map = {
-        1: 10198962306018088423,
-        2: 14724462956252883691,
-        4: 17314270363189457391,
-        8: 7658271300011274487,
-        16: 4649249633720493321,
+        1: 4318862801132386130,
+        2: 4534895156247936698,
+        4: 10046096253416364019,
+        8: 15289294928882809317,
+        16: 5383230650567222766,
     }
 
     expected_grid_hash = grid_hash_map.get(num_agents)
@@ -51,6 +53,12 @@ def environment(cfg, num_agents):
     env = MettaGridEnv(curriculum, render_mode="human", recursive=False)
 
     assert env.initial_grid_hash == expected_grid_hash
+
+    map_builder_config = cfg.game.map_builder
+    map_builder = instantiate(map_builder_config, _recursive_=True, _convert_="all")
+    level = map_builder.build()
+
+    assert expected_grid_hash == hash_mettagrid_map(level.grid.tolist())
 
     env.reset()
 
