@@ -78,12 +78,18 @@ def metta_script(func: Callable[..., T]) -> Callable[..., T]:
     return wrapper
 
 
+def is_unspecified(cfg: DictConfig, key: str) -> bool:
+    """Check if a config value is unspecified (not set, None, or ???)."""
+    value = cfg.get(key)
+    return value is None or value == "???"
+
+
 def set_hardware_configurations(cfg: DictConfig, logger: logging.Logger) -> None:
     OmegaConf.set_struct(cfg, False)
 
     # Handle device
     cuda_available = torch.cuda.is_available()
-    if not cfg.get("device"):
+    if is_unspecified(cfg, "device"):
         if cuda_available:
             cfg.device = "cuda"
         else:
@@ -95,7 +101,7 @@ def set_hardware_configurations(cfg: DictConfig, logger: logging.Logger) -> None
 
     # Handle vectorization
     multiprocessing_available = is_multiprocessing_available()
-    if not cfg.get("vectorization"):
+    if is_unspecified(cfg, "vectorization"):
         if multiprocessing_available:
             cfg.vectorization = "multiprocessing"
             logger.debug("Auto-detected vectorization: multiprocessing")
@@ -113,12 +119,12 @@ def set_hardware_configurations(cfg: DictConfig, logger: logging.Logger) -> None
         if cfg.vectorization == "serial":
             # Set async_factor and zero_copy defaults for serial vectorization
             # TrainerConfig already has reasonable defaults for vectorization = "multiprocessing"
-            if not cfg.trainer.get("async_factor"):
+            if is_unspecified(cfg.trainer, "async_factor"):
                 cfg.trainer.async_factor = 1
-            if not cfg.trainer.get("zero_copy"):
+            if is_unspecified(cfg.trainer, "zero_copy"):
                 cfg.trainer.zero_copy = False
 
-        if not cfg.trainer.get("num_workers"):
+        if is_unspecified(cfg.trainer, "num_workers"):
             cfg.trainer.num_workers = calculate_default_num_workers(cfg.vectorization)
 
     OmegaConf.set_struct(cfg, True)

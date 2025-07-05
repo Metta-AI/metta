@@ -15,5 +15,8 @@ policy_uri: file://${run_dir}/checkpoints
 
 torch_deterministic: true
 seed: 0
+# device and vectorization are auto-detected by @metta_script decorator if not specified
+device: ???
+vectorization: ???
 
 stats_server_uri: https://api.observatory.softmax-research.net
