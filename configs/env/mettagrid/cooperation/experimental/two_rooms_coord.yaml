@@ -1,6 +1,8 @@
 # Config: Two Rooms Coord (Overcooked-style)
 defaults:
   - /env/mettagrid/mettagrid@
+  - /env/mettagrid/game/objects/mines@game.objects
+  - /env/mettagrid/game/objects/generators@game.objects
   - _self_
 
 sampling: 1
@@ -9,7 +11,7 @@ game:
   agent:
     ore_red_max: 1
     battery_red_max: 1
-    heart_max: 1000
+    heart_max: 255
 
   max_steps: 1000
   num_agents: 8
