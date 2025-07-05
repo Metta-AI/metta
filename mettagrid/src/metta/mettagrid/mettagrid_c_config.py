@@ -17,24 +17,6 @@ Byte = Annotated[int, Field(ge=0, le=255)]
 FeatureId = Byte
 
 
-class ActionConfig_cpp(BaseModelWithForbidExtra):
-    """Action configuration."""
-
-    # Required resources should be a superset of consumed resources.
-    # E.g., maybe you need a laser and a battery to attack, but only consume the laser.
-    required_resources: Dict[FeatureId, int]
-    consumed_resources: Dict[FeatureId, int]
-    enabled: bool
-
-
-class AttackActionConfig_cpp(ActionConfig_cpp):
-    """Attack action configuration."""
-
-    # If there are no defense resources, the attack will always succeed.
-    # Otherwise, you need to have enough defense resources to block the attack.
-    defense_resources: Dict[FeatureId, int]
-
-
 class ActionsConfig_cpp(BaseModelWithForbidExtra):
     """Actions configuration."""
 
