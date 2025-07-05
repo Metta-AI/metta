@@ -354,8 +354,6 @@ jobs:
 
       - name: Setup uv
         uses: ./.github/actions/setup-uv
-        with:
-          install-mode: "no-mettagrid"
 
       - name: Build and run C++ benchmarks
         run: |
