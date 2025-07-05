@@ -116,10 +116,9 @@ TEST_F(MettaGridCppTest, AgentInventoryUpdate) {
 // ==================== Grid Tests ====================
 
 TEST_F(MettaGridCppTest, GridCreation) {
-  Grid grid(10, 5);
-
-  EXPECT_EQ(grid.width, 10);
+  Grid grid(5, 10);
   EXPECT_EQ(grid.height, 5);
+  EXPECT_EQ(grid.width, 10);
 }
 
 TEST_F(MettaGridCppTest, GridObjectManagement) {

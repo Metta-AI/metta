@@ -23,7 +23,7 @@ struct ConverterConfig : public GridObjectConfig {
                   unsigned short conversion_ticks,
                   unsigned short cooldown,
                   unsigned char initial_items,
-                  ObsType color)
+                  ObservationType color)
       : GridObjectConfig(type_id, type_name),
         recipe_input(recipe_input),
         recipe_output(recipe_output),
@@ -39,7 +39,7 @@ struct ConverterConfig : public GridObjectConfig {
   unsigned short conversion_ticks;
   unsigned short cooldown;
   unsigned char initial_items;
-  ObsType color;
+  ObservationType color;
 };
 
 class Converter : public HasInventory {
@@ -131,8 +131,8 @@ public:
     }
   }
 
-  void set_event_manager(EventManager* event_manager) {
-    this->event_manager = event_manager;
+  void set_event_manager(EventManager* converter_event_manager) {
+    this->event_manager = converter_event_manager;
     this->maybe_start_converting();
   }
 

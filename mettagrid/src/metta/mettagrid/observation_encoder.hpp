@@ -19,7 +19,7 @@ public:
     _feature_names = FeatureNames;
     assert(_feature_names.size() == InventoryFeatureOffset);
     assert(_feature_names.size() == _feature_normalizations.size());
-    for (int i = 0; i < inventory_item_names.size(); i++) {
+    for (size_t i = 0; i < inventory_item_names.size(); i++) {
       _feature_normalizations.insert(
           {static_cast<uint8_t>(InventoryFeatureOffset + i), DEFAULT_INVENTORY_NORMALIZATION});
       _feature_names.insert({static_cast<uint8_t>(InventoryFeatureOffset + i), "inv:" + inventory_item_names[i]});

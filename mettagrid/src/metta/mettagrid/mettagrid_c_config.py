@@ -1,5 +1,5 @@
 import copy
-from typing import Any, ClassVar, Dict, List
+from typing import Annotated, Any, ClassVar, Dict, List
 
 from pydantic import ConfigDict, Field
 
@@ -12,6 +12,9 @@ from metta.mettagrid.mettagrid_c import WallConfig as WallConfig_cpp
 from metta.mettagrid.mettagrid_config import ConverterConfig as ConverterConfig_py
 from metta.mettagrid.mettagrid_config import GameConfig as GameConfig_py
 from metta.mettagrid.mettagrid_config import WallConfig as WallConfig_py
+
+Byte = Annotated[int, Field(ge=0, le=255)]
+FeatureId = Byte
 
 
 class ActionsConfig_cpp(BaseModelWithForbidExtra):
@@ -103,7 +106,7 @@ def from_mettagrid_config(mettagrid_config: GameConfig_py) -> GameConfig_cpp:
     for object_type, object_config in mettagrid_config.objects.items():
         if isinstance(object_config, ConverterConfig_py):
             converter_config_dict = object_config.model_dump(by_alias=True, exclude_unset=True)
-            converter_config_cpp_dict = {
+            converter_config_cpp_dict: dict[str, Any] = {
                 "recipe_input": {},
                 "recipe_output": {},
             }

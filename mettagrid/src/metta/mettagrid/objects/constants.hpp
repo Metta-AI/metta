@@ -5,8 +5,6 @@
 #include <string>
 #include <vector>
 
-#include "../grid_object.hpp"
-
 enum EventType {
   FinishConverting = 0,
   CoolDown = 1,

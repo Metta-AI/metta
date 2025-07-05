@@ -27,9 +27,9 @@
 #include "objects/production_handler.hpp"
 #include "objects/wall.hpp"
 #include "observation_encoder.hpp"
+#include "packed_coordinate.hpp"
 #include "stats_tracker.hpp"
 #include "types.hpp"
-
 namespace py = pybind11;
 
 MettaGrid::MettaGrid(py::dict cfg, py::list map, int seed) {
@@ -50,10 +50,18 @@ MettaGrid::MettaGrid(py::dict cfg, py::list map, int seed) {
 
   current_step = 0;
 
-  int height = map.size();
-  int width = map[0].cast<py::list>().size();
+  bool observation_size_is_packable =
+      obs_width <= PackedCoordinate::MAX_PACKABLE_COORD + 1 && obs_height <= PackedCoordinate::MAX_PACKABLE_COORD + 1;
 
-  _grid = std::make_unique<Grid>(width, height);
+  if (!observation_size_is_packable) {
+    throw std::runtime_error("Observation window size (" + std::to_string(obs_width) + "x" +
+                             std::to_string(obs_height) + ") exceeds maximum packable size (16x16)");
+  }
+
+  GridCoord height = static_cast<GridCoord>(py::len(map));
+  GridCoord width = static_cast<GridCoord>(py::len(map[0]));
+
+  _grid = std::make_unique<Grid>(height, width);
   _obs_encoder = std::make_unique<ObservationEncoder>(inventory_item_names);
   _feature_normalizations = _obs_encoder->feature_normalizations();
 
@@ -66,7 +74,7 @@ MettaGrid::MettaGrid(py::dict cfg, py::list map, int seed) {
       {EventType::FinishConverting, std::make_unique<ProductionHandler>(_event_manager.get())});
   _event_manager->event_handlers.insert({EventType::CoolDown, std::make_unique<CoolDownHandler>(_event_manager.get())});
 
-  _action_success.resize(num_agents);
+  _action_success.resize(static_cast<size_t>(num_agents));
 
   for (const auto& [action_name, action_cfg_py] : cfg["actions"].cast<py::dict>()) {
     std::string action_name_str = action_name.cast<std::string>();
@@ -133,8 +141,8 @@ MettaGrid::MettaGrid(py::dict cfg, py::list map, int seed) {
   std::string grid_hash_data;                   // String to accumulate grid data for hashing
   grid_hash_data.reserve(height * width * 20);  // Pre-allocate for efficiency
 
-  for (int r = 0; r < height; r++) {
-    for (int c = 0; c < width; c++) {
+  for (GridCoord r = 0; r < height; r++) {
+    for (GridCoord c = 0; c < width; c++) {
       auto py_cell = map[r].cast<py::list>()[c].cast<py::str>();
       auto cell = py_cell.cast<std::string>();
 
@@ -174,7 +182,7 @@ MettaGrid::MettaGrid(py::dict cfg, py::list map, int seed) {
       if (agent_cfg) {
         Agent* agent = new Agent(r, c, *agent_cfg);
         _grid->add_object(agent);
-        agent->agent_id = _agents.size();
+        agent->agent_id = static_cast<uint8_t>(_agents.size());
         agent->stats.set_environment(this);
         add_agent(agent);
         _group_sizes[agent->group] += 1;
@@ -203,7 +211,7 @@ MettaGrid::MettaGrid(py::dict cfg, py::list map, int seed) {
 MettaGrid::~MettaGrid() = default;
 
 void MettaGrid::init_action_handlers() {
-  _num_action_handlers = _action_handlers.size();
+  _num_action_handlers = static_cast<int>(_action_handlers.size());
   _max_action_priority = 0;
   _max_action_arg = 0;
   _max_action_args.resize(_action_handlers.size());
@@ -228,29 +236,22 @@ void MettaGrid::add_agent(Agent* agent) {
 
 void MettaGrid::_compute_observation(unsigned int observer_row,
                                      unsigned int observer_col,
-                                     unsigned short obs_width,
-                                     unsigned short obs_height,
+                                     unsigned short observable_width,
+                                     unsigned short observable_height,
                                      size_t agent_idx,
                                      ActionType action,
                                      ActionArg action_arg) {
   // Calculate observation boundaries
-  unsigned int obs_width_radius = obs_width >> 1;
-  unsigned int obs_height_radius = obs_height >> 1;
+  unsigned int obs_width_radius = observable_width >> 1;
+  unsigned int obs_height_radius = observable_height >> 1;
 
   unsigned int r_start = observer_row >= obs_height_radius ? observer_row - obs_height_radius : 0;
   unsigned int c_start = observer_col >= obs_width_radius ? observer_col - obs_width_radius : 0;
 
-  unsigned int r_end = observer_row + obs_height_radius + 1;
-  if (r_end > _grid->height) {
-    r_end = _grid->height;
-  }
-  unsigned int c_end = observer_col + obs_width_radius + 1;
-  if (c_end > _grid->width) {
-    c_end = _grid->width;
-  }
+  unsigned int r_end = std::min(observer_row + obs_height_radius + 1, _grid->height);
+  unsigned int c_end = std::min(observer_col + obs_width_radius + 1, _grid->width);
 
-  // Fill in visible objects. Observations should have been cleared in _step, so
-  // we don't need to do that here.
+  // Fill in visible objects. Observations should have been cleared in _step, so we don't need to do that here.
   size_t attempted_tokens_written = 0;
   size_t tokens_written = 0;
   auto observation_view = _observations.mutable_unchecked<3>();
@@ -259,59 +260,93 @@ void MettaGrid::_compute_observation(unsigned int observer_row,
   // Global tokens
   ObservationToken* agent_obs_ptr = reinterpret_cast<ObservationToken*>(observation_view.mutable_data(agent_idx, 0, 0));
   ObservationTokens agent_obs_tokens(agent_obs_ptr, observation_view.shape(1) - tokens_written);
+
+  // Calculate episode completion percentage
   unsigned int episode_completion_pct = 0;
   if (max_steps > 0) {
-    episode_completion_pct =
-        static_cast<unsigned int>(std::round((static_cast<double>(current_step) / max_steps) * 255.0));
+    episode_completion_pct = static_cast<unsigned int>(
+        std::round((static_cast<float>(current_step) / max_steps) * std::numeric_limits<ObservationType>::max()));
   }
+
+  // Scale reward to fit in observation
   int reward_int = static_cast<int>(std::round(rewards_view(agent_idx) * 100.0f));
-  reward_int = std::clamp(reward_int, 0, 255);
+  reward_int = std::clamp(reward_int, 0, static_cast<int>(std::numeric_limits<ObservationType>::max()));
+
+  // Add global tokens at center of observation
   std::vector<PartialObservationToken> global_tokens = {
-      {ObservationFeature::EpisodeCompletionPct, static_cast<uint8_t>(episode_completion_pct)},
-      {ObservationFeature::LastAction, static_cast<uint8_t>(action)},
-      {ObservationFeature::LastActionArg, static_cast<uint8_t>(action_arg)},
-      {ObservationFeature::LastReward, static_cast<uint8_t>(reward_int)}};
-  // Global tokens are always at the center of the observation.
-  uint8_t global_location = obs_height_radius << 4 | obs_width_radius;
+      {ObservationFeature::EpisodeCompletionPct, static_cast<ObservationType>(episode_completion_pct)},
+      {ObservationFeature::LastAction, static_cast<ObservationType>(action)},
+      {ObservationFeature::LastActionArg, static_cast<ObservationType>(action_arg)},
+      {ObservationFeature::LastReward, static_cast<ObservationType>(reward_int)}};
+
+  uint8_t global_location =
+      PackedCoordinate::pack(static_cast<uint8_t>(obs_height_radius), static_cast<uint8_t>(obs_width_radius));
+
   attempted_tokens_written +=
       _obs_encoder->append_tokens_if_room_available(agent_obs_tokens, global_tokens, global_location);
   tokens_written = std::min(attempted_tokens_written, static_cast<size_t>(observation_view.shape(1)));
 
-  // Order the tokens by distance from the agent, so if we need to drop tokens, we drop the farthest ones first.
+  // Helper lambda to process a single grid location
+  auto process_location = [&](GridCoord r, GridCoord c) {
+    for (Layer layer = 0; layer < GridLayer::GridLayerCount; layer++) {
+      GridLocation object_loc(r, c, layer);
+      auto obj = _grid->object_at(object_loc);
+      if (!obj) continue;
+
+      // Prepare observation buffer for this object
+      ObservationToken* obs_ptr =
+          reinterpret_cast<ObservationToken*>(observation_view.mutable_data(agent_idx, tokens_written, 0));
+      ObservationTokens obs_tokens(obs_ptr, observation_view.shape(1) - tokens_written);
+
+      // Calculate position relative to observer
+      int rel_r = static_cast<int>(r) - static_cast<int>(observer_row);
+      int rel_c = static_cast<int>(c) - static_cast<int>(observer_col);
+
+      // Convert to observation array indices (0-based)
+      uint8_t obs_r = static_cast<uint8_t>(rel_r + static_cast<int>(obs_height_radius));
+      uint8_t obs_c = static_cast<uint8_t>(rel_c + static_cast<int>(obs_width_radius));
+
+      // Encode location and add tokens
+      uint8_t location = PackedCoordinate::pack(obs_r, obs_c);
+      attempted_tokens_written += _obs_encoder->encode_tokens(obj, obs_tokens, location);
+      tokens_written = std::min(attempted_tokens_written, static_cast<size_t>(observation_view.shape(1)));
+    }
+  };
+
+  // Process objects in order of increasing Manhattan distance from observer
   for (unsigned int distance = 0; distance <= obs_width_radius + obs_height_radius; distance++) {
-    for (unsigned int r = r_start; r < r_end; r++) {
-      // In this row, there should be one or two columns that have the correct [L1] distance.
+    // For each row, calculate which columns have the target distance
+    for (GridCoord r = r_start; r < r_end; r++) {
       unsigned int r_dist = std::abs(static_cast<int>(r) - static_cast<int>(observer_row));
       if (r_dist > distance) continue;
-      int c_dist = distance - r_dist;
-      // This is a bit ugly. We want to run over {c_dist, -c_dist}, but only do it once if c_dist == 0.
-      // Here's how we're trying to do that, and to be performant (e.g., not re-allocating a set).
-      for (int i = 0; i < 2; i++) {
-        if (c_dist == 0 && i == 1) continue;
-        int c_offset = i == 0 ? c_dist : -c_dist;
-        int c = observer_col + c_offset;
-        // c could still be outside of our bounds.
-        if (c < c_start || c >= c_end) continue;
 
-        for (unsigned int layer = 0; layer < GridLayer::GridLayerCount; layer++) {
-          GridLocation object_loc(r, c, layer);
-          auto obj = _grid->object_at(object_loc);
-          if (!obj) continue;
+      unsigned int c_dist = distance - r_dist;
 
-          uint8_t* obs_data = observation_view.mutable_data(agent_idx, tokens_written, 0);
-          ObservationToken* agent_obs_ptr = reinterpret_cast<ObservationToken*>(obs_data);
-          ObservationTokens agent_obs_tokens(agent_obs_ptr, observation_view.shape(1) - tokens_written);
-
-          int obs_r = object_loc.r + obs_height_radius - observer_row;
-          int obs_c = object_loc.c + obs_width_radius - observer_col;
-          uint8_t location = obs_r << 4 | obs_c;
-
-          attempted_tokens_written += _obs_encoder->encode_tokens(obj, agent_obs_tokens, location);
-          tokens_written = std::min(attempted_tokens_written, static_cast<size_t>(observation_view.shape(1)));
+      if (c_dist == 0) {
+        // Only one column to check: the observer's column
+        GridCoord c = observer_col;
+        if (c >= c_start && c < c_end) {
+          process_location(r, c);
+        }
+      } else {
+        // Check columns at ±c_dist from observer
+        // Left side
+        if (observer_col >= c_dist) {
+          GridCoord c = observer_col - c_dist;
+          if (c >= c_start && c < c_end) {
+            process_location(r, c);
+          }
+        }
+        // Right side
+        GridCoord c = observer_col + c_dist;
+        if (c < c_end) {
+          process_location(r, c);
         }
       }
     }
   }
+
+  // Update statistics
   _stats->add("tokens_written", static_cast<float>(tokens_written));
   _stats->add("tokens_dropped", static_cast<float>(attempted_tokens_written - tokens_written));
   _stats->add("tokens_free_space", static_cast<float>(observation_view.shape(1) - tokens_written));
@@ -319,7 +354,8 @@ void MettaGrid::_compute_observation(unsigned int observer_row,
 
 void MettaGrid::_compute_observations(py::array_t<ActionType, py::array::c_style> actions) {
   auto actions_view = actions.unchecked<2>();
-  auto observation_view = _observations.mutable_unchecked<3>();
+  // TODO: did we mean to use observation_view?
+  // auto observation_view = _observations.mutable_unchecked<3>();
   for (size_t idx = 0; idx < _agents.size(); idx++) {
     auto& agent = _agents[idx];
     _compute_observation(
@@ -346,8 +382,8 @@ void MettaGrid::_step(py::array_t<ActionType, py::array::c_style> actions) {
 
   auto obs_ptr = static_cast<uint8_t*>(_observations.request().ptr);
   auto obs_size = _observations.size();
-  std::fill(obs_ptr, obs_ptr + obs_size, EmptyTokenByte);
 
+  std::fill(obs_ptr, obs_ptr + obs_size, EmptyTokenByte);
   std::fill(_action_success.begin(), _action_success.end(), false);
 
   // Increment timestep and process events
@@ -446,47 +482,45 @@ void MettaGrid::validate_buffers() {
   // We should validate once buffers and agents are set.
   // data types and contiguity are handled by pybind11. We still need to check
   // shape.
-  unsigned int num_agents = _agents.size();
+  unsigned int num_agents = static_cast<unsigned int>(_agents.size());
+
   auto observation_info = _observations.request();
-  auto shape = observation_info.shape;
+  auto obs_shape = observation_info.shape;
   if (observation_info.ndim != 3) {
     std::stringstream ss;
     ss << "observations has " << observation_info.ndim << " dimensions but expected 3";
     throw std::runtime_error(ss.str());
   }
-  if (shape[0] != num_agents || shape[2] != 3) {
+  if (obs_shape[0] != num_agents || obs_shape[2] != 3) {
     std::stringstream ss;
-    ss << "observations has shape [" << shape[0] << ", " << shape[1] << ", " << shape[2] << "] but expected ["
-       << num_agents << ", [something], 3]";
+    ss << "observations has shape [" << obs_shape[0] << ", " << obs_shape[1] << ", " << obs_shape[2]
+       << "] but expected [" << num_agents << ", [something], 3]";
     throw std::runtime_error(ss.str());
   }
   {
     auto terminals_info = _terminals.request();
-    auto shape = terminals_info.shape;
-    if (terminals_info.ndim != 1 || shape[0] != num_agents) {
+    if (terminals_info.ndim != 1 || terminals_info.shape[0] != num_agents) {
       throw std::runtime_error("terminals has the wrong shape");
     }
   }
   {
     auto truncations_info = _truncations.request();
-    auto shape = truncations_info.shape;
-    if (truncations_info.ndim != 1 || shape[0] != num_agents) {
+    if (truncations_info.ndim != 1 || truncations_info.shape[0] != num_agents) {
       throw std::runtime_error("truncations has the wrong shape");
     }
   }
   {
     auto rewards_info = _rewards.request();
-    auto shape = rewards_info.shape;
-    if (rewards_info.ndim != 1 || shape[0] != num_agents) {
+    if (rewards_info.ndim != 1 || rewards_info.shape[0] != num_agents) {
       throw std::runtime_error("rewards has the wrong shape");
     }
   }
 }
 
-void MettaGrid::set_buffers(const py::array_t<uint8_t, py::array::c_style>& observations,
-                            const py::array_t<bool, py::array::c_style>& terminals,
-                            const py::array_t<bool, py::array::c_style>& truncations,
-                            const py::array_t<float, py::array::c_style>& rewards) {
+void MettaGrid::set_buffers(const py::array_t<ObservationType, py::array::c_style>& observations,
+                            const py::array_t<TerminalType, py::array::c_style>& terminals,
+                            const py::array_t<TruncationType, py::array::c_style>& truncations,
+                            const py::array_t<RewardType, py::array::c_style>& rewards) {
   _observations = observations;
   _terminals = terminals;
   _truncations = truncations;
@@ -510,13 +544,13 @@ py::tuple MettaGrid::step(py::array_t<ActionType, py::array::c_style> actions) {
   // TODO: We're creating this vector every time we step, even though reward
   // should be sparse, and so we're unlikely to use it. We could decide to only
   // create it if we need it, but that would increase complexity.
-  std::vector<double> group_rewards(_group_sizes.size());
+  std::vector<RewardType> group_rewards(_group_sizes.size());
   for (size_t agent_idx = 0; agent_idx < _agents.size(); agent_idx++) {
-    if (rewards_view(agent_idx) != 0) {
+    if (std::abs(rewards_view(agent_idx)) > 0.0f) {
       share_rewards = true;
       auto& agent = _agents[agent_idx];
       unsigned int group_id = agent->group;
-      float group_reward = rewards_view(agent_idx) * _group_reward_pct[group_id];
+      RewardType group_reward = rewards_view(agent_idx) * _group_reward_pct[group_id];
       rewards_view(agent_idx) -= group_reward;
       group_rewards[group_id] += group_reward / _group_sizes[group_id];
     }
@@ -526,7 +560,7 @@ py::tuple MettaGrid::step(py::array_t<ActionType, py::array::c_style> actions) {
     for (size_t agent_idx = 0; agent_idx < _agents.size(); agent_idx++) {
       auto& agent = _agents[agent_idx];
       unsigned int group_id = agent->group;
-      float group_reward = group_rewards[group_id];
+      RewardType group_reward = group_rewards[group_id];
       rewards_view(agent_idx) += group_reward;
     }
   }
@@ -600,7 +634,7 @@ py::dict MettaGrid::feature_spec() {
 }
 
 unsigned int MettaGrid::num_agents() {
-  return _agents.size();
+  return static_cast<unsigned int>(_agents.size());
 }
 
 py::array_t<float> MettaGrid::get_episode_rewards() {
@@ -664,8 +698,9 @@ py::object MettaGrid::observation_space() {
 
   auto observation_info = _observations.request();
   auto shape = observation_info.shape;
-  auto space_shape = py::tuple(observation_info.ndim - 1);
-  for (size_t i = 0; i < observation_info.ndim - 1; i++) {
+  size_t ndim = static_cast<size_t>(observation_info.ndim);
+  auto space_shape = py::tuple(ndim - 1);
+  for (size_t i = 0; i < ndim - 1; i++) {
     space_shape[i] = shape[i + 1];
   }
 
@@ -694,7 +729,7 @@ py::list MettaGrid::inventory_item_names_py() {
 }
 
 py::array_t<unsigned int> MettaGrid::get_agent_groups() const {
-  py::array_t<unsigned int> groups(_agents.size());
+  py::array_t<unsigned int> groups(static_cast<ssize_t>(_agents.size()));
   auto groups_view = groups.mutable_unchecked<1>();
   for (size_t i = 0; i < _agents.size(); i++) {
     groups_view(i) = _agents[i]->group;
@@ -717,6 +752,46 @@ const std::string& StatsTracker::inventory_item_name(InventoryItem item) const {
 PYBIND11_MODULE(mettagrid_c, m) {
   m.doc() = "MettaGrid environment";  // optional module docstring
 
+  // Create PackedCoordinate submodule
+  auto pc_m = m.def_submodule("PackedCoordinate", "Packed coordinate encoding utilities");
+
+  // Constants
+  pc_m.attr("MAX_PACKABLE_COORD") = PackedCoordinate::MAX_PACKABLE_COORD;
+
+  // Functions
+  pc_m.def("pack",
+           &PackedCoordinate::pack,
+           py::arg("row"),
+           py::arg("col"),
+           "Pack (row, col) coordinates into a single byte.\n\n"
+           "Args:\n"
+           "    row: Row coordinate (0-15)\n"
+           "    col: Column coordinate (0-15)\n\n"
+           "Returns:\n"
+           "    Packed byte value\n\n"
+           "Raises:\n"
+           "    ValueError: If row or col > 15");
+
+  pc_m.def(
+      "unpack",
+      [](uint8_t packed) -> py::object {
+        auto result = PackedCoordinate::unpack(packed);
+        if (result.has_value()) {
+          return py::make_tuple(result->first, result->second);
+        }
+        return py::none();
+      },
+      py::arg("packed"),
+      "Unpack byte into (row, col) tuple or None if empty.\n\n"
+      "Args:\n"
+      "    packed: Packed coordinate byte\n\n"
+      "Returns:\n"
+      "    tuple[int, int] | None: (row, col) or None if empty location");
+
+  pc_m.def(
+      "is_empty", &PackedCoordinate::is_empty, py::arg("packed"), "Check if packed value represents empty location.");
+
+  // MettaGrid class bindings
   py::class_<MettaGrid>(m, "MettaGrid")
       .def(py::init<py::dict, py::list, int>())
       .def("reset", &MettaGrid::reset)
@@ -803,7 +878,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
                     unsigned short,
                     unsigned short,
                     unsigned char,
-                    ObsType>(),
+                    ObservationType>(),
            py::arg("type_id"),
            py::arg("type_name"),
            py::arg("recipe_input"),

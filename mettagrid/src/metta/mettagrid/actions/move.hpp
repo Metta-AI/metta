@@ -13,32 +13,50 @@ public:
   explicit Move(const ActionConfig& cfg) : ActionHandler(cfg, "move") {}
 
   unsigned char max_arg() const override {
-    return 1;
+    return 1;  // 0 = move forward, 1 = turn around and move forward
   }
 
 protected:
   bool _handle_action(Agent* actor, ActionArg arg) override {
-    unsigned short direction = arg;
+    // Move action: agents always move forward one step
+    // arg == 0: Move forward in current direction
+    // arg == 1: Turn around (180°) then move forward
 
-    Orientation orientation = static_cast<Orientation>(actor->orientation);
-    if (direction == 1) {
-      if (orientation == Orientation::Up) {
-        orientation = Orientation::Down;
-      } else if (orientation == Orientation::Down) {
-        orientation = Orientation::Up;
-      } else if (orientation == Orientation::Left) {
-        orientation = Orientation::Right;
-      } else if (orientation == Orientation::Right) {
-        orientation = Orientation::Left;
-      }
+    Orientation move_direction = static_cast<Orientation>(actor->orientation);
+
+    // If arg == 1, turn around first (rotate 180 degrees)
+    if (arg == 1) {
+      move_direction = get_opposite_direction(move_direction);
     }
 
-    GridLocation old_loc = actor->location;
-    GridLocation new_loc = _grid->relative_location(old_loc, orientation);
-    if (!_grid->is_empty(new_loc.r, new_loc.c)) {
-      return false;
+    // Calculate target location (always moving forward from the chosen direction)
+    GridLocation current_location = actor->location;
+    GridLocation target_location = _grid->relative_location(current_location, move_direction);
+
+    // Check if movement is possible
+    if (!_grid->is_empty(target_location.r, target_location.c)) {
+      return false;  // Path blocked
     }
-    return _grid->move_object(actor->id, new_loc);
+
+    // Execute the forward movement
+    return _grid->move_object(actor->id, target_location);
+  }
+
+private:
+  // Get the opposite direction (180-degree turn)
+  static Orientation get_opposite_direction(Orientation orientation) {
+    switch (orientation) {
+      case Orientation::Up:
+        return Orientation::Down;
+      case Orientation::Down:
+        return Orientation::Up;
+      case Orientation::Left:
+        return Orientation::Right;
+      case Orientation::Right:
+        return Orientation::Left;
+      default:
+        return orientation;
+    }
   }
 };
 

@@ -19,6 +19,7 @@
 #include <string>
 #include <vector>
 
+#include "packed_coordinate.hpp"
 #include "types.hpp"
 
 // Forward declarations of existing C++ classes
@@ -29,10 +30,10 @@ class ActionHandler;
 class Agent;
 class ObservationEncoder;
 class GridObject;
-class GridObjectConfig;
-class ConverterConfig;
-class WallConfig;
-class AgentConfig;
+struct ConverterConfig;
+struct WallConfig;
+struct AgentConfig;
+struct GridObjectConfig;
 
 namespace py = pybind11;
 
@@ -54,6 +55,7 @@ public:
   py::tuple reset();
   // In general, these types need to match what puffer wants to use.
   py::tuple step(py::array_t<ActionType, py::array::c_style> actions);
+
   void set_buffers(const py::array_t<ObservationType, py::array::c_style>& observations,
                    const py::array_t<TerminalType, py::array::c_style>& terminals,
                    const py::array_t<TruncationType, py::array::c_style>& truncations,
@@ -87,7 +89,7 @@ private:
   std::unique_ptr<EventManager> _event_manager;
 
   std::vector<std::unique_ptr<ActionHandler>> _action_handlers;
-  int _num_action_handlers;
+  unsigned int _num_action_handlers;
   std::vector<unsigned char> _max_action_args;
   unsigned char _max_action_arg;
   unsigned char _max_action_priority;
@@ -103,11 +105,11 @@ private:
 
   // We'd prefer to store these as more raw c-style arrays, but we need to both
   // operate on the memory directly and return them to python.
-  py::array_t<uint8_t> _observations;
-  py::array_t<bool> _terminals;
-  py::array_t<bool> _truncations;
-  py::array_t<float> _rewards;
-  py::array_t<float> _episode_rewards;
+  py::array_t<ObservationType> _observations;
+  py::array_t<TerminalType> _terminals;
+  py::array_t<TruncationType> _truncations;
+  py::array_t<RewardType> _rewards;
+  py::array_t<RewardType> _episode_rewards;
 
   std::map<uint8_t, float> _feature_normalizations;
 

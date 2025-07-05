@@ -17,17 +17,16 @@ public:
   }
 
 protected:
-  bool _handle_action(Agent* actor, ActionArg arg) override {
+  bool _handle_action(Agent* actor, [[maybe_unused]] ActionArg arg) override {
     // Scan the space to find the nearest agent. Prefer the middle (offset 0) before the edges (offset -1, 1).
-    for (int distance = 1; distance < 4; distance++) {
-      for (int i = 0; i < 3; i++) {
-        int offset = i;
+    for (short distance = 1; distance < 4; distance++) {
+      for (short i = 0; i < 3; i++) {
+        short offset = i;
         if (offset == 2) {
           // Sort of a mod 3 operation.
           offset = -1;
         }
-        GridLocation target_loc =
-            _grid->relative_location(actor->location, static_cast<Orientation>(actor->orientation), distance, offset);
+        GridLocation target_loc = _grid->relative_location(actor->location, actor->orientation, distance, offset);
 
         target_loc.layer = GridLayer::Agent_Layer;
         Agent* agent_target = static_cast<Agent*>(_grid->object_at(target_loc));
