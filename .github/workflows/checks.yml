@@ -182,13 +182,13 @@ jobs:
           echo "Build Summary: $errors errors, $warnings warnings"
 
           if [ "$errors" -gt 0 ]; then
-            echo "❌ Build has errors!"
+            echo "❌ MettaGrid has build errors!"
             exit 1
           elif [ "$warnings" -gt 100 ]; then
-            echo "⚠️ Too many warnings ($warnings > 100)"
+            echo "⚠️ Too many warnings in MettaGrid build ($warnings > 100)"
             exit 1
           else
-            echo "✅ Build quality check passed"
+            echo "✅ MettaGrid build quality check passed"
           fi
 
       - name: Run Pytest on core tests
