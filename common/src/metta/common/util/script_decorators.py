@@ -2,10 +2,12 @@
 
 import functools
 import logging
+import multiprocessing
 from contextvars import ContextVar
 from typing import Callable, TypeVar
 
-from omegaconf import DictConfig
+import torch
+from omegaconf import DictConfig, OmegaConf
 
 from metta.common.util.logging_helpers import setup_mettagrid_logger
 from metta.common.util.runtime_configuration import setup_mettagrid_environment
@@ -40,8 +42,9 @@ def metta_script(func: Callable[..., T]) -> Callable[..., T]:
 
     This decorator:
     1. Sets up logging
-    2. Validates device availability
-    3. Calls setup_mettagrid_environment() to:
+    2. Auto-detects hardware capabilities if not explicitly configured
+    3. Validates device availability
+    4. Calls setup_mettagrid_environment() to:
        - Create required directories (including run_dir)
        - Configure CUDA settings
        - Set up environment variables
@@ -54,6 +57,8 @@ def metta_script(func: Callable[..., T]) -> Callable[..., T]:
     @functools.wraps(func)
     def wrapper(cfg: DictConfig, *args, **kwargs) -> T:
         logger = setup_mettagrid_logger("metta_script")
+
+        _auto_configure_hardware(cfg, logger)
 
         # Call setup_mettagrid_environment first - it handles all environment setup
         # including device validation, directory creation, and seed initialization
@@ -72,3 +77,66 @@ def metta_script(func: Callable[..., T]) -> Callable[..., T]:
             _metta_logger.reset(token)
 
     return wrapper
+
+
+def _auto_configure_hardware(cfg: DictConfig, logger: logging.Logger) -> None:
+    OmegaConf.set_struct(cfg, False)
+
+    # Handle device
+    cuda_available = torch.cuda.is_available()
+    if not cfg.get("device"):
+        if cuda_available:
+            cfg.device = "cuda"
+        else:
+            cfg.device = "cpu"
+        logger.debug(f"Auto-detected device: {cfg.device}")
+    elif cfg.device.startswith("cuda") and not cuda_available:
+        logger.warning(f"Device '{cfg.device}' was requested but CUDA is not available. Overriding to 'cpu'.")
+        cfg.device = "cpu"
+
+    # Handle vectorization
+    multiprocessing_available = _is_multiprocessing_available()
+    if not cfg.get("vectorization"):
+        if multiprocessing_available:
+            cfg.vectorization = "multiprocessing"
+            logger.debug("Auto-detected vectorization: multiprocessing")
+        else:
+            cfg.vectorization = "serial"
+            logger.debug("Auto-detected vectorization: serial (multiprocessing not available)")
+    elif cfg.vectorization == "multiprocessing" and not multiprocessing_available:
+        logger.warning(
+            "Vectorization 'multiprocessing' was requested but multiprocessing is not "
+            "available in this environment. Overriding to 'serial'."
+        )
+        cfg.vectorization = "serial"
+
+    # Auto-configure dependent settings based on vectorization
+    if "trainer" in cfg:
+        if cfg.vectorization == "serial":
+            if not cfg.trainer.get("num_workers"):
+                cfg.trainer.num_workers = 1
+            if not cfg.trainer.get("async_factor"):
+                cfg.trainer.async_factor = 1
+            if not cfg.trainer.get("zero_copy"):
+                cfg.trainer.zero_copy = False
+        else:  # multiprocessing
+            if not cfg.trainer.get("num_workers"):
+                cfg.trainer.num_workers = max(1, (multiprocessing.cpu_count() or 1) // 2)
+
+    logger.info(f"Final device configuration: {cfg.device}")
+    logger.info(f"Final num_workers configuration: {cfg.trainer.num_workers}")
+    logger.info(f"Final vectorization configuration: {cfg.vectorization}")
+    logger.info(f"Final async_factor configuration: {cfg.trainer.async_factor}")
+    logger.info(f"Final zero_copy configuration: {cfg.trainer.zero_copy}")
+
+    OmegaConf.set_struct(cfg, True)
+
+
+def _is_multiprocessing_available() -> bool:
+    try:
+        # Test if we can create a multiprocessing context with spawn method
+        # (spawn is the safest and most compatible method across platforms)
+        _ = multiprocessing.get_context("spawn")
+        return True
+    except Exception:
+        return False

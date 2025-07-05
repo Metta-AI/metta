@@ -1,11 +1,8 @@
 import datetime
-import os
-import platform
 import random
 from typing import Any, Dict, TypeVar, Union
 
 import numpy as np
-import torch
 from hydra.experimental.callback import Callback
 from omegaconf import DictConfig, OmegaConf
 
@@ -269,42 +266,6 @@ def oc_date_format(format_string: str) -> str:
     return now.strftime(python_format)
 
 
-def oc_detect_device() -> str:
-    if torch.cuda.is_available():
-        return "cuda"
-    else:
-        return "cpu"
-
-
-def oc_detect_vectorization() -> str:
-    device = oc_detect_device()
-    is_mac = platform.system() == "Darwin"
-
-    # Use serial only for Mac by default for development
-    if is_mac or device == "cpu":
-        return "serial"
-    else:
-        return "multiprocessing"
-
-
-def oc_detect_num_workers() -> int:
-    vectorization = oc_detect_vectorization()
-    if vectorization == "serial":
-        return 1
-    else:
-        return max(1, (os.cpu_count() or 1) // 2)
-
-
-def oc_detect_async_factor() -> int:
-    vectorization = oc_detect_vectorization()
-    return 1 if vectorization == "serial" else 2
-
-
-def oc_detect_zero_copy() -> bool:
-    vectorization = oc_detect_vectorization()
-    return vectorization == "multiprocessing"
-
-
 class ResolverRegistrar(Callback):
     """Class for registering custom OmegaConf resolvers."""
 
@@ -382,16 +343,6 @@ class ResolverRegistrar(Callback):
         OmegaConf.register_new_resolver("iir", oc_iir, replace=True)
         self.resolver_count += 1
         OmegaConf.register_new_resolver("now", oc_date_format, replace=True)
-        self.resolver_count += 1
-        OmegaConf.register_new_resolver("detect_device", oc_detect_device, replace=True)
-        self.resolver_count += 1
-        OmegaConf.register_new_resolver("detect_vectorization", oc_detect_vectorization, replace=True)
-        self.resolver_count += 1
-        OmegaConf.register_new_resolver("detect_num_workers", oc_detect_num_workers, replace=True)
-        self.resolver_count += 1
-        OmegaConf.register_new_resolver("detect_async_factor", oc_detect_async_factor, replace=True)
-        self.resolver_count += 1
-        OmegaConf.register_new_resolver("detect_zero_copy", oc_detect_zero_copy, replace=True)
         self.resolver_count += 1
         return self
 
