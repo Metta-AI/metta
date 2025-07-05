@@ -164,17 +164,17 @@ jobs:
         with:
           install-mode: "no-mettagrid"
 
-      - name: Check and Build MettaGrid C++
+      - name: Check and build MettaGrid C++
         id: mettagrid_build_check
         run: |
           .github/scripts/check_mettagrid_build.py
 
-      - name: Install mettagrid after build
+      - name: Install metta-mettagrid package after C++ build
         if: steps.mettagrid_build_check.outputs.build_success == 'true'
         run: |
           uv pip install --no-build-isolation --no-deps -e ./mettagrid
 
-      - name: Check Build Quality
+      - name: Check MettaGrid build warnings
         if: always()
         run: |
           errors=${{ steps.mettagrid_build_check.outputs.total_errors }}
