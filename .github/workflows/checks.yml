@@ -128,7 +128,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Python and uv
+      - name: Setup uv
         uses: ./.github/actions/setup-uv
 
       - name: Run Ruff linter

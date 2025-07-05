@@ -32,10 +32,8 @@ inputs:
 runs:
   using: "composite"
   steps:
-    - name: Setup Python and uv
+    - name: Setup uv
       uses: ./.github/actions/setup-uv
-      with:
-        include-dev: true
 
     - name: Determine Git Ref
       id: determine_git_ref
