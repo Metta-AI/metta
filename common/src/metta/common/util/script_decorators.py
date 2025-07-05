@@ -42,9 +42,8 @@ def metta_script(func: Callable[..., T]) -> Callable[..., T]:
 
     This decorator:
     1. Sets up logging
-    2. Auto-detects hardware capabilities if not explicitly configured
-    3. Validates device availability
-    4. Calls setup_mettagrid_environment() to:
+    2. Sets config values related to hardware configuration
+    3. Calls setup_mettagrid_environment() to:
        - Create required directories (including run_dir)
        - Configure CUDA settings
        - Set up environment variables
@@ -58,7 +57,7 @@ def metta_script(func: Callable[..., T]) -> Callable[..., T]:
     def wrapper(cfg: DictConfig, *args, **kwargs) -> T:
         logger = setup_mettagrid_logger("metta_script")
 
-        _auto_configure_hardware(cfg, logger)
+        set_hardware_configurations(cfg, logger)
 
         # Call setup_mettagrid_environment first - it handles all environment setup
         # including device validation, directory creation, and seed initialization
@@ -79,7 +78,7 @@ def metta_script(func: Callable[..., T]) -> Callable[..., T]:
     return wrapper
 
 
-def _auto_configure_hardware(cfg: DictConfig, logger: logging.Logger) -> None:
+def set_hardware_configurations(cfg: DictConfig, logger: logging.Logger) -> None:
     OmegaConf.set_struct(cfg, False)
 
     # Handle device
@@ -95,7 +94,7 @@ def _auto_configure_hardware(cfg: DictConfig, logger: logging.Logger) -> None:
         cfg.device = "cpu"
 
     # Handle vectorization
-    multiprocessing_available = _is_multiprocessing_available()
+    multiprocessing_available = is_multiprocessing_available()
     if not cfg.get("vectorization"):
         if multiprocessing_available:
             cfg.vectorization = "multiprocessing"
@@ -119,20 +118,18 @@ def _auto_configure_hardware(cfg: DictConfig, logger: logging.Logger) -> None:
                 cfg.trainer.async_factor = 1
             if not cfg.trainer.get("zero_copy"):
                 cfg.trainer.zero_copy = False
-        else:  # multiprocessing
-            if not cfg.trainer.get("num_workers"):
-                cfg.trainer.num_workers = max(1, (multiprocessing.cpu_count() or 1) // 2)
-
-    logger.info(f"Final device configuration: {cfg.device}")
-    logger.info(f"Final num_workers configuration: {cfg.trainer.num_workers}")
-    logger.info(f"Final vectorization configuration: {cfg.vectorization}")
-    logger.info(f"Final async_factor configuration: {cfg.trainer.async_factor}")
-    logger.info(f"Final zero_copy configuration: {cfg.trainer.zero_copy}")
+        elif not cfg.trainer.get("num_workers"):
+            cpu_count = multiprocessing.cpu_count()
+            ideal_workers = cpu_count // 2
+            cfg.trainer.num_workers = nearest_lower_power_of_2(ideal_workers)
+            logger.info(
+                f"Auto-set num_workers to {cfg.trainer.num_workers} (power of 2 <= half of cpu count of ({cpu_count}))"
+            )
 
     OmegaConf.set_struct(cfg, True)
 
 
-def _is_multiprocessing_available() -> bool:
+def is_multiprocessing_available() -> bool:
     try:
         # Test if we can create a multiprocessing context with spawn method
         # (spawn is the safest and most compatible method across platforms)
@@ -140,3 +137,9 @@ def _is_multiprocessing_available() -> bool:
         return True
     except Exception:
         return False
+
+
+def nearest_lower_power_of_2(n: int) -> int:
+    if n <= 0:
+        return 1
+    return 1 << (n.bit_length() - 1)
