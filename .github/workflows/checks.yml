@@ -33,7 +33,7 @@ permissions:
 env:
   HYDRA_FULL_ERROR: 1
   VENV_PATH: .venv
-  PYTEST_WORKERS: 2
+  PYTEST_WORKERS: 4
 
 jobs:
   # check if CI should run based on Graphite's stack position
