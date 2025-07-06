@@ -1,11 +1,9 @@
 defaults:
-  - mettagrid
-  - game/objects:
+  - /env/mettagrid/mettagrid@
+  - /env/mettagrid/game/objects@game.objects:
       - basic
       - mines
       - generators
-      - combat
-
   - _self_
 
 game:

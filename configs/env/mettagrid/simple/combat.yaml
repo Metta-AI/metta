@@ -1,12 +1,7 @@
 defaults:
-  - mettagrid
-  - game/objects:
-      - basic
-      - mines
-      - generators
+  - simple
+  - /env/mettagrid/game/objects@game.objects:
       - combat
-      - advanced
-
   - _self_
 
 game:
@@ -28,9 +23,8 @@ game:
           mine_red: 10
           generator_red: 5
           altar: 5
-          lab: 1
-          factory: 1
-          temple: 1
+          lasery: 1
+          armory: 1
 
           block: 20
           wall: 20

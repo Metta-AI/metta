@@ -1,0 +1,20 @@
+defaults:
+  - simple
+  - _self_
+
+# Altar requires a single battery.
+game:
+  objects:
+    altar:
+      input_battery_red: 1
+
+  # Encourage collecting ore and batteries up to a point.
+  agent:
+    rewards:
+      ore_red: 0.1
+      ore_red_max: 5
+
+      battery_red: 0.9
+      battery_red_max: 5
+
+      heart: 1

@@ -1,0 +1,50 @@
+defaults:
+  - advanced
+  - _self_
+
+game:
+  # Converters start with items, and only require one input item.
+  objects:
+    altar:
+      input_battery_red: 1
+      initial_items: 1
+    mine_red:
+      initial_items: 1
+    generator_red:
+      initial_items: 1
+    lasery:
+      initial_items: 1
+      input_battery_red: 1
+      input_ore_red: 0
+    armory:
+      initial_items: 1
+      input_ore_red: 1
+    lab:
+      initial_items: 1
+      input_ore_red: 0
+      input_battery_red: 1
+    factory:
+      initial_items: 1
+      input_blueprint: 1
+      input_ore_red: 0
+      input_battery_red: 0
+
+  # Encourage collecting all resources.
+  agent:
+    rewards:
+      ore_red: 0.1
+      ore_red_max: 5
+
+      battery_red: 0.9
+      battery_red_max: 5
+
+      laser: 0.5
+      laser_max: 2
+
+      armor: 0.5
+      armor_max: 2
+
+      blueprint: 0.5
+      blueprint_max: 1
+
+      heart: 1
