@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 
 from metta.mettagrid.mettagrid_c import MettaGrid
-from metta.mettagrid.mettagrid_c_config import cpp_config_dict
+from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
 from metta.mettagrid.mettagrid_env import (
     dtype_actions,
     dtype_observations,
@@ -78,7 +78,7 @@ def create_minimal_mettagrid_c_env(max_steps=10, width=5, height=5, config_overr
 
         deep_merge(game_config, config_override)
 
-    return MettaGrid(cpp_config_dict(game_config), game_map.tolist(), 42)
+    return MettaGrid(from_mettagrid_config(game_config), game_map.tolist(), 42)
 
 
 class TestBuffers:
