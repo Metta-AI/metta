@@ -33,7 +33,9 @@ class MapGenAscii(MapGen):
             uri: "path/to/my/map.map"
     ```
 
-    This class doesn't support any additional features. If you need more than just ASCII scene, use MapGen directly.
+    This class doesn't support most mapgen features. For example, it doesn't support `instances`.
+
+    If you need more than just a single ASCII scene, use MapGen directly.
     """
 
     def __init__(self, **kwargs):
