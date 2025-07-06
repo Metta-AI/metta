@@ -4,6 +4,10 @@ terraform {
   }
 }
 
+provider "aws" {
+  region = "us-east-1"
+}
+
 provider "tailscale" {
   tailnet = var.tailscale_tailnet
 
