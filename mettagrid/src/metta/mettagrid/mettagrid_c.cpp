@@ -436,7 +436,10 @@ py::tuple MettaGrid::reset() {
 
   // Compute initial observations
   std::vector<ssize_t> shape = {static_cast<ssize_t>(_agents.size()), static_cast<ssize_t>(2)};
-  auto zero_actions = py::array_t<int>(shape);
+  auto zero_actions = py::array_t<ActionType, py::array::c_style>(shape);
+  std::fill(static_cast<ActionType*>(zero_actions.request().ptr),
+            static_cast<ActionType*>(zero_actions.request().ptr) + zero_actions.size(),
+            static_cast<ActionType>(0));
   _compute_observations(zero_actions);
 
   return py::make_tuple(_observations, py::dict());
@@ -487,6 +490,7 @@ void MettaGrid::set_buffers(const py::array_t<uint8_t, py::array::c_style>& obse
                             const py::array_t<bool, py::array::c_style>& terminals,
                             const py::array_t<bool, py::array::c_style>& truncations,
                             const py::array_t<float, py::array::c_style>& rewards) {
+  // These are initialized in reset()
   _observations = observations;
   _terminals = terminals;
   _truncations = truncations;
