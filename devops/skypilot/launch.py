@@ -98,6 +98,18 @@ def main():
         "--heartbeat-timeout-seconds",
         type=int,
         default=600,
+        help="Automatically terminate the job after this many seconds",
+    )
+    parser.add_argument(
+        "--heartbeat-timeout-seconds",
+        type=int,
+        default=600,
+        help="Automatically terminate the job after this many seconds",
+    )
+    parser.add_argument(
+        "--heartbeat-timeout-seconds",
+        type=int,
+        default=600,
         help="Maximum seconds to wait for heartbeat signal before terminating job (default: 600s/10min)",
     )
     parser.add_argument(

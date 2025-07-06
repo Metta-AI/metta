@@ -1,5 +1,11 @@
 defaults:
-  - sim_single
+  - sim_suite
   - _self_
 
-env: /env/mettagrid/simple
+name: simple
+
+simulations:
+  simple/easy:
+    env: env/mettagrid/simple.easy
+  simple:
+    env: env/mettagrid/simple
