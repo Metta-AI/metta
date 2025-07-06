@@ -9,6 +9,10 @@ game:
     rewards:
       heart: 1
   map_builder:
-    _target_: metta.mettagrid.room.ascii.Ascii
+    _target_: metta.map.mapgen.MapGen
     border_width: 1
-    uri: "configs/env/mettagrid/maps/object_use/swap_in.map"
+
+    root:
+      type: metta.map.scenes.ascii.Ascii
+      params:
+        uri: "configs/env/mettagrid/maps/object_use/swap_in.map"
