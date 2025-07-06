@@ -39,7 +39,14 @@ game:
     mine_red:
       initial_resource_count: 1
     generator_red:
-      initial_resource_count: 1
+      initial_items: 1
+    lasery:
+      initial_items: 1
+      input_battery_red: 1
+      input_ore_red: 0
+    armory:
+      initial_items: 1
+      input_ore_red: 1
 
   agent:
     rewards:
