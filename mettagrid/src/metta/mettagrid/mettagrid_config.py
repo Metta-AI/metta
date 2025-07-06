@@ -95,36 +95,13 @@ class WallConfig(BaseModelWithForbidExtra):
 class ConverterConfig(BaseModelWithForbidExtra):
     """Converter configuration for objects that convert items."""
 
-    # Input items (e.g., "input_ore_red": 3)
-    input_ore_red: Optional[int] = Field(default=None, ge=0, le=255)
-    input_ore_blue: Optional[int] = Field(default=None, ge=0, le=255)
-    input_ore_green: Optional[int] = Field(default=None, ge=0, le=255)
-    input_battery_red: Optional[int] = Field(default=None, ge=0, le=255)
-    input_battery_blue: Optional[int] = Field(default=None, ge=0, le=255)
-    input_battery_green: Optional[int] = Field(default=None, ge=0, le=255)
-    input_heart: Optional[int] = Field(default=None, ge=0, le=255)
-    input_armor: Optional[int] = Field(default=None, ge=0, le=255)
-    input_laser: Optional[int] = Field(default=None, ge=0, le=255)
-    input_blueprint: Optional[int] = Field(default=None, ge=0, le=255)
-
-    # Output items (e.g., "output_ore_red": 1)
-    output_ore_red: Optional[int] = Field(default=None, ge=0, le=255)
-    output_ore_blue: Optional[int] = Field(default=None, ge=0, le=255)
-    output_ore_green: Optional[int] = Field(default=None, ge=0, le=255)
-    output_battery_red: Optional[int] = Field(default=None, ge=0, le=255)
-    output_battery_blue: Optional[int] = Field(default=None, ge=0, le=255)
-    output_battery_green: Optional[int] = Field(default=None, ge=0, le=255)
-    output_heart: Optional[int] = Field(default=None, ge=0, le=255)
-    output_armor: Optional[int] = Field(default=None, ge=0, le=255)
-    output_laser: Optional[int] = Field(default=None, ge=0, le=255)
-    output_blueprint: Optional[int] = Field(default=None, ge=0, le=255)
-
-    # Converter properties
+    input_resources: Dict[str, int] = Field(default_factory=dict)
+    output_resources: Dict[str, int] = Field(default_factory=dict)
     type_id: int
     max_output: int = Field(ge=-1)
     conversion_ticks: int = Field(ge=0)
     cooldown: int = Field(ge=0)
-    initial_items: int = Field(ge=0)
+    initial_resource_count: int = Field(ge=0)
     color: Optional[int] = Field(default=None, ge=0, le=255)
 
 
