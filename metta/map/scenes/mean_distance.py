@@ -10,6 +10,10 @@ class MeanDistanceParams(Config):
 
 
 class MeanDistance(Scene[MeanDistanceParams]):
+    """
+    This scene places an agent at the center of the scene and places objects at a mean distance from the agent.
+    """
+
     def render(self):
         # Define the agent's initial position (here: center of the room)
         agent_pos = (self.height // 2, self.width // 2)
