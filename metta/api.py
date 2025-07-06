@@ -265,7 +265,6 @@ def _get_default_env_config(num_agents: int = 4, width: int = 32, height: int = 
                 },
                 "freeze_duration": 10,
                 "rewards": {
-                    "action_failure_penalty": 0,
                     "ore_red": 0.01,
                     "battery_red": 0.02,
                     "heart": 1,

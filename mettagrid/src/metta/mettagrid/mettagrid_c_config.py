@@ -43,15 +43,13 @@ def from_mettagrid_config(mettagrid_config_dict: dict[str, Any]) -> GameConfig_c
             "freeze_duration": merged_config.get("freeze_duration", 0),
             "group_id": group_config.id,
             "group_name": group_name,
-            "action_failure_penalty": merged_config.get("rewards", {}).get("action_failure_penalty", 0),
-            "max_resources": dict(
+            "action_failure_penalty": merged_config.get("action_failure_penalty", 0),
+            "resource_limits": dict(
                 (resource_id, merged_config.get("resource_limits", {}).get(resource_name, default_resource_limit))
                 for (resource_id, resource_name) in enumerate(resource_names)
             ),
             "resource_rewards": dict(
-                (resource_ids[k], v)
-                for k, v in merged_config.get("rewards", {}).items()
-                if not k.endswith("_max") and k != "action_failure_penalty"
+                (resource_ids[k], v) for k, v in merged_config.get("rewards", {}).items() if not k.endswith("_max")
             ),
             "resource_reward_max": dict(
                 (resource_ids[k[:-4]], v) for k, v in merged_config.get("rewards", {}).items() if k.endswith("_max")

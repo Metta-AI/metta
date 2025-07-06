@@ -21,7 +21,6 @@ game:
       ore_red: ${sampling:5,20,15}
       battery_red: ${sampling:5,20,15}
     rewards:
-      action_failure_penalty: 0
       ore_red: ${sampling:0.005,0.1, 0.01}
       battery_red: ${sampling:0.01,0.3, 0.1}
       heart: 1

@@ -55,8 +55,6 @@ game:
     freeze_duration: 10
 
     rewards:
-      # action_failure_penalty: 0.00001
-      action_failure_penalty: 0
       ore_red: 0.005
       ore_blue: 0.005
       ore_green: 0.005

@@ -17,7 +17,6 @@ game:
       battery_blue: ${sampling:1,2,3}
       battery_green: ${sampling:1,2,3}
     rewards:
-      action_failure_penalty: 0
       ore_red: ${sampling:0.005,0.1, 0.01}
       battery_red: ${sampling:0.01,0.5, 0.1}
       battery_red_max: 5

@@ -8,7 +8,6 @@ from metta.common.util.typed_config import BaseModelWithForbidExtra
 class AgentRewards(BaseModelWithForbidExtra):
     """Agent reward configuration."""
 
-    action_failure_penalty: Optional[float] = Field(default=None, ge=0)
     ore_red: Optional[float] = Field(default=None)
     ore_blue: Optional[float] = Field(default=None)
     ore_green: Optional[float] = Field(default=None)
@@ -38,6 +37,7 @@ class AgentConfig(BaseModelWithForbidExtra):
     resource_limits: Optional[Dict[str, int]] = Field(default_factory=dict)
     freeze_duration: Optional[int] = Field(default=None, ge=-1)
     rewards: Optional[AgentRewards] = None
+    action_failure_penalty: Optional[float] = Field(default=None, ge=0)
 
 
 class GroupProps(RootModel[Dict[str, Any]]):
