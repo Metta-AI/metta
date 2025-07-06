@@ -64,4 +64,4 @@ class TestValidateAllEnvs:
         # uncomment for debugging
         print(OmegaConf.to_yaml(OmegaConf.create(game_config_dict)))
 
-        metta.mettagrid.mettagrid_c_config.cpp_config_dict(cast(dict[str, Any], game_config_dict))
+        metta.mettagrid.mettagrid_c_config.from_mettagrid_config(cast(dict[str, Any], game_config_dict))
