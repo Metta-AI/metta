@@ -10,7 +10,7 @@ instance_border_width: 5
 root:
   type: metta.map.scenes.maze.Maze
   params:
-    algorithm: dfs
+    algorithm: kruskal
 
   children:
     - where:
