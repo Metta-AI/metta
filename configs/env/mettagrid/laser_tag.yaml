@@ -70,13 +70,13 @@ game:
         ore_red: 0
         battery_red: 0
       cooldown: 5
-      initial_items: 5
+      initial_resource_count: 5
 
     armory:
       input_resources:
         ore_red: 0
         battery_red: 0
-      initial_items: 5
+      initial_resource_count: 5
       cooldown: 5
 
   groups:

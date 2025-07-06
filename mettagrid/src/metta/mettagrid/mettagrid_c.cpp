@@ -812,7 +812,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
            py::arg("max_output"),
            py::arg("conversion_ticks"),
            py::arg("cooldown"),
-           py::arg("initial_items") = 0,
+           py::arg("initial_resource_count") = 0,
            py::arg("color") = 0)
       .def_readwrite("type_id", &ConverterConfig::type_id)
       .def_readwrite("type_name", &ConverterConfig::type_name)

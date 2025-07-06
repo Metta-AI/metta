@@ -229,7 +229,7 @@ TEST_F(MettaGridCppTest, PutRecipeItems) {
                                 0,                        // max_output
                                 1,                        // conversion_ticks
                                 10,                       // cooldown
-                                0,                        // initial_items
+                                0,                        // initial_resource_count
                                 0);                       // color
   EventManager event_manager;
   Converter* generator = new Converter(0, 0, generator_cfg);

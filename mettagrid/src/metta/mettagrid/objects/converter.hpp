@@ -125,7 +125,7 @@ public:
     this->converting = false;
     this->cooling_down = false;
 
-    // Initialize inventory with initial_items for all output types
+    // Initialize inventory with initial_resource_count for all output types
     for (const auto& [item, _] : this->output_resources) {
       HasInventory::update_inventory(item, cfg.initial_resource_count);
     }
