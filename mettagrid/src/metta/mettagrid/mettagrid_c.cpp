@@ -437,6 +437,7 @@ py::tuple MettaGrid::reset() {
   // Compute initial observations
   std::vector<ssize_t> shape = {static_cast<ssize_t>(_agents.size()), static_cast<ssize_t>(2)};
   auto zero_actions = py::array_t<int>(shape);
+  std::fill(zero_actions.mutable_data(), zero_actions.mutable_data() + zero_actions.size(), 0);
   _compute_observations(zero_actions);
 
   return py::make_tuple(_observations, py::dict());
