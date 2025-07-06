@@ -2,7 +2,7 @@ import logging
 import os
 from collections import defaultdict
 from pathlib import Path
-from typing import Any, Set
+from typing import Any
 from uuid import UUID
 
 import numpy as np
@@ -23,7 +23,7 @@ from metta.common.util.fs import wait_for_file
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.system_monitor import SystemMonitor
 from metta.common.wandb.wandb_context import WandbRun
-from metta.eval.eval_stats_db import EvalStatsDB
+from metta.eval.policy_evaluator import PolicyEvaluator
 from metta.mettagrid.curriculum.util import curriculum_from_config_path
 from metta.mettagrid.mettagrid_env import MettaGridEnv
 from metta.rl.experience import Experience
@@ -48,7 +48,6 @@ from metta.rl.trainer_config import parse_trainer_config
 from metta.rl.vecenv import make_vecenv
 from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
-from metta.sim.simulation_suite import SimulationSuite
 
 try:
     from pufferlib import _C  # noqa: F401 - Required for torch.ops.pufferlib
@@ -143,7 +142,15 @@ class MettaTrainer:
         self.grad_stats = {}
         self.wandb_run = wandb_run
         self.policy_store = policy_store
-        self.evals: dict[str, float] = {}
+
+        self.policy_evaluator = PolicyEvaluator(
+            device=cfg.device,
+            vectorization=cfg.vectorization,
+            stats_dir=cfg.stats_dir,
+            sim_suite_config=sim_suite_config,
+            policy_store=policy_store,
+            stats_client=stats_client,
+        )
 
         self.timer = Stopwatch(logger)
         self.timer.start()
@@ -283,7 +290,6 @@ class MettaTrainer:
         self._make_experience_buffer()
 
         self._stats_epoch_start = self.epoch
-        self._stats_epoch_id: UUID | None = None
         self._stats_run_id: UUID | None = None
 
         # Optimizer
@@ -620,9 +626,8 @@ class MettaTrainer:
 
         training_time = self.timer.get_elapsed("_rollout") + self.timer.get_elapsed("_train")
 
-        category_scores_map = {key.split("/")[0]: value for key, value in self.evals.items() if key.endswith("/score")}
-        category_score_values = [v for k, v in category_scores_map.items()]
-        overall_score = sum(category_score_values) / len(category_score_values) if category_score_values else 0
+        category_scores_map = self.policy_evaluator.get_category_scores()
+        overall_score = self.policy_evaluator.calculate_overall_score(category_scores_map)
 
         metadata = PolicyMetadata(
             agent_step=self.agent_step,
@@ -705,52 +710,14 @@ class MettaTrainer:
 
     @with_instance_timer("_evaluate_policy", log_level=logging.INFO)
     def _evaluate_policy(self, wandb_policy_name: str | None = None):
-        if self._stats_run_id is not None and self._stats_client is not None:
-            self._stats_epoch_id = self._stats_client.create_epoch(
-                run_id=self._stats_run_id,
-                start_training_epoch=self._stats_epoch_start,
-                end_training_epoch=self.epoch,
-                attributes={},
-            ).id
-
-        logger.info(f"Simulating policy: {self.latest_saved_policy_uri} with config: {self.sim_suite_config}")
-        sim = SimulationSuite(
-            config=self.sim_suite_config,
-            policy_pr=self.latest_saved_policy_record,
-            policy_store=self.policy_store,
-            device=self.device,
-            vectorization=self.cfg.vectorization,
-            stats_dir="/tmp/stats",
-            stats_client=self._stats_client,
-            stats_epoch_id=self._stats_epoch_id,
+        self.policy_evaluator.evaluate_policy(
+            policy_record=self.latest_saved_policy_record,
+            stats_epoch_start=self._stats_epoch_start,
+            stats_epoch_end=self.epoch,
+            stats_run_id=self._stats_run_id,
             wandb_policy_name=wandb_policy_name,
+            record_heartbeat=record_heartbeat,
         )
-        result = sim.simulate()
-        stats_db = EvalStatsDB.from_sim_stats_db(result.stats_db)
-        logger.info("Simulation complete")
-
-        # Build evaluation metrics
-        self.evals = {}  # used for wandb
-        categories: Set[str] = set()
-        for sim_name in self.sim_suite_config.simulations.keys():
-            categories.add(sim_name.split("/")[0])
-
-        for category in categories:
-            score = stats_db.get_average_metric_by_filter(
-                "reward", self.latest_saved_policy_record, f"sim_name LIKE '%{category}%'"
-            )
-            logger.info(f"{category} score: {score}")
-            record_heartbeat()
-            if score is None:
-                continue
-            self.evals[f"{category}/score"] = score
-
-        # Get detailed per-simulation scores
-        all_scores = stats_db.simulation_scores(self.latest_saved_policy_record, "reward")
-        for (_, sim_name, _), score in all_scores.items():
-            category = sim_name.split("/")[0]
-            sim_short_name = sim_name.split("/")[-1]
-            self.evals[f"{category}/{sim_short_name}"] = score
 
     def _maybe_generate_replay(self, force=False):
         """Generate replay if on replay interval"""
@@ -878,7 +845,7 @@ class MettaTrainer:
                 if k in self.stats:
                     overview[v] = self.stats[k]
 
-        category_scores_map = {key.split("/")[0]: value for key, value in self.evals.items() if key.endswith("/score")}
+        category_scores_map = self.policy_evaluator.get_category_scores()
 
         for category, score in category_scores_map.items():
             overview[f"{category}_score"] = score
@@ -908,7 +875,7 @@ class MettaTrainer:
                 **{f"losses/{k}": v for k, v in losses.items()},
                 **{f"experience/{k}": v for k, v in self.experience.stats().items()},
                 **{f"parameters/{k}": v for k, v in parameters.items()},
-                **{f"eval_{k}": v for k, v in self.evals.items()},
+                **{f"eval_{k}": v for k, v in self.policy_evaluator.evals.items()},
                 **{f"monitor/{k}": v for k, v in self._system_monitor.stats().items()},
                 **{f"trainer_memory/{k}": v for k, v in self._memory_monitor.stats().items()},
                 **environment_stats,
