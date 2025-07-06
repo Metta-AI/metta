@@ -1,5 +1,8 @@
 defaults:
   - /env/mettagrid/mettagrid@
+  - /env/mettagrid/game/objects/mines@game.objects
+  - /env/mettagrid/game/objects/generators@game.objects
+
   - _self_
 
 num_agents: 1

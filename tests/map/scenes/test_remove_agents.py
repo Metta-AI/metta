@@ -12,20 +12,19 @@ def test_basic():
         (3, 3),
         children=[
             ChildrenAction(
-                scene=lambda area: InlineAscii(
-                    area=area,
-                    params={
+                scene=InlineAscii.factory(
+                    {
                         "data": """
                     ###
                     @@.
                     ###
                         """
-                    },
+                    }
                 ),
                 where="full",
             ),
             ChildrenAction(
-                scene=lambda area: RemoveAgents(area=area),
+                scene=RemoveAgents.factory({}),
                 where="full",
             ),
         ],

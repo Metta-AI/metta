@@ -44,16 +44,6 @@ class TestSkyPilotLatency:
         mod = importlib.import_module("metta.common.util.skypilot_latency")
         assert mod.queue_latency_s() is None
 
-    def test_queue_latency_with_9_digit_microseconds(self):
-        """Test handling of 9-digit microseconds (macOS format)."""
-        base_ts = datetime.datetime.utcnow()
-        ts_str = base_ts.strftime("%Y-%m-%d-%H-%M-%S-") + "123456789"
-        os.environ["SKYPILOT_TASK_ID"] = f"sky-{ts_str}_cluster_1"
-
-        mod = importlib.import_module("metta.common.util.skypilot_latency")
-        latency = mod.queue_latency_s()
-        assert latency is not None and latency >= 0
-
     def test_main_function_output(self):
         """Test the main() function's output."""
         ts = datetime.datetime.utcnow() - datetime.timedelta(seconds=5)

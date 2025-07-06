@@ -315,7 +315,6 @@ def _get_default_env_config(num_agents: int = 4, width: int = 32, height: int = 
                 "wall": {"type_id": TYPE_WALL, "swappable": False},
                 "block": {"type_id": TYPE_BLOCK, "swappable": True},
             },
-            "reward_sharing": {"groups": {}},
             "map_builder": {
                 "_target_": "metta.mettagrid.room.multi_room.MultiRoom",
                 "num_rooms": num_agents,
