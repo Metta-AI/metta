@@ -164,15 +164,10 @@ jobs:
         with:
           install-mode: "no-mettagrid"
 
-      - name: Check and build MettaGrid C++
+      - name: Build MettaGrid C++
         id: mettagrid_build_check
         run: |
           .github/scripts/check_mettagrid_build.py
-
-      - name: Install metta-mettagrid package after C++ build
-        if: steps.mettagrid_build_check.outputs.build_success == 'true'
-        run: |
-          uv pip install --no-build-isolation --no-deps -e ./mettagrid
 
       - name: Check MettaGrid build warnings
         if: always()
@@ -193,6 +188,11 @@ jobs:
           else
             echo "✅ MettaGrid build quality check passed"
           fi
+
+      - name: Install metta-mettagrid package
+        if: steps.mettagrid_build_check.outputs.build_success == 'true'
+        run: |
+          uv pip install --no-build-isolation --no-deps -e ./mettagrid
 
       - name: Run Pytest on core tests
         run: |
