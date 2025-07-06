@@ -1,5 +1,5 @@
 import copy
-from typing import Any, Dict
+from typing import Any
 
 from metta.mettagrid.mettagrid_c import ActionConfig as ActionConfig_cpp
 from metta.mettagrid.mettagrid_c import AgentConfig as AgentConfig_cpp
@@ -12,7 +12,7 @@ from metta.mettagrid.mettagrid_config import GameConfig as GameConfig_py
 from metta.mettagrid.mettagrid_config import WallConfig as WallConfig_py
 
 
-def from_mettagrid_config(mettagrid_config_dict: GameConfig_py) -> GameConfig_cpp:
+def from_mettagrid_config(mettagrid_config_dict: dict[str, Any]) -> GameConfig_cpp:
     """Convert a mettagrid_config.GameConfig to a mettagrid_c_config.GameConfig."""
 
     mettagrid_config = GameConfig_py(**mettagrid_config_dict)
@@ -128,14 +128,3 @@ def from_mettagrid_config(mettagrid_config_dict: GameConfig_py) -> GameConfig_cp
     game_config["objects"] = object_configs
 
     return GameConfig_cpp(**game_config)
-
-
-def cpp_config_dict(game_config_dict: Dict[str, Any]) -> Dict[str, Any]:
-    """Validates a config dict and returns a config_c dict.
-
-    In particular, this function converts from the style of config we have in yaml to the style of config we expect
-    in cpp; and validates along the way.
-    """
-    game_config = GameConfig_py(**game_config_dict)
-
-    return from_mettagrid_config(game_config).model_dump(by_alias=True, exclude_none=True)

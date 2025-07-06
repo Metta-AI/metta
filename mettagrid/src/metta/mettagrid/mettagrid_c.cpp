@@ -32,17 +32,6 @@
 
 namespace py = pybind11;
 
-struct GameConfig {
-  int num_agents;
-  unsigned int max_steps;
-  unsigned short obs_width;
-  unsigned short obs_height;
-  std::vector<std::string> inventory_item_names;
-  unsigned int num_observation_tokens;
-  std::map<std::string, std::shared_ptr<ActionConfig>> actions;
-  std::map<std::string, std::shared_ptr<GridObjectConfig>> objects;
-};
-
 MettaGrid::MettaGrid(const GameConfig& cfg, py::list map, int seed)
     : max_steps(cfg.max_steps),
       obs_width(cfg.obs_width),
