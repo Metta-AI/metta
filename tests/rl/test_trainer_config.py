@@ -6,8 +6,8 @@ from hydra import compose, initialize_config_dir
 from omegaconf import DictConfig
 from pydantic import ValidationError
 
-from metta.common.util.script_decorators import remove_num_workers_if_unspecified
 from metta.rl.trainer_config import OptimizerConfig, create_trainer_config
+from tools.train import set_num_workers_if_unspecified
 
 valid_optimizer_config = {
     "type": "adam",
@@ -228,7 +228,7 @@ def load_config_with_hydra(trainer_name: str, overrides: list[str] | None = None
             config_name="train_job",
             overrides=default_overrides + (overrides or []),
         )
-        remove_num_workers_if_unspecified(cfg)
+        set_num_workers_if_unspecified(cfg)  # noqa: F821
         return cfg
 
 

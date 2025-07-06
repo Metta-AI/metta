@@ -1,4 +1,3 @@
-import multiprocessing
 from typing import Any, ClassVar, Literal
 
 from omegaconf import DictConfig, OmegaConf
@@ -272,9 +271,6 @@ def create_trainer_config(
         config_dict["async_factor"] = 1
         config_dict["zero_copy"] = False
 
-    if not config_dict.get("num_workers"):
-        config_dict["num_workers"] = _calculate_default_num_workers(is_serial)
-
     # Set default paths if not provided
     if "checkpoint_dir" not in config_dict.setdefault("checkpoint", {}):
         config_dict["checkpoint"]["checkpoint_dir"] = f"{cfg.run_dir}/checkpoints"
@@ -286,19 +282,3 @@ def create_trainer_config(
         config_dict["profiler"]["profile_dir"] = f"{cfg.run_dir}/torch_traces"
 
     return TrainerConfig.model_validate(config_dict)
-
-
-def _calculate_default_num_workers(is_serial: bool) -> int:
-    if is_serial:
-        return 1
-
-    # Use power of 2 for better batch size compatibility
-    cpu_count = multiprocessing.cpu_count() or 1
-    ideal_workers = cpu_count // 2
-
-    # Round down to nearest power of 2
-    num_workers = 1
-    while num_workers * 2 <= ideal_workers:
-        num_workers *= 2
-
-    return max(1, num_workers)

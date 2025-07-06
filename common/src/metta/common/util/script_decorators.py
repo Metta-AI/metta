@@ -58,7 +58,6 @@ def metta_script(func: Callable[..., T]) -> Callable[..., T]:
         logger = setup_mettagrid_logger("metta_script")
 
         set_hardware_configurations(cfg, logger)
-        remove_num_workers_if_unspecified(cfg)
 
         # Call setup_mettagrid_environment first - it handles all environment setup
         # including device validation, directory creation, and seed initialization
@@ -105,17 +104,6 @@ def set_hardware_configurations(cfg: DictConfig, logger: logging.Logger) -> None
     cfg.vectorization = vectorization
 
     OmegaConf.set_struct(cfg, True)
-
-
-def remove_num_workers_if_unspecified(cfg: DictConfig) -> None:
-    # cfg.trainer.num_workers may be ???. it needs to be specified for Hydra to recognize it overrideable,
-    # but hydra.instantiate will also fail if it is set to ???. We remove it here if so to let
-    # create_trainer_config determine and set the default.
-    if "trainer" in cfg:
-        OmegaConf.set_struct(cfg, False)
-        if OmegaConf.is_missing(cfg.trainer, "num_workers"):
-            del cfg.trainer["num_workers"]
-        OmegaConf.set_struct(cfg, True)
 
 
 def is_multiprocessing_available() -> bool:
