@@ -20,7 +20,7 @@
       "blueprint"
     ],
     "agent": {
-      "default_item_max": 50,
+      "default_resource_limit": 50,
       "freeze_duration": 10,
       "rewards": {
         "action_failure_penalty": 0,

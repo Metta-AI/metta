@@ -34,19 +34,10 @@ class AgentRewards(BaseModelWithForbidExtra):
 class AgentConfig(BaseModelWithForbidExtra):
     """Agent configuration."""
 
-    default_item_max: Optional[int] = Field(default=None, ge=0)
+    default_resource_limit: Optional[int] = Field(default=None, ge=0)
+    resource_limits: Optional[Dict[str, int]] = Field(default_factory=dict)
     freeze_duration: Optional[int] = Field(default=None, ge=-1)
     rewards: Optional[AgentRewards] = None
-    ore_red_max: Optional[int] = Field(default=None)
-    ore_blue_max: Optional[int] = Field(default=None)
-    ore_green_max: Optional[int] = Field(default=None)
-    battery_red_max: Optional[int] = Field(default=None)
-    battery_blue_max: Optional[int] = Field(default=None)
-    battery_green_max: Optional[int] = Field(default=None)
-    heart_max: Optional[int] = Field(default=None)
-    armor_max: Optional[int] = Field(default=None)
-    laser_max: Optional[int] = Field(default=None)
-    blueprint_max: Optional[int] = Field(default=None)
 
 
 class GroupProps(RootModel[Dict[str, Any]]):

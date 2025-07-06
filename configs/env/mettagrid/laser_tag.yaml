@@ -59,7 +59,7 @@ game:
                 team_2: 18
 
   agent:
-    default_item_max: 5
+    default_resource_limit: 5
 
   objects:
     altar:

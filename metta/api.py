@@ -259,8 +259,10 @@ def _get_default_env_config(num_agents: int = 4, width: int = 32, height: int = 
             ],
             "groups": {"agent": {"id": 0, "sprite": 0}},
             "agent": {
-                "default_item_max": 50,
-                "heart_max": 255,
+                "default_resource_limit": 50,
+                "resource_limits": {
+                    "heart": 255,
+                },
                 "freeze_duration": 10,
                 "rewards": {
                     "action_failure_penalty": 0,

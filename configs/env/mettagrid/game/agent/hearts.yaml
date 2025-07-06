@@ -1,7 +1,8 @@
-default_item_max: 50
+default_resource_limit: 50
 # the agent should be able to pick up as many hearts as they want, even if
 # "normal" item limits are lower
-heart_max: 255
+resource_limits:
+  heart: 255
 freeze_duration: 10
 
 rewards:
