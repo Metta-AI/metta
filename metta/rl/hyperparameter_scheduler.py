@@ -1,17 +1,82 @@
 import math
-from typing import Any, Dict
+from abc import ABC, abstractmethod
+from typing import Any, Callable, Dict, Optional
 
 from omegaconf import DictConfig
 
 
+class BaseSchedule(ABC):
+    """Base class for scheduling strategies."""
+
+    def __init__(self, initial_value: float, min_value: Optional[float] = None,
+                 max_value: Optional[float] = None, **kwargs):
+        self.initial_value = initial_value
+        self.min_value = min_value if min_value is not None else initial_value * 0.1
+        self.max_value = max_value if max_value is not None else initial_value
+
+    @abstractmethod
+    def __call__(self, progress: float) -> float:
+        """Compute scheduled value given progress (0.0 to 1.0)."""
+        pass
+
+
+class ConstantSchedule(BaseSchedule):
+    """Constant schedule that returns the initial value."""
+
+    def __call__(self, progress: float) -> float:
+        return self.initial_value
+
+
+class LinearSchedule(BaseSchedule):
+    def __call__(self, progress: float) -> float:
+        return self.initial_value + (self.min_value - self.initial_value) * progress
+
+
+class CosineSchedule(BaseSchedule):
+    def __call__(self, progress: float) -> float:
+        return self.min_value + (self.initial_value - self.min_value) * (1 + math.cos(math.pi * progress)) / 2
+
+
+class ExponentialSchedule(BaseSchedule):
+    def __init__(self, initial_value: float, decay_rate: float = 0.95, **kwargs):
+        super().__init__(initial_value, **kwargs)
+        self.decay_rate = decay_rate
+
+    def __call__(self, progress: float) -> float:
+        value = self.initial_value * (self.decay_rate ** progress)
+        return max(value, self.min_value)
+
+
+class LogarithmicSchedule(BaseSchedule):
+    def __init__(self, initial_value: float, decay_rate: float = 0.1, **kwargs):
+        super().__init__(initial_value, **kwargs)
+        self.decay_rate = decay_rate
+
+    def __call__(self, progress: float) -> float:
+        if progress == 0:
+            return self.initial_value
+        log_progress = math.log1p(self.decay_rate * progress) / math.log1p(self.decay_rate)
+        return self.initial_value + (self.min_value - self.initial_value) * log_progress
+
+
+
+
 class HyperparameterScheduler:
+
+    scheduler_registry: Dict[str, Callable[..., BaseSchedule]] = {
+        "constant": ConstantSchedule,
+        "linear": LinearSchedule,
+        "cosine": CosineSchedule,
+        "exponential": ExponentialSchedule,
+        "logarithmic": LogarithmicSchedule,
+    }
+
     def __init__(self, trainer_cfg: DictConfig, total_timesteps: int, logging):
         """Initialize the hyperparameter scheduler with configuration and total timesteps."""
         self.trainer_cfg = trainer_cfg
-        self.total_timesteps = total_timesteps  # This should be actual timesteps, not epochs
+        self.total_timesteps = total_timesteps
         self.logger = logging.getLogger(__name__)
 
-        # Store initial values
         self.initial_values = {
             "learning_rate": trainer_cfg.optimizer.learning_rate,
             "ppo_clip_coef": trainer_cfg.ppo.clip_coef,
@@ -20,8 +85,6 @@ class HyperparameterScheduler:
             "ppo_l2_reg_loss_coef": trainer_cfg.ppo.l2_reg_loss_coef,
             "ppo_l2_init_loss_coef": trainer_cfg.ppo.l2_init_loss_coef,
         }
-
-        # Define scheduling strategies
         self.schedules = {
             "learning_rate": self._get_schedule_config(trainer_cfg, "learning_rate_schedule", "cosine"),
             "ppo_clip_coef": self._get_schedule_config(trainer_cfg, "ppo_clip_schedule", "logarithmic"),
@@ -54,25 +117,19 @@ class HyperparameterScheduler:
 
         progress = min(current_step / self.total_timesteps, 1.0)
 
-        if schedule_type == "linear":
-            min_value = schedule.get("min_value", initial_value * 0.1)
-            return initial_value + (min_value - initial_value) * progress
-
-        elif schedule_type == "cosine":
-            min_value = schedule.get("min_value", initial_value * 0.1)
-            return min_value + (initial_value - min_value) * (1 + math.cos(math.pi * progress)) / 2
-
-        elif schedule_type == "logarithmic":
-            decay_rate = schedule.get("decay_rate", 0.1)
-            min_value = schedule.get("min_value", initial_value * 0.01)
-            if progress == 0:
-                return initial_value
-            log_progress = math.log1p(decay_rate * progress) / math.log1p(decay_rate)
-            return initial_value + (min_value - initial_value) * log_progress
-
-        else:
+        schedule_class = self.scheduler_registry.get(schedule_type)
+        if not schedule_class:
             self.logger.warning(f"Unknown schedule type {schedule_type} for {param_name}, using constant")
             return initial_value
+
+        scheduled_value = schedule_class(
+            initial_value=initial_value,
+            min_value=schedule.get("min_value"),
+            max_value=schedule.get("max_value"),
+            decay_rate=schedule.get("decay_rate", 0.1)
+        )(progress)
+
+        return scheduled_value
 
     def step(self, trainer, current_step: int) -> None:
         """Update trainer hyperparameters for the current step."""
