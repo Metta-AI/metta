@@ -44,14 +44,14 @@ root:
 
       # Scene will be instantiated for each matched area.
       scene:
-        type: metta.map.scenes.maze.MazeKruskal
+        type: metta.map.scenes.maze.Maze
 
         # Scenes can be nested arbitrarily.
-        # MazeKruskal defines a 1x1 area at each of the four corners, so we can use these to place an agent and an altar.
+        # Maze scene defines a 1x1 area at each of the four corners, so we can use these to place an agent and an altar.
         children:
           - where: # similar to SQL "WHERE" clause; selects areas based on their tags.
               # Each corner is tagged, so we can select them individually.
-              # These tags are specific for MazeKruskal scene. Other scenes might have different tags.
+              # These tags are specific for Maze scene. Other scenes might have different tags.
               tags:
                 - top-left
             scene:

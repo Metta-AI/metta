@@ -12,8 +12,9 @@ game:
     border_width: 2
 
     root:
-      type: metta.map.scenes.maze.MazeLabyrinth
+      type: metta.map.scenes.maze.Maze
       params:
+        algorithm: dfs
         room_size: 3
         wall_size: 1
 
@@ -50,6 +51,6 @@ game:
                     data: |
                       .......
                       .......
-                      ..aaa..
+                      ..___..
                       .......
                       .......

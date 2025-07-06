@@ -29,14 +29,66 @@ def anchor_to_position(anchor: Anchor, width: int, height: int) -> tuple[int, in
         return (width - 1, height - 1)
 
 
+@dataclass
+class MazeGrid:
+    grid: MapGrid
+    room_size: int
+    wall_size: int
+
+    def __post_init__(self):
+        (self.height, self.width) = self.grid.shape
+        self.cols = (self.width + self.wall_size) // (self.room_size + self.wall_size)
+        self.rows = (self.height + self.wall_size) // (self.room_size + self.wall_size)
+
+    def cell_top_left(self, i: int, j: int) -> tuple[int, int]:
+        return (
+            i * (self.room_size + self.wall_size),
+            j * (self.room_size + self.wall_size),
+        )
+
+    def neighbors(self, i: int, j: int) -> list[tuple[int, int]]:
+        return [
+            (i + di, j + dj)
+            for di, dj in [(1, 0), (-1, 0), (0, 1), (0, -1)]
+            if 0 <= i + di < self.cols and 0 <= j + dj < self.rows
+        ]
+
+    def remove_wall_between(self, i1: int, j1: int, i2: int, j2: int):
+        rs = self.room_size
+        ws = self.wall_size
+        x1, y1 = self.cell_top_left(i1, j1)
+        x2, y2 = self.cell_top_left(i2, j2)
+        dx, dy = i2 - i1, j2 - j1
+        if dx == 1:  # right neighbor
+            self.grid[y1 : y1 + rs, x1 + rs : x1 + rs + ws] = "empty"
+        elif dx == -1:  # left neighbor
+            self.grid[y2 : y2 + rs, x2 + rs : x2 + rs + ws] = "empty"
+        elif dy == 1:  # below
+            self.grid[y1 + rs : y1 + rs + ws, x1 : x1 + rs] = "empty"
+        elif dy == -1:  # above
+            self.grid[y2 + rs : y2 + rs + ws, x2 : x2 + rs] = "empty"
+
+    def carve_cell(self, i: int, j: int):
+        x, y = self.cell_top_left(i, j)
+        rs = self.room_size
+        self.grid[y : y + rs, x : x + rs] = "empty"
+
+
 class MazeParams(Config):
+    algorithm: Literal["kruskal", "dfs"] = "kruskal"
     room_size: IntDistribution = IntConstantDistribution(value=1)
     wall_size: IntDistribution = IntConstantDistribution(value=1)
 
 
-class MazeKruskal(Scene[MazeParams]):
+class Maze(Scene[MazeParams]):
     """
-    Maze generation using Randomized Kruskal's algorithm.
+    Maze generation scene.
+
+    Supports two algorithms:
+    1. `kruskal`: Kruskal's algorithm
+    2. `dfs`: Depth-first search, recursive backtracking
+
+    DFS algorithm tends to create longer, more winding corridors with fewer branches.
 
     The generated maze doesn't have an outer border.
 
@@ -56,21 +108,25 @@ class MazeKruskal(Scene[MazeParams]):
 
     EMPTY, WALL = "empty", "wall"
 
-    def render(self):
+    def post_init(self):
+        # Calculate number of maze cells and adjust overall dimensions.
+        room_size = self.params.room_size.sample(self.rng)
+        wall_size = self.params.wall_size.sample(self.rng)
+
+        self.maze = MazeGrid(self.grid, room_size, wall_size)
+
+    def _render_kruskal(self):
         grid = self.grid
         width = self.width
         height = self.height
-        room_size = self.params.room_size.sample(self.rng)
-        wall_size = self.params.wall_size.sample(self.rng)
+        room_size = self.maze.room_size
+        wall_size = self.maze.wall_size
         rw_size = room_size + wall_size
-
-        width_in_rooms = (width + wall_size) // rw_size
-        height_in_rooms = (height + wall_size) // rw_size
 
         grid[:] = self.EMPTY
 
-        v_wall_positions = [rw_size * i + room_size for i in range(width_in_rooms - 1)]
-        h_wall_positions = [rw_size * i + room_size for i in range(height_in_rooms - 1)]
+        v_wall_positions = [rw_size * i + room_size for i in range(self.maze.cols - 1)]
+        h_wall_positions = [rw_size * i + room_size for i in range(self.maze.rows - 1)]
 
         for x in v_wall_positions:
             grid[:, x : x + wall_size] = self.WALL
@@ -81,7 +137,7 @@ class MazeKruskal(Scene[MazeParams]):
         v_wall_positions.append(width)
         h_wall_positions.append(height)
 
-        cells = [(col, row) for row in range(height_in_rooms) for col in range(width_in_rooms)]
+        cells = [(col, row) for row in range(self.maze.rows) for col in range(self.maze.cols)]
 
         # DSU
         parent = {cell: cell for cell in cells}
@@ -97,12 +153,12 @@ class MazeKruskal(Scene[MazeParams]):
         # all horizontal and vertical walls
         walls = [
             (col, row, "h")  # h is "horizontal wall", below the cell
-            for col in range(width_in_rooms)
-            for row in range(height_in_rooms - 1)
+            for col in range(self.maze.cols)
+            for row in range(self.maze.rows - 1)
         ] + [
             (col, row, "v")  # v is "vertical wall", to the right of the cell
-            for col in range(width_in_rooms - 1)
-            for row in range(height_in_rooms)
+            for col in range(self.maze.cols - 1)
+            for row in range(self.maze.rows)
         ]
 
         def clear_wall(wall):
@@ -132,69 +188,7 @@ class MazeKruskal(Scene[MazeParams]):
                 clear_wall(wall)
                 union(cell1, cell2)
 
-        for anchor in ALL_ANCHORS:
-            x, y = anchor_to_position(anchor, width, height)
-            self.make_area(x, y, 1, 1, tags=[anchor])
-
-
-@dataclass
-class MazeGrid:
-    grid: MapGrid
-    corridor_width: int
-    border_width: int
-
-    def __post_init__(self):
-        (self.height, self.width) = self.grid.shape
-        self.cols = (self.width + self.border_width) // (self.corridor_width + self.border_width)
-        self.rows = (self.height + self.border_width) // (self.corridor_width + self.border_width)
-
-    def cell_top_left(self, i: int, j: int) -> tuple[int, int]:
-        return (
-            i * (self.corridor_width + self.border_width),
-            j * (self.corridor_width + self.border_width),
-        )
-
-    def neighbors(self, i: int, j: int) -> list[tuple[int, int]]:
-        return [
-            (i + di, j + dj)
-            for di, dj in [(1, 0), (-1, 0), (0, 1), (0, -1)]
-            if 0 <= i + di < self.cols and 0 <= j + dj < self.rows
-        ]
-
-    def remove_wall_between(self, i1: int, j1: int, i2: int, j2: int):
-        cw = self.corridor_width
-        bw = self.border_width
-        x1, y1 = self.cell_top_left(i1, j1)
-        x2, y2 = self.cell_top_left(i2, j2)
-        dx, dy = i2 - i1, j2 - j1
-        if dx == 1:  # right neighbor
-            self.grid[y1 : y1 + cw, x1 + cw : x1 + cw + bw] = "empty"
-        elif dx == -1:  # left neighbor
-            self.grid[y2 : y2 + cw, x2 + cw : x2 + cw + bw] = "empty"
-        elif dy == 1:  # below
-            self.grid[y1 + cw : y1 + cw + bw, x1 : x1 + cw] = "empty"
-        elif dy == -1:  # above
-            self.grid[y2 + cw : y2 + cw + bw, x2 : x2 + cw] = "empty"
-
-    def carve_cell(self, i: int, j: int):
-        x, y = self.cell_top_left(i, j)
-        cw = self.corridor_width
-        self.grid[y : y + cw, x : x + cw] = "empty"
-
-
-class MazeLabyrinth(Scene[MazeParams]):
-    """
-    Maze generation using recursive backtracking.
-    """
-
-    def post_init(self):
-        # Calculate number of maze cells and adjust overall dimensions.
-        corridor_width = self.params.room_size.sample(self.rng)
-        border_width = self.params.wall_size.sample(self.rng)
-
-        self.maze = MazeGrid(self.grid, corridor_width, border_width)
-
-    def render(self):
+    def _render_dfs(self):
         # Initialize grid with walls and visited flags for maze cells.
         self.grid[:] = "wall"
         visited = np.zeros((self.maze.rows, self.maze.cols), dtype=bool)
@@ -213,7 +207,15 @@ class MazeLabyrinth(Scene[MazeParams]):
 
         carve_passages_from(0, 0)
 
+    def render(self):
+        if self.params.algorithm == "kruskal":
+            self._render_kruskal()
+        elif self.params.algorithm == "dfs":
+            self._render_dfs()
+        else:
+            raise ValueError(f"Unknown algorithm: {self.params.algorithm}")
+
         for anchor in ALL_ANCHORS:
-            i, j = anchor_to_position(anchor, self.maze.width, self.maze.height)
+            i, j = anchor_to_position(anchor, self.maze.cols, self.maze.rows)
             x, y = self.maze.cell_top_left(i, j)
-            self.make_area(x, y, self.maze.corridor_width, self.maze.corridor_width, tags=[anchor])
+            self.make_area(x, y, self.maze.room_size, self.maze.room_size, tags=[anchor])

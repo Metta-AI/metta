@@ -1,9 +1,9 @@
-from metta.map.scenes.maze import MazeKruskal
+from metta.map.scenes.maze import Maze
 from tests.map.scenes.utils import assert_connected, render_scene
 
 
 def test_basic():
-    scene = render_scene(MazeKruskal, {"room_size": 1, "wall_size": 1}, (9, 9))
+    scene = render_scene(Maze, {"room_size": 1, "wall_size": 1}, (9, 9))
 
     assert_connected(scene.grid)
 
@@ -13,7 +13,7 @@ def test_basic():
 
 
 def test_uniform_distribution():
-    scene = render_scene(MazeKruskal, {"room_size": ("uniform", 1, 2), "wall_size": ("uniform", 1, 2)}, (15, 15))
+    scene = render_scene(Maze, {"room_size": ("uniform", 1, 2), "wall_size": ("uniform", 1, 2)}, (15, 15))
 
     assert_connected(scene.grid)
     assert 10 < (scene.grid == "wall").sum() < 200
