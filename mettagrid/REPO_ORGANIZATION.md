@@ -84,46 +84,46 @@ from metta.backend.observatory import RemoteStatsDb
 ## Package Descriptions
 
 ### Main Package (`metta`)
-**Location**: Root-level `src/` directory
-**Namespace**: `metta.*`
-**Purpose**: Core ML functionality
+- **Location**: Root-level `src/` directory
+- **Namespace**: `metta.*`
+- **Purpose**: Core ML functionality
 
-- **rl/**: Reinforcement learning algorithms and wrappers
-- **sweep/**: Hyperparameter optimization and experiment management
-- **setup/**: Environment and dependency setup tools
-- **map/**: Map generation and manipulation tools
-- **eval/**: Evaluation metrics and analysis tools
-- **api.py**: Core API definitions and interfaces
+  - **rl/**: Reinforcement learning algorithms and wrappers
+  - **sweep/**: Hyperparameter optimization and experiment management
+  - **setup/**: Environment and dependency setup tools
+  - **map/**: Map generation and manipulation tools
+  - **eval/**: Evaluation metrics and analysis tools
+  - **api.py**: Core API definitions and interfaces
 
 ### Shared Utilities (`metta.common`)
-**Location**: `common/` directory
-**Namespace**: `metta.common`
-**Purpose**: Shared utilities that all packages can depend on
+- **Location**: `common/` directory
+- **Namespace**: `metta.common`
+- **Purpose**: Shared utilities that all packages can depend on
 
-- Config management and Hydra resolvers
-- Logging utilities
-- Base interfaces and protocols
-- Data structures used across packages
+  - Config management and Hydra resolvers
+  - Logging utilities
+  - Base interfaces and protocols
+  - Data structures used across packages
 
 *Note: Separate package allows mettagrid to depend on common utils without circular dependency*
 
 ### Environment Engine (`metta.mettagrid`)
-**Location**: `mettagrid/` directory
-**Namespace**: `metta.mettagrid`
-**Purpose**: Core C++ simulation engine with Python bindings
+- **Location**: `mettagrid/` directory
+- **Namespace**: `metta.mettagrid`
+- **Purpose**: Core C++ simulation engine with Python bindings
 
-- High-performance grid-based environments
-- C++ implementation with PyBind11 interface
-- Depends on `metta.common` but not main `metta` package
+  - High-performance grid-based environments
+  - C++ implementation with PyBind11 interface
+  - Depends on `metta.common` but not main `metta` package
 
 ### Backend Services (`metta.backend`)
-**Location**: `backend/` directory
-**Namespace**: `metta.backend`
-**Purpose**: Unified backend services for all server-side functionality
+- **Location**: `backend/` directory
+- **Namespace**: `metta.backend`
+- **Purpose**: Unified backend services for all server-side functionality
 
-- **observatory/**: API endpoints for experiment tracking and visualization
-- **sweep-names/**: Process name registration service for sweeps
-- **stat-buffer/**: Data persistence and database interfaces
+  - **observatory/**: API endpoints for experiment tracking and visualization
+  - **sweep-names/**: Process name registration service for sweeps
+  - **stat-buffer/**: Data persistence and database interfaces
 
 ### Frontend Applications
 
@@ -146,8 +146,8 @@ from metta.backend.observatory import RemoteStatsDb
 
 ```mermaid
 graph TD
-    A[metta]->B[metta.mettagrid]
-    A -> C[metta.common]
+    A[metta] --> B[metta.mettagrid]
+    A --> C[metta.common]
     B --> C
     D[metta.backend] --> B
     E[Frontend Apps] --> B
