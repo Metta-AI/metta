@@ -1,0 +1,13 @@
+{
+  "total_policies": 5,
+  "total_evaluations": 1000,
+  "total_episodes": 1000,
+  "policy_reward_stats": {
+    "mean": 0.28871875131919356,
+    "std": 0.08919071831006622,
+    "min": 0.2264400029182434,
+    "max": 0.4464850862797234,
+    "median": 0.2574318200349808
+  },
+  "episode_status_counts": {}
+}
