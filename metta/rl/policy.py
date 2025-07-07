@@ -2,7 +2,6 @@ import logging
 from types import SimpleNamespace
 
 import torch
-from hydra.utils import instantiate
 from omegaconf import DictConfig
 from pufferlib.pytorch import sample_logits
 from torch import nn
@@ -18,7 +17,7 @@ def load_pytorch_policy(path: str, device: str = "cpu", pytorch_cfg: DictConfig 
     Args:
         path: Path to the checkpoint file
         device: Device to load the policy on
-        pytorch_cfg: Configuration for the PyTorch policy (formerly 'puffer')
+        pytorch_cfg: Configuration for the PyTorch policy with _target_ field
 
     Returns:
         PytorchAgent wrapping the loaded policy
@@ -43,8 +42,35 @@ def load_pytorch_policy(path: str, device: str = "cpu", pytorch_cfg: DictConfig 
         ),
     )
 
-    policy = instantiate(pytorch_cfg, env=env, policy=None)
+    # Import the policy class dynamically based on _target_ field
+    if pytorch_cfg and "_target_" in pytorch_cfg:
+        target = pytorch_cfg["_target_"]
+        # Split module and class name
+        module_path, class_name = target.rsplit(".", 1)
+
+        # Dynamically import the module and get the class
+        import importlib
+
+        module = importlib.import_module(module_path)
+        policy_class = getattr(module, class_name)
+    else:
+        # Default fallback to Recurrent class
+        from metta.agent.external.example import Recurrent
+
+        policy_class = Recurrent
+
+    # Extract config parameters (excluding _target_)
+    kwargs = {}
+    if pytorch_cfg:
+        kwargs = {k: v for k, v in pytorch_cfg.items() if not k.startswith("_")}
+
+    # Create the policy instance
+    policy = policy_class(env, policy=None, **kwargs)
+
+    # Load the weights
     policy.load_state_dict(weights)
+
+    # Wrap in PytorchAgent and move to device
     policy = PytorchAgent(policy).to(device)
     return policy
 

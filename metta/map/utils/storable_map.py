@@ -4,7 +4,6 @@ import time
 from dataclasses import dataclass
 from datetime import datetime
 
-import hydra
 from omegaconf import DictConfig, OmegaConf
 from typing_extensions import TypedDict
 
@@ -12,6 +11,7 @@ from metta.map.mapgen import MapGen
 from metta.map.types import MapGrid
 from metta.map.utils.ascii_grid import grid_to_lines, lines_to_grid
 from metta.map.utils.s3utils import list_objects
+from metta.mettagrid.map_builder_factory import MapBuilderFactory
 from metta.mettagrid.util import file as file_utils
 
 logger = logging.getLogger(__name__)
@@ -96,7 +96,12 @@ class StorableMap:
 def map_builder_cfg_to_storable_map(cfg: DictConfig) -> StorableMap:
     # Generate and measure time taken
     start = time.time()
-    map_builder = hydra.utils.instantiate(cfg, _recursive_=True)
+    # Convert OmegaConf to dict if needed
+    if isinstance(cfg, DictConfig):
+        cfg_dict = OmegaConf.to_container(cfg, resolve=True)
+    else:
+        cfg_dict = cfg
+    map_builder = MapBuilderFactory.create(cfg_dict, recursive=True)
     level = map_builder.build()
     gen_time = time.time() - start
     logger.info(f"Time taken to build map: {gen_time}s")

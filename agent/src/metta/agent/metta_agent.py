@@ -2,13 +2,13 @@ import logging
 from typing import TYPE_CHECKING, Optional, Union
 
 import gymnasium as gym
-import hydra
 import numpy as np
 import torch
 from omegaconf import DictConfig, ListConfig, OmegaConf
 from torch import nn
 from torch.nn.parallel import DistributedDataParallel
 
+from metta.agent.component_factory import ComponentFactory
 from metta.agent.policy_state import PolicyState
 from metta.agent.util.debug import assert_shape
 from metta.agent.util.distribution_utils import evaluate_actions, sample_actions
@@ -29,18 +29,23 @@ def make_policy(env: "MettaGridEnv", cfg: ListConfig | DictConfig) -> "MettaAgen
         }
     )
 
-    # Here's where we create MettaAgent. We're including the term MettaAgent here for better
-    # searchability. Otherwise you might only find yaml files.
-    return hydra.utils.instantiate(
-        cfg.agent,
+    # Extract agent config
+    agent_cfg = cfg.agent if hasattr(cfg, "agent") else cfg
+
+    # Convert to dict if needed
+    if isinstance(agent_cfg, (DictConfig, ListConfig)):
+        agent_cfg = OmegaConf.to_container(agent_cfg, resolve=True)
+
+    # Create MettaAgent directly without Hydra
+    return MettaAgent(
         obs_space=obs_space,
         obs_width=env.obs_width,
         obs_height=env.obs_height,
         action_space=env.single_action_space,
         feature_normalizations=env.feature_normalizations,
         global_features=env.global_features,
-        device=cfg.device,
-        _recursive_=False,
+        device=cfg.device if hasattr(cfg, "device") else "cuda",
+        **agent_cfg,
     )
 
 
@@ -122,8 +127,8 @@ class MettaAgent(nn.Module):
             # Convert key to string to ensure compatibility
             component_name = str(component_key)
             component_cfgs[component_key]["name"] = component_name
-            logger.info(f"calling hydra instantiate from MettaAgent __init__ for {component_name}")
-            component = hydra.utils.instantiate(component_cfgs[component_key], **self.agent_attributes)
+            logger.info(f"Creating component {component_name} using ComponentFactory")
+            component = ComponentFactory.create(component_name, component_cfgs[component_key], self.agent_attributes)
             self.components[component_name] = component
 
         component = self.components["_value_"]
