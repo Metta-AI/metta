@@ -6,7 +6,8 @@ defaults:
 game:
   map_builder:
     root:
-      objects:
-        lab: 1
-        factory: 1
-        temple: 1
+      params:
+        objects:
+          lab: 1
+          factory: 1
+          temple: 1

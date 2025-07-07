@@ -803,6 +803,7 @@ class MettaTrainer:
             try:
                 mean_stats[k] = np.mean(v)
                 # Add standard deviation with .std_dev suffix
+                # DISABLED(daveey): this is too noisy and so far not useful
                 # mean_stats[f"{k}.std_dev"] = np.std(v)
             except (TypeError, ValueError) as e:
                 raise RuntimeError(

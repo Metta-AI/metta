@@ -6,6 +6,7 @@ defaults:
 game:
   map_builder:
     root:
-      objects:
-        lasery: 1
-        armory: 1
+      params:
+        objects:
+          lasery: 1
+          armory: 1

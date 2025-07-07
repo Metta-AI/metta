@@ -23,7 +23,6 @@ game:
       type: metta.map.scenes.random.Random
       params:
         agents: 6
-
         objects:
           mine_red: 10
           generator_red: 5
