@@ -23,11 +23,12 @@ game:
     objects: ???
   objects:
     altar:
-      input_battery_red: 1
-      initial_items: ${choose:0,0,0,1}
+      input_resources:
+        battery_red: 1
+      initial_resource_count: ${choose:0,0,0,1}
       cooldown: ${sampling:5, 20, 10}
     generator_red:
-      initial_items: ${choose:0,0,0,1}
+      initial_resource_count: ${choose:0,0,0,1}
       cooldown: ${sampling:5, 20, 10}
     mine_red:
       cooldown: ${sampling:15, 50, 10}

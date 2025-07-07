@@ -44,7 +44,13 @@ def base_config():
         "groups": {"red": {"id": 0, "props": {}}},
         "objects": {
             "wall": {"type_id": 1},
-            "altar": {"type_id": 8, "max_output": -1, "conversion_ticks": 1, "cooldown": 10, "initial_items": 0},
+            "altar": {
+                "type_id": 8,
+                "max_output": -1,
+                "conversion_ticks": 1,
+                "cooldown": 10,
+                "initial_resource_count": 0,
+            },
         },
         "agent": {"rewards": {}},
     }

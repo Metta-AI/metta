@@ -53,21 +53,24 @@ game:
 
   objects:
     altar:
-      input_battery_red: 0
-      input_ore_red: 2
-      output_heart: 1
+      input_resources:
+        battery_red: 0
+        ore_red: 2
+      output_resources:
+        heart: 1
       max_output: 50
       conversion_ticks: 1
       cooldown: 10
-      initial_items: 1
+      initial_resource_count: 1
 
     mine_red:
-      output_ore_red: 1
+      output_resources:
+        ore_red: 1
       color: 0
       max_output: 10
       conversion_ticks: 1
       cooldown: 100
-      initial_items: 10
+      initial_resource_count: 10
 
   groups:
     team_1:

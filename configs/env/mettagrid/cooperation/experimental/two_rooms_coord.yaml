@@ -61,18 +61,19 @@ game:
   objects:
     altar:
       cooldown: 1
-      input_battery_red: 1
+      input_resources:
+        battery_red: 1
       max_output: 10
       conversion_ticks: 1
-      initial_items: 0
+      initial_resource_count: 0
     generator_red:
       cooldown: 1
       max_output: 10
       conversion_ticks: 1
-      initial_items: 0
+      initial_resource_count: 0
     mine_red:
       cooldown: 1
       max_output: 10
       conversion_ticks: 1
-      initial_items: 1
+      initial_resource_count: 1
 

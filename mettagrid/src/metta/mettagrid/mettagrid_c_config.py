@@ -70,20 +70,18 @@ def from_mettagrid_config(mettagrid_config_dict: dict[str, Any]) -> GameConfig_c
 
     for object_type, object_config in mettagrid_config.objects.items():
         if isinstance(object_config, ConverterConfig_py):
-            converter_config_dict = object_config.model_dump(by_alias=True, exclude_unset=True)
-            converter_config_cpp_dict = {
-                "recipe_input": {},
-                "recipe_output": {},
-            }
-            for k, v in converter_config_dict.items():
-                if k.startswith("input_"):
-                    converter_config_cpp_dict["recipe_input"][resource_ids[k[6:]]] = v
-                elif k.startswith("output_"):
-                    converter_config_cpp_dict["recipe_output"][resource_ids[k[7:]]] = v
-                else:
-                    converter_config_cpp_dict[k] = v
-            converter_config_cpp_dict["type_name"] = object_type
-            object_configs[object_type] = ConverterConfig_cpp(**converter_config_cpp_dict)
+            converter_config_cpp = ConverterConfig_cpp(
+                type_id=object_config.type_id,
+                type_name=object_type,
+                input_resources=dict((resource_ids[k], v) for k, v in object_config.input_resources.items()),
+                output_resources=dict((resource_ids[k], v) for k, v in object_config.output_resources.items()),
+                max_output=object_config.max_output,
+                conversion_ticks=object_config.conversion_ticks,
+                cooldown=object_config.cooldown,
+                initial_resource_count=object_config.initial_resource_count,
+                color=object_config.color,
+            )
+            object_configs[object_type] = converter_config_cpp
         elif isinstance(object_config, WallConfig_py):
             wall_config = WallConfig_cpp(
                 type_id=object_config.type_id,

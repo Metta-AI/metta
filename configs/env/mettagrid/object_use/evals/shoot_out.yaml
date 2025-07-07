@@ -14,7 +14,7 @@ game:
       cooldown: 255
 
     lasery:
-      initial_items: 20
+      initial_resource_count: 20
   map_builder:
     _target_: metta.mettagrid.room.ascii.Ascii
     border_width: 1

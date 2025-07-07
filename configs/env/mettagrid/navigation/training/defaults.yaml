@@ -19,4 +19,4 @@ game:
   objects:
     altar:
       cooldown: 1000
-      initial_items: 1
+      initial_resource_count: 1
