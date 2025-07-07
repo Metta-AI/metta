@@ -2,7 +2,7 @@
 
 MettaScope uses a custom replay format to store the replay data. The replay is a zlib compressed json file with `.json.z` extension.
 
-Here is an example of how to read the file, from python:
+Here is an example of how to decompress the file, from python:
 
 ```python
 file_name = "replay.json.z"
