@@ -15,11 +15,13 @@ The codebase consists of:
 ## Development Environment Setup
 
 ```bash
-# Install uv if not already installed
-curl -LsSf https://astral.sh/uv/install.sh | sh
+# Initial setup - installs uv, configures metta, and installs components
+./install.sh
 
-# Run setup script (creates virtual environment automatically)
-./devops/setup_dev.sh
+# After installation, you can use metta commands directly:
+metta status                         # Check component status
+metta configure --profile=softmax    # Reconfigure for different profile
+metta install aws wandb              # Install specific components
 ```
 
 ## Common Commands

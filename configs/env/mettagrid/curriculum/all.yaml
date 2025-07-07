@@ -1,7 +1,7 @@
 _target_: metta.mettagrid.curriculum.random.RandomCurriculum
 
 tasks:
-  /env/mettagrid/curriculum/simple: 5
+  /env/mettagrid/curriculum/arena: 5
   /env/mettagrid/curriculum/navigation: 3
   /env/mettagrid/curriculum/object_use: 2
 

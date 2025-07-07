@@ -1,7 +1,8 @@
 # @package __global__
 
 defaults:
-  - /sim/all@sim_job.simulation_suite
+  # - /sim/all@sim_job.simulation_suite
+  # - /env/mettagrid/game/agent/rewards/shaped@replay_job.sim.env_overrides.game.agent.rewards
   - _self_
 
 trainer:
@@ -36,10 +37,10 @@ trainer:
 # policy_uri: wandb://run/b.daveey.t.1.lra.dr.muon
 # policy_uri: pytorch:///tmp/puffer_metta.pt
 # policy_uri: pytorch:///tmp/puffer_metta.pt
-# policy_uri: wandb://run/daveey.lasertag.r5.2x4:v12
+policy_uri: wandb://run/daveey.arena.b_e_s.8x4
 # policy_uri: pytorch://${data_dir}/puffer/puffer_metta.pt
 
-policy_uri: ${trained_policy_uri}
+# policy_uri: ${trained_policy_uri}
 npc_policy_uri: ${policy_uri}
 # npc_policy_uri: ${trained_policy_uri}
 
@@ -55,12 +56,7 @@ analyzer:
 
 replay_job:
   sim:
-    env: /env/mettagrid/simple
-    # env_overrides:
-    #   sampling: 1
-    #   game:
-    #     max_steps: 300
-    #     group_reward_pct: 0.5
+    env: /env/mettagrid/arena/advanced
 
 sim_job:
   # policy_agents_pct: 1
@@ -76,7 +72,7 @@ sim_job:
   #         agents: 4
   #       num_rooms: 4
 
-run_id: 1.7
+run_id: 1.8
 run: ${oc.env:USER}.local.${run_id}
 trained_policy_uri: ${run_dir}/checkpoints
 

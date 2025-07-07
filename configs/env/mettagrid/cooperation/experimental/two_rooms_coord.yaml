@@ -1,15 +1,18 @@
 # Config: Two Rooms Coord (Overcooked-style)
 defaults:
   - /env/mettagrid/mettagrid@
+  - /env/mettagrid/game/objects/mines@game.objects
+  - /env/mettagrid/game/objects/generators@game.objects
   - _self_
 
 sampling: 1
 
 game:
   agent:
-    ore_red_max: 1
-    battery_red_max: 1
-    heart_max: 1000
+    resource_limits:
+      ore_red: 1
+      battery_red: 1
+      heart: 255
 
   max_steps: 1000
   num_agents: 8
@@ -58,28 +61,19 @@ game:
   objects:
     altar:
       cooldown: 1
-      input_battery_red: 1
+      input_resources:
+        battery_red: 1
       max_output: 10
       conversion_ticks: 1
-      initial_items: 0
+      initial_resource_count: 0
     generator_red:
       cooldown: 1
       max_output: 10
       conversion_ticks: 1
-      initial_items: 0
+      initial_resource_count: 0
     mine_red:
       cooldown: 1
       max_output: 10
       conversion_ticks: 1
-      initial_items: 1
+      initial_resource_count: 1
 
-  reward_sharing:
-    groups:
-      team_1:
-        team_1: 1
-      team_2:
-        team_2: 1
-      team_3:
-        team_3: 1
-      team_4:
-        team_4: 1

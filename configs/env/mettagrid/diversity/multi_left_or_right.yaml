@@ -2,6 +2,7 @@
 
 defaults:
   - /env/mettagrid/mettagrid@
+  - /env/mettagrid/game/groups/teams@game.groups
   - _self_
 
 game:

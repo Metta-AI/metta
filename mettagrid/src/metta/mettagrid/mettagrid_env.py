@@ -19,7 +19,7 @@ from metta.common.profiling.stopwatch import Stopwatch, with_instance_timer
 from metta.mettagrid.curriculum.core import Curriculum
 from metta.mettagrid.level_builder import Level
 from metta.mettagrid.mettagrid_c import MettaGrid
-from metta.mettagrid.mettagrid_c_config import cpp_config_dict
+from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
 from metta.mettagrid.replay_writer import ReplayWriter
 from metta.mettagrid.stats_writer import StatsWriter
 from metta.mettagrid.util.dict_utils import unroll_nested_dict
@@ -146,7 +146,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
         # Convert string array to list of strings for C++ compatibility
         # TODO: push the not-numpy-array higher up the stack, and consider pushing not-a-sparse-list lower.
         with self.timer("_initialize_c_env.make_c_env"):
-            self._c_env = MettaGrid(cpp_config_dict(game_config_dict), level.grid.tolist(), self._current_seed)
+            self._c_env = MettaGrid(from_mettagrid_config(game_config_dict), level.grid.tolist(), self._current_seed)
 
         self._grid_env = self._c_env
 
