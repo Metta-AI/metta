@@ -31,7 +31,7 @@ protected:
     }
 
     bool success = false;
-    for (const auto& [item, amount] : converter->recipe_input) {
+    for (const auto& [item, amount] : converter->input_resources) {
       if (actor->inventory.count(item) == 0) {
         continue;
       }

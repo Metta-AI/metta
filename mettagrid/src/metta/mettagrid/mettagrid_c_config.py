@@ -17,8 +17,8 @@ def from_mettagrid_config(mettagrid_config_dict: dict[str, Any]) -> GameConfig_c
 
     mettagrid_config = GameConfig_py(**mettagrid_config_dict)
 
-    inventory_item_names = list(mettagrid_config.inventory_item_names)
-    inventory_item_ids = dict((name, i) for i, name in enumerate(inventory_item_names))
+    resource_names = list(mettagrid_config.inventory_item_names)
+    resource_ids = dict((name, i) for i, name in enumerate(resource_names))
 
     object_configs = {}
 
@@ -37,26 +37,22 @@ def from_mettagrid_config(mettagrid_config_dict: dict[str, Any]) -> GameConfig_c
             else:
                 merged_config[key] = value
 
-        default_item_max = merged_config.get("default_item_max", 0)
+        default_resource_limit = merged_config.get("default_resource_limit", 0)
 
         agent_group_config = {
             "freeze_duration": merged_config.get("freeze_duration", 0),
             "group_id": group_config.id,
             "group_name": group_name,
-            "action_failure_penalty": merged_config.get("rewards", {}).get("action_failure_penalty", 0),
-            "max_items_per_type": dict(
-                (item_id, merged_config.get(item_name + "_max", default_item_max))
-                for (item_id, item_name) in enumerate(inventory_item_names)
+            "action_failure_penalty": merged_config.get("action_failure_penalty", 0),
+            "resource_limits": dict(
+                (resource_id, merged_config.get("resource_limits", {}).get(resource_name, default_resource_limit))
+                for (resource_id, resource_name) in enumerate(resource_names)
             ),
             "resource_rewards": dict(
-                (inventory_item_ids[k], v)
-                for k, v in merged_config.get("rewards", {}).items()
-                if not k.endswith("_max") and k != "action_failure_penalty"
+                (resource_ids[k], v) for k, v in merged_config.get("rewards", {}).items() if not k.endswith("_max")
             ),
             "resource_reward_max": dict(
-                (inventory_item_ids[k[:-4]], v)
-                for k, v in merged_config.get("rewards", {}).items()
-                if k.endswith("_max")
+                (resource_ids[k[:-4]], v) for k, v in merged_config.get("rewards", {}).items() if k.endswith("_max")
             ),
             "group_reward_pct": group_config.group_reward_pct or 0,
         }
@@ -74,20 +70,18 @@ def from_mettagrid_config(mettagrid_config_dict: dict[str, Any]) -> GameConfig_c
 
     for object_type, object_config in mettagrid_config.objects.items():
         if isinstance(object_config, ConverterConfig_py):
-            converter_config_dict = object_config.model_dump(by_alias=True, exclude_unset=True)
-            converter_config_cpp_dict = {
-                "recipe_input": {},
-                "recipe_output": {},
-            }
-            for k, v in converter_config_dict.items():
-                if k.startswith("input_"):
-                    converter_config_cpp_dict["recipe_input"][inventory_item_ids[k[6:]]] = v
-                elif k.startswith("output_"):
-                    converter_config_cpp_dict["recipe_output"][inventory_item_ids[k[7:]]] = v
-                else:
-                    converter_config_cpp_dict[k] = v
-            converter_config_cpp_dict["type_name"] = object_type
-            object_configs[object_type] = ConverterConfig_cpp(**converter_config_cpp_dict)
+            converter_config_cpp = ConverterConfig_cpp(
+                type_id=object_config.type_id,
+                type_name=object_type,
+                input_resources=dict((resource_ids[k], v) for k, v in object_config.input_resources.items()),
+                output_resources=dict((resource_ids[k], v) for k, v in object_config.output_resources.items()),
+                max_output=object_config.max_output,
+                conversion_ticks=object_config.conversion_ticks,
+                cooldown=object_config.cooldown,
+                initial_resource_count=object_config.initial_resource_count,
+                color=object_config.color,
+            )
+            object_configs[object_type] = converter_config_cpp
         elif isinstance(object_config, WallConfig_py):
             wall_config = WallConfig_cpp(
                 type_id=object_config.type_id,
@@ -105,17 +99,17 @@ def from_mettagrid_config(mettagrid_config_dict: dict[str, Any]) -> GameConfig_c
     for action_name, action_config in game_config["actions"].items():
         action_config_cpp_params = {}
         action_config_cpp_params["consumed_resources"] = dict(
-            (inventory_item_ids[k], v) for k, v in action_config["consumed_resources"].items()
+            (resource_ids[k], v) for k, v in action_config["consumed_resources"].items()
         )
         if action_config.get("required_resources", None) is not None:
             action_config_cpp_params["required_resources"] = dict(
-                (inventory_item_ids[k], v) for k, v in action_config["required_resources"].items()
+                (resource_ids[k], v) for k, v in action_config["required_resources"].items()
             )
         else:
             action_config_cpp_params["required_resources"] = action_config_cpp_params["consumed_resources"]
         if action_name == "attack":
             action_config_cpp_params["defense_resources"] = dict(
-                (inventory_item_ids[k], v) for k, v in action_config["defense_resources"].items()
+                (resource_ids[k], v) for k, v in action_config["defense_resources"].items()
             )
             actions_config_cpp[action_name] = AttackActionConfig_cpp(**action_config_cpp_params)
         else:

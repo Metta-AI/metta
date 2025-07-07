@@ -98,7 +98,7 @@ def main():
         "--heartbeat-timeout-seconds",
         type=int,
         default=600,
-        help="Maximum seconds to wait for heartbeat signal before terminating job (default: 600s/10min)",
+        help="Automatically terminate the job if no heartbeat signal is received for this many seconds",
     )
     parser.add_argument(
         "--max-runtime-hours",

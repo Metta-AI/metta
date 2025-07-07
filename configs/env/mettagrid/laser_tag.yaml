@@ -59,21 +59,24 @@ game:
                 team_2: 18
 
   agent:
-    default_item_max: 5
+    default_resource_limit: 5
 
   objects:
     altar:
-      initial_items: 1
+      initial_resource_count: 1
 
     lasery:
-      input_ore_red: 0
-      input_battery_red: 0
+      input_resources:
+        ore_red: 0
+        battery_red: 0
       cooldown: 5
-      initial_items: 5
+      initial_resource_count: 5
 
     armory:
-      input_ore_red: 0
-      initial_items: 5
+      input_resources:
+        ore_red: 0
+        battery_red: 0
+      initial_resource_count: 5
       cooldown: 5
 
   groups:
