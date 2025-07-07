@@ -146,13 +146,11 @@ from metta.backend.observatory import RemoteStatsDb
 
 ```mermaid
 graph TD
-    A[metta.common] --> B[metta.mettagrid]
-    A --> C[metta]
+    A[metta]->B[metta.mettagrid]
+    A -> C[metta.common]
     B --> C
-    A --> D[metta.backend]
-    B --> D
-    C --> D
-    E[Frontend Apps] --> D
+    D[metta.backend] --> B
+    E[Frontend Apps] --> B
 ```
 
 1. `metta.common` has no internal dependencies (base utilities)
