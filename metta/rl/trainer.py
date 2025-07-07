@@ -194,16 +194,16 @@ class MettaTrainer:
             # Get the policy from the record
             self.policy = policy_record.policy
 
-            # Restore original_feature_mapping from metadata if available
-            if (
-                hasattr(self.policy, "restore_original_feature_mapping")
-                and "original_feature_mapping" in policy_record.metadata
-            ):
-                self.policy.restore_original_feature_mapping(policy_record.metadata["original_feature_mapping"])
-                logger.info(f"Rank {self._rank}: Restored original_feature_mapping")
+            # # Restore original_feature_mapping from metadata if available
+            # if (
+            #     hasattr(self.policy, "restore_original_feature_mapping")
+            #     and "original_feature_mapping" in policy_record.metadata
+            # ):
+            #     self.policy.restore_original_feature_mapping(policy_record.metadata["original_feature_mapping"])
+            #     logger.info(f"Rank {self._rank}: Restored original_feature_mapping")
 
-            # Initialize the policy to the environment
-            self._initialize_policy_to_environment(self.policy, metta_grid_env, self.device)
+            # # Initialize the policy to the environment
+            # self._initialize_policy_to_environment(self.policy, metta_grid_env, self.device)
 
             self.initial_policy_record = policy_record
 
@@ -242,7 +242,7 @@ class MettaTrainer:
                 self.latest_saved_policy_record = policy_record
                 self.policy = policy_record.policy
 
-                self._initialize_policy_to_environment(self.policy, metta_grid_env, self.device)
+                # self._initialize_policy_to_environment(self.policy, metta_grid_env, self.device)
             else:
                 # Master creates and saves new policy
                 policy_record = self._create_and_save_policy_record(policy_store, metta_grid_env)
@@ -250,7 +250,7 @@ class MettaTrainer:
                 self.latest_saved_policy_record = policy_record
                 self.policy = policy_record.policy
 
-                self._initialize_policy_to_environment(self.policy, metta_grid_env, self.device)
+                # self._initialize_policy_to_environment(self.policy, metta_grid_env, self.device)
 
                 # Synchronize with non-master ranks after saving
                 if torch.distributed.is_initialized():
