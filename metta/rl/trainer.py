@@ -1,5 +1,6 @@
 import logging
 import os
+import traceback
 from collections import defaultdict
 from pathlib import Path
 from typing import Any, Set
@@ -700,6 +701,7 @@ class MettaTrainer:
                 self._evaluate_policy(wandb_policy_name)
             except Exception as e:
                 logger.error(f"Error evaluating policy: {e}")
+                logger.error(traceback.format_exc())
 
             self._stats_epoch_start = self.epoch + 1
 
@@ -801,7 +803,7 @@ class MettaTrainer:
             try:
                 mean_stats[k] = np.mean(v)
                 # Add standard deviation with .std_dev suffix
-                mean_stats[f"{k}.std_dev"] = np.std(v)
+                # mean_stats[f"{k}.std_dev"] = np.std(v)
             except (TypeError, ValueError) as e:
                 raise RuntimeError(
                     f"Cannot compute mean for stat '{k}' with value {v!r} (type: {type(v)}). "
