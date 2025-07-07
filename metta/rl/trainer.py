@@ -146,7 +146,7 @@ class MettaTrainer:
         self.policy_evaluator = PolicyEvaluator(
             device=cfg.device,
             vectorization=cfg.vectorization,
-            stats_dir=cfg.stats_dir,
+            stats_dir="/tmp/stats",
             sim_suite_config=sim_suite_config,
             policy_store=policy_store,
             stats_client=stats_client,
@@ -874,7 +874,7 @@ class MettaTrainer:
                 **{f"losses/{k}": v for k, v in losses.items()},
                 **{f"experience/{k}": v for k, v in self.experience.stats().items()},
                 **{f"parameters/{k}": v for k, v in parameters.items()},
-                **{f"eval_{k}": v for k, v in self.policy_evaluator.evals.items()},
+                **{f"eval_{k}": v for k, v in self.policy_evaluator.get_evals().items()},
                 **{f"monitor/{k}": v for k, v in self._system_monitor.stats().items()},
                 **{f"trainer_memory/{k}": v for k, v in self._memory_monitor.stats().items()},
                 **environment_stats,
