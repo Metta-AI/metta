@@ -780,7 +780,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
            py::arg("group_name"),
            py::arg("freeze_duration") = 0,
            py::arg("action_failure_penalty") = 0,
-           py::arg("max_items_per_type") = std::map<InventoryItem, uint8_t>(),
+           py::arg("resource_limits") = std::map<InventoryItem, uint8_t>(),
            py::arg("resource_rewards") = std::map<InventoryItem, float>(),
            py::arg("resource_reward_max") = std::map<InventoryItem, float>(),
            py::arg("group_reward_pct") = 0)
@@ -790,7 +790,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def_readwrite("group_id", &AgentConfig::group_id)
       .def_readwrite("freeze_duration", &AgentConfig::freeze_duration)
       .def_readwrite("action_failure_penalty", &AgentConfig::action_failure_penalty)
-      .def_readwrite("max_items_per_type", &AgentConfig::max_items_per_type)
+      .def_readwrite("resource_limits", &AgentConfig::resource_limits)
       .def_readwrite("resource_rewards", &AgentConfig::resource_rewards)
       .def_readwrite("resource_reward_max", &AgentConfig::resource_reward_max)
       .def_readwrite("group_reward_pct", &AgentConfig::group_reward_pct);
@@ -807,21 +807,21 @@ PYBIND11_MODULE(mettagrid_c, m) {
                     ObsType>(),
            py::arg("type_id"),
            py::arg("type_name"),
-           py::arg("recipe_input"),
-           py::arg("recipe_output"),
+           py::arg("input_resources"),
+           py::arg("output_resources"),
            py::arg("max_output"),
            py::arg("conversion_ticks"),
            py::arg("cooldown"),
-           py::arg("initial_items") = 0,
+           py::arg("initial_resource_count") = 0,
            py::arg("color") = 0)
       .def_readwrite("type_id", &ConverterConfig::type_id)
       .def_readwrite("type_name", &ConverterConfig::type_name)
-      .def_readwrite("recipe_input", &ConverterConfig::recipe_input)
-      .def_readwrite("recipe_output", &ConverterConfig::recipe_output)
+      .def_readwrite("input_resources", &ConverterConfig::input_resources)
+      .def_readwrite("output_resources", &ConverterConfig::output_resources)
       .def_readwrite("max_output", &ConverterConfig::max_output)
       .def_readwrite("conversion_ticks", &ConverterConfig::conversion_ticks)
       .def_readwrite("cooldown", &ConverterConfig::cooldown)
-      .def_readwrite("initial_items", &ConverterConfig::initial_items)
+      .def_readwrite("initial_resource_count", &ConverterConfig::initial_resource_count)
       .def_readwrite("color", &ConverterConfig::color);
 
   py::class_<ActionConfig, std::shared_ptr<ActionConfig>>(m, "ActionConfig")

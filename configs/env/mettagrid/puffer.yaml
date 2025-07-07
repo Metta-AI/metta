@@ -13,7 +13,7 @@ game:
   num_agents: 24
 
   agent:
-    default_item_max: 50
+    default_resource_limit: 50
     freeze_duration: 10
 
   map_builder:

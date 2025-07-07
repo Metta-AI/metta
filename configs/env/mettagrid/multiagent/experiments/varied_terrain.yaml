@@ -7,7 +7,6 @@ game:
   num_agents: 32
   agent:
     rewards:
-      action_failure_penalty: 0
       ore_red: ${sampling:0.005,0.1, 0.01}
       ore_blue: ${sampling:0.005,0.1, 0.01}
       ore_green: ${sampling:0.005,0.1, 0.01}
@@ -52,12 +51,13 @@ game:
         wall: ${sampling:5,50,20}
   objects:
     altar:
-      # initial_items: ${choose:0,1}
+      # initial_resource_count: ${choose:0,1}
       cooldown: ${sampling:5, 50, 10}
-      input_battery_red: 1
+      input_resources:
+        battery_red: 1
 
     generator_red:
-      # initial_items: ${choose:0,1}
+      # initial_resource_count: ${choose:0,1}
       cooldown: ${sampling:5, 50, 10}
     # generator_blue:
     #   cooldown: ${sampling:5, 20, 10}

@@ -11,10 +11,8 @@ sampling: 1
 game:
   num_agents: 4
   agent:
-    default_item_max: 5
+    default_resource_limit: 5
     rewards:
-      # action_failure_penalty: 0.00001
-      action_failure_penalty: 0
       ore_red: 0.01
       battery_red: 0.1
       battery_red_max: 5
@@ -50,10 +48,10 @@ game:
 
   objects:
     altar:
-      initial_items: 0
+      initial_resource_count: 0
       cooldown: 25
     generator_red:
-      initial_items: 0
+      initial_resource_count: 0
       cooldown: 30
     mine_red:
       cooldown: 30
