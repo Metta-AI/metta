@@ -1,5 +1,0 @@
-
-_target_: metta.mettagrid.curriculum.sampling.SamplingCurriculum
-
-env_cfg_template: /env/mettagrid/simple
-
