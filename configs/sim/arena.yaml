@@ -2,7 +2,7 @@ defaults:
   - sim_suite
   - _self_
 
-name: simple
+name: arena
 
 simulations:
   arena/basic:
