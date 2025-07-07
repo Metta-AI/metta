@@ -1,0 +1,11 @@
+_target_: metta.mettagrid.curriculum.bucketed.BucketedCurriculum
+
+env_cfg_template: /env/mettagrid/arena/advanced_easy
+
+buckets:
+  game.agent.rewards.ore_red:
+    values: [0, 0.5, 1]
+  game.agent.rewards.battery_red:
+    values: [0, 0.5, 1]
+  game.agent.rewards.heart:
+    values: [0, 0.5, 1]

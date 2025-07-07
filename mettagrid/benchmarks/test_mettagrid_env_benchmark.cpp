@@ -7,7 +7,10 @@
 #include <random>
 #include <vector>
 
+#include "actions/attack.hpp"
 #include "mettagrid_c.hpp"
+#include "objects/agent.hpp"
+#include "objects/wall.hpp"
 
 namespace py = pybind11;
 
@@ -23,90 +26,50 @@ namespace py = pybind11;
 // We'll know we've succeeded when this file has zero references to pybind11!
 
 // Helper functions for creating configuration and map
-py::dict CreateBenchmarkConfig(int num_agents) {
-  py::dict game_cfg;
+GameConfig CreateBenchmarkConfig(int num_agents) {
+  std::vector<std::string> inventory_item_names = {"ore", "heart"};
 
-  // Basic game configuration
-  game_cfg["num_agents"] = num_agents;
-  game_cfg["max_steps"] = 10000;
-  game_cfg["obs_width"] = 11;
-  game_cfg["obs_height"] = 11;
-  game_cfg["num_observation_tokens"] = 100;
+  std::shared_ptr<ActionConfig> action_cfg =
+      std::make_shared<ActionConfig>(true, std::map<InventoryItem, int>(), std::map<InventoryItem, int>());
+  std::shared_ptr<AttackActionConfig> attack_cfg = std::make_shared<AttackActionConfig>(
+      true, std::map<InventoryItem, int>(), std::map<InventoryItem, int>(), std::map<InventoryItem, int>());
 
-  // Inventory item names configuration
-  py::list inventory_item_names;
-  inventory_item_names.append("ore");
-  inventory_item_names.append("heart");
-  inventory_item_names.append("armor");
-  inventory_item_names.append("laser");
-  game_cfg["inventory_item_names"] = inventory_item_names;
+  std::map<std::string, std::shared_ptr<ActionConfig>> actions_cfg;
 
-  // Actions configuration
-  py::dict actions_cfg;
-  py::dict noop_cfg, move_cfg, rotate_cfg, attack_cfg, swap_cfg, put_cfg, get_cfg, change_color_cfg;
-
-  noop_cfg["enabled"] = true;
-  move_cfg["enabled"] = true;
-  rotate_cfg["enabled"] = true;
-  attack_cfg["enabled"] = true;
-  swap_cfg["enabled"] = true;
-  put_cfg["enabled"] = true;
-  get_cfg["enabled"] = true;
-  change_color_cfg["enabled"] = true;
-
-  actions_cfg["noop"] = noop_cfg;
-  actions_cfg["move"] = move_cfg;
-  actions_cfg["rotate"] = rotate_cfg;
+  actions_cfg["noop"] = action_cfg;
+  actions_cfg["move"] = action_cfg;
+  actions_cfg["rotate"] = action_cfg;
   actions_cfg["attack"] = attack_cfg;
-  actions_cfg["swap"] = swap_cfg;
-  actions_cfg["put_items"] = put_cfg;
-  actions_cfg["get_items"] = get_cfg;
-  actions_cfg["change_color"] = change_color_cfg;
-  actions_cfg["armor_item_id"] = 2;
-  actions_cfg["laser_item_id"] = 3;
+  actions_cfg["swap"] = action_cfg;
+  actions_cfg["put_items"] = action_cfg;
+  actions_cfg["get_items"] = action_cfg;
+  actions_cfg["change_color"] = action_cfg;
 
-  game_cfg["actions"] = actions_cfg;
+  std::map<std::string, std::shared_ptr<GridObjectConfig>> objects_cfg;
 
-  // Groups configuration
-  py::dict agent_groups;
-  py::dict agent_group1, agent_group2;
+  objects_cfg["wall"] = std::make_shared<WallConfig>(1, "wall", false);
+  objects_cfg["agent.team1"] = std::make_shared<AgentConfig>(0,
+                                                             "agent",
+                                                             0,
+                                                             "team1",
+                                                             0,
+                                                             0.0f,
+                                                             std::map<InventoryItem, uint8_t>(),
+                                                             std::map<InventoryItem, float>(),
+                                                             std::map<InventoryItem, float>(),
+                                                             0.0f);
+  objects_cfg["agent.team2"] = std::make_shared<AgentConfig>(0,
+                                                             "agent",
+                                                             1,
+                                                             "team2",
+                                                             0,
+                                                             0.0f,
+                                                             std::map<InventoryItem, uint8_t>(),
+                                                             std::map<InventoryItem, float>(),
+                                                             std::map<InventoryItem, float>(),
+                                                             0.0f);
 
-  agent_group1["freeze_duration"] = 0;
-  agent_group1["action_failure_penalty"] = 0;
-  agent_group1["max_items_per_type"] = py::dict();
-  agent_group1["resource_rewards"] = py::dict();
-  agent_group1["resource_reward_max"] = py::dict();
-  agent_group1["group_name"] = "team1";
-  agent_group1["group_id"] = 0;
-  agent_group1["group_reward_pct"] = 0.0f;
-
-  agent_group2["freeze_duration"] = 0;
-  agent_group2["action_failure_penalty"] = 0;
-  agent_group2["max_items_per_type"] = py::dict();
-  agent_group2["resource_rewards"] = py::dict();
-  agent_group2["resource_reward_max"] = py::dict();
-  agent_group2["group_name"] = "team2";
-  agent_group2["group_id"] = 1;
-  agent_group2["group_reward_pct"] = 0.0f;
-
-  agent_groups["agent.team1"] = agent_group1;
-  agent_groups["agent.team2"] = agent_group2;
-
-  game_cfg["agent_groups"] = agent_groups;
-
-  // Objects configuration
-  py::dict objects_cfg;
-  py::dict wall_cfg, block_cfg, mine_cfg, generator_cfg, altar_cfg;
-
-  objects_cfg["wall"] = wall_cfg;
-  objects_cfg["block"] = block_cfg;
-  objects_cfg["mine_red"] = mine_cfg;
-  objects_cfg["generator_red"] = generator_cfg;
-  objects_cfg["altar"] = altar_cfg;
-
-  game_cfg["objects"] = objects_cfg;
-
-  return game_cfg;
+  return GameConfig(num_agents, 10000, 11, 11, inventory_item_names, 100, actions_cfg, objects_cfg);
 }
 
 py::list CreateDefaultMap(int num_agents_per_team = 2) {
@@ -203,7 +166,7 @@ static void BM_MettaGridStep(benchmark::State& state) {  // NOLINT(runtime/refer
   auto cfg = CreateBenchmarkConfig(num_agents);
   auto map = CreateDefaultMap(2);
 
-  auto env = std::make_unique<MettaGrid>(cfg, map);
+  auto env = std::make_unique<MettaGrid>(cfg, map, 42);
   env->reset();
 
   // Verify agent count

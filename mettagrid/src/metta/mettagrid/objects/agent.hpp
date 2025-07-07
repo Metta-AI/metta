@@ -2,6 +2,7 @@
 #define OBJECTS_AGENT_HPP_
 
 #include <algorithm>
+#include <cassert>
 #include <string>
 #include <vector>
 
@@ -10,11 +11,43 @@
 #include "constants.hpp"
 #include "metta_object.hpp"
 
+// #MettagridConfig
+struct AgentConfig : public GridObjectConfig {
+  AgentConfig(TypeId type_id,
+              const std::string& type_name,
+              unsigned char group_id,
+              const std::string& group_name,
+              unsigned char freeze_duration,
+              float action_failure_penalty,
+              const std::map<InventoryItem, uint8_t>& resource_limits,
+              const std::map<InventoryItem, float>& resource_rewards,
+              const std::map<InventoryItem, float>& resource_reward_max,
+              float group_reward_pct)
+      : GridObjectConfig(type_id, type_name),
+        group_name(group_name),
+        group_id(group_id),
+        freeze_duration(freeze_duration),
+        action_failure_penalty(action_failure_penalty),
+        resource_limits(resource_limits),
+        resource_rewards(resource_rewards),
+        resource_reward_max(resource_reward_max),
+        group_reward_pct(group_reward_pct) {}
+
+  std::string group_name;
+  unsigned char group_id;
+  short freeze_duration;
+  float action_failure_penalty;
+  std::map<InventoryItem, uint8_t> resource_limits;
+  std::map<InventoryItem, float> resource_rewards;
+  std::map<InventoryItem, float> resource_reward_max;
+  float group_reward_pct;
+};
+
 class Agent : public MettaObject {
 public:
   unsigned char group;
-  unsigned char frozen;
-  unsigned char freeze_duration;
+  short frozen;
+  short freeze_duration;
   unsigned char orientation;
   // inventory is a map of item to amount.
   // keys should be deleted when the amount is 0, to keep iteration faster.
@@ -30,31 +63,20 @@ public:
   float current_resource_reward;
   float* reward;
 
-  Agent(GridCoord r,
-        GridCoord c,
-        unsigned char freeze_duration,
-        float action_failure_penalty,
-        std::map<InventoryItem, uint8_t> max_items_per_type,
-        std::map<InventoryItem, float> resource_rewards,
-        std::map<InventoryItem, float> resource_reward_max,
-        std::string group_name,
-        unsigned char group_id,
-        const std::vector<std::string>& inventory_item_names)
-      : freeze_duration(freeze_duration),
-        action_failure_penalty(action_failure_penalty),
-        max_items_per_type(max_items_per_type),
-        resource_rewards(resource_rewards),
-        resource_reward_max(resource_reward_max),
-        group(group_id),
-        group_name(group_name),
+  Agent(GridCoord r, GridCoord c, const AgentConfig& config)
+      : freeze_duration(config.freeze_duration),
+        action_failure_penalty(config.action_failure_penalty),
+        resource_limits(config.resource_limits),
+        resource_rewards(config.resource_rewards),
+        resource_reward_max(config.resource_reward_max),
+        group(config.group_id),
+        group_name(config.group_name),
         color(0),
         current_resource_reward(0),
-        stats(inventory_item_names) {
-    GridObject::init(ObjectType::AgentT, GridLocation(r, c, GridLayer::Agent_Layer));
-
-    this->frozen = 0;
-    this->orientation = 0;
-    this->reward = nullptr;
+        frozen(0),
+        orientation(0),
+        reward(nullptr) {
+    GridObject::init(config.type_id, config.type_name, GridLocation(r, c, GridLayer::Agent_Layer));
   }
 
   void init(float* reward) {
@@ -64,7 +86,7 @@ public:
   int update_inventory(InventoryItem item, short amount) {
     int current_amount = this->inventory[item];
     int new_amount = current_amount + amount;
-    new_amount = std::clamp(new_amount, 0, static_cast<int>(this->max_items_per_type[item]));
+    new_amount = std::clamp(new_amount, 0, static_cast<int>(this->resource_limits[item]));
 
     int delta = new_amount - current_amount;
     if (new_amount > 0) {
@@ -111,12 +133,12 @@ public:
     return this->frozen;
   }
 
-  virtual vector<PartialObservationToken> obs_features() const override {
-    vector<PartialObservationToken> features;
+  virtual std::vector<PartialObservationToken> obs_features() const override {
+    std::vector<PartialObservationToken> features;
     features.reserve(5 + this->inventory.size());
-    features.push_back({ObservationFeature::TypeId, _type_id});
+    features.push_back({ObservationFeature::TypeId, type_id});
     features.push_back({ObservationFeature::Group, group});
-    features.push_back({ObservationFeature::Frozen, frozen});
+    features.push_back({ObservationFeature::Frozen, static_cast<uint8_t>(frozen != 0 ? 1 : 0)});
     features.push_back({ObservationFeature::Orientation, orientation});
     features.push_back({ObservationFeature::Color, color});
     for (const auto& [item, amount] : this->inventory) {
@@ -128,7 +150,7 @@ public:
   }
 
 private:
-  std::map<InventoryItem, uint8_t> max_items_per_type;
+  std::map<InventoryItem, uint8_t> resource_limits;
 };
 
 #endif  // OBJECTS_AGENT_HPP_

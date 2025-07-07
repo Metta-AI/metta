@@ -61,7 +61,7 @@ done
 
 2. **Launch with custom hyperparameters:**
    ```bash
-   devops/skypilot/launch.py train run=my_experiment_002 trainer.optimizer.learning_rate=0.001 trainer.batch_size=32
+   devops/skypilot/launch.py train run=my_experiment_002 trainer.optimizer.learning_rate=0.001 trainer.rollout.batch_size=32
    ```
 
 ### Resource Configuration
@@ -88,12 +88,12 @@ done
 6. **Quick 30-minute experiment:**
 
    ```bash
-   devops/skypilot/launch.py train run=quick_test --timeout-hours 0.5
+   devops/skypilot/launch.py train run=quick_test --max-runtime-hours 0.5
    ```
 
 7. **Long-running job with 8-hour limit:**
    ```bash
-   devops/skypilot/launch.py train run=long_experiment --timeout-hours 8 --gpus 2
+   devops/skypilot/launch.py train run=long_experiment ---max-runtime-hours 8 --gpus 2
    ```
 
 ### Advanced Usage
@@ -101,7 +101,7 @@ done
 8. **Launch multiple identical experiments:**
 
    ```bash
-   devops/skypilot/launch.py train run=ablation_study --copies 5 --timeout-hours 2
+   devops/skypilot/launch.py train run=ablation_study --copies 5 ---max-runtime-hours 2
    ```
 
 9. **Use specific git commit:**
@@ -131,7 +131,7 @@ Git Reference: 56e04aa725000f186ec1bb2de84b359b4f273947
 Command: train
 Task Arguments:
 1. trainer.curriculum=env/mettagrid/curriculum/navigation
-2. trainer.learning_rate=0.001
+2. trainer.optimizer.learning_rate=0.001
 ============================================================
 Should we launch this task? (Y/n):
 ```
@@ -323,7 +323,7 @@ sky jobs queue -a
    lt run=2024_01_15_bert_lr_sweep_001
    ```
 
-2. **Set appropriate timeouts**: Always use `--timeout-hours` to prevent runaway costs
+2. **Set appropriate timeouts**: Always use `---max-runtime-hours` to prevent runaway costs
 
 3. **Use confirmation for important jobs**: Add `--confirm` to review the job details including GPU allocation, spot instance usage, and all command arguments
 

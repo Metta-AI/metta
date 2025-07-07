@@ -11,13 +11,20 @@
 #include "objects/metta_object.hpp"
 #include "types.hpp"
 
+struct AttackActionConfig : public ActionConfig {
+  std::map<InventoryItem, int> defense_resources;
+
+  AttackActionConfig(bool enabled,
+                     const std::map<InventoryItem, int>& required_resources,
+                     const std::map<InventoryItem, int>& consumed_resources,
+                     const std::map<InventoryItem, int>& defense_resources)
+      : ActionConfig(enabled, required_resources, consumed_resources), defense_resources(defense_resources) {}
+};
+
 class Attack : public ActionHandler {
 public:
-  explicit Attack(const ActionConfig& cfg,
-                  InventoryItem laser_item_id,
-                  InventoryItem armor_item_id,
-                  const std::string& action_name = "attack")
-      : ActionHandler(cfg, action_name), _laser_item_id(laser_item_id), _armor_item_id(armor_item_id) {
+  explicit Attack(const AttackActionConfig& cfg, const std::string& action_name = "attack")
+      : ActionHandler(cfg, action_name), _defense_resources(cfg.defense_resources) {
     priority = 1;
   }
 
@@ -26,15 +33,10 @@ public:
   }
 
 protected:
-  InventoryItem _laser_item_id;
-  InventoryItem _armor_item_id;
+  std::map<InventoryItem, int> _defense_resources;
 
   bool _handle_action(Agent* actor, ActionArg arg) override {
     if (arg > 9 || arg < 1) {
-      return false;
-    }
-
-    if (actor->update_inventory(_laser_item_id, -1) == 0) {
       return false;
     }
 
@@ -54,11 +56,10 @@ protected:
     bool was_frozen = false;
     if (agent_target) {
       // Track attack targets
-      actor->stats.incr("action." + _action_name + "." + ObjectTypeNames[agent_target->_type_id]);
-      actor->stats.incr("action." + _action_name + "." + ObjectTypeNames[agent_target->_type_id] + "." +
-                        actor->group_name);
-      actor->stats.incr("action." + _action_name + "." + ObjectTypeNames[agent_target->_type_id] + "." +
-                        actor->group_name + "." + agent_target->group_name);
+      actor->stats.incr("action." + _action_name + "." + agent_target->type_name);
+      actor->stats.incr("action." + _action_name + "." + agent_target->type_name + "." + actor->group_name);
+      actor->stats.incr("action." + _action_name + "." + agent_target->type_name + "." + actor->group_name + "." +
+                        agent_target->group_name);
 
       if (agent_target->group_name == actor->group_name) {
         actor->stats.incr("attack.own_team." + actor->group_name);
@@ -68,9 +69,24 @@ protected:
 
       was_frozen = agent_target->frozen > 0;
 
-      if (agent_target->update_inventory(_armor_item_id, -1)) {
+      bool blocked = _defense_resources.size() > 0;
+      for (const auto& [item, amount] : _defense_resources) {
+        if (agent_target->inventory[item] < amount) {
+          blocked = false;
+          break;
+        }
+      }
+
+      if (blocked) {
+        // Consume the defense resources
+        for (const auto& [item, amount] : _defense_resources) {
+          int used_amount = std::abs(agent_target->update_inventory(item, -amount));
+          assert(used_amount == amount);
+        }
+
         actor->stats.incr("attack.blocked." + agent_target->group_name);
         actor->stats.incr("attack.blocked." + agent_target->group_name + "." + actor->group_name);
+        return true;
       } else {
         agent_target->frozen = agent_target->freeze_duration;
 

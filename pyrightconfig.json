@@ -9,8 +9,11 @@
   ],
   "extraPaths": [
     "./common/src",
-    "./mettagrid/src"
+    "./mettagrid/src",
+    "./agent/src",
+    "./app_backend/src"
   ],
+  "typeCheckingMode": "basic",
   "reportMissingModuleSource": false,
   "pythonVersion": "3.11",
   "venvPath": ".",

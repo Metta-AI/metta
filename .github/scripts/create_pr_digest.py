@@ -12,13 +12,73 @@ import os
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
+from zoneinfo import ZoneInfo
 
 import requests
 
 
-class GitHubPRDigestCreator:
-    """Creates a digest of merged PRs for a given date range."""
+class CachedPRSummary:
+    """Represents a PR summary loaded from cache."""
+
+    def __init__(self, pr_number: int, summary_file: Path):
+        self.pr_number = pr_number
+        self.summary_file = summary_file
+        self._metadata = None
+
+    def load_metadata(self) -> Optional[Dict]:
+        """Load and parse metadata from the cached summary file."""
+        if self._metadata is not None:
+            return self._metadata
+
+        try:
+            content = self.summary_file.read_text(encoding="utf-8")
+            lines = content.split("\n")
+
+            # Extract metadata from the formatted summary
+            metadata = {"number": self.pr_number, "_from_cache": True}
+
+            # Parse the header section
+            for _i, line in enumerate(lines[:20]):  # Check first 20 lines
+                if line.startswith("PR #"):
+                    # Format: "PR #123: Title"
+                    parts = line.split(": ", 1)
+                    if len(parts) > 1:
+                        metadata["title"] = parts[1]
+                elif line.startswith("Author: "):
+                    metadata["author"] = line.replace("Author: ", "").strip()
+                elif line.startswith("Merged: "):
+                    metadata["merged_at"] = line.replace("Merged: ", "").strip()
+                elif line.startswith("GitHub: "):
+                    metadata["html_url"] = line.replace("GitHub: ", "").strip()
+                elif line.startswith("Category: "):
+                    metadata["category"] = line.replace("Category: ", "").strip()
+                elif line.startswith("Impact: "):
+                    metadata["impact_level"] = line.replace("Impact: ", "").strip()
+
+            self._metadata = metadata
+            return metadata
+
+        except Exception as e:
+            logging.error(f"Error loading metadata from {self.summary_file}: {e}")
+            return None
+
+    def is_in_date_range(self, since: datetime, until: datetime) -> bool:
+        """Check if this PR was merged within the given date range."""
+        metadata = self.load_metadata()
+        if not metadata or not metadata.get("merged_at"):
+            return False
+
+        try:
+            merged_at = datetime.fromisoformat(metadata["merged_at"].replace("Z", "+00:00"))
+            return since <= merged_at <= until
+        except Exception as e:
+            logging.error(f"Error parsing merge date for PR #{self.pr_number}: {e}")
+            return False
+
+
+class PRDigestCreator:
+    """Creates a digest of merged PRs, utilizing cache effectively."""
 
     def __init__(self, token: str, repository: str):
         self.token = token
@@ -31,15 +91,36 @@ class GitHubPRDigestCreator:
                 "User-Agent": "PR-Digest-Creator/1.0",
             }
         )
+        self.summaries_dir = Path("pr-summaries")
 
-    def get_merged_prs(self, since: str, until: str) -> List[Dict]:
-        """Fetch merged PRs within the date range."""
+    def load_all_cached_summaries(self) -> Dict[int, CachedPRSummary]:
+        """Load all cached PR summaries from disk."""
+        cached_summaries = {}
+
+        if self.summaries_dir.exists():
+            for pr_file in self.summaries_dir.glob("pr_*.txt"):
+                try:
+                    # Extract PR number from filename (pr_1234.txt)
+                    pr_number = int(pr_file.stem.split("_")[1])
+                    cached_summaries[pr_number] = CachedPRSummary(pr_number, pr_file)
+                except (ValueError, IndexError):
+                    logging.warning(f"Couldn't parse PR number from {pr_file}")
+
+            logging.info(f"Loaded {len(cached_summaries)} cached PR summaries from {self.summaries_dir}/")
+        else:
+            logging.info(f"PR summaries directory {self.summaries_dir}/ does not exist yet")
+
+        return cached_summaries
+
+    def get_merged_prs_in_range(self, since: datetime, until: datetime) -> List[Dict]:
+        """Fetch list of merged PRs within the date range from GitHub API."""
         url = f"https://api.github.com/repos/{self.repository}/pulls"
-
         params = {"state": "closed", "sort": "updated", "direction": "desc", "per_page": 100}
 
         all_prs = []
         page = 1
+        consecutive_old_prs = 0
+        old_pr_threshold = 20
 
         while True:
             params["page"] = page
@@ -49,33 +130,44 @@ class GitHubPRDigestCreator:
             response.raise_for_status()
 
             prs = response.json()
-
             if not prs:
                 break
 
+            page_found_recent = False
             for pr in prs:
-                # Only include merged PRs
                 if not pr.get("merged_at"):
                     continue
 
                 merged_at = datetime.fromisoformat(pr["merged_at"].replace("Z", "+00:00"))
-                since_dt = datetime.fromisoformat(since.replace("Z", "+00:00"))
-                until_dt = datetime.fromisoformat(until.replace("Z", "+00:00"))
 
-                if since_dt <= merged_at <= until_dt:
-                    all_prs.append(pr)
-                elif merged_at < since_dt:
-                    # PRs are sorted by updated date, so we can stop when we go too far back
-                    logging.info(f"Reached PRs older than {since}, stopping...")
-                    return all_prs
+                if since <= merged_at <= until:
+                    all_prs.append(
+                        {
+                            "number": pr["number"],
+                            "title": pr["title"],
+                            "merged_at": pr["merged_at"],
+                            "html_url": pr["html_url"],
+                            "author": pr["user"]["login"],
+                        }
+                    )
+                    consecutive_old_prs = 0
+                    page_found_recent = True
+                elif merged_at < since:
+                    consecutive_old_prs += 1
+
+            if not page_found_recent:
+                logging.info(f"Page {page}: No recent PRs found (consecutive old: {consecutive_old_prs})")
+
+            if consecutive_old_prs >= old_pr_threshold:
+                logging.info(f"Stopping after finding {consecutive_old_prs} consecutive PRs older than cutoff")
+                break
 
             page += 1
-
-            # Safety check to avoid infinite loops
             if page > 50:
                 logging.warning("Reached maximum page limit (50), stopping...")
                 break
 
+        logging.info(f"Found {len(all_prs)} merged PRs in date range from GitHub API")
         return all_prs
 
     def get_pr_details(self, pr_number: int) -> Optional[Dict]:
@@ -113,88 +205,159 @@ class GitHubPRDigestCreator:
             logging.error(f"Error fetching details for PR #{pr_number}: {e}")
             return None
 
-    def create_digest(self, since: str, until: str) -> List[Dict]:
-        """Create a complete digest of PRs with full details."""
-        logging.info(f"Creating PR digest for {self.repository} from {since} to {until}")
+    def create_digest(self, since_str: str, until_str: str) -> Tuple[List[Dict], Dict[str, int]]:
+        """Create a complete digest of PRs for the time period.
 
-        # Get list of merged PRs
-        merged_prs = self.get_merged_prs(since, until)
-        logging.info(f"Found {len(merged_prs)} merged PRs in date range")
+        Returns:
+            - List of PR details (for PRs that need to be processed)
+            - Statistics dictionary
+        """
+        since = datetime.fromisoformat(since_str.replace("Z", "+00:00"))
+        until = datetime.fromisoformat(until_str.replace("Z", "+00:00"))
 
-        # Get detailed information for each PR
-        detailed_prs = []
-        for i, pr in enumerate(merged_prs):
-            logging.info(f"Fetching details for PR {i + 1}/{len(merged_prs)}: #{pr['number']}")
+        logging.info(f"Creating PR digest for {self.repository} from {since_str} to {until_str}")
 
+        # Step 1: Load all cached summaries
+        cached_summaries = self.load_all_cached_summaries()
+
+        # Step 2: Get list of PRs in date range from GitHub
+        prs_from_github = self.get_merged_prs_in_range(since, until)
+        github_pr_numbers = {pr["number"] for pr in prs_from_github}
+
+        # Step 3: Find cached PRs that are in our date range
+        cached_prs_in_range = []
+        for pr_num, cached_summary in cached_summaries.items():
+            if cached_summary.is_in_date_range(since, until):
+                metadata = cached_summary.load_metadata()
+                if metadata:
+                    cached_prs_in_range.append(pr_num)
+
+        # Step 4: Determine what needs to be fetched
+        # PRs to fetch = (PRs from GitHub in range) - (Cached PRs in range)
+        prs_to_fetch = []
+        for pr in prs_from_github:
+            if pr["number"] not in cached_summaries:
+                prs_to_fetch.append(pr)
+
+        # Step 5: Also check for cached PRs that GitHub didn't return (edge case)
+        # This could happen if a PR was updated after our cutoff but merged within range
+        additional_cached_prs = set(cached_prs_in_range) - github_pr_numbers
+        if additional_cached_prs:
+            logging.info(f"Found {len(additional_cached_prs)} additional PRs in cache not returned by GitHub API")
+
+        # Calculate statistics
+        stats = {
+            "total_prs_in_range": len(github_pr_numbers) + len(additional_cached_prs),
+            "cached_prs_in_range": len(cached_prs_in_range),
+            "new_prs_to_fetch": len(prs_to_fetch),
+            "github_api_returned": len(prs_from_github),
+            "additional_from_cache": len(additional_cached_prs),
+            "cached_pr_numbers": list(cached_prs_in_range),  # Include list of cached PR numbers
+        }
+
+        logging.info(f"""
+=== PR Digest Statistics ===
+Total PRs in date range: {stats["total_prs_in_range"]}
+  - From GitHub API: {stats["github_api_returned"]}
+  - Additional from cache: {stats["additional_from_cache"]}
+Already summarized (cached): {stats["cached_prs_in_range"]}
+Need to fetch and summarize: {stats["new_prs_to_fetch"]}
+===========================
+        """)
+
+        # Step 6: Fetch details only for PRs that need processing
+        prs_to_process = []
+        for i, pr in enumerate(prs_to_fetch):
+            logging.info(f"Fetching details for PR {i + 1}/{len(prs_to_fetch)}: #{pr['number']}")
             details = self.get_pr_details(pr["number"])
             if details:
-                detailed_prs.append(details)
+                prs_to_process.append(details)
 
-        logging.info(f"Successfully collected details for {len(detailed_prs)} PRs")
-        return detailed_prs
-
-
-def parse_date_range(date_range_str: str) -> tuple[str, str]:
-    """Parse date range string into since/until dates."""
-    if not date_range_str:
-        # Default to last 7 days
-        until = datetime.now()
-        since = until - timedelta(days=7)
-        return since.isoformat() + "Z", until.isoformat() + "Z"
-
-    if " to " in date_range_str:
-        since_str, until_str = date_range_str.split(" to ")
-        since = datetime.fromisoformat(since_str.strip())
-        until = datetime.fromisoformat(until_str.strip())
-    else:
-        # Single date - treat as "since this date"
-        since = datetime.fromisoformat(date_range_str.strip())
-        until = datetime.now()
-
-    return since.isoformat() + "Z", until.isoformat() + "Z"
+        return prs_to_process, stats
 
 
 def main():
-    """Main entry point."""
     logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
+    # Define required environment variables
+    required_env_vars = {
+        "GITHUB_TOKEN": "GitHub Token",
+        "GITHUB_REPOSITORY": "GitHub repository name",
+        "DAYS_TO_SCAN": "Days to process",
+    }
+
+    # Validate required environment variables
+    env_values = {}
+    missing_vars = []
+
+    for var_name, description in required_env_vars.items():
+        value = os.getenv(var_name)
+        if not value:
+            missing_vars.append(f"{var_name} ({description})")
+        else:
+            env_values[var_name] = value
+
+    if missing_vars:
+        print("Error: Missing required environment variables:")
+        for var in missing_vars:
+            print(f"  - {var}")
+        sys.exit(1)
+
     # Get configuration from environment
-    github_token = os.getenv("GITHUB_TOKEN")
-    github_repository = os.getenv("GITHUB_REPOSITORY")
-    date_range = os.getenv("DATE_RANGE", "")
+    github_token = env_values["GITHUB_TOKEN"]
+    github_repository = env_values["GITHUB_REPOSITORY"]
+    days_to_scan = env_values["DAYS_TO_SCAN"]
     output_file = os.getenv("PR_DIGEST_FILE", "pr_digest_output.json")
 
-    if not github_token:
-        print("Error: GITHUB_TOKEN not provided")
-        sys.exit(1)
+    days = int(days_to_scan)
+    until_date = datetime.now()
+    since_date = until_date - timedelta(days=days)
+    since = since_date.isoformat() + "Z"
+    until = until_date.isoformat() + "Z"
 
-    if not github_repository:
-        print("Error: GITHUB_REPOSITORY not provided")
-        sys.exit(1)
-
-    # Parse date range
-    since, until = parse_date_range(date_range)
     logging.info(f"Date range: {since} to {until}")
 
-    # Create digest
-    creator = GitHubPRDigestCreator(github_token, github_repository)
+    creator = PRDigestCreator(github_token, github_repository)
 
     try:
-        digest = creator.create_digest(since, until)
+        prs_to_process, stats = creator.create_digest(since, until)
 
-        # Save digest to file
+        # Save PRs that need processing to file
         output_path = Path(output_file)
         with open(output_path, "w") as f:
-            json.dump(digest, f, indent=2)
+            json.dump(prs_to_process, f, indent=2)
 
-        print(f"✅ Created PR digest with {len(digest)} PRs")
-        print(f"✅ Saved to {output_path}")
+        print("✅ PR Digest created successfully")
+        print(f"   - Total PRs in period: {stats['total_prs_in_range']}")
+        print(f"   - Already summarized: {stats['cached_prs_in_range']}")
+        print(f"   - New PRs to process: {stats['new_prs_to_fetch']}")
+        print(f"✅ Saved {len(prs_to_process)} PRs to process in {output_path}")
+
+        # Save statistics for the workflow
+        stats_file = Path("pr_digest_stats.json")
+        with open(stats_file, "w") as f:
+            json.dump(stats, f, indent=2)
 
         # Set output for GitHub Actions
         if os.getenv("GITHUB_ACTIONS"):
             with open(os.environ["GITHUB_OUTPUT"], "a") as f:
-                f.write(f"pr_count={len(digest)}\n")
+                f.write(f"new_pr_count={stats['new_prs_to_fetch']}\n")
+                f.write(f"total_pr_count={stats['total_prs_in_range']}\n")
+                f.write(f"cached_pr_count={stats['cached_prs_in_range']}\n")
                 f.write(f"digest_file={output_path}\n")
+                f.write(f"stats_file={stats_file}\n")
+                f.write(f"has_prs_in_range={'true' if stats['total_prs_in_range'] > 0 else 'false'}\n")
+                f.write(f"has_new_prs={'true' if stats['new_prs_to_fetch'] > 0 else 'false'}\n")
+
+                # Convert to PST (note: this handles daylight saving automatically)
+                pst_zone = ZoneInfo("America/Los_Angeles")
+                since_pst = since_date.astimezone(pst_zone)
+                until_pst = until_date.astimezone(pst_zone)
+
+                # Format for display
+                since_formatted = since_pst.strftime("%B %d, %Y")
+                until_formatted = until_pst.strftime("%B %d, %Y")
+                f.write(f"date_range_display={since_formatted} to {until_formatted}\n")
 
     except Exception as e:
         logging.error(f"Failed to create PR digest: {e}")

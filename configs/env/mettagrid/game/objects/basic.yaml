@@ -1,0 +1,18 @@
+altar:
+  type_id: 8
+  input_resources:
+    battery_red: 3
+  output_resources:
+    heart: 1
+  max_output: 5
+  conversion_ticks: 1
+  cooldown: 10
+  initial_resource_count: 0
+
+wall:
+  type_id: 1
+  swappable: false
+
+block:
+  type_id: 14
+  swappable: true

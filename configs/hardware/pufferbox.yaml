@@ -6,4 +6,3 @@ trainer:
   num_workers: 16 # num cores
   async_factor: 2
   zero_copy: True
-  checkpoint_interval: 300

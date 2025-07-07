@@ -2,23 +2,20 @@
 
 defaults:
   - /env/mettagrid/mettagrid@
+  - /env/mettagrid/game/groups/teams@game.groups
   - _self_
 
 game:
   num_agents: 64
   # Enough time to pick one direction, but not to dilly-dally.
   max_steps: 25
-  diversity_bonus:
-    enabled: true
-    similarity_coef: 100  # Coefficient for within-group similarity
-    diversity_coef: 100   # Coefficient for between-group diversity
 
   # Turn off reward sharing for teams 1 and 2
   groups:
     team_1:
-      group_reward_pct: 0  # No reward sharing for team 1
+      group_reward_pct: 0 # No reward sharing for team 1
     team_2:
-      group_reward_pct: 0  # No reward sharing for team 2
+      group_reward_pct: 0 # No reward sharing for team 2
     # team_3 and team_4 keep default 0.5 (50% reward sharing)
 
   map_builder:
@@ -33,6 +30,7 @@ game:
       params:
         rows: 8
         columns: 8
-        total_altars: 4     # Total number of altars in each room
-        altar_ratio: 0.75   # One side of the room will have more altars, which side is random. 
-                            # altar_ratio sets how many of the total altars will be on the side with more.
+        total_altars: 4 # Total number of altars in each room
+        altar_ratio:
+          0.75 # One side of the room will have more altars, which side is random.
+          # altar_ratio sets how many of the total altars will be on the side with more.

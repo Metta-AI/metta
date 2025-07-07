@@ -1,4 +1,4 @@
-.PHONY: help all dev test clean install
+.PHONY: help all dev test clean install pytest
 
 
 # Default target when just running 'make'
@@ -12,11 +12,8 @@ help:
 
 # Clean cmake build artifacts
 clean:
-	@echo "(Metta) Cleaning root build artifacts..."
-	rm -rf build
-	@echo "(Metta) Cleaning mettagrid build artifacts..."
-	cd mettagrid && rm -rf build-debug build-release
-	@echo "(Metta) Clean completed successfully"
+	@echo "(Metta) Running clean command..."
+	uv run python metta/setup/metta_cli.py clean
 
 # Dev all project dependencies and external components
 dev:
@@ -30,5 +27,9 @@ test:
 install:
 	@echo "Installing package in editable mode..."
 	uv sync --inexact
+
+pytest: install
+	@echo "Running Python tests..."
+	uv run pytest
 
 all: dev test

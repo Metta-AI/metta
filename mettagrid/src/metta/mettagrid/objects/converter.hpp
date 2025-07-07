@@ -13,15 +13,33 @@
 #include "has_inventory.hpp"
 #include "metta_object.hpp"
 
-struct ConverterConfig {
-  std::map<InventoryItem, uint8_t> recipe_input;
-  std::map<InventoryItem, uint8_t> recipe_output;
+// #MettagridConfig
+struct ConverterConfig : public GridObjectConfig {
+  ConverterConfig(TypeId type_id,
+                  const std::string& type_name,
+                  const std::map<InventoryItem, uint8_t>& input_resources,
+                  const std::map<InventoryItem, uint8_t>& output_resources,
+                  short max_output,
+                  unsigned short conversion_ticks,
+                  unsigned short cooldown,
+                  unsigned char initial_resource_count,
+                  ObsType color)
+      : GridObjectConfig(type_id, type_name),
+        input_resources(input_resources),
+        output_resources(output_resources),
+        max_output(max_output),
+        conversion_ticks(conversion_ticks),
+        cooldown(cooldown),
+        initial_resource_count(initial_resource_count),
+        color(color) {}
+
+  std::map<InventoryItem, uint8_t> input_resources;
+  std::map<InventoryItem, uint8_t> output_resources;
   short max_output;
   unsigned short conversion_ticks;
   unsigned short cooldown;
-  unsigned char initial_items;
+  unsigned char initial_resource_count;
   ObsType color;
-  std::vector<std::string> inventory_item_names;
 };
 
 class Converter : public HasInventory {
@@ -41,7 +59,7 @@ private:
     // Check if the converter is already at max output.
     unsigned short total_output = 0;
     for (const auto& [item, amount] : this->inventory) {
-      if (this->recipe_output.count(item) > 0) {
+      if (this->output_resources.count(item) > 0) {
         total_output += amount;
       }
     }
@@ -50,7 +68,7 @@ private:
       return;
     }
     // Check if the converter has enough input.
-    for (const auto& [item, input_amount] : this->recipe_input) {
+    for (const auto& [item, input_amount] : this->input_resources) {
       if (this->inventory.count(item) == 0 || this->inventory.at(item) < input_amount) {
         stats.incr("blocked.insufficient_input");
         return;
@@ -60,7 +78,7 @@ private:
     // Get the amounts to consume from input, so we don't update the inventory
     // while iterating over it.
     std::map<InventoryItem, uint8_t> amounts_to_consume;
-    for (const auto& [item, input_amount] : this->recipe_input) {
+    for (const auto& [item, input_amount] : this->input_resources) {
       amounts_to_consume[item] = input_amount;
     }
 
@@ -81,8 +99,8 @@ private:
   }
 
 public:
-  std::map<InventoryItem, uint8_t> recipe_input;
-  std::map<InventoryItem, uint8_t> recipe_output;
+  std::map<InventoryItem, uint8_t> input_resources;
+  std::map<InventoryItem, uint8_t> output_resources;
   // The converter won't convert if its output already has this many things of
   // the type it produces. This may be clunky in some cases, but the main usage
   // is to make Mines (etc) have a maximum output.
@@ -96,21 +114,20 @@ public:
   EventManager* event_manager;
   StatsTracker stats;
 
-  Converter(GridCoord r, GridCoord c, ConverterConfig cfg, TypeId type_id)
-      : recipe_input(cfg.recipe_input),
-        recipe_output(cfg.recipe_output),
+  Converter(GridCoord r, GridCoord c, const ConverterConfig& cfg)
+      : input_resources(cfg.input_resources),
+        output_resources(cfg.output_resources),
         max_output(cfg.max_output),
         conversion_ticks(cfg.conversion_ticks),
         cooldown(cfg.cooldown),
-        color(cfg.color),
-        stats(cfg.inventory_item_names) {
-    GridObject::init(type_id, GridLocation(r, c, GridLayer::Object_Layer));
+        color(cfg.color) {
+    GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c, GridLayer::Object_Layer));
     this->converting = false;
     this->cooling_down = false;
 
-    // Initialize inventory with initial_items for all output types
-    for (const auto& [item, _] : this->recipe_output) {
-      HasInventory::update_inventory(item, cfg.initial_items);
+    // Initialize inventory with initial_resource_count for all output types
+    for (const auto& [item, _] : this->output_resources) {
+      HasInventory::update_inventory(item, cfg.initial_resource_count);
     }
   }
 
@@ -124,7 +141,7 @@ public:
     stats.incr("conversions.completed");
 
     // Add output to inventory
-    for (const auto& [item, amount] : this->recipe_output) {
+    for (const auto& [item, amount] : this->output_resources) {
       HasInventory::update_inventory(item, amount);
       stats.add(stats.inventory_item_name(item) + ".produced", amount);
     }
@@ -166,7 +183,7 @@ public:
   virtual vector<PartialObservationToken> obs_features() const override {
     vector<PartialObservationToken> features;
     features.reserve(5 + this->inventory.size());
-    features.push_back({ObservationFeature::TypeId, _type_id});
+    features.push_back({ObservationFeature::TypeId, type_id});
     features.push_back({ObservationFeature::Color, color});
     features.push_back({ObservationFeature::ConvertingOrCoolingDown, this->converting || this->cooling_down});
     for (const auto& [item, amount] : this->inventory) {

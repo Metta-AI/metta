@@ -1,57 +1,90 @@
 defaults:
-  - /env/mettagrid/mettagrid@
+  - mettagrid
+  - game/objects:
+      - basic
+      - mines
+      - generators
+      - combat
+      - advanced
+  - override game/groups: teams
   - _self_
 
 game:
   num_agents: 24
 
   map_builder:
-    _target_: metta.mettagrid.room.room_scene.RoomScene
+    _target_: metta.map.mapgen.MapGen
+    width: 60
+    height: 60
     border_width: 6
 
-    layout:
-      [
-        ["base", "wild", "base"],
-        ["wild", "center", "wild"],
-        ["base", "wild", "base"],
-      ]
-
-    rooms:
-      base:
-        _target_: metta.mettagrid.room.random.Random
-        width: ${sampling:10,50,10}
-        height: ${sampling:10,50,10}
+    root:
+      type: metta.map.scenes.room_grid.RoomGrid
+      params:
+        layout:
+          [
+            ["base", "wild", "base"],
+            ["wild", "center", "wild"],
+            ["base", "wild", "base"],
+          ]
         border_width: 0
 
-        agents: ${div:${....num_agents},4}
+      children:
+        # corners: 10x10 bases
+        - where:
+            tags: ["base"]
+          scene:
+            type: metta.map.scenes.layout.Layout
+            params:
+              areas:
+                - width: 10
+                  height: 10
+                  tag: middle
+            children:
+              - where:
+                  tags: ["middle"]
+                scene:
+                  type: metta.map.scenes.random.Random
+                  params:
+                    agents: 6
 
-        objects:
-          generator_red: ${sampling:1,10,2}
-          armory: ${sampling:1,5,1}
-          lasery: ${sampling:1,5,1}
-          lab: ${sampling:1,5,1}
-          factory: ${sampling:1,5,1}
-          temple: ${sampling:1,5,1}
-          wall: ${sampling:0,10,5}
+                    objects:
+                      generator_red: 2
+                      armory: 1
+                      lasery: 1
+                      lab: 1
+                      factory: 1
+                      temple: 1
+                      wall: 5
 
-      wild:
-        _target_: metta.mettagrid.room.random.Random
-        width: ${sampling:10,50,20}
-        height: ${sampling:10,50,20}
-        border_width: 0
+        # sides: 20x20 wilderness
+        - where:
+            tags: ["wild"]
+          scene:
+            type: metta.map.scenes.random.Random
+            params:
+              objects:
+                mine_red: 10
+                altar: 1
+                wall: 5
 
-        objects:
-          mine_red: ${sampling:1,20,10}
-          altar: ${sampling:1,5,1}
-          wall: ${sampling:0,20,5}
-
-      center:
-        _target_: metta.mettagrid.room.random.Random
-        width: ${sampling:10,50,10}
-        height: ${sampling:10,50,10}
-        border_width: 0
-
-        objects:
-          altar: ${sampling:1,3,2}
-          wall: ${sampling:0,20,5}
-          generator_red: ${sampling:1,10,2}
+        # center: 10x10 resources
+        - where:
+            tags: ["center"]
+          scene:
+            type: metta.map.scenes.layout.Layout
+            params:
+              areas:
+                - width: 10
+                  height: 10
+                  tag: middle
+            children:
+              - where:
+                  tags: ["middle"]
+                scene:
+                  type: metta.map.scenes.random.Random
+                  params:
+                    objects:
+                      altar: 2
+                      wall: 5
+                      generator_red: 2

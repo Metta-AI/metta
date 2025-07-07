@@ -7,10 +7,10 @@ import { drawTrace } from './traces.js'
 import { drawMiniMap } from './minimap.js'
 import { processActions, initActionButtons } from './actions.js'
 import { initAgentTable, updateAgentTable } from './agentpanel.js'
-import { localStorageSetNumber, onEvent, initHighDpiMode, find } from './htmlutils.js'
+import { localStorageSetNumber, onEvent, initHighDpiMode, find, toggleOpacity } from './htmlutils.js'
 import { updateReadout, hideHoverPanel } from './hoverpanels.js'
 import { initObjectMenu } from './objmenu.js'
-import { drawTimeline, initTimeline, updateTimeline, onScrubberChange } from './timeline.js'
+import { drawTimeline, initTimeline, updateTimeline, onScrubberChange, onTraceMinimapChange } from './timeline.js'
 import { initDemoMode, startDemoMode, stopDemoMode, doDemoMode } from './demomode.js'
 
 
@@ -168,6 +168,7 @@ onEvent('mouseup', 'body', () => {
   ui.dragHtml = null
   ui.dragOffset = new Vec2f(0, 0)
   ui.mainScrubberDown = false
+  ui.mainTraceMinimapDown = false
 
   // Due to how we select objects on mouse-up (mouse-down is drag/pan),
   // we need to check for double-click on mouse-up as well.
@@ -230,6 +231,10 @@ onEvent('mousemove', 'body', (target: HTMLElement, e: Event) => {
 
   if (ui.mainScrubberDown) {
     onScrubberChange(event)
+  }
+
+  if (ui.mainTraceMinimapDown) {
+    onTraceMinimapChange(event)
   }
 
   if (!ui.mouseTargets.includes('#worldmap-panel') && !ui.mouseTargets.includes('.hover-panel')) {
@@ -572,15 +577,6 @@ export function setIsPlaying(isPlaying: boolean) {
     html.playButton.setAttribute('src', 'data/ui/play.png')
   }
   requestFrame()
-}
-
-/** Toggles the opacity of a button. */
-function toggleOpacity(button: HTMLElement, show: boolean) {
-  if (show) {
-    button.classList.remove('transparent')
-  } else {
-    button.classList.add('transparent')
-  }
 }
 
 /** Sets the playback speed and updates the speed buttons. */

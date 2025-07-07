@@ -8,7 +8,11 @@
 #include "constants.hpp"
 #include "metta_object.hpp"
 
-struct WallConfig {
+// #MettagridConfig
+struct WallConfig : public GridObjectConfig {
+  WallConfig(TypeId type_id, const std::string& type_name, bool swappable)
+      : GridObjectConfig(type_id, type_name), swappable(swappable) {}
+
   bool swappable;
 };
 
@@ -16,15 +20,15 @@ class Wall : public MettaObject {
 public:
   bool _swappable;
 
-  Wall(GridCoord r, GridCoord c, WallConfig cfg) {
-    GridObject::init(ObjectType::WallT, GridLocation(r, c, GridLayer::Object_Layer));
+  Wall(GridCoord r, GridCoord c, const WallConfig& cfg) {
+    GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c, GridLayer::Object_Layer));
     this->_swappable = cfg.swappable;
   }
 
   virtual vector<PartialObservationToken> obs_features() const override {
     vector<PartialObservationToken> features;
     features.reserve(2);
-    features.push_back({ObservationFeature::TypeId, _type_id});
+    features.push_back({ObservationFeature::TypeId, type_id});
     if (_swappable) {
       // Only emit the token if it's swappable, to reduce the number of tokens.
       features.push_back({ObservationFeature::Swappable, 1});

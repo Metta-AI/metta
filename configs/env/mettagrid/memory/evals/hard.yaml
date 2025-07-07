@@ -1,5 +1,6 @@
 defaults:
   - /env/mettagrid/memory/evals/defaults@
+  - _self_
 
 game:
   num_agents: 2
@@ -12,4 +13,4 @@ game:
     uri: "configs/env/mettagrid/maps/memory/hard.map"
   objects:
     altar:
-      initial_items: 1
+      initial_resource_count: 1

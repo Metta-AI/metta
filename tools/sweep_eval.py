@@ -6,16 +6,15 @@ import time
 
 import hydra
 import yaml
-from omegaconf import DictConfig, ListConfig, OmegaConf
+from omegaconf import DictConfig, OmegaConf
 
 from metta.agent.policy_store import PolicyStore
-from metta.common.util.logging import setup_mettagrid_logger
-from metta.common.util.runtime_configuration import setup_mettagrid_environment
-from metta.common.util.wandb.wandb_context import WandbContext
+from metta.common.util.script_decorators import get_metta_logger, metta_script
+from metta.common.wandb.wandb_context import WandbContext
 from metta.eval.eval_stats_db import EvalStatsDB
 from metta.sim.simulation_config import SimulationSuiteConfig
 from metta.sim.simulation_suite import SimulationSuite
-from wandb_carbs import WandbCarbs
+from metta.sweep.protein_wandb import WandbProtein
 
 
 def log_file(run_dir, name, data, wandb_run):
@@ -35,10 +34,9 @@ def load_file(run_dir, name):
 
 
 @hydra.main(config_path="../configs", config_name="sweep_job", version_base=None)
-def main(cfg: DictConfig | ListConfig) -> int:
-    setup_mettagrid_environment(cfg)
-
-    logger = setup_mettagrid_logger("sweep_eval")
+@metta_script
+def main(cfg: DictConfig) -> int:
+    logger = get_metta_logger()
 
     logger.info("Sweep configuration:")
     logger.info(yaml.dump(OmegaConf.to_container(cfg, resolve=True), default_flow_style=False))
@@ -58,10 +56,10 @@ def main(cfg: DictConfig | ListConfig) -> int:
     with WandbContext(cfg.wandb, cfg) as wandb_run:
         policy_store = PolicyStore(cfg, wandb_run)
         try:
-            policy_pr = policy_store.policy("wandb://run/" + cfg.run)
+            policy_pr = policy_store.policy_record("wandb://run/" + cfg.run)
         except Exception as e:
             logger.error(f"Error getting policy for run {cfg.run}: {e}")
-            WandbCarbs._record_failure(wandb_run)
+            WandbProtein._record_failure(wandb_run)
             return 1
 
         eval = SimulationSuite(
@@ -81,18 +79,20 @@ def main(cfg: DictConfig | ListConfig) -> int:
                 "score.metric": cfg.metric,
             }
         )
-        wandb_run.summary.update(sweep_stats)
+        if wandb_run:
+            wandb_run.summary.update(sweep_stats)
 
         # Start evaluation
         eval_start_time = time.time()
 
-        logger.info(f"Evaluating policy {policy_pr.name}")
+        logger.info(f"Evaluating policy {policy_pr.run_name}")
         log_file(cfg.run_dir, "sweep_eval_config.yaml", cfg, wandb_run)
 
         results = eval.simulate()
         eval_time = time.time() - eval_start_time
         eval_stats_db = EvalStatsDB.from_sim_stats_db(results.stats_db)
-        eval_metric = eval_stats_db.get_average_metric_by_filter(cfg.metric, policy_pr)
+        result = eval_stats_db.get_average_metric_by_filter(cfg.metric, policy_pr)
+        eval_metric = result if result is not None else float("nan")
 
         # Get training stats from metadata if available
         train_time = policy_pr.metadata.get("train_time", 0)
@@ -117,7 +117,8 @@ def main(cfg: DictConfig | ListConfig) -> int:
             sweep_stats["lineage." + stat] = sweep_stats[stat] + policy_pr.metadata.get("lineage." + stat, 0)
 
         # Update wandb summary
-        wandb_run.summary.update(sweep_stats)
+        if wandb_run:
+            wandb_run.summary.update(sweep_stats)
         logger.info("Sweep Stats: \n" + json.dumps({k: str(v) for k, v in sweep_stats.items()}, indent=4))
 
         # Update policy metadata
@@ -131,13 +132,14 @@ def main(cfg: DictConfig | ListConfig) -> int:
         # Add policy to wandb sweep
         policy_store.add_to_wandb_sweep(cfg.sweep_name, policy_pr)
 
-        # Record observation in CARBS if enabled
+        # Record observation in Protein if enabled
         total_time = train_time + eval_time
         logger.info(f"Evaluation Metric: {eval_metric}, Total Time: {total_time}")
 
-        WandbCarbs._record_observation(wandb_run, eval_metric, total_time, allow_update=True)
+        WandbProtein._record_observation(wandb_run, eval_metric, total_time, allow_update=True)
 
-        wandb_run.summary.update({"run_time": total_time})
+        if wandb_run:
+            wandb_run.summary.update({"run_time": total_time})
         return 0
 
 

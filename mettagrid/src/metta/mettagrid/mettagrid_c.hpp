@@ -1,6 +1,8 @@
 #ifndef METTAGRID_C_HPP_
 #define METTAGRID_C_HPP_
 
+#define PYBIND11_DETAILED_ERROR_MESSAGES
+
 #if defined(_WIN32)
 #define METTAGRID_API __declspec(dllexport)
 #else
@@ -13,6 +15,7 @@
 
 #include <map>
 #include <memory>
+#include <random>
 #include <string>
 #include <vector>
 
@@ -26,14 +29,29 @@ class ActionHandler;
 class Agent;
 class ObservationEncoder;
 class GridObject;
+class GridObjectConfig;
 class ConverterConfig;
 class WallConfig;
+class AgentConfig;
+class GameConfig;
+class ActionConfig;
 
 namespace py = pybind11;
 
+struct GameConfig {
+  int num_agents;
+  unsigned int max_steps;
+  unsigned short obs_width;
+  unsigned short obs_height;
+  std::vector<std::string> inventory_item_names;
+  unsigned int num_observation_tokens;
+  std::map<std::string, std::shared_ptr<ActionConfig>> actions;
+  std::map<std::string, std::shared_ptr<GridObjectConfig>> objects;
+};
+
 class METTAGRID_API MettaGrid {
 public:
-  MettaGrid(py::dict env_cfg, py::list map);
+  MettaGrid(const GameConfig& cfg, py::list map, int seed);
   ~MettaGrid();
 
   unsigned short obs_width;
@@ -43,6 +61,7 @@ public:
   unsigned int max_steps;
 
   std::vector<std::string> inventory_item_names;
+  std::vector<std::string> object_type_names;
 
   // Python API methods
   py::tuple reset();
@@ -67,10 +86,9 @@ public:
   py::object observation_space();
   py::list action_success();
   py::list max_action_args();
-  py::list object_type_names();
+  py::list object_type_names_py();
   py::list inventory_item_names_py();
   py::array_t<unsigned int> get_agent_groups() const;
-  Agent* create_agent(int r, int c, const py::dict& agent_group_cfg_py);
 
   uint64_t initial_grid_hash;
 
@@ -108,6 +126,9 @@ private:
 
   std::vector<bool> _action_success;
 
+  std::mt19937 _rng;
+  int _seed;
+
   void init_action_handlers();
   void add_agent(Agent* agent);
   void _compute_observation(unsigned int observer_r,
@@ -121,6 +142,7 @@ private:
   void _step(py::array_t<ActionType, py::array::c_style> actions);
 
   void _handle_invalid_action(size_t agent_idx, const std::string& stat, ActionType type, ActionArg arg);
+  AgentConfig _create_agent_config(const py::dict& agent_group_cfg_py);
   ConverterConfig _create_converter_config(const py::dict& converter_cfg_py);
   WallConfig _create_wall_config(const py::dict& wall_cfg_py);
 };
