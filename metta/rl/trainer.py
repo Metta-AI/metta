@@ -326,7 +326,22 @@ class MettaTrainer:
         trainer_cfg = self.trainer_cfg
 
         if self._stats_client is not None:
-            name = self.wandb_run.name if self.wandb_run is not None and self.wandb_run.name is not None else "unknown"
+            # Generate a unique name when WandB fails to avoid silent training run creation failures
+            # due to unique constraint violations on (user_id, name)
+            if self.wandb_run is not None and self.wandb_run.name is not None:
+                name = self.wandb_run.name
+            else:
+                # Use Hydra run parameter if available, otherwise generate unique name with timestamp
+                hydra_run = getattr(self.cfg, "run", None)
+                if hydra_run:
+                    name = str(hydra_run)
+                else:
+                    # Fallback to timestamp-based name to ensure uniqueness
+                    import time
+
+                    name = f"unknown_{int(time.time())}"
+                logger.warning(f"WandB run name not available, using fallback name: {name}")
+
             url = self.wandb_run.url if self.wandb_run is not None else None
             try:
                 self._stats_run_id = self._stats_client.create_training_run(name=name, attributes={}, url=url).id
