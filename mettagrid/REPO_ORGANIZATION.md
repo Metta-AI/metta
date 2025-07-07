@@ -1,4 +1,4 @@
-# Metta Repository Organization Plan
+# Metta Repository Organization Plan (Revised)
 
 ## Overview
 
@@ -7,14 +7,16 @@ This document outlines the organization structure for the Metta monorepo, balanc
 ## Core Principles
 
 1. **Minimize Package Count**: Limit subpackages to logical, cohesive units that could theoretically be deployed independently
-2. **Follow PEP 420**: Use namespace packages to avoid `__init__.py` proliferation
+2. **Minimize Hierarchy**: Keep namespace as flat as possible for developer ergonomics
 3. **Clear Dependencies**: Maintain a directed acyclic graph (DAG) of dependencies
-4. **Consistent Structure**: All packages follow the same `src/` layout pattern
+4. **Consistent Structure**: All packages follow the same `src/` layout pattern (per uv best practices)
 5. **Pragmatic Grouping**: Group related functionality to avoid excessive fragmentation
+
+*Note: Strict PEP 420 compliance is not a requirement. We can implement the structure with temporary `__init__.py` files until tooling support is complete*
 
 ## Package Structure
 
-### Core Packages (5-7 total)
+### Core Packages (7 total)
 
 ```
 metta/
@@ -35,20 +37,30 @@ metta/
 │               ├── trainer/    # Training infrastructure
 │               ├── sweep/      # Hyperparameter sweeping
 │               └── eval/       # Evaluation tools
+├── backend/               # Unified backend services
+│   └── src/
+│       └── metta/
+│           └── backend/
+│               ├── observatory/  # Observatory API endpoints
+│               ├── naming/       # Name registration service
+│               ├── storage/      # Data persistence layer
+│               └── api/          # Common API infrastructure
 ├── observatory/           # Web-based visualization frontend
 │   ├── src/               # TypeScript/React
 │   └── package.json
-├── observatory_backend/   # Backend API for Observatory
-│   └── src/
-│       └── metta/
-│           └── observatory_backend/
-├── studio/                # Local development UI
-│   ├── src/               # TypeScript/React
-│   └── package.json
-└── studio_backend/        # Backend services for Studio
-    └── src/
-        └── metta/
-            └── studio_backend/
+├── mettascope/            # Existing local visualization tool
+│   ├── src/               # TypeScript source
+│   ├── server.py          # Local Python server
+│   ├── replays.py         # Replay handling
+│   ├── index.html
+│   ├── package.json
+│   └── tsconfig.json
+└── studio/                # Enhanced development UI
+    ├── src/               # TypeScript source
+    ├── server.py          # Local Python server
+    ├── index.html
+    ├── package.json
+    └── tsconfig.json
 ```
 
 ### Import Examples
@@ -59,6 +71,8 @@ from metta.common import utils
 from metta.ml.rl import PPOTrainer
 from metta.ml.sweep import SweepManager
 from metta.mettagrid import GridEnvironment
+from metta.backend.naming import NameRegistry
+from metta.backend.observatory import ExperimentTracker
 ```
 
 ## Package Descriptions
@@ -85,46 +99,89 @@ from metta.mettagrid import GridEnvironment
 
 *Note: Grouping ML components reduces package count while maintaining logical boundaries*
 
-### Frontend/Backend Pairs
+### `metta.backend`
+**Purpose**: Unified backend services for all server-side functionality
+- **observatory/**: API endpoints for experiment tracking and visualization
+- **naming/**: Process name registration service for sweeps
+- **storage/**: Shared data persistence and database interfaces
+- **api/**: Common API infrastructure (authentication, routing, middleware)
 
-#### `observatory` + `observatory_backend`
+*Benefits of unified backend:*
+- Single deployment unit for all services
+- Shared infrastructure (database connections, auth, etc.)
+- Easier service-to-service communication
+- Consistent API patterns
+
+### Frontend Packages
+
+#### `observatory`
 - Production web interface for experiment tracking and visualization
-- Dockerized backend service
+- Connects to deployed backend service
 - Public-facing deployment
 
-#### `studio` + `studio_backend`
-- Local development environment
-- Rich debugging and analysis tools
-- Direct file system access for local workflows
+#### `mettascope`
+- Existing local visualization and replay tool
+- Focused on real-time agent observation and replay analysis
+- Direct file system access for replay files
+- Lightweight, proven architecture
+
+#### `studio`
+- Next-generation development environment
+- Enhanced debugging and analysis capabilities
+- Broader scope than Mettascope (full experiment lifecycle)
+- May eventually supersede Mettascope but both coexist for now
 
 ## Dependency Rules
 
 1. `metta.common` has no internal dependencies
 2. `metta.mettagrid` depends only on `metta.common`
 3. `metta.ml` depends on `metta.common` and `metta.mettagrid`
-4. Backend services can depend on any metta.* package
+4. `metta.backend` can depend on any metta.* package
 5. Frontend packages are independent TypeScript/Node projects
+6. `studio/server.py` and `mettascope/server.py` can import from any metta.* package for local serving
 
 ## Migration Path
 
-1. **Phase 1**: Move `metta/metta/*` → `ml/src/metta/ml/*`
-2. **Phase 2**: Consolidate shared utilities into `common/`
-3. **Phase 3**: Ensure all packages use `src/` layout
-4. **Phase 4**: Remove all `__init__.py` files except where required by tooling
+1. **Phase 1**: Remove fast_gae dependency (no longer used)
+2. **Phase 2**: Move `metta/metta/*` → `ml/src/metta/ml/*`
+3. **Phase 3**: Consolidate shared utilities into `common/`
+4. **Phase 4**: Create unified `backend/` package from existing services
+5. **Phase 5**: Keep Mettascope as-is, develop Studio in parallel
+6. **Phase 6**: Keep minimal `__init__.py` files until scikit-build-core PR #808 lands
+7. **Phase 7**: Remove all `__init__.py` files once tooling support is available
+
+## PEP 420 Strategy
+
+### Current State
+- **scikit-build-core limitation**: Currently prevents full PEP 420 compliance in editable installs
+- **Active development**: PR #808 shows this is being actively addressed
+- **fast_gae removal**: Eliminates C++ compilation needs in the main package
+
+### Implementation Approach
+1. **Structure for PEP 420**: Organize packages following PEP 420 patterns
+2. **Temporary workaround**: Keep `__init__.py` files only where absolutely necessary
+3. **Future cleanup**: Remove `__init__.py` files once scikit-build-core support lands
+
+### Benefits of This Approach
+- Standards-compliant structure from day one
+- Minimal technical debt
+- Easy migration path (just delete `__init__.py` files later)
+- Better positioning for PyPI publishing if needed in future
 
 ## Rationale
 
 This structure strikes a balance between:
-- **Monolith advocates**: Only 5-7 Python packages to maintain
-- **Micropackage advocates**: Clear separation of concerns and potential for independent deployment
-- **PEP 420 compliance**: Clean namespace packages without `metta/metta` nesting
-- **Practical needs**: Frontend/backend separation for deployment while keeping related code together
+- **Standards compliance**: PEP 420-ready structure positions us for the future
+- **Pragmatism**: Temporary `__init__.py` files work with current tooling
+- **Developer experience**: Minimal hierarchy within each package
+- **Operational simplicity**: Unified backend, proven frontend patterns
 
 ## Future Considerations
 
 - If a component grows significantly (>10k LOC), consider splitting
 - If deployment requirements diverge, packages can be separated
 - Monitor dependency complexity and refactor if cycles emerge
+- Remove `__init__.py` files once scikit-build-core support lands
 
 ## Development Workflow
 
