@@ -59,12 +59,13 @@ def perform_rollout_step(
     t = torch.as_tensor(t).to(device, non_blocking=True)
 
     # Add contrastive reward if enabled
-    if (contrastive_module is not None and
-        trainer_cfg is not None and
-        hasattr(trainer_cfg, 'contrastive') and
-        trainer_cfg.contrastive.enabled and
-        trainer_cfg.contrastive.reward_coef > 0):
-
+    if (
+        contrastive_module is not None
+        and trainer_cfg is not None
+        and hasattr(trainer_cfg, "contrastive")
+        and trainer_cfg.contrastive.enabled
+        and trainer_cfg.contrastive.reward_coef > 0
+    ):
         # For now, we'll add a simple contrastive reward based on LSTM state variance
         # This is a placeholder - in practice, we'd need to compute this during training
         # when we have access to future states
@@ -216,7 +217,7 @@ def process_minibatch_update(
 
     # Contrastive learning loss
     contrastive_loss = torch.tensor(0.0, device=device, dtype=torch.float32)
-    if contrastive_module is not None and hasattr(trainer_cfg, 'contrastive') and trainer_cfg.contrastive.enabled:
+    if contrastive_module is not None and hasattr(trainer_cfg, "contrastive") and trainer_cfg.contrastive.enabled:
         # Check if both coefficients are zero to avoid unnecessary computation
         if trainer_cfg.contrastive.loss_coef > 0 or trainer_cfg.contrastive.reward_coef > 0:
             # Sample contrastive pairs
@@ -233,14 +234,14 @@ def process_minibatch_update(
             positive_indices = contrastive_module.sample_future_indices(
                 contrastive_pairs["current_indices"],
                 experience.bptt_horizon,
-                current_lstm_states.shape[0]
+                contrastive_pairs["current_indices"].shape[0],
             )
 
             negative_indices = contrastive_module.sample_negative_indices(
                 contrastive_pairs["current_indices"],
                 trainer_cfg.contrastive.num_rollout_negatives,
                 trainer_cfg.contrastive.num_cross_rollout_negatives,
-                current_lstm_states.shape[0],
+                contrastive_pairs["current_indices"].shape[0],
                 experience.bptt_horizon,
                 experience.segments,
             )
@@ -379,9 +380,15 @@ def get_lstm_config(policy: Any) -> Tuple[int, int]:
     hidden_size = getattr(policy, "hidden_size", 256)
     num_lstm_layers = 2  # Default value
 
-    # Try to get actual number of LSTM layers from policy
+    # Try to get actual LSTM configuration from policy
     if hasattr(policy, "components") and "_core_" in policy.components:
         lstm_module = policy.components["_core_"]
+
+        # Get hidden size from LSTM module
+        if hasattr(lstm_module, "hidden_size"):
+            hidden_size = lstm_module.hidden_size
+
+        # Get number of layers from LSTM network
         if hasattr(lstm_module, "_net") and hasattr(lstm_module._net, "num_layers"):
             num_lstm_layers = lstm_module._net.num_layers
 

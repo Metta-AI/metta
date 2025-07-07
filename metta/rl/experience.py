@@ -187,9 +187,12 @@ class Experience:
         if lstm_state is not None and env_id.start in self.lstm_h:
             # Use the last layer's hidden state for contrastive learning
             lstm_h = lstm_state["lstm_h"]
+
             if lstm_h.dim() == 3:  # [num_layers, batch_size, hidden_size]
                 last_layer_h = lstm_h[-1]  # [batch_size, hidden_size]
                 self.lstm_states[batch_slice] = last_layer_h
+            else:  # [batch_size, hidden_size]
+                self.lstm_states[batch_slice] = lstm_h
 
         # Update episode tracking
         self.ep_lengths[env_id] += 1

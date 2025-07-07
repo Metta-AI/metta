@@ -64,7 +64,8 @@ class ContrastiveLearning:
         # Sample Δ ~ Geometric(1-γ)
         # Use inverse CDF method: Δ = floor(log(1-U) / log(γ)) where U ~ Uniform(0,1)
         u = torch.rand(batch_size, device=self.device)
-        delta = torch.floor(torch.log(1 - u) / torch.log(self.gamma)).long()
+        gamma_tensor = torch.tensor(self.gamma, device=self.device)
+        delta = torch.floor(torch.log(1 - u) / torch.log(gamma_tensor)).long()
 
         # Clamp to BPTT horizon
         delta = torch.clamp(delta, min=1, max=bptt_horizon - 1)
@@ -124,33 +125,68 @@ class ContrastiveLearning:
                     )
 
                 rollout_indices = segment * bptt_horizon + rollout_negatives
-                negative_indices.append(rollout_indices)
 
-        # Sample from other rollouts
-        if num_cross_rollout_negatives > 0:
-            for i in range(batch_size):
-                current_segment = current_segments[i]
+                # Initialize combined negatives for this batch item
+                combined_negatives = [rollout_indices]
 
-                # Sample different segments
-                available_segments = list(range(num_segments))
-                available_segments.remove(current_segment.item())
+                # Sample from other rollouts
+                if num_cross_rollout_negatives > 0:
+                    current_segment = current_segments[i]
 
-                if len(available_segments) >= num_cross_rollout_negatives:
-                    cross_segments = torch.tensor(
-                        np.random.choice(available_segments, num_cross_rollout_negatives, replace=False),
-                        device=self.device,
-                    )
+                    # Sample different segments
+                    available_segments = list(range(num_segments))
+                    available_segments.remove(current_segment.item())
+
+                    if len(available_segments) >= num_cross_rollout_negatives:
+                        cross_segments = torch.tensor(
+                            np.random.choice(available_segments, num_cross_rollout_negatives, replace=False),
+                            device=self.device,
+                        )
+                    else:
+                        # If not enough segments, sample with replacement
+                        cross_segments = torch.tensor(
+                            np.random.choice(available_segments, num_cross_rollout_negatives, replace=True),
+                            device=self.device,
+                        )
+
+                    # Sample random timesteps from those segments
+                    cross_timesteps = torch.randint(0, bptt_horizon, (num_cross_rollout_negatives,), device=self.device)
+                    cross_indices = cross_segments * bptt_horizon + cross_timesteps
+                    combined_negatives.append(cross_indices)
+
+                # Combine all negatives for this batch item
+                if len(combined_negatives) > 1:
+                    batch_negatives = torch.cat(combined_negatives)
                 else:
-                    # If not enough segments, sample with replacement
-                    cross_segments = torch.tensor(
-                        np.random.choice(available_segments, num_cross_rollout_negatives, replace=True),
-                        device=self.device,
-                    )
+                    batch_negatives = combined_negatives[0]
 
-                # Sample random timesteps from those segments
-                cross_timesteps = torch.randint(0, bptt_horizon, (num_cross_rollout_negatives,), device=self.device)
-                cross_indices = cross_segments * bptt_horizon + cross_timesteps
-                negative_indices.append(cross_indices)
+                negative_indices.append(batch_negatives)
+        else:
+            # Only cross-rollout negatives
+            if num_cross_rollout_negatives > 0:
+                for i in range(batch_size):
+                    current_segment = current_segments[i]
+
+                    # Sample different segments
+                    available_segments = list(range(num_segments))
+                    available_segments.remove(current_segment.item())
+
+                    if len(available_segments) >= num_cross_rollout_negatives:
+                        cross_segments = torch.tensor(
+                            np.random.choice(available_segments, num_cross_rollout_negatives, replace=False),
+                            device=self.device,
+                        )
+                    else:
+                        # If not enough segments, sample with replacement
+                        cross_segments = torch.tensor(
+                            np.random.choice(available_segments, num_cross_rollout_negatives, replace=True),
+                            device=self.device,
+                        )
+
+                    # Sample random timesteps from those segments
+                    cross_timesteps = torch.randint(0, bptt_horizon, (num_cross_rollout_negatives,), device=self.device)
+                    cross_indices = cross_segments * bptt_horizon + cross_timesteps
+                    negative_indices.append(cross_indices)
 
         # Combine all negatives
         if negative_indices:
@@ -186,12 +222,20 @@ class ContrastiveLearning:
         if num_negatives > 0:
             # Flatten negative indices and get corresponding states
             flat_negative_indices = negative_indices.view(-1)  # [batch_size * num_negatives]
+
             negative_states = all_lstm_states[flat_negative_indices]  # [batch_size * num_negatives, hidden_size]
+
+            # Get the actual hidden size from all_lstm_states
+            actual_hidden_size = all_lstm_states.shape[-1]
+            # Use the correct batch size from negative_indices
+            actual_batch_size = negative_indices.shape[0]
             negative_states = negative_states.view(
-                batch_size, num_negatives, -1
-            )  # [batch_size, num_negatives, hidden_size]
+                actual_batch_size, num_negatives, actual_hidden_size
+            )  # [actual_batch_size, num_negatives, hidden_size]
         else:
-            negative_states = torch.empty(batch_size, 0, self.hidden_size, device=self.device)
+            # Use the actual hidden size from all_lstm_states instead of self.hidden_size
+            actual_hidden_size = all_lstm_states.shape[-1]
+            negative_states = torch.empty(batch_size, 0, actual_hidden_size, device=self.device)
 
         # Normalize states for cosine similarity
         lstm_states_norm = F.normalize(lstm_states, dim=-1)

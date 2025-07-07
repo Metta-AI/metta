@@ -279,9 +279,13 @@ class MettaTrainer:
         self.contrastive_module = None
         if hasattr(trainer_cfg, "contrastive") and trainer_cfg.contrastive.enabled:
             from metta.rl.contrastive import ContrastiveLearning
+            from metta.rl.functions import get_lstm_config
+
+            # Get LSTM configuration using the same function as experience buffer
+            hidden_size, _ = get_lstm_config(self.policy)
 
             self.contrastive_module = ContrastiveLearning(
-                hidden_size=self.policy.hidden_size,
+                hidden_size=hidden_size,
                 gamma=trainer_cfg.ppo.gamma,
                 temperature=trainer_cfg.contrastive.temperature,
                 logsumexp_coef=trainer_cfg.contrastive.logsumexp_coef,
