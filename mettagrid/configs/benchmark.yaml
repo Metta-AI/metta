@@ -51,12 +51,10 @@ game:
   max_steps: 1000
 
   agent:
-    default_item_max: 50
+    default_resource_limit: 50
     freeze_duration: 10
 
     rewards:
-      # action_failure_penalty: 0.00001
-      action_failure_penalty: 0
       ore_red: 0.005
       ore_blue: 0.005
       ore_green: 0.005

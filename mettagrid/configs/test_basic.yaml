@@ -42,8 +42,9 @@ game:
       props: {}
 
   agent:
-    default_item_max: 5
-    heart_max: 255
+    default_resource_limit: 5
+    resource_limits:
+      heart: 255
     freeze_duration: 10
     rewards:
       heart: 1

@@ -11,10 +11,10 @@ sampling: 1
 game:
   num_agents: 4
   agent:
-    ore_red_max: ${sampling:5,25,15}
-    battery_red_max: ${sampling:5,25,15}
+    resource_limits:
+      ore_red: ${sampling:5,25,15}
+      battery_red: ${sampling:5,25,15}
     rewards:
-      action_failure_penalty: 0
       ore_red: ${sampling:0.005,0.1, 0.01}
       battery_red: ${sampling:0.01,0.3, 0.1}
       heart: 1
