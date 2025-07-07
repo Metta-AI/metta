@@ -16,6 +16,7 @@ This document outlines the organization structure for the Metta monorepo, balanc
 
 ## Package Structure
 
+```
 metta/
 ├── src/                   # Core Python package
 ├── common/                # Shared utilities
@@ -31,6 +32,7 @@ metta/
 ├── recipes/              # Example programs
 ├── docs/                 # Documentation
 └── devops/              # Deployment/setup
+```
 
 ### Core Packages (6 total)
 
