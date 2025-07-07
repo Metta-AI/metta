@@ -418,7 +418,6 @@ class MettaTrainer:
 
         raw_infos = []  # Collect raw info for batch processing later
         experience.reset_for_rollout()
-        ii = 0  # delete
         while not experience.ready_for_training:
             # Check for contiguous env ids constraint
             if trainer_cfg.require_contiguous_env_ids:
@@ -431,8 +430,6 @@ class MettaTrainer:
             num_steps, info = perform_rollout_step(self.policy, self.vecenv, experience, self.device, self.timer)
 
             self.agent_step += num_steps
-            ii += 1  # delete
-            print(f"rollout step {ii}, agent step {self.agent_step}.")  # delete
 
             # Collect info for batch processing
             if info:
@@ -491,7 +488,6 @@ class MettaTrainer:
         minibatch_idx = 0
 
         for _epoch in range(trainer_cfg.update_epochs):
-            jj = 0  # delete
             for _ in range(experience.num_minibatches):
                 minibatch = experience.sample_minibatch(
                     advantages=advantages,
@@ -500,10 +496,6 @@ class MettaTrainer:
                     minibatch_idx=minibatch_idx,
                     total_minibatches=_total_minibatches,
                 )
-                jj += 1  # delete
-                batch_size = minibatch["obs"].shape[0]  # delete
-                bptt_size = minibatch["obs"].shape[1]  # delete
-                print(f"train step {jj}, batch size {batch_size}, bptt size {bptt_size}.")  # delete
 
                 # Use the helper function to process minibatch update
                 loss = process_minibatch_update(
