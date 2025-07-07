@@ -149,8 +149,8 @@ graph TD
     A[metta] --> B[metta.mettagrid]
     A --> C[metta.common]
     B --> C
-    D[metta.backend] --> B
-    E[Frontend Apps] --> B
+    D[metta.backend] --> A
+    E[Frontend Apps] --> A
 ```
 
 1. `metta.common` has no internal dependencies (base utilities)
