@@ -224,12 +224,12 @@ TEST_F(MettaGridCppTest, PutRecipeItems) {
   // Create a generator that takes red ore and outputs batteries
   ConverterConfig generator_cfg(TestItems::CONVERTER,     // type_id
                                 "generator",              // type_name
-                                {{TestItems::ORE, 1}},    // recipe_input
-                                {{TestItems::ARMOR, 1}},  // recipe_output
+                                {{TestItems::ORE, 1}},    // input_resources
+                                {{TestItems::ARMOR, 1}},  // output_resources
                                 0,                        // max_output
                                 1,                        // conversion_ticks
                                 10,                       // cooldown
-                                0,                        // initial_items
+                                0,                        // initial_resource_count
                                 0);                       // color
   EventManager event_manager;
   Converter* generator = new Converter(0, 0, generator_cfg);
@@ -274,8 +274,8 @@ TEST_F(MettaGridCppTest, GetOutput) {
   // Create a generator with initial output
   ConverterConfig generator_cfg(TestItems::CONVERTER,     // type_id
                                 "generator",              // type_name
-                                {{TestItems::ORE, 1}},    // recipe_input
-                                {{TestItems::ARMOR, 1}},  // recipe_output
+                                {{TestItems::ORE, 1}},    // input_resources
+                                {{TestItems::ARMOR, 1}},  // output_resources
                                 1,                        // max_output
                                 1,                        // conversion_ticks
                                 10,                       // cooldown
