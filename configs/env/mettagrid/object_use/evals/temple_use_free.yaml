@@ -1,5 +1,6 @@
 defaults:
   - /env/mettagrid/object_use/evals/defaults@
+  - /env/mettagrid/game/objects/advanced@game.objects
   - _self_
 
 game:

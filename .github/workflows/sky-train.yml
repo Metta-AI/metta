@@ -11,7 +11,7 @@ on:
       trainer_env:
         description: "Training environment configuration"
         required: true
-        default: "env/mettagrid/simple"
+        default: "env/mettagrid/arena/advanced"
         type: string
       commit_to_run:
         description: "The full commit hash to run the job against (required for manual runs)."
@@ -29,7 +29,7 @@ on:
     branches: [main]
 
 env:
-  DEFAULT_TRAINER_ENV: "env/mettagrid/simple"
+  DEFAULT_TRAINER_ENV: "env/mettagrid/arena/advanced"
   DEFAULT_TIMEOUT_HOURS: 1
   RUN_NAME_PREFIX: "github.sky" # Define the prefix for run names here
 

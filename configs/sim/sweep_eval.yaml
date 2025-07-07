@@ -8,5 +8,5 @@ simulations:
   navigation/emptyspace_withinsight:
     env: env/mettagrid/navigation/evals/emptyspace_withinsight
   simple:
-    env: env/mettagrid/simple
+    env: env/mettagrid/arena/advanced
 # selector_type: "latest"
