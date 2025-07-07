@@ -38,4 +38,3 @@ Follow the repository-wide rules described in `/AGENTS.md`:
 
 * Short, present-tense commit messages
 * Run lint/format before pushing
-
