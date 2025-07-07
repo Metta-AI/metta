@@ -1,8 +1,8 @@
 # @package __global__
 
 trainer:
-  env: /env/mettagrid/simple
+  env: /env/mettagrid/arena/advanced
 
 replay_job:
   sim:
-    env: /env/mettagrid/simple
+    env: /env/mettagrid/arena/advanced
