@@ -13,13 +13,15 @@ class AsdfSetup(SetupModule):
     def description(self) -> str:
         return "asdf version manager"
 
+
     def is_applicable(self) -> bool:
         return (
-            platform.system() == "Darwin"
-            or platform.system() == "Linux"
+            (platform.system() == "Darwin"
+            or platform.system() == "Linux")
             and self.config.user_type == UserType.SOFTMAX
             and self.config.is_component_enabled("asdf")
         )
+
 
     def check_installed(self) -> bool:
         try:
