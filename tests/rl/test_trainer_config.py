@@ -1,6 +1,6 @@
 import math
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 from hydra import compose, initialize_config_dir
@@ -95,8 +95,10 @@ valid_trainer_config = {
 }
 
 
-@patch("metta.common.util.runtime_configuration.setup_mettagrid_environment")
-def process_cfg_like_metta_script_main(cfg: DictConfig, _: MagicMock) -> DictConfig:
+@patch("metta.common.util.script_decorators.setup_mettagrid_environment", return_value=None)
+@patch("metta.common.util.script_decorators.torch.cuda.is_available", return_value=True)
+@patch("metta.common.util.script_decorators.is_multiprocessing_available", return_value=True)
+def process_cfg_like_metta_script_main(cfg: DictConfig, *_mocks) -> DictConfig:
     from metta.common.util.script_decorators import metta_script
 
     # Use the metta_script decorator, which validates/modifies the config
