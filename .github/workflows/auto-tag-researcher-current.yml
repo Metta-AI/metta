@@ -1,0 +1,47 @@
+name: Auto-tag researcher_current
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  auto-tag:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Check if pinned
+      id: check_pin
+      run: |
+        # Check if the pin file exists
+        if git ls-tree HEAD --name-only | grep -q "^\.researcher_pin$"; then
+          echo "pinned=true" >> $GITHUB_OUTPUT
+          echo "Tag is currently pinned - skipping auto-update"
+        else
+          echo "pinned=false" >> $GITHUB_OUTPUT
+          echo "Tag is not pinned - will auto-update"
+        fi
+
+    - name: Update researcher_current tag
+      if: steps.check_pin.outputs.pinned == 'false'
+      run: |
+        # Configure git
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+
+        # Delete existing tag locally and remotely if it exists
+        if git tag -l | grep -q "^researcher_current$"; then
+          git tag -d researcher_current
+          git push origin :refs/tags/researcher_current || true
+        fi
+
+        # Create new tag at current commit
+        git tag researcher_current
+        git push origin researcher_current
+
+        echo "Updated researcher_current tag to commit ${{ github.sha }}"
