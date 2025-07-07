@@ -35,7 +35,7 @@ simulations:
     env: env/mettagrid/navigation/evals/radialmaze
     policy_agents_pct: 1.0
   # npc/simple:
-  #   env: env/mettagrid/simple
+  #   env: env/mettagrid/arena/advanced
   #   policy_agents_pct: 0.5
   #   npc_policy_uri: wandb://run/b.daphne.npc_simple
   objectuse/altar_use_free:

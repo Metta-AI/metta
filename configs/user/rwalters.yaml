@@ -6,7 +6,7 @@ defaults:
   - _self_
 
 trainer:
-  env: /env/mettagrid/simple
+  env: /env/mettagrid/arena/advanced
   simulation:
     evaluate_interval: 300
 
@@ -30,7 +30,6 @@ analyzer:
 
 sweep:
   metric: "action.use.altar.agent"
-
 
 run_id: 6
 run: ${oc.env:USER}.local.${now:MMDD}.${run_id}

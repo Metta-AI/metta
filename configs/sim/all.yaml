@@ -63,7 +63,7 @@ simulations:
   navigation/wanderout:
     env: env/mettagrid/navigation/evals/wanderout
   # npc/simple:
-  #   env: env/mettagrid/simple
+  #   env: env/mettagrid/arena/advanced
   #   policy_agents_pct: 0.5
   #   npc_policy_uri: wandb://run/georgedeane.nav_scratch
   objectuse/altar_use_free:
