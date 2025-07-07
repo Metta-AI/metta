@@ -247,26 +247,34 @@ def compute_advantage(
 
     if str(device) == "mps":
         # Native PyTorch implementation (MPS-compatible)
-        values = values.to(device)
-        rewards = rewards.to(device)
-        dones = dones.to(device)
-        importance_sampling_ratio = importance_sampling_ratio.to(device)
+        values = values.contiguous().to(device)
+        rewards = rewards.contiguous().to(device)
+        dones = dones.contiguous().to(device)
+        importance_sampling_ratio = importance_sampling_ratio.contiguous().to(device)
 
         T, B = rewards.shape
-        next_values = torch.cat([values[1:], torch.zeros(1, B, device=device)], dim=0)
-        deltas = importance_sampling_ratio.clamp(max=vtrace_rho_clip) * (
-            rewards + gamma * next_values * (1 - dones) - values
-        )
 
-        vs = torch.zeros_like(values)
-        acc = torch.zeros_like(values[0])
-        for t in reversed(range(T)):
-            acc = deltas[t] + gamma * gae_lambda * (1 - dones[t]) * acc
-            vs[t] = acc + values[t]
+        advantages = torch.zeros_like(values, device=device)
 
-        return vs - values
+        rho = torch.clamp(importance_sampling_ratio, max=vtrace_rho_clip)
+        c = torch.clamp(importance_sampling_ratio, max=vtrace_c_clip)
+
+        nextnonterminal = 1.0 - dones[1:]
+
+        delta = rho[:-1] * (rewards[1:] + gamma * values[1:] * nextnonterminal - values[:-1])
+
+        gamma_lambda = gamma * gae_lambda
+
+        lastpufferlam = torch.zeros(B, device=device)
+
+        for t in range(T - 2, -1, -1):
+            lastpufferlam = delta[t] + gamma_lambda * c[t] * lastpufferlam * nextnonterminal[t]
+            advantages[t] = lastpufferlam
+
+        return advantages
 
     else:
+        # CUDA implementation using custom kernel
         tensors = [values, rewards, dones, importance_sampling_ratio, advantages]
         tensors = [t.to(device) for t in tensors]
         values, rewards, dones, importance_sampling_ratio, advantages = tensors
