@@ -57,8 +57,8 @@ metta/
 │   └── eval/              # Evaluation tools
 ├── tests/                 # Tests for metta/src
 ├── configs/               # Hydra config DI hierarchy
-├── tools/                 # Hydra CLI interface for API
-├── recipes/               # Common training and evaluation programs
+├── tools/                 # CLI tools (hydra interfaces for running commands)
+├── recipes/               # Example programs (complete training/eval scripts)
 ├── docs/                  # Documentation
 ├── devops/                # Machine and cloud setup
 ├── common/                # Shared utilities package (PEP420)
@@ -98,6 +98,11 @@ metta/
 │       └── package.json
 └── pyproject.toml         # Root configuration
 ```
+
+## Testing Strategy
+- Each package maintains its own tests/ directory
+- Shared test utilities live in metta.common.testing
+- Integration tests live in the root tests/ directory
 
 ### Import Examples
 
@@ -155,7 +160,12 @@ from metta.backend.observatory import RemoteStatsDb
   - **sweep-names/**: Process name registration service for sweeps
   - **stat-buffer/**: Data persistence and database interfaces
 
-### Frontend Applications
+## Frontend Applications
+
+Each app includes:
+- `src/`: TypeScript/React application code
+- `server.py`: Local development server (not part of core packages)
+- `package.json`: Node dependencies
 
 #### Observatory
 - Production web interface for experiment tracking and visualization
@@ -171,6 +181,11 @@ from metta.backend.observatory import RemoteStatsDb
 - Next-generation local development UI
 - Map creation tools
 - Enhanced debugging and analysis capabilities
+
+## Version Management
+- All Python packages share version from root pyproject.toml
+- Frontend apps version independently via package.json
+- Releases coordinate all package versions together
 
 ## Dependency Rules
 
@@ -189,6 +204,9 @@ graph TD
 4. `metta.backend` depends only on `metta.common`
 5. Frontend packages are independent TypeScript/Node projects
 6. Frontend `server.py` files can import from any metta.* package
+
+If `metta.backend` needs functionality from the main package, move the required code to `metta.common`.
+
 
 ### External Library Dependencies
 
