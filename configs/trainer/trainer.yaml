@@ -92,13 +92,13 @@ async_factor: 2
 scale_batches_by_world_size: false
 
 kickstart:
-  teacher_uri: null
-  action_loss_coef: 1
-  value_loss_coef: 1
-  anneal_ratio: 0.65 # ratio of kickstart_steps to anneal to 0 coef
+  teacher_uri: wandb://run/m.alexv.solo.fast.probe.20:v911 #null
+  action_loss_coef: 1.5
+  value_loss_coef: 3.5
+  anneal_ratio: 0.5 # ratio of kickstart_steps to anneal to 0 coef
   kickstart_steps: 1_000_000_000
   additional_teachers:
-    # - teacher_uri: wandb://run/m_alexv_ks_dr_lam_001:v22
+    # - teacher_uri: wandb://run/m.alexv.solo.fast.probe.20:v911
     #   action_loss_coef: 0.5
     #   value_loss_coef: 0.6
     #  - teacher_uri: wandb://run/mettabox_cogeval_defaults_lowent_initialized0005:v95
