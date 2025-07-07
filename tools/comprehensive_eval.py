@@ -21,10 +21,25 @@ import time
 from pathlib import Path
 from typing import Dict, List
 
+import numpy as np
 import pandas as pd
 import wandb
+import yaml
 
 from metta.common.util.logging import setup_mettagrid_logger
+
+
+class NumpyEncoder(json.JSONEncoder):
+    """Custom JSON encoder to handle numpy types."""
+
+    def default(self, obj):
+        if isinstance(obj, np.integer):
+            return int(obj)
+        elif isinstance(obj, np.floating):
+            return float(obj)
+        elif isinstance(obj, np.ndarray):
+            return obj.tolist()
+        return super().default(obj)
 
 
 class ComprehensiveEvaluator:
@@ -37,7 +52,94 @@ class ComprehensiveEvaluator:
         self.enable_wandb = enable_wandb
         self.wandb_run = None
 
-        # Define evaluation suites to run
+        # Define individual environments to run (all 80 environments)
+        self.individual_environments = [
+            # Navigation environments (26)
+            "navigation/emptyspace_withinsight",
+            "navigation/emptyspace_outofsight",
+            "navigation/emptyspace_sparse",
+            "navigation/walls_withinsight",
+            "navigation/walls_outofsight",
+            "navigation/walls_sparse",
+            "navigation/cylinder",
+            "navigation/obstacles0",
+            "navigation/obstacles1",
+            "navigation/obstacles2",
+            "navigation/obstacles3",
+            "navigation/corridors",
+            "navigation/labyrinth",
+            "navigation/radialmaze",
+            "navigation/cylinder_easy",
+            "navigation/honeypot",
+            "navigation/knotty",
+            "navigation/memory_palace",
+            "navigation/radial_large",
+            "navigation/radial_mini",
+            "navigation/radial_small",
+            "navigation/swirls",
+            "navigation/thecube",
+            "navigation/walkaround",
+            "navigation/wanderout",
+            # Object Use environments (13)
+            "object_use/altar_use_free",
+            "object_use/armory_use_free",
+            "object_use/armory_use",
+            "object_use/generator_use_free",
+            "object_use/generator_use",
+            "object_use/lasery_use_free",
+            "object_use/lasery_use",
+            "object_use/mine_use",
+            "object_use/shoot_out",
+            "object_use/swap_in",
+            "object_use/swap_out",
+            "object_use/temple_use_free",
+            "object_use/full_sequence",
+            # Memory environments (25)
+            "memory/easy",
+            "memory/medium",
+            "memory/hard",
+            "memory/access_cross",
+            "memory/boxout",
+            "memory/choose_wisely",
+            "memory/corners",
+            "memory/easy_sequence",
+            "memory/hall_of_mirrors",
+            "memory/hard_sequence",
+            "memory/journey_home",
+            "memory/little_landmark_easy",
+            "memory/little_landmark_hard",
+            "memory/lobster_legs_cues",
+            "memory/lobster_legs",
+            "memory/medium_sequence",
+            "memory/memory_swirls_hard",
+            "memory/memory_swirls",
+            "memory/passing_things",
+            "memory/spacey_memory",
+            "memory/tease",
+            "memory/venture_out",
+            "memory/which_way",
+            "memory/tease_small",
+            "memory/you_shall_not_pass",
+            # Navigation Sequence environments (16)
+            "navigation_sequence/cylinder",
+            "navigation_sequence/obstacles0",
+            "navigation_sequence/obstacles1",
+            "navigation_sequence/obstacles2",
+            "navigation_sequence/obstacles3",
+            "navigation_sequence/corridors",
+            "navigation_sequence/cylinder_easy",
+            "navigation_sequence/honeypot",
+            "navigation_sequence/knotty",
+            "navigation_sequence/memory_palace",
+            "navigation_sequence/radial_large",
+            "navigation_sequence/radial_mini",
+            "navigation_sequence/radial_small",
+            "navigation_sequence/swirls",
+            "navigation_sequence/thecube",
+            "navigation_sequence/walkaround",
+        ]
+
+        # Keep the original eval_suites for backward compatibility
         self.eval_suites = [
             "navigation",
             "object_use",
@@ -125,6 +227,111 @@ class ComprehensiveEvaluator:
                 fixed_uris.append(uri)
 
         return fixed_uris
+
+    def run_single_environment_evaluation(self, policy_uri: str, env_name: str, run_id: str) -> Dict:
+        """
+        Run evaluation for a single policy on a specific individual environment.
+
+        Args:
+            policy_uri: Policy URI to evaluate
+            env_name: Individual environment name (e.g., "navigation/cylinder")
+            run_id: Unique run identifier
+
+        Returns:
+            Dictionary with evaluation results
+        """
+        # Create unique run name
+        policy_name = policy_uri.replace("wandb://run/", "").replace("/", "_")
+        run_name = f"{env_name.replace('/', '_')}_{policy_name}_{run_id}"
+
+        # Extract the main suite name for the eval_db_uri
+        suite_name = env_name.split("/")[0]
+
+        # Create a temporary config file for this specific environment
+        # Create a minimal config that only includes this environment
+        temp_config = {
+            "defaults": ["sim_suite", "_self_"],
+            "name": suite_name,
+            "simulations": {env_name: {"env": f"env/mettagrid/{env_name.replace('/', '/evals/')}"}},
+        }
+
+        # Write temporary config file in configs directory so Hydra can find it
+        temp_config_name = f"temp_{env_name.replace('/', '_')}_{run_id}.yaml"
+        temp_config_path = Path("configs/sim") / temp_config_name
+
+        with open(temp_config_path, "w") as f:
+            yaml.dump(temp_config, f)
+
+        # Build sim.py command for individual environment
+        cmd = [
+            "./tools/sim.py",
+            f"sim={temp_config_name.replace('.yaml', '')}",
+            f"run={run_name}",
+            f"policy_uri={policy_uri}",
+            f"+eval_db_uri=wandb://stats/{suite_name}_comprehensive_db",
+            "seed=42",  # Fixed seed for reproducibility
+            "torch_deterministic=True",
+            "device=cpu",  # Use CPU for consistency
+        ]
+
+        self.logger.info(f"Running evaluation: {' '.join(cmd)}")
+
+        try:
+            # Run the evaluation
+            start_time = time.time()
+            result = subprocess.run(cmd, capture_output=True, text=True, check=True, cwd=Path.cwd())
+            end_time = time.time()
+
+            # Parse JSON output from sim.py
+            output_lines = result.stdout.split("\n")
+            json_start = None
+            json_end = None
+
+            for i, line in enumerate(output_lines):
+                if line.strip() == "===JSON_OUTPUT_START===":
+                    json_start = i + 1
+                elif line.strip() == "===JSON_OUTPUT_END===":
+                    json_end = i
+                    break
+
+            if json_start is not None and json_end is not None:
+                json_str = "\n".join(output_lines[json_start:json_end])
+                eval_results = json.loads(json_str)
+            else:
+                self.logger.warning(f"Could not parse JSON output for {policy_uri}")
+                eval_results = {"error": "Could not parse output"}
+
+            return {
+                "policy_uri": policy_uri,
+                "environment": env_name,
+                "eval_suite": suite_name,
+                "run_name": run_name,
+                "success": True,
+                "execution_time": end_time - start_time,
+                "results": eval_results,
+                "stdout": result.stdout,
+                "stderr": result.stderr,
+            }
+
+        except subprocess.CalledProcessError as e:
+            self.logger.error(f"Evaluation failed for {policy_uri} on {env_name}: {e}")
+            return {
+                "policy_uri": policy_uri,
+                "environment": env_name,
+                "eval_suite": suite_name,
+                "run_name": run_name,
+                "success": False,
+                "execution_time": 0,
+                "results": {"error": str(e)},
+                "stdout": e.stdout,
+                "stderr": e.stderr,
+            }
+        finally:
+            # Clean up temporary config file
+            try:
+                temp_config_path.unlink()
+            except Exception as e:
+                self.logger.warning(f"Failed to clean up temporary config file {temp_config_path}: {e}")
 
     def run_single_evaluation(self, policy_uri: str, eval_suite: str, run_id: str) -> Dict:
         """
@@ -219,7 +426,7 @@ class ComprehensiveEvaluator:
             "evaluations": [],
             "summary": {
                 "total_policies": len(policy_uris),
-                "total_evaluations": len(policy_uris) * len(self.eval_suites),
+                "total_evaluations": len(policy_uris) * len(self.individual_environments),
                 "successful_evaluations": 0,
                 "failed_evaluations": 0,
                 "total_execution_time": 0,
@@ -237,10 +444,10 @@ class ComprehensiveEvaluator:
             for i, policy_uri in enumerate(policy_uris):
                 self.logger.info(f"Evaluating policy {i + 1}/{len(policy_uris)}: {policy_uri}")
 
-                for eval_suite in self.eval_suites:
-                    self.logger.info(f"  Running {eval_suite} evaluation...")
+                for env_name in self.individual_environments:
+                    self.logger.info(f"  Running {env_name} evaluation...")
 
-                    result = self.run_single_evaluation(policy_uri, eval_suite, run_id)
+                    result = self.run_single_environment_evaluation(policy_uri, env_name, run_id)
                     all_results["evaluations"].append(result)
 
                     # Log to wandb if enabled
@@ -269,7 +476,7 @@ class ComprehensiveEvaluator:
             evaluation_results: Results from run_comprehensive_evaluation
 
         Returns:
-            DataFrame with performance matrix (policies × evaluations)
+            DataFrame with performance matrix (policies × individual environments)
         """
         performance_data = []
 
@@ -278,6 +485,7 @@ class ComprehensiveEvaluator:
                 continue
 
             policy_uri = eval_result["policy_uri"]
+            environment = eval_result.get("environment", eval_result["eval_suite"])  # Use environment if available
             eval_suite = eval_result["eval_suite"]
             results = eval_result["results"]
 
@@ -295,6 +503,7 @@ class ComprehensiveEvaluator:
                         {
                             "policy_uri": policy_uri,
                             "policy_name": policy_uri.replace("wandb://run/", ""),
+                            "environment": environment,
                             "eval_suite": eval_suite,
                             "reward_avg": reward_avg,
                             "success": eval_result["success"],
@@ -309,16 +518,16 @@ class ComprehensiveEvaluator:
         # Save full evaluation results
         results_file = self.output_dir / "comprehensive_evaluation_results.json"
         with open(results_file, "w") as f:
-            json.dump(evaluation_results, f, indent=2, default=str)
+            json.dump(evaluation_results, f, indent=2, cls=NumpyEncoder)
 
         # Save performance data
         performance_file = self.output_dir / "performance_data.csv"
         performance_data.to_csv(performance_file, index=False)
 
-        # Create performance matrix for factor analysis
+        # Create performance matrix for factor analysis (policies × individual environments)
         if not performance_data.empty:
             performance_matrix = performance_data.pivot_table(
-                index="policy_name", columns="eval_suite", values="reward_avg", fill_value=0.0
+                index="policy_name", columns="environment", values="reward_avg", fill_value=0.0
             )
 
             matrix_file = self.output_dir / "comprehensive_performance_matrix.csv"
@@ -328,18 +537,27 @@ class ComprehensiveEvaluator:
             matrix_metadata = {
                 "shape": performance_matrix.shape,
                 "policies": list(performance_matrix.index),
-                "evaluations": list(performance_matrix.columns),
+                "environments": list(performance_matrix.columns),
                 "missing_values": performance_matrix.isnull().sum().sum(),
+                "total_environments": len(self.individual_environments),
+                "environment_breakdown": {
+                    "navigation": len([e for e in self.individual_environments if e.startswith("navigation/")]),
+                    "object_use": len([e for e in self.individual_environments if e.startswith("object_use/")]),
+                    "memory": len([e for e in self.individual_environments if e.startswith("memory/")]),
+                    "navigation_sequence": len(
+                        [e for e in self.individual_environments if e.startswith("navigation_sequence/")]
+                    ),
+                },
             }
 
             metadata_file = self.output_dir / "performance_matrix_metadata.json"
             with open(metadata_file, "w") as f:
-                json.dump(matrix_metadata, f, indent=2)
+                json.dump(matrix_metadata, f, indent=2, cls=NumpyEncoder)
 
         # Save summary statistics
         summary_file = self.output_dir / "evaluation_summary.json"
         with open(summary_file, "w") as f:
-            json.dump(evaluation_results["summary"], f, indent=2)
+            json.dump(evaluation_results["summary"], f, indent=2, cls=NumpyEncoder)
 
         self.logger.info(f"Results saved to {self.output_dir}")
         self.logger.info(f"  - Full results: {results_file}")
@@ -391,9 +609,54 @@ def main():
         # Save results
         evaluator.save_results(evaluation_results, performance_data)
 
-        # Print summary
+        # Print detailed performance arrays for each policy
+        print("\n" + "=" * 80)
+        print("DETAILED PERFORMANCE ARRAYS FOR EACH POLICY")
+        print("=" * 80)
+
+        if not performance_data.empty:
+            # Group by policy and show individual environment results
+            for policy_uri in performance_data["policy_uri"].unique():
+                policy_data = performance_data[performance_data["policy_uri"] == policy_uri]
+                policy_name = policy_data["policy_name"].iloc[0]
+
+                print(f"\nPolicy: {policy_name}")
+                print(f"URI: {policy_uri}")
+                print("-" * 80)
+
+                # Create a dictionary of results by environment
+                env_results = {}
+                for _, row in policy_data.iterrows():
+                    env_results[row["environment"]] = row["reward_avg"]
+
+                # Print results grouped by suite
+                suite_names = ["navigation", "object_use", "memory", "navigation_sequence"]
+                for suite in suite_names:
+                    print(f"\n  {suite.upper()} ENVIRONMENTS:")
+                    suite_envs = [e for e in evaluator.individual_environments if e.startswith(f"{suite}/")]
+                    for env in suite_envs:
+                        reward = env_results.get(env, "FAILED")
+                        print(f"    {env:35}: {reward}")
+
+                # Calculate and print statistics
+                successful_rewards = [r for r in env_results.values() if isinstance(r, (int, float))]
+                if successful_rewards:
+                    print("\n  Statistics:")
+                    print(f"    Mean reward: {sum(successful_rewards) / len(successful_rewards):.4f}")
+                    print(f"    Min reward: {min(successful_rewards):.4f}")
+                    print(f"    Max reward: {max(successful_rewards):.4f}")
+                    print(
+                        f"    Successful environments: "
+                        f"{len(successful_rewards)}/{len(evaluator.individual_environments)}"
+                    )
+                else:
+                    print("\n  Statistics: No successful evaluations")
+
+        # Also print summary
         summary = evaluation_results["summary"]
-        print("\nEvaluation Summary:")
+        print("\n" + "=" * 80)
+        print("OVERALL SUMMARY")
+        print("=" * 80)
         print(f"  Total policies: {summary['total_policies']}")
         print(f"  Total evaluations: {summary['total_evaluations']}")
         print(f"  Successful: {summary['successful_evaluations']}")
@@ -403,8 +666,13 @@ def main():
         if not performance_data.empty:
             print(
                 f"  Performance matrix shape: "
-                f"{performance_data.pivot_table(index='policy_name', columns='eval_suite', values='reward_avg').shape}"
+                f"{performance_data.pivot_table(index='policy_name', columns='environment', values='reward_avg').shape}"
             )
+            print(f"  Total individual environments: {len(evaluator.individual_environments)}")
+            print("  Environment breakdown:")
+            for suite in ["navigation", "object_use", "memory", "navigation_sequence"]:
+                count = len([e for e in evaluator.individual_environments if e.startswith(f"{suite}/")])
+                print(f"    {suite}: {count}")
 
         return 0
 

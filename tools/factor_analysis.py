@@ -126,7 +126,9 @@ class PolicyFactorAnalyzer:
         env_correlation_matrix = performance_matrix_scaled.corr()
 
         self.logger.info(f"Environment correlation matrix shape: {env_correlation_matrix.shape}")
-        self.logger.info(f"Correlation range: [{env_correlation_matrix.values.min():.3f}, {env_correlation_matrix.values.max():.3f}]")
+        self.logger.info(
+            f"Correlation range: [{env_correlation_matrix.values.min():.3f}, {env_correlation_matrix.values.max():.3f}]"
+        )
 
         return env_correlation_matrix
 
@@ -228,7 +230,7 @@ class PolicyFactorAnalyzer:
             "factor_loadings": {},
             "factor_interpretations": [],
             "environment_representations": {},
-            "environment_clusters": {}
+            "environment_clusters": {},
         }
 
         # Analyze each factor
@@ -270,7 +272,9 @@ class PolicyFactorAnalyzer:
             factor_analysis["environment_representations"][env_name] = {
                 "factor_loadings": env_representation.tolist(),
                 "total_strength": np.linalg.norm(env_representation),
-                "dominant_factors": [(i, abs(env_representation[i])) for i in np.argsort(np.abs(env_representation))[-3:][::-1]]
+                "dominant_factors": [
+                    (i, abs(env_representation[i])) for i in np.argsort(np.abs(env_representation))[-3:][::-1]
+                ],
             }
 
         return factor_analysis
@@ -564,7 +568,9 @@ def main():
         em_results = analyzer.expectation_maximization_analysis(data_array, optimal_n_factors)
 
         # Analyze factor structure
-        factor_analysis = analyzer.analyze_factor_structure(em_results["factors"], env_correlation_matrix.columns.tolist())
+        factor_analysis = analyzer.analyze_factor_structure(
+            em_results["factors"], env_correlation_matrix.columns.tolist()
+        )
 
         # Cluster environments (not policies)
         clustering = analyzer.cluster_policies(em_results["factor_scores"], env_correlation_matrix.index.tolist())
