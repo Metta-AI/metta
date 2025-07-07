@@ -68,12 +68,12 @@ class Kickstarter:
             policy.action_loss_coef = teacher_cfg.action_loss_coef
             policy.value_loss_coef = teacher_cfg.value_loss_coef
             # Support both new and old initialization methods
-            if hasattr(policy, "initialize_to_environment"):
-                # Note: We don't have features here, so we pass None
-                # The policy should handle this gracefully
-                policy.initialize_to_environment(None, self.action_names, self.action_max_params, self.device)
-            else:
-                policy.activate_actions(self.action_names, self.action_max_params, self.device)
+            # if hasattr(policy, "initialize_to_environment"):
+            #     # Note: We don't have features here, so we pass None
+            #     # The policy should handle this gracefully
+            #     policy.initialize_to_environment(None, self.action_names, self.action_max_params, self.device)
+            # else:
+            policy.activate_actions(self.action_names, self.action_max_params, self.device)
             self.teachers.append(policy)
 
     def loss(
