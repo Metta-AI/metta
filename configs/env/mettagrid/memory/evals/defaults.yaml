@@ -16,6 +16,7 @@ game:
     border_width: 3
   objects:
     altar:
+      type_id: 8
       input_battery_red: 1
       output_heart: 1
       max_output: 1
@@ -23,6 +24,7 @@ game:
       cooldown: 255
       initial_items: 0
     mine_red:
+      type_id: 9
       output_ore_red: 1
       color: 0
       max_output: 1
@@ -30,9 +32,35 @@ game:
       cooldown: 10
       initial_items: 1
     generator_red:
+      type_id: 10
       input_ore_red: 1
       output_battery_red: 1
       color: 0
+      max_output: 1
+      conversion_ticks: 1
+      cooldown: 10
+      initial_items: 0
+    mine_green:
+      type_id: 16
+      output_ore_green: 1
+      color: 1
+      max_output: 1
+      conversion_ticks: 1
+      cooldown: 10
+      initial_items: 1
+    mine_blue:
+      type_id: 17
+      output_ore_blue: 1
+      color: 2
+      max_output: 1
+      conversion_ticks: 1
+      cooldown: 10
+      initial_items: 1
+    generator_green:
+      type_id: 18
+      input_ore_green: 1
+      output_battery_green: 1
+      color: 1
       max_output: 1
       conversion_ticks: 1
       cooldown: 10

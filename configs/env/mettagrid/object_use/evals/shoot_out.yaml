@@ -1,5 +1,5 @@
 defaults:
-  - /env/mettagrid/mettagrid@
+  - /env/mettagrid/object_use/evals/defaults@
   - _self_
 
 game:
@@ -11,9 +11,6 @@ game:
   objects:
     altar:
       cooldown: 255
-
-    lasery:
-      initial_items: 20
   map_builder:
     _target_: metta.mettagrid.room.ascii.Ascii
     border_width: 1

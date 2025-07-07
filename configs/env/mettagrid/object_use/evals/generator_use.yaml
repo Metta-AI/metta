@@ -11,6 +11,11 @@ game:
       ore_blue: 0
       ore_green: 0
   map_builder:
+    _target_: metta.mettagrid.room.random.Random
+    width: 11
+    height: 11
+    border_width: 3
+    agents: 1
     objects:
       generator_red: 1
       mine_red: 1

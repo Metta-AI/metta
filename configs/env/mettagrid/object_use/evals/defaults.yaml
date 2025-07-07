@@ -8,13 +8,8 @@ game:
   agent:
     rewards:
       heart: 1
-  map_builder:
-    _target_: metta.mettagrid.room.mean_distance.MeanDistance
-    width: 11
-    height: 11
-    mean_distance: 6
-    border_width: 3
-    agents: 1
+
+
 
   objects:
     altar:
@@ -54,6 +49,24 @@ game:
       input_battery_red: 2
       output_laser: 1
       max_output: 5
+      conversion_ticks: 1
+      cooldown: 10
+      initial_items: 0
+    lab:
+      type_id: 13
+      input_ore_red: 3
+      input_battery_red: 3
+      output_blueprint: 1
+      max_output: 5
+      conversion_ticks: 1
+      cooldown: 5
+      initial_items: 0
+    temple:
+      type_id: 15
+      input_ore_red: 5
+      input_battery_red: 5
+      output_heart: 1
+      max_output: 3
       conversion_ticks: 1
       cooldown: 10
       initial_items: 0

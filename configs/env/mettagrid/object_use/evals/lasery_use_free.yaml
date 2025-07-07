@@ -8,5 +8,10 @@ game:
     rewards:
       laser: 1
   map_builder:
+    _target_: metta.mettagrid.room.random.Random
+    width: 11
+    height: 11
+    border_width: 3
+    agents: 1
     objects:
       lasery: 1
