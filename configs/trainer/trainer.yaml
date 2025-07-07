@@ -92,7 +92,7 @@ async_factor: 2
 scale_batches_by_world_size: false
 
 kickstart:
-  teacher_uri: wandb://run/m.alexv.solo.fast.probe.20:v911 #null
+  teacher_uri: wandb://run/m.alexv.solo.fast.probe.20b:v100 #null
   action_loss_coef: 0.8
   value_loss_coef: 3.5
   anneal_ratio: 0.5 # ratio of kickstart_steps to anneal to 0 coef
