@@ -1,0 +1,62 @@
+name: "Mettascope UI Test (Headless Chrome)"
+
+on:
+  pull_request:
+    paths:
+      - "mettascope/**"
+      - ".github/workflows/test-mettascope.yml"
+  workflow_dispatch: {}
+
+jobs:
+  smoke-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: mettascope/package-lock.json
+
+      - name: Install Playwright (Chromium only)
+        run: |
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+
+      - name: Build Mettascope
+        run: |
+          cd mettascope
+          npm ci
+          npx tsc
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.7.3"
+          enable-cache: true
+
+      - name: Generate Atlas
+        run: |
+          cd mettascope
+          uv run tools/gen_atlas.py
+
+      - name: Run TypeScript smoke test
+        run: |
+          cd mettascope
+          # start the backend
+          python -m http.server 2000 &
+          echo "Started python http server"
+
+          # run tests
+          npm run test
+
+      - name: Upload test artifacts
+        uses: actions/upload-artifact@v4
+        if: ${{ !env.ACT }} # skip when testing locally with `act`
+        with:
+          name: playwright-test-results
+          path: mettascope/tests/test-results/
+          retention-days: 30
