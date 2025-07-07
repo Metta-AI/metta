@@ -2,6 +2,6 @@
 # But with converters that are easier to use.
 
 defaults:
-  - combat_easy
-  - /env/mettagrid/game/objects/combat_easy@game.objects
+  - advanced
+  - /env/mettagrid/game/objects/advanced_easy@game.objects
   - _self_
