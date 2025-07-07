@@ -1,0 +1,154 @@
+## Replay format specification version 2:
+
+MettaScope uses a custom replay format to store the replay data. The replay is a zlib compressed json file with `.json.z` extension.
+
+Here is an example of how to read the file, from python:
+
+```python
+file_name = "replay.json.z"
+with open(file_name, "rb") as file:
+    compressed_data = file.read()
+decompressed_data = zlib.decompress(compressed_data)
+json_data = json.loads(decompressed_data)
+```
+
+In javascript its a bit more complicated, but you can use the `decompressStream` with a streaming api.
+
+The first key in the format is `version` which is a number that contains the version of the replay format. Valid values are `1`, `2`, etc... This document describes version 2.
+
+```json
+{
+  "version": 2,
+  ...
+}
+```
+
+These are the constants that are stored at the top of the replay.
+
+* `num_agents` - The number of agents in the replay.
+* `max_steps` - The maximum number of steps in the replay.
+* `map_size` - The size of the map. No object may move outside of the map bounds.
+
+```json
+{
+  ...
+  "num_agents": 24,
+  "max_steps": 1000,
+  "map_size": [62, 62],
+  ...
+}
+```
+
+There are several key to string mappings arrays that are stored in the replay. We don't want to store full strings everywhere so we store `type_id`, `action_id`, `items`, `group_id` as numbers. They correspond to `type_names`, `action_names`, `item_names`, `group_names`.
+
+```json
+{
+  ...
+  "type_names": ["agent", "wall", "altar", ... ],
+  "action_names": ["noop", "move", "rotate", ... ],
+  "item_names": ["hearts", "coconuts", ... ],
+  "group_names": ["group1", "group2", ... ],
+  ...
+}
+```
+
+## Objects and time series
+
+The most important key in the format is `objects` which is a list of objects that are in the replay. Everything is an object - wall, buildings, and agents.
+
+```json
+{
+  ...
+  "objects": [
+    {...},
+    {...},
+    {...},
+    ...
+  ],
+  ...
+}
+```
+
+Objects are stored in a condensed format. Every field of the object either a constant or time series of values. The time series is a list of tuples, where the first element is the step and the second element is the value which can be a number, boolean or a list of numbers.
+
+```json
+{
+  "type_id": 2,
+  "id": 99,
+  "agent_id": 0,
+  "rotation": [[0, 1], [10, 2], [20, 3]],
+  "position": [[0, [10, 10]], [1, [11, 10]], [2, [12, 11]]],
+  "items": [[0, []], [100, [1]], [200, [1, 1]]],
+}
+```
+
+In this example, the agent `type_id` - 2 in this case never changes, so its a constant. When looking up `type_names[type_id]` we get the name of the type we get `"agent"`. The mapping between ids and names can change between replays. The `id` is a constant as well. All objects have ids. The `agent_id` is a constant as well. Note there are two ids, one for the object and one for the agent. Agents have two ids. The `rotation` is a time series of values. The rotation is 1 at step 0, 2 at step 10, and 3 at step 20.
+
+Here is the expanded version of the `rotation` key:
+
+```json
+{
+  "rotation": [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3]
+}
+```
+
+You can either expand the whole time series on load or just use binary search to find the value at a specific step. At first I was using binary search, but expanding the time series is much faster. This is up to the implementation.
+
+The `position` key is a time series of tuples, where the first element is the step and the second element is the position which is a list of two numbers for x and y.
+
+The `items` key is a time series of tuples, where the first element is the step and the second element is the list of item_ids. It starts empty and then adds items at step 100, 200, etc...
+
+## Key reference
+
+Here are the keys supported for both agents and objects:
+
+* `type_id` - Usually a constant. The type of the object that references the `type_names` array.
+* `id` - Usually a constant. The id of the object.
+* `position` - The [x, y] position of the object (some times called the column and row)
+* `layer` - The layer of the object.
+* `rotation` - The rotation of the object.
+* `inventory` - list of item_ids that map to the `item_names` array. Example: `[0, 0, 1]` if `item_names = ["hearts", "bread"]` then inventory is 2 hearts and 1 bread. The count is how many times the item repeats in the list.
+* `inventory_max` - Usually a constant. Maximum number of items that can be in the inventory.
+
+Agent specific keys:
+
+* `agent_id` - Usually a constant. The id of the agent.
+* `action_id` - The action of the agent that references the `action_names` array.
+* `action_parameter` - Single value for the action. If `action_names[action_id] == "rotate" and action_parameter == 3` means move to the right. The implementation does not need to know this as it can be inferred from the rotation and x, y positions.
+* `action_success` - Boolean value that indicates if the action was successful.
+* `total_reward` - The total reward of the agent.
+* `current_reward` - The reward of the agent for the current step.
+* `frozen` - Boolean value that indicates if the agent is frozen.
+* `frozen_progress` - A count down from `frozen_time` to 0 that indicates how many steps are left to unfreeze the agent.
+* `frozen_time` - Usually a constant. How many steps does it take to unfreeze the agent.
+* `group_id` - The id of the group the object belongs to.
+
+Object specific keys:
+
+* `recipe_input` - Usually a constant. A list of item_ids that map to the `item_names` array. Example: `[0, 0, 1]` if `item_names = ["hearts", "bread"]` then recipe_input is 2 hearts and 1 bread. The count is how many times the item repeats in the list.
+* `recipe_output` - Usually a constant. A list of item_ids that map to the `item_names` array. Example: `[0, 0, 0, 0]` if `item_names = ["hearts", ...]` then recipe_output is 4 hearts. The count is how many times the item repeats in the list.
+* `recipe_max` - Usually a constant. Maximum number of `recipe_output` items that can be produced by the recipe before stopping.
+* `production_progress` - Current progress of the recipe. Starts at 0 and goes until `production_time` is reached.
+* `production_time` - Usually a constant. How many steps does it take to produce the recipe.
+* `cooldown_progress` - How many steps are left to cooldown after producing the recipe. Starts at 0 and goes until `production_time` is reached.
+* `cooldown_time` - Usually a constant. How many steps does it take to cooldown after producing the recipe.
+
+Keys are allowed be missing. If a key is missing missing keys is always 0, false, or []. Extra keys are ignored but can be used by later implementations. If time series start from some other step like 100, then the first 99 steps are just the default value.
+
+
+## Reward sharing matrix
+
+Reward sharing matrix is a constant to stores the reward sharing between agents. It is a two dimensional array of numbers. The first dimension is agent_id taking the action and the second dimension agent_id receiving the reward. If you look closer, in this 4x4 matrix you can see that there are two groups sharing 10% of reward with each other, agents don't share reward with themselves.
+
+```json
+{
+  ...
+  "reward_sharing_matrix": [
+    [0.0, 0.1, 0.0, 0.0],
+    [0.1, 0.0, 0.0, 0.0],
+    [0.0, 0.0, 0.0, 0.1],
+    [0.0, 0.0, 0.1, 0.0],
+  ]
+  ...
+}
+```
