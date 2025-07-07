@@ -17,21 +17,10 @@ checkpoint:
   checkpoint_interval: 50
   wandb_checkpoint_interval: 50
 
-<<<<<<< HEAD
-evaluate_interval: 300
-checkpoint_interval: 60
-wandb_checkpoint_interval: 300
-grad_mean_variance_interval: 0 # 0 to disable
-replay_interval: ${trainer.evaluate_interval}
-replay_dir: s3://softmax-public/replays/${run}
-
-total_timesteps: 50_000_000_000
-=======
 simulation:
   evaluate_interval: 200
   replay_interval: 50
   replay_dir: s3://softmax-public/replays/${run}
->>>>>>> 6ee0ecab76749ba987f661aa7b07a2710f090956
 
 grad_mean_variance_interval: 0 # 0 to disable
 
