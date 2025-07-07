@@ -1,0 +1,6 @@
+policy_id,policy_name,policy_description,policy_url,created_at,epoch_id,avg_reward,episode_count,reward_std,min_reward,max_reward
+48186228-2ec2-41c9-a7f4-1cc7143643ca,george.deane.navigation.baseline.06-19.2:v10,,wandb://metta-research/metta/george.deane.navigation.baseline.06-19.2:v10,2025-07-01T16:00:46.196272,,0.4464850862797234,1601,1.571320426277444,0.0,15.0
+ed93adfb-99be-4bf5-b572-02320103bdfb,nishad-test-pytorch-profiling-change:v36,,wandb://metta/nishad-test-pytorch-profiling-change:v36,2025-07-03T20:34:53.050634,375eb155-71c5-49eb-8e48-5fcb41f7d5bd,0.2590000033378601,18,0.2692145472598296,0.0,0.666
+8433950b-31ec-41af-8881-259300a1ab81,b.jacke.basic_simple_update_branch:v46,,wandb://metta/b.jacke.basic_simple_update_branch:v46,2025-07-03T18:23:45.405502,77bc330d-b4ea-4538-bc96-86e9da527bca,0.2574318200349808,44,0.34364911900324485,0.0,1.0
+6e5380e8-d81c-49cd-bc7f-56720fcd8c6b,b.jacke.four_teams_shared_spikefix:v8,,wandb://metta/b.jacke.four_teams_shared_spikefix:v8,2025-06-28T10:53:25.019601,a6b88777-5735-4aae-a2aa-8c26e482b34b,0.2542368440251601,38,0.33264967763206527,0.0,1.0
+2b328cea-2e10-447e-9365-c3aadb591fb4,nishad-test-pytorch-profiling-change-2:v11,,wandb://metta/nishad-test-pytorch-profiling-change-2:v11,2025-07-03T11:51:14.127224,cab55fb4-4a15-4c7c-9741-332b9d8e77ca,0.2264400029182434,25,0.18540655567166495,0.0,0.666
