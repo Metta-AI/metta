@@ -14,24 +14,33 @@ This document outlines the organization structure for the Metta monorepo, balanc
 5. **Pragmatic Grouping**: Group related functionality to avoid excessive fragmentation
 6. **Pragmatic PEP 420**: Follow PEP 420 patterns in subpackages but use `__init__.py` files as needed
 
+## Development Workflow
+
+All packages remain in the monorepo with:
+- Shared tooling configuration
+- Unified testing and CI/CD
+- Consistent code formatting and linting
+- Single `uv.lock` for dependency management
+- Common development environment setup
+
 ## Package Structure
 
 ```
 metta/
-├── src/                   # Core Python package
-├── common/                # Shared utilities
+├── src/                  # Core Python package
+├── common/               # Shared utilities
 ├── mettagrid/            # C++ environment
 ├── backend/              # Backend services
 ├── apps/                 # All applications (web, desktop, etc.)
 │   ├── shared/           # Shared app code
 │   ├── observatory/      # Production web app
-│   ├── mettascope/      # Replay viewer
-│   └── studio/          # Development UI
-├── configs/              # Configurations
+│   ├── mettascope/       # Replay viewer
+│   └── studio/           # Development UI
+├── configs/              # Hydra configurations
 ├── tools/                # CLI tools
 ├── recipes/              # Example programs
 ├── docs/                 # Documentation
-└── devops/              # Deployment/setup
+└── devops/               # Deployment/setup
 ```
 
 ### Core Packages (6 total)
@@ -52,16 +61,16 @@ metta/
 ├── recipes/               # Common training and evaluation programs
 ├── docs/                  # Documentation
 ├── devops/                # Machine and cloud setup
-├── common/                # Shared utilities package
+├── common/                # Shared utilities package (PEP420)
 │   └── src/
 │       └── metta/
 │           └── common/    # metta.common namespace
-├── mettagrid/             # C++/PyBind environment package
+├── mettagrid/             # C++/PyBind environment package (PEP420)
 │   ├── src/
 │   │   └── metta/
 │   │       └── mettagrid/ # metta.mettagrid namespace
 │   └── CMakeLists.txt
-├── backend/               # Remote services package
+├── backend/               # Remote services package (PEP420)
 │   └── src/
 │       └── metta/
 │           └── backend/   # metta.backend namespace
@@ -194,31 +203,6 @@ graph TD
 4. Remove `__init__.py` files as tooling improves
 
 
-## Development Workflow
-
-All packages remain in the monorepo with:
-- Shared tooling configuration
-- Unified testing and CI/CD
-- Consistent code formatting and linting
-- Single `uv.lock` for dependency management
-- Common development environment setup
-
-## Future Considerations
-
-- **Scaling**: If a component exceeds 10k LOC, consider splitting
-- **Deployment**: If requirements diverge, packages can be separated
-- **Dependencies**: Monitor complexity and refactor if cycles emerge
-- **Standards**: Adopt full PEP 420 compliance as tooling matures
-
-## Benefits
-
-This structure provides:
-- **Clean imports**: Simple, predictable namespace
-- **Minimal nesting**: Easy navigation and discovery
-- **Clear boundaries**: Well-defined package responsibilities
-- **Flexibility**: Can evolve without major restructuring
-- **Pragmatism**: Works with current tooling while preparing for future
-
 ## Documentation Strategy
 
 ### Documentation Types and Purposes
@@ -236,11 +220,11 @@ Each package maintains its own documentation suited to its complexity:
 ```
 package/
 ├── README.md              # Required: Package overview and usage
-├── CLAUDE.md              # Optional: Only for complex packages
+├── CLAUDE.md              # Optional
 └── src/
     └── complex_module/
-        ├── README.md      # Optional: Only if module has 10+ subfolders
-        └── CLAUDE.md      # Optional: Only if module has non-obvious patterns
+        ├── README.md      # Optional
+        └── CLAUDE.md      # Optional
 ```
 
 #### README.md Guidelines
@@ -287,79 +271,22 @@ docs/
 
 Follow this decision tree for where to document:
 
+```mermaid
+flowchart TD
+    Start{Is it about using<br/>the package?}
+    Start -->|YES| PkgReadme[Package README.md]
+    Start -->|NO| CompGuide{Is it a<br/>comprehensive guide?}
+
+    PkgReadme --> Complex{Complex topic?}
+    Complex -->|YES| LinkDocs[Link to docs/guides/]
+
+    CompGuide -->|YES| DocsGuides[docs/guides/]
+    CompGuide -->|NO| ApiRef{Is it API<br/>reference?}
+
+    ApiRef -->|YES| DocsApi[docs/api/]
+    ApiRef -->|NO| DocsDev[docs/development/]
 ```
-Is it about using the package?
-├─ YES → Package README.md
-│        └─ Complex topic? → Link to docs/guides/
-└─ NO
-   │
-   Is it about architecture/patterns?
-   ├─ YES → Package has complex patterns?
-   │        ├─ YES → Package CLAUDE.md
-   │        └─ NO → Root CLAUDE.md
-   └─ NO
-      │
-      Is it a comprehensive guide?
-      ├─ YES → docs/guides/
-      └─ NO
-         │
-         Is it API reference?
-         ├─ YES → docs/api/
-         └─ NO → docs/development/
-```
-
-### Content Guidelines
-
-#### What Goes Where
-
-**Package README.md**:
-- Installation instructions
-- Quick examples
-- Package-specific configuration
-- Basic troubleshooting
-- Links to detailed docs
-
-**Root/Package CLAUDE.md**:
-- Why architectural decisions were made
-- Complex relationships between components
-- Non-obvious implementation details
-- Common AI assistant misconceptions
-- Design patterns and anti-patterns
-
-**docs/ folder**:
-- Multi-page guides
-- Comprehensive API documentation
-- Cross-package workflows
-- Detailed metric explanations
-- Development processes
-- Architecture diagrams
-
-### Practical Examples
-
-#### High-Complexity Package (needs all three)
-```
-mettagrid/
-├── README.md              # C++ build instructions, basic usage
-├── CLAUDE.md              # PyBind patterns, C++ conventions
-└── → docs/guides/mettagrid-advanced.md  # Detailed performance guide
-```
-
-#### Standard Package (README only)
-```
-common/
-├── README.md              # Utility functions, no complexity
-└── (no CLAUDE.md needed)
-```
-
-#### Module with Growing Complexity
-```
-src/rl/
-├── README.md              # RL algorithm overview
-├── CLAUDE.md              # RL implementation patterns
-└── algorithms/
-    └── (no README needed - under 10 subfolders)
-```
-
+`
 ### Maintenance Protocol
 
 1. **When adding features**: Update package README.md
