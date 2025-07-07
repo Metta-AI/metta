@@ -17,34 +17,34 @@ target_compile_definitions(mettagrid_base_flags INTERFACE
 )
 
 # ========================= WARNING FLAGS =========================
-# Always-on safety flags (minimal performance impact)
+# Core warnings (Wall and Wextra cover a lot)
+# Flags NOT in Wall/Wextra that add value:
 target_compile_options(mettagrid_warnings INTERFACE
   $<$<CXX_COMPILER_ID:GNU,Clang,AppleClang>:
     -Wall
     -Wextra
-    -Wuninitialized
-    -Winit-self
+    -Wpedantic
+    # Type safety and conversions
+    -Wconversion
+    -Wsign-conversion
+    -Wdouble-promotion
+    -Wold-style-cast
+    # Memory and alignment
+    -Wcast-align
+    -Wcast-qual
+    # C++ specific
+    -Woverloaded-virtual
+    -Wnon-virtual-dtor
+    # Logic and control flow
     -Wshadow
     -Wfloat-equal
     -Wnull-dereference
-    -Wformat=2
-    -Wconversion
-    -Wsign-conversion
-    -Wcast-align
-    -Wcast-qual
-    -Wold-style-cast
-    -Wpedantic
-    -Woverloaded-virtual
-    -Wnon-virtual-dtor
-    -Wdouble-promotion
     # Clang-specific useful warnings
     $<$<CXX_COMPILER_ID:Clang,AppleClang>:
       -Wthread-safety
-      -Wimplicit-fallthrough
     >
     # GCC-specific useful warnings
     $<$<CXX_COMPILER_ID:GNU>:
-      -Wmaybe-uninitialized
       -Wduplicated-cond
       -Wduplicated-branches
       -Wlogical-op
@@ -65,44 +65,26 @@ target_compile_options(mettagrid_warnings INTERFACE
 # Additional warnings for debug builds
 target_compile_options(mettagrid_debug_flags INTERFACE
   $<$<AND:$<CONFIG:Debug>,$<CXX_COMPILER_ID:GNU,Clang,AppleClang>>:
+    # Data flow analysis
     -Wstrict-overflow=5
-    -Wundef
-    -Wredundant-decls
-    -Wwrite-strings
-    -Wpointer-arith
-    -Wdate-time
-    -Wmissing-declarations
     -Wfloat-conversion
-    -Wshift-overflow=2
-    # Lifetime and memory warnings (Clang)
+    # Additional Clang analysis
     $<$<CXX_COMPILER_ID:Clang,AppleClang>:
       -Wdangling
-      -Wdangling-gsl
       -Wreturn-stack-address
       -Wloop-analysis
-      -Wstring-conversion
       -Wconditional-uninitialized
-      -Wsometimes-uninitialized
-      -Wstatic-in-inline
-      -Wunreachable-code-aggressive
-      -Wthread-safety-analysis
       -Wthread-safety-beta
       -Wshorten-64-to-32
     >
     # GCC-specific debug warnings
     $<$<CXX_COMPILER_ID:GNU>:
       -Wstack-usage=8192
-      -Wtrampolines
-      -Wvector-operation-performance
-      -Wdisabled-optimization
-      -Waggressive-loop-optimizations
       -Wstringop-truncation
       -Wformat-truncation=2
       -Wformat-overflow=2
       -Wstringop-overflow=4
       -Warray-bounds=2
-      -Wrestrict
-      -Wattribute-alias=2
     >
   >
 )
