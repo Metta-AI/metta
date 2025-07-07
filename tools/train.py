@@ -16,6 +16,7 @@ from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.script_decorators import get_metta_logger, metta_script
 from metta.common.util.stats_client_cfg import get_stats_client
 from metta.common.wandb.wandb_context import WandbContext, WandbRun
+from metta.rl.train_job_config import parse_train_job_config
 from metta.sim.simulation_config import SimulationSuiteConfig
 from tools.sweep_config_utils import load_train_job_config_with_overrides
 
@@ -30,30 +31,42 @@ class TrainJob(Config):
 def train(cfg: ListConfig | DictConfig, wandb_run: WandbRun | None, logger: Logger):
     cfg = load_train_job_config_with_overrides(cfg)
 
-    if os.environ.get("RANK", "0") == "0":
-        with open(os.path.join(cfg.run_dir, "config.yaml"), "w") as f:
-            OmegaConf.save(cfg, f)
+    # Parse to typed config early
+    train_config = parse_train_job_config(cfg)
 
-    train_job = TrainJob(cfg.train_job)
+    if os.environ.get("RANK", "0") == "0":
+        with open(os.path.join(train_config.run_dir, "config.yaml"), "w") as f:
+            OmegaConf.save(cfg, f)  # Save original for reference
 
     if torch.distributed.is_initialized():
         world_size = torch.distributed.get_world_size()
-        if cfg.trainer.scale_batches_by_world_size:
-            cfg.trainer.forward_pass_minibatch_target_size = (
-                cfg.trainer.forward_pass_minibatch_target_size // world_size
+        if train_config.trainer.scale_batches_by_world_size:
+            train_config.trainer.forward_pass_minibatch_target_size = (
+                train_config.trainer.forward_pass_minibatch_target_size // world_size
             )
-            cfg.trainer.batch_size = cfg.trainer.batch_size // world_size
+            train_config.trainer.batch_size = train_config.trainer.batch_size // world_size
 
-    policy_store = PolicyStore(cfg, wandb_run)
+    # Create PolicyStore with typed configs
+    policy_store = PolicyStore(
+        device=train_config.device,
+        policy_cache_size=train_config.policy_cache_size,
+        wandb_config=train_config.wandb if train_config.wandb.enabled else None,
+        data_dir=train_config.data_dir,
+        agent_config=train_config.agent,
+        pytorch_config=train_config.pytorch,
+        trainer_config=train_config.trainer,
+        wandb_run=wandb_run,
+    )
+
     stats_client: StatsClient | None = get_stats_client(cfg, logger)
 
-    # Instantiate the trainer directly with the typed config
+    # Create trainer with typed config
     trainer = hydra.utils.instantiate(
-        cfg.trainer,
-        cfg,
+        train_config.trainer.model_dump(by_alias=True),
+        cfg,  # Still pass original cfg for now
         wandb_run=wandb_run,
         policy_store=policy_store,
-        sim_suite_config=train_job.evals,
+        sim_suite_config=train_config.train_job.evals,
         stats_client=stats_client,
     )
     trainer.train()
@@ -69,19 +82,22 @@ def main(cfg: DictConfig) -> int:
     logger = get_metta_logger()
     logger.info(f"Train job config: {OmegaConf.to_yaml(cfg, resolve=True)}")
 
+    # Parse config early to get device
+    train_config = parse_train_job_config(cfg)
+
     logger.info(
-        f"Training {cfg.run} on "
+        f"Training {train_config.run} on "
         + f"{os.environ.get('NODE_INDEX', '0')}: "
-        + f"{os.environ.get('LOCAL_RANK', '0')} ({cfg.device})"
+        + f"{os.environ.get('LOCAL_RANK', '0')} ({train_config.device})"
     )
 
-    if "LOCAL_RANK" in os.environ and cfg.device.startswith("cuda"):
-        logger.info(f"Initializing distributed training with {os.environ['LOCAL_RANK']} {cfg.device}")
+    if "LOCAL_RANK" in os.environ and train_config.device.startswith("cuda"):
+        logger.info(f"Initializing distributed training with {os.environ['LOCAL_RANK']} {train_config.device}")
         local_rank = int(os.environ["LOCAL_RANK"])
-        cfg.device = f"{cfg.device}:{local_rank}"
+        cfg.device = f"{train_config.device}:{local_rank}"
         dist.init_process_group(backend="nccl")
 
-    logger.info(f"Training {cfg.run} on {cfg.device}")
+    logger.info(f"Training {train_config.run} on {cfg.device}")
     if os.environ.get("RANK", "0") == "0":
         with WandbContext(cfg.wandb, cfg) as wandb_run:
             train(cfg, wandb_run, logger)
