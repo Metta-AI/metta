@@ -1,52 +1,24 @@
 import copy
-from typing import Any, ClassVar, Dict, List
+from typing import Any
 
-from pydantic import ConfigDict, Field
-
-from metta.common.util.typed_config import BaseModelWithForbidExtra
 from metta.mettagrid.mettagrid_c import ActionConfig as ActionConfig_cpp
 from metta.mettagrid.mettagrid_c import AgentConfig as AgentConfig_cpp
 from metta.mettagrid.mettagrid_c import AttackActionConfig as AttackActionConfig_cpp
 from metta.mettagrid.mettagrid_c import ConverterConfig as ConverterConfig_cpp
+from metta.mettagrid.mettagrid_c import GameConfig as GameConfig_cpp
 from metta.mettagrid.mettagrid_c import WallConfig as WallConfig_cpp
 from metta.mettagrid.mettagrid_config import ConverterConfig as ConverterConfig_py
 from metta.mettagrid.mettagrid_config import GameConfig as GameConfig_py
 from metta.mettagrid.mettagrid_config import WallConfig as WallConfig_py
 
 
-class ActionsConfig_cpp(BaseModelWithForbidExtra):
-    """Actions configuration."""
-
-    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
-
-    noop: ActionConfig_cpp
-    move: ActionConfig_cpp
-    rotate: ActionConfig_cpp
-    put_items: ActionConfig_cpp
-    get_items: ActionConfig_cpp
-    attack: AttackActionConfig_cpp
-    swap: ActionConfig_cpp
-    change_color: ActionConfig_cpp
-
-
-class GameConfig_cpp(BaseModelWithForbidExtra):
-    """Game configuration."""
-
-    inventory_item_names: List[str]
-    num_agents: int = Field(ge=1)
-    max_steps: int = Field(ge=0)
-    obs_width: int = Field(ge=1)
-    obs_height: int = Field(ge=1)
-    num_observation_tokens: int = Field(ge=1)
-    actions: ActionsConfig_cpp
-    objects: Dict[str, Any]
-
-
-def from_mettagrid_config(mettagrid_config: GameConfig_py) -> GameConfig_cpp:
+def from_mettagrid_config(mettagrid_config_dict: dict[str, Any]) -> GameConfig_cpp:
     """Convert a mettagrid_config.GameConfig to a mettagrid_c_config.GameConfig."""
 
-    inventory_item_names = list(mettagrid_config.inventory_item_names)
-    inventory_item_ids = dict((name, i) for i, name in enumerate(inventory_item_names))
+    mettagrid_config = GameConfig_py(**mettagrid_config_dict)
+
+    resource_names = list(mettagrid_config.inventory_item_names)
+    resource_ids = dict((name, i) for i, name in enumerate(resource_names))
 
     object_configs = {}
 
@@ -65,26 +37,22 @@ def from_mettagrid_config(mettagrid_config: GameConfig_py) -> GameConfig_cpp:
             else:
                 merged_config[key] = value
 
-        default_item_max = merged_config.get("default_item_max", 0)
+        default_resource_limit = merged_config.get("default_resource_limit", 0)
 
         agent_group_config = {
             "freeze_duration": merged_config.get("freeze_duration", 0),
             "group_id": group_config.id,
             "group_name": group_name,
-            "action_failure_penalty": merged_config.get("rewards", {}).get("action_failure_penalty", 0),
-            "max_items_per_type": dict(
-                (item_id, merged_config.get(item_name + "_max", default_item_max))
-                for (item_id, item_name) in enumerate(inventory_item_names)
+            "action_failure_penalty": merged_config.get("action_failure_penalty", 0),
+            "resource_limits": dict(
+                (resource_id, merged_config.get("resource_limits", {}).get(resource_name, default_resource_limit))
+                for (resource_id, resource_name) in enumerate(resource_names)
             ),
             "resource_rewards": dict(
-                (inventory_item_ids[k], v)
-                for k, v in merged_config.get("rewards", {}).items()
-                if not k.endswith("_max") and k != "action_failure_penalty"
+                (resource_ids[k], v) for k, v in merged_config.get("rewards", {}).items() if not k.endswith("_max")
             ),
             "resource_reward_max": dict(
-                (inventory_item_ids[k[:-4]], v)
-                for k, v in merged_config.get("rewards", {}).items()
-                if k.endswith("_max")
+                (resource_ids[k[:-4]], v) for k, v in merged_config.get("rewards", {}).items() if k.endswith("_max")
             ),
             "group_reward_pct": group_config.group_reward_pct or 0,
         }
@@ -109,9 +77,9 @@ def from_mettagrid_config(mettagrid_config: GameConfig_py) -> GameConfig_cpp:
             }
             for k, v in converter_config_dict.items():
                 if k.startswith("input_"):
-                    converter_config_cpp_dict["recipe_input"][inventory_item_ids[k[6:]]] = v
+                    converter_config_cpp_dict["recipe_input"][resource_ids[k[6:]]] = v
                 elif k.startswith("output_"):
-                    converter_config_cpp_dict["recipe_output"][inventory_item_ids[k[7:]]] = v
+                    converter_config_cpp_dict["recipe_output"][resource_ids[k[7:]]] = v
                 else:
                     converter_config_cpp_dict[k] = v
             converter_config_cpp_dict["type_name"] = object_type
@@ -133,17 +101,17 @@ def from_mettagrid_config(mettagrid_config: GameConfig_py) -> GameConfig_cpp:
     for action_name, action_config in game_config["actions"].items():
         action_config_cpp_params = {}
         action_config_cpp_params["consumed_resources"] = dict(
-            (inventory_item_ids[k], v) for k, v in action_config["consumed_resources"].items()
+            (resource_ids[k], v) for k, v in action_config["consumed_resources"].items()
         )
         if action_config.get("required_resources", None) is not None:
             action_config_cpp_params["required_resources"] = dict(
-                (inventory_item_ids[k], v) for k, v in action_config["required_resources"].items()
+                (resource_ids[k], v) for k, v in action_config["required_resources"].items()
             )
         else:
             action_config_cpp_params["required_resources"] = action_config_cpp_params["consumed_resources"]
         if action_name == "attack":
             action_config_cpp_params["defense_resources"] = dict(
-                (inventory_item_ids[k], v) for k, v in action_config["defense_resources"].items()
+                (resource_ids[k], v) for k, v in action_config["defense_resources"].items()
             )
             actions_config_cpp[action_name] = AttackActionConfig_cpp(**action_config_cpp_params)
         else:
@@ -156,14 +124,3 @@ def from_mettagrid_config(mettagrid_config: GameConfig_py) -> GameConfig_cpp:
     game_config["objects"] = object_configs
 
     return GameConfig_cpp(**game_config)
-
-
-def cpp_config_dict(game_config_dict: Dict[str, Any]) -> Dict[str, Any]:
-    """Validates a config dict and returns a config_c dict.
-
-    In particular, this function converts from the style of config we have in yaml to the style of config we expect
-    in cpp; and validates along the way.
-    """
-    game_config = GameConfig_py(**game_config_dict)
-
-    return from_mettagrid_config(game_config).model_dump(by_alias=True, exclude_none=True)

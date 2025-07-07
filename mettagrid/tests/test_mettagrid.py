@@ -1,7 +1,7 @@
 import numpy as np
 
 from metta.mettagrid.mettagrid_c import MettaGrid
-from metta.mettagrid.mettagrid_c_config import cpp_config_dict
+from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
 from metta.mettagrid.mettagrid_env import dtype_actions
 
 NUM_AGENTS = 2
@@ -53,7 +53,7 @@ def create_minimal_mettagrid_c_env(max_steps=10, width=5, height=5):
         "agent": {},
     }
 
-    return MettaGrid(cpp_config_dict(game_config), game_map.tolist(), 42)
+    return MettaGrid(from_mettagrid_config(game_config), game_map.tolist(), 42)
 
 
 def test_grid_hash():
@@ -242,14 +242,18 @@ class TestGlobalTokens:
         LAST_REWARD = 11
 
         # Initial state checks
-        assert obs[0, 0, 1] == EPISODE_COMPLETION_PCT, "First token should be episode completion percentage"
-        assert obs[0, 0, 2] == 0, "Episode completion should start at 0%"
-        assert obs[0, 1, 1] == LAST_ACTION, "Second token should be last action"
-        assert obs[0, 1, 2] == 0, "Last action should be 0"
-        assert obs[0, 2, 1] == LAST_ACTION_ARG, "Third token should be last action arg"
-        assert obs[0, 2, 2] == 0, "Last action arg should start at 0"
-        assert obs[0, 3, 1] == LAST_REWARD, "Fourth token should be last reward"
-        assert obs[0, 3, 2] == 0, "Last reward should start at 0"
+        assert obs[0, 0, 1] == EPISODE_COMPLETION_PCT, (
+            f"First token should be episode completion percentage ({EPISODE_COMPLETION_PCT}). Was {obs[0, 0, 1]}"
+        )
+        assert obs[0, 0, 2] == 0, f"Episode completion should start at 0%. Was {obs[0, 0, 2]}"
+        assert obs[0, 1, 1] == LAST_ACTION, f"Second token should be last action ({LAST_ACTION}). Was {obs[0, 1, 1]}"
+        assert obs[0, 1, 2] == 0, f"Last action should be 0. Was {obs[0, 1, 2]}"
+        assert obs[0, 2, 1] == LAST_ACTION_ARG, (
+            f"Third token should be last action arg ({LAST_ACTION_ARG}). Was {obs[0, 2, 1]}"
+        )
+        assert obs[0, 2, 2] == 0, f"Last action arg should start at 0. Was {obs[0, 2, 2]}"
+        assert obs[0, 3, 1] == LAST_REWARD, f"Fourth token should be last reward ({LAST_REWARD}). Was {obs[0, 3, 1]}"
+        assert obs[0, 3, 2] == 0, f"Last reward should start at 0. Was {obs[0, 3, 2]}"
 
         # Take a step with a noop action
         noop_action_idx = c_env.action_names().index("noop")
