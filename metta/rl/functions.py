@@ -18,7 +18,6 @@ from torch import Tensor
 
 from metta.agent.policy_state import PolicyState
 from metta.agent.util.debug import assert_shape
-from metta.mettagrid.mettagrid_env import dtype_actions
 from metta.mettagrid.util.dict_utils import unroll_nested_dict
 from metta.rl.experience import Experience
 from metta.rl.losses import Losses
@@ -26,17 +25,15 @@ from metta.rl.losses import Losses
 logger = logging.getLogger(__name__)
 
 
-def perform_rollout_step(
-    policy: torch.nn.Module,
+def receive_env_data(
     vecenv: Any,
-    experience: Experience,
     device: torch.device,
     timer: Optional[Any] = None,
-) -> Tuple[int, list]:
-    """Performs a single step of the rollout, interacting with the environment.
+) -> Tuple[Tensor, Tensor, Tensor, Tensor, list, slice, Tensor, int]:
+    """Receive data from the vectorized environment and convert to tensors.
 
     Returns:
-        Tuple of (num_steps, info_list)
+        Tuple of (observations, rewards, dones, truncations, info, training_env_id, mask, num_steps)
     """
     # Receive environment data
     if timer:
@@ -56,14 +53,29 @@ def perform_rollout_step(
     d = torch.as_tensor(d).to(device, non_blocking=True)
     t = torch.as_tensor(t).to(device, non_blocking=True)
 
+    return o, r, d, t, info, training_env_id, mask, num_steps
+
+
+def run_policy_inference(
+    policy: torch.nn.Module,
+    observations: Tensor,
+    experience: Experience,
+    training_env_id_start: int,
+    device: torch.device,
+) -> Tuple[Tensor, Tensor, Tensor, Optional[Dict[str, Tensor]]]:
+    """Run the policy to get actions and value estimates.
+
+    Returns:
+        Tuple of (actions, selected_action_log_probs, values, lstm_state_to_store)
+    """
     with torch.no_grad():
         state = PolicyState()
-        lstm_h, lstm_c = experience.get_lstm_state(training_env_id.start)
+        lstm_h, lstm_c = experience.get_lstm_state(training_env_id_start)
         if lstm_h is not None:
             state.lstm_h = lstm_h
             state.lstm_c = lstm_c
 
-        actions, selected_action_log_probs, _, value, _ = policy(o, state)
+        actions, selected_action_log_probs, _, value, _ = policy(observations, state)
 
         if __debug__:
             assert_shape(selected_action_log_probs, ("BT",), "selected_action_log_probs")
@@ -76,29 +88,7 @@ def perform_rollout_step(
         if str(device).startswith("cuda"):
             torch.cuda.synchronize()
 
-    value = value.flatten()
-
-    experience.store(
-        obs=o,
-        actions=actions,
-        logprobs=selected_action_log_probs,
-        rewards=r,
-        dones=d,
-        truncations=t,
-        values=value,
-        env_id=training_env_id,
-        mask=mask,
-        lstm_state=lstm_state_to_store,
-    )
-
-    # Send actions back to environment
-    if timer:
-        with timer("_rollout.env"):
-            vecenv.send(actions.cpu().numpy().astype(dtype_actions))
-    else:
-        vecenv.send(actions.cpu().numpy().astype(dtype_actions))
-
-    return num_steps, info
+    return actions, selected_action_log_probs, value.flatten(), lstm_state_to_store
 
 
 def compute_ppo_losses(

@@ -29,6 +29,7 @@ from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.system_monitor import SystemMonitor
 from metta.eval.eval_stats_db import EvalStatsDB
 from metta.mettagrid import mettagrid_c  # noqa: F401
+from metta.mettagrid.mettagrid_env import dtype_actions
 from metta.rl.experience import Experience
 from metta.rl.functions import (
     accumulate_rollout_stats,
@@ -37,8 +38,9 @@ from metta.rl.functions import (
     compute_gradient_stats,
     get_lstm_config,
     maybe_update_l2_weights,
-    perform_rollout_step,
     process_minibatch_update,
+    receive_env_data,
+    run_policy_inference,
     should_run_on_interval,
 )
 from metta.rl.kickstarter import Kickstarter
@@ -237,8 +239,32 @@ while agent_step < trainer_config.total_timesteps:
 
     # Collect experience
     while not experience.ready_for_training:
-        num_steps, info = perform_rollout_step(agent, env, experience, device, timer)
+        # Receive environment data
+        o, r, d, t, info, training_env_id, mask, num_steps = receive_env_data(env, device, timer)
         agent_step += num_steps
+
+        # Run policy inference
+        actions, selected_action_log_probs, values, lstm_state_to_store = run_policy_inference(
+            agent, o, experience, training_env_id.start, device
+        )
+
+        # Store experience
+        experience.store(
+            obs=o,
+            actions=actions,
+            logprobs=selected_action_log_probs,
+            rewards=r,
+            dones=d,
+            truncations=t,
+            values=values,
+            env_id=training_env_id,
+            mask=mask,
+            lstm_state=lstm_state_to_store,
+        )
+
+        # Send actions back to environment
+        with timer("_rollout.env"):
+            env.send(actions.cpu().numpy().astype(dtype_actions))
 
         if info:
             raw_infos.extend(info)
