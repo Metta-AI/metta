@@ -18,7 +18,7 @@ checkpoint:
   wandb_checkpoint_interval: 50
 
 simulation:
-  evaluate_interval: 50
+  evaluate_interval: 200
   replay_interval: 50
   replay_dir: s3://softmax-public/replays/${run}
 
