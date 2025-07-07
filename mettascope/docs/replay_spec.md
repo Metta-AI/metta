@@ -84,7 +84,9 @@ Objects are stored in a condensed format. Every field of the object is either a 
 }
 ```
 
-In this example, the agent `type_id` - 2 in this case never changes, so its a constant. When looking up `type_names[type_id]`, we get the name of the type, which is `"agent"`. The mapping between ids and names can change between replays. The `id` is a constant as well. All objects have ids. The `agent_id` is a constant as well. Note there are two ids, one for the object and one for the agent. Agents have two ids. The `rotation` is a time series of values. The rotation is 1 at step 0, 2 at step 10, and 3 at step 20.
+
+In this example, the agent `type_id` - 2 in this case never changes, so it's a constant. When looking up `type_names[type_id]`, we get the name of the type, which is `"agent"`. The mapping between ids and names can change between replays. The `id` is a constant as well. All objects have ids. The `agent_id` is a constant as well. Note there are two ids, one for the object and one for the agent. Agents have two ids. The `rotation` is a time series of values. The rotation is 1 at step 0, 2 at step 10, and 3 at step 20.
+
 
 Here is the expanded version of the `rotation` key:
 
