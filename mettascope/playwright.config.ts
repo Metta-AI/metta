@@ -1,4 +1,4 @@
-import { defineConfig, devices } from '@playwright/test';
+import { defineConfig, devices } from '@playwright/test'
 
 const gpuFlags = [
   '--no-sandbox',
@@ -7,7 +7,7 @@ const gpuFlags = [
   '--enable-features=Vulkan',
   '--disable-vulkan-surface',
   '--enable-unsafe-webgpu'
-];
+]
 
 export default defineConfig({
   testDir: './tests',
@@ -26,4 +26,4 @@ export default defineConfig({
       }
     },
   ],
-}); 
+})
