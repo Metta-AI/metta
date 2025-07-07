@@ -716,7 +716,6 @@ class MettaTrainer:
             stats_epoch_end=self.epoch,
             stats_run_id=self._stats_run_id,
             wandb_policy_name=wandb_policy_name,
-            record_heartbeat=record_heartbeat,
         )
 
     def _maybe_generate_replay(self, force=False):
