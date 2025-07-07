@@ -239,6 +239,10 @@ def compute_advantage(
     vtrace_c_clip: float,
     device: torch.device,
 ) -> Tensor:
+    """CUDA kernel for puffer advantage with automatic CPU & MPS fallback.
+    This matches the trainer.py implementation exactly.
+    """
+
     device = torch.device(device) if isinstance(device, str) else device
 
     if str(device) == "mps":
