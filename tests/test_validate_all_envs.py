@@ -42,7 +42,7 @@ def map_or_env_configs() -> list[MettagridCfgFileMetadata]:
 
 @pytest.mark.parametrize("cfg_metadata", map_or_env_configs(), ids=[cfg.path for cfg in map_or_env_configs()])
 class TestValidateAllEnvs:
-    def test_map(self, cfg_metadata):
+    def test_map(self, cfg_metadata: MettagridCfgFileMetadata):
         try:
             map_cfg = cfg_metadata.get_cfg().get_map_cfg()
             map_builder_cfg_to_storable_map(map_cfg)
@@ -51,7 +51,7 @@ class TestValidateAllEnvs:
         except Exception as e:
             pytest.fail(f"Failed to validate map config {cfg_metadata.path}: {e}")
 
-    def test_mettagrid_config(self, cfg_metadata):
+    def test_mettagrid_config(self, cfg_metadata: MettagridCfgFileMetadata):
         if cfg_metadata.kind != "env":
             return
 
