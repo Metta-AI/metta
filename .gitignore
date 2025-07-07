@@ -8,6 +8,7 @@
 .env
 .task
 .vscode/PythonImportHelper-v2-Completion.json
+.vscode/settings.local.json
 /checkpoints/
 /mettagrid/dist
 /mettascope/dist
