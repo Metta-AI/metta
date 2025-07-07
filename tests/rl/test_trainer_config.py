@@ -1,5 +1,6 @@
 import math
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import pytest
 from hydra import compose, initialize_config_dir
@@ -7,7 +8,6 @@ from omegaconf import DictConfig
 from pydantic import ValidationError
 
 from metta.rl.trainer_config import OptimizerConfig, create_trainer_config
-from tools.train import set_num_workers_if_unspecified
 
 valid_optimizer_config = {
     "type": "adam",
@@ -95,12 +95,29 @@ valid_trainer_config = {
 }
 
 
+@patch("metta.common.util.runtime_configuration.setup_mettagrid_environment")
+def process_cfg_like_metta_script_main(cfg: DictConfig, _: MagicMock) -> DictConfig:
+    from metta.common.util.script_decorators import metta_script
+
+    # Use the metta_script decorator, which validates/modifies the config
+    # Mock out setup_mettagrid_environment; not necessary for testing trainer config parsing
+    @metta_script
+    def _process_config(cfg: DictConfig) -> DictConfig:
+        return cfg
+
+    return _process_config(cfg)
+
+
 def make_cfg(trainer_cfg: dict) -> DictConfig:
     return DictConfig(
         {
             "run_dir": "/tmp/test_run",
             "run": "test_run",
             "trainer": trainer_cfg,
+            # Include these values to avoid needing to run the metta_script decorator
+            # here to populate them with detected values
+            "vectorization": "serial",
+            "device": "cpu",
         }
     )
 
@@ -228,8 +245,8 @@ def load_config_with_hydra(trainer_name: str, overrides: list[str] | None = None
             config_name="train_job",
             overrides=default_overrides + (overrides or []),
         )
-        set_num_workers_if_unspecified(cfg)  # noqa: F821
-        return cfg
+
+        return process_cfg_like_metta_script_main(cfg)
 
 
 class TestRealTypedConfigs:
@@ -238,7 +255,7 @@ class TestRealTypedConfigs:
 
         for config_name in config_files:
             try:
-                cfg = load_config_with_hydra(config_name)
+                cfg = load_config_with_hydra(config_name, overrides=["trainer.num_workers=1"])
 
                 validated_config = create_trainer_config(cfg)
 
@@ -285,9 +302,9 @@ class TestRealTypedConfigs:
 
             try:
                 # For hardware/user configs, apply them as overrides
-                cfg = load_config_with_hydra("trainer", overrides=[override])
-
-                _ = create_trainer_config(cfg)
+                overrides_list = [override, "trainer.num_workers=1"]
+                cfg = load_config_with_hydra("trainer", overrides=overrides_list)
+                create_trainer_config(cfg)
 
             except Exception as e:
                 print(f"Error loading {config_type} config {config_name}: {e}")

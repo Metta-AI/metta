@@ -20,7 +20,7 @@ def validate_merged_config(
 
     if "trainer" in merged_cfg:
         try:
-            _ = create_trainer_config(merged_cfg.trainer)
+            create_trainer_config(merged_cfg.trainer)
         except (ValueError, TypeError, ValidationError) as e:
             raise ValueError("Invalid trainer config after applying overrides") from e
 

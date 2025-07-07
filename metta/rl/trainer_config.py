@@ -251,8 +251,6 @@ def create_trainer_config(
         if not hasattr(cfg, key) or cfg[key] is None:
             raise ValueError(f"cfg must have a '{key}' field")
 
-    is_serial = cfg.get("vectorization") == "serial" if not OmegaConf.is_missing(cfg, "vectorization") else False
-
     trainer_cfg = cfg.trainer
     if not isinstance(trainer_cfg, DictConfig):
         raise ValueError("ListConfig is not supported")
@@ -267,7 +265,7 @@ def create_trainer_config(
         raise ValueError("trainer config must be a dict")
 
     # Some keys' defaults in TrainerConfig that are appropriate for multiprocessing but not serial
-    if is_serial:
+    if cfg.vectorization == "serial":
         config_dict["async_factor"] = 1
         config_dict["zero_copy"] = False
 

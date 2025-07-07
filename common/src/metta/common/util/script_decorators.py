@@ -110,7 +110,7 @@ def is_multiprocessing_available() -> bool:
     try:
         # Test if we can create a multiprocessing context with spawn method
         # (spawn is the safest and most compatible method across platforms)
-        _ = multiprocessing.get_context("spawn")
+        multiprocessing.get_context("spawn")
         return True
     except Exception:
         return False
