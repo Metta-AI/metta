@@ -7,6 +7,7 @@ from pathlib import Path
 
 from metta.setup.config import CURRENT_CONFIG_VERSION, PROFILE_DEFINITIONS, SetupConfig, UserType
 from metta.setup.registry import get_all_modules, get_applicable_modules
+from metta.setup.symlink_setup import PathSetup
 from metta.setup.utils import error, header, import_all_modules_from_subpackage, info, success, warning
 
 # Import all component modules to register them with the registry
@@ -17,6 +18,7 @@ class MettaCLI:
     def __init__(self):
         self.repo_root: Path = Path(__file__).parent.parent.parent
         self.config: SetupConfig = SetupConfig()
+        self.path_setup: PathSetup = PathSetup(self.repo_root)
 
     def setup_wizard(self) -> None:
         header("Welcome to Metta!\n\n")
@@ -59,7 +61,10 @@ class MettaCLI:
 
             self.config.apply_profile(user_type)
             success(f"\nConfigured as {user_type.value} user.")
-        info("\nRun './metta.sh install' to set up your environment.")
+        info("\nRun 'metta install' to set up your environment.")
+
+        if not self.path_setup.check_installation():
+            info("You may want to run 'metta symlink-setup' to make the metta command globally available.")
 
     def _custom_setup(self) -> None:
         info("\nSelect base profile for custom configuration:")
@@ -89,7 +94,7 @@ class MettaCLI:
                 self.config.set(f"components.{comp}.enabled", choice == "y")
 
         success("\nCustom configuration saved.")
-        info("\nRun './metta.sh install' to set up your environment.")
+        info("\nRun 'metta install' to set up your environment.")
 
     def cmd_configure(self, args) -> None:
         if args.profile:
@@ -98,7 +103,7 @@ class MettaCLI:
             if args.profile in profile_map:
                 self.config.apply_profile(profile_map[args.profile])
                 success(f"Configured as {profile_map[args.profile].value} user.")
-                info("\nRun './metta.sh install' to set up your environment.")
+                info("\nRun 'metta install' to set up your environment.")
             else:
                 error(f"Unknown profile: {args.profile}")
                 available_profiles = [ut.value for ut in UserType if ut != UserType.SOFTMAX_DOCKER]
@@ -189,7 +194,10 @@ class MettaCLI:
             return text
         return text[: max_len - 3] + "..."
 
-    def cmd_status(self, args) -> None:
+    def cmd_symlink_setup(self, args) -> None:
+        self.path_setup.setup_path(force=args.force)
+
+    def cmd_status(self, _args) -> None:
         """Show status of all components."""
         modules = get_all_modules(self.config)
 
@@ -320,12 +328,13 @@ class MettaCLI:
             formatter_class=argparse.RawDescriptionHelpFormatter,
             epilog="""
 Examples:
-  ./metta.sh configure                      # Run interactive setup wizard
-  ./metta.sh configure --profile=softmax    # Configure for Softmax employee
-  ./metta.sh install                        # Install all configured components
-  ./metta.sh install aws wandb              # Install specific components
-  ./metta.sh status                         # Show component status
-  ./metta.sh clean                          # Clean build artifacts
+  metta configure                      # Run interactive setup wizard
+  metta configure --profile=softmax    # Configure for Softmax employee
+  metta install                        # Install all configured components
+  metta install aws wandb              # Install specific components
+  metta status                         # Show component status
+  metta clean                          # Clean build artifacts
+  metta symlink-setup                  # Set up symlink to make metta command globally available
             """,
         )
 
@@ -360,6 +369,11 @@ Examples:
 
         # Clean command
         subparsers.add_parser("clean", help="Clean build artifacts and temporary files")
+        # Symlink setup command
+        symlink_parser = subparsers.add_parser(
+            "symlink-setup", help="Create symlink to make metta command globally available"
+        )
+        symlink_parser.add_argument("--force", action="store_true", help="Replace existing metta command if it exists")
 
         args = parser.parse_args()
 
@@ -371,12 +385,12 @@ Examples:
 
         if args.command != "configure":
             if not self.config.config_path.exists():
-                error("No configuration found. Please run './metta.sh configure' first.")
+                error("No configuration found. Please run 'metta configure' first.")
                 sys.exit(1)
             elif self.config.config_version < CURRENT_CONFIG_VERSION:
                 # Old config format detected
                 warning(f"Your configuration is from an older version (v{self.config.config_version}).")
-                info("Please run './metta.sh configure' to update your configuration.")
+                info("Please run 'metta configure' to update your configuration.")
                 sys.exit(1)
 
         # Dispatch to command handler
@@ -388,6 +402,8 @@ Examples:
             self.cmd_status(args)
         elif args.command == "clean":
             self.cmd_clean(args)
+        elif args.command == "symlink-setup":
+            self.cmd_symlink_setup(args)
         else:
             parser.print_help()
 

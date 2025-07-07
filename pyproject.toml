@@ -70,6 +70,7 @@ dev = [
 ]
 
 [project.scripts]
+metta = "metta.setup.metta_cli:main"
 skypilot = "devops.skypilot.launch:main"
 skypilot-sandbox = "devops.skypilot.sandbox:main"
 mapgen = "tools.map.gen:main"
