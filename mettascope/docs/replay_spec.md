@@ -111,7 +111,9 @@ Here are the keys supported for both agents and objects:
 * `position` - The [x, y] position of the object (sometimes called the column and row)
 * `layer` - The layer of the object.
 * `rotation` - The rotation of the object.
-* `inventory` - list of item_ids that map to the `item_names` array. Example: `[0, 0, 1]`. If `item_names = ["hearts", "bread"]`, then inventory is 2 hearts and 1 bread. The count is how many times the item repeats in the list.
+
+* `inventory` - The current list of item_ids that map to the `item_names` array. Example: `[0, 0, 1]`. If `item_names = ["hearts", "bread"]`, then inventory is 2 hearts and 1 bread. The count is how many times the item repeats in the list. Note: In the replay data, this is represented in the `items` field as a time series showing how inventory changes over time (e.g., `[[0, []], [100, [1]], [200, [1, 1]]]`), where each entry contains a timestamp and the inventory state at that time.
+
 * `inventory_max` - Usually a constant. Maximum number of items that can be in the inventory.
 
 Agent specific keys:
