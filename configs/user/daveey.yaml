@@ -1,7 +1,7 @@
 # @package __global__
 
 defaults:
-  - /sim/all@sim_job.simulation_suite
+  # - /sim/all@sim_job.simulation_suite
   - _self_
 
 trainer:
@@ -36,7 +36,7 @@ trainer:
 # policy_uri: wandb://run/b.daveey.t.1.lra.dr.muon
 # policy_uri: pytorch:///tmp/puffer_metta.pt
 # policy_uri: pytorch:///tmp/puffer_metta.pt
-policy_uri: wandb://run/daveey.res_curr.1x4
+policy_uri: wandb://run/daveey.se2.curr.8x4
 # policy_uri: pytorch://${data_dir}/puffer/puffer_metta.pt
 
 # policy_uri: ${trained_policy_uri}
@@ -55,7 +55,7 @@ analyzer:
 
 replay_job:
   sim:
-    env: /env/mettagrid/simple
+    env: /env/mettagrid/simple/advanced
     # env_overrides:
     #   sampling: 1
     #   game:

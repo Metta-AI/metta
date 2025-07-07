@@ -1,7 +1,7 @@
 defaults:
   - common
   - wandb: metta_research
-  - sim: simple
+  - sim: sim_single
   - _self_
 
 run: ???
