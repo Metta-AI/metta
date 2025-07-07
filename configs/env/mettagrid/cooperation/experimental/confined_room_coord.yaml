@@ -12,8 +12,9 @@ game:
   num_agents: 8
 
   agent:
-    default_item_max: 1
-    heart_max: 255
+    default_resource_limit: 1
+    resource_limits:
+      heart: 255
     rewards:
       ore_red: 0.005
       ore_blue: 0.005

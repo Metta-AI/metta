@@ -7,7 +7,6 @@ game:
   num_agents: 32
   agent:
     rewards:
-      action_failure_penalty: 0
       ore_red: ${sampling:0.005,0.1, 0.01}
       ore_blue: ${sampling:0.005,0.1, 0.01}
       ore_green: ${sampling:0.005,0.1, 0.01}
