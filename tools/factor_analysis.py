@@ -103,7 +103,7 @@ class PolicyFactorAnalyzer:
             self.logger.info("Finished wandb run")
 
     def load_performance_matrix(self, matrix_file: Path) -> pd.DataFrame:
-        """Load and preprocess performance matrix."""
+        """Load and preprocess performance matrix, then compute environment correlation matrix."""
         self.logger.info(f"Loading performance matrix from {matrix_file}")
 
         # Load matrix
@@ -120,9 +120,15 @@ class PolicyFactorAnalyzer:
 
         self.logger.info(f"Performance matrix shape: {performance_matrix.shape}")
         self.logger.info(f"Policies: {len(performance_matrix.index)}")
-        self.logger.info(f"Evaluations: {len(performance_matrix.columns)}")
+        self.logger.info(f"Environments: {len(performance_matrix.columns)}")
 
-        return performance_matrix_scaled
+        # Compute environment × environment correlation matrix
+        env_correlation_matrix = performance_matrix_scaled.corr()
+
+        self.logger.info(f"Environment correlation matrix shape: {env_correlation_matrix.shape}")
+        self.logger.info(f"Correlation range: [{env_correlation_matrix.values.min():.3f}, {env_correlation_matrix.values.max():.3f}]")
+
+        return env_correlation_matrix
 
     def cross_validate_dimensionality(self, data: np.ndarray) -> Dict:
         """
@@ -205,20 +211,25 @@ class PolicyFactorAnalyzer:
             "model": fa,
         }
 
-    def analyze_factor_structure(self, factors: np.ndarray, eval_names: List[str]) -> Dict:
+    def analyze_factor_structure(self, factors: np.ndarray, env_names: List[str]) -> Dict:
         """
-        Analyze the structure of extracted factors.
+        Analyze the structure of extracted factors from environment correlation matrix.
 
         Args:
-            factors: Factor loadings matrix
-            eval_names: Names of evaluation environments
+            factors: Factor loadings matrix (factors × environments)
+            env_names: Names of environments
 
         Returns:
-            Dictionary with factor structure analysis
+            Dictionary with factor structure analysis and environment representations
         """
-        self.logger.info("Analyzing factor structure...")
+        self.logger.info("Analyzing environment factor structure...")
 
-        factor_analysis = {"factor_loadings": {}, "factor_interpretations": [], "evaluation_clusters": {}}
+        factor_analysis = {
+            "factor_loadings": {},
+            "factor_interpretations": [],
+            "environment_representations": {},
+            "environment_clusters": {}
+        }
 
         # Analyze each factor
         for i, factor in enumerate(factors):
@@ -228,29 +239,39 @@ class PolicyFactorAnalyzer:
 
             factor_loadings = {}
             for idx in top_indices:
-                factor_loadings[eval_names[idx]] = factor[idx]
+                factor_loadings[env_names[idx]] = factor[idx]
 
             factor_analysis["factor_loadings"][f"Factor_{i + 1}"] = factor_loadings
 
             # Interpret factor based on high loadings
-            high_loadings = [(eval_names[idx], factor[idx]) for idx in top_indices if abs_loadings[idx] > 0.3]
+            high_loadings = [(env_names[idx], factor[idx]) for idx in top_indices if abs_loadings[idx] > 0.3]
 
             if high_loadings:
-                # Group by evaluation category
+                # Group by environment category
                 categories = {}
-                for eval_name, loading in high_loadings:
-                    category = eval_name.split("/")[0] if "/" in eval_name else eval_name
+                for env_name, loading in high_loadings:
+                    category = env_name.split("/")[0] if "/" in env_name else env_name
                     if category not in categories:
                         categories[category] = []
-                    categories[category].append((eval_name, loading))
+                    categories[category].append((env_name, loading))
 
                 interpretation = {
                     "factor_id": f"Factor_{i + 1}",
                     "high_loadings": high_loadings,
                     "categories": categories,
                     "variance_explained": np.var(factor),
+                    "factor_strength": np.linalg.norm(factor),
                 }
                 factor_analysis["factor_interpretations"].append(interpretation)
+
+        # Create environment representation vectors
+        for j, env_name in enumerate(env_names):
+            env_representation = factors[:, j]  # Column j contains loadings for environment j
+            factor_analysis["environment_representations"][env_name] = {
+                "factor_loadings": env_representation.tolist(),
+                "total_strength": np.linalg.norm(env_representation),
+                "dominant_factors": [(i, abs(env_representation[i])) for i in np.argsort(np.abs(env_representation))[-3:][::-1]]
+            }
 
         return factor_analysis
 
@@ -451,6 +472,7 @@ class PolicyFactorAnalyzer:
         fa_data = {
             "explained_variance_ratio": float(em_results["explained_variance_ratio"]),
             "factor_interpretations": factor_analysis["factor_interpretations"],
+            "environment_representations": factor_analysis["environment_representations"],
             "clusters": clustering["clusters"],
             "optimal_clusters": clustering["optimal_clusters"],
         }
@@ -493,12 +515,12 @@ class PolicyFactorAnalyzer:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Perform factor analysis on policy performance data")
+    parser = argparse.ArgumentParser(description="Perform factor analysis on environment correlation matrix")
     parser.add_argument(
         "--performance-matrix",
         type=Path,
         required=True,
-        help="CSV file with performance matrix (policies × evaluations)",
+        help="CSV file with performance matrix (policies × environments) - will compute environment correlation matrix",
     )
     parser.add_argument(
         "--output-dir", type=Path, default=Path("factor_analysis_results"), help="Directory to save analysis results"
@@ -525,11 +547,11 @@ def main():
             run_name = f"msb_compEval_{run_id}"
             analyzer.init_wandb(run_name)
 
-        # Load performance matrix
-        performance_matrix = analyzer.load_performance_matrix(args.performance_matrix)
+        # Load performance matrix and compute environment correlation matrix
+        env_correlation_matrix = analyzer.load_performance_matrix(args.performance_matrix)
 
         # Convert to numpy array
-        data_array = performance_matrix.values
+        data_array = env_correlation_matrix.values
 
         # Cross-validation for dimensionality selection
         cv_results = analyzer.cross_validate_dimensionality(data_array)
@@ -542,24 +564,24 @@ def main():
         em_results = analyzer.expectation_maximization_analysis(data_array, optimal_n_factors)
 
         # Analyze factor structure
-        factor_analysis = analyzer.analyze_factor_structure(em_results["factors"], performance_matrix.columns.tolist())
+        factor_analysis = analyzer.analyze_factor_structure(em_results["factors"], env_correlation_matrix.columns.tolist())
 
-        # Cluster policies
-        clustering = analyzer.cluster_policies(em_results["factor_scores"], performance_matrix.index.tolist())
+        # Cluster environments (not policies)
+        clustering = analyzer.cluster_policies(em_results["factor_scores"], env_correlation_matrix.index.tolist())
 
         # Create visualizations
-        analyzer.create_visualizations(performance_matrix, cv_results, em_results, factor_analysis, clustering)
+        analyzer.create_visualizations(env_correlation_matrix, cv_results, em_results, factor_analysis, clustering)
 
         # Save results
         analyzer.save_results(cv_results, em_results, factor_analysis, clustering)
 
         # Print summary
-        print("\nFactor Analysis Summary:")
+        print("\nEnvironment Factor Analysis Summary:")
         print(f"  Optimal factors: {optimal_n_factors}")
         print(f"  Explained variance: {em_results['explained_variance_ratio']:.3f}")
         print(f"  Optimal clusters: {clustering['optimal_clusters']}")
-        print(f"  Total policies: {len(performance_matrix.index)}")
-        print(f"  Total evaluations: {len(performance_matrix.columns)}")
+        print(f"  Total environments: {len(env_correlation_matrix.index)}")
+        print(f"  Environment correlation matrix shape: {env_correlation_matrix.shape}")
 
         # Log results to wandb
         analyzer.log_cv_results(cv_results)

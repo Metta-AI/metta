@@ -127,15 +127,22 @@ class PolicyAnalysisPipeline:
         """Run the factor analysis stage."""
         self.logger.info("Running factor analysis...")
 
-        # Check for evaluation results
-        eval_results_file = self.output_dir / "evaluations" / "evaluation_results.json"
+        # Check for evaluation results (comprehensive evaluation creates different file names)
+        eval_results_file = self.output_dir / "evaluations" / "comprehensive_evaluation_results.json"
+        performance_matrix_file = self.output_dir / "evaluations" / "comprehensive_performance_matrix.csv"
+
         if not eval_results_file.exists():
             self.logger.error(f"Evaluation results not found: {eval_results_file}")
+            return False
+
+        if not performance_matrix_file.exists():
+            self.logger.error(f"Performance matrix not found: {performance_matrix_file}")
             return False
 
         # Create analysis configuration
         analysis_config = {
             "input_file": str(eval_results_file),
+            "performance_matrix": str(performance_matrix_file),
             "output_dir": str(self.output_dir / "analysis"),
             "max_components": self.config.get("max_components", 20),
             "k_folds": self.config.get("k_folds", 5),
