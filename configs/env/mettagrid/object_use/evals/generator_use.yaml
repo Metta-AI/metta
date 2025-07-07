@@ -6,7 +6,7 @@ game:
   max_steps: 100
   objects:
     generator_red:
-      initial_items: 0
+      initial_resource_count: 0
       cooldown: 255
     mine_red:
       cooldown: 255

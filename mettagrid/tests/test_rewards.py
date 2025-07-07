@@ -56,8 +56,8 @@ def create_heart_reward_test_env(max_steps=50, num_agents=NUM_AGENTS):
             "wall": {"type_id": 1},
             "altar": {
                 "type_id": 8,
-                "output_heart": 1,
-                "initial_items": 5,  # Start with some hearts
+                "output_resources": {"heart": 1},
+                "initial_resource_count": 5,  # Start with some hearts
                 "max_output": 50,
                 "conversion_ticks": 1,  # Faster conversion
                 "cooldown": 10,  # Shorter cooldown

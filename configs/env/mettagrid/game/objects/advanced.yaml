@@ -1,31 +1,37 @@
 lab:
   type_id: 11
-  input_ore_red: 3
-  input_battery_red: 3
-  output_blueprint: 1
+  input_resources:
+    ore_red: 3
+    battery_red: 3
+  output_resources:
+    blueprint: 1
   max_output: 5
   conversion_ticks: 1
   cooldown: 5
-  initial_items: 0
+  initial_resource_count: 0
 
 factory:
   type_id: 12
-  input_blueprint: 1
-  input_ore_red: 5
-  input_battery_red: 5
-  output_armor: 5
-  output_laser: 5
+  input_resources:
+    blueprint: 1
+    ore_red: 5
+    battery_red: 5
+  output_resources:
+    armor: 5
+    laser: 5
   max_output: 5
   conversion_ticks: 1
   cooldown: 5
-  initial_items: 0
+  initial_resource_count: 0
 
 temple:
   type_id: 13
-  input_heart: 1
-  input_blueprint: 1
-  output_heart: 5
+  input_resources:
+    heart: 1
+    blueprint: 1
+  output_resources:
+    heart: 5
   max_output: 5
   conversion_ticks: 1
   cooldown: 5
-  initial_items: 0
+  initial_resource_count: 0
