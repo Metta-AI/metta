@@ -522,6 +522,66 @@ class TestTrainingRunsRoutes:
         # The exact ordering depends on SQL query, but all should be present
         # In the modified heatmap, ordering is handled by the frontend for display
 
+    def test_create_training_run_with_boolean_attributes(self, test_client: TestClient) -> None:
+        """Test creating a training run via API routes with boolean attributes (git hash functionality)."""
+        # Create a machine token first
+        token_response = test_client.post(
+            "/tokens",
+            json={"name": "test_boolean_attrs_token"},
+            headers={"X-Auth-Request-Email": "test_user"},
+        )
+        assert token_response.status_code == 200
+        token = token_response.json()["token"]
+
+        # Test training run creation with mixed string and boolean attributes
+        training_run_data = {
+            "name": "test_git_boolean_run",
+            "attributes": {
+                "git_hash": "2308eaf792dc19726ba7056cda0a32f5b3cacf3a",
+                "has_uncommitted_changes": True,  # Boolean value
+                "algorithm": "PPO",  # String value
+                "test_flag": False,  # Another boolean
+            },
+            "url": "https://example.com/git-run",
+        }
+
+        response = test_client.post(
+            "/stats/training-runs",
+            json=training_run_data,
+            headers={"X-Auth-Token": token},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert "id" in data
+
+        # Verify the run was created by retrieving it via dashboard endpoint
+        run_id = data["id"]
+        get_response = test_client.get(f"/dashboard/training-runs/{run_id}")
+        assert get_response.status_code == 200
+        run_data = get_response.json()
+        assert run_data["name"] == "test_git_boolean_run"
+        assert run_data["url"] == "https://example.com/git-run"
+
+        # Verify attributes are returned correctly with proper types
+        assert "attributes" in run_data
+        attributes = run_data["attributes"]
+        assert attributes["git_hash"] == "2308eaf792dc19726ba7056cda0a32f5b3cacf3a"
+        assert attributes["has_uncommitted_changes"] is True  # Boolean preserved
+        assert attributes["algorithm"] == "PPO"
+        assert attributes["test_flag"] is False  # Boolean preserved
+
+        # Verify the run also appears in the training runs list with attributes
+        list_response = test_client.get("/dashboard/training-runs")
+        assert list_response.status_code == 200
+        list_data = list_response.json()
+
+        # Find our test run in the list
+        test_run = next((run for run in list_data["training_runs"] if run["name"] == "test_git_boolean_run"), None)
+        assert test_run is not None
+        assert "attributes" in test_run
+        assert test_run["attributes"]["git_hash"] == "2308eaf792dc19726ba7056cda0a32f5b3cacf3a"
+        assert test_run["attributes"]["has_uncommitted_changes"] is True
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])

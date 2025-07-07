@@ -3,16 +3,19 @@ import time
 from abc import ABC, abstractmethod
 from collections import defaultdict
 from dataclasses import dataclass
-from typing import Any, DefaultDict, Dict, List, Literal, Optional, Set, Tuple
+from typing import Any, DefaultDict, Dict, List, Literal, Optional, Set, Tuple, Union
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from psycopg import Connection
 from psycopg.rows import class_row
 from psycopg.sql import SQL
 from pydantic import BaseModel
 
-from app_backend import query_logger
+from app_backend import config, query_logger
 from app_backend.auth import create_user_or_token_dependency
+from app_backend.description_generator import GitDataProvider, TrainingRunDescriptionGenerator
+from app_backend.llm_client import LLMClient
 from app_backend.metta_repo import MettaRepo
 from app_backend.query_logger import execute_query_and_log
 from app_backend.route_logger import timed_route
@@ -78,6 +81,7 @@ class TrainingRun(BaseModel):
     status: str
     url: Optional[str]
     description: Optional[str]
+    attributes: Dict[str, Union[str, bool]] = {}
 
 
 class TrainingRunListResponse(BaseModel):
@@ -415,6 +419,22 @@ def create_dashboard_router(metta_repo: MettaRepo) -> APIRouter:
     """Create a dashboard router with the given StatsRepo instance."""
     router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
+    http_client = httpx.Client()
+    git_data_provider = GitDataProvider(http_client, config.git_client_mode)
+    llm_client = LLMClient(
+        http_client,
+        openai_api_key=config.openai_api_key,
+        anthropic_api_key=config.anthropic_api_key,
+        openrouter_api_key=config.openrouter_api_key,
+        openai_api_base=config.openai_api_base,
+        openrouter_api_base=config.openrouter_api_base,
+        anthropic_api_url=config.anthropic_api_url,
+        openai_model=config.openai_model,
+        anthropic_model=config.anthropic_model,
+        openrouter_model=config.openrouter_model,
+    )
+    description_generator = TrainingRunDescriptionGenerator(git_data_provider, llm_client)
+
     # Create the user-or-token authentication dependency
     user_or_token = Depends(create_user_or_token_dependency(metta_repo))
 
@@ -655,6 +675,7 @@ def create_dashboard_router(metta_repo: MettaRepo) -> APIRouter:
                     status=run["status"],
                     url=run["url"],
                     description=run["description"],
+                    attributes=run["attributes"],
                 )
                 for run in training_runs
             ]
@@ -677,6 +698,7 @@ def create_dashboard_router(metta_repo: MettaRepo) -> APIRouter:
             status=training_run["status"],
             url=training_run["url"],
             description=training_run["description"],
+            attributes=training_run["attributes"],
         )
 
     @router.put("/training-runs/{run_id}/description")
@@ -710,6 +732,7 @@ def create_dashboard_router(metta_repo: MettaRepo) -> APIRouter:
             status=training_run["status"],
             url=training_run["url"],
             description=training_run["description"],
+            attributes=training_run["attributes"],
         )
 
     @router.post("/training-runs/{run_id}/suites/{suite}/metrics/{metric}/heatmap")
@@ -729,5 +752,64 @@ def create_dashboard_router(metta_repo: MettaRepo) -> APIRouter:
         with metta_repo.connect() as con:
             data_retriever = TrainingRunDataRetriever(suite, metric, run_id)
             return _build_heatmap_data(con, group_metric, data_retriever)
+
+    @router.post("/training-runs/{run_id}/generate-description")
+    @timed_route("generate_training_run_description")
+    async def generate_training_run_description(  # type: ignore[reportUnusedFunction]
+        run_id: str,
+        user_or_token: str = user_or_token,
+    ) -> TrainingRun:
+        """Generate description for a training run using LLM."""
+        # Verify training run exists and user can edit it
+        training_run = metta_repo.get_training_run(run_id)
+        if not training_run:
+            raise HTTPException(status_code=404, detail="Training run not found")
+
+        if training_run["user_id"] != user_or_token:
+            raise HTTPException(status_code=403, detail="Access denied")
+
+        # Check if git hash exists
+        attributes = training_run.get("attributes") or {}
+        git_hash = attributes.get("git_hash")
+        if not git_hash:
+            raise HTTPException(status_code=400, detail="Git hash required for description generation")
+
+        # Get uncommitted changes flag
+        has_uncommitted_changes = attributes.get("has_uncommitted_changes", False)
+
+        try:
+            # Generate description using the pre-created service
+            generated_description = description_generator.generate_description(git_hash, has_uncommitted_changes)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e)) from e
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Description generation failed: {str(e)}") from e
+
+        # Update the description
+        success = metta_repo.update_training_run_description(
+            user_id=user_or_token,
+            run_id=run_id,
+            description=generated_description,
+        )
+
+        if not success:
+            raise HTTPException(status_code=500, detail="Failed to update training run description")
+
+        # Return the updated training run
+        updated_run = metta_repo.get_training_run(run_id)
+        if not updated_run:
+            raise HTTPException(status_code=500, detail="Failed to fetch updated training run")
+
+        return TrainingRun(
+            id=updated_run["id"],
+            name=updated_run["name"],
+            created_at=updated_run["created_at"],
+            user_id=updated_run["user_id"],
+            finished_at=updated_run["finished_at"],
+            status=updated_run["status"],
+            url=updated_run["url"],
+            description=updated_run["description"],
+            attributes=updated_run["attributes"],
+        )
 
     return router

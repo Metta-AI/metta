@@ -63,6 +63,11 @@ export type SavedDashboardListResponse = {
   dashboards: SavedDashboard[]
 }
 
+export type TrainingRunAttributes = {
+  git_hash?: string
+  has_uncommitted_changes?: boolean
+}
+
 export type TrainingRun = {
   id: string
   name: string
@@ -72,6 +77,7 @@ export type TrainingRun = {
   status: string
   url: string | null
   description: string | null
+  attributes?: TrainingRunAttributes
 }
 
 export type TrainingRunListResponse = {
@@ -151,6 +157,7 @@ export interface Repo {
   getTrainingRuns(): Promise<TrainingRunListResponse>
   getTrainingRun(runId: string): Promise<TrainingRun>
   updateTrainingRunDescription(runId: string, description: string): Promise<TrainingRun>
+  generateTrainingRunDescription(runId: string): Promise<TrainingRun>
   getTrainingRunHeatmapData(
     runId: string,
     metric: string,
@@ -298,6 +305,13 @@ export class ServerRepo implements Repo {
     return this.apiCallWithBodyPut<TrainingRun>(
       `/dashboard/training-runs/${encodeURIComponent(runId)}/description`,
       { description }
+    )
+  }
+
+  async generateTrainingRunDescription(runId: string): Promise<TrainingRun> {
+    return this.apiCallWithBody<TrainingRun>(
+      `/dashboard/training-runs/${encodeURIComponent(runId)}/generate-description`,
+      {}
     )
   }
 

@@ -2,7 +2,7 @@ import hashlib
 import secrets
 import uuid
 from datetime import datetime, timedelta
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Union
 
 from psycopg import Connection
 from psycopg.types.json import Jsonb
@@ -195,7 +195,9 @@ class MettaRepo:
             ).fetchall()
             return {row[1]: row[0] for row in res}
 
-    def create_training_run(self, name: str, user_id: str, attributes: Dict[str, str], url: str | None) -> uuid.UUID:
+    def create_training_run(
+        self, name: str, user_id: str, attributes: Dict[str, Union[str, bool]], url: str | None
+    ) -> uuid.UUID:
         status = "running"
         with self.connect() as con:
             # Try to insert a new training run, but if it already exists, return the existing ID
@@ -225,7 +227,7 @@ class MettaRepo:
         run_id: uuid.UUID,
         start_training_epoch: int,
         end_training_epoch: int,
-        attributes: Dict[str, str],
+        attributes: Dict[str, Union[str, bool]],
     ) -> uuid.UUID:
         with self.connect() as con:
             result = con.execute(
@@ -380,7 +382,7 @@ class MettaRepo:
         with self.connect() as con:
             result = con.execute(
                 """
-                SELECT id, name, created_at, user_id, finished_at, status, url, description
+                SELECT id, name, created_at, user_id, finished_at, status, url, description, attributes
                 FROM training_runs
                 ORDER BY created_at DESC
                 """
@@ -395,6 +397,7 @@ class MettaRepo:
                     "status": row[5],
                     "url": row[6],
                     "description": row[7],
+                    "attributes": row[8] or {},
                 }
                 for row in result
             ]
@@ -409,7 +412,7 @@ class MettaRepo:
         with self.connect() as con:
             result = con.execute(
                 """
-                SELECT id, name, created_at, user_id, finished_at, status, url, description
+                SELECT id, name, created_at, user_id, finished_at, status, url, description, attributes
                 FROM training_runs
                 WHERE id = %s
                 """,
@@ -428,6 +431,7 @@ class MettaRepo:
                 "status": result[5],
                 "url": result[6],
                 "description": result[7],
+                "attributes": result[8] or {},
             }
 
     def _hash_token(self, token: str) -> str:
