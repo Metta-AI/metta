@@ -2,7 +2,7 @@ _target_: metta.rl.trainer.MettaTrainer
 
 num_workers: ???
 
-curriculum: /env/mettagrid/curriculum/simple
+curriculum: /env/mettagrid/curriculum/arena
 env_overrides: {}
 
 initial_policy:
