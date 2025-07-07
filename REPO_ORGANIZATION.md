@@ -223,8 +223,7 @@ package/
 ├── CLAUDE.md              # Optional
 └── src/
     └── complex_module/
-        ├── README.md      # Optional
-        └── CLAUDE.md      # Optional
+        └── README.md      # Optional
 ```
 
 #### README.md Guidelines
