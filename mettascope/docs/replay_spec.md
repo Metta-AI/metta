@@ -134,7 +134,7 @@ Object specific keys:
 * `recipe_max` - Usually a constant. Maximum number of `recipe_output` items that can be produced by the recipe before stopping.
 * `production_progress` - Current progress of the recipe. Starts at 0 and goes until `production_time` is reached.
 * `production_time` - Usually a constant. How many steps does it take to produce the recipe.
-* `cooldown_progress` - How many steps are left to cooldown after producing the recipe. Starts at 0 and goes until `production_time` is reached.
+* `cooldown_progress` - How many steps are left to cooldown after producing the recipe. Starts at 0 and goes until `cooldown_time` is reached.
 * `cooldown_time` - Usually a constant. How many steps does it take to cooldown after producing the recipe.
 
 Keys are allowed to be missing. If a key is missing, missing keys are always 0, false, or []. Extra keys are ignored but can be used by later implementations. If a time series starts from some other step like 100, then the first 99 steps are just the default value.
