@@ -40,7 +40,7 @@ def sample_actions(action_logits: Tensor) -> Tuple[Tensor, Tensor, Tensor, Tenso
     # Compute policy entropy: H(π) = -∑π(a|s)log π(a|s)
     entropy = -torch.sum(action_probs * action_log_probs, dim=-1)  # [batch_size]
 
-    return actions, log_probs, entropy, action_log_probs
+    return actions, log_probs, entropy, action_logits  # action_log_probs
 
 
 @torch.jit.script
@@ -76,4 +76,4 @@ def evaluate_actions(action_logits: Tensor, actions: Tensor) -> Tuple[Tensor, Te
     # Compute policy entropy: H(π) = -∑π(a|s)log π(a|s)
     entropy = -torch.sum(action_probs * action_log_probs, dim=-1)  # [batch_size]
 
-    return log_probs, entropy, action_log_probs
+    return log_probs, entropy, action_logits  # action_log_probs
