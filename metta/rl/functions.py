@@ -239,34 +239,49 @@ def compute_advantage(
     vtrace_c_clip: float,
     device: torch.device,
 ) -> Tensor:
-    """CUDA kernel for puffer advantage with automatic CPU fallback.
-
-    This matches the trainer.py implementation exactly.
-    """
-    # Get correct device
     device = torch.device(device) if isinstance(device, str) else device
 
-    # Move tensors to device and compute advantage
-    tensors = [values, rewards, dones, importance_sampling_ratio, advantages]
-    tensors = [t.to(device) for t in tensors]
-    values, rewards, dones, importance_sampling_ratio, advantages = tensors
+    if str(device) == "mps":
+        # Native PyTorch implementation (MPS-compatible)
+        values = values.to(device)
+        rewards = rewards.to(device)
+        dones = dones.to(device)
+        importance_sampling_ratio = importance_sampling_ratio.to(device)
 
-    # Create context manager that only applies CUDA device context if needed
-    device_context = torch.cuda.device(device) if str(device).startswith("cuda") else nullcontext()
-    with device_context:
-        torch.ops.pufferlib.compute_puff_advantage(
-            values,
-            rewards,
-            dones,
-            importance_sampling_ratio,
-            advantages,
-            gamma,
-            gae_lambda,
-            vtrace_rho_clip,
-            vtrace_c_clip,
+        T, B = rewards.shape
+        next_values = torch.cat([values[1:], torch.zeros(1, B, device=device)], dim=0)
+        deltas = importance_sampling_ratio.clamp(max=vtrace_rho_clip) * (
+            rewards + gamma * next_values * (1 - dones) - values
         )
 
-    return advantages
+        vs = torch.zeros_like(values)
+        acc = torch.zeros_like(values[0])
+        for t in reversed(range(T)):
+            acc = deltas[t] + gamma * gae_lambda * (1 - dones[t]) * acc
+            vs[t] = acc + values[t]
+
+        return vs - values
+
+    else:
+        tensors = [values, rewards, dones, importance_sampling_ratio, advantages]
+        tensors = [t.to(device) for t in tensors]
+        values, rewards, dones, importance_sampling_ratio, advantages = tensors
+
+        device_context = torch.cuda.device(device) if str(device).startswith("cuda") else nullcontext()
+        with device_context:
+            torch.ops.pufferlib.compute_puff_advantage(
+                values,
+                rewards,
+                dones,
+                importance_sampling_ratio,
+                advantages,
+                gamma,
+                gae_lambda,
+                vtrace_rho_clip,
+                vtrace_c_clip,
+            )
+
+        return advantages
 
 
 def normalize_advantage_distributed(adv: Tensor, norm_adv: bool = True) -> Tensor:
