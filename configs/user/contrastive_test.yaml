@@ -6,10 +6,11 @@ run: contrastive_test_run
 defaults:
   - /trainer/trainer
   - /agent/fast
+  - /hardware/macbook
   - _self_
 
 trainer:
-  env: /env/mettagrid/simple
+  env: /env/mettagrid/arena/basic_easy
   contrastive:
     enabled: true
     loss_coef: 0.1
