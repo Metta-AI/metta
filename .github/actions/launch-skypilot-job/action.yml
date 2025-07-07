@@ -3,7 +3,7 @@ description: "Sets up and launches a SkyPilot job with necessary configurations.
 
 inputs:
   trainer_env:
-    description: "Training environment configuration (e.g., env/mettagrid/simple)"
+    description: "Training environment configuration (e.g., env/mettagrid/arena/advanced)"
     required: true
   timeout_hours:
     description: "Job timeout in hours"

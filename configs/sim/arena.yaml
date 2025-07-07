@@ -1,0 +1,13 @@
+defaults:
+  - sim_suite
+  - _self_
+
+name: simple
+
+simulations:
+  arena/basic:
+    env: /env/mettagrid/arena/basic
+  arena/combat:
+    env: /env/mettagrid/arena/combat
+  arena/advanced:
+    env: /env/mettagrid/arena/advanced

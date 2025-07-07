@@ -21,19 +21,19 @@ class TestValidateConfig(unittest.TestCase):
         """Clear Hydra state after each test."""
         GlobalHydra.instance().clear()
 
-    def test_load_and_print_config_simple(self):
-        """Test loading env/mettagrid/simple.yaml config."""
+    def test_load_and_print_config_arena_advanced(self):
+        """Test loading env/mettagrid/arena/advanced.yaml config."""
         # Capture the output
         f = StringIO()
         try:
             with redirect_stdout(f):
-                load_and_print_config("env/mettagrid/simple")
+                load_and_print_config("env/mettagrid/arena/advanced")
             output = f.getvalue()
             # Should have game configuration
             self.assertIn("game:", output)
         except SystemExit as e:
             if e.code != 0:
-                self.fail(f"Failed to load env/mettagrid/simple.yaml: {e}")
+                self.fail(f"Failed to load env/mettagrid/arena/advanced.yaml: {e}")
 
     def test_load_and_print_config_agent_fast(self):
         """Test loading agent/fast.yaml config."""
@@ -61,10 +61,10 @@ class TestValidateConfig(unittest.TestCase):
             if e.code != 0:
                 self.fail(f"Failed to load trainer/trainer.yaml: {e}")
 
-    def test_script_execution_simple(self):
-        """Test the script execution via command line for simple config."""
+    def test_script_execution_arena_advanced(self):
+        """Test the script execution via command line for arena/advanced config."""
         result = subprocess.run(
-            [sys.executable, "tools/validate_config.py", "env/mettagrid/simple"],
+            [sys.executable, "tools/validate_config.py", "env/mettagrid/arena/advanced"],
             cwd=Path(__file__).parent.parent.parent,  # metta root directory
             capture_output=True,
             text=True,

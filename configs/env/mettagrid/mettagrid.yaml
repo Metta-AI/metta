@@ -1,5 +1,6 @@
 defaults:
-  - game/agent: hearts
+  - game/agent: agent
+  - game/agent/rewards: hearts
   - game/groups: solo
   - game/objects:
       - basic

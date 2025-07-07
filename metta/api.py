@@ -498,7 +498,7 @@ class Environment:
 
         Args:
             curriculum_path: Optional path to environment or curriculum configuration
-                           (e.g., "/env/mettagrid/simple" or "/env/mettagrid/curriculum/navigation/bucketed")
+                           (e.g., "/env/mettagrid/arena/advanced" or "/env/mettagrid/curriculum/navigation/bucketed")
             env_config: Optional complete environment config dict. If not provided, uses defaults.
             device: Device to use
             seed: Random seed
