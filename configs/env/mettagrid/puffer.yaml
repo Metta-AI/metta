@@ -14,30 +14,21 @@ game:
   num_observation_tokens: 128
   max_steps: 1000
 
-  diversity_bonus:
-    enabled: false
-    similarity_coef: 0.5
-    diversity_coef: 0.5
-
   agent:
     default_resource_limit: 50
-    default_item_max: 10
-    heart_max: 255
     freeze_duration: 10
     rewards:
       action_failure_penalty: 0
-      ore.red: 0.25
-      ore.blue: 0.0
-      ore.green: 0.0
-      ore.red_max: 1000
-      ore.blue_max: 0
-      ore.green_max: 0
-      battery.red: 0.5
-      battery.blue: 0.0
-      battery.green: 0.0
-      battery.red_max: 1000
-      battery.blue_max: 0
-      battery.green_max: 0
+      ore_red: 0.25
+      ore_blue: 0.0
+      ore_green: 0.0
+      ore_red_max: 1000
+      ore_blue_max: 0
+      ore_green_max: 0
+      battery_red: 0.5
+      battery_blue: 0.0
+      battery_green: 0.0
+      battery_red_max: 1000
       heart: 1.0
       heart_max: 1000
 
@@ -83,7 +74,7 @@ game:
 
   objects:
     altar:
-      input_battery.red: 3
+      input_battery_red: 3
       output_heart: 1
       max_output: 5
       conversion_ticks: 1
@@ -91,7 +82,7 @@ game:
       initial_resource_count: 0
 
     mine_red:
-      output_ore.red: 1
+      output_ore_red: 1
       color: 0
       max_output: 5
       conversion_ticks: 50
@@ -100,14 +91,14 @@ game:
 
     mine_blue:
       color: 1
-      output_ore.blue: 1
+      output_ore_blue: 1
       max_output: 5
       conversion_ticks: 1
       cooldown: 1
       initial_resource_count: 1
 
     mine_green:
-      output_ore.green: 1
+      output_ore_green: 1
       color: 2
       max_output: 5
       conversion_ticks: 1
@@ -115,8 +106,8 @@ game:
       initial_resource_count: 1
 
     generator_red:
-      input_ore.red: 1
-      output_battery.red: 1
+      input_ore_red: 1
+      output_battery_red: 1
       color: 0
       max_output: 5
       conversion_ticks: 1
@@ -124,8 +115,8 @@ game:
       initial_resource_count: 0
 
     generator_blue:
-      input_ore.blue: 1
-      output_battery.blue: 1
+      input_ore_blue: 1
+      output_battery_blue: 1
       color: 1
       max_output: 5
       conversion_ticks: 1
@@ -133,8 +124,8 @@ game:
       initial_resource_count: 1
 
     generator_green:
-      input_ore.green: 1
-      output_battery.green: 1
+      input_ore_green: 1
+      output_battery_green: 1
       color: 2
       max_output: 5
       conversion_ticks: 1
@@ -142,7 +133,7 @@ game:
       initial_resource_count: 1
 
     armory:
-      input_ore.red: 3
+      input_ore_red: 3
       output_armor: 1
       max_output: 5
       conversion_ticks: 1
@@ -150,8 +141,8 @@ game:
       initial_resource_count: 1
 
     lasery:
-      input_ore.red: 1
-      input_battery.red: 2
+      input_ore_red: 1
+      input_battery_red: 2
       output_laser: 1
       max_output: 5
       conversion_ticks: 1
@@ -159,8 +150,8 @@ game:
       initial_resource_count: 1
 
     lab:
-      input_ore.red: 3
-      input_battery.red: 3
+      input_ore_red: 3
+      input_battery_red: 3
       output_blueprint: 1
       max_output: 5
       conversion_ticks: 1
@@ -169,8 +160,8 @@ game:
 
     factory:
       input_blueprint: 1
-      input_ore.red: 5
-      input_battery.red: 5
+      input_ore_red: 5
+      input_battery_red: 5
       output_armor: 5
       output_laser: 5
       max_output: 5
@@ -210,17 +201,6 @@ game:
       enabled: false
     change_color:
       enabled: false
-
-  reward_sharing:
-    groups:
-      team_1:
-        team_1: 0.5
-      team_2:
-        team_2: 0.5
-      team_3:
-        team_3: 0.5
-      team_4:
-        team_4: 0.5
 
   map_builder:
     _target_: metta.map.mapgen.MapGen
