@@ -42,16 +42,10 @@ class CompilerMessage:
 class BuildChecker:
     """Analyzes build output for warnings and errors."""
 
-    # Common compiler warning/error patterns
+    # GCC/Clang pattern (Linux compilers)
     GCC_CLANG_PATTERN = re.compile(
         r"^(?P<file>[^:]+):(?P<line>\d+)(?::\d+)?:\s*"
         r"(?P<severity>warning|error|note):\s*(?P<message>.*?)(?:\s*\[(?P<flag>-W[^\]]+)\])?$"
-    )
-
-    # MSVC pattern
-    MSVC_PATTERN = re.compile(
-        r"^(?P<file>[^(]+)\((?P<line>\d+)(?:,\d+)?\)\s*:\s*"
-        r"(?P<severity>warning|error)\s+(?P<code>C\d+):\s*(?P<message>.*)$"
     )
 
     def __init__(self, project_root: Path):
@@ -81,36 +75,22 @@ class BuildChecker:
                     message=match.group("message"),
                     flag=match.group("flag"),
                 )
-            else:
-                # Try MSVC pattern
-                match = self.MSVC_PATTERN.match(line)
-                if match:
-                    parsed_count += 1
-                    message = CompilerMessage(
-                        file_path=match.group("file"),
-                        line_number=int(match.group("line")),
-                        severity=match.group("severity"),
-                        message=f"{match.group('code')}: {match.group('message')}",
-                        flag=match.group("code"),
-                    )
-                else:
-                    continue
 
-            # Make paths relative to repo root for cleaner output
-            try:
-                abs_path = Path(message.file_path).resolve()
-                # Try relative to project root first, then repo root
+                # Make paths relative to repo root for cleaner output
                 try:
-                    message.file_path = str(abs_path.relative_to(self.project_root))
-                except ValueError:
-                    message.file_path = str(abs_path.relative_to(self.repo_root))
-            except (ValueError, OSError):
-                pass
+                    abs_path = Path(message.file_path).resolve()
+                    # Try relative to project root first, then repo root
+                    try:
+                        message.file_path = str(abs_path.relative_to(self.project_root))
+                    except ValueError:
+                        message.file_path = str(abs_path.relative_to(self.repo_root))
+                except (ValueError, OSError):
+                    pass
 
-            self.messages.append(message)
+                self.messages.append(message)
 
-            if message.severity == "error":
-                self.build_failed = True
+                if message.severity == "error":
+                    self.build_failed = True
 
         print(f"🔍 Parsed {parsed_count} compiler messages from output")
 
