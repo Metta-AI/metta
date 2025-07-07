@@ -37,8 +37,8 @@ from metta.rl.functions import (
     compute_advantage,
     compute_gradient_stats,
     get_lstm_config,
+    get_observation,
     process_minibatch_update,
-    receive_env_data,
     run_policy_inference,
     validate_policy_environment_match,
 )
@@ -438,7 +438,7 @@ class MettaTrainer:
 
             # Perform single rollout step
             # Receive environment data
-            o, r, d, t, info, training_env_id, mask, num_steps = receive_env_data(self.vecenv, self.device, self.timer)
+            o, r, d, t, info, training_env_id, mask, num_steps = get_observation(self.vecenv, self.device, self.timer)
             self.agent_step += num_steps
 
             # Run policy inference

@@ -25,21 +25,18 @@ from metta.rl.losses import Losses
 logger = logging.getLogger(__name__)
 
 
-def receive_env_data(
+def get_observation(
     vecenv: Any,
     device: torch.device,
-    timer: Optional[Any] = None,
+    timer: Any,
 ) -> Tuple[Tensor, Tensor, Tensor, Tensor, list, slice, Tensor, int]:
-    """Receive data from the vectorized environment and convert to tensors.
+    """Get observations and other data from the vectorized environment and convert to tensors.
 
     Returns:
         Tuple of (observations, rewards, dones, truncations, info, training_env_id, mask, num_steps)
     """
     # Receive environment data
-    if timer:
-        with timer("_rollout.env"):
-            o, r, d, t, info, env_id, mask = vecenv.recv()
-    else:
+    with timer("_rollout.env"):
         o, r, d, t, info, env_id, mask = vecenv.recv()
 
     training_env_id = slice(env_id[0], env_id[-1] + 1)

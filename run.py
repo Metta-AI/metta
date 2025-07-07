@@ -37,9 +37,9 @@ from metta.rl.functions import (
     compute_advantage,
     compute_gradient_stats,
     get_lstm_config,
+    get_observation,
     maybe_update_l2_weights,
     process_minibatch_update,
-    receive_env_data,
     run_policy_inference,
     should_run_on_interval,
 )
@@ -240,7 +240,7 @@ while agent_step < trainer_config.total_timesteps:
     # Collect experience
     while not experience.ready_for_training:
         # Receive environment data
-        o, r, d, t, info, training_env_id, mask, num_steps = receive_env_data(env, device, timer)
+        o, r, d, t, info, training_env_id, mask, num_steps = get_observation(env, device, timer)
         agent_step += num_steps
 
         # Run policy inference
