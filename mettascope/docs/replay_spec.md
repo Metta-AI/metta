@@ -69,7 +69,9 @@ The most important key in the format is `objects` which is a list of objects tha
 }
 ```
 
-Objects are stored in a condensed format. Every field of the object either a constant or time series of values. The time series is a list of tuples, where the first element is the step and the second element is the value, which can be a number, boolean, or a list of numbers.
+
+Objects are stored in a condensed format. Every field of the object is either a constant or time series of values. The time series is a list of tuples, where the first element is the step and the second element is the value, which can be a number, boolean, or a list of numbers.
+
 
 ```json
 {
