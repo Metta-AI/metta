@@ -1,15 +1,14 @@
 _target_: metta.mettagrid.curriculum.learning_progress.LearningProgressCurriculum
 
 tasks:
-  /env/mettagrid/simple/simple.0: 1
-  /env/mettagrid/simple/simple.1: 1
-  /env/mettagrid/simple/simple.2: 1
-  /env/mettagrid/simple/simple: 1
-  /env/mettagrid/simple/combat.0: 1
-  /env/mettagrid/simple/combat.1: 1
-  /env/mettagrid/simple/combat.2: 1
-  /env/mettagrid/simple/combat: 1
-  /env/mettagrid/simple/advanced.0: 1
-  /env/mettagrid/simple/advanced.1: 1
-  /env/mettagrid/simple/advanced.2: 1
-  /env/mettagrid/simple/advanced: 1
+  /env/mettagrid/arena/basic: 1
+  /env/mettagrid/arena/basic_easy: 1
+  /env/mettagrid/arena/basic_easy_shaped: 1
+
+  /env/mettagrid/arena/combat: 1
+  /env/mettagrid/arena/combat_easy: 1
+  /env/mettagrid/arena/combat_easy_shaped: 1
+
+  /env/mettagrid/arena/advanced: 1
+  /env/mettagrid/arena/advanced_easy: 1
+  /env/mettagrid/arena/advanced_easy_shaped: 1

@@ -760,7 +760,7 @@ class MettaTrainer:
     @with_instance_timer("_generate_and_upload_replay", log_level=logging.INFO)
     def _generate_and_upload_replay(self):
         replay_sim_config = SingleEnvSimulationConfig(
-            env="/env/mettagrid/simple/advanced",
+            env="/env/mettagrid/arena/advanced",
             num_episodes=1,
             env_overrides=self._curriculum.get_task().env_cfg(),
         )

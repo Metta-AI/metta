@@ -5,9 +5,9 @@ defaults:
 name: simple
 
 simulations:
-  simple/simple:
-    env: env/mettagrid/simple/simple
-  simple/combat:
-    env: env/mettagrid/simple/combat
-  simple/advanced:
-    env: env/mettagrid/simple/advanced
+  arena/basic:
+    env: /env/mettagrid/arena/basic
+  arena/combat:
+    env: /env/mettagrid/arena/combat
+  arena/advanced:
+    env: /env/mettagrid/arena/advanced

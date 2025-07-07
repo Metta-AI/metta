@@ -2,6 +2,7 @@
 
 defaults:
   # - /sim/all@sim_job.simulation_suite
+  - /env/mettagrid/game/agent/rewards/shaped@replay_job.sim.env_overrides.game.agent.rewards
   - _self_
 
 trainer:
@@ -55,12 +56,7 @@ analyzer:
 
 replay_job:
   sim:
-    env: /env/mettagrid/simple/advanced
-    # env_overrides:
-    #   sampling: 1
-    #   game:
-    #     max_steps: 300
-    #     group_reward_pct: 0.5
+    env: /env/mettagrid/arena/combat_easy_shaped
 
 sim_job:
   # policy_agents_pct: 1

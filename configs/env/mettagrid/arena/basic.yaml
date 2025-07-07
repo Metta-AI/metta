@@ -1,3 +1,6 @@
+# Simple map with mines / generators / altar
+# and default settings.
+
 defaults:
   - /env/mettagrid/mettagrid@
   - /env/mettagrid/game/objects@game.objects:

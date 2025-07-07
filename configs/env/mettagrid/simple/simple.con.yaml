@@ -1,9 +1,0 @@
-defaults:
-  - simple
-  - _self_
-
-# Converters start with items, and only require one input item.
-game:
-  objects:
-    altar:
-      input_battery_red: 1
