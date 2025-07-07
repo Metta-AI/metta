@@ -78,9 +78,11 @@ def metta_script(func: Callable[..., T]) -> Callable[..., T]:
     return wrapper
 
 
+
 def is_unspecified(cfg: DictConfig, key: str) -> bool:
     """Check if a config value is unspecified (not set or ???)."""
-    return not cfg.get(key) or OmegaConf.is_missing(cfg, key)
+    return key not in cfg or OmegaConf.is_missing(cfg, key)
+
 
 
 def set_hardware_configurations(cfg: DictConfig, logger: logging.Logger) -> None:
