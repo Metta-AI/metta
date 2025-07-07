@@ -19,6 +19,11 @@ test('smoke test', async ({ page }) => {
 
 test('load a replay', async ({ page }) => {
   const consoleErrors: string[] = [];
+  page.on('console', (msg) => {
+    if (msg.type() === 'error') {
+      consoleErrors.push(msg.text());
+    }
+  });
   await page.goto(`http://localhost:2000/?replayUrl=${encodeReplayUrl(replayUrl)}`);
   
   // Wait for the page to fully load the replay and render the first frame
@@ -32,6 +37,11 @@ test('load a replay', async ({ page }) => {
 
 test('load a replay and play it', async ({ page }) => {
   const consoleErrors: string[] = [];
+  page.on('console', (msg) => {
+    if (msg.type() === 'error') {
+      consoleErrors.push(msg.text());
+    }
+  });
   await page.goto(`http://localhost:2000/?replayUrl=${encodeReplayUrl(replayUrl)}&play=true`);
   
   // Wait for the page to fully load the replay and render the first frame
