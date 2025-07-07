@@ -19,17 +19,18 @@ def map_or_env_configs() -> list[MettagridCfgFileMetadata]:
     # If this test is failing and you have configs that are too hard to fix
     # properly, you can add them to this list.
     exclude_patterns = [
-        "multiagent/experiments",
-        "multiagent/multiagent",
-        "mettagrid.yaml",
+        # uses a class that doesn't exist
+        "multiagent/experiments/cylinder_world.yaml",
         # usually incomplete
-        "defaults",
+        "defaults.yaml",
         # partials
+        "mettagrid.yaml",
         "game/agent",
         "game/groups",
         "game/objects",
         "game/reward_sharing",
         # have unset params
+        "multiagent/experiments/varied_terrain.yaml",
         "game/map_builder/load.yaml",
         "game/map_builder/load_random.yaml",
     ]
