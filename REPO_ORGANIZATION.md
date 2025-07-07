@@ -186,9 +186,47 @@ graph TD
 1. `metta.common` has no internal dependencies (base utilities)
 2. `metta.mettagrid` depends only on `metta.common`
 3. Main `metta` package depends on `metta.common` and `metta.mettagrid`
-4. `metta.backend` can import from all metta.* packages
+4. `metta.backend` depends only on `metta.common`
 5. Frontend packages are independent TypeScript/Node projects
 6. Frontend `server.py` files can import from any metta.* package
+
+### External Library Dependencies
+
+Remember that python has no built-in tree shaking for dependencies! To keep packages lightweight and minimize dependency bloat:
+
+To minimize dependency footprint and improve import times:
+
+```python
+# ❌ AVOID: Importing entire packages
+import torch
+import numpy as np
+from sklearn import *
+
+# ✅ PREFERRED: Import only specific submodules/functions
+from torch.nn import functional as F
+from numpy import array, zeros
+from sklearn.metrics import accuracy_score
+```
+
+**Package-specific rules:**
+- `metta.common`: Import only stdlib and minimal utilities
+- `metta.backend`: Import only specific web framework components
+  ```python
+  # Good: from fastapi import FastAPI, HTTPException
+  # Bad:  import fastapi
+  ```
+- `metta.mettagrid`: Import only essential numerical operations
+  ```python
+  # Good: from numpy import ndarray, zeros
+  # Bad:  import numpy
+  ```
+
+This approach:
+- Reduces memory usage (only loads needed submodules)
+- Speeds up import times
+- Makes dependencies explicit and easier to audit
+- Helps identify if a package is getting too heavy
+
 
 ## PEP 420 Strategy
 
@@ -255,12 +293,12 @@ docs/
 ├── guides/                # Step-by-step user guides
 │   ├── quickstart.md
 │   ├── installation.md
-│   └── mapgen.md         # Feature-specific guides
+│   └── mapgen.md          # Feature-specific guides
 ├── metrics/               # Metrics and monitoring documentation
-│   ├── README.md         # Metrics overview
-│   └── wandb/            # Auto-generated WandB metric docs
+│   ├── README.md          # Metrics overview
+│   └── wandb/             # Auto-generated WandB metric docs
 ├── development/           # Developer and contributor docs
-│   ├── architecture.md   # System design documentation
+│   ├── architecture.md    # System design documentation
 │   ├── contributing.md
 │   └── workflows/        # Development workflows
 └── assets/               # Images, diagrams, and media
