@@ -76,7 +76,7 @@ metta/
 │   │   ├── src/           # TypeScript/React source
 │   │   ├── server.py      # Python server (if needed)
 │   │   └── package.json
-│   ├── mettascope/        # Local replay visualization
+│   ├── mettascope/        # Web replay visualization
 │   │   ├── src/           # TypeScript source
 │   │   ├── server.py      # Local Python server
 │   │   ├── replays.py     # Replay handling
