@@ -211,6 +211,10 @@ class TrainerConfig(BaseModelWithForbidExtra):
     # Disabled by default: Expensive diagnostic for debugging training instability
     grad_mean_variance_interval: int = Field(default=0, ge=0)  # 0 to disable
 
+    # How often to heartbeat. If the heartbeat monitor is enabled, the training job is liable
+    # to be terminated if it does not complete this many epochs within some amount of time (default 600s).
+    heartbeat_interval: int = Field(default=10, ge=0)  # 0 to disable
+
     model_config: ClassVar[ConfigDict] = ConfigDict(
         extra="forbid",
         validate_assignment=True,

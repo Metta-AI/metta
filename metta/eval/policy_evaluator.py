@@ -1,6 +1,6 @@
 import logging
 import uuid
-from typing import Callable, Optional, Set
+from typing import Optional, Set
 
 import torch
 
@@ -40,7 +40,6 @@ class PolicyEvaluator:
         stats_epoch_end: int,
         stats_run_id: uuid.UUID,
         wandb_policy_name: Optional[str] = None,
-        record_heartbeat: Callable[[], None] = lambda: None,
     ) -> None:
         if stats_run_id is not None and self.stats_client is not None:
             self.stats_epoch_id = self.stats_client.create_epoch(
@@ -65,7 +64,7 @@ class PolicyEvaluator:
         )
 
         result = sim.simulate()
-        stats_db = EvalStatsDB.from_sim_stats_db(result.stats_db)
+        stats_db: EvalStatsDB = EvalStatsDB.from_sim_stats_db(result.stats_db)
         logger.info("Simulation complete")
 
         self.evals: dict[str, float] = {}
@@ -77,7 +76,6 @@ class PolicyEvaluator:
         for category in categories:
             score = stats_db.get_average_metric_by_filter("reward", policy_record, f"sim_name LIKE '%{category}%'")
             logger.info(f"{category} score: {score}")
-            record_heartbeat()
 
             if score is not None:
                 self.evals[f"{category}/score"] = score

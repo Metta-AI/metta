@@ -564,7 +564,7 @@ class MettaTrainer:
         return self.epoch % interval == 0
 
     def _maybe_record_heartbeat(self, force=False):
-        if not self._should_run(10, force):
+        if not self._should_run(self.trainer_cfg.heartbeat_interval, force):
             return
 
         record_heartbeat()
