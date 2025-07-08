@@ -4,6 +4,12 @@ import re
 from typing import Any, List, Tuple, Union
 
 
+class CommanderError(Exception):
+    """Exception raised by the commander function for all error conditions."""
+
+    pass
+
+
 def commander(arguments: str, tree: Any) -> Any:
     """
     This function takes command line arguments and applies them to a possibly very nested and complex tree of objects.
@@ -14,7 +20,10 @@ def commander(arguments: str, tree: Any) -> Any:
         arguments = " ".join(arguments)
 
     # Split arguments into tokens
-    args = parse_arguments(arguments)
+    try:
+        args = parse_arguments(arguments)
+    except Exception as e:
+        raise CommanderError(f"Argument parsing error: {str(e)}") from e
 
     # Handle help
     if any(arg in ["-h", "--help"] for arg in args):
@@ -29,7 +38,10 @@ def commander(arguments: str, tree: Any) -> Any:
         # Check if it's a flag/option
         if arg.startswith("-"):
             # Parse the key and potential value
-            key, value, consumed = parse_key_value(args, i)
+            try:
+                key, value, consumed = parse_key_value(args, i)
+            except Exception as e:
+                raise CommanderError(f"Key-value parsing error: {str(e)}") from e
 
             # Apply the value to the tree
             try:
@@ -37,7 +49,7 @@ def commander(arguments: str, tree: Any) -> Any:
             except Exception as e:
                 # Enhanced error message
                 error_msg = f"Error setting '{key}' to {repr(value)}: {str(e)}"
-                raise ValueError(error_msg) from e
+                raise CommanderError(error_msg) from e
 
             i += consumed
         else:
@@ -113,11 +125,11 @@ def parse_arguments(arguments: str) -> List[str]:
         tokens.append(current_token)
 
     if in_quotes:
-        raise ValueError(f"Unclosed quote: {in_quotes}")
+        raise CommanderError(f"Unclosed quote: {in_quotes}")
     if brace_depth != 0:
-        raise ValueError(f"Unmatched braces: depth={brace_depth}")
+        raise CommanderError(f"Unmatched braces: depth={brace_depth}")
     if bracket_depth != 0:
-        raise ValueError(f"Unmatched brackets: depth={bracket_depth}")
+        raise CommanderError(f"Unmatched brackets: depth={bracket_depth}")
 
     return tokens
 
@@ -133,7 +145,7 @@ def parse_key_value(args: List[str], index: int) -> Tuple[str, Any, int]:
     elif arg.startswith("-"):
         arg = arg[1:]
     else:
-        raise ValueError(f"Expected flag starting with - or --, got: {arg}")
+        raise CommanderError(f"Expected flag starting with - or --, got: {arg}")
 
     # Check for = or : separator
     if "=" in arg:
@@ -199,7 +211,7 @@ def parse_value(value_str: str) -> Any:
     # Special case: negative numbers were already handled above
     # Everything else that starts with non-letter should have been quoted
     if value_str and not value_str[0].isalpha():
-        raise ValueError(f"Values starting with '{value_str[0]}' must be quoted: {value_str}")
+        raise CommanderError(f"Values starting with '{value_str[0]}' must be quoted: {value_str}")
 
     return value_str
 
@@ -312,7 +324,7 @@ def parse_json5(s: str) -> Any:
         try:
             return ast.literal_eval(s)
         except Exception:
-            raise ValueError(f"Unable to parse JSON5 value: {s}. Error: {str(e)}") from e
+            raise CommanderError(f"Unable to parse JSON5 value: {s}. Error: {str(e)}") from e
 
 
 def apply_value(tree: Any, key_path: str, value: Any) -> None:
@@ -327,20 +339,22 @@ def apply_value(tree: Any, key_path: str, value: Any) -> None:
 
         if isinstance(current, dict):
             if key not in current:
-                raise KeyError(f"Key '{key}' not found at path {'.'.join(path)}")
+                raise CommanderError(f"Key '{key}' not found at path {'.'.join(path)}")
             current = current[key]
         elif isinstance(current, list):
             try:
                 index = int(key)
                 if index < 0 or index >= len(current):
-                    raise IndexError(f"Index {index} out of range for list at path {'.'.join(path[:-1])}")
+                    raise CommanderError(f"Index {index} out of range for list at path {'.'.join(path[:-1])}")
                 current = current[index]
             except ValueError as e:
-                raise TypeError(f"Cannot use non-numeric key '{key}' for list at path {'.'.join(path[:-1])}") from e
+                raise CommanderError(
+                    f"Cannot use non-numeric key '{key}' for list at path {'.'.join(path[:-1])}"
+                ) from e
         else:
             # Handle Python objects with attributes
             if not hasattr(current, key):
-                raise KeyError(f"Attribute '{key}' not found at path {'.'.join(path)}")
+                raise CommanderError(f"Attribute '{key}' not found at path {'.'.join(path)}")
             current = getattr(current, key)
 
     # Apply the value
@@ -349,7 +363,7 @@ def apply_value(tree: Any, key_path: str, value: Any) -> None:
 
     if isinstance(current, dict):
         if final_key not in current:
-            raise KeyError(f"Key '{final_key}' not found at path {'.'.join(path)}")
+            raise CommanderError(f"Key '{final_key}' not found at path {'.'.join(path)}")
 
         # Type check
         old_value = current[final_key]
@@ -361,7 +375,7 @@ def apply_value(tree: Any, key_path: str, value: Any) -> None:
             elif old_value is None:
                 pass
             else:
-                raise TypeError(
+                raise CommanderError(
                     f"Type mismatch at path {'.'.join(path)}: "
                     f"expected {type(old_value).__name__}, got {type(value).__name__}"
                 )
@@ -371,7 +385,7 @@ def apply_value(tree: Any, key_path: str, value: Any) -> None:
         try:
             index = int(final_key)
             if index < 0 or index >= len(current):
-                raise IndexError(f"Index {index} out of range for list at path {'.'.join(path[:-1])}")
+                raise CommanderError(f"Index {index} out of range for list at path {'.'.join(path[:-1])}")
 
             # Type check
             old_value = current[index]
@@ -383,18 +397,20 @@ def apply_value(tree: Any, key_path: str, value: Any) -> None:
                 elif old_value is None:
                     pass
                 else:
-                    raise TypeError(
+                    raise CommanderError(
                         f"Type mismatch at path {'.'.join(path)}: "
                         f"expected {type(old_value).__name__}, got {type(value).__name__}"
                     )
 
             current[index] = value
         except ValueError as e:
-            raise TypeError(f"Cannot use non-numeric key '{final_key}' for list at path {'.'.join(path[:-1])}") from e
+            raise CommanderError(
+                f"Cannot use non-numeric key '{final_key}' for list at path {'.'.join(path[:-1])}"
+            ) from e
     else:
         # Handle Python objects with attributes
         if not hasattr(current, final_key):
-            raise KeyError(f"Attribute '{final_key}' not found at path {'.'.join(path)}")
+            raise CommanderError(f"Attribute '{final_key}' not found at path {'.'.join(path)}")
 
         # Type check
         old_value = getattr(current, final_key)
@@ -406,7 +422,7 @@ def apply_value(tree: Any, key_path: str, value: Any) -> None:
             elif old_value is None:
                 pass
             else:
-                raise TypeError(
+                raise CommanderError(
                     f"Type mismatch at path {'.'.join(path)}: "
                     f"expected {type(old_value).__name__}, got {type(value).__name__}"
                 )

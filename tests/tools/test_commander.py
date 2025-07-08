@@ -5,7 +5,7 @@ import contextlib
 import copy
 import io
 
-from tools.commander import commander
+from tools.commander import CommanderError, commander
 
 
 # Test classes for object testing
@@ -130,7 +130,7 @@ tree = {"string": "hello", "number": 42}
 try:
     commander("--string 123", copy.deepcopy(tree))
     raise AssertionError("Should have raised TypeError")
-except ValueError as e:
+except CommanderError as e:
     assert "Type mismatch" in str(e)
     print("  ✓ Type mismatch detected correctly")
 
@@ -141,8 +141,8 @@ tree = {"foo": {"bar": 1}}
 try:
     commander("--foo.baz 1", copy.deepcopy(tree))
     raise AssertionError("Should have raised KeyError")
-except ValueError as e:
-    assert "Key 'baz' not found" in str(e)
+except CommanderError as e:
+    assert "not found" in str(e)
     print("  ✓ Missing key detected correctly")
 
 # Test 9: Help
@@ -245,7 +245,7 @@ try:
     obj = Foo()
     commander("--bar.count hello", obj)  # count expects int
     raise AssertionError("Should have raised TypeError")
-except ValueError as e:
+except CommanderError as e:
     assert "Type mismatch" in str(e)
     print("  ✓ Object type mismatch detected correctly")
 
@@ -254,7 +254,7 @@ try:
     obj = Foo()
     commander("--bar.nonexistent 123", obj)
     raise AssertionError("Should have raised KeyError")
-except ValueError as e:
+except CommanderError as e:
     assert "not found" in str(e)
     print("  ✓ Object missing attribute detected correctly")
 
