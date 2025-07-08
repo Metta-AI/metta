@@ -12,9 +12,9 @@ decompressed_data = zlib.decompress(compressed_data)
 json_data = json.loads(decompressed_data)
 ```
 
-In JavaScript it's a bit more complicated, but you can use the `decompressStream` with a streaming api.
+In JavaScript it's a bit more complicated, but you can use the `decompressStream` with a streaming API.
 
-The first key in the format is `version`, which is a number that contains the version of the replay format. Valid values are `1`, `2`, etc... This document describes version 2.
+The first key in the format is `version`, which is a number that contains the version of the replay format. Valid values are `1`, `2`, etc. This document describes version 2.
 
 ```json
 {
@@ -54,7 +54,7 @@ There are several key-to-string mapping arrays that are stored in the replay. We
 
 ## Objects and time series
 
-The most important key in the format is `objects` which is a list of objects that are in the replay. Everything is an object - wall, buildings, and agents.
+The most important key in the format is `objects` which is a list of objects that are in the replay. Everything is an object - walls, buildings, and agents.
 
 ```json
 {
@@ -70,7 +70,7 @@ The most important key in the format is `objects` which is a list of objects tha
 ```
 
 
-Objects are stored in a condensed format. Every field of the object is either a constant or time series of values. The time series is a list of tuples, where the first element is the step and the second element is the value, which can be a number, boolean, or a list of numbers.
+Objects are stored in a condensed format. Every field of the object is either a constant or a time series of values. The time series is a list of tuples, where the first element is the step and the second element is the value, which can be a number, boolean, or a list of numbers.
 
 
 ```json
@@ -81,11 +81,12 @@ Objects are stored in a condensed format. Every field of the object is either a 
   "rotation": [[0, 1], [10, 2], [20, 3]],
   "position": [[0, [10, 10]], [1, [11, 10]], [2, [12, 11]]],
   "inventory": [[0, []], [100, [1]], [200, [1, 1]]],
+  ...
 }
 ```
 
 
-In this example, the agent `type_id` - 2 in this case never changes, so it's a constant. When looking up `type_names[type_id]`, we get the name of the type, which is `"agent"`. The mapping between ids and names can change between replays. The `id` is a constant as well. All objects have ids. The `agent_id` is a constant as well. Note there are two ids, one for the object and one for the agent. Agents have two ids. The `rotation` is a time series of values. The rotation is 1 at step 0, 2 at step 10, and 3 at step 20.
+In this example, the agent `type_id` - 2 in this case - never changes, so it's a constant. When looking up `type_names[type_id]`, we get the name of the type, which is `"agent"`. The mapping between IDs and names can change between replays. The `id` is a constant as well. All objects have IDs. The `agent_id` is a constant as well. Note there are two IDs, one for the object and one for the agent. Agents have two IDs. The `rotation` is a time series of values. The rotation is 1 at step 0, 2 at step 10, and 3 at step 20.
 
 
 Here is the expanded version of the `rotation` key:
@@ -96,11 +97,11 @@ Here is the expanded version of the `rotation` key:
 }
 ```
 
-You can either expand the whole time series on load or just use binary search to find the value at a specific step. At first I was using binary search, but expanding the time series is much faster. This is up to the implementation.
+You can either expand the whole time series on load or use binary search to find the value at a specific step. At first I was using binary search, but expanding the time series is much faster. This is up to the implementation.
 
 The `position` key is a time series of tuples, where the first element is the step and the second element is the position, which is a list of two numbers for x and y.
 
-The `inventory` key is a time series of tuples, where the first element is the step and the second element is the list of item_ids. It starts empty and then adds items at steps 100, 200, etc.
+The `inventory` key is a time series of tuples, where the first element is the step and the second element is the list of item_IDs. It starts empty and then adds items at steps 100, 200, etc.
 
 ## Key reference
 
@@ -112,7 +113,7 @@ Here are the keys supported for both agents and objects:
 * `layer` - The layer of the object.
 * `rotation` - The rotation of the object.
 
-* `inventory` - The current list of item_ids that map to the `item_names` array. Example: `[0, 0, 1]`. If `item_names = ["hearts", "bread"]`, then inventory is 2 hearts and 1 bread. The count is how many times the item repeats in the list. Note: In the replay data, this is represented in the `inventory` field as a time series showing how inventory changes over time (e.g., `[[0, []], [100, [1]], [200, [1, 1]]]`), where each entry contains a timestamp and the inventory state at that time and into the future.
+* `inventory` - The current list of item_IDs that map to the `item_names` array. Example: `[0, 0, 1]`. If `item_names = ["hearts", "bread"]`, then inventory is 2 hearts and 1 bread. The count is how many times the item repeats in the list. Note: In the replay data, this is represented in the `inventory` field as a time series showing how inventory changes over time (e.g., `[[0, []], [100, [1]], [200, [1, 1]]]`), where each entry contains a timestamp and the inventory state at that time and into the future.
 
 * `inventory_max` - Usually a constant. Maximum number of items that can be in the inventory.
 
@@ -131,8 +132,8 @@ Agent specific keys:
 
 Object specific keys:
 
-* `recipe_input` - Usually a constant. A list of item_ids that map to the `item_names` array. Example: `[0, 0, 1]`. If `item_names = ["hearts", "bread"]`, then recipe_input is 2 hearts and 1 bread. The count is how many times the item repeats in the list.
-* `recipe_output` - Usually a constant. A list of item_ids that map to the `item_names` array. Example: `[0, 0, 0, 0]`. If `item_names = ["hearts", ...]`, then recipe_output is 4 hearts. The count is how many times the item repeats in the list.
+* `recipe_input` - Usually a constant. A list of item ids that map to the `item_names` array. Example: `[0, 0, 1]`. If `item_names = ["hearts", "bread"]`, then recipe input is 2 hearts and 1 bread. The count is how many times the item repeats in the list.
+* `recipe_output` - Usually a constant. A list of item ids that map to the `item_names` array. Example: `[0, 0, 0, 0]`. If `item_names = ["hearts", ...]`, then recipe output is 4 hearts. The count is how many times the item repeats in the list.
 * `recipe_max` - Usually a constant. Maximum number of `recipe_output` items that can be produced by the recipe before stopping.
 * `production_progress` - Current progress of the recipe. Starts at 0 and goes until `production_time` is reached.
 * `production_time` - Usually a constant. How many steps does it take to produce the recipe.
@@ -158,3 +159,49 @@ The reward sharing matrix is a constant that stores the reward sharing between a
   ...
 }
 ```
+
+## Realtime WebSocket
+
+This format extends into real time with some differences. Instead of getting a compressed JSON file, you connect to a WebSocket and get replay format as a stream of messages. Each message can omit keys and only send them if they changed. You can then take the current replay you have and extend it with the new message. Each message has a new step field:
+
+```json
+{
+  "step": 100,
+  "version": 2,
+  ...
+  "objects": [
+    {...},
+    {...},
+    {...},
+    ...
+  ],
+}
+
+In this format there are no time series for the object properties. Instead everything is a constant that happens at the specific step.
+
+On step 0:
+
+```json
+{
+  "type_id": 2,
+  "id": 99,
+  "agent_id": 0,
+  "rotation": 3,
+  "position": [12, 11],
+  "inventory": [1, 1],
+  ...
+}
+```
+
+On later steps, only the `id` is required and any changed keys are sent. Many keys like `type_id`, `agent_id`, `group_id`, etc. don't change so they are only sent on step 0. While other keys like `position`, `inventory`, etc. are sent every time they change.
+
+```json
+{
+  "id": 99,
+  "position": [12, 11],
+  "inventory": [1, 1],
+  ...
+}
+```
+
+If no properties change, there is no need to send the object at all. Many static objects like walls are only spent on step 0.
