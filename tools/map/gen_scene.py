@@ -9,7 +9,7 @@ from omegaconf import DictConfig, OmegaConf
 
 from metta.common.util.resolvers import register_resolvers
 from metta.map.utils.show import ShowMode, show_map
-from tools.map.gen import map_builder_cfg_to_storable_map
+from metta.map.utils.storable_map import StorableMap
 
 # Aggressively exit on ctrl+c
 signal.signal(signal.SIGINT, lambda sig, frame: os._exit(0))
@@ -37,7 +37,7 @@ def make_map(cfg_path: str, width: int, height: int, overrides: DictConfig | Non
         }
     )
 
-    return map_builder_cfg_to_storable_map(mapgen_cfg, recursive=False)
+    return StorableMap.from_cfg(mapgen_cfg)
 
 
 def main():
