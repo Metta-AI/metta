@@ -905,7 +905,7 @@ class MettaTrainer:
         original_reward_values = [v for k, v in environment_stats.items() if k.startswith("env_original_reward")]
         if original_reward_values:
             mean_original_reward = sum(original_reward_values) / len(original_reward_values)
-            overview["original_reward"] = mean_original_reward
+            overview["reward"] = mean_original_reward
 
         # Calculate average perceived reward from all env_perceived_reward entries
         perceived_reward_values = [v for k, v in environment_stats.items() if k.startswith("env_perceived_reward")]
