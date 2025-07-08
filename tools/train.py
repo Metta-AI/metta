@@ -67,7 +67,6 @@ def main(cfg: DictConfig) -> int:
     record_heartbeat()
 
     logger = get_metta_logger()
-    logger.info(f"Train job config: {OmegaConf.to_yaml(cfg, resolve=True)}")
 
     logger.info(
         f"Training {cfg.run} on "
@@ -83,6 +82,7 @@ def main(cfg: DictConfig) -> int:
 
     logger.info(f"Training {cfg.run} on {cfg.device}")
     if os.environ.get("RANK", "0") == "0":
+        logger.info(f"Train job config: {OmegaConf.to_yaml(cfg, resolve=True)}")
         with WandbContext(cfg.wandb, cfg) as wandb_run:
             train(cfg, wandb_run, logger)
     else:
