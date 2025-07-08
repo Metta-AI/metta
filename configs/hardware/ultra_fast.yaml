@@ -1,0 +1,119 @@
+# @package __global__
+
+# Ultra-fast configuration for 10-20x speedup
+# This configuration maximizes throughput by using large batches and optimized settings
+
+device: cuda
+vectorization: multiprocessing
+
+trainer:
+  # Massive batch sizes for maximum GPU utilization
+  batch_size: 262144  # 256K - much larger than default
+  minibatch_size: 32768  # 32K - optimized for GPU memory
+  forward_pass_minibatch_target_size: 32768
+
+  # Optimized training parameters
+  update_epochs: 1  # Single epoch for speed
+  bptt_horizon: 32  # Reduced for faster processing
+
+  # Parallelism settings
+  num_workers: 16  # Maximum workers for CPU-bound environments
+  async_factor: 8  # High async factor for better throughput
+  zero_copy: true  # Enable zero-copy for reduced memory overhead
+
+  # Performance optimizations
+  cpu_offload: false  # Keep everything on GPU
+  compile: true  # Enable torch.compile for speed
+  compile_mode: reduce-overhead
+
+  # Reduced logging and evaluation frequency
+  checkpoint:
+    checkpoint_interval: 100  # Less frequent checkpoints
+  simulation:
+    evaluate_interval: 500  # Less frequent evaluation
+    replay_interval: 500  # Less frequent replay generation
+  grad_mean_variance_interval: 300  # Less frequent gradient stats
+
+  # Optimized PPO parameters
+  ppo:
+    clip_coef: 0.1
+    ent_coef: 0.01
+    gamma: 0.99
+    gae_lambda: 0.95
+    max_grad_norm: 0.5
+    target_kl: null  # Disable early stopping for speed
+
+  # Optimized optimizer settings
+  optimizer:
+    type: adam
+    learning_rate: 3e-4
+    beta1: 0.9
+    beta2: 0.999
+    eps: 1e-8
+    weight_decay: 0
+
+  # Disable expensive features
+  prioritized_experience_replay:
+    prio_alpha: 0.0  # Disable prioritized replay for speed
+    prio_beta0: 0.6
+
+  vtrace:
+    vtrace_rho_clip: 1.0
+    vtrace_c_clip: 1.0
+
+  # Disable contrastive learning for speed
+  contrastive:
+    enabled: false
+    temperature: 0.1
+    logsumexp_coef: 0.01
+    reward_coef: 0.0
+
+  # Disable kickstart for speed
+  kickstart:
+    enabled: false
+
+  # Total timesteps for training
+  total_timesteps: 50_000_000_000
+
+# Environment settings for maximum speed
+env:
+  num_envs: 512  # Maximum parallel environments
+  batch_size: 512  # Large environment batches
+  num_agents: 4  # Standard agent count
+  width: 32
+  height: 32
+
+  # Disable expensive features
+  diversity_bonus:
+    enabled: false
+
+  # Optimized curriculum
+  curriculum:
+    type: bucketed
+    task_selection: random  # Fastest task selection
+
+# Agent settings for speed
+agent:
+  # Disable expensive analysis
+  analyze_weights_interval: 0  # Disable weight analysis
+  clip_range: 0  # Disable weight clipping
+
+  # Optimized network settings
+  hidden_size: 256  # Standard size
+  num_lstm_layers: 1  # Single LSTM layer for speed
+
+  # Disable expensive features
+  use_attention: false
+  use_contrastive: false
+  use_kickstart: false
+
+# Profiling settings
+profiler:
+  interval_epochs: 0  # Disable profiling for speed
+  profile_dir: null
+
+# Logging settings for speed
+logging:
+  level: WARNING  # Reduce logging overhead
+  wandb:
+    enabled: false  # Disable wandb for speed

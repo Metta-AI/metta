@@ -1,4 +1,10 @@
 #!/usr/bin/env -S uv run
+"""
+Fast training script for significant speedup.
+
+This script implements the most important optimizations while maintaining compatibility.
+"""
+
 import logging
 import os
 import time
@@ -62,44 +68,51 @@ logger = logging.getLogger(__name__)
 dirs = setup_run_directories()
 device, is_master, world_size, rank = setup_distributed_training("cuda" if torch.cuda.is_available() else "cpu")
 
-# OPTIMIZED Configuration for 10-20x speedup
+# FAST Configuration for significant speedup
 trainer_config = TrainerConfig(
-    num_workers=8,  # Increased from 4
-    total_timesteps=10_000_000,
-    batch_size=131072,  # Increased from 16384 (8x larger)
-    minibatch_size=8192,  # Increased from 512 (16x larger)
+    num_workers=8,  # Increased workers
+    total_timesteps=50_000_000_000,
+    batch_size=131072,  # 128K - large but manageable
+    minibatch_size=16384,  # 16K - optimized for GPU
     curriculum="/env/mettagrid/curriculum/navigation/bucketed",
     ppo=PPOConfig(
         clip_coef=0.1,
         ent_coef=0.01,
         gamma=0.99,
         gae_lambda=0.95,
+        max_grad_norm=0.5,
+        target_kl=None,  # Disable early stopping
     ),
     optimizer=OptimizerConfig(
         type="adam",
         learning_rate=3e-4,
+        beta1=0.9,
+        beta2=0.999,
+        eps=1e-8,
+        weight_decay=0,
     ),
     checkpoint=CheckpointConfig(
         checkpoint_dir=dirs.checkpoint_dir,
-        checkpoint_interval=300,
+        checkpoint_interval=200,  # Less frequent
         wandb_checkpoint_interval=0,
     ),
     simulation=SimulationConfig(
-        evaluate_interval=300,
-        replay_interval=300,
+        evaluate_interval=400,  # Less frequent
+        replay_interval=400,  # Less frequent
         replay_dir=dirs.replay_dir,
     ),
     profiler=TorchProfilerConfig(
-        interval_epochs=0,
+        interval_epochs=0,  # Disable profiling
         profile_dir=os.path.join(dirs.run_dir, "torch_traces"),
     ),
-    grad_mean_variance_interval=150,
+    grad_mean_variance_interval=200,  # Less frequent
     # Performance optimizations
     zero_copy=True,
-    async_factor=4,  # Increased from 2
-    forward_pass_minibatch_target_size=16384,  # Increased for better GPU utilization
-    update_epochs=1,  # Keep at 1 for speed
-    bptt_horizon=32,  # Reduced from 64 for faster processing
+    async_factor=4,  # Increased async factor
+    forward_pass_minibatch_target_size=16384,  # Large forward pass batches
+    update_epochs=1,  # Single epoch for speed
+    bptt_horizon=32,  # Reduced for speed
+    cpu_offload=False,  # Keep on GPU
 )
 
 # Adjust batch sizes for distributed training
@@ -109,20 +122,20 @@ if torch.distributed.is_initialized() and trainer_config.scale_batches_by_world_
 # Save config
 save_experiment_config(dirs, device, trainer_config)
 
-# Create environment with optimized settings
+# Create environment with FAST settings
 env = Environment(
     curriculum_path="/env/mettagrid/curriculum/navigation/bucketed",
     num_agents=4,
     width=32,
     height=32,
     device=str(device),
-    num_envs=256,  # Increased from 64 (4x more environments)
+    num_envs=256,  # More parallel environments
     num_workers=trainer_config.num_workers,
-    batch_size=256,  # Increased from 64 (4x larger batches)
+    batch_size=256,  # Larger environment batches
     async_factor=trainer_config.async_factor,
     zero_copy=trainer_config.zero_copy,
     is_training=True,
-    vectorization="multiprocessing",  # Use multiprocessing for better parallelism
+    vectorization="multiprocessing",  # Use multiprocessing
 )
 metta_grid_env = env.driver_env  # type: ignore - vecenv attribute
 
@@ -171,7 +184,7 @@ optimizer = Optimizer(
 # Load optimizer state from checkpoint if it exists
 _, _, checkpoint_path_from_load = load_checkpoint(checkpoint_path, None, optimizer, policy_store, device)
 
-# Create experience buffer with optimized settings
+# Create experience buffer with FAST settings
 experience = Experience(
     total_agents=env.num_agents,  # type: ignore
     batch_size=trainer_config.batch_size,
@@ -210,14 +223,14 @@ if getattr(trainer_config, "lr_scheduler", None) and trainer_config.lr_scheduler
         optimizer.optimizer, T_max=trainer_config.total_timesteps // trainer_config.batch_size
     )
 
-# Memory and System Monitoring (master only)
+# Monitoring (master only)
 if is_master:
     memory_monitor = MemoryMonitor()
     memory_monitor.add(experience, name="Experience", track_attributes=True)
     memory_monitor.add(agent, name="Agent", track_attributes=False)
 
     system_monitor = SystemMonitor(
-        sampling_interval_sec=1.0,
+        sampling_interval_sec=2.0,  # Less frequent monitoring
         history_size=100,
         logger=logger,
         auto_start=True,
@@ -226,9 +239,9 @@ if is_master:
 # Evaluation configuration
 evaluation_config = create_evaluation_config_suite()
 
-# OPTIMIZED Training loop with batch processing
+# FAST Training loop
 saved_policy_path = None
-logger.info(f"Starting OPTIMIZED training on {device}")
+logger.info(f"Starting FAST training on {device}")
 evaluation_scores = {}
 epoch_start_time = time.time()
 steps_at_epoch_start = agent_step
@@ -240,15 +253,15 @@ dtype_actions = env.single_action_space.dtype  # type: ignore
 while agent_step < trainer_config.total_timesteps:
     steps_before = agent_step
 
-    # ===== OPTIMIZED ROLLOUT PHASE =====
+    # ===== FAST ROLLOUT PHASE =====
     rollout_start = time.time()
     raw_infos = []
     experience.reset_for_rollout()
 
-    # Batch collect experience with reduced overhead
+    # Collect experience with batching
     rollout_steps = 0
     while not experience.ready_for_training:
-        # OPTIMIZATION: Batch multiple environment steps together
+        # OPTIMIZATION: Process multiple steps together
         batch_steps = min(4, experience.remaining_steps)  # Process 4 steps at once
 
         for _ in range(batch_steps):
@@ -263,7 +276,7 @@ while agent_step < trainer_config.total_timesteps:
     accumulate_rollout_stats(raw_infos, stats)
     rollout_time = time.time() - rollout_start
 
-    # ===== OPTIMIZED TRAINING PHASE =====
+    # ===== FAST TRAINING PHASE =====
     train_start = time.time()
     losses.zero()
     experience.reset_importance_sampling_ratios()
@@ -295,7 +308,7 @@ while agent_step < trainer_config.total_timesteps:
         device,
     )
 
-    # OPTIMIZATION: Use larger minibatches and fewer epochs
+    # Train with large minibatches
     total_minibatches = experience.num_minibatches * trainer_config.update_epochs
     minibatch_idx = 0
 
@@ -354,8 +367,8 @@ while agent_step < trainer_config.total_timesteps:
 
     logger.info(f"Epoch {epoch} - {steps_per_sec:.0f} steps/sec ({train_pct:.0f}% train / {rollout_pct:.0f}% rollout)")
 
-    # OPTIMIZATION: Reduce logging frequency for better performance
-    if should_run_on_interval(epoch, 20, is_master):  # Reduced from 10
+    # OPTIMIZATION: Reduce logging frequency
+    if should_run_on_interval(epoch, 15, is_master):  # Reduced frequency
         record_heartbeat()
 
     # Update L2 weights if configured
@@ -377,7 +390,7 @@ while agent_step < trainer_config.total_timesteps:
         )
 
     # Log system monitoring stats (master only) - reduced frequency
-    if should_run_on_interval(epoch, 20, is_master):  # Reduced from 10
+    if should_run_on_interval(epoch, 15, is_master):  # Reduced frequency
         system_stats = system_monitor.get_summary()
         logger.info(
             f"System stats - CPU: {system_stats.get('cpu_percent', 0):.1f}%, "
@@ -490,7 +503,7 @@ while agent_step < trainer_config.total_timesteps:
         # Get replay URLs from the database
         replay_urls = results.stats_db.get_replay_urls()
         if replay_urls:
-            replay_url = replay_urls[0]
+            replay_url = replay_url = replay_urls[0]
             player_url = f"https://metta-ai.github.io/metta/?replayUrl={replay_url}"
             logger.info(f"Replay available at: {player_url}")
 
@@ -501,7 +514,7 @@ while agent_step < trainer_config.total_timesteps:
 
 # Training complete
 total_elapsed = time.time() - epoch_start_time
-logger.info("Training complete!")
+logger.info("FAST Training complete!")
 logger.info(f"Total training time: {total_elapsed:.1f}s")
 logger.info(f"Final epoch: {epoch}, Total steps: {agent_step}")
 
@@ -550,7 +563,7 @@ if torch.distributed.is_initialized():
 # Close environment
 env.close()  # type: ignore
 
-logger.info(f"\nTraining run complete! Run saved to: {dirs.run_dir}")
+logger.info(f"\nFAST training run complete! Run saved to: {dirs.run_dir}")
 
 # Clean up distributed training if initialized
 cleanup_distributed()

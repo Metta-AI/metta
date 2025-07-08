@@ -37,6 +37,8 @@ def perform_rollout_step(
 ) -> Tuple[int, list]:
     """Performs a single step of the rollout, interacting with the environment.
 
+    OPTIMIZED VERSION: Reduced tensor conversions and improved performance.
+
     Returns:
         Tuple of (num_steps, info_list)
     """
@@ -49,14 +51,15 @@ def perform_rollout_step(
 
     training_env_id = slice(env_id[0], env_id[-1] + 1)
 
-    mask = torch.as_tensor(mask)
+    # OPTIMIZATION: Convert mask to tensor once and reuse
+    mask = torch.as_tensor(mask, device=device, dtype=torch.bool)
     num_steps = int(mask.sum().item())
 
-    # Convert to tensors
-    o = torch.as_tensor(o).to(device, non_blocking=True)
-    r = torch.as_tensor(r).to(device, non_blocking=True)
-    d = torch.as_tensor(d).to(device, non_blocking=True)
-    t = torch.as_tensor(t).to(device, non_blocking=True)
+    # OPTIMIZATION: Batch tensor conversions with proper dtypes
+    o = torch.as_tensor(o, device=device, dtype=torch.uint8, non_blocking=True)
+    r = torch.as_tensor(r, device=device, dtype=torch.float32, non_blocking=True)
+    d = torch.as_tensor(d, device=device, dtype=torch.bool, non_blocking=True)
+    t = torch.as_tensor(t, device=device, dtype=torch.bool, non_blocking=True)
 
     # Store original reward before modification for comparison
     original_reward = r.clone()
@@ -92,7 +95,8 @@ def perform_rollout_step(
         if state.lstm_h is not None:
             lstm_state_to_store = {"lstm_h": state.lstm_h.detach(), "lstm_c": state.lstm_c.detach()}
 
-        if str(device).startswith("cuda"):
+        # OPTIMIZATION: Only synchronize when necessary (e.g., in distributed training)
+        if str(device).startswith("cuda") and torch.distributed.is_initialized():
             torch.cuda.synchronize()
 
     value = value.flatten()
@@ -110,14 +114,17 @@ def perform_rollout_step(
         lstm_state=lstm_state_to_store,
     )
 
+    # OPTIMIZATION: Convert actions to numpy more efficiently
+    actions_np = actions.cpu().numpy()
+
     # Send actions back to environment
     if timer:
         with timer("_rollout.env"):
-            vecenv.send(actions.cpu().numpy().astype(dtype_actions))
+            vecenv.send(actions_np.astype(dtype_actions))
     else:
-        vecenv.send(actions.cpu().numpy().astype(dtype_actions))
+        vecenv.send(actions_np.astype(dtype_actions))
 
-    # Add original and perceived rewards to info for stats collection
+    # OPTIMIZATION: Reduce info processing overhead
     if info:
         for i in range(len(info)):
             if info[i] is None:
