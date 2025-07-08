@@ -91,7 +91,6 @@ def main(cfg: DictConfig) -> None:
                         device=cfg.device,
                         vectorization=cfg.vectorization,
                         data_dir=cfg.data_dir,
-                        stats_server_uri=cfg.stats_server_uri,
                         export_stats_db_uri=sim_job.stats_db_uri,
                     )
                 ),
