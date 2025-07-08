@@ -61,9 +61,9 @@ def instantiate(config: Dict[str, Any] | DictConfig, *, _recursive_: bool = Fals
         module = importlib.import_module(module_path)
         cls = getattr(module, class_name)
     except ImportError as e:
-        raise ImportError(f"Failed to import module {module_path}: {e}")
+        raise ImportError(f"Failed to import module {module_path}: {e}") from e
     except AttributeError as e:
-        raise AttributeError(f"Module {module_path} has no class {class_name}: {e}")
+        raise AttributeError(f"Module {module_path} has no class {class_name}: {e}") from e
 
     # Prepare constructor arguments
     # Start with config values (excluding underscore-prefixed keys)
