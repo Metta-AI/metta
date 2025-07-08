@@ -12,6 +12,9 @@ from psycopg_pool import AsyncConnectionPool
 from metta.app_backend.query_logger import execute_single_row_query_and_log
 from metta.app_backend.schema_manager import SqlMigration, run_migrations
 
+# Constants
+EVAL_TASK_MAX_ASSIGNMENT_AGE_MINUTES = 60
+
 # This is a list of migrations that will be applied to the eval database.
 # Do not change existing migrations, only add new ones.
 MIGRATIONS = [
@@ -202,6 +205,34 @@ MIGRATIONS = [
             """ALTER TABLE episode_agent_metrics DROP COLUMN episode_id""",
         ],
     ),
+    SqlMigration(
+        version=11,
+        description="Add eval_tasks and eval_task_episodes tables",
+        sql_statements=[
+            """CREATE TABLE eval_tasks (
+                id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                policy_id UUID NOT NULL REFERENCES policies(id),
+                sim_suite TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'unprocessed',
+                assigned_at TIMESTAMP,
+                assignee TEXT,
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                attributes JSONB
+            )""",
+            """CREATE INDEX idx_eval_tasks_status_assigned ON eval_tasks(status, assigned_at)""",
+            """CREATE INDEX idx_eval_tasks_assignee ON eval_tasks(assignee)""",
+            """CREATE TABLE eval_task_episodes (
+                eval_task_id UUID NOT NULL REFERENCES eval_tasks(id),
+                episode_id UUID NOT NULL REFERENCES episodes(id),
+                PRIMARY KEY (eval_task_id, episode_id)
+            )""",
+            """CREATE INDEX idx_eval_tasks_policy_id ON eval_tasks(policy_id)""",
+            """CREATE INDEX idx_eval_tasks_sim_suite ON eval_tasks(sim_suite)""",
+            """CREATE INDEX idx_eval_tasks_unprocessed_assigned
+               ON eval_tasks(assigned_at)
+               WHERE status = 'unprocessed'""",
+        ],
+    ),
 ]
 
 
@@ -339,6 +370,7 @@ class MettaRepo:
         simulation_suite: str | None,
         replay_url: str | None,
         attributes: Dict[str, Any],
+        eval_task_id: uuid.UUID | None = None,
     ) -> uuid.UUID:
         async with self.connect() as con:
             # Parse eval_category and env_name from eval_name
@@ -404,6 +436,16 @@ class MettaRepo:
                   VALUES (%s, %s, %s, %s)
                   """,
                     rows,
+                )
+
+            # Insert eval_task_episode relationship if eval_task_id is provided
+            if eval_task_id is not None:
+                await con.execute(
+                    """
+                    INSERT INTO eval_task_episodes (eval_task_id, episode_id)
+                    VALUES (%s, %s)
+                    """,
+                    (eval_task_id, episode_id),
                 )
 
             return episode_id
@@ -751,3 +793,128 @@ class MettaRepo:
                 (tags, run_uuid, user_id),
             )
             return result.rowcount > 0
+
+    async def create_eval_task(
+        self,
+        policy_id: uuid.UUID,
+        sim_suite: str,
+        attributes: Dict[str, Any],
+    ) -> uuid.UUID:
+        async with self.connect() as con:
+            result = await con.execute(
+                """
+                INSERT INTO eval_tasks (policy_id, sim_suite, attributes)
+                VALUES (%s, %s, %s)
+                RETURNING id
+                """,
+                (policy_id, sim_suite, Jsonb(attributes)),
+            )
+            row = await result.fetchone()
+            if row is None:
+                raise RuntimeError("Failed to create eval task")
+            return row[0]
+
+    async def get_available_tasks(self, limit: int = 200) -> List[Dict[str, Any]]:
+        async with self.connect() as con:
+            result = await con.execute(
+                """
+                SELECT id, policy_id, sim_suite, status, assigned_at,
+                       assignee, created_at, attributes
+                FROM eval_tasks
+                WHERE status = 'unprocessed'
+                  AND (assignee IS NULL OR assigned_at < NOW() - INTERVAL '%s minutes')
+                ORDER BY created_at ASC
+                LIMIT %s
+                """,
+                (EVAL_TASK_MAX_ASSIGNMENT_AGE_MINUTES, limit),
+            )
+            rows = await result.fetchall()
+            return [
+                {
+                    "id": row[0],
+                    "policy_id": row[1],
+                    "sim_suite": row[2],
+                    "status": row[3],
+                    "assigned_at": row[4],
+                    "assignee": row[5],
+                    "created_at": row[6],
+                    "attributes": row[7],
+                }
+                for row in rows
+            ]
+
+    async def claim_tasks(
+        self,
+        task_ids: List[uuid.UUID],
+        assignee: str,
+    ) -> List[uuid.UUID]:
+        if not task_ids:
+            return []
+
+        async with self.connect() as con:
+            result = await con.execute(
+                """
+                UPDATE eval_tasks
+                SET assignee = %s, assigned_at = NOW()
+                WHERE id = ANY(%s)
+                  AND status = 'unprocessed'
+                  AND (assignee IS NULL OR assigned_at < NOW() - INTERVAL '%s minutes')
+                RETURNING id
+                """,
+                (assignee, task_ids, EVAL_TASK_MAX_ASSIGNMENT_AGE_MINUTES),
+            )
+            rows = await result.fetchall()
+            return [row[0] for row in rows]
+
+    async def get_claimed_tasks(self, assignee: str) -> List[Dict[str, Any]]:
+        async with self.connect() as con:
+            result = await con.execute(
+                """
+                SELECT id, policy_id, sim_suite, status, assigned_at,
+                       assignee, created_at, attributes
+                FROM eval_tasks
+                WHERE assignee = %s
+                  AND assigned_at >= NOW() - INTERVAL '%s minutes'
+                ORDER BY created_at ASC
+                """,
+                (assignee, EVAL_TASK_MAX_ASSIGNMENT_AGE_MINUTES),
+            )
+            rows = await result.fetchall()
+            return [
+                {
+                    "id": row[0],
+                    "policy_id": row[1],
+                    "sim_suite": row[2],
+                    "status": row[3],
+                    "assigned_at": row[4],
+                    "assignee": row[5],
+                    "created_at": row[6],
+                    "attributes": row[7],
+                }
+                for row in rows
+            ]
+
+    async def update_task_statuses(
+        self,
+        assignee: str,
+        task_statuses: Dict[uuid.UUID, str],
+    ) -> Dict[uuid.UUID, str]:
+        if not task_statuses:
+            return {}
+
+        updated = {}
+        async with self.connect() as con:
+            for task_id, status in task_statuses.items():
+                result = await con.execute(
+                    """
+                    UPDATE eval_tasks
+                    SET status = %s
+                    WHERE id = %s AND assignee = %s
+                    RETURNING id
+                    """,
+                    (status, task_id, assignee),
+                )
+                if result.rowcount > 0:
+                    updated[task_id] = status
+
+        return updated
