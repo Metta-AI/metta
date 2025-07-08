@@ -5,19 +5,28 @@ set -e
 # Parse arguments
 args="${@:1}"
 
-# Extract and validate sweep name - accept both run= and sweep_run= for compatibility
-sweep_run=$(echo "$args" | grep -o 'run=[^ ]*' | sed 's/run=//')
-if [ -z "$sweep_run" ]; then
-  sweep_run=$(echo "$args" | grep -o 'sweep_run=[^ ]*' | sed 's/sweep_run=//')
-fi
+# Check for both run= and sweep_run= parameters
+has_run=$(echo "$args" | grep -c 'run=' || true)
+has_sweep_run=$(echo "$args" | grep -c 'sweep_run=' || true)
 
-if [ -z "$sweep_run" ]; then
-  echo "[ERROR] 'run' or 'sweep_run' argument is required (e.g., run=my_sweep_name)"
+# Validate that exactly one is present
+if [ "$has_run" -eq 0 ] && [ "$has_sweep_run" -eq 0 ]; then
+  echo "[ERROR] Either 'run' or 'sweep_run' argument is required (e.g., run=my_sweep_name or sweep_run=my_sweep_name)"
+  exit 1
+elif [ "$has_run" -gt 0 ] && [ "$has_sweep_run" -gt 0 ]; then
+  echo "[ERROR] Cannot specify both 'run' and 'sweep_run' arguments. Please use only one."
   exit 1
 fi
 
+# Extract sweep name from whichever parameter is present
+if [ "$has_run" -gt 0 ]; then
+  sweep_run=$(echo "$args" | grep -o 'run=[^ ]*' | sed 's/run=//')
+else
+  sweep_run=$(echo "$args" | grep -o 'sweep_run=[^ ]*' | sed 's/sweep_run=//')
+fi
+
 # Convert run= to sweep_run= for downstream scripts
-args_for_rollout=$(echo "$args" | sed 's/\brun=/sweep_run=/g')
+args_for_rollout=$(echo "$args" | sed 's/run=/sweep_run=/g')
 
 source ./devops/setup.env
 
