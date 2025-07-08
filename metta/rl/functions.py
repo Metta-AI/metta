@@ -238,12 +238,13 @@ def process_minibatch_update(
 
     # Contrastive learning loss
     contrastive_loss = torch.tensor(0.0, device=device, dtype=torch.float32)
-    if (contrastive_module is not None and
-        hasattr(trainer_cfg, "contrastive") and
-        trainer_cfg.contrastive.enabled and
-        (trainer_cfg.contrastive.loss_coef > 0 or trainer_cfg.contrastive.reward_coef > 0) and
-        (minibatch_idx % trainer_cfg.contrastive.update_frequency == 0)):
-
+    if (
+        contrastive_module is not None
+        and hasattr(trainer_cfg, "contrastive")
+        and trainer_cfg.contrastive.enabled
+        and (trainer_cfg.contrastive.loss_coef > 0 or trainer_cfg.contrastive.reward_coef > 0)
+        and (minibatch_idx % trainer_cfg.contrastive.update_frequency == 0)
+    ):
         # Sample contrastive pairs
         contrastive_pairs = experience.sample_contrastive_pairs(
             minibatch["indices"],

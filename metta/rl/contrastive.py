@@ -115,26 +115,38 @@ class ContrastiveLearning:
                 if len(available_timesteps) == 0:
                     rollout_negatives = torch.full((num_rollout_negatives,), current_timesteps[i], device=self.device)
                 elif len(available_timesteps) >= num_rollout_negatives:
-                    rollout_negatives = available_timesteps[torch.randperm(len(available_timesteps))[:num_rollout_negatives]]
+                    rollout_negatives = available_timesteps[
+                        torch.randperm(len(available_timesteps))[:num_rollout_negatives]
+                    ]
                 else:
-                    rollout_negatives = available_timesteps[torch.randint(0, len(available_timesteps), (num_rollout_negatives,))]
+                    rollout_negatives = available_timesteps[
+                        torch.randint(0, len(available_timesteps), (num_rollout_negatives,))
+                    ]
                 rollout_indices = current_segments[i] * bptt_horizon + rollout_negatives
                 negative_indices[i, :num_rollout_negatives] = rollout_indices
 
         # Sample from other rollouts - vectorized
         if num_cross_rollout_negatives > 0:
-            cross_timesteps = torch.randint(0, bptt_horizon, (batch_size, num_cross_rollout_negatives), device=self.device)
+            cross_timesteps = torch.randint(
+                0, bptt_horizon, (batch_size, num_cross_rollout_negatives), device=self.device
+            )
             for i in range(batch_size):
                 available_segments = torch.arange(num_segments, device=self.device)
                 available_segments = available_segments[available_segments != current_segments[i]]
                 if len(available_segments) == 0:
                     cross_segments = torch.full((num_cross_rollout_negatives,), current_segments[i], device=self.device)
                 elif len(available_segments) >= num_cross_rollout_negatives:
-                    cross_segments = available_segments[torch.randperm(len(available_segments))[:num_cross_rollout_negatives]]
+                    cross_segments = available_segments[
+                        torch.randperm(len(available_segments))[:num_cross_rollout_negatives]
+                    ]
                 else:
-                    cross_segments = available_segments[torch.randint(0, len(available_segments), (num_cross_rollout_negatives,))]
+                    cross_segments = available_segments[
+                        torch.randint(0, len(available_segments), (num_cross_rollout_negatives,))
+                    ]
                 cross_indices = cross_segments * bptt_horizon + cross_timesteps[i]
-                negative_indices[i, num_rollout_negatives:num_rollout_negatives+num_cross_rollout_negatives] = cross_indices
+                negative_indices[i, num_rollout_negatives : num_rollout_negatives + num_cross_rollout_negatives] = (
+                    cross_indices
+                )
 
         return negative_indices
 
@@ -163,8 +175,7 @@ class ContrastiveLearning:
             Negative indices [batch_size, num_negatives]
         """
         return self.sample_negative_indices_vectorized(
-            current_indices, num_rollout_negatives, num_cross_rollout_negatives,
-            batch_size, bptt_horizon, num_segments
+            current_indices, num_rollout_negatives, num_cross_rollout_negatives, batch_size, bptt_horizon, num_segments
         )
 
     def compute_infonce_loss(

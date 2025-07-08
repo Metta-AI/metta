@@ -3,8 +3,8 @@ Performance test for contrastive learning implementation.
 """
 
 import time
+
 import torch
-import pytest
 
 from metta.rl.contrastive import ContrastiveLearning
 
@@ -14,13 +14,7 @@ def test_contrastive_sampling_performance():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # Initialize contrastive learning module
-    contrastive = ContrastiveLearning(
-        hidden_size=256,
-        gamma=0.99,
-        temperature=0.1,
-        logsumexp_coef=0.01,
-        device=device
-    )
+    contrastive = ContrastiveLearning(hidden_size=256, gamma=0.99, temperature=0.1, logsumexp_coef=0.01, device=device)
 
     # Test parameters
     batch_size = 1024
@@ -35,8 +29,7 @@ def test_contrastive_sampling_performance():
     # Warm up
     for _ in range(10):
         _ = contrastive.sample_negative_indices(
-            current_indices, num_rollout_negatives, num_cross_rollout_negatives,
-            batch_size, bptt_horizon, num_segments
+            current_indices, num_rollout_negatives, num_cross_rollout_negatives, batch_size, bptt_horizon, num_segments
         )
 
     # Benchmark
@@ -45,15 +38,14 @@ def test_contrastive_sampling_performance():
 
     for _ in range(100):
         negative_indices = contrastive.sample_negative_indices(
-            current_indices, num_rollout_negatives, num_cross_rollout_negatives,
-            batch_size, bptt_horizon, num_segments
+            current_indices, num_rollout_negatives, num_cross_rollout_negatives, batch_size, bptt_horizon, num_segments
         )
 
     torch.cuda.synchronize() if device.type == "cuda" else None
     end_time = time.time()
 
     avg_time = (end_time - start_time) / 100
-    print(f"Average sampling time: {avg_time*1000:.2f} ms")
+    print(f"Average sampling time: {avg_time * 1000:.2f} ms")
 
     # Verify output shape
     expected_negatives = num_rollout_negatives + num_cross_rollout_negatives
@@ -66,13 +58,7 @@ def test_contrastive_loss_performance():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # Initialize contrastive learning module
-    contrastive = ContrastiveLearning(
-        hidden_size=256,
-        gamma=0.99,
-        temperature=0.1,
-        logsumexp_coef=0.01,
-        device=device
-    )
+    contrastive = ContrastiveLearning(hidden_size=256, gamma=0.99, temperature=0.1, logsumexp_coef=0.01, device=device)
 
     # Test parameters
     batch_size = 1024
@@ -88,9 +74,7 @@ def test_contrastive_loss_performance():
 
     # Warm up
     for _ in range(10):
-        _ = contrastive.compute_infonce_loss(
-            lstm_states, positive_indices, negative_indices, all_lstm_states
-        )
+        _ = contrastive.compute_infonce_loss(lstm_states, positive_indices, negative_indices, all_lstm_states)
 
     # Benchmark
     torch.cuda.synchronize() if device.type == "cuda" else None
@@ -105,7 +89,7 @@ def test_contrastive_loss_performance():
     end_time = time.time()
 
     avg_time = (end_time - start_time) / 100
-    print(f"Average loss computation time: {avg_time*1000:.2f} ms")
+    print(f"Average loss computation time: {avg_time * 1000:.2f} ms")
 
     # Verify output
     assert isinstance(loss, torch.Tensor)
