@@ -209,6 +209,7 @@ def process_minibatch_update(
     losses.ks_value_loss_sum += ks_value_loss.item()
     losses.importance_sum += importance_sampling_ratio.mean().item()
     losses.minibatches_processed += 1
+    losses.current_logprobs_sum += new_logprobs.mean().item()
 
     return loss
 
