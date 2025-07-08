@@ -6,7 +6,6 @@
 
 ./devops/skypilot/launch.py train \
 run=$USER.navigation.low_reward.baseline.$(date +%m-%d) \
-trainer=recipe_trainer \
 trainer.curriculum=env/mettagrid/curriculum/navigation/low_reward \
 --gpus=1 \
 +trainer.env_overrides.game.num_agents=4 \

@@ -4,7 +4,6 @@
 #but it may not learn lasery/shooting/any combat related objects
 ./devops/skypilot/launch.py train \
 run=$USER.object_use.baseline.$(date +%m-%d) \
-trainer=recipe_trainer \
 trainer.curriculum=env/mettagrid/curriculum/object_use \
 --gpus=1 \
 sim=object_use \
