@@ -3,8 +3,8 @@ import logging
 import os
 import time
 from collections import defaultdict
+from typing import Any, Dict, Optional
 
-import numpy as np
 import torch
 from omegaconf import DictConfig
 
@@ -35,14 +35,17 @@ from metta.mettagrid.mettagrid_env import dtype_actions
 from metta.rl.experience import Experience
 from metta.rl.functions import (
     accumulate_rollout_stats,
+    build_wandb_stats,
     calculate_batch_sizes,
     calculate_explained_variance,
     compute_advantage,
     compute_gradient_stats,
+    compute_timing_stats,
     get_lstm_config,
     get_observation,
     maybe_update_l2_weights,
     process_minibatch_update,
+    process_training_stats,
     run_policy_inference,
     should_run_on_interval,
 )
@@ -246,6 +249,137 @@ if is_master:
 # Evaluation configuration
 evaluation_config = create_evaluation_config_suite()
 
+
+def process_and_log_stats(
+    stats: dict,
+    losses: Losses,
+    experience: Experience,
+    agent: Any,
+    agent_step: int,
+    epoch: int,
+    trainer_config: TrainerConfig,
+    system_monitor: Optional[SystemMonitor],
+    memory_monitor: Optional[MemoryMonitor],
+    is_master: bool,
+    current_policy_generation: int,
+    kickstarter: Any,
+    timer: Stopwatch,
+    optimizer: Optional[Any] = None,
+    evals: Optional[Dict[str, float]] = None,
+    world_size: int = 1,
+) -> dict:
+    """Process and log training statistics.
+
+    Returns dict of processed stats for any additional processing needs.
+    """
+    if evals is None:
+        evals = {}
+
+    # Use the shared stats processing function
+    processed_stats = process_training_stats(
+        raw_stats=stats,
+        losses=losses,
+        experience=experience,
+        trainer_config=trainer_config,
+        kickstarter=kickstarter,
+    )
+
+    # Compute gradient statistics if on interval
+    grad_stats = {}
+    if should_run_on_interval(epoch, trainer_config.grad_mean_variance_interval, is_master):
+        grad_stats = compute_gradient_stats(agent)
+
+    # Get system and memory stats if master
+    system_stats = system_monitor.stats() if is_master and system_monitor else {}
+    memory_stats = memory_monitor.stats() if is_master and memory_monitor else {}
+
+    # Compute timing stats using shared function
+    timing_info = compute_timing_stats(
+        timer=timer,
+        agent_step=agent_step,
+        world_size=world_size,
+    )
+
+    # Calculate learning rate
+    current_lr = trainer_config.optimizer.learning_rate
+    if optimizer and hasattr(optimizer, "param_groups"):
+        current_lr = optimizer.param_groups[0]["lr"]
+    elif optimizer and hasattr(optimizer, "optimizer") and hasattr(optimizer.optimizer, "param_groups"):
+        # Handle our Optimizer wrapper
+        current_lr = optimizer.optimizer.param_groups[0]["lr"]
+
+    # Build parameters dictionary
+    parameters = {
+        "learning_rate": current_lr,
+        "epoch_steps": timing_info["epoch_steps"],
+        "num_minibatches": experience.num_minibatches,
+        "generation": current_policy_generation,
+    }
+
+    # Build complete stats dictionary
+    all_stats = build_wandb_stats(
+        processed_stats=processed_stats,
+        timing_info=timing_info,
+        weight_stats={},  # Weight stats not computed in run.py
+        grad_stats=grad_stats,
+        system_stats=system_stats,
+        memory_stats=memory_stats,
+        parameters=parameters,
+        evals=evals,
+        agent_step=agent_step,
+        epoch=epoch,
+        world_size=world_size,
+    )
+
+    # Log everything if master
+    if is_master:
+        # Log losses
+        losses_stats = processed_stats["losses_stats"]
+        if losses_stats:
+            logger.info(
+                f"Losses - Policy: {losses_stats.get('policy_loss', 0):.4f}, "
+                f"Value: {losses_stats.get('value_loss', 0):.4f}, "
+                f"Entropy: {losses_stats.get('entropy', 0):.4f}, "
+                f"Explained Variance: {losses_stats.get('explained_variance', 0):.3f}"
+            )
+
+        # Log gradient stats
+        if grad_stats:
+            logger.info(
+                f"Gradient stats - mean: {grad_stats.get('grad/mean', 0):.2e}, "
+                f"variance: {grad_stats.get('grad/variance', 0):.2e}, "
+                f"norm: {grad_stats.get('grad/norm', 0):.2e}"
+            )
+
+        # Log system stats
+        if system_stats:
+            # Extract values from monitor/ prefixed keys
+            cpu_percent = system_stats.get("monitor/cpu_percent", 0)
+            memory_percent = system_stats.get("monitor/memory_percent", 0)
+            process_memory_mb = system_stats.get("monitor/process_memory_mb", 0)
+
+            logger.info(
+                f"System stats - CPU: {cpu_percent:.1f}%, "
+                f"Memory: {memory_percent:.1f}%, "
+                f"Process Memory: {process_memory_mb:.1f}MB"
+            )
+
+            gpu_util = system_stats.get("monitor/gpu_utilization_avg")
+            gpu_mem = system_stats.get("monitor/gpu_memory_percent_avg")
+            if gpu_util is not None:
+                logger.info(f"GPU stats - Utilization: {gpu_util:.1f}%, Memory: {gpu_mem:.1f}%")
+
+        # Log training parameters
+        logger.info(
+            f"Training params - LR: {current_lr:.2e}, "
+            f"Minibatches: {experience.num_minibatches}, "
+            f"Generation: {current_policy_generation}"
+        )
+
+    # Return all stats for further use if needed
+    return all_stats
+
+
 # Training loop
 saved_policy_path = None
 logger.info(f"Starting training on {device}")
@@ -384,107 +518,26 @@ while agent_step < trainer_config.total_timesteps:
     stats_start = time.time()
 
     # Process collected stats (convert lists to means)
-    mean_stats = {}
-    for k, v in stats.items():
-        try:
-            mean_stats[k] = np.mean(v)
-        except (TypeError, ValueError):
-            # Handle non-numeric values by keeping them as-is
-            mean_stats[k] = v
-    stats = mean_stats
-
-    # Compute gradient statistics if on interval
-    grad_stats = {}
-    if should_run_on_interval(epoch, trainer_config.grad_mean_variance_interval, is_master):
-        grad_stats = compute_gradient_stats(agent)
-
-    # Collect system and memory stats
-    system_stats = {}
-    memory_stats = {}
-    if is_master:
-        system_stats = system_monitor.get_summary()
-        memory_stats = memory_monitor.stats()
-
-    # Calculate environment statistics
-    environment_stats = {f"env_{k.split('/')[0]}/{'/'.join(k.split('/')[1:])}": v for k, v in stats.items() if "/" in k}
-
-    # Calculate overview statistics
-    overview = {}
-
-    # Calculate average reward from environment stats
-    task_reward_values = [v for k, v in environment_stats.items() if k.startswith("env_task_reward")]
-    if task_reward_values:
-        mean_reward = sum(task_reward_values) / len(task_reward_values)
-        overview["reward"] = mean_reward
-
-    # Get loss statistics
-    losses_stats = losses.stats() if hasattr(losses, "stats") else {}
-
-    # Don't plot losses that are unused (similar to trainer.py)
-    if trainer_config.ppo.l2_reg_loss_coef == 0 and "l2_reg_loss" in losses_stats:
-        losses_stats.pop("l2_reg_loss")
-    if trainer_config.ppo.l2_init_loss_coef == 0 and "l2_init_loss" in losses_stats:
-        losses_stats.pop("l2_init_loss")
-    if not kickstarter.enabled:
-        losses_stats.pop("ks_action_loss", None)
-        losses_stats.pop("ks_value_loss", None)
-
-    # Get experience statistics
-    experience_stats = experience.stats() if hasattr(experience, "stats") else {}
-
-    # Calculate learning rate
-    current_lr = (
-        optimizer.param_groups[0]["lr"]
-        if hasattr(optimizer, "param_groups")
-        else trainer_config.optimizer.learning_rate
+    stats_result = process_and_log_stats(
+        stats,
+        losses,
+        experience,
+        agent,
+        agent_step,
+        epoch,
+        trainer_config,
+        system_monitor if is_master else None,
+        memory_monitor if is_master else None,
+        is_master,
+        current_policy_generation,
+        kickstarter,
+        timer,
+        optimizer,
+        evals=evaluation_scores.get(epoch, {}),
+        world_size=world_size,
     )
 
-    # Log all statistics (master only)
-    if is_master:
-        # Log losses
-        if losses_stats:
-            logger.info(
-                f"Losses - Policy: {losses_stats.get('policy_loss', 0):.4f}, "
-                f"Value: {losses_stats.get('value_loss', 0):.4f}, "
-                f"Entropy: {losses_stats.get('entropy', 0):.4f}, "
-                f"Explained Variance: {losses_stats.get('explained_variance', 0):.3f}"
-            )
-
-        # Log gradient stats
-        if grad_stats:
-            logger.info(
-                f"Gradient stats - mean: {grad_stats.get('grad/mean', 0):.2e}, "
-                f"variance: {grad_stats.get('grad/variance', 0):.2e}, "
-                f"norm: {grad_stats.get('grad/norm', 0):.2e}"
-            )
-
-        # Log system monitoring stats
-        if system_stats:
-            logger.info(
-                f"System stats - CPU: {system_stats.get('cpu_percent', 0):.1f}%, "
-                f"Memory: {system_stats.get('memory_percent', 0):.1f}%, "
-                f"Process Memory: {system_stats.get('process_memory_mb', 0):.1f}MB"
-            )
-
-            # Log GPU stats if available
-            if "gpu_utilization_avg" in system_stats:
-                logger.info(
-                    f"GPU stats - Utilization: {system_stats.get('gpu_utilization_avg', 0):.1f}%, "
-                    f"Memory: {system_stats.get('gpu_memory_percent_avg', 0):.1f}%"
-                )
-
-        # Log memory monitor stats
-        if memory_stats:
-            logger.info(f"Memory usage: {memory_stats}")
-
-        # Log training parameters
-        logger.info(
-            f"Training params - LR: {current_lr:.2e}, "
-            f"Minibatches: {experience.num_minibatches}, "
-            f"Generation: {current_policy_generation}"
-        )
-
-    # Clear stats for next iteration (moved here from end of loop)
+    # Clear stats for next iteration
     stats.clear()
 
     stats_time = time.time() - stats_start
@@ -527,7 +580,7 @@ while agent_step < trainer_config.total_timesteps:
             policy_store=policy_store,
             checkpoint_path=checkpoint_path,
             checkpoint_interval=trainer_config.checkpoint.checkpoint_interval,
-            stats=stats,
+            stats=stats_result["mean_stats"],
             force_save=False,
         )
         # Ensure all ranks synchronize after checkpoint saving
@@ -642,7 +695,7 @@ if evaluation_scores:
 
 # Log final system stats (master only)
 if is_master:
-    final_system_stats = system_monitor.get_summary()
+    final_system_stats = system_monitor.stats()
     logger.info(f"\nFinal system stats: {final_system_stats}")
     system_monitor.stop()
     memory_monitor.clear()
@@ -656,7 +709,7 @@ saved_policy_path = save_checkpoint(
     policy_store=policy_store,
     checkpoint_path=checkpoint_path,
     checkpoint_interval=trainer_config.checkpoint.checkpoint_interval,
-    stats=stats,
+    stats=stats_result["mean_stats"],
     force_save=True,
 )
 
