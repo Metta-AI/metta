@@ -14,8 +14,8 @@ game:
   map_builder:
     _target_: metta.map.mapgen.MapGen
 
-    width: 25
-    height: 25
+    width: 10 #25
+    height: 10 #25
     instances: 4
     instance_border_width: 0
 
@@ -24,9 +24,9 @@ game:
       params:
         agents: 6
         objects:
-          mine_red: 10
+          mine_red: 7
           generator_red: 5
           altar: 5
 
-          block: 20
-          wall: 20
+          block: 3 #20
+          wall: 3 #20
