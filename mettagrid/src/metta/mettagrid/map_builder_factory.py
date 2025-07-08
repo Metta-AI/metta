@@ -5,30 +5,11 @@ This module provides direct instantiation of map builders from configuration dic
 """
 
 import logging
-from typing import Any, Dict, Type
+from typing import Any, Dict
 
 from metta.common.util.instantiate import instantiate
-from metta.mettagrid.room.ascii import Ascii
-from metta.mettagrid.room.maze import MazeKruskal, MazePrim
-from metta.mettagrid.room.mean_distance import MeanDistance
-from metta.mettagrid.room.multi_room import MultiRoom
-from metta.mettagrid.room.random import Random
-from metta.mettagrid.room.room_list import RoomList
-from metta.mettagrid.room.terrain_from_numpy import TerrainFromNumpy
 
 logger = logging.getLogger(__name__)
-
-# Map builder registry
-MAP_BUILDER_REGISTRY: Dict[str, Type] = {
-    "metta.mettagrid.room.ascii.Ascii": Ascii,
-    "metta.mettagrid.room.maze.MazeKruskal": MazeKruskal,
-    "metta.mettagrid.room.maze.MazePrim": MazePrim,
-    "metta.mettagrid.room.mean_distance.MeanDistance": MeanDistance,
-    "metta.mettagrid.room.multi_room.MultiRoom": MultiRoom,
-    "metta.mettagrid.room.random.Random": Random,
-    "metta.mettagrid.room.room_list.RoomList": RoomList,
-    "metta.mettagrid.room.terrain_from_numpy.TerrainFromNumpy": TerrainFromNumpy,
-}
 
 
 class MapBuilderFactory:
@@ -60,7 +41,6 @@ class MapBuilderFactory:
             config = MapBuilderFactory._process_recursive(config, is_top_level=True)
 
         # Use common instantiate function
-        logger.info(f"Creating map builder with target {config.get('_target_', 'unknown')}")
         return instantiate(config)
 
     @staticmethod
@@ -95,13 +75,3 @@ class MapBuilderFactory:
             return [MapBuilderFactory._process_recursive(item, is_top_level=False) for item in config]
         else:
             return config
-
-    @staticmethod
-    def register(target: str, builder_cls: Type) -> None:
-        """Register a new map builder class.
-
-        Args:
-            target: Target string identifier
-            builder_cls: Map builder class to register
-        """
-        MAP_BUILDER_REGISTRY[target] = builder_cls

@@ -127,7 +127,6 @@ class MettaAgent(nn.Module):
             # Convert key to string to ensure compatibility
             component_name = str(component_key)
             component_cfgs[component_key]["name"] = component_name
-            logger.info(f"Creating component {component_name} using ComponentFactory")
             component = ComponentFactory.create(component_name, component_cfgs[component_key], self.agent_attributes)
             self.components[component_name] = component
 
