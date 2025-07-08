@@ -19,6 +19,13 @@ constexpr uint8_t HEART = 3;
 constexpr uint8_t CONVERTER = 4;
 }  // namespace TestItems
 
+namespace TestRewards {
+constexpr float ORE = 0.125f;
+constexpr float LASER = 0.0f;
+constexpr float ARMOR = 0.0f;
+constexpr float HEART = 1.0f;
+}  // namespace TestRewards
+
 // Pure C++ tests without any Python/pybind dependencies - we will test those with pytest
 class MettaGridCppTest : public ::testing::Test {
 protected:
@@ -39,20 +46,19 @@ protected:
   // Helper function to create test rewards map
   std::map<uint8_t, float> create_test_rewards() {
     std::map<uint8_t, float> rewards;
-    rewards[TestItems::ORE] = 0.125f;
-    rewards[TestItems::LASER] = 0.0f;
-    rewards[TestItems::ARMOR] = 0.0f;
-    rewards[TestItems::HEART] = 1.0f;
+    rewards[TestItems::ORE] = TestRewards::ORE;
+    rewards[TestItems::LASER] = TestRewards::LASER;
+    rewards[TestItems::ARMOR] = TestRewards::ARMOR;
+    rewards[TestItems::HEART] = TestRewards::HEART;
     return rewards;
   }
 
   // Helper function to create test resource_reward_max map
-  std::map<uint8_t, float> create_test_resource_reward_max() {
-    std::map<uint8_t, float> resource_reward_max;
-    resource_reward_max[TestItems::ORE] = 10.0f;
-    resource_reward_max[TestItems::LASER] = 10.0f;
-    resource_reward_max[TestItems::ARMOR] = 10.0f;
-    resource_reward_max[TestItems::HEART] = 10.0f;
+  std::map<uint8_t, uint8_t> create_test_resource_reward_max() {
+    std::map<uint8_t, uint8_t> resource_reward_max;
+    resource_reward_max[TestItems::ORE] = 10;
+    resource_reward_max[TestItems::LASER] = 10;
+    resource_reward_max[TestItems::ARMOR] = 10;
     return resource_reward_max;
   }
 
@@ -111,6 +117,33 @@ TEST_F(MettaGridCppTest, AgentInventoryUpdate) {
   delta = agent->update_inventory(TestItems::ORE, 50);  // resource_limits is 50
   EXPECT_EQ(delta, 20);                                 // Should only add up to resource_limits
   EXPECT_EQ(agent->inventory[TestItems::ORE], 50);
+}
+
+TEST_F(MettaGridCppTest, AgentInventoryUpdate_Rewards) {
+  AgentConfig agent_cfg = create_test_agent_config();
+  std::unique_ptr<Agent> agent(new Agent(0, 0, agent_cfg));
+
+  float dummy_reward = 0.0f;
+  agent->init(&dummy_reward);
+
+  int delta = agent->update_inventory(TestItems::ORE, 5);
+  EXPECT_EQ(delta, 5);
+  EXPECT_FLOAT_EQ(agent->current_resource_reward, TestRewards::ORE * 5);
+
+  delta = agent->update_inventory(TestItems::ORE, 20);
+  EXPECT_EQ(delta, 20);
+  // The reward limit for ore is 10, so the reward should be capped at 10
+  EXPECT_FLOAT_EQ(agent->current_resource_reward, TestRewards::ORE * 10);
+
+  delta = agent->update_inventory(TestItems::HEART, 40);
+  EXPECT_EQ(delta, 40);
+  // Hearts have no reward limit, so the reward should be 40
+  EXPECT_FLOAT_EQ(agent->current_resource_reward, TestRewards::ORE * 10 + TestRewards::HEART * 40);
+
+  // if we remove inventory, the current_resource_reward goes down.
+  delta = agent->update_inventory(TestItems::HEART, -20);
+  EXPECT_EQ(delta, -20);
+  EXPECT_FLOAT_EQ(agent->current_resource_reward, TestRewards::ORE * 10 + TestRewards::HEART * 20);
 }
 
 // ==================== Grid Tests ====================

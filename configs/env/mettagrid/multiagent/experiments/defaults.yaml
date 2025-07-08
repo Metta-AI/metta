@@ -1,5 +1,7 @@
 defaults:
   - /env/mettagrid/mettagrid@
+  - /env/mettagrid/game/objects/mines@game.objects
+  - /env/mettagrid/game/objects/generators@game.objects
   - _self_
 
 sampling: 1
@@ -13,7 +15,7 @@ game:
       battery_red: ${sampling:0.01,0.5, 0.1}
       battery_red_max: 5
       heart: 1
-      heart_max: 1000
+      heart_max: null
   map_builder:
     _target_: ???
     width: ${sampling:50,100,90}

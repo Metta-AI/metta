@@ -47,7 +47,7 @@ GameConfig CreateBenchmarkConfig(int num_agents) {
                                                              0.0f,
                                                              std::map<InventoryItem, uint8_t>(),
                                                              std::map<InventoryItem, float>(),
-                                                             std::map<InventoryItem, float>(),
+                                                             std::map<InventoryItem, uint8_t>(),
                                                              0.0f);
   objects_cfg["agent.team2"] = std::make_shared<AgentConfig>(0,
                                                              "agent",
@@ -57,7 +57,7 @@ GameConfig CreateBenchmarkConfig(int num_agents) {
                                                              0.0f,
                                                              std::map<InventoryItem, uint8_t>(),
                                                              std::map<InventoryItem, float>(),
-                                                             std::map<InventoryItem, float>(),
+                                                             std::map<InventoryItem, uint8_t>(),
                                                              0.0f);
 
   return GameConfig(num_agents, 10000, 11, 11, inventory_item_names, 100, actions_cfg, objects_cfg);
