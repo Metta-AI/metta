@@ -17,13 +17,13 @@
 struct ConverterConfig : public GridObjectConfig {
   ConverterConfig(TypeId type_id,
                   const std::string& type_name,
-                  const std::map<InventoryItem, uint8_t>& input_resources,
-                  const std::map<InventoryItem, uint8_t>& output_resources,
+                  const std::map<InventoryItem, InventoryQuantity>& input_resources,
+                  const std::map<InventoryItem, InventoryQuantity>& output_resources,
                   short max_output,
                   unsigned short conversion_ticks,
                   unsigned short cooldown,
                   unsigned char initial_resource_count,
-                  ObsType color)
+                  ObservationType color)
       : GridObjectConfig(type_id, type_name),
         input_resources(input_resources),
         output_resources(output_resources),
@@ -33,13 +33,13 @@ struct ConverterConfig : public GridObjectConfig {
         initial_resource_count(initial_resource_count),
         color(color) {}
 
-  std::map<InventoryItem, uint8_t> input_resources;
-  std::map<InventoryItem, uint8_t> output_resources;
+  std::map<InventoryItem, InventoryQuantity> input_resources;
+  std::map<InventoryItem, InventoryQuantity> output_resources;
   short max_output;
   unsigned short conversion_ticks;
   unsigned short cooldown;
   unsigned char initial_resource_count;
-  ObsType color;
+  ObservationType color;
 };
 
 class Converter : public HasInventory {
@@ -99,8 +99,8 @@ private:
   }
 
 public:
-  std::map<InventoryItem, uint8_t> input_resources;
-  std::map<InventoryItem, uint8_t> output_resources;
+  std::map<InventoryItem, InventoryQuantity> input_resources;
+  std::map<InventoryItem, InventoryQuantity> output_resources;
   // The converter won't convert if its output already has this many things of
   // the type it produces. This may be clunky in some cases, but the main usage
   // is to make Mines (etc) have a maximum output.
@@ -167,17 +167,17 @@ public:
     this->maybe_start_converting();
   }
 
-  int update_inventory(InventoryItem item, short amount) override {
-    int delta = HasInventory::update_inventory(item, amount);
-    if (delta != 0) {
-      if (delta > 0) {
-        stats.add(stats.inventory_item_name(item) + ".added", delta);
+  int update_inventory(InventoryItem item, InventoryQuantity delta) override {
+    int clamped_delta = HasInventory::update_inventory(item, delta);
+    if (clamped_delta != 0) {
+      if (clamped_delta > 0) {
+        stats.add(stats.inventory_item_name(item) + ".added", clamped_delta);
       } else {
-        stats.add(stats.inventory_item_name(item) + ".removed", -delta);
+        stats.add(stats.inventory_item_name(item) + ".removed", -clamped_delta);
       }
     }
     this->maybe_start_converting();
-    return delta;
+    return clamped_delta;
   }
 
   virtual vector<PartialObservationToken> obs_features() const override {

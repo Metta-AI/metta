@@ -11,8 +11,6 @@
 typedef unsigned short Layer;
 typedef uint8_t TypeId;
 typedef unsigned int GridCoord;
-using ObsType = uint8_t;
-using InventoryItem = uint8_t;
 
 // These may make more sense in observation_encoder.hpp, but we need to include that
 // header in a lot of places, and it's nice to have these types defined in one place.

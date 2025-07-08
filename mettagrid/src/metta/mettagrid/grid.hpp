@@ -111,8 +111,8 @@ public:
 
   inline const GridLocation relative_location(const GridLocation& loc,
                                               Orientation orientation,
-                                              GridCoord distance,
-                                              GridCoord offset) {
+                                              short distance,
+                                              short offset) {
     int new_r = loc.r;
     int new_c = loc.c;
 

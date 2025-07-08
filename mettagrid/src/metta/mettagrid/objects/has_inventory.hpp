@@ -17,16 +17,22 @@ public:
     return true;
   }
 
-  virtual int update_inventory(InventoryItem item, short amount) {
-    int initial_amount = this->inventory[item];
-    int new_amount = initial_amount + amount;
-    new_amount = std::clamp(new_amount, 0, 255);
-    if (new_amount == 0) {
+  virtual int update_inventory(InventoryItem item, InventoryQuantity delta) {
+    InventoryQuantity initial_amount = this->inventory[item];
+    int new_amount = static_cast<int>(initial_amount + delta);
+
+    constexpr int min = 0;  // do not allow negative inventory
+    constexpr int max = std::numeric_limits<InventoryQuantity>::max();
+    InventoryQuantity clamped_amount = static_cast<InventoryQuantity>(std::clamp(new_amount, min, max));
+
+    if (clamped_amount == 0) {
       this->inventory.erase(item);
     } else {
-      this->inventory[item] = new_amount;
+      this->inventory[item] = clamped_amount;
     }
-    return new_amount - initial_amount;
+
+    InventoryQuantity clamped_delta = clamped_amount - initial_amount;
+    return clamped_delta;
   }
 };
 
