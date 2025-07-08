@@ -22,7 +22,7 @@ struct ConverterConfig : public GridObjectConfig {
                   short max_output,
                   unsigned short conversion_ticks,
                   unsigned short cooldown,
-                  unsigned char initial_resource_count,
+                  InventoryQuantity initial_resource_count,
                   ObservationType color)
       : GridObjectConfig(type_id, type_name),
         input_resources(input_resources),
@@ -38,7 +38,7 @@ struct ConverterConfig : public GridObjectConfig {
   short max_output;
   unsigned short conversion_ticks;
   unsigned short cooldown;
-  unsigned char initial_resource_count;
+  InventoryQuantity initial_resource_count;
   ObservationType color;
 };
 
@@ -127,7 +127,7 @@ public:
 
     // Initialize inventory with initial_resource_count for all output types
     for (const auto& [item, _] : this->output_resources) {
-      HasInventory::update_inventory(item, cfg.initial_resource_count);
+      HasInventory::update_inventory(item, static_cast<InventoryDelta>(cfg.initial_resource_count));
     }
   }
 
@@ -142,7 +142,7 @@ public:
 
     // Add output to inventory
     for (const auto& [item, amount] : this->output_resources) {
-      HasInventory::update_inventory(item, amount);
+      HasInventory::update_inventory(item, static_cast<InventoryDelta>(amount));
       stats.add(stats.inventory_item_name(item) + ".produced", amount);
     }
 

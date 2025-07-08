@@ -69,7 +69,7 @@ public:
 
     if (has_needed_resources) {
       for (const auto& [item, amount] : _consumed_resources) {
-        actor->update_inventory(item, -amount);
+        actor->update_inventory(item, -static_cast<InventoryDelta>(amount));
       }
     }
 

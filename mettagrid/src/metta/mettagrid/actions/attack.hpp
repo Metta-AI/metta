@@ -98,7 +98,8 @@ protected:
       if (blocked) {
         // Consume the defense resources
         for (const auto& [item, amount] : _defense_resources) {
-          InventoryDelta used_amount = std::abs(agent_target->update_inventory(item, -amount));
+          InventoryDelta used_amount =
+              std::abs(agent_target->update_inventory(item, -static_cast<InventoryDelta>(amount)));
           assert(used_amount == amount);
         }
 
@@ -127,16 +128,16 @@ protected:
 
           // Collect all items to steal first, then apply changes, since the changes
           // can delete keys from the agent's inventory.
-          std::vector<std::pair<InventoryItem, int>> items_to_steal;
+          std::vector<std::pair<InventoryItem, InventoryQuantity>> items_to_steal;
           for (const auto& [item, amount] : agent_target->inventory) {
             items_to_steal.emplace_back(item, amount);
           }
 
           // Now apply the stealing
           for (const auto& [item, amount] : items_to_steal) {
-            int stolen = actor->update_inventory(item, static_cast<short>(amount));
+            InventoryDelta stolen = actor->update_inventory(item, static_cast<InventoryDelta>(amount));
 
-            agent_target->update_inventory(item, static_cast<short>(-stolen));
+            agent_target->update_inventory(item, -stolen);
             if (stolen > 0) {
               actor->stats.add(actor->stats.inventory_item_name(item) + ".stolen." + actor->group_name, stolen);
               // Also track what was stolen from the victim's perspective
