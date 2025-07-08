@@ -5,7 +5,7 @@ import tempfile
 from pathlib import Path
 
 from hydra import compose, initialize_config_dir
-from omegaconf import OmegaConf
+from omegaconf import DictConfig, OmegaConf
 
 from metta.rl.trainer_config import parse_trainer_config
 from tools.sweep_config_utils import load_train_job_config_with_overrides
@@ -100,6 +100,7 @@ class TestSweepConfigLoading:
                 assert merged_cfg.device == "cpu"
 
                 # Verify trainer config is valid
+                assert isinstance(merged_cfg, DictConfig), "merged_cfg should be a DictConfig"
                 trainer_config = parse_trainer_config(merged_cfg)
 
                 # Check trainer fields
@@ -143,8 +144,8 @@ class TestSweepConfigLoading:
             assert "runs_dir" in sweep_cfg.sweep_job
 
             # Verify trainer overrides are present at root level
-            assert sweep_cfg.trainer.total_timesteps == 5_000_000  # Updated to match actual config
-            assert sweep_cfg.trainer.curriculum == "/env/mettagrid/curriculum/arena"
+            assert sweep_cfg.trainer.total_timesteps == 1000  # Updated to match actual config
+            assert sweep_cfg.trainer.curriculum == "/env/mettagrid/arena/basic_easy_shaped"
 
             # Verify sim config for evaluation
             assert sweep_cfg.sim.name == "sweep_eval"
