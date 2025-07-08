@@ -109,7 +109,7 @@ def create_run(cfg: DictConfig | ListConfig, logger: Logger) -> str:
             wandb_run.name = run_id
             if not wandb_run.tags:
                 wandb_run.tags = ()
-            wandb_run.tags += (f"sweep_id:{sweep_metadata.wandb_sweep_id}", f"sweep_run:{sweep_metadata.sweep}")
+            wandb_run.tags += (f"sweep_id:{sweep_metadata.wandb_sweep_id}", f"sweep_run:{sweep_metadata.sweep_run}")
 
             protein = MettaProtein(cfg.sweep, wandb_run)
 
@@ -141,6 +141,10 @@ def create_run(cfg: DictConfig | ListConfig, logger: Logger) -> str:
                     "seed": run_seed,
                     "sweep_run": cfg.sweep_run,  # Needed by sweep_eval.py
                     "device": cfg.device,  # Ensure device is at top level
+                    "wandb": {
+                        "group": cfg.sweep_run,  # Group all runs under the sweep name
+                        "name": run_id,  # Individual run name
+                    },
                 }
             )
             OmegaConf.save(train_cfg_overrides, save_path)
