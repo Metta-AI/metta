@@ -276,6 +276,7 @@ void MettaGrid::_compute_observation(unsigned int observer_row,
     for (unsigned int r = r_start; r < r_end; r++) {
       // In this row, there should be one or two columns that have the correct [L1] distance.
       unsigned int r_dist = std::abs(static_cast<int>(r) - static_cast<int>(observer_row));
+
       if (r_dist > distance) continue;
       int c_dist = distance - r_dist;
       // This is a bit ugly. We want to run over {c_dist, -c_dist}, but only do it once if c_dist == 0.
@@ -283,7 +284,7 @@ void MettaGrid::_compute_observation(unsigned int observer_row,
       for (int i = 0; i < 2; i++) {
         if (c_dist == 0 && i == 1) continue;
         int c_offset = i == 0 ? c_dist : -c_dist;
-        int c = observer_col + c_offset;
+        int c = static_cast<int>(observer_col) + c_offset;
         // c could still be outside of our bounds.
         if (c < c_start || c >= c_end) continue;
 
@@ -298,6 +299,7 @@ void MettaGrid::_compute_observation(unsigned int observer_row,
 
           int obs_r = object_loc.r + obs_height_radius - observer_row;
           int obs_c = object_loc.c + obs_width_radius - observer_col;
+
           uint8_t location = obs_r << 4 | obs_c;
 
           attempted_tokens_written += _obs_encoder->encode_tokens(obj, agent_obs_tokens, location);
