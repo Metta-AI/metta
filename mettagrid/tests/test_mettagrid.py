@@ -96,11 +96,11 @@ class TestObservations:
         # Agent 0 starts at (1,1) and should see walls above and to the left
         # for now we treat the walls as "something non-empty"
         for x, y in [(0, 1), (1, 0)]:
-            location = x << 4 | y
+            location = PackedCoordinate.pack(y, x)  # Note: pack takes (row, col) = (y, x)
             token_matches = obs[0, :, :] == [location, TYPE_ID_FEATURE, WALL_TYPE_ID]
             assert token_matches.all(axis=1).any(), f"Expected wall at location {x}, {y}"
         for x, y in [(2, 1), (1, 2)]:
-            location = x << 4 | y
+            location = PackedCoordinate.pack(y, x)  # Note: pack takes (row, col) = (y, x)
             token_matches = obs[0, :, 0] == location
             assert not token_matches.any(), f"Expected no tokens at location {x}, {y}"
         assert (obs[0, -1, :] == [0xFF, 0xFF, 0xFF]).all(), "Last token should be empty"

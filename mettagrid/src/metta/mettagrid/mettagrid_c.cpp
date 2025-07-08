@@ -266,7 +266,9 @@ void MettaGrid::_compute_observation(unsigned int observer_row,
       {ObservationFeature::LastActionArg, static_cast<uint8_t>(action_arg)},
       {ObservationFeature::LastReward, static_cast<uint8_t>(reward_int)}};
   // Global tokens are always at the center of the observation.
-  uint8_t global_location = obs_height_radius << 4 | obs_width_radius;
+  uint8_t global_location =
+      PackedCoordinate::pack(static_cast<uint8_t>(obs_height_radius), static_cast<uint8_t>(obs_width_radius));
+
   attempted_tokens_written +=
       _obs_encoder->append_tokens_if_room_available(agent_obs_tokens, global_tokens, global_location);
   tokens_written = std::min(attempted_tokens_written, static_cast<size_t>(observation_view.shape(1)));
@@ -300,7 +302,7 @@ void MettaGrid::_compute_observation(unsigned int observer_row,
           int obs_r = object_loc.r + obs_height_radius - observer_row;
           int obs_c = object_loc.c + obs_width_radius - observer_col;
 
-          uint8_t location = obs_r << 4 | obs_c;
+          uint8_t location = PackedCoordinate::pack(obs_r, obs_c);
 
           attempted_tokens_written += _obs_encoder->encode_tokens(obj, agent_obs_tokens, location);
           tokens_written = std::min(attempted_tokens_written, static_cast<size_t>(observation_view.shape(1)));
