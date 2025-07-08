@@ -1,0 +1,7 @@
+defaults:
+  - mettagrid
+  - _self_
+
+game:
+  agent:
+    freeze_duration: 255  # Very long time horizon for freeze duration

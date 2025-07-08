@@ -1,0 +1,7 @@
+defaults:
+  - basic_easy_shaped
+  - _self_
+
+game:
+  agent:
+    freeze_duration: 100

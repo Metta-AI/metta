@@ -1,0 +1,4 @@
+_target_: metta.mettagrid.curriculum.learning_progress.LearningProgressCurriculum
+
+tasks:
+  /env/mettagrid/arena/basic_easy_shaped_100_freeze: 1

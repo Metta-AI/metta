@@ -1,0 +1,9 @@
+_target_: metta.mettagrid.curriculum.learning_progress.LearningProgressCurriculum
+
+tasks:
+  /env/mettagrid/arena/basic_easy_shaped: 1
+
+env_overrides:
+  game:
+    agent:
+      freeze_duration: 100

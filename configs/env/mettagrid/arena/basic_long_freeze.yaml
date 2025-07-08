@@ -1,0 +1,7 @@
+defaults:
+  - /env/mettagrid/arena/basic
+  - _self_
+
+game:
+  agent:
+    freeze_duration: 255  # Long time horizon for freeze duration
