@@ -6,7 +6,6 @@ run: contrastive_test_run
 defaults:
   - /trainer/trainer
   - /agent/fast
-  - /hardware/macbook
   - _self_
 
 trainer:
