@@ -1,5 +1,6 @@
 import logging
 import os
+import traceback
 from collections import defaultdict
 from pathlib import Path
 from typing import Any, Set
@@ -25,17 +26,20 @@ from metta.common.util.system_monitor import SystemMonitor
 from metta.common.wandb.wandb_context import WandbRun
 from metta.eval.eval_stats_db import EvalStatsDB
 from metta.mettagrid.curriculum.util import curriculum_from_config_path
-from metta.mettagrid.mettagrid_env import MettaGridEnv
+from metta.mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
 from metta.rl.experience import Experience
 from metta.rl.functions import (
     accumulate_rollout_stats,
     calculate_batch_sizes,
     calculate_explained_variance,
     calculate_prioritized_sampling_params,
+    cleanup_old_policies,
     compute_advantage,
+    compute_gradient_stats,
     get_lstm_config,
-    perform_rollout_step,
+    get_observation,
     process_minibatch_update,
+    run_policy_inference,
     validate_policy_environment_match,
 )
 from metta.rl.kickstarter import Kickstarter
@@ -89,14 +93,18 @@ class MettaTrainer:
             trainer_cfg.simulation.evaluate_interval != 0
             and trainer_cfg.simulation.evaluate_interval < trainer_cfg.checkpoint.checkpoint_interval
         ):
-            raise ValueError("evaluate_interval must be at least as large as checkpoint_interval")
-
+            raise ValueError(
+                f"evaluate_interval must be at least as large as checkpoint_interval "
+                f"({trainer_cfg.simulation.evaluate_interval} < {trainer_cfg.checkpoint.checkpoint_interval})"
+            )
         if (
             trainer_cfg.simulation.evaluate_interval != 0
             and trainer_cfg.simulation.evaluate_interval < trainer_cfg.checkpoint.wandb_checkpoint_interval
         ):
-            raise ValueError("evaluate_interval must be at least as large as wandb_checkpoint_interval")
-
+            raise ValueError(
+                f"evaluate_interval must be at least as large as wandb_checkpoint_interval "
+                f"({trainer_cfg.simulation.evaluate_interval} < {trainer_cfg.checkpoint.wandb_checkpoint_interval})"
+            )
         # Validate that we save policies locally at least as often as we upload to wandb
         if (
             trainer_cfg.checkpoint.wandb_checkpoint_interval != 0
@@ -104,8 +112,9 @@ class MettaTrainer:
             and trainer_cfg.checkpoint.wandb_checkpoint_interval < trainer_cfg.checkpoint.checkpoint_interval
         ):
             raise ValueError(
-                "wandb_checkpoint_interval must be at least as large as checkpoint_interval "
-                "to ensure policies exist locally before uploading to wandb"
+                f"wandb_checkpoint_interval must be at least as large as checkpoint_interval "
+                f"to ensure policies exist locally before uploading to wandb "
+                f"({trainer_cfg.checkpoint.wandb_checkpoint_interval} < {trainer_cfg.checkpoint.checkpoint_interval})"
             )
 
         if trainer_cfg.checkpoint.checkpoint_dir:
@@ -428,9 +437,32 @@ class MettaTrainer:
                 )
 
             # Perform single rollout step
-            num_steps, info = perform_rollout_step(self.policy, self.vecenv, experience, self.device, self.timer)
-
+            # Receive environment data
+            o, r, d, t, info, training_env_id, mask, num_steps = get_observation(self.vecenv, self.device, self.timer)
             self.agent_step += num_steps
+
+            # Run policy inference
+            actions, selected_action_log_probs, values, lstm_state_to_store = run_policy_inference(
+                self.policy, o, experience, training_env_id.start, self.device
+            )
+
+            # Store experience
+            experience.store(
+                obs=o,
+                actions=actions,
+                logprobs=selected_action_log_probs,
+                rewards=r,
+                dones=d,
+                truncations=t,
+                values=values,
+                env_id=training_env_id,
+                mask=mask,
+                lstm_state=lstm_state_to_store,
+            )
+
+            # Send actions back to environment
+            with self.timer("_rollout.env"):
+                self.vecenv.send(actions.cpu().numpy().astype(dtype_actions))
 
             # Collect info for batch processing
             if info:
@@ -655,7 +687,7 @@ class MettaTrainer:
 
         # Clean up old policies to prevent disk space issues
         if self.epoch % 10 == 0:  # Clean up every 10 epochs
-            self._cleanup_old_policies(keep_last_n=5)
+            cleanup_old_policies(self.trainer_cfg.checkpoint.checkpoint_dir, keep_last_n=5)
 
         # Synchronize all ranks to ensure the policy is fully saved before continuing
         if torch.distributed.is_initialized():
@@ -693,6 +725,7 @@ class MettaTrainer:
                 self._evaluate_policy(wandb_policy_name)
             except Exception as e:
                 logger.error(f"Error evaluating policy: {e}")
+                logger.error(traceback.format_exc())
 
             self._stats_epoch_start = self.epoch + 1
 
@@ -753,7 +786,7 @@ class MettaTrainer:
     @with_instance_timer("_generate_and_upload_replay", log_level=logging.INFO)
     def _generate_and_upload_replay(self):
         replay_sim_config = SingleEnvSimulationConfig(
-            env="/env/mettagrid/full",
+            env="/env/mettagrid/mettagrid",  # won't be used, dynamic `env_cfg()` should override all of it
             num_episodes=1,
             env_overrides=self._curriculum.get_task().env_cfg(),
         )
@@ -794,7 +827,8 @@ class MettaTrainer:
             try:
                 mean_stats[k] = np.mean(v)
                 # Add standard deviation with .std_dev suffix
-                mean_stats[f"{k}.std_dev"] = np.std(v)
+                # DISABLED(daveey): this is too noisy and so far not useful
+                # mean_stats[f"{k}.std_dev"] = np.std(v)
             except (TypeError, ValueError) as e:
                 raise RuntimeError(
                     f"Cannot compute mean for stat '{k}' with value {v!r} (type: {type(v)}). "
@@ -1072,64 +1106,7 @@ class MettaTrainer:
             return
 
         with self.timer("grad_stats"):
-            all_gradients = []
-            for param in self.policy.parameters():
-                if param.grad is not None:
-                    all_gradients.append(param.grad.view(-1))
-
-            if not all_gradients:
-                logger.warning("No gradients found to compute stats.")
-                self.grad_stats = {}
-                return
-
-            all_gradients_tensor = torch.cat(all_gradients).to(torch.float32)
-
-            grad_mean = all_gradients_tensor.mean()
-            grad_variance = all_gradients_tensor.var()
-            grad_norm = all_gradients_tensor.norm(2)
-
-            self.grad_stats = {
-                "grad/mean": grad_mean.item(),
-                "grad/variance": grad_variance.item(),
-                "grad/norm": grad_norm.item(),
-            }
-            logger.info(
-                f"Computed gradient stats at epoch {self.epoch}: "
-                f"mean={self.grad_stats['grad/mean']:.2e}, "
-                f"var={self.grad_stats['grad/variance']:.2e}, "
-                f"norm={self.grad_stats['grad/norm']:.2e}"
-            )
-
-    def _cleanup_old_policies(self, keep_last_n: int = 5):
-        """Clean up old saved policies to prevent memory accumulation.
-
-        Args:
-            keep_last_n: Number of most recent policies to keep
-        """
-        if not self._master or not hasattr(self, "policy_store"):
-            return
-
-        try:
-            # Get checkpoint directory
-            checkpoint_dir = Path(self.trainer_cfg.checkpoint.checkpoint_dir)
-            if not checkpoint_dir.exists():
-                return
-
-            # List all policy files
-            policy_files = sorted(checkpoint_dir.glob("policy_*.pt"))
-
-            # Keep only the most recent ones
-            if len(policy_files) > keep_last_n:
-                files_to_remove = policy_files[:-keep_last_n]
-                for file_path in files_to_remove:
-                    try:
-                        file_path.unlink()
-                        logger.info(f"Removed old policy file: {file_path}")
-                    except Exception as e:
-                        logger.warning(f"Failed to remove old policy file {file_path}: {e}")
-
-        except Exception as e:
-            logger.warning(f"Error during policy cleanup: {e}")
+            self.grad_stats = compute_gradient_stats(self.policy)
 
     def _initialize_policy_to_environment(self, policy, metta_grid_env, device):
         """Helper method to initialize a policy to the environment using the appropriate interface."""

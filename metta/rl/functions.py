@@ -18,7 +18,6 @@ from torch import Tensor
 
 from metta.agent.policy_state import PolicyState
 from metta.agent.util.debug import assert_shape
-from metta.mettagrid.mettagrid_env import dtype_actions
 from metta.mettagrid.util.dict_utils import unroll_nested_dict
 from metta.rl.experience import Experience
 from metta.rl.losses import Losses
@@ -26,23 +25,18 @@ from metta.rl.losses import Losses
 logger = logging.getLogger(__name__)
 
 
-def perform_rollout_step(
-    policy: torch.nn.Module,
+def get_observation(
     vecenv: Any,
-    experience: Experience,
     device: torch.device,
-    timer: Optional[Any] = None,
-) -> Tuple[int, list]:
-    """Performs a single step of the rollout, interacting with the environment.
+    timer: Any,
+) -> Tuple[Tensor, Tensor, Tensor, Tensor, list, slice, Tensor, int]:
+    """Get observations and other data from the vectorized environment and convert to tensors.
 
     Returns:
-        Tuple of (num_steps, info_list)
+        Tuple of (observations, rewards, dones, truncations, info, training_env_id, mask, num_steps)
     """
     # Receive environment data
-    if timer:
-        with timer("_rollout.env"):
-            o, r, d, t, info, env_id, mask = vecenv.recv()
-    else:
+    with timer("_rollout.env"):
         o, r, d, t, info, env_id, mask = vecenv.recv()
 
     training_env_id = slice(env_id[0], env_id[-1] + 1)
@@ -56,14 +50,29 @@ def perform_rollout_step(
     d = torch.as_tensor(d).to(device, non_blocking=True)
     t = torch.as_tensor(t).to(device, non_blocking=True)
 
+    return o, r, d, t, info, training_env_id, mask, num_steps
+
+
+def run_policy_inference(
+    policy: torch.nn.Module,
+    observations: Tensor,
+    experience: Experience,
+    training_env_id_start: int,
+    device: torch.device,
+) -> Tuple[Tensor, Tensor, Tensor, Optional[Dict[str, Tensor]]]:
+    """Run the policy to get actions and value estimates.
+
+    Returns:
+        Tuple of (actions, selected_action_log_probs, values, lstm_state_to_store)
+    """
     with torch.no_grad():
         state = PolicyState()
-        lstm_h, lstm_c = experience.get_lstm_state(training_env_id.start)
+        lstm_h, lstm_c = experience.get_lstm_state(training_env_id_start)
         if lstm_h is not None:
             state.lstm_h = lstm_h
             state.lstm_c = lstm_c
 
-        actions, selected_action_log_probs, _, value, _ = policy(o, state)
+        actions, selected_action_log_probs, _, value, _ = policy(observations, state)
 
         if __debug__:
             assert_shape(selected_action_log_probs, ("BT",), "selected_action_log_probs")
@@ -76,29 +85,7 @@ def perform_rollout_step(
         if str(device).startswith("cuda"):
             torch.cuda.synchronize()
 
-    value = value.flatten()
-
-    experience.store(
-        obs=o,
-        actions=actions,
-        logprobs=selected_action_log_probs,
-        rewards=r,
-        dones=d,
-        truncations=t,
-        values=value,
-        env_id=training_env_id,
-        mask=mask,
-        lstm_state=lstm_state_to_store,
-    )
-
-    # Send actions back to environment
-    if timer:
-        with timer("_rollout.env"):
-            vecenv.send(actions.cpu().numpy().astype(dtype_actions))
-    else:
-        vecenv.send(actions.cpu().numpy().astype(dtype_actions))
-
-    return num_steps, info
+    return actions, selected_action_log_probs, value.flatten(), lstm_state_to_store
 
 
 def compute_ppo_losses(
@@ -431,3 +418,133 @@ def accumulate_rollout_stats(
                     stats[k] += v
                 except TypeError:
                     stats[k] = [stats[k], v]  # fallback: bundle as list
+
+
+def compute_gradient_stats(policy: torch.nn.Module) -> Dict[str, float]:
+    """Compute gradient statistics for the policy.
+
+    Returns:
+        Dictionary with 'grad/mean', 'grad/variance', and 'grad/norm' keys
+    """
+    all_gradients = []
+    for param in policy.parameters():
+        if param.grad is not None:
+            all_gradients.append(param.grad.view(-1))
+
+    if not all_gradients:
+        return {}
+
+    all_gradients_tensor = torch.cat(all_gradients).to(torch.float32)
+
+    grad_mean = all_gradients_tensor.mean()
+    grad_variance = all_gradients_tensor.var()
+    grad_norm = all_gradients_tensor.norm(2)
+
+    grad_stats = {
+        "grad/mean": grad_mean.item(),
+        "grad/variance": grad_variance.item(),
+        "grad/norm": grad_norm.item(),
+    }
+
+    return grad_stats
+
+
+def cleanup_old_policies(checkpoint_dir: str, keep_last_n: int = 5) -> None:
+    """Clean up old saved policies to prevent memory accumulation.
+
+    Args:
+        checkpoint_dir: Directory containing policy checkpoints
+        keep_last_n: Number of most recent policies to keep
+    """
+    from pathlib import Path
+
+    try:
+        # Get checkpoint directory
+        checkpoint_path = Path(checkpoint_dir)
+        if not checkpoint_path.exists():
+            return
+
+        # List all policy files
+        policy_files = sorted(checkpoint_path.glob("policy_*.pt"))
+
+        # Keep only the most recent ones
+        if len(policy_files) > keep_last_n:
+            files_to_remove = policy_files[:-keep_last_n]
+            for file_path in files_to_remove:
+                try:
+                    file_path.unlink()
+                except Exception as e:
+                    logger.warning(f"Failed to remove old policy file {file_path}: {e}")
+
+    except Exception as e:
+        logger.warning(f"Error during policy cleanup: {e}")
+
+
+def setup_distributed_vars() -> Tuple[bool, int, int]:
+    """Set up distributed training variables.
+
+    Returns:
+        Tuple of (_master, _world_size, _rank)
+    """
+    if torch.distributed.is_initialized():
+        _master = torch.distributed.get_rank() == 0
+        _world_size = torch.distributed.get_world_size()
+        _rank = torch.distributed.get_rank()
+    else:
+        _master = True
+        _world_size = 1
+        _rank = 0
+
+    return _master, _world_size, _rank
+
+
+def should_run_on_interval(
+    epoch: int,
+    interval: int,
+    is_master: bool = True,
+    force: bool = False,
+) -> bool:
+    """Check if a periodic task should run based on interval and master status.
+
+    Args:
+        epoch: Current epoch
+        interval: Interval to check
+        is_master: Whether this is the master rank
+        force: Force run regardless of interval
+
+    Returns:
+        True if should run, False otherwise
+    """
+    if not is_master or not interval:
+        return False
+
+    if force:
+        return True
+
+    return epoch % interval == 0
+
+
+def maybe_update_l2_weights(
+    agent: Any,
+    epoch: int,
+    interval: int,
+    is_master: bool = True,
+    force: bool = False,
+) -> None:
+    """Update L2 init weights if on update interval.
+
+    Args:
+        agent: The agent/policy
+        epoch: Current epoch
+        interval: Update interval
+        is_master: Whether this is the master rank
+        force: Force update
+    """
+    if not should_run_on_interval(epoch, interval, is_master, force):
+        return
+
+    if hasattr(agent, "l2_init_weight_update_interval"):
+        l2_interval = getattr(agent, "l2_init_weight_update_interval", 0)
+        if isinstance(l2_interval, int) and l2_interval > 0:
+            if hasattr(agent, "update_l2_init_weight_copy"):
+                agent.update_l2_init_weight_copy()

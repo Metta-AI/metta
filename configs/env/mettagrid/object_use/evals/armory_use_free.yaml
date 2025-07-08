@@ -1,5 +1,6 @@
 defaults:
   - /env/mettagrid/object_use/evals/defaults@
+  - /env/mettagrid/game/objects/combat@game.objects
   - _self_
 
 game:
@@ -13,4 +14,4 @@ game:
   objects:
     armory:
       cooldown: 255
-      initial_items: 0
+      initial_resource_count: 0

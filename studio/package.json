@@ -20,7 +20,7 @@
     "react-select": "^5.10.1",
     "react-textarea-autosize": "^8.5.9",
     "use-pan-and-zoom": "^0.6.5",
-    "zod": "^3.24.3"
+    "zod": "^3.25.67"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

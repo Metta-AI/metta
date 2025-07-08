@@ -10,9 +10,7 @@ from omegaconf import OmegaConf
 import mettascope.server as server
 from metta.agent.policy_store import PolicyStore
 from metta.common.util.config import Config
-from metta.common.util.logging import setup_mettagrid_logger
-from metta.common.util.runtime_configuration import setup_mettagrid_environment
-from metta.common.util.script_decorators import metta_script
+from metta.common.util.script_decorators import get_metta_logger, metta_script
 from metta.common.wandb.wandb_context import WandbContext
 from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SingleEnvSimulationConfig
@@ -26,15 +24,15 @@ class ReplayJob(Config):
     selector_type: str
     replay_dir: str
     stats_dir: str
+    open_browser_on_start: bool
 
 
 @hydra.main(version_base=None, config_path="../configs", config_name="replay_job")
 @metta_script
 def main(cfg):
-    setup_mettagrid_environment(cfg)
+    logger = get_metta_logger()
 
-    logger = setup_mettagrid_logger("metta.tools.replay")
-    logger.info(f"Replay job config:\n{OmegaConf.to_yaml(cfg, resolve=True)}")
+    logger.info(f"tools.replay job config:\n{OmegaConf.to_yaml(cfg, resolve=True)}")
 
     with WandbContext(cfg.wandb, cfg) as wandb_run:
         policy_store = PolicyStore(cfg, wandb_run)
@@ -68,7 +66,13 @@ def main(cfg):
                 full_url = f"/?replayUrl={quote(local_url)}"
 
                 # Run a metascope server that serves the replay
-                server.run(cfg, open_url=full_url)
+                open_browser = OmegaConf.select(cfg, "replay_job.open_browser_on_start", default=True)
+
+                if open_browser:
+                    server.run(cfg, open_url=full_url)
+                else:
+                    logger.info(f"Enter MettaGrid @ {full_url}")
+                    server.run(cfg)
 
 
 if __name__ == "__main__":

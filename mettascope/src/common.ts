@@ -1,6 +1,6 @@
 import { Vec2f } from './vector_math.js'
 import { Context3d } from './context3d.js'
-import { find, parseHtmlColor, localStorageGetNumber } from './htmlutils.js'
+import { find, parseHtmlColor, localStorageGetNumber, toggleOpacity } from './htmlutils.js'
 import { PanelInfo } from './panels.js'
 import { HoverPanel } from './hoverpanels.js'
 
@@ -162,11 +162,7 @@ export const html = {
 export function setFollowSelection(map: boolean | null) {
   if (map != null) {
     state.followSelection = map
-    if (map) {
-      html.focusToggle.style.opacity = '1'
-    } else {
-      html.focusToggle.style.opacity = '0.2'
-    }
+    toggleOpacity(html.focusToggle, map)
   }
 }
 

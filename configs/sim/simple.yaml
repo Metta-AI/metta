@@ -1,5 +1,0 @@
-defaults:
-  - sim_single
-  - _self_
-
-env: /env/mettagrid/simple

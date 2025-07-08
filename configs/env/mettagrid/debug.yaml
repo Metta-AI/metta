@@ -12,7 +12,7 @@ game:
   num_agents: 2
 
   agent:
-    default_item_max: 50
+    default_resource_limit: 50
     freeze_duration: 0
 
   actions:

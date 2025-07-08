@@ -1,10 +1,13 @@
 #!/usr/bin/env -S uv run
 import argparse
+import shutil
+import subprocess
 import sys
 from pathlib import Path
 
 from metta.setup.config import CURRENT_CONFIG_VERSION, PROFILE_DEFINITIONS, SetupConfig, UserType
 from metta.setup.registry import get_all_modules, get_applicable_modules
+from metta.setup.symlink_setup import PathSetup
 from metta.setup.utils import error, header, import_all_modules_from_subpackage, info, success, warning
 
 # Import all component modules to register them with the registry
@@ -15,6 +18,7 @@ class MettaCLI:
     def __init__(self):
         self.repo_root: Path = Path(__file__).parent.parent.parent
         self.config: SetupConfig = SetupConfig()
+        self.path_setup: PathSetup = PathSetup(self.repo_root)
 
     def setup_wizard(self) -> None:
         header("Welcome to Metta!\n\n")
@@ -57,7 +61,10 @@ class MettaCLI:
 
             self.config.apply_profile(user_type)
             success(f"\nConfigured as {user_type.value} user.")
-        info("\nRun './metta.sh install' to set up your environment.")
+        info("\nRun 'metta install' to set up your environment.")
+
+        if not self.path_setup.check_installation():
+            info("You may want to run 'metta symlink-setup' to make the metta command globally available.")
 
     def _custom_setup(self) -> None:
         info("\nSelect base profile for custom configuration:")
@@ -87,7 +94,7 @@ class MettaCLI:
                 self.config.set(f"components.{comp}.enabled", choice == "y")
 
         success("\nCustom configuration saved.")
-        info("\nRun './metta.sh install' to set up your environment.")
+        info("\nRun 'metta install' to set up your environment.")
 
     def cmd_configure(self, args) -> None:
         if args.profile:
@@ -96,7 +103,7 @@ class MettaCLI:
             if args.profile in profile_map:
                 self.config.apply_profile(profile_map[args.profile])
                 success(f"Configured as {profile_map[args.profile].value} user.")
-                info("\nRun './metta.sh install' to set up your environment.")
+                info("\nRun 'metta install' to set up your environment.")
             else:
                 error(f"Unknown profile: {args.profile}")
                 available_profiles = [ut.value for ut in UserType if ut != UserType.SOFTMAX_DOCKER]
@@ -109,6 +116,10 @@ class MettaCLI:
         if not self.config.config_path.exists():
             warning("No configuration found. Running setup wizard first...")
             self.setup_wizard()
+
+        # Clean build artifacts unless --no-clean is specified
+        if not args.no_clean:
+            self.cmd_clean(args)
 
         # If specific components are requested, get all modules so we can install
         # even disabled ones (useful with --force)
@@ -144,7 +155,7 @@ class MettaCLI:
         for module in modules:
             info(f"[{module.name}] {module.description}")
 
-            if module.check_installed() and not args.force:
+            if module.install_once and module.check_installed() and not args.force:
                 info("  -> Already installed, skipping (use --force to reinstall)\n")
                 continue
 
@@ -156,13 +167,37 @@ class MettaCLI:
 
         success("Installation complete!")
 
+    def cmd_clean(self, args) -> None:
+        build_dir = self.repo_root / "build"
+        if build_dir.exists():
+            info("  Removing root build directory...")
+            shutil.rmtree(build_dir)
+        # Clean mettagrid build directories
+        mettagrid_dir = self.repo_root / "mettagrid"
+        for build_name in ["build-debug", "build-release"]:
+            build_path = mettagrid_dir / build_name
+            if build_path.exists():
+                info(f"  Removing mettagrid/{build_name}...")
+                shutil.rmtree(build_path)
+
+        # Run cleanup script to remove empty directories and __pycache__
+        cleanup_script = self.repo_root / "devops" / "tools" / "cleanup_repo.py"
+        if cleanup_script.exists():
+            try:
+                subprocess.run([sys.executable, str(cleanup_script)], check=True)
+            except subprocess.CalledProcessError as e:
+                warning(f"  Cleanup script failed: {e}")
+
     def _truncate(self, text: str, max_len: int) -> str:
         """Truncate text to max length with ellipsis."""
         if len(text) <= max_len:
             return text
         return text[: max_len - 3] + "..."
 
-    def cmd_status(self, args) -> None:
+    def cmd_symlink_setup(self, args) -> None:
+        self.path_setup.setup_path(force=args.force)
+
+    def cmd_status(self, _args) -> None:
         """Show status of all components."""
         modules = get_all_modules(self.config)
 
@@ -257,17 +292,49 @@ class MettaCLI:
         else:
             warning("\nSome components are not installed. Run 'metta install' to set them up.")
 
+        # Collect components with connection issues
+        not_connected = []
+        for module in modules:
+            if module.is_applicable() and module.check_installed():
+                expected = self.config.get_expected_connection(module.name)
+                if expected and module.check_connected_as() is None:
+                    not_connected.append(module.name)
+
+        # Offer to fix connection issues
+        if not_connected and sys.stdin.isatty():
+            warning(f"\nComponents not connected: {', '.join(not_connected)}")
+            info("This could be due to expired credentials, network issues, or broken installations.")
+            response = input("\nReinstall these components to fix connection issues? (y/n): ").strip().lower()
+            if response == "y":
+                info(f"\nRunning: ./metta.sh install {' '.join(not_connected)} --force")
+                subprocess.run([sys.executable, __file__, "install"] + not_connected + ["--force"], cwd=self.repo_root)
+
+        # Check for not installed components
+        not_installed = []
+        for module in modules:
+            if module.is_applicable() and not module.check_installed():
+                not_installed.append(module.name)
+
+        if not_installed and sys.stdin.isatty():
+            warning(f"\nComponents not installed: {', '.join(not_installed)}")
+            response = input("\nInstall these components? (y/n): ").strip().lower()
+            if response == "y":
+                info(f"\nRunning: ./metta.sh install {' '.join(not_installed)}")
+                subprocess.run([sys.executable, __file__, "install"] + not_installed, cwd=self.repo_root)
+
     def main(self) -> None:
         parser = argparse.ArgumentParser(
             description="Metta Setup Tool - Configure and install development environment",
             formatter_class=argparse.RawDescriptionHelpFormatter,
             epilog="""
 Examples:
-  ./metta.sh configure                      # Run interactive setup wizard
-  ./metta.sh configure --profile=softmax    # Configure for Softmax employee
-  ./metta.sh install                        # Install all configured components
-  ./metta.sh install aws wandb              # Install specific components
-  ./metta.sh status                         # Show component status
+  metta configure                      # Run interactive setup wizard
+  metta configure --profile=softmax    # Configure for Softmax employee
+  metta install                        # Install all configured components
+  metta install aws wandb              # Install specific components
+  metta status                         # Show component status
+  metta clean                          # Clean build artifacts
+  metta symlink-setup                  # Set up symlink to make metta command globally available
             """,
         )
 
@@ -293,9 +360,20 @@ Examples:
             ),
         )
         install_parser.add_argument("--force", action="store_true", help="Force reinstall even if already installed")
+        install_parser.add_argument(
+            "--no-clean", action="store_true", help="Skip cleaning build artifacts before installation"
+        )
 
         # Status command
         subparsers.add_parser("status", help="Show installation and authentication status of all components")
+
+        # Clean command
+        subparsers.add_parser("clean", help="Clean build artifacts and temporary files")
+        # Symlink setup command
+        symlink_parser = subparsers.add_parser(
+            "symlink-setup", help="Create symlink to make metta command globally available"
+        )
+        symlink_parser.add_argument("--force", action="store_true", help="Replace existing metta command if it exists")
 
         args = parser.parse_args()
 
@@ -307,12 +385,12 @@ Examples:
 
         if args.command != "configure":
             if not self.config.config_path.exists():
-                error("No configuration found. Please run './metta.sh configure' first.")
+                error("No configuration found. Please run 'metta configure' first.")
                 sys.exit(1)
             elif self.config.config_version < CURRENT_CONFIG_VERSION:
                 # Old config format detected
                 warning(f"Your configuration is from an older version (v{self.config.config_version}).")
-                info("Please run './metta.sh configure' to update your configuration.")
+                info("Please run 'metta configure' to update your configuration.")
                 sys.exit(1)
 
         # Dispatch to command handler
@@ -322,6 +400,10 @@ Examples:
             self.cmd_install(args)
         elif args.command == "status":
             self.cmd_status(args)
+        elif args.command == "clean":
+            self.cmd_clean(args)
+        elif args.command == "symlink-setup":
+            self.cmd_symlink_setup(args)
         else:
             parser.print_help()
 

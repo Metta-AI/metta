@@ -1,6 +1,8 @@
 #ifndef METTAGRID_C_HPP_
 #define METTAGRID_C_HPP_
 
+#define PYBIND11_DETAILED_ERROR_MESSAGES
+
 #if defined(_WIN32)
 #define METTAGRID_API __declspec(dllexport)
 #else
@@ -27,15 +29,29 @@ class ActionHandler;
 class Agent;
 class ObservationEncoder;
 class GridObject;
+class GridObjectConfig;
 class ConverterConfig;
 class WallConfig;
 class AgentConfig;
+class GameConfig;
+class ActionConfig;
 
 namespace py = pybind11;
 
+struct GameConfig {
+  int num_agents;
+  unsigned int max_steps;
+  unsigned short obs_width;
+  unsigned short obs_height;
+  std::vector<std::string> inventory_item_names;
+  unsigned int num_observation_tokens;
+  std::map<std::string, std::shared_ptr<ActionConfig>> actions;
+  std::map<std::string, std::shared_ptr<GridObjectConfig>> objects;
+};
+
 class METTAGRID_API MettaGrid {
 public:
-  MettaGrid(py::dict env_cfg, py::list map, int seed);
+  MettaGrid(const GameConfig& cfg, py::list map, int seed);
   ~MettaGrid();
 
   unsigned short obs_width;

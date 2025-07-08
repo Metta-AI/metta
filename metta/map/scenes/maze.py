@@ -1,8 +1,8 @@
 from typing import List, Literal, Tuple, Union
 
 from metta.common.util.config import Config
+from metta.map.random.int import IntConstantDistribution, IntDistribution
 from metta.map.scene import Scene
-from metta.map.utils.random import IntDistribution, sample_int_distribution
 
 Anchor = Union[
     Literal["top-left"],
@@ -26,8 +26,8 @@ def anchor_to_position(anchor: Anchor, width: int, height: int) -> Tuple[int, in
 
 
 class MazeKruskalParams(Config):
-    room_size: IntDistribution = 1
-    wall_size: IntDistribution = 1
+    room_size: IntDistribution = IntConstantDistribution(value=1)
+    wall_size: IntDistribution = IntConstantDistribution(value=1)
 
 
 class MazeKruskal(Scene[MazeKruskalParams]):
@@ -56,8 +56,8 @@ class MazeKruskal(Scene[MazeKruskalParams]):
         grid = self.grid
         width = self.width
         height = self.height
-        room_size = sample_int_distribution(self.params.room_size, self.rng)
-        wall_size = sample_int_distribution(self.params.wall_size, self.rng)
+        room_size = self.params.room_size.sample(self.rng)
+        wall_size = self.params.wall_size.sample(self.rng)
         rw_size = room_size + wall_size
 
         width_in_rooms = (width + wall_size) // rw_size

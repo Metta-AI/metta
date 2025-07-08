@@ -1,5 +1,7 @@
 defaults:
   - /env/mettagrid/mettagrid@
+  - /env/mettagrid/game/objects/mines@game.objects
+  - /env/mettagrid/game/objects/generators@game.objects
   - _self_
 
 game:
@@ -18,16 +20,21 @@ game:
 
   objects:
     altar:
-      input_battery_red: 1
-      output_heart: 1
+      input_resources:
+        battery_red: 1
+      output_resources:
+        heart: 1
       conversion_ticks: 1
-      initial_items: 1
+      initial_resource_count: 1
     mine_red:
-      output_ore_red: 1
+      output_resources:
+        ore_red: 1
       conversion_ticks: 1
-      initial_items: 1
+      initial_resource_count: 1
     generator_red:
-      input_ore_red: 1
-      output_battery_red: 1
+      input_resources:
+        ore_red: 1
+      output_resources:
+        battery_red: 1
       conversion_ticks: 1
-      initial_items: 1
+      initial_resource_count: 1

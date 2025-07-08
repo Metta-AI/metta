@@ -1,12 +1,15 @@
 import hashlib
 import secrets
 import uuid
+from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 
 from psycopg import Connection
 from psycopg.types.json import Jsonb
+from psycopg_pool import AsyncConnectionPool
 
+from metta.app_backend.query_logger import execute_single_row_query_and_log
 from metta.app_backend.schema_manager import SqlMigration, run_migrations
 
 # This is a list of migrations that will be applied to the eval database.
@@ -183,26 +186,52 @@ MIGRATIONS = [
 class MettaRepo:
     def __init__(self, db_uri: str) -> None:
         self.db_uri = db_uri
+        self._pool: AsyncConnectionPool | None = None
+        # Run migrations synchronously during initialization
         with Connection.connect(self.db_uri) as con:
             run_migrations(con, MIGRATIONS)
 
-    def connect(self) -> Connection:
-        return Connection.connect(self.db_uri)
+    async def _ensure_pool(self) -> AsyncConnectionPool:
+        if self._pool is None:
+            self._pool = AsyncConnectionPool(self.db_uri, min_size=2, max_size=20, open=False)
+            await self._pool.open()
+        return self._pool
 
-    def get_policy_ids(self, policy_names: List[str]) -> Dict[str, uuid.UUID]:
+    @asynccontextmanager
+    async def connect(self):
+        pool = await self._ensure_pool()
+        async with pool.connection() as conn:
+            yield conn
+
+    async def close(self) -> None:
+        if self._pool:
+            try:
+                await self._pool.close()
+            except RuntimeError:
+                # Event loop might be closed, ignore
+                pass
+
+    def _hash_token(self, token: str) -> str:
+        """Hash a token for secure storage."""
+        return hashlib.sha256(token.encode()).hexdigest()
+
+    # All methods are async - no sync versions
+
+    async def get_policy_ids(self, policy_names: List[str]) -> Dict[str, uuid.UUID]:
         if not policy_names:
             return {}
 
-        with self.connect() as con:
-            res = con.execute(
+        async with self.connect() as con:
+            res = await con.execute(
                 """
                 SELECT id, name FROM policies WHERE name = ANY(%s)
                 """,
                 (policy_names,),
-            ).fetchall()
-            return {row[1]: row[0] for row in res}
+            )
+            rows = await res.fetchall()
+            return {row[1]: row[0] for row in rows}
 
-    def create_training_run(
+    async def create_training_run(
         self,
         name: str,
         user_id: str,
@@ -212,9 +241,9 @@ class MettaRepo:
         tags: List[str] | None,
     ) -> uuid.UUID:
         status = "running"
-        with self.connect() as con:
+        async with self.connect() as con:
             # Try to insert a new training run, but if it already exists, return the existing ID
-            result = con.execute(
+            result = await con.execute(
                 """
                 INSERT INTO training_runs (name, user_id, attributes, status, url, description, tags)
                 VALUES (%s, %s, %s, %s, %s, %s, %s)
@@ -222,59 +251,63 @@ class MettaRepo:
                 RETURNING id
                 """,
                 (name, user_id, Jsonb(attributes), status, url, description, tags),
-            ).fetchone()
-            if result is None:
+            )
+            row = await result.fetchone()
+            if row is None:
                 # If no result, the run already exists, so fetch its ID
-                result = con.execute(
+                result = await con.execute(
                     """
                     SELECT id FROM training_runs WHERE user_id = %s AND name = %s
                     """,
                     (user_id, name),
-                ).fetchone()
-                if result is None:
+                )
+                row = await result.fetchone()
+                if row is None:
                     raise RuntimeError("Failed to find existing training run")
-            return result[0]
+            return row[0]
 
-    def create_epoch(
+    async def create_epoch(
         self,
         run_id: uuid.UUID,
         start_training_epoch: int,
         end_training_epoch: int,
         attributes: Dict[str, str],
     ) -> uuid.UUID:
-        with self.connect() as con:
-            result = con.execute(
+        async with self.connect() as con:
+            result = await con.execute(
                 """
                 INSERT INTO epochs (run_id, start_training_epoch, end_training_epoch, attributes)
                 VALUES (%s, %s, %s, %s)
                 RETURNING id
                 """,
                 (run_id, start_training_epoch, end_training_epoch, Jsonb(attributes)),
-            ).fetchone()
-            if result is None:
+            )
+            row = await result.fetchone()
+            if row is None:
                 raise RuntimeError("Failed to insert policy epoch")
-            return result[0]
+            return row[0]
 
-    def create_policy(
+    async def create_policy(
         self,
         name: str,
         description: str | None,
         url: str | None,
         epoch_id: uuid.UUID | None,
     ) -> uuid.UUID:
-        with self.connect() as con:
-            result = con.execute(
+        async with self.connect() as con:
+            result = await con.execute(
                 """
                 INSERT INTO policies (name, description, url, epoch_id) VALUES (%s, %s, %s, %s)
                 RETURNING id
                 """,
                 (name, description, url, epoch_id),
-            ).fetchone()
-            if result is None:
+            )
+            row = await result.fetchone()
+            if row is None:
                 raise RuntimeError("Failed to insert policy")
-            return result[0]
+            return row[0]
 
-    def record_episode(
+    async def record_episode(
         self,
         agent_policies: Dict[int, uuid.UUID],
         agent_metrics: Dict[int, Dict[str, float]],
@@ -285,13 +318,13 @@ class MettaRepo:
         replay_url: str | None,
         attributes: Dict[str, Any],
     ) -> uuid.UUID:
-        with self.connect() as con:
+        async with self.connect() as con:
             # Parse eval_category and env_name from eval_name
             eval_category = eval_name.split("/", 1)[0] if eval_name else None
             env_name = eval_name.split("/", 1)[1] if eval_name and "/" in eval_name else None
 
             # Insert into episodes table
-            result = con.execute(
+            result = await con.execute(
                 """
                 INSERT INTO episodes (
                     replay_url,
@@ -316,14 +349,15 @@ class MettaRepo:
                     stats_epoch,
                     Jsonb(attributes),
                 ),
-            ).fetchone()
-            if result is None:
+            )
+            row = await result.fetchone()
+            if row is None:
                 raise RuntimeError("Failed to insert episode record")
-            episode_id = result[0]
+            episode_id = row[0]
 
             # Insert agent policies
             for agent_id, policy_id in agent_policies.items():
-                con.execute(
+                await con.execute(
                     """
                     INSERT INTO episode_agent_policies (
                         episode_id,
@@ -334,37 +368,37 @@ class MettaRepo:
                     (episode_id, policy_id, agent_id),
                 )
 
-            # Insert agent metrics
+            # Insert agent metrics in bulk
+            rows: List[Tuple[uuid.UUID, int, str, float]] = []
             for agent_id, metrics in agent_metrics.items():
                 for metric_name, value in metrics.items():
-                    con.execute(
-                        """
-                        INSERT INTO episode_agent_metrics (
-                            episode_id,
-                            agent_id,
-                            metric,
-                            value
-                        ) VALUES (%s, %s, %s, %s)
-                        """,
-                        (episode_id, agent_id, metric_name, value),
-                    )
+                    rows.append((episode_id, agent_id, metric_name, value))
+
+            async with con.cursor() as cursor:
+                await cursor.executemany(
+                    """
+                  INSERT INTO episode_agent_metrics (episode_id, agent_id, metric, value) VALUES (%s, %s, %s, %s)
+                  """,
+                    rows,
+                )
 
             return episode_id
 
-    def get_suites(self) -> List[str]:
-        with self.connect() as con:
-            result = con.execute("""
+    async def get_suites(self) -> List[str]:
+        async with self.connect() as con:
+            result = await con.execute("""
                 SELECT DISTINCT eval_category
                 FROM episodes
                 WHERE eval_category IS NOT NULL
                 ORDER BY eval_category
             """)
-            return [row[0] for row in result]
+            rows = await result.fetchall()
+            return [row[0] for row in rows]
 
-    def get_metrics(self, suite: str) -> List[str]:
+    async def get_metrics(self, suite: str) -> List[str]:
         """Get all available metrics for a given suite."""
-        with self.connect() as con:
-            result = con.execute(
+        async with self.connect() as con:
+            result = await con.execute(
                 """
                 SELECT DISTINCT eam.metric
                 FROM episodes e
@@ -374,12 +408,13 @@ class MettaRepo:
             """,
                 (suite,),
             )
-            return [row[0] for row in result]
+            rows = await result.fetchall()
+            return [row[0] for row in rows]
 
-    def get_group_ids(self, suite: str) -> List[str]:
+    async def get_group_ids(self, suite: str) -> List[str]:
         """Get all available group IDs for a given suite."""
-        with self.connect() as con:
-            result = con.execute(
+        async with self.connect() as con:
+            result = await con.execute(
                 """
                 SELECT DISTINCT jsonb_object_keys(e.attributes->'agent_groups') as group_id
                 FROM episodes e
@@ -388,18 +423,20 @@ class MettaRepo:
             """,
                 (suite,),
             )
-            return [row[0] for row in result]
+            rows = await result.fetchall()
+            return [row[0] for row in rows]
 
-    def get_training_runs(self) -> List[Dict[str, Any]]:
+    async def get_training_runs(self) -> List[Dict[str, Any]]:
         """Get all training runs."""
-        with self.connect() as con:
-            result = con.execute(
+        async with self.connect() as con:
+            result = await con.execute(
                 """
                 SELECT id, name, created_at, user_id, finished_at, status, url, description, tags
                 FROM training_runs
                 ORDER BY created_at DESC
                 """
             )
+            rows = await result.fetchall()
             return [
                 {
                     "id": str(row[0]),
@@ -412,46 +449,43 @@ class MettaRepo:
                     "description": row[7],
                     "tags": row[8] or [],
                 }
-                for row in result
+                for row in rows
             ]
 
-    def get_training_run(self, run_id: str) -> Dict[str, Any] | None:
+    async def get_training_run(self, run_id: str) -> Dict[str, Any] | None:
         """Get a specific training run by ID."""
         try:
             run_uuid = uuid.UUID(run_id)
         except ValueError:
             return None
 
-        with self.connect() as con:
-            result = con.execute(
+        async with self.connect() as con:
+            result = await con.execute(
                 """
                 SELECT id, name, created_at, user_id, finished_at, status, url, description, tags
                 FROM training_runs
                 WHERE id = %s
                 """,
                 (run_uuid,),
-            ).fetchone()
+            )
+            row = await result.fetchone()
 
-            if result is None:
+            if row is None:
                 return None
 
             return {
-                "id": str(result[0]),
-                "name": result[1],
-                "created_at": result[2].isoformat(),
-                "user_id": result[3],
-                "finished_at": result[4].isoformat() if result[4] else None,
-                "status": result[5],
-                "url": result[6],
-                "description": result[7],
-                "tags": result[8] or [],
+                "id": str(row[0]),
+                "name": row[1],
+                "created_at": row[2].isoformat(),
+                "user_id": row[3],
+                "finished_at": row[4].isoformat() if row[4] else None,
+                "status": row[5],
+                "url": row[6],
+                "description": row[7],
+                "tags": row[8] or [],
             }
 
-    def _hash_token(self, token: str) -> str:
-        """Hash a token for secure storage."""
-        return hashlib.sha256(token.encode()).hexdigest()
-
-    def create_machine_token(self, user_id: str, name: str, expiration_days: int = 365) -> str:
+    async def create_machine_token(self, user_id: str, name: str, expiration_days: int = 365) -> str:
         """Create a new machine token for a user."""
         # Generate a secure random token
         token = secrets.token_urlsafe(32)
@@ -460,8 +494,8 @@ class MettaRepo:
         # Set expiration time
         expiration_time = datetime.now() + timedelta(days=expiration_days)
 
-        with self.connect() as con:
-            con.execute(
+        async with self.connect() as con:
+            await con.execute(
                 """
                 INSERT INTO machine_tokens (user_id, name, token_hash, expiration_time)
                 VALUES (%s, %s, %s, %s)
@@ -471,10 +505,10 @@ class MettaRepo:
 
         return token
 
-    def list_machine_tokens(self, user_id: str) -> List[Dict[str, Any]]:
+    async def list_machine_tokens(self, user_id: str) -> List[Dict[str, Any]]:
         """List all machine tokens for a user."""
-        with self.connect() as con:
-            result = con.execute(
+        async with self.connect() as con:
+            result = await con.execute(
                 """
                 SELECT id, name, created_at, expiration_time, last_used_at
                 FROM machine_tokens
@@ -483,6 +517,7 @@ class MettaRepo:
                 """,
                 (user_id,),
             )
+            rows = await result.fetchall()
             return [
                 {
                     "id": str(row[0]),
@@ -491,18 +526,18 @@ class MettaRepo:
                     "expiration_time": row[3],
                     "last_used_at": row[4],
                 }
-                for row in result
+                for row in rows
             ]
 
-    def delete_machine_token(self, user_id: str, token_id: str) -> bool:
+    async def delete_machine_token(self, user_id: str, token_id: str) -> bool:
         """Delete a machine token."""
         try:
             token_uuid = uuid.UUID(token_id)
         except ValueError:
             return False
 
-        with self.connect() as con:
-            result = con.execute(
+        async with self.connect() as con:
+            result = await con.execute(
                 """
                 DELETE FROM machine_tokens
                 WHERE id = %s AND user_id = %s
@@ -511,26 +546,29 @@ class MettaRepo:
             )
             return result.rowcount > 0
 
-    def validate_machine_token(self, token: str) -> str | None:
+    async def validate_machine_token(self, token: str) -> str | None:
         """Validate a machine token and return the user_id if valid."""
         token_hash = self._hash_token(token)
 
-        with self.connect() as con:
-            result = con.execute(
-                """
+        async with self.connect() as con:
+            query = """
                 UPDATE machine_tokens
                 SET last_used_at = CURRENT_TIMESTAMP
                 WHERE token_hash = %s AND expiration_time > CURRENT_TIMESTAMP
                 RETURNING user_id
-                """,
+                """
+            result = await execute_single_row_query_and_log(
+                con,
+                query,
                 (token_hash,),
-            ).fetchone()
+                "validate_machine_token",
+            )
 
             if result:
                 return result[0]
             return None
 
-    def create_saved_dashboard(
+    async def create_saved_dashboard(
         self,
         user_id: str,
         name: str,
@@ -539,8 +577,8 @@ class MettaRepo:
         dashboard_state: Dict[str, Any],
     ) -> uuid.UUID:
         """Create a new saved dashboard (no upsert, always insert)."""
-        with self.connect() as con:
-            result = con.execute(
+        async with self.connect() as con:
+            result = await con.execute(
                 """
                 INSERT INTO saved_dashboards (
                     user_id, name, description, type, dashboard_state
@@ -548,21 +586,23 @@ class MettaRepo:
                 RETURNING id
                 """,
                 (user_id, name, description, dashboard_type, Jsonb(dashboard_state)),
-            ).fetchone()
-            if result is None:
+            )
+            row = await result.fetchone()
+            if row is None:
                 raise RuntimeError("Failed to create saved dashboard")
-            return result[0]
+            return row[0]
 
-    def list_saved_dashboards(self) -> List[Dict[str, Any]]:
+    async def list_saved_dashboards(self) -> List[Dict[str, Any]]:
         """List all saved dashboards."""
-        with self.connect() as con:
-            result = con.execute(
+        async with self.connect() as con:
+            result = await con.execute(
                 """
                 SELECT id, name, description, type, dashboard_state, created_at, updated_at, user_id
                 FROM saved_dashboards
                 ORDER BY updated_at DESC
                 """
             )
+            rows = await result.fetchall()
             return [
                 {
                     "id": str(row[0]),
@@ -574,49 +614,50 @@ class MettaRepo:
                     "updated_at": row[6],
                     "user_id": row[7],
                 }
-                for row in result
+                for row in rows
             ]
 
-    def get_saved_dashboard(self, dashboard_id: str) -> Dict[str, Any] | None:
+    async def get_saved_dashboard(self, dashboard_id: str) -> Dict[str, Any] | None:
         """Get a specific saved dashboard by ID."""
         try:
             dashboard_uuid = uuid.UUID(dashboard_id)
         except ValueError:
             return None
 
-        with self.connect() as con:
-            result = con.execute(
+        async with self.connect() as con:
+            result = await con.execute(
                 """
                 SELECT id, name, description, type, dashboard_state, created_at, updated_at, user_id
                 FROM saved_dashboards
                 WHERE id = %s
                 """,
                 (dashboard_uuid,),
-            ).fetchone()
+            )
+            row = await result.fetchone()
 
-            if result is None:
+            if row is None:
                 return None
 
             return {
-                "id": str(result[0]),
-                "name": result[1],
-                "description": result[2],
-                "type": result[3],
-                "dashboard_state": result[4],
-                "created_at": result[5],
-                "updated_at": result[6],
-                "user_id": result[7],
+                "id": str(row[0]),
+                "name": row[1],
+                "description": row[2],
+                "type": row[3],
+                "dashboard_state": row[4],
+                "created_at": row[5],
+                "updated_at": row[6],
+                "user_id": row[7],
             }
 
-    def delete_saved_dashboard(self, user_id: str, dashboard_id: str) -> bool:
+    async def delete_saved_dashboard(self, user_id: str, dashboard_id: str) -> bool:
         """Delete a saved dashboard."""
         try:
             dashboard_uuid = uuid.UUID(dashboard_id)
         except ValueError:
             return False
 
-        with self.connect() as con:
-            result = con.execute(
+        async with self.connect() as con:
+            result = await con.execute(
                 """
                 DELETE FROM saved_dashboards
                 WHERE id = %s AND user_id = %s
@@ -625,7 +666,7 @@ class MettaRepo:
             )
             return result.rowcount > 0
 
-    def update_saved_dashboard(
+    async def update_saved_dashboard(
         self,
         user_id: str,
         dashboard_id: str,
@@ -640,8 +681,8 @@ class MettaRepo:
         except ValueError:
             return False
 
-        with self.connect() as con:
-            result = con.execute(
+        async with self.connect() as con:
+            result = await con.execute(
                 """
                 UPDATE saved_dashboards
                 SET name = %s, description = %s, type = %s, dashboard_state = %s, updated_at = CURRENT_TIMESTAMP
@@ -651,15 +692,15 @@ class MettaRepo:
             )
             return result.rowcount > 0
 
-    def update_training_run_description(self, user_id: str, run_id: str, description: str) -> bool:
+    async def update_training_run_description(self, user_id: str, run_id: str, description: str) -> bool:
         """Update the description of a training run."""
         try:
             run_uuid = uuid.UUID(run_id)
         except ValueError:
             return False
 
-        with self.connect() as con:
-            result = con.execute(
+        async with self.connect() as con:
+            result = await con.execute(
                 """
                 UPDATE training_runs
                 SET description = %s
@@ -669,15 +710,15 @@ class MettaRepo:
             )
             return result.rowcount > 0
 
-    def update_training_run_tags(self, user_id: str, run_id: str, tags: List[str]) -> bool:
+    async def update_training_run_tags(self, user_id: str, run_id: str, tags: List[str]) -> bool:
         """Update the tags of a training run."""
         try:
             run_uuid = uuid.UUID(run_id)
         except ValueError:
             return False
 
-        with self.connect() as con:
-            result = con.execute(
+        async with self.connect() as con:
+            result = await con.execute(
                 """
                 UPDATE training_runs
                 SET tags = %s
