@@ -1,5 +1,5 @@
 _target_: metta.mettagrid.curriculum.random.RandomCurriculum
 
-tasks:
-  /env/mettagrid/curriculum/navigation: 1
+curricula_cfgs:
+  /env/mettagrid/curriculum/navigation/low_reward: 1
   /env/mettagrid/curriculum/navsequence/backchain_seq: 1
