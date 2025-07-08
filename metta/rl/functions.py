@@ -199,14 +199,16 @@ def process_minibatch_update(
         l2_init_loss = trainer_cfg.ppo.l2_init_loss_coef * policy.l2_init_loss().to(device)
 
     # Total loss
-    loss = (
-        pg_loss
-        - trainer_cfg.ppo.ent_coef * entropy_loss
-        + v_loss * trainer_cfg.ppo.vf_coef
-        + l2_init_loss
-        + ks_action_loss
-        + ks_value_loss
-    )
+    # loss = (
+    #     pg_loss
+    #     - trainer_cfg.ppo.ent_coef * entropy_loss
+    #     + v_loss * trainer_cfg.ppo.vf_coef
+    #     + l2_init_loss
+    #     + ks_action_loss
+    #     + ks_value_loss
+    # )
+
+    loss = ks_action_loss + ks_value_loss
 
     # Update values in experience buffer
     experience.update_values(minibatch["indices"], newvalue.view(minibatch["values"].shape))
