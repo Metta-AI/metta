@@ -10,15 +10,40 @@ defaults:
 cmd: sweep
 sweep_run: ???
 
+# Use default device (GPU if available, CPU as fallback)
+# device: cpu  # Uncomment for CPU-only training
+
+trainer:
+  # Longer training for overnight sweep - aim for meaningful learning
+  total_timesteps: 5_000_000   # 5M timesteps for proper RL training (was 50k - too short!)
+  curriculum: /env/mettagrid/curriculum/arena
+  simulation:
+    evaluate_interval: 200
+    replay_interval: 50
+  checkpoint:
+    checkpoint_interval: 200
+    wandb_checkpoint_interval: 200
+  env_overrides:
+    game:
+      max_steps: 200
+
+sim:
+  name: sweep_eval  # Required field
+  num_episodes: 10  # Balance between statistical reliability and evaluation speed
+  max_time_s: 120  # Increased timeout for longer evaluation
+  env_overrides: {}
+  simulations:
+    simple:
+      env: env/mettagrid/arena/basic
+
 sweep_job:
   sim: ${sim}
   trainer: ${trainer}
   agent: ${agent}
   wandb: ${wandb}
   runs_dir: "${sweep_dir}/runs"
-  train_job: # TODO: Not certain we need this.
-    evals: ${sim}
   seed: null  # Will be randomly generated for each run if not specified
 
+# TODO: Remove and update references.
 sweep_dir: "${.data_dir}/sweep/${.sweep_run}"
 runs_dir: "${.sweep_dir}/runs"
