@@ -4,9 +4,6 @@ defaults:
   - trainer
   - _self_
 
-resume: true
-use_e3b: false
-
 checkpoint_dir: ${run_dir}/checkpoints
 
 evaluate_interval: 300
