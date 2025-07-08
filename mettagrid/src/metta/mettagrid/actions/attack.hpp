@@ -36,7 +36,7 @@ protected:
   std::map<InventoryItem, InventoryQuantity> _defense_resources;
 
   bool _handle_action(Agent* actor, ActionArg arg) override {
-    if (arg < 1 || arg > 9) {
+    if (arg > 9 || arg < 1) {
       return false;
     }
 
