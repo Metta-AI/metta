@@ -52,16 +52,12 @@ def from_mettagrid_config(mettagrid_config_dict: dict[str, Any]) -> GameConfig_c
                 (resource_ids[k], v) for k, v in merged_config.get("rewards", {}).items() if not k.endswith("_max")
             ),
             "resource_reward_max": dict(
-                (resource_ids[k[:-4]], v) for k, v in merged_config.get("rewards", {}).items() if k.endswith("_max")
+                (resource_ids[k[:-4]], v)
+                for k, v in merged_config.get("rewards", {}).items()
+                if k.endswith("_max") and v is not None
             ),
             "group_reward_pct": group_config.group_reward_pct or 0,
         }
-
-        # #HardCodedConfig
-        # these defaults should be moved elsewhere!
-        for k in agent_group_config["resource_rewards"]:
-            if k not in agent_group_config["resource_reward_max"]:
-                agent_group_config["resource_reward_max"][k] = 1000
 
         # #HardCodedConfig
         agent_group_config["type_id"] = 0
