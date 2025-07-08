@@ -1,0 +1,130 @@
+protein:
+  num_random_samples: 5  # First 5 runs are random exploration
+  max_suggestion_cost: 3600  # Increased max cost for longer training (1 hour)
+  resample_frequency: 0
+  global_search_scale: 1
+  random_suggestions: 1024
+  suggestions_per_pareto: 256
+
+metric: reward
+goal: maximize
+method: bayes
+
+parameters:
+  trainer:
+    gamma:
+      distribution: logit_normal
+      min: 0.0
+      max: 1.0
+      mean: 0.99
+      scale: auto
+
+    gae_lambda:
+      distribution: logit_normal
+      min: 0.0
+      max: 1.0
+      mean: 0.95
+      scale: auto
+
+    update_epochs:
+      distribution: int_uniform
+      min: 1
+      max: 16
+      mean: 4
+      scale: auto
+
+    clip_coef:
+      distribution: logit_normal
+      min: 0.0
+      max: 1.0
+      mean: 0.2
+      scale: auto
+
+    vf_coef:
+      distribution: logit_normal
+      min: 0.0
+      max: 1.0
+      mean: 0.5
+      scale: auto
+
+    vf_clip_coef:
+      distribution: logit_normal
+      min: 0.0
+      max: 1.0
+      mean: 0.2
+      scale: auto
+
+    # max_grad_norm: ${ss:linear, 0.0, 6.0}
+
+    ent_coef:
+      distribution: log_normal
+      min: 1e-5
+      max: 1e-1
+      mean: 1e-3
+      scale: auto
+
+    batch_size:
+      distribution: uniform_pow2
+      min: 131072
+      max: 524288
+      mean: 131072
+      scale: auto
+
+    minibatch_size:
+      distribution: uniform_pow2
+      min: 1024
+      max: 131072
+      mean: 16384
+      scale: auto
+
+    forward_pass_minibatch_target_size:
+      distribution: uniform_pow2
+      min: 1024
+      max: 32768
+      mean: 4096
+      scale: auto
+
+    bptt_horizon:
+      distribution: uniform_pow2
+      min: 1
+      max: 128
+      mean: 64
+      scale: auto
+
+    total_timesteps:
+      distribution: log_normal
+      min: 1e7
+      max: 1e9
+      mean: 5e8
+      scale: auto
+
+    # compile: ${ss:int, 0, 1}
+
+    optimizer:
+      learning_rate:
+        distribution: log_normal
+        min: 1e-5
+        max: 1e-1
+        mean: 1e-3
+        scale: auto
+
+      beta1:
+        distribution: logit_normal
+        min: 0.0
+        max: 1.0
+        mean: 0.9
+        scale: auto
+
+      beta2:
+        distribution: logit_normal
+        min: 0.0
+        max: 1.0
+        mean: 0.999
+        scale: auto
+
+      eps:
+        distribution: log_normal
+        min: 1e-14
+        max: 1e-6
+        mean: 1e-8
+        scale: auto
