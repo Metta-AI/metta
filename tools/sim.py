@@ -22,6 +22,7 @@ from omegaconf import DictConfig, OmegaConf
 from metta.agent.policy_store import PolicyStore
 from metta.common.util.config import Config
 from metta.common.util.script_decorators import get_metta_logger, metta_script
+from metta.common.util.stats_client_cfg import get_stats_client
 from metta.eval.eval_job import EvaluationJob, evaluate_policy
 from metta.sim.simulation_config import SimulationSuiteConfig
 
@@ -38,7 +39,6 @@ class SimJob(Config):
     stats_db_uri: str
     stats_dir: str  # The (local) directory where stats should be stored
     replay_dir: str  # where to store replays
-    upload_to_wandb: bool = False
 
 
 def _determine_run_name(policy_uri: str) -> str:
@@ -75,27 +75,28 @@ def main(cfg: DictConfig) -> None:
     all_results = {"simulation_suite": sim_job.simulation_suite.name, "policies": []}
 
     policy_store = PolicyStore(cfg, None)
+    stats_client = get_stats_client(cfg, logger)
     for policy_uri in sim_job.policy_uris:
         metric = sim_job.simulation_suite.name + "_score"
         policy_prs = policy_store.policy_records(policy_uri, sim_job.selector_type, n=1, metric=metric)
         results = {"policy_uri": policy_uri, "checkpoints": []}
         for pr in policy_prs:
             policy_results = evaluate_policy(
-                EvaluationJob.model_validate(
+                job=EvaluationJob.model_validate(
                     dict(
                         policy_record=pr,
                         simulation_suite=sim_job.simulation_suite,
                         stats_dir=sim_job.stats_dir,
-                        stats_db_uri=sim_job.stats_db_uri,
                         replay_dir=sim_job.replay_dir,
-                        upload_to_wandb=sim_job.upload_to_wandb,
-                        wandb=cfg.wandb,
                         device=cfg.device,
                         vectorization=cfg.vectorization,
                         data_dir=cfg.data_dir,
                         stats_server_uri=cfg.stats_server_uri,
+                        export_stats_db_uri=sim_job.stats_db_uri,
                     )
-                )
+                ),
+                policy_store=policy_store,
+                stats_client=stats_client,
             )
             results["checkpoints"].append(
                 {

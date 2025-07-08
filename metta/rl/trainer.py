@@ -3,7 +3,7 @@ import os
 import traceback
 from collections import defaultdict
 from pathlib import Path
-from typing import Any, Set
+from typing import Any
 from uuid import UUID
 
 import numpy as np
@@ -24,7 +24,7 @@ from metta.common.util.fs import wait_for_file
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.system_monitor import SystemMonitor
 from metta.common.wandb.wandb_context import WandbRun
-from metta.eval.eval_stats_db import EvalStatsDB
+from metta.eval.eval_job import EvaluationJob, EvaluationScores, evaluate_policy
 from metta.mettagrid.curriculum.util import curriculum_from_config_path
 from metta.mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
 from metta.rl.experience import Experience
@@ -53,7 +53,6 @@ from metta.rl.trainer_config import create_trainer_config
 from metta.rl.vecenv import make_vecenv
 from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
-from metta.sim.simulation_suite import SimulationSuite
 
 try:
     from pufferlib import _C  # noqa: F401 - Required for torch.ops.pufferlib
@@ -148,7 +147,7 @@ class MettaTrainer:
         self.grad_stats = {}
         self.wandb_run = wandb_run
         self.policy_store = policy_store
-        self.evals: dict[str, float] = {}
+        self.evals = EvaluationScores()
 
         self.timer = Stopwatch(logger)
         self.timer.start()
@@ -648,7 +647,7 @@ class MettaTrainer:
 
         training_time = self.timer.get_elapsed("_rollout") + self.timer.get_elapsed("_train")
 
-        category_scores_map = {key.split("/")[0]: value for key, value in self.evals.items() if key.endswith("/score")}
+        category_scores_map = self.evals.suite_scores.copy()
         category_score_values = [v for k, v in category_scores_map.items()]
         overall_score = sum(category_score_values) / len(category_score_values) if category_score_values else 0
 
@@ -743,43 +742,24 @@ class MettaTrainer:
             ).id
 
         logger.info(f"Simulating policy: {self.latest_saved_policy_uri} with config: {self.sim_suite_config}")
-        sim = SimulationSuite(
-            config=self.sim_suite_config,
-            policy_pr=self.latest_saved_policy_record,
+        evaluation_results = evaluate_policy(
+            job=EvaluationJob.model_validate(
+                dict(
+                    policy_record=self.latest_saved_policy_record,
+                    simulation_suite=self.sim_suite_config,
+                    stats_dir="/tmp/stats",
+                    device=self.device,
+                    vectorization=self.cfg.vectorization,
+                    stats_epoch_id=self._stats_epoch_id,
+                    wandb_policy_name=wandb_policy_name,
+                    export_stats_db_uri=None,
+                )
+            ),
             policy_store=self.policy_store,
-            device=self.device,
-            vectorization=self.cfg.vectorization,
-            stats_dir="/tmp/stats",
             stats_client=self._stats_client,
-            stats_epoch_id=self._stats_epoch_id,
-            wandb_policy_name=wandb_policy_name,
         )
-        result = sim.simulate()
-        stats_db = EvalStatsDB.from_sim_stats_db(result.stats_db)
         logger.info("Simulation complete")
-
-        # Build evaluation metrics
-        self.evals = {}  # used for wandb
-        categories: Set[str] = set()
-        for sim_name in self.sim_suite_config.simulations.keys():
-            categories.add(sim_name.split("/")[0])
-
-        for category in categories:
-            score = stats_db.get_average_metric_by_filter(
-                "reward", self.latest_saved_policy_record, f"sim_name LIKE '%{category}%'"
-            )
-            logger.info(f"{category} score: {score}")
-            record_heartbeat()
-            if score is None:
-                continue
-            self.evals[f"{category}/score"] = score
-
-        # Get detailed per-simulation scores
-        all_scores = stats_db.simulation_scores(self.latest_saved_policy_record, "reward")
-        for (_, sim_name, _), score in all_scores.items():
-            category = sim_name.split("/")[0]
-            sim_short_name = sim_name.split("/")[-1]
-            self.evals[f"{category}/{sim_short_name}"] = score
+        self.evals = evaluation_results.scores
 
     def _maybe_generate_replay(self, force=False):
         """Generate replay if on replay interval"""
