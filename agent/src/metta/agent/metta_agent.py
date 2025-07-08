@@ -28,8 +28,8 @@ def make_policy(env: "MettaGridEnv", cfg: ListConfig | DictConfig) -> "MettaAgen
         }
     )
 
-    # Extract agent config
-    agent_cfg = cfg.agent if hasattr(cfg, "agent") else cfg
+    # Extract agent config - cfg.agent is required
+    agent_cfg = cfg.agent
 
     # Convert to dict if needed
     if isinstance(agent_cfg, (DictConfig, ListConfig)):
@@ -43,7 +43,7 @@ def make_policy(env: "MettaGridEnv", cfg: ListConfig | DictConfig) -> "MettaAgen
         action_space=env.single_action_space,
         feature_normalizations=env.feature_normalizations,
         global_features=env.global_features,
-        device=cfg.device if hasattr(cfg, "device") else "cuda",
+        device=cfg.device,  # cfg.device is required
         **agent_cfg,
     )
 

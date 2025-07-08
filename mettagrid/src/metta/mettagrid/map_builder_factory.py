@@ -7,6 +7,7 @@ This module provides direct instantiation of map builders from configuration dic
 import logging
 from typing import Any, Dict, Type
 
+from metta.common.util.instantiate import instantiate
 from metta.mettagrid.room.ascii import Ascii
 from metta.mettagrid.room.maze import MazeKruskal, MazePrim
 from metta.mettagrid.room.mean_distance import MeanDistance
@@ -58,21 +59,9 @@ class MapBuilderFactory:
             # Process all nested configs first (but don't instantiate the top level)
             config = MapBuilderFactory._process_recursive(config, is_top_level=True)
 
-        # Extract target
-        target = config.get("_target_")
-        if not target:
-            raise ValueError("Map builder config missing '_target_' field")
-
-        # Get builder class
-        builder_cls = MAP_BUILDER_REGISTRY.get(target)
-        if not builder_cls:
-            raise ValueError(f"Unknown map builder target: {target}")
-
-        # Prepare kwargs
-        kwargs = {k: v for k, v in config.items() if not k.startswith("_")}
-
-        logger.info(f"Creating map builder with target {target}")
-        return builder_cls(**kwargs)
+        # Use common instantiate function
+        logger.info(f"Creating map builder with target {config.get('_target_', 'unknown')}")
+        return instantiate(config)
 
     @staticmethod
     def _process_recursive(config: Any, is_top_level: bool = False) -> Any:
@@ -98,7 +87,7 @@ class MapBuilderFactory:
             if "_target_" in processed and not is_top_level:
                 # This is a nested config that should be instantiated
                 logger.debug(f"Instantiating nested config with target: {processed['_target_']}")
-                return MapBuilderFactory.create(processed, recursive=False)
+                return instantiate(processed)
             else:
                 # Regular dict or top-level config, return processed version
                 return processed

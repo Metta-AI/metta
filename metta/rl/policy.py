@@ -7,6 +7,7 @@ from pufferlib.pytorch import sample_logits
 from torch import nn
 
 from metta.agent.policy_state import PolicyState
+from metta.common.util.instantiate import instantiate
 
 logger = logging.getLogger("policy")
 
@@ -30,44 +31,35 @@ def load_pytorch_policy(path: str, device: str = "cpu", pytorch_cfg: DictConfig 
         _, obs_channels, _, _ = weights["policy.network.0.weight"].shape
     except Exception as e:
         logger.warning(f"Failed automatic parse from weights: {e}")
-        # TODO -- fix all magic numbers
-        num_actions, num_action_args = 9, 10
-        _, obs_channels = 128, 34
+        logger.warning("Using defaults from config")
+        num_actions = 9
+        hidden_size = 512
+        num_action_args = 10
+        obs_channels = 24
 
-    # Create environment namespace
     env = SimpleNamespace(
+        observation_space=SimpleNamespace(shape=(11, 11, obs_channels)),
+        action_space=SimpleNamespace(nvec=[num_actions, num_action_args]),
+        single_observation_space=SimpleNamespace(shape=(11, 11, obs_channels)),
         single_action_space=SimpleNamespace(nvec=[num_actions, num_action_args]),
-        single_observation_space=SimpleNamespace(
-            shape=tuple(torch.tensor([obs_channels, 11, 11], dtype=torch.long).tolist())
-        ),
     )
 
-    # Import the policy class dynamically based on _target_ field
-    if pytorch_cfg and "_target_" in pytorch_cfg:
-        target = pytorch_cfg["_target_"]
-        # Split module and class name
-        module_path, class_name = target.rsplit(".", 1)
-
-        # Dynamically import the module and get the class
-        import importlib
-
-        module = importlib.import_module(module_path)
-        policy_class = getattr(module, class_name)
-    else:
-        # Default fallback to Recurrent class
+    # Use common instantiate function
+    if pytorch_cfg is None:
+        # Default to Recurrent policy if no config provided
         from metta.agent.external.example import Recurrent
 
-        policy_class = Recurrent
+        policy = Recurrent(
+            env=env,
+            policy=None,
+            hidden_size=hidden_size,
+            conv_depth=2,
+            conv_channels=32,
+        )
+    else:
+        # Use the common instantiate utility
+        policy = instantiate(pytorch_cfg, env=env, policy=None)
 
-    # Extract config parameters (excluding _target_)
-    kwargs = {}
-    if pytorch_cfg:
-        kwargs = {k: v for k, v in pytorch_cfg.items() if not k.startswith("_")}
-
-    # Create the policy instance
-    policy = policy_class(env, policy=None, **kwargs)
-
-    # Load the weights
     policy.load_state_dict(weights)
 
     # Wrap in PytorchAgent and move to device

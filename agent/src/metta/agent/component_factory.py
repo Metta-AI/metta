@@ -16,6 +16,7 @@ from metta.agent.lib.lstm import LSTM
 from metta.agent.lib.nn_layer_library import Conv2d, Flatten, Linear
 from metta.agent.lib.obs_token_to_box_shaper import ObsTokenToBoxShaper
 from metta.agent.lib.observation_normalizer import ObservationNormalizer
+from metta.common.util.instantiate import instantiate
 
 logger = logging.getLogger(__name__)
 
@@ -76,35 +77,28 @@ class ComponentFactory:
         Returns:
             Instantiated component
         """
-        # Get the target class
-        target = config.get("_target_", "")
-        component_cls = cls._get_registry().get(target)
+        # Prepare config with special handling for nn_params
+        if isinstance(config, dict):
+            config = config.copy()
+        else:
+            config = dict(config)
 
-        if not component_cls:
-            raise ValueError(f"Unknown component target: {target}")
+        # Ensure nn_params is DictConfig for dual access
+        if (
+            "nn_params" in config
+            and isinstance(config["nn_params"], dict)
+            and not isinstance(config["nn_params"], DictConfig)
+        ):
+            config["nn_params"] = DictConfig(config["nn_params"])
 
-        # Prepare kwargs by merging config and agent_attributes
-        kwargs = {}
+        # Merge with agent attributes and name
+        config.update(agent_attributes)
+        config["name"] = component_name
 
-        # Add all non-underscore config keys
-        for k, v in config.items():
-            if not k.startswith("_"):
-                # If config is already DictConfig, just pass values through
-                # Components expect nn_params as DictConfig for dual dict/attribute access
-                if k == "nn_params" and isinstance(v, dict) and not isinstance(v, DictConfig):
-                    kwargs[k] = DictConfig(v)
-                else:
-                    kwargs[k] = v
+        logger.debug(f"Creating component {component_name}")
 
-        # Add agent attributes
-        kwargs.update(agent_attributes)
-
-        # Add the name
-        kwargs["name"] = component_name
-
-        logger.debug(f"Creating component {component_name} with kwargs: {list(kwargs.keys())}")
-
-        return component_cls(**kwargs)
+        # Use common instantiate function
+        return instantiate(config)
 
     @staticmethod
     def register(target: str, component_cls: Type) -> None:
