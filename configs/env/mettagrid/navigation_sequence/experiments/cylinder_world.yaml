@@ -21,7 +21,6 @@ game:
       battery_red: ${sampling:0.01,0.5, 0.1}
       battery_red_max: 5
       heart: 1
-      heart_max: 1000
   map_builder:
     _target_: metta.mettagrid.room.multi_room.MultiRoom
     num_rooms: ${..num_agents}
