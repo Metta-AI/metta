@@ -12,6 +12,7 @@ fi
 # Check if uv is installed
 if ! command -v uv &> /dev/null; then
     echo "Error: uv is not installed. Please install uv first."
+    echo "You can do so with the `./install.sh` script."
     exit 1
 fi
 
