@@ -3,7 +3,7 @@ import uuid
 import torch
 import wandb
 from omegaconf import DictConfig, OmegaConf
-from pydantic import Field, field_serializer
+from pydantic import ConfigDict, Field
 
 from metta.agent.policy_record import PolicyRecord
 from metta.agent.policy_store import PolicyStore
@@ -22,8 +22,9 @@ from metta.sim.simulation_suite import SimulationSuite
 class EvaluationJob(Config):
     __init__ = Config.__init__
 
-    policy_checkpoint_uri: str  # Corresponds to a single policy checkpoint
+    model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
 
+    policy_record: PolicyRecord
     simulation_suite: SimulationSuiteConfig
     stats_dir: str
     stats_db_uri: str
@@ -37,7 +38,7 @@ class EvaluationJob(Config):
 
 
 class EvaluationScores(BaseModelWithForbidExtra):
-    overall_score: float | None = Field(default=None, description="Overall average score across all suites")
+    reward_avg: float | None = Field(default=None, description="Overall average score across all suites")
     suite_scores: dict[str, float] = Field(default_factory=dict, description="Average reward for each sim suite")
     simulation_scores: dict[str, float] = Field(
         default_factory=dict, description="Average reward for each sim environment (key format: suite_name/sim_name)"
@@ -45,20 +46,8 @@ class EvaluationScores(BaseModelWithForbidExtra):
 
 
 class EvaluationResults(BaseModelWithForbidExtra):
-    policy_record: PolicyRecord = Field(..., description="Policy record")
     scores: EvaluationScores = Field(..., description="Evaluation scores")
     replay_url: str | None = Field(..., description="Replay URL")
-
-    class Config:
-        extra = "forbid"
-        arbitrary_types_allowed = True
-
-    @field_serializer("policy_record")
-    def serialize_policy_record(self, value: PolicyRecord):
-        return {
-            "name": value.run_name,
-            "uri": value.uri,
-        }
 
 
 def evaluate_policy(
@@ -83,7 +72,7 @@ def evaluate_policy(
     )
     policy_store = PolicyStore(minimal_cfg, None)
     stats_client: StatsClient | None = get_stats_client(minimal_cfg, logger)
-    pr = policy_store.policy_record(config.policy_checkpoint_uri)
+    pr = config.policy_record
 
     # For each checkpoint of the policy, simulate
     logger.info(f"Evaluating policy {pr.uri}")
@@ -107,7 +96,6 @@ def evaluate_policy(
     logger.info("Evaluation complete for policy %s", pr.uri)
     replay_url = extract_replay_url(sim_results.stats_db, pr)
     results = EvaluationResults(
-        policy_record=pr,
         scores=scores,
         replay_url=replay_url,
     )
@@ -170,7 +158,7 @@ def extract_scores(stats_db: EvalStatsDB, policy_pr: PolicyRecord) -> Evaluation
         overall_score = sum(suite_score_values) / len(suite_score_values)
 
     return EvaluationScores(
-        overall_score=overall_score,
+        reward_avg=overall_score,
         suite_scores=suite_scores,
         simulation_scores=simulation_scores,
     )
