@@ -6,21 +6,25 @@ This document outlines the organization structure for the Metta monorepo, balanc
 
 ### Goals of the Structure
 
-Our package structure is designed to achieve three key goals:
+Our package structure is designed to achieve these key goals:
 
-1. **Separate Installation**: Enable subpackages to be installed independently (e.g., `pip install metta.common` without
+#### Technical Goals
+
+1. **Separate Installation**: Enable subpackages to be installed independently (e.g., `pip install metta-common` without
    installing the entire repository)
 2. **Consistent Import Syntax**: Maintain clean imports across all packages using the
    `from metta.subpackage import module` pattern
 3. **Shared Namespace**: Allow separate packages to contribute to the same `metta.*` namespace while being independently
    distributable
-4. **Mettagrid Export**: The nested structure makes it straightforward to extract subpackages for external use. For
-   example, the entire `mettagrid/` directory can be exported as a standalone repository with its own CI/CD, while
-   maintaining the same import syntax (`from metta.mettagrid import ...`) for external users.
+
+#### Organizational Goals
+
+4. **Mettagrid Export**: Enable straightforward publishing of subpackages for external use. For example, `mettagrid` can
+   be published to PyPI while maintaining the same import syntax (`from metta.mettagrid import ...`) for external users
 5. **Independent Development**: Each subpackage has its own `pyproject.toml` and can be developed, tested, and versioned
-   independently while sharing the monorepo's tooling.
-6. **Clear Boundaries**: The structure enforces separation between the RL system and web services, preventing accidental
-   coupling while allowing intentional shared code.
+   independently while sharing the monorepo's tooling
+6. **Clear Boundaries**: Enforce separation between the RL system and web services, preventing accidental coupling while
+   allowing intentional shared code
 
 While we don't currently publish these packages to PyPI, this structure positions us to do so in the future. For now, we
 use `uv sync` with workspace pyproject files for internal development.
