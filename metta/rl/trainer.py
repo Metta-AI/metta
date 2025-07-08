@@ -1,5 +1,8 @@
+import copy
+import json
 import logging
 import os
+import time
 import traceback
 from collections import defaultdict
 from pathlib import Path
@@ -11,7 +14,7 @@ import torch
 import torch.distributed
 import wandb
 from heavyball import ForeachMuon
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 
 from metta.agent.metta_agent import DistributedMettaAgent, make_policy
 from metta.agent.policy_metadata import PolicyMetadata
@@ -149,6 +152,16 @@ class MettaTrainer:
 
         self.timer = Stopwatch(logger)
         self.timer.start()
+
+        # Initialize config tracking
+        self._env_config_history: list[dict] = []
+        self._task_config_counts: dict[str, int] = defaultdict(int)
+        self._last_config_save_epoch = 0
+        self._last_saved_config: dict | None = None  # Track last config to detect changes
+        # Save on config changes + fallback interval for very long runs without changes
+        self._config_save_interval = getattr(
+            trainer_cfg, "env_config_save_interval", 10000
+        )  # Fallback every 10k epochs
 
         if self._master:
             self._memory_monitor = MemoryMonitor()
@@ -417,7 +430,14 @@ class MettaTrainer:
         self._maybe_upload_policy_record_to_wandb(force=True)
 
     def _on_train_step(self):
-        pass
+        # Track the current task config (this now handles saving on changes)
+        task = self._curriculum.get_task()
+        self._track_env_config(task.env_cfg(), self.epoch)
+
+        # Fallback: save periodically for very long runs without config changes
+        if self.epoch - self._last_config_save_epoch >= self._config_save_interval:
+            self._save_env_configs_as_artifact()
+            self._last_config_save_epoch = self.epoch
 
     @with_instance_timer("_rollout")
     def _rollout(self):
@@ -955,6 +975,12 @@ class MettaTrainer:
         self.grad_stats.clear()
 
     def close(self):
+        """Clean up trainer resources."""
+        logger.info("Closing trainer")
+
+        # Save final configs as artifact
+        self._save_env_configs_as_artifact()
+
         self.vecenv.close()
         if self._master:
             self._memory_monitor.clear()
@@ -1117,6 +1143,108 @@ class MettaTrainer:
             )
         else:
             policy.activate_actions(metta_grid_env.action_names, metta_grid_env.max_action_args, device)
+
+    def _track_env_config(self, task_config: DictConfig, epoch: int) -> None:
+        """Track environment configuration from curriculum task."""
+        # Convert to container for JSON serialization
+        config_dict = OmegaConf.to_container(task_config, resolve=True)
+
+        task = self._curriculum.get_task()
+        # Add metadata
+        config_entry = {
+            "epoch": epoch,
+            "agent_step": self.agent_step,
+            "timestamp": time.time(),
+            "task_id": task.id(),
+            "task_name": task.name(),
+            "config": config_dict,
+        }
+
+        # Check if config has changed from last saved config
+        config_changed = (
+            self._last_saved_config is None
+            or config_dict != self._last_saved_config
+            or epoch == 0  # Always save initial config
+        )
+
+        self._env_config_history.append(config_entry)
+        self._task_config_counts[task.id()] += 1
+
+        # Save artifact if config changed or on fallback interval
+        if config_changed:
+            self._save_env_configs_as_artifact()
+            # Deep copy to ensure nested dicts don't cause false positives
+            self._last_saved_config = copy.deepcopy(config_dict)
+            self._last_config_save_epoch = epoch
+            if config_changed and epoch > 0:
+                logger.info(f"Environment config changed at epoch {epoch}, saving artifact")
+
+        # Log important env params to wandb immediately
+        if self.wandb_run and self._master:
+            env_params = {}
+            if "game" in config_dict:
+                game_cfg = config_dict["game"]
+                env_params.update(
+                    {
+                        "env/max_steps": game_cfg.get("max_steps", None),
+                        "env/num_agents": game_cfg.get("num_agents", None),
+                    }
+                )
+                if "agent" in game_cfg:
+                    agent_cfg = game_cfg["agent"]
+                    env_params.update(
+                        {
+                            "env/freeze_duration": agent_cfg.get("freeze_duration", None),
+                            "env/default_resource_limit": agent_cfg.get("default_resource_limit", None),
+                        }
+                    )
+                    if "rewards" in agent_cfg:
+                        for key, value in agent_cfg["rewards"].items():
+                            env_params[f"env/reward_{key}"] = value
+
+            # Add current task probabilities
+            task_probs = self._curriculum.get_task_probs()
+            for task_id, prob in task_probs.items():
+                env_params[f"curriculum/task_prob/{task_id}"] = prob
+
+            self.wandb_run.log(env_params, step=self.agent_step)
+
+    def _save_env_configs_as_artifact(self) -> None:
+        """Save environment configuration history as a wandb artifact."""
+        if self.wandb_run is None or not self._env_config_history or not self._master:
+            return
+
+        try:
+            artifact = wandb.Artifact(
+                name=f"env_configs_{self.cfg.run}",
+                type="environment_configs",
+                metadata={
+                    "run_id": self.cfg.run,
+                    "curriculum": self.trainer_cfg.curriculum_or_env,
+                    "total_configs": len(self._env_config_history),
+                    "unique_tasks": len(self._task_config_counts),
+                },
+            )
+
+            # Save the configuration history as JSON
+            config_file = os.path.join(self.cfg.run_dir, "env_config_history.json")
+            with open(config_file, "w") as f:
+                json.dump(
+                    {
+                        "history": self._env_config_history,
+                        "task_counts": dict(self._task_config_counts),
+                        "curriculum_stats": self._curriculum.get_curriculum_stats(),
+                    },
+                    f,
+                    indent=2,
+                )
+
+            artifact.add_file(config_file)
+            self.wandb_run.log_artifact(artifact)
+            logger.info(f"Saved {len(self._env_config_history)} environment configurations as artifact")
+
+        except Exception as e:
+            logger.error(f"Failed to save env configs as artifact: {e}")
 
 
 class AbortingTrainer(MettaTrainer):

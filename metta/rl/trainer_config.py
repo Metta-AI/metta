@@ -211,6 +211,11 @@ class TrainerConfig(BaseModelWithForbidExtra):
     # Disabled by default: Expensive diagnostic for debugging training instability
     grad_mean_variance_interval: int = Field(default=0, ge=0)  # 0 to disable
 
+    # Environment config tracking
+    # Fallback interval to save configs when no changes detected (default 10000 epochs)
+    # Note: Configs are automatically saved when changes are detected
+    env_config_save_interval: int = Field(default=10000, gt=0)
+
     model_config: ClassVar[ConfigDict] = ConfigDict(
         extra="forbid",
         validate_assignment=True,
