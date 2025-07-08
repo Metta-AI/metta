@@ -155,7 +155,7 @@ class MettaCLI:
         for module in modules:
             info(f"[{module.name}] {module.description}")
 
-            if module.check_installed() and not args.force:
+            if module.install_once and module.check_installed() and not args.force:
                 info("  -> Already installed, skipping (use --force to reinstall)\n")
                 continue
 
