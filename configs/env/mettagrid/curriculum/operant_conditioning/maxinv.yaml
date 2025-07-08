@@ -1,0 +1,6 @@
+_target_: metta.mettagrid.curriculum.low_reward.LowRewardCurriculum
+
+tasks:
+  /env/mettagrid/operant_conditioning/1m3g_1blue_maxinv: 1
+  # /env/mettagrid/operant_conditioning/1m3g_1green_maxinv: 1
+  # /env/mettagrid/operant_conditioning/1m3g_1red_maxinv: 1

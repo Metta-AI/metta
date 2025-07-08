@@ -1,13 +1,10 @@
 defaults:
-  - /env/mettagrid/mettagrid@
+  - /env/mettagrid/operant_conditioning/defaults@
   - _self_
 
 sampling: 0
 
 game:
-  num_agents: 24
-  max_steps: 100 # Will be overridden per variant
-
   agent:
     rewards:
       battery_red: 0
@@ -20,10 +17,6 @@ game:
     num_rooms: ${..num_agents}
     room:
       _target_: metta.mettagrid.room.random.Random
-      width: 3
-      height: 3
-      border_width: 1
-      agents: 1
       objects:
         mine_blue: 1
         generator_red: 1
