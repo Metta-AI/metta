@@ -1,0 +1,26 @@
+defaults:
+  - common
+  - wandb: metta_research
+  - sim: arena
+  - _self_
+
+# Required parameter
+# Local file path: "file://./train_dir/my-run/checkpoints/model_1000.pt"
+# wandb uri: "wandb://entity/project/artifact:v0" or "wandb://project/artifact:version"
+policy_uri: ???
+
+# Optional - auto-generated from policy_uri if not provided\
+# e.g. "eval_model_1000" for file:// or "eval_artifact_v0" for wandb://
+run: null
+
+
+stats_db_path: ${run_dir}/stats.db  # DuckDB file with evaluation metrics
+replay_dir: ${run_dir}/replays/evals  # Directory for episode replay files
+
+
+upload_to_wandb: false  # Set to true to upload results to W&B
+
+# Stats collection
+stats_dir: /tmp/stats
+
+cmd: evaluate

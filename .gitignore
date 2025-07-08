@@ -18,6 +18,7 @@ outputs
 replays
 stats.profile
 train_dir
+eval_results
 metta-research
 gpu_names_cache.json
 stderr.log
