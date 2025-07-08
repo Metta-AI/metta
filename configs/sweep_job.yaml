@@ -13,7 +13,6 @@ sweep_run: null  # Will be set via command line override
 trainer:
   total_timesteps: 1000   # 5M timesteps for proper RL training (was 50k - too short!)
   curriculum: /env/mettagrid/arena/basic_easy_shaped
-  num_workers: 1
 
 
 sim:
