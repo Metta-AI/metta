@@ -63,13 +63,6 @@ Numbers in the key are treated as indexes so:
 
 `--array.1 7` Can set `{array: [0, 0, 0]}` to `{array: [0, 7, 0]}`
 
-The command line can also parse json like things:
-
-`--foo.bar.baz {name: "baz", value: 3}`
-`--foo.bar.baz [1, 2, 3]`
-
-Its using json5 spec where the keys don't need to be quoted and its looser with commas.
-
 It also checks the the type of the inserted value matches the type that was there before.
 
 The error message are really helpful. It gives you what it was trying to set and why it failed.
