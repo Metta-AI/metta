@@ -123,16 +123,8 @@ class MettaAgent(nn.Module):
             # Convert key to string to ensure compatibility
             component_name = str(component_key)
 
-            # Prepare component config - only convert to dict when needed for instantiation
-            comp_config = component_cfgs[component_key]
-
-            # Ensure nn_params is DictConfig for dual access
-            if "nn_params" in comp_config and isinstance(comp_config["nn_params"], dict):
-                if not isinstance(comp_config["nn_params"], DictConfig):
-                    comp_config["nn_params"] = DictConfig(comp_config["nn_params"])
-
             # Convert to dict and merge attributes for instantiation
-            comp_dict = dict(comp_config, **self.agent_attributes, name=component_name)
+            comp_dict = dict(component_cfgs[component_key], **self.agent_attributes, name=component_name)
 
             # Instantiate component
             self.components[component_name] = instantiate(comp_dict)
