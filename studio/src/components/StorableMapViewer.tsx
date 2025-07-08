@@ -124,6 +124,11 @@ export const StorableMapViewer: FC<{
               ),
             },
             {
+              id: "metadata",
+              label: "Metadata",
+              content: <JsonAsYaml json={map.frontmatter.metadata} />,
+            },
+            {
               id: "scene_tree",
               label: "Scene Tree",
               content: map.frontmatter.scene_tree ? (

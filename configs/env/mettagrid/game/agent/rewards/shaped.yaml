@@ -14,4 +14,4 @@ blueprint: 0.5
 blueprint_max: 1
 
 heart: 1
-heart_max: 1000
+heart_max: null
