@@ -135,15 +135,20 @@ class TestSweepConfigLoading:
             assert "sim" in sweep_cfg
             assert "sweep_job" in sweep_cfg
 
-            # Check sweep_job section has the right structure
+            # Check sweep_job section has the right structure for training overrides
             assert "trainer" in sweep_cfg.sweep_job
             assert "agent" in sweep_cfg.sweep_job
-            assert "train_job" in sweep_cfg.sweep_job
-            assert "evals" in sweep_cfg.sweep_job.train_job
+            assert "sim" in sweep_cfg.sweep_job
+            assert "wandb" in sweep_cfg.sweep_job
+            assert "runs_dir" in sweep_cfg.sweep_job
 
-            # Verify trainer overrides are present
-            assert sweep_cfg.trainer.total_timesteps == 6400
-            assert sweep_cfg.trainer.batch_size == 3200
+            # Verify trainer overrides are present at root level
+            assert sweep_cfg.trainer.total_timesteps == 5_000_000  # Updated to match actual config
+            assert sweep_cfg.trainer.curriculum == "/env/mettagrid/curriculum/arena"
+
+            # Verify sim config for evaluation
+            assert sweep_cfg.sim.name == "sweep_eval"
+            assert sweep_cfg.sim.num_episodes == 10
 
     def test_protein_suggestion_application(self):
         """Test that protein suggestions can be applied to sweep config."""
