@@ -464,20 +464,21 @@ class WandbProtein:
         # The fill parameter expects a parameter structure, not metadata
         suggestion, info = self._protein.suggest(fill=None)
 
-        # Store the original flattened suggestion for internal use
-        self._suggestion = suggestion
+        # Clean numpy types from the suggestion before storing
+        # This prevents numpy types from appearing in logs
+        self._suggestion = clean_numpy_types(suggestion)
         self._suggestion_info = info
 
         # For WandB storage, we need to clean the suggestion
         # But we'll also store the flattened version explicitly
-        cleaned_suggestion = self._deep_clean(suggestion)
+        cleaned_suggestion = self._deep_clean(self._suggestion)
         cleaned_info = self._deep_clean(info)
 
         # Save both nested and flattened versions to wandb summary
         # This ensures backward compatibility while fixing the loading issue
         # CRITICAL: WandB auto-nests keys with slashes, so we need to save the flattened
         # version as a list of (key, value) tuples to preserve the exact format
-        flattened_items = list(suggestion.items()) if isinstance(suggestion, dict) else []
+        flattened_items = list(self._suggestion.items()) if isinstance(self._suggestion, dict) else []
 
         self._wandb_run.summary.update(
             {
