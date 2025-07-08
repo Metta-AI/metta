@@ -27,7 +27,7 @@ game:
         objects:
           mine_red: 10
           generator_red: 5
-          altar: 10
+          altar: 2
           lasery: 2
           armory: 2
 
