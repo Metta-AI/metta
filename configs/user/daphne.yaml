@@ -13,7 +13,7 @@ defaults:
   - _self_
 
 trainer:
-  curriculum: /env/mettagrid/curriculum/navigation/low_reward
+  curriculum: /env/mettagrid/curriculum/operant_conditioning/basic
 
 policy_uri: wandb://run/daphne.navigation.learning_progress.07-08
 
