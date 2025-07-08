@@ -13,6 +13,7 @@ class Losses:
         self.l2_init_loss_sum = 0.0
         self.ks_action_loss_sum = 0.0
         self.ks_value_loss_sum = 0.0
+        self.contrastive_loss_sum = 0.0
         self.importance_sum = 0.0
         self.current_logprobs_sum = 0.0
         self.explained_variance = 0.0
@@ -32,6 +33,7 @@ class Losses:
             "l2_init_loss": self.l2_init_loss_sum / n,
             "ks_action_loss": self.ks_action_loss_sum / n,
             "ks_value_loss": self.ks_value_loss_sum / n,
+            "contrastive_loss": self.contrastive_loss_sum / n,
             "importance": self.importance_sum / n,
             "explained_variance": self.explained_variance,
             "current_logprobs": self.current_logprobs_sum / n,

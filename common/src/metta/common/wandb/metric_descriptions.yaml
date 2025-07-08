@@ -43,6 +43,14 @@ metrics:
     description: The mean reward achieved per episode per agent, averaged over all environments and agents over the previous epoch.
     interpretation: Higher values indicate better agent performance. Monitor for consistent improvement during training.
 
+  overview/reward:
+    description: The mean original reward (before contrastive learning modifications) achieved per episode per agent, averaged over all environments and agents over the previous epoch.
+    interpretation: This represents the "true" environment reward without any contrastive learning bonuses. This metric follows the same aggregation pattern as the main reward metric, calculated from env_original_reward entries. Compare with perceived_reward to understand the impact of contrastive learning.
+
+  overview/perceived_reward:
+    description: The mean perceived reward (original reward + contrastive learning bonus) achieved per episode per agent, averaged over all environments and agents over the previous epoch.
+    interpretation: This is the reward that the agent actually receives during training. This metric follows the same aggregation pattern as the main reward metric, calculated from env_perceived_reward entries. Compare with original_reward to understand the impact of contrastive learning modifications.
+
   overview/reward_vs_total_time:
     description: Reward plotted against total training time, showing learning efficiency.
     unit: reward per second

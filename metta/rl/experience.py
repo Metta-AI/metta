@@ -89,6 +89,9 @@ class Experience:
         self.truncateds = torch.zeros(self.segments, bptt_horizon, device=self.device)
         self.ratio = torch.ones(self.segments, bptt_horizon, device=self.device)
 
+        # LSTM states for contrastive learning
+        self.lstm_states = torch.zeros(self.segments, bptt_horizon, hidden_size, device=self.device)
+
         # Episode tracking
         self.ep_lengths = torch.zeros(total_agents, device=self.device, dtype=torch.int32)
         self.ep_indices = torch.arange(total_agents, device=self.device, dtype=torch.int32) % self.segments
@@ -180,6 +183,17 @@ class Experience:
         self.truncateds[batch_slice] = truncations.float()
         self.values[batch_slice] = values
 
+        # Store LSTM states for contrastive learning
+        if lstm_state is not None and env_id.start in self.lstm_h:
+            # Use the last layer's hidden state for contrastive learning
+            lstm_h = lstm_state["lstm_h"]
+
+            if lstm_h.dim() == 3:  # [num_layers, batch_size, hidden_size]
+                last_layer_h = lstm_h[-1]  # [batch_size, hidden_size]
+                self.lstm_states[batch_slice] = last_layer_h
+            else:  # [batch_size, hidden_size]
+                self.lstm_states[batch_slice] = lstm_h
+
         # Update episode tracking
         self.ep_lengths[env_id] += 1
 
@@ -269,6 +283,37 @@ class Experience:
     def update_ratio(self, indices: Tensor, new_ratio: Tensor) -> None:
         """Update importance sampling ratios for given indices."""
         self.ratio[indices] = new_ratio.detach()
+
+    def sample_contrastive_pairs(
+        self,
+        minibatch_indices: Tensor,
+        num_rollout_negatives: int,
+        num_cross_rollout_negatives: int,
+    ) -> Dict[str, Tensor]:
+        """
+        Sample contrastive learning pairs from the experience buffer.
+
+        Args:
+            minibatch_indices: Indices of current minibatch [minibatch_segments]
+            num_rollout_negatives: Number of negative samples from same rollout
+            num_cross_rollout_negatives: Number of negative samples from other rollouts
+
+        Returns:
+            Dictionary containing:
+            - current_indices: Current state indices [batch_size]
+            - lstm_states: All LSTM states [total_states, hidden_size]
+        """
+        # Flatten minibatch indices to get current state indices
+        batch_size = minibatch_indices.numel() * self.bptt_horizon
+        current_indices = torch.arange(batch_size, device=self.device)
+
+        # Flatten all LSTM states for easy indexing - ensure it's contiguous for better performance
+        all_lstm_states = self.lstm_states.view(-1, self.lstm_states.shape[-1]).contiguous()
+
+        return {
+            "current_indices": current_indices,
+            "lstm_states": all_lstm_states,
+        }
 
     def stats(self) -> Dict[str, float]:
         """Get mean values of all tracked buffers.

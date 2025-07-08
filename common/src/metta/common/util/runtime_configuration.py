@@ -108,7 +108,7 @@ def setup_mettagrid_environment(cfg: DictConfig) -> None:
     warnings.filterwarnings("ignore", category=DeprecationWarning, module="pkg_resources")
     warnings.filterwarnings("ignore", category=DeprecationWarning, module="pygame.pkgdata")
 
-    if cfg.dist_cfg_path is not None:
+    if cfg.dist_cfg_path is not None and os.path.exists(cfg.dist_cfg_path):
         dist_cfg = OmegaConf.load(cfg.dist_cfg_path)
         cfg.run = dist_cfg.run
         cfg.wandb.run_id = dist_cfg.wandb_run_id

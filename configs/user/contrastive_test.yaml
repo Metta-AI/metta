@@ -1,0 +1,32 @@
+# @package __global__
+
+# Test configuration for contrastive learning
+run: contrastive_test_run
+
+defaults:
+  - /trainer/trainer
+  - /agent/fast
+  - _self_
+
+# Device configuration for CUDA training
+device: cuda
+vectorization: multiprocessing
+
+trainer:
+  env: /env/mettagrid/arena/basic_easy
+  contrastive:
+    enabled: true
+    loss_coef: 0.1
+    reward_coef: 0.01
+    temperature: 0.1
+    logsumexp_coef: 0.01
+    num_rollout_negatives: 4
+    num_cross_rollout_negatives: 4
+    update_frequency: 2  # Only compute contrastive loss every 2 minibatches
+  num_workers: 2
+  cpu_offload: false
+  bptt_horizon: 32
+  async_factor: 1
+
+wandb:
+  project: metta-contrastive-test

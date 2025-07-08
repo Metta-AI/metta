@@ -1,27 +1,32 @@
 """
-Clean API for Metta - provides direct instantiation without Hydra.
+Clean API for Metta - provides direct instantiation with configurable Hydra configs.
 
 This API exposes the core training components from Metta, allowing users to:
 1. Create environments, agents, and training components programmatically
 2. Use the same Pydantic configuration classes as the main codebase
 3. Control the training loop directly with full visibility
 4. Support distributed training with minimal setup
+5. Use either Hydra configs or hardcoded defaults for backward compatibility
 """
 
 import logging
 import os
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union, cast
 
 import gymnasium as gym
+import hydra
 import numpy as np
 import torch
+from hydra.core.global_hydra import GlobalHydra
 from omegaconf import DictConfig, OmegaConf
 
 from metta.agent.metta_agent import MettaAgent
+from metta.common.util.config import config_from_path
 from metta.common.util.fs import wait_for_file
 from metta.mettagrid.curriculum.core import Curriculum, SingleTaskCurriculum, Task
+from metta.mettagrid.curriculum.util import curriculum_from_config_path
 from metta.mettagrid.mettagrid_env import MettaGridEnv
 from metta.rl.functions import (
     cleanup_old_policies,
@@ -153,6 +158,234 @@ def cleanup_distributed():
 # ============================================================================
 # Configuration Management
 # ============================================================================
+
+
+# start of AI generated code
+
+
+def load_agent_config(config_path: Optional[str] = None, device: str = "cuda") -> DictConfig:
+    """Load agent configuration from Hydra config path or use default.
+
+    Args:
+        config_path: Path to agent config (e.g., "/agent/fast" or "agent/fast").
+                    If None, uses hardcoded default.
+        device: Device to use for the agent
+
+    Returns:
+        DictConfig with agent configuration
+    """
+    if config_path is None:
+        # Use hardcoded default for backward compatibility
+        return DictConfig(_get_default_agent_config(device))
+
+    # Initialize Hydra if not already done
+    if not GlobalHydra.instance().is_initialized():
+        # Find the repo root by looking for the configs directory
+        current_dir = Path.cwd()
+        repo_root = current_dir
+        while repo_root.parent != repo_root:
+            if (repo_root / "configs").exists():
+                break
+            repo_root = repo_root.parent
+        else:
+            raise RuntimeError("Could not find configs directory in any parent directory")
+
+        hydra.initialize(config_path=str(repo_root / "configs"), version_base=None)
+
+    # Normalize config path (remove leading slash and .yaml extension)
+    config_path = config_path.lstrip("/")
+    if config_path.endswith(".yaml"):
+        config_path = config_path[:-5]
+
+    # Load the config
+    try:
+        cfg = config_from_path(f"/{config_path}")
+
+        # Ensure we have a DictConfig
+        if not isinstance(cfg, DictConfig):
+            raise ValueError(f"Expected DictConfig, got {type(cfg)}")
+
+        # Set device in the config
+        cfg.device = device
+
+        return cfg
+    except Exception as e:
+        logger.error(f"Failed to load agent config from {config_path}: {e}")
+        logger.info("Falling back to hardcoded default")
+        return DictConfig(_get_default_agent_config(device))
+
+
+def load_env_config(
+    config_path: Optional[str] = None,
+    env_overrides: Optional[Dict[str, Any]] = None,
+    num_agents: Optional[int] = None,
+    width: Optional[int] = None,
+    height: Optional[int] = None,
+) -> DictConfig:
+    """Load environment configuration from Hydra config path or use default.
+
+    Args:
+        config_path: Path to env config (e.g., "/env/mettagrid/navigation/training/terrain_from_numpy").
+                    If None, uses hardcoded default.
+        env_overrides: Additional overrides to apply to the config
+        num_agents: Number of agents (convenience parameter)
+        width: Environment width (convenience parameter)
+        height: Environment height (convenience parameter)
+
+    Returns:
+        DictConfig with environment configuration
+    """
+    if config_path is None:
+        # Use hardcoded default for backward compatibility
+        config = _get_default_env_config(
+            num_agents=num_agents or 4,
+            width=width or 32,
+            height=height or 32,
+        )
+
+        # Apply overrides if provided
+        if env_overrides:
+            config = OmegaConf.merge(DictConfig(config), DictConfig(env_overrides))
+
+        return DictConfig(config)
+
+    # Initialize Hydra if not already done
+    if not GlobalHydra.instance().is_initialized():
+        # Find the repo root by looking for the configs directory
+        current_dir = Path.cwd()
+        repo_root = current_dir
+        while repo_root.parent != repo_root:
+            if (repo_root / "configs").exists():
+                break
+            repo_root = repo_root.parent
+        else:
+            raise RuntimeError("Could not find configs directory in any parent directory")
+
+        hydra.initialize(config_path=str(repo_root / "configs"), version_base=None)
+
+    # Load the config
+    try:
+        cfg = config_from_path(config_path, overrides=DictConfig(env_overrides or {}))
+
+        # Ensure we have a DictConfig
+        if not isinstance(cfg, DictConfig):
+            raise ValueError(f"Expected DictConfig, got {type(cfg)}")
+
+        # Apply convenience parameter overrides
+        if num_agents is not None:
+            cfg.game.num_agents = num_agents
+            if hasattr(cfg.game, "map_builder"):
+                cfg.game.map_builder.agents = num_agents
+                if hasattr(cfg.game.map_builder, "num_rooms"):
+                    cfg.game.map_builder.num_rooms = num_agents
+
+        if width is not None:
+            if hasattr(cfg.game, "map_builder"):
+                if hasattr(cfg.game.map_builder, "room"):
+                    cfg.game.map_builder.room.width = width
+                else:
+                    cfg.game.map_builder.width = width
+
+        if height is not None:
+            if hasattr(cfg.game, "map_builder"):
+                if hasattr(cfg.game.map_builder, "room"):
+                    cfg.game.map_builder.room.height = height
+                else:
+                    cfg.game.map_builder.height = height
+
+        return cfg
+    except Exception as e:
+        logger.error(f"Failed to load env config from {config_path}: {e}")
+        logger.info("Falling back to hardcoded default")
+        return load_env_config(None, env_overrides, num_agents, width, height)
+
+
+def load_curriculum_config(
+    config_path: Optional[str] = None,
+    env_overrides: Optional[Dict[str, Any]] = None,
+) -> Curriculum:
+    """Load curriculum configuration from Hydra config path or use default.
+
+    Args:
+        config_path: Path to curriculum config (e.g., "/env/mettagrid/curriculum/navigation/bucketed").
+                    If None, uses hardcoded NavigationBucketedCurriculum.
+        env_overrides: Additional overrides to apply to the curriculum
+
+    Returns:
+        Curriculum instance
+    """
+    if config_path is None:
+        # Use hardcoded default for backward compatibility
+        terrain_dirs = [
+            "terrain_maps_nohearts",
+            "varied_terrain/balanced_large",
+            "varied_terrain/balanced_medium",
+            "varied_terrain/balanced_small",
+            "varied_terrain/sparse_large",
+            "varied_terrain/sparse_medium",
+            "varied_terrain/sparse_small",
+            "varied_terrain/dense_large",
+            "varied_terrain/dense_medium",
+            "varied_terrain/dense_small",
+            "varied_terrain/maze_large",
+            "varied_terrain/maze_medium",
+            "varied_terrain/maze_small",
+            "varied_terrain/cylinder-world_large",
+            "varied_terrain/cylinder-world_medium",
+            "varied_terrain/cylinder-world_small",
+        ]
+
+        # Create navigation training template config
+        template_config = _get_default_env_config(num_agents=4, width=32, height=32)
+
+        # Ensure sampling is disabled for evaluation
+        template_config["sampling"] = 0
+
+        # Apply overrides if provided
+        if env_overrides:
+            template_config = OmegaConf.merge(DictConfig(template_config), DictConfig(env_overrides))
+
+        # Create the custom navigation curriculum
+        # Convert DictConfig to Dict[str, Any] for constructor
+        base_config_dict = OmegaConf.to_container(template_config, resolve=True)
+        if not isinstance(base_config_dict, dict):
+            raise ValueError(f"Expected dict, got {type(base_config_dict)}")
+        return NavigationBucketedCurriculum(
+            base_config=cast(Dict[str, Any], base_config_dict),
+            terrain_dirs=terrain_dirs,
+            altar_range=(10, 50),
+        )
+
+    # Initialize Hydra if not already done
+    if not GlobalHydra.instance().is_initialized():
+        # Find the repo root by looking for the configs directory
+        current_dir = Path.cwd()
+        repo_root = current_dir
+        while repo_root.parent != repo_root:
+            if (repo_root / "configs").exists():
+                break
+            repo_root = repo_root.parent
+        else:
+            raise RuntimeError("Could not find configs directory in any parent directory")
+
+        hydra.initialize(config_path=str(repo_root / "configs"), version_base=None)
+
+    # Load the curriculum using the existing utility
+    try:
+        return curriculum_from_config_path(config_path, DictConfig(env_overrides or {}))
+    except Exception as e:
+        logger.error(f"Failed to load curriculum from {config_path}: {e}")
+        logger.info("Falling back to hardcoded default")
+        return load_curriculum_config(None, env_overrides)
+
+
+def cleanup_hydra():
+    """Clean up Hydra global state if it was initialized."""
+    if GlobalHydra.instance().is_initialized():
+        GlobalHydra.instance().clear()
+
+
+# end of AI generated code
 
 
 def save_experiment_config(
@@ -479,7 +712,7 @@ class Environment:
     def __new__(
         cls,
         curriculum_path: Optional[str] = None,
-        env_config: Optional[Dict[str, Any]] = None,
+        env_config: Optional[Union[Dict[str, Any], str]] = None,
         device: str = "cuda",
         seed: Optional[int] = None,
         num_envs: int = 1,
@@ -526,6 +759,18 @@ class Environment:
                 width=width or 32,
                 height=height or 32,
             )
+        elif isinstance(env_config, str):
+            # Load config from Hydra config path
+            env_config_dict = load_env_config(
+                config_path=env_config,
+                num_agents=num_agents,
+                width=width,
+                height=height,
+            )
+            env_config_container = OmegaConf.to_container(env_config_dict, resolve=True)
+            if not isinstance(env_config_container, dict):
+                raise ValueError(f"Expected dict from config loading, got {type(env_config_container)}")
+            env_config = cast(Dict[str, Any], env_config_container)
         else:
             # Apply convenience parameter overrides to provided config
             if num_agents is not None:
@@ -1176,6 +1421,11 @@ __all__ = [
     "Agent",
     # New wrapper classes
     "Optimizer",
+    # Configuration loading functions
+    "load_agent_config",
+    "load_env_config",
+    "load_curriculum_config",
+    "cleanup_hydra",
     # Helper functions unique to api.py
     "calculate_anneal_beta",
     "setup_run_directories",

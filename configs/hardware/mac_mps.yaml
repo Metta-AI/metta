@@ -1,0 +1,21 @@
+# @package __global__
+
+# MPS vectorization configuration for Apple Silicon GPU training
+#
+# This setup uses Metal Performance Shaders (MPS) for GPU acceleration
+# on Apple Silicon Macs, providing better performance than CPU-only training.
+
+device: mps
+
+vectorization: serial
+
+trainer:
+  num_workers: 1  # Single worker process
+  update_epochs: 1
+  batch_size: 2048
+  minibatch_size: 1024
+  forward_pass_minibatch_target_size: 4
+  async_factor: 1
+  checkpoint:
+    checkpoint_interval: 10
+  bptt_horizon: 8

@@ -1,0 +1,26 @@
+# @package __global__
+
+# Auto-detecting device configuration for MacBook
+#
+# This configuration uses a custom resolver to detect the best available device:
+# - MPS if available (Apple Silicon)
+# - CPU as fallback
+#
+# The device selection is handled by the setup_distributed_training function
+# which checks for CUDA first, then falls back to CPU. For MPS, you need to
+# explicitly set device: mps
+
+device: mps  # Change to 'cpu' if MPS causes issues
+
+vectorization: serial
+
+trainer:
+  num_workers: 1  # Single worker process
+  update_epochs: 1
+  batch_size: 2048  # Larger batch size for MPS
+  minibatch_size: 1024
+  forward_pass_minibatch_target_size: 4
+  async_factor: 1
+  checkpoint:
+    checkpoint_interval: 10
+  bptt_horizon: 8

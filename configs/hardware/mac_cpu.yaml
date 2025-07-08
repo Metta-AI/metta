@@ -1,0 +1,21 @@
+# @package __global__
+
+# CPU vectorization configuration for MacBook
+#
+# This setup uses CPU-only training, which is compatible with all Mac models
+# but may be slower than MPS on Apple Silicon.
+
+device: cpu
+
+vectorization: serial
+
+trainer:
+  num_workers: 1  # Single worker process
+  update_epochs: 1
+  batch_size: 1024
+  minibatch_size: 1024
+  forward_pass_minibatch_target_size: 2
+  async_factor: 1
+  checkpoint:
+    checkpoint_interval: 10
+  bptt_horizon: 8

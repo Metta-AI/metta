@@ -46,6 +46,25 @@ class VTraceConfig(BaseModelWithForbidExtra):
     vtrace_c_clip: float = Field(default=1.0, gt=0)
 
 
+class ContrastiveConfig(BaseModelWithForbidExtra):
+    # Enable contrastive learning
+    enabled: bool = Field(default=False)
+    # Weight for auxiliary loss
+    loss_coef: float = Field(default=0.1, ge=0)
+    # Weight for reward bonus (λ_r)
+    reward_coef: float = Field(default=0.0, ge=0)
+    # Temperature parameter for softmax
+    temperature: float = Field(default=0.1, gt=0)
+    # Coefficient for LogSumExp regularization
+    logsumexp_coef: float = Field(default=0.01, ge=0)
+    # Number of negative samples from same rollout
+    num_rollout_negatives: int = Field(default=8, ge=0)
+    # Number of negative samples from other rollouts
+    num_cross_rollout_negatives: int = Field(default=8, ge=0)
+    # Frequency of contrastive learning updates (1 = every minibatch, 2 = every other minibatch, etc.)
+    update_frequency: int = Field(default=1, ge=1)
+
+
 class InitialPolicyConfig(BaseModelWithForbidExtra):
     uri: str | None = None
     # Type="top": Empirical best performing
@@ -152,6 +171,9 @@ class TrainerConfig(BaseModelWithForbidExtra):
 
     # V-trace
     vtrace: VTraceConfig = Field(default_factory=VTraceConfig)
+
+    # Contrastive learning
+    contrastive: ContrastiveConfig = Field(default_factory=ContrastiveConfig)
 
     # System configuration
     # Zero copy: Performance optimization to avoid memory copies
