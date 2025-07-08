@@ -1,7 +1,8 @@
-from typing import List
+from typing import Any, List
 
 import torch
 from torch import Tensor, nn
+from torch.optim import Optimizer
 
 from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyStore
@@ -28,8 +29,8 @@ class Kickstarter:
         self.anneal_ratio = cfg.anneal_ratio
         assert 0 <= self.anneal_ratio <= 1, "Anneal_ratio must be between 0 and 1."
 
-        self.optimizer = None
-        self.vecenv = None
+        self.optimizer: Optimizer | None = None
+        self.vecenv: Any | None = None
 
         self.teacher_uri = cfg.teacher_uri
         if self.teacher_uri is not None:
