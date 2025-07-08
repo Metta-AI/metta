@@ -92,7 +92,7 @@ hoverPanel.addEventListener('mousedown', (e: MouseEvent) => {
 /** Updates the hover panel's visibility, position, and DOM tree. */
 export function updateHoverPanel(object: any) {
   if (object !== null && object !== undefined) {
-    let typeName = state.replay.object_types[getAttr(object, 'type')]
+    let typeName = state.replay.type_names[getAttr(object, 'type')]
     if (typeName == 'wall') {
       // Don't show hover panel for walls.
       hoverPanel.classList.add('hidden')
@@ -144,7 +144,7 @@ function updateDom(htmlPanel: HTMLElement, object: any) {
       inventory.appendChild(item)
     } else {
       if (key == 'type') {
-        value = state.replay.object_types[value]
+        value = state.replay.type_names[value]
       } else if (key == 'agent:color' && value >= 0 && value < Common.COLORS.length) {
         value = Common.COLORS[value][0]
       } else if (['group', 'total_reward', 'agent_id'].includes(key)) {
@@ -239,9 +239,9 @@ export function updateReadout() {
   readout += 'Max steps: ' + state.replay.max_steps + '\n'
 
   let objectTypeCounts = new Map<string, number>()
-  for (const gridObject of state.replay.grid_objects) {
+  for (const gridObject of state.replay.objects) {
     const type = getAttr(gridObject, 'type')
-    const typeName = state.replay.object_types[type]
+    const typeName = state.replay.type_names[type]
     objectTypeCounts.set(typeName, (objectTypeCounts.get(typeName) || 0) + 1)
   }
   for (const [key, value] of objectTypeCounts.entries()) {

@@ -1,4 +1,5 @@
 {
+  "_comment": "Example MettaScope replay file demonstrating all features of version 2 format",
   "version": 2,
   "num_agents": 2,
   "max_steps": 100,
@@ -6,6 +7,7 @@
     20,
     20
   ],
+  "file_name": "example_replay.json",
   "type_names": [
     "agent",
     "wall",

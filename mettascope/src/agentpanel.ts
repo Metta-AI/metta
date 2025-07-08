@@ -231,8 +231,8 @@ onEvent('click', '#agent-panel .header-cell', (target: HTMLElement, e: Event) =>
 onEvent('click', '#agent-panel .data-cell', (target: HTMLElement, e: Event) => {
   let agentId = findAttr(target, 'data-agent-id')
   if (agentId != '') {
-    for (let i = 0; i < state.replay.grid_objects.length; i++) {
-      let gridObject = state.replay.grid_objects[i]
+    for (let i = 0; i < state.replay.objects.length; i++) {
+      let gridObject = state.replay.objects[i]
       if (gridObject.hasOwnProperty('agent_id') && getAttr(gridObject, 'agent_id') == agentId) {
         updateSelection(gridObject, true)
         break

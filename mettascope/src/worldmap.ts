@@ -57,9 +57,9 @@ function drawFloor() {
 function drawWalls() {
   // Construct a wall adjacency map.
   var wallMap = new Grid(state.replay.map_size[0], state.replay.map_size[1])
-  for (const gridObject of state.replay.grid_objects) {
+  for (const gridObject of state.replay.objects) {
     const type = getAttr(gridObject, 'type')
-    const typeName = state.replay.object_types[type]
+    const typeName = state.replay.type_names[type]
     if (typeName !== 'wall') {
       continue
     }
@@ -69,9 +69,9 @@ function drawWalls() {
   }
 
   // Draw the walls, following the adjacency map.
-  for (const gridObject of state.replay.grid_objects) {
+  for (const gridObject of state.replay.objects) {
     const type = getAttr(gridObject, 'type')
-    const typeName = state.replay.object_types[type]
+    const typeName = state.replay.type_names[type]
     if (typeName !== 'wall') {
       continue
     }
@@ -101,9 +101,9 @@ function drawWalls() {
   }
 
   // Draw the wall infill, following the adjacency map.
-  for (const gridObject of state.replay.grid_objects) {
+  for (const gridObject of state.replay.objects) {
     const type = getAttr(gridObject, 'type')
-    const typeName = state.replay.object_types[type]
+    const typeName = state.replay.type_names[type]
     if (typeName !== 'wall') {
       continue
     }
@@ -134,7 +134,7 @@ function drawWalls() {
 
 function drawObject(gridObject: any) {
   const type: number = getAttr(gridObject, 'type')
-  const typeName: string = state.replay.object_types[type]
+  const typeName: string = state.replay.type_names[type]
   if (typeName === 'wall') {
     // Walls are drawn in a different way.
     return
@@ -190,14 +190,14 @@ function drawObject(gridObject: any) {
 
 /** Draws all objects on the map (that are not walls). */
 function drawObjects() {
-  for (const gridObject of state.replay.grid_objects) {
+  for (const gridObject of state.replay.objects) {
     drawObject(gridObject)
   }
 }
 
 /** Draws actions above the objects. */
 function drawActions() {
-  for (const gridObject of state.replay.grid_objects) {
+  for (const gridObject of state.replay.objects) {
     const x = getAttr(gridObject, 'c')
     const y = getAttr(gridObject, 'r')
 
@@ -287,7 +287,7 @@ function drawInventory(useSearch = false) {
     return
   }
 
-  for (const gridObject of state.replay.grid_objects) {
+  for (const gridObject of state.replay.objects) {
     const x = getAttr(gridObject, 'c')
     const y = getAttr(gridObject, 'r')
 
@@ -338,7 +338,7 @@ function drawInventory(useSearch = false) {
 
 /** Draws the rewards on the bottom of the object. */
 function drawRewards() {
-  for (const gridObject of state.replay.grid_objects) {
+  for (const gridObject of state.replay.objects) {
     const x = getAttr(gridObject, 'c')
     const y = getAttr(gridObject, 'r')
     if (gridObject['total_reward'] !== undefined) {
@@ -546,9 +546,9 @@ function drawVisibility() {
       updateVisibilityMap(state.selectedGridObject)
     } else {
       // When there is no selected grid object, update the visibility map for all agents.
-      for (const gridObject of state.replay.grid_objects) {
+      for (const gridObject of state.replay.objects) {
         const type = getAttr(gridObject, 'type')
-        const typeName = state.replay.object_types[type]
+        const typeName = state.replay.type_names[type]
         if (typeName == 'agent') {
           updateVisibilityMap(gridObject)
         }
@@ -719,7 +719,7 @@ export function drawMap(panel: PanelInfo) {
           Math.round(localMousePos.x() / Common.TILE_SIZE),
           Math.round(localMousePos.y() / Common.TILE_SIZE)
         )
-        objectUnderMouse = state.replay.grid_objects.find((obj: any) => {
+        objectUnderMouse = state.replay.objects.find((obj: any) => {
           const x: number = getAttr(obj, 'c')
           const y: number = getAttr(obj, 'r')
           return x === gridMousePos.x() && y === gridMousePos.y()
@@ -803,8 +803,8 @@ export function drawMap(panel: PanelInfo) {
     drawSelection()
 
     // Draw matching objects on top of the overlay.
-    for (const gridObject of state.replay.grid_objects) {
-      const typeName = state.replay.object_types[getAttr(gridObject, 'type')]
+    for (const gridObject of state.replay.objects) {
+      const typeName = state.replay.type_names[getAttr(gridObject, 'type')]
       let x = getAttr(gridObject, 'c')
       let y = getAttr(gridObject, 'r')
       if (searchMatch(typeName)) {

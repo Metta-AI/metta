@@ -29,7 +29,7 @@ function updateSearchDropdown() {
   for (let key of state.replay.resource_inventory.keys()) {
     keys.push(key)
   }
-  for (let key of state.replay.object_types) {
+  for (let key of state.replay.type_names) {
     keys.push(key)
   }
 

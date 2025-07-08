@@ -44,32 +44,56 @@ class EpisodeReplay:
     def __init__(self, env: MettaGridEnv):
         self.env = env
         self.step = 0
-        self.grid_objects = []
+        self.objects = []
         self.total_rewards = np.zeros(env.num_agents)
         self.replay_data = {
-            "version": 1,
-            "action_names": env.action_names,
-            "inventory_items": env.inventory_item_names,
-            "object_types": env.object_type_names,
-            "map_size": [env.map_width, env.map_height],
+            "version": 2,
             "num_agents": env.num_agents,
             "max_steps": env.max_steps,
-            "grid_objects": self.grid_objects,
+            "map_size": [env.map_width, env.map_height],
+            "type_names": env.object_type_names,
+            "action_names": env.action_names,
+            "item_names": env.inventory_item_names,
+            "group_names": [],
+            "objects": self.objects,
         }
 
     def log_step(self, actions: np.ndarray, rewards: np.ndarray):
         self.total_rewards += rewards
         for i, grid_object in enumerate(self.env.grid_objects.values()):
-            update_object = grid_object.copy()
-            if len(self.grid_objects) <= i:
-                self.grid_objects.append({})
+            update_object = {}
+            update_object["id"] = grid_object["id"]
+            update_object["type_id"] = grid_object["type_id"]
+            if "agent_id" in grid_object:
+                update_object["agent_id"] = grid_object["agent_id"]
+            update_object["position"] = [grid_object["c"], grid_object["r"]]
+            if "rotation" in grid_object:
+                update_object["rotation"] = grid_object["rotation"]
+            update_object["layer"] = grid_object["layer"]
+            if "group_id" in grid_object:
+                update_object["group_id"] = grid_object["group_id"]
+                # If there are not group names, make some up.
+                while len(self.replay_data["group_names"]) <= grid_object["group_id"]:
+                    self.replay_data["group_names"].append("group_" + str(len(self.replay_data["group_names"])))
+            inventory = []
+            for key in grid_object:
+                if key.startswith("inv:") or key.startswith("agent:inv:"):
+                    name = key.split(":")[-1]
+                    inventory.append(self.env.inventory_item_names.index(name))
+            update_object["inventory"] = inventory
+
+            if len(self.objects) <= i:
+                self.objects.append({})
+
             if "agent_id" in grid_object:
                 agent_id = update_object["agent_id"]
-                update_object["action"] = actions[agent_id].tolist()
+                action_tuple = actions[agent_id].tolist()
+                update_object["action_id"] = action_tuple[0]
+                update_object["action_parameter"] = action_tuple[1]
                 update_object["action_success"] = bool(self.env.action_success[agent_id])
-                update_object["reward"] = rewards[agent_id].item()
+                update_object["current_reward"] = rewards[agent_id].item()
                 update_object["total_reward"] = self.total_rewards[agent_id].item()
-            self._seq_key_merge(self.grid_objects[i], self.step, update_object)
+            self._seq_key_merge(self.objects[i], self.step, update_object)
         self.step += 1
 
     def _seq_key_merge(self, grid_object: dict, step: int, update_object: dict):
@@ -95,12 +119,23 @@ class EpisodeReplay:
         """Gets full replay as a tree of plain python dictionaries."""
         self.replay_data["max_steps"] = self.step
         # Trim value changes to make them more compact.
-        for grid_object in self.grid_objects:
-            for key, changes in list(grid_object.items()):
+        for obj in self.objects:
+            for key, changes in list(obj.items()):
                 if isinstance(changes, list) and len(changes) == 1:
-                    grid_object[key] = changes[0][1]
+                    obj[key] = changes[0][1]
 
         self.replay_data["config"] = OmegaConf.to_container(self.env._task.env_cfg(), resolve=True)
+
+        # FIX ME: This is a hack as map_width and map_height are not set in the replay_writer.
+        # Go over all objects and find the max x and y and set that as the map size.
+        max_x = 0
+        max_y = 0
+        for obj in self.objects:
+            for key, changes in list(obj.items()):
+                if key == "position":
+                    max_x = max(max_x, changes[-1][1][0])
+                    max_y = max(max_y, changes[-1][1][1])
+        self.replay_data["map_size"] = [max_x + 1, max_y + 1]
 
         return self.replay_data
 

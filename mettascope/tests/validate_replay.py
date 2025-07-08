@@ -80,7 +80,7 @@ def validate_version(data: Dict[str, Any]) -> bool:
 
 def validate_constants(data: Dict[str, Any]):
     """Validate required constants."""
-    required_constants = ["num_agents", "max_steps", "map_size"]
+    required_constants = ["num_agents", "max_steps", "map_size", "file_name"]
 
     for field in required_constants:
         if field not in data:
@@ -98,6 +98,11 @@ def validate_constants(data: Dict[str, Any]):
                     add_error(f"'{field}' must be a list of 2 integers, got: {value}")
                 elif not all(isinstance(x, int) and x > 0 for x in value):
                     add_error(f"'{field}' values must be positive integers, got: {value}")
+            elif field == "file_name":
+                if not isinstance(value, str):
+                    add_error(f"'{field}' must be a string, got: {type(value).__name__}")
+                elif len(value) == 0:
+                    add_error(f"'{field}' must not be empty")
 
 
 def validate_mapping_arrays(data: Dict[str, Any]):
@@ -154,11 +159,13 @@ def validate_time_series_value(
             x, y = value
             if x < 0 or x >= map_size[0]:
                 add_error(
-                    f"{obj_prefix}: Position x={x} at time series index {index} is out of map bounds (0-{map_size[0] - 1})"
+                    f"{obj_prefix}: Position x={x} at time series index {index} "
+                    f"is out of map bounds (0-{map_size[0] - 1})"
                 )
             if y < 0 or y >= map_size[1]:
                 add_error(
-                    f"{obj_prefix}: Position y={y} at time series index {index} is out of map bounds (0-{map_size[1] - 1})"
+                    f"{obj_prefix}: Position y={y} at time series index {index} "
+                    f"is out of map bounds (0-{map_size[1] - 1})"
                 )
 
     elif field == "inventory":
@@ -502,6 +509,7 @@ def validate_replay(data: Dict[str, Any]):
         "num_agents",
         "max_steps",
         "map_size",
+        "file_name",
         "type_names",
         "action_names",
         "item_names",

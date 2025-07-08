@@ -28,6 +28,7 @@ These are the constants that are stored at the top of the replay.
 * `num_agents` - The number of agents in the replay.
 * `max_steps` - The maximum number of steps in the replay.
 * `map_size` - The size of the map. No object may move outside of the map bounds.
+* `file_name` - The name of the replay file. This helps identify the replay when processing multiple files.
 
 ```json
 {
@@ -35,6 +36,7 @@ These are the constants that are stored at the top of the replay.
   "num_agents": 24,
   "max_steps": 1000,
   "map_size": [62, 62],
+  "file_name": "example_replay.json.z",
   ...
 }
 ```
