@@ -138,16 +138,16 @@ public:
   virtual std::vector<PartialObservationToken> obs_features() const override {
     std::vector<PartialObservationToken> features;
     features.reserve(5 + this->inventory.size());
-    features.push_back({ObservationFeature::TypeId, static_cast<uint8_t>(type_id)});
-    features.push_back({ObservationFeature::Group, static_cast<uint8_t>(group)});
-    features.push_back({ObservationFeature::Frozen, static_cast<uint8_t>(frozen != 0 ? 1 : 0)});
-    features.push_back({ObservationFeature::Orientation, static_cast<uint8_t>(orientation)});
-    features.push_back({ObservationFeature::Color, static_cast<uint8_t>(color)});
+    features.push_back({ObservationFeature::TypeId, static_cast<ObservationType>(type_id)});
+    features.push_back({ObservationFeature::Group, static_cast<ObservationType>(group)});
+    features.push_back({ObservationFeature::Frozen, static_cast<ObservationType>(frozen != 0 ? 1 : 0)});
+    features.push_back({ObservationFeature::Orientation, static_cast<ObservationType>(orientation)});
+    features.push_back({ObservationFeature::Color, static_cast<ObservationType>(color)});
     for (const auto& [item, amount] : this->inventory) {
       // inventory should only contain non-zero amounts
       assert(amount > 0);
-      uint8_t item_observation_feature = static_cast<uint8_t>(InventoryFeatureOffset + item);
-      features.push_back({item_observation_feature, static_cast<uint8_t>(amount)});
+      ObservationType item_observation_feature = InventoryFeatureOffset + item;
+      features.push_back({item_observation_feature, static_cast<ObservationType>(amount)});
     }
     return features;
   }

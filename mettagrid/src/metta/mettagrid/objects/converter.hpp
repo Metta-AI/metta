@@ -183,13 +183,15 @@ public:
   virtual vector<PartialObservationToken> obs_features() const override {
     vector<PartialObservationToken> features;
     features.reserve(5 + this->inventory.size());
-    features.push_back({ObservationFeature::TypeId, type_id});
-    features.push_back({ObservationFeature::Color, color});
-    features.push_back({ObservationFeature::ConvertingOrCoolingDown, this->converting || this->cooling_down});
+    features.push_back({ObservationFeature::TypeId, static_cast<ObservationType>(this->type_id)});
+    features.push_back({ObservationFeature::Color, static_cast<ObservationType>(this->color)});
+    features.push_back({ObservationFeature::ConvertingOrCoolingDown,
+                        static_cast<ObservationType>(this->converting || this->cooling_down)});
     for (const auto& [item, amount] : this->inventory) {
       // inventory should only contain non-zero amounts
       assert(amount > 0);
-      features.push_back({static_cast<uint8_t>(item + InventoryFeatureOffset), amount});
+      features.push_back(
+          {static_cast<ObservationType>(item + InventoryFeatureOffset), static_cast<ObservationType>(amount)});
     }
     return features;
   }
