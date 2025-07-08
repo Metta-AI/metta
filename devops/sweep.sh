@@ -6,7 +6,8 @@ set -e
 args="${@:1}"
 
 # Check for both run= and sweep_run= parameters
-has_run=$(echo "$args" | grep -c 'run=' || true)
+# Use precise patterns to avoid matching sweep_run= when looking for run=
+has_run=$(echo "$args" | grep -E -c '(^|[[:space:]])run=' || true)
 has_sweep_run=$(echo "$args" | grep -c 'sweep_run=' || true)
 
 # Validate that exactly one is present
@@ -20,13 +21,19 @@ fi
 
 # Extract sweep name from whichever parameter is present
 if [ "$has_run" -gt 0 ]; then
-  sweep_run=$(echo "$args" | grep -o 'run=[^ ]*' | sed 's/run=//')
+  sweep_run=$(echo "$args" | grep -E -o '(^|[[:space:]])run=[^ ]*' | sed 's/.*run=//')
 else
   sweep_run=$(echo "$args" | grep -o 'sweep_run=[^ ]*' | sed 's/sweep_run=//')
 fi
 
-# Convert run= to sweep_run= for downstream scripts
-args_for_rollout=$(echo "$args" | sed 's/run=/sweep_run=/g')
+# Convert run= to sweep_run= for downstream scripts, ensuring only sweep_run= is passed
+if [ "$has_run" -gt 0 ]; then
+  # Replace run= with sweep_run= - handle both start of string and after space
+  args_for_rollout=$(echo "$args" | sed 's/^run=/sweep_run=/' | sed 's/ run=/ sweep_run=/g')
+else
+  # If already using sweep_run=, pass through as-is
+  args_for_rollout="$args"
+fi
 
 source ./devops/setup.env
 
