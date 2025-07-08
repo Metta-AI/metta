@@ -201,7 +201,7 @@ def parse_args():
     )
     parser.add_argument("--top-n", type=int, default=1, help="Number of top runs to analyze")
     parser.add_argument("--show-scores", action="store_true", help="Show scores for all runs")
-    parser.add_argument("--no-generate-patch", action="store_true", help="Skip generating config patch file")
+    parser.add_argument("--no-patch", action="store_true", help="Skip generating config patch file")
     parser.add_argument("--output-dir", default="configs/trainer/patch", help="Directory for patch files")
     parser.add_argument("--help", "-h", action="store_true", help="Show this help message and exit")
 
@@ -233,7 +233,7 @@ def main(cfg: DictConfig) -> int:
         return 1
 
     # Create output directory if generating patches
-    if not args.no_generate_patch:
+    if not args.no_patch:
         os.makedirs(args.output_dir, exist_ok=True)
 
     # Always load from WandB
@@ -287,7 +287,7 @@ def main(cfg: DictConfig) -> int:
     print(format_hyperparameters_yaml(params))
 
     # 2. Generate config patch file (if requested)
-    if not args.no_generate_patch:
+    if not args.no_patch:
         patch_name = f"{cfg.sweep_run}_best.yaml"
         patch_path = os.path.join(args.output_dir, patch_name)
         generate_config_patch(params, patch_path)
