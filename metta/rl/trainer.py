@@ -300,6 +300,9 @@ class MettaTrainer:
             weight_decay=trainer_cfg.optimizer.weight_decay,
         )
 
+        self.kickstarter.optimizer = self.optimizer
+        self.kickstarter.vecenv = self.vecenv
+
         # Validate that policy matches environment
         validate_policy_environment_match(self.policy, metta_grid_env)
 

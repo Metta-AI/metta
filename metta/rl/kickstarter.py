@@ -28,6 +28,9 @@ class Kickstarter:
         self.anneal_ratio = cfg.anneal_ratio
         assert 0 <= self.anneal_ratio <= 1, "Anneal_ratio must be between 0 and 1."
 
+        self.optimizer = None
+        self.vecenv = None
+
         self.teacher_uri = cfg.teacher_uri
         if self.teacher_uri is not None:
             if self.teacher_cfgs is None:
