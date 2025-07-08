@@ -101,21 +101,7 @@ def main(cfg: DictConfig) -> int:
         logger.info(f"Initializing distributed training with {os.environ['LOCAL_RANK']} {cfg.device}")
         local_rank = int(os.environ["LOCAL_RANK"])
         cfg.device = f"{cfg.device}:{local_rank}"
-
-        # Choose appropriate backend based on available hardware
-        # TODO: Check if this is still needed
-        # I had to add this because I was getting errors when running on CPU
-        if (
-            torch.cuda.is_available()
-            and hasattr(torch.distributed, "is_nccl_available")
-            and torch.distributed.is_nccl_available()
-        ):
-            backend = "nccl"
-        else:
-            backend = "gloo"
-
-        logger.info(f"Using distributed backend: {backend}")
-        dist.init_process_group(backend=backend)
+        dist.init_process_group(backend="nccl")
 
     logger.info(f"Training {cfg.run} on {cfg.device}")
     if os.environ.get("RANK", "0") == "0":
