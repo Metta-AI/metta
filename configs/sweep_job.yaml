@@ -10,22 +10,9 @@ defaults:
 cmd: sweep
 sweep_run: ???
 
-# Use default device (GPU if available, CPU as fallback)
-# device: cpu  # Uncomment for CPU-only training
-
 trainer:
-  # Longer training for overnight sweep - aim for meaningful learning
   total_timesteps: 5_000_000   # 5M timesteps for proper RL training (was 50k - too short!)
-  curriculum: /env/mettagrid/curriculum/arena
-  simulation:
-    evaluate_interval: 200
-    replay_interval: 50
-  checkpoint:
-    checkpoint_interval: 200
-    wandb_checkpoint_interval: 200
-  env_overrides:
-    game:
-      max_steps: 200
+
 
 sim:
   name: sweep_eval  # Required field
