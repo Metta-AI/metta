@@ -104,6 +104,9 @@ def validate_mapping_arrays(data: Dict[str, Any]):
     """Validate the mapping arrays."""
     mapping_arrays = ["type_names", "action_names", "item_names", "group_names"]
 
+    # Arrays that cannot contain dots
+    no_dot_arrays = ["type_names", "action_names", "item_names"]
+
     for array_name in mapping_arrays:
         if array_name not in data:
             add_error(f"Missing required mapping array: '{array_name}'")
@@ -115,6 +118,12 @@ def validate_mapping_arrays(data: Dict[str, Any]):
                 add_error(f"'{array_name}' must contain only strings")
             elif len(array) == 0:
                 add_warning(f"'{array_name}' is empty")
+            else:
+                # Check for dots in specific arrays
+                if array_name in no_dot_arrays:
+                    for i, name in enumerate(array):
+                        if "." in name:
+                            add_error(f"'{array_name}[{i}]' contains invalid character '.': '{name}'")
 
 
 def is_time_series(value: Any) -> bool:
@@ -141,8 +150,16 @@ def validate_time_series_value(
             add_error(f"{obj_prefix}: Position value at index {index} must be [x, y]")
         elif not all(isinstance(x, (int, float)) for x in value):
             add_error(f"{obj_prefix}: Position coordinates must be numbers")
-        elif value[0] < 0 or value[0] >= map_size[0] or value[1] < 0 or value[1] >= map_size[1]:
-            add_error(f"{obj_prefix}: Position {value} at index {index} is out of map bounds")
+        else:
+            x, y = value
+            if x < 0 or x >= map_size[0]:
+                add_error(
+                    f"{obj_prefix}: Position x={x} at time series index {index} is out of map bounds (0-{map_size[0] - 1})"
+                )
+            if y < 0 or y >= map_size[1]:
+                add_error(
+                    f"{obj_prefix}: Position y={y} at time series index {index} is out of map bounds (0-{map_size[1] - 1})"
+                )
 
     elif field == "inventory":
         if not isinstance(value, list):
@@ -263,6 +280,55 @@ def validate_constant(
                 elif item_id < 0 or item_id >= len(item_names):
                     add_error(f"{obj_prefix}: Item ID {item_id} in '{field}' is out of range")
 
+    elif field == "position":
+        # Validate constant position
+        if not isinstance(value, list) or len(value) != 2:
+            add_error(f"{obj_prefix}: Position must be [x, y]")
+        else:
+            x, y = value
+            if not isinstance(x, (int, float)) or not isinstance(y, (int, float)):
+                add_error(f"{obj_prefix}: Position coordinates must be numbers")
+            else:
+                if x < 0 or x >= map_size[0]:
+                    add_error(f"{obj_prefix}: Position x={x} is out of map bounds (0-{map_size[0] - 1})")
+                if y < 0 or y >= map_size[1]:
+                    add_error(f"{obj_prefix}: Position y={y} is out of map bounds (0-{map_size[1] - 1})")
+
+
+def get_expected_object_fields() -> set:
+    """Get the set of all expected object fields."""
+    return {
+        # Common fields
+        "type_id",
+        "id",
+        "position",
+        "layer",
+        "rotation",
+        "inventory",
+        "inventory_max",
+        # Agent-specific fields
+        "agent_id",
+        "action_id",
+        "action_parameter",
+        "action_success",
+        "total_reward",
+        "current_reward",
+        "frozen",
+        "frozen_progress",
+        "frozen_time",
+        "group_id",
+        # Object-specific fields
+        "recipe_input",
+        "recipe_output",
+        "recipe_max",
+        "production_progress",
+        "production_time",
+        "cooldown_progress",
+        "cooldown_time",
+        # Allow underscore-prefixed fields for metadata
+        "_comment",
+    }
+
 
 def validate_field(
     field: str,
@@ -276,6 +342,10 @@ def validate_field(
     max_steps: int,
 ):
     """Validate a single field value."""
+    # Skip validation for underscore-prefixed fields (metadata)
+    if field.startswith("_"):
+        return
+
     if is_time_series(value):
         validate_time_series(field, value, obj_prefix, map_size, max_steps, action_names, item_names, group_names)
     else:
@@ -331,6 +401,12 @@ def validate_object(
             if agent_id in agent_ids:
                 add_error(f"{obj_prefix}: Duplicate agent_id: {agent_id}")
             agent_ids.add(agent_id)
+
+    # Check for unexpected fields
+    expected_fields = get_expected_object_fields()
+    for field in obj:
+        if field not in expected_fields and not field.startswith("_"):
+            add_warning(f"{obj_prefix}: Unexpected field '{field}'")
 
     # Validate fields based on their type
     for field, value in obj.items():
@@ -419,6 +495,24 @@ def validate_replay(data: Dict[str, Any]):
     validate_mapping_arrays(data)
     validate_objects(data)
     validate_reward_sharing_matrix(data)
+
+    # Check for extra fields at the root level
+    expected_root_fields = {
+        "version",
+        "num_agents",
+        "max_steps",
+        "map_size",
+        "type_names",
+        "action_names",
+        "item_names",
+        "group_names",
+        "objects",
+        "reward_sharing_matrix",
+        "_comment",
+    }
+    for field in data:
+        if field not in expected_root_fields:
+            add_warning(f"Unexpected field at root level: '{field}'")
 
 
 def validate_file(file_path: str) -> bool:
