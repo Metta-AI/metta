@@ -193,7 +193,7 @@ class MettaRepo:
 
     async def _ensure_pool(self) -> AsyncConnectionPool:
         if self._pool is None:
-            self._pool = AsyncConnectionPool(self.db_uri, min_size=2, max_size=10, open=False)
+            self._pool = AsyncConnectionPool(self.db_uri, min_size=2, max_size=20, open=False)
             await self._pool.open()
         return self._pool
 
