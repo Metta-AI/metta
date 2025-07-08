@@ -1,4 +1,4 @@
-_target_: metta.mettagrid.curriculum.low_reward.LowRewardCurriculum
+_target_: metta.mettagrid.curriculum.learning_progress.LearningProgressCurriculum
 
 tasks:
   /env/mettagrid/operant_conditioning/1m3g_1blue_-1rg: 1
