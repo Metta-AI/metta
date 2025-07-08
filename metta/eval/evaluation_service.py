@@ -120,19 +120,14 @@ class EvaluationService:
         return EvaluationResults(
             policy_record=policy_pr,
             scores=scores,
-            replay_url=self.extract_replay_url(sim_results.stats_db),
+            replay_url=self.extract_replay_url(sim_results.stats_db, policy_pr),
         )
 
-    def extract_replay_url(self, stats_db: SimulationStatsDB) -> str | None:
-        replay_df = stats_db.query("""
-            SELECT replay_url
-            FROM episodes
-            WHERE replay_url IS NOT NULL
-            LIMIT 1
-        """)
-
-        if len(replay_df) > 0 and replay_df.iloc[0]["replay_url"]:
-            return replay_df.iloc[0]["replay_url"]
+    def extract_replay_url(self, stats_db: SimulationStatsDB, policy_pr: PolicyRecord) -> str | None:
+        key, version = stats_db.key_and_version(policy_pr)
+        replay_urls = stats_db.get_replay_urls(key, version)
+        if len(replay_urls) > 0:
+            return replay_urls[0]
         return None
 
     def extract_scores(self, stats_db: EvalStatsDB, policy_pr: PolicyRecord) -> EvaluationScores:
