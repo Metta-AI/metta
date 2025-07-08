@@ -192,6 +192,7 @@ def process_minibatch_update(
     agent_step: int,
     losses: Losses,
     device: torch.device,
+    minibatch_idx: int = 0,
 ) -> Tensor:
     """Process a single minibatch update and return the total loss."""
     obs = minibatch["obs"]
@@ -237,47 +238,50 @@ def process_minibatch_update(
 
     # Contrastive learning loss
     contrastive_loss = torch.tensor(0.0, device=device, dtype=torch.float32)
-    if contrastive_module is not None and hasattr(trainer_cfg, "contrastive") and trainer_cfg.contrastive.enabled:
-        # Check if both coefficients are zero to avoid unnecessary computation
-        if trainer_cfg.contrastive.loss_coef > 0 or trainer_cfg.contrastive.reward_coef > 0:
-            # Sample contrastive pairs
-            contrastive_pairs = experience.sample_contrastive_pairs(
-                minibatch["indices"],
-                trainer_cfg.contrastive.num_rollout_negatives,
-                trainer_cfg.contrastive.num_cross_rollout_negatives,
-            )
+    if (contrastive_module is not None and
+        hasattr(trainer_cfg, "contrastive") and
+        trainer_cfg.contrastive.enabled and
+        (trainer_cfg.contrastive.loss_coef > 0 or trainer_cfg.contrastive.reward_coef > 0) and
+        (minibatch_idx % trainer_cfg.contrastive.update_frequency == 0)):
 
-            # Get current LSTM states from minibatch
-            current_lstm_states = contrastive_pairs["lstm_states"][contrastive_pairs["current_indices"]]
+        # Sample contrastive pairs
+        contrastive_pairs = experience.sample_contrastive_pairs(
+            minibatch["indices"],
+            trainer_cfg.contrastive.num_rollout_negatives,
+            trainer_cfg.contrastive.num_cross_rollout_negatives,
+        )
 
-            # Sample positive and negative indices
-            positive_indices = contrastive_module.sample_future_indices(
-                contrastive_pairs["current_indices"],
-                experience.bptt_horizon,
-                contrastive_pairs["current_indices"].shape[0],
-            )
+        # Get current LSTM states from minibatch
+        current_lstm_states = contrastive_pairs["lstm_states"][contrastive_pairs["current_indices"]]
 
-            negative_indices = contrastive_module.sample_negative_indices(
-                contrastive_pairs["current_indices"],
-                trainer_cfg.contrastive.num_rollout_negatives,
-                trainer_cfg.contrastive.num_cross_rollout_negatives,
-                contrastive_pairs["current_indices"].shape[0],
-                experience.bptt_horizon,
-                experience.segments,
-            )
+        # Sample positive and negative indices
+        positive_indices = contrastive_module.sample_future_indices(
+            contrastive_pairs["current_indices"],
+            experience.bptt_horizon,
+            contrastive_pairs["current_indices"].shape[0],
+        )
 
-            # Compute contrastive loss
-            contrastive_loss, contrastive_metrics = contrastive_module.compute_infonce_loss(
-                current_lstm_states,
-                positive_indices,
-                negative_indices,
-                contrastive_pairs["lstm_states"],
-            )
+        negative_indices = contrastive_module.sample_negative_indices(
+            contrastive_pairs["current_indices"],
+            trainer_cfg.contrastive.num_rollout_negatives,
+            trainer_cfg.contrastive.num_cross_rollout_negatives,
+            contrastive_pairs["current_indices"].shape[0],
+            experience.bptt_horizon,
+            experience.segments,
+        )
 
-            # Add contrastive metrics to losses
-            for key, value in contrastive_metrics.items():
-                if hasattr(losses, key + "_sum"):
-                    setattr(losses, key + "_sum", getattr(losses, key + "_sum") + value)
+        # Compute contrastive loss
+        contrastive_loss, contrastive_metrics = contrastive_module.compute_infonce_loss(
+            current_lstm_states,
+            positive_indices,
+            negative_indices,
+            contrastive_pairs["lstm_states"],
+        )
+
+        # Add contrastive metrics to losses
+        for key, value in contrastive_metrics.items():
+            if hasattr(losses, key + "_sum"):
+                setattr(losses, key + "_sum", getattr(losses, key + "_sum") + value)
 
     # Total loss
     loss = (

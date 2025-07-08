@@ -22,6 +22,7 @@ trainer:
     logsumexp_coef: 0.01
     num_rollout_negatives: 4
     num_cross_rollout_negatives: 4
+    update_frequency: 2  # Only compute contrastive loss every 2 minibatches
   num_workers: 2
   cpu_offload: false
   bptt_horizon: 32

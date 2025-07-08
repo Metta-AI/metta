@@ -61,6 +61,8 @@ class ContrastiveConfig(BaseModelWithForbidExtra):
     num_rollout_negatives: int = Field(default=8, ge=0)
     # Number of negative samples from other rollouts
     num_cross_rollout_negatives: int = Field(default=8, ge=0)
+    # Frequency of contrastive learning updates (1 = every minibatch, 2 = every other minibatch, etc.)
+    update_frequency: int = Field(default=1, ge=1)
 
 
 class InitialPolicyConfig(BaseModelWithForbidExtra):

@@ -301,16 +301,14 @@ class Experience:
         Returns:
             Dictionary containing:
             - current_indices: Current state indices [batch_size]
-            - positive_indices: Positive future state indices [batch_size]
-            - negative_indices: Negative state indices [batch_size, num_negatives]
             - lstm_states: All LSTM states [total_states, hidden_size]
         """
         # Flatten minibatch indices to get current state indices
         batch_size = minibatch_indices.numel() * self.bptt_horizon
         current_indices = torch.arange(batch_size, device=self.device)
 
-        # Flatten all LSTM states for easy indexing
-        all_lstm_states = self.lstm_states.view(-1, self.lstm_states.shape[-1])
+        # Flatten all LSTM states for easy indexing - ensure it's contiguous for better performance
+        all_lstm_states = self.lstm_states.view(-1, self.lstm_states.shape[-1]).contiguous()
 
         return {
             "current_indices": current_indices,

@@ -543,6 +543,7 @@ class MettaTrainer:
                     agent_step=self.agent_step,
                     losses=self.losses,
                     device=self.device,
+                    minibatch_idx=minibatch_idx,
                 )
                 self.optimizer.zero_grad()
                 loss.backward()

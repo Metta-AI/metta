@@ -7,7 +7,6 @@ representations that are predictive of future states.
 
 from typing import Dict, Tuple
 
-import numpy as np
 import torch
 import torch.nn.functional as F
 from torch import Tensor
@@ -75,7 +74,7 @@ class ContrastiveLearning:
 
         return future_indices
 
-    def sample_negative_indices(
+    def sample_negative_indices_vectorized(
         self,
         current_indices: Tensor,
         num_rollout_negatives: int,
@@ -85,7 +84,7 @@ class ContrastiveLearning:
         num_segments: int,
     ) -> Tensor:
         """
-        Sample negative indices from within and across rollouts.
+        Vectorized version of negative sampling for better performance.
 
         Args:
             current_indices: Current timestep indices [batch_size]
@@ -102,97 +101,71 @@ class ContrastiveLearning:
         current_segments = current_indices // bptt_horizon
         current_timesteps = current_indices % bptt_horizon
 
-        negative_indices = []
+        total_negatives = num_rollout_negatives + num_cross_rollout_negatives
+        if total_negatives == 0:
+            return torch.empty(batch_size, 0, device=self.device, dtype=torch.long)
 
-        # Sample from same rollout (different timesteps)
+        negative_indices = torch.zeros(batch_size, total_negatives, device=self.device, dtype=torch.long)
+
+        # Sample from same rollout (different timesteps) - vectorized
         if num_rollout_negatives > 0:
             for i in range(batch_size):
-                segment = current_segments[i]
-                timestep = current_timesteps[i]
-
-                # Sample different timesteps from same segment
-                available_timesteps = list(range(bptt_horizon))
-                available_timesteps.remove(timestep.item())
-
-                if len(available_timesteps) >= num_rollout_negatives:
-                    rollout_negatives = torch.tensor(
-                        np.random.choice(available_timesteps, num_rollout_negatives, replace=False), device=self.device
-                    )
+                available_timesteps = torch.arange(bptt_horizon, device=self.device)
+                available_timesteps = available_timesteps[available_timesteps != current_timesteps[i]]
+                if len(available_timesteps) == 0:
+                    rollout_negatives = torch.full((num_rollout_negatives,), current_timesteps[i], device=self.device)
+                elif len(available_timesteps) >= num_rollout_negatives:
+                    rollout_negatives = available_timesteps[torch.randperm(len(available_timesteps))[:num_rollout_negatives]]
                 else:
-                    # If not enough timesteps, sample with replacement
-                    rollout_negatives = torch.tensor(
-                        np.random.choice(available_timesteps, num_rollout_negatives, replace=True), device=self.device
-                    )
+                    rollout_negatives = available_timesteps[torch.randint(0, len(available_timesteps), (num_rollout_negatives,))]
+                rollout_indices = current_segments[i] * bptt_horizon + rollout_negatives
+                negative_indices[i, :num_rollout_negatives] = rollout_indices
 
-                rollout_indices = segment * bptt_horizon + rollout_negatives
-
-                # Initialize combined negatives for this batch item
-                combined_negatives = [rollout_indices]
-
-                # Sample from other rollouts
-                if num_cross_rollout_negatives > 0:
-                    current_segment = current_segments[i]
-
-                    # Sample different segments
-                    available_segments = list(range(num_segments))
-                    available_segments.remove(current_segment.item())
-
-                    if len(available_segments) >= num_cross_rollout_negatives:
-                        cross_segments = torch.tensor(
-                            np.random.choice(available_segments, num_cross_rollout_negatives, replace=False),
-                            device=self.device,
-                        )
-                    else:
-                        # If not enough segments, sample with replacement
-                        cross_segments = torch.tensor(
-                            np.random.choice(available_segments, num_cross_rollout_negatives, replace=True),
-                            device=self.device,
-                        )
-
-                    # Sample random timesteps from those segments
-                    cross_timesteps = torch.randint(0, bptt_horizon, (num_cross_rollout_negatives,), device=self.device)
-                    cross_indices = cross_segments * bptt_horizon + cross_timesteps
-                    combined_negatives.append(cross_indices)
-
-                # Combine all negatives for this batch item
-                if len(combined_negatives) > 1:
-                    batch_negatives = torch.cat(combined_negatives)
+        # Sample from other rollouts - vectorized
+        if num_cross_rollout_negatives > 0:
+            cross_timesteps = torch.randint(0, bptt_horizon, (batch_size, num_cross_rollout_negatives), device=self.device)
+            for i in range(batch_size):
+                available_segments = torch.arange(num_segments, device=self.device)
+                available_segments = available_segments[available_segments != current_segments[i]]
+                if len(available_segments) == 0:
+                    cross_segments = torch.full((num_cross_rollout_negatives,), current_segments[i], device=self.device)
+                elif len(available_segments) >= num_cross_rollout_negatives:
+                    cross_segments = available_segments[torch.randperm(len(available_segments))[:num_cross_rollout_negatives]]
                 else:
-                    batch_negatives = combined_negatives[0]
+                    cross_segments = available_segments[torch.randint(0, len(available_segments), (num_cross_rollout_negatives,))]
+                cross_indices = cross_segments * bptt_horizon + cross_timesteps[i]
+                negative_indices[i, num_rollout_negatives:num_rollout_negatives+num_cross_rollout_negatives] = cross_indices
 
-                negative_indices.append(batch_negatives)
-        else:
-            # Only cross-rollout negatives
-            if num_cross_rollout_negatives > 0:
-                for i in range(batch_size):
-                    current_segment = current_segments[i]
+        return negative_indices
 
-                    # Sample different segments
-                    available_segments = list(range(num_segments))
-                    available_segments.remove(current_segment.item())
+    def sample_negative_indices(
+        self,
+        current_indices: Tensor,
+        num_rollout_negatives: int,
+        num_cross_rollout_negatives: int,
+        batch_size: int,
+        bptt_horizon: int,
+        num_segments: int,
+    ) -> Tensor:
+        """
+        Sample negative indices from within and across rollouts.
+        This is a wrapper that calls the optimized vectorized version.
 
-                    if len(available_segments) >= num_cross_rollout_negatives:
-                        cross_segments = torch.tensor(
-                            np.random.choice(available_segments, num_cross_rollout_negatives, replace=False),
-                            device=self.device,
-                        )
-                    else:
-                        # If not enough segments, sample with replacement
-                        cross_segments = torch.tensor(
-                            np.random.choice(available_segments, num_cross_rollout_negatives, replace=True),
-                            device=self.device,
-                        )
+        Args:
+            current_indices: Current timestep indices [batch_size]
+            num_rollout_negatives: Number of negative samples from same rollout
+            num_cross_rollout_negatives: Number of negative samples from other rollouts
+            batch_size: Size of the batch
+            bptt_horizon: BPTT horizon
+            num_segments: Number of segments in experience buffer
 
-                    # Sample random timesteps from those segments
-                    cross_timesteps = torch.randint(0, bptt_horizon, (num_cross_rollout_negatives,), device=self.device)
-                    cross_indices = cross_segments * bptt_horizon + cross_timesteps
-                    negative_indices.append(cross_indices)
-
-        # Combine all negatives
-        if negative_indices:
-            return torch.stack(negative_indices)  # [batch_size, num_negatives]
-        else:
-            return torch.empty(batch_size, 0, device=self.device, dtype=torch.long)
+        Returns:
+            Negative indices [batch_size, num_negatives]
+        """
+        return self.sample_negative_indices_vectorized(
+            current_indices, num_rollout_negatives, num_cross_rollout_negatives,
+            batch_size, bptt_horizon, num_segments
+        )
 
     def compute_infonce_loss(
         self,
@@ -217,7 +190,7 @@ class ContrastiveLearning:
         num_negatives = negative_indices.shape[1] if negative_indices.numel() > 0 else 0
 
         # Get positive and negative states
-        positive_states = all_lstm_states[positive_indices]  # [batch_size, hidden_size]
+        positive_states = all_lstm_states[positive_indices]
 
         if num_negatives > 0:
             # Flatten negative indices and get corresponding states
@@ -245,7 +218,7 @@ class ContrastiveLearning:
             negative_states_norm = F.normalize(negative_states, dim=-1)
 
         # Compute similarities
-        positive_sim = torch.sum(lstm_states_norm * positive_states_norm, dim=-1) / self.temperature  # [batch_size]
+        positive_sim = torch.sum(lstm_states_norm * positive_states_norm, dim=-1) / self.temperature
 
         if num_negatives > 0:
             # Compute similarities with negative states
