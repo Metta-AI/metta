@@ -30,14 +30,10 @@ public:
   virtual vector<PartialObservationToken> obs_features() const override {
     vector<PartialObservationToken> features;
     features.reserve(2);
-
-    PartialObservationToken new_token;
-    new_token.feature_id = ObservationFeature::TypeId;
-    new_token.value = static_cast<ObservationType>(this->type_id);
-    features.push_back(new_token);
+    features.push_back({ObservationFeature::TypeId, static_cast<ObservationType>(this->type_id)});
 
     if (_swappable) {
-      // Only emit the swappable token if it's swappable, to reduce the number of tokens.
+      // Only emit the swappable observation feature when True to reduce the number of tokens.
       features.push_back({ObservationFeature::Swappable, static_cast<ObservationType>(1)});
     }
 
