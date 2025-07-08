@@ -27,6 +27,7 @@
 #include "objects/production_handler.hpp"
 #include "objects/wall.hpp"
 #include "observation_encoder.hpp"
+#include "packed_coordinate.hpp"
 #include "stats_tracker.hpp"
 #include "types.hpp"
 
@@ -265,7 +266,9 @@ void MettaGrid::_compute_observation(unsigned int observer_row,
       {ObservationFeature::LastActionArg, static_cast<uint8_t>(action_arg)},
       {ObservationFeature::LastReward, static_cast<uint8_t>(reward_int)}};
   // Global tokens are always at the center of the observation.
-  uint8_t global_location = obs_height_radius << 4 | obs_width_radius;
+  uint8_t global_location =
+      PackedCoordinate::pack(static_cast<uint8_t>(obs_height_radius), static_cast<uint8_t>(obs_width_radius));
+
   attempted_tokens_written +=
       _obs_encoder->append_tokens_if_room_available(agent_obs_tokens, global_tokens, global_location);
   tokens_written = std::min(attempted_tokens_written, static_cast<size_t>(observation_view.shape(1)));
@@ -275,6 +278,7 @@ void MettaGrid::_compute_observation(unsigned int observer_row,
     for (unsigned int r = r_start; r < r_end; r++) {
       // In this row, there should be one or two columns that have the correct [L1] distance.
       unsigned int r_dist = std::abs(static_cast<int>(r) - static_cast<int>(observer_row));
+
       if (r_dist > distance) continue;
       int c_dist = distance - r_dist;
       // This is a bit ugly. We want to run over {c_dist, -c_dist}, but only do it once if c_dist == 0.
@@ -297,7 +301,8 @@ void MettaGrid::_compute_observation(unsigned int observer_row,
 
           int obs_r = object_loc.r + obs_height_radius - observer_row;
           int obs_c = object_loc.c + obs_width_radius - observer_col;
-          uint8_t location = obs_r << 4 | obs_c;
+
+          uint8_t location = PackedCoordinate::pack(obs_r, obs_c);
 
           attempted_tokens_written += _obs_encoder->encode_tokens(obj, agent_obs_tokens, location);
           tokens_written = std::min(attempted_tokens_written, static_cast<size_t>(observation_view.shape(1)));
@@ -714,6 +719,46 @@ const std::string& StatsTracker::inventory_item_name(InventoryItem item) const {
 PYBIND11_MODULE(mettagrid_c, m) {
   m.doc() = "MettaGrid environment";  // optional module docstring
 
+  // Create PackedCoordinate submodule
+  auto pc_m = m.def_submodule("PackedCoordinate", "Packed coordinate encoding utilities");
+
+  // Constants
+  pc_m.attr("MAX_PACKABLE_COORD") = PackedCoordinate::MAX_PACKABLE_COORD;
+
+  // Functions
+  pc_m.def("pack",
+           &PackedCoordinate::pack,
+           py::arg("row"),
+           py::arg("col"),
+           "Pack (row, col) coordinates into a single byte.\n\n"
+           "Args:\n"
+           "    row: Row coordinate (0-15)\n"
+           "    col: Column coordinate (0-15)\n\n"
+           "Returns:\n"
+           "    Packed byte value\n\n"
+           "Raises:\n"
+           "    ValueError: If row or col > 15");
+
+  pc_m.def(
+      "unpack",
+      [](uint8_t packed) -> py::object {
+        auto result = PackedCoordinate::unpack(packed);
+        if (result.has_value()) {
+          return py::make_tuple(result->first, result->second);
+        }
+        return py::none();
+      },
+      py::arg("packed"),
+      "Unpack byte into (row, col) tuple or None if empty.\n\n"
+      "Args:\n"
+      "    packed: Packed coordinate byte\n\n"
+      "Returns:\n"
+      "    tuple[int, int] | None: (row, col) or None if empty location");
+
+  pc_m.def(
+      "is_empty", &PackedCoordinate::is_empty, py::arg("packed"), "Check if packed value represents empty location.");
+
+  // MettaGrid class bindings
   py::class_<MettaGrid>(m, "MettaGrid")
       .def(py::init<const GameConfig&, const py::list&, int>())
       .def("reset", &MettaGrid::reset)
