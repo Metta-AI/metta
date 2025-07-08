@@ -83,7 +83,7 @@ def main(cfg: DictConfig) -> None:
             policy_results = evaluate_policy(
                 EvaluationJob.model_validate(
                     dict(
-                        policy_checkpoint_uri=pr.uri,
+                        policy_record=pr,
                         simulation_suite=sim_job.simulation_suite,
                         stats_dir=sim_job.stats_dir,
                         stats_db_uri=sim_job.stats_db_uri,
@@ -97,7 +97,14 @@ def main(cfg: DictConfig) -> None:
                     )
                 )
             )
-            results["checkpoints"].append(policy_results.model_dump())
+            results["checkpoints"].append(
+                {
+                    "name": pr.run_name,
+                    "uri": pr.uri,
+                    "metrics": policy_results.scores.model_dump(),
+                    "replay_url": policy_results.replay_url,
+                }
+            )
         all_results["policies"].append(results)
 
     # Always output JSON results to stdout
