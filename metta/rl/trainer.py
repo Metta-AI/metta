@@ -26,7 +26,7 @@ from metta.common.util.system_monitor import SystemMonitor
 from metta.common.wandb.wandb_context import WandbRun
 from metta.eval.eval_stats_db import EvalStatsDB
 from metta.mettagrid.curriculum.util import curriculum_from_config_path
-from metta.mettagrid.mettagrid_env import MettaGridEnv
+from metta.mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
 from metta.rl.experience import Experience
 from metta.rl.functions import (
     accumulate_rollout_stats,
@@ -37,8 +37,9 @@ from metta.rl.functions import (
     compute_advantage,
     compute_gradient_stats,
     get_lstm_config,
-    perform_rollout_step,
+    get_observation,
     process_minibatch_update,
+    run_policy_inference,
     validate_policy_environment_match,
 )
 from metta.rl.kickstarter import Kickstarter
@@ -436,9 +437,32 @@ class MettaTrainer:
                 )
 
             # Perform single rollout step
-            num_steps, info = perform_rollout_step(self.policy, self.vecenv, experience, self.device, self.timer)
-
+            # Receive environment data
+            o, r, d, t, info, training_env_id, mask, num_steps = get_observation(self.vecenv, self.device, self.timer)
             self.agent_step += num_steps
+
+            # Run policy inference
+            actions, selected_action_log_probs, values, lstm_state_to_store = run_policy_inference(
+                self.policy, o, experience, training_env_id.start, self.device
+            )
+
+            # Store experience
+            experience.store(
+                obs=o,
+                actions=actions,
+                logprobs=selected_action_log_probs,
+                rewards=r,
+                dones=d,
+                truncations=t,
+                values=values,
+                env_id=training_env_id,
+                mask=mask,
+                lstm_state=lstm_state_to_store,
+            )
+
+            # Send actions back to environment
+            with self.timer("_rollout.env"):
+                self.vecenv.send(actions.cpu().numpy().astype(dtype_actions))
 
             # Collect info for batch processing
             if info:

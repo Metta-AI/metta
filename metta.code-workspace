@@ -129,6 +129,10 @@
 			"valarray": "cpp",
 			"variant": "cpp",
 			"vector": "cpp",
+			"cinttypes": "cpp",
+			"csignal": "cpp",
+			"fstream": "cpp",
+			"future": "cpp"
 		}
 	}
 }
