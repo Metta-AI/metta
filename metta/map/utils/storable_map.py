@@ -9,11 +9,11 @@ from datetime import datetime
 from omegaconf import DictConfig, OmegaConf
 from typing_extensions import TypedDict
 
+from metta.common.util.instantiate import instantiate
 from metta.map.mapgen import MapGen
 from metta.map.types import MapGrid
 from metta.map.utils.ascii_grid import grid_to_lines, lines_to_grid
 from metta.map.utils.s3utils import list_objects
-from metta.mettagrid.map_builder_factory import MapBuilderFactory
 from metta.mettagrid.util import file as file_utils
 
 logger = logging.getLogger(__name__)
@@ -81,9 +81,9 @@ class StorableMap:
     def from_cfg(cfg: DictConfig) -> StorableMap:
         # Generate and measure time taken
         start = time.time()
-        # Convert DictConfig to dict for MapBuilderFactory
+        # Convert DictConfig to dict for instantiation
         cfg_dict = OmegaConf.to_container(cfg, resolve=True)
-        map_builder = MapBuilderFactory.create(cfg_dict, recursive=True)
+        map_builder = instantiate(cfg_dict, _recursive_=True)
         level = map_builder.build()
         gen_time = time.time() - start
         logger.info(f"Time taken to build map: {gen_time}s")

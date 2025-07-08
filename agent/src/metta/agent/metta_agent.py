@@ -8,11 +8,11 @@ from omegaconf import DictConfig, OmegaConf
 from torch import nn
 from torch.nn.parallel import DistributedDataParallel
 
-from metta.agent.component_factory import ComponentFactory
 from metta.agent.policy_state import PolicyState
 from metta.agent.util.debug import assert_shape
 from metta.agent.util.distribution_utils import evaluate_actions, sample_actions
 from metta.agent.util.safe_get import safe_get_from_obs_space
+from metta.common.util.instantiate import instantiate
 
 if TYPE_CHECKING:
     from metta.mettagrid.mettagrid_env import MettaGridEnv
@@ -125,8 +125,24 @@ class MettaAgent(nn.Module):
         for component_key in component_cfgs:
             # Convert key to string to ensure compatibility
             component_name = str(component_key)
-            component_cfgs[component_key]["name"] = component_name
-            component = ComponentFactory.create(component_name, component_cfgs[component_key], self.agent_attributes)
+
+            # Prepare component config
+            comp_config = dict(component_cfgs[component_key])
+
+            # Ensure nn_params is DictConfig for dual access
+            if (
+                "nn_params" in comp_config
+                and isinstance(comp_config["nn_params"], dict)
+                and not isinstance(comp_config["nn_params"], DictConfig)
+            ):
+                comp_config["nn_params"] = DictConfig(comp_config["nn_params"])
+
+            # Merge agent attributes and name
+            comp_config.update(self.agent_attributes)
+            comp_config["name"] = component_name
+
+            # Instantiate component
+            component = instantiate(comp_config)
             self.components[component_name] = component
 
         component = self.components["_value_"]
