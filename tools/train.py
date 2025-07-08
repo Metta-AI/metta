@@ -47,17 +47,16 @@ def train(cfg: ListConfig | DictConfig, wandb_run: WandbRun | None, logger: Logg
     policy_store = PolicyStore(cfg, wandb_run)
     stats_client: StatsClient | None = get_stats_client(cfg, logger)
 
-    # Instantiate the trainer directly with the typed config
-    trainer = hydra.utils.instantiate(
-        cfg.trainer,
-        cfg,
+    # Use the functional train interface directly
+    from metta.rl.trainer import train as functional_train
+
+    functional_train(
+        cfg=cfg,
         wandb_run=wandb_run,
         policy_store=policy_store,
         sim_suite_config=train_job.evals,
         stats_client=stats_client,
     )
-    trainer.train()
-    trainer.close()
 
 
 @hydra.main(config_path="../configs", config_name="train_job", version_base=None)

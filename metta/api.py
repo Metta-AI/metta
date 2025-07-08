@@ -10,6 +10,7 @@ This API exposes the core training components from Metta, allowing users to:
 
 import logging
 import os
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -1165,6 +1166,335 @@ def create_replay_config(terrain_dir: str = "varied_terrain/balanced_medium") ->
 
 
 # ============================================================================
+# Training State Management
+# ============================================================================
+
+
+@dataclass
+class TrainerState:
+    """Mutable state for training that gets passed between functions."""
+
+    agent_step: int = 0
+    epoch: int = 0
+    stats: Dict[str, Any] = field(default_factory=dict)
+    grad_stats: Dict[str, float] = field(default_factory=dict)
+    evals: Dict[str, float] = field(default_factory=dict)
+    latest_saved_policy_record: Optional[Any] = None
+    initial_policy_record: Optional[Any] = None
+    # Stats tracking
+    stats_epoch_start: int = 0
+    stats_epoch_id: Optional[Any] = None
+    stats_run_id: Optional[Any] = None
+
+
+@dataclass
+class TrainingComponents:
+    """Immutable components used throughout training."""
+
+    # Core components
+    vecenv: Any
+    policy: Any
+    optimizer: Any
+    experience: Any
+    kickstarter: Any
+    policy_store: Any
+    lr_scheduler: Optional[Any] = None
+
+    # Utilities
+    losses: Any = None
+    timer: Any = None
+    torch_profiler: Any = None
+    memory_monitor: Optional[Any] = None
+    system_monitor: Optional[Any] = None
+
+    # Configuration
+    cfg: Any = None
+    trainer_cfg: Any = None
+    sim_suite_config: Any = None
+
+    # External services
+    wandb_run: Optional[Any] = None
+    stats_client: Optional[Any] = None
+
+    # Distributed info
+    device: torch.device = torch.device("cuda")
+    is_master: bool = True
+    world_size: int = 1
+    rank: int = 0
+
+
+def create_training_components(
+    cfg: Any,
+    wandb_run: Optional[Any],
+    policy_store: Any,
+    sim_suite_config: Any,
+    stats_client: Optional[Any] = None,
+) -> Tuple[TrainingComponents, TrainerState]:
+    """Create training components from configuration, replacing MettaTrainer.__init__().
+
+    This function sets up all the components needed for training without using a class.
+    It returns both the immutable components and the mutable state.
+    """
+    from metta.agent.metta_agent import DistributedMettaAgent
+    from metta.common.profiling.memory_monitor import MemoryMonitor
+    from metta.common.profiling.stopwatch import Stopwatch
+    from metta.common.util.system_monitor import SystemMonitor
+    from metta.mettagrid.curriculum.util import curriculum_from_config_path
+    from metta.mettagrid.mettagrid_env import MettaGridEnv
+    from metta.rl.experience import Experience
+    from metta.rl.functions import calculate_batch_sizes, get_lstm_config, setup_distributed_vars
+    from metta.rl.kickstarter import Kickstarter
+    from metta.rl.losses import Losses
+    from metta.rl.torch_profiler import TorchProfiler
+    from metta.rl.trainer_checkpoint import TrainerCheckpoint
+    from metta.rl.trainer_config import parse_trainer_config
+    from metta.rl.vecenv import make_vecenv
+
+    logger.info(f"run_dir = {cfg.run_dir}")
+
+    trainer_cfg = parse_trainer_config(cfg)
+
+    # Set up distributed
+    is_master, world_size, rank = setup_distributed_vars()
+    device = torch.device(cfg.device) if isinstance(cfg.device, str) else cfg.device
+
+    # Create utilities
+    timer = Stopwatch(logger)
+    timer.start()
+    losses = Losses()
+    torch_profiler = TorchProfiler(is_master, trainer_cfg.profiler, wandb_run, cfg.run_dir)
+
+    memory_monitor = None
+    system_monitor = None
+    if is_master:
+        memory_monitor = MemoryMonitor()
+        system_monitor = SystemMonitor(
+            sampling_interval_sec=1.0,
+            history_size=100,
+            logger=logger,
+            auto_start=True,
+        )
+
+    # Create curriculum and vecenv
+    curriculum = curriculum_from_config_path(trainer_cfg.curriculum_or_env, DictConfig(trainer_cfg.env_overrides))
+
+    # Calculate batch sizes
+    num_agents = curriculum.get_task().env_cfg().game.num_agents
+    target_batch_size, batch_size, num_envs = calculate_batch_sizes(
+        trainer_cfg.forward_pass_minibatch_target_size,
+        num_agents,
+        trainer_cfg.num_workers,
+        trainer_cfg.async_factor,
+    )
+
+    vecenv = make_vecenv(
+        curriculum,
+        cfg.vectorization,
+        num_envs=num_envs,
+        batch_size=batch_size,
+        num_workers=trainer_cfg.num_workers,
+        zero_copy=trainer_cfg.zero_copy,
+        is_training=True,
+    )
+
+    seed = cfg.get("seed", np.random.randint(0, 1000000))
+    vecenv.async_reset(seed + rank)
+
+    metta_grid_env: MettaGridEnv = vecenv.driver_env
+
+    # Initialize state
+    state = TrainerState()
+
+    # Load checkpoint if exists
+    checkpoint = TrainerCheckpoint.load(cfg.run_dir)
+    if checkpoint:
+        state.agent_step = checkpoint.agent_step
+        state.epoch = checkpoint.epoch
+        logger.info(f"Restored from checkpoint at {state.agent_step} steps")
+        if checkpoint.stopwatch_state is not None:
+            timer.load_state(checkpoint.stopwatch_state, resume_running=True)
+
+    # Load or create policy
+    policy_record = _load_or_create_policy_functional(
+        checkpoint, policy_store, trainer_cfg, metta_grid_env, cfg, device, is_master, rank
+    )
+
+    state.initial_policy_record = policy_record
+    state.latest_saved_policy_record = policy_record
+    policy = policy_record.policy
+
+    # Initialize policy to environment
+    features = metta_grid_env.get_observation_features()
+    policy.initialize_to_environment(features, metta_grid_env.action_names, metta_grid_env.max_action_args, device)
+
+    if trainer_cfg.compile:
+        logger.info("Compiling policy")
+        policy = torch.compile(policy, mode=trainer_cfg.compile_mode)
+
+    # Create kickstarter
+    kickstarter = Kickstarter(
+        trainer_cfg.kickstart,
+        device,
+        policy_store,
+        metta_grid_env.action_names,
+        metta_grid_env.max_action_args,
+    )
+
+    # Wrap in DDP if distributed
+    if torch.distributed.is_initialized():
+        logger.info(f"Initializing DistributedDataParallel on device {device}")
+        policy = DistributedMettaAgent(policy, device)
+        torch.distributed.barrier()
+
+    # Create experience buffer
+    hidden_size, num_lstm_layers = get_lstm_config(policy)
+    experience = Experience(
+        total_agents=vecenv.num_agents,
+        batch_size=trainer_cfg.batch_size
+        if not trainer_cfg.scale_batches_by_world_size
+        else trainer_cfg.batch_size // world_size,
+        bptt_horizon=trainer_cfg.bptt_horizon,
+        minibatch_size=trainer_cfg.minibatch_size,
+        max_minibatch_size=trainer_cfg.minibatch_size,
+        obs_space=vecenv.single_observation_space,
+        atn_space=vecenv.single_action_space,
+        device=device,
+        hidden_size=hidden_size,
+        cpu_offload=trainer_cfg.cpu_offload,
+        num_lstm_layers=num_lstm_layers,
+        agents_per_batch=getattr(vecenv, "agents_per_batch", None),
+    )
+
+    # Create optimizer
+    optimizer = create_optimizer_functional(policy, trainer_cfg, device)
+
+    if checkpoint and checkpoint.optimizer_state_dict:
+        try:
+            optimizer.load_state_dict(checkpoint.optimizer_state_dict)
+            logger.info("Successfully loaded optimizer state from checkpoint")
+        except ValueError:
+            logger.warning("Optimizer state dict doesn't match. Starting with fresh optimizer state.")
+
+    # Create lr scheduler
+    lr_scheduler = None
+    if trainer_cfg.lr_scheduler.enabled:
+        lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+            optimizer, T_max=trainer_cfg.total_timesteps // trainer_cfg.batch_size
+        )
+
+    # Set up wandb metrics
+    if wandb_run and is_master:
+        metrics = ["agent_step", "epoch", "total_time", "train_time"]
+        for metric in metrics:
+            wandb_run.define_metric(f"metric/{metric}")
+        wandb_run.define_metric("*", step_metric="metric/agent_step")
+        wandb_run.define_metric("overview/reward_vs_total_time", step_metric="metric/total_time")
+
+    # Add memory monitor tracking
+    if is_master and memory_monitor:
+        memory_monitor.add(experience, name="Experience", track_attributes=True)
+        memory_monitor.add(policy, name="Policy", track_attributes=False)
+
+    components = TrainingComponents(
+        vecenv=vecenv,
+        policy=policy,
+        optimizer=optimizer,
+        experience=experience,
+        kickstarter=kickstarter,
+        policy_store=policy_store,
+        lr_scheduler=lr_scheduler,
+        losses=losses,
+        timer=timer,
+        torch_profiler=torch_profiler,
+        memory_monitor=memory_monitor,
+        system_monitor=system_monitor,
+        cfg=cfg,
+        trainer_cfg=trainer_cfg,
+        sim_suite_config=sim_suite_config,
+        wandb_run=wandb_run,
+        stats_client=stats_client,
+        device=device,
+        is_master=is_master,
+        world_size=world_size,
+        rank=rank,
+    )
+
+    return components, state
+
+
+def _load_or_create_policy_functional(
+    checkpoint: Optional[Any],
+    policy_store: Any,
+    trainer_cfg: Any,
+    metta_grid_env: Any,
+    cfg: Any,
+    device: torch.device,
+    is_master: bool,
+    rank: int,
+) -> Any:
+    """Load existing policy or create new one with distributed coordination."""
+    from metta.agent.metta_agent import make_policy
+    from metta.common.util.fs import wait_for_file
+
+    # Try to load from checkpoint or config
+    if checkpoint and checkpoint.policy_path:
+        logger.info(f"Loading policy from checkpoint: {checkpoint.policy_path}")
+        return policy_store.policy_record(checkpoint.policy_path)
+
+    if trainer_cfg.initial_policy and trainer_cfg.initial_policy.uri:
+        logger.info(f"Loading initial policy URI: {trainer_cfg.initial_policy.uri}")
+        return policy_store.policy_record(trainer_cfg.initial_policy.uri)
+
+    # Check for existing policy at default path
+    default_path = os.path.join(trainer_cfg.checkpoint.checkpoint_dir, policy_store.make_model_name(0))
+    if os.path.exists(default_path):
+        logger.info(f"Loading policy from default path: {default_path}")
+        return policy_store.policy_record(default_path)
+
+    # Create new policy
+    if torch.distributed.is_initialized() and not is_master:
+        # Non-master waits for master to create
+        logger.info(f"Rank {rank}: Waiting for master to create policy at {default_path}")
+        torch.distributed.barrier()
+
+        if not wait_for_file(default_path, timeout=300):
+            raise RuntimeError(f"Rank {rank}: Timeout waiting for policy at {default_path}")
+
+        return policy_store.policy_record(default_path)
+    else:
+        # Master creates new policy
+        name = policy_store.make_model_name(0)
+        pr = policy_store.create_empty_policy_record(name)
+        pr.policy = make_policy(metta_grid_env, cfg)
+        saved_pr = policy_store.save(pr)
+        logger.info(f"Created and saved new policy to {saved_pr.uri}")
+
+        if torch.distributed.is_initialized():
+            torch.distributed.barrier()
+
+        return saved_pr
+
+
+def create_optimizer_functional(policy: Any, trainer_cfg: Any, device: torch.device) -> Any:
+    """Create optimizer from config."""
+    from heavyball import ForeachMuon
+
+    optimizer_type = trainer_cfg.optimizer.type
+    assert optimizer_type in ("adam", "muon"), f"Optimizer type must be 'adam' or 'muon', got {optimizer_type}"
+
+    opt_cls = torch.optim.Adam if optimizer_type == "adam" else ForeachMuon
+    optimizer = opt_cls(
+        policy.parameters(),
+        lr=trainer_cfg.optimizer.learning_rate,
+        betas=(trainer_cfg.optimizer.beta1, trainer_cfg.optimizer.beta2),
+        eps=trainer_cfg.optimizer.eps,
+        weight_decay=trainer_cfg.optimizer.weight_decay,
+    )
+
+    return optimizer
+
+
+# ============================================================================
 # Export List
 # ============================================================================
 
@@ -1191,4 +1521,8 @@ __all__ = [
     # Evaluation/replay configuration
     "create_evaluation_config_suite",
     "create_replay_config",
+    # New training state management
+    "TrainerState",
+    "TrainingComponents",
+    "create_training_components",
 ]

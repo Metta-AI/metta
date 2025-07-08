@@ -548,3 +548,556 @@ def maybe_update_l2_weights(
         if isinstance(l2_interval, int) and l2_interval > 0:
             if hasattr(agent, "update_l2_init_weight_copy"):
                 agent.update_l2_init_weight_copy()
+
+
+# ============================================================================
+# High-Level Training Functions
+# ============================================================================
+
+
+def rollout(
+    vecenv: Any,
+    policy: Any,
+    experience: Any,
+    device: torch.device,
+    timer: Any,
+) -> Tuple[int, list]:
+    """Perform a complete rollout phase.
+
+    Returns:
+        Tuple of (total_steps, raw_infos)
+    """
+    raw_infos = []
+    experience.reset_for_rollout()
+    total_steps = 0
+
+    while not experience.ready_for_training:
+        # Get observation
+        o, r, d, t, info, training_env_id, mask, num_steps = get_observation(vecenv, device, timer)
+        total_steps += num_steps
+
+        # Run policy inference
+        actions, selected_action_log_probs, values, lstm_state_to_store = run_policy_inference(
+            policy, o, experience, training_env_id.start, device
+        )
+
+        # Store experience
+        experience.store(
+            obs=o,
+            actions=actions,
+            logprobs=selected_action_log_probs,
+            rewards=r,
+            dones=d,
+            truncations=t,
+            values=values,
+            env_id=training_env_id,
+            mask=mask,
+            lstm_state=lstm_state_to_store,
+        )
+
+        # Send actions to environment
+        with timer("_rollout.env"):
+            from metta.mettagrid.mettagrid_env import dtype_actions
+
+            vecenv.send(actions.cpu().numpy().astype(dtype_actions))
+
+        # Collect info
+        if info:
+            raw_infos.extend(info)
+
+    return total_steps, raw_infos
+
+
+def train_epoch(
+    policy: Any,
+    optimizer: Any,
+    experience: Any,
+    kickstarter: Any,
+    losses: Any,
+    trainer_cfg: Any,
+    agent_step: int,
+    epoch: int,
+    device: torch.device,
+) -> int:
+    """Perform training for one or more epochs on collected experience.
+
+    Returns:
+        Number of epochs trained
+    """
+    losses.zero()
+    experience.reset_importance_sampling_ratios()
+
+    # Calculate prioritized sampling parameters
+    anneal_beta = calculate_prioritized_sampling_params(
+        epoch=epoch,
+        total_timesteps=trainer_cfg.total_timesteps,
+        batch_size=trainer_cfg.batch_size,
+        prio_alpha=trainer_cfg.prioritized_experience_replay.prio_alpha,
+        prio_beta0=trainer_cfg.prioritized_experience_replay.prio_beta0,
+    )
+
+    # Compute initial advantages
+    advantages = torch.zeros(experience.values.shape, device=device)
+    initial_importance_sampling_ratio = torch.ones_like(experience.values)
+
+    advantages = compute_advantage(
+        experience.values,
+        experience.rewards,
+        experience.dones,
+        initial_importance_sampling_ratio,
+        advantages,
+        trainer_cfg.ppo.gamma,
+        trainer_cfg.ppo.gae_lambda,
+        trainer_cfg.vtrace.vtrace_rho_clip,
+        trainer_cfg.vtrace.vtrace_c_clip,
+        device,
+    )
+
+    # Train for multiple epochs
+    total_minibatches = experience.num_minibatches * trainer_cfg.update_epochs
+    minibatch_idx = 0
+    epochs_trained = 0
+
+    for _update_epoch in range(trainer_cfg.update_epochs):
+        for _ in range(experience.num_minibatches):
+            # Sample minibatch
+            minibatch = experience.sample_minibatch(
+                advantages=advantages,
+                prio_alpha=trainer_cfg.prioritized_experience_replay.prio_alpha,
+                prio_beta=anneal_beta,
+                minibatch_idx=minibatch_idx,
+                total_minibatches=total_minibatches,
+            )
+
+            # Process minibatch
+            loss = process_minibatch_update(
+                policy=policy,
+                experience=experience,
+                minibatch=minibatch,
+                advantages=advantages,
+                trainer_cfg=trainer_cfg,
+                kickstarter=kickstarter,
+                agent_step=agent_step,
+                losses=losses,
+                device=device,
+            )
+
+            # Optimizer step
+            optimizer.zero_grad()
+            loss.backward()
+
+            if (minibatch_idx + 1) % experience.accumulate_minibatches == 0:
+                torch.nn.utils.clip_grad_norm_(policy.parameters(), trainer_cfg.ppo.max_grad_norm)
+                optimizer.step()
+
+                # Optional weight clipping
+                if hasattr(policy, "clip_weights") and trainer_cfg.get("agent", {}).get("clip_range", 0) > 0:
+                    policy.clip_weights()
+
+                if str(device).startswith("cuda"):
+                    torch.cuda.synchronize()
+
+            minibatch_idx += 1
+
+        epochs_trained += 1
+
+        # Early exit if KL divergence is too high
+        if trainer_cfg.ppo.target_kl is not None:
+            average_approx_kl = losses.approx_kl_sum / losses.minibatches_processed
+            if average_approx_kl > trainer_cfg.ppo.target_kl:
+                break
+
+    # Calculate explained variance
+    losses.explained_variance = calculate_explained_variance(experience.values, advantages)
+
+    return epochs_trained
+
+
+def process_stats(
+    stats: Dict[str, Any],
+    losses: Any,
+    evals: Dict[str, float],
+    grad_stats: Dict[str, float],
+    experience: Any,
+    policy: Any,
+    timer: Any,
+    trainer_cfg: Any,
+    agent_step: int,
+    epoch: int,
+    world_size: int,
+    wandb_run: Optional[Any],
+    memory_monitor: Optional[Any],
+    system_monitor: Optional[Any],
+    latest_saved_policy_record: Optional[Any],
+    initial_policy_record: Optional[Any],
+    optimizer: Optional[Any] = None,
+) -> None:
+    """Process and log statistics to wandb."""
+    if not wandb_run:
+        return
+
+    # Convert lists to means
+    mean_stats = {}
+    for k, v in stats.items():
+        try:
+            mean_stats[k] = np.mean(v)
+        except (TypeError, ValueError) as e:
+            raise RuntimeError(
+                f"Cannot compute mean for stat '{k}' with value {v!r} (type: {type(v)}). "
+                f"All collected stats must be numeric values or lists of numeric values. "
+                f"Error: {e}"
+            ) from e
+
+    # Weight stats
+    weight_stats = {}
+    if hasattr(trainer_cfg, "agent") and trainer_cfg.agent.get("analyze_weights_interval", 0) != 0:
+        if epoch % trainer_cfg.agent.analyze_weights_interval == 0:
+            for metrics in policy.compute_weight_metrics():
+                name = metrics.get("name", "unknown")
+                for key, value in metrics.items():
+                    if key != "name":
+                        weight_stats[f"weights/{key}/{name}"] = value
+
+    # Timing stats
+    elapsed_times = timer.get_all_elapsed()
+    wall_time = timer.get_elapsed()
+    train_time = elapsed_times.get("_rollout", 0) + elapsed_times.get("_train", 0)
+
+    lap_times = timer.lap_all(agent_step, exclude_global=False)
+    wall_time_for_lap = lap_times.pop("global", 0)
+
+    # Metrics
+    metric_stats = {
+        "metric/agent_step": agent_step * world_size,
+        "metric/epoch": epoch,
+        "metric/total_time": wall_time,
+        "metric/train_time": train_time,
+    }
+
+    epoch_steps = timer.get_lap_steps()
+    assert epoch_steps is not None
+
+    epoch_steps_per_second = epoch_steps / wall_time_for_lap if wall_time_for_lap > 0 else 0
+    steps_per_second = timer.get_rate(agent_step) if wall_time > 0 else 0
+
+    epoch_steps_per_second *= world_size
+    steps_per_second *= world_size
+
+    timing_stats = {
+        **{
+            f"timing_per_epoch/frac/{op}": lap_elapsed / wall_time_for_lap if wall_time_for_lap > 0 else 0
+            for op, lap_elapsed in lap_times.items()
+        },
+        **{
+            f"timing_per_epoch/msec/{op}": lap_elapsed * 1000 if wall_time_for_lap > 0 else 0
+            for op, lap_elapsed in lap_times.items()
+        },
+        "timing_per_epoch/sps": epoch_steps_per_second,
+        **{
+            f"timing_cumulative/frac/{op}": elapsed / wall_time if wall_time > 0 else 0
+            for op, elapsed in elapsed_times.items()
+        },
+        "timing_cumulative/sps": steps_per_second,
+    }
+
+    environment_stats = {f"env_{k.split('/')[0]}/{'/'.join(k.split('/')[1:])}": v for k, v in mean_stats.items()}
+
+    # Overview
+    overview = {"sps": epoch_steps_per_second}
+
+    # Calculate average reward
+    task_reward_values = [v for k, v in environment_stats.items() if k.startswith("env_task_reward")]
+    if task_reward_values:
+        mean_reward = sum(task_reward_values) / len(task_reward_values)
+        overview["reward"] = mean_reward
+        overview["reward_vs_total_time"] = mean_reward
+
+    # Include custom stats from trainer config
+    if hasattr(trainer_cfg, "stats") and hasattr(trainer_cfg.stats, "overview"):
+        for k, v in trainer_cfg.stats.overview.items():
+            if k in mean_stats:
+                overview[v] = mean_stats[k]
+
+    # Category scores
+    category_scores_map = {key.split("/")[0]: value for key, value in evals.items() if key.endswith("/score")}
+    for category, score in category_scores_map.items():
+        overview[f"{category}_score"] = score
+
+    # Losses
+    losses_dict = losses.stats()
+
+    # Don't plot unused losses
+    if trainer_cfg.ppo.l2_reg_loss_coef == 0:
+        losses_dict.pop("l2_reg_loss", None)
+    if trainer_cfg.ppo.l2_init_loss_coef == 0:
+        losses_dict.pop("l2_init_loss", None)
+    if not hasattr(trainer_cfg, "kickstart") or not trainer_cfg.kickstart.get("enabled", True):
+        losses_dict.pop("ks_action_loss", None)
+        losses_dict.pop("ks_value_loss", None)
+
+    # Parameters
+    parameters = {
+        "learning_rate": optimizer.param_groups[0]["lr"] if hasattr(trainer_cfg, "optimizer") else 0,
+        "epoch_steps": epoch_steps,
+        "num_minibatches": experience.num_minibatches,
+        "generation": initial_policy_record.metadata.get("generation", 0) + 1 if initial_policy_record else 0,
+        "latest_saved_policy_epoch": latest_saved_policy_record.metadata.epoch if latest_saved_policy_record else 0,
+    }
+
+    # System monitoring
+    monitor_stats = {}
+    if system_monitor:
+        monitor_stats = system_monitor.stats()
+
+    memory_stats = {}
+    if memory_monitor:
+        memory_stats = memory_monitor.stats()
+
+    # Log everything
+    wandb_run.log(
+        {
+            **{f"overview/{k}": v for k, v in overview.items()},
+            **{f"losses/{k}": v for k, v in losses_dict.items()},
+            **{f"experience/{k}": v for k, v in experience.stats().items()},
+            **{f"parameters/{k}": v for k, v in parameters.items()},
+            **{f"eval_{k}": v for k, v in evals.items()},
+            **{f"monitor/{k}": v for k, v in monitor_stats.items()},
+            **{f"trainer_memory/{k}": v for k, v in memory_stats.items()},
+            **environment_stats,
+            **weight_stats,
+            **timing_stats,
+            **metric_stats,
+            **grad_stats,
+        },
+        step=agent_step,
+    )
+
+
+def evaluate_policy(
+    policy_record: Any,
+    policy_store: Any,
+    sim_suite_config: Any,
+    stats_client: Optional[Any],
+    stats_run_id: Optional[Any],
+    stats_epoch_start: int,
+    epoch: int,
+    device: torch.device,
+    vectorization: str,
+    wandb_policy_name: Optional[str] = None,
+) -> Tuple[Dict[str, float], Optional[Any]]:
+    """Evaluate policy and return scores.
+
+    Returns:
+        Tuple of (eval_scores, stats_epoch_id)
+    """
+    from metta.common.util.heartbeat import record_heartbeat
+    from metta.eval.eval_stats_db import EvalStatsDB
+    from metta.sim.simulation_suite import SimulationSuite
+
+    stats_epoch_id = None
+    if stats_run_id is not None and stats_client is not None:
+        stats_epoch_id = stats_client.create_epoch(
+            run_id=stats_run_id,
+            start_training_epoch=stats_epoch_start,
+            end_training_epoch=epoch,
+            attributes={},
+        ).id
+
+    logger.info(f"Simulating policy: {policy_record.uri} with config: {sim_suite_config}")
+
+    sim_suite = SimulationSuite(
+        config=sim_suite_config,
+        policy_pr=policy_record,
+        policy_store=policy_store,
+        device=device,
+        vectorization=vectorization,
+        stats_dir="/tmp/stats",
+        stats_client=stats_client,
+        stats_epoch_id=stats_epoch_id,
+        wandb_policy_name=wandb_policy_name,
+    )
+
+    result = sim_suite.simulate()
+    stats_db = EvalStatsDB.from_sim_stats_db(result.stats_db)
+    logger.info("Simulation complete")
+
+    # Build evaluation metrics
+    eval_scores = {}
+    categories = set()
+    for sim_name in sim_suite_config.simulations.keys():
+        categories.add(sim_name.split("/")[0])
+
+    for category in categories:
+        score = stats_db.get_average_metric_by_filter("reward", policy_record, f"sim_name LIKE '%{category}%'")
+        logger.info(f"{category} score: {score}")
+        record_heartbeat()
+        if score is not None:
+            eval_scores[f"{category}/score"] = score
+
+    # Get detailed per-simulation scores
+    all_scores = stats_db.simulation_scores(policy_record, "reward")
+    for (_, sim_name, _), score in all_scores.items():
+        category = sim_name.split("/")[0]
+        sim_short_name = sim_name.split("/")[-1]
+        eval_scores[f"{category}/{sim_short_name}"] = score
+
+    stats_db.close()
+    return eval_scores, stats_epoch_id
+
+
+def generate_replay(
+    policy_record: Any,
+    policy_store: Any,
+    curriculum: Any,
+    epoch: int,
+    device: torch.device,
+    vectorization: str,
+    replay_dir: str,
+    wandb_run: Optional[Any] = None,
+) -> None:
+    """Generate and upload replay."""
+    from metta.sim.simulation import Simulation
+    from metta.sim.simulation_config import SingleEnvSimulationConfig
+
+    replay_sim_config = SingleEnvSimulationConfig(
+        env="/env/mettagrid/mettagrid",
+        num_episodes=1,
+        env_overrides=curriculum.get_task().env_cfg(),
+    )
+
+    replay_simulator = Simulation(
+        name=f"replay_{epoch}",
+        config=replay_sim_config,
+        policy_pr=policy_record,
+        policy_store=policy_store,
+        device=device,
+        vectorization=vectorization,
+        replay_dir=replay_dir,
+    )
+
+    results = replay_simulator.simulate()
+
+    if wandb_run is not None:
+        key, version = results.stats_db.key_and_version(policy_record)
+        replay_urls = results.stats_db.get_replay_urls(key, version)
+        if len(replay_urls) > 0:
+            replay_url = replay_urls[0]
+            player_url = f"https://metta-ai.github.io/metta/?replayUrl={replay_url}"
+            import wandb
+
+            link_summary = {"replays/link": wandb.Html(f'<a href="{player_url}">MetaScope Replay (Epoch {epoch})</a>')}
+            wandb_run.log(link_summary)
+
+    results.stats_db.close()
+
+
+def save_policy_with_metadata(
+    policy: Any,
+    policy_store: Any,
+    epoch: int,
+    agent_step: int,
+    evals: Dict[str, float],
+    timer: Any,
+    vecenv: Any,
+    initial_policy_record: Optional[Any],
+    run_name: str,
+    is_master: bool = True,
+) -> Optional[Any]:
+    """Save policy with metadata.
+
+    Returns:
+        Saved policy record or None if not master
+    """
+    if not is_master:
+        return None
+
+    from metta.agent.metta_agent import DistributedMettaAgent
+    from metta.agent.policy_metadata import PolicyMetadata
+    from metta.mettagrid.mettagrid_env import MettaGridEnv
+
+    name = policy_store.make_model_name(epoch)
+
+    metta_grid_env: MettaGridEnv = vecenv.driver_env
+    assert isinstance(metta_grid_env, MettaGridEnv), "vecenv.driver_env must be a MettaGridEnv"
+
+    training_time = timer.get_elapsed("_rollout") + timer.get_elapsed("_train")
+
+    category_scores_map = {key.split("/")[0]: value for key, value in evals.items() if key.endswith("/score")}
+    category_score_values = [v for k, v in category_scores_map.items()]
+    overall_score = sum(category_score_values) / len(category_score_values) if category_score_values else 0
+
+    metadata = PolicyMetadata(
+        agent_step=agent_step,
+        epoch=epoch,
+        run=run_name,
+        action_names=metta_grid_env.action_names,
+        generation=initial_policy_record.metadata.get("generation", 0) + 1 if initial_policy_record else 0,
+        initial_uri=initial_policy_record.uri if initial_policy_record else None,
+        train_time=training_time,
+        score=overall_score,
+        eval_scores=category_scores_map,
+    )
+
+    # Extract actual policy from distributed wrapper
+    policy_to_save = policy
+    if isinstance(policy, DistributedMettaAgent):
+        policy_to_save = policy.module
+
+    # Save original feature mapping
+    if hasattr(policy_to_save, "get_original_feature_mapping"):
+        original_feature_mapping = policy_to_save.get_original_feature_mapping()
+        if original_feature_mapping is not None:
+            metadata["original_feature_mapping"] = original_feature_mapping
+            logger.info(f"Saving original_feature_mapping with {len(original_feature_mapping)} features to metadata")
+
+    # Create and save policy record
+    policy_record = policy_store.create_empty_policy_record(name)
+    policy_record.metadata = metadata
+    policy_record.policy = policy_to_save
+
+    saved_record = policy_store.save(policy_record)
+    logger.info(f"Successfully saved policy at epoch {epoch}")
+
+    return saved_record
+
+
+def save_training_state(
+    checkpoint_dir: str,
+    agent_step: int,
+    epoch: int,
+    optimizer: Any,
+    timer: Any,
+    latest_saved_policy_uri: Optional[str],
+    kickstarter: Any,
+    world_size: int,
+    is_master: bool = True,
+) -> None:
+    """Save training checkpoint state.
+
+    Only master saves, but all ranks should call this for distributed sync.
+    """
+    if not is_master:
+        if torch.distributed.is_initialized():
+            torch.distributed.barrier()
+        return
+
+    from metta.rl.trainer_checkpoint import TrainerCheckpoint
+
+    extra_args = {}
+    if kickstarter.enabled and kickstarter.teacher_uri is not None:
+        extra_args["teacher_pr_uri"] = kickstarter.teacher_uri
+
+    checkpoint = TrainerCheckpoint(
+        agent_step=agent_step,
+        epoch=epoch,
+        total_agent_step=agent_step * world_size,
+        optimizer_state_dict=optimizer.state_dict(),
+        stopwatch_state=timer.save_state(),
+        policy_path=latest_saved_policy_uri,
+        extra_args=extra_args,
+    )
+    checkpoint.save(checkpoint_dir)
+    logger.info(f"Saved training state at epoch {epoch}")
+
+    if torch.distributed.is_initialized():
+        torch.distributed.barrier()
