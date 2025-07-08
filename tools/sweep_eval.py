@@ -12,12 +12,7 @@ import sys
 import time
 
 import hydra
-<<<<<<< HEAD
-import yaml
 from omegaconf import DictConfig, OmegaConf
-=======
-from omegaconf import DictConfig, ListConfig, OmegaConf
->>>>>>> d8cb808810 (fix: simplify rollout_count handling in sweep.sh per review feedback)
 
 from metta.agent.policy_store import PolicyStore
 from metta.common.util.script_decorators import get_metta_logger, metta_script
@@ -103,21 +98,14 @@ def main(cfg: DictConfig) -> int:
         # Start evaluation
         eval_start_time = time.time()
 
-<<<<<<< HEAD
         logger.info(f"Evaluating policy {policy_pr.run_name}")
-=======
->>>>>>> d8cb808810 (fix: simplify rollout_count handling in sweep.sh per review feedback)
+
         log_file(cfg.run_dir, "sweep_eval_config.yaml", cfg, wandb_run)
 
         results = eval.simulate()
         eval_time = time.time() - eval_start_time
         eval_stats_db = EvalStatsDB.from_sim_stats_db(results.stats_db)
-<<<<<<< HEAD
-        result = eval_stats_db.get_average_metric_by_filter(cfg.metric, policy_pr)
-        eval_metric = result if result is not None else float("nan")
-=======
         eval_metric = eval_stats_db.get_average_metric_by_filter(cfg.sweep.metric, policy_pr)
->>>>>>> d8cb808810 (fix: simplify rollout_count handling in sweep.sh per review feedback)
 
         # Get training stats from metadata if available
         train_time = policy_pr.metadata.get("train_time", 0)
@@ -142,14 +130,9 @@ def main(cfg: DictConfig) -> int:
             sweep_stats["lineage." + stat] = sweep_stats[stat] + policy_pr.metadata.get("lineage." + stat, 0)
 
         # Update wandb summary
-<<<<<<< HEAD
         if wandb_run:
             wandb_run.summary.update(sweep_stats)
         logger.info("Sweep Stats: \n" + json.dumps({k: str(v) for k, v in sweep_stats.items()}, indent=4))
-=======
-        # TODO: Is this correct?
-        wandb_run.summary.update(sweep_stats)
->>>>>>> d8cb808810 (fix: simplify rollout_count handling in sweep.sh per review feedback)
 
         # Update policy metadata
         policy_pr.metadata.update(
@@ -173,13 +156,9 @@ def main(cfg: DictConfig) -> int:
         if os.environ.get("NODE_INDEX", "0") == "0":
             OmegaConf.save({"eval_metric": eval_metric, "total_time": total_time}, results_path)
 
-<<<<<<< HEAD
         if wandb_run:
             wandb_run.summary.update({"run_time": total_time})
-=======
-        wandb_run.summary.update({"run_time": total_time})
         logger.info(f"Evaluation complete for run: {cfg.run}, score: {eval_metric}")
->>>>>>> d8cb808810 (fix: simplify rollout_count handling in sweep.sh per review feedback)
         return 0
 
 
