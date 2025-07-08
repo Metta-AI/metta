@@ -191,7 +191,8 @@ def process_minibatch_update(
     )
 
     # Kickstarter losses
-    ks_action_loss, ks_value_loss = kickstarter.loss(agent_step, full_logprobs, newvalue, obs, teacher_lstm_state=[])
+    ks_action_loss, ks_value_loss = kickstarter.loss(agent_step, full_logprobs, newvalue, obs, teacher_lstm_state=[],
+                                                     action=minibatch["actions"]) # delete action
 
     # L2 init loss
     l2_init_loss = torch.tensor(0.0, device=device, dtype=torch.float32)

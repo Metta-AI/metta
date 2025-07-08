@@ -405,7 +405,7 @@ class MettaAgent(nn.Module):
             assert_shape(log_probs, ("BT", "A"), "training_log_probs")
             assert_shape(action, ("B", "T", 2), "training_output_action")
 
-        return action, action_log_prob, entropy, value, log_probs
+        return action, action_log_prob, entropy, value, logits  # log_probs
 
     def forward(
         self, x: torch.Tensor, state: PolicyState, action: Optional[torch.Tensor] = None

@@ -61,12 +61,10 @@ class Kickstarter:
         self._load_policies()
 
     def _load_policies(self) -> None:
-        self.teachers: list[nn.Module] = []
+        self.teachers: list[dict] = []
         for teacher_cfg in self.teacher_cfgs or []:
             policy_record = self.policy_store.policy_record(teacher_cfg.teacher_uri)
             policy: nn.Module = policy_record.policy
-            policy.action_loss_coef = teacher_cfg.action_loss_coef
-            policy.value_loss_coef = teacher_cfg.value_loss_coef
             # Support both new and old initialization methods
             # if hasattr(policy, "initialize_to_environment"):
             #     # Note: We don't have features here, so we pass None
@@ -74,15 +72,23 @@ class Kickstarter:
             #     policy.initialize_to_environment(None, self.action_names, self.action_max_params, self.device)
             # else:
             policy.activate_actions(self.action_names, self.action_max_params, self.device)
-            self.teachers.append(policy)
+            self.teachers.append(
+                {
+                    "policy": policy,
+                    "action_loss_coef": teacher_cfg.action_loss_coef,
+                    "value_loss_coef": teacher_cfg.value_loss_coef,
+                }
+            )
 
     def loss(
         self,
         agent_step: int,
-        student_normalized_logits: Tensor,
+        student_logits: Tensor,
+        # student_normalized_logits: Tensor,
         student_value: Tensor,
         o: Tensor,  # Observation tensor
         teacher_lstm_state: List[PolicyState],
+        action: Tensor,
     ) -> tuple[Tensor, Tensor]:
         ks_value_loss = torch.tensor(0.0, device=self.device, dtype=torch.float32)
         ks_action_loss = torch.tensor(0.0, device=self.device, dtype=torch.float32)
@@ -98,17 +104,23 @@ class Kickstarter:
         if len(teacher_lstm_state) == 0:
             teacher_lstm_state = [PolicyState() for _ in range(len(self.teachers))]
 
-        for i, teacher in enumerate(self.teachers):
-            teacher_value, teacher_normalized_logits = self._forward(teacher, o, teacher_lstm_state[i])
-            ks_action_loss -= (teacher_normalized_logits.exp() * student_normalized_logits).sum(dim=-1).mean()
-            ks_action_loss *= teacher.action_loss_coef * self.anneal_factor
+        for i, teacher_data in enumerate(self.teachers):
+            teacher = teacher_data["policy"]
+            teacher_value, teacher_logits = self._forward(teacher, o, teacher_lstm_state[i], action)
+            # MSE loss between student and teacher logits
+            action_loss = torch.nn.functional.mse_loss(student_logits, teacher_logits)
+            ks_action_loss += action_loss * teacher_data["action_loss_coef"] * self.anneal_factor
 
             ks_value_loss += (
-                ((teacher_value.squeeze() - student_value) ** 2).mean() * teacher.value_loss_coef * self.anneal_factor
+                ((teacher_value.squeeze() - student_value) ** 2).mean()
+                * teacher_data["value_loss_coef"]
+                * self.anneal_factor
             )
 
         return ks_action_loss, ks_value_loss
 
-    def _forward(self, teacher, o, teacher_lstm_state: PolicyState):
-        _, _, _, value, norm_logits = teacher(o, teacher_lstm_state)
-        return value, norm_logits
+    def _forward(self, teacher, o, teacher_lstm_state: PolicyState, action: Tensor):
+        # _, _, _, value, norm_logits = teacher(o, teacher_lstm_state)
+        # return value, norm_logits
+        _, _, _, value, logits = teacher(o, teacher_lstm_state, action=action)
+        return value, logits
