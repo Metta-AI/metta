@@ -1,6 +1,3 @@
-import ast
-import json
-import re
 from typing import Any, List, Tuple, Union
 
 
@@ -57,8 +54,6 @@ def parse_arguments(arguments: str) -> List[str]:
     current_token = ""
     in_quotes = None
     escape_next = False
-    brace_depth = 0  # Track { } nesting
-    bracket_depth = 0  # Track [ ] nesting
     i = 0
 
     while i < len(arguments):
@@ -87,27 +82,11 @@ def parse_arguments(arguments: str) -> List[str]:
         elif char == in_quotes:
             in_quotes = None
             current_token += char  # Keep the quote
-        elif not in_quotes:
-            # Track brace/bracket depth when not in quotes
-            if char == "{":
-                brace_depth += 1
-                current_token += char
-            elif char == "}":
-                brace_depth -= 1
-                current_token += char
-            elif char == "[":
-                bracket_depth += 1
-                current_token += char
-            elif char == "]":
-                bracket_depth -= 1
-                current_token += char
-            elif char.isspace() and brace_depth == 0 and bracket_depth == 0:
-                # Only split on whitespace when not inside braces/brackets
-                if current_token:
-                    tokens.append(current_token)
-                    current_token = ""
-            else:
-                current_token += char
+        elif not in_quotes and char.isspace():
+            # Split on whitespace when not in quotes
+            if current_token:
+                tokens.append(current_token)
+                current_token = ""
         else:
             current_token += char
 
@@ -119,10 +98,6 @@ def parse_arguments(arguments: str) -> List[str]:
     # Check for parsing errors
     if in_quotes:
         raise CommanderError(f"Unclosed quote: {in_quotes}")
-    if brace_depth != 0:
-        raise CommanderError(f"Unmatched braces: depth={brace_depth}")
-    if bracket_depth != 0:
-        raise CommanderError(f"Unmatched brackets: depth={bracket_depth}")
 
     return tokens
 
@@ -210,10 +185,6 @@ def parse_value(value_str: str) -> Any:
             raise CommanderError(f"Invalid quoted string: {value_str}")
         # Remove quotes and handle escapes
         return parse_quoted_string(value_str[1:-1])
-
-    # Handle JSON-like values
-    if value_str.startswith("{") or value_str.startswith("["):
-        return parse_json5(value_str)
 
     # Handle boolean literals
     if value_str.lower() == "true":
@@ -340,59 +311,6 @@ def parse_number(s: str) -> Union[int, float]:
         return float(s)
     else:
         return int(s)
-
-
-def parse_json5(s: str) -> Any:
-    """Parse JSON5-like syntax (relaxed JSON)."""
-    if not s.strip():
-        raise CommanderError("Empty JSON value")
-
-    # First try standard JSON
-    try:
-        return json.loads(s)
-    except json.JSONDecodeError:
-        pass
-
-    # JSON5 relaxations - be more careful about the transformations
-    relaxed = s.strip()
-
-    # Basic validation
-    if not ((relaxed.startswith("{") and relaxed.endswith("}")) or (relaxed.startswith("[") and relaxed.endswith("]"))):
-        raise CommanderError(f"JSON value must start and end with matching braces/brackets: {s}")
-
-    # Convert single quotes to double quotes (simple approach)
-    if "'" in relaxed:
-        parts = []
-        i = 0
-        in_double_quotes = False
-        while i < len(relaxed):
-            char = relaxed[i]
-            if char == '"' and (i == 0 or relaxed[i - 1] != "\\"):
-                in_double_quotes = not in_double_quotes
-                parts.append(char)
-            elif char == "'" and not in_double_quotes and (i == 0 or relaxed[i - 1] != "\\"):
-                parts.append('"')
-            else:
-                parts.append(char)
-            i += 1
-        relaxed = "".join(parts)
-
-    # Convert unquoted keys to quoted keys
-    relaxed = re.sub(r"([{,]\s*)(\w+)(\s*:)", r'\1"\2"\3', relaxed)
-    relaxed = re.sub(r"^(\s*)(\w+)(\s*:)", r'\1"\2"\3', relaxed)
-
-    # Remove trailing commas
-    relaxed = re.sub(r",(\s*[}\]])", r"\1", relaxed)
-
-    # Try parsing the relaxed version
-    try:
-        return json.loads(relaxed)
-    except json.JSONDecodeError as e:
-        # Try ast.literal_eval as last resort
-        try:
-            return ast.literal_eval(s)
-        except (ValueError, SyntaxError):
-            raise CommanderError(f"Unable to parse JSON5 value: {s}. JSON error: {str(e)}") from e
 
 
 def apply_value(tree: Any, key_path: str, value: Any) -> None:
