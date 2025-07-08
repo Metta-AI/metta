@@ -26,22 +26,15 @@ jobs:
           npm install --no-save playwright
           npx playwright install --with-deps chromium
 
-      - name: Build Mettascope
-        run: |
-          cd mettascope
-          npm ci
-          npx tsc
-
       - name: Install uv
         uses: astral-sh/setup-uv@v6
         with:
           version: "0.7.3"
           enable-cache: true
 
-      - name: Generate Atlas
+      - name: Build Mettascope
         run: |
-          cd mettascope
-          uv run tools/gen_atlas.py
+          ./mettascope/install.sh
 
       - name: Run quick training job for basic replay data
         run: |
