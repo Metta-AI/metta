@@ -23,7 +23,7 @@ trainer:
     num_rollout_negatives: 4
     num_cross_rollout_negatives: 4
   batch_size: 131072
-  minibatch_size: 768
+  minibatch_size: 1024
   total_timesteps: 1000000
   num_workers: 2
   cpu_offload: false
