@@ -8,6 +8,8 @@ from metta.setup.utils import info
 
 @register_module
 class AWSSetup(SetupModule):
+    install_once = True
+
     @property
     def description(self) -> str:
         return "AWS configuration and credentials"

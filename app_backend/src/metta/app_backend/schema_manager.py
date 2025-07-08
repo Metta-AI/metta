@@ -2,7 +2,7 @@ import abc
 from datetime import datetime
 from typing import List, LiteralString, Sequence
 
-from psycopg import Connection, sql
+from psycopg import AsyncConnection, Connection, sql
 from pydantic import BaseModel
 
 
@@ -17,6 +17,10 @@ class Migration(abc.ABC):
 
     @abc.abstractmethod
     def up(self, conn: Connection) -> None:
+        pass
+
+    @abc.abstractmethod
+    async def up_async(self, conn: AsyncConnection) -> None:
         pass
 
 
@@ -36,6 +40,11 @@ class SqlMigration(Migration):
         with conn.cursor() as cursor:
             for stmt in self._sql_statements:
                 cursor.execute(sql.SQL(stmt))
+
+    async def up_async(self, conn: AsyncConnection) -> None:
+        async with conn.cursor() as cursor:
+            for stmt in self._sql_statements:
+                await cursor.execute(sql.SQL(stmt))
 
 
 class MigrationRecord(BaseModel):
@@ -58,11 +67,27 @@ CREATE TABLE IF NOT EXISTS migrations (
 );
 """)
 
+last_applied_migration_query = sql.SQL(
+    "SELECT version, description, applied_at FROM migrations ORDER BY version DESC LIMIT 1"
+)
+
+insert_migration_query = sql.SQL("INSERT INTO migrations (version, description, applied_at) VALUES (%s, %s, %s)")
+
 
 def get_last_applied_migration(conn: Connection) -> MigrationRecord | None:
     with conn.cursor() as cursor:
-        cursor.execute("SELECT version, description, applied_at FROM migrations ORDER BY version DESC LIMIT 1")
+        cursor.execute(last_applied_migration_query)
         result = cursor.fetchone()
+        if result:
+            [version, description, applied_at] = result
+            return MigrationRecord(version=version, description=description, applied_at=applied_at)
+        return None
+
+
+async def get_last_applied_migration_async(conn: AsyncConnection) -> MigrationRecord | None:
+    async with conn.cursor() as cursor:
+        await cursor.execute(last_applied_migration_query)
+        result = await cursor.fetchone()
         if result:
             [version, description, applied_at] = result
             return MigrationRecord(version=version, description=description, applied_at=applied_at)
@@ -75,6 +100,12 @@ def init_migrations_table(conn: Connection):
         conn.commit()
 
 
+async def init_migrations_table_async(conn: AsyncConnection):
+    async with conn.cursor() as cursor:
+        await cursor.execute(migrations_ddl)
+        await conn.commit()
+
+
 def run_migrations(conn: Connection, migrations: Sequence[Migration]) -> None:
     validate_migrations(migrations)
     init_migrations_table(conn)
@@ -84,9 +115,22 @@ def run_migrations(conn: Connection, migrations: Sequence[Migration]) -> None:
         with conn.transaction():
             migration.up(conn)
             with conn.cursor() as cursor:
-                cursor.execute(
-                    sql.SQL("INSERT INTO migrations (version, description, applied_at) VALUES (%s, %s, %s)"),
-                    (migration.version(), migration.description(), datetime.now()),
-                )
+                cursor.execute(insert_migration_query, (migration.version(), migration.description(), datetime.now()))
 
     conn.commit()
+
+
+async def run_migrations_async(conn: AsyncConnection, migrations: Sequence[Migration]) -> None:
+    validate_migrations(migrations)
+    await init_migrations_table_async(conn)
+    last_applied_migration = await get_last_applied_migration_async(conn)
+    last_applied_migration_version = last_applied_migration.version if last_applied_migration else -1
+    for migration in migrations[last_applied_migration_version + 1 :]:
+        async with conn.transaction():
+            await migration.up_async(conn)
+            async with conn.cursor() as cursor:
+                await cursor.execute(
+                    insert_migration_query, (migration.version(), migration.description(), datetime.now())
+                )
+
+    await conn.commit()

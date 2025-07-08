@@ -23,7 +23,7 @@ class LearningProgressCurriculum(RandomCurriculum):
     def __init__(
         self,
         tasks: Dict[str, float],
-        env_overrides: DictConfig,
+        env_overrides: DictConfig | None = None,
         ema_timescale: float = 0.001,
         progress_smoothing: float = 0.05,
         num_active_tasks: int = 16,

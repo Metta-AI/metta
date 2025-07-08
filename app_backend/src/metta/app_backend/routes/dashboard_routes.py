@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import Any, DefaultDict, Dict, List, Literal, Optional, Set, Tuple
 
 from fastapi import APIRouter, Depends, HTTPException
-from psycopg import Connection
+from psycopg import AsyncConnection
 from psycopg.rows import class_row
 from psycopg.sql import SQL
 from pydantic import BaseModel
@@ -115,7 +115,7 @@ class GroupDataRetriever(ABC):
         self.filter_arg = filter_arg
 
     @abstractmethod
-    def get_group_data(self, con: Connection, group: str) -> List[GroupDataRow]:
+    async def get_group_data(self, con: AsyncConnection, group: str) -> List[GroupDataRow]:
         """
         Retrieve group evaluation data for the specified group.
 
@@ -137,8 +137,8 @@ class PolicySelectorDataRetriever(GroupDataRetriever):
     is selected based on the specified strategy.
     """
 
-    def get_group_data(self, con: Connection, group: str) -> List[GroupDataRow]:
-        return get_group_data(con, self.suite, self.metric, group, self.filter_arg)
+    async def get_group_data(self, con: AsyncConnection, group: str) -> List[GroupDataRow]:
+        return await get_group_data(con, self.suite, self.metric, group, self.filter_arg)
 
 
 class TrainingRunDataRetriever(GroupDataRetriever):
@@ -149,12 +149,12 @@ class TrainingRunDataRetriever(GroupDataRetriever):
     specified training run should be included in the heatmap.
     """
 
-    def get_group_data(self, con: Connection, group: str) -> List[GroupDataRow]:
-        return get_training_run_group_data(con, self.suite, self.metric, group, self.filter_arg)
+    async def get_group_data(self, con: AsyncConnection, group: str) -> List[GroupDataRow]:
+        return await get_training_run_group_data(con, self.suite, self.metric, group, self.filter_arg)
 
 
-def _get_group_data_with_policy_filter(
-    con: Connection, suite: str, metric: str, group: str, policy_cte: SQL, extra_params: Tuple[Any, ...] = ()
+async def _get_group_data_with_policy_filter(
+    con: AsyncConnection, suite: str, metric: str, group: str, policy_cte: SQL, extra_params: Tuple[Any, ...] = ()
 ) -> List[GroupDataRow]:
     """Core group data query with configurable policy filtering."""
     if group == "":
@@ -236,9 +236,9 @@ def _get_group_data_with_policy_filter(
         params = base_params + (group,)
 
     start_time = time.time()
-    with con.cursor(row_factory=class_row(GroupDataRow)) as cursor:
-        cursor.execute(query, params)
-        results = cursor.fetchall()
+    async with con.cursor(row_factory=class_row(GroupDataRow)) as cursor:
+        await cursor.execute(query, params)
+        results = await cursor.fetchall()
 
     end_time = time.time()
     logger.info(f"Get group data execution time: {end_time - start_time:.3f}s")
@@ -248,8 +248,8 @@ def _get_group_data_with_policy_filter(
     return results
 
 
-def get_training_run_group_data(
-    con: Connection, suite: str, metric: str, group: str, run_id: str
+async def get_training_run_group_data(
+    con: AsyncConnection, suite: str, metric: str, group: str, run_id: str
 ) -> List[GroupDataRow]:
     """Get all policies from a specific training run for group data."""
     training_run_policy_cte = SQL("""
@@ -265,11 +265,11 @@ def get_training_run_group_data(
         )
     """)
 
-    return _get_group_data_with_policy_filter(con, suite, metric, group, training_run_policy_cte, (run_id,))
+    return await _get_group_data_with_policy_filter(con, suite, metric, group, training_run_policy_cte, (run_id,))
 
 
-def get_group_data(
-    con: Connection, suite: str, metric: str, group: str, policy_selector: str = "latest"
+async def get_group_data(
+    con: AsyncConnection, suite: str, metric: str, group: str, policy_selector: str = "latest"
 ) -> List[GroupDataRow]:
     """Get group data for all policies with policy selector filtering."""
     all_policies_cte = SQL("""
@@ -292,12 +292,12 @@ def get_group_data(
         )
     """)
 
-    rows = _get_group_data_with_policy_filter(con, suite, metric, group, all_policies_cte)
-    return _apply_policy_selector(rows, policy_selector, suite, con)
+    rows = await _get_group_data_with_policy_filter(con, suite, metric, group, all_policies_cte)
+    return await _apply_policy_selector(rows, policy_selector, suite, con)
 
 
-def _apply_policy_selector(
-    rows: List[GroupDataRow], policy_selector: str, suite: str, con: Connection
+async def _apply_policy_selector(
+    rows: List[GroupDataRow], policy_selector: str, suite: str, con: AsyncConnection
 ) -> List[GroupDataRow]:
     """
     Apply the specified policy selection strategy to the rows.
@@ -305,7 +305,7 @@ def _apply_policy_selector(
     if policy_selector == "latest":
         return _select_latest_policies_per_run(rows)
     elif policy_selector == "best":
-        return _select_best_policies_per_run(rows, suite, con)
+        return await _select_best_policies_per_run(rows, suite, con)
     else:
         raise ValueError(f"Invalid policy_selector: {policy_selector}")
 
@@ -355,7 +355,9 @@ def _select_latest_policies_per_run(rows: List[GroupDataRow]) -> List[GroupDataR
     return selected_rows
 
 
-def _select_best_policies_per_run(rows: List[GroupDataRow], suite: str, con: Connection) -> List[GroupDataRow]:
+async def _select_best_policies_per_run(
+    rows: List[GroupDataRow], suite: str, con: AsyncConnection
+) -> List[GroupDataRow]:
     """
     Select the best policy per training run based on average score across all evaluations.
     For policies with no run_id (epoch_id is NULL), include them as-is.
@@ -372,7 +374,8 @@ def _select_best_policies_per_run(rows: List[GroupDataRow], suite: str, con: Con
             run_policies[row.run_id][row.policy_uri].append(row)
 
     # Get all eval_names for this suite to handle missing evaluations
-    eval_rows = con.execute("SELECT DISTINCT env_name FROM episodes WHERE eval_category = %s", (suite,))
+    result = await con.execute("SELECT DISTINCT env_name FROM episodes WHERE eval_category = %s", (suite,))
+    eval_rows = await result.fetchall()
     all_eval_names: Set[str] = {row[0] for row in eval_rows if row[0] is not None}
 
     selected_rows: List[GroupDataRow] = []
@@ -426,20 +429,20 @@ def create_dashboard_router(metta_repo: MettaRepo) -> APIRouter:
     @router.get("/suites")
     @timed_route("get_suites")
     async def get_suites() -> List[str]:  # type: ignore[reportUnusedFunction]
-        return metta_repo.get_suites()
+        return await metta_repo.get_suites()
 
     @router.get("/suites/{suite}/metrics")
     @timed_route("get_metrics")
     async def get_metrics(suite: str) -> List[str]:  # type: ignore[reportUnusedFunction]
-        return metta_repo.get_metrics(suite)
+        return await metta_repo.get_metrics(suite)
 
     @router.get("/suites/{suite}/group-ids")
     @timed_route("get_group_ids")
     async def get_group_ids(suite: str) -> List[str]:  # type: ignore[reportUnusedFunction]
-        return metta_repo.get_group_ids(suite)
+        return await metta_repo.get_group_ids(suite)
 
-    def _build_heatmap_data(
-        con: Connection,
+    async def _build_heatmap_data(
+        con: AsyncConnection,
         group_metric: GroupHeatmapMetric,
         data_retriever: GroupDataRetriever,
     ) -> HeatmapData:
@@ -456,7 +459,7 @@ def create_dashboard_router(metta_repo: MettaRepo) -> APIRouter:
         """
 
         # Step 1: Get evaluation names
-        eval_rows = execute_query_and_log(
+        eval_rows = await execute_query_and_log(
             con,
             "SELECT DISTINCT env_name FROM episodes WHERE eval_category = %s",
             (data_retriever.suite,),
@@ -466,10 +469,10 @@ def create_dashboard_router(metta_repo: MettaRepo) -> APIRouter:
 
         # Step 2: Get group data
         if isinstance(group_metric.group_metric, GroupDiff):
-            group1_rows = data_retriever.get_group_data(con, group_metric.group_metric.group_1)
-            group2_rows = data_retriever.get_group_data(con, group_metric.group_metric.group_2)
+            group1_rows = await data_retriever.get_group_data(con, group_metric.group_metric.group_1)
+            group2_rows = await data_retriever.get_group_data(con, group_metric.group_metric.group_2)
         else:
-            group1_rows = data_retriever.get_group_data(con, group_metric.group_metric)
+            group1_rows = await data_retriever.get_group_data(con, group_metric.group_metric)
             group2_rows: List[GroupDataRow] = []
 
         # Step 3: Process policy URIs and values
@@ -522,15 +525,15 @@ def create_dashboard_router(metta_repo: MettaRepo) -> APIRouter:
         group_metric: GroupHeatmapMetric,
     ) -> HeatmapData:
         """Get heatmap data for a given suite, metric, and group metric."""
-        with metta_repo.connect() as con:
+        async with metta_repo.connect() as con:
             data_retriever = PolicySelectorDataRetriever(suite, metric, group_metric.policy_selector)
-            return _build_heatmap_data(con, group_metric, data_retriever)
+            return await _build_heatmap_data(con, group_metric, data_retriever)
 
     @router.get("/saved")
     @timed_route("list_saved_dashboards")
     async def list_saved_dashboards() -> SavedDashboardListResponse:  # type: ignore[reportUnusedFunction]
         """List all saved dashboards."""
-        dashboards = metta_repo.list_saved_dashboards()
+        dashboards = await metta_repo.list_saved_dashboards()
         return SavedDashboardListResponse(
             dashboards=[
                 SavedDashboardResponse(
@@ -551,7 +554,7 @@ def create_dashboard_router(metta_repo: MettaRepo) -> APIRouter:
     @timed_route("get_saved_dashboard")
     async def get_saved_dashboard(dashboard_id: str) -> SavedDashboardResponse:  # type: ignore[reportUnusedFunction]
         """Get a specific saved dashboard by ID."""
-        dashboard = metta_repo.get_saved_dashboard(dashboard_id)
+        dashboard = await metta_repo.get_saved_dashboard(dashboard_id)
         if not dashboard:
             raise HTTPException(status_code=404, detail="Dashboard not found")
 
@@ -573,7 +576,7 @@ def create_dashboard_router(metta_repo: MettaRepo) -> APIRouter:
         user_or_token: str = user_or_token,
     ) -> SavedDashboardResponse:
         """Create a new saved dashboard (always creates a new row, even if name is duplicate)."""
-        dashboard_id = metta_repo.create_saved_dashboard(
+        dashboard_id = await metta_repo.create_saved_dashboard(
             user_id=user_or_token,
             name=dashboard_data.name,
             description=dashboard_data.description,
@@ -582,7 +585,7 @@ def create_dashboard_router(metta_repo: MettaRepo) -> APIRouter:
         )
 
         # Fetch the created dashboard to return
-        dashboard = metta_repo.get_saved_dashboard(str(dashboard_id))
+        dashboard = await metta_repo.get_saved_dashboard(str(dashboard_id))
         if not dashboard:
             raise HTTPException(status_code=500, detail="Failed to create dashboard")
 
@@ -605,7 +608,7 @@ def create_dashboard_router(metta_repo: MettaRepo) -> APIRouter:
         user_or_token: str = user_or_token,
     ) -> SavedDashboardResponse:
         """Update an existing saved dashboard."""
-        success = metta_repo.update_saved_dashboard(
+        success = await metta_repo.update_saved_dashboard(
             user_id=user_or_token,
             dashboard_id=dashboard_id,
             name=dashboard_data.name,
@@ -618,7 +621,7 @@ def create_dashboard_router(metta_repo: MettaRepo) -> APIRouter:
             raise HTTPException(status_code=404, detail="Dashboard not found")
 
         # Fetch the updated dashboard to return
-        dashboard = metta_repo.get_saved_dashboard(dashboard_id)
+        dashboard = await metta_repo.get_saved_dashboard(dashboard_id)
         if not dashboard:
             raise HTTPException(status_code=500, detail="Failed to fetch updated dashboard")
 
@@ -639,7 +642,7 @@ def create_dashboard_router(metta_repo: MettaRepo) -> APIRouter:
         dashboard_id: str, user_or_token: str = user_or_token
     ) -> Dict[str, str]:
         """Delete a saved dashboard."""
-        success = metta_repo.delete_saved_dashboard(user_or_token, dashboard_id)
+        success = await metta_repo.delete_saved_dashboard(user_or_token, dashboard_id)
         if not success:
             raise HTTPException(status_code=404, detail="Dashboard not found")
         return {"message": "Dashboard deleted successfully"}
@@ -648,7 +651,7 @@ def create_dashboard_router(metta_repo: MettaRepo) -> APIRouter:
     @timed_route("get_training_runs")
     async def get_training_runs() -> TrainingRunListResponse:  # type: ignore[reportUnusedFunction]
         """Get all training runs."""
-        training_runs = metta_repo.get_training_runs()
+        training_runs = await metta_repo.get_training_runs()
         return TrainingRunListResponse(
             training_runs=[
                 TrainingRun(
@@ -670,7 +673,7 @@ def create_dashboard_router(metta_repo: MettaRepo) -> APIRouter:
     @timed_route("get_training_run")
     async def get_training_run(run_id: str) -> TrainingRun:  # type: ignore[reportUnusedFunction]
         """Get a specific training run by ID."""
-        training_run = metta_repo.get_training_run(run_id)
+        training_run = await metta_repo.get_training_run(run_id)
         if not training_run:
             raise HTTPException(status_code=404, detail="Training run not found")
 
@@ -694,7 +697,7 @@ def create_dashboard_router(metta_repo: MettaRepo) -> APIRouter:
         user_or_token: str = user_or_token,
     ) -> TrainingRun:
         """Update the description of a training run."""
-        success = metta_repo.update_training_run_description(
+        success = await metta_repo.update_training_run_description(
             user_id=user_or_token,
             run_id=run_id,
             description=description_update.description,
@@ -704,7 +707,7 @@ def create_dashboard_router(metta_repo: MettaRepo) -> APIRouter:
             raise HTTPException(status_code=404, detail="Training run not found or access denied")
 
         # Return the updated training run
-        training_run = metta_repo.get_training_run(run_id)
+        training_run = await metta_repo.get_training_run(run_id)
         if not training_run:
             raise HTTPException(status_code=500, detail="Failed to fetch updated training run")
 
@@ -728,7 +731,7 @@ def create_dashboard_router(metta_repo: MettaRepo) -> APIRouter:
         user_or_token: str = user_or_token,
     ) -> TrainingRun:
         """Update the tags of a training run."""
-        success = metta_repo.update_training_run_tags(
+        success = await metta_repo.update_training_run_tags(
             user_id=user_or_token,
             run_id=run_id,
             tags=tags_update.tags,
@@ -738,7 +741,7 @@ def create_dashboard_router(metta_repo: MettaRepo) -> APIRouter:
             raise HTTPException(status_code=404, detail="Training run not found or access denied")
 
         # Return the updated training run
-        training_run = metta_repo.get_training_run(run_id)
+        training_run = await metta_repo.get_training_run(run_id)
         if not training_run:
             raise HTTPException(status_code=500, detail="Failed to fetch updated training run")
 
@@ -764,12 +767,12 @@ def create_dashboard_router(metta_repo: MettaRepo) -> APIRouter:
     ) -> HeatmapData:
         """Get heatmap data for a specific training run."""
         # Verify training run exists
-        training_run = metta_repo.get_training_run(run_id)
+        training_run = await metta_repo.get_training_run(run_id)
         if not training_run:
             raise HTTPException(status_code=404, detail="Training run not found")
 
-        with metta_repo.connect() as con:
+        async with metta_repo.connect() as con:
             data_retriever = TrainingRunDataRetriever(suite, metric, run_id)
-            return _build_heatmap_data(con, group_metric, data_retriever)
+            return await _build_heatmap_data(con, group_metric, data_retriever)
 
     return router
