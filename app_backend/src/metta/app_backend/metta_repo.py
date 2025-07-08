@@ -3,7 +3,7 @@ import secrets
 import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 
 from psycopg import Connection
 from psycopg.types.json import Jsonb
@@ -368,20 +368,19 @@ class MettaRepo:
                     (episode_id, policy_id, agent_id),
                 )
 
-            # Insert agent metrics
+            # Insert agent metrics in bulk
+            rows: List[Tuple[uuid.UUID, int, str, float]] = []
             for agent_id, metrics in agent_metrics.items():
                 for metric_name, value in metrics.items():
-                    await con.execute(
-                        """
-                        INSERT INTO episode_agent_metrics (
-                            episode_id,
-                            agent_id,
-                            metric,
-                            value
-                        ) VALUES (%s, %s, %s, %s)
-                        """,
-                        (episode_id, agent_id, metric_name, value),
-                    )
+                    rows.append((episode_id, agent_id, metric_name, value))
+
+            async with con.cursor() as cursor:
+                await cursor.executemany(
+                    """
+                  INSERT INTO episode_agent_metrics (episode_id, agent_id, metric, value) VALUES (%s, %s, %s, %s)
+                  """,
+                    rows,
+                )
 
             return episode_id
 
