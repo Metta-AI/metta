@@ -338,7 +338,10 @@ def apply_value(tree: Any, key_path: str, value: Any) -> None:
             except ValueError as e:
                 raise TypeError(f"Cannot use non-numeric key '{key}' for list at path {'.'.join(path[:-1])}") from e
         else:
-            raise TypeError(f"Cannot navigate into {type(current).__name__} at path {'.'.join(path[:-1])}")
+            # Handle Python objects with attributes
+            if not hasattr(current, key):
+                raise KeyError(f"Attribute '{key}' not found at path {'.'.join(path)}")
+            current = getattr(current, key)
 
     # Apply the value
     final_key = keys[-1]
@@ -389,7 +392,26 @@ def apply_value(tree: Any, key_path: str, value: Any) -> None:
         except ValueError as e:
             raise TypeError(f"Cannot use non-numeric key '{final_key}' for list at path {'.'.join(path[:-1])}") from e
     else:
-        raise TypeError(f"Cannot set value on {type(current).__name__} at path {'.'.join(path[:-1])}")
+        # Handle Python objects with attributes
+        if not hasattr(current, final_key):
+            raise KeyError(f"Attribute '{final_key}' not found at path {'.'.join(path)}")
+
+        # Type check
+        old_value = getattr(current, final_key)
+        if old_value is not None and not isinstance(old_value, type(value)):
+            # Allow int/float conversions
+            if isinstance(old_value, (int, float)) and isinstance(value, (int, float)):
+                pass
+            # Allow None to be replaced by any type
+            elif old_value is None:
+                pass
+            else:
+                raise TypeError(
+                    f"Type mismatch at path {'.'.join(path)}: "
+                    f"expected {type(old_value).__name__}, got {type(value).__name__}"
+                )
+
+        setattr(current, final_key, value)
 
 
 def print_help(tree: Any, indent: int = 0, path: str = "") -> None:
@@ -400,7 +422,9 @@ def print_help(tree: Any, indent: int = 0, path: str = "") -> None:
         for key, value in sorted(tree.items()):
             current_path = f"{path}.{key}" if path else key
 
-            if isinstance(value, (dict, list)):
+            if isinstance(value, (dict, list)) or (
+                hasattr(value, "__dict__") and not isinstance(value, (str, int, float, bool))
+            ):
                 print(f"{prefix}{key}:")
                 print_help(value, indent + 1, current_path)
             else:
@@ -413,7 +437,9 @@ def print_help(tree: Any, indent: int = 0, path: str = "") -> None:
         for i, value in enumerate(tree):
             current_path = f"{path}.{i}"
 
-            if isinstance(value, (dict, list)):
+            if isinstance(value, (dict, list)) or (
+                hasattr(value, "__dict__") and not isinstance(value, (str, int, float, bool))
+            ):
                 print(f"{prefix}[{i}]:")
                 print_help(value, indent + 1, current_path)
             else:
@@ -423,5 +449,24 @@ def print_help(tree: Any, indent: int = 0, path: str = "") -> None:
                 else:
                     print(f"{prefix}--{current_path}: {type_name} = {repr(value)}")
     else:
-        type_name = type(tree).__name__
-        print(f"{prefix}{type_name} = {repr(tree)}")
+        # Handle Python objects with attributes
+        if hasattr(tree, "__dict__") and not isinstance(tree, (str, int, float, bool)):
+            # Get all non-private attributes
+            attrs = {k: v for k, v in vars(tree).items() if not k.startswith("_")}
+            for key, value in sorted(attrs.items()):
+                current_path = f"{path}.{key}" if path else key
+
+                if isinstance(value, (dict, list)) or (
+                    hasattr(value, "__dict__") and not isinstance(value, (str, int, float, bool))
+                ):
+                    print(f"{prefix}{key}:")
+                    print_help(value, indent + 1, current_path)
+                else:
+                    type_name = type(value).__name__
+                    if value is None:
+                        print(f"{prefix}--{current_path}: {type_name}")
+                    else:
+                        print(f"{prefix}--{current_path}: {type_name} = {repr(value)}")
+        else:
+            type_name = type(tree).__name__
+            print(f"{prefix}{type_name} = {repr(tree)}")

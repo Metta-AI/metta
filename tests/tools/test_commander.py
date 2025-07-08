@@ -7,6 +7,28 @@ import io
 
 from tools.commander import commander
 
+
+# Test classes for object testing
+class Baz:
+    def __init__(self):
+        self.value = 42
+        self.name = "baz_instance"
+
+
+class Bar:
+    def __init__(self):
+        self.baz = Baz()
+        self.count = 10
+        self.enabled = False
+
+
+class Foo:
+    def __init__(self):
+        self.bar = Bar()
+        self.items = [1, 2, 3]
+        self.message = "hello"
+
+
 print("=== Commander Test Suite ===\n")
 
 # Test 1: Basic functionality
@@ -170,5 +192,70 @@ result = commander(args_list, copy.deepcopy(tree))
 assert result["server"]["port"] == 3000
 assert result["server"]["ssl"]
 print("  ✓ List of arguments (sys.argv style)")
+
+# Test 11: Python objects
+print("\nTest 11: Python objects")
+obj_tree = Foo()
+
+# Test basic object attribute modification
+result = commander("--bar.count 25", obj_tree)
+assert result.bar.count == 25
+print("  ✓ --bar.count 25")
+
+# Test nested object attribute modification
+result = commander("--bar.baz.value 100", Foo())
+assert result.bar.baz.value == 100
+print("  ✓ --bar.baz.value 100")
+
+# Test string attribute modification
+result = commander('--message "updated message"', Foo())
+assert result.message == "updated message"
+print('  ✓ --message "updated message"')
+
+# Test boolean flag on object
+result = commander("--bar.enabled", Foo())
+assert result.bar.enabled
+print("  ✓ --bar.enabled")
+
+# Test array in object
+result = commander("--items.1 99", Foo())
+assert result.items == [1, 99, 3]
+print("  ✓ --items.1 99")
+
+# Test multiple object modifications
+obj = Foo()
+result = commander("--bar.count 50 --bar.baz.value 200 --message test", obj)
+assert result.bar.count == 50
+assert result.bar.baz.value == 200
+assert result.message == "test"
+print("  ✓ Multiple object modifications")
+
+# Test object help
+f = io.StringIO()
+with contextlib.redirect_stdout(f):
+    commander("--help", Foo())
+help_output = f.getvalue()
+assert "--bar.baz.value:" in help_output
+assert "--bar.count:" in help_output
+assert "--message:" in help_output
+print("  ✓ Object help works")
+
+# Test type checking on objects
+try:
+    obj = Foo()
+    commander("--bar.count hello", obj)  # count expects int
+    raise AssertionError("Should have raised TypeError")
+except ValueError as e:
+    assert "Type mismatch" in str(e)
+    print("  ✓ Object type mismatch detected correctly")
+
+# Test error handling on objects
+try:
+    obj = Foo()
+    commander("--bar.nonexistent 123", obj)
+    raise AssertionError("Should have raised KeyError")
+except ValueError as e:
+    assert "not found" in str(e)
+    print("  ✓ Object missing attribute detected correctly")
 
 print("\n✅ All tests passed!")
