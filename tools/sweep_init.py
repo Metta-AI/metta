@@ -68,6 +68,7 @@ def create_sweep(cfg: DictConfig | ListConfig, logger: Logger) -> None:
     OmegaConf.save(
         {
             "sweep": cfg.sweep_run,
+            "sweep_run": cfg.sweep_run,  # Add explicit sweep_run field
             "wandb_sweep_id": sweep_id,
             "wandb_path": f"{cfg.wandb.entity}/{cfg.wandb.project}/{sweep_id}",
         },
@@ -94,7 +95,7 @@ def create_run(cfg: DictConfig | ListConfig, logger: Logger) -> str:
 
     # Set wandb config values that will be used by WandbContext
     # This ensures the interpolations can be resolved
-    cfg.wandb.group = sweep_metadata.wandb_sweep_id
+    cfg.wandb.group = cfg.sweep_run
     cfg.wandb.name = run_id
 
     # Note: run_id will be set by wandb.agent when it creates the run
