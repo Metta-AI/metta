@@ -100,8 +100,8 @@ main() {
     log_info "Step 1: Running hyperparameter sweep for learning progress curriculum..."
 
     ./devops/skypilot/launch.py sweep \
-        --gpus=4 \
-        --nodes=8 \
+        --gpus=1 \
+        --nodes=1 \
         --no-spot \
         run="$SWEEP_NAME" \
         --config configs/sweep_job_learning_progress.yaml \
@@ -125,8 +125,8 @@ main() {
     # 3a. Learning Progress Curriculum (with best hyperparameters)
     log_info "3a. Running Learning Progress Curriculum..."
     ./devops/skypilot/launch.py train \
-        --gpus=4 \
-        --nodes=8 \
+        --gpus=1 \
+        --nodes=1 \
         --no-spot \
         run="$LEARNING_PROGRESS_RUN" \
         --config configs/user/learning_progress_experiment.yaml \
@@ -142,8 +142,8 @@ main() {
     # 3b. Random Curriculum Baseline
     log_info "3b. Running Random Curriculum Baseline..."
     ./devops/skypilot/launch.py train \
-        --gpus=4 \
-        --nodes=8 \
+        --gpus=1 \
+        --nodes=1 \
         --no-spot \
         run="$RANDOM_CURRICULUM_RUN" \
         --config configs/user/random_curriculum_experiment.yaml \
@@ -152,8 +152,8 @@ main() {
     # 3c. Basic Arena Baseline
     log_info "3c. Running Basic Arena Baseline..."
     ./devops/skypilot/launch.py train \
-        --gpus=4 \
-        --nodes=8 \
+        --gpus=1 \
+        --nodes=1 \
         --no-spot \
         run="$BASIC_ARENA_RUN" \
         --config configs/user/basic_arena_experiment.yaml \
