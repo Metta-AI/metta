@@ -95,6 +95,7 @@ def evaluate_policy(config: EvaluateJobConfig, logger: logging.Logger) -> Evalua
         sim_config=config.sim,
         stats_dir=config.stats_dir,
         replay_dir=config.replay_dir,
+        stats_db_path=config.stats_db_path,
         wandb_policy_name=config.wandb_policy_name,
     )
 
@@ -148,27 +149,11 @@ def upload_results_to_wandb(results: EvaluationResults, config: EvaluateJobConfi
             logger.info(f"Logged {len(metrics)} evaluation metrics to wandb")
 
         # Extract and upload replay URL if available
-        if results.stats_db:
-            try:
-                # Query for replay URLs from the stats database
-                replay_df = results.stats_db.query("""
-                    SELECT replay_url
-                    FROM episodes
-                    WHERE replay_url IS NOT NULL
-                    LIMIT 1
-                """)
-
-                if len(replay_df) > 0 and replay_df.iloc[0]["replay_url"]:
-                    replay_url = replay_df.iloc[0]["replay_url"]
-                    # Create MetaScope player URL
-                    metascope_url = f"https://metta-ai.github.io/metta/?replayUrl={replay_url}"
-                    # Log as HTML link (matching trainer format)
-                    wandb.log(
-                        {"replays/link": wandb.Html(f'<a href="{metascope_url}">MetaScope Replay (Evaluation)</a>')}
-                    )
-                    logger.info(f"Uploaded replay link to wandb: {metascope_url}")
-            except Exception as e:
-                logger.warning(f"Failed to extract replay URL: {e}")
+        if results.replay_url:
+            metascope_url = f"https://metta-ai.github.io/metta/?replayUrl={results.replay_url}"
+            # Log as HTML link (matching trainer format)
+            wandb.log({"replays/link": wandb.Html(f'<a href="{metascope_url}">MetaScope Replay (Evaluation)</a>')})
+            logger.info(f"Uploaded replay link to wandb: {metascope_url}")
 
         # Upload stats database as artifact (keep this extra feature)
         artifact = wandb.Artifact(
@@ -179,7 +164,7 @@ def upload_results_to_wandb(results: EvaluationResults, config: EvaluateJobConfi
                 "scores": results.scores.model_dump(),
             },
         )
-        artifact.add_file(results.stats_db_path)
+        artifact.add_file(config.stats_db_path)
         wandb.log_artifact(artifact)
 
         if wandb.run:
