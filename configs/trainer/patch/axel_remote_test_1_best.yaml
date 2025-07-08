@@ -1,0 +1,7 @@
+# @package _global_
+# Best hyperparameters from sweep
+# Apply with: +trainer/patch=<filename_without_yaml>
+
+trainer:
+  optimizer:
+    learning_rate: 7.31e-04
