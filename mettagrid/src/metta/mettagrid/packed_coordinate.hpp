@@ -8,6 +8,7 @@
 #include <utility>
 
 #include "objects/constants.hpp"
+#include "types.hpp"
 
 /**
  * Utilities for packing/unpacking grid coordinates into compact byte representation.
@@ -66,8 +67,8 @@ inline std::optional<std::pair<uint8_t, uint8_t>> unpack(uint8_t packed) {
 /**
  * Check if a packed coordinate represents an empty/invalid position.
  */
-inline bool is_empty(uint8_t packed) {
-  return packed == EmptyTokenByte;
+inline bool is_empty(uint8_t packed_data) {
+  return packed_data == EmptyTokenByte;
 }
 
 }  // namespace PackedCoordinate
