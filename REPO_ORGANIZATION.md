@@ -8,14 +8,22 @@ This document outlines the organization structure for the Metta monorepo, balanc
 
 Our package structure is designed to achieve three key goals:
 
-1. **Separate Installation**: Enable subpackages to be installed independently (e.g., `pip install metta.common` without installing the entire repository)
-2. **Consistent Import Syntax**: Maintain clean imports across all packages using the `from metta.subpackage import module` pattern
-3. **Shared Namespace**: Allow separate packages to contribute to the same `metta.*` namespace while being independently distributable
-4. **Mettagrid Export**: The nested structure makes it straightforward to extract subpackages for external use. For example, the entire `mettagrid/` directory can be exported as a standalone repository with its own CI/CD, while maintaining the same import syntax (`from metta.mettagrid import ...`) for external users.
-5. **Independent Development**: Each subpackage has its own `pyproject.toml` and can be developed, tested, and versioned independently while sharing the monorepo's tooling.
-6. **Clear Boundaries**: The structure enforces separation between the RL system and web services, preventing accidental coupling while allowing intentional shared code.
+1. **Separate Installation**: Enable subpackages to be installed independently (e.g., `pip install metta.common` without
+   installing the entire repository)
+2. **Consistent Import Syntax**: Maintain clean imports across all packages using the
+   `from metta.subpackage import module` pattern
+3. **Shared Namespace**: Allow separate packages to contribute to the same `metta.*` namespace while being independently
+   distributable
+4. **Mettagrid Export**: The nested structure makes it straightforward to extract subpackages for external use. For
+   example, the entire `mettagrid/` directory can be exported as a standalone repository with its own CI/CD, while
+   maintaining the same import syntax (`from metta.mettagrid import ...`) for external users.
+5. **Independent Development**: Each subpackage has its own `pyproject.toml` and can be developed, tested, and versioned
+   independently while sharing the monorepo's tooling.
+6. **Clear Boundaries**: The structure enforces separation between the RL system and web services, preventing accidental
+   coupling while allowing intentional shared code.
 
-While we don't currently publish these packages to PyPI, this structure positions us to do so in the future. For now, we use `uv sync` with workspace pyproject files for internal development.
+While we don't currently publish these packages to PyPI, this structure positions us to do so in the future. For now, we
+use `uv sync` with workspace pyproject files for internal development.
 
 ### Future Considerations
 
@@ -25,8 +33,8 @@ This organization is a living proposal that we can adapt as our needs evolve:
 - The structure can be adjusted based on actual usage patterns and pain points we discover
 - The goal is to align the team "for now" while maintaining flexibility for future changes
 
-This proposal doesn't need to be perfect—it needs to help us work effectively today while keeping our options open for tomorrow.
-
+This proposal doesn't need to be perfect—it needs to help us work effectively today while keeping our options open for
+tomorrow.
 
 ## Core Principles
 
@@ -175,17 +183,16 @@ from metta.backend.observatory import RemoteStatsDb
 
 _Note: Separate package allows mettagrid to depend on common utils without circular dependency_
 
-
 ### What Goes in metta.common?
 
 Only truly shared utilities belong here:
+
 - Logging configuration used by multiple packages
 - Common type definitions and protocols
 - Shared configuration management
 - Utilities needed by both mettagrid and training code
 
 **Important**: If code is only used by web services, it belongs in `apps/shared/`, not `metta.common`.
-
 
 ### Environment Engine (`metta.mettagrid`)
 
@@ -281,6 +288,7 @@ Our architecture maintains clear boundaries between major systems:
 - **Key Rule**: Web services should never import from the main `metta` package directly
 
 This separation ensures that:
+
 - Mettagrid can be exported without pulling in training code
 - Web services remain decoupled from RL implementation details
 - Shared code is explicitly identified and minimal
@@ -388,14 +396,12 @@ common/
 This would install as `metta/common.py` (a module) rather than `metta/common/` (a package), breaking the intended
 namespace structure.
 
-
 ### Implementation Philosophy
 
 1. Structure packages following PEP 420 patterns
 2. Use `__init__.py` when helpful for tooling compatibility
 3. Focus on clean architecture over strict compliance
 4. Remove `__init__.py` files as tooling improves
-
 
 ### Exporting Subpackages
 
@@ -406,7 +412,8 @@ When we need to publish a subpackage (e.g., mettagrid) for external users:
 3. External users install via `pip install metta-mettagrid`
 4. Import syntax remains identical: `from metta.mettagrid import MettaGridPufferEnv`
 
-This approach maintains consistency between internal monorepo development and external usage, while avoiding the maintenance burden of separate repositories.
+This approach maintains consistency between internal monorepo development and external usage, while avoiding the
+maintenance burden of separate repositories.
 
 ## Documentation Strategy
 
