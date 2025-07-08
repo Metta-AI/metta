@@ -38,6 +38,15 @@ class EvaluationScores(BaseModelWithForbidExtra):
         default_factory=dict, description="Average reward for each sim environment (keyed on (suite_name, sim_name))"
     )
 
+    def to_json(self) -> dict[str, dict[str, float] | float]:
+        return {
+            "suite_scores": {f"{suite}/score": score for suite, score in self.suite_scores.items()},
+            "simulation_scores": {
+                f"{suite}/{sim}/score": score for (suite, sim), score in self.simulation_scores.items()
+            },
+            "reward_avg": sum(self.simulation_scores.values()) / len(self.simulation_scores),
+        }
+
 
 class EvaluationResults(BaseModelWithForbidExtra):
     scores: EvaluationScores = Field(..., description="Evaluation scores")

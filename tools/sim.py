@@ -101,7 +101,7 @@ def main(cfg: DictConfig) -> None:
                 {
                     "name": pr.run_name,
                     "uri": pr.uri,
-                    "metrics": policy_results.scores.model_dump(),
+                    "metrics": policy_results.scores.to_json(),
                     "replay_url": policy_results.replay_url,
                 }
             )
