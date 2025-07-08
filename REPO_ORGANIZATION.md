@@ -81,7 +81,7 @@ metta/
 └── devops/               # Deployment/setup
 ```
 
-### Core Packages (6 total)
+### Package Details
 
 ```
 metta/
@@ -91,6 +91,7 @@ metta/
 │   ├── rl/                # Reinforcement learning
 │   ├── sweep/             # Hyperparameter sweeping
 │   ├── setup/             # Setup tools
+│   ├── agent/             # Policy code
 │   ├── map/               # Map tools
 │   └── eval/              # Evaluation tools
 ├── tests/                 # Tests for metta/src
@@ -167,13 +168,6 @@ from metta.backend.observatory import RemoteStatsDb
 - **Namespace**: `metta.*`
 - **Purpose**: Core ML functionality
 
-  - **rl/**: Reinforcement learning algorithms and wrappers
-  - **sweep/**: Hyperparameter optimization and experiment management
-  - **setup/**: Environment and dependency setup tools
-  - **map/**: Map generation and manipulation tools
-  - **eval/**: Evaluation metrics and analysis tools
-  - **api.py**: Core API definitions and interfaces
-
 ### Shared Utilities (`metta.common`)
 
 - **Location**: `common/` directory
@@ -187,7 +181,7 @@ from metta.backend.observatory import RemoteStatsDb
 
 _Note: Separate package allows mettagrid to depend on common utils without circular dependency_
 
-### What Goes in metta.common?
+### What Goes in `metta.common`?
 
 Only truly shared utilities belong here:
 
@@ -195,6 +189,19 @@ Only truly shared utilities belong here:
 - Common type definitions and protocols
 - Shared configuration management
 - Utilities needed by both mettagrid and training code
+
+**Examples of what belongs:**
+
+- `logger.py` - Logging configuration used by multiple packages
+- `types.py` - Type definitions like `AgentID`, `Position`
+- `config.py` - Shared configuration management
+- `metrics.py` - Common metric definitions
+
+**Examples of what doesn't belong:**
+
+- `trainer.py` - Training logic (goes in main `metta`)
+- `api_utils.py` - Web service utilities (goes in `backend`)
+- `react_helpers.js` - Frontend utilities (goes in `apps/shared`)
 
 **Important**: If code is only used by web services, it belongs in `apps/shared/`, not `metta.common`.
 
@@ -213,10 +220,6 @@ Only truly shared utilities belong here:
 - **Location**: `backend/` directory
 - **Namespace**: `metta.backend`
 - **Purpose**: Unified backend services for all server-side functionality
-
-  - **observatory/**: API endpoints for experiment tracking and visualization
-  - **sweep_names/**: Process name registration service for sweeps
-  - **stat_buffer/**: Data persistence and database interfaces
 
 #### Deployment Strategy
 
