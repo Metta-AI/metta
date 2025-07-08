@@ -159,9 +159,14 @@ class TestSweepPipelineIntegration:
         with patch("wandb.sweep") as mock_sweep:
             mock_sweep.return_value = "test_sweep_123"
 
-            from metta.sweep.protein_wandb import create_sweep
+            from metta.sweep.protein_wandb import create_wandb_sweep
 
-            sweep_id = create_sweep("test_integration_sweep", "test_entity", "test_project")
+            # Test sweep creation
+            sweep_id = create_wandb_sweep(
+                sweep_name="test_sweep",
+                wandb_entity="test_entity",
+                wandb_project="test_project",
+            )
 
             assert sweep_id is not None
             assert isinstance(sweep_id, str)
@@ -501,9 +506,9 @@ class TestSweepPipelineIntegration:
             with patch("wandb.sweep") as mock_sweep:
                 mock_sweep.return_value = "test_integration_sweep_456"
 
-                from metta.sweep.protein_wandb import create_sweep
+                from metta.sweep.protein_wandb import create_wandb_sweep
 
-                create_sweep("wandb_integration_test", "test_entity", "test_integration_project")
+                create_wandb_sweep("wandb_integration_test", "test_entity", "test_integration_project")
 
             # Create MettaProtein instance
             metta_protein = MettaProtein(base_sweep_config, wandb.run)
