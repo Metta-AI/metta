@@ -1,0 +1,55 @@
+defaults:
+  - /env/mettagrid/mettagrid@
+  - _self_
+
+sampling: 0
+
+game:
+  num_agents: 24
+  max_steps: 100 # Will be overridden per variant
+
+  agent:
+    rewards:
+      battery_red: 1
+      battery_blue: -0.5
+      battery_green: -0.5
+
+  map_builder:
+    _target_: metta.mettagrid.room.multi_room.MultiRoom
+    num_rooms: ${..num_agents}
+    room:
+      _target_: metta.mettagrid.room.random.Random
+      width: 3
+      height: 3
+      border_width: 1
+      agents: 1
+      objects:
+        mine_red: 1
+        generator_red: 1
+        generator_blue: 1
+        generator_green: 1
+  objects:
+    mine_red:
+      cooldown: 1
+      initial_resource_count: 1
+    generator_red:
+      cooldown: 1
+      input_resources:
+        ore_red: 1
+      output_resources:
+        battery_red: 1
+      initial_resource_count: 1
+    generator_blue:
+      cooldown: 1
+      input_resources:
+        ore_red: 1
+      output_resources:
+        battery_blue: 1
+      initial_resource_count: 1
+    generator_green:
+      cooldown: 1
+      input_resources:
+        ore_red: 1
+      output_resources:
+        battery_green: 1
+      initial_resource_count: 1
