@@ -35,7 +35,7 @@ public:
 protected:
   std::map<InventoryItem, InventoryQuantity> _defense_resources;
 
-  bool _handle_action(Agent* agent, ActionArg arg) override {
+  bool _handle_action(Agent* actor, ActionArg arg) override {
     if (arg < 1 || arg > 9) {
       return false;
     }
@@ -62,9 +62,9 @@ protected:
     auto [distance, offset] = ATTACK_POSITIONS[arg - 1];  // C++17 structured binding
 
     // Calculate target location relative to agent's position and orientation
-    GridLocation target_loc = _grid->relative_location(agent->location, agent->orientation, distance, offset);
+    GridLocation target_loc = _grid->relative_location(actor->location, actor->orientation, distance, offset);
 
-    return _handle_target(agent, target_loc);
+    return _handle_target(actor, target_loc);
   }
 
   bool _handle_target(Agent* actor, GridLocation target_loc) {
