@@ -28,11 +28,8 @@ def make_policy(env: "MettaGridEnv", cfg: DictConfig) -> "MettaAgent":
         }
     )
 
-    # Extract agent config - cfg.agent is required
-    agent_cfg = cfg.agent
-
-    # Convert DictConfig to dict for unpacking as kwargs
-    agent_cfg = OmegaConf.to_container(agent_cfg, resolve=True)
+    # Convert agent config to dict for unpacking as kwargs
+    agent_cfg = OmegaConf.to_container(cfg.agent, resolve=True)
 
     # Create MettaAgent directly without Hydra
     return MettaAgent(
@@ -118,32 +115,22 @@ class MettaAgent(nn.Module):
         logging.info(f"agent_attributes: {self.agent_attributes}")
 
         self.components = nn.ModuleDict()
-        # Keep component configs as DictConfig to support both dict and attribute access
-        component_cfgs = cfg.components
 
         # First pass: instantiate all configured components
-        for component_key in component_cfgs:
+        for component_key in cfg.components:
             # Convert key to string to ensure compatibility
             component_name = str(component_key)
 
-            # Prepare component config
-            comp_config = dict(component_cfgs[component_key])
+            # Build component config with agent attributes and name
+            comp_config = dict(cfg.components[component_key], **self.agent_attributes, name=component_name)
 
             # Ensure nn_params is DictConfig for dual access
-            if (
-                "nn_params" in comp_config
-                and isinstance(comp_config["nn_params"], dict)
-                and not isinstance(comp_config["nn_params"], DictConfig)
-            ):
-                comp_config["nn_params"] = DictConfig(comp_config["nn_params"])
-
-            # Merge agent attributes and name
-            comp_config.update(self.agent_attributes)
-            comp_config["name"] = component_name
+            if "nn_params" in comp_config and isinstance(comp_config["nn_params"], dict):
+                if not isinstance(comp_config["nn_params"], DictConfig):
+                    comp_config["nn_params"] = DictConfig(comp_config["nn_params"])
 
             # Instantiate component
-            component = instantiate(comp_config)
-            self.components[component_name] = component
+            self.components[component_name] = instantiate(comp_config)
 
         component = self.components["_value_"]
         self._setup_components(component)

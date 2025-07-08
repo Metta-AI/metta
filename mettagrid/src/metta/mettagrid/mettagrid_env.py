@@ -118,7 +118,6 @@ class MettaGridEnv(PufferEnv, GymEnv):
         if level is None:
             map_builder_config = task.env_cfg().game.map_builder
             with self.timer("_initialize_c_env.build_map"):
-                # Use direct instantiate with recursive support
                 map_builder = instantiate(map_builder_config, _recursive_=True)
                 level = map_builder.build()
 

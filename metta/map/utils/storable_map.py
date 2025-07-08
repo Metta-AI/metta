@@ -79,9 +79,7 @@ class StorableMap:
     def from_cfg(cfg: DictConfig) -> StorableMap:
         # Generate and measure time taken
         start = time.time()
-        # Convert DictConfig to dict for instantiation
-        cfg_dict = OmegaConf.to_container(cfg, resolve=True)
-        map_builder = instantiate(cfg_dict, _recursive_=True)
+        map_builder = instantiate(OmegaConf.to_container(cfg, resolve=True), _recursive_=True)
         level = map_builder.build()
         gen_time = time.time() - start
         logger.info(f"Time taken to build map: {gen_time}s")
