@@ -77,6 +77,7 @@ def main(cfg: DictConfig) -> None:
     policy_store = PolicyStore(cfg, None)
     stats_client = get_stats_client(cfg, logger)
     for policy_uri in sim_job.policy_uris:
+        # TODO: institutionalize this better?
         metric = sim_job.simulation_suite.name + "_score"
         policy_prs = policy_store.policy_records(policy_uri, sim_job.selector_type, n=1, metric=metric)
         results = {"policy_uri": policy_uri, "checkpoints": []}
