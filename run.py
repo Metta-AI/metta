@@ -2,7 +2,9 @@
 import logging
 import os
 import time
+from collections import defaultdict
 
+import numpy as np
 import torch
 from omegaconf import DictConfig
 
@@ -33,6 +35,7 @@ from metta.mettagrid.mettagrid_env import dtype_actions
 from metta.rl.experience import Experience
 from metta.rl.functions import (
     accumulate_rollout_stats,
+    calculate_batch_sizes,
     calculate_explained_variance,
     compute_advantage,
     compute_gradient_stats,
@@ -68,8 +71,8 @@ device, is_master, world_size, rank = setup_distributed_training("cuda" if torch
 trainer_config = TrainerConfig(
     num_workers=4,
     total_timesteps=10_000_000,
-    batch_size=16384,
-    minibatch_size=512,
+    batch_size=524288,  # 512k - matches trainer.yaml
+    minibatch_size=16384,  # 16k - matches trainer.yaml
     curriculum="/env/mettagrid/curriculum/navigation/bucketed",
     ppo=PPOConfig(
         clip_coef=0.1,
@@ -96,6 +99,8 @@ trainer_config = TrainerConfig(
         profile_dir=os.path.join(dirs.run_dir, "torch_traces"),
     ),
     grad_mean_variance_interval=150,
+    forward_pass_minibatch_target_size=4096,  # Add this to match trainer.yaml
+    async_factor=2,  # Add this to match trainer.yaml
 )
 
 # Adjust batch sizes for distributed training
@@ -105,16 +110,36 @@ if torch.distributed.is_initialized() and trainer_config.scale_batches_by_world_
 # Save config
 save_experiment_config(dirs, device, trainer_config)
 
+# Calculate batch sizes like trainer.py does
+# We need to know num_agents first, so let's assume 4 for navigation curriculum
+num_agents = 4  # Default for navigation tasks
+target_batch_size, batch_size, num_envs = calculate_batch_sizes(
+    forward_pass_minibatch_target_size=trainer_config.forward_pass_minibatch_target_size,
+    num_agents=num_agents,
+    num_workers=trainer_config.num_workers,
+    async_factor=trainer_config.async_factor,
+)
+
+logger.info(
+    f"target_batch_size: {target_batch_size} = "
+    f"min ({trainer_config.forward_pass_minibatch_target_size} // {num_agents} , {trainer_config.num_workers})"
+)
+logger.info(
+    f"forward_pass_batch_size: {batch_size} = "
+    f"({target_batch_size} // {trainer_config.num_workers}) * {trainer_config.num_workers}"
+)
+logger.info(f"num_envs: {num_envs}")
+
 # Create environment
 env = Environment(
     curriculum_path="/env/mettagrid/curriculum/navigation/bucketed",
-    num_agents=4,
+    num_agents=num_agents,
     width=32,
     height=32,
     device=str(device),
-    num_envs=64,
+    num_envs=num_envs,
     num_workers=trainer_config.num_workers,
-    batch_size=64,
+    batch_size=batch_size,
     async_factor=trainer_config.async_factor,
     zero_copy=trainer_config.zero_copy,
     is_training=True,
@@ -227,7 +252,9 @@ logger.info(f"Starting training on {device}")
 evaluation_scores = {}
 epoch_start_time = time.time()
 steps_at_epoch_start = agent_step
-stats = {}
+stats = defaultdict(list)  # Use defaultdict like trainer.py
+initial_policy_record = None  # Track initial policy
+current_policy_generation = 0  # Track policy generation
 
 while agent_step < trainer_config.total_timesteps:
     steps_before = agent_step
@@ -352,15 +379,130 @@ while agent_step < trainer_config.total_timesteps:
 
     # Calculate performance metrics
     train_time = time.time() - train_start
+
+    # ===== STATS PROCESSING PHASE =====
+    stats_start = time.time()
+
+    # Process collected stats (convert lists to means)
+    mean_stats = {}
+    for k, v in stats.items():
+        try:
+            mean_stats[k] = np.mean(v)
+        except (TypeError, ValueError):
+            # Handle non-numeric values by keeping them as-is
+            mean_stats[k] = v
+    stats = mean_stats
+
+    # Compute gradient statistics if on interval
+    grad_stats = {}
+    if should_run_on_interval(epoch, trainer_config.grad_mean_variance_interval, is_master):
+        grad_stats = compute_gradient_stats(agent)
+
+    # Collect system and memory stats
+    system_stats = {}
+    memory_stats = {}
+    if is_master:
+        system_stats = system_monitor.get_summary()
+        memory_stats = memory_monitor.stats()
+
+    # Calculate environment statistics
+    environment_stats = {f"env_{k.split('/')[0]}/{'/'.join(k.split('/')[1:])}": v for k, v in stats.items() if "/" in k}
+
+    # Calculate overview statistics
+    overview = {}
+
+    # Calculate average reward from environment stats
+    task_reward_values = [v for k, v in environment_stats.items() if k.startswith("env_task_reward")]
+    if task_reward_values:
+        mean_reward = sum(task_reward_values) / len(task_reward_values)
+        overview["reward"] = mean_reward
+
+    # Get loss statistics
+    losses_stats = losses.stats() if hasattr(losses, "stats") else {}
+
+    # Don't plot losses that are unused (similar to trainer.py)
+    if trainer_config.ppo.l2_reg_loss_coef == 0 and "l2_reg_loss" in losses_stats:
+        losses_stats.pop("l2_reg_loss")
+    if trainer_config.ppo.l2_init_loss_coef == 0 and "l2_init_loss" in losses_stats:
+        losses_stats.pop("l2_init_loss")
+    if not kickstarter.enabled:
+        losses_stats.pop("ks_action_loss", None)
+        losses_stats.pop("ks_value_loss", None)
+
+    # Get experience statistics
+    experience_stats = experience.stats() if hasattr(experience, "stats") else {}
+
+    # Calculate learning rate
+    current_lr = (
+        optimizer.param_groups[0]["lr"]
+        if hasattr(optimizer, "param_groups")
+        else trainer_config.optimizer.learning_rate
+    )
+
+    # Log all statistics (master only)
+    if is_master:
+        # Log losses
+        if losses_stats:
+            logger.info(
+                f"Losses - Policy: {losses_stats.get('policy_loss', 0):.4f}, "
+                f"Value: {losses_stats.get('value_loss', 0):.4f}, "
+                f"Entropy: {losses_stats.get('entropy', 0):.4f}, "
+                f"Explained Variance: {losses_stats.get('explained_variance', 0):.3f}"
+            )
+
+        # Log gradient stats
+        if grad_stats:
+            logger.info(
+                f"Gradient stats - mean: {grad_stats.get('grad/mean', 0):.2e}, "
+                f"variance: {grad_stats.get('grad/variance', 0):.2e}, "
+                f"norm: {grad_stats.get('grad/norm', 0):.2e}"
+            )
+
+        # Log system monitoring stats
+        if system_stats:
+            logger.info(
+                f"System stats - CPU: {system_stats.get('cpu_percent', 0):.1f}%, "
+                f"Memory: {system_stats.get('memory_percent', 0):.1f}%, "
+                f"Process Memory: {system_stats.get('process_memory_mb', 0):.1f}MB"
+            )
+
+            # Log GPU stats if available
+            if "gpu_utilization_avg" in system_stats:
+                logger.info(
+                    f"GPU stats - Utilization: {system_stats.get('gpu_utilization_avg', 0):.1f}%, "
+                    f"Memory: {system_stats.get('gpu_memory_percent_avg', 0):.1f}%"
+                )
+
+        # Log memory monitor stats
+        if memory_stats:
+            logger.info(f"Memory usage: {memory_stats}")
+
+        # Log training parameters
+        logger.info(
+            f"Training params - LR: {current_lr:.2e}, "
+            f"Minibatches: {experience.num_minibatches}, "
+            f"Generation: {current_policy_generation}"
+        )
+
+    # Clear stats for next iteration (moved here from end of loop)
+    stats.clear()
+
+    stats_time = time.time() - stats_start
+
+    # Calculate total time and percentages
     steps_calculated = agent_step - steps_before
-    total_time = train_time + rollout_time
+    total_time = train_time + rollout_time + stats_time
     steps_per_sec = steps_calculated / total_time if total_time > 0 else 0
     steps_per_sec *= world_size
 
     train_pct = (train_time / total_time) * 100 if total_time > 0 else 0
     rollout_pct = (rollout_time / total_time) * 100 if total_time > 0 else 0
+    stats_pct = (stats_time / total_time) * 100 if total_time > 0 else 0
 
-    logger.info(f"Epoch {epoch} - {steps_per_sec:.0f} steps/sec ({train_pct:.0f}% train / {rollout_pct:.0f}% rollout)")
+    logger.info(
+        f"Epoch {epoch} - {steps_per_sec:.0f} steps/sec "
+        f"({train_pct:.0f}% train / {rollout_pct:.0f}% rollout / {stats_pct:.0f}% stats)"
+    )
 
     # Record heartbeat periodically (master only)
     if should_run_on_interval(epoch, 10, is_master):
@@ -374,36 +516,6 @@ while agent_step < trainer_config.total_timesteps:
             interval=getattr(agent, "l2_init_weight_update_interval", 0),
             is_master=is_master,
         )
-
-    # Compute gradient statistics (master only)
-    if should_run_on_interval(epoch, trainer_config.grad_mean_variance_interval, is_master):
-        grad_stats = compute_gradient_stats(agent)
-        logger.info(
-            f"Gradient stats - mean: {grad_stats.get('grad/mean', 0):.2e}, "
-            f"variance: {grad_stats.get('grad/variance', 0):.2e}, "
-            f"norm: {grad_stats.get('grad/norm', 0):.2e}"
-        )
-
-    # Log system monitoring stats (master only)
-    if should_run_on_interval(epoch, 10, is_master):
-        system_stats = system_monitor.get_summary()
-        logger.info(
-            f"System stats - CPU: {system_stats.get('cpu_percent', 0):.1f}%, "
-            f"Memory: {system_stats.get('memory_percent', 0):.1f}%, "
-            f"Process Memory: {system_stats.get('process_memory_mb', 0):.1f}MB"
-        )
-
-        # Log GPU stats if available
-        if "gpu_utilization_avg" in system_stats:
-            logger.info(
-                f"GPU stats - Utilization: {system_stats.get('gpu_utilization_avg', 0):.1f}%, "
-                f"Memory: {system_stats.get('gpu_memory_percent_avg', 0):.1f}%"
-            )
-
-        # Log memory monitor stats
-        memory_stats = memory_monitor.stats()
-        if memory_stats:
-            logger.info(f"Memory usage: {memory_stats}")
 
     # Save checkpoint periodically
     if should_run_on_interval(epoch, trainer_config.checkpoint.checkpoint_interval, True):  # All ranks participate
@@ -503,9 +615,6 @@ while agent_step < trainer_config.total_timesteps:
             logger.info(f"Replay available at: {player_url}")
 
         results.stats_db.close()
-
-    # Clear stats for next iteration
-    stats.clear()
 
 # Training complete
 total_elapsed = time.time() - epoch_start_time
