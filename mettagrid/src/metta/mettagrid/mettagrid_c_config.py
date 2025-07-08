@@ -1,6 +1,8 @@
 import copy
 from typing import Annotated, Any
 
+from pydantic import Field
+
 from metta.mettagrid.mettagrid_c import ActionConfig as ActionConfig_cpp
 from metta.mettagrid.mettagrid_c import AgentConfig as AgentConfig_cpp
 from metta.mettagrid.mettagrid_c import AttackActionConfig as AttackActionConfig_cpp
