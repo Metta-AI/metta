@@ -261,11 +261,6 @@ The system automatically generates unique run IDs (e.g., `sweep_name.r.0`, `swee
 - Ensure you're logged in: `wandb login`
 - Verify sweep exists: Check the cached sweep ID in `train_dir/sweep/{sweep_name}/config.yaml`
 
-### Slow Sweep Lookups
-If sweep ID lookups are slow:
-1. Check if local cache exists at `train_dir/sweep/{sweep_name}/config.yaml`
-2. If not, the first lookup will be slow (30+ seconds) but subsequent ones will be fast
-
 ## Development
 
 ### Running Tests
