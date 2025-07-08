@@ -37,7 +37,7 @@ The sweep system enables automated hyperparameter optimization for training runs
 ### Local Execution
 
 ```bash
-./devops/sweep.sh sweep_run=my_experiment +hardware=macbook
+./devops/sweep.sh run=my_experiment +hardware=macbook
 ```
 
 ### Cloud Execution (Skypilot)
@@ -101,7 +101,7 @@ Main configuration that combines:
 - `wandb`: Tracking settings
 
 Key parameters:
-- `sweep_run`: Sweep name (e.g., "my_experiment")
+- `run`: Sweep name (e.g., "my_experiment")
 - `runs_dir`: Output directory for runs
 
 ## Parameter Distributions
@@ -167,7 +167,7 @@ dropout_rate:
 ## File Structure
 
 ```
-train_dir/sweep/sweep_run_name/
+train_dir/sweep/sweep_name/
 ├── config.yaml              # Sweep metadata & wandb_sweep_id
 ├── runs/                    # Individual training runs
 │   ├── sweep_name.r.0/      # First run
