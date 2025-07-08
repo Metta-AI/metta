@@ -81,11 +81,8 @@ class StorableMap:
     def from_cfg(cfg: DictConfig) -> StorableMap:
         # Generate and measure time taken
         start = time.time()
-        # Convert OmegaConf to dict if needed
-        if isinstance(cfg, DictConfig):
-            cfg_dict = OmegaConf.to_container(cfg, resolve=True)
-        else:
-            cfg_dict = cfg
+        # Convert DictConfig to dict for MapBuilderFactory
+        cfg_dict = OmegaConf.to_container(cfg, resolve=True)
         map_builder = MapBuilderFactory.create(cfg_dict, recursive=True)
         level = map_builder.build()
         gen_time = time.time() - start

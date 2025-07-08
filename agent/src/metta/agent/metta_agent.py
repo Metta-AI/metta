@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING, Optional, Union
 import gymnasium as gym
 import numpy as np
 import torch
-from omegaconf import DictConfig, ListConfig, OmegaConf
+from omegaconf import DictConfig, OmegaConf
 from torch import nn
 from torch.nn.parallel import DistributedDataParallel
 
@@ -20,7 +20,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger("metta_agent")
 
 
-def make_policy(env: "MettaGridEnv", cfg: ListConfig | DictConfig) -> "MettaAgent":
+def make_policy(env: "MettaGridEnv", cfg: DictConfig) -> "MettaAgent":
     obs_space = gym.spaces.Dict(
         {
             "grid_obs": env.single_observation_space,
@@ -31,9 +31,8 @@ def make_policy(env: "MettaGridEnv", cfg: ListConfig | DictConfig) -> "MettaAgen
     # Extract agent config - cfg.agent is required
     agent_cfg = cfg.agent
 
-    # Convert to dict if needed
-    if isinstance(agent_cfg, (DictConfig, ListConfig)):
-        agent_cfg = OmegaConf.to_container(agent_cfg, resolve=True)
+    # Convert DictConfig to dict for unpacking as kwargs
+    agent_cfg = OmegaConf.to_container(agent_cfg, resolve=True)
 
     # Create MettaAgent directly without Hydra
     return MettaAgent(
