@@ -103,6 +103,7 @@ main() {
         --gpus=4 \
         --nodes=8 \
         --no-spot \
+        run="$SWEEP_NAME" \
         --config configs/sweep_job_learning_progress.yaml \
         sweep_name="$SWEEP_NAME" \
         trainer.total_timesteps=1_000_000_000
@@ -129,8 +130,8 @@ main() {
         --no-spot \
         run="$LEARNING_PROGRESS_RUN" \
         --config configs/user/learning_progress_experiment.yaml \
-        trainer.total_timesteps=1_000_000_000 \
-        # Add best hyperparameters here:
+        trainer.total_timesteps=1_000_000_000
+        # Add best hyperparameters here after sweep completes:
         # ema_timescale=0.001 \
         # progress_smoothing=0.05 \
         # num_active_tasks=16 \
