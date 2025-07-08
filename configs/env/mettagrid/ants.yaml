@@ -47,9 +47,7 @@ game:
   agent:
     rewards:
       heart: 1
-      heart_max: 1000
       ore_red: 0.005
-      ore_red_max: 1000
 
   objects:
     altar:
