@@ -11,7 +11,7 @@ game:
 
   objects:
     altar:
-      initial_items: 1
+      initial_resource_count: 1
 
   map_builder:
     _target_: metta.mettagrid.room.ascii.Ascii

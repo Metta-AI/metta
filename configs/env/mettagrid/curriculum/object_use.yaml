@@ -28,12 +28,12 @@ buckets:
   game.map_builder.room.objects.temple:
     range: [1, 3]
 
-  objects.altar.initial_items:
+  objects.altar.initial_resource_count:
     range: [0, 1]
   objects.altar.cooldown:
     range: [10, 60]
     bins: 2
-  objects.generator_red.initial_items:
+  objects.generator_red.initial_resource_count:
     range: [0, 1]
   objects.generator_red.cooldown:
     range: [10, 60]

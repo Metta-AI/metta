@@ -19,7 +19,7 @@ struct AgentConfig : public GridObjectConfig {
               const std::string& group_name,
               unsigned char freeze_duration,
               float action_failure_penalty,
-              const std::map<InventoryItem, uint8_t>& max_items_per_type,
+              const std::map<InventoryItem, uint8_t>& resource_limits,
               const std::map<InventoryItem, float>& resource_rewards,
               const std::map<InventoryItem, float>& resource_reward_max,
               float group_reward_pct)
@@ -28,7 +28,7 @@ struct AgentConfig : public GridObjectConfig {
         group_id(group_id),
         freeze_duration(freeze_duration),
         action_failure_penalty(action_failure_penalty),
-        max_items_per_type(max_items_per_type),
+        resource_limits(resource_limits),
         resource_rewards(resource_rewards),
         resource_reward_max(resource_reward_max),
         group_reward_pct(group_reward_pct) {}
@@ -37,7 +37,7 @@ struct AgentConfig : public GridObjectConfig {
   unsigned char group_id;
   short freeze_duration;
   float action_failure_penalty;
-  std::map<InventoryItem, uint8_t> max_items_per_type;
+  std::map<InventoryItem, uint8_t> resource_limits;
   std::map<InventoryItem, float> resource_rewards;
   std::map<InventoryItem, float> resource_reward_max;
   float group_reward_pct;
@@ -68,8 +68,9 @@ public:
         group(config.group_id),
         frozen(0),
         freeze_duration(config.freeze_duration),
-        max_items_per_type(config.max_items_per_type),  // inventory
         orientation(Orientation::Up),
+        max_items_per_type(config.max_items_per_type),  // inventory
+        resource_limits(config.resource_limits),
         resource_rewards(config.resource_rewards),
         resource_reward_max(config.resource_reward_max),
         action_failure_penalty(config.action_failure_penalty),
@@ -89,7 +90,7 @@ public:
   short update_inventory(InventoryItem item, short amount) {
     short current_amount = this->inventory[item];
     int new_amount = current_amount + amount;
-    new_amount = std::clamp(new_amount, 0, static_cast<int>(this->max_items_per_type[item]));
+    new_amount = std::clamp(new_amount, 0, static_cast<int>(this->resource_limits[item]));
 
     short delta = new_amount - current_amount;
     if (new_amount > 0) {
@@ -153,7 +154,7 @@ public:
   }
 
 private:
-  std::map<InventoryItem, uint8_t> max_items_per_type;
+  std::map<InventoryItem, uint8_t> resource_limits;
 };
 
 #endif  // OBJECTS_AGENT_HPP_

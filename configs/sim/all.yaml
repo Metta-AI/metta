@@ -5,6 +5,13 @@ defaults:
 name: all
 
 simulations:
+  arena/basic:
+    env: env/mettagrid/arena/basic
+  arena/combat:
+    env: env/mettagrid/arena/combat
+  arena/advanced:
+    env: env/mettagrid/arena/advanced
+
   navigation/emptyspace_withinsight:
     env: env/mettagrid/navigation/evals/emptyspace_withinsight
   navigation/emptyspace_outofsight:
@@ -56,7 +63,7 @@ simulations:
   navigation/wanderout:
     env: env/mettagrid/navigation/evals/wanderout
   # npc/simple:
-  #   env: env/mettagrid/simple
+  #   env: env/mettagrid/arena/advanced
   #   policy_agents_pct: 0.5
   #   npc_policy_uri: wandb://run/georgedeane.nav_scratch
   objectuse/altar_use_free:

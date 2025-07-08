@@ -8,9 +8,9 @@
 #include <random>
 #include <vector>
 
+#include "actions/attack.hpp"
 #include "mettagrid_c.hpp"
 #include "objects/agent.hpp"
-#include "objects/converter.hpp"
 #include "objects/wall.hpp"
 
 namespace py = pybind11;
@@ -37,126 +37,30 @@ void PrintPythonPath() {
 }
 
 // Helper functions for creating configuration and map
-py::dict CreateBenchmarkConfig(int num_agents) {
-  py::dict game_cfg;
+GameConfig CreateBenchmarkConfig(int num_agents) {
+  objects_cfg["wall"] = std::make_shared<WallConfig>(1, "wall", false);
+  objects_cfg["agent.team1"] = std::make_shared<AgentConfig>(0,
+                                                             "agent",
+                                                             0,
+                                                             "team1",
+                                                             0,
+                                                             0.0f,
+                                                             std::map<InventoryItem, uint8_t>(),
+                                                             std::map<InventoryItem, float>(),
+                                                             std::map<InventoryItem, float>(),
+                                                             0.0f);
+  objects_cfg["agent.team2"] = std::make_shared<AgentConfig>(0,
+                                                             "agent",
+                                                             1,
+                                                             "team2",
+                                                             0,
+                                                             0.0f,
+                                                             std::map<InventoryItem, uint8_t>(),
+                                                             std::map<InventoryItem, float>(),
+                                                             std::map<InventoryItem, float>(),
+                                                             0.0f);
 
-  // Basic game configuration
-  game_cfg["num_agents"] = num_agents;
-  game_cfg["max_steps"] = 10000;
-  game_cfg["obs_width"] = 11;
-  game_cfg["obs_height"] = 11;
-  game_cfg["num_observation_tokens"] = 100;
-
-  // Import mettagrid_c module to get Python configuration classes
-  py::module_ mettagrid_c = py::module_::import("metta.mettagrid.mettagrid_c");
-
-  // Inventory item names configuration
-  py::list inventory_item_names;
-  inventory_item_names.append("ore");
-  inventory_item_names.append("heart");
-  game_cfg["inventory_item_names"] = inventory_item_names;
-
-  // Actions configuration
-  py::object ActionConfig = mettagrid_c.attr("ActionConfig");
-  py::object AttackActionConfig = mettagrid_c.attr("AttackActionConfig");
-
-  py::dict actions_cfg;
-  py::object action_cfg = ActionConfig(true, py::dict(), py::dict());
-  py::object attack_cfg = AttackActionConfig(true, py::dict(), py::dict(), py::dict());  // NOLINT(readability/fn_size)
-
-  actions_cfg["noop"] = action_cfg;
-  actions_cfg["move"] = action_cfg;
-  actions_cfg["rotate"] = action_cfg;
-  actions_cfg["attack"] = attack_cfg;
-  actions_cfg["swap"] = action_cfg;
-  actions_cfg["put_items"] = action_cfg;
-  actions_cfg["get_items"] = action_cfg;
-  actions_cfg["change_color"] = action_cfg;
-
-  game_cfg["actions"] = actions_cfg;
-
-  try {
-    // Try to import the module with better error handling
-    py::module_ mettagrid_c = py::module_::import("metta.mettagrid.mettagrid_c");
-
-    // Create Python AgentConfig objects
-    py::object AgentConfig = mettagrid_c.attr("AgentConfig");
-    py::object WallConfig = mettagrid_c.attr("WallConfig");
-
-    py::object agent_cfg1 = AgentConfig(0,           // type_id
-                                        "agent",     // type_name
-                                        0,           // group_id
-                                        "team1",     // group_name
-                                        0,           // freeze_duration
-                                        0.0f,        // action_failure_penalty
-                                        py::dict(),  // max_items_per_type
-                                        py::dict(),  // resource_rewards
-                                        py::dict(),  // resource_reward_max
-                                        0.0f);       // group_reward_pct
-
-    py::object agent_cfg2 = AgentConfig(0,           // type_id
-                                        "agent",     // type_name
-                                        1,           // group_id
-                                        "team2",     // group_name
-                                        0,           // freeze_duration
-                                        0.0f,        // action_failure_penalty
-                                        py::dict(),  // max_items_per_type
-                                        py::dict(),  // resource_rewards
-                                        py::dict(),  // resource_reward_max
-                                        0.0f);       // group_reward_pct
-
-    // Objects configuration
-    py::dict objects_cfg;
-
-    py::object wall_cfg = WallConfig(1, "wall", false);
-
-    objects_cfg["wall"] = wall_cfg;
-    objects_cfg["agent.team1"] = agent_cfg1;
-    objects_cfg["agent.team2"] = agent_cfg2;
-
-    game_cfg["objects"] = objects_cfg;
-  } catch (const py::error_already_set& e) {
-    std::cerr << "Failed to import module or create configs: " << e.what() << std::endl;
-    PrintPythonPath();
-
-    // Alternative: Create configs using C++ objects directly and convert to Python
-    std::cerr << "Attempting to create configs directly..." << std::endl;
-
-    // Create C++ configs
-    AgentConfig cpp_agent_cfg1(0,
-                               "agent",
-                               0,
-                               "team1",
-                               0,
-                               0.0f,
-                               std::map<InventoryItem, uint8_t>(),
-                               std::map<InventoryItem, float>(),
-                               std::map<InventoryItem, float>(),
-                               0.0f);
-
-    AgentConfig cpp_agent_cfg2(0,
-                               "agent",
-                               1,
-                               "team2",
-                               0,
-                               0.0f,
-                               std::map<InventoryItem, uint8_t>(),
-                               std::map<InventoryItem, float>(),
-                               std::map<InventoryItem, float>(),
-                               0.0f);
-
-    WallConfig cpp_wall_cfg(1, "wall", false);
-
-    // Try to convert to Python objects
-    py::dict objects_cfg;
-    objects_cfg["wall"] = py::cast(cpp_wall_cfg);
-    objects_cfg["agent.team1"] = py::cast(cpp_agent_cfg1);
-    objects_cfg["agent.team2"] = py::cast(cpp_agent_cfg2);
-
-    game_cfg["objects"] = objects_cfg;
-  }
-
-  return game_cfg;
+  return GameConfig(num_agents, 10000, 11, 11, inventory_item_names, 100, actions_cfg, objects_cfg);
 }
 
 py::list CreateDefaultMap(int num_agents_per_team = 2) {

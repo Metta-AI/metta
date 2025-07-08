@@ -1,5 +1,6 @@
 import logging
 import os
+import traceback
 from collections import defaultdict
 from pathlib import Path
 from typing import Any, Set
@@ -25,7 +26,7 @@ from metta.common.util.system_monitor import SystemMonitor
 from metta.common.wandb.wandb_context import WandbRun
 from metta.eval.eval_stats_db import EvalStatsDB
 from metta.mettagrid.curriculum.util import curriculum_from_config_path
-from metta.mettagrid.mettagrid_env import MettaGridEnv
+from metta.mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
 from metta.rl.experience import Experience
 from metta.rl.functions import (
     accumulate_rollout_stats,
@@ -36,8 +37,9 @@ from metta.rl.functions import (
     compute_advantage,
     compute_gradient_stats,
     get_lstm_config,
-    perform_rollout_step,
+    get_observation,
     process_minibatch_update,
+    run_policy_inference,
     validate_policy_environment_match,
 )
 from metta.rl.kickstarter import Kickstarter
@@ -435,9 +437,32 @@ class MettaTrainer:
                 )
 
             # Perform single rollout step
-            num_steps, info = perform_rollout_step(self.policy, self.vecenv, experience, self.device, self.timer)
-
+            # Receive environment data
+            o, r, d, t, info, training_env_id, mask, num_steps = get_observation(self.vecenv, self.device, self.timer)
             self.agent_step += num_steps
+
+            # Run policy inference
+            actions, selected_action_log_probs, values, lstm_state_to_store = run_policy_inference(
+                self.policy, o, experience, training_env_id.start, self.device
+            )
+
+            # Store experience
+            experience.store(
+                obs=o,
+                actions=actions,
+                logprobs=selected_action_log_probs,
+                rewards=r,
+                dones=d,
+                truncations=t,
+                values=values,
+                env_id=training_env_id,
+                mask=mask,
+                lstm_state=lstm_state_to_store,
+            )
+
+            # Send actions back to environment
+            with self.timer("_rollout.env"):
+                self.vecenv.send(actions.cpu().numpy().astype(dtype_actions))
 
             # Collect info for batch processing
             if info:
@@ -700,6 +725,7 @@ class MettaTrainer:
                 self._evaluate_policy(wandb_policy_name)
             except Exception as e:
                 logger.error(f"Error evaluating policy: {e}")
+                logger.error(traceback.format_exc())
 
             self._stats_epoch_start = self.epoch + 1
 
@@ -760,7 +786,7 @@ class MettaTrainer:
     @with_instance_timer("_generate_and_upload_replay", log_level=logging.INFO)
     def _generate_and_upload_replay(self):
         replay_sim_config = SingleEnvSimulationConfig(
-            env="/env/mettagrid/full",
+            env="/env/mettagrid/mettagrid",  # won't be used, dynamic `env_cfg()` should override all of it
             num_episodes=1,
             env_overrides=self._curriculum.get_task().env_cfg(),
         )
@@ -801,7 +827,8 @@ class MettaTrainer:
             try:
                 mean_stats[k] = np.mean(v)
                 # Add standard deviation with .std_dev suffix
-                mean_stats[f"{k}.std_dev"] = np.std(v)
+                # DISABLED(daveey): this is too noisy and so far not useful
+                # mean_stats[f"{k}.std_dev"] = np.std(v)
             except (TypeError, ValueError) as e:
                 raise RuntimeError(
                     f"Cannot compute mean for stat '{k}' with value {v!r} (type: {type(v)}). "
