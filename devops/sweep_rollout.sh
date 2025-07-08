@@ -12,6 +12,9 @@ if [ -z "$sweep_run" ]; then
   exit 1
 fi
 
+# Extract hardware argument if present
+hardware_arg=$(echo "$args" | grep -o '+hardware=[^ ]*' || true)
+
 source ./devops/setup.env
 
 DIST_ID=${DIST_ID:-localhost}
@@ -39,7 +42,12 @@ fi
 
 # Training phase - use train_job config
 echo "[SWEEP:$sweep_run] Starting training phase..."
-cmd="./devops/train.sh dist_cfg_path=$DIST_CFG_PATH data_dir=$DATA_DIR/sweep/$sweep_run/runs"
+# Include hardware argument if it was provided
+if [ -n "$hardware_arg" ]; then
+  cmd="./devops/train.sh dist_cfg_path=$DIST_CFG_PATH data_dir=$DATA_DIR/sweep/$sweep_run/runs $hardware_arg"
+else
+  cmd="./devops/train.sh dist_cfg_path=$DIST_CFG_PATH data_dir=$DATA_DIR/sweep/$sweep_run/runs"
+fi
 echo "[SWEEP:$sweep_run] Running: $cmd"
 if ! $cmd; then
   echo "[ERROR] Training failed for sweep: $sweep_run"
