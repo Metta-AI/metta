@@ -472,8 +472,7 @@ class Environment:
     and configuration without requiring Hydra.
 
     Note: This returns a vecenv (vectorized environment) wrapper, not an
-    Environment instance. The vecenv has methods like reset(), step(), close(),
-    recv(), send(), etc.
+    Environment instance. The vecenv has methods like reset(), step(), close().
     """
 
     def __new__(
