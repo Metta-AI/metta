@@ -10,6 +10,7 @@ from metta.agent.policy_record import PolicyRecord
 from metta.agent.policy_store import PolicyStore
 from metta.app_backend.stats_client import StatsClient
 from metta.eval.eval_stats_db import EvalStatsDB
+from metta.sim.simulation import SimulationResults
 from metta.sim.simulation_config import SimulationSuiteConfig
 from metta.sim.simulation_stats_db import SimulationStatsDB
 from metta.sim.simulation_suite import SimulationSuite
@@ -17,9 +18,9 @@ from metta.sim.simulation_suite import SimulationSuite
 
 class EvaluationScores(BaseModel):
     overall_score: float | None = Field(default=None, description="Overall average score across all suites")
-    suite_scores: dict[str, float] = Field(default_factory=dict, description="Scores by simulation suite")
+    suite_scores: dict[str, float] = Field(default_factory=dict, description="Average reward for each sim suite")
     simulation_scores: dict[str, float] = Field(
-        default_factory=dict, description="Individual simulation scores (key format: suite_name/sim_name)"
+        default_factory=dict, description="Average reward for each sim environment (key format: suite_name/sim_name)"
     )
 
     class Config:
@@ -29,9 +30,7 @@ class EvaluationScores(BaseModel):
 class EvaluationResults(BaseModel):
     policy_record: PolicyRecord = Field(..., description="Policy record")
     scores: EvaluationScores = Field(..., description="Evaluation scores")
-    stats_db_path: str = Field(..., description="Path to the stats database")
-    replay_dir: str = Field(..., description="Directory containing replay files")
-    stats_db: SimulationStatsDB = Field(..., description="The stats database object", exclude=True)
+    replay_url: str | None = Field(..., description="Replay URL")
 
     class Config:
         extra = "forbid"
@@ -43,19 +42,6 @@ class EvaluationResults(BaseModel):
             "run_name": value.run_name,
             "uri": value.uri,
         }
-
-
-class SavedEvaluationResults(BaseModel):
-    """Model for serializable evaluation results (without stats_db object)."""
-
-    policy_name: str
-    policy_uri: str
-    scores: EvaluationScores
-    stats_db_path: str
-    replay_dir: str
-
-    class Config:
-        extra = "forbid"
 
 
 class EvaluationService:
@@ -77,8 +63,9 @@ class EvaluationService:
         self,
         policy_pr: PolicyRecord,
         sim_config: SimulationSuiteConfig,
-        stats_dir: str | None = None,
-        replay_dir: str | None = None,
+        stats_dir: str,
+        stats_db_path: str,
+        replay_dir: str,
         wandb_policy_name: str | None = None,
     ) -> EvaluationResults:
         """
@@ -94,11 +81,6 @@ class EvaluationService:
         Returns:
             Dictionary containing evaluation results and scores
         """
-        # Set up default paths if not provided
-        if not stats_dir:
-            stats_dir = f"./eval_results/stats/{policy_pr.run_name}"
-        if not replay_dir:
-            replay_dir = f"./eval_results/replays/{policy_pr.run_name}"
 
         # Ensure directories exist
         Path(stats_dir).mkdir(parents=True, exist_ok=True)
@@ -126,35 +108,43 @@ class EvaluationService:
         # 1. Create local DuckDB with episode data
         # 2. If stats_client is configured, send episode data to remote stats server
         #    via Simulation._write_remote_stats()
-        sim_results = sim_suite.simulate()
+        sim_results: SimulationResults = sim_suite.simulate()
 
         # Extract scores
         eval_stats_db = EvalStatsDB.from_sim_stats_db(sim_results.stats_db)
         scores = self.extract_scores(eval_stats_db, policy_pr)
 
         # Export stats database
-        stats_db_path = f"{stats_dir}/stats.db"
         sim_results.stats_db.export(stats_db_path)
 
         return EvaluationResults(
             policy_record=policy_pr,
             scores=scores,
-            stats_db_path=stats_db_path,
-            replay_dir=replay_dir,
-            stats_db=sim_results.stats_db,
+            replay_url=self.extract_replay_url(sim_results.stats_db),
         )
 
-    def extract_scores(self, stats_db: EvalStatsDB, policy_pr: PolicyRecord) -> EvaluationScores:
-        suite_scores = {}
-        simulation_scores = {}
-        overall_score = None
+    def extract_replay_url(self, stats_db: SimulationStatsDB) -> str | None:
+        replay_df = stats_db.query("""
+            SELECT replay_url
+            FROM episodes
+            WHERE replay_url IS NOT NULL
+            LIMIT 1
+        """)
 
-        # Check policy URI
+        if len(replay_df) > 0 and replay_df.iloc[0]["replay_url"]:
+            return replay_df.iloc[0]["replay_url"]
+        return None
+
+    def extract_scores(self, stats_db: EvalStatsDB, policy_pr: PolicyRecord) -> EvaluationScores:
         if policy_pr.uri is None:
             self.logger.warning("Policy URI is None, cannot extract scores")
             return EvaluationScores()
 
-        # Get all simulations for this policy
+        suite_scores = {}
+        simulation_scores = {}
+        overall_score = None
+
+        # Get all locally run simulations for this policy
         sims_df = stats_db.query(f"""
             SELECT DISTINCT sim_suite, sim_name
             FROM policy_simulation_agent_samples
@@ -165,25 +155,20 @@ class EvaluationService:
             self.logger.warning("No simulations found in database")
             return EvaluationScores()
 
-        # Group by simulation suite (category) - matching trainer's approach
+        # Group by simulation suite (category)
         suites = sims_df["sim_suite"].unique()
-
         for suite in suites:
-            # Use get_average_metric_by_filter like the trainer does
             suite_score = stats_db.get_average_metric_by_filter("reward", policy_pr, f"sim_suite = '{suite}'")
 
             if suite_score is not None:
                 suite_scores[suite] = suite_score
-
                 # Get individual simulation scores within this suite
                 suite_sims = sims_df[sims_df["sim_suite"] == suite]["sim_name"].unique()
 
                 for sim_name in suite_sims:
-                    # Use get_average_metric_by_filter for each simulation
                     sim_score = stats_db.get_average_metric_by_filter(
                         "reward", policy_pr, f"sim_suite = '{suite}' AND sim_name = '{sim_name}'"
                     )
-
                     if sim_score is not None:
                         simulation_scores[f"{suite}/{sim_name}"] = sim_score
 
