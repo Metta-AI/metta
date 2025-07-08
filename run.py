@@ -425,7 +425,7 @@ while agent_step < trainer_config.total_timesteps:
 
         # Send actions back to environment
         with timer("_rollout.env"):
-            env.send(actions.cpu().numpy().astype(dtype_actions))
+            env.send(actions.cpu().numpy().astype(dtype_actions))  # type: ignore - env is vecenv wrapper
 
         if info:
             raw_infos.extend(info)
