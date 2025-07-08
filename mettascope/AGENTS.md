@@ -14,13 +14,12 @@ The code is plain TypeScript with no framework.
 
 All commands are executed from the `mettascope/` directory.
 
-| Task | Command |
-|------|---------|
-| Build once | `npm run build` |
-| Incremental build | `npm run watch` |
-| Lint & format | `npm run lint` / `npm run format` |
-| Full static checks | `npm run check` |
-| Run tests | `npm run test` |
+| Task | Command | Notes |
+|------|---------|-------|
+| Build once | `npm run build` | |
+| Lint & format | `npm run lint` / `npm run format` | should be run on code changes |
+| Full static checks | `npm run check` | should be run before committing |
+| Run tests | `npm run test` | frontend tests require the backend is already running |
 
 ### Texture Atlas
 
