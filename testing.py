@@ -1,47 +1,41 @@
-from metta.sweep.protein_metta import MettaProtein
-from omegaconf import OmegaConf
 import wandb
+from omegaconf import OmegaConf
+
+from metta.sweep.protein_metta import MettaProtein
 
 # Setup config
-config = OmegaConf.create({
-    "sweep": {
-        "protein": {
-            "max_suggestion_cost": 3600,
-            "num_random_samples": 50
-        },
-        "parameters": {
-            "metric": "reward",
-            "goal": "maximize",
-            "trainer": {
-                "optimizer": {
-                    "learning_rate": {
-                        "distribution": "log_normal",
-                        "min": 1e-5,
-                        "max": 1e-2,
+config = OmegaConf.create(
+    {
+        "sweep": {
+            "protein": {"max_suggestion_cost": 3600, "num_random_samples": 50},
+            "parameters": {
+                "metric": "reward",
+                "goal": "maximize",
+                "trainer": {
+                    "optimizer": {
+                        "learning_rate": {
+                            "distribution": "log_normal",
+                            "min": 1e-5,
+                            "max": 1e-2,
+                            "scale": "auto",
+                            "mean": 3e-4,
+                        }
+                    },
+                    "batch_size": {"distribution": "uniform_pow2", "min": 16, "max": 128, "scale": "auto", "mean": 64},
+                },
+                "model": {
+                    "dropout_rate": {
+                        "distribution": "logit_normal",
+                        "min": 0.1,
+                        "max": 0.8,
                         "scale": "auto",
-                        "mean": 3e-4
+                        "mean": 0.3,
                     }
                 },
-                "batch_size": {
-                    "distribution": "uniform_pow2",
-                    "min": 16,
-                    "max": 128,
-                    "scale": "auto",
-                    "mean": 64
-                }
             },
-            "model": {
-                "dropout_rate": {
-                    "distribution": "logit_normal",
-                    "min": 0.1,
-                    "max": 0.8,
-                    "scale": "auto",
-                    "mean": 0.3
-                }
-            }
         }
     }
-})
+)
 
 # Initialize with wandb
 wandb.init(project="my_project")
