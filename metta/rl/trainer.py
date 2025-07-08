@@ -901,6 +901,18 @@ class MettaTrainer:
             overview["reward"] = mean_reward
             overview["reward_vs_total_time"] = mean_reward
 
+        # Calculate average original reward from all env_original_reward entries
+        original_reward_values = [v for k, v in environment_stats.items() if k.startswith("env_original_reward")]
+        if original_reward_values:
+            mean_original_reward = sum(original_reward_values) / len(original_reward_values)
+            overview["original_reward"] = mean_original_reward
+
+        # Calculate average perceived reward from all env_perceived_reward entries
+        perceived_reward_values = [v for k, v in environment_stats.items() if k.startswith("env_perceived_reward")]
+        if perceived_reward_values:
+            mean_perceived_reward = sum(perceived_reward_values) / len(perceived_reward_values)
+            overview["perceived_reward"] = mean_perceived_reward
+
         # include custom stats from trainer config
         if hasattr(self.trainer_cfg, "stats") and hasattr(self.trainer_cfg.stats, "overview"):
             for k, v in self.trainer_cfg.stats.overview.items():

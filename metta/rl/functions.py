@@ -58,6 +58,9 @@ def perform_rollout_step(
     d = torch.as_tensor(d).to(device, non_blocking=True)
     t = torch.as_tensor(t).to(device, non_blocking=True)
 
+    # Store original reward before modification for comparison
+    original_reward = r.clone()
+
     # Add contrastive reward if enabled
     if (
         contrastive_module is not None
@@ -113,6 +116,23 @@ def perform_rollout_step(
             vecenv.send(actions.cpu().numpy().astype(dtype_actions))
     else:
         vecenv.send(actions.cpu().numpy().astype(dtype_actions))
+
+    # Add original and perceived rewards to info for stats collection
+    if info:
+        for i in range(len(info)):
+            if info[i] is None:
+                info[i] = {}
+            # Add original reward for each agent
+            if original_reward.numel() == 1:
+                info[i]["original_reward"] = original_reward.item()
+            else:
+                info[i]["original_reward"] = original_reward[i].item()
+
+            # Add perceived reward (modified reward) for each agent
+            if r.numel() == 1:
+                info[i]["perceived_reward"] = r.item()
+            else:
+                info[i]["perceived_reward"] = r[i].item()
 
     return num_steps, info
 
