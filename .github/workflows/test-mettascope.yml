@@ -43,7 +43,7 @@ jobs:
           cd mettascope
           uv run tools/gen_atlas.py
 
-      - name: Run quick training job
+      - name: Run quick training job for basic replay data
         run: |
           uv run tools/train.py trainer.total_timesteps=10 run=smoke_test +hardware=github wandb=off
 
@@ -51,20 +51,21 @@ jobs:
         run: |
           uv run tools/replay.py run=smoke_test +hardware=github wandb=off
 
-      # - name: Run TypeScript smoke test
-      #   run: |
-      #     cd mettascope
-      #     # start the backend
-      #     python -m http.server 2000 &
-      #     echo "Started python http server"
+      - name: Run mettascope smoke test
+        run: |
+          # start the backend
+          uv run tools/play.py run=smoke_test +hardware=github wandb=off &
+          echo "Started backend"
 
-      #     # run tests
-      #     npm run test
+          cd mettascope
 
-      # - name: Upload test artifacts
-      #   uses: actions/upload-artifact@v4
-      #   if: ${{ !env.ACT }} # skip when testing locally with `act`
-      #   with:
-      #     name: playwright-test-results
-      #     path: mettascope/tests/test-results/
-      #     retention-days: 30
+          # run tests
+          npm run test
+
+      - name: Upload test artifacts
+        uses: actions/upload-artifact@v4
+        if: ${{ !env.ACT }} # skip when testing locally with `act`
+        with:
+          name: playwright-test-results
+          path: mettascope/tests/test-results/
+          retention-days: 30

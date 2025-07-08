@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test'
 
-const replayUrl = 'https://softmax-public.s3.amazonaws.com/replays/daveey.arena.baseline.8x4/3445942f5832/bd5a49ae-e8ed-47a0-a210-8452d28f8e03.json.z'
+const host = "http://localhost:8000"
 
 test('smoke test', async ({ page }) => {
   const consoleErrors: string[] = []
@@ -9,7 +9,7 @@ test('smoke test', async ({ page }) => {
       consoleErrors.push(msg.text())
     }
   })
-  await page.goto('http://localhost:2000')
+  await page.goto(host)
   expect(consoleErrors).toHaveLength(0)
 })
 
@@ -20,7 +20,7 @@ test('load a replay', async ({ page }) => {
       consoleErrors.push(msg.text())
     }
   })
-  await page.goto(`http://localhost:2000/?replayUrl=${encodeURIComponent(replayUrl)}`)
+  await page.goto(`${host}/?wsUrl=%2Fws`)
   
   // Wait for the page to fully load the replay and render the first frame
   await page.waitForFunction(() => {
@@ -38,7 +38,7 @@ test('load a replay and play it', async ({ page }) => {
       consoleErrors.push(msg.text())
     }
   })
-  await page.goto(`http://localhost:2000/?replayUrl=${encodeURIComponent(replayUrl)}&play=true`)
+  await page.goto(`${host}/?wsUrl=%2Fws&play=true`)
   
   // Wait for the page to fully load the replay and render the first frame
   await page.waitForFunction(() => {
