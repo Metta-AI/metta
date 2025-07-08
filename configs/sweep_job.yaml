@@ -11,8 +11,8 @@ cmd: sweep
 sweep_run: null  # Will be set via command line override
 
 trainer:
-  total_timesteps: 1000   # 5M timesteps for proper RL training (was 50k - too short!)
-  curriculum: /env/mettagrid/arena/basic_easy_shaped
+  total_timesteps: 5_000_000   # 5M timesteps for proper RL training (was 50k - too short!)
+  curriculum: /env/mettagrid/curriculum/arena
 
 
 sim:
@@ -23,6 +23,9 @@ sim:
   simulations:
     simple:
       env: env/mettagrid/arena/basic
+
+wandb:
+  group: ${sweep_run}
 
 sweep_job:
   sim: ${sim}
