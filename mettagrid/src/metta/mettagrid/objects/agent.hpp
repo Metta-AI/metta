@@ -21,7 +21,7 @@ struct AgentConfig : public GridObjectConfig {
               float action_failure_penalty,
               const std::map<InventoryItem, uint8_t>& resource_limits,
               const std::map<InventoryItem, float>& resource_rewards,
-              const std::map<InventoryItem, float>& resource_reward_max,
+              const std::map<InventoryItem, uint8_t>& resource_reward_max,
               float group_reward_pct)
       : GridObjectConfig(type_id, type_name),
         group_name(group_name),
@@ -39,7 +39,7 @@ struct AgentConfig : public GridObjectConfig {
   float action_failure_penalty;
   std::map<InventoryItem, uint8_t> resource_limits;
   std::map<InventoryItem, float> resource_rewards;
-  std::map<InventoryItem, float> resource_reward_max;
+  std::map<InventoryItem, uint8_t> resource_reward_max;
   float group_reward_pct;
 };
 
@@ -54,7 +54,7 @@ public:
   // however, this should not be relied on for correctness.
   std::map<InventoryItem, uint8_t> inventory;
   std::map<InventoryItem, float> resource_rewards;
-  std::map<InventoryItem, float> resource_reward_max;
+  std::map<InventoryItem, uint8_t> resource_reward_max;
   float action_failure_penalty;
   std::string group_name;
   unsigned char color;
@@ -119,7 +119,7 @@ public:
     // TODO: consider doing this only once per step, and not every time the inventory changes.
     float new_reward = 0;
     for (const auto& [item, amount] : this->inventory) {
-      float max_val = static_cast<float>(amount);
+      uint8_t max_val = amount;
       if (this->resource_reward_max.count(item) > 0 && max_val > this->resource_reward_max[item]) {
         max_val = this->resource_reward_max[item];
       }
