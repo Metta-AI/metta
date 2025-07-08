@@ -96,7 +96,9 @@ def create_run(cfg: DictConfig | ListConfig, logger: Logger) -> str:
     # This ensures the interpolations can be resolved
     cfg.wandb.group = sweep_metadata.wandb_sweep_id
     cfg.wandb.name = run_id
+
     # Note: run_id will be set by wandb.agent when it creates the run
+    # this is needed for the interpolations to be resolved
     if hasattr(cfg.wandb, "run_id"):
         cfg.wandb.run_id = "temp"  # Temporary value, will be replaced by wandb.agent
 
