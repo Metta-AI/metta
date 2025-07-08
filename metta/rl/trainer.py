@@ -740,12 +740,10 @@ class MettaTrainer:
                 dict(
                     policy_record=self.latest_saved_policy_record,
                     simulation_suite=self.sim_suite_config,
-                    stats_dir="/tmp/stats",
                     device=self.device,
                     vectorization=self.cfg.vectorization,
                     stats_epoch_id=self._stats_epoch_id,
                     wandb_policy_name=wandb_policy_name,
-                    export_stats_db_uri=None,
                 )
             ),
             policy_store=self.policy_store,
