@@ -22,15 +22,14 @@ class EvaluationJob(Config):
 
     policy_record: PolicyRecord
     simulation_suite: SimulationSuiteConfig
-    stats_dir: str
-    replay_dir: str
     device: str
     vectorization: str
     data_dir: str
+    stats_dir: str = "/tmp/stats"
+    replay_dir: str | None = None
     export_stats_db_uri: str | None = None
     stats_epoch_id: uuid.UUID | None = None
     wandb_policy_name: str | None = None
-    extract_replay_url: bool = True
 
 
 class EvaluationScores(BaseModelWithForbidExtra):
@@ -86,7 +85,7 @@ def evaluate_policy(
         logger.info("Exporting merged stats DB → %s", job.export_stats_db_uri)
         sim_results.stats_db.export(job.export_stats_db_uri)
 
-    if job.extract_replay_url:
+    if job.replay_dir is not None:
         logger.info("Generating replay URL")
         replay_url = extract_replay_url(sim_results.stats_db, pr)
     else:
