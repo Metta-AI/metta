@@ -130,6 +130,8 @@ jobs:
 
       - name: Setup uv
         uses: ./.github/actions/setup-uv
+        with:
+          install-mode: "linting"
 
       - name: Run Ruff linter
         run: |
@@ -159,6 +161,38 @@ jobs:
 
       - name: Setup uv
         uses: ./.github/actions/setup-uv
+        with:
+          install-mode: "no-mettagrid"
+
+      - name: Build MettaGrid C++
+        id: mettagrid_build_check
+        run: |
+          .github/scripts/check_mettagrid_build.py
+
+      - name: Check MettaGrid build warnings
+        if: always()
+        run: |
+          errors=${{ steps.mettagrid_build_check.outputs.total_errors }}
+          warnings=${{ steps.mettagrid_build_check.outputs.total_warnings }}
+          max_warnings=${{ vars.MAX_ALLOWED_METTAGRID_WARNINGS || 1000 }}
+
+          echo "Build Summary: $errors errors, $warnings warnings"
+          echo "Maximum allowed warnings: $max_warnings"
+
+          if [ "$errors" -gt 0 ]; then
+            echo "❌ MettaGrid has build errors!"
+            exit 1
+          elif [ "$warnings" -gt "$max_warnings" ]; then
+            echo "⚠️ Too many warnings in MettaGrid build ($warnings > $max_warnings)"
+            exit 1
+          else
+            echo "✅ MettaGrid build quality check passed"
+          fi
+
+      - name: Install metta-mettagrid package
+        if: steps.mettagrid_build_check.outputs.build_success == 'true'
+        run: |
+          uv pip install --no-build-isolation --no-deps -e ./mettagrid
 
       - name: Run Pytest on core tests
         run: |
@@ -174,11 +208,9 @@ jobs:
           done
 
       - name: Run MettaGrid C++ tests
+        if: steps.mettagrid_build_check.outputs.build_success == 'true'
         run: |
-          source .venv/bin/activate
           cd mettagrid
-          cmake --preset debug
-          cmake --build build-debug
           ctest --test-dir build-debug -L test
 
   smoke-test:

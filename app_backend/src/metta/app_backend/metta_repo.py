@@ -7,6 +7,7 @@ from typing import Any, Dict, List
 from psycopg import Connection
 from psycopg.types.json import Jsonb
 
+from metta.app_backend.query_logger import execute_single_row_query_and_log
 from metta.app_backend.schema_manager import SqlMigration, run_migrations
 
 # This is a list of migrations that will be applied to the eval database.
@@ -516,15 +517,18 @@ class MettaRepo:
         token_hash = self._hash_token(token)
 
         with self.connect() as con:
-            result = con.execute(
-                """
+            query = """
                 UPDATE machine_tokens
                 SET last_used_at = CURRENT_TIMESTAMP
                 WHERE token_hash = %s AND expiration_time > CURRENT_TIMESTAMP
                 RETURNING user_id
-                """,
+                """
+            result = execute_single_row_query_and_log(
+                con,
+                query,
                 (token_hash,),
-            ).fetchone()
+                "validate_machine_token",
+            )
 
             if result:
                 return result[0]

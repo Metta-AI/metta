@@ -772,7 +772,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
                     float,
                     const std::map<InventoryItem, uint8_t>&,
                     const std::map<InventoryItem, float>&,
-                    const std::map<InventoryItem, float>&,
+                    const std::map<InventoryItem, uint8_t>&,
                     float>(),
            py::arg("type_id"),
            py::arg("type_name") = "agent",
@@ -782,7 +782,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
            py::arg("action_failure_penalty") = 0,
            py::arg("resource_limits") = std::map<InventoryItem, uint8_t>(),
            py::arg("resource_rewards") = std::map<InventoryItem, float>(),
-           py::arg("resource_reward_max") = std::map<InventoryItem, float>(),
+           py::arg("resource_reward_max") = std::map<InventoryItem, uint8_t>(),
            py::arg("group_reward_pct") = 0)
       .def_readwrite("type_id", &AgentConfig::type_id)
       .def_readwrite("type_name", &AgentConfig::type_name)
