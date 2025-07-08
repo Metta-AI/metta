@@ -20,10 +20,7 @@ def commander(arguments: str, tree: Any) -> Any:
         arguments = " ".join(arguments)
 
     # Split arguments into tokens
-    try:
-        args = parse_arguments(arguments)
-    except Exception as e:
-        raise CommanderError(f"Argument parsing error: {str(e)}") from e
+    args = parse_arguments(arguments)
 
     # Handle help
     if any(arg in ["-h", "--help"] for arg in args):
@@ -38,18 +35,10 @@ def commander(arguments: str, tree: Any) -> Any:
         # Check if it's a flag/option
         if arg.startswith("-"):
             # Parse the key and potential value
-            try:
-                key, value, consumed = parse_key_value(args, i)
-            except Exception as e:
-                raise CommanderError(f"Key-value parsing error: {str(e)}") from e
+            key, value, consumed = parse_key_value(args, i)
 
             # Apply the value to the tree
-            try:
-                apply_value(tree, key, value)
-            except Exception as e:
-                # Enhanced error message
-                error_msg = f"Error setting '{key}' to {repr(value)}: {str(e)}"
-                raise CommanderError(error_msg) from e
+            apply_value(tree, key, value)
 
             i += consumed
         else:
@@ -61,6 +50,9 @@ def commander(arguments: str, tree: Any) -> Any:
 
 def parse_arguments(arguments: str) -> List[str]:
     """Parse command line string into tokens, respecting quotes and escapes."""
+    if not isinstance(arguments, str):
+        raise CommanderError(f"Arguments must be a string, got {type(arguments).__name__}")
+
     tokens = []
     current_token = ""
     in_quotes = None
@@ -124,6 +116,7 @@ def parse_arguments(arguments: str) -> List[str]:
     if current_token:
         tokens.append(current_token)
 
+    # Check for parsing errors
     if in_quotes:
         raise CommanderError(f"Unclosed quote: {in_quotes}")
     if brace_depth != 0:
@@ -137,23 +130,38 @@ def parse_arguments(arguments: str) -> List[str]:
 def parse_key_value(args: List[str], index: int) -> Tuple[str, Any, int]:
     """Parse a key-value pair from arguments starting at index.
     Returns (key, value, number_of_args_consumed)"""
+    if index >= len(args):
+        raise CommanderError(f"Index {index} out of range for arguments list")
+
     arg = args[index]
+
+    # Check if it's a valid flag
+    if not arg.startswith("-"):
+        raise CommanderError(f"Expected flag starting with - or --, got: {arg}")
 
     # Remove leading dashes
     if arg.startswith("--"):
         arg = arg[2:]
     elif arg.startswith("-"):
         arg = arg[1:]
-    else:
-        raise CommanderError(f"Expected flag starting with - or --, got: {arg}")
+
+    # Check if we have a key after removing dashes
+    if not arg:
+        raise CommanderError("Empty flag after removing dashes")
 
     # Check for = or : separator
     if "=" in arg:
-        key, value_str = arg.split("=", 1)
+        parts = arg.split("=", 1)
+        if len(parts) != 2 or not parts[0]:
+            raise CommanderError(f"Invalid key=value format: {arg}")
+        key, value_str = parts
         value = parse_value(value_str)
         return key, value, 1
     elif ":" in arg:
-        key, value_str = arg.split(":", 1)
+        parts = arg.split(":", 1)
+        if len(parts) != 2 or not parts[0]:
+            raise CommanderError(f"Invalid key:value format: {arg}")
+        key, value_str = parts
         value = parse_value(value_str)
         return key, value, 1
     else:
@@ -163,9 +171,19 @@ def parse_key_value(args: List[str], index: int) -> Tuple[str, Any, int]:
             next_arg = args[index + 1]
             # Check if next arg is a value (not another flag)
             # Special handling for negative numbers which start with -
-            if not next_arg.startswith("-") or (
-                next_arg[1:].replace(".", "").replace("e", "").replace("+", "").lstrip("-").isdigit()
-            ):
+            is_negative_number = (
+                next_arg.startswith("-")
+                and len(next_arg) > 1
+                and next_arg[1:]
+                .replace(".", "")
+                .replace("e", "")
+                .replace("E", "")
+                .replace("+", "")
+                .replace("-", "")
+                .isdigit()
+            )
+
+            if not next_arg.startswith("-") or is_negative_number:
                 # There's a value after the key
                 value = parse_value(next_arg)
                 return key, value, 2
@@ -176,6 +194,9 @@ def parse_key_value(args: List[str], index: int) -> Tuple[str, Any, int]:
 
 def parse_value(value_str: str) -> Any:
     """Parse a value string into the appropriate type."""
+    if not isinstance(value_str, str):
+        raise CommanderError(f"Value must be a string, got {type(value_str).__name__}")
+
     value_str = value_str.strip()
 
     if not value_str:
@@ -185,6 +206,8 @@ def parse_value(value_str: str) -> Any:
     if (value_str.startswith('"') and value_str.endswith('"')) or (
         value_str.startswith("'") and value_str.endswith("'")
     ):
+        if len(value_str) < 2:
+            raise CommanderError(f"Invalid quoted string: {value_str}")
         # Remove quotes and handle escapes
         return parse_quoted_string(value_str[1:-1])
 
@@ -246,7 +269,6 @@ def parse_quoted_string(s: str) -> str:
 
 def is_number(s: str) -> bool:
     """Check if a string represents a number."""
-    # Handle empty string
     if not s:
         return False
 
@@ -256,79 +278,128 @@ def is_number(s: str) -> bool:
             return False
         s = s[1:]
 
-    # Check for valid number patterns
-    try:
-        float(s)
-        return True
-    except ValueError:
+    # Basic validation - must contain at least one digit
+    if not any(c.isdigit() for c in s):
         return False
+
+    # Check for valid float format
+    dot_count = s.count(".")
+    if dot_count > 1:
+        return False
+
+    # Check for valid scientific notation
+    e_count = s.lower().count("e")
+    if e_count > 1:
+        return False
+
+    if e_count == 1:
+        parts = s.lower().split("e")
+        if len(parts) != 2:
+            return False
+
+        # Validate base part (before 'e')
+        base_part = parts[0]
+        if not base_part:  # Empty base part like "e10"
+            return False
+
+        # Base part should be a valid number (without 'e')
+        if not (
+            base_part.replace(".", "").isdigit()
+            or (base_part.startswith(("+", "-")) and base_part[1:].replace(".", "").isdigit())
+        ):
+            return False
+
+        # Validate exponent part (after 'e')
+        exp_part = parts[1]
+        if not exp_part:  # Empty exponent like "1e"
+            return False
+
+        if exp_part.startswith(("+", "-")):
+            if len(exp_part) == 1:  # Just a sign like "1e+"
+                return False
+            exp_part = exp_part[1:]
+
+        if not exp_part.isdigit():
+            return False
+    else:
+        # No scientific notation - must be all digits with optional dot
+        clean = s.replace(".", "")
+        if not clean.isdigit():
+            return False
+
+    return True
 
 
 def parse_number(s: str) -> Union[int, float]:
     """Parse a number string."""
-    num = float(s)
-    # If it's a whole number, return as int
-    if num.is_integer():
-        return int(num)
-    return num
+    if not is_number(s):
+        raise CommanderError(f"Invalid number format: {s}")
+
+    # Safe to convert since we validated it
+    if "." in s or "e" in s.lower():
+        return float(s)
+    else:
+        return int(s)
 
 
 def parse_json5(s: str) -> Any:
     """Parse JSON5-like syntax (relaxed JSON)."""
+    if not s.strip():
+        raise CommanderError("Empty JSON value")
+
     # First try standard JSON
     try:
         return json.loads(s)
     except json.JSONDecodeError:
         pass
 
-    # JSON5 relaxations:
-    # 1. Unquoted keys
-    # 2. Single quotes
-    # 3. Trailing commas
-    # 4. Comments (not implemented here)
+    # JSON5 relaxations - be more careful about the transformations
+    relaxed = s.strip()
 
-    # Handle single quotes by replacing with double quotes (careful with escapes)
-    relaxed = s
+    # Basic validation
+    if not ((relaxed.startswith("{") and relaxed.endswith("}")) or (relaxed.startswith("[") and relaxed.endswith("]"))):
+        raise CommanderError(f"JSON value must start and end with matching braces/brackets: {s}")
 
     # Convert single quotes to double quotes (simple approach)
-    # This is not perfect but handles most cases
     if "'" in relaxed:
-        # Replace single quotes that are not escaped
         parts = []
         i = 0
         in_double_quotes = False
         while i < len(relaxed):
-            if relaxed[i] == '"' and (i == 0 or relaxed[i - 1] != "\\"):
+            char = relaxed[i]
+            if char == '"' and (i == 0 or relaxed[i - 1] != "\\"):
                 in_double_quotes = not in_double_quotes
-                parts.append(relaxed[i])
-            elif relaxed[i] == "'" and not in_double_quotes and (i == 0 or relaxed[i - 1] != "\\"):
+                parts.append(char)
+            elif char == "'" and not in_double_quotes and (i == 0 or relaxed[i - 1] != "\\"):
                 parts.append('"')
             else:
-                parts.append(relaxed[i])
+                parts.append(char)
             i += 1
         relaxed = "".join(parts)
 
     # Convert unquoted keys to quoted keys
-    # Match word characters followed by colon
     relaxed = re.sub(r"([{,]\s*)(\w+)(\s*:)", r'\1"\2"\3', relaxed)
     relaxed = re.sub(r"^(\s*)(\w+)(\s*:)", r'\1"\2"\3', relaxed)
 
     # Remove trailing commas
     relaxed = re.sub(r",(\s*[}\]])", r"\1", relaxed)
 
-    # Try parsing again
+    # Try parsing the relaxed version
     try:
         return json.loads(relaxed)
-    except Exception as e:
-        # As a fallback, try using ast.literal_eval for simple cases
+    except json.JSONDecodeError as e:
+        # Try ast.literal_eval as last resort
         try:
             return ast.literal_eval(s)
-        except Exception:
-            raise CommanderError(f"Unable to parse JSON5 value: {s}. Error: {str(e)}") from e
+        except (ValueError, SyntaxError):
+            raise CommanderError(f"Unable to parse JSON5 value: {s}. JSON error: {str(e)}") from e
 
 
 def apply_value(tree: Any, key_path: str, value: Any) -> None:
     """Apply a value to the tree at the given key path."""
+    if not key_path:
+        raise CommanderError("Empty key path")
+
     keys = key_path.split(".")
     current = tree
     path = []
@@ -336,94 +407,92 @@ def apply_value(tree: Any, key_path: str, value: Any) -> None:
     # Navigate to the parent of the target
     for key in keys[:-1]:
         path.append(key)
+        current_path = ".".join(path)
 
         if isinstance(current, dict):
             if key not in current:
-                raise CommanderError(f"Key '{key}' not found at path {'.'.join(path)}")
+                raise CommanderError(f"Key '{key}' not found at path '{current_path}'")
             current = current[key]
         elif isinstance(current, list):
-            try:
-                index = int(key)
-                if index < 0 or index >= len(current):
-                    raise CommanderError(f"Index {index} out of range for list at path {'.'.join(path[:-1])}")
-                current = current[index]
-            except ValueError as e:
+            if not key.isdigit():
+                raise CommanderError(f"List index must be numeric, got '{key}' at path '{current_path}'")
+            index = int(key)
+            if index < 0:
+                raise CommanderError(f"List index cannot be negative: {index} at path '{current_path}'")
+            if index >= len(current):
                 raise CommanderError(
-                    f"Cannot use non-numeric key '{key}' for list at path {'.'.join(path[:-1])}"
-                ) from e
+                    f"List index {index} out of range (length {len(current)}) at path '{current_path}'"
+                )
+            current = current[index]
         else:
             # Handle Python objects with attributes
             if not hasattr(current, key):
-                raise CommanderError(f"Attribute '{key}' not found at path {'.'.join(path)}")
+                raise CommanderError(
+                    f"Attribute '{key}' not found on {type(current).__name__} at path '{current_path}'"
+                )
             current = getattr(current, key)
 
     # Apply the value
     final_key = keys[-1]
     path.append(final_key)
+    final_path = ".".join(path)
 
     if isinstance(current, dict):
         if final_key not in current:
-            raise CommanderError(f"Key '{final_key}' not found at path {'.'.join(path)}")
+            raise CommanderError(f"Key '{final_key}' not found at path '{final_path}'")
 
         # Type check
         old_value = current[final_key]
-        if old_value is not None and not isinstance(old_value, type(value)):
+        if old_value is not None and not isinstance(value, type(old_value)):
             # Allow int/float conversions
             if isinstance(old_value, (int, float)) and isinstance(value, (int, float)):
                 pass
-            # Allow None to be replaced by any type
-            elif old_value is None:
-                pass
             else:
                 raise CommanderError(
-                    f"Type mismatch at path {'.'.join(path)}: "
+                    f"Type mismatch at path '{final_path}': "
                     f"expected {type(old_value).__name__}, got {type(value).__name__}"
                 )
 
         current[final_key] = value
     elif isinstance(current, list):
-        try:
-            index = int(final_key)
-            if index < 0 or index >= len(current):
-                raise CommanderError(f"Index {index} out of range for list at path {'.'.join(path[:-1])}")
+        if not final_key.isdigit():
+            raise CommanderError(f"List index must be numeric, got '{final_key}' at path '{final_path}'")
 
-            # Type check
-            old_value = current[index]
-            if old_value is not None and not isinstance(old_value, type(value)):
-                # Allow int/float conversions
-                if isinstance(old_value, (int, float)) and isinstance(value, (int, float)):
-                    pass
-                # Allow None to be replaced by any type
-                elif old_value is None:
-                    pass
-                else:
-                    raise CommanderError(
-                        f"Type mismatch at path {'.'.join(path)}: "
-                        f"expected {type(old_value).__name__}, got {type(value).__name__}"
-                    )
-
-            current[index] = value
-        except ValueError as e:
-            raise CommanderError(
-                f"Cannot use non-numeric key '{final_key}' for list at path {'.'.join(path[:-1])}"
-            ) from e
-    else:
-        # Handle Python objects with attributes
-        if not hasattr(current, final_key):
-            raise CommanderError(f"Attribute '{final_key}' not found at path {'.'.join(path)}")
+        index = int(final_key)
+        if index < 0:
+            raise CommanderError(f"List index cannot be negative: {index} at path '{final_path}'")
+        if index >= len(current):
+            raise CommanderError(f"List index {index} out of range (length {len(current)}) at path '{final_path}'")
 
         # Type check
-        old_value = getattr(current, final_key)
-        if old_value is not None and not isinstance(old_value, type(value)):
+        old_value = current[index]
+        if old_value is not None and not isinstance(value, type(old_value)):
             # Allow int/float conversions
             if isinstance(old_value, (int, float)) and isinstance(value, (int, float)):
                 pass
-            # Allow None to be replaced by any type
-            elif old_value is None:
+            else:
+                raise CommanderError(
+                    f"Type mismatch at path '{final_path}': "
+                    f"expected {type(old_value).__name__}, got {type(value).__name__}"
+                )
+
+        current[index] = value
+    else:
+        # Handle Python objects with attributes
+        if not hasattr(current, final_key):
+            raise CommanderError(
+                f"Attribute '{final_key}' not found on {type(current).__name__} at path '{final_path}'"
+            )
+
+        # Type check
+        old_value = getattr(current, final_key)
+        if old_value is not None and not isinstance(value, type(old_value)):
+            # Allow int/float conversions
+            if isinstance(old_value, (int, float)) and isinstance(value, (int, float)):
                 pass
             else:
                 raise CommanderError(
-                    f"Type mismatch at path {'.'.join(path)}: "
+                    f"Type mismatch at path '{final_path}': "
                     f"expected {type(old_value).__name__}, got {type(value).__name__}"
                 )
 
