@@ -305,8 +305,6 @@ This separation ensures that:
 Remember that python has no built-in tree shaking for dependencies! To keep packages lightweight and minimize dependency
 bloat:
 
-To minimize dependency footprint and improve import times:
-
 ```python
 # ❌ AVOID: Importing entire packages
 import torch
