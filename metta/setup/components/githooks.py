@@ -4,6 +4,8 @@ from metta.setup.registry import register_module
 
 @register_module
 class GitHooksSetup(SetupModule):
+    install_once = True
+
     @property
     def description(self) -> str:
         return "Git hooks"

@@ -12,6 +12,8 @@ from metta.setup.utils import error, info, success, warning
 
 @register_module
 class SystemSetup(SetupModule):
+    install_once = True
+
     @property
     @override
     def description(self) -> str:
