@@ -74,8 +74,8 @@ device, is_master, world_size, rank = setup_distributed_training("cuda" if torch
 trainer_config = TrainerConfig(
     num_workers=4,
     total_timesteps=10_000_000,
-    batch_size=524288,  # 512k - matches trainer.yaml
-    minibatch_size=16384,  # 16k - matches trainer.yaml
+    batch_size=524288 if torch.cuda.is_available() else 4096,  # 512k for GPU, 4k for CPU
+    minibatch_size=16384 if torch.cuda.is_available() else 1024,  # 16k for GPU, 1k for CPU
     curriculum="/env/mettagrid/curriculum/navigation/bucketed",
     ppo=PPOConfig(
         clip_coef=0.1,
@@ -102,7 +102,7 @@ trainer_config = TrainerConfig(
         profile_dir=os.path.join(dirs.run_dir, "torch_traces"),
     ),
     grad_mean_variance_interval=150,
-    forward_pass_minibatch_target_size=4096,  # Add this to match trainer.yaml
+    forward_pass_minibatch_target_size=4096 if torch.cuda.is_available() else 2048,  # Adjust for CPU
     async_factor=2,  # Add this to match trainer.yaml
 )
 
