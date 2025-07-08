@@ -1,0 +1,54 @@
+metric: reward
+goal: maximize
+num_random_samples: 20
+
+protein:
+  max_suggestion_cost: 3600
+  resample_frequency: 0
+  global_search_scale: 1
+  random_suggestions: 1024
+  suggestions_per_pareto: 256
+
+parameters:
+  # Learning Progress Curriculum hyperparameters
+  ema_timescale:
+    distribution: log_normal
+    min: 0.0001
+    max: 0.01
+    scale: auto
+    mean: 0.001
+
+  progress_smoothing:
+    distribution: logit_normal
+    min: 0.01
+    max: 0.2
+    scale: auto
+    mean: 0.05
+
+  num_active_tasks:
+    distribution: int_uniform
+    min: 8
+    max: 24
+    scale: auto
+    mean: 16
+
+  rand_task_rate:
+    distribution: logit_normal
+    min: 0.1
+    max: 0.5
+    scale: auto
+    mean: 0.25
+
+  sample_threshold:
+    distribution: int_uniform
+    min: 5
+    max: 20
+    scale: auto
+    mean: 10
+
+  memory:
+    distribution: int_uniform
+    min: 15
+    max: 50
+    scale: auto
+    mean: 25

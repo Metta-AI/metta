@@ -1,0 +1,35 @@
+# @package __global__
+
+defaults:
+  - /common
+  - /agent/fast
+  - /trainer/trainer
+  - /sim/arena@evals  # Use arena evaluation suite
+  - _self_
+
+# Basic run configuration
+run: basic_arena_experiment
+cmd: train
+
+data_dir: ${oc.env:DATA_DIR,./train_dir}
+run_dir: ${data_dir}/${run}
+
+trainer:
+  curriculum: /env/mettagrid/arena/basic_easy  # Basic arena without shaping
+  num_workers: 4
+  simulation:
+    evaluate_interval: 100
+  checkpoint:
+    wandb_checkpoint_interval: 100
+  total_timesteps: 1_000_000_000  # 1 billion steps
+
+wandb:
+  enabled: true
+  project: learning-progress-sweep
+  entity: metta-research
+  group: ${run}
+  name: ${run}
+  run_id: ${run}
+  data_dir: ${run_dir}
+  job_type: ${cmd}
+  tags: ["learning_progress_arena_comparison"]

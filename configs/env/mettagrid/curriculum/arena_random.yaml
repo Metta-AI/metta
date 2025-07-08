@@ -1,6 +1,6 @@
-_target_: metta.mettagrid.curriculum.learning_progress.LearningProgressCurriculum
+_target_: metta.mettagrid.curriculum.random.RandomCurriculum
 
-tasks:
+curricula_cfgs:
   /env/mettagrid/arena/basic: 1
   /env/mettagrid/arena/basic_easy: 1
   /env/mettagrid/arena/basic_easy_shaped: 1
@@ -17,10 +17,6 @@ tasks:
   /env/mettagrid/arena/tag_easy: 1
   /env/mettagrid/arena/tag_easy_shaped: 1
 
-# Learning progress hyperparameters (will be overridden by sweep)
-ema_timescale: 0.001
-progress_smoothing: 0.05
-num_active_tasks: 16
-rand_task_rate: 0.25
-sample_threshold: 10
-memory: 25
+env_overrides:
+  game:
+    num_agents: 24
