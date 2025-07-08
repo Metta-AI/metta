@@ -8,6 +8,10 @@ defaults:
   - /agent/fast
   - _self_
 
+# Device configuration for CUDA training
+device: cuda
+vectorization: multiprocessing
+
 trainer:
   env: /env/mettagrid/arena/basic_easy
   contrastive:
@@ -18,8 +22,11 @@ trainer:
     logsumexp_coef: 0.01
     num_rollout_negatives: 4
     num_cross_rollout_negatives: 4
+  batch_size: 131072
+  minibatch_size: 768
+  total_timesteps: 1000000
   num_workers: 2
-  cpu_offload: true
+  cpu_offload: false
   bptt_horizon: 32
   async_factor: 1
 
