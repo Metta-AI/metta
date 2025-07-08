@@ -334,45 +334,6 @@ def calculate_batch_sizes(
     return target_batch_size, batch_size, num_envs
 
 
-def validate_policy_environment_match(policy: Any, env: Any) -> None:
-    """Validate that policy's observation shape matches environment's."""
-    from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
-
-    # Extract agent from distributed wrapper if needed
-    if isinstance(policy, MettaAgent):
-        agent = policy
-    elif isinstance(policy, DistributedMettaAgent):
-        agent = policy.module
-    else:
-        raise ValueError(f"Policy must be of type MettaAgent or DistributedMettaAgent, got {type(policy)}")
-
-    _env_shape = env.single_observation_space.shape
-    environment_shape = tuple(_env_shape) if isinstance(_env_shape, list) else _env_shape
-
-    # The rest of the validation logic continues to work with duck typing
-    if hasattr(agent, "components"):
-        found_match = False
-        for component_name, component in agent.components.items():
-            if hasattr(component, "_obs_shape"):
-                found_match = True
-                component_shape = (
-                    tuple(component._obs_shape) if isinstance(component._obs_shape, list) else component._obs_shape
-                )
-                if component_shape != environment_shape:
-                    raise ValueError(
-                        f"Observation space mismatch error:\n"
-                        f"[policy] component_name: {component_name}\n"
-                        f"[policy] component_shape: {component_shape}\n"
-                        f"environment_shape: {environment_shape}\n"
-                    )
-
-        if not found_match:
-            raise ValueError(
-                "No component with observation shape found in policy. "
-                f"Environment observation shape: {environment_shape}"
-            )
-
-
 def calculate_prioritized_sampling_params(
     epoch: int,
     total_timesteps: int,

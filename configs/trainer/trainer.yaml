@@ -1,4 +1,5 @@
-_target_: metta.rl.trainer.MettaTrainer
+# Trainer configuration
+# Used by tools/train.py for training configuration
 
 num_workers: ???
 
