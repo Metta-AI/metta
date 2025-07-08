@@ -115,22 +115,27 @@ class MettaAgent(nn.Module):
         logging.info(f"agent_attributes: {self.agent_attributes}")
 
         self.components = nn.ModuleDict()
+        # Keep component configs as DictConfig to support both dict and attribute access
+        component_cfgs = cfg.components
 
         # First pass: instantiate all configured components
-        for component_key in cfg.components:
+        for component_key in component_cfgs:
             # Convert key to string to ensure compatibility
             component_name = str(component_key)
 
-            # Build component config with agent attributes and name
-            comp_config = dict(cfg.components[component_key], **self.agent_attributes, name=component_name)
+            # Prepare component config - only convert to dict when needed for instantiation
+            comp_config = component_cfgs[component_key]
 
             # Ensure nn_params is DictConfig for dual access
             if "nn_params" in comp_config and isinstance(comp_config["nn_params"], dict):
                 if not isinstance(comp_config["nn_params"], DictConfig):
                     comp_config["nn_params"] = DictConfig(comp_config["nn_params"])
 
+            # Convert to dict and merge attributes for instantiation
+            comp_dict = dict(comp_config, **self.agent_attributes, name=component_name)
+
             # Instantiate component
-            self.components[component_name] = instantiate(comp_config)
+            self.components[component_name] = instantiate(comp_dict)
 
         component = self.components["_value_"]
         self._setup_components(component)
