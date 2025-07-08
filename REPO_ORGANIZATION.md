@@ -70,13 +70,17 @@ metta/
 │   │   └── metta/
 │   │       └── mettagrid/ # metta.mettagrid namespace
 │   └── CMakeLists.txt
-├── backend/               # Remote services package (PEP420)
-│   └── src/
-│       └── metta/
-│           └── backend/   # metta.backend namespace
-│               ├── observatory/  # Observatory API endpoints
-│               ├── sweep-names/  # Name registration service
-│               └── stat-buffer/  # Data persistence layer
+├── backend/
+│   ├── src/
+│   │   └── metta/
+│   │       └── backend/
+│   │           ├── observatory/   # Observatory API endpoints
+│   │           ├── sweep_names/   # Name registration service
+│   │           └── stat_buffer/   # Data persistence layer
+│   └── docker/
+│       └── observatory/
+│           ├── Dockerfile
+│           └── requirements.txt   # Cherry-pick only needed deps
 ├── apps/                  # All user-facing applications
 │   ├── shared/            # Shared components and utilities
 │   │   ├── components/    # Reusable React components
@@ -98,6 +102,7 @@ metta/
 │       └── package.json
 └── pyproject.toml         # Root configuration
 ```
+
 
 ## Testing Strategy
 - Each package maintains its own tests/ directory
@@ -157,8 +162,23 @@ from metta.backend.observatory import RemoteStatsDb
 - **Purpose**: Unified backend services for all server-side functionality
 
   - **observatory/**: API endpoints for experiment tracking and visualization
-  - **sweep-names/**: Process name registration service for sweeps
-  - **stat-buffer/**: Data persistence and database interfaces
+  - **sweep_names/**: Process name registration service for sweeps
+  - **stat_buffer/**: Data persistence and database interfaces
+
+
+#### Deployment Strategy
+
+Services can be deployed independently using optional dependencies:
+
+```python
+# backend/pyproject.toml
+[project.optional-dependencies]
+observatory = ["fastapi", "uvicorn", "pydantic"]
+sweep-names = ["redis", "msgpack"]
+stat-buffer = ["sqlalchemy", "psycopg2"]
+all = ["fastapi", "uvicorn", "pydantic", "redis", "msgpack", "sqlalchemy", "psycopg2"]
+```
+
 
 ## Frontend Applications
 
