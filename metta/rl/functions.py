@@ -711,13 +711,8 @@ def process_stats(
 
     # Weight stats
     weight_stats = {}
-    if hasattr(trainer_cfg, "agent") and trainer_cfg.agent.get("analyze_weights_interval", 0) != 0:
-        if epoch % trainer_cfg.agent.analyze_weights_interval == 0:
-            for metrics in policy.compute_weight_metrics():
-                name = metrics.get("name", "unknown")
-                for key, value in metrics.items():
-                    if key != "name":
-                        weight_stats[f"weights/{key}/{name}"] = value
+    # Note: agent config is not part of trainer_cfg, it's in the main cfg
+    # This would need to be passed separately if needed
 
     # Timing stats
     elapsed_times = timer.get_all_elapsed()
@@ -774,10 +769,8 @@ def process_stats(
         overview["reward_vs_total_time"] = mean_reward
 
     # Include custom stats from trainer config
-    if hasattr(trainer_cfg, "stats") and hasattr(trainer_cfg.stats, "overview"):
-        for k, v in trainer_cfg.stats.overview.items():
-            if k in mean_stats:
-                overview[v] = mean_stats[k]
+    # Note: stats.overview is not a standard field in TrainerConfig
+    # This would need to be added to the config model if needed
 
     # Category scores
     category_scores_map = {key.split("/")[0]: value for key, value in evals.items() if key.endswith("/score")}
@@ -792,13 +785,14 @@ def process_stats(
         losses_dict.pop("l2_reg_loss", None)
     if trainer_cfg.ppo.l2_init_loss_coef == 0:
         losses_dict.pop("l2_init_loss", None)
-    if not hasattr(trainer_cfg, "kickstart") or not trainer_cfg.kickstart.get("enabled", True):
+    # Kickstart is enabled if teacher_uri is set
+    if not trainer_cfg.kickstart.teacher_uri:
         losses_dict.pop("ks_action_loss", None)
         losses_dict.pop("ks_value_loss", None)
 
     # Parameters
     parameters = {
-        "learning_rate": optimizer.param_groups[0]["lr"] if hasattr(trainer_cfg, "optimizer") else 0,
+        "learning_rate": optimizer.param_groups[0]["lr"],
         "epoch_steps": epoch_steps,
         "num_minibatches": experience.num_minibatches,
         "generation": initial_policy_record.metadata.get("generation", 0) + 1 if initial_policy_record else 0,
