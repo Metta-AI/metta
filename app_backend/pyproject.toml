@@ -17,7 +17,6 @@ dependencies = [
   "uvicorn[standard]>=0.34.2",
   "psycopg[binary,pool]>=3.2.9",
   "pydantic>=2.11.5",
-  "psycopg-pool>=3.2.6",
   "pytest-asyncio>=1.0.0",
 ]
 
