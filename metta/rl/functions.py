@@ -79,7 +79,7 @@ def run_policy_inference(
             assert_shape(actions, ("BT", 2), "actions")
 
         lstm_state_to_store = None
-        if state.lstm_h is not None:
+        if state.lstm_h is not None and state.lstm_c is not None:
             lstm_state_to_store = {"lstm_h": state.lstm_h.detach(), "lstm_c": state.lstm_c.detach()}
 
         if str(device).startswith("cuda"):
@@ -652,7 +652,7 @@ def train_epoch(
                 optimizer.step()
 
                 # Optional weight clipping
-                if hasattr(policy, "clip_weights") and trainer_cfg.get("agent", {}).get("clip_range", 0) > 0:
+                if hasattr(policy, "clip_weights"):
                     policy.clip_weights()
 
                 if str(device).startswith("cuda"):
