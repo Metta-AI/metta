@@ -22,8 +22,8 @@ fi
 uv sync
 
 # Lint and format
-ruff format
-ruff check
+uv run ruff format
+uv run ruff check
 
 # Run tests for Metta
 uv run pytest
