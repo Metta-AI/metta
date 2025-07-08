@@ -12,7 +12,7 @@
 #include "types.hpp"
 
 struct AttackActionConfig : public ActionConfig {
-  std::map<InventoryItem, short> defense_resources;
+  std::map<InventoryItem, InventoryQuantity> defense_resources;
 
   AttackActionConfig(bool enabled,
                      const std::map<InventoryItem, InventoryQuantity>& required_resources,
@@ -33,7 +33,7 @@ public:
   }
 
 protected:
-  std::map<InventoryItem, short> _defense_resources;
+  std::map<InventoryItem, InventoryQuantity> _defense_resources;
 
   bool _handle_action(Agent* agent, ActionArg arg) override {
     if (arg < 1 || arg > 9) {
@@ -98,7 +98,7 @@ protected:
       if (blocked) {
         // Consume the defense resources
         for (const auto& [item, amount] : _defense_resources) {
-          int used_amount = std::abs(agent_target->update_inventory(item, -amount));
+          InventoryDelta used_amount = std::abs(agent_target->update_inventory(item, -amount));
           assert(used_amount == amount);
         }
 

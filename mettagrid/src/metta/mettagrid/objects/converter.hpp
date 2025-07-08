@@ -167,8 +167,8 @@ public:
     this->maybe_start_converting();
   }
 
-  int update_inventory(InventoryItem item, InventoryQuantity delta) override {
-    int clamped_delta = HasInventory::update_inventory(item, delta);
+  InventoryDelta update_inventory(InventoryItem item, InventoryDelta delta) override {
+    InventoryDelta clamped_delta = HasInventory::update_inventory(item, delta);
     if (clamped_delta != 0) {
       if (clamped_delta > 0) {
         stats.add(stats.inventory_item_name(item) + ".added", clamped_delta);

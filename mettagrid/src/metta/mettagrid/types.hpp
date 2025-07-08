@@ -52,6 +52,7 @@ typedef bool MaskType;
 typedef bool SuccessType;
 
 typedef uint8_t InventoryItem;
-typedef short InventoryQuantity;  // needs to be signed to express inventory changes
+typedef uint8_t InventoryQuantity;
+typedef int8_t InventoryDelta;  // must be signed
 
 #endif  // TYPES_HPP_

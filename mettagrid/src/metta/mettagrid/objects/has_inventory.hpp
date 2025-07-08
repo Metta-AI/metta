@@ -10,18 +10,18 @@
 
 class HasInventory : public MettaObject {
 public:
-  std::map<InventoryItem, uint8_t> inventory;
+  std::map<InventoryItem, InventoryQuantity> inventory;
 
   // Whether the inventory is accessible to an agent.
   virtual bool inventory_is_accessible() {
     return true;
   }
 
-  virtual int update_inventory(InventoryItem item, InventoryQuantity delta) {
+  virtual InventoryDelta update_inventory(InventoryItem item, InventoryDelta delta) {
     InventoryQuantity initial_amount = this->inventory[item];
     int new_amount = static_cast<int>(initial_amount + delta);
 
-    constexpr int min = 0;  // do not allow negative inventory
+    constexpr int min = std::numeric_limits<InventoryQuantity>::min();
     constexpr int max = std::numeric_limits<InventoryQuantity>::max();
     InventoryQuantity clamped_amount = static_cast<InventoryQuantity>(std::clamp(new_amount, min, max));
 
@@ -31,7 +31,7 @@ public:
       this->inventory[item] = clamped_amount;
     }
 
-    InventoryQuantity clamped_delta = clamped_amount - initial_amount;
+    InventoryDelta clamped_delta = clamped_amount - initial_amount;
     return clamped_delta;
   }
 };

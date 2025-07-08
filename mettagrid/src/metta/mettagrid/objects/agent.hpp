@@ -84,13 +84,13 @@ public:
     this->reward = reward;
   }
 
-  int update_inventory(InventoryItem item, InventoryQuantity delta) {
+  InventoryDelta update_inventory(InventoryItem item, InventoryDelta delta) {
     InventoryQuantity initial_amount = this->inventory[item];
 
     InventoryQuantity clamped_amount =
         std::clamp(static_cast<int>(initial_amount + delta), 0, static_cast<int>(this->resource_limits[item]));
 
-    InventoryQuantity clamped_delta = clamped_amount - initial_amount;
+    InventoryDelta clamped_delta = clamped_amount - initial_amount;
     if (clamped_amount > 0) {
       this->inventory[item] = clamped_amount;
     } else {
