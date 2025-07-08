@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-from pathlib import Path
 
 import torch
 from pydantic import BaseModel, Field, field_serializer
@@ -81,11 +80,6 @@ class EvaluationService:
         Returns:
             Dictionary containing evaluation results and scores
         """
-
-        # Ensure directories exist
-        Path(stats_dir).mkdir(parents=True, exist_ok=True)
-        Path(replay_dir).mkdir(parents=True, exist_ok=True)
-
         self.logger.info(f"Evaluating policy: {policy_pr.run_name}")
 
         # Create and run simulation suite
