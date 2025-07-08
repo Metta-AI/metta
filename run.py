@@ -28,6 +28,7 @@ from metta.common.profiling.memory_monitor import MemoryMonitor
 from metta.common.profiling.stopwatch import Stopwatch
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.system_monitor import SystemMonitor
+from metta.common.wandb.wandb_context import WandbContext
 from metta.eval.eval_stats_db import EvalStatsDB
 from metta.mettagrid import mettagrid_c  # noqa: F401
 from metta.mettagrid.mettagrid_env import dtype_actions
@@ -38,7 +39,6 @@ from metta.rl.functions import (
     calculate_batch_sizes,
     calculate_explained_variance,
     compute_advantage,
-    compute_gradient_stats,
     compute_timing_stats,
     get_lstm_config,
     get_observation,
@@ -109,6 +109,15 @@ trainer_config = TrainerConfig(
 if torch.distributed.is_initialized() and trainer_config.scale_batches_by_world_size:
     trainer_config.batch_size = trainer_config.batch_size // world_size
 
+# WandB configuration
+wandb_config = {
+    "project": os.environ.get("WANDB_PROJECT", "metta-run"),
+    "entity": os.environ.get("WANDB_ENTITY", None),  # Set WANDB_ENTITY env var or update this
+    "enabled": os.environ.get("WANDB_DISABLED", "").lower() != "true",  # Set WANDB_DISABLED=true to disable
+    "name": dirs.run_name,
+    "config": trainer_config.model_dump(),
+}
+
 # Save config
 save_experiment_config(dirs, device, trainer_config)
 
@@ -142,6 +151,14 @@ metta_grid_env = env.driver_env  # type: ignore - vecenv attribute
 agent = Agent(env, device=str(device))
 hidden_size, num_lstm_layers = get_lstm_config(agent)
 
+# Initialize wandb if master
+wandb_run = None
+if is_master and wandb_config["enabled"]:
+    from omegaconf import DictConfig as OmegaDictConfig
+
+    wandb_ctx = WandbContext(OmegaDictConfig(wandb_config), DictConfig({"run": dirs.run_name, "run_dir": dirs.run_dir}))
+    wandb_run = wandb_ctx.__enter__()
+
 # Create policy store
 policy_store = PolicyStore(
     DictConfig(
@@ -153,7 +170,7 @@ policy_store = PolicyStore(
             "trainer": trainer_config.model_dump(),
         }
     ),
-    wandb_run=None,
+    wandb_run=wandb_run,
 )
 
 # Load checkpoint or create initial policy with distributed coordination
@@ -223,6 +240,8 @@ if getattr(trainer_config, "lr_scheduler", None) and trainer_config.lr_scheduler
     )
 
 # Memory and System Monitoring (master only)
+system_monitor = None
+memory_monitor = None
 if is_master:
     memory_monitor = MemoryMonitor()
     memory_monitor.add(experience, name="Experience", track_attributes=True)
@@ -247,7 +266,6 @@ steps_at_epoch_start = agent_step
 stats = defaultdict(list)  # Use defaultdict like trainer.py
 initial_policy_record = None  # Track initial policy
 current_policy_generation = 0  # Track policy generation
-grad_stats = {}  # Track gradient stats like trainer.py
 
 while agent_step < trainer_config.total_timesteps:
     steps_before = agent_step
@@ -388,97 +406,72 @@ while agent_step < trainer_config.total_timesteps:
     # Update stats with mean values for consistency
     stats = processed_stats["mean_stats"]
 
-    # Compute gradient statistics if on interval
-    grad_stats = {}
-    if should_run_on_interval(epoch, trainer_config.grad_mean_variance_interval, is_master):
-        grad_stats = compute_gradient_stats(agent)
-
-    # Get system and memory stats if master
-    system_stats = system_monitor.stats() if is_master and system_monitor else {}
-    memory_stats = memory_monitor.stats() if is_master and memory_monitor else {}
-
-    # Compute timing stats using shared function
+    # Compute timing stats
     timing_info = compute_timing_stats(
         timer=timer,
         agent_step=agent_step,
         world_size=world_size,
     )
 
-    # Calculate learning rate
-    current_lr = trainer_config.optimizer.learning_rate
-    if optimizer and hasattr(optimizer, "param_groups"):
-        current_lr = optimizer.param_groups[0]["lr"]
-    elif optimizer and hasattr(optimizer, "optimizer") and hasattr(optimizer.optimizer, "param_groups"):
-        # Handle our Optimizer wrapper
-        current_lr = optimizer.optimizer.param_groups[0]["lr"]
-
-    # Build parameters dictionary
-    parameters = {
-        "learning_rate": current_lr,
-        "epoch_steps": timing_info["epoch_steps"],
-        "num_minibatches": experience.num_minibatches,
-        "generation": current_policy_generation,
-    }
-
-    # Build complete stats dictionary
-    all_stats = build_wandb_stats(
-        processed_stats=processed_stats,
-        timing_info=timing_info,
-        weight_stats={},  # Weight stats not computed in run.py
-        grad_stats=grad_stats,
-        system_stats=system_stats,
-        memory_stats=memory_stats,
-        parameters=parameters,
-        evals=evaluation_scores.get(epoch, {}),
-        agent_step=agent_step,
-        epoch=epoch,
-        world_size=world_size,
-    )
-
-    # Log everything if master
+    # Build complete stats for wandb
     if is_master:
-        # Log losses
-        losses_stats = processed_stats["losses_stats"]
-        if losses_stats:
-            logger.info(
-                f"Losses - Policy: {losses_stats.get('policy_loss', 0):.4f}, "
-                f"Value: {losses_stats.get('value_loss', 0):.4f}, "
-                f"Entropy: {losses_stats.get('entropy', 0):.4f}, "
-                f"Explained Variance: {losses_stats.get('explained_variance', 0):.3f}"
-            )
+        # Get current learning rate
+        current_lr = trainer_config.optimizer.learning_rate
+        if hasattr(optimizer, "param_groups"):
+            current_lr = optimizer.param_groups[0]["lr"]
+        elif hasattr(optimizer, "optimizer"):
+            current_lr = optimizer.optimizer.param_groups[0]["lr"]
 
-        # Log gradient stats
-        if grad_stats:
-            logger.info(
-                f"Gradient stats - mean: {grad_stats.get('grad/mean', 0):.2e}, "
-                f"variance: {grad_stats.get('grad/variance', 0):.2e}, "
-                f"norm: {grad_stats.get('grad/norm', 0):.2e}"
-            )
+        # Build parameters dictionary
+        parameters = {
+            "learning_rate": current_lr,
+            "epoch_steps": timing_info["epoch_steps"],
+            "num_minibatches": experience.num_minibatches,
+            "generation": current_policy_generation,
+        }
 
-        # Log system stats
-        if system_stats:
-            # Extract values from monitor/ prefixed keys
-            cpu_percent = system_stats.get("monitor/cpu_percent", 0)
-            memory_percent = system_stats.get("monitor/memory_percent", 0)
-            process_memory_mb = system_stats.get("monitor/process_memory_mb", 0)
+        # Get system and memory stats
+        system_stats = system_monitor.stats() if system_monitor else {}
+        memory_stats = memory_monitor.stats() if memory_monitor else {}
 
-            logger.info(
-                f"System stats - CPU: {cpu_percent:.1f}%, "
-                f"Memory: {memory_percent:.1f}%, "
-                f"Process Memory: {process_memory_mb:.1f}MB"
-            )
-
-            gpu_util = system_stats.get("monitor/gpu_utilization_avg")
-            gpu_mem = system_stats.get("monitor/gpu_memory_percent_avg")
-            if gpu_util is not None:
-                logger.info(f"GPU stats - Utilization: {gpu_util:.1f}%, Memory: {gpu_mem:.1f}%")
-
-        # Log training parameters
-        logger.info(
-            f"Training params - LR: {current_lr:.2e}, "
-            f"Minibatches: {experience.num_minibatches}, "
-            f"Generation: {current_policy_generation}"
+        # Build complete stats dictionary
+        all_stats = build_wandb_stats(
+            processed_stats=processed_stats,
+            timing_info=timing_info,
+            weight_stats={},  # Weight stats not computed in run.py
+            grad_stats={},  # Grad stats not computed in run.py
+            system_stats=system_stats,
+            memory_stats=memory_stats,
+            parameters=parameters,
+            evals=evaluation_scores.get(epoch, {}),
+            agent_step=agent_step,
+            epoch=epoch,
+            world_size=world_size,
         )
+
+        # Log to wandb if available
+        if wandb_run:
+            wandb_run.log(all_stats, step=agent_step)
+
+        # Also log key metrics to console
+        losses_stats = processed_stats["losses_stats"]
+        log_parts = []
+
+        if losses_stats:
+            log_parts.append(
+                f"Loss[P:{losses_stats.get('policy_loss', 0):.3f} "
+                f"V:{losses_stats.get('value_loss', 0):.3f} "
+                f"E:{losses_stats.get('entropy', 0):.3f} "
+                f"EV:{losses_stats.get('explained_variance', 0):.2f}]"
+            )
+
+        if "reward" in processed_stats["overview"]:
+            log_parts.append(f"Reward:{processed_stats['overview']['reward']:.2f}")
+
+        log_parts.append(f"LR:{current_lr:.1e}")
+
+        if log_parts:
+            logger.info(" | ".join(log_parts))
 
     # Clear stats for next iteration
     stats.clear()
@@ -618,16 +611,6 @@ logger.info("Training complete!")
 logger.info(f"Total training time: {total_elapsed:.1f}s")
 logger.info(f"Final epoch: {epoch}, Total steps: {agent_step}")
 
-# Log final losses if available
-if hasattr(losses, "stats"):
-    losses_stats = losses.stats()
-    logger.info(
-        f"Final losses - Policy: {losses_stats.get('policy_loss', 0):.4f}, "
-        f"Value: {losses_stats.get('value_loss', 0):.4f}, "
-        f"Entropy: {losses_stats.get('entropy', 0):.4f}, "
-        f"Explained Variance: {losses_stats.get('explained_variance', 0):.3f}"
-    )
-
 # Log evaluation history
 if evaluation_scores:
     logger.info("\nEvaluation History:")
@@ -636,12 +619,12 @@ if evaluation_scores:
         for env_name, score in scores.items():
             logger.info(f"    {env_name}: {score:.2f}")
 
-# Log final system stats (master only)
+# Stop monitoring if master
 if is_master:
-    final_system_stats = system_monitor.stats()
-    logger.info(f"\nFinal system stats: {final_system_stats}")
-    system_monitor.stop()
-    memory_monitor.clear()
+    if system_monitor:
+        system_monitor.stop()
+    if memory_monitor:
+        memory_monitor.clear()
 
 # Save final checkpoint
 saved_policy_path = save_checkpoint(
@@ -667,3 +650,7 @@ logger.info(f"\nTraining run complete! Run saved to: {dirs.run_dir}")
 
 # Clean up distributed training if initialized
 cleanup_distributed()
+
+# Clean up wandb if initialized
+if wandb_run and is_master:
+    wandb_ctx.__exit__(None, None, None)
