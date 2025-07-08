@@ -7,7 +7,7 @@ from omegaconf import OmegaConf
 import metta.mettagrid.mettagrid_c_config
 from metta.common.util.mettagrid_cfgs import MettagridCfgFileMetadata
 from metta.common.util.resolvers import register_resolvers
-from metta.map.utils.storable_map import map_builder_cfg_to_storable_map
+from metta.map.utils.storable_map import StorableMap
 
 register_resolvers()
 
@@ -46,7 +46,7 @@ class TestValidateAllEnvs:
     def test_map(self, cfg_metadata: MettagridCfgFileMetadata):
         try:
             map_cfg = cfg_metadata.get_cfg().get_map_cfg()
-            map_builder_cfg_to_storable_map(map_cfg)
+            StorableMap.from_cfg(map_cfg)
         except (NoCredentialsError, ProfileNotFound) as e:
             pytest.skip(f"Skipping {cfg_metadata.path} because it requires AWS credentials: {e}")
         except Exception as e:
