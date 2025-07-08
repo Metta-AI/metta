@@ -19,6 +19,7 @@ def sweep_id_from_name(project: str, entity: str, name: str) -> str | None:
     Returns:
         Sweep ID if found, None otherwise
     """
+    return None
     api = wandb.Api()
 
     # Retry logic for network issues
