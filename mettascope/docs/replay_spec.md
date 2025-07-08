@@ -100,7 +100,7 @@ You can either expand the whole time series on load or just use binary search to
 
 The `position` key is a time series of tuples, where the first element is the step and the second element is the position, which is a list of two numbers for x and y.
 
-The `items` key is a time series of tuples, where the first element is the step and the second element is the list of item_ids. It starts empty and then adds items at steps 100, 200, etc.
+The `inventory` key is a time series of tuples, where the first element is the step and the second element is the list of item_ids. It starts empty and then adds items at steps 100, 200, etc.
 
 ## Key reference
 
