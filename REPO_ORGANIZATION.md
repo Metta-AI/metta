@@ -6,7 +6,8 @@ This document outlines the organization structure for the Metta monorepo, balanc
 
 ## Core Principles
 
-1. **Minimize Package Count**: Limit subpackages to logical, cohesive units that could theoretically be deployed independently
+1. **Minimize Package Count**: Limit subpackages to logical, cohesive units that could theoretically be deployed
+   independently
 2. **Minimize Hierarchy**: Keep namespace as flat as possible for developer ergonomics
    - **10+ subfolder rule**: Only add an extra layer of hierarchy when a directory has more than 10 subfolders
 3. **Clear Dependencies**: Maintain a directed acyclic graph (DAG) of dependencies
@@ -17,6 +18,7 @@ This document outlines the organization structure for the Metta monorepo, balanc
 ## Development Workflow
 
 All packages remain in the monorepo with:
+
 - Shared tooling configuration
 - Unified testing and CI/CD
 - Consistent code formatting and linting
@@ -103,8 +105,8 @@ metta/
 └── pyproject.toml         # Root configuration
 ```
 
-
 ## Testing Strategy
+
 - Each package maintains its own tests/ directory
 - Shared test utilities live in metta.common.testing
 - Integration tests live in the root tests/ directory
@@ -124,6 +126,7 @@ from metta.backend.observatory import RemoteStatsDb
 ## Package Descriptions
 
 ### Main Package (`metta`)
+
 - **Location**: Root-level `src/` directory
 - **Namespace**: `metta.*`
 - **Purpose**: Core ML functionality
@@ -136,6 +139,7 @@ from metta.backend.observatory import RemoteStatsDb
   - **api.py**: Core API definitions and interfaces
 
 ### Shared Utilities (`metta.common`)
+
 - **Location**: `common/` directory
 - **Namespace**: `metta.common`
 - **Purpose**: Shared utilities that all packages can depend on
@@ -145,9 +149,10 @@ from metta.backend.observatory import RemoteStatsDb
   - Base interfaces and protocols
   - Data structures used across packages
 
-*Note: Separate package allows mettagrid to depend on common utils without circular dependency*
+_Note: Separate package allows mettagrid to depend on common utils without circular dependency_
 
 ### Environment Engine (`metta.mettagrid`)
+
 - **Location**: `mettagrid/` directory
 - **Namespace**: `metta.mettagrid`
 - **Purpose**: Core C++ simulation engine with Python bindings
@@ -157,6 +162,7 @@ from metta.backend.observatory import RemoteStatsDb
   - Depends on `metta.common` but not main `metta` package
 
 ### Backend Services (`metta.backend`)
+
 - **Location**: `backend/` directory
 - **Namespace**: `metta.backend`
 - **Purpose**: Unified backend services for all server-side functionality
@@ -164,7 +170,6 @@ from metta.backend.observatory import RemoteStatsDb
   - **observatory/**: API endpoints for experiment tracking and visualization
   - **sweep_names/**: Process name registration service for sweeps
   - **stat_buffer/**: Data persistence and database interfaces
-
 
 #### Deployment Strategy
 
@@ -179,30 +184,34 @@ stat-buffer = ["sqlalchemy", "psycopg2"]
 all = ["fastapi", "uvicorn", "pydantic", "redis", "msgpack", "sqlalchemy", "psycopg2"]
 ```
 
-
 ## Frontend Applications
 
 Each app includes:
+
 - `src/`: TypeScript/React application code
 - `server.py`: Local development server (not part of core packages)
 - `package.json`: Node dependencies
 
 #### Observatory
+
 - Production web interface for experiment tracking and visualization
 - Connects to deployed backend service
 - Public-facing deployment
 
 #### Mettascope
+
 - Local visualization and replay tool
 - Real-time agent observation and replay analysis
 - Direct file system access for replay files
 
 #### Studio
+
 - Next-generation local development UI
 - Map creation tools
 - Enhanced debugging and analysis capabilities
 
 ## Version Management
+
 - All Python packages share version from root pyproject.toml
 - Frontend apps version independently via package.json
 - Releases coordinate all package versions together
@@ -223,14 +232,14 @@ graph TD
 3. Main `metta` package depends on `metta.common` and `metta.mettagrid`
 4. `metta.backend` depends only on `metta.common`
 5. Frontend packages are independent TypeScript/Node projects
-6. Frontend `server.py` files can import from any metta.* package
+6. Frontend `server.py` files can import from any metta.\* package
 
 If `metta.backend` needs functionality from the main package, move the required code to `metta.common`.
 
-
 ### External Library Dependencies
 
-Remember that python has no built-in tree shaking for dependencies! To keep packages lightweight and minimize dependency bloat:
+Remember that python has no built-in tree shaking for dependencies! To keep packages lightweight and minimize dependency
+bloat:
 
 To minimize dependency footprint and improve import times:
 
@@ -247,6 +256,7 @@ from sklearn.metrics import accuracy_score
 ```
 
 **Package-specific rules:**
+
 - `metta.common`: Import only stdlib and minimal utilities
 - `metta.backend`: Import only specific web framework components
   ```python
@@ -260,24 +270,81 @@ from sklearn.metrics import accuracy_score
   ```
 
 This approach:
+
 - Reduces memory usage (only loads needed submodules)
 - Speeds up import times
 - Makes dependencies explicit and easier to audit
 - Helps identify if a package is getting too heavy
 
-
 ## PEP 420 Strategy
 
 ### Package Structure
+
 - **Main package** (`src/`): Traditional package with `__init__.py`
 - **Subpackages** (`common/`, `mettagrid/`, `backend/`): Follow PEP 420 patterns with `__init__.py` as needed
 
+### Directory Structure Rationale
+
+The main `metta` package uses a simplified structure:
+
+```
+metta/
+├── src/
+│   ├── __init__.py        # Traditional package (not PEP 420)
+│   ├── api.py             # Imports as: from metta import api
+│   └── rl/
+└── pyproject.toml         # name = "metta"
+```
+
+Subpackages require the "nested" structure to properly install into the `metta` namespace:
+
+```
+common/
+├── src/
+│   └── metta/             # Required: establishes namespace
+│       └── common/        # Required: creates metta.common
+│           └── utils.py   # Imports as: from metta.common import utils
+└── pyproject.toml         # name = "metta.common"
+```
+
+**Why the difference?**
+
+- The main package _owns_ the `metta` namespace via its `__init__.py` and package name
+- Subpackages must _extend_ into the existing namespace, requiring the full path
+- This hybrid approach avoids unnecessary nesting in the main package while maintaining proper namespace organization
+  for separately-installable subpackages
+
+**Installation result:**
+
+```
+site-packages/
+└── metta/
+    ├── __init__.py        # From main package
+    ├── api.py             # From main package
+    ├── common/            # From metta.common package
+    │   └── utils.py
+    └── mettagrid/         # From metta.mettagrid package
+```
+
+**Common mistake:** If subpackages used a flat structure like:
+
+```
+common/
+├── src/
+│   ├── __init__.py
+│   └── utils.py
+└── pyproject.toml         # name = "metta.common"
+```
+
+This would install as `metta/common.py` (a module) rather than `metta/common/` (a package), breaking the intended
+namespace structure.
+
 ### Implementation Philosophy
+
 1. Structure packages following PEP 420 patterns
 2. Use `__init__.py` when helpful for tooling compatibility
 3. Focus on clean architecture over strict compliance
 4. Remove `__init__.py` files as tooling improves
-
 
 ## Documentation Strategy
 
@@ -303,6 +370,7 @@ package/
 ```
 
 #### README.md Guidelines
+
 - **Required** for all packages
 - Focus on: Installation, basic usage, API examples
 - Keep concise (under 500 lines)
@@ -310,6 +378,7 @@ package/
 - Include package-specific badges and status
 
 #### CLAUDE.md Guidelines
+
 - **Optional** - only create when package has:
   - Complex architectural decisions
   - Non-obvious design patterns
@@ -378,4 +447,5 @@ flowchart TD
 - ❌ Nesting documentation more than necessary
 - ❌ Mixing auto-generated and manual content in same file
 
-This documentation strategy ensures users can quickly understand any package while maintaining detailed references for complex topics and providing AI assistants with the context they need to help effectively.
+This documentation strategy ensures users can quickly understand any package while maintaining detailed references for
+complex topics and providing AI assistants with the context they need to help effectively.
