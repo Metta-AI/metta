@@ -111,15 +111,18 @@ class TestMettaProtein:
         # Create MettaProtein
         metta_protein = MettaProtein(sweep_config, mock_wandb_run)
 
-        # Get suggestion - note that MettaProtein now returns raw numpy types
-        # The cleaning happens in sweep_init.py before applying to OmegaConf
+        # Get suggestion - MettaProtein now cleans numpy types before storing
         suggestion, info = metta_protein.suggest()
 
-        # Verify numpy types are present (not cleaned at this stage)
-        assert isinstance(suggestion["trainer/optimizer/learning_rate"], np.floating)
-        assert isinstance(suggestion["trainer/batch_size"], np.integer)
-        assert suggestion["trainer/optimizer/learning_rate"] == np.float32(0.005)
-        assert suggestion["trainer/batch_size"] == np.int64(32)
+        # Verify numpy types were cleaned to Python native types
+        assert not isinstance(suggestion["trainer/optimizer/learning_rate"], np.floating)
+        assert not isinstance(suggestion["trainer/batch_size"], np.integer)
+        assert isinstance(suggestion["trainer/optimizer/learning_rate"], float)
+        assert isinstance(suggestion["trainer/batch_size"], int)
+
+        # Verify values are correct (with some floating point tolerance)
+        assert abs(suggestion["trainer/optimizer/learning_rate"] - 0.005) < 1e-6
+        assert suggestion["trainer/batch_size"] == 32
 
     @patch("metta.sweep.protein_metta.Protein")
     @patch("wandb.Api")
