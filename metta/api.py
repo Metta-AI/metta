@@ -270,7 +270,6 @@ def _get_default_env_config(num_agents: int = 4, width: int = 32, height: int = 
                     "heart": 1,
                     "ore_red_max": 10,
                     "battery_red_max": 10,
-                    "heart_max": 1000,
                 },
             },
             "actions": {

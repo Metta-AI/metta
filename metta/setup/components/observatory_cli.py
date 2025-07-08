@@ -8,6 +8,8 @@ from metta.setup.utils import info, success, warning
 
 @register_module
 class ObservatoryCliSetup(SetupModule):
+    install_once = True
+
     @property
     def name(self) -> str:
         return "observatory-cli"

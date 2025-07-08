@@ -1,5 +1,7 @@
 defaults:
   - /env/mettagrid/mettagrid@
+  - /env/mettagrid/game/objects/mines@game.objects
+  - /env/mettagrid/game/objects/generators@game.objects
   - /env/mettagrid/game/objects/combat@game.objects
   - /env/mettagrid/game/objects/advanced@game.objects
   - _self_
@@ -24,7 +26,6 @@ game:
       armor: ${sampling:0.005,0.1, 0.01}
       armor_max: 1
       heart: 1
-      heart_max: 1000
   map_builder:
     _target_: metta.mettagrid.room.multi_room.MultiRoom
     num_rooms: 4

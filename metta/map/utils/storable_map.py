@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import json
 import logging
 import time
@@ -58,7 +60,7 @@ class StorableMap:
         return self.grid.shape[0]
 
     @staticmethod
-    def from_uri(uri: str) -> "StorableMap":
+    def from_uri(uri: str) -> StorableMap:
         logger.info(f"Loading map from {uri}")
         content = file_utils.read(uri).decode()
 
@@ -74,6 +76,36 @@ class StorableMap:
         lines = [line for line in lines if line]
 
         return StorableMap(lines_to_grid(lines), metadata=metadata, config=config)
+
+    @staticmethod
+    def from_cfg(cfg: DictConfig) -> StorableMap:
+        # Generate and measure time taken
+        start = time.time()
+        # Convert OmegaConf to dict if needed
+        if isinstance(cfg, DictConfig):
+            cfg_dict = OmegaConf.to_container(cfg, resolve=True)
+        else:
+            cfg_dict = cfg
+        map_builder = MapBuilderFactory.create(cfg_dict, recursive=True)
+        level = map_builder.build()
+        gen_time = time.time() - start
+        logger.info(f"Time taken to build map: {gen_time}s")
+
+        scene_tree = None
+        if isinstance(map_builder, MapGen):
+            scene_tree = map_builder.get_scene_tree()
+
+        storable_map = StorableMap(
+            grid=level.grid,
+            metadata={
+                "labels": level.labels,
+                "gen_time": gen_time,
+                "timestamp": datetime.now().isoformat(),
+            },
+            config=cfg,
+            scene_tree=scene_tree,
+        )
+        return storable_map
 
     def save(self, uri: str):
         file_utils.write_data(uri, str(self), content_type="text/plain")
@@ -91,35 +123,6 @@ class StorableMap:
             },
             "data": "\n".join(grid_to_lines(self.grid)),
         }
-
-
-def map_builder_cfg_to_storable_map(cfg: DictConfig) -> StorableMap:
-    # Generate and measure time taken
-    start = time.time()
-    # Convert OmegaConf to dict if needed
-    if isinstance(cfg, DictConfig):
-        cfg_dict = OmegaConf.to_container(cfg, resolve=True)
-    else:
-        cfg_dict = cfg
-    map_builder = MapBuilderFactory.create(cfg_dict, recursive=True)
-    level = map_builder.build()
-    gen_time = time.time() - start
-    logger.info(f"Time taken to build map: {gen_time}s")
-
-    scene_tree = None
-    if isinstance(map_builder, MapGen):
-        scene_tree = map_builder.get_scene_tree()
-
-    storable_map = StorableMap(
-        grid=level.grid,
-        metadata={
-            "gen_time": gen_time,
-            "timestamp": datetime.now().isoformat(),
-        },
-        config=cfg,
-        scene_tree=scene_tree,
-    )
-    return storable_map
 
 
 @dataclass
