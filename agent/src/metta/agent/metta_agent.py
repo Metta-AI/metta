@@ -13,7 +13,6 @@ from metta.agent.policy_state import PolicyState
 from metta.agent.util.debug import assert_shape
 from metta.agent.util.distribution_utils import evaluate_actions, sample_actions
 from metta.agent.util.safe_get import safe_get_from_obs_space
-from metta.common.util.omegaconf import convert_to_dict
 
 if TYPE_CHECKING:
     from metta.mettagrid.mettagrid_env import MettaGridEnv
@@ -120,7 +119,8 @@ class MettaAgent(nn.Module):
         logging.info(f"agent_attributes: {self.agent_attributes}")
 
         self.components = nn.ModuleDict()
-        component_cfgs = convert_to_dict(cfg.components)
+        # Keep component configs as DictConfig to support both dict and attribute access
+        component_cfgs = cfg.components
 
         # First pass: instantiate all configured components
         for component_key in component_cfgs:

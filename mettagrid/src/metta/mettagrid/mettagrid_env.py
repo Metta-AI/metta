@@ -118,9 +118,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
         if level is None:
             map_builder_config = task.env_cfg().game.map_builder
             with self.timer("_initialize_c_env.build_map"):
-                # Convert OmegaConf to dict if needed
-                if hasattr(map_builder_config, "_metadata"):
-                    map_builder_config = OmegaConf.to_container(map_builder_config, resolve=True)
+                # MapBuilderFactory now handles OmegaConf conversion internally
                 map_builder = MapBuilderFactory.create(map_builder_config, recursive=True)
                 level = map_builder.build()
 

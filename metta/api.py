@@ -334,9 +334,9 @@ def _get_default_env_config(num_agents: int = 4, width: int = 32, height: int = 
     }
 
 
-def _get_default_agent_config(device: str = "cuda") -> Dict[str, Any]:
+def _get_default_agent_config(device: str = "cuda") -> DictConfig:
     """Get default agent configuration based on fast.yaml architecture."""
-    return {
+    config = {
         "device": device,
         "agent": {
             "clip_range": 0,
@@ -418,6 +418,7 @@ def _get_default_agent_config(device: str = "cuda") -> Dict[str, Any]:
             },
         },
     }
+    return DictConfig(config)
 
 
 class NavigationBucketedCurriculum(Curriculum):
