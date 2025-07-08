@@ -4,7 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Metta AI is a reinforcement learning project focusing on the emergence of cooperation and alignment in multi-agent AI systems. It creates a model organism for complex multi-agent gridworld environments to study the impact of social dynamics (like kinship and mate selection) on learning and cooperative behaviors.
+Metta AI is a reinforcement learning project focusing on the emergence of cooperation and alignment in multi-agent AI
+systems. It creates a model organism for complex multi-agent gridworld environments to study the impact of social
+dynamics (like kinship and mate selection) on learning and cooperative behaviors.
 
 The codebase consists of:
 
@@ -169,7 +171,8 @@ The workflow automatically determines the appropriate base branch:
 
 - **From PR Comments**: New branches are created from the current PR's branch
 - **From Issue Comments**: New branches are created from the main branch
-- **Example**: If you comment `@claude open-pr` in PR #657 (branch: `robb/0525-agent-type-changes`), Claude will create a new branch based on `robb/0525-agent-type-changes`, not main
+- **Example**: If you comment `@claude open-pr` in PR #657 (branch: `robb/0525-agent-type-changes`), Claude will create
+  a new branch based on `robb/0525-agent-type-changes`, not main
 
 ### Branch Naming Convention
 
