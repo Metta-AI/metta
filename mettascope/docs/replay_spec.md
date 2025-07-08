@@ -80,7 +80,7 @@ Objects are stored in a condensed format. Every field of the object is either a 
   "agent_id": 0,
   "rotation": [[0, 1], [10, 2], [20, 3]],
   "position": [[0, [10, 10]], [1, [11, 10]], [2, [12, 11]]],
-  "items": [[0, []], [100, [1]], [200, [1, 1]]],
+  "inventory": [[0, []], [100, [1]], [200, [1, 1]]],
 }
 ```
 
