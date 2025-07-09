@@ -78,7 +78,7 @@ class MettaTrainer:
         self.cfg = cfg
         self.trainer_cfg = trainer_cfg = parse_trainer_config(cfg)
 
-        self.hyperparameter_scheduler = HyperparameterScheduler(trainer_cfg, trainer_cfg.total_timesteps, logging)
+        self.hyperparameter_scheduler = HyperparameterScheduler(trainer_cfg, self, trainer_cfg.total_timesteps, logging)
 
         # it doesn't make sense to evaluate more often than we checkpoint since we need a saved policy to evaluate
         if (
@@ -675,7 +675,7 @@ class MettaTrainer:
                     break
             # end loop over epochs
 
-        self.hyperparameter_scheduler.step(self, self.agent_step)
+        self.hyperparameter_scheduler.step(self.agent_step)
 
         # Calculate explained variance
         y_pred = experience.values.flatten()

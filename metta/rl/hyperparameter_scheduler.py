@@ -70,9 +70,10 @@ class HyperparameterScheduler:
         "logarithmic": LogarithmicSchedule,
     }
 
-    def __init__(self, trainer_cfg: DictConfig, total_timesteps: int, logging):
+    def __init__(self, trainer_cfg: DictConfig, trainer, total_timesteps: int, logging):
         """Initialize the hyperparameter scheduler with configuration and total timesteps."""
         self.trainer_cfg = trainer_cfg
+        self.trainer = trainer
         self.total_timesteps = total_timesteps
         self.logger = logging.getLogger(__name__)
 
@@ -115,10 +116,10 @@ class HyperparameterScheduler:
         progress = min(current_step / self.total_timesteps, 1.0)
         return schedule_fn(progress)
 
-    def step(self, trainer, current_step: int) -> None:
+    def step(self, current_step: int) -> None:
         """Update trainer hyperparameters for the current step."""
         updates = {}
-
+        trainer = self.trainer
         for param_name in self.schedulers.keys():
             new_value = self._compute_scheduled_value(param_name, current_step)
             updates[param_name] = new_value
