@@ -50,7 +50,7 @@ class TestRendererJob:
                 "-m",
                 "tools.renderer",
                 f"run=test_renderer_{env_name}",
-                f"renderer_job.environment.uri={map_path}",
+                f"renderer_job.environment.root.params.uri={map_path}",
                 "renderer_job.num_steps=3",  # Very short test
                 "renderer_job.sleep_time=0",
                 "renderer_job.policy_type=simple",
