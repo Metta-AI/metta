@@ -20,6 +20,8 @@ game:
       cooldown: 255
 
   map_builder:
-    objects:
-      armory: 1
-      mine_red: 1
+    root:
+      params:
+        objects:
+          armory: 1
+          mine_red: 1

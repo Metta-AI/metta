@@ -20,10 +20,10 @@ def main():
 
     cd_repo_root()
     repo_root = Path.cwd()
-    studio_dir = repo_root / "studio"
+    gridworks_dir = repo_root / "gridworks"
 
     print(f"Starting servers from repo root: {repo_root}")
-    print(f"Studio frontend directory: {studio_dir}")
+    print(f"Gridworks frontend directory: {gridworks_dir}")
 
     # Ensure color output from child processes even when stdout is piped.
     env = os.environ.copy()
@@ -32,11 +32,11 @@ def main():
         # some screen space is used by the label prefix
         env["COLUMNS"] = str(shutil.get_terminal_size().columns - 11)
 
-    # Start the frontend dev server in studio directory
+    # Start the frontend dev server in gridworks directory
     if args.dev:
         frontend_process = subprocess.Popen(
             ["pnpm", "dev"],
-            cwd=studio_dir,
+            cwd=gridworks_dir,
             env=env,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
@@ -48,7 +48,7 @@ def main():
         print("Building frontend…")
         build_completed = subprocess.run(
             ["pnpm", "build"],
-            cwd=studio_dir,
+            cwd=gridworks_dir,
             env=env,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
@@ -66,7 +66,7 @@ def main():
         # Launch the production server.
         frontend_process = subprocess.Popen(
             ["pnpm", "start"],
-            cwd=studio_dir,
+            cwd=gridworks_dir,
             env=env,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
@@ -76,7 +76,7 @@ def main():
 
     # Start the backend server in repo root
     backend_process = subprocess.Popen(
-        ["uv", "run", "-m", "metta.studio.server"],
+        ["uv", "run", "-m", "metta.gridworks.server"],
         cwd=repo_root,
         env=env,
         stdout=subprocess.PIPE,
