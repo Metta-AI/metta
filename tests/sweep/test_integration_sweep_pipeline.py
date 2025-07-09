@@ -8,6 +8,8 @@ These tests cover the end-to-end workflow:
 5. Multi-run sweep progression
 """
 
+# pyright: ignore-all
+
 import os
 import shutil
 import tempfile
@@ -497,10 +499,27 @@ class TestSweepPipelineIntegration:
         loaded_overrides = OmegaConf.load(override_path)
         assert loaded_overrides.trainer.learning_rate == 0.003
 
-    @pytest.mark.skip(reason="create_wandb_sweep helper removed from production code")
     def test_wandb_integration_end_to_end(self, base_sweep_config):
-        """Test complete WandB integration throughout the pipeline (skipped)."""
-        pass
+        """End-to-end check that create_wandb_sweep wires correctly to wandb.sweep."""
+
+        # Patch wandb.sweep to avoid real API calls and verify parameters
+        with patch("wandb.sweep") as mock_sweep:
+            mock_sweep.return_value = "e2e_test_sweep_id"
+
+            from metta.sweep.sweep_wandb import create_wandb_sweep
+
+            result = create_wandb_sweep(
+                sweep_name="e2e_test_sweep",
+                wandb_entity="test_entity",
+                wandb_project="test_project",
+            )
+
+            # Validate return value and that wandb.sweep was invoked with expected args
+            assert result == "e2e_test_sweep_id"
+            mock_sweep.assert_called_once()
+            called_kwargs = mock_sweep.call_args.kwargs
+            assert called_kwargs["entity"] == "test_entity"
+            assert called_kwargs["project"] == "test_project"
 
     def test_parameter_distribution_handling(self, base_sweep_config):
         """Test that different parameter distributions are handled correctly."""
