@@ -90,8 +90,8 @@ cd "$SCRIPT_DIR" || err "Failed to change to project directory"
 export UV_PROJECT_ENVIRONMENT="${SCRIPT_DIR}/.venv"
 
 uv sync || err "Failed to install Python dependencies"
-uv run python -m metta.setup.metta_cli configure $PROFILE || err "Failed to run configuration"
 uv run python -m metta.setup.metta_cli symlink-setup || err "Failed to set up metta command in ~/.local/bin"
+uv run python -m metta.setup.metta_cli configure $PROFILE || err "Failed to run configuration"
 uv run python -m metta.setup.metta_cli install || err "Failed to install components"
 
 echo "\nSetup complete!\n"
