@@ -1,4 +1,5 @@
 import pytest
+import pytest_asyncio
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from testcontainers.postgres import PostgresContainer
@@ -32,17 +33,25 @@ class TestTokenSystem:
         """Get the database URI for the test container."""
         return postgres_container.get_connection_url()
 
-    @pytest.fixture(scope="class")
-    def stats_repo(self, db_uri: str) -> MettaRepo:
+    @pytest_asyncio.fixture(scope="function")
+    async def stats_repo(self, db_uri: str) -> MettaRepo:
         """Create a MettaRepo instance with the test database."""
-        return MettaRepo(db_uri)
+        repo = MettaRepo(db_uri)
+        yield repo
+        # Ensure pool is closed gracefully
+        if repo._pool is not None:
+            try:
+                await repo._pool.close()
+            except RuntimeError:
+                # Event loop might be closed, ignore
+                pass
 
-    @pytest.fixture(scope="class")
+    @pytest.fixture(scope="function")
     def test_app(self, stats_repo: MettaRepo) -> FastAPI:
         """Create a test FastAPI app with dependency injection."""
         return create_app(stats_repo)
 
-    @pytest.fixture(scope="class")
+    @pytest.fixture(scope="function")
     def test_client(self, test_app: FastAPI) -> TestClient:
         """Create a test client."""
         return TestClient(test_app)
