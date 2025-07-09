@@ -12,12 +12,13 @@ from metta.api import (
     Agent,
     Environment,
     Optimizer,
-    calculate_anneal_beta,
     cleanup_distributed,
     cleanup_wandb,
     create_evaluation_config_suite,
     create_replay_config,
     ensure_initial_policy,
+    evaluate_policy_suite,
+    generate_replay_simple,
     initialize_wandb,
     load_checkpoint,
     save_experiment_config,
@@ -29,32 +30,26 @@ from metta.common.profiling.memory_monitor import MemoryMonitor
 from metta.common.profiling.stopwatch import Stopwatch
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.system_monitor import SystemMonitor
-from metta.eval.eval_stats_db import EvalStatsDB
 from metta.mettagrid import mettagrid_c  # noqa: F401
-from metta.mettagrid.mettagrid_env import dtype_actions
 from metta.rl.experience import Experience
 from metta.rl.functions import (
     accumulate_rollout_stats,
     build_wandb_stats,
     calculate_batch_sizes,
-    calculate_explained_variance,
     cleanup_old_policies,
-    compute_advantage,
     compute_gradient_stats,
     compute_timing_stats,
     get_lstm_config,
-    get_observation,
     maybe_update_l2_weights,
-    process_minibatch_update,
     process_stats,
     process_training_stats,
-    run_policy_inference,
     save_policy_with_metadata,
     save_training_state,
     should_run_on_interval,
 )
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses
+from metta.rl.trainer import rollout, train_epoch
 from metta.rl.trainer_config import (
     CheckpointConfig,
     OptimizerConfig,
@@ -63,8 +58,6 @@ from metta.rl.trainer_config import (
     TorchProfilerConfig,
     TrainerConfig,
 )
-from metta.sim.simulation import Simulation
-from metta.sim.simulation_suite import SimulationSuite
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(levelname)s: %(message)s")
@@ -332,215 +325,128 @@ while agent_step < trainer_config.total_timesteps:
     steps_before = agent_step
 
     # ===== ROLLOUT PHASE =====
-    rollout_start = time.time()
-    raw_infos = []
-    experience.reset_for_rollout()
-
-    # Collect experience
-    while not experience.ready_for_training:
-        # Receive environment data
-        o, r, d, t, info, training_env_id, mask, num_steps = get_observation(env, device, timer)
+    with timer("_rollout"):
+        num_steps, raw_infos = rollout(
+            vecenv=env,
+            policy=agent,
+            experience=experience,
+            device=device,
+            timer=timer,
+        )
         agent_step += num_steps
 
-        # Run policy inference
-        actions, selected_action_log_probs, values, lstm_state_to_store = run_policy_inference(
-            agent, o, experience, training_env_id.start, device
-        )
-
-        # Store experience
-        experience.store(
-            obs=o,
-            actions=actions,
-            logprobs=selected_action_log_probs,
-            rewards=r,
-            dones=d,
-            truncations=t,
-            values=values,
-            env_id=training_env_id,
-            mask=mask,
-            lstm_state=lstm_state_to_store,
-        )
-
-        # Send actions back to environment
-        with timer("_rollout.env"):
-            env.send(actions.cpu().numpy().astype(dtype_actions))  # type: ignore - env is vecenv wrapper
-
-        if info:
-            raw_infos.extend(info)
-
-    # Process rollout statistics
-    accumulate_rollout_stats(raw_infos, stats)
-    rollout_time = time.time() - rollout_start
+        # Process rollout stats
+        accumulate_rollout_stats(raw_infos, stats)
 
     # ===== TRAINING PHASE =====
-    train_start = time.time()
-    losses.zero()
-    experience.reset_importance_sampling_ratios()
-
-    # Calculate prioritized replay parameters
-    prio_cfg = trainer_config.prioritized_experience_replay
-    anneal_beta = calculate_anneal_beta(
-        epoch=epoch,
-        total_timesteps=trainer_config.total_timesteps,
-        batch_size=trainer_config.batch_size,
-        prio_alpha=prio_cfg.prio_alpha,
-        prio_beta0=prio_cfg.prio_beta0,
-    )
-
-    advantages = torch.zeros(experience.values.shape, device=device)
-    initial_importance_sampling_ratio = torch.ones_like(experience.values)
-
-    advantages = compute_advantage(
-        experience.values,
-        experience.rewards,
-        experience.dones,
-        initial_importance_sampling_ratio,
-        advantages,
-        trainer_config.ppo.gamma,
-        trainer_config.ppo.gae_lambda,
-        trainer_config.vtrace.vtrace_rho_clip,
-        trainer_config.vtrace.vtrace_c_clip,
-        device,
-    )
-
-    # Train for multiple epochs
-    total_minibatches = experience.num_minibatches * trainer_config.update_epochs
-    minibatch_idx = 0
-
-    for _update_epoch in range(trainer_config.update_epochs):
-        for _ in range(experience.num_minibatches):
-            # Sample minibatch
-            minibatch = experience.sample_minibatch(
-                advantages=advantages,
-                prio_alpha=prio_cfg.prio_alpha,
-                prio_beta=anneal_beta,
-                minibatch_idx=minibatch_idx,
-                total_minibatches=total_minibatches,
-            )
-
-            # Train on minibatch
-            loss = process_minibatch_update(
-                policy=agent,
-                experience=experience,
-                minibatch=minibatch,
-                advantages=advantages,
-                trainer_cfg=trainer_config,
-                kickstarter=kickstarter,
-                agent_step=agent_step,
-                losses=losses,
-                device=device,
-            )
-
-            optimizer.step(loss, epoch, experience.accumulate_minibatches)
-            minibatch_idx += 1
-        epoch += 1
-
-        # Early exit if KL divergence is too high
-        if trainer_config.ppo.target_kl is not None:
-            average_approx_kl = losses.approx_kl_sum / losses.minibatches_processed
-            if average_approx_kl > trainer_config.ppo.target_kl:
-                break
-
-    if minibatch_idx > 0 and str(device).startswith("cuda"):
-        torch.cuda.synchronize()
-
-    if lr_scheduler is not None:
-        lr_scheduler.step()
-
-    losses.explained_variance = calculate_explained_variance(experience.values, advantages)
-
-    # Calculate performance metrics
-    train_time = time.time() - train_start
-
-    # ===== STATS PROCESSING PHASE =====
-    stats_start = time.time()
-
-    # Process collected stats (convert lists to means)
-    processed_stats = process_training_stats(
-        raw_stats=stats,
-        losses=losses,
-        experience=experience,
-        trainer_config=trainer_config,
-        kickstarter=kickstarter,
-    )
-
-    # Update stats with mean values for consistency
-    stats = processed_stats["mean_stats"]
-
-    # Compute timing stats
-    timing_info = compute_timing_stats(
-        timer=timer,
-        agent_step=agent_step,
-        world_size=world_size,
-    )
-
-    # Build complete stats for wandb
-    if is_master:
-        # Get current learning rate
-        current_lr = trainer_config.optimizer.learning_rate
-        if hasattr(optimizer, "param_groups"):
-            current_lr = optimizer.param_groups[0]["lr"]
-        elif hasattr(optimizer, "optimizer"):
-            current_lr = optimizer.optimizer.param_groups[0]["lr"]
-
-        # Build parameters dictionary
-        parameters = {
-            "learning_rate": current_lr,
-            "epoch_steps": timing_info["epoch_steps"],
-            "num_minibatches": experience.num_minibatches,
-            "generation": current_policy_generation,
-        }
-
-        # Get system and memory stats
-        system_stats = system_monitor.stats() if system_monitor else {}
-        memory_stats = memory_monitor.stats() if memory_monitor else {}
-
-        # Build complete stats dictionary
-        all_stats = build_wandb_stats(
-            processed_stats=processed_stats,
-            timing_info=timing_info,
-            weight_stats={},  # Weight stats not computed in run.py
-            grad_stats={},  # Grad stats not computed in run.py
-            system_stats=system_stats,
-            memory_stats=memory_stats,
-            parameters=parameters,
-            evals=evaluation_scores.get(epoch, {}),
+    with timer("_train"):
+        epochs_trained = train_epoch(
+            policy=agent,
+            optimizer=optimizer.optimizer,  # Pass the actual PyTorch optimizer
+            experience=experience,
+            kickstarter=kickstarter,
+            losses=losses,
+            trainer_cfg=trainer_config,
             agent_step=agent_step,
             epoch=epoch,
+            device=device,
+        )
+        epoch += epochs_trained
+
+        # Update learning rate scheduler
+        if lr_scheduler is not None:
+            lr_scheduler.step()
+
+    # ===== STATS PROCESSING PHASE =====
+    with timer("_process_stats"):
+        # Process collected stats (convert lists to means)
+        processed_stats = process_training_stats(
+            raw_stats=stats,
+            losses=losses,
+            experience=experience,
+            trainer_config=trainer_config,
+            kickstarter=kickstarter,
+        )
+
+        # Update stats with mean values for consistency
+        stats = processed_stats["mean_stats"]
+
+        # Compute timing stats
+        timing_info = compute_timing_stats(
+            timer=timer,
+            agent_step=agent_step,
             world_size=world_size,
         )
 
-        # Log to wandb if available
-        if wandb_run:
-            wandb_run.log(all_stats, step=agent_step)
+        # Build complete stats for wandb
+        if is_master:
+            # Get current learning rate
+            current_lr = trainer_config.optimizer.learning_rate
+            if hasattr(optimizer, "param_groups"):
+                current_lr = optimizer.param_groups[0]["lr"]
+            elif hasattr(optimizer, "optimizer"):
+                current_lr = optimizer.optimizer.param_groups[0]["lr"]
 
-        # Also log key metrics to console
-        losses_stats = processed_stats["losses_stats"]
-        log_parts = []
+            # Build parameters dictionary
+            parameters = {
+                "learning_rate": current_lr,
+                "epoch_steps": timing_info["epoch_steps"],
+                "num_minibatches": experience.num_minibatches,
+                "generation": current_policy_generation,
+            }
 
-        if losses_stats:
-            log_parts.append(
-                f"Loss[P:{losses_stats.get('policy_loss', 0):.3f} "
-                f"V:{losses_stats.get('value_loss', 0):.3f} "
-                f"E:{losses_stats.get('entropy', 0):.3f} "
-                f"EV:{losses_stats.get('explained_variance', 0):.2f}]"
+            # Get system and memory stats
+            system_stats = system_monitor.stats() if system_monitor else {}
+            memory_stats = memory_monitor.stats() if memory_monitor else {}
+
+            # Build complete stats dictionary
+            all_stats = build_wandb_stats(
+                processed_stats=processed_stats,
+                timing_info=timing_info,
+                weight_stats={},  # Weight stats not computed in run.py
+                grad_stats={},  # Grad stats not computed in run.py
+                system_stats=system_stats,
+                memory_stats=memory_stats,
+                parameters=parameters,
+                evals=evaluation_scores.get(epoch, {}),
+                agent_step=agent_step,
+                epoch=epoch,
+                world_size=world_size,
             )
 
-        if "reward" in processed_stats["overview"]:
-            log_parts.append(f"Reward:{processed_stats['overview']['reward']:.2f}")
+            # Log to wandb if available
+            if wandb_run:
+                wandb_run.log(all_stats, step=agent_step)
 
-        log_parts.append(f"LR:{current_lr:.1e}")
+            # Also log key metrics to console
+            losses_stats = processed_stats["losses_stats"]
+            log_parts = []
 
-        if log_parts:
-            logger.info(" | ".join(log_parts))
+            if losses_stats:
+                log_parts.append(
+                    f"Loss[P:{losses_stats.get('policy_loss', 0):.3f} "
+                    f"V:{losses_stats.get('value_loss', 0):.3f} "
+                    f"E:{losses_stats.get('entropy', 0):.3f} "
+                    f"EV:{losses_stats.get('explained_variance', 0):.2f}]"
+                )
 
-    # Clear stats for next iteration
-    stats.clear()
+            if "reward" in processed_stats["overview"]:
+                log_parts.append(f"Reward:{processed_stats['overview']['reward']:.2f}")
 
-    stats_time = time.time() - stats_start
+            log_parts.append(f"LR:{current_lr:.1e}")
 
-    # Calculate total time and percentages
+            if log_parts:
+                logger.info(" | ".join(log_parts))
+
+        # Clear stats for next iteration
+        stats.clear()
+
+    # Calculate performance metrics using timer
+    rollout_time = timer.get_last_elapsed("_rollout")
+    train_time = timer.get_last_elapsed("_train")
+    stats_time = timer.get_last_elapsed("_process_stats")
     steps_calculated = agent_step - steps_before
+
     total_time = train_time + rollout_time + stats_time
     steps_per_sec = steps_calculated / total_time if total_time > 0 else 0
     steps_per_sec *= world_size
@@ -649,48 +555,16 @@ while agent_step < trainer_config.total_timesteps:
         and latest_saved_policy_record
     ):
         logger.info(f"Evaluating policy at epoch {epoch}")
-
-        # Run evaluation suite
-        sim_suite = SimulationSuite(
-            config=evaluation_config,
-            policy_pr=latest_saved_policy_record,
+        eval_scores = evaluate_policy_suite(
+            policy_record=latest_saved_policy_record,
             policy_store=policy_store,
+            evaluation_config=evaluation_config,
             device=device,
             vectorization="serial",
             stats_dir=dirs.stats_dir,
-            stats_client=None,
-            stats_epoch_id=None,
-            wandb_policy_name=None,
+            logger=logger,
         )
-
-        results = sim_suite.simulate()
-        stats_db = EvalStatsDB.from_sim_stats_db(results.stats_db)
-        logger.info("Evaluation complete")
-
-        # Build evaluation metrics
-        eval_scores = {}
-        categories = set()
-        for sim_name in evaluation_config.simulations.keys():
-            categories.add(sim_name.split("/")[0])
-
-        for category in categories:
-            score = stats_db.get_average_metric_by_filter(
-                "reward", latest_saved_policy_record, f"sim_name LIKE '%{category}%'"
-            )
-            logger.info(f"{category} score: {score}")
-            record_heartbeat()
-            if score is not None:
-                eval_scores[f"{category}/score"] = score
-
-        # Get detailed per-simulation scores
-        all_scores = stats_db.simulation_scores(latest_saved_policy_record, "reward")
-        for (_, sim_name, _), score in all_scores.items():
-            category = sim_name.split("/")[0]
-            sim_short_name = sim_name.split("/")[-1]
-            eval_scores[f"{category}/{sim_short_name}"] = score
-
         evaluation_scores[epoch] = eval_scores
-        stats_db.close()
 
     # Replay generation (master only)
     if (
@@ -699,31 +573,18 @@ while agent_step < trainer_config.total_timesteps:
         and epoch % trainer_config.simulation.replay_interval == 0
         and latest_saved_policy_record
     ):
-        logger.info(f"Generating replay at epoch {epoch}")
-
         # Generate replay on the bucketed curriculum environment
         replay_sim_config = create_replay_config("varied_terrain/balanced_medium")
-
-        replay_simulator = Simulation(
-            name=f"replay_{epoch}",
-            config=replay_sim_config,
-            policy_pr=latest_saved_policy_record,
+        player_url = generate_replay_simple(
+            policy_record=latest_saved_policy_record,
             policy_store=policy_store,
+            replay_config=replay_sim_config,
             device=device,
             vectorization="serial",
             replay_dir=dirs.replay_dir,
+            epoch=epoch,
+            logger=logger,
         )
-
-        results = replay_simulator.simulate()
-
-        # Get replay URLs from the database
-        replay_urls = results.stats_db.get_replay_urls()
-        if replay_urls:
-            replay_url = replay_urls[0]
-            player_url = f"https://metta-ai.github.io/metta/?replayUrl={replay_url}"
-            logger.info(f"Replay available at: {player_url}")
-
-        results.stats_db.close()
 
 # Training complete
 total_elapsed = time.time() - epoch_start_time
