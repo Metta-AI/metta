@@ -13,9 +13,9 @@ defaults:
   - _self_
 
 trainer:
-  curriculum: /env/mettagrid/curriculum/navigation/bucketed
+  curriculum: /env/mettagrid/curriculum/operant_conditioning/basic
 
-policy_uri: wandb://run/dd_navigation_curriculum
+policy_uri: wandb://run/daphne.navigation.learning_progress.07-08
 
 run_id: 1
 run: ${oc.env:USER}.local.${run_id}

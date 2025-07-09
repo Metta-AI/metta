@@ -1,0 +1,6 @@
+_target_: metta.mettagrid.curriculum.learning_progress.LearningProgressCurriculum
+
+tasks:
+  /env/mettagrid/operant_conditioning/1m3g_1blue_altar: 1
+  /env/mettagrid/operant_conditioning/1m3g_1green_altar: 1
+  /env/mettagrid/operant_conditioning/1m3g_1red_altar: 1
