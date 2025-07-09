@@ -215,6 +215,9 @@ class TrainerConfig(BaseModelWithForbidExtra):
     # Fallback interval to save configs when no changes detected (default 10000 epochs)
     # Note: Configs are automatically saved when changes are detected
     env_config_save_interval: int = Field(default=10000, gt=0)
+    # Flag to control whether environment configs are saved as wandb artifacts
+    # Set to False to disable artifact saving when there will be frequent config swapping
+    env_config_artifacts_enabled: bool = Field(default=True)
 
     model_config: ClassVar[ConfigDict] = ConfigDict(
         extra="forbid",

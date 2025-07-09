@@ -978,8 +978,9 @@ class MettaTrainer:
         """Clean up trainer resources."""
         logger.info("Closing trainer")
 
-        # Save final configs as artifact
-        self._save_env_configs_as_artifact()
+        # Save final configs as artifact (if enabled)
+        if self.trainer_cfg.env_config_artifacts_enabled:
+            self._save_env_configs_as_artifact()
 
         self.vecenv.close()
         if self._master:
@@ -1212,6 +1213,10 @@ class MettaTrainer:
     def _save_env_configs_as_artifact(self) -> None:
         """Save environment configuration history as a wandb artifact."""
         if self.wandb_run is None or not self._env_config_history or not self._master:
+            return
+
+        # Check if artifact saving is enabled
+        if not self.trainer_cfg.env_config_artifacts_enabled:
             return
 
         try:
