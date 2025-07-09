@@ -18,7 +18,7 @@ def common_params():
         "content": [
             {
                 "scene": {
-                    "type": "metta.map.scenes.maze.MazeKruskal",
+                    "type": "metta.map.scenes.maze.Maze",
                     "params": {
                         "room_size": ["uniform", 1, 2],
                         "wall_size": ["uniform", 1, 2],

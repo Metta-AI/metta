@@ -31,13 +31,13 @@ root:
     - limit: 2
       lock: lock1
       scene:
-        type: metta.map.scenes.maze.MazeKruskal
+        type: metta.map.scenes.maze.Maze
         params:
           room_size: 2
         # TODO - entrypoint can be blocked because the corridor is attached randomly
         # Should the maze scene accept an entrypoint somehow?
 
-    # fix bugs with MazeKruskal connection points
+    # fix bugs with Maze connection points
     - where: full
       scene:
         type: metta.map.scenes.make_connected.MakeConnected

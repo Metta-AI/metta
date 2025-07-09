@@ -228,7 +228,7 @@ Arguments:
 
 ```
 ./tools/renderer.py run=demo_obstacles \
-renderer_job.environment.uri="configs/env/mettagrid/maps/debug/simple_obstacles.map"
+renderer_job.environment.root.params.uri="configs/env/mettagrid/maps/debug/simple_obstacles.map"
 ```
 
 ### Evaluating a Model

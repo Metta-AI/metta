@@ -151,7 +151,7 @@ class ConfinedRoomCoord(Room):
 
         # 3. Place game objects (mines, generators, altars) on the non-corner functional border
         objects_to_place = (
-            [("mine", self._num_mines)] + [("generator", self._num_generators)] + [("altar", self._num_altars)]
+            [("mine_red", self._num_mines)] + [("generator_red", self._num_generators)] + [("altar", self._num_altars)]
         )
 
         temp_available_non_corner_fb_cells = list(functional_border_cells)  # Copy for modification
