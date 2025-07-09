@@ -118,6 +118,7 @@ Here are the keys supported for both agents and objects:
 * `inventory` - The current list of item_IDs that map to the `item_names` array. Example: `[0, 0, 1]`. If `item_names = ["hearts", "bread"]`, then inventory is 2 hearts and 1 bread. The count is how many times the item repeats in the list. Note: In the replay data, this is represented in the `inventory` field as a time series showing how inventory changes over time (e.g., `[[0, []], [100, [1]], [200, [1, 1]]]`), where each entry contains a timestamp and the inventory state at that time and into the future.
 
 * `inventory_max` - Usually a constant. Maximum number of items that can be in the inventory.
+* `color` - The color of the object. Must be an integer between 0 and 255.
 
 Agent specific keys:
 

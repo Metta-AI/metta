@@ -239,8 +239,8 @@ export function updateReadout() {
   readout += 'Max steps: ' + state.replay.max_steps + '\n'
 
   let objectTypeCounts = new Map<string, number>()
-  for (const gridObject of state.replay.objects) {
-    const type = getAttr(gridObject, 'type')
+  for (const obj of state.replay.objects) {
+    const type = getAttr(obj, 'type')
     const typeName = state.replay.type_names[type]
     objectTypeCounts.set(typeName, (objectTypeCounts.get(typeName) || 0) + 1)
   }

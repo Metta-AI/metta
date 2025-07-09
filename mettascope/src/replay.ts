@@ -17,8 +17,9 @@ export class Object {
   position: Sequence<[number, number]> = null
   rotation: Sequence<number> = null
   layer: Sequence<number> = null
-  inventory: Sequence<number> = null
+  inventory: Sequence<number[]> = null
   inventoryMax: Sequence<number> = null
+  color: Sequence<number> = null
 
   // Agent specific keys.
   actionId: Sequence<number> = null
@@ -46,6 +47,7 @@ export class Replay {
   numAgents: number = 0
   maxSteps: number = 0
   mapSize: [number, number] = [0, 0]
+  fileName: string = ''
   typeNames: string[] = []
   actionNames: string[] = []
   itemNames: string[] = []
@@ -246,6 +248,7 @@ async function loadReplayJson(url: string, replayData: any) {
   state.replay.numAgents = replayData.num_agents
   state.replay.maxSteps = replayData.max_steps
   state.replay.mapSize = replayData.map_size
+  state.replay.fileName = replayData.file_name
   state.replay.typeNames = replayData.type_names
   state.replay.actionNames = replayData.action_names
   state.replay.itemNames = replayData.item_names
@@ -294,8 +297,8 @@ async function loadReplayJson(url: string, replayData: any) {
 
   fixReplay()
 
-  if (state.replay.file_name) {
-    html.fileName.textContent = state.replay.file_name
+  if (state.replay.fileName.length > 0) {
+    html.fileName.textContent = state.replay.fileName
   } else {
     html.fileName.textContent = url.split('/').pop() || 'unknown'
   }
@@ -314,57 +317,49 @@ export function loadReplayStep(replayStep: any) {
   // Update the grid objects.
   const step = replayStep.step
 
-  state.replay.max_steps = Math.max(state.replay.max_steps, step + 1)
+  state.replay.maxSteps = Math.max(state.replay.maxSteps, step + 1)
 
-  for (const gridObject of replayStep.grid_objects) {
+  for (const obj of replayStep.grid_objects) {
     // Grid objects are 1-indexed.
-    const index = gridObject.id - 1
-    for (const key in gridObject) {
-      const value = gridObject[key]
-      // Ensure that the grid object exists.
-      while (state.replay.objects.length <= index) {
-        state.replay.objects.push({})
-      }
-      // Ensure that the key exists.
-      if (state.replay.objects[index][key] === undefined || state.replay.objects[index][key] === null) {
-        state.replay.objects[index][key] = []
-        while (state.replay.objects[index][key].length <= step) {
-          state.replay.objects[index][key].push(null)
-        }
-      }
+    const index = obj.id - 1
 
-      state.replay.objects[index][key][step] = value
+    // for (const key in obj) {
+    //   const value = obj[key]
+    //   // Ensure that the grid object exists.
+    //   while (state.replay.objects.length <= index) {
+    //     state.replay.objects.push({})
+    //   }
+    //   // Ensure that the key exists.
+    //   if (state.replay.objects[index][key] === undefined || state.replay.objects[index][key] === null) {
+    //     state.replay.objects[index][key] = []
+    //     while (state.replay.objects[index][key].length <= step) {
+    //       state.replay.objects[index][key].push(null)
+    //     }
+    //   }
 
-      if (key == 'agent_id') {
-        // Update the agent.
-        while (state.replay.agents.length <= value) {
-          state.replay.agents.push({})
-        }
-        state.replay.agents[value] = state.replay.objects[index]
-      }
-    }
-    // Make sure that the keys that don't exist in the update are set to null too.
-    for (const key in state.replay.objects[index]) {
-      if (gridObject[key] === undefined) {
-        state.replay.objects[index][key][step] = null
-      }
-    }
+    //   state.replay.objects[index][key][step] = value
+
+    //   if (key == 'agent_id') {
+    //     // Update the agent.
+    //     while (state.replay.agents.length <= value) {
+    //       state.replay.agents.push({})
+    //     }
+    //     state.replay.agents[value] = state.replay.objects[index]
+    //   }
+    // }
+    // // Make sure that the keys that don't exist in the update are set to null too.
+    // for (const key in state.replay.objects[index]) {
+    //   if (obj[key] === undefined) {
+    //     state.replay.objects[index][key][step] = null
+    //   }
+    // }
   }
 
-  fixReplay()
+  // fixReplay()
 
-  updateStep(step)
+  // updateStep(step)
 
-  requestFrame()
-}
-
-/** Get object config. */
-export function getObjectConfig(object: any) {
-  let typeName = state.replay.type_names[object.type]
-  if (state.replay.config == null) {
-    return null
-  }
-  return state.replay.config.game.objects[typeName]
+  // requestFrame()
 }
 
 /** Initializes the WebSocket connection. */
@@ -402,9 +397,9 @@ export function sendAction(actionName: string, actionParam: number) {
     console.error('WebSocket is not connected')
     return
   }
-  const agentId = getAttr(state.selectedGridObject, 'agent_id')
+  const agentId = getAttr(state.selectedGridObject.agentId)
   if (agentId != null) {
-    const actionId = state.replay.action_names.indexOf(actionName)
+    const actionId = state.replay.actionNames.indexOf(actionName)
     if (actionId == -1) {
       console.error('Action not found: ', actionName)
       return
@@ -439,9 +434,10 @@ export function propertyName(key: string) {
 
 /** Gets the icon of a resource, type or any other property. */
 export function propertyIcon(key: string) {
-  if (state.replay.type_names.includes(key)) {
-    let idx = state.replay.type_names.indexOf(key)
-    return "data/atlas/" + state.replay.object_images[idx][0]
+  // FIX ME: The inv: and agent: prefixes don't exist anymore.
+  if (state.replay.typeNames.includes(key)) {
+    let idx = state.replay.typeNames.indexOf(key)
+    return "data/atlas/" + state.replayHelper.typeImages[idx][0]
   } else if (key.startsWith('inv:') || key.startsWith('agent:inv:')) {
     return 'data/atlas/resources/' + key.replace('inv:', '').replace('agent:', '') + '.png'
   } else {

@@ -209,6 +209,12 @@ def validate_time_series_value(
         if not isinstance(value, (int, float)):
             add_error(f"{obj_prefix}: '{field}' at index {index} must be a number")
 
+    elif field == "color":
+        if not isinstance(value, int):
+            add_error(f"{obj_prefix}: 'color' at index {index} must be an integer")
+        elif value < 0 or value > 255:
+            add_error(f"{obj_prefix}: 'color' at index {index} must be between 0 and 255, got: {value}")
+
 
 def validate_time_series(
     field: str,
@@ -277,6 +283,12 @@ def validate_constant(
         elif value < 0:
             add_error(f"{obj_prefix}: '{field}' must be non-negative")
 
+    elif field == "color":
+        if not isinstance(value, int):
+            add_error(f"{obj_prefix}: 'color' must be an integer")
+        elif value < 0 or value > 255:
+            add_error(f"{obj_prefix}: 'color' must be between 0 and 255, got: {value}")
+
     elif field in ["recipe_input", "recipe_output"]:
         if not isinstance(value, list):
             add_error(f"{obj_prefix}: '{field}' must be a list")
@@ -313,6 +325,7 @@ def get_expected_object_fields() -> set:
         "rotation",
         "inventory",
         "inventory_max",
+        "color",
         # Agent-specific fields
         "agent_id",
         "action_id",

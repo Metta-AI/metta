@@ -81,6 +81,8 @@ class EpisodeReplay:
                     name = key.split(":")[-1]
                     inventory.append(self.env.inventory_item_names.index(name))
             update_object["inventory"] = inventory
+            if "color" in grid_object:
+                update_object["color"] = grid_object["color"]
 
             if len(self.objects) <= i:
                 self.objects.append({})
@@ -126,23 +128,24 @@ class EpisodeReplay:
 
         self.replay_data["config"] = OmegaConf.to_container(self.env._task.env_cfg(), resolve=True)
 
-        # FIX ME: This is a hack as map_width and map_height are not set in the replay_writer.
-        # Go over all objects and find the max x and y and set that as the map size.
-        max_x = 0
-        max_y = 0
-        for obj in self.objects:
-            for key, changes in list(obj.items()):
-                if key == "position":
-                    max_x = max(max_x, changes[-1][1][0])
-                    max_y = max(max_y, changes[-1][1][1])
-        self.replay_data["map_size"] = [max_x + 1, max_y + 1]
+        # # FIX ME: This is a hack as map_width and map_height are not set in the replay_writer.
+        # # Go over all objects and find the max x and y and set that as the map size.
+        # max_x = 0
+        # max_y = 0
+        # for obj in self.objects:
+        #     for key, changes in list(obj.items()):
+        #         if key == "position":
+        #             max_x = max(max_x, changes[-1][1][0])
+        #             max_y = max(max_y, changes[-1][1][1])
+        # self.replay_data["map_size"] = [max_x + 1, max_y + 1]
 
         return self.replay_data
 
     def write_replay(self, path: str):
         """Writes a replay to a file."""
-        replay_data = json.dumps(self.get_replay_data())  # Convert to JSON string
+        data = self.get_replay_data()
+        data["file_name"] = path.split("/")[-1]
+        replay_data = json.dumps(data)  # Convert to JSON string
         replay_bytes = replay_data.encode("utf-8")  # Encode to bytes
         compressed_data = zlib.compress(replay_bytes)  # Compress the bytes
-
         write_data(path, compressed_data, content_type="application/x-compress")
