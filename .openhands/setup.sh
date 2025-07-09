@@ -29,10 +29,14 @@ git config --global user.email "openhands@all-hands.dev" 2>/dev/null || true
 if ! command -v uv &> /dev/null; then
     echo "📦 Installing uv package manager..."
     curl -LsSf https://astral.sh/uv/install.sh | sh
-    
-    # Add uv to PATH for current session
-    export PATH="$HOME/.cargo/bin:$PATH"
-    
+
+    # Add all common uv installation paths to PATH
+    export PATH="$HOME/.local/bin:$HOME/.cargo/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
+
+    # Source env files if they exist
+    [ -f "$HOME/.local/bin/env" ] && source "$HOME/.local/bin/env"
+    [ -f "$HOME/.cargo/env" ] && source "$HOME/.cargo/env"
+
     # Verify installation
     if ! command -v uv &> /dev/null; then
         echo "❌ Failed to install uv"
@@ -68,13 +72,13 @@ try:
         print('✅ Metta mettagrid module imported successfully')
     except ImportError as e:
         print(f'⚠️  Mettagrid module import issue: {e}')
-    
+
     try:
         import metta.rl.fast_gae
         print('✅ C++ extensions (fast_gae) imported successfully')
     except ImportError as e:
         print(f'⚠️  C++ extensions import issue: {e}')
-        
+
     print('✅ Setup verification completed - Metta is ready to use!')
 except ImportError as e:
     print(f'❌ Critical error - Metta package not found: {e}')
