@@ -55,6 +55,6 @@ using InventoryItem = uint8_t;
 using InventoryQuantity = uint8_t;
 using InventoryDelta = int16_t;  // cover full range of allowed changes (+/-255)
 
-typedef uint32_t GridCoord;  // this sets our maximum map size
+using GridCoord = uint16_t;  // this sets the maximum possible map size
 
 #endif  // TYPES_HPP_
