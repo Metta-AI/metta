@@ -90,13 +90,14 @@ Softmax/
 │
 ├── observatory/                # Production monitoring
 │   ├── src/                    # React frontend
-│   ├── api/                    # Backend (from app_backend)
+│   ├── api/                    # Backend services (from backend/src/metta/backend/)
 │   │   ├── endpoints.py        # Observatory API endpoints
 │   │   ├── sweep_names.py      # Name registration service
-│   │   └── stat_buffer.py      # Data persistence layer
+│   │   ├── stat_buffer.py      # Data persistence layer
+│   │   └── requirements.txt    # API-specific Python dependencies
 │   ├── pyproject.toml          # name = "metta-observatory"
 │   ├── package.json
-│   └── Dockerfile
+│   └── Dockerfile              # From backend/docker/observatory/
 │
 ├── mettascope/                 # Replay viewer
 │   ├── src/                    # TypeScript source
@@ -135,10 +136,13 @@ Softmax/
 1. **Flatten mettagrid**: Move files from `mettagrid/src/metta/mettagrid/` directly to `mettagrid/`
 2. **Rename common module**: Change `common/src/metta/common/` to export as `mettacommon`
 3. **Create cogworks**: Merge `metta/` and `agent/` into new `cogworks/` package
-4. **Split app_backend**: Distribute its functionality to respective apps:
-   - Observatory API endpoints → `observatory/api/`
-   - Sweep name registration → `observatory/api/sweep_names.py`
-   - Stats buffer/persistence → `observatory/api/stat_buffer.py`
+4. **Consolidate backend services**: The entire `backend/` directory is eliminated:
+   - `backend/src/metta/backend/observatory/` → `observatory/api/endpoints.py`
+   - `backend/src/metta/backend/sweep_names/` → `observatory/api/sweep_names.py`
+   - `backend/src/metta/backend/stat_buffer/` → `observatory/api/stat_buffer.py`
+   - `backend/docker/observatory/Dockerfile` → `observatory/Dockerfile`
+   - `backend/docker/observatory/requirements.txt` → `observatory/api/requirements.txt`
+   - No separate backend package - services live with their apps
 5. **Create ui-shared**: Extract shared React/TypeScript components from existing web apps
 6. **Add Python servers**: Ensure each web app has its Python server file where needed
 
@@ -293,7 +297,10 @@ All components from the original structure have been accounted for:
 - **Core functionality** → `cogworks/` (RL, agent, eval, sweep, etc.)
 - **Environment** → `mettagrid/` (flattened C++/Python)
 - **Utilities** → `common/` (flattened shared code)
-- **Backend services** → Distributed to app-specific `api/` folders
+- **Backend directory** → Eliminated entirely:
+  - API services → `observatory/api/` (endpoints, sweep_names, stat_buffer)
+  - Docker configs → App-specific locations (e.g., `observatory/Dockerfile`)
+  - Requirements → With their respective services
 - **Web applications** → Root-level with descriptive names
 - **Shared UI** → `ui-shared/` for React/TypeScript components
 - **Supporting files** → Root-level (configs/, tools/, recipes/, docs/, devops/)
