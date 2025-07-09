@@ -12,9 +12,6 @@ if [ -z "$sweep_run" ]; then
   exit 1
 fi
 
-# Extract hardware argument if present
-hardware_arg=$(echo "$args" | grep -o '+hardware=[^ ]*' || true)
-
 source ./devops/setup.env
 
 DIST_ID=${DIST_ID:-localhost}
@@ -25,11 +22,7 @@ mkdir -p "$DATA_DIR/sweep/$sweep_run"
 
 # Create initial dist file to avoid FileNotFoundError in @metta_script decorator
 echo "Creating initial dist config: $DIST_CFG_PATH"
-cat > "$DIST_CFG_PATH" << EOF
-# Placeholder dist config - will be updated by sweep_init.py
-run: null
-wandb_run_id: null
-EOF
+touch "$DIST_CFG_PATH"
 
 # Initialize sweep
 echo "[SWEEP:$sweep_run] Initializing sweep configuration..."
