@@ -8,8 +8,9 @@ from omegaconf import DictConfig
 class BaseSchedule(ABC):
     """Base class for scheduling strategies."""
 
-    def __init__(self, initial_value: float, min_value: Optional[float] = None,
-                 max_value: Optional[float] = None, **kwargs):
+    def __init__(
+        self, initial_value: float, min_value: Optional[float] = None, max_value: Optional[float] = None, **kwargs
+    ):
         self.initial_value = initial_value
         self.min_value = min_value if min_value is not None else initial_value * 0.1
         self.max_value = max_value if max_value is not None else initial_value
@@ -43,7 +44,7 @@ class ExponentialSchedule(BaseSchedule):
         self.decay_rate = decay_rate
 
     def __call__(self, progress: float) -> float:
-        value = self.initial_value * (self.decay_rate ** progress)
+        value = self.initial_value * (self.decay_rate**progress)
         return max(value, self.min_value)
 
 
@@ -59,10 +60,7 @@ class LogarithmicSchedule(BaseSchedule):
         return self.initial_value + (self.min_value - self.initial_value) * log_progress
 
 
-
-
 class HyperparameterScheduler:
-
     scheduler_registry: Dict[str, Callable[..., BaseSchedule]] = {
         "constant": ConstantSchedule,
         "linear": LinearSchedule,
@@ -112,9 +110,6 @@ class HyperparameterScheduler:
         schedule = self.schedules[param_name]
         schedule_type = schedule["type"]
 
-        if schedule_type == "constant":
-            return initial_value
-
         progress = min(current_step / self.total_timesteps, 1.0)
 
         schedule_class = self.scheduler_registry.get(schedule_type)
@@ -126,7 +121,7 @@ class HyperparameterScheduler:
             initial_value=initial_value,
             min_value=schedule.get("min_value"),
             max_value=schedule.get("max_value"),
-            decay_rate=schedule.get("decay_rate", 0.1)
+            decay_rate=schedule.get("decay_rate", 0.1),
         )(progress)
 
         return scheduled_value
