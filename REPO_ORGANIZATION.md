@@ -48,7 +48,7 @@ softmax/
 Based on the current repository, here's the new flattened structure focusing on key changes:
 
 ```
-softmax/
+metta/
 ├── cogworks/                   # RL training framework (merged from metta/ + agent/)
 │   ├── agent/                  # From agent/src/metta/agent/
 │   ├── rl/                     # From metta/rl/
