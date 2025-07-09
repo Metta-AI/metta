@@ -49,10 +49,20 @@ def _calculate_default_num_workers(is_serial: bool) -> int:
     return max(1, num_workers)
 
 
-def train(cfg: ListConfig | DictConfig, wandb_run: WandbRun | None, logger: Logger):
+def set_num_workers_if_unspecified(cfg: DictConfig | ListConfig) -> None:
+    # Provide a sensible default when num_workers is missing or zero
+    if OmegaConf.is_missing(cfg.trainer, "num_workers") or not cfg.trainer.num_workers:
+        OmegaConf.set_struct(cfg, False)
     if not cfg.trainer.num_workers:
         cfg.trainer.num_workers = _calculate_default_num_workers(cfg.vectorization == "serial")
+        OmegaConf.set_struct(cfg, True)
+
+
+def train(cfg: DictConfig | ListConfig, wandb_run: WandbRun | None, logger: Logger):
     cfg = load_train_job_config_with_overrides(cfg)
+    set_num_workers_if_unspecified(cfg)
+
+    logger.info("Trainer config after overrides:\n%s", OmegaConf.to_yaml(cfg.trainer, resolve=True))
 
     if os.environ.get("RANK", "0") == "0":
         with open(os.path.join(cfg.run_dir, "config.yaml"), "w") as f:
