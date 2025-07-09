@@ -110,7 +110,7 @@ class HyperparameterScheduler:
 
     def _compute_scheduled_value(self, param_name: str, current_step: int) -> float:
         """Compute the scheduled value for a hyperparameter at the current step."""
-        schedule_fn = self.schedulers[param_name]  # Already a callable schedule instance (via hydra.instantiate)
+        schedule_fn = self.schedulers[param_name]
 
         progress = min(current_step / self.total_timesteps, 1.0)
         return schedule_fn(progress)

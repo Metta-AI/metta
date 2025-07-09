@@ -278,12 +278,6 @@ class MettaTrainer:
                     f"Environment observation shape: {environment_shape}"
                 )
 
-        # self.lr_scheduler = None
-        # if trainer_cfg.lr_scheduler.enabled:
-        #     self.lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-        #         self.optimizer, T_max=trainer_cfg.total_timesteps // trainer_cfg.batch_size
-        #     )
-
         if checkpoint and checkpoint.optimizer_state_dict:
             try:
                 self.optimizer.load_state_dict(checkpoint.optimizer_state_dict)
@@ -680,9 +674,6 @@ class MettaTrainer:
                 if average_approx_kl > trainer_cfg.ppo.target_kl:
                     break
             # end loop over epochs
-
-        # if self.lr_scheduler is not None:
-        #     self.lr_scheduler.step()
 
         self.hyperparameter_scheduler.step(self, self.agent_step)
 
