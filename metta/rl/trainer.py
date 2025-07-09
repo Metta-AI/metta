@@ -578,10 +578,9 @@ def create_training_components(
     # Create kickstarter
     kickstarter = Kickstarter(
         trainer_cfg.kickstart,
-        device,
+        str(device),
         policy_store,
-        metta_grid_env.action_names,
-        metta_grid_env.max_action_args,
+        metta_grid_env,
     )
 
     # Wrap in DDP if distributed
