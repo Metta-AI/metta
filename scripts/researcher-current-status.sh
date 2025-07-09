@@ -1,69 +1,120 @@
 #!/bin/bash
 
-# Script to show the status of researcher_current tag
+# Script to show the status of researcher tag system
 # Usage: ./scripts/researcher-current-status.sh
 
 set -e
 
-echo "=== Researcher Current Tag Status ==="
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+NC='\033[0m' # No Color
+
+echo -e "${CYAN}=== Researcher Tag System Status ===${NC}"
 echo
 
-# Check if tag exists
-if ! git rev-parse --verify researcher_current >/dev/null 2>&1; then
-    echo "❌ researcher_current tag does not exist yet"
-    echo "The tag will be created automatically on the next push to main"
-    exit 0
-fi
+# Fetch latest tag info from remote
+git fetch origin --tags >/dev/null 2>&1
 
-# Get tag commit info
-TAG_COMMIT=$(git rev-parse researcher_current)
-TAG_COMMIT_SHORT=$(git rev-parse --short researcher_current)
-TAG_MESSAGE=$(git log -1 --pretty=format:"%s" researcher_current)
-TAG_DATE=$(git log -1 --pretty=format:"%cr" researcher_current)
+# Check system state
+HAS_CURRENT=$(git ls-remote --tags origin | grep -q "refs/tags/researcher_current$" && echo "yes" || echo "no")
+HAS_LOCK=$(git ls-remote --tags origin | grep -q "refs/tags/researcher_current_lock$" && echo "yes" || echo "no")
 
-echo "📍 researcher_current points to: $TAG_COMMIT_SHORT"
-echo "   Message: $TAG_MESSAGE"
-echo "   Date: $TAG_DATE"
-echo
+if [ "$HAS_LOCK" = "yes" ]; then
+    # System is locked
+    LOCK_COMMIT=$(git ls-remote --tags origin | grep "refs/tags/researcher_current_lock$" | cut -f1)
+    LOCK_COMMIT_SHORT=$(echo "$LOCK_COMMIT" | cut -c1-8)
 
-# Check if pinned
-if [ -f ".researcher_pin" ]; then
-    PINNED_COMMIT=$(cat .researcher_pin)
-    echo "🔒 Status: PINNED"
-    echo "   Pin file contains: $PINNED_COMMIT"
+    # Get commit info
+    git fetch origin "$LOCK_COMMIT" >/dev/null 2>&1
+    LOCK_MESSAGE=$(git log -1 --pretty=format:"%s" "$LOCK_COMMIT")
+    LOCK_DATE=$(git log -1 --pretty=format:"%cr" "$LOCK_COMMIT")
 
-    # Check if pin file matches tag
-    if [ "$PINNED_COMMIT" = "$TAG_COMMIT" ]; then
-        echo "   ✅ Pin file matches tag"
-    else
-        echo "   ⚠️  Pin file doesn't match tag - this shouldn't happen"
+    echo -e "${YELLOW}🔒 Status: LOCKED${NC}"
+    echo -e "${BLUE}📍 researcher_current_lock points to: ${LOCK_COMMIT_SHORT}${NC}"
+    echo -e "   Message: ${LOCK_MESSAGE}"
+    echo -e "   Date: ${LOCK_DATE}"
+    echo
+
+    if [ "$HAS_CURRENT" = "yes" ]; then
+        echo -e "${RED}⚠️  WARNING: Both researcher_current and researcher_current_lock exist!${NC}"
+        echo -e "${RED}   This shouldn't happen - the system may be in an inconsistent state${NC}"
     fi
 
-    # Show commits since pin
-    COMMITS_SINCE=$(git rev-list researcher_current..HEAD --count 2>/dev/null || echo "unknown")
+    # Show commits since lock
+    git fetch origin main >/dev/null 2>&1
+    COMMITS_SINCE=$(git rev-list "$LOCK_COMMIT"..origin/main --count 2>/dev/null || echo "unknown")
     if [ "$COMMITS_SINCE" = "0" ]; then
-        echo "   📊 No new commits since pin"
+        echo -e "${GREEN}📊 No new commits to main since lock${NC}"
     else
-        echo "   📊 $COMMITS_SINCE commits have been made since pin"
+        echo -e "${YELLOW}📊 $COMMITS_SINCE commits have been made to main since lock${NC}"
+
+        # Show recent commits
+        if [ "$COMMITS_SINCE" != "unknown" ] && [ "$COMMITS_SINCE" -gt 0 ]; then
+            echo -e "\n${CYAN}Recent commits to main:${NC}"
+            git log "$LOCK_COMMIT"..origin/main --oneline --max-count=5 | sed 's/^/  /'
+            if [ "$COMMITS_SINCE" -gt 5 ]; then
+                echo "  ... and $((COMMITS_SINCE - 5)) more"
+            fi
+        fi
+    fi
+
+    echo
+    echo -e "${YELLOW}ℹ️  To use the locked version: git checkout researcher_current_lock${NC}"
+
+elif [ "$HAS_CURRENT" = "yes" ]; then
+    # System is not locked, normal operation
+    TAG_COMMIT=$(git rev-parse researcher_current 2>/dev/null)
+    TAG_COMMIT_SHORT=$(git rev-parse --short researcher_current 2>/dev/null)
+    TAG_MESSAGE=$(git log -1 --pretty=format:"%s" researcher_current)
+    TAG_DATE=$(git log -1 --pretty=format:"%cr" researcher_current)
+
+    echo -e "${GREEN}🔄 Status: AUTO-UPDATING${NC}"
+    echo -e "${BLUE}📍 researcher_current points to: ${TAG_COMMIT_SHORT}${NC}"
+    echo -e "   Message: ${TAG_MESSAGE}"
+    echo -e "   Date: ${TAG_DATE}"
+    echo
+
+    # Check if local and remote tags match
+    REMOTE_TAG=$(git ls-remote --tags origin | grep "refs/tags/researcher_current$" | cut -f1)
+    if [ "$TAG_COMMIT" = "$REMOTE_TAG" ]; then
+        echo -e "${GREEN}✅ Local and remote tags are in sync${NC}"
+    else
+        echo -e "${YELLOW}⚠️  Local and remote tags differ - run 'git fetch --tags'${NC}"
+    fi
+
+    # Show if tag is up to date with main
+    git fetch origin main >/dev/null 2>&1
+    HEAD_COMMIT=$(git rev-parse origin/main)
+    if [ "$TAG_COMMIT" = "$HEAD_COMMIT" ]; then
+        echo -e "${GREEN}✅ Tag is up to date with main branch${NC}"
+    else
+        COMMITS_BEHIND=$(git rev-list researcher_current..origin/main --count 2>/dev/null || echo "unknown")
+        echo -e "${YELLOW}📊 Tag is $COMMITS_BEHIND commits behind main${NC}"
+        echo "   (Tag will update automatically on next push to main)"
     fi
 
 else
-    echo "🔄 Status: AUTO-UPDATING"
-
-    # Show if tag is up to date with HEAD
-    HEAD_COMMIT=$(git rev-parse HEAD)
-    if [ "$TAG_COMMIT" = "$HEAD_COMMIT" ]; then
-        echo "   ✅ Tag is up to date with HEAD"
-    else
-        COMMITS_BEHIND=$(git rev-list researcher_current..HEAD --count 2>/dev/null || echo "unknown")
-        echo "   📊 Tag is $COMMITS_BEHIND commits behind HEAD"
-        echo "   (Tag will update automatically on next push to main)"
-    fi
+    # Neither tag exists
+    echo -e "${RED}❌ No researcher tags exist${NC}"
+    echo "The researcher_current tag will be created automatically on the next push to main"
+    echo "Or you can manually create it with: git tag researcher_current <commit>"
 fi
 
 echo
-echo "=== Quick Commands ==="
-echo "Pin to current commit:    ./scripts/pin-researcher-current.sh"
-echo "Pin to specific commit:   ./scripts/pin-researcher-current.sh <commit-hash>"
-echo "Unpin and resume auto:    ./scripts/unpin-researcher-current.sh"
-echo "Checkout stable version:  git checkout researcher_current"
+echo -e "${CYAN}=== Quick Commands ===${NC}"
+if [ "$HAS_LOCK" = "yes" ]; then
+    echo "Unlock system:                ./scripts/unpin-researcher-current.sh"
+    echo "Move lock to another commit:  ./scripts/pin-researcher-current.sh <commit-hash>"
+    echo "Use locked version:           git checkout researcher_current_lock"
+else
+    echo "Lock to current position:     ./scripts/pin-researcher-current.sh"
+    echo "Lock to specific commit:      ./scripts/pin-researcher-current.sh <commit-hash>"
+    if [ "$HAS_CURRENT" = "yes" ]; then
+        echo "Use stable version:           git checkout researcher_current"
+    fi
+fi
+echo "Update local tags:            git fetch --tags"

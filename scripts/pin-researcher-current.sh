@@ -1,37 +1,53 @@
 #!/bin/bash
 
-# Script to pin researcher_current tag to a specific commit
+# Script to lock the researcher tag system by creating researcher_current_lock
+# and removing researcher_current to prevent accidental use
 # Usage: ./scripts/pin-researcher-current.sh [commit-hash]
-# If no commit hash provided, pins to current HEAD
+# If no commit hash provided, locks to current HEAD
 
 set -e
 
-# Get the commit to pin to
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+# Get the commit to lock to
 if [ -z "$1" ]; then
+    # No commit specified - lock to current HEAD
     COMMIT_HASH=$(git rev-parse HEAD)
-    echo "No commit specified, pinning to current HEAD: $COMMIT_HASH"
+    echo -e "${YELLOW}No commit specified, locking to current HEAD: ${COMMIT_HASH:0:8}${NC}"
+
+    # Check current branch
+    CURRENT_BRANCH=$(git branch --show-current)
+    if [ -n "$CURRENT_BRANCH" ]; then
+        echo -e "   Current branch: $CURRENT_BRANCH"
+    fi
+
+    # Warn if researcher_current exists and points elsewhere
+    if git rev-parse --verify researcher_current >/dev/null 2>&1; then
+        CURRENT_TAG=$(git rev-parse researcher_current)
+        if [ "$CURRENT_TAG" != "$COMMIT_HASH" ]; then
+            echo -e "${YELLOW}Note: researcher_current currently points to ${CURRENT_TAG:0:8}${NC}"
+            echo -e "      but locking to your HEAD position ${COMMIT_HASH:0:8}"
+        fi
+    fi
 else
     COMMIT_HASH="$1"
     # Verify commit exists
     if ! git cat-file -e "$COMMIT_HASH^{commit}" 2>/dev/null; then
-        echo "Error: Commit $COMMIT_HASH does not exist"
+        echo -e "${RED}Error: Commit $COMMIT_HASH does not exist${NC}"
         exit 1
     fi
-    echo "Pinning to specified commit: $COMMIT_HASH"
+    echo -e "${YELLOW}Locking to specified commit: ${COMMIT_HASH:0:8}${NC}"
 fi
 
-# Get current branch
-CURRENT_BRANCH=$(git branch --show-current)
-if [ -z "$CURRENT_BRANCH" ]; then
-    echo "Error: Not on a branch. Please checkout a branch first."
-    exit 1
-fi
-
-# Check if already pinned
-if [ -f ".researcher_pin" ]; then
-    CURRENT_PIN=$(cat .researcher_pin)
-    echo "Warning: researcher_current is already pinned to commit: $CURRENT_PIN"
-    read -p "Do you want to change the pin to $COMMIT_HASH? (y/N): " -n 1 -r
+# Check if already locked
+if git ls-remote --tags origin | grep -q "refs/tags/researcher_current_lock"; then
+    CURRENT_LOCK=$(git ls-remote --tags origin | grep "refs/tags/researcher_current_lock" | cut -f1)
+    echo -e "${YELLOW}Warning: System is already locked at commit: ${CURRENT_LOCK:0:8}${NC}"
+    read -p "Do you want to move the lock to ${COMMIT_HASH:0:8}? (y/N): " -n 1 -r
     echo
     if [[ ! $REPLY =~ ^[Yy]$ ]]; then
         echo "Aborted."
@@ -39,23 +55,24 @@ if [ -f ".researcher_pin" ]; then
     fi
 fi
 
-# Create pin file
-echo "$COMMIT_HASH" > .researcher_pin
+# Create lock tag
+echo -e "${YELLOW}Creating lock tag at ${COMMIT_HASH:0:8}...${NC}"
+git tag -f researcher_current_lock "$COMMIT_HASH" -m "Locked at $(date) - researcher_current removed for safety"
+git push origin researcher_current_lock --force
 
-# Update the tag to the pinned commit
-git tag -f researcher_current "$COMMIT_HASH"
+# Remove researcher_current tag to prevent accidental use
+if git ls-remote --tags origin | grep -q "refs/tags/researcher_current$"; then
+    echo -e "${YELLOW}Removing researcher_current tag...${NC}"
+    git push origin :refs/tags/researcher_current
 
-# Commit the pin file
-git add .researcher_pin
-git commit -m "Pin researcher_current tag to commit $COMMIT_HASH
+    # Also remove local tag if it exists
+    if git tag -l | grep -q "^researcher_current$"; then
+        git tag -d researcher_current
+    fi
+fi
 
-This commit creates a pin file that prevents the researcher_current tag
-from being automatically updated until unpinned."
-
-# Push changes
-echo "Pushing pin file and updated tag..."
-git push origin "$CURRENT_BRANCH"
-git push origin researcher_current --force
-
-echo "✅ Successfully pinned researcher_current tag to commit $COMMIT_HASH"
-echo "The tag will not auto-update until you run unpin-researcher-current.sh"
+echo -e "${GREEN}✅ Successfully locked the researcher tag system${NC}"
+echo -e "${GREEN}   Lock tag points to: ${COMMIT_HASH:0:8}${NC}"
+echo -e "${GREEN}   researcher_current tag has been removed${NC}"
+echo -e "${GREEN}   Researchers should use: git checkout researcher_current_lock${NC}"
+echo -e "${GREEN}   To unlock: ./scripts/unpin-researcher-current.sh${NC}"

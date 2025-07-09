@@ -15,20 +15,24 @@ jobs:
         fetch-depth: 0
         token: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Check if pinned
-      id: check_pin
+    - name: Check if locked
+      id: check_lock
       run: |
-        # Check if the pin file exists
-        if git ls-tree HEAD --name-only | grep -q "^\.researcher_pin$"; then
-          echo "pinned=true" >> $GITHUB_OUTPUT
-          echo "Tag is currently pinned - skipping auto-update"
+        # Check if the lock tag exists
+        if git ls-remote --tags origin | grep -q "refs/tags/researcher_current_lock"; then
+          echo "locked=true" >> $GITHUB_OUTPUT
+          echo "System is locked with researcher_current_lock tag - skipping auto-update"
+
+          # Get lock tag info
+          LOCK_COMMIT=$(git ls-remote --tags origin | grep "refs/tags/researcher_current_lock" | cut -f1)
+          echo "Lock tag points to commit: ${LOCK_COMMIT:0:8}"
         else
-          echo "pinned=false" >> $GITHUB_OUTPUT
-          echo "Tag is not pinned - will auto-update"
+          echo "locked=false" >> $GITHUB_OUTPUT
+          echo "System is not locked - will update researcher_current"
         fi
 
     - name: Update researcher_current tag
-      if: steps.check_pin.outputs.pinned == 'false'
+      if: steps.check_lock.outputs.locked == 'false'
       run: |
         # Configure git
         git config user.name "github-actions[bot]"
