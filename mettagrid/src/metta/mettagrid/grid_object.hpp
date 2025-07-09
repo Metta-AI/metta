@@ -9,14 +9,16 @@
 #include "packed_coordinate.hpp"
 #include "types.hpp"
 
-typedef ObservationType Layer;
-typedef ObservationType TypeId;
-typedef ObservationType ObservationCoord;
+using Layer = ObservationType;
+using TypeId = ObservationType;
+using ObservationCoord = ObservationType;
 
 struct PartialObservationToken {
   ObservationType feature_id;
   ObservationType value;
 };
+
+static_assert(sizeof(PartialObservationToken) == 2 * sizeof(ObservationType), "PartialObservationToken size check");
 
 // These may make more sense in observation_encoder.hpp, but we need to include that
 // header in a lot of places, and it's nice to have these types defined in one place.
@@ -51,7 +53,7 @@ enum Orientation {
   Right = 3
 };
 
-typedef unsigned int GridObjectId;
+using GridObjectId = unsigned int;
 
 struct GridObjectConfig {
   TypeId type_id;

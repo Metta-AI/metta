@@ -31,19 +31,19 @@ protected:
     }
 
     bool success = false;
-    for (const auto& [item, items_required] : converter->input_resources) {
+    for (const auto& [item, resources_required] : converter->input_resources) {
       if (actor->inventory.count(item) == 0) {
         continue;
       }
-      InventoryQuantity items_available = actor->inventory.at(item);
-      InventoryQuantity items_to_put = std::min(items_required, items_available);
+      InventoryQuantity resources_available = actor->inventory.at(item);
+      InventoryQuantity resources_to_put = std::min(resources_required, resources_available);
 
-      if (items_to_put > 0) {
-        InventoryDelta items_put = converter->update_inventory(item, static_cast<InventoryDelta>(items_to_put));
-        if (items_put > 0) {
-          InventoryDelta delta = actor->update_inventory(item, -items_put);
-          assert(delta == -items_put);
-          actor->stats.add(actor->stats.inventory_item_name(item) + ".put", items_put);
+      if (resources_to_put > 0) {
+        InventoryDelta resources_put = converter->update_inventory(item, static_cast<InventoryDelta>(resources_to_put));
+        if (resources_put > 0) {
+          InventoryDelta delta = actor->update_inventory(item, -resources_put);
+          assert(delta == -resources_put);
+          actor->stats.add(actor->stats.inventory_item_name(item) + ".put", resources_put);
           success = true;
         }
       }
