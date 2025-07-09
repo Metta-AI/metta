@@ -1,6 +1,8 @@
 
 // TODO First step, stub everything out and get things to start up
 
+import { Mat3f } from './vector_math.js'
+
 /** WebGL Mesh class for managing vertex data and buffers. */
 class WebGLMesh {
   private name: string
@@ -130,6 +132,10 @@ export class ContextWebgl {
   private currentMesh: WebGLMesh | null = null
   private currentMeshName: string = ''
 
+  // Transformation state
+  private currentTransform: Mat3f
+  private transformStack: Mat3f[] = []
+
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas
     const gl = canvas.getContext('webgl')
@@ -137,6 +143,10 @@ export class ContextWebgl {
       throw new Error('Failed to get WebGL context')
     }
     this.gl = gl
+
+    // Initialize transformation matrix
+    this.currentTransform = Mat3f.identity()
+
     console.log('constructor done')
   }
 
@@ -179,20 +189,46 @@ export class ContextWebgl {
     }
   }
   
+  /** Sets the scissor rect for the current mesh. */
   setScissorRect(x: number, y: number, width: number, height: number): void {
-    console.log('setScissorRect stub', x, y, width, height)
+    this.ensureMeshSelected()
+
+    this.currentMesh!.scissorEnabled = true
+    this.currentMesh!.scissorRect = [x, y, width, height]
   }
   
+  /** Disable scissoring for the current mesh. */
   disableScissor(): void {
-    console.log('disableScissor stub')
+    this.ensureMeshSelected()
+    this.currentMesh!.scissorEnabled = false
   }
   
+  /** Save the current transform. */
   save(): void {
-    console.log('save stub')
+    // Push a copy of the current transform onto the stack
+    this.transformStack.push(
+      new Mat3f(
+        this.currentTransform.get(0, 0),
+        this.currentTransform.get(0, 1),
+        this.currentTransform.get(0, 2),
+        this.currentTransform.get(1, 0),
+        this.currentTransform.get(1, 1),
+        this.currentTransform.get(1, 2),
+        this.currentTransform.get(2, 0),
+        this.currentTransform.get(2, 1),
+        this.currentTransform.get(2, 2)
+      )
+    )
   }
   
+  /** Restore the last transform. */
   restore(): void {
-    console.log('restore stub')
+    // Pop the last transform from the stack
+    if (this.transformStack.length > 0) {
+      this.currentTransform = this.transformStack.pop()!
+    } else {
+      console.warn('Transform stack is empty')
+    }
   }
   
   translate(x: number, y: number): void {
