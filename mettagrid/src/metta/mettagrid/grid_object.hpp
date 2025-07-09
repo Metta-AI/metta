@@ -10,9 +10,9 @@
 
 // using namespace std;  // Removed per cpplint
 
-typedef ObservationType Layer;
-typedef ObservationType TypeId;
-typedef ObservationType GridCoord;
+using Layer = ObservationType;
+using TypeId = ObservationType;
+using GridCoord = ObservationType;
 
 struct PartialObservationToken {
   ObservationType feature_id;
@@ -52,7 +52,7 @@ enum Orientation {
   Right = 3
 };
 
-typedef unsigned int GridObjectId;
+using GridObjectId = unsigned int;
 
 struct GridObjectConfig {
   TypeId type_id;

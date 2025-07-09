@@ -35,24 +35,24 @@ protected:
     }
 
     // Actions is only successful if we take at least one item.
-    bool items_taken = false;
+    bool resources_taken = false;
 
     for (const auto& [item, _] : converter->output_resources) {
       if (converter->inventory.count(item) == 0) {
         continue;
       }
-      InventoryDelta items_available = static_cast<InventoryDelta>(converter->inventory[item]);
+      InventoryDelta resources_available = static_cast<InventoryDelta>(converter->inventory[item]);
 
-      InventoryDelta taken = actor->update_inventory(item, items_available);
+      InventoryDelta taken = actor->update_inventory(item, resources_available);
 
       if (taken > 0) {
         actor->stats.add(actor->stats.inventory_item_name(item) + ".get", taken);
         converter->update_inventory(item, -taken);
-        items_taken = true;
+        resources_taken = true;
       }
     }
 
-    return items_taken;
+    return resources_taken;
   }
 };
 

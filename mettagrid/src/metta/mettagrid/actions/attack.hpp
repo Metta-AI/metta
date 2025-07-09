@@ -58,10 +58,7 @@ protected:
         {3, 1},   // arg 9: 3 forward, 1 right
     };
 
-    // Get attack position from lookup table
-    auto [distance, offset] = ATTACK_POSITIONS[arg - 1];  // C++17 structured binding
-
-    // Calculate target location relative to agent's position and orientation
+    auto [distance, offset] = ATTACK_POSITIONS[arg - 1];
     GridLocation target_loc = _grid->relative_location(actor->location, actor->orientation, distance, offset);
 
     return _handle_target(actor, target_loc);
@@ -128,13 +125,13 @@ protected:
 
           // Collect all items to steal first, then apply changes, since the changes
           // can delete keys from the agent's inventory.
-          std::vector<std::pair<InventoryItem, InventoryQuantity>> items_to_steal;
+          std::vector<std::pair<InventoryItem, InventoryQuantity>> resources_to_steal;
           for (const auto& [item, amount] : agent_target->inventory) {
-            items_to_steal.emplace_back(item, amount);
+            resources_to_steal.emplace_back(item, amount);
           }
 
           // Now apply the stealing
-          for (const auto& [item, amount] : items_to_steal) {
+          for (const auto& [item, amount] : resources_to_steal) {
             InventoryDelta stolen = actor->update_inventory(item, static_cast<InventoryDelta>(amount));
 
             agent_target->update_inventory(item, -stolen);

@@ -22,7 +22,7 @@ struct AgentConfig : public GridObjectConfig {
               float action_failure_penalty,
               const std::map<InventoryItem, InventoryQuantity>& resource_limits,
               const std::map<InventoryItem, RewardType>& resource_rewards,
-              const std::map<InventoryItem, RewardType>& resource_reward_max,
+              const std::map<InventoryItem, InventoryQuantity>& resource_reward_max,
               float group_reward_pct)
       : GridObjectConfig(type_id, type_name),
         group_name(group_name),
@@ -40,7 +40,7 @@ struct AgentConfig : public GridObjectConfig {
   float action_failure_penalty;
   std::map<InventoryItem, InventoryQuantity> resource_limits;
   std::map<InventoryItem, RewardType> resource_rewards;
-  std::map<InventoryItem, RewardType> resource_reward_max;
+  std::map<InventoryItem, InventoryQuantity> resource_reward_max;
   float group_reward_pct;
 };
 
@@ -55,7 +55,7 @@ public:
   // however, this should not be relied on for correctness.
   std::map<InventoryItem, InventoryQuantity> inventory;
   std::map<InventoryItem, RewardType> resource_rewards;
-  std::map<InventoryItem, RewardType> resource_reward_max;
+  std::map<InventoryItem, InventoryQuantity> resource_reward_max;
   float action_failure_penalty;
   std::string group_name;
   ObservationType color;
