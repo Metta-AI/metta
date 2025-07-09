@@ -2,7 +2,6 @@
 # Used by tools/train.py for training configuration
 
 num_workers: ???
-
 curriculum: ???
 env_overrides: {}
 

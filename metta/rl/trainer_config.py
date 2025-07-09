@@ -131,9 +131,6 @@ class TorchProfilerConfig(BaseModelWithForbidExtra):
 
 
 class TrainerConfig(BaseModelWithForbidExtra):
-    # Target for hydra instantiation
-    target: str = Field(default="metta.rl.trainer.MettaTrainer", alias="_target_")
-
     # Core training parameters
     # Total timesteps: Type 2 arbitrary default
     total_timesteps: int = Field(default=50_000_000_000, gt=0)
@@ -154,7 +151,7 @@ class TrainerConfig(BaseModelWithForbidExtra):
     vtrace: VTraceConfig = Field(default_factory=VTraceConfig)
 
     # System configuration
-    # Zero copy: Performance optimization to avoid memory copies
+    # Zero copy: Performance optimization to avoid memory copies (default assumes multiprocessing)
     zero_copy: bool = True
     # Contiguous env IDs not required: More flexible env management
     require_contiguous_env_ids: bool = False
@@ -187,6 +184,7 @@ class TrainerConfig(BaseModelWithForbidExtra):
     # Forward minibatch: Type 2 default chosen arbitrarily
     forward_pass_minibatch_target_size: int = Field(default=4096, gt=0)
     # Async factor 2: Type 2 default chosen arbitrarily, overlaps computation and communication for efficiency
+    #   (default assumes multiprocessing)
     async_factor: int = Field(default=2, gt=0)
 
     # Kickstart
@@ -238,10 +236,10 @@ class TrainerConfig(BaseModelWithForbidExtra):
         raise ValueError("curriculum or env must be set")
 
 
-def parse_trainer_config(
+def create_trainer_config(
     cfg: DictConfig,
 ) -> TrainerConfig:
-    """Parse trainer config from Hydra config.
+    """Create trainer config from Hydra config.
 
     Args:
         cfg: The complete Hydra config (must contain trainer, run, and run_dir)
@@ -254,14 +252,18 @@ def parse_trainer_config(
     if not isinstance(trainer_cfg, DictConfig):
         raise ValueError("ListConfig is not supported")
 
-    if _target_ := trainer_cfg.get("_target_"):
-        if _target_ != "metta.rl.trainer.MettaTrainer":
-            raise ValueError(f"Unsupported trainer config: {_target_}")
-
     # Convert to dict and let OmegaConf handle all interpolations
     config_dict = OmegaConf.to_container(trainer_cfg, resolve=True)
     if not isinstance(config_dict, dict):
         raise ValueError("trainer config must be a dict")
+
+    # Remove _target_ from dict if present since we're not using Hydra instantiation
+    config_dict.pop("_target_", None)
+
+    # Some keys' defaults in TrainerConfig that are appropriate for multiprocessing but not serial
+    if cfg.vectorization == "serial":
+        config_dict["async_factor"] = 1
+        config_dict["zero_copy"] = False
 
     # Set default paths if not provided
     if "checkpoint_dir" not in config_dict.setdefault("checkpoint", {}):

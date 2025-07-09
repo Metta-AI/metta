@@ -14,10 +14,12 @@ from metta.common.util.heartbeat import record_heartbeat
 from metta.mettagrid.curriculum.util import curriculum_from_config_path
 from metta.rl.functions import (
     accumulate_rollout_stats,
+    calculate_batch_sizes,
     cleanup_old_policies,
     compute_gradient_stats,
     evaluate_policy,
     generate_replay,
+    get_lstm_config,
     process_stats,
     rollout,
     save_policy_with_metadata,
@@ -25,6 +27,20 @@ from metta.rl.functions import (
     should_run_on_interval,
     train_epoch,
 )
+from metta.rl.kickstarter import Kickstarter
+from metta.rl.losses import Losses
+from metta.rl.torch_profiler import TorchProfiler
+from metta.rl.trainer_checkpoint import TrainerCheckpoint
+from metta.rl.trainer_config import create_trainer_config
+from metta.rl.vecenv import make_vecenv
+
+try:
+    from pufferlib import _C  # noqa: F401 - Required for torch.ops.pufferlib
+except ImportError:
+    raise ImportError(
+        "Failed to import C/CUDA advantage kernel. If you have non-default PyTorch, "
+        "try installing with --no-build-isolation"
+    ) from None
 
 torch.set_float32_matmul_precision("high")
 
@@ -303,17 +319,11 @@ def create_training_components(
     from metta.mettagrid.curriculum.util import curriculum_from_config_path
     from metta.mettagrid.mettagrid_env import MettaGridEnv
     from metta.rl.experience import Experience
-    from metta.rl.functions import calculate_batch_sizes, get_lstm_config, setup_distributed_vars
-    from metta.rl.kickstarter import Kickstarter
-    from metta.rl.losses import Losses
-    from metta.rl.torch_profiler import TorchProfiler
-    from metta.rl.trainer_checkpoint import TrainerCheckpoint
-    from metta.rl.trainer_config import parse_trainer_config
-    from metta.rl.vecenv import make_vecenv
+    from metta.rl.functions import setup_distributed_vars
 
     logger.info(f"run_dir = {cfg.run_dir}")
 
-    trainer_cfg = parse_trainer_config(cfg)
+    trainer_cfg = create_trainer_config(cfg)
 
     # Set up distributed
     is_master, world_size, rank = setup_distributed_vars()

@@ -492,23 +492,22 @@ def maybe_update_l2_weights(
     is_master: bool = True,
     force: bool = False,
 ) -> None:
-    """Update L2 init weights if on update interval.
+    """Update L2 weights if on interval.
 
     Args:
-        agent: The agent/policy
+        agent: Policy/agent with update_l2_init_weight_copy method
         epoch: Current epoch
-        interval: Update interval
-        is_master: Whether this is the master rank
-        force: Force update
+        interval: Update interval (0 to disable)
+        is_master: Whether this is the master process
+        force: Force update regardless of interval
     """
-    if not should_run_on_interval(epoch, interval, is_master, force):
+    if not is_master or not interval:
         return
 
-    if hasattr(agent, "l2_init_weight_update_interval"):
-        l2_interval = getattr(agent, "l2_init_weight_update_interval", 0)
-        if isinstance(l2_interval, int) and l2_interval > 0:
-            if hasattr(agent, "update_l2_init_weight_copy"):
-                agent.update_l2_init_weight_copy()
+    if force or epoch % interval == 0:
+        if hasattr(agent, "update_l2_init_weight_copy"):
+            agent.update_l2_init_weight_copy()
+            logger.info(f"Updated L2 init weight copy at epoch {epoch}")
 
 
 # ============================================================================
@@ -674,47 +673,94 @@ def train_epoch(
     return epochs_trained
 
 
-def process_stats(
-    stats: Dict[str, Any],
+def process_training_stats(
+    raw_stats: Dict[str, Any],
     losses: Any,
-    evals: Dict[str, float],
-    grad_stats: Dict[str, float],
     experience: Any,
-    policy: Any,
-    timer: Any,
-    trainer_cfg: Any,
-    agent_step: int,
-    epoch: int,
-    world_size: int,
-    wandb_run: Optional[Any],
-    memory_monitor: Optional[Any],
-    system_monitor: Optional[Any],
-    latest_saved_policy_record: Optional[Any],
-    initial_policy_record: Optional[Any],
-    optimizer: Optional[Any] = None,
-) -> None:
-    """Process and log statistics to wandb."""
-    if not wandb_run:
-        return
+    trainer_config: Any,
+    kickstarter: Any,
+) -> Dict[str, Any]:
+    """Process training statistics into a clean format.
 
+    Args:
+        raw_stats: Raw statistics dictionary (possibly with lists of values)
+        losses: Losses object with stats() method
+        experience: Experience object with stats() method
+        trainer_config: Training configuration
+        kickstarter: Kickstarter object
+
+    Returns:
+        Dictionary with processed statistics including:
+        - mean_stats: Raw stats converted to means
+        - losses_stats: Loss statistics
+        - experience_stats: Experience buffer statistics
+        - environment_stats: Environment-specific stats
+        - overview: High-level metrics like average reward
+    """
     # Convert lists to means
     mean_stats = {}
-    for k, v in stats.items():
+    for k, v in raw_stats.items():
         try:
             mean_stats[k] = np.mean(v)
-        except (TypeError, ValueError) as e:
-            raise RuntimeError(
-                f"Cannot compute mean for stat '{k}' with value {v!r} (type: {type(v)}). "
-                f"All collected stats must be numeric values or lists of numeric values. "
-                f"Error: {e}"
-            ) from e
+        except (TypeError, ValueError):
+            mean_stats[k] = v
 
-    # Weight stats
-    weight_stats = {}
-    # Note: agent config is not part of trainer_cfg, it's in the main cfg
-    # This would need to be passed separately if needed
+    # Get loss and experience statistics
+    losses_stats = losses.stats() if hasattr(losses, "stats") else {}
+    experience_stats = experience.stats() if hasattr(experience, "stats") else {}
 
-    # Timing stats
+    # Remove unused losses
+    if trainer_config.ppo.l2_reg_loss_coef == 0:
+        losses_stats.pop("l2_reg_loss", None)
+    if trainer_config.ppo.l2_init_loss_coef == 0:
+        losses_stats.pop("l2_init_loss", None)
+    if not kickstarter.enabled:
+        losses_stats.pop("ks_action_loss", None)
+        losses_stats.pop("ks_value_loss", None)
+
+    # Calculate environment statistics
+    environment_stats = {
+        f"env_{k.split('/')[0]}/{'/'.join(k.split('/')[1:])}": v for k, v in mean_stats.items() if "/" in k
+    }
+
+    # Calculate overview statistics
+    overview = {}
+
+    # Calculate average reward from environment stats
+    task_reward_values = [v for k, v in environment_stats.items() if k.startswith("env_task_reward")]
+    if task_reward_values:
+        mean_reward = sum(task_reward_values) / len(task_reward_values)
+        overview["reward"] = mean_reward
+
+    return {
+        "mean_stats": mean_stats,
+        "losses_stats": losses_stats,
+        "experience_stats": experience_stats,
+        "environment_stats": environment_stats,
+        "overview": overview,
+    }
+
+
+def compute_timing_stats(
+    timer: Any,
+    agent_step: int,
+    world_size: int = 1,
+) -> Dict[str, Any]:
+    """Compute timing statistics from a Stopwatch timer.
+
+    Args:
+        timer: Stopwatch instance
+        agent_step: Current agent step count
+        world_size: Number of distributed processes
+
+    Returns:
+        Dictionary with timing statistics including:
+        - lap_times: Per-operation lap times
+        - epoch_steps: Steps in this epoch
+        - epoch_steps_per_second: Steps per second (epoch)
+        - steps_per_second: Overall steps per second
+        - timing_stats: Formatted timing statistics for logging
+    """
     elapsed_times = timer.get_all_elapsed()
     wall_time = timer.get_elapsed()
     train_time = elapsed_times.get("_rollout", 0) + elapsed_times.get("_train", 0)
@@ -722,20 +768,14 @@ def process_stats(
     lap_times = timer.lap_all(agent_step, exclude_global=False)
     wall_time_for_lap = lap_times.pop("global", 0)
 
-    # Metrics
-    metric_stats = {
-        "metric/agent_step": agent_step * world_size,
-        "metric/epoch": epoch,
-        "metric/total_time": wall_time,
-        "metric/train_time": train_time,
-    }
-
     epoch_steps = timer.get_lap_steps()
-    assert epoch_steps is not None
+    if epoch_steps is None:
+        epoch_steps = 0
 
     epoch_steps_per_second = epoch_steps / wall_time_for_lap if wall_time_for_lap > 0 else 0
     steps_per_second = timer.get_rate(agent_step) if wall_time > 0 else 0
 
+    # Scale by world size for distributed training
     epoch_steps_per_second *= world_size
     steps_per_second *= world_size
 
@@ -756,76 +796,169 @@ def process_stats(
         "timing_cumulative/sps": steps_per_second,
     }
 
-    environment_stats = {f"env_{k.split('/')[0]}/{'/'.join(k.split('/')[1:])}": v for k, v in mean_stats.items()}
+    return {
+        "lap_times": lap_times,
+        "elapsed_times": elapsed_times,
+        "wall_time": wall_time,
+        "train_time": train_time,
+        "wall_time_for_lap": wall_time_for_lap,
+        "epoch_steps": epoch_steps,
+        "epoch_steps_per_second": epoch_steps_per_second,
+        "steps_per_second": steps_per_second,
+        "timing_stats": timing_stats,
+    }
 
-    # Overview
-    overview = {"sps": epoch_steps_per_second}
 
-    # Calculate average reward
-    task_reward_values = [v for k, v in environment_stats.items() if k.startswith("env_task_reward")]
-    if task_reward_values:
-        mean_reward = sum(task_reward_values) / len(task_reward_values)
-        overview["reward"] = mean_reward
-        overview["reward_vs_total_time"] = mean_reward
+def build_wandb_stats(
+    processed_stats: Dict[str, Any],
+    timing_info: Dict[str, Any],
+    weight_stats: Dict[str, Any],
+    grad_stats: Dict[str, Any],
+    system_stats: Dict[str, Any],
+    memory_stats: Dict[str, Any],
+    parameters: Dict[str, Any],
+    evals: Dict[str, float],
+    agent_step: int,
+    epoch: int,
+    world_size: int = 1,
+) -> Dict[str, Any]:
+    """Build complete statistics dictionary for wandb logging.
 
-    # Include custom stats from trainer config
-    # Note: stats.overview is not a standard field in TrainerConfig
-    # This would need to be added to the config model if needed
+    Args:
+        processed_stats: Output from process_training_stats
+        timing_info: Output from compute_timing_stats
+        weight_stats: Weight analysis statistics
+        grad_stats: Gradient statistics
+        system_stats: System monitor statistics
+        memory_stats: Memory monitor statistics
+        parameters: Training parameters
+        evals: Evaluation scores
+        agent_step: Current agent step
+        epoch: Current epoch
+        world_size: Number of distributed processes
 
-    # Category scores
+    Returns:
+        Complete dictionary ready for wandb logging
+    """
+    # Build overview with sps and rewards
+    overview = {
+        "sps": timing_info["epoch_steps_per_second"],
+        **processed_stats["overview"],
+    }
+
+    # Add evaluation scores to overview
     category_scores_map = {key.split("/")[0]: value for key, value in evals.items() if key.endswith("/score")}
     for category, score in category_scores_map.items():
         overview[f"{category}_score"] = score
 
-    # Losses
-    losses_dict = losses.stats()
+    # Also add reward_vs_total_time if we have reward
+    if "reward" in overview:
+        overview["reward_vs_total_time"] = overview["reward"]
 
-    # Don't plot unused losses
-    if trainer_cfg.ppo.l2_reg_loss_coef == 0:
-        losses_dict.pop("l2_reg_loss", None)
-    if trainer_cfg.ppo.l2_init_loss_coef == 0:
-        losses_dict.pop("l2_init_loss", None)
-    # Kickstart is enabled if teacher_uri is set
-    if not trainer_cfg.kickstart.teacher_uri:
-        losses_dict.pop("ks_action_loss", None)
-        losses_dict.pop("ks_value_loss", None)
+    # X-axis values for wandb
+    metric_stats = {
+        "metric/agent_step": agent_step * world_size,
+        "metric/epoch": epoch,
+        "metric/total_time": timing_info["wall_time"],
+        "metric/train_time": timing_info["train_time"],
+    }
 
-    # Parameters
+    # Combine all stats
+    return {
+        **{f"overview/{k}": v for k, v in overview.items()},
+        **{f"losses/{k}": v for k, v in processed_stats["losses_stats"].items()},
+        **{f"experience/{k}": v for k, v in processed_stats["experience_stats"].items()},
+        **{f"parameters/{k}": v for k, v in parameters.items()},
+        **{f"eval_{k}": v for k, v in evals.items()},
+        **system_stats,  # Already has monitor/ prefix from SystemMonitor.stats()
+        **{f"trainer_memory/{k}": v for k, v in memory_stats.items()},
+        **processed_stats["environment_stats"],
+        **weight_stats,
+        **timing_info["timing_stats"],
+        **metric_stats,
+        **grad_stats,
+    }
+
+
+def process_stats(
+    stats: Dict[str, Any],
+    losses: Any,
+    evals: Dict[str, float],
+    grad_stats: Dict[str, float],
+    experience: Any,
+    policy: Any,
+    timer: Any,
+    trainer_cfg: Any,
+    agent_step: int,
+    epoch: int,
+    world_size: int,
+    wandb_run: Optional[Any],
+    memory_monitor: Optional[Any],
+    system_monitor: Optional[Any],
+    latest_saved_policy_record: Optional[Any],
+    initial_policy_record: Optional[Any],
+    optimizer: Optional[Any] = None,
+) -> None:
+    """Process and log training statistics - kept for backward compatibility with process_stats API."""
+    if not wandb_run:
+        return
+
+    # Process training stats
+    processed_stats = process_training_stats(
+        raw_stats=stats,
+        losses=losses,
+        experience=experience,
+        trainer_config=trainer_cfg,
+        kickstarter=None,  # Not available in this API
+    )
+
+    # Compute timing stats
+    timing_info = compute_timing_stats(
+        timer=timer,
+        agent_step=agent_step,
+        world_size=world_size,
+    )
+
+    # Compute weight stats if configured
+    weight_stats = {}
+    if policy and hasattr(trainer_cfg, "agent") and hasattr(trainer_cfg.agent, "analyze_weights_interval"):
+        if trainer_cfg.agent.analyze_weights_interval != 0 and epoch % trainer_cfg.agent.analyze_weights_interval == 0:
+            for metrics in policy.compute_weight_metrics():
+                name = metrics.get("name", "unknown")
+                for key, value in metrics.items():
+                    if key != "name":
+                        weight_stats[f"weights/{key}/{name}"] = value
+
+    # Build parameters
     parameters = {
-        "learning_rate": optimizer.param_groups[0]["lr"],
-        "epoch_steps": epoch_steps,
+        "learning_rate": optimizer.param_groups[0]["lr"] if optimizer else trainer_cfg.optimizer.learning_rate,
+        "epoch_steps": timing_info["epoch_steps"],
         "num_minibatches": experience.num_minibatches,
         "generation": initial_policy_record.metadata.get("generation", 0) + 1 if initial_policy_record else 0,
         "latest_saved_policy_epoch": latest_saved_policy_record.metadata.epoch if latest_saved_policy_record else 0,
     }
 
-    # System monitoring
-    monitor_stats = {}
-    if system_monitor:
-        monitor_stats = system_monitor.stats()
+    # Get system stats
+    system_stats = system_monitor.stats() if system_monitor else {}
+    memory_stats = memory_monitor.stats() if memory_monitor else {}
 
-    memory_stats = {}
-    if memory_monitor:
-        memory_stats = memory_monitor.stats()
-
-    # Log everything
-    wandb_run.log(
-        {
-            **{f"overview/{k}": v for k, v in overview.items()},
-            **{f"losses/{k}": v for k, v in losses_dict.items()},
-            **{f"experience/{k}": v for k, v in experience.stats().items()},
-            **{f"parameters/{k}": v for k, v in parameters.items()},
-            **{f"eval_{k}": v for k, v in evals.items()},
-            **{f"monitor/{k}": v for k, v in monitor_stats.items()},
-            **{f"trainer_memory/{k}": v for k, v in memory_stats.items()},
-            **environment_stats,
-            **weight_stats,
-            **timing_stats,
-            **metric_stats,
-            **grad_stats,
-        },
-        step=agent_step,
+    # Build complete stats
+    all_stats = build_wandb_stats(
+        processed_stats=processed_stats,
+        timing_info=timing_info,
+        weight_stats=weight_stats,
+        grad_stats=grad_stats,
+        system_stats=system_stats,
+        memory_stats=memory_stats,
+        parameters=parameters,
+        evals=evals,
+        agent_step=agent_step,
+        epoch=epoch,
+        world_size=world_size,
     )
+
+    # Log to wandb
+    wandb_run.log(all_stats, step=agent_step)
 
 
 def evaluate_policy(
