@@ -9,13 +9,13 @@ from typing import Any, Dict, Optional, cast
 import numpy as np
 from gymnasium import Env as GymEnv
 from gymnasium import spaces
-from hydra.utils import instantiate
 from omegaconf import OmegaConf
 from pufferlib import PufferEnv
 from pydantic import validate_call
 from typing_extensions import override
 
 from metta.common.profiling.stopwatch import Stopwatch, with_instance_timer
+from metta.common.util.instantiate import instantiate
 from metta.mettagrid.curriculum.core import Curriculum
 from metta.mettagrid.level_builder import Level
 from metta.mettagrid.mettagrid_c import MettaGrid
@@ -118,7 +118,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
         if level is None:
             map_builder_config = task.env_cfg().game.map_builder
             with self.timer("_initialize_c_env.build_map"):
-                map_builder = instantiate(map_builder_config, _recursive_=True, _convert_="all")
+                map_builder = instantiate(map_builder_config, _recursive_=True)
                 level = map_builder.build()
 
         # Validate the level

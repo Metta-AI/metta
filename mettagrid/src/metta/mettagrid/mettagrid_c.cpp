@@ -735,18 +735,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
   pc_m.attr("MAX_PACKABLE_COORD") = PackedCoordinate::MAX_PACKABLE_COORD;
 
   // Functions
-  pc_m.def("pack",
-           &PackedCoordinate::pack,
-           py::arg("row"),
-           py::arg("col"),
-           "Pack (row, col) coordinates into a single byte.\n\n"
-           "Args:\n"
-           "    row: Row coordinate (0-15)\n"
-           "    col: Column coordinate (0-15)\n\n"
-           "Returns:\n"
-           "    Packed byte value\n\n"
-           "Raises:\n"
-           "    ValueError: If row or col > 15");
+  pc_m.def("pack", &PackedCoordinate::pack, py::arg("row"), py::arg("col"));
 
   pc_m.def(
       "unpack",
@@ -757,15 +746,9 @@ PYBIND11_MODULE(mettagrid_c, m) {
         }
         return py::none();
       },
-      py::arg("packed"),
-      "Unpack byte into (row, col) tuple or None if empty.\n\n"
-      "Args:\n"
-      "    packed: Packed coordinate byte\n\n"
-      "Returns:\n"
-      "    tuple[int, int] | None: (row, col) or None if empty location");
+      py::arg("packed"));
 
-  pc_m.def(
-      "is_empty", &PackedCoordinate::is_empty, py::arg("packed"), "Check if packed value represents empty location.");
+  pc_m.def("is_empty", &PackedCoordinate::is_empty, py::arg("packed"));
 
   // MettaGrid class bindings
   py::class_<MettaGrid>(m, "MettaGrid")
@@ -826,7 +809,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
                     float,
                     const std::map<InventoryItem, InventoryQuantity>&,
                     const std::map<InventoryItem, RewardType>&,
-                    const std::map<InventoryItem, RewardType>&,
+                    const std::map<InventoryItem, InventoryQuantity>&,
                     float>(),
            py::arg("type_id"),
            py::arg("type_name") = "agent",
@@ -836,7 +819,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
            py::arg("action_failure_penalty") = 0,
            py::arg("resource_limits") = std::map<InventoryItem, InventoryQuantity>(),
            py::arg("resource_rewards") = std::map<InventoryItem, RewardType>(),
-           py::arg("resource_reward_max") = std::map<InventoryItem, RewardType>(),
+           py::arg("resource_reward_max") = std::map<InventoryItem, InventoryQuantity>(),
            py::arg("group_reward_pct") = 0)
       .def_readwrite("type_id", &AgentConfig::type_id)
       .def_readwrite("type_name", &AgentConfig::type_name)
