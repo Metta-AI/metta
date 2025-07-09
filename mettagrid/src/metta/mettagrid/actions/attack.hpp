@@ -12,12 +12,12 @@
 #include "types.hpp"
 
 struct AttackActionConfig : public ActionConfig {
-  std::map<InventoryItem, int> defense_resources;
+  std::map<InventoryItem, InventoryQuantity> defense_resources;
 
   AttackActionConfig(bool enabled,
-                     const std::map<InventoryItem, int>& required_resources,
-                     const std::map<InventoryItem, int>& consumed_resources,
-                     const std::map<InventoryItem, int>& defense_resources)
+                     const std::map<InventoryItem, InventoryQuantity>& required_resources,
+                     const std::map<InventoryItem, InventoryQuantity>& consumed_resources,
+                     const std::map<InventoryItem, InventoryQuantity>& defense_resources)
       : ActionConfig(enabled, required_resources, consumed_resources), defense_resources(defense_resources) {}
 };
 
@@ -33,18 +33,36 @@ public:
   }
 
 protected:
-  std::map<InventoryItem, int> _defense_resources;
+  std::map<InventoryItem, InventoryQuantity> _defense_resources;
 
   bool _handle_action(Agent* actor, ActionArg arg) override {
     if (arg > 9 || arg < 1) {
       return false;
     }
 
-    short distance = 1 + (arg - 1) / 3;
-    short offset = -((arg - 1) % 3 - 1);
+    // Attack positions form a 3x3 grid in front of the agent
+    // Visual representation (agent facing up):
+    //   7  8  9    (3 cells forward)
+    //   4  5  6    (2 cells forward)
+    //   1  2  3    (1 cell forward)
+    //      A       (Agent position)
+    static constexpr std::pair<short, short> ATTACK_POSITIONS[9] = {
+        {1, -1},  // arg 1: 1 forward, 1 left
+        {1, 0},   // arg 2: 1 forward, straight ahead
+        {1, 1},   // arg 3: 1 forward, 1 right
+        {2, -1},  // arg 4: 2 forward, 1 left
+        {2, 0},   // arg 5: 2 forward, straight ahead
+        {2, 1},   // arg 6: 2 forward, 1 right
+        {3, -1},  // arg 7: 3 forward, 1 left
+        {3, 0},   // arg 8: 3 forward, straight ahead
+        {3, 1},   // arg 9: 3 forward, 1 right
+    };
 
-    GridLocation target_loc =
-        _grid->relative_location(actor->location, static_cast<Orientation>(actor->orientation), distance, offset);
+    // Get attack position from lookup table
+    auto [distance, offset] = ATTACK_POSITIONS[arg - 1];  // C++17 structured binding
+
+    // Calculate target location relative to agent's position and orientation
+    GridLocation target_loc = _grid->relative_location(actor->location, actor->orientation, distance, offset);
 
     return _handle_target(actor, target_loc);
   }
@@ -80,7 +98,8 @@ protected:
       if (blocked) {
         // Consume the defense resources
         for (const auto& [item, amount] : _defense_resources) {
-          int used_amount = std::abs(agent_target->update_inventory(item, -amount));
+          InventoryDelta used_amount =
+              std::abs(agent_target->update_inventory(item, -static_cast<InventoryDelta>(amount)));
           assert(used_amount == amount);
         }
 
@@ -109,14 +128,14 @@ protected:
 
           // Collect all items to steal first, then apply changes, since the changes
           // can delete keys from the agent's inventory.
-          std::vector<std::pair<InventoryItem, int>> items_to_steal;
+          std::vector<std::pair<InventoryItem, InventoryQuantity>> items_to_steal;
           for (const auto& [item, amount] : agent_target->inventory) {
             items_to_steal.emplace_back(item, amount);
           }
 
           // Now apply the stealing
           for (const auto& [item, amount] : items_to_steal) {
-            int stolen = actor->update_inventory(item, amount);
+            InventoryDelta stolen = actor->update_inventory(item, static_cast<InventoryDelta>(amount));
 
             agent_target->update_inventory(item, -stolen);
             if (stolen > 0) {

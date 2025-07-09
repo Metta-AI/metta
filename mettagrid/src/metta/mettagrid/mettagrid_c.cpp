@@ -186,10 +186,12 @@ MettaGrid::MettaGrid(const GameConfig& cfg, py::list map, int seed)
   // so nothing above should depend on them before this point.
   std::vector<ssize_t> shape;
   shape = {static_cast<ssize_t>(num_agents), static_cast<ssize_t>(_num_observation_tokens), static_cast<ssize_t>(3)};
-  auto observations = py::array_t<uint8_t, py::array::c_style>(shape);
-  auto terminals = py::array_t<bool, py::array::c_style>({static_cast<ssize_t>(num_agents)}, {sizeof(bool)});
-  auto truncations = py::array_t<bool, py::array::c_style>({static_cast<ssize_t>(num_agents)}, {sizeof(bool)});
-  auto rewards = py::array_t<float, py::array::c_style>({static_cast<ssize_t>(num_agents)}, {sizeof(float)});
+  auto observations = py::array_t<ObservationType, py::array::c_style>(shape);
+  auto terminals =
+      py::array_t<TerminalType, py::array::c_style>({static_cast<ssize_t>(num_agents)}, {sizeof(TerminalType)});
+  auto truncations =
+      py::array_t<TruncationType, py::array::c_style>({static_cast<ssize_t>(num_agents)}, {sizeof(TruncationType)});
+  auto rewards = py::array_t<RewardType, py::array::c_style>({static_cast<ssize_t>(num_agents)}, {sizeof(RewardType)});
 
   set_buffers(observations, terminals, truncations, rewards);
 }
@@ -342,7 +344,7 @@ void MettaGrid::_step(py::array_t<ActionType, py::array::c_style> actions) {
   std::fill(
       static_cast<float*>(_rewards.request().ptr), static_cast<float*>(_rewards.request().ptr) + _rewards.size(), 0);
 
-  auto obs_ptr = static_cast<uint8_t*>(_observations.request().ptr);
+  auto obs_ptr = static_cast<ObservationType*>(_observations.request().ptr);
   auto obs_size = _observations.size();
   std::fill(obs_ptr, obs_ptr + obs_size, EmptyTokenByte);
 
@@ -815,9 +817,9 @@ PYBIND11_MODULE(mettagrid_c, m) {
                     const std::string&,
                     unsigned char,
                     float,
-                    const std::map<InventoryItem, uint8_t>&,
-                    const std::map<InventoryItem, float>&,
-                    const std::map<InventoryItem, uint8_t>&,
+                    const std::map<InventoryItem, InventoryQuantity>&,
+                    const std::map<InventoryItem, RewardType>&,
+                    const std::map<InventoryItem, RewardType>&,
                     float>(),
            py::arg("type_id"),
            py::arg("type_name") = "agent",
@@ -825,9 +827,9 @@ PYBIND11_MODULE(mettagrid_c, m) {
            py::arg("group_name"),
            py::arg("freeze_duration") = 0,
            py::arg("action_failure_penalty") = 0,
-           py::arg("resource_limits") = std::map<InventoryItem, uint8_t>(),
-           py::arg("resource_rewards") = std::map<InventoryItem, float>(),
-           py::arg("resource_reward_max") = std::map<InventoryItem, uint8_t>(),
+           py::arg("resource_limits") = std::map<InventoryItem, InventoryQuantity>(),
+           py::arg("resource_rewards") = std::map<InventoryItem, RewardType>(),
+           py::arg("resource_reward_max") = std::map<InventoryItem, RewardType>(),
            py::arg("group_reward_pct") = 0)
       .def_readwrite("type_id", &AgentConfig::type_id)
       .def_readwrite("type_name", &AgentConfig::type_name)
@@ -843,13 +845,13 @@ PYBIND11_MODULE(mettagrid_c, m) {
   py::class_<ConverterConfig, GridObjectConfig, std::shared_ptr<ConverterConfig>>(m, "ConverterConfig")
       .def(py::init<TypeId,
                     const std::string&,
-                    const std::map<InventoryItem, uint8_t>&,
-                    const std::map<InventoryItem, uint8_t>&,
+                    const std::map<InventoryItem, InventoryQuantity>&,
+                    const std::map<InventoryItem, InventoryQuantity>&,
                     short,
                     unsigned short,
                     unsigned short,
                     unsigned char,
-                    ObsType>(),
+                    ObservationType>(),
            py::arg("type_id"),
            py::arg("type_name"),
            py::arg("input_resources"),
@@ -870,23 +872,25 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def_readwrite("color", &ConverterConfig::color);
 
   py::class_<ActionConfig, std::shared_ptr<ActionConfig>>(m, "ActionConfig")
-      .def(py::init<bool, const std::map<InventoryItem, int>&, const std::map<InventoryItem, int>&>(),
+      .def(py::init<bool,
+                    const std::map<InventoryItem, InventoryQuantity>&,
+                    const std::map<InventoryItem, InventoryQuantity>&>(),
            py::arg("enabled") = true,
-           py::arg("required_resources") = std::map<InventoryItem, int>(),
-           py::arg("consumed_resources") = std::map<InventoryItem, int>())
+           py::arg("required_resources") = std::map<InventoryItem, InventoryQuantity>(),
+           py::arg("consumed_resources") = std::map<InventoryItem, InventoryQuantity>())
       .def_readwrite("enabled", &ActionConfig::enabled)
       .def_readwrite("required_resources", &ActionConfig::required_resources)
       .def_readwrite("consumed_resources", &ActionConfig::consumed_resources);
 
   py::class_<AttackActionConfig, ActionConfig, std::shared_ptr<AttackActionConfig>>(m, "AttackActionConfig")
       .def(py::init<bool,
-                    const std::map<InventoryItem, int>&,
-                    const std::map<InventoryItem, int>&,
-                    const std::map<InventoryItem, int>&>(),
+                    const std::map<InventoryItem, InventoryQuantity>&,
+                    const std::map<InventoryItem, InventoryQuantity>&,
+                    const std::map<InventoryItem, InventoryQuantity>&>(),
            py::arg("enabled") = true,
-           py::arg("required_resources") = std::map<InventoryItem, int>(),
-           py::arg("consumed_resources") = std::map<InventoryItem, int>(),
-           py::arg("defense_resources") = std::map<InventoryItem, int>())
+           py::arg("required_resources") = std::map<InventoryItem, InventoryQuantity>(),
+           py::arg("consumed_resources") = std::map<InventoryItem, InventoryQuantity>(),
+           py::arg("defense_resources") = std::map<InventoryItem, InventoryQuantity>())
       .def_readwrite("defense_resources", &AttackActionConfig::defense_resources);
 
   py::class_<GameConfig>(m, "GameConfig")

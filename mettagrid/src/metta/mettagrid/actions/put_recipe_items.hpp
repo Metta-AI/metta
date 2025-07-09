@@ -31,18 +31,19 @@ protected:
     }
 
     bool success = false;
-    for (const auto& [item, amount] : converter->input_resources) {
+    for (const auto& [item, items_required] : converter->input_resources) {
       if (actor->inventory.count(item) == 0) {
         continue;
       }
-      int max_to_put = std::min(amount, actor->inventory.at(item));
-      if (max_to_put > 0) {
-        int put = converter->update_inventory(item, max_to_put);
-        if (put > 0) {
-          // We should be able to put this many items into the converter. If not, something is wrong.
-          int delta = actor->update_inventory(item, -put);
-          assert(delta == -put);
-          actor->stats.add(actor->stats.inventory_item_name(item) + ".put", put);
+      InventoryQuantity items_available = actor->inventory.at(item);
+      InventoryQuantity items_to_put = std::min(items_required, items_available);
+
+      if (items_to_put > 0) {
+        InventoryDelta items_put = converter->update_inventory(item, static_cast<InventoryDelta>(items_to_put));
+        if (items_put > 0) {
+          InventoryDelta delta = actor->update_inventory(item, -items_put);
+          assert(delta == -items_put);
+          actor->stats.add(actor->stats.inventory_item_name(item) + ".put", items_put);
           success = true;
         }
       }
