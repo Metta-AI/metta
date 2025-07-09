@@ -79,6 +79,7 @@ class StorableMap:
     def from_cfg(cfg: DictConfig) -> StorableMap:
         # Generate and measure time taken
         start = time.time()
+        # TODO(slava): Remove _recursive_=True once mapgen is updated
         map_builder = hydra.utils.instantiate(cfg, _recursive_=True)
         level = map_builder.build()
         gen_time = time.time() - start
