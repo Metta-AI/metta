@@ -1,6 +1,3 @@
-
-// TODO First step, stub everything out and get things to start up
-
 import { Vec2f, Mat3f } from './vector_math.js'
 
 /** WebGL Mesh class for managing vertex data and buffers. */
