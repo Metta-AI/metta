@@ -21,7 +21,6 @@ sim:
   max_time_s: 120  # Increased timeout for longer evaluation
   env_overrides: {}
   simulations:
-    _delete_: true   # remove simulations inherited from sweep_eval.yaml
     simple:
       env: env/mettagrid/arena/advanced
 
