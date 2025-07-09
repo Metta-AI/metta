@@ -5,7 +5,7 @@ from metta.map.scene import Scene
 
 
 class MeanDistanceParams(Config):
-    mean_distance: float = 5.0  # Mean distance parameter for objects relative to agent.
+    mean_distance: float  # Mean distance parameter for objects relative to agent.
     objects: dict[str, int]
 
 

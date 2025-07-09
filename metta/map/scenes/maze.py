@@ -57,7 +57,7 @@ class MazeGrid:
     def valid_directions(self, i: int, j: int) -> list[Direction]:
         return [d for d in ALL_DIRECTIONS if 0 <= i + d[0] < self.cols and 0 <= j + d[1] < self.rows]
 
-    def _set_wall_in_direction(self, i1: int, j1: int, d: Direction, value: str):
+    def _set_cell_border_in_direction(self, i1: int, j1: int, d: Direction, value: str):
         rs = self.room_size
         ws = self.wall_size
         (i2, j2) = (i1 + d[0], j1 + d[1])
@@ -73,7 +73,7 @@ class MazeGrid:
             self.grid[y2 + rs : y2 + rs + ws, x2 : x2 + rs] = value
 
     def remove_wall_in_direction(self, i1: int, j1: int, d: Direction):
-        self._set_wall_in_direction(i1, j1, d, "empty")
+        self._set_cell_border_in_direction(i1, j1, d, "empty")
 
     def carve_cell(self, i: int, j: int):
         x, y = self.cell_top_left(i, j)
