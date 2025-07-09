@@ -154,7 +154,7 @@ class TrainerConfig(BaseModelWithForbidExtra):
     vtrace: VTraceConfig = Field(default_factory=VTraceConfig)
 
     # System configuration
-    # Zero copy: Performance optimization to avoid memory copies
+    # Zero copy: Performance optimization to avoid memory copies (default assumes multiprocessing)
     zero_copy: bool = True
     # Contiguous env IDs not required: More flexible env management
     require_contiguous_env_ids: bool = False
@@ -187,6 +187,7 @@ class TrainerConfig(BaseModelWithForbidExtra):
     # Forward minibatch: Type 2 default chosen arbitrarily
     forward_pass_minibatch_target_size: int = Field(default=4096, gt=0)
     # Async factor 2: Type 2 default chosen arbitrarily, overlaps computation and communication for efficiency
+    #   (default assumes multiprocessing)
     async_factor: int = Field(default=2, gt=0)
 
     # Kickstart
@@ -238,10 +239,10 @@ class TrainerConfig(BaseModelWithForbidExtra):
         raise ValueError("curriculum or env must be set")
 
 
-def parse_trainer_config(
+def create_trainer_config(
     cfg: DictConfig,
 ) -> TrainerConfig:
-    """Parse trainer config from Hydra config.
+    """Create trainer config from Hydra config.
 
     Args:
         cfg: The complete Hydra config (must contain trainer, run, and run_dir)
@@ -262,6 +263,11 @@ def parse_trainer_config(
     config_dict = OmegaConf.to_container(trainer_cfg, resolve=True)
     if not isinstance(config_dict, dict):
         raise ValueError("trainer config must be a dict")
+
+    # Some keys' defaults in TrainerConfig that are appropriate for multiprocessing but not serial
+    if cfg.vectorization == "serial":
+        config_dict["async_factor"] = 1
+        config_dict["zero_copy"] = False
 
     # Set default paths if not provided
     if "checkpoint_dir" not in config_dict.setdefault("checkpoint", {}):

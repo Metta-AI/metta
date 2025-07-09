@@ -10,7 +10,7 @@ game:
   num_agents: 1
   max_steps: 700
   map_builder:
-    _target_: metta.mettagrid.room.ascii.Ascii
+    _target_: metta.map.mapgen_ascii.MapGenAscii
     border_width: 1
   agent:
     rewards:
