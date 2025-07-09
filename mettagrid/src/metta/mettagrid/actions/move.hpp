@@ -55,7 +55,7 @@ private:
       case Orientation::Right:
         return Orientation::Left;
       default:
-        return orientation;
+        assert(false && "Invalid orientation passed to get_opposite_direction()");
     }
   }
 };
