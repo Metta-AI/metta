@@ -1,49 +1,56 @@
-.envrc
-*.egg-info
-*.pyc
-*.so
-**/__pycache__
+# Python
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/*.pyd
+**/*.so
+**/*.egg-info/
+**/.coverage
+**/.coverage.*
+**/.venv/
+**/venv/
+
+# Environment files (contain secrets)
+**/.env
+
+# IDE and Editors
+**/.vscode/
+**/.idea/
+**/*.swp
+**/*.swo
+**/*~
+
+# OS Files
 **/.DS_Store
-.coverage
-.env
-.task
-.vscode/PythonImportHelper-v2-Completion.json
-/checkpoints/
-/mettagrid/dist
-/mettascope/dist
-/mettascope/node_modules
-/mettagrid/multirun
-cython_debug
-outputs
-replays
-stats.profile
-train_dir
-metta-research
-gpu_names_cache.json
-stderr.log
-sweep_id
-personal/
-/wandb
-/deps/*
-terrain_maps_nohearts*
-.idea
-.coverage.*
-build/
-build_debug/
-.venv
+**/Thumbs.db
+
+# Node.js / Frontend
+**/node_modules/
+**/dist/
+**/.vite/
+
+# Build artifacts
+**/build/
+**/build_debug/
+**/cpplint_output*
+
+# Testing and Benchmarks
+**/test_data/
 **/*benchmark_results.json
-**/requirements_to_remove.txt
-test_data
-**/mettagrid_debug.log
-cpplint_output*
 
-observatory/node_modules/
-observatory/.vite/
-observatory/dist/
+# Logs and temporary files
+**/*.log
+.task
 
-./wandb
-/devops/charts/**/charts
+# Project-specific directories
+**/outputs/
+**/replays/
+**/train_dir/
+**/personal/
+/wandb/
+
+# Configuration
 .claude/settings.local.json
 
-# can be created by skypilot
+# Installation artifacts
 /Miniconda3-Linux.sh
