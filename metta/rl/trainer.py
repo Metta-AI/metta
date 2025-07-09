@@ -181,11 +181,6 @@ class MettaTrainer:
                 logger.info("Restoring timer state from checkpoint")
                 self.timer.load_state(checkpoint.stopwatch_state, resume_running=True)
 
-        # Note that these fields are specific to MettaGridEnv, which is why we can't keep
-        # self.vecenv.driver_env as just the parent class pufferlib.PufferEnv
-        actions_names = metta_grid_env.action_names
-        actions_max_params = metta_grid_env.max_action_args
-
         # Load or create policy with distributed coordination
         policy_record = self._load_policy(checkpoint, policy_store)
 
@@ -272,8 +267,7 @@ class MettaTrainer:
             trainer_cfg.kickstart,
             self.device,
             policy_store,
-            actions_names,
-            actions_max_params,
+            metta_grid_env,
         )
 
         if torch.distributed.is_initialized():
