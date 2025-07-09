@@ -23,7 +23,7 @@ class LearningProgressCurriculum(RandomCurriculum):
     def __init__(
         self,
         tasks: Dict[str, float],
-        env_overrides: DictConfig,
+        env_overrides: DictConfig | None = None,
         ema_timescale: float = 0.001,
         progress_smoothing: float = 0.05,
         num_active_tasks: int = 16,
@@ -53,7 +53,7 @@ class LearningProgressCurriculum(RandomCurriculum):
         success_rate = max(0.0, min(1.0, score))
 
         # Get task index for learning progress tracking
-        task_idx = list(self._curriculums.keys()).index(id)
+        task_idx = list(self._curricula.keys()).index(id)
 
         # Collect data for learning progress
         self._lp_tracker.collect_data({f"tasks/{task_idx}": [success_rate]})
@@ -62,7 +62,7 @@ class LearningProgressCurriculum(RandomCurriculum):
         lp_weights, _ = self._lp_tracker.calculate_dist()
 
         # Update weights based on learning progress
-        for i, task_id in enumerate(self._curriculums.keys()):
+        for i, task_id in enumerate(self._curricula.keys()):
             if i < len(lp_weights):
                 self._task_weights[task_id] = lp_weights[i]
 

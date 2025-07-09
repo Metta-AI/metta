@@ -5,14 +5,16 @@
 ### 1.1. Game Dynamics
 
 - 1.1.1. Resource System
-	- Resource generation rates
-	- Rarity
-	- Mining cost
-	- Probabilistic mining
+
+  - Resource generation rates
+  - Rarity
+  - Mining cost
+  - Probabilistic mining
 
 - 1.1.2. Metabolism and Energy Costs
-	- Converting between resources
-	- Converting to energy
+
+  - Converting between resources
+  - Converting to energy
 
 - 1.1.3. Object Interactions and Crafting
 - 1.1.4. Open-ended Game Rules
@@ -21,29 +23,30 @@
 
 - 1.2.1. Species with different energy costs
 - 1.2.2. Upgradable Traits and Skills
-	- Reduced energy costs
-	- Increased damage / shield / attack range
-	- Noise reduction of observations
-	- Energy regen
-	- Explicit upgrade vs experience
-	- Balancing upgrade costs
+  - Reduced energy costs
+  - Increased damage / shield / attack range
+  - Noise reduction of observations
+  - Energy regen
+  - Explicit upgrade vs experience
+  - Balancing upgrade costs
 - 1.2.3. Equipment and Inventory Management
-	- Items provide upgrades and are tradeable
+  - Items provide upgrades and are tradeable
 
 ### 1.3. Terrain Generation
 
 - 1.3.1. Procedural World Generation
 - 1.3.2. Environmental Hazards and Obstacles
-	- Energy costs for travel
-	- Attack / defense bonus
+  - Energy costs for travel
+  - Attack / defense bonus
 - 1.3.3. Seasonal Changes and Dynamic Weather
-	- Night can reduce visibility
-	- Bonuses / Penalties in different weather
+  - Night can reduce visibility
+  - Bonuses / Penalties in different weather
 - 1.3.4. Agents can change terrain type
 
 ### 1.4. Support for Many Environment Types
 
-Developing a flexible and extensible framework for integrating Metta AI with various gridworld environments and supporting the easy addition of new environment types.
+Developing a flexible and extensible framework for integrating Metta AI with various gridworld environments and
+supporting the easy addition of new environment types.
 
 - 1.4.1. New objects, rules, interactions can be easily added
 - 1.4.2. Customizable Environment Configuration
@@ -53,7 +56,8 @@ Developing a flexible and extensible framework for integrating Metta AI with var
 
 ### 1.5. Population Dynamics
 
-Investigating the dynamics of population growth, clustering behaviors, and behavioral diversity in complex multi-agent environments, and developing tools for studying these phenomena.
+Investigating the dynamics of population growth, clustering behaviors, and behavioral diversity in complex multi-agent
+environments, and developing tools for studying these phenomena.
 
 - 1.5.1. Tools for Studying Population Dynamics
 - 1.5.2. Clustering Behaviors and Group Formation
@@ -61,7 +65,8 @@ Investigating the dynamics of population growth, clustering behaviors, and behav
 
 ### 1.6. Kinship Schemes
 
-Implementing and comparing various kinship schemes, such as family structures and random kinship markers, and exploring their impact on the emergence of cooperative behaviors and social structures.
+Implementing and comparing various kinship schemes, such as family structures and random kinship markers, and exploring
+their impact on the emergence of cooperative behaviors and social structures.
 
 - 1.6.1. Family Structures and Inheritance
 - 1.6.2. Kinship Markers
@@ -70,7 +75,8 @@ Implementing and comparing various kinship schemes, such as family structures an
 
 ### 1.7. Mate Selection Schemes
 
-Designing mate selection mechanisms based on behavioral observation and reward sharing, and studying the emergent mating strategies and population dynamics in the presence of these mechanisms.
+Designing mate selection mechanisms based on behavioral observation and reward sharing, and studying the emergent mating
+strategies and population dynamics in the presence of these mechanisms.
 
 - 1.7.1. Behavioral Observation and Evaluation
 - 1.7.2. Reward Sharing Based on Mate Selection
@@ -80,9 +86,12 @@ Designing mate selection mechanisms based on behavioral observation and reward s
 
 Developing a robust, universal gridworld agent architecture capable of adapting to new game rules and environments.
 
-Evaluating the effectiveness of blending reinforcement learning and imitation learning for accelerating agent training and performance.
+Evaluating the effectiveness of blending reinforcement learning and imitation learning for accelerating agent training
+and performance.
 
-Studying the scalability and efficiency of distributed reinforcement learning algorithms for training large-scale multi-agent systems.
+Studying the scalability and efficiency of distributed reinforcement learning algorithms for training large-scale
+multi-agent systems.
+
 ### 2.1. Robust Universal GridWorld Agent
 
 - 2.1.1. Adaptable Neural Network Architecture
@@ -102,7 +111,8 @@ Studying the scalability and efficiency of distributed reinforcement learning al
 
 ### 2.4. Exploration and Curiosity
 
-Exploring the role of intrinsic motivation and curiosity in driving efficient exploration and learning in open-ended environments.
+Exploring the role of intrinsic motivation and curiosity in driving efficient exploration and learning in open-ended
+environments.
 
 - 2.4.1. Intrinsic Motivation Signals
 - 2.4.2. Novelty-based Exploration
@@ -130,7 +140,9 @@ Exploring the role of intrinsic motivation and curiosity in driving efficient ex
 
 ## 4. Intelligence Evaluations for Gridworld Agents
 
-Designing and implementing a comprehensive suite of intelligence evaluations for gridworld agents, covering navigation, maze solving, in-context learning, cooperation, and competition.
+Designing and implementing a comprehensive suite of intelligence evaluations for gridworld agents, covering navigation,
+maze solving, in-context learning, cooperation, and competition.
+
 ### 4.1. Navigation Tasks
 
 - 4.1.1. Path Planning and Shortest Path Finding
@@ -151,11 +163,13 @@ Designing and implementing a comprehensive suite of intelligence evaluations for
 
 ### 4.4. Cooperation and Competition
 
- Investigating the impact of reward-sharing mechanisms on the emergence of cooperative behaviors in multi-agent environments.
+Investigating the impact of reward-sharing mechanisms on the emergence of cooperative behaviors in multi-agent
+environments.
 
 - 4.4.1. Emergent Communication and Signaling
 - 4.4.2. Cooperative Goal Achievement
 - 4.4.3. Strategic Decision Making in Competitive Scenarios
+
 ## 5. DevOps and Tooling
 
 ### 5.1. Cloud Cluster Management

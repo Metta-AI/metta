@@ -9,20 +9,21 @@ if [ -z "$STAGED_FILES" ]; then
     exit 0
 fi
 
-# Check if ruff is installed
-if ! command -v ruff &> /dev/null; then
-    echo "Error: ruff is not installed. Please install it with 'uv tool install ruff'."
+# Check if uv is installed
+if ! command -v uv &> /dev/null; then
+    echo "Error: uv is not installed. Please install uv first."
+    echo "You can do so with the `./install.sh` script."
     exit 1
 fi
 
 # Run ruff check on staged files - output will only show if there are errors
-if ! echo "$STAGED_FILES" | xargs ruff check; then
+if ! echo "$STAGED_FILES" | xargs uv run ruff check; then
     echo "❌ Ruff checks failed. Please fix the issues before committing."
     exit 1
 fi
 
 # Run ruff format on staged files
-if ! echo "$STAGED_FILES" | xargs ruff format --check; then
+if ! echo "$STAGED_FILES" | xargs uv run ruff format --check; then
     echo "❌ Ruff format failed. Please fix the issues before committing."
     exit 1
 fi

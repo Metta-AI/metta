@@ -2,9 +2,14 @@
 
 ## Overview
 
-Metta AI is an open-source research project investigating the emergence of cooperation and alignment in multi-agent AI systems. The project creates a model organism for complex multi-agent gridworld environments to study the impact of social dynamics, such as kinship and mate selection, on learning and cooperative behaviors of AI agents.
+Metta AI is an open-source research project investigating the emergence of cooperation and alignment in multi-agent AI
+systems. The project creates a model organism for complex multi-agent gridworld environments to study the impact of
+social dynamics, such as kinship and mate selection, on learning and cooperative behaviors of AI agents.
 
-The core hypothesis is that social dynamics, akin to love in biological systems, play a crucial role in the development of cooperative AGI and AI alignment. The project introduces a novel reward-sharing mechanism mimicking familial bonds and mate selection, allowing researchers to observe the evolution of complex social behaviors and cooperation among AI agents.
+The core hypothesis is that social dynamics, akin to love in biological systems, play a crucial role in the development
+of cooperative AGI and AI alignment. The project introduces a novel reward-sharing mechanism mimicking familial bonds
+and mate selection, allowing researchers to observe the evolution of complex social behaviors and cooperation among AI
+agents.
 
 ## Repository Structure
 
@@ -48,6 +53,7 @@ To train a model:
 ```
 
 Parameters:
+
 - `run`: Names your experiment and controls where checkpoints are saved under `train_dir/<run>`
 - `+hardware=<preset>`: Tunes the trainer for your machine (options include macbook, desktop, etc.)
 - `+user=<n>`: Loads defaults from `configs/user/<n>.yaml`
@@ -61,13 +67,14 @@ To run the interactive simulation:
 ./tools/play.py run=my_experiment +hardware=macbook wandb=off
 ```
 
-This launches a human-controlled session using the same configuration flags as training. It's useful for quickly testing maps or policies on your local hardware.
+This launches a human-controlled session using the same configuration flags as training. It's useful for quickly testing
+maps or policies on your local hardware.
 
 To run the terminal simulation:
 
 ```bash
 ./tools/renderer.py run=demo_obstacles \
-renderer_job.environment.uri="configs/env/mettagrid/maps/debug/simple_obstacles.map"
+renderer_job.environment.root.params.uri="configs/env/mettagrid/maps/debug/simple_obstacles.map"
 ```
 
 ### Evaluating a Model
@@ -130,4 +137,5 @@ The project is designed for research in:
 - **Discord**: https://discord.gg/mQzrgwqmwy
 - **Short (5m) Talk**: https://www.youtube.com/watch?v=bt6hV73VA8I
 - **Talk**: https://foresight.org/summary/david-bloomin-metta-learning-love-is-all-you-need/
-- **Interactive Demo**: https://metta-ai.github.io/metta/?replayUrl=https%3A%2F%2Fsoftmax-public.s3.us-east-1.amazonaws.com%2Freplays%2Fandre_pufferbox_33%2Freplay.77200.json.z&play=true
+- **Interactive Demo**:
+  https://metta-ai.github.io/metta/?replayUrl=https%3A%2F%2Fsoftmax-public.s3.us-east-1.amazonaws.com%2Freplays%2Fandre_pufferbox_33%2Freplay.77200.json.z&play=true

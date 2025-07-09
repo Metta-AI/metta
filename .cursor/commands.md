@@ -1,6 +1,7 @@
 # Metta Testing Commands
 
-This file contains simple commands for testing the metta codebase. These commands are designed to run quickly and provide useful feedback about whether the system is working correctly.
+This file contains simple commands for testing the metta codebase. These commands are designed to run quickly and
+provide useful feedback about whether the system is working correctly.
 
 ## Prerequisites
 

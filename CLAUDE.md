@@ -4,7 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Metta AI is a reinforcement learning project focusing on the emergence of cooperation and alignment in multi-agent AI systems. It creates a model organism for complex multi-agent gridworld environments to study the impact of social dynamics (like kinship and mate selection) on learning and cooperative behaviors.
+Metta AI is a reinforcement learning project focusing on the emergence of cooperation and alignment in multi-agent AI
+systems. It creates a model organism for complex multi-agent gridworld environments to study the impact of social
+dynamics (like kinship and mate selection) on learning and cooperative behaviors.
 
 The codebase consists of:
 
@@ -15,11 +17,13 @@ The codebase consists of:
 ## Development Environment Setup
 
 ```bash
-# Install uv if not already installed
-curl -LsSf https://astral.sh/uv/install.sh | sh
+# Initial setup - installs uv, configures metta, and installs components
+./install.sh
 
-# Run setup script (creates virtual environment automatically)
-./devops/setup_dev.sh
+# After installation, you can use metta commands directly:
+metta status                         # Check component status
+metta configure --profile=softmax    # Reconfigure for different profile
+metta install aws wandb              # Install specific components
 ```
 
 ## Common Commands
@@ -167,7 +171,8 @@ The workflow automatically determines the appropriate base branch:
 
 - **From PR Comments**: New branches are created from the current PR's branch
 - **From Issue Comments**: New branches are created from the main branch
-- **Example**: If you comment `@claude open-pr` in PR #657 (branch: `robb/0525-agent-type-changes`), Claude will create a new branch based on `robb/0525-agent-type-changes`, not main
+- **Example**: If you comment `@claude open-pr` in PR #657 (branch: `robb/0525-agent-type-changes`), Claude will create
+  a new branch based on `robb/0525-agent-type-changes`, not main
 
 ### Branch Naming Convention
 

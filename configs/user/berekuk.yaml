@@ -12,10 +12,10 @@ eval:
   num_episodes: 16
   max_time_s: 600
   policy_uri: ${..policy_uri}
-  env: /env/mettagrid/simple
+  env: /env/mettagrid/arena/advanced
 
 trainer:
-  env: /env/mettagrid/simple
+  env: /env/mettagrid/arena/advanced
   total_timesteps: 1000000
 
   # env_overrides:
