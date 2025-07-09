@@ -68,7 +68,7 @@ metta/
 │   ├── *.py                    # Flattened Python files
 │   └── pyproject.toml          # name = "metta-mettagrid"
 │
-├── common/                     # Shared Python utilities (mettacommon module)
+├── mettacommon/                # Shared Python utilities (mettacommon module)
 │   ├── util/                   # From common/src/metta/common/util/
 │   ├── profiling/              # From common/src/metta/common/profiling/
 │   ├── wandb/                  # From common/src/metta/common/wandb/
