@@ -820,11 +820,9 @@ def main():
     logger.info(f"Starting ULTRA-FAST training on {device}")
     evaluation_scores = {}
     epoch_start_time = time.time()
-    steps_at_epoch_start = agent_step
     stats = {}
 
     # Pre-allocate tensors to avoid repeated allocations
-    dtype_actions = env.single_action_space.dtype  # type: ignore
 
     while agent_step < trainer_config.total_timesteps:
         steps_before = agent_step
@@ -941,7 +939,9 @@ def main():
         train_pct = (train_time / total_time) * 100 if total_time > 0 else 0
         rollout_pct = (rollout_time / total_time) * 100 if total_time > 0 else 0
 
-        logger.info(f"Epoch {epoch} - {steps_per_sec:.0f} steps/sec ({train_pct:.0f}% train / {rollout_pct:.0f}% rollout)")
+        logger.info(
+            f"Epoch {epoch} - {steps_per_sec:.0f} steps/sec ({train_pct:.0f}% train / {rollout_pct:.0f}% rollout)"
+        )
 
         # ULTRA-OPTIMIZATION: Minimal logging and monitoring
         if should_run_on_interval(epoch, 50, is_master):  # Very infrequent
@@ -1031,7 +1031,9 @@ def main():
                 categories.add(sim_name.split("/")[0])
 
             for category in categories:
-                score = stats_db.get_average_metric_by_filter("reward", saved_policy_path, f"sim_name LIKE '%{category}%'")
+                score = stats_db.get_average_metric_by_filter(
+                    "reward", saved_policy_path, f"sim_name LIKE '%{category}%'"
+                )
                 logger.info(f"{category} score: {score}")
                 record_heartbeat()
                 if score is not None:
