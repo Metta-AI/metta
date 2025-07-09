@@ -171,6 +171,56 @@ class TestBasicFunctionality:
                 assert np.all(truncations)
                 assert not np.any(terminals)
 
+    def test_action_interface(self, basic_env):
+        """Test action interface and basic action execution."""
+        basic_env.reset()
+
+        action_names = basic_env.action_names()
+        assert "noop" in action_names
+        assert "move" in action_names
+        assert "rotate" in action_names
+
+        noop_idx = action_names.index("noop")
+        actions = np.full((EnvConfig.NUM_AGENTS, 2), [noop_idx, 0], dtype=dtype_actions)
+
+        obs, rewards, terminals, truncations, info = basic_env.step(actions)
+
+        # Check shapes and types
+        assert obs.shape == (EnvConfig.NUM_AGENTS, EnvConfig.NUM_OBS_TOKENS, EnvConfig.OBS_TOKEN_SIZE)
+        assert rewards.shape == (EnvConfig.NUM_AGENTS,)
+        assert terminals.shape == (EnvConfig.NUM_AGENTS,)
+        assert truncations.shape == (EnvConfig.NUM_AGENTS,)
+        assert isinstance(info, dict)
+
+        # Action success should be boolean and per-agent
+        action_success = basic_env.action_success()
+        assert len(action_success) == EnvConfig.NUM_AGENTS
+        assert all(isinstance(x, bool) for x in action_success)
+
+    def test_environment_state_consistency(self, basic_env):
+        """Test that environment state remains consistent across operations."""
+        obs1, _ = basic_env.reset()
+        initial_objects = basic_env.grid_objects()
+
+        noop_idx = basic_env.action_names().index("noop")
+        actions = np.full((EnvConfig.NUM_AGENTS, 2), [noop_idx, 0], dtype=dtype_actions)
+
+        obs2, _, _, _, _ = basic_env.step(actions)
+        post_step_objects = basic_env.grid_objects()
+
+        # Object count should remain unchanged
+        assert len(initial_objects) == len(post_step_objects)
+
+        # Dimensions should remain unchanged
+        assert basic_env.map_width == 8
+        assert basic_env.map_height == 4
+
+        # Action set should remain unchanged after stepping
+        actions1 = basic_env.action_names()
+        basic_env.step(actions)
+        actions2 = basic_env.action_names()
+        assert actions1 == actions2
+
 
 class TestObservations:
     """Test observation functionality."""
