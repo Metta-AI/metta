@@ -32,39 +32,10 @@ jobs:
           version: "0.7.3"
           enable-cache: true
 
-      - name: Build Mettascope
+      - name: Run mettascope UI tests with pytest
         run: |
-          ./mettascope/install.sh
-
-      - name: Run quick training job for basic replay data
-        run: |
-          uv run tools/train.py trainer.total_timesteps=10 run=smoke_test +hardware=github wandb=off
-
-      - name: Generate replay
-        run: |
-          uv run tools/replay.py run=smoke_test +hardware=github wandb=off
-
-      - name: Run mettascope smoke test
-        run: |
-          # start the backend
-          uv run tools/play.py run=smoke_test +hardware=github wandb=off replay_job.open_browser_on_start=false &
-          echo "Started backend"
-
-          # wait for server to be ready
-          echo "Waiting for server to be ready..."
-          for i in {1..30}; do
-            if curl -f http://localhost:8000 >/dev/null 2>&1; then
-              echo "Server is ready!"
-              break
-            fi
-            echo "Attempt $i: Server not ready yet, waiting..."
-            sleep 2
-          done
-
           cd mettascope
-
-          # run tests
-          npm run test
+          uv run pytest tests/test_ui.py
 
       - name: Upload test artifacts
         uses: actions/upload-artifact@v4
