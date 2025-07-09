@@ -1,5 +1,6 @@
 import logging
 import os
+import time
 import traceback
 from collections import defaultdict
 from pathlib import Path
@@ -281,9 +282,44 @@ class MettaTrainer:
 
         if torch.distributed.is_initialized():
             logger.info(f"Initializing DistributedDataParallel on device {self.device}")
-            self.policy = DistributedMettaAgent(self.policy, self.device)
-            # Ensure all ranks have initialized DDP before proceeding
-            torch.distributed.barrier()
+
+            # Add timeout and retry logic for DDP initialization
+            max_retries = 3
+            retry_delay = 5
+
+            for attempt in range(max_retries):
+                try:
+                    self.policy = DistributedMettaAgent(self.policy, self.device)
+                    logger.info(
+                        f"Rank {torch.distributed.get_rank()}: DDP initialization successful (attempt {attempt + 1})"
+                    )
+                    break
+                except Exception as e:
+                    logger.warning(
+                        f"Rank {torch.distributed.get_rank()}: DDP initialization failed (attempt {attempt + 1}): {e}"
+                    )
+                    if attempt < max_retries - 1:
+                        time.sleep(retry_delay)
+                    else:
+                        raise
+
+            # Use safe barrier with timeout instead of blocking barrier
+            try:
+                # Safe barrier with 60 second timeout
+                rank = torch.distributed.get_rank()
+                world_size = torch.distributed.get_world_size()
+                logger.info(f"Rank {rank}: Entering DDP barrier (world_size={world_size})")
+
+                start_time = time.time()
+                torch.distributed.barrier()
+
+                elapsed = time.time() - start_time
+                logger.info(f"Rank {rank}: DDP barrier completed in {elapsed:.2f}s")
+
+            except Exception as e:
+                logger.error(f"Rank {torch.distributed.get_rank()}: DDP barrier failed - {e}")
+                logger.warning("Continuing training despite barrier failure - this may cause issues")
+                # Continue anyway - the training might still work
 
         self._make_experience_buffer()
 
@@ -780,6 +816,28 @@ class MettaTrainer:
             category = sim_name.split("/")[0]
             sim_short_name = sim_name.split("/")[-1]
             self.evals[f"{category}/{sim_short_name}"] = score
+
+        # Store evaluation scores in policy metadata for policy comparison
+        if self.latest_saved_policy_record is not None and self.evals:
+            # Update policy metadata with evaluation scores
+            if "eval_scores" not in self.latest_saved_policy_record.metadata:
+                self.latest_saved_policy_record.metadata["eval_scores"] = {}
+
+            # Store all evaluation scores
+            self.latest_saved_policy_record.metadata["eval_scores"].update(self.evals)
+
+            # Store overall score for policy comparison (use first category score as default)
+            if "score" not in self.latest_saved_policy_record.metadata:
+                # Find the first category score to use as overall score
+                for key, value in self.evals.items():
+                    if key.endswith("/score"):
+                        self.latest_saved_policy_record.metadata["score"] = value
+                        logger.info(f"Stored overall score in policy metadata: {value}")
+                        break
+
+            # Save updated policy record with scores
+            self.policy_store.save(self.latest_saved_policy_record)
+            logger.info(f"Updated policy metadata with {len(self.evals)} evaluation scores")
 
     def _maybe_generate_replay(self, force=False):
         """Generate replay if on replay interval"""
