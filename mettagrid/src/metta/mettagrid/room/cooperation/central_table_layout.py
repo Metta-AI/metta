@@ -251,8 +251,8 @@ class CentralTableLayout(Room):
             if placed_count < count:
                 print(f"Warning: Could only place {placed_count}/{count} of '{item_name}' on functional border.")
 
-        _place_item_on_border("generator", self._num_generators, generator_preferred_border_segments)
-        _place_item_on_border("mine", self._num_mines, mine_altar_preferred_border_segments)
+        _place_item_on_border("generator_red", self._num_generators, generator_preferred_border_segments)
+        _place_item_on_border("mine_red", self._num_mines, mine_altar_preferred_border_segments)
         _place_item_on_border("altar", self._num_altars, mine_altar_preferred_border_segments)
 
         # 4. Fill remaining "empty" functional border cells with "wall"
