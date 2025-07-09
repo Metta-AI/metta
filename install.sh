@@ -60,8 +60,15 @@ if ! check_cmd uv; then
     echo "\nuv is not installed. Installing uv..."
     curl -LsSf https://astral.sh/uv/install.sh | sh
 
-    if [ -f "$HOME/.cargo/env" ]; then
+    # Source the correct environment file for uv
+    if [ -f "$HOME/.local/bin/env" ]; then
+        . "$HOME/.local/bin/env"
+    elif [ -f "$HOME/.cargo/env" ]; then
+        # Fallback to cargo env if uv was installed via cargo
         . "$HOME/.cargo/env"
+    else
+        # Manually add to PATH as a last resort
+        export PATH="$HOME/.local/bin:$PATH"
     fi
 
     if ! check_cmd uv; then
