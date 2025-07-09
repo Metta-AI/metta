@@ -44,11 +44,10 @@ def _calculate_default_num_workers(is_serial: bool) -> int:
     return max(1, num_workers)
 
 
-def set_num_workers_if_unspecified(cfg: DictConfig | ListConfig) -> None:
-    if isinstance(cfg, DictConfig) and "trainer" in cfg:
+def set_num_workers_if_unspecified(cfg: DictConfig) -> None:
+    if OmegaConf.is_missing(cfg.trainer, "num_workers"):
         OmegaConf.set_struct(cfg, False)
-        if OmegaConf.is_missing(cfg.trainer, "num_workers"):
-            cfg.trainer.num_workers = _calculate_default_num_workers(cfg.get("vectorization") == "serial")
+        cfg.trainer.num_workers = _calculate_default_num_workers(cfg.vectorization == "serial")
         OmegaConf.set_struct(cfg, True)
 
 
@@ -59,6 +58,7 @@ def train(cfg: ListConfig | DictConfig, wandb_run: WandbRun | None, logger: Logg
         with open(os.path.join(cfg.run_dir, "config.yaml"), "w") as f:
             OmegaConf.save(cfg, f)
 
+    assert isinstance(cfg, DictConfig) and "trainer" in cfg
     set_num_workers_if_unspecified(cfg)
     train_job = TrainJob(cfg.train_job)
 

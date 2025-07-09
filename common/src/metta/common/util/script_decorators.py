@@ -64,7 +64,7 @@ def metta_script(func: Callable[..., T]) -> Callable[..., T]:
         setup_mettagrid_environment(cfg)
 
         # Log that setup completed successfully
-        logger.info(f"MetaGrid environment setup completed for device: {cfg.get('device', 'cpu')}")
+        logger.info(f"MetaGrid environment setup completed for device: {cfg.device}")
 
         # Set the logger in context
         token = _metta_logger.set(logger)
@@ -78,30 +78,19 @@ def metta_script(func: Callable[..., T]) -> Callable[..., T]:
     return wrapper
 
 
-def is_unspecified(cfg: DictConfig, key: str) -> bool:
-    """Check if a config value is unspecified (not set or ???)."""
-    return key not in cfg or OmegaConf.is_missing(cfg, key)
-
-
 def set_hardware_configurations(cfg: DictConfig, logger: logging.Logger) -> None:
     OmegaConf.set_struct(cfg, False)
 
-    device = cfg.get("device", "cuda")
-    if device == "cuda" and not torch.cuda.is_available():
-        if not is_unspecified(cfg, "device"):
-            logger.warning("CUDA is not available. Overriding device to 'cpu'.")
-        device = "cpu"
-    cfg.device = device
+    if cfg.device == "cuda" and not torch.cuda.is_available():
+        logger.warning("CUDA is not available. Overriding device to 'cpu'.")
+        cfg.device = "cpu"
 
-    vectorization = cfg.get("vectorization", "multiprocessing")
-    if vectorization == "multiprocessing" and not is_multiprocessing_available():
-        if not is_unspecified(cfg, "vectorization"):
-            logger.warning(
-                "Vectorization 'multiprocessing' was requested but multiprocessing is not "
-                "available in this environment. Overriding to 'serial'."
-            )
-        vectorization = "serial"
-    cfg.vectorization = vectorization
+    if cfg.vectorization == "multiprocessing" and not is_multiprocessing_available():
+        logger.warning(
+            "Vectorization 'multiprocessing' was requested but multiprocessing is not "
+            "available in this environment. Overriding to 'serial'."
+        )
+        cfg.vectorization = "serial"
 
     OmegaConf.set_struct(cfg, True)
 
