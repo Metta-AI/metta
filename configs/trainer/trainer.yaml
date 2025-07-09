@@ -88,7 +88,7 @@ async_factor: 2
 scale_batches_by_world_size: false
 
 kickstart:
-  teacher_uri: null
+  teacher_uri: #null
   action_loss_coef: 1
   value_loss_coef: 1
   anneal_ratio: 0.65 # ratio of kickstart_steps to anneal to 0 coef
