@@ -31,6 +31,7 @@ softmax/
 ├── cogworks/                   # RL training framework
 ├── mettagrid/                  # C++/Python environment
 ├── common/                     # Shared utilities
+├── backend-shared/             # Shared backend services
 ├── gridworks/                  # Map editor
 ├── observatory/                # Production monitoring
 ├── mettascope/                 # Replay viewer
@@ -55,7 +56,6 @@ softmax/
 │   ├── sweep/                  # From metta/sweep/
 │   ├── sim/                    # From metta/sim/
 │   ├── mapgen/                 # From metta/map/
-│   ├── setup/                  # From metta/setup/
 │   ├── recipes/                # Example scripts
 │   ├── tests/                  # Combined tests
 │   ├── pyproject.toml          # name = "metta-cogworks"
@@ -75,6 +75,16 @@ softmax/
 │   ├── tests/
 │   └── pyproject.toml          # name = "metta-common"
 │
+├── backend-shared/             # Shared backend services
+│   ├── sweep_names.py          # Name registration service
+│   ├── stat_buffer.py          # Data persistence layer
+│   ├── auth.py                 # Authentication utilities
+│   ├── database.py             # Database connection pooling
+│   ├── cache.py                # Caching utilities
+│   ├── utils.py                # General backend utilities
+│   ├── tests/
+│   └── pyproject.toml          # name = "metta-backend-shared"
+│
 ├── ui-shared/                  # Shared UI components for web apps
 │   ├── components/             # Reusable React components
 │   ├── hooks/                  # Shared React hooks
@@ -91,10 +101,8 @@ softmax/
 │
 ├── observatory/                # Production monitoring
 │   ├── src/                    # React frontend
-│   ├── api/                    # Backend services (from backend/src/metta/backend/)
+│   ├── api/                    # Observatory-specific backend
 │   │   ├── endpoints.py        # Observatory API endpoints
-│   │   ├── sweep_names.py      # Name registration service
-│   │   ├── stat_buffer.py      # Data persistence layer
 │   │   └── requirements.txt    # API-specific Python dependencies
 │   ├── pyproject.toml          # name = "metta-observatory"
 │   ├── package.json
@@ -113,6 +121,7 @@ softmax/
 ├── scenes/                     # Map generation patterns
 ├── docs/                       # Documentation
 ├── devops/                     # Infrastructure
+├── setup/                      # From metta/setup/
 ├── pyproject.toml              # Workspace configuration
 └── README.md                   # Mono-repo overview
 ```
@@ -123,6 +132,7 @@ softmax/
 - `cogworks/` - Main RL framework (new package combining metta + agent)
 - `mettagrid/` - Environment (existing package)
 - `common/` - Shared utilities (existing package, needs module rename)
+- `backend-shared/` - Shared backend services (new package)
 
 **Hybrid packages** (Python backend + JS/TS frontend):
 - `gridworks/` - Needs new pyproject.toml for Python server parts
@@ -137,15 +147,17 @@ softmax/
 1. **Flatten mettagrid**: Move files from `mettagrid/src/metta/mettagrid/` directly to `mettagrid/`
 2. **Rename common module**: Change `common/src/metta/common/` to export as `mettacommon`
 3. **Create cogworks**: Merge `metta/` and `agent/` into new `cogworks/` package
-4. **Consolidate backend services**: The entire `backend/` directory is eliminated:
+4. **Create backend-shared**: Extract shared backend services:
+   - `backend/src/metta/backend/sweep_names/` → `backend-shared/sweep_names.py`
+   - `backend/src/metta/backend/stat_buffer/` → `backend-shared/stat_buffer.py`
+   - Add new shared utilities for auth, caching, database connections, etc.
+5. **Consolidate backend services**: The entire `backend/` directory is eliminated:
    - `backend/src/metta/backend/observatory/` → `observatory/api/endpoints.py`
-   - `backend/src/metta/backend/sweep_names/` → `observatory/api/sweep_names.py`
-   - `backend/src/metta/backend/stat_buffer/` → `observatory/api/stat_buffer.py`
    - `backend/docker/observatory/Dockerfile` → `observatory/Dockerfile`
    - `backend/docker/observatory/requirements.txt` → `observatory/api/requirements.txt`
-   - No separate backend package - services live with their apps
-5. **Create ui-shared**: Extract shared React/TypeScript components from existing web apps
-6. **Add Python servers**: Ensure each web app has its Python server file where needed
+   - Shared services → `backend-shared/`
+6. **Create ui-shared**: Extract shared React/TypeScript components from existing web apps
+7. **Add Python servers**: Ensure each web app has its Python server file where needed
 
 ## Package Configuration Examples
 
@@ -212,6 +224,38 @@ from mettacommon import logger
 from mettacommon.util import config
 ```
 
+### Backend Shared Services
+
+```toml
+# backend-shared/pyproject.toml
+[project]
+name = "metta-backend-shared"
+version = "0.1.0"
+description = "Shared backend services for Metta applications"
+dependencies = [
+    "metta-common>=0.1.0",
+    "fastapi>=0.100.0",
+    "sqlalchemy>=2.0.0",
+    "redis>=5.0.0",
+]
+
+[tool.setuptools]
+packages = ["backend_shared"]
+```
+
+**Imports:**
+```python
+from backend_shared import sweep_names
+from backend_shared.stat_buffer import StatBuffer
+from backend_shared.auth import authenticate
+from backend_shared.cache import cache_result
+```
+
+**Installation:**
+```bash
+pip install metta-backend-shared
+```
+
 ## Current → Proposed Mapping
 
 Here's how the existing structure maps to our new organization:
@@ -235,9 +279,9 @@ metta/devops/                 → devops/ (root level)
 common/src/metta/common/      → common/ (flattened)
 mettagrid/src/metta/mettagrid/→ mettagrid/ (flattened)
 
+backend/src/metta/backend/sweep_names/ → backend-shared/sweep_names.py
+backend/src/metta/backend/stat_buffer/ → backend-shared/stat_buffer.py
 backend/src/metta/backend/observatory/ → observatory/api/endpoints.py
-backend/src/metta/backend/sweep_names/ → observatory/api/sweep_names.py
-backend/src/metta/backend/stat_buffer/ → observatory/api/stat_buffer.py
 backend/docker/observatory/   → observatory/Dockerfile
 
 apps/shared/                  → ui-shared/ (root level)
@@ -250,7 +294,7 @@ metta                         → metta-cogworks
 metta-common                  → metta-common
 metta-agent                   → (merged into metta-cogworks)
 metta-mettagrid              → metta-mettagrid
-metta-app-backend            → (split into respective apps)
+metta-app-backend            → metta-backend-shared (for shared services)
 ```
 
 ## Installation Examples
@@ -262,6 +306,9 @@ pip install metta-mettagrid
 # Training framework (includes dependencies)
 pip install metta-cogworks
 
+# Backend services
+pip install metta-backend-shared
+
 # Development setup
 uv sync  # Installs all workspace packages
 
@@ -269,6 +316,7 @@ uv sync  # Installs all workspace packages
 # Built metta-cogworks @ file:///workspace/cogworks
 # Built metta-common @ file:///workspace/common
 # Built metta-mettagrid @ file:///workspace/mettagrid
+# Built metta-backend-shared @ file:///workspace/backend-shared
 ```
 
 ## Import Philosophy
@@ -299,7 +347,8 @@ All components from the original structure have been accounted for:
 - **Environment** → `mettagrid/` (flattened C++/Python)
 - **Utilities** → `common/` (flattened shared code)
 - **Backend directory** → Eliminated entirely:
-  - API services → `observatory/api/` (endpoints, sweep_names, stat_buffer)
+  - Shared services → `backend-shared/` (sweep_names, stat_buffer, etc.)
+  - API services → `observatory/api/` (endpoints only)
   - Docker configs → App-specific locations (e.g., `observatory/Dockerfile`)
   - Requirements → With their respective services
 - **Web applications** → Root-level with descriptive names
@@ -313,9 +362,12 @@ graph TD
     A[metta-common] --> B[metta-mettagrid]
     A --> C[metta-cogworks]
     B --> C
-    A --> D[metta-gridworks]
-    A --> E[metta-observatory]
-    A --> F[metta-scope]
+    A --> D[metta-backend-shared]
+    D --> E[metta-gridworks]
+    D --> F[metta-observatory]
+    A --> E
+    A --> F
+    A --> G[metta-scope]
 ```
 
 ## Future Packages
@@ -330,7 +382,8 @@ As the web apps mature, they'll follow the same pattern:
 1. Update `pyproject.toml` files with `metta-` prefixed names
 2. Update imports from `from metta.rl` to `from cogworks.rl`
 3. Ensure `common/` exports as `mettacommon` module
-4. Test with `uv sync` to verify package names
-5. Update documentation and CI/CD
+4. Create `backend-shared/` with shared backend services
+5. Test with `uv sync` to verify package names
+6. Update documentation and CI/CD
 
 This structure gives us professional, branded packages while keeping the developer experience clean and simple.
