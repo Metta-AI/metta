@@ -17,7 +17,7 @@ class WebGLMesh {
   private vertexCapacity: number
   private indexCapacity: number
   private vertexData: Float32Array
-  private indexData: Uint16Array
+  private indexData: Uint32Array
   private currentQuad: number = 0
   private currentVertex: number = 0
 
@@ -36,7 +36,7 @@ class WebGLMesh {
 
     // Pre-allocated CPU-side buffers
     this.vertexData = new Float32Array(this.vertexCapacity * 8) // 8 floats per vertex (pos*2, uv*2, color*4)
-    this.indexData = new Uint16Array(this.indexCapacity)
+    this.indexData = new Uint32Array(this.indexCapacity)
 
     // Create the index pattern once (it's always the same for quads)
     this.setupIndexPattern()
@@ -98,7 +98,7 @@ class WebGLMesh {
 
     // Create new CPU-side arrays with increased capacity
     this.vertexData = new Float32Array(this.vertexCapacity * 8) // 8 floats per vertex
-    this.indexData = new Uint16Array(this.indexCapacity)
+    this.indexData = new Uint32Array(this.indexCapacity)
 
     // Copy existing vertex data to the new array
     this.vertexData.set(oldVertexData.subarray(0, currentVertexCount * 8))
@@ -262,6 +262,12 @@ export class ContextWebgl {
       throw new Error('Failed to get WebGL context')
     }
     this.gl = gl
+
+    // Enable 32-bit index extension for WebGL1
+    const uintExtension = gl.getExtension('OES_element_index_uint')
+    if (!uintExtension) {
+      throw new Error('OES_element_index_uint extension not supported - required for 32-bit indices')
+    }
 
     // Initialize transformation matrix
     this.currentTransform = Mat3f.identity()
@@ -847,7 +853,7 @@ export class ContextWebgl {
       }
 
       // Draw the mesh
-      this.gl.drawElements(this.gl.TRIANGLES, indexDataCount, this.gl.UNSIGNED_SHORT, 0)
+      this.gl.drawElements(this.gl.TRIANGLES, indexDataCount, this.gl.UNSIGNED_INT, 0)
     }
 
     // Disable scissor test for next frame
