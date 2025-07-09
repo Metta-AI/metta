@@ -21,18 +21,17 @@ class PackedCoordinate:
         """Pack (row, col) coordinates into a single byte.
 
         Args:
-            row: Row coordinate (0-15)
-            col: Column coordinate (0-15)
+            row: Row coordinate (0-14)
+            col: Column coordinate (0-14)
 
         Returns:
             Packed byte value
 
         Note:
-            The value 0xFF is reserved to indicate 'empty', so the
-            coordinate (15, 15) cannot be encoded.
+            The value 0xFF is reserved to indicate 'empty'.
 
         Raises:
-            ValueError: If row or col > 15, or if attempting to pack (15, 15)
+            ValueError: If row or col > 14
         """
         ...
 

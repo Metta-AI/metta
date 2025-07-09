@@ -287,42 +287,35 @@ class TestGlobalTokens:
 def test_packed_coordinate():
     """Test the PackedCoordinate functionality."""
     # Test constants
-    assert PackedCoordinate.MAX_PACKABLE_COORD == 15
+    assert PackedCoordinate.MAX_PACKABLE_COORD == 14
 
     # Test all valid coordinates
     successfully_packed = 0
-    for row in range(16):
-        for col in range(16):
-            if row == 15 and col == 15:
-                # Test that (15,15) raises an exception
-                try:
-                    PackedCoordinate.pack(row, col)
-                    raise AssertionError("(15,15) should raise an exception")
-                except ValueError:
-                    pass  # Expected
-                continue
-
+    for row in range(15):  # 0-14
+        for col in range(15):  # 0-14
             packed = PackedCoordinate.pack(row, col)
             unpacked = PackedCoordinate.unpack(packed)
             assert unpacked == (row, col), f"Roundtrip failed for ({row}, {col})"
             successfully_packed += 1
 
-    # Verify we can pack 255 out of 256 positions
-    assert successfully_packed == 255, f"Expected 255 packable positions, got {successfully_packed}"
+    # Verify we can pack 225 positions (15x15 grid)
+    assert successfully_packed == 225, f"Expected 225 packable positions, got {successfully_packed}"
 
     # Test specific corner cases
     assert PackedCoordinate.pack(0, 0) == 0x00  # Top-left
-    assert PackedCoordinate.pack(0, 15) == 0x0F  # Top-right
-    assert PackedCoordinate.pack(15, 0) == 0xF0  # Bottom-left
+    assert PackedCoordinate.pack(0, 14) == 0x0E  # Top-right
+    assert PackedCoordinate.pack(14, 0) == 0xE0  # Bottom-left
+    assert PackedCoordinate.pack(14, 14) == 0xEE  # Bottom-right
 
     # Test empty/0xFF handling
     assert PackedCoordinate.is_empty(0xFF)
     assert PackedCoordinate.unpack(0xFF) is None
     assert not PackedCoordinate.is_empty(0x00)
-    assert not PackedCoordinate.is_empty(0xF0)
+    assert not PackedCoordinate.is_empty(0xE0)
+    assert not PackedCoordinate.is_empty(0xEE)
 
     # Test invalid coordinates
-    invalid_coords = [(16, 0), (0, 16), (255, 255)]
+    invalid_coords = [(15, 0), (0, 15), (15, 15), (16, 0), (0, 16), (255, 255)]
     for row, col in invalid_coords:
         try:
             PackedCoordinate.pack(row, col)
@@ -332,4 +325,4 @@ def test_packed_coordinate():
 
     print("PackedCoordinate tests passed!")
     print(f"Can pack {successfully_packed}/256 positions")
-    print("Cannot represent (15,15) - reserved for EMPTY marker")
+    print("0xFF is reserved for EMPTY marker")
