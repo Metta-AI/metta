@@ -1,66 +1,12 @@
 import logging
 import os
 import time
-from functools import wraps
-from typing import Any, Callable, TypeVar
 
 import wandb
 
+from metta.common.util.retry import retry_on_exception
+
 logger = logging.getLogger("sweep")
-
-T = TypeVar("T")
-
-
-def retry_on_exception(
-    max_retries: int = 3,
-    retry_delay: float = 5.0,
-    exceptions: tuple[type[Exception], ...] = (Exception,),
-    logger: logging.Logger | None = None,
-) -> Callable[[Callable[..., T]], Callable[..., T]]:
-    """
-    Decorator to retry a function on exception.
-
-    Args:
-        max_retries: Maximum number of retry attempts
-        retry_delay: Delay in seconds between retries
-        exceptions: Tuple of exception types to catch and retry on
-        logger: Logger instance for logging retry attempts
-
-    Returns:
-        Decorated function that implements retry logic
-    """
-
-    def decorator(func: Callable[..., T]) -> Callable[..., T]:
-        @wraps(func)
-        def wrapper(*args: Any, **kwargs: Any) -> T:
-            last_exception: Exception | None = None
-
-            for attempt in range(max_retries):
-                try:
-                    return func(*args, **kwargs)
-                except exceptions as e:
-                    last_exception = e
-                    if logger:
-                        logger.warning(f"{func.__name__} failed (attempt {attempt + 1}/{max_retries}): {e}")
-
-                    if attempt < max_retries - 1:
-                        if logger:
-                            logger.info(f"Retrying in {retry_delay} seconds...")
-                        time.sleep(retry_delay)
-                    else:
-                        if logger:
-                            logger.error(f"{func.__name__} failed after {max_retries} attempts")
-
-            # If we get here, all retries failed
-            if last_exception is not None:
-                raise last_exception
-            else:
-                # This should never happen, but just in case
-                raise RuntimeError(f"{func.__name__} failed without capturing exception")
-
-        return wrapper
-
-    return decorator
 
 
 @retry_on_exception(max_retries=3, retry_delay=5.0, logger=logger)
@@ -114,6 +60,34 @@ def _fetch_sweep_from_api(project: str, entity: str, name: str) -> str | None:
     elapsed = time.time() - start_time
     logger.info(f"No existing sweep found with name: {name} (checked {sweep_count} sweeps in {elapsed:.2f}s)")
     return None
+
+
+def create_wandb_sweep(sweep_name: str, wandb_entity: str, wandb_project: str) -> str:
+    """
+    Create a new wandb sweep with a dummy parameter (Protein will control all suggestions).
+
+    Args:
+        sweep_name (str): The name of the sweep.
+        wandb_entity (str): The wandb entity (username or team name).
+        wandb_project (str): The wandb project name.
+
+    Returns:
+        str: The ID of the created sweep.
+    """
+    sweep_id = wandb.sweep(
+        sweep={
+            "name": sweep_name,
+            "method": "bayes",  # This won't actually be used since we override suggestions
+            "metric": {"name": "protein.objective", "goal": "maximize"},
+            "parameters": {
+                # WandB requires at least one parameter, but Protein will override all suggestions
+                "dummy_param": {"values": [1]}
+            },
+        },
+        project=wandb_project,
+        entity=wandb_entity,
+    )
+    return sweep_id
 
 
 def sweep_id_from_name(project: str, entity: str, name: str) -> str | None:
