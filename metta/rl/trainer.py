@@ -24,6 +24,7 @@ from metta.rl.functions import (
     generate_replay,
     get_lstm_config,
     get_observation,
+    maybe_update_l2_weights,
     process_minibatch_update,
     process_stats,
     run_policy_inference,
@@ -362,6 +363,15 @@ def train(
         # Periodic tasks
         if should_run_on_interval(state.epoch, 10, is_master):
             record_heartbeat()
+
+        # Update L2 weights if configured
+        if hasattr(policy, "l2_init_weight_update_interval"):
+            maybe_update_l2_weights(
+                agent=policy,
+                epoch=state.epoch,
+                interval=getattr(policy, "l2_init_weight_update_interval", 0),
+                is_master=is_master,
+            )
 
         # Save policy
         if _should_save_policy(state.epoch, trainer_cfg.checkpoint.checkpoint_interval):
