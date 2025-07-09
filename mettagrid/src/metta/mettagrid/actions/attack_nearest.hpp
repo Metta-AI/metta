@@ -17,7 +17,7 @@ public:
   }
 
 protected:
-  bool _handle_action(Agent* actor, ActionArg arg) override {
+  bool _handle_action(Agent* actor, [[maybe_unused]] ActionArg arg) override {
     // Defines the search pattern: check directly in front first, then to one side, then the other.
     const int offsets[] = {0, 1, -1};
 

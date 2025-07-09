@@ -325,7 +325,8 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
 
 void MettaGrid::_compute_observations(py::array_t<ActionType, py::array::c_style> actions) {
   auto actions_view = actions.unchecked<2>();
-  auto observation_view = _observations.mutable_unchecked<3>();
+  // auto observation_view = _observations.mutable_unchecked<3>();
+
   for (size_t idx = 0; idx < _agents.size(); idx++) {
     auto& agent = _agents[idx];
     _compute_observation(
