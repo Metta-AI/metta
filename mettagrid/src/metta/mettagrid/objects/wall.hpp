@@ -8,8 +8,6 @@
 #include "constants.hpp"
 #include "metta_object.hpp"
 
-static_assert(sizeof(PartialObservationToken) == 2 * sizeof(ObservationType), "PartialObservationToken size check");
-
 // #MettagridConfig
 struct WallConfig : public GridObjectConfig {
   WallConfig(TypeId type_id, const std::string& type_name, bool swappable)

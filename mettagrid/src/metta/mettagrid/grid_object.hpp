@@ -8,8 +8,6 @@
 
 #include "types.hpp"
 
-// using namespace std;  // Removed per cpplint
-
 using Layer = ObservationType;
 using TypeId = ObservationType;
 using GridCoord = ObservationType;
