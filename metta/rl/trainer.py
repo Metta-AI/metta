@@ -299,6 +299,148 @@ def _train(
     return epochs_trained
 
 
+def _maybe_save_policy(
+    policy: Any,
+    policy_store: Any,
+    state: TrainerState,
+    timer: Any,
+    vecenv: Any,
+    run_name: str,
+    is_master: bool,
+    trainer_cfg: Any,
+    world_size: int,
+    force: bool = False,
+) -> Optional[Any]:
+    """Save policy with distributed synchronization."""
+    # Check if should save
+    should_save = force or (
+        trainer_cfg.checkpoint.checkpoint_interval and state.epoch % trainer_cfg.checkpoint.checkpoint_interval == 0
+    )
+    if not should_save:
+        return None
+
+    # All ranks participate in barrier for distributed sync
+    if not is_master:
+        if torch.distributed.is_initialized():
+            torch.distributed.barrier()
+        return None
+
+    # Save policy with metadata
+    saved_record = save_policy_with_metadata(
+        policy=policy,
+        policy_store=policy_store,
+        epoch=state.epoch,
+        agent_step=state.agent_step,
+        evals=state.evals,
+        timer=timer,
+        vecenv=vecenv,
+        initial_policy_record=state.initial_policy_record,
+        run_name=run_name,
+        is_master=is_master,
+    )
+
+    if saved_record:
+        # Clean up old policies periodically
+        if state.epoch % 10 == 0:
+            cleanup_old_policies(trainer_cfg.checkpoint.checkpoint_dir, keep_last_n=5)
+
+    # Sync all ranks after save
+    if torch.distributed.is_initialized():
+        torch.distributed.barrier()
+
+    return saved_record
+
+
+def _upload_policy_to_wandb(
+    wandb_run: Any, policy_store: Any, policy_record: Any, force: bool = False
+) -> Optional[str]:
+    """Upload policy to wandb."""
+    if not wandb_run or not policy_record:
+        return None
+
+    if not wandb_run.name:
+        logger.warning("No wandb run name was provided")
+        return None
+
+    result = policy_store.add_to_wandb_run(wandb_run.name, policy_record)
+    logger.info(f"Uploaded policy to wandb at epoch {policy_record.metadata.epoch}")
+    return result
+
+
+def _maybe_evaluate_policy(
+    policy_record: Any,
+    policy_store: Any,
+    sim_suite_config: Any,
+    stats_client: Optional[Any],
+    state: TrainerState,
+    device: torch.device,
+    vectorization: str,
+    wandb_policy_name: Optional[str] = None,
+) -> Tuple[Dict[str, float], Optional[Any]]:
+    """Evaluate policy."""
+    try:
+        eval_scores, stats_epoch_id = evaluate_policy(
+            policy_record=policy_record,
+            policy_store=policy_store,
+            sim_suite_config=sim_suite_config,
+            stats_client=stats_client,
+            stats_run_id=state.stats_run_id,
+            stats_epoch_start=state.stats_epoch_start,
+            epoch=state.epoch,
+            device=device,
+            vectorization=vectorization,
+            wandb_policy_name=wandb_policy_name,
+        )
+        state.stats_epoch_start = state.epoch + 1
+        return eval_scores, stats_epoch_id
+    except Exception as e:
+        logger.error(f"Error evaluating policy: {e}")
+        logger.error(traceback.format_exc())
+        return {}, None
+
+
+def _maybe_generate_replay(
+    policy_record: Any,
+    trainer_cfg: Any,
+    policy_store: Any,
+    epoch: int,
+    device: torch.device,
+    vectorization: str,
+    wandb_run: Optional[Any] = None,
+) -> None:
+    """Generate replay."""
+    # Get curriculum from trainer config
+    curriculum = curriculum_from_config_path(trainer_cfg.curriculum_or_env, DictConfig(trainer_cfg.env_overrides))
+
+    generate_replay(
+        policy_record=policy_record,
+        policy_store=policy_store,
+        curriculum=curriculum,
+        epoch=epoch,
+        device=device,
+        vectorization=vectorization,
+        replay_dir=trainer_cfg.simulation.replay_dir,
+        wandb_run=wandb_run,
+    )
+
+
+def _check_abort(wandb_run: Optional[Any], trainer_cfg: Any, agent_step: int) -> bool:
+    """Check for abort tag in wandb run."""
+    if wandb_run is None:
+        return False
+
+    try:
+        if "abort" not in wandb.Api().run(wandb_run.path).tags:
+            return False
+
+        logger.info("Abort tag detected. Stopping the run.")
+        trainer_cfg.total_timesteps = int(agent_step)
+        wandb_run.config.update({"trainer.total_timesteps": trainer_cfg.total_timesteps}, allow_val_change=True)
+        return True
+    except Exception:
+        return False
+
+
 def train(
     cfg: DictConfig,
     wandb_run: Any | None,
@@ -765,148 +907,6 @@ def create_training_components(
         rank,
         state,
     )
-
-
-def _maybe_save_policy(
-    policy: Any,
-    policy_store: Any,
-    state: TrainerState,
-    timer: Any,
-    vecenv: Any,
-    run_name: str,
-    is_master: bool,
-    trainer_cfg: Any,
-    world_size: int,
-    force: bool = False,
-) -> Optional[Any]:
-    """Save policy with distributed synchronization."""
-    # Check if should save
-    should_save = force or (
-        trainer_cfg.checkpoint.checkpoint_interval and state.epoch % trainer_cfg.checkpoint.checkpoint_interval == 0
-    )
-    if not should_save:
-        return None
-
-    # All ranks participate in barrier for distributed sync
-    if not is_master:
-        if torch.distributed.is_initialized():
-            torch.distributed.barrier()
-        return None
-
-    # Save policy with metadata
-    saved_record = save_policy_with_metadata(
-        policy=policy,
-        policy_store=policy_store,
-        epoch=state.epoch,
-        agent_step=state.agent_step,
-        evals=state.evals,
-        timer=timer,
-        vecenv=vecenv,
-        initial_policy_record=state.initial_policy_record,
-        run_name=run_name,
-        is_master=is_master,
-    )
-
-    if saved_record:
-        # Clean up old policies periodically
-        if state.epoch % 10 == 0:
-            cleanup_old_policies(trainer_cfg.checkpoint.checkpoint_dir, keep_last_n=5)
-
-    # Sync all ranks after save
-    if torch.distributed.is_initialized():
-        torch.distributed.barrier()
-
-    return saved_record
-
-
-def _upload_policy_to_wandb(
-    wandb_run: Any, policy_store: Any, policy_record: Any, force: bool = False
-) -> Optional[str]:
-    """Upload policy to wandb."""
-    if not wandb_run or not policy_record:
-        return None
-
-    if not wandb_run.name:
-        logger.warning("No wandb run name was provided")
-        return None
-
-    result = policy_store.add_to_wandb_run(wandb_run.name, policy_record)
-    logger.info(f"Uploaded policy to wandb at epoch {policy_record.metadata.epoch}")
-    return result
-
-
-def _maybe_evaluate_policy(
-    policy_record: Any,
-    policy_store: Any,
-    sim_suite_config: Any,
-    stats_client: Optional[Any],
-    state: TrainerState,
-    device: torch.device,
-    vectorization: str,
-    wandb_policy_name: Optional[str] = None,
-) -> Tuple[Dict[str, float], Optional[Any]]:
-    """Evaluate policy."""
-    try:
-        eval_scores, stats_epoch_id = evaluate_policy(
-            policy_record=policy_record,
-            policy_store=policy_store,
-            sim_suite_config=sim_suite_config,
-            stats_client=stats_client,
-            stats_run_id=state.stats_run_id,
-            stats_epoch_start=state.stats_epoch_start,
-            epoch=state.epoch,
-            device=device,
-            vectorization=vectorization,
-            wandb_policy_name=wandb_policy_name,
-        )
-        state.stats_epoch_start = state.epoch + 1
-        return eval_scores, stats_epoch_id
-    except Exception as e:
-        logger.error(f"Error evaluating policy: {e}")
-        logger.error(traceback.format_exc())
-        return {}, None
-
-
-def _maybe_generate_replay(
-    policy_record: Any,
-    trainer_cfg: Any,
-    policy_store: Any,
-    epoch: int,
-    device: torch.device,
-    vectorization: str,
-    wandb_run: Optional[Any] = None,
-) -> None:
-    """Generate replay."""
-    # Get curriculum from trainer config
-    curriculum = curriculum_from_config_path(trainer_cfg.curriculum_or_env, DictConfig(trainer_cfg.env_overrides))
-
-    generate_replay(
-        policy_record=policy_record,
-        policy_store=policy_store,
-        curriculum=curriculum,
-        epoch=epoch,
-        device=device,
-        vectorization=vectorization,
-        replay_dir=trainer_cfg.simulation.replay_dir,
-        wandb_run=wandb_run,
-    )
-
-
-def _check_abort(wandb_run: Optional[Any], trainer_cfg: Any, agent_step: int) -> bool:
-    """Check for abort tag in wandb run."""
-    if wandb_run is None:
-        return False
-
-    try:
-        if "abort" not in wandb.Api().run(wandb_run.path).tags:
-            return False
-
-        logger.info("Abort tag detected. Stopping the run.")
-        trainer_cfg.total_timesteps = int(agent_step)
-        wandb_run.config.update({"trainer.total_timesteps": trainer_cfg.total_timesteps}, allow_val_change=True)
-        return True
-    except Exception:
-        return False
 
 
 def _load_or_create_policy(
