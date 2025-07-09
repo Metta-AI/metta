@@ -68,10 +68,14 @@ protected:
   }
 
   bool _handle_target(Agent* actor, GridLocation target_loc) {
-    target_loc.layer = GridLayer::Agent_Layer;
-    Agent* agent_target = static_cast<Agent*>(_grid->object_at(target_loc));
+    GridObject* obj = _grid->object_at(target_loc);
+    if (!obj) return false;
 
-    bool was_frozen = false;
+    Agent* agent_target = dynamic_cast<Agent*>(obj);
+    if (!agent_target) return false;
+
+    bool was_frozen = agent_target->frozen > 0;
+
     if (agent_target) {
       // Track attack targets
       actor->stats.incr("action." + _action_name + "." + agent_target->type_name);
@@ -84,8 +88,6 @@ protected:
       } else {
         actor->stats.incr("attack.other_team." + actor->group_name);
       }
-
-      was_frozen = agent_target->frozen > 0;
 
       bool blocked = _defense_resources.size() > 0;
       for (const auto& [item, amount] : _defense_resources) {
