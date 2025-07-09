@@ -169,6 +169,8 @@ class MettaTrainer:
             f"vecenv.driver_env type {type(metta_grid_env).__name__} is not MettaGridEnv"
         )
 
+        self.metta_grid_env = metta_grid_env
+
         self.agent_step: int = 0
         self.epoch: int = 0
 
@@ -201,7 +203,6 @@ class MettaTrainer:
 
             # Initialize the policy to the environment
             self._initialize_policy_to_environment(self.policy, metta_grid_env, self.device)
-            self.metta_grid_env = metta_grid_env  # fix this
 
             self.initial_policy_record = policy_record
 

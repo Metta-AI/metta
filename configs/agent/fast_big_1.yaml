@@ -62,15 +62,15 @@ components:
     sources:
       - name: fc1
     nn_params:
-      out_features: 256
+      out_features: 128
 
   _core_:
     _target_: metta.agent.lib.lstm.LSTM
     sources:
       - name: encoded_obs
-    output_size: 256
+    output_size: 128
     nn_params:
-      num_layers: 3
+      num_layers: 2
 
   critic_1:
     _target_: metta.agent.lib.nn_layer_library.Linear
