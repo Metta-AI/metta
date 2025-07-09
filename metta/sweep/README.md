@@ -13,23 +13,16 @@ The sweep system enables automated hyperparameter optimization for training runs
 ## Architecture
 
 ```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   sweep_init    │───▶│   train.py      │───▶│  sweep_eval     │
-│                 │    │                 │    │                 │
-│ • Creates sweep │    │ • Trains model  │    │ • Evaluates     │
-│ • Gets run_id   │    │ • Saves policy  │    │ • Records obs   │
-│ • Applies       │    │ • Checkpoints   │    │ • Updates       │
-│   suggestions   │    │                 │    │   Protein       │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-         │                       │                       │
-         ▼                       ▼                       ▼
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│     WandB       │    │  Local Storage  │    │    Protein      │
-│                 │    │                 │    │                 │
-│ • Sweep config  │    │ • Run configs   │    │ • Observations  │
-│ • Run tracking  │    │ • Checkpoints   │    │ • Next suggest  │
-│ • Metrics       │    │ • Logs          │    │ • Optimization  │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
+┌─────────────────┐    ┌─────────────────┐    ┌───────────────────┐
+│   sweep_init    │───▶│     train.py    │───▶│   sweep_eval      │
+│                 │    │                 │    │                   │
+│ • Creates sweep │    │ • Trains model  │    │ • Evaluates       │
+│ • Gets run_id   │    │ • Saves policy  │    │ • Records obs     │
+│ • Generate sugg │    │ • Load overrides │    │ • Checkpoints     │
+│ • Apply sugg    │    │                 │    │ • Updates Protein/WandB │
+│ • Fetch Protein │    │                 │    │                   │
+│   observations  │    │                 │    │                   │
+└─────────────────┘    └─────────────────┘    └───────────────────┘
 ```
 
 ## Quick Start
@@ -278,3 +271,107 @@ To add a new parameter distribution:
 2. Add support in `_process_parameter_config` in `protein_metta.py`
 3. Update this README with the new distribution
 4. Add tests in `tests/sweep/`
+
+## Analyzing Sweep Results
+
+### Extracting Best Parameters
+
+The `tools/sweep_best_params.py` script helps you extract the best performing hyperparameters from a completed sweep:
+
+```bash
+# Basic usage - generates config patch file
+./tools/sweep_best_params.py sweep_run=my_sweep_name
+
+# Show top N configurations
+./tools/sweep_best_params.py sweep_run=my_sweep_name --top-n 5
+
+# Show all run scores
+./tools/sweep_best_params.py sweep_run=my_sweep_name --show-scores
+
+# Custom output directory for patches
+./tools/sweep_best_params.py sweep_run=my_sweep_name --output-dir my_patches
+
+# Skip patch generation (only show parameters)
+./tools/sweep_best_params.py sweep_run=my_sweep_name --no-patch
+
+# Combine multiple options
+./tools/sweep_best_params.py sweep_run=my_sweep_name --top-n 3 --show-scores
+
+# Show help
+./tools/sweep_best_params.py --help
+```
+
+#### Features
+
+- **Automatic sweep discovery**: Finds sweep by name in your WandB project
+- **Config patch generation**: Creates Hydra-compatible patch files with `@package _global_` directive
+- **Multiple output formats**:
+  - YAML config patch for use with `+trainer/patch=`
+  - Command-line overrides for direct use
+  - Complete training commands
+- **Scientific notation**: Small values (< 0.01) are formatted in scientific notation for readability
+- **Top-N analysis**: Compare multiple high-performing configurations
+- **Score display**: Optionally show scores for all successful runs
+
+#### Available Options
+
+- `sweep_run=<name>` (required): Name of the sweep to analyze
+- `--top-n <int>`: Number of top runs to analyze (default: 1)
+- `--show-scores`: Show scores for all runs
+- `--no-patch`: Skip generating config patch file
+- `--output-dir <path>`: Directory for patch files (default: configs/trainer/patch)
+
+#### Generated Outputs
+
+The script generates multiple formats for using the best parameters:
+
+1. **Config Patch File** (saved to `configs/trainer/patch/{sweep_name}_best.yaml`):
+```yaml
+# @package _global_
+# Best hyperparameters from sweep
+# Apply with: +trainer/patch=<filename_without_yaml>
+
+trainer:
+  optimizer:
+    learning_rate: 7.31e-04
+```
+
+#### Using the Config Patch
+
+The generated patch file can be used with Hydra's composition system:
+
+```bash
+# Train with best parameters from sweep
+./devops/train.sh run=new_experiment +trainer/patch=my_sweep_name_best
+
+# The patch will override the default trainer configuration
+# Additional overrides can still be applied
+./devops/train.sh run=new_experiment +trainer/patch=my_sweep_name_best trainer.batch_size=128
+```
+
+#### Example Output
+
+```
+Best run: my_sweep.r.42 (score: 0.8734)
+
+============================================================
+BEST HYPERPARAMETERS:
+============================================================
+
+1. As YAML config:
+----------------------------------------
+trainer:
+  optimizer:
+    learning_rate: 7.31e-04
+
+2. Config patch saved to: configs/trainer/patch/my_sweep_best.yaml
+   Use with: +trainer/patch=my_sweep_best
+
+3. As command-line overrides:
+----------------------------------------
+./devops/train.sh trainer.optimizer.learning_rate=7.31e-04
+
+4. Complete training command:
+----------------------------------------
+./devops/train.sh run=my_sweep_best trainer.optimizer.learning_rate=7.31e-04
+```
