@@ -75,14 +75,14 @@ def from_mettagrid_config(mettagrid_config_dict: dict[str, Any]) -> GameConfig_c
                 conversion_ticks=object_config.conversion_ticks,
                 cooldown=object_config.cooldown,
                 initial_resource_count=object_config.initial_resource_count,
-                color=object_config.color,
+                color=object_config.color or 0,
             )
             object_configs[object_type] = converter_config_cpp
         elif isinstance(object_config, WallConfig_py):
             wall_config = WallConfig_cpp(
                 type_id=object_config.type_id,
                 type_name=object_type,
-                swappable=object_config.swappable,
+                swappable=object_config.swappable or False,
             )
             object_configs[object_type] = wall_config
         else:
