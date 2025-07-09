@@ -7,7 +7,7 @@ from pathlib import Path
 from hydra import compose, initialize_config_dir
 from omegaconf import DictConfig, OmegaConf
 
-from metta.rl.trainer_config import parse_trainer_config
+from metta.rl.trainer_config import create_trainer_config
 from tools.sweep_config_utils import load_train_job_config_with_overrides
 
 
@@ -101,7 +101,7 @@ class TestSweepConfigLoading:
 
                 # Verify trainer config is valid
                 assert isinstance(merged_cfg, DictConfig), "merged_cfg should be a DictConfig"
-                trainer_config = parse_trainer_config(merged_cfg)
+                trainer_config = create_trainer_config(merged_cfg)
 
                 # Check trainer fields
                 assert trainer_config.total_timesteps == 6400
