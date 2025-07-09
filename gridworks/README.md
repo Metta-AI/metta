@@ -1,6 +1,8 @@
 # Gridworks – Developer Guide
 
-This directory contains the Next.js frontend for the Metta project that can be used locally. The Next.js app relies on `metta.gridworks.server` FastAPI server. A convenience launcher (`gridworks/start.py`) boots both servers in one command and opens the app in your browser.
+This directory contains the Next.js frontend for viewing and editing the environments and maps. The Next.js app relies on the `metta.gridworks.server` FastAPI server. A convenience launcher (`gridworks/start.py`) boots both servers in one command and opens the app in your browser.
+
+The project is designed to be run locally.
 
 ## Prerequisites
 
