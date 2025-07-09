@@ -131,9 +131,6 @@ class TorchProfilerConfig(BaseModelWithForbidExtra):
 
 
 class TrainerConfig(BaseModelWithForbidExtra):
-    # Target for hydra instantiation
-    target: str = Field(default="metta.rl.trainer.MettaTrainer", alias="_target_")
-
     # Core training parameters
     # Total timesteps: Type 2 arbitrary default
     total_timesteps: int = Field(default=50_000_000_000, gt=0)
@@ -255,14 +252,13 @@ def create_trainer_config(
     if not isinstance(trainer_cfg, DictConfig):
         raise ValueError("ListConfig is not supported")
 
-    if _target_ := trainer_cfg.get("_target_"):
-        if _target_ != "metta.rl.trainer.MettaTrainer":
-            raise ValueError(f"Unsupported trainer config: {_target_}")
-
     # Convert to dict and let OmegaConf handle all interpolations
     config_dict = OmegaConf.to_container(trainer_cfg, resolve=True)
     if not isinstance(config_dict, dict):
         raise ValueError("trainer config must be a dict")
+
+    # Remove _target_ from dict if present since we're not using Hydra instantiation
+    config_dict.pop("_target_", None)
 
     # Some keys' defaults in TrainerConfig that are appropriate for multiprocessing but not serial
     if cfg.vectorization == "serial":
