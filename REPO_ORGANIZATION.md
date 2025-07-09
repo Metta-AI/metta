@@ -29,67 +29,300 @@ This gives us the best of all worlds:
 ```
 Softmax/
 ├── pyproject.toml              # Workspace configuration
-├── uv.lock                     # Unified lock file
-│
 ├── cogworks/                   # RL training framework
-│   ├── pyproject.toml          # name = "metta-cogworks"
-│   ├── __init__.py
-│   ├── api.py                  # Main training APIs
-│   ├── agent/                  # Agent/policy code
-│   ├── rl/                     # RL algorithms
-│   ├── eval/                   # Evaluation tools
-│   ├── sweep/                  # Hyperparameter sweeping
-│   ├── sim/                    # Simulation management
-│   ├── mapgen/                 # Map generation
-│   ├── setup/                  # Setup tools
-│   ├── recipes/                # Example scripts
-│   └── tests/
-│
 ├── mettagrid/                  # C++/Python environment
-│   ├── pyproject.toml          # name = "metta-mettagrid"
-│   ├── CMakeLists.txt
-│   ├── __init__.py
-│   ├── mettagrid_env.py        # Main environment class
-│   ├── mettagrid_config.py     # Configuration
-│   ├── curriculum/             # Curriculum definitions
-│   ├── cpp/                    # C++ source
-│   ├── tests/
-│   └── benchmarks/
-│
 ├── common/                     # Shared utilities
-│   ├── pyproject.toml          # name = "metta-common"
-│   ├── __init__.py
-│   ├── util/                   # Common utilities
-│   ├── profiling/              # Performance monitoring
-│   ├── wandb/                  # WandB integration
-│   └── tests/
-│
-├── gridworks/                  # Map editor (future package)
-│   ├── pyproject.toml          # name = "metta-gridworks"
-│   ├── package.json
-│   ├── server/                 # Python backend
-│   ├── src/                    # TypeScript frontend
-│   └── tests/
-│
-├── observatory/                # Production monitoring (future package)
-│   ├── pyproject.toml          # name = "metta-observatory"
-│   ├── package.json
-│   ├── api/                    # Backend API
-│   ├── src/                    # React frontend
-│   └── docker/
-│
-├── mettascope/                 # Replay viewer (future package)
-│   ├── pyproject.toml          # name = "metta-scope"
-│   ├── package.json
-│   ├── src/                    # TypeScript frontend
-│   └── data/                   # Assets
-│
+├── gridworks/                  # Map editor
+├── observatory/                # Production monitoring
+├── mettascope/                 # Replay viewer
 ├── tools/                      # Standalone scripts
 ├── configs/                    # Hydra configurations
 ├── scenes/                     # Map/scene definitions
 ├── docs/                       # Documentation
 └── devops/                     # Infrastructure
 ```
+
+## Detailed New Structure
+
+Based on the current repository, here's the accurate mapping to the new flattened structure:
+
+```
+Softmax/
+├── pyproject.toml              # Workspace configuration (new)
+├── uv.lock                     # Unified lock file
+│
+├── cogworks/                   # RL training framework (from metta/ + agent/)
+│   ├── pyproject.toml          # name = "metta-cogworks" (new)
+│   ├── Makefile                # Build commands
+│   ├── README.md               # Package documentation
+│   ├── __init__.py
+│   ├── api.py                  # Main APIs (from metta/api.py)
+│   ├── agent/                  # Agent/policy code (from agent/src/metta/agent/)
+│   │   ├── __init__.py
+│   │   ├── metta_agent.py
+│   │   ├── policy_store.py
+│   │   ├── policy_cache.py
+│   │   ├── policy_record.py
+│   │   ├── policy_metadata.py
+│   │   ├── policy_state.py
+│   │   ├── lib/                # Agent modules
+│   │   ├── external/
+│   │   ├── mocks/
+│   │   └── util/
+│   ├── rl/                     # RL algorithms (from metta/rl/)
+│   │   ├── __init__.py
+│   │   ├── trainer.py
+│   │   ├── trainer_config.py
+│   │   ├── trainer_checkpoint.py
+│   │   ├── functions.py
+│   │   ├── experience.py
+│   │   ├── losses.py
+│   │   ├── policy.py
+│   │   ├── kickstarter.py
+│   │   ├── kickstarter_config.py
+│   │   ├── torch_profiler.py
+│   │   ├── vecenv.py
+│   │   ├── fast_gae.cpp
+│   │   ├── fast_gae.pyi
+│   │   └── fast_gae/
+│   ├── eval/                   # Evaluation tools (from metta/eval/)
+│   │   ├── __init__.py
+│   │   ├── analysis.py
+│   │   ├── analysis_config.py
+│   │   ├── dashboard_data.py
+│   │   └── eval_stats_db.py
+│   ├── sweep/                  # Hyperparameter sweeping (from metta/sweep/)
+│   │   ├── __init__.py
+│   │   ├── protein.py
+│   │   ├── protein_metta.py
+│   │   ├── protein_wandb.py
+│   │   └── README.md
+│   ├── sim/                    # Simulation management (from metta/sim/)
+│   │   ├── __init__.py
+│   │   ├── simulation.py
+│   │   ├── simulation_config.py
+│   │   ├── simulation_stats_db.py
+│   │   ├── simulation_suite.py
+│   │   └── map_preview.py
+│   ├── mapgen/                 # Map generation (from metta/map/)
+│   │   ├── __init__.py
+│   │   ├── mapgen.py
+│   │   ├── scene.py
+│   │   ├── types.py
+│   │   ├── load.py
+│   │   ├── load_random.py
+│   │   ├── load_random_from_index.py
+│   │   ├── config.py
+│   │   ├── random/
+│   │   ├── scenes/
+│   │   └── utils/
+│   ├── setup/                  # Setup tools (from metta/setup/)
+│   │   ├── __init__.py
+│   │   ├── components/
+│   │   ├── installer/
+│   │   ├── metta_cli.py
+│   │   ├── config.py
+│   │   └── README.md
+│   ├── studio/                 # Studio integration (from metta/studio/)
+│   │   └── server.py
+│   ├── recipes/                # Example scripts (from root recipes/)
+│   └── tests/                  # All RL/agent tests
+│
+├── mettagrid/                  # C++/Python environment (mostly unchanged)
+│   ├── pyproject.toml          # name = "metta-mettagrid"
+│   ├── CMakeLists.txt
+│   ├── CMakePresets.json
+│   ├── Makefile
+│   ├── README.md
+│   ├── LICENSE
+│   ├── conftest.py
+│   ├── compiler_flags.cmake
+│   ├── tests.cmake
+│   ├── CPPLINT.cfg
+│   ├── .gitignore
+│   ├── .clang-format
+│   ├── src/                    # Python and C++ source
+│   │   └── metta/
+│   │       └── mettagrid/      # Will be flattened to mettagrid/
+│   ├── configs/                # Environment configs
+│   ├── tests/
+│   ├── benchmarks/
+│   └── scripts/
+│
+├── common/                     # Shared utilities (from common/)
+│   ├── pyproject.toml          # name = "metta-common"
+│   ├── Makefile
+│   ├── README.md
+│   ├── src/                    # Will be reorganized
+│   │   └── metta/
+│   │       └── common/         # Will become mettacommon/
+│   │           ├── __init__.py
+│   │           ├── py.typed
+│   │           ├── util/
+│   │           ├── profiling/
+│   │           └── wandb/
+│   └── tests/
+│
+├── gridworks/                  # Map editor and studio (from studio/)
+│   ├── pyproject.toml          # name = "metta-gridworks" (new for Python parts)
+│   ├── package.json
+│   ├── pnpm-lock.yaml
+│   ├── tsconfig.json
+│   ├── next.config.ts
+│   ├── next-env.d.ts
+│   ├── postcss.config.mjs
+│   ├── prettier.config.js
+│   ├── import-sorter.json
+│   ├── README.md
+│   ├── .eslintrc.json
+│   ├── .gitignore
+│   ├── start.py                # Python server
+│   ├── src/                    # TypeScript/React frontend
+│   │   ├── app/
+│   │   ├── components/
+│   │   ├── hooks/
+│   │   ├── icons/
+│   │   ├── lib/
+│   │   └── server/
+│   ├── public/
+│   └── tests/                  # (new)
+│
+├── observatory/                # Production monitoring (unchanged)
+│   ├── pyproject.toml          # name = "metta-observatory" (new for Python API)
+│   ├── package.json
+│   ├── package-lock.json
+│   ├── vite.config.ts
+│   ├── tsconfig.json
+│   ├── tsconfig.node.json
+│   ├── biome.jsonc
+│   ├── nginx.conf
+│   ├── index.html
+│   ├── README.md
+│   ├── Dockerfile
+│   ├── src/                    # React frontend
+│   └── api/                    # Backend API (from app_backend, new)
+│       ├── __init__.py
+│       ├── endpoints.py
+│       └── models.py
+│
+├── mettascope/                 # Replay viewer (unchanged)
+│   ├── package.json            # JavaScript package
+│   ├── package-lock.json
+│   ├── tsconfig.json
+│   ├── biome.jsonc
+│   ├── index.html
+│   ├── index.css
+│   ├── style.css
+│   ├── install.sh
+│   ├── README.md
+│   ├── __init__.py
+│   ├── server.py               # Python replay server
+│   ├── replays.py              # Replay handling
+│   ├── src/                    # TypeScript source
+│   ├── data/                   # Assets
+│   │   ├── atlas/
+│   │   ├── fonts/
+│   │   ├── ui/
+│   │   └── view/
+│   ├── tools/
+│   │   ├── gen_atlas.py
+│   │   └── gen_html.py
+│   ├── docs/
+│   └── tests/
+│
+├── tools/                      # Standalone entry scripts
+│   ├── train.py
+│   ├── sweep_init.py
+│   ├── sweep_eval.py
+│   ├── sweep_config_utils.py
+│   ├── play.py
+│   ├── sim.py
+│   ├── replay.py
+│   ├── analyze.py
+│   ├── dashboard.py
+│   ├── renderer.py
+│   ├── validate_config.py
+│   ├── stats_duckdb_cli.py
+│   ├── upload_map_imgs.py
+│   ├── autotune.py
+│   ├── dump_src.py
+│   └── map/
+│       ├── gen.py
+│       ├── gen_scene.py
+│       └── normalize_ascii_map.py
+│
+├── configs/                    # Hydra configurations
+│   ├── agent/
+│   ├── env/
+│   │   └── mettagrid/
+│   ├── trainer/
+│   ├── hardware/
+│   ├── sim/
+│   ├── sweep/
+│   ├── user/
+│   ├── wandb/
+│   └── *.yaml                  # Root config files
+│
+├── scenes/                     # Map/scene definitions
+│   ├── convchain/
+│   ├── dcss/
+│   ├── test/
+│   └── wfc/
+│
+├── recipes/                    # Example scripts
+│   ├── arena.sh
+│   ├── nav_memory_sequence.sh
+│   ├── navigation.sh
+│   └── *.sh
+│
+├── docs/                       # Documentation
+│   ├── api.md
+│   ├── mapgen.md
+│   ├── wandb/
+│   │   └── metrics/
+│   └── workflows/
+│
+├── devops/                     # Infrastructure and tooling
+│   ├── aws/
+│   ├── charts/
+│   ├── docker/
+│   ├── git-hooks/
+│   ├── macos/
+│   ├── mettabox/
+│   ├── skypilot/
+│   ├── tf/
+│   ├── tools/
+│   ├── wandb/
+│   └── *.sh                    # Various scripts
+│
+├── wandb_carbs/                # WandB/CARBS integration (TBD)
+├── checkpoints/                # Model checkpoints (gitignored)
+├── wandb/                      # WandB runs (gitignored)
+└── .github/                    # GitHub workflows
+    └── workflows/
+```
+
+### Notes on Python Package Organization:
+
+**Python packages** (with pyproject.toml):
+- `cogworks/` - Main RL framework (new package combining metta + agent)
+- `mettagrid/` - Environment (existing package)
+- `common/` - Shared utilities (existing package, needs module rename)
+
+**Hybrid packages** (Python backend + JS/TS frontend):
+- `gridworks/` - Needs new pyproject.toml for Python server parts
+- `observatory/` - Needs new pyproject.toml for API backend
+- `mettascope/` - Currently just has Python scripts, no package structure
+
+**Pure frontend** (no Python packaging needed):
+- The TypeScript/React parts of gridworks, observatory, and mettascope
+
+### Key Migration Tasks:
+
+1. **Flatten mettagrid**: Move files from `mettagrid/src/metta/mettagrid/` directly to `mettagrid/`
+2. **Rename common module**: Change `common/src/metta/common/` to export as `mettacommon`
+3. **Create cogworks**: Merge `metta/` and `agent/` into new `cogworks/` package
+4. **Split app_backend**: Distribute its functionality to respective apps
 
 ## Package Configuration Examples
 
