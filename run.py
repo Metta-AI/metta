@@ -5,7 +5,7 @@ import time
 from collections import defaultdict
 
 import torch
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 
 from metta.agent.policy_store import PolicyStore
 from metta.api import (
@@ -14,9 +14,11 @@ from metta.api import (
     Optimizer,
     calculate_anneal_beta,
     cleanup_distributed,
+    cleanup_wandb,
     create_evaluation_config_suite,
     create_replay_config,
     ensure_initial_policy,
+    initialize_wandb,
     load_checkpoint,
     save_experiment_config,
     setup_distributed_training,
@@ -27,7 +29,6 @@ from metta.common.profiling.memory_monitor import MemoryMonitor
 from metta.common.profiling.stopwatch import Stopwatch
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.system_monitor import SystemMonitor
-from metta.common.wandb.wandb_context import WandbContext
 from metta.eval.eval_stats_db import EvalStatsDB
 from metta.mettagrid import mettagrid_c  # noqa: F401
 from metta.mettagrid.mettagrid_env import dtype_actions
@@ -74,11 +75,14 @@ dirs = setup_run_directories()
 device, is_master, world_size, rank = setup_distributed_training("cuda" if torch.cuda.is_available() else "cpu")
 
 # Configuration
+# Note: batch_size must be >= total_agents * bptt_horizon
+# With navigation curriculum: 4 agents per env * many envs = ~2048 total agents
+# Required batch_size >= 2048 * 64 (bptt_horizon) = 131072
 trainer_config = TrainerConfig(
     num_workers=4,
     total_timesteps=10_000_000,
-    batch_size=524288 if torch.cuda.is_available() else 4096,  # 512k for GPU, 4k for CPU
-    minibatch_size=16384 if torch.cuda.is_available() else 1024,  # 16k for GPU, 1k for CPU
+    batch_size=524288 if torch.cuda.is_available() else 131072,  # 512k for GPU, 128k for CPU (minimum for navigation)
+    minibatch_size=16384 if torch.cuda.is_available() else 4096,  # 16k for GPU, 4k for CPU
     curriculum="/env/mettagrid/curriculum/navigation/bucketed",
     ppo=PPOConfig(
         clip_coef=0.1,
@@ -101,7 +105,7 @@ trainer_config = TrainerConfig(
         replay_dir=dirs.replay_dir,
     ),
     profiler=TorchProfilerConfig(
-        interval_epochs=0,
+        interval_epochs=0,  # Disabled by default
         profile_dir=os.path.join(dirs.run_dir, "torch_traces"),
     ),
     grad_mean_variance_interval=150,
@@ -125,15 +129,6 @@ if USE_WANDB and is_master:
 # Adjust batch sizes for distributed training
 if torch.distributed.is_initialized() and trainer_config.scale_batches_by_world_size:
     trainer_config.batch_size = trainer_config.batch_size // world_size
-
-# WandB configuration
-wandb_config = {
-    "project": os.environ.get("WANDB_PROJECT", "metta-run"),
-    "entity": os.environ.get("WANDB_ENTITY", None),  # Set WANDB_ENTITY env var or update this
-    "enabled": os.environ.get("WANDB_DISABLED", "").lower() != "true",  # Set WANDB_DISABLED=true to disable
-    "name": dirs.run_name,
-    "config": trainer_config.model_dump(),
-}
 
 # Save config
 save_experiment_config(dirs, device, trainer_config)
@@ -161,6 +156,7 @@ env = Environment(
     async_factor=trainer_config.async_factor,
     zero_copy=trainer_config.zero_copy,
     is_training=True,
+    vectorization="serial",  # Match the vectorization mode
 )
 metta_grid_env = env.driver_env  # type: ignore - vecenv attribute
 
@@ -168,25 +164,60 @@ metta_grid_env = env.driver_env  # type: ignore - vecenv attribute
 agent = Agent(env, device=str(device))
 hidden_size, num_lstm_layers = get_lstm_config(agent)
 
+# Evaluation configuration
+evaluation_config = create_evaluation_config_suite()
+
 # Initialize wandb if master
+# This uses the helper from api.py that handles all the wandb config setup
 wandb_run = None
-if is_master and wandb_config["enabled"]:
-    from omegaconf import DictConfig as OmegaDictConfig
+wandb_ctx = None
+if is_master:
+    # Build a config similar to what Hydra would create
+    full_config = {
+        "run": dirs.run_name,
+        "run_dir": dirs.run_dir,
+        "cmd": "train",
+        "device": str(device),
+        "seed": 1,  # Default seed
+        "trainer": trainer_config.model_dump(),
+        "train_job": {"evals": evaluation_config.model_dump() if hasattr(evaluation_config, "model_dump") else {}},
+    }
 
-    wandb_ctx = WandbContext(OmegaDictConfig(wandb_config), DictConfig({"run": dirs.run_name, "run_dir": dirs.run_dir}))
-    wandb_run = wandb_ctx.__enter__()
+    wandb_run, wandb_ctx = initialize_wandb(
+        run_name=dirs.run_name,
+        run_dir=dirs.run_dir,
+        enabled=os.environ.get("WANDB_DISABLED", "").lower() != "true",
+        config=full_config,
+    )
 
-# Create policy store
+# Create policy store with config structure matching what Hydra provides
+policy_store_config = {
+    "device": str(device),
+    "policy_cache_size": 10,
+    "run": dirs.run_name,
+    "run_dir": dirs.run_dir,
+    "vectorization": "serial",  # Set to serial for simplicity in this example
+    "trainer": trainer_config.model_dump(),
+}
+
+# Add wandb config if available (PolicyStore expects it for wandb:// URIs)
+if wandb_run and wandb_ctx:
+    # Access the wandb config from the context
+    try:
+        wandb_cfg = wandb_ctx.cfg
+        if isinstance(wandb_cfg, DictConfig):
+            wandb_config_dict = OmegaConf.to_container(wandb_cfg, resolve=True)
+            if isinstance(wandb_config_dict, dict) and wandb_config_dict.get("enabled"):
+                policy_store_config["wandb"] = {
+                    "entity": wandb_config_dict.get("entity"),
+                    "project": wandb_config_dict.get("project"),
+                }
+    except AttributeError:
+        # wandb_ctx might not have cfg attribute if wandb is disabled
+        pass
+
 policy_store = PolicyStore(
-    DictConfig(
-        {
-            "device": str(device),
-            "policy_cache_size": 10,
-            "run": dirs.run_name,
-            "run_dir": dirs.run_dir,
-            "trainer": trainer_config.model_dump(),
-        }
-    ),
+    DictConfig(policy_store_config),
     wandb_run=wandb_run,
 )
 
@@ -286,9 +317,6 @@ if is_master:
         logger=logger,
         auto_start=True,
     )
-
-# Evaluation configuration
-evaluation_config = create_evaluation_config_suite()
 
 # Training loop
 logger.info(f"Starting training on {device}")
@@ -764,5 +792,5 @@ logger.info(f"\nTraining run complete! Run saved to: {dirs.run_dir}")
 cleanup_distributed()
 
 # Clean up wandb if initialized
-if wandb_run and is_master:
-    wandb_ctx.__exit__(None, None, None)
+if is_master:
+    cleanup_wandb(wandb_ctx)
