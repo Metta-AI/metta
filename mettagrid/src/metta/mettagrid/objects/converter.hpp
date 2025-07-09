@@ -167,17 +167,17 @@ public:
     this->maybe_start_converting();
   }
 
-  InventoryDelta update_inventory(InventoryItem item, InventoryDelta delta) override {
-    InventoryDelta clamped_delta = HasInventory::update_inventory(item, delta);
-    if (clamped_delta != 0) {
-      if (clamped_delta > 0) {
-        stats.add(stats.inventory_item_name(item) + ".added", clamped_delta);
+  InventoryDelta update_inventory(InventoryItem item, InventoryDelta attempted_delta) override {
+    InventoryDelta delta = HasInventory::update_inventory(item, attempted_delta);
+    if (delta != 0) {
+      if (delta > 0) {
+        stats.add(stats.inventory_item_name(item) + ".added", delta);
       } else {
-        stats.add(stats.inventory_item_name(item) + ".removed", -clamped_delta);
+        stats.add(stats.inventory_item_name(item) + ".removed", -delta);
       }
     }
     this->maybe_start_converting();
-    return clamped_delta;
+    return delta;
   }
 
   virtual vector<PartialObservationToken> obs_features() const override {

@@ -5,10 +5,10 @@ import time
 from dataclasses import dataclass
 from datetime import datetime
 
-import hydra
 from omegaconf import DictConfig, OmegaConf
 from typing_extensions import TypedDict
 
+from metta.common.util.instantiate import instantiate
 from metta.map.mapgen import MapGen
 from metta.map.types import MapGrid
 from metta.map.utils.ascii_grid import grid_to_lines, lines_to_grid
@@ -79,7 +79,8 @@ class StorableMap:
     def from_cfg(cfg: DictConfig) -> StorableMap:
         # Generate and measure time taken
         start = time.time()
-        map_builder = hydra.utils.instantiate(cfg, _recursive_=True)
+        # TODO(slava): Remove _recursive_=True once mapgen no longer needs it
+        map_builder = instantiate(OmegaConf.to_container(cfg, resolve=True), _recursive_=True)
         level = map_builder.build()
         gen_time = time.time() - start
         logger.info(f"Time taken to build map: {gen_time}s")
