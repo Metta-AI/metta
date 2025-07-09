@@ -51,8 +51,10 @@ def set_num_workers_if_unspecified(cfg: DictConfig) -> None:
         OmegaConf.set_struct(cfg, True)
 
 
-def train(cfg: ListConfig | DictConfig, wandb_run: WandbRun | None, logger: Logger):
+def train(cfg: DictConfig | ListConfig, wandb_run: WandbRun | None, logger: Logger):
     cfg = load_train_job_config_with_overrides(cfg)
+
+    logger.info("Trainer config after overrides:\n%s", OmegaConf.to_yaml(cfg.trainer, resolve=True))
 
     if os.environ.get("RANK", "0") == "0":
         with open(os.path.join(cfg.run_dir, "config.yaml"), "w") as f:
