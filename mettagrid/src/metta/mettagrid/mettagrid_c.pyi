@@ -27,8 +27,12 @@ class PackedCoordinate:
         Returns:
             Packed byte value
 
+        Note:
+            The value 0xFF is reserved to indicate 'empty', so the
+            coordinate (15, 15) cannot be encoded.
+
         Raises:
-            ValueError: If row or col > 15
+            ValueError: If row or col > 15, or if attempting to pack (15, 15)
         """
         ...
 

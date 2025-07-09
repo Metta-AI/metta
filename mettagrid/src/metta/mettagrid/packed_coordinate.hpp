@@ -37,12 +37,16 @@ constexpr uint8_t MAX_PACKABLE_COORD = 15;
  * @param row Row coordinate (r in GridLocation, 0-15)
  * @param col Column coordinate (c in GridLocation, 0-15)
  * @return Packed coordinate byte
- * @throws std::invalid_argument if row or col > 15
+ * @note The value 0xFF is reserved to indicate 'empty', so (15, 15) cannot be packed
+ * @throws std::invalid_argument if row or col > 15, or if attempting to pack (15, 15)
  */
 inline uint8_t pack(uint8_t row, uint8_t col) {
   if (row > MAX_PACKABLE_COORD || col > MAX_PACKABLE_COORD) {
     throw std::invalid_argument("Coordinates must be <= " + std::to_string(MAX_PACKABLE_COORD) +
                                 ". Got row=" + std::to_string(row) + ", col=" + std::to_string(col));
+  }
+  if (row == MAX_PACKABLE_COORD && col == MAX_PACKABLE_COORD) {
+    throw std::invalid_argument("Cannot pack (15, 15) - this value (0xFF) is reserved for 'empty'");
   }
   return static_cast<uint8_t>((row << ROW_SHIFT) | (col & COL_MASK));
 }
