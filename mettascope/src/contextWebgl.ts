@@ -1,5 +1,10 @@
 import { Vec2f, Mat3f } from './vector_math.js'
 
+/** Clamp a value between a minimum and maximum. */
+export function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(value, max))
+}
+
 /** WebGL Mesh class for managing vertex data and buffers. */
 class WebGLMesh {
   private name: string
@@ -830,12 +835,14 @@ export class ContextWebgl {
       // Apply scissor if enabled for this mesh
       if (mesh.scissorEnabled) {
         const [x, y, width, height] = mesh.scissorRect
+        const w = Math.floor(screenWidth)
+        const h = Math.floor(screenHeight)
         this.gl.enable(this.gl.SCISSOR_TEST)
         this.gl.scissor(
-          Math.max(0, Math.floor(x)),
-          Math.max(0, Math.floor(screenHeight - y - height)), // WebGL scissor Y is bottom-up
-          Math.max(0, Math.floor(width)),
-          Math.max(0, Math.floor(height))
+          clamp(Math.floor(x), 0, w),
+          clamp(Math.floor(h - y - height), 0, h), // WebGL scissor Y is bottom-up
+          clamp(Math.floor(width), 0, w - Math.floor(x)),
+          clamp(Math.floor(height), 0, h - Math.floor(y))
         )
       } else {
         this.gl.disable(this.gl.SCISSOR_TEST)
