@@ -29,7 +29,7 @@ protected:
     if (!obj) {
       // next try the agent layer
       target_loc.layer = GridLayer::AgentLayer;
-      GridObject* obj = _grid->object_at(target_loc);
+      obj = _grid->object_at(target_loc);
     }
 
     if (!obj) {
