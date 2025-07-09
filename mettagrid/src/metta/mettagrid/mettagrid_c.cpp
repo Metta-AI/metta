@@ -728,18 +728,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
   pc_m.attr("MAX_PACKABLE_COORD") = PackedCoordinate::MAX_PACKABLE_COORD;
 
   // Functions
-  pc_m.def("pack",
-           &PackedCoordinate::pack,
-           py::arg("row"),
-           py::arg("col"),
-           "Pack (row, col) coordinates into a single byte.\n\n"
-           "Args:\n"
-           "    row: Row coordinate (0-15)\n"
-           "    col: Column coordinate (0-15)\n\n"
-           "Returns:\n"
-           "    Packed byte value\n\n"
-           "Raises:\n"
-           "    ValueError: If row or col > 15");
+  pc_m.def("pack", &PackedCoordinate::pack, py::arg("row"), py::arg("col"));
 
   pc_m.def(
       "unpack",
@@ -750,15 +739,9 @@ PYBIND11_MODULE(mettagrid_c, m) {
         }
         return py::none();
       },
-      py::arg("packed"),
-      "Unpack byte into (row, col) tuple or None if empty.\n\n"
-      "Args:\n"
-      "    packed: Packed coordinate byte\n\n"
-      "Returns:\n"
-      "    tuple[int, int] | None: (row, col) or None if empty location");
+      py::arg("packed"));
 
-  pc_m.def(
-      "is_empty", &PackedCoordinate::is_empty, py::arg("packed"), "Check if packed value represents empty location.");
+  pc_m.def("is_empty", &PackedCoordinate::is_empty, py::arg("packed"));
 
   // MettaGrid class bindings
   py::class_<MettaGrid>(m, "MettaGrid")
