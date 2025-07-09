@@ -5,6 +5,17 @@ defaults:
 game:
   num_agents: 1 #how many agents are in the map x2
   max_steps: ???
+  actions:
+    noop:
+      enabled: false
+    put_items:
+      enabled: false
+    attack:
+      enabled: false
+    swap:
+      enabled: false
+    change_color:
+      enabled: false
   agent:
     rewards:
       heart: 0.333

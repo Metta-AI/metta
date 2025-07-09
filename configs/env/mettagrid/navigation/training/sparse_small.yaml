@@ -7,6 +7,17 @@ sampling: 1
 game:
   max_steps: 250 # ${width * height} / 10
   num_agents: 4
+  actions:
+    noop:
+      enabled: false
+    put_items:
+      enabled: false
+    attack:
+      enabled: false
+    swap:
+      enabled: false
+    change_color:
+      enabled: false
   objects:
     altar:
       cooldown: 1000
@@ -14,38 +25,44 @@ game:
 
   map_builder:
     _target_: metta.map.mapgen.MapGen
-    # xcxc -- make this be a 2x2 grid of rooms
-    width: ${sampling:20,50,30}
-    height: ${sampling:20,50,30}
+    width: ${sampling:40,100,60}
+    height: ${sampling:40,100,60}
     border_width: 6
 
     root:
       type: metta.map.scenes.room_grid.RoomGrid
       params:
-        layout: [
-        ["border", "border", "border", "border", "border"],
-        ["border", "middle", "middle", "middle", "border"],
-        ["border", "middle", "middle", "middle", "border"],
-        ["border", "middle", "middle", "middle", "border"],
-        ["border", "border", "border", "border", "border"]
-        ]
+        rows: 2
+        columns: 2
       children:
-        - where:
-            tags:
-              - middle
-          limit: 3
-          lock: lock
-          scene:
-            type: metta.map.scenes.random.Random
+        - scene:
+            type: metta.map.scenes.room_grid.RoomGrid
             params:
-              objects:
-                altar: 1
-        - where:
-            tags:
-              - middle
-          limit: 4
-          lock: lock
-          scene:
-            type: metta.map.scenes.random.Random
-            params:
-              agents: 1
+              border_width: 0
+              layout: [
+              ["border", "border", "border", "border", "border"],
+              ["border", "middle", "middle", "middle", "border"],
+              ["border", "middle", "middle", "middle", "border"],
+              ["border", "middle", "middle", "middle", "border"],
+              ["border", "border", "border", "border", "border"]
+              ]
+            children:
+              - where:
+                  tags:
+                    - middle
+                limit: 3
+                lock: lock
+                scene:
+                  type: metta.map.scenes.random.Random
+                  params:
+                    objects:
+                      altar: 1
+              - where:
+                  tags:
+                    - middle
+                limit: 1
+                lock: lock
+                scene:
+                  type: metta.map.scenes.random.Random
+                  params:
+                    agents: 1
