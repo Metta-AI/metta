@@ -7,17 +7,7 @@ from metta.mettagrid.mettagrid_env import dtype_actions
 
 
 def test_swap():
-    """Test that swap_objects preserves the original layers when swapping positions.
-
-    This test verifies the fix for a critical bug where swap_objects was swapping
-    the layers along with the positions, causing agents to end up in the wrong layer.
-
-    The bug would cause:
-    - Agents (which must be in AgentLayer=0) to move to ObjectLayer=1
-    - Objects to move to AgentLayer=0
-
-    This violates the invariant that agents must always remain in AgentLayer.
-    """
+    """Test that swap_objects preserves the original layers when swapping positions."""
     # Create a minimal 3x3 map with an agent and a swappable block
     # Layout:
     #   W W W
