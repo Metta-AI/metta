@@ -20,10 +20,10 @@ from metta.common.util.lock import run_once
 from metta.common.util.logging_helpers import setup_mettagrid_logger
 from metta.common.util.numpy_helpers import clean_numpy_types
 from metta.common.util.script_decorators import metta_script
-from metta.common.wandb.sweep import generate_run_id_for_sweep, sweep_id_from_name
 from metta.common.wandb.wandb_context import WandbContext
 from metta.sweep.protein_metta import MettaProtein
 from metta.sweep.protein_wandb import create_wandb_sweep
+from metta.sweep.sweep_wandb import generate_run_id_for_sweep, sweep_id_from_name
 
 logger = setup_mettagrid_logger("sweep_init")
 
