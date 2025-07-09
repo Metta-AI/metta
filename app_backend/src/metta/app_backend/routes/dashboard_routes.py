@@ -165,12 +165,12 @@ async def _get_group_data_with_policy_filter(
 
             pre_aggregated AS (
               SELECT
-                episode_id,
+                episode_internal_id,
                 SUM(value) as total_value,
                 COUNT(*) as agent_count
               FROM episode_agent_metrics
               WHERE metric = %s
-              GROUP BY episode_id
+              GROUP BY episode_internal_id
             )
             SELECT
               p.name as policy_uri,
@@ -181,7 +181,7 @@ async def _get_group_data_with_policy_filter(
               p.run_id,
               p.end_training_epoch
             FROM episodes e
-            JOIN pre_aggregated pa ON e.id = pa.episode_id
+            JOIN pre_aggregated pa ON e.internal_id = pa.episode_internal_id
             JOIN filtered_policies p ON e.primary_policy_id = p.id
             WHERE e.eval_category = %s
             GROUP BY p.name, e.env_name, p.run_id, p.end_training_epoch, pa.agent_count, pa.total_value
@@ -197,13 +197,13 @@ async def _get_group_data_with_policy_filter(
         query_template = SQL("""
             WITH
             filtered_episodes AS (
-                SELECT e.id, e.env_name, e.primary_policy_id, e.replay_url, e.attributes
+                SELECT e.id, e.internal_id, e.env_name, e.primary_policy_id, e.replay_url, e.attributes
                 FROM episodes e
                 WHERE e.eval_category = %s
             ),
             episode_agent_metrics_with_group_id AS (
                 SELECT
-                    eam.episode_id,
+                    eam.episode_internal_id,
                     eam.agent_id,
                     eam.value,
                     CAST ((fe.attributes->'agent_groups')[eam.agent_id] AS INTEGER) as group_id,
@@ -211,7 +211,7 @@ async def _get_group_data_with_policy_filter(
                     fe.primary_policy_id,
                     fe.replay_url
                 FROM episode_agent_metrics eam
-                JOIN filtered_episodes fe ON fe.id = eam.episode_id
+                JOIN filtered_episodes fe ON fe.internal_id = eam.episode_internal_id
                 WHERE eam.metric = %s
             ),
             {}
