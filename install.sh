@@ -60,26 +60,12 @@ if ! check_cmd uv; then
     echo "\nuv is not installed. Installing uv..."
     curl -LsSf https://astral.sh/uv/install.sh | sh
 
-    # Source the correct environment file for uv
-    if [ -f "$HOME/.local/bin/env" ]; then
-        . "$HOME/.local/bin/env"
-    elif [ -f "$HOME/.cargo/env" ]; then
-        # Fallback to cargo env if uv was installed via cargo
-        . "$HOME/.cargo/env"
-    else
-        # Manually add to PATH as a last resort
-        export PATH="$HOME/.local/bin:$PATH"
-    fi
+    # Add all common uv installation paths to PATH
+    export PATH="$HOME/.local/bin:$HOME/.cargo/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
 
-    # Check if uv is still not found (might be installed via Homebrew)
-    if ! check_cmd uv; then
-        # Check common Homebrew locations
-        if [ -f "/opt/homebrew/bin/uv" ]; then
-            export PATH="/opt/homebrew/bin:$PATH"
-        elif [ -f "/usr/local/bin/uv" ]; then
-            export PATH="/usr/local/bin:$PATH"
-        fi
-    fi
+    # Source env files if they exist
+    [ -f "$HOME/.local/bin/env" ] && . "$HOME/.local/bin/env"
+    [ -f "$HOME/.cargo/env" ] && . "$HOME/.cargo/env"
 
     if ! check_cmd uv; then
         err "Failed to install uv. Please install it manually from https://github.com/astral-sh/uv"

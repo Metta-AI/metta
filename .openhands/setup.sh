@@ -30,22 +30,12 @@ if ! command -v uv &> /dev/null; then
     echo "📦 Installing uv package manager..."
     curl -LsSf https://astral.sh/uv/install.sh | sh
 
-    # Add uv to PATH for current session - uv installs to ~/.local/bin
-    if [ -f "$HOME/.local/bin/env" ]; then
-        source "$HOME/.local/bin/env"
-    else
-        export PATH="$HOME/.local/bin:$PATH"
-    fi
+    # Add all common uv installation paths to PATH
+    export PATH="$HOME/.local/bin:$HOME/.cargo/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
 
-    # Check if uv is still not found (might be installed via Homebrew)
-    if ! command -v uv &> /dev/null; then
-        # Check common Homebrew locations
-        if [ -f "/opt/homebrew/bin/uv" ]; then
-            export PATH="/opt/homebrew/bin:$PATH"
-        elif [ -f "/usr/local/bin/uv" ]; then
-            export PATH="/usr/local/bin:$PATH"
-        fi
-    fi
+    # Source env files if they exist
+    [ -f "$HOME/.local/bin/env" ] && source "$HOME/.local/bin/env"
+    [ -f "$HOME/.cargo/env" ] && source "$HOME/.cargo/env"
 
     # Verify installation
     if ! command -v uv &> /dev/null; then
