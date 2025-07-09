@@ -19,26 +19,23 @@ class PackedCoordinate:
     @staticmethod
     def pack(row: int, col: int) -> int:
         """Pack (row, col) coordinates into a single byte.
-
         Args:
-            row: Row coordinate (0-15)
-            col: Column coordinate (0-15)
-
+            row: Row coordinate (0-14)
+            col: Column coordinate (0-14)
         Returns:
             Packed byte value
-
+        Note:
+            The value 0xFF is reserved to indicate 'empty'.
         Raises:
-            ValueError: If row or col > 15
+            ValueError: If row or col > 14
         """
         ...
 
     @staticmethod
     def unpack(packed: int) -> Optional[Tuple[int, int]]:
         """Unpack byte into (row, col) tuple or None if empty.
-
         Args:
             packed: Packed coordinate byte
-
         Returns:
             (row, col) tuple or None if empty location
         """
