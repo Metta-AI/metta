@@ -11,7 +11,7 @@
 
 using Layer = ObservationType;
 using TypeId = ObservationType;
-using GridCoord = ObservationType;
+using ObservationCoord = ObservationType;
 
 struct PartialObservationToken {
   ObservationType feature_id;
