@@ -53,6 +53,6 @@ using SuccessType = bool;
 
 using InventoryItem = uint8_t;
 using InventoryQuantity = uint8_t;
-using InventoryDelta = int8_t;  // must be signed
+using InventoryDelta = int16_t;  // cover full range of allowed changes (+/-255)
 
 #endif  // TYPES_HPP_
