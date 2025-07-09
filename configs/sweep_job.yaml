@@ -11,7 +11,7 @@ cmd: sweep
 sweep_run: null  # Will be set via command line override
 
 trainer:
-  total_timesteps: 500_000_000   # 5M timesteps for proper RL training (was 50k - too short!)
+  total_timesteps: 500_000_000
   curriculum: /env/mettagrid/arena/basic_easy_shaped
 
 
@@ -21,6 +21,7 @@ sim:
   max_time_s: 120  # Increased timeout for longer evaluation
   env_overrides: {}
   simulations:
+    _delete_: true   # remove simulations inherited from sweep_eval.yaml
     simple:
       env: env/mettagrid/arena/advanced
 

@@ -7,6 +7,7 @@ import torch
 from metta.agent.policy_record import PolicyRecord
 from metta.agent.policy_store import PolicyStore
 from metta.app_backend.stats_client import StatsClient
+from metta.common.util.heartbeat import record_heartbeat
 from metta.sim.simulation import Simulation, SimulationCompatibilityError, SimulationResults
 from metta.sim.simulation_config import SimulationSuiteConfig
 from metta.sim.simulation_stats_db import SimulationStatsDB
@@ -71,6 +72,9 @@ class SimulationSuite:
                 )
                 logger.info("=== Simulation '%s' ===", name)
                 sim_result = sim.simulate()
+                # Emit a heartbeat for long-running simulation suites
+                record_heartbeat()
+                logger.info("Simulation '%s' completed with %d episodes", name, sim_result.stats_db.num_episodes)
                 merged_db.merge_in(sim_result.stats_db)
                 sim_result.stats_db.close()
                 successful_simulations += 1

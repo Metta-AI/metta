@@ -12,19 +12,48 @@ method: bayes
 
 parameters:
   trainer:
-    gamma:
-      distribution: logit_normal
-      min: 0.0
-      max: 1.0
-      mean: 0.99
-      scale: auto
+    ppo:
+      gamma:
+        distribution: logit_normal
+        min: 0.0
+        max: 0.999
+        mean: 0.99
+        scale: auto
 
-    gae_lambda:
-      distribution: logit_normal
-      min: 0.0
-      max: 1.0
-      mean: 0.95
-      scale: auto
+      gae_lambda:
+        distribution: logit_normal
+        min: 0.0
+        max: 0.999
+        mean: 0.95
+        scale: auto
+
+      clip_coef:
+        distribution: logit_normal
+        min: 0.0
+        max: 0.999
+        mean: 0.2
+        scale: auto
+
+      vf_coef:
+        distribution: logit_normal
+        min: 0.0
+        max: 0.999
+        mean: 0.5
+        scale: auto
+
+      vf_clip_coef:
+        distribution: logit_normal
+        min: 0.0
+        max: 0.999
+        mean: 0.2
+        scale: auto
+
+      ent_coef:
+        distribution: log_normal
+        min: 1e-5
+        max: 1e-1
+        mean: 1e-3
+        scale: auto
 
     update_epochs:
       distribution: int_uniform
@@ -33,69 +62,11 @@ parameters:
       mean: 4
       scale: auto
 
-    clip_coef:
-      distribution: logit_normal
-      min: 0.0
-      max: 1.0
-      mean: 0.2
-      scale: auto
-
-    vf_coef:
-      distribution: logit_normal
-      min: 0.0
-      max: 1.0
-      mean: 0.5
-      scale: auto
-
-    vf_clip_coef:
-      distribution: logit_normal
-      min: 0.0
-      max: 1.0
-      mean: 0.2
-      scale: auto
-
-    # max_grad_norm: ${ss:linear, 0.0, 6.0}
-
-    ent_coef:
-      distribution: log_normal
-      min: 1e-5
-      max: 1e-1
-      mean: 1e-3
-      scale: auto
-
-    batch_size:
-      distribution: uniform_pow2
-      min: 131072
-      max: 524288
-      mean: 131072
-      scale: auto
-
-    minibatch_size:
-      distribution: uniform_pow2
-      min: 1024
-      max: 131072
-      mean: 16384
-      scale: auto
-
-    forward_pass_minibatch_target_size:
-      distribution: uniform_pow2
-      min: 1024
-      max: 32768
-      mean: 4096
-      scale: auto
-
-    bptt_horizon:
-      distribution: uniform_pow2
-      min: 1
-      max: 128
-      mean: 64
-      scale: auto
-
     total_timesteps:
-      distribution: log_normal
-      min: 1e7
-      max: 1e9
-      mean: 5e8
+      distribution: int_uniform
+      min: 10000000
+      max: 1000000000
+      mean: 500000000
       scale: auto
 
     # compile: ${ss:int, 0, 1}
@@ -111,14 +82,14 @@ parameters:
       beta1:
         distribution: logit_normal
         min: 0.0
-        max: 1.0
+        max: 0.999
         mean: 0.9
         scale: auto
 
       beta2:
         distribution: logit_normal
         min: 0.0
-        max: 1.0
+        max: 0.999
         mean: 0.999
         scale: auto
 
