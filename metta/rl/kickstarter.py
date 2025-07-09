@@ -49,6 +49,7 @@ class Kickstarter:
 
         self.enabled: bool = True
         if self.teacher_cfgs is None:
+            self.teacher_lead = False
             self.enabled = False
             return
         self.teacher_lead = cfg.teacher_lead
