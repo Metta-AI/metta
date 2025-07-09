@@ -25,17 +25,16 @@ struct AgentConfig : public GridObjectConfig {
               const std::map<InventoryItem, RewardType>& resource_reward_max,
               float group_reward_pct)
       : GridObjectConfig(type_id, type_name),
-        group_name(group_name),
         group_id(group_id),
+        group_name(group_name),
         freeze_duration(freeze_duration),
         action_failure_penalty(action_failure_penalty),
         resource_limits(resource_limits),
         resource_rewards(resource_rewards),
         resource_reward_max(resource_reward_max),
         group_reward_pct(group_reward_pct) {}
-
-  std::string group_name;
   unsigned char group_id;
+  std::string group_name;
   short freeze_duration;
   float action_failure_penalty;
   std::map<InventoryItem, InventoryQuantity> resource_limits;
@@ -65,23 +64,25 @@ public:
   float* reward;
 
   Agent(GridCoord r, GridCoord c, const AgentConfig& config)
-      : freeze_duration(config.freeze_duration),
-        action_failure_penalty(config.action_failure_penalty),
-        resource_limits(config.resource_limits),
+      : group(config.group_id),
+        frozen(0),
+        freeze_duration(config.freeze_duration),
+        orientation(Orientation::Up),
+        resource_limits(config.resource_limits),  // inventory
         resource_rewards(config.resource_rewards),
         resource_reward_max(config.resource_reward_max),
-        group(config.group_id),
+        action_failure_penalty(config.action_failure_penalty),
         group_name(config.group_name),
         color(0),
+        agent_id(0),
+        // stats - default constructed
         current_resource_reward(0),
-        frozen(0),
-        orientation(Orientation::Up),
         reward(nullptr) {
     GridObject::init(config.type_id, config.type_name, GridLocation(r, c, GridLayer::Agent_Layer));
   }
 
-  void init(float* reward) {
-    this->reward = reward;
+  void init(float* reward_ptr) {
+    this->reward = reward_ptr;
   }
 
   InventoryDelta update_inventory(InventoryItem item, InventoryDelta delta) {

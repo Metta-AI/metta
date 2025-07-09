@@ -5,7 +5,6 @@
 #include <string>
 #include <vector>
 
-#include "../grid_object.hpp"
 #include "types.hpp"
 
 enum EventType {

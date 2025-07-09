@@ -150,7 +150,7 @@ TEST_F(MettaGridCppTest, AgentInventoryUpdate_Rewards) {
 // ==================== Grid Tests ====================
 
 TEST_F(MettaGridCppTest, GridCreation) {
-  Grid grid(10, 5);
+  Grid grid(5, 10);  // row/height, col/width
 
   EXPECT_EQ(grid.width, 10);
   EXPECT_EQ(grid.height, 5);
