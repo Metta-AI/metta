@@ -82,29 +82,35 @@ protected:
     const std::string& target_type = target->type_name;
     bool same_team = (actor_group == target_group);
 
-    actor->stats.incr("action." + action + "." + target_type);
-    actor->stats.incr("action." + action + "." + target_type + "." + actor_group);
-    actor->stats.incr("action." + action + "." + target_type + "." + actor_group + "." + target_group);
+    std::string base = "action." + action + "." + target_type;
+    actor->stats.incr(base);
+    actor->stats.incr(base + "." + actor_group);
+    actor->stats.incr(base + "." + actor_group + "." + target_group);
     actor->stats.incr(same_team ? "attack.own_team." + actor_group : "attack.other_team." + actor_group);
 
-    // === Defense check ===
-    bool blocked = !_defense_resources.empty();
-    for (const auto& [item, amount] : _defense_resources) {
-      if (target->inventory[item] < amount) {
-        blocked = false;
-        break;
-      }
-    }
+    if (!_defense_resources.empty()) {
+      // it is possible to block this attack if the target has the right inventory
+      bool target_can_defend = true;
 
-    if (blocked) {
       for (const auto& [item, amount] : _defense_resources) {
-        InventoryDelta used = std::abs(target->update_inventory(item, -static_cast<InventoryDelta>(amount)));
-        assert(used == static_cast<InventoryDelta>(amount));
+        auto it = target->inventory.find(item);
+        if (it == target->inventory.end() || it->second < amount) {
+          target_can_defend = false;  // insufficient resources
+          break;
+        }
       }
 
-      actor->stats.incr("attack.blocked." + target_group);
-      actor->stats.incr("attack.blocked." + target_group + "." + actor_group);
-      return true;
+      if (target_can_defend) {
+        // consume the required defense resources
+        for (const auto& [item, amount] : _defense_resources) {
+          InventoryDelta used = std::abs(target->update_inventory(item, -static_cast<InventoryDelta>(amount)));
+          assert(used == static_cast<InventoryDelta>(amount));
+        }
+
+        actor->stats.incr("attack.blocked." + target_group);
+        actor->stats.incr("attack.blocked." + target_group + "." + actor_group);
+        return true;
+      }
     }
 
     // === Attack succeeds ===
@@ -122,9 +128,13 @@ protected:
                                    : "attack.loss.from_other_team." + target_group);
 
       // === Resource stealing ===
-      for (const auto& [item, amount] : target->inventory) {
+      std::vector<std::pair<InventoryItem, InventoryQuantity>> snapshot;
+      for (const auto& [item, amount] : target->inventory) snapshot.emplace_back(item, amount);
+
+      for (const auto& [item, amount] : snapshot) {
         InventoryDelta stolen = actor->update_inventory(item, static_cast<InventoryDelta>(amount));
         target->update_inventory(item, -stolen);
+
         if (stolen > 0) {
           actor->stats.add(actor->stats.inventory_item_name(item) + ".stolen." + actor_group, stolen);
           target->stats.add(target->stats.inventory_item_name(item) + ".stolen_from." + target_group, stolen);
