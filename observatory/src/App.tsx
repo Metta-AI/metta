@@ -7,6 +7,7 @@ import { SavedDashboards } from './SavedDashboards'
 import { SQLQuery } from './SQLQuery'
 import { TrainingRuns } from './TrainingRuns'
 import { TrainingRunDetail } from './TrainingRunDetail'
+import { Library } from './Library'
 import { config } from './config'
 
 // CSS for navigation
@@ -210,6 +211,9 @@ function App() {
               <Link to="/sql-query" className={`nav-tab ${location.pathname === '/sql-query' ? 'active' : ''}`}>
                 SQL Query
               </Link>
+              <Link to="/library" className={`nav-tab ${location.pathname === '/library' ? 'active' : ''}`}>
+                Library
+              </Link>
             </div>
           </div>
         </nav>
@@ -222,6 +226,7 @@ function App() {
             <Route path="/saved" element={<SavedDashboards repo={state.repo} currentUser={state.currentUser} />} />
             <Route path="/tokens" element={<TokenManager repo={state.repo} />} />
             <Route path="/sql-query" element={<SQLQuery repo={state.repo} />} />
+            <Route path="/library" element={<Library repo={state.repo} />} />
             <Route path="/" element={<Dashboard repo={state.repo} />} />
           </Routes>
         </div>
