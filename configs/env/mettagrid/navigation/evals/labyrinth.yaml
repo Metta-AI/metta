@@ -6,9 +6,51 @@ game:
   max_steps: 250
 
   map_builder:
-    _target_: metta.mettagrid.room.cognitive_evals.labyrinth.LabyrinthMaze
-    width: 35
-    height: 35
-    corridor_width: 3
-    onlyhearts: true
-    border_width: 1
+    _target_: metta.map.mapgen.MapGen
+    width: 31
+    height: 31
+    border_width: 2
+
+    root:
+      type: metta.map.scenes.maze.Maze
+      params:
+        algorithm: dfs
+        room_size: 3
+        wall_size: 1
+
+      children:
+        # agent in the top-left corner
+        - where:
+            tags:
+              - top-left
+          scene:
+            type: metta.map.scenes.inline_ascii.InlineAscii
+            params:
+              data: '@'
+              # room center (for 3x3 rooms)
+              row: 1
+              column: 1
+
+        # three altars in the center
+        - where: full
+          scene:
+            type: metta.map.scenes.layout.Layout
+            params:
+              areas:
+                - width: 7
+                  height: 5
+                  tag: reward
+                  placement: center
+            children:
+              - where:
+                  tags:
+                    - reward
+                scene:
+                  type: metta.map.scenes.inline_ascii.InlineAscii
+                  params:
+                    data: |
+                      .......
+                      .......
+                      ..___..
+                      .......
+                      .......

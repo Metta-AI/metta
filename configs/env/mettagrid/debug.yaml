@@ -34,6 +34,6 @@ game:
       enabled: false
 
   map_builder:
-    _target_: metta.mettagrid.room.ascii.Ascii
+    _target_: metta.map.mapgen_ascii.MapGenAscii
     uri: ${oc.env:DEBUG_MAP_URI,"configs/env/mettagrid/maps/debug/tiny_two_altars.map"}
     border_width: 0

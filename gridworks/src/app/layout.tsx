@@ -11,7 +11,7 @@ import { getRepoRoot } from "@/lib/api";
 import { TopMenuLink } from "./TopMenuLink";
 
 export const metadata: Metadata = {
-  title: "Softmax Studio",
+  title: "Gridworks",
 };
 
 const GlobalProviders: FC<PropsWithChildren> = async ({ children }) => {
@@ -29,7 +29,7 @@ const TopMenu: FC = () => {
   return (
     <div className="flex items-center gap-6 border-b border-gray-200 bg-gray-50 px-8 py-2">
       <Link href="/" className="font-bold">
-        Softmax Studio
+        Gridworks
       </Link>
       <TopMenuLink href="/mettagrid-cfgs">MettaGrid Configs</TopMenuLink>
       <TopMenuLink href="/map-editor">Map Editor</TopMenuLink>

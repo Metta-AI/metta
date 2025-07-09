@@ -10,5 +10,7 @@ game:
     rewards:
       heart: 1
   map_builder:
-    objects:
-      temple: 1
+    root:
+      params:
+        objects:
+          temple: 1

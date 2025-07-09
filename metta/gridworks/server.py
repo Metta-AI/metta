@@ -18,7 +18,7 @@ from metta.map.utils.storable_map import StorableMap, StorableMapDict
 from metta.map.utils.storable_map_index import StorableMapIndex
 from metta.mettagrid.util.file import read
 
-logger = logging.getLogger("metta.studio.server")
+logger = logging.getLogger("metta.gridworks.server")
 
 
 class ErrorResult(TypedDict):
@@ -131,7 +131,7 @@ def make_app():
 
 def main() -> None:
     uvicorn.run(
-        "metta.studio.server:make_app",
+        "metta.gridworks.server:make_app",
         port=8001,
         factory=True,
         reload=True,

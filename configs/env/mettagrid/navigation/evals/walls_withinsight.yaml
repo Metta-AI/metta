@@ -5,12 +5,15 @@ defaults:
 game:
   max_steps: 75
   map_builder:
-    _target_: metta.mettagrid.room.mean_distance.MeanDistance
+    _target_: metta.map.mapgen.MapGen
     width: 12
     height: 12
-    mean_distance: 10
     border_width: 3
-    agents: 1
-    objects:
-      altar: 3
-      wall: 4
+
+    root:
+      type: metta.map.scenes.mean_distance.MeanDistance
+      params:
+        mean_distance: 10
+        objects:
+          altar: 3
+          wall: 4

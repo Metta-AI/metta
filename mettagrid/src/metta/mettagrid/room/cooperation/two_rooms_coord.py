@@ -197,7 +197,7 @@ class TwoRoomsCoord(Room):
         for i in range(min(self._num_shared_generators, len(shared_wall_coords_abs))):
             r_s, c_s = shared_wall_coords_abs[i]
             if 0 <= r_s < self._height and 0 <= c_s < self._width:  # Should always be true by construction
-                grid[r_s, c_s] = "generator"
+                grid[r_s, c_s] = "generator_red"
                 num_gen_placed += 1
         if num_gen_placed < self._num_shared_generators:
             print(f"Warning: Could only place {num_gen_placed}/{self._num_shared_generators} shared generators.")
@@ -219,12 +219,12 @@ class TwoRoomsCoord(Room):
         if r1_designation == "altar_room":
             self._place_objects_in_cells(grid, "altar", self._num_altars, r1_eligible_for_items)
         else:  # r1 is mine_room
-            self._place_objects_in_cells(grid, "mine", self._num_mines, r1_eligible_for_items)
+            self._place_objects_in_cells(grid, "mine_red", self._num_mines, r1_eligible_for_items)
 
         if r2_designation == "altar_room":
             self._place_objects_in_cells(grid, "altar", self._num_altars, r2_eligible_for_items)
         else:  # r2 is mine_room
-            self._place_objects_in_cells(grid, "mine", self._num_mines, r2_eligible_for_items)
+            self._place_objects_in_cells(grid, "mine_red", self._num_mines, r2_eligible_for_items)
 
         # Prepare agent symbols list
         agent_symbols_list: List[str] = []
