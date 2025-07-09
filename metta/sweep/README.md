@@ -16,11 +16,11 @@ The sweep system enables automated hyperparameter optimization for training runs
 ┌─────────────────┐    ┌─────────────────┐    ┌───────────────────┐
 │   sweep_init    │───▶│     train.py    │───▶│   sweep_eval      │
 │                 │    │                 │    │                   │
-│ • Creates sweep │    │ • Trains model  │    │ • Evaluates       │
-│ • Gets run_id   │    │ • Saves policy  │    │ • Records obs     │
-│ • Generate sugg │    │ • Load overrides │    │ • Checkpoints     │
-│ • Apply sugg    │    │                 │    │ • Updates Protein/WandB │
-│ • Fetch Protein │    │                 │    │                   │
+│ • Create sweep  │    │ • Load overrides│    │ • Evaluate        │
+│ • Get run_id    │    │ • Train model   │    │ • Record obs      │
+│ • Fetch obs     │    │ • Save policy   │    │ • Update Protein/WB│
+│ • Gen sugg      │    │ • Checkpoints   │    │                   │
+│ • Apply sugg    │    │                 │    │                   │
 │   observations  │    │                 │    │                   │
 └─────────────────┘    └─────────────────┘    └───────────────────┘
 ```
