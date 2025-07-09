@@ -122,6 +122,7 @@ if USE_WANDB and is_master:
 # Adjust batch sizes for distributed training
 if torch.distributed.is_initialized() and trainer_config.scale_batches_by_world_size:
     trainer_config.batch_size = trainer_config.batch_size // world_size
+    trainer_config.forward_pass_minibatch_target_size = trainer_config.forward_pass_minibatch_target_size // world_size
 
 # Save config
 save_experiment_config(dirs, device, trainer_config)

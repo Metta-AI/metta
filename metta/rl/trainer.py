@@ -496,6 +496,18 @@ def create_training_components(
 
     logger.info(f"run_dir = {cfg.run_dir}")
 
+    # Apply batch size scaling BEFORE creating trainer config
+    # This matches the behavior in tools/train.py
+    if torch.distributed.is_initialized() and cfg.trainer.get("scale_batches_by_world_size", False):
+        world_size = torch.distributed.get_world_size()
+        # Make a mutable copy of the config to modify
+        from omegaconf import OmegaConf
+
+        OmegaConf.set_struct(cfg, False)
+        cfg.trainer.forward_pass_minibatch_target_size = cfg.trainer.forward_pass_minibatch_target_size // world_size
+        cfg.trainer.batch_size = cfg.trainer.batch_size // world_size
+        OmegaConf.set_struct(cfg, True)
+
     trainer_cfg = create_trainer_config(cfg)
 
     # Set up distributed
@@ -593,9 +605,7 @@ def create_training_components(
     hidden_size, num_lstm_layers = get_lstm_config(policy)
     experience = Experience(
         total_agents=vecenv.num_agents,
-        batch_size=trainer_cfg.batch_size
-        if not trainer_cfg.scale_batches_by_world_size
-        else trainer_cfg.batch_size // world_size,
+        batch_size=trainer_cfg.batch_size,  # Already scaled if needed
         bptt_horizon=trainer_cfg.bptt_horizon,
         minibatch_size=trainer_cfg.minibatch_size,
         max_minibatch_size=trainer_cfg.minibatch_size,
