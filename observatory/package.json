@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "@types/react-router-dom": "^5.3.3",
+    "mathjax": "^3.2.2",
     "plotly.js": "^2.29.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
