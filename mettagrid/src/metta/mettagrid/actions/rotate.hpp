@@ -17,6 +17,7 @@ public:
 
 protected:
   bool _handle_action(Agent* agent, ActionArg arg) override {
+    // Orientation: Up = 0, Down = 1, Left = 2, Right = 3
     Orientation orientation = static_cast<Orientation>(arg);
     agent->orientation = orientation;
     return true;

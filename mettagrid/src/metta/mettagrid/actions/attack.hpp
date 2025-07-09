@@ -58,8 +58,9 @@ protected:
         {3, 1},   // arg 9: 3 forward, 1 right
     };
 
-    auto [distance, offset] = ATTACK_POSITIONS[arg - 1];
-    GridLocation target_loc = _grid->relative_location(actor->location, actor->orientation, distance, offset);
+    auto [forward_distance, lateral_offset] = ATTACK_POSITIONS[arg - 1];
+    GridLocation target_loc =
+        _grid->relative_location(actor->location, actor->orientation, forward_distance, lateral_offset);
 
     return _handle_target(actor, target_loc);
   }
