@@ -147,12 +147,112 @@ jobs:
       - name: Run cpplint
         run: ./mettagrid/tests/cpplint.sh
 
-  test:
-    name: "Tests"
+  fast-tests:
+    name: "Fast Tests 🏃"
     needs: [graphite-ci-optimizer, setup-checks]
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
       (needs.setup-checks.outputs.run_test == 'true')
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup uv
+        uses: ./.github/actions/setup-uv
+        with:
+          install-mode: "no-mettagrid"
+
+      - name: Install metta-mettagrid package (no build)
+        run: |
+          # Skip C++ build for fast tests
+          uv pip install --no-build-isolation --no-deps -e ./mettagrid
+
+      - name: Run fast unit tests
+        id: fast_tests
+        run: |
+          echo "::group::Running fast unit tests"
+          pytest -n ${{ env.PYTEST_WORKERS }} -m "not slow" --benchmark-skip --maxfail=5 --tb=short --junit-xml=fast-test-results.xml --json-report --json-report-file=fast-test-report.json || echo "fast_tests_failed=true" >> $GITHUB_OUTPUT
+          echo "::endgroup::"
+
+      - name: Run fast subpackage tests
+        id: fast_subpackage_tests
+        env:
+          SUBPACKAGES: "app_backend agent common"
+        run: |
+          for package in $SUBPACKAGES; do
+            echo "::group::Running fast tests for $package"
+            (cd "$package" && pytest -n ${{ env.PYTEST_WORKERS }} -m "not slow" --benchmark-skip --maxfail=5 --tb=short --junit-xml=../fast-$package-test-results.xml --json-report --json-report-file=../fast-$package-test-report.json) || echo "fast_subpackage_tests_failed=true" >> $GITHUB_OUTPUT
+            echo "::endgroup::"
+          done
+
+      - name: Upload fast test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fast-test-results
+          path: |
+            fast-test-results.xml
+            fast-test-report.json
+            fast-*-test-results.xml
+            fast-*-test-report.json
+          retention-days: 3
+
+      - name: Comment on PR for fast test failures
+        if: |
+          github.event_name == 'pull_request' &&
+          (steps.fast_tests.outputs.fast_tests_failed == 'true' ||
+           steps.fast_subpackage_tests.outputs.fast_subpackage_tests_failed == 'true')
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            let comment = '## ❌ Fast Tests Failed\n\n';
+            comment += 'The fast test suite failed. These are quick unit tests that should pass before running the full test suite.\n\n';
+
+            // Parse test results if available
+            try {
+              const reportFiles = fs.readdirSync('.').filter(f => f.startsWith('fast-') && f.endsWith('-report.json'));
+              for (const file of reportFiles) {
+                const report = JSON.parse(fs.readFileSync(file, 'utf8'));
+                if (report.tests && report.tests.some(t => t.outcome === 'failed')) {
+                  comment += `### ${file.replace('fast-', '').replace('-test-report.json', '')}\n`;
+                  const failedTests = report.tests.filter(t => t.outcome === 'failed');
+                  comment += `Failed tests:\n`;
+                  failedTests.forEach(test => {
+                    comment += `- \`${test.nodeid}\`\n`;
+                  });
+                  comment += '\n';
+                }
+              }
+            } catch (e) {
+              comment += '*Test report parsing failed*\n';
+            }
+
+            comment += '\n**Fix these failures before the slow tests can run.**';
+
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+
+      - name: Fail job if tests failed
+        if: |
+          steps.fast_tests.outputs.fast_tests_failed == 'true' ||
+          steps.fast_subpackage_tests.outputs.fast_subpackage_tests_failed == 'true'
+        run: exit 1
+
+  slow-tests:
+    name: "Slow Tests 🐢"
+    needs: [graphite-ci-optimizer, setup-checks, fast-tests]
+    if: |
+      (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
+      (needs.setup-checks.outputs.run_test == 'true') &&
+      (needs.fast-tests.result == 'success')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -194,17 +294,20 @@ jobs:
         run: |
           uv pip install --no-build-isolation --no-deps -e ./mettagrid
 
-      - name: Run Pytest on core tests
+      - name: Run slow integration tests
         run: |
-          pytest -n ${{ env.PYTEST_WORKERS }} --benchmark-skip --maxfail=1 --disable-warnings -q
+          echo "::group::Running slow integration tests"
+          pytest -n ${{ env.PYTEST_WORKERS }} -m slow --benchmark-skip --maxfail=1 --disable-warnings --junit-xml=slow-test-results.xml --json-report --json-report-file=slow-test-report.json
+          echo "::endgroup::"
 
-      - name: Run Pytest on subpackage tests
+      - name: Run slow subpackage tests
         env:
           SUBPACKAGES: "app_backend agent mettagrid common"
         run: |
           for package in $SUBPACKAGES; do
-            echo "Running tests for $package..."
-            (cd "$package" && pytest -n ${{ env.PYTEST_WORKERS }} --benchmark-skip --maxfail=1 --disable-warnings -q) || exit 1
+            echo "::group::Running slow tests for $package"
+            (cd "$package" && pytest -n ${{ env.PYTEST_WORKERS }} -m slow --benchmark-skip --maxfail=1 --disable-warnings --junit-xml=../slow-$package-test-results.xml --json-report --json-report-file=../slow-$package-test-report.json) || exit 1
+            echo "::endgroup::"
           done
 
       - name: Run MettaGrid C++ tests
@@ -212,6 +315,18 @@ jobs:
         run: |
           cd mettagrid
           ctest --test-dir build-debug -L test
+
+      - name: Upload slow test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: slow-test-results
+          path: |
+            slow-test-results.xml
+            slow-test-report.json
+            slow-*-test-results.xml
+            slow-*-test-report.json
+          retention-days: 3
 
   smoke-test:
     name: "Smoke Tests"
