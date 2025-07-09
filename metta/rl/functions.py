@@ -959,7 +959,13 @@ def validate_policy_environment_match(policy: Any, env: Any) -> None:
             if hasattr(component, "_obs_shape"):
                 found_match = True
                 component_shape = component._obs_shape
-                if component_shape != environment_shape:
+                # Convert both shapes to tuples for comparison
+                component_shape_tuple = tuple(component_shape) if isinstance(component_shape, list) else component_shape
+                environment_shape_tuple = (
+                    tuple(environment_shape) if isinstance(environment_shape, list) else environment_shape
+                )
+
+                if component_shape_tuple != environment_shape_tuple:
                     raise ValueError(
                         f"Component '{component_name}' observation shape {component_shape} "
                         f"does not match environment shape {environment_shape}"
