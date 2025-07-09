@@ -28,7 +28,6 @@ This gives us the best of all worlds:
 
 ```
 Softmax/
-├── pyproject.toml              # Workspace configuration
 ├── cogworks/                   # RL training framework
 ├── mettagrid/                  # C++/Python environment
 ├── common/                     # Shared utilities
@@ -39,7 +38,8 @@ Softmax/
 ├── configs/                    # Hydra configurations
 ├── scenes/                     # Map/scene definitions
 ├── docs/                       # Documentation
-└── devops/                     # Infrastructure
+├── devops/                     # Infrastructure
+└── pyproject.toml              # Workspace configuration
 ```
 
 ## Detailed New Structure
@@ -48,28 +48,21 @@ Based on the current repository, here's the accurate mapping to the new flattene
 
 ```
 Softmax/
-├── pyproject.toml              # Workspace configuration (new)
-├── uv.lock                     # Unified lock file
-│
 ├── cogworks/                   # RL training framework (from metta/ + agent/)
-│   ├── pyproject.toml          # name = "metta-cogworks" (new)
-│   ├── Makefile                # Build commands
-│   ├── README.md               # Package documentation
-│   ├── __init__.py
-│   ├── api.py                  # Main APIs (from metta/api.py)
 │   ├── agent/                  # Agent/policy code (from agent/src/metta/agent/)
+│   │   ├── lib/                # Agent modules
+│   │   ├── external/
+│   │   ├── mocks/
+│   │   ├── util/
 │   │   ├── __init__.py
 │   │   ├── metta_agent.py
 │   │   ├── policy_store.py
 │   │   ├── policy_cache.py
 │   │   ├── policy_record.py
 │   │   ├── policy_metadata.py
-│   │   ├── policy_state.py
-│   │   ├── lib/                # Agent modules
-│   │   ├── external/
-│   │   ├── mocks/
-│   │   └── util/
+│   │   └── policy_state.py
 │   ├── rl/                     # RL algorithms (from metta/rl/)
+│   │   ├── fast_gae/
 │   │   ├── __init__.py
 │   │   ├── trainer.py
 │   │   ├── trainer_config.py
@@ -83,8 +76,7 @@ Softmax/
 │   │   ├── torch_profiler.py
 │   │   ├── vecenv.py
 │   │   ├── fast_gae.cpp
-│   │   ├── fast_gae.pyi
-│   │   └── fast_gae/
+│   │   └── fast_gae.pyi
 │   ├── eval/                   # Evaluation tools (from metta/eval/)
 │   │   ├── __init__.py
 │   │   ├── analysis.py
@@ -105,6 +97,9 @@ Softmax/
 │   │   ├── simulation_suite.py
 │   │   └── map_preview.py
 │   ├── mapgen/                 # Map generation (from metta/map/)
+│   │   ├── random/
+│   │   ├── scenes/
+│   │   ├── utils/
 │   │   ├── __init__.py
 │   │   ├── mapgen.py
 │   │   ├── scene.py
@@ -112,23 +107,32 @@ Softmax/
 │   │   ├── load.py
 │   │   ├── load_random.py
 │   │   ├── load_random_from_index.py
-│   │   ├── config.py
-│   │   ├── random/
-│   │   ├── scenes/
-│   │   └── utils/
+│   │   └── config.py
 │   ├── setup/                  # Setup tools (from metta/setup/)
-│   │   ├── __init__.py
 │   │   ├── components/
 │   │   ├── installer/
+│   │   ├── __init__.py
 │   │   ├── metta_cli.py
 │   │   ├── config.py
 │   │   └── README.md
 │   ├── studio/                 # Studio integration (from metta/studio/)
 │   │   └── server.py
 │   ├── recipes/                # Example scripts (from root recipes/)
-│   └── tests/                  # All RL/agent tests
+│   ├── tests/                  # All RL/agent tests
+│   ├── pyproject.toml          # name = "metta-cogworks" (new)
+│   ├── Makefile                # Build commands
+│   ├── README.md               # Package documentation
+│   ├── __init__.py
+│   └── api.py                  # Main APIs (from metta/api.py)
 │
 ├── mettagrid/                  # C++/Python environment (mostly unchanged)
+│   ├── src/                    # Python and C++ source
+│   │   └── metta/
+│   │       └── mettagrid/      # Will be flattened to mettagrid/
+│   ├── configs/                # Environment configs
+│   ├── tests/
+│   ├── benchmarks/
+│   ├── scripts/
 │   ├── pyproject.toml          # name = "metta-mettagrid"
 │   ├── CMakeLists.txt
 │   ├── CMakePresets.json
@@ -140,30 +144,32 @@ Softmax/
 │   ├── tests.cmake
 │   ├── CPPLINT.cfg
 │   ├── .gitignore
-│   ├── .clang-format
-│   ├── src/                    # Python and C++ source
-│   │   └── metta/
-│   │       └── mettagrid/      # Will be flattened to mettagrid/
-│   ├── configs/                # Environment configs
-│   ├── tests/
-│   ├── benchmarks/
-│   └── scripts/
+│   └── .clang-format
 │
 ├── common/                     # Shared utilities (from common/)
-│   ├── pyproject.toml          # name = "metta-common"
-│   ├── Makefile
-│   ├── README.md
 │   ├── src/                    # Will be reorganized
 │   │   └── metta/
 │   │       └── common/         # Will become mettacommon/
-│   │           ├── __init__.py
-│   │           ├── py.typed
 │   │           ├── util/
 │   │           ├── profiling/
-│   │           └── wandb/
-│   └── tests/
+│   │           ├── wandb/
+│   │           ├── __init__.py
+│   │           └── py.typed
+│   ├── tests/
+│   ├── pyproject.toml          # name = "metta-common"
+│   ├── Makefile
+│   └── README.md
 │
 ├── gridworks/                  # Map editor and studio (from studio/)
+│   ├── src/                    # TypeScript/React frontend
+│   │   ├── app/
+│   │   ├── components/
+│   │   ├── hooks/
+│   │   ├── icons/
+│   │   ├── lib/
+│   │   └── server/
+│   ├── public/
+│   ├── tests/                  # (new)
 │   ├── pyproject.toml          # name = "metta-gridworks" (new for Python parts)
 │   ├── package.json
 │   ├── pnpm-lock.yaml
@@ -176,18 +182,14 @@ Softmax/
 │   ├── README.md
 │   ├── .eslintrc.json
 │   ├── .gitignore
-│   ├── start.py                # Python server
-│   ├── src/                    # TypeScript/React frontend
-│   │   ├── app/
-│   │   ├── components/
-│   │   ├── hooks/
-│   │   ├── icons/
-│   │   ├── lib/
-│   │   └── server/
-│   ├── public/
-│   └── tests/                  # (new)
+│   └── start.py                # Python server
 │
 ├── observatory/                # Production monitoring (unchanged)
+│   ├── src/                    # React frontend
+│   ├── api/                    # Backend API (from app_backend, new)
+│   │   ├── __init__.py
+│   │   ├── endpoints.py
+│   │   └── models.py
 │   ├── pyproject.toml          # name = "metta-observatory" (new for Python API)
 │   ├── package.json
 │   ├── package-lock.json
@@ -198,14 +200,20 @@ Softmax/
 │   ├── nginx.conf
 │   ├── index.html
 │   ├── README.md
-│   ├── Dockerfile
-│   ├── src/                    # React frontend
-│   └── api/                    # Backend API (from app_backend, new)
-│       ├── __init__.py
-│       ├── endpoints.py
-│       └── models.py
+│   └── Dockerfile
 │
 ├── mettascope/                 # Replay viewer (unchanged)
+│   ├── src/                    # TypeScript source
+│   ├── data/                   # Assets
+│   │   ├── atlas/
+│   │   ├── fonts/
+│   │   ├── ui/
+│   │   └── view/
+│   ├── tools/
+│   │   ├── gen_atlas.py
+│   │   └── gen_html.py
+│   ├── docs/
+│   ├── tests/
 │   ├── package.json            # JavaScript package
 │   ├── package-lock.json
 │   ├── tsconfig.json
@@ -217,20 +225,13 @@ Softmax/
 │   ├── README.md
 │   ├── __init__.py
 │   ├── server.py               # Python replay server
-│   ├── replays.py              # Replay handling
-│   ├── src/                    # TypeScript source
-│   ├── data/                   # Assets
-│   │   ├── atlas/
-│   │   ├── fonts/
-│   │   ├── ui/
-│   │   └── view/
-│   ├── tools/
-│   │   ├── gen_atlas.py
-│   │   └── gen_html.py
-│   ├── docs/
-│   └── tests/
+│   └── replays.py              # Replay handling
 │
 ├── tools/                      # Standalone entry scripts
+│   ├── map/
+│   │   ├── gen.py
+│   │   ├── gen_scene.py
+│   │   └── normalize_ascii_map.py
 │   ├── train.py
 │   ├── sweep_init.py
 │   ├── sweep_eval.py
@@ -245,11 +246,7 @@ Softmax/
 │   ├── stats_duckdb_cli.py
 │   ├── upload_map_imgs.py
 │   ├── autotune.py
-│   ├── dump_src.py
-│   └── map/
-│       ├── gen.py
-│       ├── gen_scene.py
-│       └── normalize_ascii_map.py
+│   └── dump_src.py
 │
 ├── configs/                    # Hydra configurations
 │   ├── agent/
@@ -276,11 +273,11 @@ Softmax/
 │   └── *.sh
 │
 ├── docs/                       # Documentation
-│   ├── api.md
-│   ├── mapgen.md
 │   ├── wandb/
 │   │   └── metrics/
-│   └── workflows/
+│   ├── workflows/
+│   ├── api.md
+│   └── mapgen.md
 │
 ├── devops/                     # Infrastructure and tooling
 │   ├── aws/
@@ -298,8 +295,10 @@ Softmax/
 ├── wandb_carbs/                # WandB/CARBS integration (TBD)
 ├── checkpoints/                # Model checkpoints (gitignored)
 ├── wandb/                      # WandB runs (gitignored)
-└── .github/                    # GitHub workflows
-    └── workflows/
+├── .github/                    # GitHub workflows
+│   └── workflows/
+├── pyproject.toml              # Workspace configuration (new)
+└── uv.lock                     # Unified lock file
 ```
 
 ### Notes on Python Package Organization:
