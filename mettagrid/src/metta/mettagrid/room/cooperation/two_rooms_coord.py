@@ -27,7 +27,7 @@ class TwoRoomsCoord(Room):
         num_shared_generators: int,
         num_altars: int,
         num_mines: int,
-        agents: Union[int, DictConfig] = 2,
+        agents: Union[int, dict, DictConfig] = 2,
         # "horizontal", "vertical", or None for random
         arrangement: Optional[str] = None,
         border_width: int = 0,
@@ -51,7 +51,7 @@ class TwoRoomsCoord(Room):
             if agents < 0:
                 raise ValueError("Number of agents cannot be negative.")
             self._num_total_agents = agents
-        elif isinstance(agents, DictConfig):
+        elif isinstance(agents, (dict, DictConfig)):
             current_total_agents = 0
             for agent_name, count_val in agents.items():
                 if not isinstance(count_val, int) or count_val < 0:
@@ -61,7 +61,7 @@ class TwoRoomsCoord(Room):
                 current_total_agents += count_val
             self._num_total_agents = current_total_agents
         else:
-            raise TypeError(f"Agents parameter must be an int or a DictConfig, got {type(agents)}")
+            raise TypeError(f"Agents parameter must be an int, dict, or DictConfig, got {type(agents)}")
 
         if arrangement not in [None, "horizontal", "vertical"]:
             raise ValueError("Arrangement must be 'horizontal', 'vertical', or None for random.")
@@ -197,7 +197,7 @@ class TwoRoomsCoord(Room):
         for i in range(min(self._num_shared_generators, len(shared_wall_coords_abs))):
             r_s, c_s = shared_wall_coords_abs[i]
             if 0 <= r_s < self._height and 0 <= c_s < self._width:  # Should always be true by construction
-                grid[r_s, c_s] = "generator"
+                grid[r_s, c_s] = "generator_red"
                 num_gen_placed += 1
         if num_gen_placed < self._num_shared_generators:
             print(f"Warning: Could only place {num_gen_placed}/{self._num_shared_generators} shared generators.")
@@ -219,18 +219,18 @@ class TwoRoomsCoord(Room):
         if r1_designation == "altar_room":
             self._place_objects_in_cells(grid, "altar", self._num_altars, r1_eligible_for_items)
         else:  # r1 is mine_room
-            self._place_objects_in_cells(grid, "mine", self._num_mines, r1_eligible_for_items)
+            self._place_objects_in_cells(grid, "mine_red", self._num_mines, r1_eligible_for_items)
 
         if r2_designation == "altar_room":
             self._place_objects_in_cells(grid, "altar", self._num_altars, r2_eligible_for_items)
         else:  # r2 is mine_room
-            self._place_objects_in_cells(grid, "mine", self._num_mines, r2_eligible_for_items)
+            self._place_objects_in_cells(grid, "mine_red", self._num_mines, r2_eligible_for_items)
 
         # Prepare agent symbols list
         agent_symbols_list: List[str] = []
         if isinstance(self._agents_input, int):
             agent_symbols_list = ["agent.agent"] * self._num_total_agents
-        elif isinstance(self._agents_input, DictConfig):
+        elif isinstance(self._agents_input, (dict, DictConfig)):
             temp_list = []
             for agent_name, count_val in self._agents_input.items():
                 # Validation for count_val (must be int >= 0) already done in __init__
