@@ -236,7 +236,7 @@ export class ContextWebgl {
   // WebGL rendering state
   private shaderProgram: WebGLProgram | null = null
   private atlasTexture: WebGLTexture | null = null
-  private textureSize: { width: number; height: number } = { width: 0, height: 0 }
+  private textureSize: Vec2f = new Vec2f(0, 0)
   private atlasMargin: number = 4
 
   // Shader locations
@@ -393,7 +393,7 @@ export class ContextWebgl {
       return false
     }
     this.atlasData = atlasData
-    this.textureSize = { width: source.width, height: source.height }
+    this.textureSize = new Vec2f(source.width, source.height)
 
     // Create and compile shaders
     const vertexShader = this.createShader(this.gl.VERTEX_SHADER, this.getVertexShaderSource())
@@ -621,10 +621,10 @@ export class ContextWebgl {
     const m = this.atlasMargin
 
     // Calculate UV coordinates (normalized 0.0 to 1.0).
-    const u0 = (sx - m) / this.textureSize.width
-    const v0 = (sy - m) / this.textureSize.height
-    const u1 = (sx + sw + m) / this.textureSize.width
-    const v1 = (sy + sh + m) / this.textureSize.height
+    const u0 = (sx - m) / this.textureSize.x()
+    const v0 = (sy - m) / this.textureSize.y()
+    const u1 = (sx + sw + m) / this.textureSize.x()
+    const v1 = (sy + sh + m) / this.textureSize.y()
 
     // Draw the rectangle with the image's texture coordinates.
     this.drawRect(
@@ -657,10 +657,10 @@ export class ContextWebgl {
     const m = this.atlasMargin
 
     // Calculate UV coordinates (normalized 0.0 to 1.0).
-    const u0 = (sx - m) / this.textureSize.width
-    const v0 = (sy - m) / this.textureSize.height
-    const u1 = (sx + sw + m) / this.textureSize.width
-    const v1 = (sy + sh + m) / this.textureSize.height
+    const u0 = (sx - m) / this.textureSize.x()
+    const v0 = (sy - m) / this.textureSize.y()
+    const u1 = (sx + sw + m) / this.textureSize.x()
+    const v1 = (sy + sh + m) / this.textureSize.y()
 
     if (scale != 1 || rotation != 0) {
       this.save()
@@ -710,8 +710,8 @@ export class ContextWebgl {
 
     // Get the middle of the white texture.
     const [sx, sy, sw, sh] = this.atlasData[imageName]
-    const uvx = (sx + sw / 2) / this.textureSize.width
-    const uvy = (sy + sh / 2) / this.textureSize.height
+    const uvx = (sx + sw / 2) / this.textureSize.x()
+    const uvy = (sy + sh / 2) / this.textureSize.y()
     this.drawRect(x, y, width, height, uvx, uvy, uvx, uvy, color)
   }
 
