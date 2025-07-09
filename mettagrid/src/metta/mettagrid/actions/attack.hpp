@@ -102,7 +102,7 @@ protected:
         for (const auto& [item, amount] : _defense_resources) {
           InventoryDelta used_amount =
               std::abs(agent_target->update_inventory(item, -static_cast<InventoryDelta>(amount)));
-          assert(used_amount == amount);
+          assert(used_amount == static_cast<InventoryDelta>(amount));
         }
 
         actor->stats.incr("attack.blocked." + agent_target->group_name);

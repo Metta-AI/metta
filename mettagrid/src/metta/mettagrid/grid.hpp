@@ -124,19 +124,19 @@ public:
     int new_c;
 
     switch (facing) {
-      case Up:
+      case Orientation::Up:
         new_r = r - forward_distance;  // Positive dist = go up (decrease row)
         new_c = c + lateral_offset;    // Positive offset = go right (increase col)
         break;
-      case Down:
+      case Orientation::Down:
         new_r = r + forward_distance;  // Positive dist = go down (increase row)
         new_c = c - lateral_offset;    // Positive offset = go left (decrease col)
         break;
-      case Left:
+      case Orientation::Left:
         new_c = c - forward_distance;  // Positive dist = go left (decrease col)
         new_r = r - lateral_offset;    // Positive offset = go up (decrease row)
         break;
-      case Right:
+      case Orientation::Right:
         new_c = c + forward_distance;  // Positive dist = go right (increase col)
         new_r = r + lateral_offset;    // Positive offset = go down (increase row)
         break;
