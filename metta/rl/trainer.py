@@ -15,17 +15,22 @@ from metta.mettagrid.curriculum.util import curriculum_from_config_path
 from metta.rl.functions import (
     accumulate_rollout_stats,
     calculate_batch_sizes,
+    calculate_explained_variance,
+    calculate_prioritized_sampling_params,
     cleanup_old_policies,
+    compute_advantage,
     compute_gradient_stats,
     evaluate_policy,
     generate_replay,
     get_lstm_config,
+    get_observation,
+    process_minibatch_update,
     process_stats,
-    rollout,
+    run_policy_inference,
     save_policy_with_metadata,
     save_training_state,
+    setup_distributed_vars,
     should_run_on_interval,
-    train_epoch,
 )
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses
@@ -48,6 +53,164 @@ torch.set_float32_matmul_precision("high")
 rank = int(os.environ.get("RANK", 0))
 local_rank = int(os.environ.get("LOCAL_RANK", 0))
 logger = logging.getLogger(f"trainer-{rank}-{local_rank}")
+
+
+def rollout(
+    vecenv: Any,
+    policy: Any,
+    experience: Any,
+    device: torch.device,
+    timer: Any,
+) -> Tuple[int, list]:
+    """Perform a complete rollout phase.
+
+    Returns:
+        Tuple of (total_steps, raw_infos)
+    """
+    raw_infos = []
+    experience.reset_for_rollout()
+    total_steps = 0
+
+    while not experience.ready_for_training:
+        # Get observation
+        o, r, d, t, info, training_env_id, mask, num_steps = get_observation(vecenv, device, timer)
+        total_steps += num_steps
+
+        # Run policy inference
+        actions, selected_action_log_probs, values, lstm_state_to_store = run_policy_inference(
+            policy, o, experience, training_env_id.start, device
+        )
+
+        # Store experience
+        experience.store(
+            obs=o,
+            actions=actions,
+            logprobs=selected_action_log_probs,
+            rewards=r,
+            dones=d,
+            truncations=t,
+            values=values,
+            env_id=training_env_id,
+            mask=mask,
+            lstm_state=lstm_state_to_store,
+        )
+
+        # Send actions to environment
+        with timer("_rollout.env"):
+            from metta.mettagrid.mettagrid_env import dtype_actions
+
+            vecenv.send(actions.cpu().numpy().astype(dtype_actions))
+
+        # Collect info
+        if info:
+            raw_infos.extend(info)
+
+    return total_steps, raw_infos
+
+
+def train_epoch(
+    policy: Any,
+    optimizer: Any,
+    experience: Any,
+    kickstarter: Any,
+    losses: Any,
+    trainer_cfg: Any,
+    agent_step: int,
+    epoch: int,
+    device: torch.device,
+) -> int:
+    """Perform training for one or more epochs on collected experience.
+
+    Returns:
+        Number of epochs trained
+    """
+    losses.zero()
+    experience.reset_importance_sampling_ratios()
+
+    # Calculate prioritized sampling parameters
+    anneal_beta = calculate_prioritized_sampling_params(
+        epoch=epoch,
+        total_timesteps=trainer_cfg.total_timesteps,
+        batch_size=trainer_cfg.batch_size,
+        prio_alpha=trainer_cfg.prioritized_experience_replay.prio_alpha,
+        prio_beta0=trainer_cfg.prioritized_experience_replay.prio_beta0,
+    )
+
+    # Compute initial advantages
+    advantages = torch.zeros(experience.values.shape, device=device)
+    initial_importance_sampling_ratio = torch.ones_like(experience.values)
+
+    advantages = compute_advantage(
+        experience.values,
+        experience.rewards,
+        experience.dones,
+        initial_importance_sampling_ratio,
+        advantages,
+        trainer_cfg.ppo.gamma,
+        trainer_cfg.ppo.gae_lambda,
+        trainer_cfg.vtrace.vtrace_rho_clip,
+        trainer_cfg.vtrace.vtrace_c_clip,
+        device,
+    )
+
+    # Train for multiple epochs
+    total_minibatches = experience.num_minibatches * trainer_cfg.update_epochs
+    minibatch_idx = 0
+    epochs_trained = 0
+
+    for _update_epoch in range(trainer_cfg.update_epochs):
+        for _ in range(experience.num_minibatches):
+            # Sample minibatch
+            minibatch = experience.sample_minibatch(
+                advantages=advantages,
+                prio_alpha=trainer_cfg.prioritized_experience_replay.prio_alpha,
+                prio_beta=anneal_beta,
+                minibatch_idx=minibatch_idx,
+                total_minibatches=total_minibatches,
+            )
+
+            # Process minibatch
+            loss = process_minibatch_update(
+                policy=policy,
+                experience=experience,
+                minibatch=minibatch,
+                advantages=advantages,
+                trainer_cfg=trainer_cfg,
+                kickstarter=kickstarter,
+                agent_step=agent_step,
+                losses=losses,
+                device=device,
+            )
+
+            # Optimizer step
+            optimizer.zero_grad()
+            loss.backward()
+
+            if (minibatch_idx + 1) % experience.accumulate_minibatches == 0:
+                torch.nn.utils.clip_grad_norm_(policy.parameters(), trainer_cfg.ppo.max_grad_norm)
+                optimizer.step()
+
+                # Optional weight clipping
+                if hasattr(policy, "clip_weights"):
+                    policy.clip_weights()
+
+                if str(device).startswith("cuda"):
+                    torch.cuda.synchronize()
+
+            minibatch_idx += 1
+
+        epochs_trained += 1
+
+        # Early exit if KL divergence is too high
+        if trainer_cfg.ppo.target_kl is not None:
+            average_approx_kl = losses.approx_kl_sum / losses.minibatches_processed
+            if average_approx_kl > trainer_cfg.ppo.target_kl:
+                break
+
+    # Calculate explained variance
+    losses.explained_variance = calculate_explained_variance(experience.values, advantages)
+
+    return epochs_trained
 
 
 def train(
@@ -319,7 +482,6 @@ def create_training_components(
     from metta.mettagrid.curriculum.util import curriculum_from_config_path
     from metta.mettagrid.mettagrid_env import MettaGridEnv
     from metta.rl.experience import Experience
-    from metta.rl.functions import setup_distributed_vars
 
     logger.info(f"run_dir = {cfg.run_dir}")
 
