@@ -17,7 +17,7 @@ class WebGLMesh {
   private vertexCapacity: number
   private indexCapacity: number
   private vertexData: Float32Array
-  private indexData: Uint16Array
+  private indexData: Uint32Array
   private currentQuad: number = 0
   private currentVertex: number = 0
 
@@ -36,7 +36,7 @@ class WebGLMesh {
 
     // Pre-allocated CPU-side buffers
     this.vertexData = new Float32Array(this.vertexCapacity * 8) // 8 floats per vertex (pos*2, uv*2, color*4)
-    this.indexData = new Uint16Array(this.indexCapacity)
+    this.indexData = new Uint32Array(this.indexCapacity)
 
     // Create the index pattern once (it's always the same for quads)
     this.setupIndexPattern()
@@ -98,7 +98,7 @@ class WebGLMesh {
 
     // Create new CPU-side arrays with increased capacity
     this.vertexData = new Float32Array(this.vertexCapacity * 8) // 8 floats per vertex
-    this.indexData = new Uint16Array(this.indexCapacity)
+    this.indexData = new Uint32Array(this.indexCapacity)
 
     // Copy existing vertex data to the new array
     this.vertexData.set(oldVertexData.subarray(0, currentVertexCount * 8))
@@ -267,7 +267,6 @@ export class ContextWebgl {
     this.currentTransform = Mat3f.identity()
   }
 
-  
   /** Clears all meshes for a new frame. */
   clear(): void {
     if (!this.ready) return
@@ -281,7 +280,7 @@ export class ContextWebgl {
     this.resetTransform()
     this.transformStack = []
   }
-  
+
   /** Create or switch to a mesh with the given name. */
   useMesh(name: string): void {
     if (!this.gl || !this.ready) {
@@ -309,7 +308,7 @@ export class ContextWebgl {
       throw new Error('No mesh selected. Call useMesh() before drawing.')
     }
   }
-  
+
   /** Sets the scissor rect for the current mesh. */
   setScissorRect(x: number, y: number, width: number, height: number): void {
     this.ensureMeshSelected()
@@ -317,13 +316,13 @@ export class ContextWebgl {
     this.currentMesh!.scissorEnabled = true
     this.currentMesh!.scissorRect = [x, y, width, height]
   }
-  
+
   /** Disable scissoring for the current mesh. */
   disableScissor(): void {
     this.ensureMeshSelected()
     this.currentMesh!.scissorEnabled = false
   }
-  
+
   /** Save the current transform. */
   save(): void {
     // Push a copy of the current transform onto the stack
@@ -341,7 +340,7 @@ export class ContextWebgl {
       )
     )
   }
-  
+
   /** Restore the last transform. */
   restore(): void {
     // Pop the last transform from the stack
@@ -351,30 +350,30 @@ export class ContextWebgl {
       console.warn('Transform stack is empty')
     }
   }
-  
+
   /** Translate the current transform. */
   translate(x: number, y: number): void {
     const translateMatrix = Mat3f.translate(x, y)
     this.currentTransform = this.currentTransform.mul(translateMatrix)
   }
-  
+
   /** Rotate the current transform. */
   rotate(angle: number): void {
     const rotateMatrix = Mat3f.rotate(angle)
     this.currentTransform = this.currentTransform.mul(rotateMatrix)
   }
-  
+
   /** Scale the current transform. */
   scale(x: number, y: number): void {
     const scaleMatrix = Mat3f.scale(x, y)
     this.currentTransform = this.currentTransform.mul(scaleMatrix)
   }
-  
+
   /** Reset the current transform. */
   resetTransform(): void {
     this.currentTransform = Mat3f.identity()
   }
-  
+
   /** Initialize the WebGL context. */
   async init(atlasJsonUrl: string, atlasImageUrl: string): Promise<boolean> {
     this.dpr = 1.0
@@ -562,7 +561,7 @@ export class ContextWebgl {
       }
     `
   }
-  
+
   /** Draws a textured rectangle with the given coordinates and UV mapping. */
   drawRect(
     x: number,
