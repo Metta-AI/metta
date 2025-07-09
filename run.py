@@ -252,8 +252,7 @@ kickstarter = Kickstarter(
     trainer_config.kickstart,
     str(device),
     policy_store,
-    metta_grid_env.action_names,
-    metta_grid_env.max_action_args,
+    metta_grid_env,  # Pass the full environment object, not individual attributes
 )
 
 # Create losses tracker
