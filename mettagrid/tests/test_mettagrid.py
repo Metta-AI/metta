@@ -8,11 +8,6 @@ from metta.mettagrid.mettagrid_c import MettaGrid, PackedCoordinate
 from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
 from metta.mettagrid.mettagrid_env import dtype_actions
 
-# Coordinate convention: (x, y) = (col, row)
-# The grid is treated as a logical object with width and height.
-# Internally, the NumPy map uses shape (height, width) = (rows, cols),
-# so indexing is map[y, x].
-
 
 # Constants from C++ code
 @dataclass
@@ -52,6 +47,12 @@ class TestEnvironmentBuilder:
     @staticmethod
     def place_agents(game_map: np.ndarray, positions: List[Tuple[int, int]]) -> np.ndarray:
         """Place agents at specified positions."""
+
+        # Coordinate convention: grid position (x, y) = (col, row)
+        # The grid is treated as a logical object with width and height.
+        # Internally, the NumPy map uses shape (height, width) = (rows, cols),
+        # so indexing is game_map[y, x].
+
         for _, (y, x) in enumerate(positions):
             game_map[y, x] = "agent.red"
         return game_map
@@ -256,7 +257,7 @@ class TestObservations:
         # 3 W W W W W W W W
         # (y/height)
         # Where: W=wall, A=agent, .=empty
-        # Agent 0 is at grid position (1,1), Agent 1 is at (4,2)
+        # Agent 0 is at grid position (x/col = 1, y/row = 1), Agent 1 is at (4,2)
 
         # Test Agent 0 observation
         agent0_obs = obs[0]
@@ -330,7 +331,7 @@ class TestObservations:
         builder = TestEnvironmentBuilder()
         game_map = builder.create_basic_grid(5, 5)
 
-        # Place agent in center at (2,2)
+        # Place agent in center at grid position (2,2)
         game_map[2, 2] = "agent.red"
 
         # Place 8 altars around the agent with different colors
