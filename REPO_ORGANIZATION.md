@@ -60,27 +60,30 @@ Softmax/
 │   ├── pyproject.toml          # name = "metta-cogworks"
 │   └── api.py                  # Main API (from metta/api.py)
 │
-├── mettagrid/                  # C++/Python environment (unchanged structure)
-│   ├── src/metta/mettagrid/    # Will be flattened
+├── mettagrid/                  # C++/Python environment
+│   ├── *.py files              # Flattened from src/metta/mettagrid/
 │   ├── tests/, benchmarks/, configs/
 │   └── pyproject.toml          # name = "metta-mettagrid"
 │
 ├── common/                     # Shared utilities
-│   ├── src/metta/common/       # Will become mettacommon/
+│   ├── mettacommon/            # Module directory (renamed from common)
+│   │   ├── util/
+│   │   ├── profiling/
+│   │   └── wandb/
 │   └── pyproject.toml          # name = "metta-common"
 │
 ├── gridworks/                  # Map editor (from studio/)
-│   ├── src/                    # TypeScript/React frontend
+│   ├── app/, components/       # TypeScript/React frontend
 │   ├── pyproject.toml          # name = "metta-gridworks" (new)
 │   └── package.json
 │
 ├── observatory/                # Production monitoring
-│   ├── src/                    # React frontend
+│   ├── src/                    # React frontend (keeping src/ for JS)
 │   ├── api/                    # Backend (from app_backend)
 │   └── pyproject.toml          # name = "metta-observatory" (new)
 │
 ├── mettascope/                 # Replay viewer
-│   ├── src/, data/, tools/
+│   ├── src/, data/, tools/     # TypeScript and assets
 │   └── server.py               # Python components
 │
 ├── tools/                      # Standalone scripts (train.py, sweep_*.py, etc.)
@@ -154,7 +157,7 @@ dependencies = ["metta-common>=0.1.0"]
 ```
 
 **Imports:**
-```python
+  ```python
 import mettagrid
 from mettagrid import MettaGridPufferEnv
 ```
