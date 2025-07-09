@@ -254,33 +254,8 @@ class MettaGridEnv(PufferEnv, GymEnv):
                 self._agent_visited_positions[agent_id].add(position)
 
     def _calculate_exploration_metrics(self) -> Dict[str, float]:
-        """Calculate exploration metrics for all agents."""
+        """Calculate exploration metrics aggregated across all agents."""
         metrics = {}
-
-        # Calculate metrics for each agent
-        for agent_id in range(self._c_env.num_agents):
-            visited_positions = self._agent_visited_positions.get(agent_id, set())
-            num_visited = len(visited_positions)
-
-            # Unnormalized count
-            metrics[f"exploration/agent_{agent_id}/unique_locations"] = float(num_visited)
-
-            # Normalized by grid volume
-            if self._total_grid_cells > 0:
-                metrics[f"exploration/agent_{agent_id}/unique_locations_normalized_by_volume"] = (
-                    float(num_visited) / self._total_grid_cells
-                )
-
-            # Normalized by number of agents
-            metrics[f"exploration/agent_{agent_id}/unique_locations_normalized_by_agents"] = (
-                float(num_visited) / self._c_env.num_agents
-            )
-
-            # Normalized by both volume and agents
-            if self._total_grid_cells > 0:
-                metrics[f"exploration/agent_{agent_id}/unique_locations_normalized_by_volume_and_agents"] = float(
-                    num_visited
-                ) / (self._total_grid_cells * self._c_env.num_agents)
 
         # Calculate aggregate metrics across all agents
         total_visited = sum(len(positions) for positions in self._agent_visited_positions.values())
