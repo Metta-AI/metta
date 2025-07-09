@@ -23,13 +23,9 @@ DIST_CFG_PATH="$DATA_DIR/sweep/$sweep_run/dist_$DIST_ID.yaml"
 echo "[INFO] Starting sweep rollout: $sweep_run"
 mkdir -p "$DATA_DIR/sweep/$sweep_run"
 
-# Create initial dist file to avoid FileNotFoundError in @metta_script decorator
+# Create an empty dist file; sweep_init.py will populate it
 echo "Creating initial dist config: $DIST_CFG_PATH"
-cat > "$DIST_CFG_PATH" << EOF
-# Placeholder dist config - will be updated by sweep_init.py
-run: null
-wandb_run_id: null
-EOF
+touch "$DIST_CFG_PATH"
 
 # Initialize sweep
 echo "[SWEEP:$sweep_run] Initializing sweep configuration..."

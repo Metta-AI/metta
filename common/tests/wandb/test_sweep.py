@@ -6,7 +6,8 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from metta.sweep.sweep_wandb import retry_on_exception, sweep_id_from_name
+from metta.common.util.retry import retry_on_exception
+from metta.sweep.sweep_wandb import sweep_id_from_name
 
 
 class TestRetryDecorator:
