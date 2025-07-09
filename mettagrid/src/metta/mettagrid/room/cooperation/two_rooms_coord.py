@@ -27,7 +27,7 @@ class TwoRoomsCoord(Room):
         num_shared_generators: int,
         num_altars: int,
         num_mines: int,
-        agents: Union[int, DictConfig] = 2,
+        agents: Union[int, dict, DictConfig] = 2,
         # "horizontal", "vertical", or None for random
         arrangement: Optional[str] = None,
         border_width: int = 0,
@@ -51,7 +51,7 @@ class TwoRoomsCoord(Room):
             if agents < 0:
                 raise ValueError("Number of agents cannot be negative.")
             self._num_total_agents = agents
-        elif isinstance(agents, DictConfig):
+        elif isinstance(agents, (dict, DictConfig)):
             current_total_agents = 0
             for agent_name, count_val in agents.items():
                 if not isinstance(count_val, int) or count_val < 0:
@@ -61,7 +61,7 @@ class TwoRoomsCoord(Room):
                 current_total_agents += count_val
             self._num_total_agents = current_total_agents
         else:
-            raise TypeError(f"Agents parameter must be an int or a DictConfig, got {type(agents)}")
+            raise TypeError(f"Agents parameter must be an int, dict, or DictConfig, got {type(agents)}")
 
         if arrangement not in [None, "horizontal", "vertical"]:
             raise ValueError("Arrangement must be 'horizontal', 'vertical', or None for random.")
@@ -230,7 +230,7 @@ class TwoRoomsCoord(Room):
         agent_symbols_list: List[str] = []
         if isinstance(self._agents_input, int):
             agent_symbols_list = ["agent.agent"] * self._num_total_agents
-        elif isinstance(self._agents_input, DictConfig):
+        elif isinstance(self._agents_input, (dict, DictConfig)):
             temp_list = []
             for agent_name, count_val in self._agents_input.items():
                 # Validation for count_val (must be int >= 0) already done in __init__
