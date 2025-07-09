@@ -152,8 +152,10 @@ MIGRATIONS = [
         description="Add heatmap performance indexes",
         sql_statements=[
             # Critical index for episode_agent_metrics main query
-            """CREATE INDEX idx_episode_agent_metrics_episode_metric
-               ON episode_agent_metrics(episode_id, metric)""",
+            """ALTER TABLE episode_agent_metrics DROP CONSTRAINT episode_agent_metrics_pkey""",
+            """CREATE INDEX idx_episode_agent_metrics_metric_episode_value
+                ON episode_agent_metrics(metric, episode_id)
+                INCLUDE (value)""",
             # Composite index for episodes eval filtering and joins
             """CREATE INDEX idx_episodes_eval_category_env_policy
                ON episodes(eval_category, env_name, primary_policy_id)""",
@@ -178,6 +180,14 @@ MIGRATIONS = [
         description="Add tags field to training_runs table",
         sql_statements=[
             """ALTER TABLE training_runs ADD COLUMN tags TEXT[]""",
+        ],
+    ),
+    SqlMigration(
+        version=9,
+        description="Add internal_id field to episodes table and episode_agent_metrics table",
+        sql_statements=[
+            """ALTER TABLE episodes ADD COLUMN internal_id SERIAL UNIQUE""",
+            """ALTER TABLE episode_agent_metrics ADD COLUMN episode_internal_id INTEGER""",
         ],
     ),
 ]
@@ -337,7 +347,7 @@ class MettaRepo:
                     attributes
                 ) VALUES (
                     %s, %s, %s, %s, %s, %s, %s, %s
-                ) RETURNING id
+                ) RETURNING id, internal_id
                 """,
                 (
                     replay_url,
@@ -354,6 +364,7 @@ class MettaRepo:
             if row is None:
                 raise RuntimeError("Failed to insert episode record")
             episode_id = row[0]
+            episode_internal_id = row[1]
 
             # Insert agent policies
             for agent_id, policy_id in agent_policies.items():
@@ -369,15 +380,16 @@ class MettaRepo:
                 )
 
             # Insert agent metrics in bulk
-            rows: List[Tuple[uuid.UUID, int, str, float]] = []
+            rows: List[Tuple[uuid.UUID, int, int, str, float]] = []
             for agent_id, metrics in agent_metrics.items():
                 for metric_name, value in metrics.items():
-                    rows.append((episode_id, agent_id, metric_name, value))
+                    rows.append((episode_id, episode_internal_id, agent_id, metric_name, value))
 
             async with con.cursor() as cursor:
                 await cursor.executemany(
                     """
-                  INSERT INTO episode_agent_metrics (episode_id, agent_id, metric, value) VALUES (%s, %s, %s, %s)
+                  INSERT INTO episode_agent_metrics (episode_id, episode_internal_id, agent_id, metric, value)
+                  VALUES (%s, %s, %s, %s, %s)
                   """,
                     rows,
                 )
