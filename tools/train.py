@@ -49,16 +49,11 @@ def _calculate_default_num_workers(is_serial: bool) -> int:
     return max(1, num_workers)
 
 
-def set_num_workers_if_unspecified(cfg: DictConfig) -> None:
+def train(cfg: ListConfig | DictConfig, wandb_run: WandbRun | None, logger: Logger):
     if OmegaConf.is_missing(cfg.trainer, "num_workers") or cfg.trainer.num_workers is None:
         OmegaConf.set_struct(cfg, False)
         cfg.trainer.num_workers = _calculate_default_num_workers(cfg.vectorization == "serial")
         OmegaConf.set_struct(cfg, True)
-
-
-def train(cfg: ListConfig | DictConfig, wandb_run: WandbRun | None, logger: Logger):
-    assert isinstance(cfg, DictConfig) and "trainer" in cfg
-    set_num_workers_if_unspecified(cfg)
     cfg = load_train_job_config_with_overrides(cfg)
 
     if os.environ.get("RANK", "0") == "0":
@@ -73,7 +68,7 @@ def train(cfg: ListConfig | DictConfig, wandb_run: WandbRun | None, logger: Logg
             )
             cfg.trainer.batch_size = cfg.trainer.batch_size // world_size
 
-    policy_store = PolicyStore(cfg, wandb_run)
+    policy_store = PolicyStore(cfg, wandb_run)  # type: ignore[reportArgumentType]
     stats_client: StatsClient | None = get_stats_client(cfg, logger)
 
     # Instantiate the trainer directly with the typed config
