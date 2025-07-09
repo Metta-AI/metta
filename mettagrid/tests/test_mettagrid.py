@@ -8,6 +8,11 @@ from metta.mettagrid.mettagrid_c import MettaGrid, PackedCoordinate
 from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
 from metta.mettagrid.mettagrid_env import dtype_actions
 
+# Coordinate convention: (x, y) = (col, row)
+# The grid is treated as a logical object with width and height.
+# Internally, the NumPy map uses shape (height, width) = (rows, cols),
+# so indexing is map[y, x].
+
 
 # Constants from C++ code
 @dataclass
