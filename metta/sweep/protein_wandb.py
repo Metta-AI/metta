@@ -35,7 +35,8 @@ class WandbProtein:
             wandb_run (wandb.Run, optional): The wandb run to use. If None, uses the current run.
             max_runs_to_load (int, optional): Maximum number of previous runs to load. Defaults to 100.
         """
-        self._wandb_run = wandb_run or None
+        # Use provided run, else fall back to the currently active wandb run
+        self._wandb_run = wandb_run or wandb.run
         assert self._wandb_run is not None, "No active wandb run found"
         self._wandb_run = cast(Any, self._wandb_run)
 
@@ -55,11 +56,12 @@ class WandbProtein:
         self._observations = []
         self._suggestion_info = {}  # Store info from protein.suggest()
 
+        # pyright: ignore[reportGeneralTypeIssues]
         assert self._wandb_run.summary.get("protein.state") is None, (
             f"Run {self._wandb_run.name} already has protein state"
         )
 
-        self._wandb_run.summary.update({"protein.state": "initializing"})
+        self._wandb_run.summary.update({"protein.state": "initializing"})  # type: ignore[attr-defined]
 
         self._max_runs_to_load = max_runs_to_load
 
@@ -74,13 +76,13 @@ class WandbProtein:
         # Overwrite WandB agent's suggested parameters with Protein's suggestions
         wandb_config = self._transform_suggestion(deepcopy(self._suggestion))
         # Unlock config to allow overwriting WandB agent's suggestions
-        self._wandb_run.config.__dict__["_locked"] = {}
+        self._wandb_run.config.__dict__["_locked"] = {}  # type: ignore[attr-defined]
 
         # Set the actual parameter keys that training will use (overwriting WandB agent)
-        self._wandb_run.config.update(wandb_config, allow_val_change=True)
+        self._wandb_run.config.update(wandb_config, allow_val_change=True)  # type: ignore[attr-defined]
 
         # Update state to "running" after initialization is complete
-        self._wandb_run.summary.update({"protein.state": "running"})
+        self._wandb_run.summary.update({"protein.state": "running"})  # type: ignore[attr-defined]
 
     def record_observation(self, objective, cost):
         """
@@ -91,7 +93,7 @@ class WandbProtein:
             cost (float): The cost of this evaluation (e.g., time taken).
         """
         # Update WandB with the observation
-        self._wandb_run.summary.update(
+        self._wandb_run.summary.update(  # type: ignore[attr-defined]
             {
                 "protein.objective": objective,
                 "protein.cost": cost,
@@ -111,7 +113,7 @@ class WandbProtein:
             error_message (str): Description of the failure.
         """
         # Update WandB with failure status
-        self._wandb_run.summary.update(
+        self._wandb_run.summary.update(  # type: ignore[attr-defined]
             {
                 "protein.state": "failure",
                 "protein.error": error_message,
@@ -332,10 +334,25 @@ class WandbProtein:
         Extract parameters from a run config - just retrieve what we stored.
         """
         # Try to get the flattened suggestion items first (newest format)
-        suggestion_items = run.summary.get("protein.suggestion_flattened_items", None)
+        suggestion_items = run.summary.get("protein.suggestion_flattened_items")
 
-        # Reconstruct the flattened dict from the list of tuples
-        suggestion = dict(suggestion_items)
+        # Reconstruct the flattened dict from the list of tuples if present
+        suggestion: dict[str, Any] = {}
+        if suggestion_items:
+            try:
+                suggestion = dict(suggestion_items)
+            except Exception:
+                suggestion = {}
+
+        # Fallback: use nested suggestion stored directly in summary
+        if not suggestion:
+            summary_suggestion = run.summary.get("protein.suggestion", {})
+            if summary_suggestion:
+                try:
+                    suggestion = dict(summary_suggestion)
+                except Exception:
+                    # If summary_suggestion is already a dict-like object, just assign
+                    suggestion = summary_suggestion  # type: ignore[assignment]
 
         # Handle case where WandB stored the suggestion as a string
         if isinstance(suggestion, str):
