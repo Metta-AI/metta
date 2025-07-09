@@ -50,10 +50,8 @@ def _calculate_default_num_workers(is_serial: bool) -> int:
 
 
 def train(cfg: ListConfig | DictConfig, wandb_run: WandbRun | None, logger: Logger):
-    if OmegaConf.is_missing(cfg.trainer, "num_workers") or cfg.trainer.num_workers is None:
-        OmegaConf.set_struct(cfg, False)
+    if not cfg.trainer.num_workers:
         cfg.trainer.num_workers = _calculate_default_num_workers(cfg.vectorization == "serial")
-        OmegaConf.set_struct(cfg, True)
     cfg = load_train_job_config_with_overrides(cfg)
 
     if os.environ.get("RANK", "0") == "0":
