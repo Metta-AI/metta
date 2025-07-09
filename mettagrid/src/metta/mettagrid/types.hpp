@@ -51,4 +51,8 @@ typedef ActionType ActionArg;
 typedef bool MaskType;
 typedef bool SuccessType;
 
+typedef uint8_t InventoryItem;
+typedef uint8_t InventoryQuantity;
+typedef int8_t InventoryDelta;  // must be signed
+
 #endif  // TYPES_HPP_

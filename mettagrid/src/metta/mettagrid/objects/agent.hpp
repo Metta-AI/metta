@@ -10,6 +10,7 @@
 #include "../stats_tracker.hpp"
 #include "constants.hpp"
 #include "metta_object.hpp"
+#include "types.hpp"
 
 // #MettagridConfig
 struct AgentConfig : public GridObjectConfig {
@@ -19,9 +20,9 @@ struct AgentConfig : public GridObjectConfig {
               const std::string& group_name,
               unsigned char freeze_duration,
               float action_failure_penalty,
-              const std::map<InventoryItem, uint8_t>& resource_limits,
-              const std::map<InventoryItem, float>& resource_rewards,
-              const std::map<InventoryItem, uint8_t>& resource_reward_max,
+              const std::map<InventoryItem, InventoryQuantity>& resource_limits,
+              const std::map<InventoryItem, RewardType>& resource_rewards,
+              const std::map<InventoryItem, RewardType>& resource_reward_max,
               float group_reward_pct)
       : GridObjectConfig(type_id, type_name),
         group_name(group_name),
@@ -37,9 +38,9 @@ struct AgentConfig : public GridObjectConfig {
   unsigned char group_id;
   short freeze_duration;
   float action_failure_penalty;
-  std::map<InventoryItem, uint8_t> resource_limits;
-  std::map<InventoryItem, float> resource_rewards;
-  std::map<InventoryItem, uint8_t> resource_reward_max;
+  std::map<InventoryItem, InventoryQuantity> resource_limits;
+  std::map<InventoryItem, RewardType> resource_rewards;
+  std::map<InventoryItem, RewardType> resource_reward_max;
   float group_reward_pct;
 };
 
@@ -48,16 +49,16 @@ public:
   unsigned char group;
   short frozen;
   short freeze_duration;
-  unsigned char orientation;
+  Orientation orientation;
   // inventory is a map of item to amount.
   // keys should be deleted when the amount is 0, to keep iteration faster.
   // however, this should not be relied on for correctness.
-  std::map<InventoryItem, uint8_t> inventory;
-  std::map<InventoryItem, float> resource_rewards;
-  std::map<InventoryItem, uint8_t> resource_reward_max;
+  std::map<InventoryItem, InventoryQuantity> inventory;
+  std::map<InventoryItem, RewardType> resource_rewards;
+  std::map<InventoryItem, RewardType> resource_reward_max;
   float action_failure_penalty;
   std::string group_name;
-  unsigned char color;
+  ObservationType color;
   unsigned char agent_id;
   StatsTracker stats;
   float current_resource_reward;
@@ -74,7 +75,7 @@ public:
         color(0),
         current_resource_reward(0),
         frozen(0),
-        orientation(0),
+        orientation(Orientation::Up),
         reward(nullptr) {
     GridObject::init(config.type_id, config.type_name, GridLocation(r, c, GridLayer::Agent_Layer));
   }
@@ -83,27 +84,28 @@ public:
     this->reward = reward;
   }
 
-  int update_inventory(InventoryItem item, short amount) {
-    int current_amount = this->inventory[item];
-    int new_amount = current_amount + amount;
-    new_amount = std::clamp(new_amount, 0, static_cast<int>(this->resource_limits[item]));
+  InventoryDelta update_inventory(InventoryItem item, InventoryDelta delta) {
+    InventoryQuantity initial_amount = this->inventory[item];
 
-    int delta = new_amount - current_amount;
-    if (new_amount > 0) {
-      this->inventory[item] = new_amount;
+    InventoryQuantity clamped_amount =
+        std::clamp(static_cast<int>(initial_amount + delta), 0, static_cast<int>(this->resource_limits[item]));
+
+    InventoryDelta clamped_delta = clamped_amount - initial_amount;
+    if (clamped_amount > 0) {
+      this->inventory[item] = clamped_amount;
     } else {
       this->inventory.erase(item);
     }
 
-    if (delta > 0) {
-      this->stats.add(this->stats.inventory_item_name(item) + ".gained", delta);
-    } else if (delta < 0) {
-      this->stats.add(this->stats.inventory_item_name(item) + ".lost", -delta);
+    if (clamped_delta > 0) {
+      this->stats.add(this->stats.inventory_item_name(item) + ".gained", clamped_delta);
+    } else if (clamped_delta < 0) {
+      this->stats.add(this->stats.inventory_item_name(item) + ".lost", -clamped_delta);
     }
 
     this->compute_resource_reward(item);
 
-    return delta;
+    return clamped_delta;
   }
 
   // Recalculates resource rewards for the agent.
@@ -136,21 +138,22 @@ public:
   virtual std::vector<PartialObservationToken> obs_features() const override {
     std::vector<PartialObservationToken> features;
     features.reserve(5 + this->inventory.size());
-    features.push_back({ObservationFeature::TypeId, type_id});
-    features.push_back({ObservationFeature::Group, group});
-    features.push_back({ObservationFeature::Frozen, static_cast<uint8_t>(frozen != 0 ? 1 : 0)});
-    features.push_back({ObservationFeature::Orientation, orientation});
-    features.push_back({ObservationFeature::Color, color});
+    features.push_back({ObservationFeature::TypeId, static_cast<ObservationType>(type_id)});
+    features.push_back({ObservationFeature::Group, static_cast<ObservationType>(group)});
+    features.push_back({ObservationFeature::Frozen, static_cast<ObservationType>(frozen != 0 ? 1 : 0)});
+    features.push_back({ObservationFeature::Orientation, static_cast<ObservationType>(orientation)});
+    features.push_back({ObservationFeature::Color, static_cast<ObservationType>(color)});
     for (const auto& [item, amount] : this->inventory) {
       // inventory should only contain non-zero amounts
       assert(amount > 0);
-      features.push_back({static_cast<uint8_t>(InventoryFeatureOffset + item), amount});
+      ObservationType item_observation_feature = InventoryFeatureOffset + item;
+      features.push_back({item_observation_feature, static_cast<ObservationType>(amount)});
     }
     return features;
   }
 
 private:
-  std::map<InventoryItem, uint8_t> resource_limits;
+  std::map<InventoryItem, InventoryQuantity> resource_limits;
 };
 
 #endif  // OBJECTS_AGENT_HPP_

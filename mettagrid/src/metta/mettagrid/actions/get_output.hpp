@@ -41,7 +41,9 @@ protected:
       if (converter->inventory.count(item) == 0) {
         continue;
       }
-      int taken = actor->update_inventory(item, converter->inventory[item]);
+      InventoryDelta items_available = static_cast<InventoryDelta>(converter->inventory[item]);
+
+      InventoryDelta taken = actor->update_inventory(item, items_available);
 
       if (taken > 0) {
         actor->stats.add(actor->stats.inventory_item_name(item) + ".get", taken);

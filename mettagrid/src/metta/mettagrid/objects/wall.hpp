@@ -8,6 +8,8 @@
 #include "constants.hpp"
 #include "metta_object.hpp"
 
+static_assert(sizeof(PartialObservationToken) == 2 * sizeof(ObservationType), "PartialObservationToken size check");
+
 // #MettagridConfig
 struct WallConfig : public GridObjectConfig {
   WallConfig(TypeId type_id, const std::string& type_name, bool swappable)
@@ -28,11 +30,13 @@ public:
   virtual vector<PartialObservationToken> obs_features() const override {
     vector<PartialObservationToken> features;
     features.reserve(2);
-    features.push_back({ObservationFeature::TypeId, type_id});
+    features.push_back({ObservationFeature::TypeId, static_cast<ObservationType>(this->type_id)});
+
     if (_swappable) {
-      // Only emit the token if it's swappable, to reduce the number of tokens.
-      features.push_back({ObservationFeature::Swappable, 1});
+      // Only emit the swappable observation feature when True to reduce the number of tokens.
+      features.push_back({ObservationFeature::Swappable, static_cast<ObservationType>(1)});
     }
+
     return features;
   }
 

@@ -110,33 +110,36 @@ public:
   }
 
   inline const GridLocation relative_location(const GridLocation& loc,
-                                              Orientation orientation,
-                                              GridCoord distance,
-                                              GridCoord offset) {
-    int new_r = loc.r;
-    int new_c = loc.c;
+                                              Orientation facing,
+                                              short forward_distance,  // + is forward, - is backward
+                                              short lateral_offset) {  // + is right, - is left
+    const int r = static_cast<int>(loc.r);
+    const int c = static_cast<int>(loc.c);
 
-    switch (orientation) {
+    int new_r = r;
+    int new_c = c;
+
+    switch (facing) {
       case Up:
-        new_r = loc.r - distance;
-        new_c = loc.c - offset;
+        new_r = r - forward_distance;  // Up means decreasing row (toward 0)
+        new_c = c - lateral_offset;    // Positive offset = right
         break;
       case Down:
-        new_r = loc.r + distance;
-        new_c = loc.c + offset;
+        new_r = r + forward_distance;  // Down means increasing row
+        new_c = c + lateral_offset;    // Positive offset = right
         break;
       case Left:
-        new_r = loc.r + offset;
-        new_c = loc.c - distance;
+        new_r = r + lateral_offset;    // Positive offset = right (which is down)
+        new_c = c - forward_distance;  // Left means decreasing column
         break;
       case Right:
-        new_r = loc.r - offset;
-        new_c = loc.c + distance;
+        new_r = r - lateral_offset;    // Positive offset = right (which is up)
+        new_c = c + forward_distance;  // Right means increasing column
         break;
     }
-    new_r = max(0, new_r);
-    new_c = max(0, new_c);
-    return GridLocation(new_r, new_c, loc.layer);
+    new_r = std::clamp(new_r, 0, static_cast<int>(height - 1));
+    new_c = std::clamp(new_c, 0, static_cast<int>(width - 1));
+    return GridLocation(static_cast<GridCoord>(new_r), static_cast<GridCoord>(new_c), loc.layer);
   }
 
   inline const GridLocation relative_location(const GridLocation& loc, Orientation orientation) {
