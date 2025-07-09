@@ -212,12 +212,40 @@ from mettacommon.util import config
 Here's how the existing structure maps to our new organization:
 
 ```
-# CURRENT PACKAGE NAME          → NEW PACKAGE NAME
-metta                          → metta-cogworks
-metta-common                   → metta-common (unchanged)
-metta-agent                    → (merged into metta-cogworks)
-metta-mettagrid                → metta-mettagrid (unchanged)
-metta-app-backend              → (split into respective apps)
+# CURRENT LOCATION             → NEW LOCATION
+metta/src/api.py              → cogworks/api.py
+metta/src/rl/                 → cogworks/rl/
+metta/src/sweep/              → cogworks/sweep/
+metta/src/setup/              → cogworks/setup/
+metta/src/agent/              → cogworks/agent/
+metta/src/map/                → cogworks/mapgen/
+metta/src/eval/               → cogworks/eval/
+metta/tests/                  → cogworks/tests/
+metta/configs/                → configs/ (root level)
+metta/tools/                  → tools/ (root level)
+metta/recipes/                → recipes/ (root level)
+metta/docs/                   → docs/ (root level)
+metta/devops/                 → devops/ (root level)
+
+common/src/metta/common/      → common/ (flattened)
+mettagrid/src/metta/mettagrid/→ mettagrid/ (flattened)
+
+backend/src/metta/backend/observatory/ → observatory/api/endpoints.py
+backend/src/metta/backend/sweep_names/ → observatory/api/sweep_names.py
+backend/src/metta/backend/stat_buffer/ → observatory/api/stat_buffer.py
+backend/docker/observatory/   → observatory/Dockerfile
+
+apps/shared/                  → ui-shared/ (root level)
+apps/observatory/             → observatory/ (root level)
+apps/mettascope/              → mettascope/ (root level)
+apps/studio/                  → gridworks/ (root level)
+
+# PACKAGE NAMES
+metta                         → metta-cogworks
+metta-common                  → metta-common
+metta-agent                   → (merged into metta-cogworks)
+metta-mettagrid              → metta-mettagrid
+metta-app-backend            → (split into respective apps)
 ```
 
 ## Installation Examples
@@ -256,6 +284,19 @@ This approach is used by many successful projects:
 3. **Clean Imports**: Developers write `from cogworks` not `from metta_cogworks`
 4. **Consistent Structure**: Directory names match import names
 5. **Easy Migration**: Existing `metta` imports become `cogworks` imports
+6. **Flat Structure**: No unnecessary src/ nesting for Python packages
+7. **Semantic Grouping**: Top-level directories clearly indicate purpose
+
+## Coverage Verification
+
+All components from the original structure have been accounted for:
+- **Core functionality** → `cogworks/` (RL, agent, eval, sweep, etc.)
+- **Environment** → `mettagrid/` (flattened C++/Python)
+- **Utilities** → `common/` (flattened shared code)
+- **Backend services** → Distributed to app-specific `api/` folders
+- **Web applications** → Root-level with descriptive names
+- **Shared UI** → `ui-shared/` for React/TypeScript components
+- **Supporting files** → Root-level (configs/, tools/, recipes/, docs/, devops/)
 
 ## Dependency Graph
 
