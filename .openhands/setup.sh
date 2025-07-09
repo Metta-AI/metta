@@ -25,8 +25,27 @@ echo "🔧 Configuring git..."
 git config --global user.name "openhands" 2>/dev/null || true
 git config --global user.email "openhands@all-hands.dev" 2>/dev/null || true
 
+# More robust uv detection function
+find_uv() {
+    # First try command -v
+    if command -v uv &> /dev/null; then
+        return 0
+    fi
+
+    # Check common installation paths directly
+    for path in "$HOME/.local/bin/uv" "$HOME/.cargo/bin/uv" "/opt/homebrew/bin/uv" "/usr/local/bin/uv"; do
+        if [ -x "$path" ]; then
+            # Found uv, export it directly
+            export UV_BIN="$path"
+            return 0
+        fi
+    done
+
+    return 1
+}
+
 # Install uv if not present (required by setup_dev.sh)
-if ! command -v uv &> /dev/null; then
+if ! find_uv; then
     echo "📦 Installing uv package manager..."
     curl -LsSf https://astral.sh/uv/install.sh | sh
 
@@ -37,8 +56,11 @@ if ! command -v uv &> /dev/null; then
     [ -f "$HOME/.local/bin/env" ] && source "$HOME/.local/bin/env"
     [ -f "$HOME/.cargo/env" ] && source "$HOME/.cargo/env"
 
+    # Force shell to rescan PATH (helps in some environments)
+    hash -r 2>/dev/null || true
+
     # Verify installation
-    if ! command -v uv &> /dev/null; then
+    if ! find_uv; then
         echo "❌ Failed to install uv"
         exit 1
     fi
@@ -46,6 +68,9 @@ if ! command -v uv &> /dev/null; then
 else
     echo "✅ uv already available"
 fi
+
+# Use UV_BIN if set (from direct path detection), otherwise use 'uv'
+UV="${UV_BIN:-uv}"
 
 # Use the existing comprehensive setup script
 echo "🛠️  Running Metta development setup script..."
@@ -63,7 +88,7 @@ fi
 
 # Quick verification
 echo "🧪 Verifying installation..."
-uv run python -c "
+"$UV" run python -c "
 try:
     import metta
     print('✅ Core metta package imported successfully')
@@ -93,12 +118,12 @@ echo ""
 echo "📋 Quick start commands:"
 echo "  • Train a model:     ./tools/train.py run=my_experiment +hardware=macbook wandb=off"
 echo "  • Play interactively: ./tools/play.py run=my_experiment +hardware=macbook wandb=off"
-echo "  • Run tests:         uv run pytest"
-echo "  • Format code:       uv run ruff format && uv run ruff check"
+echo "  • Run tests:         $UV run pytest"
+echo "  • Format code:       $UV run ruff format && $UV run ruff check"
 echo ""
 echo "📚 Documentation: https://github.com/Metta-AI/metta"
 echo "💬 Discord: https://discord.gg/mQzrgwqmwy"
 echo ""
-echo "🔧 To run commands, use: uv run <command>"
-echo "   Example: uv run python -c 'import metta; print(metta.__file__)'"
+echo "🔧 To run commands, use: $UV run <command>"
+echo "   Example: $UV run python -c 'import metta; print(metta.__file__)'"
 echo ""

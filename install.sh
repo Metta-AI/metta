@@ -52,11 +52,30 @@ check_cmd() {
     return $?
 }
 
+# More robust uv detection that checks direct paths
+find_uv() {
+    # First try command -v
+    if check_cmd uv; then
+        return 0
+    fi
+
+    # Check common installation paths directly
+    for path in "$HOME/.local/bin/uv" "$HOME/.cargo/bin/uv" "/opt/homebrew/bin/uv" "/usr/local/bin/uv"; do
+        if [ -x "$path" ]; then
+            # Found uv, export it directly
+            export UV_BIN="$path"
+            return 0
+        fi
+    done
+
+    return 1
+}
+
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 echo "Welcome to Metta!"
 
-if ! check_cmd uv; then
+if ! find_uv; then
     echo "\nuv is not installed. Installing uv..."
     curl -LsSf https://astral.sh/uv/install.sh | sh
 
@@ -67,16 +86,22 @@ if ! check_cmd uv; then
     [ -f "$HOME/.local/bin/env" ] && . "$HOME/.local/bin/env"
     [ -f "$HOME/.cargo/env" ] && . "$HOME/.cargo/env"
 
-    if ! check_cmd uv; then
+    # Force shell to rescan PATH (helps in some environments)
+    hash -r 2>/dev/null || true
+
+    if ! find_uv; then
         err "Failed to install uv. Please install it manually from https://github.com/astral-sh/uv"
     fi
 fi
 
+# Use UV_BIN if set (from direct path detection), otherwise use 'uv'
+UV="${UV_BIN:-uv}"
+
 cd "$SCRIPT_DIR" || err "Failed to change to project directory"
-uv sync || err "Failed to install Python dependencies"
-uv run python -m metta.setup.metta_cli configure $PROFILE || err "Failed to run configuration"
-uv run python -m metta.setup.metta_cli symlink-setup || err "Failed to set up metta command in ~/.local/bin"
-uv run python -m metta.setup.metta_cli install || err "Failed to install components"
+"$UV" sync || err "Failed to install Python dependencies"
+"$UV" run python -m metta.setup.metta_cli configure $PROFILE || err "Failed to run configuration"
+"$UV" run python -m metta.setup.metta_cli symlink-setup || err "Failed to set up metta command in ~/.local/bin"
+"$UV" run python -m metta.setup.metta_cli install || err "Failed to install components"
 
 echo "\nSetup complete!\n"
 
