@@ -1,4 +1,5 @@
 #!/usr/bin/env -S uv run
+import multiprocessing
 import os
 import sys
 from logging import Logger
@@ -27,6 +28,29 @@ class TrainJob(Config):
     map_preview_uri: str | None = None
 
 
+def _calculate_default_num_workers(is_serial: bool) -> int:
+    if is_serial:
+        return 1
+
+    # Use power of 2 for better batch size compatibility
+    cpu_count = multiprocessing.cpu_count() or 1
+    ideal_workers = cpu_count // 2
+
+    # Round down to nearest power of 2
+    num_workers = 1
+    while num_workers * 2 <= ideal_workers:
+        num_workers *= 2
+
+    return max(1, num_workers)
+
+
+def set_num_workers_if_unspecified(cfg: DictConfig) -> None:
+    if OmegaConf.is_missing(cfg.trainer, "num_workers"):
+        OmegaConf.set_struct(cfg, False)
+        cfg.trainer.num_workers = _calculate_default_num_workers(cfg.vectorization == "serial")
+        OmegaConf.set_struct(cfg, True)
+
+
 def train(cfg: ListConfig | DictConfig, wandb_run: WandbRun | None, logger: Logger):
     cfg = load_train_job_config_with_overrides(cfg)
 
@@ -34,6 +58,8 @@ def train(cfg: ListConfig | DictConfig, wandb_run: WandbRun | None, logger: Logg
         with open(os.path.join(cfg.run_dir, "config.yaml"), "w") as f:
             OmegaConf.save(cfg, f)
 
+    assert isinstance(cfg, DictConfig) and "trainer" in cfg
+    set_num_workers_if_unspecified(cfg)
     train_job = TrainJob(cfg.train_job)
 
     if torch.distributed.is_initialized():
