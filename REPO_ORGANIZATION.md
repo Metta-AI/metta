@@ -113,7 +113,8 @@ softmax/
 ├── scenes/                     # Map generation patterns
 ├── docs/                       # Documentation
 ├── devops/                     # Infrastructure
-└── pyproject.toml              # Workspace configuration
+├── pyproject.toml              # Workspace configuration
+└── README.md                   # Mono-repo overview
 ```
 
 ### Notes on Python Package Organization:
@@ -333,7 +334,3 @@ As the web apps mature, they'll follow the same pattern:
 5. Update documentation and CI/CD
 
 This structure gives us professional, branded packages while keeping the developer experience clean and simple.
-
-## README.md
-
-The main README.md file should be placed at the root level of the repository to provide an overview of the entire Metta project, installation instructions, and links to individual package documentation.
