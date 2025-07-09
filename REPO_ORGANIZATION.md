@@ -67,29 +67,44 @@ Softmax/
 │   ├── *.py                    # Flattened Python files
 │   └── pyproject.toml          # name = "metta-mettagrid"
 │
-├── common/                     # Shared utilities (mettacommon module)
+├── common/                     # Shared Python utilities (mettacommon module)
 │   ├── util/                   # From common/src/metta/common/util/
 │   ├── profiling/              # From common/src/metta/common/profiling/
 │   ├── wandb/                  # From common/src/metta/common/wandb/
 │   ├── tests/
 │   └── pyproject.toml          # name = "metta-common"
 │
+├── ui-shared/                  # Shared UI components for web apps
+│   ├── components/             # Reusable React components
+│   ├── hooks/                  # Shared React hooks
+│   ├── utils/                  # Common TypeScript utilities
+│   ├── styles/                 # Shared CSS/styling
+│   └── package.json            # Shared UI dependencies
+│
 ├── gridworks/                  # Map editor (from studio/)
 │   ├── src/                    # TypeScript/React frontend
 │   ├── public/
+│   ├── server.py               # Python server
 │   ├── pyproject.toml          # name = "metta-gridworks" (new)
 │   └── package.json
 │
 ├── observatory/                # Production monitoring
-│   ├── src/                    # React frontend (keeping src/ for JS)
+│   ├── src/                    # React frontend
 │   ├── api/                    # Backend (from app_backend)
-│   └── pyproject.toml          # name = "metta-observatory" (new)
+│   │   ├── endpoints.py        # Observatory API endpoints
+│   │   ├── sweep_names.py      # Name registration service
+│   │   └── stat_buffer.py      # Data persistence layer
+│   ├── pyproject.toml          # name = "metta-observatory"
+│   ├── package.json
+│   └── Dockerfile
 │
 ├── mettascope/                 # Replay viewer
 │   ├── src/                    # TypeScript source
 │   ├── data/                   # Assets
 │   ├── tools/                  # Python tools
-│   └── server.py               # Python components
+│   ├── server.py               # Python replay server
+│   ├── replays.py              # Replay handling
+│   └── package.json
 │
 ├── tools/                      # Standalone scripts (train.py, sweep_*.py, etc.)
 ├── configs/                    # Hydra configurations
@@ -120,7 +135,12 @@ Softmax/
 1. **Flatten mettagrid**: Move files from `mettagrid/src/metta/mettagrid/` directly to `mettagrid/`
 2. **Rename common module**: Change `common/src/metta/common/` to export as `mettacommon`
 3. **Create cogworks**: Merge `metta/` and `agent/` into new `cogworks/` package
-4. **Split app_backend**: Distribute its functionality to respective apps
+4. **Split app_backend**: Distribute its functionality to respective apps:
+   - Observatory API endpoints → `observatory/api/`
+   - Sweep name registration → `observatory/api/sweep_names.py`
+   - Stats buffer/persistence → `observatory/api/stat_buffer.py`
+5. **Create ui-shared**: Extract shared React/TypeScript components from existing web apps
+6. **Add Python servers**: Ensure each web app has its Python server file where needed
 
 ## Package Configuration Examples
 
