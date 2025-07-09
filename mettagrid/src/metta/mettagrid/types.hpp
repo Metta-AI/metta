@@ -55,4 +55,6 @@ typedef uint8_t InventoryItem;
 typedef uint8_t InventoryQuantity;
 typedef int8_t InventoryDelta;  // must be signed
 
+typedef uint32_t GridCoord;  // this sets our maximum map size
+
 #endif  // TYPES_HPP_

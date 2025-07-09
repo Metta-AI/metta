@@ -233,14 +233,14 @@ void MettaGrid::add_agent(Agent* agent) {
 
 void MettaGrid::_compute_observation(GridCoord observer_row,
                                      GridCoord observer_col,
-                                     GridCoord observable_width,
-                                     GridCoord observable_height,
+                                     ObservationCoord observable_width,
+                                     ObservationCoord observable_height,
                                      size_t agent_idx,
                                      ActionType action,
                                      ActionArg action_arg) {
   // Calculate observation boundaries
-  GridCoord obs_width_radius = observable_width >> 1;
-  GridCoord obs_height_radius = observable_height >> 1;
+  ObservationCoord obs_width_radius = observable_width >> 1;
+  ObservationCoord obs_height_radius = observable_height >> 1;
 
   GridCoord r_start = observer_row >= obs_height_radius ? observer_row - obs_height_radius : 0;
   GridCoord c_start = observer_col >= obs_width_radius ? observer_col - obs_width_radius : 0;

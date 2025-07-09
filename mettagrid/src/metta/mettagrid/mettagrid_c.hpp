@@ -136,8 +136,8 @@ private:
   void add_agent(Agent* agent);
   void _compute_observation(GridCoord observer_r,
                             GridCoord observer_c,
-                            GridCoord obs_width,
-                            GridCoord obs_height,
+                            ObservationCoord obs_width,
+                            ObservationCoord obs_height,
                             size_t agent_idx,
                             ActionType action,
                             ActionArg action_arg);

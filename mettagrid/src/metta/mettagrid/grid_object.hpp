@@ -11,7 +11,7 @@
 
 typedef ObservationType Layer;
 typedef ObservationType TypeId;
-typedef ObservationType GridCoord;
+typedef ObservationType ObservationCoord;
 
 struct PartialObservationToken {
   ObservationType feature_id;
@@ -42,32 +42,6 @@ public:
   inline GridLocation(GridCoord r, GridCoord c, Layer layer) : r(r), c(c), layer(layer) {}
   inline GridLocation(GridCoord r, GridCoord c) : r(r), c(c), layer(0) {}
   inline GridLocation() : r(0), c(0), layer(0) {}
-
-  /**
-   * Pack this location's row and column into a single byte.
-   * Note: This discards the layer information.
-   *
-   * @return Packed coordinate byte
-   * @throws std::invalid_argument if r or c > 15
-   */
-  inline uint8_t pack() const {
-    return PackedCoordinate::pack(static_cast<uint8_t>(r), static_cast<uint8_t>(c));
-  }
-
-  /**
-   * Create a GridLocation from a packed coordinate if not empty.
-   *
-   * @param packed Packed coordinate byte
-   * @param layer Layer to use (default 0)
-   * @return std::optional<GridLocation> or std::nullopt if packed is empty
-   */
-  inline static std::optional<GridLocation> from_packed(uint8_t packed, Layer layer = 0) {
-    auto unpacked = PackedCoordinate::unpack(packed);
-    if (unpacked.has_value()) {
-      return GridLocation(unpacked->first, unpacked->second, layer);
-    }
-    return std::nullopt;
-  }
 };
 
 enum Orientation {
