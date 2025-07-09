@@ -79,6 +79,7 @@ class StorableMap:
     def from_cfg(cfg: DictConfig) -> StorableMap:
         # Generate and measure time taken
         start = time.time()
+        # TODO(slava): Remove _recursive_=True once mapgen no longer needs it
         map_builder = instantiate(OmegaConf.to_container(cfg, resolve=True), _recursive_=True)
         level = map_builder.build()
         gen_time = time.time() - start
