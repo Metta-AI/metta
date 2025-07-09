@@ -36,6 +36,14 @@ ALL_DIRECTIONS: list[Direction] = [(0, -1), (0, 1), (1, 0), (-1, 0)]
 
 @dataclass
 class MazeGrid:
+    """
+    A grid of maze cells of NxN size, separated by walls.
+
+    Naming conventions:
+    - `i` and `j` are the indices of the maze cells.
+    - `x` and `y` are the coordinates in the underlying MapGrid.
+    """
+
     grid: MapGrid
     room_size: int
     wall_size: int
