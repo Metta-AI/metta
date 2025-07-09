@@ -17,7 +17,7 @@ trainer:
   bptt_horizon: 32  # Reduced for faster processing
 
   # Parallelism settings
-  num_workers: 16  # Maximum workers for CPU-bound environments
+  num_workers: 8  # Adjusted for hardware cores
   async_factor: 8  # High async factor for better throughput
   zero_copy: true  # Enable zero-copy for reduced memory overhead
 
@@ -70,7 +70,12 @@ trainer:
 
   # Disable kickstart for speed
   kickstart:
-    enabled: false
+    teacher_uri: null  # Disable kickstart
+    action_loss_coef: 1.0
+    value_loss_coef: 1.0
+    anneal_ratio: 0.65
+    kickstart_steps: 1_000_000_000
+    additional_teachers: null
 
   # Total timesteps for training
   total_timesteps: 50_000_000_000

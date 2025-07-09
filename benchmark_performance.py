@@ -8,22 +8,22 @@ and compares their performance to quantify the speedup achieved.
 
 import logging
 import os
-import time
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
 
+
 def run_benchmark(config_name: str, script_path: str, max_epochs: int = 10) -> dict:
     """Run a training benchmark and measure performance."""
     logger.info(f"🚀 Running benchmark: {config_name}")
 
     # Create a temporary config to limit training time
-    temp_config = f"""
-# Temporary config for benchmarking
+    temp_config = """# Temporary config for benchmarking
 trainer:
   total_timesteps: 1000000  # Small number for quick benchmark
   checkpoint:
@@ -52,7 +52,7 @@ trainer:
             env=env,
             capture_output=True,
             text=True,
-            timeout=300  # 5 minute timeout
+            timeout=300,  # 5 minute timeout
         )
 
         end_time = time.time()
@@ -60,16 +60,16 @@ trainer:
 
         # Parse output for performance metrics
         steps_per_sec = 0
-        for line in result.stdout.split('\n'):
-            if 'steps/sec' in line:
+        for line in result.stdout.split("\n"):
+            if "steps/sec" in line:
                 try:
                     # Extract steps/sec from log line
                     parts = line.split()
-                    for i, part in enumerate(parts):
-                        if part.endswith('steps/sec'):
-                            steps_per_sec = float(part.replace('steps/sec', ''))
+                    for _i, part in enumerate(parts):
+                        if part.endswith("steps/sec"):
+                            steps_per_sec = float(part.replace("steps/sec", ""))
                             break
-                except:
+                except Exception:  # noqa: BLE001
                     pass
 
         return {
@@ -78,7 +78,7 @@ trainer:
             "steps_per_sec": steps_per_sec,
             "success": result.returncode == 0,
             "stdout": result.stdout,
-            "stderr": result.stderr
+            "stderr": result.stderr,
         }
 
     except subprocess.TimeoutExpired:
@@ -89,12 +89,13 @@ trainer:
             "steps_per_sec": 0,
             "success": False,
             "stdout": "",
-            "stderr": "Timeout"
+            "stderr": "Timeout",
         }
     finally:
         # Clean up temporary config
         if config_path.exists():
             config_path.unlink()
+
 
 def compare_performance(results: list) -> None:
     """Compare performance between different configurations."""
@@ -137,6 +138,7 @@ def compare_performance(results: list) -> None:
     else:
         logger.error("❌ Missing baseline or optimized results for comparison")
 
+
 def main():
     """Main benchmarking function."""
     logger.info("🔬 Starting performance benchmarking...")
@@ -169,6 +171,7 @@ def main():
             f.write("-" * 40 + "\n\n")
 
     logger.info("💾 Detailed results saved to benchmark_results.txt")
+
 
 if __name__ == "__main__":
     main()
