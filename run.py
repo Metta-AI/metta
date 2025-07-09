@@ -33,13 +33,15 @@ from metta.mettagrid import mettagrid_c  # noqa: F401
 from metta.mettagrid.mettagrid_env import dtype_actions
 from metta.rl.experience import Experience
 from metta.rl.functions import (
+    _maybe_compute_grad_stats,
+    _maybe_save_training_state,
+    _should_run,
     accumulate_rollout_stats,
     calculate_batch_sizes,
     calculate_explained_variance,
     calculate_prioritized_sampling_params,
     cleanup_old_policies,
     compute_advantage,
-    compute_gradient_stats,
     compute_timing_stats,
     get_lstm_config,
     get_observation,
@@ -49,8 +51,6 @@ from metta.rl.functions import (
     process_training_stats,
     run_policy_inference,
     save_policy_with_metadata,
-    save_training_state,
-    should_run_on_interval,
 )
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.kickstarter_config import KickstartConfig
@@ -568,7 +568,7 @@ while agent_step < trainer_config.total_timesteps:
     )
 
     # Record heartbeat periodically (master only)
-    if should_run_on_interval(epoch, 10, is_master):
+    if _should_run(epoch, 10, is_master):
         record_heartbeat()
 
     # Update L2 weights if configured
@@ -581,11 +581,11 @@ while agent_step < trainer_config.total_timesteps:
         )
 
     # Compute gradient statistics (master only)
-    if should_run_on_interval(epoch, trainer_config.grad_mean_variance_interval, is_master):
-        grad_stats = compute_gradient_stats(agent)
+    if _should_run(epoch, trainer_config.grad_mean_variance_interval, is_master):
+        grad_stats = _maybe_compute_grad_stats(agent)
 
     # Save checkpoint periodically
-    if should_run_on_interval(epoch, trainer_config.checkpoint.checkpoint_interval, True):  # All ranks participate
+    if _should_run(epoch, trainer_config.checkpoint.checkpoint_interval, True):  # All ranks participate
         # Save policy with metadata (master only)
         if is_master:
             saved_record = save_policy_with_metadata(
@@ -610,7 +610,7 @@ while agent_step < trainer_config.total_timesteps:
 
         # Save training state (master only)
         latest_uri = latest_saved_policy_record.uri if latest_saved_policy_record else None
-        save_training_state(
+        _maybe_save_training_state(
             checkpoint_dir=dirs.run_dir,
             agent_step=agent_step,
             epoch=epoch,
@@ -752,7 +752,7 @@ if is_master:
 
 # Save training state (master only)
 latest_uri = latest_saved_policy_record.uri if latest_saved_policy_record else None
-save_training_state(
+_maybe_save_training_state(
     checkpoint_dir=dirs.run_dir,
     agent_step=agent_step,
     epoch=epoch,

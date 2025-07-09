@@ -381,7 +381,7 @@ def accumulate_rollout_stats(
                     stats[k] = [stats[k], v]  # fallback: bundle as list
 
 
-def compute_gradient_stats(policy: torch.nn.Module) -> Dict[str, float]:
+def _maybe_compute_grad_stats(policy: torch.nn.Module) -> Dict[str, float]:
     """Compute gradient statistics for the policy.
 
     Returns:
@@ -459,7 +459,7 @@ def setup_distributed_vars() -> Tuple[bool, int, int]:
     return _master, _world_size, _rank
 
 
-def should_run_on_interval(
+def _should_run(
     epoch: int,
     interval: int,
     is_master: bool = True,
@@ -992,7 +992,41 @@ def save_policy_with_metadata(
     return saved_record
 
 
-def save_training_state(
+def validate_policy_environment_match(policy: Any, env: Any) -> None:
+    """Validate that policy's observation shape matches environment's."""
+    from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
+
+    # Extract agent from distributed wrapper if needed
+    if isinstance(policy, MettaAgent):
+        agent = policy
+    elif isinstance(policy, DistributedMettaAgent):
+        agent = policy.module
+    else:
+        raise ValueError(f"Policy must be of type MettaAgent or DistributedMettaAgent, got {type(policy)}")
+
+    _env_shape = env.single_observation_space.shape
+    environment_shape = tuple(_env_shape) if isinstance(_env_shape, list) else _env_shape
+
+    # The rest of the validation logic continues to work with duck typing
+    if hasattr(agent, "components"):
+        found_match = False
+        for component_name, component in agent.components.items():
+            if hasattr(component, "_obs_shape"):
+                found_match = True
+                component_shape = component._obs_shape
+                if component_shape != environment_shape:
+                    raise ValueError(
+                        f"Component '{component_name}' observation shape {component_shape} "
+                        f"does not match environment shape {environment_shape}"
+                    )
+
+        if not found_match:
+            logger.warning("No components with _obs_shape found for validation")
+    else:
+        logger.warning("Agent has no components attribute for shape validation")
+
+
+def _maybe_save_training_state(
     checkpoint_dir: str,
     agent_step: int,
     epoch: int,

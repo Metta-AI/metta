@@ -13,13 +13,15 @@ from metta.api import TrainerState
 from metta.common.util.heartbeat import record_heartbeat
 from metta.mettagrid.curriculum.util import curriculum_from_config_path
 from metta.rl.functions import (
+    _maybe_compute_grad_stats,
+    _maybe_save_training_state,
+    _should_run,
     accumulate_rollout_stats,
     calculate_batch_sizes,
     calculate_explained_variance,
     calculate_prioritized_sampling_params,
     cleanup_old_policies,
     compute_advantage,
-    compute_gradient_stats,
     evaluate_policy,
     generate_replay,
     get_lstm_config,
@@ -29,9 +31,8 @@ from metta.rl.functions import (
     process_stats,
     run_policy_inference,
     save_policy_with_metadata,
-    save_training_state,
     setup_distributed_vars,
-    should_run_on_interval,
+    validate_policy_environment_match,
 )
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses
@@ -56,7 +57,7 @@ local_rank = int(os.environ.get("LOCAL_RANK", 0))
 logger = logging.getLogger(f"trainer-{rank}-{local_rank}")
 
 
-def rollout(
+def _rollout(
     vecenv: Any,
     policy: Any,
     experience: Any,
@@ -109,7 +110,7 @@ def rollout(
     return total_steps, raw_infos
 
 
-def train_epoch(
+def _train(
     policy: Any,
     optimizer: Any,
     experience: Any,
@@ -282,7 +283,7 @@ def train(
         with torch_profiler:
             # Rollout phase
             with timer("_rollout"):
-                num_steps, raw_infos = rollout(
+                num_steps, raw_infos = _rollout(
                     vecenv=vecenv,
                     policy=policy,
                     experience=experience,
@@ -296,7 +297,7 @@ def train(
 
             # Training phase
             with timer("_train"):
-                epochs_trained = train_epoch(
+                epochs_trained = _train(
                     policy=policy,
                     optimizer=optimizer,
                     experience=experience,
@@ -362,7 +363,7 @@ def train(
         )
 
         # Periodic tasks
-        if should_run_on_interval(state.epoch, 10, is_master):
+        if _should_run(state.epoch, 10, is_master):
             record_heartbeat()
 
         # Update L2 weights if configured
@@ -375,16 +376,16 @@ def train(
             )
 
         # Save policy
-        if _should_save_policy(state.epoch, trainer_cfg.checkpoint.checkpoint_interval):
-            saved_record = _save_policy(
+        if _should_run(state.epoch, trainer_cfg.checkpoint.checkpoint_interval):
+            saved_record = _maybe_save_policy(
                 policy, policy_store, state, timer, vecenv, cfg.run, is_master, trainer_cfg, world_size
             )
             if saved_record:
                 state.latest_saved_policy_record = saved_record
 
         # Save training state
-        if _should_save_policy(state.epoch, trainer_cfg.checkpoint.checkpoint_interval):
-            save_training_state(
+        if _should_run(state.epoch, trainer_cfg.checkpoint.checkpoint_interval):
+            _maybe_save_training_state(
                 checkpoint_dir=cfg.run_dir,
                 agent_step=state.agent_step,
                 epoch=state.epoch,
@@ -399,13 +400,13 @@ def train(
             )
 
         # Upload to wandb
-        if should_run_on_interval(state.epoch, trainer_cfg.checkpoint.wandb_checkpoint_interval, is_master):
+        if _should_run(state.epoch, trainer_cfg.checkpoint.wandb_checkpoint_interval, is_master):
             wandb_policy_name = _upload_policy_to_wandb(wandb_run, policy_store, state.latest_saved_policy_record)
 
         # Evaluate policy
-        if should_run_on_interval(state.epoch, trainer_cfg.simulation.evaluate_interval, is_master):
+        if _should_run(state.epoch, trainer_cfg.simulation.evaluate_interval, is_master):
             if state.latest_saved_policy_record:
-                eval_scores, stats_epoch_id = _evaluate_policy(
+                eval_scores, stats_epoch_id = _maybe_evaluate_policy(
                     state.latest_saved_policy_record,
                     policy_store,
                     sim_suite_config,
@@ -419,9 +420,9 @@ def train(
                 state.stats_epoch_id = stats_epoch_id
 
         # Generate replay
-        if should_run_on_interval(state.epoch, trainer_cfg.simulation.replay_interval, is_master):
+        if _should_run(state.epoch, trainer_cfg.simulation.replay_interval, is_master):
             if state.latest_saved_policy_record:
-                _generate_replay(
+                _maybe_generate_replay(
                     state.latest_saved_policy_record,
                     trainer_cfg,
                     policy_store,
@@ -432,9 +433,9 @@ def train(
                 )
 
         # Compute gradient stats
-        if should_run_on_interval(state.epoch, trainer_cfg.grad_mean_variance_interval, is_master):
+        if _should_run(state.epoch, trainer_cfg.grad_mean_variance_interval, is_master):
             with timer("grad_stats"):
-                state.grad_stats = compute_gradient_stats(policy)
+                state.grad_stats = _maybe_compute_grad_stats(policy)
 
         # Check for abort
         if _check_abort(wandb_run, trainer_cfg, state.agent_step):
@@ -448,13 +449,13 @@ def train(
 
     # Force final saves
     if is_master:
-        saved_record = _save_policy(
+        saved_record = _maybe_save_policy(
             policy, policy_store, state, timer, vecenv, cfg.run, is_master, trainer_cfg, world_size, force=True
         )
         if saved_record:
             state.latest_saved_policy_record = saved_record
 
-    save_training_state(
+    _maybe_save_training_state(
         checkpoint_dir=cfg.run_dir,
         agent_step=state.agent_step,
         epoch=state.epoch,
@@ -583,6 +584,9 @@ def create_training_components(
     features = metta_grid_env.get_observation_features()
     policy.initialize_to_environment(features, metta_grid_env.action_names, metta_grid_env.max_action_args, device)
 
+    # Validate that policy matches environment
+    validate_policy_environment_match(policy, metta_grid_env)
+
     if trainer_cfg.compile:
         logger.info("Compiling policy")
         policy = torch.compile(policy, mode=trainer_cfg.compile_mode)
@@ -679,12 +683,7 @@ def create_training_components(
     )
 
 
-def _should_save_policy(epoch: int, interval: int, force: bool = False) -> bool:
-    """Check if policy should be saved."""
-    return force or (interval and epoch % interval == 0)
-
-
-def _save_policy(
+def _maybe_save_policy(
     policy: Any,
     policy_store: Any,
     state: TrainerState,
@@ -697,7 +696,11 @@ def _save_policy(
     force: bool = False,
 ) -> Optional[Any]:
     """Save policy with distributed synchronization."""
-    if not _should_save_policy(state.epoch, trainer_cfg.checkpoint.checkpoint_interval, force):
+    # Check if should save
+    should_save = force or (
+        trainer_cfg.checkpoint.checkpoint_interval and state.epoch % trainer_cfg.checkpoint.checkpoint_interval == 0
+    )
+    if not should_save:
         return None
 
     # All ranks participate in barrier for distributed sync
@@ -748,7 +751,7 @@ def _upload_policy_to_wandb(
     return result
 
 
-def _evaluate_policy(
+def _maybe_evaluate_policy(
     policy_record: Any,
     policy_store: Any,
     sim_suite_config: Any,
@@ -780,7 +783,7 @@ def _evaluate_policy(
         return {}, None
 
 
-def _generate_replay(
+def _maybe_generate_replay(
     policy_record: Any,
     trainer_cfg: Any,
     policy_store: Any,
@@ -839,17 +842,47 @@ def _load_or_create_policy(
     # Try to load from checkpoint or config
     if checkpoint and checkpoint.policy_path:
         logger.info(f"Loading policy from checkpoint: {checkpoint.policy_path}")
-        return policy_store.policy_record(checkpoint.policy_path)
+        policy_record = policy_store.policy_record(checkpoint.policy_path)
+
+        # Restore original_feature_mapping from metadata if available
+        if (
+            hasattr(policy_record.policy, "restore_original_feature_mapping")
+            and "original_feature_mapping" in policy_record.metadata
+        ):
+            policy_record.policy.restore_original_feature_mapping(policy_record.metadata["original_feature_mapping"])
+            logger.info("Restored original_feature_mapping from checkpoint")
+
+        return policy_record
 
     if trainer_cfg.initial_policy and trainer_cfg.initial_policy.uri:
         logger.info(f"Loading initial policy URI: {trainer_cfg.initial_policy.uri}")
-        return policy_store.policy_record(trainer_cfg.initial_policy.uri)
+        policy_record = policy_store.policy_record(trainer_cfg.initial_policy.uri)
+
+        # Restore original_feature_mapping from metadata if available
+        if (
+            hasattr(policy_record.policy, "restore_original_feature_mapping")
+            and "original_feature_mapping" in policy_record.metadata
+        ):
+            policy_record.policy.restore_original_feature_mapping(policy_record.metadata["original_feature_mapping"])
+            logger.info("Restored original_feature_mapping from initial policy")
+
+        return policy_record
 
     # Check for existing policy at default path
     default_path = os.path.join(trainer_cfg.checkpoint.checkpoint_dir, policy_store.make_model_name(0))
     if os.path.exists(default_path):
         logger.info(f"Loading policy from default path: {default_path}")
-        return policy_store.policy_record(default_path)
+        policy_record = policy_store.policy_record(default_path)
+
+        # Restore original_feature_mapping from metadata if available
+        if (
+            hasattr(policy_record.policy, "restore_original_feature_mapping")
+            and "original_feature_mapping" in policy_record.metadata
+        ):
+            policy_record.policy.restore_original_feature_mapping(policy_record.metadata["original_feature_mapping"])
+            logger.info("Restored original_feature_mapping from default path")
+
+        return policy_record
 
     # Create new policy
     if torch.distributed.is_initialized() and not is_master:
@@ -860,7 +893,17 @@ def _load_or_create_policy(
         if not wait_for_file(default_path, timeout=300):
             raise RuntimeError(f"Rank {rank}: Timeout waiting for policy at {default_path}")
 
-        return policy_store.policy_record(default_path)
+        policy_record = policy_store.policy_record(default_path)
+
+        # Restore original_feature_mapping from metadata if available
+        if (
+            hasattr(policy_record.policy, "restore_original_feature_mapping")
+            and "original_feature_mapping" in policy_record.metadata
+        ):
+            policy_record.policy.restore_original_feature_mapping(policy_record.metadata["original_feature_mapping"])
+            logger.info(f"Rank {rank}: Restored original_feature_mapping")
+
+        return policy_record
     else:
         # Master creates new policy
         name = policy_store.make_model_name(0)
