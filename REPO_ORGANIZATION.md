@@ -2,14 +2,14 @@
 
 ## Overview
 
-This document outlines a flattened organization structure for the Metta monorepo, using consistent `metta-*` package naming while maintaining simple directory names and imports.
+This document outlines a flattened organization structure for the Metta monorepo, using consistent `softmax-*` package naming while maintaining simple directory names and imports.
 
 ### Naming Convention
 
 Our three-tier naming system:
 1. **Directory name**: Simple, no prefix (e.g., `cogworks/`)
 2. **Import name**: Matches directory (e.g., `from cogworks import api`)
-3. **Package name**: Company-prefixed (e.g., `pip install metta-cogworks`)
+3. **Package name**: Company-prefixed (e.g., `pip install softmax-cogworks`)
 
 This gives us the best of all worlds:
 - Clean, simple imports for developers
@@ -21,7 +21,7 @@ This gives us the best of all worlds:
 1. **Independent Packages**: Each component is its own Python package with distinct namespaces
 2. **Simple Imports**: Direct package names without deep nesting
 3. **Clear Boundaries**: Each package has a focused purpose and minimal dependencies
-4. **Consistent Branding**: All Python packages use `metta-` prefix for PyPI distribution
+4. **Consistent Branding**: All Python packages use `softmax-` prefix for PyPI distribution
 5. **Developer Ergonomics**: Simple directory structure that matches import names
 
 ## Package Structure
@@ -58,7 +58,7 @@ metta/
 │   ├── mapgen/                 # From metta/map/
 │   ├── recipes/                # Example scripts
 │   ├── tests/                  # Combined tests
-│   ├── pyproject.toml          # name = "metta-cogworks"
+│   ├── pyproject.toml          # name = "softmax-cogworks"
 │   └── api.py                  # Main API (from metta/api.py)
 │
 ├── mettagrid/                  # C++/Python environment
@@ -66,14 +66,14 @@ metta/
 │   ├── benchmarks/
 │   ├── configs/
 │   ├── *.py                    # Flattened Python files
-│   └── pyproject.toml          # name = "metta-mettagrid"
+│   └── pyproject.toml          # name = "softmax-mettagrid"
 │
 ├── mettacommon/                # Shared Python utilities (mettacommon module)
 │   ├── util/                   # From common/src/metta/common/util/
 │   ├── profiling/              # From common/src/metta/common/profiling/
 │   ├── wandb/                  # From common/src/metta/common/wandb/
 │   ├── tests/
-│   └── pyproject.toml          # name = "metta-common"
+│   └── pyproject.toml          # name = "softmax-common"
 │
 ├── backend-shared/             # Shared backend services
 │   ├── sweep_names.py          # Name registration service
@@ -83,7 +83,7 @@ metta/
 │   ├── cache.py                # Caching utilities
 │   ├── utils.py                # General backend utilities
 │   ├── tests/
-│   └── pyproject.toml          # name = "metta-backend-shared"
+│   └── pyproject.toml          # name = "softmax-backend-shared"
 │
 ├── ui-shared/                  # Shared UI components for web apps
 │   ├── components/             # Reusable React components
@@ -96,7 +96,7 @@ metta/
 │   ├── src/                    # TypeScript/React frontend
 │   ├── public/
 │   ├── server.py               # Python server
-│   ├── pyproject.toml          # name = "metta-gridworks" (new)
+│   ├── pyproject.toml          # name = "softmax-gridworks" (new)
 │   └── package.json
 │
 ├── observatory/                # Production monitoring
@@ -104,7 +104,7 @@ metta/
 │   ├── api/                    # Observatory-specific backend
 │   │   ├── endpoints.py        # Observatory API endpoints
 │   │   └── requirements.txt    # API-specific Python dependencies
-│   ├── pyproject.toml          # name = "metta-observatory"
+│   ├── pyproject.toml          # name = "softmax-observatory"
 │   ├── package.json
 │   └── Dockerfile              # From backend/docker/observatory/
 │
@@ -166,13 +166,13 @@ metta/
 ```toml
 # cogworks/pyproject.toml
 [project]
-name = "metta-cogworks"
+name = "softmax-cogworks"
 version = "0.1.0"
 description = "Metta RL training framework"
 
 [tool.uv]
 # This ensures imports work as "from cogworks import ..."
-# while the package installs as "pip install metta-cogworks"
+# while the package installs as "pip install softmax-cogworks"
 ```
 
 **Imports:**
@@ -184,7 +184,7 @@ from cogworks.agent import MettaAgent
 
 **Installation:**
 ```bash
-pip install metta-cogworks
+pip install softmax-cogworks
 ```
 
 ### Environment Package
@@ -192,10 +192,10 @@ pip install metta-cogworks
 ```toml
 # mettagrid/pyproject.toml
 [project]
-name = "metta-mettagrid"
+name = "softmax-mettagrid"
 version = "0.1.0"
 description = "High-performance grid environments"
-dependencies = ["metta-common>=0.1.0"]
+dependencies = ["softmax-common>=0.1.0"]
 ```
 
 **Imports:**
@@ -209,7 +209,7 @@ from mettagrid import MettaGridPufferEnv
 ```toml
 # common/pyproject.toml
 [project]
-name = "metta-common"
+name = "softmax-common"
 version = "0.1.0"
 description = "Shared utilities for Metta packages"
 
@@ -229,11 +229,11 @@ from mettacommon.util import config
 ```toml
 # backend-shared/pyproject.toml
 [project]
-name = "metta-backend-shared"
+name = "softmax-backend-shared"
 version = "0.1.0"
 description = "Shared backend services for Metta applications"
 dependencies = [
-    "metta-common>=0.1.0",
+    "softmax-common>=0.1.0",
     "fastapi>=0.100.0",
     "sqlalchemy>=2.0.0",
     "redis>=5.0.0",
@@ -253,7 +253,7 @@ from backend_shared.cache import cache_result
 
 **Installation:**
 ```bash
-pip install metta-backend-shared
+pip install softmax-backend-shared
 ```
 
 ## Current → Proposed Mapping
@@ -290,39 +290,39 @@ apps/mettascope/              → mettascope/ (root level)
 apps/studio/                  → gridworks/ (root level)
 
 # PACKAGE NAMES
-metta                         → metta-cogworks
-metta-common                  → metta-common
-metta-agent                   → (merged into metta-cogworks)
-metta-mettagrid              → metta-mettagrid
-metta-app-backend            → metta-backend-shared (for shared services)
+metta                         → softmax-cogworks
+metta-common                  → softmax-common
+metta-agent                   → (merged into softmax-cogworks)
+metta-mettagrid              → softmax-mettagrid
+metta-app-backend            → softmax-backend-shared (for shared services)
 ```
 
 ## Installation Examples
 
 ```bash
 # Just the environment
-pip install metta-mettagrid
+pip install softmax-mettagrid
 
 # Training framework (includes dependencies)
-pip install metta-cogworks
+pip install softmax-cogworks
 
 # Backend services
-pip install metta-backend-shared
+pip install softmax-backend-shared
 
 # Development setup
 uv sync  # Installs all workspace packages
 
 # What uv will show during build:
-# Built metta-cogworks @ file:///workspace/cogworks
-# Built metta-common @ file:///workspace/common
-# Built metta-mettagrid @ file:///workspace/mettagrid
-# Built metta-backend-shared @ file:///workspace/backend-shared
+# Built softmax-cogworks @ file:///workspace/cogworks
+# Built softmax-common @ file:///workspace/common
+# Built softmax-mettagrid @ file:///workspace/mettagrid
+# Built softmax-backend-shared @ file:///workspace/backend-shared
 ```
 
 ## Import Philosophy
 
 We maintain a clear separation between:
-- **Package distribution names** (with `metta-` prefix for branding)
+- **Package distribution names** (with `softmax-` prefix for branding)
 - **Import names** (simple, no prefix for developer ergonomics)
 
 This approach is used by many successful projects:
@@ -332,9 +332,9 @@ This approach is used by many successful projects:
 
 ## Benefits
 
-1. **Brand Recognition**: All packages clearly belong to Metta
-2. **No Naming Conflicts**: `metta-` prefix prevents PyPI collisions
-3. **Clean Imports**: Developers write `from cogworks` not `from metta_cogworks`
+1. **Brand Recognition**: All packages clearly belong to Softmax
+2. **No Naming Conflicts**: `softmax-` prefix prevents PyPI collisions
+3. **Clean Imports**: Developers write `from cogworks` not `from softmax_cogworks`
 4. **Consistent Structure**: Directory names match import names
 5. **Easy Migration**: Existing `metta` imports become `cogworks` imports
 6. **Flat Structure**: No unnecessary src/ nesting for Python packages
@@ -359,27 +359,27 @@ All components from the original structure have been accounted for:
 
 ```mermaid
 graph TD
-    A[metta-common] --> B[metta-mettagrid]
-    A --> C[metta-cogworks]
+    A[softmax-common] --> B[softmax-mettagrid]
+    A --> C[softmax-cogworks]
     B --> C
-    A --> D[metta-backend-shared]
-    D --> E[metta-gridworks]
-    D --> F[metta-observatory]
+    A --> D[softmax-backend-shared]
+    D --> E[softmax-gridworks]
+    D --> F[softmax-observatory]
     A --> E
     A --> F
-    A --> G[metta-scope]
+    A --> G[softmax-scope]
 ```
 
 ## Future Packages
 
 As the web apps mature, they'll follow the same pattern:
-- `gridworks/` → `from gridworks` → `pip install metta-gridworks`
-- `observatory/` → `from observatory` → `pip install metta-observatory`
-- `mettascope/` → `from mettascope` → `pip install metta-scope`
+- `gridworks/` → `from gridworks` → `pip install softmax-gridworks`
+- `observatory/` → `from observatory` → `pip install softmax-observatory`
+- `mettascope/` → `from mettascope` → `pip install softmax-scope`
 
 ## Migration Path
 
-1. Update `pyproject.toml` files with `metta-` prefixed names
+1. Update `pyproject.toml` files with `softmax-` prefixed names
 2. Update imports from `from metta.rl` to `from cogworks.rl`
 3. Ensure `common/` exports as `mettacommon` module
 4. Create `backend-shared/` with shared backend services
