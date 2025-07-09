@@ -23,7 +23,7 @@ public:
   bool _swappable;
 
   Wall(GridCoord r, GridCoord c, const WallConfig& cfg) {
-    GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c, GridLayer::Object_Layer));
+    GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c, GridLayer::ObjectLayer));
     this->_swappable = cfg.swappable;
   }
 

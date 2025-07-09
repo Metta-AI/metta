@@ -68,12 +68,15 @@ protected:
   }
 
   bool _handle_target(Agent* actor, GridLocation target_loc) {
+    // Agents will attempt to attack non-agent objects, which we want to always fail.
+    // Rather than dynamic cast to see if the target object is an Agent, we instead force
+    // the target object layer to be the agent layer
+    target_loc.layer = GridLayer::AgentLayer;
+
     GridObject* obj = _grid->object_at(target_loc);
     if (!obj) return false;
 
-    Agent* agent_target = dynamic_cast<Agent*>(obj);
-    if (!agent_target) return false;
-
+    Agent* agent_target = static_cast<Agent*>(obj);
     bool was_frozen = agent_target->frozen > 0;
 
     if (agent_target) {

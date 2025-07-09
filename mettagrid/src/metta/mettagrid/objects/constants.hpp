@@ -13,11 +13,11 @@ enum EventType {
   EventTypeCount
 };
 
-enum GridLayer {
-  Agent_Layer = 0,
-  Object_Layer = 1,
-  GridLayerCount
-};
+namespace GridLayer {
+constexpr ObservationType AgentLayer = 0;
+constexpr ObservationType ObjectLayer = 1;
+constexpr ObservationType GridLayerCount = 2;
+};  // namespace GridLayer
 
 // We want empty tokens to be 0xff, since 0s are very natural numbers to have in the observations, and we want
 // empty to be obviously different.

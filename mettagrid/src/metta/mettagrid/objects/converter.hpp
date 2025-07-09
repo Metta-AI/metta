@@ -121,7 +121,7 @@ public:
         conversion_ticks(cfg.conversion_ticks),
         cooldown(cfg.cooldown),
         color(cfg.color) {
-    GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c, GridLayer::Object_Layer));
+    GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c, GridLayer::ObjectLayer));
     this->converting = false;
     this->cooling_down = false;
 

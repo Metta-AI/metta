@@ -78,17 +78,21 @@ public:
     GridObject* obj1 = object(id1);
     GridObject* obj2 = object(id2);
 
+    // Store the original locations.
     GridLocation loc1 = obj1->location;
     GridLocation loc2 = obj2->location;
 
+    // Clear the objects from their original positions in the grid.
     grid[loc1.r][loc1.c][loc1.layer] = 0;
     grid[loc2.r][loc2.c][loc2.layer] = 0;
 
-    obj1->location = loc2;
-    obj2->location = loc1;
+    // Update the location property of each object, preserving their original layers.
+    obj1->location = {loc2.r, loc2.c, loc1.layer};
+    obj2->location = {loc1.r, loc1.c, loc2.layer};
 
-    grid[loc2.r][loc2.c][loc2.layer] = id1;
-    grid[loc1.r][loc1.c][loc1.layer] = id2;
+    // Place the objects in their new positions in the grid.
+    grid[obj1->location.r][obj1->location.c][obj1->location.layer] = id1;
+    grid[obj2->location.r][obj2->location.c][obj2->location.layer] = id2;
   }
 
   inline GridObject* object(GridObjectId obj_id) const {

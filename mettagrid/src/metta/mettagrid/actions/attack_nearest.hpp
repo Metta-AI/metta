@@ -18,22 +18,21 @@ public:
 
 protected:
   bool _handle_action(Agent* actor, ActionArg arg) override {
-    // Scan the space to find the nearest agent. Prefer the middle (offset 0) before the edges (offset -1, 1).
+    // Defines the search pattern: check directly in front first, then to one side, then the other.
+    const int offsets[] = {0, 1, -1};
+
     for (int distance = 1; distance < 4; distance++) {
-      for (int i = 0; i < 3; i++) {
-        int offset = i;
-        if (offset == 2) {
-          // Sort of a mod 3 operation.
-          offset = -1;
-        }
+      for (const int offset : offsets) {
         GridLocation target_loc =
             _grid->relative_location(actor->location, static_cast<Orientation>(actor->orientation), distance, offset);
 
-        target_loc.layer = GridLayer::Agent_Layer;
-        Agent* agent_target = static_cast<Agent*>(_grid->object_at(target_loc));
-        if (agent_target) {
-          return _handle_target(actor, target_loc);
-        }
+        target_loc.layer = GridLayer::AgentLayer;
+
+        GridObject* obj = _grid->object_at(target_loc);
+        if (!obj) continue;
+
+        // we know obj is an Agent because it is in the agent layer
+        return _handle_target(static_cast<Agent*>(obj), target_loc);
       }
     }
 

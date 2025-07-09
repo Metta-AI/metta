@@ -19,16 +19,24 @@ public:
 
 protected:
   bool _handle_action(Agent* actor, ActionArg arg) override {
+    // target the square we are facing
     GridLocation target_loc = _grid->relative_location(actor->location, static_cast<Orientation>(actor->orientation));
-    MettaObject* target = static_cast<MettaObject*>(_grid->object_at(target_loc));
-    if (target == nullptr) {
-      target_loc.layer = GridLayer::Object_Layer;
-      target = static_cast<MettaObject*>(_grid->object_at(target_loc));
+
+    // first try the object layer
+    target_loc.layer = GridLayer::ObjectLayer;
+    GridObject* obj = _grid->object_at(target_loc);
+
+    if (!obj) {
+      // next try the agent layer
+      target_loc.layer = GridLayer::AgentLayer;
+      GridObject* obj = _grid->object_at(target_loc);
     }
-    if (target == nullptr) {
+
+    if (!obj) {
       return false;
     }
 
+    MettaObject* target = static_cast<MettaObject*>(obj);
     if (!target->swappable()) {
       return false;
     }
