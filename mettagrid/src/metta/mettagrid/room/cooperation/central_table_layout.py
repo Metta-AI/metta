@@ -28,7 +28,7 @@ class CentralTableLayout(Room):
         self,
         width: int,  # User-provided width for the core functional area
         height: int,  # User-provided height for the core functional area
-        agents: Union[int, DictConfig] = 1,
+        agents: Union[int, dict, DictConfig] = 1,
         seed: Optional[int] = None,
         lane_width: int = 1,
         num_mines: int = 2,
@@ -79,14 +79,14 @@ class CentralTableLayout(Room):
         if isinstance(agents, int):
             if agents < 0:
                 raise ValueError("Number of agents cannot be negative.")
-        elif isinstance(agents, DictConfig):
+        elif isinstance(agents, (dict, DictConfig)):
             for agent_name, count_val in agents.items():
                 if not isinstance(count_val, int) or count_val < 0:
                     raise ValueError(
                         f"Agent count for '{str(agent_name)}' must be a non-negative integer, got {count_val}"
                     )
         else:
-            raise TypeError(f"Agents parameter must be an int or a DictConfig, got {type(agents)}")
+            raise TypeError(f"Agents parameter must be an int, dict, or DictConfig, got {type(agents)}")
         self._agents_spec = agents
 
         # Initialize and apply style parameters for items and the final self._lane_width
@@ -251,8 +251,8 @@ class CentralTableLayout(Room):
             if placed_count < count:
                 print(f"Warning: Could only place {placed_count}/{count} of '{item_name}' on functional border.")
 
-        _place_item_on_border("generator", self._num_generators, generator_preferred_border_segments)
-        _place_item_on_border("mine", self._num_mines, mine_altar_preferred_border_segments)
+        _place_item_on_border("generator_red", self._num_generators, generator_preferred_border_segments)
+        _place_item_on_border("mine_red", self._num_mines, mine_altar_preferred_border_segments)
         _place_item_on_border("altar", self._num_altars, mine_altar_preferred_border_segments)
 
         # 4. Fill remaining "empty" functional border cells with "wall"
@@ -285,7 +285,7 @@ class CentralTableLayout(Room):
             count = self._agents_spec
             # Agent type defaults to "agent.agent" if an integer is provided
             agent_symbols_to_place = ["agent.agent"] * count
-        elif isinstance(self._agents_spec, DictConfig):
+        elif isinstance(self._agents_spec, (dict, DictConfig)):
             for name, agent_count in self._agents_spec.items():
                 # Ensure name is treated as a string for processing
                 s_name = str(name)

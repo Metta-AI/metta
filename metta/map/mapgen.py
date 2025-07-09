@@ -1,8 +1,9 @@
-from dataclasses import dataclass
+from typing import cast
 
 import numpy as np
 from omegaconf import DictConfig, OmegaConf
 
+from metta.common.util.config import Config
 from metta.map.scene import load_class, make_scene, scene_cfg_to_dict
 from metta.map.scenes.room_grid import RoomGrid, RoomGridParams
 from metta.map.types import MapGrid
@@ -11,9 +12,7 @@ from metta.mettagrid.level_builder import Level, LevelBuilder
 from .types import Area, AreaWhere, ChildrenAction, SceneCfg
 
 
-# Root map generator, based on scenes.
-@dataclass
-class MapGen(LevelBuilder):
+class MapGenParams(Config):
     # Root scene configuration.
     # In YAML configs, this is usually the dict with `type` and `params` keys, and possible children.
     # This is the only required parameter.
@@ -36,6 +35,22 @@ class MapGen(LevelBuilder):
     instances: int = 1
     instance_border_width: int = 5
 
+
+# Root map generator, based on scenes.
+class MapGen(LevelBuilder):
+    def __init__(self, **kwargs):
+        params = MapGenParams(**kwargs)
+
+        self.root = params.root
+        if isinstance(self.root, DictConfig):
+            self.root: SceneCfg = cast(dict, OmegaConf.to_container(self.root))
+
+        self.width = params.width
+        self.height = params.height
+        self.border_width = params.border_width
+        self.instances = params.instances
+        self.instance_border_width = params.instance_border_width
+
     def build(self):
         instance_rows = int(np.ceil(np.sqrt(self.instances)))
         instance_cols = int(np.ceil(self.instances / instance_rows))
@@ -50,9 +65,6 @@ class MapGen(LevelBuilder):
 
         self.inner_width = self.width * instance_cols + (instance_cols - 1) * self.instance_border_width
         self.inner_height = self.height * instance_rows + (instance_rows - 1) * self.instance_border_width
-
-        if isinstance(self.root, DictConfig):
-            self.root = OmegaConf.to_container(self.root)  # type: ignore
 
         root_scene_cfg = self.root
 
