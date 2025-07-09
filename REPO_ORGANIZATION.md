@@ -1,525 +1,629 @@
-# Metta Repository Organization Plan
+# Metta Repository Organization Plan - Flattened Structure
 
 ## Overview
 
-This document outlines the organization structure for the Metta monorepo, balancing maintainability with modularity.
+This document outlines a flattened organization structure for the Metta monorepo, emphasizing simplicity and clear package boundaries.
 
-### Goals of the Structure
+### Goals of the Flattened Structure
 
-Our package structure is designed to achieve these key goals:
+Our flattened package structure achieves these key goals:
 
 #### Technical Goals
 
-1. **Separate Installation**: Enable subpackages to be installed independently (e.g., `pip install metta-common` without
-   installing the entire repository)
-2. **Consistent Import Syntax**: Maintain clean imports across all packages using the
-   `from metta.subpackage import module` pattern
-3. **Shared Namespace**: Allow separate packages to contribute to the same `metta.*` namespace while being independently
-   distributable
+1. **Independent Packages**: Each major component is its own Python package with distinct namespaces
+2. **Simple Imports**: Direct package names without deep nesting (e.g., `import mettagrid`, `from cogworks import train`)
+3. **Clear Boundaries**: Each package has a focused purpose and minimal dependencies
 
 #### Organizational Goals
 
-4. **Mettagrid Export**: Enable straightforward publishing of subpackages for external use. For example, `mettagrid` can
-   be published to PyPI while maintaining the same import syntax (`from metta.mettagrid import ...`) for external users
-5. **Independent Development**: Each subpackage has its own `pyproject.toml` and can be developed, tested, and versioned
-   independently while sharing the monorepo's tooling
-6. **Clear Boundaries**: Enforce separation between the RL system and web services, preventing accidental coupling while
-   allowing intentional shared code
+4. **Easy Publishing**: Any package can be published to PyPI independently with minimal effort
+5. **Shallow Hierarchy**: Maximum 2 levels deep for any module path
+6. **Developer Ergonomics**: Simple, predictable structure that's easy to navigate
 
-While we don't currently publish these packages to PyPI, this structure positions us to do so in the future. For now, we
-use `uv sync` with workspace pyproject files for internal development.
+### Import Philosophy
 
-### Future Considerations
+Rather than forcing everything under a `metta.*` namespace, we embrace distinct package identities:
 
-This organization is a living proposal that we can adapt as our needs evolve:
-
-- The root namespace may eventually migrate from `metta` to `softmax` to align with our organization
-- The structure can be adjusted based on actual usage patterns and pain points we discover
-- The goal is to align the team "for now" while maintaining flexibility for future changes
-
-This proposal doesn't need to be perfect—it needs to help us work effectively today while keeping our options open for
-tomorrow.
+```python
+# Clear, focused imports
+import mettagrid                    # Environment package
+from cogworks import train          # RL training
+from cogworks.rl import PPO         # RL algorithms
+from mettacommon import logger      # Shared utilities
+from gridworks import MapEditor     # Map editing tools
+```
 
 ## Core Principles
 
-1. **Minimize Package Count**: Limit subpackages to logical, cohesive units that could theoretically be deployed
-   independently
-2. **Minimize Hierarchy**: Keep namespace as flat as possible for developer ergonomics
-   - **10+ subfolder rule**: Only add an extra layer of hierarchy when a directory has more than 10 subfolders
-3. **Clear Dependencies**: Maintain a directed acyclic graph (DAG) of dependencies
-4. **Consistent Structure**: All packages follow the same `src/` layout pattern (per uv best practices)
-5. **Pragmatic Grouping**: Group related functionality to avoid excessive fragmentation
-6. **Pragmatic PEP 420**: Follow PEP 420 patterns in subpackages but use `__init__.py` files as needed
+1. **Flat is Better**: Avoid nested src/ directories and deep hierarchies
+2. **Package Independence**: Each package can be `pip install`ed separately
+3. **Clear Namespaces**: Each package owns its namespace (no forced metta.* prefix)
+4. **Minimal Shared Code**: Only truly universal utilities go in common
+5. **Direct Imports**: Prefer `from package import module` over `from package.subpackage.submodule import thing`
+
+## Package Structure
+
+### Current Structure → Proposed Structure
+
+Here's how the existing repository maps to the new flattened structure:
+
+```
+# CURRENT STRUCTURE                 → PROPOSED STRUCTURE
+metta/                              → Softmax/
+├── metta/                          → cogworks/
+│   ├── __init__.py                   ├── __init__.py
+│   ├── api.py                        ├── api.py
+│   ├── rl/                           ├── rl/
+│   ├── eval/                         ├── eval/
+│   ├── sweep/                        ├── sweep/
+│   ├── map/                          ├── mapgen/
+│   ├── sim/                          ├── sim/
+│   └── setup/                        └── setup/
+├── agent/                          → (merged into cogworks/agent/)
+├── common/                         → mettacommon/
+├── mettagrid/                      → mettagrid/ (unchanged)
+├── mettascope/                     → mettascope/ (unchanged)
+├── observatory/                    → observatory/ (unchanged)
+├── studio/                         → gridworks/
+├── app_backend/                    → (split into respective apps)
+├── tools/                          → tools/ (unchanged)
+├── configs/                        → configs/ (unchanged)
+├── scenes/                         → scenes/ (unchanged)
+├── recipes/                        → recipes/ (moved to cogworks/recipes/)
+├── tests/                          → (distributed to packages)
+├── docs/                           → docs/ (unchanged)
+├── devops/                         → devops/ (unchanged)
+└── wandb_carbs/                    → (integrated or removed)
+```
+
+### Detailed New Structure
+
+```
+Softmax/
+├── pyproject.toml              # Workspace configuration
+├── uv.lock                     # Unified lock file
+│
+├── cogworks/                   # RL training framework (from metta/ + agent/)
+│   ├── pyproject.toml          # name = "cogworks"
+│   ├── __init__.py
+│   ├── api.py                  # Main training APIs
+│   ├── train.py                # Training entry point
+│   ├── agent/                  # Agent/policy code (from agent/)
+│   │   ├── policy.py
+│   │   ├── modules/
+│   │   └── distributions/
+│   ├── rl/                     # RL algorithms
+│   │   ├── experience.py
+│   │   ├── losses.py
+│   │   ├── ppo.py
+│   │   └── trainer.py
+│   ├── eval/                   # Evaluation tools
+│   │   ├── analysis.py
+│   │   └── dashboard_data.py
+│   ├── sweep/                  # Hyperparameter sweeping
+│   │   ├── protein_metta.py
+│   │   └── sweep_name_config.py
+│   ├── sim/                    # Simulation management
+│   │   ├── simulation.py
+│   │   └── simulation_stats_db.py
+│   ├── mapgen/                 # Map generation (from map/)
+│   │   ├── random/
+│   │   ├── scenes/
+│   │   └── utils/
+│   ├── setup/                  # Setup and installation tools
+│   ├── recipes/                # Example scripts (from root recipes/)
+│   └── tests/                  # All RL/agent tests
+│
+├── mettagrid/                  # C++/Python environment (mostly unchanged)
+│   ├── pyproject.toml          # name = "mettagrid"
+│   ├── CMakeLists.txt
+│   ├── __init__.py
+│   ├── src/                    # C++ source
+│   │   └── metta/
+│   │       └── mettagrid/
+│   ├── configs/                # Environment configs
+│   ├── tests/
+│   └── benchmarks/
+│
+├── mettacommon/                # Minimal shared utilities (from common/)
+│   ├── pyproject.toml          # name = "mettacommon"
+│   ├── __init__.py
+│   ├── util/                   # Common utilities
+│   │   ├── logger.py
+│   │   ├── config.py
+│   │   └── system_monitor.py
+│   ├── profiling/              # Performance monitoring
+│   │   ├── memory_monitor.py
+│   │   └── stopwatch.py
+│   ├── wandb/                  # WandB integration
+│   └── tests/
+│
+├── gridworks/                  # Map editor and studio (from studio/)
+│   ├── pyproject.toml          # name = "gridworks"
+│   ├── package.json
+│   ├── __init__.py
+│   ├── server/                 # Python backend
+│   │   ├── api.py
+│   │   └── routes.py
+│   ├── src/                    # TypeScript/React frontend
+│   │   ├── app/
+│   │   ├── components/
+│   │   └── lib/
+│   ├── public/
+│   └── tests/
+│
+├── observatory/                # Production monitoring (unchanged)
+│   ├── pyproject.toml          # name = "observatory"
+│   ├── package.json
+│   ├── __init__.py
+│   ├── api.py                  # Backend API (from app_backend/)
+│   ├── db.py                   # Database models
+│   ├── src/                    # React frontend
+│   ├── docker/
+│   └── tests/
+│
+├── mettascope/                 # Replay viewer (unchanged)
+│   ├── pyproject.toml          # name = "mettascope"
+│   ├── package.json
+│   ├── __init__.py
+│   ├── replays.py              # Replay handling
+│   ├── server.py               # Local server
+│   ├── src/                    # TypeScript frontend
+│   ├── data/                   # Assets (atlas, fonts, ui)
+│   └── tests/
+│
+├── tools/                      # Standalone entry scripts
+│   ├── train.py                # Main training script
+│   ├── sweep_init.py           # Sweep initialization
+│   ├── sweep_eval.py           # Sweep evaluation
+│   ├── play.py                 # Interactive play
+│   ├── sim.py                  # Run simulations
+│   ├── replay.py               # Generate replays
+│   ├── analyze.py              # Analysis tools
+│   ├── dashboard.py            # Dashboard launcher
+│   ├── renderer.py             # Render utilities
+│   ├── validate_config.py      # Config validation
+│   ├── stats_duckdb_cli.py     # Stats DB CLI
+│   └── map/                    # Map generation tools
+│       ├── gen.py
+│       └── gen_scene.py
+│
+├── configs/                    # Hydra configurations
+│   ├── agent/                  # Agent configs
+│   ├── env/                    # Environment configs
+│   │   └── mettagrid/
+│   ├── trainer/                # Training configs
+│   ├── hardware/               # Hardware profiles
+│   ├── sim/                    # Simulation configs
+│   ├── sweep/                  # Sweep configs
+│   ├── user/                   # User preferences
+│   └── wandb/                  # WandB configs
+│
+├── scenes/                     # Map/scene definitions
+│   ├── convchain/
+│   ├── dcss/
+│   ├── test/
+│   └── wfc/
+│
+├── docs/                       # Documentation
+│   ├── api.md
+│   ├── mapgen.md
+│   ├── wandb/
+│   └── workflows/
+│
+├── devops/                     # Infrastructure and tooling
+│   ├── aws/
+│   ├── charts/                 # Kubernetes/Helm
+│   ├── docker/
+│   ├── git-hooks/
+│   ├── macos/
+│   ├── skypilot/
+│   ├── tf/                     # Terraform
+│   ├── tools/                  # Dev tools
+│   └── wandb/
+│
+├── checkpoints/                # Model checkpoints (gitignored)
+├── wandb/                      # WandB runs (gitignored)
+└── .github/                    # GitHub workflows
+```
+
+## Package Details
+
+### Training Framework (`cogworks`)
+
+**Namespace**: `cogworks`
+**Purpose**: Core RL training functionality
+
+```python
+# Example imports
+from cogworks import train, evaluate
+from cogworks.rl import PPO, MettaAgent
+from cogworks.sweep import SweepManager
+from cogworks.api import Environment, Agent
+```
+
+**Why "cogworks"?**: Distinct identity for our RL framework, cognitive training workbench.
+
+### Environment Engine (`mettagrid`)
+
+**Namespace**: `mettagrid`
+**Purpose**: High-performance grid environment
+
+```python
+# Example imports
+import mettagrid
+from mettagrid import GridEnv, Curriculum
+from mettagrid.curriculum import NavigationTasks
+```
+
+**Independence**: Can be installed standalone for researchers who just want the environment.
+
+### Shared Utilities (`mettacommon`)
+
+**Namespace**: `mettacommon`
+**Purpose**: Minimal truly shared code
+
+```python
+# Example imports
+from mettacommon import setup_logging, profile
+from mettacommon.config import load_config
+```
+
+**Why "mettacommon"?**: Matches the single-word pattern of `mettagrid`. Simple, consistent naming across our core packages.
+
+**Scope**: Only utilities needed by 2+ packages. If only web apps use it, it goes in a web-specific package.
+
+### Map Editor (`gridworks`)
+
+**Namespace**: `gridworks`
+**Purpose**: Map creation and testing studio
+
+Features both Python backend and TypeScript frontend in one package.
+
+### Monitoring (`observatory`)
+
+**Namespace**: `observatory`
+**Purpose**: Production experiment tracking
+
+Self-contained web application with its own backend.
+
+### Replay Viewer (`mettascope`)
+
+**Namespace**: `mettascope`
+**Purpose**: Local replay analysis
+
+Lightweight viewer that can run standalone.
+
+## Entry Points
+
+The `tools/` directory contains standalone scripts that compose functionality:
+
+```python
+# tools/train.py
+#!/usr/bin/env python
+"""Direct training without Hydra complexity."""
+from cogworks import train
+from mettagrid import GridEnv
+
+if __name__ == "__main__":
+    env = GridEnv(...)
+    train(env, ...)
+```
+
+## Dependency Graph
+
+```mermaid
+graph TD
+    A[mettacommon] --> B[mettagrid]
+    A --> C[cogworks]
+    B --> C
+    A --> D[gridworks]
+    A --> E[observatory]
+    A --> F[mettascope]
+```
+
+Rules:
+1. `mettacommon` has no dependencies
+2. `mettagrid` only depends on `mettacommon`
+3. `cogworks` depends on `mettagrid` and `mettacommon`
+4. Web apps depend only on `mettacommon` (not on cogworks)
+
+## Installation Examples
+
+```bash
+# Just the environment
+pip install mettagrid
+
+# Training framework (includes mettagrid)
+pip install cogworks
+
+# Everything
+pip install cogworks[all]
+
+# Development
+uv sync  # Installs all workspace packages
+```
+
+## Migration from Current Structure
+
+### Phase 1: Flatten Hierarchy
+- Remove unnecessary src/ directories
+- Consolidate nested packages
+
+### Phase 2: Namespace Migration
+- Move from `metta.*` imports to direct package imports
+- Update all import statements
+
+### Phase 3: Package Independence
+- Ensure each package has complete pyproject.toml
+- Test independent installation
+
+## Benefits of Flat Structure
+
+1. **Discoverability**: Easy to see what's available at a glance
+2. **Simple Imports**: No deep nesting to remember
+3. **Tool Friendly**: IDEs and tools work better with flatter structures
+4. **Beginner Friendly**: Lower cognitive load for new developers
+5. **Flexible Publishing**: Any package can be extracted and published
+
+## Package Publishing Strategy
+
+Each package maintains PyPI readiness:
+
+```toml
+# mettagrid/pyproject.toml
+[project]
+name = "mettagrid"
+version = "0.1.0"
+description = "High-performance grid environments"
+dependencies = ["mettacommon>=0.1.0"]
+
+# cogworks/pyproject.toml
+[project]
+name = "cogworks"
+version = "0.1.0"
+description = "RL training framework"
+dependencies = ["mettagrid>=0.1.0", "mettacommon>=0.1.0"]
+```
+
+This allows:
+- Independent version management
+- Clear dependency relationships
+- Easy extraction for external use
+
+## Future Considerations
+
+This flattened structure provides flexibility for:
+- Renaming packages as they mature
+- Extracting packages to separate repos if needed
+- Converting to a fuller microservice architecture
+- Supporting both research and production use cases
+
+The key is starting simple and flat, then adding structure only where truly needed.
 
 ## Development Workflow
 
 All packages remain in the monorepo with:
 
-- Shared tooling configuration
-- Unified testing and CI/CD
-- Consistent code formatting and linting
-- Single `uv.lock` for dependency management
-- Common development environment setup
+- Shared tooling configuration (ruff, pyright, pytest)
+- Unified CI/CD pipeline
+- Single `uv.lock` for consistent dependencies
+- Common development environment
+- Shared git hooks and code quality standards
 
-## Package Structure
+### Local Development
 
-```
-metta/
-├── src/                  # Core Python package
-├── common/               # Shared utilities
-├── mettagrid/            # C++ environment
-├── backend/              # Backend services
-├── apps/                 # All applications (web, desktop, etc.)
-│   ├── shared/           # Shared app code
-│   ├── observatory/      # Production web app
-│   ├── mettascope/       # Replay viewer
-│   └── studio/           # Development UI
-├── configs/              # Hydra configurations
-├── tools/                # CLI tools
-├── recipes/              # Example programs
-├── docs/                 # Documentation
-└── devops/               # Deployment/setup
-```
+```bash
+# Clone and setup
+git clone https://github.com/metta-ai/metta
+cd metta
+uv sync
 
-### Package Details
+# Work on specific package
+cd cogworks
+uv run pytest
 
-```
-metta/
-├── src/                   # Main package code
-│   ├── __init__.py        # Configures imports to expose metta.* namespace
-│   ├── api.py             # API definitions
-│   ├── rl/                # Reinforcement learning
-│   ├── sweep/             # Hyperparameter sweeping
-│   ├── setup/             # Setup tools
-│   ├── agent/             # Policy code
-│   ├── map/               # Map tools
-│   └── eval/              # Evaluation tools
-├── tests/                 # Tests for metta/src
-├── configs/               # Hydra config DI hierarchy
-├── tools/                 # CLI tools (hydra interfaces for running commands)
-├── recipes/               # Example programs (complete training/eval scripts)
-├── docs/                  # Documentation
-├── devops/                # Machine and cloud setup
-├── common/                # Shared utilities package (PEP420)
-│   └── src/
-│       └── metta/
-│           └── common/    # metta.common namespace
-├── mettagrid/             # C++/PyBind environment package (PEP420)
-│   ├── src/
-│   │   └── metta/
-│   │       └── mettagrid/ # metta.mettagrid namespace
-│   └── CMakeLists.txt
-├── backend/
-│   ├── src/
-│   │   └── metta/
-│   │       └── backend/
-│   │           ├── observatory/   # Observatory API endpoints
-│   │           ├── sweep_names/   # Name registration service
-│   │           └── stat_buffer/   # Data persistence layer
-│   └── docker/
-│       └── observatory/
-│           ├── Dockerfile
-│           └── requirements.txt   # Cherry-pick only needed deps
-├── apps/                  # All user-facing applications
-│   ├── shared/            # Shared components and utilities
-│   │   ├── components/    # Reusable React components
-│   │   ├── utils/         # Common TypeScript utilities
-│   │   ├── styles/        # Shared CSS/styling
-│   │   └── hooks/         # Shared React hooks
-│   ├── observatory/       # Production monitoring web app
-│   │   ├── src/           # TypeScript/React source
-│   │   ├── server.py      # Python server (if needed)
-│   │   └── package.json
-│   ├── mettascope/        # Web replay visualization
-│   │   ├── src/           # TypeScript source
-│   │   ├── server.py      # Local Python server
-│   │   ├── replays.py     # Replay handling
-│   │   └── package.json
-│   └── studio/            # Local development UI
-│       ├── src/           # TypeScript source
-│       ├── server.py      # Local Python server
-│       └── package.json
-└── pyproject.toml         # Root configuration
+# Run from anywhere
+uv run python tools/train.py
 ```
 
 ## Testing Strategy
 
-- Each package maintains its own tests/ directory
-- Shared test utilities live in metta.common.testing
-- Integration tests live in the root tests/ directory
-
-### Import Examples
-
-```python
-# All imports use metta.* namespace
-from metta.common import utils
-from metta.rl import MettaTrainer
-from metta.sweep import SweepManager
-from metta.mettagrid import MettaGridPufferEnv
-from metta.backend.sweep_names import SweepNameRegistry
-from metta.backend.observatory import RemoteStatsDb
-```
-
-## Package Descriptions
-
-### Main Package (`metta`)
-
-- **Location**: Root-level `src/` directory
-- **Namespace**: `metta.*`
-- **Purpose**: Core ML functionality
-
-### Shared Utilities (`metta.common`)
-
-- **Location**: `common/` directory
-- **Namespace**: `metta.common`
-- **Purpose**: Shared utilities that all packages can depend on
-
-  - Config management and Hydra resolvers
-  - Logging utilities
-  - Base interfaces and protocols
-  - Data structures used across packages
-
-_Note: Separate package allows mettagrid to depend on common utils without circular dependency_
-
-### What Goes in `metta.common`?
-
-Only truly shared utilities belong here:
-
-- Logging configuration used by multiple packages
-- Common type definitions and protocols
-- Shared configuration management
-- Utilities needed by both mettagrid and training code
-
-**Examples of what belongs:**
-
-- `logger.py` - Logging configuration used by multiple packages
-- `types.py` - Type definitions like `AgentID`, `Position`
-- `config.py` - Shared configuration management
-- `metrics.py` - Common metric definitions
-
-**Examples of what doesn't belong:**
-
-- `trainer.py` - Training logic (goes in main `metta`)
-- `api_utils.py` - Web service utilities (goes in `backend`)
-- `react_helpers.js` - Frontend utilities (goes in `apps/shared`)
-
-**Important**: If code is only used by web services, it belongs in `apps/shared/`, not `metta.common`.
-
-### Environment Engine (`metta.mettagrid`)
-
-- **Location**: `mettagrid/` directory
-- **Namespace**: `metta.mettagrid`
-- **Purpose**: Core C++ simulation engine with Python bindings
-
-  - High-performance grid-based environments
-  - C++ implementation with PyBind11 interface
-  - Depends on `metta.common` but not main `metta` package
-
-### Backend Services (`metta.backend`)
-
-- **Location**: `backend/` directory
-- **Namespace**: `metta.backend`
-- **Purpose**: Unified backend services for all server-side functionality
-
-#### Deployment Strategy
-
-Services can be deployed independently using optional dependencies:
-
-```python
-# backend/pyproject.toml
-[project.optional-dependencies]
-observatory = ["fastapi", "uvicorn", "pydantic"]
-sweep-names = ["redis", "msgpack"]
-stat-buffer = ["sqlalchemy", "psycopg2"]
-all = ["fastapi", "uvicorn", "pydantic", "redis", "msgpack", "sqlalchemy", "psycopg2"]
-```
-
-## Frontend Applications
-
-Each app includes:
-
-- `src/`: TypeScript/React application code
-- `server.py`: Local development server (not part of core packages)
-- `package.json`: Node dependencies
-
-#### Observatory
-
-- Production web interface for experiment tracking and visualization
-- Connects to deployed backend service
-- Public-facing deployment
-
-#### Mettascope
-
-- Local visualization and replay tool
-- Real-time agent observation and replay analysis
-- Direct file system access for replay files
-
-#### Studio
-
-- Next-generation local development UI
-- Map creation tools
-- Enhanced debugging and analysis capabilities
-
-## Version Management
-
-- All Python packages share version from root pyproject.toml
-- Frontend apps version independently via package.json
-- Releases coordinate all package versions together
-
-## Dependency Rules
-
-```mermaid
-graph TD
-    A[metta] --> B[metta.mettagrid]
-    A --> C[metta.common]
-    B --> C
-    D[metta.backend] --> C
-    E[Frontend Apps] --> C
-```
-
-1. `metta.common` has no internal dependencies (base utilities)
-2. `metta.mettagrid` depends only on `metta.common`
-3. Main `metta` package depends on `metta.common` and `metta.mettagrid`
-4. `metta.backend` depends only on `metta.common`
-5. Frontend packages are independent TypeScript/Node projects
-6. Frontend `server.py` files can import from any metta.\* package
-
-If `metta.backend` needs functionality from the main package, move the required code to `metta.common`.
-
-### System Boundaries
-
-Our architecture maintains clear boundaries between major systems:
-
-- **RL System**: `metta` (training) + `mettagrid` (environment) + `common` (shared utils)
-- **Web Services**: `apps/*` + `backend/*` + `common` (shared utils)
-- **Key Rule**: Web services should never import from the main `metta` package directly
-
-This separation ensures that:
-
-- Mettagrid can be exported without pulling in training code
-- Web services remain decoupled from RL implementation details
-- Shared code is explicitly identified and minimal
-
-### External Library Dependencies
-
-Remember that python has no built-in tree shaking for dependencies! To keep packages lightweight and minimize dependency
-bloat:
-
-```python
-# ❌ AVOID: Importing entire packages
-import torch
-import numpy as np
-from sklearn import *
-
-# ✅ PREFERRED: Import only specific submodules/functions
-from torch.nn import functional as F
-from numpy import array, zeros
-from sklearn.metrics import accuracy_score
-```
-
-**Package-specific rules:**
-
-- `metta.common`: Import only stdlib and minimal utilities
-- `metta.backend`: Import only specific web framework components
-  ```python
-  # Good: from fastapi import FastAPI, HTTPException
-  # Bad:  import fastapi
-  ```
-- `metta.mettagrid`: Import only essential numerical operations
-  ```python
-  # Good: from numpy import ndarray, zeros
-  # Bad:  import numpy
-  ```
-
-This approach:
-
-- Reduces memory usage (only loads needed submodules)
-- Speeds up import times
-- Makes dependencies explicit and easier to audit
-- Helps identify if a package is getting too heavy
-
-## PEP 420 Strategy
-
-### Package Structure
-
-- **Main package** (`src/`): Traditional package with `__init__.py`
-- **Subpackages** (`common/`, `mettagrid/`, `backend/`): Follow PEP 420 patterns with `__init__.py` as needed
-
-### Directory Structure Rationale
-
-The main `metta` package uses a simplified structure:
+Each package maintains its own focused test suite:
 
 ```
-metta/
-├── src/
-│   ├── __init__.py        # Traditional package (not PEP 420)
-│   ├── api.py             # Imports as: from metta import api
+cogworks/
+├── tests/
+│   ├── test_trainer.py
+│   ├── test_losses.py
 │   └── rl/
-└── pyproject.toml         # name = "metta"
+│       └── test_ppo.py
+
+mettagrid/
+├── tests/
+│   ├── test_env.py
+│   ├── test_curriculum.py
+│   └── cpp/
+│       └── test_grid.cpp
 ```
 
-Subpackages require the "nested" structure to properly install into the `metta` namespace:
+### Testing Principles
+
+1. **Unit tests stay with package**: Each package tests its own code
+2. **Integration tests in tools/**: Cross-package tests live at the root
+3. **Shared test utilities**: `mettacommon.testing` provides fixtures
+4. **Fast feedback**: Package tests should run in <30 seconds
+
+## What Goes Where - Detailed Examples
+
+### cogworks/ - RL Training Framework
 
 ```
-common/
-├── src/
-│   └── metta/             # Required: establishes namespace
-│       └── common/        # Required: creates metta.common
-│           └── utils.py   # Imports as: from metta.common import utils
-└── pyproject.toml         # name = "metta.common"
+cogworks/
+├── __init__.py
+├── api.py              # Environment, Agent base classes
+├── train.py            # Main training loop
+├── rl/
+│   ├── ppo.py          # PPO implementation
+│   ├── losses.py       # Loss functions
+│   ├── experience.py   # Experience buffer
+│   └── utils.py        # RL-specific utilities
+├── eval/
+│   ├── metrics.py      # Evaluation metrics
+│   └── visualize.py    # Training curves
+├── sweep/
+│   ├── manager.py      # Hyperparameter sweep orchestration
+│   └── strategies.py   # Search strategies
+└── recipes/
+    ├── basic_ppo.py    # Simple training example
+    └── distributed.py  # Multi-GPU example
 ```
 
-**Why the difference?**
-
-- The main package _owns_ the `metta` namespace via its `__init__.py` and package name
-- Subpackages must _extend_ into the existing namespace, requiring the full path
-- This hybrid approach avoids unnecessary nesting in the main package while maintaining proper namespace organization
-  for separately-installable subpackages
-
-**Installation result:**
+### mettagrid/ - Environment Package
 
 ```
-site-packages/
-└── metta/
-    ├── __init__.py        # From main package
-    ├── api.py             # From main package
-    ├── common/            # From metta.common package
-    │   └── utils.py
-    └── mettagrid/         # From metta.mettagrid package
-```
-
-**Common mistake:** If subpackages used a flat structure like:
-
-```
-common/
-├── src/
+mettagrid/
+├── __init__.py
+├── env.py              # Main GridEnv class
+├── curriculum/
 │   ├── __init__.py
-│   └── utils.py
-└── pyproject.toml         # name = "metta.common"
+│   ├── base.py         # Curriculum interface
+│   ├── navigation.py   # Navigation tasks
+│   └── configs/        # Task YAML files
+├── cpp/
+│   ├── grid.cpp        # Core grid logic
+│   ├── entities.cpp    # Agents, objects
+│   └── physics.cpp     # Movement, collisions
+├── bindings/
+│   └── py_env.cpp      # PyBind11 wrapper
+└── assets/
+    └── sprites/        # Visual assets
 ```
 
-This would install as `metta/common.py` (a module) rather than `metta/common/` (a package), breaking the intended
-namespace structure.
+### mettacommon/ - Truly Shared Code
 
-### Implementation Philosophy
+```
+mettacommon/
+├── __init__.py
+├── config.py           # Config loading utilities
+├── logger.py           # Logging configuration
+├── types.py            # AgentID, Position, etc.
+├── profiling.py        # Performance monitoring
+├── testing.py          # Shared test fixtures
+└── distributed.py      # Multi-GPU utilities
+```
 
-1. Structure packages following PEP 420 patterns
-2. Use `__init__.py` when helpful for tooling compatibility
-3. Focus on clean architecture over strict compliance
-4. Remove `__init__.py` files as tooling improves
-
-### Exporting Subpackages
-
-When we need to publish a subpackage (e.g., mettagrid) for external users:
-
-1. The subpackage already has its own `pyproject.toml` with `name = "metta-mettagrid"`
-2. We can publish directly to PyPI from the monorepo: `cd mettagrid && uv publish`
-3. External users install via `pip install metta-mettagrid`
-4. Import syntax remains identical: `from metta.mettagrid import MettaGridPufferEnv`
-
-This approach maintains consistency between internal monorepo development and external usage, while avoiding the
-maintenance burden of separate repositories.
+**Rule of thumb**: If it's used by only one package, it doesn't belong here.
 
 ## Documentation Strategy
 
-### Documentation Types and Purposes
+### Three Levels of Documentation
 
-We maintain three complementary documentation systems:
+1. **README.md** - Quick start and overview (per package)
+2. **docs/** - Comprehensive guides and tutorials (root level)
+3. **DESIGN.md** - Architecture decisions (per complex package)
 
-1. **README.md files**: User-facing documentation for quick understanding and usage
-2. **CLAUDE.md files**: AI assistant context for architectural decisions and complex patterns
-3. **docs/ folder**: Comprehensive guides, references, and detailed documentation
-
-### Package-Level Documentation
-
-Each package maintains its own documentation suited to its complexity:
+### Package Documentation
 
 ```
-package/
-├── README.md              # Required: Package overview and usage
-├── CLAUDE.md              # Optional
-└── src/
-    └── complex_module/
-        └── README.md      # Optional
+cogworks/
+├── README.md           # Installation, basic usage
+├── DESIGN.md           # Why PPO? Architecture choices
+└── examples/
+    └── quickstart.py   # Runnable example
+
+mettagrid/
+├── README.md           # Environment overview, installation
+├── BUILDING.md         # C++ build instructions
+└── docs/
+    └── curriculum.md   # How to create tasks
 ```
 
-#### README.md Guidelines
-
-- **Required** for all packages
-- Focus on: Installation, basic usage, API examples
-- Keep concise (under 500 lines)
-- Link to `docs/` for detailed information
-- Include package-specific badges and status
-
-#### CLAUDE.md Guidelines
-
-- **Optional** - only create when package has:
-  - Complex architectural decisions
-  - Non-obvious design patterns
-  - Domain-specific knowledge (e.g., C++ bindings, RL algorithms)
-  - Common implementation pitfalls
-- Focus on: Design rationale, patterns, gotchas
-- Update when architecture changes or patterns evolve
-
-### Root Documentation Folder
-
-The `docs/` folder serves as our comprehensive documentation hub:
+### Root Documentation
 
 ```
 docs/
-├── README.md              # Documentation index and navigation
-├── api/                   # API references and examples
-│   ├── reference.md       # Auto-generated API docs
-│   └── examples.md        # Curated usage examples
-├── guides/                # Step-by-step user guides
-│   ├── quickstart.md
-│   ├── installation.md
-│   └── mapgen.md          # Feature-specific guides
-├── metrics/               # Metrics and monitoring documentation
-│   ├── README.md          # Metrics overview
-│   └── wandb/             # Auto-generated WandB metric docs
-├── development/           # Developer and contributor docs
-│   ├── architecture.md    # System design documentation
-│   ├── contributing.md
-│   └── workflows/        # Development workflows
-└── assets/               # Images, diagrams, and media
+├── getting-started.md  # Overall project intro
+├── guides/
+│   ├── training.md     # Using cogworks
+│   ├── environments.md # Using mettagrid
+│   └── distributed.md  # Multi-GPU setup
+├── api/
+│   ├── cogworks.md     # API reference
+│   └── mettagrid.md    # Environment API
+└── contributing.md     # Development guide
 ```
 
-### Documentation Hierarchy
+## Common Patterns and Best Practices
 
-Follow this decision tree for where to document:
+### Import Organization
 
-```mermaid
-flowchart TD
-    Start{Is it about using<br/>the package?}
-    Start -->|YES| PkgReadme[Package README.md]
-    Start -->|NO| CompGuide{Is it a<br/>comprehensive guide?}
+```python
+# Standard library
+import os
+from pathlib import Path
 
-    PkgReadme --> Complex{Complex topic?}
-    Complex -->|YES| LinkDocs[Link to docs/guides/]
+# External packages
+import numpy as np
+import torch
 
-    CompGuide -->|YES| DocsGuides[docs/guides/]
-    CompGuide -->|NO| ApiRef{Is it API<br/>reference?}
+# Our packages (alphabetical)
+from cogworks import train
+from mettagrid import GridEnv
+from mettacommon import logger
 
-    ApiRef -->|YES| DocsApi[docs/api/]
-    ApiRef -->|NO| DocsDev[docs/development/]
+# Local imports
+from .utils import helper
 ```
 
-### Maintenance Protocol
+### Cross-Package Communication
 
-1. **When adding features**: Update package README.md
-2. **When changing architecture**: Update relevant CLAUDE.md
-3. **When adding complex workflows**: Create guide in docs/
-4. **When metrics change**: Auto-regenerate docs/metrics/
-5. **During major refactors**: Review all three documentation levels
+When packages need to interact:
 
-### Anti-Patterns to Avoid
+```python
+# cogworks/api.py
+from typing import Protocol
 
-- ❌ Duplicating content between README and docs/
-- ❌ Creating CLAUDE.md for simple utility packages
-- ❌ Putting user guides in CLAUDE.md
-- ❌ Nesting documentation more than necessary
-- ❌ Mixing auto-generated and manual content in same file
+class Environment(Protocol):
+    """Interface that environments must implement."""
+    def reset(self): ...
+    def step(self, action): ...
 
-This documentation strategy ensures users can quickly understand any package while maintaining detailed references for
-complex topics and providing AI assistants with the context they need to help effectively.
+# mettagrid/env.py
+class GridEnv:  # Implements Environment protocol
+    def reset(self): ...
+    def step(self, action): ...
+```
+
+### Optional Dependencies
+
+Keep packages lightweight with optional features:
+
+```toml
+# cogworks/pyproject.toml
+[project.optional-dependencies]
+wandb = ["wandb>=0.13.0"]
+distributed = ["torch-distributed>=2.0"]
+all = ["wandb>=0.13.0", "torch-distributed>=2.0"]
+```
+
+## Anti-Patterns to Avoid
+
+1. **Deep nesting**: `from cogworks.rl.algorithms.ppo.utils import thing` ❌
+2. **Circular imports**: cogworks → mettagrid → cogworks ❌
+3. **Kitchen sink common**: Putting everything in mettacommon ❌
+4. **Mixed concerns**: Training code in mettagrid ❌
+5. **Hidden dependencies**: Web UI importing from cogworks ❌
+
+## Migration Checklist
+
+- [ ] Flatten directory structure
+- [ ] Update all imports
+- [ ] Create package-specific pyproject.toml files
+- [ ] Move tests to package directories
+- [ ] Update CI/CD configuration
+- [ ] Test independent package installation
+- [ ] Update documentation
+- [ ] Communicate changes to team
+
+This flattened structure prioritizes developer experience and maintainability while keeping our options open for future growth.
