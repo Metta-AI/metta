@@ -19,6 +19,7 @@
 #include <string>
 #include <vector>
 
+#include "packed_coordinate.hpp"
 #include "types.hpp"
 
 // Forward declarations of existing C++ classes
