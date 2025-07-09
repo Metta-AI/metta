@@ -76,6 +76,51 @@ class WebGLMesh {
     }
   }
 
+  /** Resize the maximum number of quads the mesh can hold. */
+  resizeMaxQuads(newMaxQuads: number): void {
+    console.info('Resizing max ', this.name, ' quads from', this.maxQuads, 'to', newMaxQuads)
+
+    if (newMaxQuads <= this.maxQuads) {
+      console.warn('New max quads must be larger than current max quads')
+      return
+    }
+
+    // Store the current data and state
+    const oldVertexData = this.vertexData
+    const currentVertexCount = this.currentVertex
+
+    // Update capacities
+    this.maxQuads = newMaxQuads
+    this.vertexCapacity = this.maxQuads * 4 // 4 vertices per quad
+    this.indexCapacity = this.maxQuads * 6 // 6 indices per quad (2 triangles)
+
+    // Create new CPU-side arrays with increased capacity
+    this.vertexData = new Float32Array(this.vertexCapacity * 8) // 8 floats per vertex
+    this.indexData = new Uint16Array(this.indexCapacity)
+
+    // Copy existing vertex data to the new array
+    this.vertexData.set(oldVertexData.subarray(0, currentVertexCount * 8))
+
+    // Rebuild index data (includes the new pattern for additional quads)
+    this.setupIndexPattern()
+
+    // If we already have WebGL buffers, we need to recreate them
+    if (this.vertexBuffer && this.indexBuffer && this.gl) {
+      // Delete old buffers
+      this.gl.deleteBuffer(this.vertexBuffer)
+      this.gl.deleteBuffer(this.indexBuffer)
+
+      // Create new buffers with increased capacity
+      this.createBuffers()
+
+      // Write the existing vertex data to the new vertex buffer
+      if (currentVertexCount > 0) {
+        this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.vertexBuffer)
+        this.gl.bufferSubData(this.gl.ARRAY_BUFFER, 0, this.vertexData.subarray(0, currentVertexCount * 8))
+      }
+    }
+  }
+
   /** Clear the mesh for a new frame. */
   clear(): void {
     // Reset counters instead of recreating arrays
@@ -132,9 +177,7 @@ class WebGLMesh {
   ): void {
     // Check if we need to resize before adding more vertices
     if (this.currentQuad >= this.maxQuads) {
-      // For now, just warn - we'd need to implement resize logic
-      console.warn('Max quads exceeded, skipping draw')
-      return
+      this.resizeMaxQuads(this.maxQuads * 2)
     }
 
     // Calculate base offset for this quad in the vertex data array
