@@ -114,7 +114,10 @@ export const state = {
   // Playing over a WebSocket
   ws: null as WebSocket | null,
   isOneToOneAction: false,
-}
+};
+
+// Expose state for easier testing
+(window as any).state = state
 
 export const html = {
   globalCanvas: find('#global-canvas') as HTMLCanvasElement,
