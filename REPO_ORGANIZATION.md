@@ -61,19 +61,22 @@ Softmax/
 │   └── api.py                  # Main API (from metta/api.py)
 │
 ├── mettagrid/                  # C++/Python environment
-│   ├── *.py files              # Flattened from src/metta/mettagrid/
-│   ├── tests/, benchmarks/, configs/
+│   ├── tests/
+│   ├── benchmarks/
+│   ├── configs/
+│   ├── *.py                    # Flattened Python files
 │   └── pyproject.toml          # name = "metta-mettagrid"
 │
-├── common/                     # Shared utilities
-│   ├── mettacommon/            # Module directory (renamed from common)
-│   │   ├── util/
-│   │   ├── profiling/
-│   │   └── wandb/
+├── common/                     # Shared utilities (mettacommon module)
+│   ├── util/                   # From common/src/metta/common/util/
+│   ├── profiling/              # From common/src/metta/common/profiling/
+│   ├── wandb/                  # From common/src/metta/common/wandb/
+│   ├── tests/
 │   └── pyproject.toml          # name = "metta-common"
 │
 ├── gridworks/                  # Map editor (from studio/)
-│   ├── app/, components/       # TypeScript/React frontend
+│   ├── src/                    # TypeScript/React frontend
+│   ├── public/
 │   ├── pyproject.toml          # name = "metta-gridworks" (new)
 │   └── package.json
 │
@@ -83,7 +86,9 @@ Softmax/
 │   └── pyproject.toml          # name = "metta-observatory" (new)
 │
 ├── mettascope/                 # Replay viewer
-│   ├── src/, data/, tools/     # TypeScript and assets
+│   ├── src/                    # TypeScript source
+│   ├── data/                   # Assets
+│   ├── tools/                  # Python tools
 │   └── server.py               # Python components
 │
 ├── tools/                      # Standalone scripts (train.py, sweep_*.py, etc.)
