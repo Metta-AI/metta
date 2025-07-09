@@ -21,7 +21,7 @@ public:
   GridType grid;
   vector<std::unique_ptr<GridObject>> objects;
 
-  inline Grid(GridCoord height, GridCoord width) : width(width), height(height) {
+  inline Grid(GridCoord height, GridCoord width) : height(height), width(width) {
     grid.resize(height, vector<vector<GridObjectId>>(width, vector<GridObjectId>(GridLayer::GridLayerCount, 0)));
 
     // 0 is reserved for empty space
@@ -120,8 +120,8 @@ public:
     const int r = static_cast<int>(loc.r);
     const int c = static_cast<int>(loc.c);
 
-    int new_r = r;
-    int new_c = c;
+    int new_r;
+    int new_c;
 
     switch (facing) {
       case Up:
