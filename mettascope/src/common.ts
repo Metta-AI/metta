@@ -7,9 +7,10 @@ import { HoverPanel } from './hoverpanels.js'
 
 
 // The 3D context, used for nearly everything.
-export const ctx = new ContextWebgl(find('#global-canvas') as HTMLCanvasElement)
+export const ctx = new ContextWebgl(find('#global-canvas') as HTMLCanvasElement);
 // export const ctx = new Context3d(find('#global-canvas') as HTMLCanvasElement)
 
+(window as any).ctx = ctx
 
 // Constants
 export const MIN_ZOOM_LEVEL = 0.025
