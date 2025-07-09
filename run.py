@@ -3,6 +3,7 @@ import logging
 import os
 import time
 from collections import defaultdict
+from typing import Dict
 
 import torch
 from omegaconf import DictConfig, OmegaConf
@@ -33,9 +34,6 @@ from metta.mettagrid import mettagrid_c  # noqa: F401
 from metta.mettagrid.mettagrid_env import dtype_actions
 from metta.rl.experience import Experience
 from metta.rl.functions import (
-    _maybe_compute_grad_stats,
-    _maybe_save_training_state,
-    _should_run,
     accumulate_rollout_stats,
     calculate_batch_sizes,
     calculate_explained_variance,
@@ -71,6 +69,52 @@ from metta.sim.simulation_suite import SimulationSuite
 # Set up logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
+
+
+def _should_run(
+    epoch: int,
+    interval: int,
+    is_master: bool = True,
+    force: bool = False,
+) -> bool:
+    """Check if a periodic task should run based on interval and master status."""
+    if not is_master or not interval:
+        return False
+
+    if force:
+        return True
+
+    return epoch % interval == 0
+
+
+def _maybe_compute_grad_stats(policy: torch.nn.Module) -> Dict[str, float]:
+    """Compute gradient statistics for the policy.
+
+    Returns:
+        Dictionary with 'grad/mean', 'grad/variance', and 'grad/norm' keys
+    """
+    all_gradients = []
+    for param in policy.parameters():
+        if param.grad is not None:
+            all_gradients.append(param.grad.view(-1))
+
+    if not all_gradients:
+        return {}
+
+    all_gradients_tensor = torch.cat(all_gradients).to(torch.float32)
+
+    grad_mean = all_gradients_tensor.mean()
+    grad_variance = all_gradients_tensor.var()
+    grad_norm = all_gradients_tensor.norm(2)
+
+    grad_stats = {
+        "grad/mean": grad_mean.item(),
+        "grad/variance": grad_variance.item(),
+        "grad/norm": grad_norm.item(),
+    }
+
+    return grad_stats
+
 
 # Set up directories and distributed training
 dirs = setup_run_directories()
@@ -609,18 +653,25 @@ while agent_step < trainer_config.total_timesteps:
                     cleanup_old_policies(checkpoint_path, keep_last_n=5)
 
         # Save training state (master only)
-        latest_uri = latest_saved_policy_record.uri if latest_saved_policy_record else None
-        _maybe_save_training_state(
-            checkpoint_dir=dirs.run_dir,
-            agent_step=agent_step,
-            epoch=epoch,
-            optimizer=optimizer,
-            timer=timer,
-            latest_saved_policy_uri=latest_uri,
-            kickstarter=kickstarter,
-            world_size=world_size,
-            is_master=is_master,
-        )
+        if is_master:
+            from metta.rl.trainer_checkpoint import TrainerCheckpoint
+
+            extra_args = {}
+            if kickstarter.enabled and kickstarter.teacher_uri is not None:
+                extra_args["teacher_pr_uri"] = kickstarter.teacher_uri
+
+            latest_uri = latest_saved_policy_record.uri if latest_saved_policy_record else None
+            checkpoint = TrainerCheckpoint(
+                agent_step=agent_step,
+                epoch=epoch,
+                total_agent_step=agent_step * world_size,
+                optimizer_state_dict=optimizer.state_dict(),
+                stopwatch_state=timer.save_state(),
+                policy_path=latest_uri,
+                extra_args=extra_args,
+            )
+            checkpoint.save(dirs.run_dir)
+            logger.info(f"Saved training state at epoch {epoch}")
 
         # Ensure all ranks synchronize after checkpoint saving
         if torch.distributed.is_initialized():
@@ -751,18 +802,25 @@ if is_master:
         latest_saved_policy_record = saved_record
 
 # Save training state (master only)
-latest_uri = latest_saved_policy_record.uri if latest_saved_policy_record else None
-_maybe_save_training_state(
-    checkpoint_dir=dirs.run_dir,
-    agent_step=agent_step,
-    epoch=epoch,
-    optimizer=optimizer,
-    timer=timer,
-    latest_saved_policy_uri=latest_uri,
-    kickstarter=kickstarter,
-    world_size=world_size,
-    is_master=is_master,
-)
+if is_master:
+    from metta.rl.trainer_checkpoint import TrainerCheckpoint
+
+    extra_args = {}
+    if kickstarter.enabled and kickstarter.teacher_uri is not None:
+        extra_args["teacher_pr_uri"] = kickstarter.teacher_uri
+
+    latest_uri = latest_saved_policy_record.uri if latest_saved_policy_record else None
+    checkpoint = TrainerCheckpoint(
+        agent_step=agent_step,
+        epoch=epoch,
+        total_agent_step=agent_step * world_size,
+        optimizer_state_dict=optimizer.state_dict(),
+        stopwatch_state=timer.save_state(),
+        policy_path=latest_uri,
+        extra_args=extra_args,
+    )
+    checkpoint.save(dirs.run_dir)
+    logger.info("Saved final training state")
 
 # Ensure all ranks synchronize after final checkpoint
 if torch.distributed.is_initialized():
