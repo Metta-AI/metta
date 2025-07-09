@@ -1,7 +1,7 @@
 # mettagrid_config.py - Python configuration models and conversion logic
 
 import copy
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 from pydantic import Field, RootModel
 
@@ -49,13 +49,13 @@ class PyAgentConfig(BaseModelWithForbidExtra):
     """Python agent configuration."""
 
     default_resource_limit: Optional[int] = Field(default=None, ge=0)
-    resource_limits: Optional[Dict[str, int]] = Field(default_factory=dict)
+    resource_limits: Optional[dict[str, int]] = Field(default_factory=dict)
     freeze_duration: Optional[int] = Field(default=None, ge=-1)
     rewards: Optional[PyAgentRewards] = None
     action_failure_penalty: Optional[float] = Field(default=None, ge=0)
 
 
-class PyGroupProps(RootModel[Dict[str, Any]]):
+class PyGroupProps(RootModel[dict[str, Any]]):
     """Python group properties configuration."""
 
     pass
@@ -74,14 +74,14 @@ class PyActionConfig(BaseModelWithForbidExtra):
     """Python action configuration."""
 
     enabled: bool
-    required_resources: Optional[Dict[str, int]] = None
-    consumed_resources: Optional[Dict[str, int]] = Field(default_factory=dict)
+    required_resources: Optional[dict[str, int]] = None
+    consumed_resources: Optional[dict[str, int]] = Field(default_factory=dict)
 
 
 class PyAttackActionConfig(PyActionConfig):
     """Python attack action configuration."""
 
-    defense_resources: Optional[Dict[str, int]] = Field(default_factory=dict)
+    defense_resources: Optional[dict[str, int]] = Field(default_factory=dict)
 
 
 class PyActionsConfig(BaseModelWithForbidExtra):
@@ -107,8 +107,8 @@ class PyWallConfig(BaseModelWithForbidExtra):
 class PyConverterConfig(BaseModelWithForbidExtra):
     """Python converter configuration."""
 
-    input_resources: Dict[str, int] = Field(default_factory=dict)
-    output_resources: Dict[str, int] = Field(default_factory=dict)
+    input_resources: dict[str, int] = Field(default_factory=dict)
+    output_resources: dict[str, int] = Field(default_factory=dict)
     type_id: int
     max_output: int = Field(ge=-1)
     conversion_ticks: int = Field(ge=0)
@@ -120,16 +120,16 @@ class PyConverterConfig(BaseModelWithForbidExtra):
 class PyGameConfig(BaseModelWithForbidExtra):
     """Python game configuration."""
 
-    inventory_item_names: List[str]
+    inventory_item_names: list[str]
     num_agents: int = Field(ge=1)
     max_steps: int = Field(ge=0)
     obs_width: int = Field(ge=1)
     obs_height: int = Field(ge=1)
     num_observation_tokens: int = Field(ge=1)
     agent: PyAgentConfig
-    groups: Dict[str, PyGroupConfig] = Field(min_length=1)
+    groups: dict[str, PyGroupConfig] = Field(min_length=1)
     actions: PyActionsConfig
-    objects: Dict[str, PyConverterConfig | PyWallConfig]
+    objects: dict[str, PyConverterConfig | PyWallConfig]
 
 
 # ===== Conversion Functions =====
