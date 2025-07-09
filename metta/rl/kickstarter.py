@@ -1,5 +1,6 @@
 from typing import Any, List
 
+import einops
 import torch
 from torch import Tensor, nn
 from torch.optim import Optimizer
@@ -50,7 +51,7 @@ class Kickstarter:
         if self.teacher_cfgs is None:
             self.enabled = False
             return
-
+        self.teacher_lead = cfg.teacher_lead
         self.policy_store: PolicyStore = policy_store
         self.kickstart_steps: int = cfg.kickstart_steps
         self.anneal_factor = 1.0
@@ -88,6 +89,7 @@ class Kickstarter:
         student_value: Tensor,
         o: Tensor,  # Observation tensor
         teacher_lstm_state: List[PolicyState],
+        teacher_normalized_logits: Tensor | None = None,
     ) -> tuple[Tensor, Tensor]:
         ks_value_loss = torch.tensor(0.0, device=self.device, dtype=torch.float32)
         ks_action_loss = torch.tensor(0.0, device=self.device, dtype=torch.float32)
@@ -100,17 +102,32 @@ class Kickstarter:
             progress = (agent_step - self.ramp_down_start_step) / self.anneal_duration
             self.anneal_factor = 1.0 - progress
 
-        if len(teacher_lstm_state) == 0:
-            teacher_lstm_state = [PolicyState() for _ in range(len(self.teachers))]
+        if not self.teacher_lead:
+            if len(teacher_lstm_state) == 0:
+                teacher_lstm_state = [PolicyState() for _ in range(len(self.teachers))]
 
-        for i, teacher in enumerate(self.teachers):
-            teacher_value, teacher_normalized_logits = self._forward(teacher, o, teacher_lstm_state[i])
+            for i, teacher in enumerate(self.teachers):
+                teacher_value, teacher_normalized_logits = self._forward(teacher, o, teacher_lstm_state[i])
+                ks_action_loss -= (teacher_normalized_logits.exp() * student_normalized_logits).sum(dim=-1).mean()
+                ks_action_loss *= teacher.action_loss_coef * self.anneal_factor
+
+                ks_value_loss += (
+                    ((teacher_value.squeeze() - student_value) ** 2).mean()
+                    * teacher.value_loss_coef
+                    * self.anneal_factor
+                )
+
+        else:
+            if teacher_normalized_logits is None:
+                raise ValueError("Teacher normalized logits are required when teacher_lead is True")
+            teacher_normalized_logits = einops.rearrange(teacher_normalized_logits, "b t a -> (b t) a")
             ks_action_loss -= (teacher_normalized_logits.exp() * student_normalized_logits).sum(dim=-1).mean()
-            ks_action_loss *= teacher.action_loss_coef * self.anneal_factor
+            ks_action_loss *= self.teacher_cfgs[0].action_loss_coef * self.anneal_factor
 
-            ks_value_loss += (
-                ((teacher_value.squeeze() - student_value) ** 2).mean() * teacher.value_loss_coef * self.anneal_factor
-            )
+            # ks_value_loss += (
+            #     ((teacher_value.squeeze() - student_value) ** 2).mean() *
+            # self.teacher_cfgs[0].value_loss_coef * self.anneal_factor
+            # )
 
         return ks_action_loss, ks_value_loss
 

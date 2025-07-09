@@ -201,6 +201,7 @@ class MettaTrainer:
 
             # Initialize the policy to the environment
             self._initialize_policy_to_environment(self.policy, metta_grid_env, self.device)
+            self.metta_grid_env = metta_grid_env  # fix this
 
             self.initial_policy_record = policy_record
 
@@ -438,10 +439,17 @@ class MettaTrainer:
             o, r, d, t, info, training_env_id, mask, num_steps = get_observation(self.vecenv, self.device, self.timer)
             self.agent_step += num_steps
 
-            # Run policy inference
-            actions, selected_action_log_probs, values, lstm_state_to_store = run_policy_inference(
-                self.policy, o, experience, training_env_id.start, self.device
-            )
+            if self.kickstarter.teacher_lead and self.kickstarter.enabled:
+                policy = self.kickstarter.teachers[0]
+                actions, selected_action_log_probs, values, full_logprobs, lstm_state_to_store = run_policy_inference(
+                    policy, o, experience, training_env_id.start, self.device
+                )
+            else:
+                policy = self.policy
+                actions, selected_action_log_probs, values, _, lstm_state_to_store = run_policy_inference(
+                    policy, o, experience, training_env_id.start, self.device
+                )
+                full_logprobs = None
 
             # Store experience
             experience.store(
@@ -455,6 +463,7 @@ class MettaTrainer:
                 env_id=training_env_id,
                 mask=mask,
                 lstm_state=lstm_state_to_store,
+                full_logprobs=full_logprobs,
             )
 
             # Send actions back to environment
@@ -1004,6 +1013,7 @@ class MettaTrainer:
             atn_space=atn_space,
             device=self.device,
             hidden_size=hidden_size,
+            metta_grid_env=self.metta_grid_env,
             cpu_offload=trainer_cfg.cpu_offload,
             num_lstm_layers=num_lstm_layers,
             agents_per_batch=getattr(vecenv, "agents_per_batch", None),

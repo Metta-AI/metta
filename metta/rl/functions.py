@@ -59,11 +59,11 @@ def run_policy_inference(
     experience: Experience,
     training_env_id_start: int,
     device: torch.device,
-) -> Tuple[Tensor, Tensor, Tensor, Optional[Dict[str, Tensor]]]:
+) -> Tuple[Tensor, Tensor, Tensor, Optional[Tensor], Optional[Dict[str, Tensor]]]:
     """Run the policy to get actions and value estimates.
 
     Returns:
-        Tuple of (actions, selected_action_log_probs, values, lstm_state_to_store)
+        Tuple of (actions, selected_action_log_probs, values, full_logprobs, lstm_state_to_store)
     """
     with torch.no_grad():
         state = PolicyState()
@@ -72,7 +72,7 @@ def run_policy_inference(
             state.lstm_h = lstm_h
             state.lstm_c = lstm_c
 
-        actions, selected_action_log_probs, _, value, _ = policy(observations, state)
+        actions, selected_action_log_probs, _, value, full_logprobs = policy(observations, state)
 
         if __debug__:
             assert_shape(selected_action_log_probs, ("BT",), "selected_action_log_probs")
@@ -85,7 +85,7 @@ def run_policy_inference(
         if str(device).startswith("cuda"):
             torch.cuda.synchronize()
 
-    return actions, selected_action_log_probs, value.flatten(), lstm_state_to_store
+    return actions, selected_action_log_probs, value.flatten(), full_logprobs, lstm_state_to_store
 
 
 def compute_ppo_losses(
@@ -178,7 +178,19 @@ def process_minibatch_update(
     )
 
     # Kickstarter losses
-    ks_action_loss, ks_value_loss = kickstarter.loss(agent_step, full_logprobs, newvalue, obs, teacher_lstm_state=[])
+    if kickstarter.teacher_lead:
+        ks_action_loss, ks_value_loss = kickstarter.loss(
+            agent_step,
+            full_logprobs,
+            newvalue,
+            obs,
+            teacher_lstm_state=[],
+            teacher_normalized_logits=minibatch["full_logprobs"],
+        )
+    else:
+        ks_action_loss, ks_value_loss = kickstarter.loss(
+            agent_step, full_logprobs, newvalue, obs, teacher_lstm_state=[]
+        )
 
     # L2 init loss
     l2_init_loss = torch.tensor(0.0, device=device, dtype=torch.float32)

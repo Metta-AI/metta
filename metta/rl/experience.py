@@ -24,6 +24,8 @@ import numpy as np
 import torch
 from torch import Tensor
 
+from metta.mettagrid.mettagrid_env import MettaGridEnv
+
 
 class Experience:
     """Segmented tensor storage for RL experience with BPTT support."""
@@ -39,6 +41,7 @@ class Experience:
         atn_space,
         device: torch.device | str,
         hidden_size: int,
+        metta_grid_env: MettaGridEnv,
         cpu_offload: bool = False,
         num_lstm_layers: int = 2,
         agents_per_batch: Optional[int] = None,
@@ -80,6 +83,11 @@ class Experience:
         # Action tensor with proper dtype
         atn_dtype = torch.int32 if np.issubdtype(atn_space.dtype, np.integer) else torch.float32
         self.actions = torch.zeros(self.segments, bptt_horizon, *atn_space.shape, device=self.device, dtype=atn_dtype)
+        # fix this
+        act_types = metta_grid_env.action_names
+        act_args = metta_grid_env.max_action_args
+        num_actions = len(act_types) + sum(act_args)
+        self.full_logprobs = torch.zeros(self.segments, bptt_horizon, num_actions, device=self.device)
 
         # Create value and policy tensors
         self.values = torch.zeros(self.segments, bptt_horizon, device=self.device)
@@ -160,6 +168,7 @@ class Experience:
         env_id: slice,
         mask: Tensor,
         lstm_state: Optional[Dict[str, Tensor]] = None,
+        full_logprobs: Optional[Tensor] = None,
     ) -> int:
         """Store a batch of experience."""
         assert isinstance(env_id, slice), (
@@ -179,6 +188,8 @@ class Experience:
         self.dones[batch_slice] = dones.float()
         self.truncateds[batch_slice] = truncations.float()
         self.values[batch_slice] = values
+        if full_logprobs is not None:
+            self.full_logprobs[batch_slice] = full_logprobs
 
         # Update episode tracking
         self.ep_lengths[env_id] += 1
@@ -260,6 +271,7 @@ class Experience:
             "indices": idx,
             "prio_weights": (self.segments * prio_probs[idx, None]) ** -prio_beta,
             "ratio": self.ratio[idx],
+            "full_logprobs": self.full_logprobs[idx],
         }
 
     def update_values(self, indices: Tensor, new_values: Tensor) -> None:

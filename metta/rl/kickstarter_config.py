@@ -21,5 +21,7 @@ class KickstartConfig(BaseModelWithForbidExtra):
     anneal_ratio: float = Field(default=0.65, ge=0, le=1.0)
     # Kickstart for 1B steps: Type 2 default chosen arbitrarily
     kickstart_steps: int = Field(default=1_000_000_000, gt=0)
+    # Teacher lead: Use teacher's logits to compute action loss
+    teacher_lead: bool = Field(default=False)
     # Additional teachers: Multi-teacher distillation for diverse behaviors
     additional_teachers: list[KickstartTeacherConfig] | None = None
