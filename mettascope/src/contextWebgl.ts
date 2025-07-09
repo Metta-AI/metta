@@ -1,7 +1,7 @@
 
 // TODO First step, stub everything out and get things to start up
 
-import { Mat3f } from './vector_math.js'
+import { Vec2f, Mat3f } from './vector_math.js'
 
 /** WebGL Mesh class for managing vertex data and buffers. */
 class WebGLMesh {
@@ -15,7 +15,7 @@ class WebGLMesh {
   private vertexCapacity: number
   private indexCapacity: number
   private vertexData: Float32Array
-  private indexData: Uint32Array
+  private indexData: Uint16Array
   private currentQuad: number = 0
   private currentVertex: number = 0
 
@@ -34,7 +34,7 @@ class WebGLMesh {
 
     // Pre-allocated CPU-side buffers
     this.vertexData = new Float32Array(this.vertexCapacity * 8) // 8 floats per vertex (pos*2, uv*2, color*4)
-    this.indexData = new Uint32Array(this.indexCapacity)
+    this.indexData = new Uint16Array(this.indexCapacity)
 
     // Create the index pattern once (it's always the same for quads)
     this.setupIndexPattern()
@@ -117,6 +117,62 @@ class WebGLMesh {
     this.currentQuad = 0
     this.currentVertex = 0
   }
+
+  /** Draws a pre-transformed textured rectangle. */
+  drawRectWithTransform(
+    topLeft: Vec2f,
+    bottomLeft: Vec2f,
+    topRight: Vec2f,
+    bottomRight: Vec2f,
+    u0: number,
+    v0: number,
+    u1: number,
+    v1: number,
+    color: number[] = [1, 1, 1, 1]
+  ): void {
+    // Check if we need to resize before adding more vertices
+    if (this.currentQuad >= this.maxQuads) {
+      // For now, just warn - we'd need to implement resize logic
+      console.warn('Max quads exceeded, skipping draw')
+      return
+    }
+
+    // Calculate base offset for this quad in the vertex data array
+    const baseVertex = this.currentVertex
+    const baseOffset = baseVertex * 8 // Each vertex has 8 floats
+
+    // Define the vertex attributes for each corner
+    const corners = [
+      { pos: topLeft, uv: [u0, v0] }, // Top-left
+      { pos: bottomLeft, uv: [u0, v1] }, // Bottom-left
+      { pos: topRight, uv: [u1, v0] }, // Top-right
+      { pos: bottomRight, uv: [u1, v1] }, // Bottom-right
+    ]
+
+    // Loop through each corner and set its vertex data
+    for (let i = 0; i < 4; i++) {
+      const offset = baseOffset + i * 8
+      const corner = corners[i]
+
+      // Position
+      this.vertexData[offset + 0] = corner.pos.x()
+      this.vertexData[offset + 1] = corner.pos.y()
+
+      // Texture coordinates
+      this.vertexData[offset + 2] = corner.uv[0]
+      this.vertexData[offset + 3] = corner.uv[1]
+
+      // Color (same for all vertices)
+      this.vertexData[offset + 4] = color[0]
+      this.vertexData[offset + 5] = color[1]
+      this.vertexData[offset + 6] = color[2]
+      this.vertexData[offset + 7] = color[3]
+    }
+
+    // Update counters
+    this.currentVertex += 4
+    this.currentQuad += 1
+  }
 }
 
 /** ContextWebgl is a class that manages the WebGL context. */
@@ -177,6 +233,10 @@ export class ContextWebgl {
     for (const mesh of this.meshes.values()) {
       mesh.clear()
     }
+
+    // Reset transform for new frame
+    this.resetTransform()
+    this.transformStack = []
   }
   
   /** Create or switch to a mesh with the given name. */
@@ -460,6 +520,7 @@ export class ContextWebgl {
     `
   }
   
+  /** Draws a textured rectangle with the given coordinates and UV mapping. */
   drawRect(
     x: number,
     y: number,
@@ -471,30 +532,160 @@ export class ContextWebgl {
     v1: number,
     color: number[] = [1, 1, 1, 1]
   ): void {
-    console.log('drawRect stub', x, y, width, height, u0, v0, u1, v1, color)
+    if (!this.ready) {
+      throw new Error('Drawer not initialized')
+    }
+
+    this.ensureMeshSelected()
+
+    const pos = new Vec2f(x, y)
+
+    // Calculate vertex positions (screen pixels, origin top-left)
+    const untransformedTopLeft = pos
+    const untransformedBottomLeft = new Vec2f(pos.x(), pos.y() + height)
+    const untransformedTopRight = new Vec2f(pos.x() + width, pos.y())
+    const untransformedBottomRight = new Vec2f(pos.x() + width, pos.y() + height)
+
+    // Apply current transformation to each vertex
+    const topLeft = this.currentTransform.transform(untransformedTopLeft)
+    const bottomLeft = this.currentTransform.transform(untransformedBottomLeft)
+    const topRight = this.currentTransform.transform(untransformedTopRight)
+    const bottomRight = this.currentTransform.transform(untransformedBottomRight)
+
+    // Send pre-transformed vertices to the mesh
+    this.currentMesh!.drawRectWithTransform(topLeft, bottomLeft, topRight, bottomRight, u0, v0, u1, v1, color)
   }
 
+  /** Check if the image is in the atlas. */
   hasImage(imageName: string): boolean {
-    console.log('hasImage stub', imageName)
-    return false
+    return this.atlasData?.[imageName] !== undefined
   }
 
+  /** Draws an image from the atlas with its top-left corner at (x, y). */
   drawImage(imageName: string, x: number, y: number, color: number[] = [1, 1, 1, 1]): void {
-    console.log('drawImage stub', imageName, x, y, color)
+    if (!this.ready) {
+      throw new Error('Drawer not initialized')
+    }
+
+    this.ensureMeshSelected()
+
+    if (!this.atlasData?.[imageName]) {
+      console.error(`Image "${imageName}" not found in atlas`)
+      return
+    }
+
+    const [sx, sy, sw, sh] = this.atlasData[imageName]
+    const m = this.atlasMargin
+
+    // Calculate UV coordinates (normalized 0.0 to 1.0).
+    const u0 = (sx - m) / this.textureSize.width
+    const v0 = (sy - m) / this.textureSize.height
+    const u1 = (sx + sw + m) / this.textureSize.width
+    const v1 = (sy + sh + m) / this.textureSize.height
+
+    // Draw the rectangle with the image's texture coordinates.
+    this.drawRect(
+      x - m, // Adjust x position by adding margin.
+      y - m, // Adjust y position by adding margin.
+      sw + 2 * m, // Add width by twice the margin.
+      sh + 2 * m, // Add height by twice the margin.
+      u0,
+      v0,
+      u1,
+      v1,
+      color
+    )
   }
 
+  /** Draws an image from the atlas centered at (x, y). */
   drawSprite(imageName: string, x: number, y: number, color: number[] = [1, 1, 1, 1], scale = 1, rotation = 0): void {
-    console.log('drawSprite stub', imageName, x, y, color, scale, rotation)
+    if (!this.ready) {
+      throw new Error('Drawer not initialized')
+    }
+
+    this.ensureMeshSelected()
+
+    if (!this.atlasData?.[imageName]) {
+      console.error(`Image "${imageName}" not found in atlas`)
+      return
+    }
+
+    const [sx, sy, sw, sh] = this.atlasData[imageName]
+    const m = this.atlasMargin
+
+    // Calculate UV coordinates (normalized 0.0 to 1.0).
+    const u0 = (sx - m) / this.textureSize.width
+    const v0 = (sy - m) / this.textureSize.height
+    const u1 = (sx + sw + m) / this.textureSize.width
+    const v1 = (sy + sh + m) / this.textureSize.height
+
+    if (scale != 1 || rotation != 0) {
+      this.save()
+      this.translate(x, y)
+      this.rotate(rotation)
+      this.scale(scale, scale)
+      this.drawRect(
+        -sw / 2 - m, // Center horizontally with margin adjustment.
+        -sh / 2 - m, // Center vertically with margin adjustment.
+        sw + 2 * m, // Add width by twice the margin.
+        sh + 2 * m, // Add height by twice the margin.
+        u0,
+        v0,
+        u1,
+        v1,
+        color
+      )
+      this.restore()
+    } else {
+      // Draw the rectangle with the image's texture coordinates.
+      this.drawRect(
+        x - sw / 2 - m, // Center horizontally with margin adjustment.
+        y - sh / 2 - m, // Center vertically with margin adjustment.
+        sw + 2 * m, // Add width by twice the margin.
+        sh + 2 * m, // Add height by twice the margin.
+        u0,
+        v0,
+        u1,
+        v1,
+        color
+      )
+    }
   }
 
+  /** Draws a solid filled rectangle. */
   drawSolidRect(x: number, y: number, width: number, height: number, color: number[]): void {
-    console.log('drawSolidRect stub', x, y, width, height, color)
+    if (!this.ready) {
+      throw new Error('Drawer not initialized')
+    }
+
+    this.ensureMeshSelected()
+
+    const imageName = 'white.png'
+    if (!this.atlasData?.[imageName]) {
+      throw new Error(`Image "${imageName}" not found in atlas`)
+    }
+
+    // Get the middle of the white texture.
+    const [sx, sy, sw, sh] = this.atlasData[imageName]
+    const uvx = (sx + sw / 2) / this.textureSize.width
+    const uvy = (sy + sh / 2) / this.textureSize.height
+    this.drawRect(x, y, width, height, uvx, uvy, uvx, uvy, color)
   }
 
+  /** Draws a stroked rectangle with set stroke width. */
   drawStrokeRect(x: number, y: number, width: number, height: number, strokeWidth: number, color: number[]): void {
-    console.log('drawStrokeRect stub', x, y, width, height, strokeWidth, color)
+    // Draw 4 rectangles as borders for the stroke rectangle.
+    // Top border.
+    this.drawSolidRect(x, y, width, strokeWidth, color)
+    // Bottom border.
+    this.drawSolidRect(x, y + height - strokeWidth, width, strokeWidth, color)
+    // Left border.
+    this.drawSolidRect(x, y + strokeWidth, strokeWidth, height - 2 * strokeWidth, color)
+    // Right border.
+    this.drawSolidRect(x + width - strokeWidth, y + strokeWidth, strokeWidth, height - 2 * strokeWidth, color)
   }
 
+  /** Draws a line of sprites. */
   drawSpriteLine(
     imageName: string,
     x0: number,
@@ -506,10 +697,120 @@ export class ContextWebgl {
     skipStart: number = 0,
     skipEnd: number = 0
   ): void {
-    console.log('drawSpriteLine stub', imageName, x0, y0, x1, y1, spacing, color, skipStart, skipEnd)
+    // Compute the angle of the line.
+    const angle = Math.atan2(y1 - y0, x1 - x0)
+    // Compute the length of the line.
+    const x = x1 - x0
+    const y = y1 - y0
+    const length = Math.sqrt(x ** 2 + y ** 2)
+    // Compute the number of dashes.
+    const numDashes = Math.floor(length / spacing) + 1
+    // Compute the delta of each dash.
+    const dx = x / numDashes
+    const dy = y / numDashes
+    // Draw the dashes.
+    for (let i = 0; i < numDashes; i++) {
+      if (i < skipStart || i >= numDashes - skipEnd) {
+        continue
+      }
+      this.drawSprite(imageName, x0 + i * dx, y0 + i * dy, color, 1, -angle)
+    }
   }
 
+  /** Flushes all non-empty meshes to the screen. */
   flush(): void {
-    console.log('flush stub')
+    if (!this.ready || !this.gl || !this.shaderProgram) {
+      return
+    }
+
+    // If no meshes have been created, nothing to do
+    if (this.meshes.size === 0) {
+      return
+    }
+
+    // Handle high-DPI displays by resizing the canvas if necessary.
+    const clientWidth = window.innerWidth
+    const clientHeight = window.innerHeight
+    const screenWidth = Math.round(clientWidth * this.dpr)
+    const screenHeight = Math.round(clientHeight * this.dpr)
+    if (this.canvas.width !== screenWidth || this.canvas.height !== screenHeight) {
+      this.canvas.width = screenWidth
+      this.canvas.height = screenHeight
+      this.canvas.style.width = `${clientWidth}px`
+      this.canvas.style.height = `${clientHeight}px`
+      this.gl.viewport(0, 0, screenWidth, screenHeight)
+    }
+
+    // Clear the canvas
+    this.gl.clearColor(0.1, 0.1, 0.1, 1.0) // Dark grey clear
+    this.gl.clear(this.gl.COLOR_BUFFER_BIT)
+
+    // Use shader program
+    this.gl.useProgram(this.shaderProgram)
+
+    // Set canvas size uniform
+    this.gl.uniform2f(this.canvasSizeLocation, screenWidth, screenHeight)
+
+    // Bind texture
+    this.gl.activeTexture(this.gl.TEXTURE0)
+    this.gl.bindTexture(this.gl.TEXTURE_2D, this.atlasTexture)
+    this.gl.uniform1i(this.samplerLocation, 0)
+
+    // Draw each mesh that has quads
+    for (const mesh of this.meshes.values()) {
+      const quadCount = mesh.getQuadCount()
+      if (quadCount === 0) continue
+
+      const vertexBuffer = mesh.getVertexBuffer()
+      const indexBuffer = mesh.getIndexBuffer()
+
+      if (!vertexBuffer || !indexBuffer) continue
+
+      // Calculate data sizes
+      const vertexDataCount = mesh.getCurrentVertexCount() * 8 // 8 floats per vertex
+      const indexDataCount = quadCount * 6 // 6 indices per quad
+
+      // Update vertex buffer with current data
+      this.gl.bindBuffer(this.gl.ARRAY_BUFFER, vertexBuffer)
+      this.gl.bufferSubData(this.gl.ARRAY_BUFFER, 0, mesh.getVertexData().subarray(0, vertexDataCount))
+
+      // Set up attributes
+      this.gl.enableVertexAttribArray(this.positionLocation)
+      this.gl.vertexAttribPointer(this.positionLocation, 2, this.gl.FLOAT, false, 8 * 4, 0) // position (2 floats)
+
+      this.gl.enableVertexAttribArray(this.texcoordLocation)
+      this.gl.vertexAttribPointer(this.texcoordLocation, 2, this.gl.FLOAT, false, 8 * 4, 2 * 4) // texcoord (2 floats)
+
+      this.gl.enableVertexAttribArray(this.colorLocation)
+      this.gl.vertexAttribPointer(this.colorLocation, 4, this.gl.FLOAT, false, 8 * 4, 4 * 4) // color (4 floats)
+
+      // Bind index buffer
+      this.gl.bindBuffer(this.gl.ELEMENT_ARRAY_BUFFER, indexBuffer)
+
+      // Apply scissor if enabled for this mesh
+      if (mesh.scissorEnabled) {
+        const [x, y, width, height] = mesh.scissorRect
+        this.gl.enable(this.gl.SCISSOR_TEST)
+        this.gl.scissor(
+          Math.max(0, Math.floor(x)),
+          Math.max(0, Math.floor(screenHeight - y - height)), // WebGL scissor Y is bottom-up
+          Math.max(0, Math.floor(width)),
+          Math.max(0, Math.floor(height))
+        )
+      } else {
+        this.gl.disable(this.gl.SCISSOR_TEST)
+      }
+
+      // Draw the mesh
+      this.gl.drawElements(this.gl.TRIANGLES, indexDataCount, this.gl.UNSIGNED_SHORT, 0)
+    }
+
+    // Disable scissor test for next frame
+    this.gl.disable(this.gl.SCISSOR_TEST)
+
+    // Reset all mesh counters after rendering
+    for (const mesh of this.meshes.values()) {
+      mesh.resetCounters()
+    }
   }
 }
