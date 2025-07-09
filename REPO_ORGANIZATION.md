@@ -27,7 +27,7 @@ This gives us the best of all worlds:
 ## Package Structure
 
 ```
-Softmax/
+softmax/
 ├── cogworks/                   # RL training framework
 ├── mettagrid/                  # C++/Python environment
 ├── common/                     # Shared utilities
@@ -47,7 +47,7 @@ Softmax/
 Based on the current repository, here's the new flattened structure focusing on key changes:
 
 ```
-Softmax/
+softmax/
 ├── cogworks/                   # RL training framework (merged from metta/ + agent/)
 │   ├── agent/                  # From agent/src/metta/agent/
 │   ├── rl/                     # From metta/rl/
@@ -56,6 +56,7 @@ Softmax/
 │   ├── sim/                    # From metta/sim/
 │   ├── mapgen/                 # From metta/map/
 │   ├── setup/                  # From metta/setup/
+│   ├── recipes/                # Example scripts
 │   ├── tests/                  # Combined tests
 │   ├── pyproject.toml          # name = "metta-cogworks"
 │   └── api.py                  # Main API (from metta/api.py)
@@ -110,7 +111,6 @@ Softmax/
 ├── tools/                      # Standalone scripts (train.py, sweep_*.py, etc.)
 ├── configs/                    # Hydra configurations
 ├── scenes/                     # Map generation patterns
-├── recipes/                    # Example scripts
 ├── docs/                       # Documentation
 ├── devops/                     # Infrastructure
 └── pyproject.toml              # Workspace configuration
@@ -227,7 +227,7 @@ metta/src/eval/               → cogworks/eval/
 metta/tests/                  → cogworks/tests/
 metta/configs/                → configs/ (root level)
 metta/tools/                  → tools/ (root level)
-metta/recipes/                → recipes/ (root level)
+metta/recipes/                → cogworks/recipes/
 metta/docs/                   → docs/ (root level)
 metta/devops/                 → devops/ (root level)
 
@@ -333,3 +333,7 @@ As the web apps mature, they'll follow the same pattern:
 5. Update documentation and CI/CD
 
 This structure gives us professional, branded packages while keeping the developer experience clean and simple.
+
+## README.md
+
+The main README.md file should be placed at the root level of the repository to provide an overview of the entire Metta project, installation instructions, and links to individual package documentation.
