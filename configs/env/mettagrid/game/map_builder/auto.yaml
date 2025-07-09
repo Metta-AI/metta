@@ -71,7 +71,7 @@ root:
       - scene: /wfc/mazelike2.yaml
       - scene: /wfc/simple.yaml
       - scene:
-          type: metta.map.scenes.maze.MazeKruskal
+          type: metta.map.scenes.maze.Maze
           params:
             room_size: ["uniform", 1, 3]
             wall_size: ["uniform", 1, 3]
