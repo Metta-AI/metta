@@ -265,8 +265,6 @@ export class ContextWebgl {
 
     // Initialize transformation matrix
     this.currentTransform = Mat3f.identity()
-
-    console.log('constructor done')
   }
 
   
