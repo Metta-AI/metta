@@ -120,12 +120,30 @@ class WebGLMesh {
 }
 
 /** ContextWebgl is a class that manages the WebGL context. */
+/** Type definition for atlas data. */
+interface AtlasData {
+  [key: string]: [number, number, number, number] // [x, y, width, height]
+}
+
 export class ContextWebgl {
   public canvas: HTMLCanvasElement
   public gl: WebGLRenderingContext
   public ready: boolean = false
   public dpr: number = 1
-  public atlasData: any = null
+  public atlasData: AtlasData | null = null
+
+  // WebGL rendering state
+  private shaderProgram: WebGLProgram | null = null
+  private atlasTexture: WebGLTexture | null = null
+  private textureSize: { width: number; height: number } = { width: 0, height: 0 }
+  private atlasMargin: number = 4
+
+  // Shader locations
+  private positionLocation: number = -1
+  private texcoordLocation: number = -1
+  private colorLocation: number = -1
+  private canvasSizeLocation: WebGLUniformLocation | null = null
+  private samplerLocation: WebGLUniformLocation | null = null
 
   // Mesh management
   private meshes: Map<string, WebGLMesh> = new Map()
@@ -231,26 +249,215 @@ export class ContextWebgl {
     }
   }
   
+  /** Translate the current transform. */
   translate(x: number, y: number): void {
-    console.log('translate stub', x, y)
+    const translateMatrix = Mat3f.translate(x, y)
+    this.currentTransform = this.currentTransform.mul(translateMatrix)
   }
   
+  /** Rotate the current transform. */
   rotate(angle: number): void {
-    console.log('rotate stub', angle)
+    const rotateMatrix = Mat3f.rotate(angle)
+    this.currentTransform = this.currentTransform.mul(rotateMatrix)
   }
   
+  /** Scale the current transform. */
   scale(x: number, y: number): void {
-    console.log('scale stub', x, y)
+    const scaleMatrix = Mat3f.scale(x, y)
+    this.currentTransform = this.currentTransform.mul(scaleMatrix)
   }
   
+  /** Reset the current transform. */
   resetTransform(): void {
-    console.log('resetTransform stub')
+    this.currentTransform = Mat3f.identity()
   }
   
+  /** Initialize the WebGL context. */
   async init(atlasJsonUrl: string, atlasImageUrl: string): Promise<boolean> {
-    console.log('init stub', atlasJsonUrl, atlasImageUrl)
+    this.dpr = 1.0
+    if (window.devicePixelRatio > 1.0) {
+      this.dpr = 2.0 // Retina display only, we don't support other DPI scales.
+    }
+
+    // Load Atlas and Texture.
+    const [atlasData, source] = await Promise.all([
+      this.loadAtlasJson(atlasJsonUrl),
+      this.loadAtlasImage(atlasImageUrl),
+    ])
+
+    if (!atlasData || !source) {
+      this.fail('Failed to load atlas or texture')
+      return false
+    }
+    this.atlasData = atlasData
+    this.textureSize = { width: source.width, height: source.height }
+
+    // Create and compile shaders
+    const vertexShader = this.createShader(this.gl.VERTEX_SHADER, this.getVertexShaderSource())
+    const fragmentShader = this.createShader(this.gl.FRAGMENT_SHADER, this.getFragmentShaderSource())
+
+    if (!vertexShader || !fragmentShader) {
+      this.fail('Failed to create shaders')
+      return false
+    }
+
+    // Create shader program
+    this.shaderProgram = this.createProgram(vertexShader, fragmentShader)
+    if (!this.shaderProgram) {
+      this.fail('Failed to create shader program')
+      return false
+    }
+
+    // Get attribute and uniform locations
+    this.positionLocation = this.gl.getAttribLocation(this.shaderProgram, 'a_position')
+    this.texcoordLocation = this.gl.getAttribLocation(this.shaderProgram, 'a_texcoord')
+    this.colorLocation = this.gl.getAttribLocation(this.shaderProgram, 'a_color')
+    this.canvasSizeLocation = this.gl.getUniformLocation(this.shaderProgram, 'u_canvasSize')
+    this.samplerLocation = this.gl.getUniformLocation(this.shaderProgram, 'u_sampler')
+
+    // Create texture
+    this.atlasTexture = this.gl.createTexture()
+    if (!this.atlasTexture) {
+      this.fail('Failed to create texture')
+      return false
+    }
+
+    // Upload texture data
+    this.gl.bindTexture(this.gl.TEXTURE_2D, this.atlasTexture)
+    this.gl.texImage2D(this.gl.TEXTURE_2D, 0, this.gl.RGBA, this.gl.RGBA, this.gl.UNSIGNED_BYTE, source)
+
+    // Generate mipmaps
+    this.gl.generateMipmap(this.gl.TEXTURE_2D)
+
+    // Set texture parameters
+    this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_S, this.gl.REPEAT)
+    this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_T, this.gl.REPEAT)
+    this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MIN_FILTER, this.gl.LINEAR_MIPMAP_LINEAR)
+    this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MAG_FILTER, this.gl.LINEAR)
+
+    // Enable blending for premultiplied alpha
+    this.gl.enable(this.gl.BLEND)
+    this.gl.blendFunc(this.gl.ONE, this.gl.ONE_MINUS_SRC_ALPHA)
+
     this.ready = true
     return true
+  }
+
+  /** Fail the context. */
+  private fail(msg: string): void {
+    console.error(msg)
+    const failDiv = document.createElement('div')
+    failDiv.id = 'fail'
+    failDiv.textContent = `Initialization Error: ${msg}. See console for details.`
+    document.body.appendChild(failDiv)
+  }
+
+  /** Load the atlas image. */
+  private async loadAtlasImage(url: string): Promise<HTMLImageElement | null> {
+    try {
+      const img = new Image()
+      img.crossOrigin = 'anonymous'
+      return new Promise((resolve, reject) => {
+        img.onload = () => resolve(img)
+        img.onerror = () => reject(new Error(`Failed to load image: ${url}`))
+        img.src = url
+      })
+    } catch (err) {
+      console.error(`Error loading image ${url}:`, err)
+      return null
+    }
+  }
+
+  /** Load the atlas JSON. */
+  private async loadAtlasJson(url: string): Promise<AtlasData | null> {
+    try {
+      const res = await fetch(url)
+      if (!res.ok) {
+        throw new Error(`Failed to fetch atlas: ${res.statusText}`)
+      }
+      return await res.json()
+    } catch (err) {
+      console.error(`Error loading atlas ${url}:`, err)
+      return null
+    }
+  }
+
+  /** Create and compile a shader. */
+  private createShader(type: number, source: string): WebGLShader | null {
+    const shader = this.gl.createShader(type)
+    if (!shader) return null
+
+    this.gl.shaderSource(shader, source)
+    this.gl.compileShader(shader)
+
+    if (!this.gl.getShaderParameter(shader, this.gl.COMPILE_STATUS)) {
+      console.error('Error compiling shader:', this.gl.getShaderInfoLog(shader))
+      this.gl.deleteShader(shader)
+      return null
+    }
+
+    return shader
+  }
+
+  /** Create and link a shader program. */
+  private createProgram(vertexShader: WebGLShader, fragmentShader: WebGLShader): WebGLProgram | null {
+    const program = this.gl.createProgram()
+    if (!program) return null
+
+    this.gl.attachShader(program, vertexShader)
+    this.gl.attachShader(program, fragmentShader)
+    this.gl.linkProgram(program)
+
+    if (!this.gl.getProgramParameter(program, this.gl.LINK_STATUS)) {
+      console.error('Error linking program:', this.gl.getProgramInfoLog(program))
+      this.gl.deleteProgram(program)
+      return null
+    }
+
+    return program
+  }
+
+  /** Get vertex shader source. */
+  private getVertexShaderSource(): string {
+    return `
+      attribute vec2 a_position;
+      attribute vec2 a_texcoord;
+      attribute vec4 a_color;
+      
+      uniform vec2 u_canvasSize;
+      
+      varying vec2 v_texcoord;
+      varying vec4 v_color;
+      
+      void main() {
+        vec2 zeroToOne = a_position / u_canvasSize;
+        vec2 zeroToTwo = zeroToOne * 2.0;
+        vec2 clipSpace = zeroToTwo - vec2(1.0, 1.0);
+        gl_Position = vec4(clipSpace.x, -clipSpace.y, 0.0, 1.0);
+        
+        v_texcoord = a_texcoord;
+        v_color = a_color;
+      }
+    `
+  }
+
+  /** Get fragment shader source. */
+  private getFragmentShaderSource(): string {
+    return `
+      precision mediump float;
+      
+      uniform sampler2D u_sampler;
+      
+      varying vec2 v_texcoord;
+      varying vec4 v_color;
+      
+      void main() {
+        vec4 texColor = texture2D(u_sampler, v_texcoord);
+        // Do the premultiplied alpha conversion.
+        vec4 premultipliedColor = vec4(texColor.rgb * texColor.a, texColor.a);
+        gl_FragColor = premultipliedColor * v_color;
+      }
+    `
   }
   
   drawRect(
