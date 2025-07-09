@@ -19,6 +19,8 @@ struct PartialObservationToken {
   ObservationType value;
 };
 
+static_assert(sizeof(PartialObservationToken) == 2 * sizeof(ObservationType), "PartialObservationToken size check");
+
 // These may make more sense in observation_encoder.hpp, but we need to include that
 // header in a lot of places, and it's nice to have these types defined in one place.
 struct alignas(1) ObservationToken {

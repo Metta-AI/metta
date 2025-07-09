@@ -84,28 +84,28 @@ public:
     this->reward = reward;
   }
 
-  InventoryDelta update_inventory(InventoryItem item, InventoryDelta delta) {
+  InventoryDelta update_inventory(InventoryItem item, InventoryDelta attempted_delta) {
     InventoryQuantity initial_amount = this->inventory[item];
 
-    InventoryQuantity clamped_amount =
-        std::clamp(static_cast<int>(initial_amount + delta), 0, static_cast<int>(this->resource_limits[item]));
+    InventoryQuantity new_amount = std::clamp(
+        static_cast<int>(initial_amount + attempted_delta), 0, static_cast<int>(this->resource_limits[item]));
 
-    InventoryDelta clamped_delta = clamped_amount - initial_amount;
-    if (clamped_amount > 0) {
-      this->inventory[item] = clamped_amount;
+    InventoryDelta delta = new_amount - initial_amount;
+    if (new_amount > 0) {
+      this->inventory[item] = new_amount;
     } else {
       this->inventory.erase(item);
     }
 
-    if (clamped_delta > 0) {
-      this->stats.add(this->stats.inventory_item_name(item) + ".gained", clamped_delta);
-    } else if (clamped_delta < 0) {
-      this->stats.add(this->stats.inventory_item_name(item) + ".lost", -clamped_delta);
+    if (delta > 0) {
+      this->stats.add(this->stats.inventory_item_name(item) + ".gained", delta);
+    } else if (delta < 0) {
+      this->stats.add(this->stats.inventory_item_name(item) + ".lost", -delta);
     }
 
     this->compute_resource_reward(item);
 
-    return clamped_delta;
+    return delta;
   }
 
   // Recalculates resource rewards for the agent.
