@@ -14,9 +14,11 @@ from metta.api import (
     Optimizer,
     calculate_anneal_beta,
     cleanup_distributed,
+    cleanup_wandb,
     create_evaluation_config_suite,
     create_replay_config,
     ensure_initial_policy,
+    initialize_wandb,
     load_checkpoint,
     save_checkpoint,
     save_experiment_config,
@@ -28,7 +30,6 @@ from metta.common.profiling.memory_monitor import MemoryMonitor
 from metta.common.profiling.stopwatch import Stopwatch
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.system_monitor import SystemMonitor
-from metta.common.wandb.wandb_context import WandbContext
 from metta.eval.eval_stats_db import EvalStatsDB
 from metta.mettagrid import mettagrid_c  # noqa: F401
 from metta.mettagrid.mettagrid_env import dtype_actions
@@ -109,15 +110,6 @@ trainer_config = TrainerConfig(
 if torch.distributed.is_initialized() and trainer_config.scale_batches_by_world_size:
     trainer_config.batch_size = trainer_config.batch_size // world_size
 
-# WandB configuration
-wandb_config = {
-    "project": os.environ.get("WANDB_PROJECT", "metta-run"),
-    "entity": os.environ.get("WANDB_ENTITY", None),  # Set WANDB_ENTITY env var or update this
-    "enabled": os.environ.get("WANDB_DISABLED", "").lower() != "true",  # Set WANDB_DISABLED=true to disable
-    "name": dirs.run_name,
-    "config": trainer_config.model_dump(),
-}
-
 # Save config
 save_experiment_config(dirs, device, trainer_config)
 
@@ -151,13 +143,31 @@ metta_grid_env = env.driver_env  # type: ignore - vecenv attribute
 agent = Agent(env, device=str(device))
 hidden_size, num_lstm_layers = get_lstm_config(agent)
 
-# Initialize wandb if master
-wandb_run = None
-if is_master and wandb_config["enabled"]:
-    from omegaconf import DictConfig as OmegaDictConfig
+# Evaluation configuration
+evaluation_config = create_evaluation_config_suite()
 
-    wandb_ctx = WandbContext(OmegaDictConfig(wandb_config), DictConfig({"run": dirs.run_name, "run_dir": dirs.run_dir}))
-    wandb_run = wandb_ctx.__enter__()
+# Initialize wandb if master
+# This uses the helper from api.py that handles all the wandb config setup
+wandb_run = None
+wandb_ctx = None
+if is_master:
+    # Build a config similar to what Hydra would create
+    full_config = {
+        "run": dirs.run_name,
+        "run_dir": dirs.run_dir,
+        "cmd": "train",
+        "device": str(device),
+        "seed": 1,  # Default seed
+        "trainer": trainer_config.model_dump(),
+        "train_job": {"evals": evaluation_config.model_dump() if hasattr(evaluation_config, "model_dump") else {}},
+    }
+
+    wandb_run, wandb_ctx = initialize_wandb(
+        run_name=dirs.run_name,
+        run_dir=dirs.run_dir,
+        enabled=os.environ.get("WANDB_DISABLED", "").lower() != "true",
+        config=full_config,
+    )
 
 # Create policy store
 policy_store = PolicyStore(
@@ -253,9 +263,6 @@ if is_master:
         logger=logger,
         auto_start=True,
     )
-
-# Evaluation configuration
-evaluation_config = create_evaluation_config_suite()
 
 # Training loop
 saved_policy_path = None
@@ -652,5 +659,5 @@ logger.info(f"\nTraining run complete! Run saved to: {dirs.run_dir}")
 cleanup_distributed()
 
 # Clean up wandb if initialized
-if wandb_run and is_master:
-    wandb_ctx.__exit__(None, None, None)
+if is_master:
+    cleanup_wandb(wandb_ctx)
