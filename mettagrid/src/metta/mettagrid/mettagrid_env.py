@@ -93,6 +93,10 @@ class MettaGridEnv(PufferEnv, GymEnv):
 
         self._is_training = is_training
 
+        # Exploration tracking attributes
+        self._agent_visited_positions: Dict[int, set] = {}  # agent_id -> set of (r, c) positions
+        self._total_grid_cells: int = 0  # Total number of accessible cells in grid
+
         self._initialize_c_env()
         super().__init__(buf)
 
@@ -149,6 +153,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
             self._c_env = MettaGrid(from_mettagrid_config(game_config_dict), level.grid.tolist(), self._current_seed)
 
         self._grid_env = self._c_env
+        self._total_grid_cells = self._c_env.map_width * self._c_env.map_height
 
     @override  # pufferlib.PufferEnv.reset
     @with_instance_timer("reset")
@@ -160,6 +165,11 @@ class MettaGridEnv(PufferEnv, GymEnv):
         self._initialize_c_env()
         self._steps = 0
         self._resets += 1
+
+        # Initialize exploration tracking for this episode
+        self._agent_visited_positions = {}
+        for agent_id in range(self._c_env.num_agents):
+            self._agent_visited_positions[agent_id] = set()
 
         assert self.observations.dtype == dtype_observations
         assert self.terminals.dtype == dtype_terminals
@@ -206,6 +216,9 @@ class MettaGridEnv(PufferEnv, GymEnv):
             self._c_env.step(actions)
             self._steps += 1
 
+        # Track agent positions for exploration metrics
+        self._track_agent_positions()
+
         if self._replay_writer and self._episode_id:
             with self.timer("_replay_writer.log_step"):
                 self._replay_writer.log_step(self._episode_id, actions, self.rewards)
@@ -230,6 +243,75 @@ class MettaGridEnv(PufferEnv, GymEnv):
 
         self.timer.start("thread_idle")
         return self.observations, self.rewards, self.terminals, self.truncations, infos
+
+    def _track_agent_positions(self) -> None:
+        """Track current agent positions for exploration metrics."""
+        grid_objects = self._c_env.grid_objects()
+        for _obj_id, obj_data in grid_objects.items():
+            if "agent_id" in obj_data:
+                agent_id = obj_data["agent_id"]
+                position = (obj_data["r"], obj_data["c"])
+                self._agent_visited_positions[agent_id].add(position)
+
+    def _calculate_exploration_metrics(self) -> Dict[str, float]:
+        """Calculate exploration metrics for all agents."""
+        metrics = {}
+
+        # Calculate metrics for each agent
+        for agent_id in range(self._c_env.num_agents):
+            visited_positions = self._agent_visited_positions.get(agent_id, set())
+            num_visited = len(visited_positions)
+
+            # Unnormalized count
+            metrics[f"exploration/agent_{agent_id}/unique_locations"] = float(num_visited)
+
+            # Normalized by grid volume
+            if self._total_grid_cells > 0:
+                metrics[f"exploration/agent_{agent_id}/unique_locations_normalized_by_volume"] = (
+                    float(num_visited) / self._total_grid_cells
+                )
+
+            # Normalized by number of agents
+            metrics[f"exploration/agent_{agent_id}/unique_locations_normalized_by_agents"] = (
+                float(num_visited) / self._c_env.num_agents
+            )
+
+            # Normalized by both volume and agents
+            if self._total_grid_cells > 0:
+                metrics[f"exploration/agent_{agent_id}/unique_locations_normalized_by_volume_and_agents"] = float(
+                    num_visited
+                ) / (self._total_grid_cells * self._c_env.num_agents)
+
+        # Calculate aggregate metrics across all agents
+        total_visited = sum(len(positions) for positions in self._agent_visited_positions.values())
+        avg_visited = total_visited / self._c_env.num_agents if self._c_env.num_agents > 0 else 0
+
+        metrics["exploration/total_unique_locations"] = float(total_visited)
+        metrics["exploration/avg_unique_locations_per_agent"] = float(avg_visited)
+
+        # Normalized aggregate metrics
+        if self._total_grid_cells > 0:
+            metrics["exploration/total_unique_locations_normalized_by_volume"] = (
+                float(total_visited) / self._total_grid_cells
+            )
+            metrics["exploration/avg_unique_locations_per_agent_normalized_by_volume"] = (
+                float(avg_visited) / self._total_grid_cells
+            )
+
+        if self._c_env.num_agents > 0:
+            metrics["exploration/total_unique_locations_normalized_by_agents"] = (
+                float(total_visited) / self._c_env.num_agents
+            )
+
+        if self._total_grid_cells > 0 and self._c_env.num_agents > 0:
+            metrics["exploration/total_unique_locations_normalized_by_volume_and_agents"] = float(total_visited) / (
+                self._total_grid_cells * self._c_env.num_agents
+            )
+            metrics["exploration/avg_unique_locations_per_agent_normalized_by_volume_and_agents"] = float(
+                avg_visited
+            ) / (self._total_grid_cells * self._c_env.num_agents)
+
+        return metrics
 
     @override
     def close(self):
@@ -264,6 +346,10 @@ class MettaGridEnv(PufferEnv, GymEnv):
                 infos["agent"][n] = infos["agent"].get(n, 0) + v
         for n, v in infos["agent"].items():
             infos["agent"][n] = v / self._c_env.num_agents
+
+        # Add exploration metrics
+        exploration_metrics = self._calculate_exploration_metrics()
+        infos.update(exploration_metrics)
 
         attributes: dict[str, int] = {
             "seed": self._current_seed,
