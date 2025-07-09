@@ -2,6 +2,7 @@ import math
 from abc import ABC, abstractmethod
 from typing import Any, Callable, Dict, Optional
 
+import hydra
 from omegaconf import DictConfig
 
 
@@ -75,22 +76,25 @@ class HyperparameterScheduler:
         self.total_timesteps = total_timesteps
         self.logger = logging.getLogger(__name__)
 
-        self.initial_values = {
-            "learning_rate": trainer_cfg.optimizer.learning_rate,
-            "ppo_clip_coef": trainer_cfg.ppo.clip_coef,
-            "ppo_vf_clip_coef": trainer_cfg.ppo.vf_clip_coef,
-            "ppo_ent_coef": trainer_cfg.ppo.ent_coef,
-            "ppo_l2_reg_loss_coef": trainer_cfg.ppo.l2_reg_loss_coef,
-            "ppo_l2_init_loss_coef": trainer_cfg.ppo.l2_init_loss_coef,
+        # key: attribute in trainer_cfg.hyperparameter_scheduler
+        self.schedule_keys = {
+            "learning_rate": "learning_rate_schedule",
+            "ppo_clip_coef": "ppo_clip_schedule",
+            "ppo_vf_clip_coef": "ppo_vf_clip_schedule",
+            "ppo_ent_coef": "ppo_ent_coef_schedule",
+            "ppo_l2_reg_loss_coef": "ppo_l2_reg_loss_schedule",
+            "ppo_l2_init_loss_coef": "ppo_l2_init_loss_schedule",
         }
-        self.schedules = {
-            "learning_rate": self._get_schedule_config(trainer_cfg, "learning_rate_schedule", "cosine"),
-            "ppo_clip_coef": self._get_schedule_config(trainer_cfg, "ppo_clip_schedule", "logarithmic"),
-            "ppo_vf_clip_coef": self._get_schedule_config(trainer_cfg, "ppo_vf_clip_schedule", "linear"),
-            "ppo_ent_coef": self._get_schedule_config(trainer_cfg, "ppo_ent_coef_schedule", "linear"),
-            "ppo_l2_reg_loss_coef": self._get_schedule_config(trainer_cfg, "ppo_l2_reg_loss_schedule", "linear"),
-            "ppo_l2_init_loss_coef": self._get_schedule_config(trainer_cfg, "ppo_l2_init_loss_schedule", "linear"),
-        }
+
+        self.schedulers = {}
+
+        scheduler_cfg = trainer_cfg.hyperparameter_scheduler
+
+        for param_name, key in self.schedule_keys.items():
+            if hasattr(scheduler_cfg, key):
+                self.logger.info(f"Initializing scheduler for: {param_name}")
+                schedule_cfg = getattr(scheduler_cfg, key)
+                self.schedulers[param_name] = hydra.utils.instantiate(schedule_cfg)
 
     def _get_schedule_config(self, cfg: DictConfig, schedule_key: str, default_type: str) -> Dict[str, Any]:
         """Extract schedule configuration from trainer_cfg or return default."""
@@ -106,31 +110,16 @@ class HyperparameterScheduler:
 
     def _compute_scheduled_value(self, param_name: str, current_step: int) -> float:
         """Compute the scheduled value for a hyperparameter at the current step."""
-        initial_value = self.initial_values[param_name]
-        schedule = self.schedules[param_name]
-        schedule_type = schedule["type"]
+        schedule_fn = self.schedulers[param_name]  # Already a callable schedule instance (via hydra.instantiate)
 
         progress = min(current_step / self.total_timesteps, 1.0)
-
-        schedule_class = self.scheduler_registry.get(schedule_type)
-        if not schedule_class:
-            self.logger.warning(f"Unknown schedule type {schedule_type} for {param_name}, using constant")
-            return initial_value
-
-        scheduled_value = schedule_class(
-            initial_value=initial_value,
-            min_value=schedule.get("min_value"),
-            max_value=schedule.get("max_value"),
-            decay_rate=schedule.get("decay_rate", 0.1),
-        )(progress)
-
-        return scheduled_value
+        return schedule_fn(progress)
 
     def step(self, trainer, current_step: int) -> None:
         """Update trainer hyperparameters for the current step."""
         updates = {}
 
-        for param_name in self.initial_values:
+        for param_name in self.schedulers.keys():
             new_value = self._compute_scheduled_value(param_name, current_step)
             updates[param_name] = new_value
 

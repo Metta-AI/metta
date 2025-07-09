@@ -4,6 +4,7 @@ from omegaconf import DictConfig, OmegaConf
 from pydantic import ConfigDict, Field, model_validator
 
 from metta.common.util.typed_config import BaseModelWithForbidExtra
+from metta.rl.hyperparameter_scheduler_config import HyperparameterSchedulerConfig
 from metta.rl.kickstarter_config import KickstartConfig
 
 
@@ -173,6 +174,9 @@ class TrainerConfig(BaseModelWithForbidExtra):
     forward_pass_minibatch_target_size: int = Field(default=4096, gt=0)
     # Async factor 2: Type 2 default chosen arbitrarily, overlaps computation and communication for efficiency
     async_factor: int = Field(default=2, gt=0)
+
+    # scheduler registry
+    hyperparameter_scheduler: HyperparameterSchedulerConfig = Field(default_factory=HyperparameterSchedulerConfig)
 
     # Kickstart
     kickstart: KickstartConfig = Field(default_factory=KickstartConfig)
