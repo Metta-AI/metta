@@ -25,32 +25,22 @@ echo "🔧 Configuring git..."
 git config --global user.name "openhands" 2>/dev/null || true
 git config --global user.email "openhands@all-hands.dev" 2>/dev/null || true
 
-# More robust uv detection function
-find_uv() {
-    # First try command -v
-    if command -v uv &> /dev/null; then
-        return 0
-    fi
-
-    # Check common installation paths directly
-    for path in "$HOME/.local/bin/uv" "$HOME/.cargo/bin/uv" "/opt/homebrew/bin/uv" "/usr/local/bin/uv"; do
-        if [ -x "$path" ]; then
-            # Found uv, export it directly
-            export UV_BIN="$path"
-            return 0
-        fi
-    done
-
-    return 1
-}
+# Common locations where uv might be installed
+UV_PATHS="$HOME/.local/bin/uv $HOME/.cargo/bin/uv /opt/homebrew/bin/uv /usr/local/bin/uv"
 
 # Install uv if not present (required by setup_dev.sh)
-if ! find_uv; then
+if ! command -v uv &> /dev/null; then
     echo "📦 Installing uv package manager..."
     curl -LsSf https://astral.sh/uv/install.sh | sh
 
-    # Add all common uv installation paths to PATH
-    export PATH="$HOME/.local/bin:$HOME/.cargo/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
+    # Add directories containing uv to PATH (only if not already present)
+    for uv_path in $UV_PATHS; do
+        dir=$(dirname "$uv_path")
+        case ":$PATH:" in
+            *":$dir:"*) ;;  # Already in PATH
+            *) export PATH="$dir:$PATH" ;;
+        esac
+    done
 
     # Source env files if they exist
     [ -f "$HOME/.local/bin/env" ] && source "$HOME/.local/bin/env"
@@ -60,7 +50,7 @@ if ! find_uv; then
     hash -r 2>/dev/null || true
 
     # Verify installation
-    if ! find_uv; then
+    if ! command -v uv &> /dev/null; then
         echo "❌ Failed to install uv"
         exit 1
     fi
@@ -69,8 +59,8 @@ else
     echo "✅ uv already available"
 fi
 
-# Use UV_BIN if set (from direct path detection), otherwise use 'uv'
-UV="${UV_BIN:-uv}"
+# Set the project environment to ensure we use the correct venv
+export UV_PROJECT_ENVIRONMENT="${PROJECT_DIR}/.venv"
 
 # Use the existing comprehensive setup script
 echo "🛠️  Running Metta development setup script..."
@@ -88,7 +78,7 @@ fi
 
 # Quick verification
 echo "🧪 Verifying installation..."
-"$UV" run python -c "
+uv run python -c "
 try:
     import metta
     print('✅ Core metta package imported successfully')
@@ -118,12 +108,12 @@ echo ""
 echo "📋 Quick start commands:"
 echo "  • Train a model:     ./tools/train.py run=my_experiment +hardware=macbook wandb=off"
 echo "  • Play interactively: ./tools/play.py run=my_experiment +hardware=macbook wandb=off"
-echo "  • Run tests:         $UV run pytest"
-echo "  • Format code:       $UV run ruff format && $UV run ruff check"
+echo "  • Run tests:         uv run pytest"
+echo "  • Format code:       uv run ruff format && uv run ruff check"
 echo ""
 echo "📚 Documentation: https://github.com/Metta-AI/metta"
 echo "💬 Discord: https://discord.gg/mQzrgwqmwy"
 echo ""
-echo "🔧 To run commands, use: $UV run <command>"
-echo "   Example: $UV run python -c 'import metta; print(metta.__file__)'"
+echo "🔧 To run commands, use: uv run <command>"
+echo "   Example: uv run python -c 'import metta; print(metta.__file__)'"
 echo ""
