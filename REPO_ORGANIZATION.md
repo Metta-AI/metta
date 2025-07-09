@@ -28,7 +28,7 @@ Rather than forcing everything under a `metta.*` namespace, we embrace distinct 
 # Clear, focused imports
 import mettagrid                    # Environment package
 from cogworks import train          # RL training
-from cogworks.rl import PPO         # RL algorithms
+from cogworks.rl import trainer     # RL trainer module
 from mettacommon import logger      # Shared utilities
 from gridworks import MapEditor     # Map editing tools
 ```
@@ -86,96 +86,168 @@ Softmax/
 ├── cogworks/                   # RL training framework (from metta/ + agent/)
 │   ├── pyproject.toml          # name = "cogworks"
 │   ├── __init__.py
-│   ├── api.py                  # Main training APIs
-│   ├── train.py                # Training entry point
-│   ├── agent/                  # Agent/policy code (from agent/)
-│   │   ├── policy.py
-│   │   ├── modules/
-│   │   └── distributions/
-│   ├── rl/                     # RL algorithms
-│   │   ├── experience.py
-│   │   ├── losses.py
-│   │   ├── ppo.py
-│   │   └── trainer.py
-│   ├── eval/                   # Evaluation tools
-│   │   ├── analysis.py
-│   │   └── dashboard_data.py
-│   ├── sweep/                  # Hyperparameter sweeping
-│   │   ├── protein_metta.py
-│   │   └── sweep_name_config.py
-│   ├── sim/                    # Simulation management
-│   │   ├── simulation.py
-│   │   └── simulation_stats_db.py
-│   ├── mapgen/                 # Map generation (from map/)
-│   │   ├── random/
-│   │   ├── scenes/
-│   │   └── utils/
-│   ├── setup/                  # Setup and installation tools
+│   ├── api.py                  # Main training APIs (from metta/api.py)
+│   ├── agent/                  # Agent/policy code (from agent/src/metta/agent/)
+│   │   ├── metta_agent.py      # Main agent class
+│   │   ├── policy_store.py     # Policy storage
+│   │   ├── policy_cache.py     # Policy caching
+│   │   ├── policy_record.py    # Policy records
+│   │   ├── policy_metadata.py  # Policy metadata
+│   │   ├── policy_state.py     # Policy state
+│   │   ├── lib/                # Agent libraries (LSTM, etc.)
+│   │   ├── external/           # External integrations
+│   │   └── util/               # Agent utilities
+│   ├── rl/                     # RL algorithms (from metta/rl/)
+│   │   ├── trainer.py          # Main trainer
+│   │   ├── trainer_config.py   # Trainer configuration
+│   │   ├── functions.py        # Functional training utilities
+│   │   ├── experience.py       # Experience buffer
+│   │   ├── losses.py           # Loss functions
+│   │   ├── policy.py           # Policy utilities
+│   │   ├── kickstarter.py      # Kickstarter training
+│   │   ├── vecenv.py           # Vectorized environments
+│   │   ├── fast_gae.cpp        # C++ GAE implementation
+│   │   └── fast_gae/           # Fast GAE module
+│   ├── eval/                   # Evaluation tools (from metta/eval/)
+│   │   ├── analysis.py         # Analysis tools
+│   │   ├── dashboard_data.py   # Dashboard data generation
+│   │   ├── eval_stats_db.py    # Evaluation statistics DB
+│   │   └── analysis_config.py  # Analysis configuration
+│   ├── sweep/                  # Hyperparameter sweeping (from metta/sweep/)
+│   │   ├── protein.py          # Main sweep engine
+│   │   ├── protein_metta.py    # Metta-specific sweep
+│   │   └── protein_wandb.py    # WandB sweep integration
+│   ├── sim/                    # Simulation management (from metta/sim/)
+│   │   ├── simulation.py       # Core simulation
+│   │   ├── simulation_stats_db.py  # Simulation stats DB
+│   │   ├── simulation_suite.py # Simulation suite
+│   │   ├── simulation_config.py # Simulation config
+│   │   └── map_preview.py      # Map preview utilities
+│   ├── mapgen/                 # Map generation (from metta/map/)
+│   │   ├── mapgen.py           # Map generator
+│   │   ├── scene.py            # Scene management
+│   │   ├── types.py            # Map types
+│   │   ├── load.py             # Map loading
+│   │   ├── load_random.py      # Random map loading
+│   │   ├── config.py           # Map config
+│   │   ├── random/             # Random generation algorithms
+│   │   ├── scenes/             # Scene implementations
+│   │   └── utils/              # Map utilities
+│   ├── setup/                  # Setup and installation tools (from metta/setup/)
 │   ├── recipes/                # Example scripts (from root recipes/)
 │   └── tests/                  # All RL/agent tests
 │
-├── mettagrid/                  # C++/Python environment (mostly unchanged)
+├── mettagrid/                  # C++/Python environment (flattened structure)
 │   ├── pyproject.toml          # name = "mettagrid"
 │   ├── CMakeLists.txt
 │   ├── __init__.py
-│   ├── src/                    # C++ source
-│   │   └── metta/
-│   │       └── mettagrid/
+│   ├── mettagrid_env.py        # Main environment class
+│   ├── mettagrid_config.py     # Environment configuration
+│   ├── char_encoder.py         # Character encoding
+│   ├── gym_wrapper.py          # Gym compatibility wrapper
+│   ├── level_builder.py        # Level building utilities
+│   ├── replay_writer.py        # Replay recording
+│   ├── stats_writer.py         # Stats recording
+│   ├── episode_stats_db.py     # Episode statistics
+│   ├── mettagrid_c.cpp         # C++ bindings
+│   ├── mettagrid_c.pyi         # Type stubs
+│   ├── grid.hpp                # Core grid implementation
+│   ├── action_handler.hpp      # Action handling
+│   ├── observation_encoder.hpp # Observation encoding
+│   ├── curriculum/             # Curriculum definitions
+│   ├── actions/                # Action implementations
+│   ├── objects/                # Game objects
+│   ├── renderer/               # Rendering utilities
+│   ├── room/                   # Room generation
+│   ├── util/                   # C++ utilities
 │   ├── configs/                # Environment configs
-│   ├── tests/
-│   └── benchmarks/
+│   ├── tests/                  # C++ and Python tests
+│   └── benchmarks/             # Performance benchmarks
 │
 ├── mettacommon/                # Minimal shared utilities (from common/)
 │   ├── pyproject.toml          # name = "mettacommon"
 │   ├── __init__.py
 │   ├── util/                   # Common utilities
-│   │   ├── logger.py
-│   │   ├── config.py
-│   │   └── system_monitor.py
+│   │   ├── config.py           # Config management
+│   │   ├── resolvers.py        # Hydra resolvers
+│   │   ├── logging_helpers.py  # Logging setup
+│   │   ├── system_monitor.py   # System monitoring
+│   │   ├── runtime_configuration.py # Runtime config
+│   │   ├── fs.py               # Filesystem utilities
+│   │   ├── git.py              # Git utilities
+│   │   ├── heartbeat.py        # Process heartbeat
+│   │   ├── cli.py              # CLI helpers
+│   │   ├── colorama.py         # Color output
+│   │   ├── datastruct.py       # Data structures
+│   │   └── tracing.py          # Tracing utilities
 │   ├── profiling/              # Performance monitoring
-│   │   ├── memory_monitor.py
-│   │   └── stopwatch.py
+│   │   ├── memory_monitor.py   # Memory monitoring
+│   │   └── stopwatch.py        # Timing utilities
 │   ├── wandb/                  # WandB integration
-│   └── tests/
+│   └── tests/                  # Common tests
 │
 ├── gridworks/                  # Map editor and studio (from studio/)
 │   ├── pyproject.toml          # name = "gridworks"
 │   ├── package.json
-│   ├── __init__.py
-│   ├── server/                 # Python backend
-│   │   ├── api.py
-│   │   └── routes.py
+│   ├── next.config.ts
+│   ├── next-env.d.ts
+│   ├── tailwind.config.ts
+│   ├── tsconfig.json
+│   ├── server/                 # Python backend (if needed)
 │   ├── src/                    # TypeScript/React frontend
-│   │   ├── app/
-│   │   ├── components/
-│   │   └── lib/
-│   ├── public/
-│   └── tests/
+│   │   ├── app/                # Next.js app directory
+│   │   ├── components/         # React components
+│   │   ├── hooks/              # React hooks
+│   │   ├── icons/              # Icon components
+│   │   ├── lib/                # Utilities
+│   │   └── server/             # Server actions
+│   ├── public/                 # Static assets
+│   └── tests/                  # Frontend tests
 │
-├── observatory/                # Production monitoring (unchanged)
+├── observatory/                # Production monitoring (mostly unchanged)
 │   ├── pyproject.toml          # name = "observatory"
 │   ├── package.json
-│   ├── __init__.py
-│   ├── api.py                  # Backend API (from app_backend/)
-│   ├── db.py                   # Database models
+│   ├── vite.config.ts
+│   ├── index.html
 │   ├── src/                    # React frontend
-│   ├── docker/
+│   │   ├── App.tsx
+│   │   ├── Dashboard.tsx
+│   │   ├── components/
+│   │   └── config.ts
+│   ├── api/                    # Backend API (from app_backend/)
+│   │   ├── __init__.py
+│   │   ├── endpoints.py
+│   │   └── models.py
+│   ├── docker/                 # Deployment configs
+│   │   └── Dockerfile
 │   └── tests/
 │
-├── mettascope/                 # Replay viewer (unchanged)
+├── mettascope/                 # Replay viewer (mostly unchanged)
 │   ├── pyproject.toml          # name = "mettascope"
 │   ├── package.json
+│   ├── vite.config.mts
+│   ├── index.html
 │   ├── __init__.py
-│   ├── replays.py              # Replay handling
-│   ├── server.py               # Local server
 │   ├── src/                    # TypeScript frontend
-│   ├── data/                   # Assets (atlas, fonts, ui)
+│   │   ├── main.ts
+│   │   ├── renderer.ts
+│   │   ├── replay.ts
+│   │   └── ui.ts
+│   ├── data/                   # Assets
+│   │   ├── atlas/              # Sprite atlases
+│   │   ├── fonts/              # Font files
+│   │   ├── ui/                 # UI assets
+│   │   └── view/               # View assets
+│   ├── tools/                  # Build tools
+│   │   ├── gen_atlas.py
+│   │   └── gen_html.py
 │   └── tests/
 │
-├── tools/                      # Standalone entry scripts
+├── tools/                      # Standalone entry scripts (unchanged)
 │   ├── train.py                # Main training script
 │   ├── sweep_init.py           # Sweep initialization
 │   ├── sweep_eval.py           # Sweep evaluation
+│   ├── sweep_config_utils.py   # Sweep config utilities
 │   ├── play.py                 # Interactive play
 │   ├── sim.py                  # Run simulations
 │   ├── replay.py               # Generate replays
@@ -184,44 +256,51 @@ Softmax/
 │   ├── renderer.py             # Render utilities
 │   ├── validate_config.py      # Config validation
 │   ├── stats_duckdb_cli.py     # Stats DB CLI
+│   ├── upload_map_imgs.py      # Map image upload
+│   ├── autotune.py             # Auto-tuning script
+│   ├── dump_src.py             # Source dumping utility
 │   └── map/                    # Map generation tools
 │       ├── gen.py
-│       └── gen_scene.py
+│       ├── gen_scene.py
+│       └── normalize_ascii_map.py
 │
-├── configs/                    # Hydra configurations
-│   ├── agent/                  # Agent configs
-│   ├── env/                    # Environment configs
+├── configs/                    # Hydra configurations (unchanged)
+│   ├── agent/
+│   ├── env/
 │   │   └── mettagrid/
-│   ├── trainer/                # Training configs
-│   ├── hardware/               # Hardware profiles
-│   ├── sim/                    # Simulation configs
-│   ├── sweep/                  # Sweep configs
-│   ├── user/                   # User preferences
-│   └── wandb/                  # WandB configs
+│   ├── trainer/
+│   ├── hardware/
+│   ├── sim/
+│   ├── sweep/
+│   ├── user/
+│   ├── wandb/
+│   └── *.yaml                  # Root config files
 │
-├── scenes/                     # Map/scene definitions
+├── scenes/                     # Map/scene definitions (unchanged)
 │   ├── convchain/
 │   ├── dcss/
 │   ├── test/
 │   └── wfc/
 │
-├── docs/                       # Documentation
+├── docs/                       # Documentation (unchanged)
 │   ├── api.md
 │   ├── mapgen.md
 │   ├── wandb/
+│   │   └── metrics/
 │   └── workflows/
 │
-├── devops/                     # Infrastructure and tooling
+├── devops/                     # Infrastructure and tooling (unchanged)
 │   ├── aws/
-│   ├── charts/                 # Kubernetes/Helm
+│   ├── charts/
 │   ├── docker/
 │   ├── git-hooks/
 │   ├── macos/
 │   ├── skypilot/
-│   ├── tf/                     # Terraform
-│   ├── tools/                  # Dev tools
+│   ├── tf/
+│   ├── tools/
 │   └── wandb/
 │
+├── recipes/                    # Recipe scripts (if not moved to cogworks)
 ├── checkpoints/                # Model checkpoints (gitignored)
 ├── wandb/                      # WandB runs (gitignored)
 └── .github/                    # GitHub workflows
@@ -236,10 +315,11 @@ Softmax/
 
 ```python
 # Example imports
-from cogworks import train, evaluate
-from cogworks.rl import PPO, MettaAgent
-from cogworks.sweep import SweepManager
-from cogworks.api import Environment, Agent
+from cogworks import api
+from cogworks.rl import trainer, experience
+from cogworks.agent import metta_agent, policy_store
+from cogworks.sweep import protein
+from cogworks.sim import simulation
 ```
 
 **Why "cogworks"?**: Distinct identity for our RL framework, cognitive training workbench.
@@ -252,8 +332,9 @@ from cogworks.api import Environment, Agent
 ```python
 # Example imports
 import mettagrid
-from mettagrid import GridEnv, Curriculum
-from mettagrid.curriculum import NavigationTasks
+from mettagrid import mettagrid_env
+from mettagrid.curriculum import NavigationCurriculum
+from mettagrid import char_encoder, gym_wrapper
 ```
 
 **Independence**: Can be installed standalone for researchers who just want the environment.
@@ -302,12 +383,12 @@ The `tools/` directory contains standalone scripts that compose functionality:
 # tools/train.py
 #!/usr/bin/env python
 """Direct training without Hydra complexity."""
-from cogworks import train
-from mettagrid import GridEnv
+from cogworks import api
+from mettagrid import mettagrid_env
 
 if __name__ == "__main__":
-    env = GridEnv(...)
-    train(env, ...)
+    env = mettagrid_env.MettaGridPufferEnv(...)
+    # Training logic here
 ```
 
 ## Dependency Graph
@@ -462,21 +543,34 @@ mettagrid/
 cogworks/
 ├── __init__.py
 ├── api.py              # Environment, Agent base classes
-├── train.py            # Main training loop
+├── agent/              # From agent/src/metta/agent/
+│   ├── metta_agent.py  # Main agent implementation
+│   ├── policy_store.py # Policy storage and loading
+│   ├── policy_cache.py # Policy caching layer
+│   └── lib/            # Agent modules (LSTM, etc.)
 ├── rl/
-│   ├── ppo.py          # PPO implementation
-│   ├── losses.py       # Loss functions
+│   ├── trainer.py      # Main training loop
+│   ├── trainer_config.py # Configuration classes
+│   ├── functions.py    # Functional training utilities
 │   ├── experience.py   # Experience buffer
-│   └── utils.py        # RL-specific utilities
+│   ├── losses.py       # Loss functions
+│   ├── policy.py       # Policy utilities
+│   └── kickstarter.py  # Kickstarter training
 ├── eval/
-│   ├── metrics.py      # Evaluation metrics
-│   └── visualize.py    # Training curves
+│   ├── analysis.py     # Analysis tools
+│   ├── dashboard_data.py # Dashboard data generation
+│   └── eval_stats_db.py # Evaluation database
 ├── sweep/
-│   ├── manager.py      # Hyperparameter sweep orchestration
-│   └── strategies.py   # Search strategies
+│   ├── protein.py      # Main sweep orchestration
+│   ├── protein_metta.py # Metta-specific sweep
+│   └── protein_wandb.py # WandB integration
+├── sim/
+│   ├── simulation.py   # Core simulation logic
+│   ├── simulation_stats_db.py # Stats database
+│   └── simulation_suite.py # Simulation suites
 └── recipes/
-    ├── basic_ppo.py    # Simple training example
-    └── distributed.py  # Multi-GPU example
+    ├── basic_training.py # Simple training example
+    └── distributed.py   # Multi-GPU example
 ```
 
 ### mettagrid/ - Environment Package
@@ -484,33 +578,47 @@ cogworks/
 ```
 mettagrid/
 ├── __init__.py
-├── env.py              # Main GridEnv class
+├── mettagrid_env.py    # Main MettaGridPufferEnv class
+├── mettagrid_config.py # Environment configuration
+├── char_encoder.py     # Character encoding for observations
+├── gym_wrapper.py      # Gym compatibility wrapper
+├── level_builder.py    # Level generation utilities
+├── replay_writer.py    # Replay recording
+├── stats_writer.py     # Statistics collection
+├── episode_stats_db.py # Episode statistics database
 ├── curriculum/
 │   ├── __init__.py
 │   ├── base.py         # Curriculum interface
 │   ├── navigation.py   # Navigation tasks
 │   └── configs/        # Task YAML files
-├── cpp/
+├── cpp/                # C++ source files
 │   ├── grid.cpp        # Core grid logic
-│   ├── entities.cpp    # Agents, objects
-│   └── physics.cpp     # Movement, collisions
+│   ├── entities.cpp    # Agents and objects
+│   └── physics.cpp     # Movement and collisions
 ├── bindings/
-│   └── py_env.cpp      # PyBind11 wrapper
+│   └── mettagrid_c.cpp # PyBind11 wrapper
 └── assets/
     └── sprites/        # Visual assets
 ```
+
+**Independence**: Can be installed standalone for researchers who just want the environment.
 
 ### mettacommon/ - Truly Shared Code
 
 ```
 mettacommon/
 ├── __init__.py
-├── config.py           # Config loading utilities
-├── logger.py           # Logging configuration
-├── types.py            # AgentID, Position, etc.
-├── profiling.py        # Performance monitoring
-├── testing.py          # Shared test fixtures
-└── distributed.py      # Multi-GPU utilities
+├── util/
+│   ├── config.py           # Config loading utilities
+│   ├── resolvers.py        # Hydra resolvers
+│   ├── logging_helpers.py  # Logging configuration
+│   ├── system_monitor.py   # System monitoring
+│   ├── fs.py               # Filesystem utilities
+│   └── git.py              # Git utilities
+├── profiling/
+│   ├── memory_monitor.py   # Memory profiling
+│   └── stopwatch.py        # Performance timing
+└── wandb/                  # WandB utilities
 ```
 
 **Rule of thumb**: If it's used by only one package, it doesn't belong here.
@@ -528,7 +636,7 @@ mettacommon/
 ```
 cogworks/
 ├── README.md           # Installation, basic usage
-├── DESIGN.md           # Why PPO? Architecture choices
+├── DESIGN.md           # Architecture choices
 └── examples/
     └── quickstart.py   # Runnable example
 
@@ -568,9 +676,9 @@ import numpy as np
 import torch
 
 # Our packages (alphabetical)
-from cogworks import train
-from mettagrid import GridEnv
-from mettacommon import logger
+from cogworks import api
+from mettagrid import mettagrid_env
+from mettacommon.util import logger
 
 # Local imports
 from .utils import helper
@@ -589,8 +697,8 @@ class Environment(Protocol):
     def reset(self): ...
     def step(self, action): ...
 
-# mettagrid/env.py
-class GridEnv:  # Implements Environment protocol
+# mettagrid/mettagrid_env.py
+class MettaGridPufferEnv:  # Implements Environment protocol
     def reset(self): ...
     def step(self, action): ...
 ```
