@@ -57,22 +57,16 @@ fi
 
 # Create lock tag
 echo -e "${YELLOW}Creating lock tag at ${COMMIT_HASH:0:8}...${NC}"
-git tag -f researcher_current_lock "$COMMIT_HASH" -m "Locked at $(date) - researcher_current removed for safety"
+git tag -f researcher_current_lock "$COMMIT_HASH" -m "Locked at $(date)"
 git push origin researcher_current_lock --force
 
-# Remove researcher_current tag to prevent accidental use
-if git ls-remote --tags origin | grep -q "refs/tags/researcher_current$"; then
-    echo -e "${YELLOW}Removing researcher_current tag...${NC}"
-    git push origin :refs/tags/researcher_current
-
-    # Also remove local tag if it exists
-    if git tag -l | grep -q "^researcher_current$"; then
-        git tag -d researcher_current
-    fi
-fi
+# Move researcher_current tag to the lock position
+echo -e "${YELLOW}Moving researcher_current tag to lock position...${NC}"
+git tag -f researcher_current "$COMMIT_HASH" -m "Pinned to lock at $(date)"
+git push origin researcher_current --force
 
 echo -e "${GREEN}✅ Successfully locked the researcher tag system${NC}"
 echo -e "${GREEN}   Lock tag points to: ${COMMIT_HASH:0:8}${NC}"
-echo -e "${GREEN}   researcher_current tag has been removed${NC}"
-echo -e "${GREEN}   Researchers should use: git checkout researcher_current_lock${NC}"
+echo -e "${GREEN}   researcher_current tag has been moved to match${NC}"
+echo -e "${GREEN}   Researchers can use either tag to check out the locked version.${NC}"
 echo -e "${GREEN}   To unlock: ./scripts/unpin-researcher-current.sh${NC}"

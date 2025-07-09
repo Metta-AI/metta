@@ -4,12 +4,12 @@ This directory contains scripts for managing the researcher tag system, which pr
 
 ## Overview
 
-The system uses two mutually exclusive tags:
-- **`researcher_current`**: Auto-updating tag that follows main branch (normal state)
-- **`researcher_current_lock`**: Locked tag pointing to a stable commit (locked state)
+The system uses two tags:
+- **`researcher_current`**: In normal state, auto-updates with main branch. In locked state, pinned to the same commit as `researcher_current_lock`.
+- **`researcher_current_lock`**: Only exists in locked state, marks the stable commit.
 
 ### Key Design Principle
-When the system is locked, `researcher_current` is removed entirely and replaced by `researcher_current_lock`. This prevents accidental use of an auto-updating tag when stability is required.
+When the system is locked, both tags exist and point to the same commit. The `researcher_current` tag is moved to match `researcher_current_lock`, preventing auto-updates while maintaining clarity about which version researchers should use.
 
 ## How It Works
 
@@ -19,14 +19,14 @@ When the system is locked, `researcher_current` is removed entirely and replaced
 - Researchers use: `git checkout researcher_current`
 
 ### Locked State
-- Only `researcher_current_lock` exists
-- Points to a specific stable commit
+- Both `researcher_current_lock` and `researcher_current` exist
+- Both tags point to the same stable commit
 - Auto-updates are disabled
-- Researchers use: `git checkout researcher_current_lock`
+- Researchers can use either: `git checkout researcher_current_lock` or `git checkout researcher_current`
 
 ### State Transitions
-1. **Lock**: Creates `researcher_current_lock` and removes `researcher_current`
-2. **Unlock**: Creates `researcher_current` and removes `researcher_current_lock`
+1. **Lock**: Creates `researcher_current_lock` and moves `researcher_current` to the same commit
+2. **Unlock**: Removes `researcher_current_lock` and optionally moves `researcher_current` to a new position
 
 ## Scripts
 

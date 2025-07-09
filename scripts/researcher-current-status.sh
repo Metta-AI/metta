@@ -40,8 +40,18 @@ if [ "$HAS_LOCK" = "yes" ]; then
     echo
 
     if [ "$HAS_CURRENT" = "yes" ]; then
-        echo -e "${RED}⚠️  WARNING: Both researcher_current and researcher_current_lock exist!${NC}"
-        echo -e "${RED}   This shouldn't happen - the system may be in an inconsistent state${NC}"
+        # Both tags exist - check if they point to the same commit
+        CURRENT_COMMIT=$(git ls-remote --tags origin | grep "refs/tags/researcher_current$" | cut -f1)
+        if [ "$CURRENT_COMMIT" = "$LOCK_COMMIT" ]; then
+            echo -e "${GREEN}✅ researcher_current is pinned to the same commit${NC}"
+        else
+            echo -e "${RED}⚠️  WARNING: researcher_current and researcher_current_lock point to different commits!${NC}"
+            echo -e "${RED}   researcher_current: ${CURRENT_COMMIT:0:8}${NC}"
+            echo -e "${RED}   This shouldn't happen - the system may be in an inconsistent state${NC}"
+        fi
+    else
+        echo -e "${RED}⚠️  WARNING: researcher_current tag is missing!${NC}"
+        echo -e "${RED}   This shouldn't happen - the tag should be pinned to the lock position${NC}"
     fi
 
     # Show commits since lock
@@ -64,6 +74,7 @@ if [ "$HAS_LOCK" = "yes" ]; then
 
     echo
     echo -e "${YELLOW}ℹ️  To use the locked version: git checkout researcher_current_lock${NC}"
+    echo -e "${YELLOW}   (or git checkout researcher_current - both point to the same commit)${NC}"
 
 elif [ "$HAS_CURRENT" = "yes" ]; then
     # System is not locked, normal operation
