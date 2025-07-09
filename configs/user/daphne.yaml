@@ -15,7 +15,7 @@ defaults:
 trainer:
   curriculum: /env/mettagrid/curriculum/navigation/bucketed
 
-policy_uri: wandb://run/dd_navigation_curriculum
+policy_uri: wandb://run/daphne.navigation.bucketed.UR.07-08:v123
 
 run_id: 1
 run: ${oc.env:USER}.local.${run_id}
