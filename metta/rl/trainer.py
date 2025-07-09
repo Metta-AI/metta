@@ -336,6 +336,7 @@ def train(
                     latest_saved_policy_record=state.latest_saved_policy_record,
                     initial_policy_record=state.initial_policy_record,
                     optimizer=optimizer,
+                    kickstarter=kickstarter,
                 )
             # Clear stats after processing
             state.stats.clear()

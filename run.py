@@ -479,6 +479,7 @@ while agent_step < trainer_config.total_timesteps:
         latest_saved_policy_record=latest_saved_policy_record,
         initial_policy_record=initial_policy_record,
         optimizer=optimizer,
+        kickstarter=kickstarter,
     )
 
     # Clear stats for next iteration (similar to trainer.py)

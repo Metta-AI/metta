@@ -556,7 +556,7 @@ def process_training_stats(
         losses_stats.pop("l2_reg_loss", None)
     if trainer_config.ppo.l2_init_loss_coef == 0:
         losses_stats.pop("l2_init_loss", None)
-    if not kickstarter.enabled:
+    if kickstarter is None or not kickstarter.enabled:
         losses_stats.pop("ks_action_loss", None)
         losses_stats.pop("ks_value_loss", None)
 
@@ -740,6 +740,7 @@ def process_stats(
     latest_saved_policy_record: Optional[Any],
     initial_policy_record: Optional[Any],
     optimizer: Optional[Any] = None,
+    kickstarter: Optional[Any] = None,
 ) -> None:
     """Process and log training statistics - kept for backward compatibility with process_stats API."""
     if not wandb_run:
@@ -751,7 +752,7 @@ def process_stats(
         losses=losses,
         experience=experience,
         trainer_config=trainer_cfg,
-        kickstarter=None,  # Not available in this API
+        kickstarter=kickstarter,
     )
 
     # Compute timing stats
