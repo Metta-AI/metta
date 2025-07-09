@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  policy-evaluator:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    environment:
+      - WANDB_API_KEY=${WANDB_API_KEY}
+      - POLICY_URI=${POLICY_URI:-wandb://metta-ai/metta-research/model/test_run:latest}
+      - WANDB_ENTITY=${WANDB_ENTITY:-metta-ai}
+      - WANDB_PROJECT=${WANDB_PROJECT:-metta-research}
+      - SIMULATION_SUITE=${SIMULATION_SUITE:-navigation}
+      - DEVICE=${DEVICE:-cpu}
+      - DATA_DIR=/app/data
+      - RUN_NAME=${RUN_NAME}
+      - OUTPUT_URI=${OUTPUT_URI}
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+    working_dir: /app
+    command: ["./docker/docker-entrypoint.py"]
+    
+  policy-evaluator-prod:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    environment:
+      - WANDB_API_KEY=${WANDB_API_KEY}
+      - POLICY_URI=${POLICY_URI:-wandb://metta-ai/metta-research/model/test_run:latest}
+      - WANDB_ENTITY=${WANDB_ENTITY:-metta-ai}
+      - WANDB_PROJECT=${WANDB_PROJECT:-metta-research}
+      - SIMULATION_SUITE=${SIMULATION_SUITE:-navigation}
+      - DEVICE=${DEVICE:-cpu}
+      - DATA_DIR=/app/data
+      - RUN_NAME=${RUN_NAME}
+      - OUTPUT_URI=${OUTPUT_URI}
+    volumes:
+      - policy_data:/app/data
+      - policy_logs:/app/logs
+    working_dir: /app
+    
+volumes:
+  policy_data:
+  policy_logs:
