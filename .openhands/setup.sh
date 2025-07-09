@@ -37,6 +37,16 @@ if ! command -v uv &> /dev/null; then
         export PATH="$HOME/.local/bin:$PATH"
     fi
 
+    # Check if uv is still not found (might be installed via Homebrew)
+    if ! command -v uv &> /dev/null; then
+        # Check common Homebrew locations
+        if [ -f "/opt/homebrew/bin/uv" ]; then
+            export PATH="/opt/homebrew/bin:$PATH"
+        elif [ -f "/usr/local/bin/uv" ]; then
+            export PATH="/usr/local/bin:$PATH"
+        fi
+    fi
+
     # Verify installation
     if ! command -v uv &> /dev/null; then
         echo "❌ Failed to install uv"

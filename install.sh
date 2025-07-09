@@ -71,6 +71,16 @@ if ! check_cmd uv; then
         export PATH="$HOME/.local/bin:$PATH"
     fi
 
+    # Check if uv is still not found (might be installed via Homebrew)
+    if ! check_cmd uv; then
+        # Check common Homebrew locations
+        if [ -f "/opt/homebrew/bin/uv" ]; then
+            export PATH="/opt/homebrew/bin:$PATH"
+        elif [ -f "/usr/local/bin/uv" ]; then
+            export PATH="/usr/local/bin:$PATH"
+        fi
+    fi
+
     if ! check_cmd uv; then
         err "Failed to install uv. Please install it manually from https://github.com/astral-sh/uv"
     fi
