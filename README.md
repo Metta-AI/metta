@@ -12,6 +12,58 @@ A reinforcement learning codebase focusing on the emergence of cooperation and a
 - **Short (5m) Talk**: <https://www.youtube.com/watch?v=bt6hV73VA8I>
 - **Talk**: <https://foresight.org/summary/david-bloomin-metta-learning-love-is-all-you-need/>
 
+## Table of Contents
+
+- [What is Metta Learning?](#what-is-metta-learning)
+- [Introduction](#introduction)
+  - [Motivation and Approach](#motivation-and-approach)
+  - [Game Overview](#game-overview)
+  - [Exploration and Expansion](#exploration-and-expansion)
+  - [Kinship and Social Dynamics](#kinship-and-social-dynamics)
+- [Research Explorations](#research-explorations)
+- [Installation](#installation)
+  - [Quick Start](#quick-start)
+  - [Additional installation options](#additional-installation-options)
+- [Usage](#usage)
+  - [Training a Model](#training-a-model)
+  - [Setting up Weights & Biases for Personal Use](#setting-up-weights--biases-for-personal-use)
+- [Visualizing a Model](#visualizing-a-model)
+  - [Mettascope: in-browser viewer](#mettascope-in-browser-viewer)
+  - [Run the terminal simulation](#run-the-terminal-simulation)
+  - [Evaluating a Model](#evaluating-a-model)
+- [Development Setup](#development-setup)
+- [Third-party Content](#third-party-content)
+
+### 📚 Documentation
+
+- **[Quick Start Guide](docs/quick-guide.md)** - Get started with Metta in minutes
+- **[Documentation Hub](docs/)** - Central documentation directory
+- **[API Documentation](docs/api.md)** - Metta API reference for using training components without Hydra
+- **[Map Generation Guide](docs/mapgen.md)** - Creating and working with maps
+- **[Workflows Documentation](docs/workflows/)** - GitHub Actions workflows and automation
+  - [PR Summary System](docs/workflows/pr-summary.md)
+  - [Claude Review System](docs/workflows/claude-review-system.md)
+  - [Claude Assistant](docs/workflows/claude-assistant.md)
+- **[WandB Metrics Guide](docs/wandb/metrics/)** - Comprehensive metrics documentation
+
+### 🔧 Component Documentation
+
+- **[Agent Module](agent/)** - Agent/Policy utilities
+- **[Common Module](common/)** - Shared utilities across packages
+- **[MettagGrid Environment](mettagrid/)** - Core gridworld environment
+- **[Mettascope Viewer](mettascope/)** - Interactive visualization tool
+- **[Observatory Dashboard](observatory/)** - Web-based monitoring dashboard
+- **[Gridworks UI](gridworks/)** - Next.js frontend application
+- **[App Backend](app_backend/)** - Backend services
+
+### 🗺️ Project Resources
+
+- **[Documentation Index](INDEX.md)** - Alphabetical index of key concepts
+- **[Research Roadmap](roadmap.md)** - Detailed research directions and future plans
+- **[Configuration Guide](configs/)** - Configuration system and examples
+- **[DevOps Documentation](devops/)** - Infrastructure and deployment
+- **[Test Suite](tests/)** - Testing framework and examples
+
 ## What is Metta Learning?
 
 <p align="middle">
