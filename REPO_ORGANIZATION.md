@@ -121,7 +121,7 @@ metta/
 ├── scenes/                     # Map generation patterns
 ├── docs/                       # Documentation
 ├── devops/                     # Infrastructure
-├── setup/                      # From metta/setup/
+├── setup/                      # From metta/src/setup/ → cogworks/setup/
 ├── pyproject.toml              # Workspace configuration
 └── README.md                   # Mono-repo overview
 ```
