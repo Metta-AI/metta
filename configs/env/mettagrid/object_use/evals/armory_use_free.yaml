@@ -9,8 +9,10 @@ game:
     rewards:
       armor: 1
   map_builder:
-    objects:
-      armory: 1
+    root:
+      params:
+        objects:
+          armory: 1
   objects:
     armory:
       cooldown: 255
