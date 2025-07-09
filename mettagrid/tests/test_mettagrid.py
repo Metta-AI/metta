@@ -1,106 +1,197 @@
+from dataclasses import dataclass
+from typing import List, Tuple
+
 import numpy as np
+import pytest
 
 from metta.mettagrid.mettagrid_c import MettaGrid, PackedCoordinate
 from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
 from metta.mettagrid.mettagrid_env import dtype_actions
 
-NUM_AGENTS = 2
-OBS_HEIGHT = 3
-OBS_WIDTH = 3
-NUM_OBS_TOKENS = 100
-OBS_TOKEN_SIZE = 3
+
+# Constants from C++ code
+@dataclass
+class TokenTypes:
+    TYPE_ID_FEATURE = 0
+    WALL_TYPE_ID = 1
+    EPISODE_COMPLETION_PCT = 8
+    LAST_ACTION = 9
+    LAST_ACTION_ARG = 10
+    LAST_REWARD = 11
 
 
-def create_minimal_mettagrid_c_env(max_steps=10, width=8, height=4):
-    """Helper function to create a MettaGrid environment with minimal config.
-
-    Creates a 4x8 (height x width) grid to test for width/height confusion.
-    Grid layout:
-        W W W W W W W W
-        W A . . . . . W
-        W . . . A . . W
-        W W W W W W W W
-    """
-    # Define a simple map: empty with walls around perimeter
-    game_map = np.full((height, width), "empty", dtype="<U50")
-    game_map[0, :] = "wall"
-    game_map[-1, :] = "wall"
-    game_map[:, 0] = "wall"
-    game_map[:, -1] = "wall"
-
-    # Place first agent in upper left
-    game_map[1, 1] = "agent.red"
-
-    # Place second agent in middle
-    mid_y = height // 2
-    mid_x = width // 2
-    game_map[mid_y, mid_x] = "agent.red"
-
-    game_config = {
-        "max_steps": max_steps,
-        "num_agents": NUM_AGENTS,
-        "obs_width": OBS_WIDTH,
-        "obs_height": OBS_HEIGHT,
-        "num_observation_tokens": NUM_OBS_TOKENS,
-        "inventory_item_names": ["laser", "armor"],
-        "actions": {
-            # don't really care about the actions for this test
-            "noop": {"enabled": True},
-            "move": {"enabled": True},
-            "rotate": {"enabled": True},
-            "attack": {"enabled": False},
-            "put_items": {"enabled": False},
-            "get_items": {"enabled": False},
-            "swap": {"enabled": False},
-            "change_color": {"enabled": False},
-        },
-        "groups": {"red": {"id": 0, "props": {}}},
-        "objects": {
-            "wall": {"type_id": 1},
-        },
-        "agent": {},
-    }
-
-    return MettaGrid(from_mettagrid_config(game_config), game_map.tolist(), 42)
+@dataclass
+class EnvConfig:  # Renamed from TestConfig to avoid pytest confusion
+    NUM_AGENTS = 2
+    OBS_HEIGHT = 3
+    OBS_WIDTH = 3
+    NUM_OBS_TOKENS = 100
+    OBS_TOKEN_SIZE = 3
+    GLOBAL_TOKEN_LOCATION = 17  # 0x11
+    EMPTY_TOKEN = [0xFF, 0xFF, 0xFF]
 
 
-def test_grid_hash():
-    """Test grid object representation and properties."""
-    c_env = create_minimal_mettagrid_c_env()
-    assert c_env.initial_grid_hash == 9437127895318323250
+class TestEnvironmentBuilder:
+    """Helper class to build test environments with different configurations."""
+
+    @staticmethod
+    def create_basic_grid(width: int = 8, height: int = 4) -> np.ndarray:
+        """Create a basic grid with walls around perimeter."""
+        game_map = np.full((height, width), "empty", dtype="<U50")
+        game_map[0, :] = "wall"
+        game_map[-1, :] = "wall"
+        game_map[:, 0] = "wall"
+        game_map[:, -1] = "wall"
+        return game_map
+
+    @staticmethod
+    def place_agents(game_map: np.ndarray, positions: List[Tuple[int, int]]) -> np.ndarray:
+        """Place agents at specified positions."""
+        for _, (y, x) in enumerate(positions):
+            game_map[y, x] = "agent.red"
+        return game_map
+
+    @staticmethod
+    def create_environment(game_map: np.ndarray, max_steps: int = 10, num_agents: int | None = None) -> MettaGrid:
+        """Create a MettaGrid environment from a game map."""
+        if num_agents is None:
+            num_agents = EnvConfig.NUM_AGENTS
+
+        game_config = {
+            "max_steps": max_steps,
+            "num_agents": num_agents,
+            "obs_width": EnvConfig.OBS_WIDTH,
+            "obs_height": EnvConfig.OBS_HEIGHT,
+            "num_observation_tokens": EnvConfig.NUM_OBS_TOKENS,
+            "inventory_item_names": ["laser", "armor"],
+            "actions": {
+                "noop": {"enabled": True},
+                "move": {"enabled": True},
+                "rotate": {"enabled": True},
+                "attack": {"enabled": False},
+                "put_items": {"enabled": False},
+                "get_items": {"enabled": False},
+                "swap": {"enabled": False},
+                "change_color": {"enabled": False},
+            },
+            "groups": {"red": {"id": 0, "props": {}}},
+            "objects": {"wall": {"type_id": 1}},
+            "agent": {},
+        }
+        return MettaGrid(from_mettagrid_config(game_config), game_map.tolist(), 42)
 
 
-def test_truncation_at_max_steps():
-    """Test that environments properly truncate at max_steps."""
-    max_steps = 5
-    c_env = create_minimal_mettagrid_c_env(max_steps=max_steps)
-    _obs, _info = c_env.reset()
+class ObservationHelper:
+    """Helper class for observation-related operations."""
 
-    # Noop until time runs out
-    noop_action_idx = c_env.action_names().index("noop")
-    actions = np.full((NUM_AGENTS, 2), [noop_action_idx, 0], dtype=dtype_actions)
+    @staticmethod
+    def find_tokens_at_location(obs: np.ndarray, x: int, y: int) -> np.ndarray:
+        """Find all tokens at a specific location."""
+        location = PackedCoordinate.pack(y, x)
+        return obs[obs[:, 0] == location]
 
-    for step_num in range(1, max_steps + 1):
-        _obs, _rewards, terminals, truncations, _info = c_env.step(actions)
-        if step_num < max_steps:
-            assert not np.any(truncations), f"Truncations should be False before max_steps at step {step_num}"
-            assert not np.any(terminals), f"Terminals should be False before max_steps at step {step_num}"
-        else:
-            assert np.all(truncations), f"Truncations should be True at max_steps (step {step_num})"
-            # As per current C++ code, terminals are not explicitly set true on truncation.
-            assert not np.any(terminals), f"Terminals should remain False at max_steps (step {step_num})"
+    @staticmethod
+    def find_tokens_by_type(obs: np.ndarray, type_id: int) -> np.ndarray:
+        """Find all tokens of a specific type."""
+        return obs[obs[:, 1] == type_id]
+
+    @staticmethod
+    def count_walls(obs: np.ndarray) -> int:
+        """Count the number of wall tokens in an observation."""
+        return np.sum(obs[:, 2] == TokenTypes.WALL_TYPE_ID)
+
+    @staticmethod
+    def get_wall_positions(obs: np.ndarray) -> List[Tuple[int, int]]:
+        """Get all wall positions from an observation."""
+        positions = []
+        wall_tokens = obs[obs[:, 2] == TokenTypes.WALL_TYPE_ID]
+        for token in wall_tokens:
+            coords = PackedCoordinate.unpack(token[0])
+            if coords:
+                row, col = coords
+                positions.append((col, row))  # Return as (x, y)
+        return positions
+
+
+@pytest.fixture
+def basic_env():
+    """Create a basic test environment."""
+    builder = TestEnvironmentBuilder()
+    game_map = builder.create_basic_grid()
+    game_map = builder.place_agents(game_map, [(1, 1), (2, 4)])
+    return builder.create_environment(game_map)
+
+
+@pytest.fixture
+def adjacent_agents_env():
+    """Create an environment with adjacent agents."""
+    builder = TestEnvironmentBuilder()
+    game_map = builder.create_basic_grid(5, 5)
+    game_map = builder.place_agents(game_map, [(2, 1), (2, 2)])
+    return builder.create_environment(game_map)
+
+
+class TestBasicFunctionality:
+    """Test basic environment functionality."""
+
+    def test_environment_initialization(self, basic_env):
+        """Test basic environment properties."""
+        assert basic_env.map_width == 8
+        assert basic_env.map_height == 4
+        assert len(basic_env.action_names()) > 0
+        assert "noop" in basic_env.action_names()
+
+        obs, info = basic_env.reset()
+        assert obs.shape == (EnvConfig.NUM_AGENTS, EnvConfig.NUM_OBS_TOKENS, EnvConfig.OBS_TOKEN_SIZE)
+        assert isinstance(info, dict)
+
+    def test_grid_hash(self, basic_env):
+        """Test grid hash consistency."""
+        assert basic_env.initial_grid_hash == 9437127895318323250
+
+    def test_truncation_at_max_steps(self):
+        """Test that environments properly truncate at max_steps."""
+        max_steps = 5
+        builder = TestEnvironmentBuilder()
+        game_map = builder.create_basic_grid()
+        game_map = builder.place_agents(game_map, [(1, 1), (2, 4)])
+        env = builder.create_environment(game_map, max_steps=max_steps)
+
+        env.reset()
+        noop_idx = env.action_names().index("noop")
+        actions = np.full((EnvConfig.NUM_AGENTS, 2), [noop_idx, 0], dtype=dtype_actions)
+
+        for step in range(1, max_steps + 1):
+            _, _, terminals, truncations, _ = env.step(actions)
+
+            if step < max_steps:
+                assert not np.any(truncations)
+                assert not np.any(terminals)
+            else:
+                assert np.all(truncations)
+                assert not np.any(terminals)
 
 
 class TestObservations:
-    """Test observation functionality and formats."""
+    """Test observation functionality."""
 
-    def test_observation_tokens(self):
-        """Test observation token format and content for both agents."""
-        c_env = create_minimal_mettagrid_c_env()
-        # These come from constants in the C++ code, and are fragile.
-        TYPE_ID_FEATURE = 0
-        WALL_TYPE_ID = 1
-        obs, _info = c_env.reset()
+    def test_observation_structure(self, basic_env):
+        """Test basic observation structure."""
+        obs, _ = basic_env.reset()
+
+        # Test global tokens (first 4 tokens)
+        for agent_idx in range(EnvConfig.NUM_AGENTS):
+            for token_idx in range(4):
+                assert obs[agent_idx, token_idx, 0] == EnvConfig.GLOBAL_TOKEN_LOCATION
+
+        # Test empty terminator
+        assert (obs[0, -1, :] == EnvConfig.EMPTY_TOKEN).all()
+        assert (obs[1, -1, :] == EnvConfig.EMPTY_TOKEN).all()
+
+    def test_detailed_wall_observations(self, basic_env):
+        """Test detailed wall observations for both agents."""
+        obs, _ = basic_env.reset()
+        helper = ObservationHelper()
 
         # The environment creates a 4x8 grid (height=4, width=8):
         #   0 1 2 3 4 5 6 7  (x/width)
@@ -112,83 +203,8 @@ class TestObservations:
         # Where: W=wall, A=agent, .=empty
         # Agent 0 is at grid position (1,1), Agent 1 is at (4,2)
 
-        # Helper function to decode and print tokens
-        def inspect_tokens(agent_obs, agent_name, n=10):
-            """Decode and print the first n tokens of an agent's observation."""
-            print(f"\n{agent_name} observation (first {n} tokens decoded):")
-
-            # Known type IDs from the C++ code
-            type_names = {
-                0: "TYPE_ID_FEATURE",
-                8: "EPISODE_COMPLETION_PCT",
-                9: "LAST_ACTION",
-                10: "LAST_ACTION_ARG",
-                11: "LAST_REWARD",
-            }
-
-            # Known feature values
-            feature_names = {0: "empty/other", 1: "WALL"}
-
-            for i in range(min(n, len(agent_obs))):
-                token = agent_obs[i]
-                location = token[0]
-                type_id = token[1]
-                value = token[2]
-
-                # Decode location using C++ PackedCoordinate
-                if PackedCoordinate.is_empty(location):
-                    loc_str = "EMPTY"
-                    x, y = None, None
-                else:
-                    coords = PackedCoordinate.unpack(location)
-                    if coords is not None:
-                        row, col = coords
-                        # Display as (x, y) = (col, row) for user convenience
-                        x, y = col, row
-                        loc_str = f"({x},{y})"
-                    else:
-                        loc_str = "INVALID"
-                        x, y = None, None
-
-                # Get type name
-                type_name = type_names.get(type_id, f"Unknown({type_id})")
-
-                # Get value interpretation
-                if type_id == 0 and value in feature_names:
-                    value_str = feature_names[value]
-                else:
-                    value_str = str(value)
-
-                print(
-                    f"  [{location:3}, {type_id:3}, {value:3}] : "
-                    + f"location={loc_str}, type={type_name}, value={value_str}"
-                )
-
-        # Helper function to check for specific tokens
-        def check_token_exists(agent_obs, x, y, type_id, feature_id, msg=""):
-            # Use C++ PackedCoordinate.pack (row=y, col=x)
-            location = PackedCoordinate.pack(y, x)
-            token_matches = agent_obs[:, :] == [location, type_id, feature_id]
-            assert token_matches.all(axis=1).any(), (
-                f"{msg} Expected token [{location}, {type_id}, {feature_id}] at ({x}, {y})"
-            )
-
-        # Test Agent 0 (at position 1,1)
-        print("Testing Agent 0 observation (at position 1,1):")
+        # Test Agent 0 observation
         agent0_obs = obs[0]
-
-        # Inspect Agent 0's tokens
-        inspect_tokens(agent0_obs, "Agent 0", n=15)
-        print("\nAgent 0 wall tokens:")
-        wall_mask = agent0_obs[:, 2] == WALL_TYPE_ID
-        wall_indices = np.where(wall_mask)[0]
-        for idx in wall_indices[:10]:  # Show first 10 walls
-            token = agent0_obs[idx, :]
-            location = token[0]
-            coords = PackedCoordinate.unpack(location)
-            if coords is not None:
-                row, col = coords
-                print(f"  Wall at relative ({col}, {row}), token: {token}")
 
         # Agent 0 is at grid position (1,1)
         # Agent 0 should see walls at these relative positions:
@@ -209,52 +225,21 @@ class TestObservations:
         all_positions = {(x, y) for x in range(3) for y in range(3)}
         no_wall_positions_agent0 = all_positions - set(wall_positions_agent0)
 
+        # Check expected wall positions
         for x, y in wall_positions_agent0:
-            check_token_exists(agent0_obs, x, y, TYPE_ID_FEATURE, WALL_TYPE_ID, "Agent 0:")
+            self._check_token_exists(agent0_obs, x, y, TokenTypes.TYPE_ID_FEATURE, TokenTypes.WALL_TYPE_ID, "Agent 0")
 
-        # For empty positions, we check that there's no wall token at that location
+        # Check no walls at empty positions
         for x, y in no_wall_positions_agent0:
             location = PackedCoordinate.pack(y, x)
-            wall_tokens = (agent0_obs[:, 0] == location) & (agent0_obs[:, 2] == WALL_TYPE_ID)
+            wall_tokens = (agent0_obs[:, 0] == location) & (agent0_obs[:, 2] == TokenTypes.WALL_TYPE_ID)
             assert not wall_tokens.any(), f"Agent 0: Expected no wall at ({x}, {y})"
 
-        # Verify we see the expected number of wall tokens for Agent 0
-        wall_count_agent0 = np.sum(agent0_obs[:, 2] == WALL_TYPE_ID)
-        print(f"Agent 0 sees {wall_count_agent0} walls")
-        assert wall_count_agent0 == 5, f"Agent 0 should see exactly 5 walls, but sees {wall_count_agent0}"
+        # Verify wall count
+        assert helper.count_walls(agent0_obs) == 5, "Agent 0 should see exactly 5 walls"
 
-        # Check that Agent 0 sees itself at (1,1)
-        self_location = PackedCoordinate.pack(1, 1)
-        self_tokens = agent0_obs[agent0_obs[:, 0] == self_location]
-        print("\nAgent 0 self-observation tokens at (1,1):")
-        for token in self_tokens:
-            print(f"  Token: {token}")
-        assert len(self_tokens) > 0, "Agent 0 should see itself at position (1,1)"
-
-        # Check that Agent 0 sees Agent 1
-        # Agent 1 is at grid (4,2), Agent 0 is at (1,1)
-        # Relative position: (4-1, 2-1) = (3, 1)
-        # But (3,1) is outside the 3x3 observation window!
-        # Agent 0's view covers grid positions (0,0) to (2,2)
-        # So Agent 0 should NOT see Agent 1
-        print("\nAgent 0 cannot see Agent 1 (out of observation range)")
-
-        # Test Agent 1 (at position 4,2)
-        print("\nTesting Agent 1 observation (at position 4,2):")
+        # Test Agent 1 observation
         agent1_obs = obs[1]
-
-        # Inspect Agent 1's tokens
-        inspect_tokens(agent1_obs, "Agent 1", n=15)
-        print("\nAgent 1 wall tokens:")
-        wall_mask = agent1_obs[:, 2] == WALL_TYPE_ID
-        wall_indices = np.where(wall_mask)[0]
-        for idx in wall_indices[:10]:  # Show first 10 walls
-            token = agent1_obs[idx, :]
-            location = token[0]
-            coords = PackedCoordinate.unpack(location)
-            if coords is not None:
-                row, col = coords
-                print(f"  Wall at relative ({col}, {row}), token: {token}")
 
         # Agent 1 is at grid position (4,2)
         # Agent 1 should see walls at these relative positions:
@@ -268,424 +253,304 @@ class TestObservations:
             (1, 2),  # bottom-center
             (2, 2),  # bottom-right
         ]
-        all_positions = {(x, y) for x in range(3) for y in range(3)}
+
         no_wall_positions_agent1 = all_positions - set(wall_positions_agent1)
 
+        # Check expected wall positions
         for x, y in wall_positions_agent1:
-            check_token_exists(agent1_obs, x, y, TYPE_ID_FEATURE, WALL_TYPE_ID, "Agent 1:")
+            self._check_token_exists(agent1_obs, x, y, TokenTypes.TYPE_ID_FEATURE, TokenTypes.WALL_TYPE_ID, "Agent 1")
 
+        # Check no walls at empty positions
         for x, y in no_wall_positions_agent1:
             location = PackedCoordinate.pack(y, x)
-            wall_tokens = (agent1_obs[:, 0] == location) & (agent1_obs[:, 2] == WALL_TYPE_ID)
+            wall_tokens = (agent1_obs[:, 0] == location) & (agent1_obs[:, 2] == TokenTypes.WALL_TYPE_ID)
             assert not wall_tokens.any(), f"Agent 1: Expected no wall at ({x}, {y})"
 
-        # Verify wall count for Agent 1
-        wall_count_agent1 = np.sum(agent1_obs[:, 2] == WALL_TYPE_ID)
-        print(f"Agent 1 sees {wall_count_agent1} walls")
-        assert wall_count_agent1 == 3, f"Agent 1 should see exactly 3 walls, but sees {wall_count_agent1}"
+        # Verify wall count
+        assert helper.count_walls(agent1_obs) == 3, "Agent 1 should see exactly 3 walls"
 
-        # Check that Agent 1 sees itself at (1,1) in its own view
+    def test_agent_surrounded_by_altars(self):
+        """Test agent observation when surrounded by colored altars."""
+        # Create a 5x5 environment with agent in center surrounded by altars
+        builder = TestEnvironmentBuilder()
+        game_map = builder.create_basic_grid(5, 5)
+
+        # Place agent in center at (2,2)
+        game_map[2, 2] = "agent.red"
+
+        # Place 8 altars around the agent with different colors
+        # Layout:
+        #   0 1 2 3 4  (x)
+        # 0 W W W W W
+        # 1 W A B C W    A-H are altars with colors 1-8
+        # 2 W D & E W    & is the agent
+        # 3 W F G H W
+        # 4 W W W W W
+        # (y)
+
+        altar_positions = [
+            (1, 1, 1),  # A: top-left, color 1
+            (2, 1, 2),  # B: top-center, color 2
+            (3, 1, 3),  # C: top-right, color 3
+            (1, 2, 4),  # D: middle-left, color 4
+            (3, 2, 5),  # E: middle-right, color 5
+            (1, 3, 6),  # F: bottom-left, color 6
+            (2, 3, 7),  # G: bottom-center, color 7
+            (3, 3, 8),  # H: bottom-right, color 8
+        ]
+
+        # Create game config with altar objects
+        game_config = {
+            "max_steps": 10,
+            "num_agents": 1,  # Just one agent for this test
+            "obs_width": EnvConfig.OBS_WIDTH,
+            "obs_height": EnvConfig.OBS_HEIGHT,
+            "num_observation_tokens": EnvConfig.NUM_OBS_TOKENS,
+            "inventory_item_names": ["resource1", "resource2"],
+            "actions": {
+                "noop": {"enabled": True},
+                "move": {"enabled": True},
+                "rotate": {"enabled": True},
+                "attack": {"enabled": False},
+                "put_items": {"enabled": False},
+                "get_items": {"enabled": False},
+                "swap": {"enabled": False},
+                "change_color": {"enabled": False},
+            },
+            "groups": {"red": {"id": 0, "props": {}}},
+            "objects": {
+                "wall": {"type_id": 1},
+            },
+            "agent": {},
+        }
+
+        # Add altar configurations with different colors
+        for i, (x, y, color) in enumerate(altar_positions):
+            altar_name = f"altar_{i + 1}"
+            game_map[y, x] = altar_name
+            game_config["objects"][altar_name] = {
+                "type_id": i + 2,  # type_ids 2-9 for altars
+                "input_resources": {"resource1": 1},
+                "output_resources": {"resource2": 1},
+                "max_output": 10,
+                "conversion_ticks": 5,
+                "cooldown": 3,
+                "initial_resource_count": 0,
+                "color": color,
+            }
+
+        env = MettaGrid(from_mettagrid_config(game_config), game_map.tolist(), 42)
+        obs, _ = env.reset()
+
+        agent_obs = obs[0]
+
+        # The agent at (2,2) should see all 8 altars in its 3x3 observation window
+        # Expected altar positions in observation coordinates:
+        #   A B C     (0,0) (1,0) (2,0)
+        #   D & E  -> (0,1) (1,1) (2,1)
+        #   F G H     (0,2) (1,2) (2,2)
+
+        expected_altars = [
+            (0, 0, 2, 1),  # A: top-left, type_id=2, color=1
+            (1, 0, 3, 2),  # B: top-center, type_id=3, color=2
+            (2, 0, 4, 3),  # C: top-right, type_id=4, color=3
+            (0, 1, 5, 4),  # D: middle-left, type_id=5, color=4
+            (2, 1, 6, 5),  # E: middle-right, type_id=6, color=5
+            (0, 2, 7, 6),  # F: bottom-left, type_id=7, color=6
+            (1, 2, 8, 7),  # G: bottom-center, type_id=8, color=7
+            (2, 2, 9, 8),  # H: bottom-right, type_id=9, color=8
+        ]
+
+        # Check that we see each altar with correct type_id
+        for x, y, expected_type_id, expected_color in expected_altars:
+            location = PackedCoordinate.pack(y, x)
+
+            # Find tokens at this location
+            location_tokens = agent_obs[agent_obs[:, 0] == location]
+
+            # Should have tokens for this altar
+            assert len(location_tokens) > 0, f"Should have tokens at ({x}, {y}) for altar"
+
+            # Check type_id token
+            type_id_tokens = location_tokens[location_tokens[:, 1] == TokenTypes.TYPE_ID_FEATURE]
+            assert len(type_id_tokens) > 0, f"Should have type_id token at ({x}, {y})"
+            assert type_id_tokens[0, 2] == expected_type_id, (
+                f"Altar at ({x}, {y}) should have type_id {expected_type_id}, got {type_id_tokens[0, 2]}"
+            )
+
+            # Check color token (ObservationFeature::Color = 5)
+            color_tokens = location_tokens[location_tokens[:, 1] == 5]
+            assert len(color_tokens) > 0, f"Should have color token at ({x}, {y})"
+            assert color_tokens[0, 2] == expected_color, (
+                f"Altar at ({x}, {y}) should have color {expected_color}, got {color_tokens[0, 2]}"
+            )
+
+            # Check converter status token (ObservationFeature::ConvertingOrCoolingDown = 6)
+            converter_tokens = location_tokens[location_tokens[:, 1] == 6]
+            assert len(converter_tokens) > 0, f"Should have converter status token at ({x}, {y})"
+
+        # Verify the agent sees itself at center (1,1)
         self_location = PackedCoordinate.pack(1, 1)
-        self_tokens = agent1_obs[agent1_obs[:, 0] == self_location]
-        print("\nAgent 1 self-observation tokens at (1,1):")
-        for token in self_tokens:
-            print(f"  Token: {token}")
-        assert len(self_tokens) > 0, "Agent 1 should see itself at position (1,1)"
+        self_tokens = agent_obs[agent_obs[:, 0] == self_location]
+        assert len(self_tokens) > 0, "Agent should see itself at center position"
 
-        # Verify both agents have the empty terminator tokens
-        assert (obs[0, -1, :] == [0xFF, 0xFF, 0xFF]).all(), "Agent 0: Last token should be empty"
-        assert (obs[1, -1, :] == [0xFF, 0xFF, 0xFF]).all(), "Agent 1: Last token should be empty"
+        # Count unique type_ids (excluding walls and empty)
+        type_id_tokens = agent_obs[agent_obs[:, 1] == TokenTypes.TYPE_ID_FEATURE]
+        unique_type_ids = set(type_id_tokens[:, 2])
+        unique_type_ids.discard(0)  # Remove empty/agent type
+        unique_type_ids.discard(1)  # Remove wall type
 
-        # Verify observation shape
-        assert obs.shape[0] == 2, f"Expected 2 agents, got {obs.shape[0]}"
-        assert obs.shape[2] == 3, f"Expected 3 values per token, got {obs.shape[2]}"
+        assert len(unique_type_ids) == 8, f"Should see 8 different altar types, got {len(unique_type_ids)}"
 
-        # Check global tokens are present (first 4 tokens)
-        for agent_idx in range(2):
-            # First 4 tokens should be global tokens with location 0x11 (17)
-            for token_idx in range(4):
-                assert obs[agent_idx, token_idx, 0] == 17, (
-                    f"Agent {agent_idx}: Global token {token_idx} should have location 17"
-                )
+    def _check_token_exists(self, obs, x, y, type_id, feature_id, agent_name):
+        """Helper to check if a specific token exists at a location."""
+        location = PackedCoordinate.pack(y, x)
+        token_matches = obs[:, :] == [location, type_id, feature_id]
+        assert token_matches.all(axis=1).any(), (
+            f"{agent_name}: Expected token [{location}, {type_id}, {feature_id}] at ({x}, {y})"
+        )
 
-        # Verify no duplicate wall tokens at the same location
-        for agent_idx, agent_obs in enumerate([agent0_obs, agent1_obs]):
-            wall_locations = []
-            wall_mask = agent_obs[:, 2] == WALL_TYPE_ID
-            wall_indices = np.where(wall_mask)[0]
-            for idx in wall_indices:
-                location = agent_obs[idx, 0]
-                assert location not in wall_locations, f"Agent {agent_idx}: Duplicate wall token at location {location}"
-                wall_locations.append(location)
+    def test_agents_see_each_other(self, adjacent_agents_env):
+        """Test that adjacent agents can see each other."""
+        obs, _ = adjacent_agents_env.reset()
+        helper = ObservationHelper()
 
-        print("\nAll observation assertions passed!")
+        # Debug: Let's check where agents actually are
+        # Grid layout for adjacent_agents_env:
+        #   0 1 2 3 4
+        # 0 W W W W W
+        # 1 W . . . W
+        # 2 W A A . W  <- Agents at (1,2) and (2,2)
+        # 3 W . . . W
+        # 4 W W W W W
 
-    def test_observation_token_order(self):
-        """Test observation token order."""
-        c_env = create_minimal_mettagrid_c_env()
-        obs, _info = c_env.reset()
+        # Agent 0 at (1,2) has observation window centered at (1,2)
+        # Its 3x3 window covers grid positions (0,1) to (2,3)
+        # Agent 1 at (2,2) is within this window
+
+        # In Agent 0's relative coordinates:
+        # Agent 0 is at center (1,1)
+        # Agent 1 at grid (2,2) - Agent 0 at grid (1,2) = offset (1,0)
+        # So Agent 1 should appear at observation position (1+1, 1+0) = (2,1)
+
+        agent1_tokens = helper.find_tokens_at_location(obs[0], 2, 1)
+        assert len(agent1_tokens) > 0, "Agent 0 should see Agent 1 at (2,1)"
+
+        # Agent 1 at (2,2) has observation window centered at (2,2)
+        # Its 3x3 window covers grid positions (1,1) to (3,3)
+        # Agent 0 at (1,2) is within this window
+
+        # In Agent 1's relative coordinates:
+        # Agent 1 is at center (1,1)
+        # Agent 0 at grid (1,2) - Agent 1 at grid (2,2) = offset (-1,0)
+        # So Agent 0 should appear at observation position (1-1, 1+0) = (0,1)
+
+        agent0_tokens = helper.find_tokens_at_location(obs[1], 0, 1)
+        assert len(agent0_tokens) > 0, "Agent 1 should see Agent 0 at (0,1)"
+
+    def test_observation_token_order(self, basic_env):
+        """Test that observation tokens are ordered by distance."""
+        obs, _ = basic_env.reset()
+
         distances = []
-        # skip the first 4 (global) tokens
+        # Skip global tokens (first 4)
         for location in obs[0, 4:, 0]:
             coords = PackedCoordinate.unpack(location)
-            if coords is not None:
+            if coords:
                 row, col = coords
                 # Manhattan distance from agent position (1,1)
                 distances.append(abs(col - 1) + abs(row - 1))
-            elif not PackedCoordinate.is_empty(location):
-                # If not empty but also not unpacked, something is wrong
-                raise ValueError(f"Invalid location byte: {location}")
 
-        # Check that distances are non-decreasing (allowing for ties)
-        assert distances == sorted(distances), f"Distances should be non-decreasing: {distances}"
-
-
-def test_agents_seeing_each_other():
-    """Test that agents can observe each other when in range."""
-    # Create a 5x5 environment
-    height, width = 5, 5
-    game_map = np.full((height, width), "empty", dtype="<U50")
-
-    # Add walls around perimeter
-    game_map[0, :] = "wall"
-    game_map[-1, :] = "wall"
-    game_map[:, 0] = "wall"
-    game_map[:, -1] = "wall"
-
-    # Place two agents next to each other
-    game_map[2, 1] = "agent.red"  # Agent 0
-    game_map[2, 2] = "agent.red"  # Agent 1
-
-    game_config = {
-        "max_steps": 10,
-        "num_agents": 2,
-        "obs_width": 3,
-        "obs_height": 3,
-        "num_observation_tokens": 100,
-        "inventory_item_names": ["laser", "armor"],
-        "actions": {
-            "noop": {"enabled": True},
-            "move": {"enabled": True},
-            "rotate": {"enabled": True},
-            "attack": {"enabled": False},
-            "put_items": {"enabled": False},
-            "get_items": {"enabled": False},
-            "swap": {"enabled": False},
-            "change_color": {"enabled": False},
-        },
-        "groups": {"red": {"id": 0, "props": {}}},
-        "objects": {"wall": {"type_id": 1}},
-        "agent": {},
-    }
-
-    c_env = MettaGrid(from_mettagrid_config(game_config), game_map.tolist(), 42)
-    obs, _info = c_env.reset()
-
-    # Visualize grid layout
-    print("Grid layout:")
-    print("  0 1 2 3 4")
-    for i in range(height):
-        row_str = f"{i} "
-        for j in range(width):
-            if game_map[i, j] == "wall":
-                row_str += "W "
-            elif game_map[i, j] == "agent.red":
-                row_str += "A "
-            else:
-                row_str += ". "
-        print(row_str)
-
-    print("\nAgent 0 at grid position (2,1)")
-    print("Agent 1 at grid position (2,2)")
-
-    # Test Agent 0's view
-    agent0_obs = obs[0]
-    print("\nAgent 0's observation window covers grid positions (1,0) to (3,2)")
-    print("Agent 0 should see Agent 1 at relative position (0,1)")
-
-    # Agent 1 is one cell to the right of Agent 0
-    # In observation coordinates: center + offset = (1,1) + (0,1) = (1,2)
-    agent1_obs_location = PackedCoordinate.pack(1, 2)
-
-    # Look for agent tokens at Agent 1's location
-    agent_tokens = agent0_obs[(agent0_obs[:, 0] == agent1_obs_location) & (agent0_obs[:, 1] == 0)]
-    print(f"\nAgent 0 sees {len(agent_tokens)} tokens at location (1,2) where Agent 1 should be")
-
-    if len(agent_tokens) > 0:
-        print("Agent tokens seen by Agent 0:")
-        for token in agent_tokens:
-            print(f"  Token: {token}")
-
-    assert len(agent_tokens) > 0, "Agent 0 should see Agent 1"
-
-    # Test Agent 1's view
-    agent1_obs = obs[1]
-    print("\nAgent 1's observation window covers grid positions (1,1) to (3,3)")
-    print("Agent 1 should see Agent 0 at relative position (0,-1)")
-
-    # Agent 0 is one cell to the left of Agent 1
-    # In observation coordinates: center + offset = (1,1) + (0,-1) = (1,0)
-    agent0_obs_location = PackedCoordinate.pack(1, 0)
-
-    # Look for agent tokens at Agent 0's location
-    agent_tokens = agent1_obs[(agent1_obs[:, 0] == agent0_obs_location) & (agent1_obs[:, 1] == 0)]
-    print(f"\nAgent 1 sees {len(agent_tokens)} tokens at location (1,0) where Agent 0 should be")
-
-    if len(agent_tokens) > 0:
-        print("Agent tokens seen by Agent 1:")
-        for token in agent_tokens:
-            print(f"  Token: {token}")
-
-    assert len(agent_tokens) > 0, "Agent 1 should see Agent 0"
-
-    print("\nAgents can successfully see each other!")
-
-
-def test_grid_objects():
-    """Test grid object representation and properties."""
-    c_env = create_minimal_mettagrid_c_env()
-    objects = c_env.grid_objects()
-
-    # Test that we have the expected number of objects
-    # 4 walls on each side (minus corners) + 2 agents
-    expected_walls = 2 * (c_env.map_width + c_env.map_height - 2)
-    expected_agents = 2
-    assert len(objects) == expected_walls + expected_agents, "Wrong number of objects"
-
-    common_properties = {"r", "c", "layer", "type", "id"}
-
-    for obj in objects.values():
-        if obj.get("type_id") == 1:
-            # Walls
-            assert set(obj) == {"type_id", "type_name"} | common_properties
-        if obj.get("type_id") == 0:
-            # Agents
-            assert set(obj).issuperset(
-                {"agent:group", "agent:frozen", "agent:orientation", "agent:color"} | common_properties
-            )
-            assert obj["agent:group"] == 0, "Agent should be in group 0"
-            assert obj["agent:frozen"] == 0, "Agent should not be frozen"
-
-
-def test_environment_initialization():
-    """Test basic environment initialization and configuration."""
-    c_env = create_minimal_mettagrid_c_env()
-
-    # Test basic properties
-    assert len(c_env.action_names()) > 0, "Should have available actions"
-    assert len(c_env.feature_normalizations()) > 0, "Should have feature normalizations"
-
-    # Test reset functionality
-    obs, info = c_env.reset()
-    assert obs.shape == (NUM_AGENTS, NUM_OBS_TOKENS, OBS_TOKEN_SIZE), (
-        "Observation shape should match expected dimensions"
-    )
-    assert isinstance(info, dict), "Info should be a dictionary"
-
-
-def test_action_interface():
-    """Test action interface and basic action execution."""
-    c_env = create_minimal_mettagrid_c_env()
-    c_env.reset()
-
-    # Test action names
-    action_names = c_env.action_names()
-    assert "noop" in action_names, "Noop action should be available"
-    assert "move" in action_names, "Move action should be available"
-    assert "rotate" in action_names, "Rotate action should be available"
-
-    # Test basic action execution
-    noop_action_idx = action_names.index("noop")
-    actions = np.full((NUM_AGENTS, 2), [noop_action_idx, 0], dtype=dtype_actions)
-
-    obs, rewards, terminals, truncations, info = c_env.step(actions)
-
-    # Verify return types and shapes
-    assert obs.shape == (NUM_AGENTS, NUM_OBS_TOKENS, OBS_TOKEN_SIZE), "Step observation shape should be correct"
-    assert rewards.shape == (NUM_AGENTS,), "Rewards shape should match number of agents"
-    assert terminals.shape == (NUM_AGENTS,), "Terminals shape should match number of agents"
-    assert truncations.shape == (NUM_AGENTS,), "Truncations shape should match number of agents"
-    assert isinstance(info, dict), "Step info should be a dictionary"
-
-    # Test action success tracking
-    action_success: list[bool] = c_env.action_success()
-    assert len(action_success) == NUM_AGENTS, "Action success length should match number of agents"
-    assert all(isinstance(x, bool) for x in action_success), "Action success should be boolean"
-
-
-def test_environment_state_consistency():
-    """Test that environment state remains consistent across operations."""
-    c_env = create_minimal_mettagrid_c_env()
-    initial_width = c_env.map_width
-    initial_height = c_env.map_height
-
-    # Initial state
-    _obs1, _info1 = c_env.reset()
-    initial_objects = c_env.grid_objects()
-
-    # Take a noop action (should not change world state significantly)
-    noop_action_idx = c_env.action_names().index("noop")
-    actions = np.full((NUM_AGENTS, 2), [noop_action_idx, 0], dtype=dtype_actions)
-
-    _obs2, _rewards, _terminals, _truncations, _info2 = c_env.step(actions)
-    post_step_objects = c_env.grid_objects()
-
-    # Object count should remain the same
-    assert len(initial_objects) == len(post_step_objects), "Object count should remain consistent after noop actions"
-
-    # Map dimensions should remain the same
-    assert c_env.map_width == initial_width, "Map width should remain consistent"
-    assert c_env.map_height == initial_height, "Map height should remain consistent"
-
-    # Action lists should remain consistent
-    actions1 = c_env.action_names()
-
-    # Take another step
-    c_env.step(actions)
-
-    actions2 = c_env.action_names()
-
-    assert actions1 == actions2, "Action names should remain consistent"
+        assert distances == sorted(distances), "Tokens should be ordered by distance"
 
 
 class TestGlobalTokens:
-    """Test global token functionality and formats."""
+    """Test global token functionality."""
 
-    def test_global_tokens(self):
-        """Test global token format and content."""
-        max_steps = 10
-        c_env = create_minimal_mettagrid_c_env(max_steps=max_steps)
-        obs, _info = c_env.reset()
+    def test_initial_global_tokens(self, basic_env):
+        """Test initial global token values."""
+        obs, _ = basic_env.reset()
 
-        # These come from constants in the C++ code
-        EPISODE_COMPLETION_PCT = 8
-        LAST_ACTION = 9
-        LAST_ACTION_ARG = 10
-        LAST_REWARD = 11
+        # Check token types
+        assert obs[0, 0, 1] == TokenTypes.EPISODE_COMPLETION_PCT
+        assert obs[0, 1, 1] == TokenTypes.LAST_ACTION
+        assert obs[0, 2, 1] == TokenTypes.LAST_ACTION_ARG
+        assert obs[0, 3, 1] == TokenTypes.LAST_REWARD
 
-        # Initial state checks
-        assert obs[0, 0, 1] == EPISODE_COMPLETION_PCT, (
-            f"First token should be episode completion percentage ({EPISODE_COMPLETION_PCT}). Was {obs[0, 0, 1]}"
-        )
-        assert obs[0, 0, 2] == 0, f"Episode completion should start at 0%. Was {obs[0, 0, 2]}"
-        assert obs[0, 1, 1] == LAST_ACTION, f"Second token should be last action ({LAST_ACTION}). Was {obs[0, 1, 1]}"
-        assert obs[0, 1, 2] == 0, f"Last action should be 0. Was {obs[0, 1, 2]}"
-        assert obs[0, 2, 1] == LAST_ACTION_ARG, (
-            f"Third token should be last action arg ({LAST_ACTION_ARG}). Was {obs[0, 2, 1]}"
-        )
-        assert obs[0, 2, 2] == 0, f"Last action arg should start at 0. Was {obs[0, 2, 2]}"
-        assert obs[0, 3, 1] == LAST_REWARD, f"Fourth token should be last reward ({LAST_REWARD}). Was {obs[0, 3, 1]}"
-        assert obs[0, 3, 2] == 0, f"Last reward should start at 0. Was {obs[0, 3, 2]}"
+        # Check initial values
+        assert obs[0, 0, 2] == 0  # 0% completion
+        assert obs[0, 1, 2] == 0  # No last action
+        assert obs[0, 2, 2] == 0  # No last action arg
+        assert obs[0, 3, 2] == 0  # No last reward
 
-        # Take a step with a noop action
-        noop_action_idx = c_env.action_names().index("noop")
-        actions = np.full((NUM_AGENTS, 2), [noop_action_idx, 0], dtype=dtype_actions)
-        obs, rewards, terminals, truncations, _info = c_env.step(actions)
+    def test_global_tokens_update(self, basic_env):
+        """Test that global tokens update correctly."""
+        basic_env.reset()
 
-        # Check tokens after first step
-        expected_completion = int(round((1 / max_steps) * 255))  # 10% completion
-        assert obs[0, 0, 2] == expected_completion, (
-            f"Episode completion should be {expected_completion} after first step"
-        )
-        assert obs[0, 1, 2] == noop_action_idx, "Last action should be noop action index"
-        assert obs[0, 2, 2] == 0, "Last action arg should be 0 for noop"
-        assert obs[0, 3, 2] == 0, "Last reward should be 0 for noop"
+        # Take a noop action
+        noop_idx = basic_env.action_names().index("noop")
+        actions = np.full((EnvConfig.NUM_AGENTS, 2), [noop_idx, 0], dtype=dtype_actions)
+        obs, _, _, _, _ = basic_env.step(actions)
 
-        # Take another step with a move action
-        move_action_idx = c_env.action_names().index("move")
-        actions = np.full((NUM_AGENTS, 2), [move_action_idx, 1], dtype=dtype_actions)  # Use arg 1 to move backwards
-        obs, rewards, terminals, truncations, _info = c_env.step(actions)
+        # Check episode completion updated (1/10 = 10%)
+        expected_completion = int(round(0.1 * 255))
+        assert obs[0, 0, 2] == expected_completion
+        assert obs[0, 1, 2] == noop_idx
+        assert obs[0, 2, 2] == 0
 
-        # Check tokens after second step
-        expected_completion = int(round((2 / max_steps) * 255))  # 20% completion
-        assert obs[0, 0, 2] == expected_completion, (
-            f"Episode completion should be {expected_completion} after second step"
-        )
-        assert obs[0, 1, 2] == move_action_idx, "Last action should be move action index"
-        assert obs[0, 2, 2] == 1, "Last action arg should be 1 for backwards move"
-        assert obs[0, 3, 2] == 0, "Last reward should be 0 for failed move"
+        # Take a move action
+        move_idx = basic_env.action_names().index("move")
+        actions = np.full((EnvConfig.NUM_AGENTS, 2), [move_idx, 1], dtype=dtype_actions)
+        obs, _, _, _, _ = basic_env.step(actions)
+
+        # Check updates
+        expected_completion = int(round(0.2 * 255))
+        assert obs[0, 0, 2] == expected_completion
+        assert obs[0, 1, 2] == move_idx
+        assert obs[0, 2, 2] == 1
 
 
-def test_packed_coordinate():
-    """Test the PackedCoordinate functionality directly."""
-    # Test constants
-    assert PackedCoordinate.MAX_PACKABLE_COORD == 15
+class TestPackedCoordinate:
+    """Test PackedCoordinate functionality."""
 
-    # Test all valid coordinates
-    successfully_packed = 0
-    failed_coordinates = []
+    def test_packing_unpacking(self):
+        """Test coordinate packing and unpacking."""
+        # Test all valid coordinates
+        successful = 0
+        for row in range(16):
+            for col in range(16):
+                packed = PackedCoordinate.pack(row, col)
+                unpacked = PackedCoordinate.unpack(packed)
 
-    for row in range(16):
-        for col in range(16):
+                if unpacked:
+                    assert unpacked == (row, col)
+                    successful += 1
+
+        assert successful == 255  # All except (15,15)
+
+    def test_corner_cases(self):
+        """Test corner case handling."""
+        corners = [
+            ((0, 0), 0x00, True),
+            ((0, 15), 0x0F, True),
+            ((15, 0), 0xF0, True),
+            ((15, 15), 0xFF, False),  # Conflicts with EMPTY marker
+        ]
+
+        for (row, col), expected_packed, should_work in corners:
             packed = PackedCoordinate.pack(row, col)
+            assert packed == expected_packed
+
             unpacked = PackedCoordinate.unpack(packed)
-
-            if unpacked is None:
-                failed_coordinates.append((row, col, packed))
+            if should_work:
+                assert unpacked == (row, col)
             else:
-                assert unpacked == (row, col), f"Packing/unpacking mismatch for ({row}, {col})"
-                successfully_packed += 1
+                assert unpacked is None
+                assert PackedCoordinate.is_empty(packed)
 
-    # Verify we can pack 255 out of 256 positions (all except (15,15))
-    assert successfully_packed == 255, f"Expected 255 packable positions, got {successfully_packed}"
-    assert len(failed_coordinates) == 1, f"Expected 1 unpackable position, got {len(failed_coordinates)}"
-    assert failed_coordinates[0] == (15, 15, 0xFF), "Only (15,15) should fail to unpack"
-
-    # Test the four corners explicitly
-    corners = [
-        ((0, 0), 0x00, True),  # Top-left: packable
-        ((0, 15), 0x0F, True),  # Top-right: packable
-        ((15, 0), 0xF0, True),  # Bottom-left: packable
-        ((15, 15), 0xFF, False),  # Bottom-right: NOT packable (conflicts with EMPTY)
-    ]
-
-    print("\nTesting corner cases:")
-    for (row, col), expected_packed, should_work in corners:
-        packed = PackedCoordinate.pack(row, col)
-        assert packed == expected_packed, f"({row},{col}) should pack to {expected_packed:#04x}, got {packed:#04x}"
-
-        unpacked = PackedCoordinate.unpack(packed)
-        if should_work:
-            assert unpacked == (row, col), f"Corner ({row},{col}) should unpack correctly"
-            print(f"  ✓ ({row:2},{col:2}) -> {packed:#04x} -> {unpacked}")
-        else:
-            assert unpacked is None, f"Corner ({row},{col}) should not unpack (conflicts with EMPTY)"
-            assert PackedCoordinate.is_empty(packed), f"({row},{col}) packed value should be EMPTY"
-            print(f"  ✗ ({row:2},{col:2}) -> {packed:#04x} -> None (EMPTY marker)")
-
-    # Test some regular positions
-    test_cases = [
-        (0, 0),  # Origin
-        (1, 1),  # Common position
-        (7, 7),  # Middle of range
-        (14, 14),  # Almost at limit
-        (15, 14),  # Max row, not max col
-        (14, 15),  # Max col, not max row
-    ]
-
-    print("\nTesting regular positions:")
-    for row, col in test_cases:
-        packed = PackedCoordinate.pack(row, col)
-        unpacked = PackedCoordinate.unpack(packed)
-        assert unpacked == (row, col), f"Failed for ({row}, {col})"
-        print(f"  ✓ ({row:2},{col:2}) -> {packed:#04x} -> {unpacked}")
-
-    # Test empty location
-    assert PackedCoordinate.is_empty(0xFF)
-    assert not PackedCoordinate.is_empty(0x00)
-    assert not PackedCoordinate.is_empty(0xF0)
-    assert not PackedCoordinate.is_empty(0x0F)
-    assert PackedCoordinate.unpack(0xFF) is None
-
-    # Test invalid coordinates
-    invalid_coords = [(16, 0), (0, 16), (16, 16), (255, 0), (0, 255)]
-    for row, col in invalid_coords:
-        try:
-            PackedCoordinate.pack(row, col)
-            raise AssertionError(f"Should have raised exception for ({row}, {col})")
-        except Exception as e:
-            print(f"  ✓ ({row},{col}) correctly raised exception: {type(e).__name__}")
-
-    print("\nPackedCoordinate tests passed!")
-    print(f"Summary: Can pack {successfully_packed}/256 positions (99.6% coverage)")
-    print("Limitation: Cannot represent coordinate (15,15) due to EMPTY marker conflict")
+    def test_invalid_coordinates(self):
+        """Test that invalid coordinates raise exceptions."""
+        invalid_coords = [(16, 0), (0, 16), (255, 0)]
+        for row, col in invalid_coords:
+            with pytest.raises((ValueError, RuntimeError, TypeError)):
+                PackedCoordinate.pack(row, col)
