@@ -17,13 +17,14 @@ from pathlib import Path
 from typing import List
 
 import hydra
+import torch
 from omegaconf import DictConfig, OmegaConf
 
 from metta.agent.policy_store import PolicyStore
 from metta.common.util.config import Config
 from metta.common.util.script_decorators import get_metta_logger, metta_script
 from metta.common.util.stats_client_cfg import get_stats_client
-from metta.eval.eval_job import EvaluationJob, evaluate_policy
+from metta.eval.eval_service import evaluate_policy
 from metta.sim.simulation_config import SimulationSuiteConfig
 
 # --------------------------------------------------------------------------- #
@@ -76,6 +77,7 @@ def main(cfg: DictConfig) -> None:
 
     policy_store = PolicyStore(cfg, None)
     stats_client = get_stats_client(cfg, logger)
+    device = torch.device(cfg.device)
     for policy_uri in sim_job.policy_uris:
         # TODO: institutionalize this better?
         metric = sim_job.simulation_suite.name + "_score"
@@ -83,18 +85,13 @@ def main(cfg: DictConfig) -> None:
         results = {"policy_uri": policy_uri, "checkpoints": []}
         for pr in policy_prs:
             policy_results = evaluate_policy(
-                job=EvaluationJob.model_validate(
-                    dict(
-                        policy_record=pr,
-                        simulation_suite=sim_job.simulation_suite,
-                        stats_dir=sim_job.stats_dir,
-                        replay_dir=sim_job.replay_dir,
-                        device=cfg.device,
-                        vectorization=cfg.vectorization,
-                        data_dir=cfg.data_dir,
-                        export_stats_db_uri=sim_job.stats_db_uri,
-                    )
-                ),
+                policy_record=pr,
+                simulation_suite=sim_job.simulation_suite,
+                stats_dir=sim_job.stats_dir,
+                replay_dir=f"{sim_job.replay_dir}/{pr.run_name}",
+                device=device,
+                vectorization=cfg.vectorization,
+                export_stats_db_uri=sim_job.stats_db_uri,
                 policy_store=policy_store,
                 stats_client=stats_client,
                 logger=logger,
@@ -103,7 +100,11 @@ def main(cfg: DictConfig) -> None:
                 {
                     "name": pr.run_name,
                     "uri": pr.uri,
-                    "metrics": policy_results.scores.to_json(),
+                    "metrics": {
+                        "avg_reward_category_normalized": policy_results.scores.avg_category_score,
+                        "avg_reward_simulation_normalized": policy_results.scores.avg_simulation_score,
+                        "detailed": policy_results.scores.to_wandb_metrics_format(),
+                    },
                     "replay_url": policy_results.replay_url,
                 }
             )

@@ -24,8 +24,8 @@ from metta.common.util.fs import wait_for_file
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.system_monitor import SystemMonitor
 from metta.common.wandb.wandb_context import WandbRun
-from metta.eval.eval_job import EvaluationJob, evaluate_policy
-from metta.eval.evaluation_scores import EvaluationScores
+from metta.eval.eval_request_config import EvalRewardSummary
+from metta.eval.eval_service import evaluate_policy
 from metta.mettagrid.curriculum.util import curriculum_from_config_path
 from metta.mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
 from metta.rl.experience import Experience
@@ -148,7 +148,7 @@ class MettaTrainer:
         self.grad_stats = {}
         self.wandb_run = wandb_run
         self.policy_store = policy_store
-        self.evals = EvaluationScores()
+        self.evals = EvalRewardSummary()
 
         self.timer = Stopwatch(logger)
         self.timer.start()
@@ -641,7 +641,7 @@ class MettaTrainer:
 
         training_time = self.timer.get_elapsed("_rollout") + self.timer.get_elapsed("_train")
 
-        category_scores_map = self.evals.suite_scores.copy()
+        category_scores_map = self.evals.category_scores.copy()
         category_score_values = [v for k, v in category_scores_map.items()]
         overall_score = sum(category_score_values) / len(category_score_values) if category_score_values else 0
 
@@ -737,16 +737,12 @@ class MettaTrainer:
 
         logger.info(f"Simulating policy: {self.latest_saved_policy_uri} with config: {self.sim_suite_config}")
         evaluation_results = evaluate_policy(
-            job=EvaluationJob.model_validate(
-                dict(
-                    policy_record=self.latest_saved_policy_record,
-                    simulation_suite=self.sim_suite_config,
-                    device=self.device,
-                    vectorization=self.cfg.vectorization,
-                    stats_epoch_id=self._stats_epoch_id,
-                    wandb_policy_name=wandb_policy_name,
-                )
-            ),
+            policy_record=self.latest_saved_policy_record,
+            simulation_suite=self.sim_suite_config,
+            device=self.device,
+            vectorization=self.cfg.vectorization,
+            stats_epoch_id=self._stats_epoch_id,
+            wandb_policy_name=wandb_policy_name,
             policy_store=self.policy_store,
             stats_client=self._stats_client,
             logger=logger,

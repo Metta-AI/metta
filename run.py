@@ -30,8 +30,8 @@ from metta.common.profiling.memory_monitor import MemoryMonitor
 from metta.common.profiling.stopwatch import Stopwatch
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.system_monitor import SystemMonitor
+from metta.eval.eval_request_config import EvalRewardSummary
 from metta.eval.eval_stats_db import EvalStatsDB
-from metta.eval.evaluation_scores import EvaluationScores
 from metta.mettagrid import mettagrid_c  # noqa: F401
 from metta.mettagrid.mettagrid_env import dtype_actions
 from metta.rl.experience import Experience
@@ -471,7 +471,7 @@ while agent_step < trainer_config.total_timesteps:
             system_stats=system_stats,
             memory_stats=memory_stats,
             parameters=parameters,
-            evals=evaluation_scores.get(epoch, EvaluationScores()),
+            evals=evaluation_scores.get(epoch, EvalRewardSummary()),
             agent_step=agent_step,
             epoch=epoch,
             world_size=world_size,
@@ -598,8 +598,8 @@ while agent_step < trainer_config.total_timesteps:
             sim_short_name = sim_name.split("/")[-1]
             per_sim_scores[(category, sim_short_name)] = score
 
-        evaluation_scores[epoch] = EvaluationScores(
-            suite_scores=category_scores,
+        evaluation_scores[epoch] = EvalRewardSummary(
+            category_scores=category_scores,
             simulation_scores=per_sim_scores,
         )
         stats_db.close()
