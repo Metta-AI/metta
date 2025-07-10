@@ -1,0 +1,169 @@
+{
+    "name": "Metta Remote GPU Development",
+    "image": "mettaai/metta:latest",
+    "runArgs": [
+        "--gpus",
+        "all",
+        "--network",
+        "host",
+        "--ulimit",
+        "nofile=64000",
+        "--ulimit",
+        "nproc=640000",
+        "--shm-size=120g",
+        "--cap-add=SYS_PTRACE",
+        "--security-opt",
+        "seccomp=unconfined",
+        "--privileged"
+    ],
+    "mounts": [
+        {
+            "source": "metta-remote-cache",
+            "target": "/root/.cache",
+            "type": "volume"
+        },
+        {
+            "source": "metta-remote-wandb",
+            "target": "/workspace/metta/.wandb",
+            "type": "volume"
+        },
+        {
+            "source": "metta-remote-train",
+            "target": "/workspace/metta/train_dir",
+            "type": "volume"
+        },
+        {
+            "source": "metta-remote-checkpoints",
+            "target": "/workspace/metta/checkpoints",
+            "type": "volume"
+        }
+    ],
+    "containerEnv": {
+        "METTA_HOST": "${localEnv:HOSTNAME}",
+        "METTA_USER": "${localEnv:USER}",
+        "WANDB_API_KEY": "${localEnv:WANDB_API_KEY}",
+        "CUDA_VISIBLE_DEVICES": "${localEnv:CUDA_VISIBLE_DEVICES}",
+        "UV_LINK_MODE": "copy",
+        "PATH": "/workspace/metta/.venv/bin:${containerEnv:PATH}",
+        "NVIDIA_DRIVER_CAPABILITIES": "all",
+        "NVIDIA_VISIBLE_DEVICES": "all",
+        "REMOTE_GPU": "true"
+    },
+    "forwardPorts": [
+        3000,
+        8000,
+        6006,
+        22
+    ],
+    "portsAttributes": {
+        "3000": {
+            "label": "Gridworks Frontend",
+            "onAutoForward": "notify",
+            "protocol": "https"
+        },
+        "8000": {
+            "label": "Metta Backend API",
+            "onAutoForward": "notify",
+            "protocol": "https"
+        },
+        "6006": {
+            "label": "Tensorboard",
+            "onAutoForward": "notify",
+            "protocol": "https"
+        },
+        "22": {
+            "label": "SSH",
+            "onAutoForward": "silent"
+        }
+    },
+    "postCreateCommand": "bash -c 'uv sync --locked && cd mettagrid && ./build.sh && echo \"Remote GPU container ready!\" && service ssh start'",
+    "postStartCommand": "git config --global --add safe.directory /workspace/metta && service ssh start",
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "ms-python.python",
+                "ms-python.vscode-pylance",
+                "ms-python.debugpy",
+                "charliermarsh.ruff",
+                "ms-vscode.cpptools",
+                "ms-vscode.cmake-tools",
+                "redhat.vscode-yaml",
+                "ms-azuretools.vscode-docker",
+                "github.copilot",
+                "github.copilot-chat",
+                "ms-vscode-remote.remote-containers",
+                "ms-vscode-remote.remote-ssh",
+                "tamasfe.even-better-toml",
+                "streetsidesoftware.code-spell-checker",
+                "usernamehw.errorlens",
+                "nvidia.nsight-vscode-edition"
+            ],
+            "settings": {
+                "python.defaultInterpreterPath": "/workspace/metta/.venv/bin/python",
+                "python.terminal.activateEnvironment": true,
+                "python.testing.pytestEnabled": true,
+                "python.testing.pytestArgs": [
+                    "-v",
+                    "--tb=short"
+                ],
+                "python.testing.unittestEnabled": false,
+                "python.testing.autoTestDiscoverOnSaveEnabled": true,
+                "python.linting.enabled": false,
+                "ruff.enable": true,
+                "ruff.nativeServer": "on",
+                "ruff.lint.args": [
+                    "--config=pyproject.toml"
+                ],
+                "ruff.format.args": [
+                    "--config=pyproject.toml"
+                ],
+                "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
+                "cmake.sourceDirectory": "${workspaceFolder}/mettagrid",
+                "cmake.buildDirectory": "${workspaceFolder}/mettagrid/build",
+                "terminal.integrated.defaultProfile.linux": "bash",
+                "terminal.integrated.env.linux": {
+                    "PYTHONPATH": "${workspaceFolder}:${workspaceFolder}/mettagrid/build",
+                    "REMOTE_GPU": "true"
+                },
+                "files.watcherExclude": {
+                    "**/.git/objects/**": true,
+                    "**/.git/subtree-cache/**": true,
+                    "**/node_modules/**": true,
+                    "**/.hg/store/**": true,
+                    "**/target/**": true,
+                    "**/.venv/**": true,
+                    "**/build/**": true,
+                    "**/train_dir/**": true,
+                    "**/checkpoints/**": true
+                },
+                "remote.SSH.remotePlatform": {
+                    "metta-remote": "linux"
+                },
+                "remote.SSH.useLocalServer": false,
+                "remote.SSH.maxReconnectionAttempts": 10,
+                "remote.SSH.enableRemoteCommand": true
+            }
+        }
+    },
+    "features": {
+        "ghcr.io/devcontainers/features/common-utils:2": {
+            "installZsh": true,
+            "username": "root"
+        },
+        "ghcr.io/devcontainers/features/git:1": {},
+        "ghcr.io/devcontainers/features/nvidia-cuda:1": {
+            "installCudnn": true,
+            "installNvtx": true,
+            "cudaVersion": "12.1",
+            "cudnnVersion": "8"
+        },
+        "ghcr.io/devcontainers/features/sshd:1": {
+            "version": "latest"
+        }
+    },
+    "remoteUser": "root",
+    "workspaceMount": "source=${localWorkspaceFolder},target=/workspace/metta,type=bind,consistency=cached",
+    "workspaceFolder": "/workspace/metta",
+    "initializeCommand": "echo 'Initializing remote GPU container...'",
+    "updateContentCommand": "echo 'Updating content in remote GPU container...'"
+}

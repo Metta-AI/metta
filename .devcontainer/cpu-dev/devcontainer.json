@@ -1,0 +1,155 @@
+{
+    "name": "Metta CPU Development",
+    "image": "mettaai/metta:latest",
+    "runArgs": [
+        "--network",
+        "host",
+        "--ulimit",
+        "nofile=64000",
+        "--ulimit",
+        "nproc=640000",
+        "--shm-size=16g",
+        "--cap-add=SYS_PTRACE",
+        "--security-opt",
+        "seccomp=unconfined"
+    ],
+    "mounts": [
+        {
+            "source": "/tmp/.X11-unix",
+            "target": "/tmp/.X11-unix",
+            "type": "bind",
+            "consistency": "consistent"
+        },
+        {
+            "source": "/var/run/docker.sock",
+            "target": "/var/run/docker.sock",
+            "type": "bind",
+            "consistency": "consistent"
+        },
+        {
+            "source": "${localEnv:HOME}/.ssh",
+            "target": "/root/.ssh",
+            "type": "bind",
+            "consistency": "consistent"
+        },
+        {
+            "source": "${localEnv:HOME}/.netrc",
+            "target": "/root/.netrc",
+            "type": "bind",
+            "consistency": "consistent"
+        },
+        {
+            "source": "${localWorkspaceFolder}/train_dir",
+            "target": "/workspace/metta/train_dir",
+            "type": "bind",
+            "consistency": "cached"
+        },
+        {
+            "source": "metta-cpu-cache",
+            "target": "/root/.cache",
+            "type": "volume"
+        }
+    ],
+    "containerEnv": {
+        "DISPLAY": "${localEnv:DISPLAY}",
+        "METTA_HOST": "${localEnv:HOSTNAME}",
+        "METTA_USER": "${localEnv:USER}",
+        "WANDB_API_KEY": "${localEnv:WANDB_API_KEY}",
+        "UV_LINK_MODE": "copy",
+        "PATH": "/workspace/metta/.venv/bin:${containerEnv:PATH}",
+        "CUDA_VISIBLE_DEVICES": "-1",
+        "CPU_ONLY": "true"
+    },
+    "forwardPorts": [
+        3000,
+        8000,
+        6006
+    ],
+    "portsAttributes": {
+        "3000": {
+            "label": "Gridworks Frontend",
+            "onAutoForward": "notify"
+        },
+        "8000": {
+            "label": "Metta Backend API",
+            "onAutoForward": "notify"
+        },
+        "6006": {
+            "label": "Tensorboard",
+            "onAutoForward": "notify"
+        }
+    },
+    "postCreateCommand": "uv sync --locked && echo 'Note: This is a CPU-only container. GPU features are disabled.'",
+    "postStartCommand": "git config --global --add safe.directory /workspace/metta",
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "ms-python.python",
+                "ms-python.vscode-pylance",
+                "ms-python.debugpy",
+                "charliermarsh.ruff",
+                "ms-vscode.cpptools",
+                "ms-vscode.cmake-tools",
+                "redhat.vscode-yaml",
+                "ms-azuretools.vscode-docker",
+                "github.copilot",
+                "github.copilot-chat",
+                "ms-vscode-remote.remote-containers",
+                "tamasfe.even-better-toml",
+                "streetsidesoftware.code-spell-checker",
+                "usernamehw.errorlens"
+            ],
+            "settings": {
+                "python.defaultInterpreterPath": "/workspace/metta/.venv/bin/python",
+                "python.terminal.activateEnvironment": true,
+                "python.testing.pytestEnabled": true,
+                "python.testing.pytestArgs": [
+                    "-v",
+                    "--tb=short",
+                    "-m",
+                    "not gpu"
+                ],
+                "python.testing.unittestEnabled": false,
+                "python.testing.autoTestDiscoverOnSaveEnabled": true,
+                "python.linting.enabled": false,
+                "ruff.enable": true,
+                "ruff.nativeServer": "on",
+                "ruff.lint.args": [
+                    "--config=pyproject.toml"
+                ],
+                "ruff.format.args": [
+                    "--config=pyproject.toml"
+                ],
+                "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
+                "cmake.sourceDirectory": "${workspaceFolder}/mettagrid",
+                "cmake.buildDirectory": "${workspaceFolder}/mettagrid/build",
+                "terminal.integrated.defaultProfile.linux": "bash",
+                "terminal.integrated.env.linux": {
+                    "PYTHONPATH": "${workspaceFolder}:${workspaceFolder}/mettagrid/build",
+                    "CPU_ONLY": "true"
+                },
+                "files.watcherExclude": {
+                    "**/.git/objects/**": true,
+                    "**/.git/subtree-cache/**": true,
+                    "**/node_modules/**": true,
+                    "**/.hg/store/**": true,
+                    "**/target/**": true,
+                    "**/.venv/**": true,
+                    "**/build/**": true,
+                    "**/train_dir/**": true,
+                    "**/checkpoints/**": true
+                }
+            }
+        }
+    },
+    "features": {
+        "ghcr.io/devcontainers/features/common-utils:2": {
+            "installZsh": true,
+            "username": "root"
+        },
+        "ghcr.io/devcontainers/features/git:1": {}
+    },
+    "remoteUser": "root",
+    "workspaceMount": "source=${localWorkspaceFolder},target=/workspace/metta,type=bind,consistency=cached",
+    "workspaceFolder": "/workspace/metta"
+}

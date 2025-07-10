@@ -1,0 +1,186 @@
+{
+    "name": "Metta Sandbox GPU",
+    "image": "mettaai/metta:latest",
+    "build": {
+        "dockerfile": "../../devops/docker/Dockerfile",
+        "context": "../.."
+    },
+    // Secure sandbox configuration with GPU
+    "runArgs": [
+        "--gpus",
+        "all",
+        // Security restrictions - balanced approach
+        "--cap-drop",
+        "ALL",
+        "--cap-add",
+        "SYS_PTRACE", // For debugging
+        "--cap-add",
+        "IPC_LOCK", // For GPU memory operations
+        "--security-opt",
+        "no-new-privileges",
+        "--security-opt",
+        "seccomp=unconfined", // Required for PyTorch GPU operations
+        // Resource limits
+        "--ulimit",
+        "nofile=64000",
+        "--ulimit",
+        "nproc=640000",
+        "--memory",
+        "32g",
+        "--memory-swap",
+        "32g",
+        "--shm-size=16g",
+        // Network configuration - allow limited network for package installation
+        "--network",
+        "bridge",
+        // IPC mode for CUDA operations
+        "--ipc",
+        "host",
+        // Temporary directories for runtime
+        "--tmpfs",
+        "/tmp:rw,exec,nosuid,size=8g", // exec needed for some Python operations
+        "--tmpfs",
+        "/run:rw,noexec,nosuid,size=1g",
+        "--tmpfs",
+        "/var/tmp:rw,noexec,nosuid,size=2g"
+    ],
+    // Environment for sandboxed execution
+    "containerEnv": {
+        "METTA_HOST": "sandbox",
+        "METTA_USER": "sandbox",
+        "UV_LINK_MODE": "copy",
+        "CUDA_VISIBLE_DEVICES": "${localEnv:CUDA_VISIBLE_DEVICES:-0}",
+        // Python environment
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONUNBUFFERED": "1",
+        "PATH": "/workspace/metta/.venv/bin:${containerEnv:PATH}",
+        // PyTorch optimizations for sandbox
+        "PYTORCH_CUDA_ALLOC_CONF": "max_split_size_mb:512",
+        // Disable external services by default
+        "WANDB_MODE": "${localEnv:WANDB_MODE:-offline}",
+        "WANDB_DISABLED": "${localEnv:WANDB_DISABLED:-true}",
+        // CUDA cache directory
+        "CUDA_CACHE_PATH": "/workspace/metta/.cuda_cache"
+    },
+    // Volume mounts for sandbox
+    "mounts": [
+        // Workspace as read-write (needed for Python package operations)
+        {
+            "source": "${localWorkspaceFolder}",
+            "target": "/workspace/metta",
+            "type": "bind",
+            "consistency": "cached"
+        },
+        // Sandbox-specific data directories
+        {
+            "source": "${localEnv:HOME}/metta-sandbox/train_dir",
+            "target": "/workspace/metta/train_dir",
+            "type": "bind",
+            "consistency": "cached"
+        },
+        {
+            "source": "${localEnv:HOME}/metta-sandbox/checkpoints",
+            "target": "/workspace/metta/checkpoints",
+            "type": "bind",
+            "consistency": "cached"
+        },
+        {
+            "source": "${localEnv:HOME}/metta-sandbox/.cache",
+            "target": "/root/.cache",
+            "type": "bind",
+            "consistency": "cached"
+        },
+        {
+            "source": "${localEnv:HOME}/metta-sandbox/wandb",
+            "target": "/workspace/metta/wandb",
+            "type": "bind",
+            "consistency": "cached"
+        },
+        // CUDA cache for compiled kernels
+        {
+            "source": "${localEnv:HOME}/metta-sandbox/.cuda_cache",
+            "target": "/workspace/metta/.cuda_cache",
+            "type": "bind",
+            "consistency": "cached"
+        }
+    ],
+    // Limited port forwarding for sandbox
+    "forwardPorts": [
+        8000, // Backend API
+        6006 // TensorBoard (for local debugging)
+    ],
+    "portsAttributes": {
+        "8000": {
+            "label": "Sandbox API",
+            "onAutoForward": "notify"
+        },
+        "6006": {
+            "label": "TensorBoard",
+            "onAutoForward": "silent"
+        }
+    },
+    // Minimal extensions for sandbox
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "ms-python.python",
+                "ms-python.debugpy",
+                "charliermarsh.ruff"
+            ],
+            "settings": {
+                // Python settings
+                "python.defaultInterpreterPath": "/workspace/metta/.venv/bin/python",
+                "python.terminal.activateEnvironment": true,
+                // Disable features that might leak data
+                "telemetry.telemetryLevel": "off",
+                "extensions.autoUpdate": false,
+                "extensions.autoCheckUpdates": false,
+                "update.mode": "none",
+                // Terminal settings
+                "terminal.integrated.defaultProfile.linux": "bash",
+                "terminal.integrated.profiles.linux": {
+                    "bash": {
+                        "path": "/bin/bash",
+                        "args": [
+                            "-l"
+                        ]
+                    }
+                },
+                // Editor settings
+                "files.autoSave": "off",
+                "search.exclude": {
+                    "**/node_modules": true,
+                    "**/bower_components": true,
+                    "**/.git": true,
+                    "**/train_dir": true,
+                    "**/wandb": true,
+                    "**/.cache": true
+                },
+                // Workspace trust
+                "security.workspace.trust.enabled": false
+            }
+        }
+    },
+    // Workspace configuration
+    "workspaceMount": "source=${localWorkspaceFolder},target=/workspace/metta,type=bind,consistency=cached",
+    "workspaceFolder": "/workspace/metta",
+    // Setup commands
+    "postCreateCommand": "bash -c 'mkdir -p ~/metta-sandbox/{train_dir,checkpoints,.cache,wandb,.cuda_cache} && if [ ! -d .venv ]; then uv sync --locked; fi && cd mettagrid && ./build.sh && echo \"Sandbox GPU environment ready!\"'",
+    "postStartCommand": "git config --global --add safe.directory /workspace/metta",
+    // Run as root for now (can be changed to non-root after testing)
+    "remoteUser": "root",
+    // Minimal features for security
+    "features": {
+        "ghcr.io/devcontainers/features/common-utils:2": {
+            "installZsh": false,
+            "username": "root",
+            "upgradePackages": false
+        },
+        "ghcr.io/devcontainers/features/nvidia-cuda:1": {
+            "installCudnn": true,
+            "installNvtx": false
+        }
+    },
+    // Don't override the command
+    "overrideCommand": false
+}
