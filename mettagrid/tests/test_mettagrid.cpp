@@ -9,6 +9,7 @@
 #include "objects/constants.hpp"
 #include "objects/converter.hpp"
 #include "objects/wall.hpp"
+#include "types.hpp"
 
 // Test-specific inventory item type constants
 namespace TestItems {
@@ -34,8 +35,8 @@ protected:
   void TearDown() override {}
 
   // Helper function to create test resource_limits map
-  std::map<uint8_t, uint8_t> create_test_resource_limits() {
-    std::map<uint8_t, uint8_t> resource_limits;
+  std::map<uint8_t, InventoryQuantity> create_test_resource_limits() {
+    std::map<uint8_t, InventoryQuantity> resource_limits;
     resource_limits[TestItems::ORE] = 50;
     resource_limits[TestItems::LASER] = 50;
     resource_limits[TestItems::ARMOR] = 50;
@@ -44,8 +45,8 @@ protected:
   }
 
   // Helper function to create test rewards map
-  std::map<uint8_t, float> create_test_rewards() {
-    std::map<uint8_t, float> rewards;
+  std::map<uint8_t, RewardType> create_test_rewards() {
+    std::map<uint8_t, RewardType> rewards;
     rewards[TestItems::ORE] = TestRewards::ORE;
     rewards[TestItems::LASER] = TestRewards::LASER;
     rewards[TestItems::ARMOR] = TestRewards::ARMOR;
@@ -54,8 +55,8 @@ protected:
   }
 
   // Helper function to create test resource_reward_max map
-  std::map<uint8_t, uint8_t> create_test_resource_reward_max() {
-    std::map<uint8_t, uint8_t> resource_reward_max;
+  std::map<uint8_t, InventoryQuantity> create_test_resource_reward_max() {
+    std::map<uint8_t, InventoryQuantity> resource_reward_max;
     resource_reward_max[TestItems::ORE] = 10;
     resource_reward_max[TestItems::LASER] = 10;
     resource_reward_max[TestItems::ARMOR] = 10;

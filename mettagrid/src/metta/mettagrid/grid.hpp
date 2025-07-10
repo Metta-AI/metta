@@ -11,7 +11,7 @@
 using std::max;
 using std::unique_ptr;
 using std::vector;
-typedef vector<vector<vector<GridObjectId>>> GridType;
+using GridType = std::vector<std::vector<std::vector<GridObjectId>>>;
 
 class Grid {
 public:
