@@ -763,6 +763,7 @@ dev = [
     { name = "pytest" },
     { name = "pytest-benchmark" },
     { name = "pytest-cov" },
+    { name = "pytest-testmon" },
     { name = "pytest-xdist" },
     { name = "ruff" },
     { name = "skypilot" },
@@ -824,6 +825,7 @@ dev = [
     { name = "pytest", specifier = ">=8.3.3" },
     { name = "pytest-benchmark", specifier = ">=5.1.0" },
     { name = "pytest-cov", specifier = ">=6.1.1" },
+    { name = "pytest-testmon", specifier = ">=2.1.3" },
     { name = "pytest-xdist", specifier = ">=3.8.0" },
     { name = "ruff", specifier = ">=0.11.13" },
     { name = "skypilot", specifier = "==0.9.3" },
@@ -1708,6 +1710,19 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/18/99/668cade231f434aaa59bbfbf49469068d2ddd945000621d3d165d2e7dd7b/pytest_cov-6.2.1.tar.gz", hash = "sha256:25cc6cc0a5358204b8108ecedc51a9b57b34cc6b8c967cc2c01a4e00d8a67da2", size = 69432, upload-time = "2025-06-12T10:47:47.684Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/bc/16/4ea354101abb1287856baa4af2732be351c7bee728065aed451b678153fd/pytest_cov-6.2.1-py3-none-any.whl", hash = "sha256:f5bc4c23f42f1cdd23c70b1dab1bbaef4fc505ba950d53e0081d0730dd7e86d5", size = 24644, upload-time = "2025-06-12T10:47:45.932Z" },
+]
+
+[[package]]
+name = "pytest-testmon"
+version = "2.1.3"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "coverage" },
+    { name = "pytest" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/54/24/b17712bc8b9d9814a30346e5bd76a6c4539f5187455f4e0d99d95f033da6/pytest_testmon-2.1.3.tar.gz", hash = "sha256:dad41aa7d501d74571750da1abd3f6673b63fd9dbf3023bd1623814999018c97", size = 22608, upload-time = "2024-12-22T12:43:28.822Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/73/08/278800711d937e76ce59105fea1bb739ae5ff5c13583fd064fe3b4e64fa1/pytest_testmon-2.1.3-py3-none-any.whl", hash = "sha256:53ba06d8a90ce24c3a191b196aac72ca4b788beff5eb1c1bffee04dc50ec7105", size = 24994, upload-time = "2024-12-22T12:43:10.173Z" },
 ]
 
 [[package]]
