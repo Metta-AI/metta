@@ -1,12 +1,17 @@
 import { Vec2f, Mat3f } from './vector_math.js'
 
+/** Type definition for atlas data. */
+interface AtlasData {
+  [key: string]: [number, number, number, number] // [x, y, width, height]
+}
+
 /** Clamp a value between a minimum and maximum. */
 export function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(value, max))
 }
 
 /** WebGL Mesh class for managing vertex data and buffers. */
-class WebGLMesh {
+class Mesh {
   private name: string
   private gl: WebGLRenderingContext
   private vertexBuffer: WebGLBuffer | null = null
@@ -134,37 +139,6 @@ class WebGLMesh {
     this.scissorRect = [0, 0, 0, 0]
   }
 
-  /** Get the number of quads in the mesh. */
-  getQuadCount(): number {
-    return this.currentQuad
-  }
-
-  /** Get the current vertex count. */
-  getCurrentVertexCount(): number {
-    return this.currentVertex
-  }
-
-  /** Get the vertex buffer. */
-  getVertexBuffer(): WebGLBuffer | null {
-    return this.vertexBuffer
-  }
-
-  /** Get the index buffer. */
-  getIndexBuffer(): WebGLBuffer | null {
-    return this.indexBuffer
-  }
-
-  /** Get the vertex data. */
-  getVertexData(): Float32Array {
-    return this.vertexData
-  }
-
-  /** Reset the counters. */
-  resetCounters(): void {
-    this.currentQuad = 0
-    this.currentVertex = 0
-  }
-
   /** Draws a pre-transformed textured rectangle. */
   drawRectWithTransform(
     topLeft: Vec2f,
@@ -218,12 +192,37 @@ class WebGLMesh {
     this.currentVertex += 4
     this.currentQuad += 1
   }
-}
 
-/** Context3d is a class that manages the WebGL context. */
-/** Type definition for atlas data. */
-interface AtlasData {
-  [key: string]: [number, number, number, number] // [x, y, width, height]
+  /** Get the vertex data. */
+  getVertexData(): Float32Array {
+    return this.vertexData
+  }
+
+  /** Get the number of quads in the mesh. */
+  getQuadCount(): number {
+    return this.currentQuad
+  }
+
+  /** Get the current vertex count. */
+  getCurrentVertexCount(): number {
+    return this.currentVertex
+  }
+
+  /** Get the vertex buffer. */
+  getVertexBuffer(): WebGLBuffer | null {
+    return this.vertexBuffer
+  }
+
+  /** Get the index buffer. */
+  getIndexBuffer(): WebGLBuffer | null {
+    return this.indexBuffer
+  }
+
+  /** Reset the counters. */
+  resetCounters(): void {
+    this.currentQuad = 0
+    this.currentVertex = 0
+  }
 }
 
 export class Context3d {
@@ -247,8 +246,8 @@ export class Context3d {
   private samplerLocation: WebGLUniformLocation | null = null
 
   // Mesh management
-  private meshes: Map<string, WebGLMesh> = new Map()
-  private currentMesh: WebGLMesh | null = null
+  private meshes: Map<string, Mesh> = new Map()
+  private currentMesh: Mesh | null = null
   private currentMeshName: string = ''
 
   // Transformation state
@@ -272,21 +271,6 @@ export class Context3d {
     // Initialize transformation matrix
     this.currentTransform = Mat3f.identity()
   }
-
-  
-  /** Clears all meshes for a new frame. */
-  clear(): void {
-    if (!this.ready) return
-
-    // Clear all meshes in the map
-    for (const mesh of this.meshes.values()) {
-      mesh.clear()
-    }
-
-    // Reset transform for new frame
-    this.resetTransform()
-    this.transformStack = []
-  }
   
   /** Create or switch to a mesh with the given name. */
   useMesh(name: string): void {
@@ -302,24 +286,17 @@ export class Context3d {
     }
 
     // Otherwise, create a new mesh
-    const newMesh = new WebGLMesh(name, this.gl)
+    const newMesh = new Mesh(name, this.gl)
     newMesh.createBuffers()
     this.meshes.set(name, newMesh)
     this.currentMesh = newMesh
     this.currentMeshName = name
   }
-
-  /** Helper method to ensure a mesh is selected before drawing. */
-  private ensureMeshSelected(): void {
-    if (!this.currentMesh) {
-      throw new Error('No mesh selected. Call useMesh() before drawing.')
-    }
-  }
   
   /** Sets the scissor rect for the current mesh. */
   setScissorRect(x: number, y: number, width: number, height: number): void {
     this.ensureMeshSelected()
-
+    
     this.currentMesh!.scissorEnabled = true
     this.currentMesh!.scissorRect = [x, y, width, height]
   }
@@ -330,6 +307,13 @@ export class Context3d {
     this.currentMesh!.scissorEnabled = false
   }
   
+  /** Helper method to ensure a mesh is selected before drawing. */
+  private ensureMeshSelected(): void {
+    if (!this.currentMesh) {
+      throw new Error('No mesh selected. Call useMesh() before drawing.')
+    }
+  }
+
   /** Save the current transform. */
   save(): void {
     // Push a copy of the current transform onto the stack
@@ -569,6 +553,20 @@ export class Context3d {
     `
   }
   
+  /** Clears all meshes for a new frame. */
+  clear(): void {
+    if (!this.ready) return
+
+    // Clear all meshes in the map
+    for (const mesh of this.meshes.values()) {
+      mesh.clear()
+    }
+
+    // Reset transform for new frame
+    this.resetTransform()
+    this.transformStack = []
+  }
+
   /** Draws a textured rectangle with the given coordinates and UV mapping. */
   drawRect(
     x: number,
@@ -734,38 +732,6 @@ export class Context3d {
     this.drawSolidRect(x + width - strokeWidth, y + strokeWidth, strokeWidth, height - 2 * strokeWidth, color)
   }
 
-  /** Draws a line of sprites. */
-  drawSpriteLine(
-    imageName: string,
-    x0: number,
-    y0: number,
-    x1: number,
-    y1: number,
-    spacing: number,
-    color: number[],
-    skipStart: number = 0,
-    skipEnd: number = 0
-  ): void {
-    // Compute the angle of the line.
-    const angle = Math.atan2(y1 - y0, x1 - x0)
-    // Compute the length of the line.
-    const x = x1 - x0
-    const y = y1 - y0
-    const length = Math.sqrt(x ** 2 + y ** 2)
-    // Compute the number of dashes.
-    const numDashes = Math.floor(length / spacing) + 1
-    // Compute the delta of each dash.
-    const dx = x / numDashes
-    const dy = y / numDashes
-    // Draw the dashes.
-    for (let i = 0; i < numDashes; i++) {
-      if (i < skipStart || i >= numDashes - skipEnd) {
-        continue
-      }
-      this.drawSprite(imageName, x0 + i * dx, y0 + i * dy, color, 1, -angle)
-    }
-  }
-
   /** Flushes all non-empty meshes to the screen. */
   flush(): void {
     if (!this.ready || !this.gl || !this.shaderProgram) {
@@ -862,6 +828,38 @@ export class Context3d {
     // Reset all mesh counters after rendering
     for (const mesh of this.meshes.values()) {
       mesh.resetCounters()
+    }
+  }
+
+  /** Draws a line of sprites. */
+  drawSpriteLine(
+    imageName: string,
+    x0: number,
+    y0: number,
+    x1: number,
+    y1: number,
+    spacing: number,
+    color: number[],
+    skipStart: number = 0,
+    skipEnd: number = 0
+  ): void {
+    // Compute the angle of the line.
+    const angle = Math.atan2(y1 - y0, x1 - x0)
+    // Compute the length of the line.
+    const x = x1 - x0
+    const y = y1 - y0
+    const length = Math.sqrt(x ** 2 + y ** 2)
+    // Compute the number of dashes.
+    const numDashes = Math.floor(length / spacing) + 1
+    // Compute the delta of each dash.
+    const dx = x / numDashes
+    const dy = y / numDashes
+    // Draw the dashes.
+    for (let i = 0; i < numDashes; i++) {
+      if (i < skipStart || i >= numDashes - skipEnd) {
+        continue
+      }
+      this.drawSprite(imageName, x0 + i * dx, y0 + i * dy, color, 1, -angle)
     }
   }
 }
