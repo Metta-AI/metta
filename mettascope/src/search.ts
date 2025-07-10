@@ -22,14 +22,17 @@ export const search = {
 }
 
 function updateSearchDropdown() {
+  if (!state.replay) return
+
   removeChildren(searchDropdown)
   // Add all of the resources to the search dropdown.
   let usedKeys = new Set<string>()
   let keys: string[] = []
-  for (let key of state.replay.resource_inventory.keys()) {
+  // Add item names (resources)
+  for (let key of state.replay.itemNames) {
     keys.push(key)
   }
-  for (let key of state.replay.object_types) {
+  for (let key of state.replay.typeNames) {
     keys.push(key)
   }
 

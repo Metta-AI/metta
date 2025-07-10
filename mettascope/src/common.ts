@@ -3,6 +3,7 @@ import { Context3d } from './context3d.js'
 import { find, parseHtmlColor, localStorageGetNumber, toggleOpacity } from './htmlutils.js'
 import { PanelInfo } from './panels.js'
 import { HoverPanel } from './hoverpanels.js'
+import { Replay, ReplayHelper, Entity } from './replay.js'
 
 // The 3D context, used for nearly everything.
 export const ctx = new Context3d(find('#global-canvas') as HTMLCanvasElement)
@@ -74,15 +75,16 @@ export const ui = {
   timelinePanel: new PanelInfo('#timeline-panel'),
 
   hoverPanels: [] as HoverPanel[],
-  hoverObject: null as any,
+  hoverObject: null as Entity | null,
   hoverTimer: null as any,
-  delayedHoverObject: null as any,
+  delayedHoverObject: null as Entity | null,
 }
 
 export const state = {
   // Replay data and player state
-  replay: null as any,
-  selectedGridObject: null as any,
+  replay: null as Replay | null,
+  replayHelper: null as ReplayHelper | null,
+  selectedGridObject: null as Entity | null,
   followSelection: false, // Flag to follow the selected entity.
 
   // Playback state

@@ -1,9 +1,8 @@
 import { Vec2f } from './vector_math.js'
 import * as Common from './common.js'
 import { ui, state, ctx } from './common.js'
-import { getAttr } from './replay.js'
-import { PanelInfo } from './panels.js'
 import { parseHtmlColor } from './htmlutils.js'
+import { PanelInfo } from './panels.js'
 
 /** Draws the minimap. */
 export function drawMiniMap(panel: PanelInfo) {
@@ -39,21 +38,23 @@ export function drawMiniMap(panel: PanelInfo) {
   ctx.drawSolidRect(
     0,
     0,
-    state.replay.map_size[0] * Common.MINI_MAP_TILE_SIZE,
-    state.replay.map_size[1] * Common.MINI_MAP_TILE_SIZE,
+    state.replay.mapSize[0] * Common.MINI_MAP_TILE_SIZE,
+    state.replay.mapSize[1] * Common.MINI_MAP_TILE_SIZE,
     parseHtmlColor('#E7D4B7')
   )
 
-  // Draw the grid objects on the minimap.
-  for (const gridObject of state.replay.grid_objects) {
-    const x = getAttr(gridObject, 'c')
-    const y = getAttr(gridObject, 'r')
-    const type = getAttr(gridObject, 'type')
-    const typeName = state.replay.object_types[type]
+  // Draw the entities.
+  for (const obj of state.replay.objects) {
+    const position = obj.position.get()
+    if (!position) continue
+    const x = position[0]
+    const y = position[1]
+    const type = obj.typeId
+    const typeName = state.replay.typeNames[type as number]
     var color = parseHtmlColor('#FFFFFF')
     if (typeName === 'wall') {
       color = parseHtmlColor('#61574B')
-    } else if (typeName === 'agent') {
+    } else if (typeName && typeName.startsWith('agent')) {
       continue
     }
     ctx.drawSolidRect(
@@ -65,13 +66,15 @@ export function drawMiniMap(panel: PanelInfo) {
     )
   }
 
-  // Draw the agent pips on top.
-  for (const gridObject of state.replay.grid_objects) {
-    const x = getAttr(gridObject, 'c')
-    const y = getAttr(gridObject, 'r')
-    const type = getAttr(gridObject, 'type')
-    const typeName = state.replay.object_types[type]
-    if (typeName === 'agent') {
+  // Draw the agents.
+  for (const obj of state.replay.objects) {
+    const position = obj.position.get()
+    if (!position) continue
+    const x = position[0]
+    const y = position[1]
+    const type = obj.typeId
+    const typeName = state.replay.typeNames[type as number]
+    if (typeName && typeName.startsWith('agent')) {
       ctx.drawSprite(
         'minimapPip.png',
         x * Common.MINI_MAP_TILE_SIZE + 1,
