@@ -9,3 +9,4 @@ tasks:
   /env/mettagrid/navigation/training/varied_terrain_dense: 1
   /env/mettagrid/navigation/training/sparse_small: 1
   /env/mettagrid/navigation/training/sparse_medium: 1
+  /env/mettagrid/navigation/training/sparse_large: 1
