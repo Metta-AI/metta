@@ -59,8 +59,8 @@ def set_num_workers_if_unspecified(cfg: DictConfig | ListConfig) -> None:
 
 
 def train(cfg: DictConfig | ListConfig, wandb_run: WandbRun | None, logger: Logger):
-    cfg = load_train_job_config_with_overrides(cfg)
     set_num_workers_if_unspecified(cfg)
+    cfg = load_train_job_config_with_overrides(cfg)
 
     logger.info("Trainer config after overrides:\n%s", OmegaConf.to_yaml(cfg.trainer, resolve=True))
 
