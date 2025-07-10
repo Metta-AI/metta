@@ -63,6 +63,24 @@ const navItems = [
         )
     },
     {
+        id: 'affiliations',
+        label: 'Affiliations',
+        icon: (
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                {/* Triangle roof */}
+                <polygon points="4,10 12,4 20,10" stroke="currentColor" strokeWidth="2" fill="none" />
+                {/* Circle window */}
+                <circle cx="12" cy="8.5" r="1" stroke="currentColor" strokeWidth="2" fill="none" />
+                {/* Columns */}
+                <rect x="7" y="11" width="1.5" height="5" stroke="currentColor" strokeWidth="2" fill="none" />
+                <rect x="11.25" y="11" width="1.5" height="5" stroke="currentColor" strokeWidth="2" fill="none" />
+                <rect x="15" y="11" width="1.5" height="5" stroke="currentColor" strokeWidth="2" fill="none" />
+                {/* Base */}
+                <rect x="5" y="17" width="14" height="2" stroke="currentColor" strokeWidth="2" fill="none" />
+            </svg>
+        )
+    },
+    {
         id: 'papers',
         label: 'Papers Only',
         icon: (
@@ -222,6 +240,61 @@ const mockScholars = [
         recentActivity: '1 day ago',
         isFollowing: true,
         claimed: true
+    }
+]
+
+// Mock affiliations data
+const mockAffiliations = [
+    {
+        id: 'stanford-ai-lab',
+        name: 'Stanford University',
+        label: 'Stanford AI Lab',
+        logo: '', // leave blank to use initials fallback
+        initials: 'SAIL',
+        location: 'Stanford, USA',
+        type: 'University',
+        memberCount: 42,
+        papers: 320,
+        citations: 15400,
+        tags: ['AI', 'Robotics', 'NLP', 'Vision', 'Theory'],
+        lastActive: '2024-06-01',
+        website: 'https://ai.stanford.edu',
+        isFavorite: true,
+        isAdmin: false
+    },
+    {
+        id: 'deepmind',
+        name: 'DeepMind',
+        label: 'DeepMind',
+        logo: '',
+        initials: 'DM',
+        location: 'London, UK',
+        type: 'Corporate Lab',
+        memberCount: 87,
+        papers: 510,
+        citations: 32000,
+        tags: ['Reinforcement Learning', 'Neuroscience', 'AI'],
+        lastActive: '2024-05-28',
+        website: 'https://deepmind.com',
+        isFavorite: false,
+        isAdmin: true
+    },
+    {
+        id: 'berkeley-ai',
+        name: 'UC Berkeley',
+        label: 'Berkeley AI Research',
+        logo: '',
+        initials: 'BAIR',
+        location: 'Berkeley, USA',
+        type: 'University',
+        memberCount: 35,
+        papers: 210,
+        citations: 9800,
+        tags: ['Robotics', 'Vision', 'ML Theory'],
+        lastActive: '2024-05-15',
+        website: 'https://bair.berkeley.edu',
+        isFavorite: false,
+        isAdmin: false
     }
 ]
 
@@ -604,6 +677,71 @@ The first term is the reconstruction loss, and the second is the KL divergence t
         </div>
     )
 
+    // AffiliationsCard component
+    const AffiliationsCard = ({ affiliation, isAdmin }: { affiliation: any, isAdmin: boolean }) => (
+        <div className="w-full min-w-[20rem] max-w-full bg-white rounded-lg border border-gray-200 p-4 hover:shadow transition-shadow overflow-hidden flex flex-col">
+            <div className="flex items-start justify-between mb-2 min-w-0">
+                <div className="flex items-center gap-3 min-w-0">
+                    {affiliation.logo ? (
+                        <img src={affiliation.logo} alt={affiliation.label} className="w-12 h-12 rounded-full object-cover flex-shrink-0" />
+                    ) : (
+                        <div className="w-12 h-12 bg-primary-500 text-white rounded-full flex items-center justify-center text-lg font-semibold flex-shrink-0">
+                            {affiliation.initials}
+                        </div>
+                    )}
+                    <div className="min-w-0">
+                        <h3 className="text-lg font-semibold text-gray-900 break-words leading-tight">{affiliation.label}</h3>
+                        <p className="text-gray-600 text-sm break-words leading-tight">{affiliation.name}</p>
+                        <p className="text-gray-500 text-xs break-words leading-tight">{affiliation.location}</p>
+                    </div>
+                </div>
+                <div className="flex flex-col items-end gap-2 min-w-0">
+                    <span className="px-3 py-0.5 rounded-full text-xs font-semibold mb-1 bg-gray-100 text-gray-600 border border-gray-200" title={affiliation.type}>{affiliation.type}</span>
+                    <button
+                        className={`px-3 py-1 rounded-full font-medium transition-colors flex-shrink-0 whitespace-nowrap text-sm ${
+                            affiliation.isFavorite
+                                ? 'bg-yellow-100 text-yellow-700 border border-yellow-200'
+                                : 'bg-gray-200 text-gray-700 hover:bg-gray-300 border border-gray-300'
+                        }`}
+                    >
+                        {affiliation.isFavorite ? '★ Favorited' : '☆ Follow'}
+                    </button>
+                </div>
+            </div>
+            <div className="flex flex-wrap gap-1 mb-2">
+                {affiliation.tags.map((tag: string, idx: number) => (
+                    <span key={idx} className="px-2 py-0.5 bg-gray-100 text-gray-700 text-xs rounded-full">{tag}</span>
+                ))}
+            </div>
+            <div className="flex items-center gap-4 text-xs text-gray-600 mb-2">
+                <div>
+                    <span className="font-semibold text-gray-900">{affiliation.memberCount}</span>
+                    <span className="ml-1">members</span>
+                </div>
+                <div>
+                    <span className="font-semibold text-gray-900">{affiliation.papers}</span>
+                    <span className="ml-1">papers</span>
+                </div>
+                <div>
+                    <span className="font-semibold text-gray-900">{affiliation.citations.toLocaleString()}</span>
+                    <span className="ml-1">citations</span>
+                </div>
+            </div>
+            <div className="border-t border-gray-200 pt-2 mt-2 flex items-center justify-between">
+                <span className="text-xs text-gray-500">Active {affiliation.lastActive}</span>
+                <div className="flex gap-2 items-center">
+                    <a href={affiliation.website} target="_blank" rel="noopener noreferrer" className="text-xs text-primary-500 hover:text-primary-600 underline">Website</a>
+                    {isAdmin && (
+                        <>
+                            <button className="px-2 py-0.5 rounded bg-gray-100 text-gray-700 text-xs border border-gray-200 hover:bg-gray-200">Merge</button>
+                            <button className="px-2 py-0.5 rounded bg-gray-100 text-gray-700 text-xs border border-gray-200 hover:bg-gray-200">Mark Duplicate</button>
+                        </>
+                    )}
+                </div>
+            </div>
+        </div>
+    )
+
     // Render different views based on activeNav
     const renderContent = () => {
         switch (activeNav) {
@@ -651,6 +789,23 @@ The first term is the reconstruction loss, and the second is the KL divergence t
                                     <p className="text-gray-500">No scholars found matching your search.</p>
                                 </div>
                             )}
+                        </div>
+                    </div>
+                )
+
+            case 'affiliations':
+                return (
+                    <div className="p-6">
+                        <div className="max-w-4xl mx-auto">
+                            <div className="mb-6">
+                                <h1 className="text-2xl font-bold text-gray-900 mb-2">Affiliations</h1>
+                                <p className="text-gray-600">Browse research organizations and labs</p>
+                            </div>
+                            <div className="grid gap-x-6 gap-y-6 px-4 justify-items-center" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(20rem, 1fr))' }}>
+                                {mockAffiliations.map(aff => (
+                                    <AffiliationsCard key={aff.id} affiliation={aff} isAdmin={aff.isAdmin} />
+                                ))}
+                            </div>
                         </div>
                     </div>
                 )
