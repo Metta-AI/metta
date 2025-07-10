@@ -83,6 +83,12 @@ def test_truncation_at_max_steps():
             assert not np.any(terminals), f"Terminals should remain False at max_steps (step {step_num})"
 
 
+def test_action_config_disabled():
+    """Test that disabled actions are not available."""
+    c_env = create_minimal_mettagrid_c_env()
+    assert "attack" not in c_env.action_names()
+
+
 class TestObservations:
     """Test observation functionality and formats."""
 
