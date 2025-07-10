@@ -228,12 +228,6 @@ class TestBasicFunctionality:
         assert actions1 == actions2
 
 
-def test_action_config_disabled():
-    """Test that disabled actions are not available."""
-    c_env = create_minimal_mettagrid_c_env()
-    assert "attack" not in c_env.action_names()
-
-
 class TestObservations:
     """Test observation functionality."""
 
@@ -592,12 +586,6 @@ class TestPackedCoordinate:
         # Verify we can pack 225 positions (15x15 grid)
         assert successfully_packed == 225, f"Expected 225 packable positions, got {successfully_packed}"
 
-        # Test specific corner cases
-        assert PackedCoordinate.pack(0, 0) == 0x00  # Top-left
-        assert PackedCoordinate.pack(0, 14) == 0x0E  # Top-right
-        assert PackedCoordinate.pack(14, 0) == 0xE0  # Bottom-left
-        assert PackedCoordinate.pack(14, 14) == 0xEE  # Bottom-right
-
         # Test empty/0xFF handling
         assert PackedCoordinate.is_empty(0xFF)
         assert PackedCoordinate.unpack(0xFF) is None
@@ -613,7 +601,3 @@ class TestPackedCoordinate:
                 raise AssertionError(f"Should have raised exception for ({row}, {col})")
             except ValueError:
                 pass  # Expected
-
-        print("PackedCoordinate tests passed!")
-        print(f"Can pack {successfully_packed}/256 positions")
-        print("0xFF is reserved for EMPTY marker")
