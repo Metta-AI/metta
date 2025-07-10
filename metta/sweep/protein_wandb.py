@@ -43,7 +43,10 @@ class WandbProtein:
         # Get sweep ID - handle both sweep_id attribute and sweep.id fallback
         self._sweep_id = getattr(self._wandb_run, "sweep_id", None)
         if self._sweep_id is None and hasattr(self._wandb_run, "sweep") and self._wandb_run.sweep:
+            logger.debug("WANDB_PROTEIN: went into condition 1")
             self._sweep_id = self._wandb_run.sweep.id
+        else:
+            logger.debug("WANDB_PROTEIN: went into condition 2")
         logger.info(f"Sweep ID: {self._sweep_id}")
         self._api = wandb.Api()
 
@@ -65,10 +68,7 @@ class WandbProtein:
 
         self._max_runs_to_load = max_runs_to_load
 
-        try:
-            self._load_runs()
-        except Exception as e:
-            logger.error(f"Error loading previous runs: {e}")
+        self._load_runs()
 
         # Generate protein suggestion - let exceptions propagate
         self._generate_protein_suggestion()
@@ -134,55 +134,34 @@ class WandbProtein:
     def _transform_suggestion(self, suggestion) -> dict[str, Any]:
         """Transform suggestion format. Override in subclasses if needed."""
         # Clean numpy types and any other non-serializable objects
-        try:
-            # First try with just numpy cleaning
-            cleaned = clean_numpy_types(suggestion)
+        cleaned = clean_numpy_types(suggestion)
 
-            # Test if it's JSON serializable
-            json.dumps(cleaned)
-            return cleaned
-
-        except (TypeError, ValueError):
-            # If that fails, do a deep conversion to basic Python types
-            return cast(dict[str, Any], self._deep_clean(suggestion))
+        # Test if it's JSON serializable
+        json.dumps(cleaned)
+        return cleaned
 
     def _deep_clean(self, obj):
         """Recursively convert any object to JSON-serializable Python types."""
-
         if isinstance(obj, dict):
             # Already a regular dict, just recursively clean values
             return {k: self._deep_clean(v) for k, v in obj.items()}
         elif hasattr(obj, "items"):
             # Handle dict-like objects (including WandB SummarySubDict)
-            try:
-                # Convert to regular dict first, then recursively clean
-                return {k: self._deep_clean(v) for k, v in dict(obj).items()}
-            except Exception:
-                # If conversion fails, try JSON serialization as fallback
-                try:
-                    return json.loads(json.dumps(obj, default=str))
-                except Exception:
-                    return str(obj)
+            # Convert to regular dict first, then recursively clean
+            return {k: self._deep_clean(v) for k, v in dict(obj).items()}
         elif isinstance(obj, (list, tuple)):
             return [self._deep_clean(v) for v in obj]
         else:
             # For any other type, use clean_numpy_types first
             cleaned = clean_numpy_types(obj)
             # Then verify it's serializable
-            try:
-                json.dumps(cleaned)
-                return cleaned
-            except (TypeError, ValueError):
-                return str(cleaned)
+            json.dumps(cleaned)
+            return cleaned
 
     def _load_runs(self):
-        try:
-            runs = self._get_runs_from_wandb()
-            for run in runs:
-                self._update_protein_from_run(run)
-
-        except Exception as e:
-            logger.warning(f"Could not load previous runs: {e}")
+        runs = self._get_runs_from_wandb()
+        for run in runs:
+            self._update_protein_from_run(run)
 
     @retry_on_exception(max_retries=3, retry_delay=2)
     def _get_runs_from_wandb(self) -> list:
@@ -249,13 +228,10 @@ class WandbProtein:
             return False
 
         if run.summary.get("protein.state") == "running":
-            # Handle both formats: with and without microseconds
+            # Parse heartbeat timestamp - WandB uses ISO format with microseconds
             heartbeat_str = run._attrs["heartbeatAt"]
-            try:
-                last_hb = datetime.strptime(heartbeat_str, "%Y-%m-%dT%H:%M:%S.%fZ").replace(tzinfo=timezone.utc)
-            except ValueError:
-                # Try without microseconds
-                last_hb = datetime.strptime(heartbeat_str, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+            # Parse with microseconds format (most common)
+            last_hb = datetime.strptime(heartbeat_str, "%Y-%m-%dT%H:%M:%S.%fZ").replace(tzinfo=timezone.utc)
 
             if (datetime.now(timezone.utc) - last_hb).total_seconds() > 5 * 60:
                 self._defunct += 1
@@ -310,20 +286,15 @@ class WandbProtein:
         # CRITICAL FIX: Flatten the nested suggestion dict before passing to Protein
         # The suggestion from WandB is in nested format: {"trainer": {"optimizer": {"learning_rate": 0.0005}}}
         # But protein.observe() expects flattened format: {"trainer/optimizer/learning_rate": 0.0005}
-        try:
-            # Convert to dict if it's not already
-            suggestion_dict = dict(suggestion)
 
-            # Flatten the suggestion
-            flattened_suggestion = dict(pufferlib.unroll_nested_dict(suggestion_dict))
+        # Convert to dict if it's not already
+        suggestion_dict = dict(suggestion)
 
-            # Pass flattened suggestion to Protein
-            self._protein.observe(flattened_suggestion, objective, cost, is_failure)
+        # Flatten the suggestion
+        flattened_suggestion = dict(pufferlib.unroll_nested_dict(suggestion_dict))
 
-        except Exception as e:
-            logger.warning(f"Failed to record observation from run {run.name}: {type(e).__name__}: {e}")
-            self._invalid += 1
-            return
+        # Pass flattened suggestion to Protein
+        self._protein.observe(flattened_suggestion, objective, cost, is_failure)
 
         # Clean the info to remove any WandB objects before storing
         cleaned_info = self._deep_clean(info)
@@ -333,61 +304,21 @@ class WandbProtein:
         """
         Extract parameters from a run config - just retrieve what we stored.
         """
-        # Try to get the flattened suggestion items first (newest format)
+        # Get the flattened suggestion items (newest format)
         suggestion_items = run.summary.get("protein.suggestion_flattened_items")
 
-        # Reconstruct the flattened dict from the list of tuples if present
-        suggestion: dict[str, Any] = {}
-        if suggestion_items:
-            try:
-                suggestion = dict(suggestion_items)
-            except Exception:
-                suggestion = {}
+        # Reconstruct the flattened dict from the list of tuples
+        suggestion: dict[str, Any] = dict(suggestion_items) if suggestion_items else {}
 
-        # Fallback: use nested suggestion stored directly in summary
+        # If no flattened items, use nested suggestion stored directly in summary
         if not suggestion:
             summary_suggestion = run.summary.get("protein.suggestion", {})
             if summary_suggestion:
-                try:
-                    suggestion = dict(summary_suggestion)
-                except Exception:
-                    # If summary_suggestion is already a dict-like object, just assign
-                    suggestion = summary_suggestion  # type: ignore[assignment]
-
-        # Handle case where WandB stored the suggestion as a string
-        if isinstance(suggestion, str):
-            try:
-                # Try to parse the string back to a dictionary
-                import ast
-
-                suggestion = ast.literal_eval(suggestion)
-            except (ValueError, SyntaxError) as e:
-                logger.warning(f"Could not parse suggestion string from run {run.name}: {e}")
-                suggestion = {}
-
-        # Fallback: try to extract from run config if summary doesn't have suggestion
-        if not suggestion:
-            logger.warning(f"No protein.suggestion found in summary for run {run.name}, trying config fallback")
-            # Try to extract from the actual WandB config as fallback
-            try:
-                config_dict = dict(run.config)
-                # Filter out WandB internal keys and get actual parameters
-                suggestion = {k: v for k, v in config_dict.items() if not k.startswith("_") and k != "dummy_param"}
-            except Exception as e:
-                logger.warning(f"Could not extract suggestion from config for run {run.name}: {e}")
-                suggestion = {}
+                # Convert to dict - this should already be a dict
+                suggestion = dict(summary_suggestion)
 
         # Get the stored prediction info
         info = run.summary.get("protein.suggestion_info", {})
-
-        # Handle case where info might also be stored as a string
-        if isinstance(info, str):
-            try:
-                import ast
-
-                info = ast.literal_eval(info)
-            except (ValueError, SyntaxError):
-                info = {}
 
         # Ensure suggestion_uuid is set in info
         if "suggestion_uuid" not in info:
@@ -413,7 +344,6 @@ class WandbProtein:
         self._suggestion_info = cast(dict[str, Any], cleaned_info)
 
         # Save both nested and flattened versions to wandb summary
-        # This ensures backward compatibility while fixing the loading issue
         # CRITICAL: WandB auto-nests keys with slashes, so we need to save the flattened
         # version as a list of (key, value) tuples to preserve the exact format
         flattened_items = list(self._suggestion.items()) if isinstance(self._suggestion, dict) else []

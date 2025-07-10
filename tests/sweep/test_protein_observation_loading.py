@@ -469,54 +469,6 @@ class TestProteinObservationLoading:
         assert calls[2][0][3] is True
 
     @patch("wandb.Api")
-    def test_observation_loading_handles_errors(self, mock_api, mock_protein, mock_wandb_run):
-        """Test that observation loading handles errors gracefully."""
-        # Create a run that will cause an error during flattening
-        problematic_run = Mock()
-        problematic_run.id = "problematic"
-        problematic_run.name = "problematic"
-        problematic_run.summary = {
-            "protein.state": "success",
-            "protein.objective": 0.90,
-            "protein.cost": 110.0,
-            "protein.suggestion": "not_a_dict",  # This will cause issues
-        }
-
-        # Also add a good run
-        good_run = Mock()
-        good_run.id = "good"
-        good_run.name = "good"
-        good_run.summary = {
-            "protein.state": "success",
-            "protein.objective": 0.85,
-            "protein.cost": 100.0,
-            "protein.suggestion": {"trainer": {"learning_rate": 0.002}},
-        }
-
-        # Mock API
-        mock_api.return_value.runs.return_value = [problematic_run, good_run]
-
-        # Set up protein
-        mock_protein.suggest.return_value = ({"lr": 0.005}, {})
-
-        # Create WandbProtein - should handle the error gracefully
-        WandbProtein(mock_protein, mock_wandb_run)
-
-        # The good observation should still be recorded
-        assert mock_protein.observe.call_count >= 1
-
-        # Check that at least the good observation was recorded
-        found_good_observation = False
-        for call in mock_protein.observe.call_args_list:
-            if call[0][0] == {"trainer/learning_rate": 0.002}:
-                found_good_observation = True
-                assert call[0][1] == 0.85
-                assert call[0][2] == 100.0
-                assert call[0][3] is False
-
-        assert found_good_observation, "Good observation should have been recorded"
-
-    @patch("wandb.Api")
     def test_deeply_nested_suggestions_flattened(self, mock_api, mock_protein, mock_wandb_run):
         """Test that deeply nested parameter structures are properly flattened."""
         # Create a run with deeply nested parameters
