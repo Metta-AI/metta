@@ -14,11 +14,13 @@
 // * The recipe of the Entity.
 // * The memory menu button.
 
-import { find, findIn, onEvent, removeChildren, findAttr } from './htmlutils.js'
-import { state, ui } from './common.js'
-import { getAttr, getObjectConfig } from './replay.js'
-import * as Common from './common.js'
 import { Vec2f } from './vector_math.js'
+import * as Common from './common.js'
+import { ctx, ui, state, html, showToast } from './common.js'
+import { findIn, removeChildren, parseHtmlColor, localStorageSetNumber, localStorageGetNumber } from './htmlutils.js'
+import { find, onEvent } from './htmlutils.js'
+import { Entity, getAttr, propertyName, propertyIcon } from './replay.js'
+import { updateStep } from './main.js'
 
 /** An info panel. */
 export class HoverPanel {
@@ -90,32 +92,37 @@ hoverPanel.addEventListener('mousedown', (e: MouseEvent) => {
 })
 
 /** Updates the hover panel's visibility, position, and DOM tree. */
-export function updateHoverPanel(Entity: any) {
-  if (Entity !== null && Entity !== undefined) {
-    let typeName = state.replay.type_names[getAttr(Entity, 'type')]
-    if (typeName == 'wall') {
-      // Don't show hover panel for walls.
-      hoverPanel.classList.add('hidden')
-      return
-    }
+export function updateHoverPanel(Entity: Entity | null) {
+  if (!state.replay) return
 
-    updateDom(hoverPanel, Entity)
-    hoverPanel.classList.remove('hidden')
-
-    let panelRect = hoverPanel.getBoundingClientRect()
-
-    let x = getAttr(Entity, 'c') * Common.TILE_SIZE
-    let y = getAttr(Entity, 'r') * Common.TILE_SIZE
-
-    let uiPoint = ui.mapPanel.transformInner(new Vec2f(x, y - Common.TILE_SIZE / 2))
-
-    // Put it in the center above the Entity.
-    hoverPanel.style.left = uiPoint.x() - panelRect.width / 2 + 'px'
-    hoverPanel.style.top = uiPoint.y() - panelRect.height + 'px'
-  } else {
+  if (Entity === null) {
     hoverPanel.classList.add('hidden')
+    return
   }
-  findIn(hoverPanel, '.close').classList.add('hidden')
+
+  const typeId = getAttr(Entity.typeId)
+  let typeName = state.replay.typeNames[typeId as number]
+  if (typeName == 'wall') {
+    // Don't show hover panel for walls.
+    hoverPanel.classList.add('hidden')
+    return
+  }
+
+  updateDom(hoverPanel, Entity)
+  hoverPanel.classList.remove('hidden')
+
+  let panelRect = hoverPanel.getBoundingClientRect()
+
+  let position = getAttr(Entity.position)
+  if (!position) return
+  let x = position[0] * Common.TILE_SIZE
+  let y = position[1] * Common.TILE_SIZE
+
+  let uiPoint = ui.mapPanel.transformInner(new Vec2f(x, y - Common.TILE_SIZE / 2))
+
+  // Put it in the center above the Entity.
+  hoverPanel.style.left = uiPoint.x() - panelRect.width / 2 + 'px'
+  hoverPanel.style.top = uiPoint.y() - panelRect.height + 'px'
 }
 
 /** Hides the hover panel. */
@@ -127,46 +134,52 @@ export function hideHoverPanel() {
 /** Updates the DOM tree of the info panel. */
 function updateDom(htmlPanel: HTMLElement, Entity: any) {
   // Update the readout.
-  htmlPanel.setAttribute('data-Entity-id', getAttr(Entity, 'id'))
-  htmlPanel.setAttribute('data-agent-id', getAttr(Entity, 'agent_id'))
+  htmlPanel.setAttribute('data-Entity-id', (getAttr(Entity.id) || 0).toString())
+  const agentId = getAttr(Entity.agentId)
+  htmlPanel.setAttribute('data-agent-id', (agentId || -1).toString())
 
   let params = findIn(htmlPanel, '.params')
   removeChildren(params)
   let inventory = findIn(htmlPanel, '.inventory')
   removeChildren(inventory)
-  for (const key in Entity) {
-    let value = getAttr(Entity, key)
-    if ((key.startsWith('inv:') || key.startsWith('agent:inv:')) && value > 0) {
-      let item = itemTemplate.cloneNode(true) as HTMLElement
-      item.querySelector('.amount')!.textContent = value
-      let resource = key.replace('inv:', '').replace('agent:', '')
-      item.querySelector('.icon')!.setAttribute('src', 'data/atlas/resources/' + resource + '.png')
-      inventory.appendChild(item)
-    } else {
-      if (key == 'type') {
-        value = state.replay.type_names[value]
-      } else if (key == 'agent:color' && value >= 0 && value < Common.COLORS.length) {
-        value = Common.COLORS[value][0]
-      } else if (['group', 'total_reward', 'agent_id'].includes(key)) {
-        // If the value is a float and not an integer, round it to three decimal places.
-        if (typeof value === 'number' && !Number.isInteger(value)) {
-          value = value.toFixed(3)
+  for (let key in Entity) {
+    let value = getAttr((Entity as any)[key])
+    if (key.startsWith('inventory') && value && (value as any[]).length > 0) {
+      const inventory = value as number[]
+      for (let i = 0; i < inventory.length; i++) {
+        if (inventory[i] > 0 && state.replay && i < state.replay.itemNames.length) {
+          let item = itemTemplate.cloneNode(true) as HTMLElement
+          item.querySelector('.icon')!.setAttribute('src', 'data/resources/' + state.replay.itemNames[i] + '.png')
+          item.querySelector('.amount')!.textContent = inventory[i].toString()
+          htmlPanel.querySelector('.items')!.appendChild(item)
         }
-      } else {
-        continue
       }
-      let param = paramTemplate.cloneNode(true) as HTMLElement
-      param.querySelector('.name')!.textContent = key
-      param.querySelector('.value')!.textContent = value
-      params.appendChild(param)
+    } else if (key === 'typeId' && value != null && state.replay) {
+      value = state.replay.typeNames[value as number]
+    } else if (key === 'agentId' && value != null && (value as number) >= 0 && (value as number) < Common.COLORS.length) {
+      const colorName = Common.COLORS[value as number][0]
+      value = colorName
+    } else if (['group', 'total_reward', 'agent_id'].includes(key)) {
+      // If the value is a float and not an integer, round it to three decimal places.
+      if (typeof value === 'number' && !Number.isInteger(value)) {
+        value = value.toFixed(3)
+      }
+    } else {
+      continue
     }
+    let param = paramTemplate.cloneNode(true) as HTMLElement
+    param.querySelector('.name')!.textContent = key
+    param.querySelector('.value')!.textContent = value != null ? value.toString() : ''
+    params.appendChild(param)
   }
 
+  // FIX ME: Recipe functionality not implemented
   // Populate the recipe area if the Entity config has input_ or output_ resources.
+  /*
   let recipe = findIn(htmlPanel, '.recipe')
   removeChildren(recipe)
   let recipeArea = findIn(htmlPanel, '.recipe-area')
-  let objectConfig = getObjectConfig(Entity)
+  let objectConfig = getAttr(Entity.objectConfig)
   let displayedResources = 0
   if (objectConfig != null) {
     recipeArea.classList.remove('hidden')
@@ -228,20 +241,23 @@ function updateDom(htmlPanel: HTMLElement, Entity: any) {
   } else {
     recipeArea.classList.add('hidden')
   }
+  */
 }
 
 /** Updates the readout of the selected Entity or replay info. */
 export function updateReadout() {
+  if (!state.replay) return
+
   let readout = ''
   readout += 'Step: ' + state.step + '\n'
-  readout += 'Map size: ' + state.replay.map_size[0] + 'x' + state.replay.map_size[1] + '\n'
-  readout += 'Num agents: ' + state.replay.num_agents + '\n'
-  readout += 'Max steps: ' + state.replay.max_steps + '\n'
+  readout += 'Map size: ' + state.replay.mapSize[0] + 'x' + state.replay.mapSize[1] + '\n'
+  readout += 'Num agents: ' + state.replay.numAgents + '\n'
+  readout += 'Max steps: ' + state.replay.maxSteps + '\n'
 
   let objectTypeCounts = new Map<string, number>()
   for (const obj of state.replay.objects) {
-    const type = getAttr(obj, 'type')
-    const typeName = state.replay.type_names[type]
+    const type = getAttr(obj.typeId)
+    const typeName = state.replay.typeNames[type]
     objectTypeCounts.set(typeName, (objectTypeCounts.get(typeName) || 0) + 1)
   }
   for (const [key, value] of objectTypeCounts.entries()) {

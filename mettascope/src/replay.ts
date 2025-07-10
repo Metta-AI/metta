@@ -5,40 +5,97 @@ import { onResize, updateStep, requestFrame } from './main.js'
 import { updateAgentTable } from './agentpanel.js'
 
 
-type Sequence<T> = [number, T][] | [number, T] | null
+// type Sequence<T> = [number, T][] | [number, T] | null
+
+export class Sequence<T> {
+  private value: T | null = null
+  private sequence: T[] | null = null
+  constructor(defaultValue: T) {
+    this.value = defaultValue
+  }
+
+  expand(data: any, numSteps: number) {
+    if (data == null || data == undefined) {
+      // Use the default value.
+      return
+    } else if (data instanceof Array) {
+      // For coordinates, we need to expand the sequence.
+      if (Array.isArray(this.value) && data.length > 0 && !Array.isArray(data[1])) {
+        // Its just a single array like value.
+        this.value = data as T
+      } else {
+        // Expand the sequence.
+        // A sequence of pairs is expanded to a sequence of values.
+        var expanded: any[] = []
+        var i = 0
+        var j = 0
+        var v: any = null
+        for (i = 0; i < numSteps; i++) {
+          if (j < data.length && data[j][0] == i) {
+            v = data[j][1]
+            j++
+          }
+          expanded.push(v)
+        }
+        this.sequence = expanded
+      }
+    } else {
+      // A single value is a valid sequence.
+      this.value = data as T
+    }
+  }
+
+  get(atStep: number = -1): T {
+    if (atStep == -1) {
+      atStep = state.step
+    }
+    if (this.sequence == null) {
+      return this.value as T
+    }
+    return this.sequence[atStep] as T
+  }
+
+  isSequence(): boolean {
+    return this.sequence != null
+  }
+
+  isValue(): boolean {
+    return this.sequence == null
+  }
+}
 
 // Entity and replay conform version 2 of the replay_spec.md.
 export class Entity {
   // Common keys.
-  id: Sequence<number> = null
-  typeId: Sequence<number> = null
-  groupId: Sequence<number> = null
-  agentId: Sequence<number> = null
-  position: Sequence<[number, number]> = null
-  rotation: Sequence<number> = null
-  layer: Sequence<number> = null
-  inventory: Sequence<number[]> = null
-  inventoryMax: Sequence<number> = null
-  color: Sequence<number> = null
+  id: Sequence<number> = new Sequence(0)
+  typeId: Sequence<number> = new Sequence(0)
+  groupId: Sequence<number> = new Sequence(0)
+  agentId: Sequence<number> = new Sequence(0)
+  position: Sequence<[number, number]> = new Sequence([0, 0])
+  rotation: Sequence<number> = new Sequence(0)
+  layer: Sequence<number> = new Sequence(0)
+  inventory: Sequence<number[]> = new Sequence([])
+  inventoryMax: Sequence<number> = new Sequence(0)
+  color: Sequence<number> = new Sequence(0)
 
   // Agent specific keys.
-  actionId: Sequence<number> = null
-  actionParameter: Sequence<number> = null
-  actionSuccess: Sequence<boolean> = null
-  currentReward: Sequence<number> = null
-  totalReward: Sequence<number> = null
-  frozen: Sequence<boolean> = null
-  frozenProgress: Sequence<number> = null
-  frozenTime: Sequence<number> = null
+  actionId: Sequence<number> = new Sequence(0)
+  actionParameter: Sequence<number> = new Sequence(0)
+  actionSuccess: Sequence<boolean> = new Sequence(false)
+  currentReward: Sequence<number> = new Sequence(0)
+  totalReward: Sequence<number> = new Sequence(0)
+  frozen: Sequence<boolean> = new Sequence(false)
+  frozenProgress: Sequence<number> = new Sequence(0)
+  frozenTime: Sequence<number> = new Sequence(0)
 
   // Building specific keys.
-  recipeInput: Sequence<number> = null
-  recipeOutput: Sequence<number> = null
-  recipeMax: Sequence<number> = null
-  productionProgress: Sequence<number> = null
-  productionTime: Sequence<number> = null
-  cooldownProgress: Sequence<number> = null
-  cooldownTime: Sequence<number> = null
+  recipeInput: Sequence<number> = new Sequence(0)
+  recipeOutput: Sequence<number> = new Sequence(0)
+  recipeMax: Sequence<number> = new Sequence(0)
+  productionProgress: Sequence<number> = new Sequence(0)
+  productionTime: Sequence<number> = new Sequence(0)
+  cooldownProgress: Sequence<number> = new Sequence(0)
+  cooldownTime: Sequence<number> = new Sequence(0)
 
 }
 
@@ -57,25 +114,27 @@ export class Replay {
 }
 
 // Replay helper has lookups that speed up rendering.
-class ReplayHelper {
+export class ReplayHelper {
   actionImages: string[] = []
   typeImages: string[] = []
   itemImages: string[] = []
+  agents: (Entity | null)[] = []
 }
 
 
 /** Gets an attribute from a grid Entity, respecting the current step. */
-export function getAttr<T>(sequence: Sequence<T>, atStep = -1): T {
-  if (atStep == -1) {
-    // When the step is not passed in, use the global step.
-    atStep = state.step
-  }
-  if (sequence instanceof Array) {
-    return sequence[atStep] as T
-  } else {
-    return sequence as T
-  }
-}
+// export function getAttr<T>(sequence: Sequence<T>, atStep = -1): T {
+//   if (atStep == -1) {
+//     // When the step is not passed in, use the global step.
+//     atStep = state.step
+//   }
+//   if (sequence instanceof Array) {
+//     return sequence[atStep] as T
+//   } else {
+//     return sequence as T
+//   }
+// }
+
 
 /** Decompresses a stream. Used for compressed JSON from fetch or drag-and-drop. */
 async function decompressStream(stream: ReadableStream<Uint8Array>): Promise<string> {
@@ -156,25 +215,34 @@ export async function readFile(file: File) {
   }
 }
 
-/**
- * Expands a sequence of values.
- * Example: [[0, value1], [2, value2], ...] -> [value1, value1, value2, ...]
- */
-// [[0, value1], [2, value2], ...] -> [value1, value1, value2, ...]
-function expandSequence(sequence: any[], numSteps: number): any[] {
-  var expanded: any[] = []
-  var i = 0
-  var j = 0
-  var v: any = null
-  for (i = 0; i < numSteps; i++) {
-    if (j < sequence.length && sequence[j][0] == i) {
-      v = sequence[j][1]
-      j++
-    }
-    expanded.push(v)
-  }
-  return expanded
-}
+// /**
+//  * Expands a sequence of values.
+//  * Example: [[0, value1], [2, value2], ...] -> [value1, value1, value2, ...]
+//  */
+// // [[0, value1], [2, value2], ...] -> [value1, value1, value2, ...]
+// function expandSequence(sequence: any, numSteps: number): any {
+//   if (sequence == null) {
+//     // Null is a valid sequence.
+//     return null
+//   } else if (sequence instanceof Array) {
+//     // A sequence of pairs is expanded to a sequence of values.
+//     var expanded: any[] = []
+//     var i = 0
+//     var j = 0
+//     var v: any = null
+//     for (i = 0; i < numSteps; i++) {
+//       if (j < sequence.length && sequence[j][0] == i) {
+//         v = sequence[j][1]
+//         j++
+//       }
+//       expanded.push(v)
+//     }
+//     return expanded
+//   } else {
+//     // A single value is a valid sequence.
+//     return sequence
+//   }
+// }
 
 // Removes a prefix from a string.
 function removePrefix(str: string, prefix: string) {
@@ -196,6 +264,8 @@ async function loadReplayText(url: string, replayData: string) {
 // adding missing keys, recomputing invalid values, etc.
 // It also creates some internal data structures for faster access to images.
 function fixReplay() {
+  if (!state.replay || !state.replayHelper) return
+
   // Create type image mappings for faster access.
   state.replayHelper.typeImages = []
   for (const typeName of state.replay.typeNames) {
@@ -257,30 +327,30 @@ async function loadReplayJson(url: string, replayData: any) {
   for (const objData of replayData.objects) {
     let obj = new Entity()
     let maxSteps = replayData.max_steps
-    obj.id = expandSequence(objData['id'], maxSteps)
-    obj.typeId = expandSequence(objData['type_id'], maxSteps)
-    obj.groupId = expandSequence(objData['group_id'], maxSteps)
-    obj.agentId = expandSequence(objData['agent_id'], maxSteps)
-    obj.position = expandSequence(objData['position'], maxSteps)
-    obj.rotation = expandSequence(objData['rotation'], maxSteps)
-    obj.layer = expandSequence(objData['layer'], maxSteps)
-    obj.inventory = expandSequence(objData['inventory'], maxSteps)
-    obj.inventoryMax = expandSequence(objData['inventory_max'], maxSteps)
-    obj.actionId = expandSequence(objData['action_id'], maxSteps)
-    obj.actionParameter = expandSequence(objData['action_parameter'], maxSteps)
-    obj.actionSuccess = expandSequence(objData['action_success'], maxSteps)
-    obj.currentReward = expandSequence(objData['current_reward'], maxSteps)
-    obj.totalReward = expandSequence(objData['total_reward'], maxSteps)
-    obj.frozen = expandSequence(objData['frozen'], maxSteps)
-    obj.frozenProgress = expandSequence(objData['frozen_progress'], maxSteps)
-    obj.frozenTime = expandSequence(objData['frozen_time'], maxSteps)
-    obj.recipeInput = expandSequence(objData['recipe_input'], maxSteps)
-    obj.recipeOutput = expandSequence(objData['recipe_output'], maxSteps)
-    obj.recipeMax = expandSequence(objData['recipe_max'], maxSteps)
-    obj.productionProgress = expandSequence(objData['production_progress'], maxSteps)
-    obj.productionTime = expandSequence(objData['production_time'], maxSteps)
-    obj.cooldownProgress = expandSequence(objData['cooldown_progress'], maxSteps)
-    obj.cooldownTime = expandSequence(objData['cooldown_time'], maxSteps)
+    obj.id.expand(objData['id'], maxSteps)
+    obj.typeId.expand(objData['type_id'], maxSteps)
+    obj.groupId.expand(objData['group_id'], maxSteps)
+    obj.agentId.expand(objData['agent_id'], maxSteps)
+    obj.position.expand(objData['position'], maxSteps)
+    obj.rotation.expand(objData['rotation'], maxSteps)
+    obj.layer.expand(objData['layer'], maxSteps)
+    obj.inventory.expand(objData['inventory'], maxSteps)
+    obj.inventoryMax.expand(objData['inventory_max'], maxSteps)
+    obj.actionId.expand(objData['action_id'], maxSteps)
+    obj.actionParameter.expand(objData['action_parameter'], maxSteps)
+    obj.actionSuccess.expand(objData['action_success'], maxSteps)
+    obj.currentReward.expand(objData['current_reward'], maxSteps)
+    obj.totalReward.expand(objData['total_reward'], maxSteps)
+    obj.frozen.expand(objData['frozen'], maxSteps)
+    obj.frozenProgress.expand(objData['frozen_progress'], maxSteps)
+    obj.frozenTime.expand(objData['frozen_time'], maxSteps)
+    obj.recipeInput.expand(objData['recipe_input'], maxSteps)
+    obj.recipeOutput.expand(objData['recipe_output'], maxSteps)
+    obj.recipeMax.expand(objData['recipe_max'], maxSteps)
+    obj.productionProgress.expand(objData['production_progress'], maxSteps)
+    obj.productionTime.expand(objData['production_time'], maxSteps)
+    obj.cooldownProgress.expand(objData['cooldown_progress'], maxSteps)
+    obj.cooldownTime.expand(objData['cooldown_time'], maxSteps)
     state.replay.objects.push(obj)
   }
 
@@ -312,6 +382,8 @@ async function loadReplayJson(url: string, replayData: any) {
 
 /** Loads a single step of a replay. */
 export function loadReplayStep(replayStep: any) {
+  if (!state.replay) return
+
   // This gets us a simple replay step that we can overwrite.
 
   // Update the grid objects.
@@ -393,8 +465,8 @@ export function initWebSocket(wsUrl: string) {
 
 /** Sends an action to the server. */
 export function sendAction(actionName: string, actionParam: number) {
-  if (state.ws === null) {
-    console.error('WebSocket is not connected')
+  if (state.ws === null || !state.replay || !state.selectedGridObject) {
+    console.error('WebSocket is not connected or no replay/selected object')
     return
   }
   const agentId = getAttr(state.selectedGridObject.agentId)
@@ -434,6 +506,8 @@ export function propertyName(key: string) {
 
 /** Gets the icon of a resource, type or any other property. */
 export function propertyIcon(key: string) {
+  if (!state.replay || !state.replayHelper) return ''
+
   // FIX ME: The inv: and agent: prefixes don't exist anymore.
   if (state.replay.typeNames.includes(key)) {
     let idx = state.replay.typeNames.indexOf(key)

@@ -22,22 +22,22 @@ export function initTimeline() {
   html.stepCounter.parentElement!.style.left = '-1000px'
 }
 
-function getStepFromX(x: number) {
-  let scrubberWidth = ui.timelinePanel.width - 32
-  let s = Math.floor(((x - 16) / scrubberWidth) * state.replay.max_steps)
-  return clamp(s, 0, state.replay.max_steps - 1)
+function stepFromX(x: number): number {
+  const scrubberWidth = ui.timelinePanel.width - 32
+  let s = Math.floor(((x - 16) / scrubberWidth) * (state.replay?.maxSteps ?? 1))
+  return clamp(s, 0, (state.replay?.maxSteps ?? 1) - 1)
 }
 
 /** Updates the scrubber. */
 export function onScrubberChange(event: MouseEvent) {
   let mouseX = event.clientX
-  let step = getStepFromX(mouseX)
+  let step = stepFromX(mouseX)
   updateStep(step)
 }
 
 export function onTraceMinimapChange(event: MouseEvent) {
   let mouseX = event.clientX
-  let step = getStepFromX(mouseX)
+  let step = stepFromX(mouseX)
   ui.tracePanel.panPos.setX(-step * Common.TRACE_WIDTH)
 }
 
@@ -64,7 +64,7 @@ export function updateTimeline() {
   }
 
   let scrubberWidth = ui.timelinePanel.width - 32
-  let fullSteps = state.replay.max_steps - 1
+  let fullSteps = state.replay.maxSteps - 1
   html.stepCounter.textContent = state.step.toString()
   html.stepCounter.parentElement!.style.left =
     (16 + (state.step / fullSteps) * scrubberWidth - 46 / 2).toString() + 'px'
@@ -77,7 +77,7 @@ export function drawTimeline(panel: PanelInfo) {
   }
 
   if (ui.mouseDoubleClick) {
-    let step = getStepFromX(ui.mousePos.x())
+    let step = stepFromX(ui.mousePos.x())
     ui.tracePanel.panPos.setX(-step * Common.TRACE_WIDTH)
     requestFrame()
   }
@@ -89,7 +89,7 @@ export function drawTimeline(panel: PanelInfo) {
   ctx.scale(ui.dpr, ui.dpr)
 
   let scrubberWidth = rect.width - 32
-  let fullSteps = state.replay.max_steps - 1
+  let fullSteps = state.replay.maxSteps - 1
 
   // Draw the background of the scrubber.
   ctx.drawSolidRect(
@@ -113,11 +113,12 @@ export function drawTimeline(panel: PanelInfo) {
   }
 
   // Draw key actions on the timeline.
-  for (let agent of state.replay.agents) {
+  for (let agent of state.replayHelper?.agents ?? []) {
+    if (!agent) continue
     let prevFrozen = 0
-    for (let j = 0; j < state.replay.max_steps; j++) {
-      // Draw the frozen state.
-      let frozen = getAttr(agent, 'agent:frozen', j)
+    for (let j = 0; j < state.replay.maxSteps; j++) {
+      // Build the segments for the frozen bars.
+      let frozen = getAttr(agent.frozen, j) ? 1 : 0
       if (frozen > 0 && prevFrozen == 0) {
         let x = (j / fullSteps) * scrubberWidth
         ctx.drawSprite('agents/frozen.png', x, 12, [1, 1, 1, 1], 0.1, 0)

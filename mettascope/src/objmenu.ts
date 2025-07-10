@@ -10,7 +10,7 @@
 import { find, findIn, onEvent, showMenu, findAttr } from './htmlutils.js'
 import { state, ui } from './common.js'
 
-var objectMenu = find('#Entity-menu')
+var objectMenu = find('#object-menu')
 
 export function initObjectMenu() {
   objectMenu.classList.add('hidden')
@@ -24,7 +24,7 @@ onEvent('click', '.hover-panel .memory', (target: HTMLElement, e: Event) => {
 })
 
 /** In the Entity menu, sets the memory to 0. */
-onEvent('click', '#Entity-menu .set-memory-to-0', (target: HTMLElement, e: Event) => {
+onEvent('click', '#object-menu .set-memory-to-0', (target: HTMLElement, e: Event) => {
   if (state.ws == null) return
   let agentId = parseInt(findAttr(target, 'data-agent-id'))
   state.ws.send(
@@ -37,7 +37,7 @@ onEvent('click', '#Entity-menu .set-memory-to-0', (target: HTMLElement, e: Event
 })
 
 /** In the Entity menu, sets the memory to 1. */
-onEvent('click', '#Entity-menu .set-memory-to-1', (target: HTMLElement, e: Event) => {
+onEvent('click', '#object-menu .set-memory-to-1', (target: HTMLElement, e: Event) => {
   if (state.ws == null) return
   let agentId = parseInt(findAttr(target, 'data-agent-id'))
   state.ws.send(
@@ -50,7 +50,7 @@ onEvent('click', '#Entity-menu .set-memory-to-1', (target: HTMLElement, e: Event
 })
 
 /** In the Entity menu, sets the memory to random. */
-onEvent('click', '#Entity-menu .set-memory-to-random', (target: HTMLElement, e: Event) => {
+onEvent('click', '#object-menu .set-memory-to-random', (target: HTMLElement, e: Event) => {
   if (state.ws == null) return
   let agentId = parseInt(findAttr(target, 'data-agent-id'))
   state.ws.send(
@@ -63,7 +63,7 @@ onEvent('click', '#Entity-menu .set-memory-to-random', (target: HTMLElement, e: 
 })
 
 /** In the Entity menu, copies the memory. */
-onEvent('click', '#Entity-menu .copy-memory', async (target: HTMLElement, e: Event) => {
+onEvent('click', '#object-menu .copy-memory', async (target: HTMLElement, e: Event) => {
   if (state.ws == null) return
   let agentId = parseInt(findAttr(target, 'data-agent-id'))
   // Request memory from the server.
@@ -76,7 +76,7 @@ onEvent('click', '#Entity-menu .copy-memory', async (target: HTMLElement, e: Eve
 })
 
 /** In the Entity menu, pastes the memory. */
-onEvent('click', '#Entity-menu .paste-memory', async (target: HTMLElement, e: Event) => {
+onEvent('click', '#object-menu .paste-memory', async (target: HTMLElement, e: Event) => {
   if (state.ws == null) return
   let agentId = parseInt(findAttr(target, 'data-agent-id'))
   try {

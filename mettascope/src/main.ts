@@ -3,8 +3,8 @@ import * as Common from './common.js'
 import { ui, state, html, ctx, setFollowSelection } from './common.js'
 import { fetchReplay, getAttr, initWebSocket, readFile, sendAction } from './replay.js'
 import { focusFullMap, drawMap } from './worldmap.js'
-import { drawTrace } from './traces.js'
 import { drawMiniMap } from './minimap.js'
+import { drawTraces } from './traces.js'
 import { processActions, initActionButtons } from './actions.js'
 import { initAgentTable, updateAgentTable } from './agentpanel.js'
 import { localStorageSetNumber, onEvent, initHighDpiMode, find, toggleOpacity } from './htmlutils.js'
@@ -61,8 +61,8 @@ export function onResize() {
 
     // Minimap goes in the bottom left corner of the mapPanel.
     if (state.replay != null) {
-      const miniMapWidth = state.replay.map_size[0] * 2
-      const miniMapHeight = state.replay.map_size[1] * 2
+      const miniMapWidth = state.replay.mapSize[0] * 2
+      const miniMapHeight = state.replay.mapSize[1] * 2
       ui.miniMapPanel.x = 0
       ui.miniMapPanel.y = ui.mapPanel.y + ui.mapPanel.height - miniMapHeight
       ui.miniMapPanel.width = miniMapWidth
@@ -292,7 +292,7 @@ function updateUrlParams() {
   // Handle the selected Entity.
   if (state.selectedGridObject !== null) {
     // Find the index of the selected Entity.
-    const selectedObjectIndex = state.replay.objects.indexOf(state.selectedGridObject)
+    const selectedObjectIndex = state.selectedGridObject && state.replay ? state.replay.objects.indexOf(state.selectedGridObject) : -1
     if (selectedObjectIndex !== -1) {
       urlParams.set('selectedObjectId', (selectedObjectIndex + 1).toString())
       // Remove map position parameters when an Entity is selected.
@@ -373,7 +373,7 @@ onEvent('keydown', 'body', (target: HTMLElement, e: Event) => {
   }
   if (event.key == ']') {
     setIsPlaying(false)
-    updateStep(Math.min(state.step + 1, state.replay.max_steps - 1))
+    updateStep(Math.min(state.step + 1, state.replay?.maxSteps ?? 1) - 1)
   }
   // '<' and '>' control the playback speed.
   if (event.key == ',') {
@@ -429,7 +429,7 @@ export function onFrame() {
   if (state.showTraces) {
     ui.tracePanel.div.classList.remove('hidden')
     ctx.useMesh('trace')
-    drawTrace(ui.tracePanel)
+    drawTraces(ui.tracePanel)
   } else {
     ui.tracePanel.div.classList.add('hidden')
   }
@@ -464,7 +464,7 @@ export function onFrame() {
   if (state.isPlaying) {
     state.partialStep += state.playbackSpeed
     if (state.partialStep >= 1) {
-      const nextStep = (state.step + Math.floor(state.partialStep)) % state.replay.max_steps
+      const nextStep = (state.step + Math.floor(state.partialStep)) % (state.replay?.maxSteps ?? 1)
       state.partialStep -= Math.floor(state.partialStep)
       if (state.ws !== null) {
         state.ws.send(JSON.stringify({ type: 'advance' }))
@@ -642,12 +642,12 @@ onEvent('click', '#step-forward', () => {
   if (state.ws !== null) {
     state.ws.send(JSON.stringify({ type: 'advance' }))
   } else {
-    updateStep(Math.min(state.step + 1, state.replay.max_steps - 1))
+    updateStep(Math.min(state.step + 1, state.replay?.maxSteps ?? 1) - 1)
   }
 })
 onEvent('click', '#rewind-to-end', () => {
   setIsPlaying(false)
-  updateStep(state.replay.max_steps - 1)
+  updateStep((state.replay?.maxSteps ?? 1) - 1)
 })
 onEvent('click', '#demo-mode-toggle', () => {
   if (state.demoMode) {

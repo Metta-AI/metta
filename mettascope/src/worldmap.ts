@@ -129,15 +129,18 @@ function drawWalls() {
 }
 
 function drawObject(obj: Entity) {
-  const type: number = getAttr(obj.typeId)
+  if (!state.replayHelper) return
+
+  const position = getAttr(obj.position)
+  const x = position[0]
+  const y = position[1]
+  const type: number = getAttr(obj.typeId) as number
   const typeName: string = state.replay!.typeNames[type]
+
   if (typeName === 'wall') {
     // Walls are drawn in a different way.
     return
   }
-  const position = getAttr(obj.position)
-  const x = position[0]
-  const y = position[1]
 
   if (getAttr(obj.agentId) !== null) {
     // Respect the orientation of an Entity, usually an agent.
@@ -283,11 +286,13 @@ function drawActions() {
 
 /** Draws the Entity's inventory. */
 function drawInventory(useSearch = false) {
+  if (!state.replay || !state.replayHelper) return
+
   if (!state.showResources) {
     return
   }
 
-  for (const obj of state.replay!.objects) {
+  for (const obj of state.replay.objects) {
     const position = getAttr(obj.position)
     const x = position[0]
     const y = position[1]
@@ -371,7 +376,7 @@ function drawTrajectory() {
   if (state.selectedGridObject === null) {
     return
   }
-  if (state.selectedGridObject.position!.length > 0) {
+  if (state.selectedGridObject.position.isSequence()) {
     // Draw both past and future trajectories.
     for (let i = 1; i < state.replay!.maxSteps; i++) {
       const position0 = getAttr(state.selectedGridObject.position, i - 1)
@@ -526,15 +531,19 @@ function drawThoughtBubbles() {
 
 /** Draws the visibility map, either agent view ranges or fog of war. */
 function drawVisibility() {
+  if (!state.replay) return
+
   if (state.showVisualRanges || state.showFogOfWar) {
     // Compute the visibility map; each agent contributes to the visibility map.
-    const visibilityMap = new Grid(state.replay!.mapSize[0], state.replay!.mapSize[1])
+    const visibilityMap = new Grid(state.replay.mapSize[0], state.replay.mapSize[1])
 
     // Update the visibility map for a grid Entity.
-    function updateVisibilityMap(obj: any) {
-      const x = getAttr(obj, 'c')
-      const y = getAttr(obj, 'r')
-      var visionSize = Math.floor(getAttr(obj, 'agent:vision_size', state.step, Common.DEFAULT_VISION_SIZE) / 2)
+    function updateVisibilityMap(obj: Entity) {
+      const position = getAttr(obj.position)
+      if (!position) return
+      const x = position[0]
+      const y = position[1]
+      var visionSize = Math.floor(Common.DEFAULT_VISION_SIZE / 2)
       for (let dx = -visionSize; dx <= visionSize; dx++) {
         for (let dy = -visionSize; dy <= visionSize; dy++) {
           visibilityMap.set(x + dx, y + dy, true)
@@ -542,15 +551,15 @@ function drawVisibility() {
       }
     }
 
-    if (state.selectedGridObject !== null && state.selectedGridObject.agent_id !== undefined) {
+    if (state.selectedGridObject !== null && state.selectedGridObject.agentId !== null) {
       // When there is a selected grid Entity, only update its visibility.
       updateVisibilityMap(state.selectedGridObject)
     } else {
       // When there is no selected grid Entity, update the visibility map for all agents.
       for (const obj of state.replay.objects) {
-        const type = getAttr(obj, 'type')
-        const typeName = state.replay.type_names[type]
-        if (typeName == 'agent') {
+        const type = getAttr(obj.typeId)
+        const typeName = state.replay.typeNames[type as number]
+        if (typeName && typeName.startsWith('agent')) {
           updateVisibilityMap(obj)
         }
       }
@@ -560,8 +569,8 @@ function drawVisibility() {
     if (state.showFogOfWar) {
       color = [0, 0, 0, 1]
     }
-    for (let x = 0; x < state.replay.map_size[0]; x++) {
-      for (let y = 0; y < state.replay.map_size[1]; y++) {
+    for (let x = 0; x < state.replay.mapSize[0]; x++) {
+      for (let y = 0; y < state.replay.mapSize[1]; y++) {
         if (!visibilityMap.get(x, y)) {
           ctx.drawSolidRect(
             x * Common.TILE_SIZE - Common.TILE_SIZE / 2,
@@ -578,9 +587,11 @@ function drawVisibility() {
 
 /** Draws the grid. */
 function drawGrid() {
+  if (!state.replay) return
+
   if (state.showGrid) {
-    for (let x = 0; x < state.replay.map_size[0]; x++) {
-      for (let y = 0; y < state.replay.map_size[1]; y++) {
+    for (let x = 0; x < state.replay.mapSize[0]; x++) {
+      for (let y = 0; y < state.replay.mapSize[1]; y++) {
         ctx.drawSprite('objects/grid.png', x * Common.TILE_SIZE, y * Common.TILE_SIZE)
       }
     }
@@ -659,16 +670,18 @@ function drawAttackMode() {
   }
 
   // Draw a selection of 3x3 grid of targets in the direction of the selected agent.
-  if (state.selectedGridObject !== null && state.selectedGridObject.agent_id !== undefined) {
-    const x = getAttr(state.selectedGridObject, 'c')
-    const y = getAttr(state.selectedGridObject, 'r')
-    const orientation = getAttr(state.selectedGridObject, 'agent:orientation')
+  if (state.selectedGridObject !== null && state.selectedGridObject.agentId !== null) {
+    const position = getAttr(state.selectedGridObject.position)
+    if (!position) return
+    const x = position[0]
+    const y = position[1]
+    const orientation = getAttr(state.selectedGridObject.rotation) ?? 0
 
     // Draw a 3x3 grid of targets in the direction of the selected agent.
     for (let attackIndex = 1; attackIndex <= 9; attackIndex++) {
-      const [dx, dy] = attackGrid(orientation, attackIndex)
-      const targetX = x + dx
-      const targetY = y + dy
+      const [dx, dy] = attackGrid(orientation as number, attackIndex)
+      const targetX = x + (dx ?? 0)
+      const targetY = y + (dy ?? 0)
       ctx.drawSprite('target.png', targetX * Common.TILE_SIZE, targetY * Common.TILE_SIZE)
       if (gridMousePos != null && targetX == gridMousePos.x() && targetY == gridMousePos.y()) {
         // Check if we are clicking this specific tile.
@@ -681,8 +694,10 @@ function drawAttackMode() {
 
 /** Draw the info line from the Entity to the info panel. */
 function drawInfoLine(panel: HoverPanel) {
-  const x = getAttr(panel.Entity, 'c')
-  const y = getAttr(panel.Entity, 'r')
+  const position = getAttr(panel.Entity.position)
+  if (!position || !Array.isArray(position)) return
+  const x = position[0] as number
+  const y = position[1] as number
   ctx.drawSprite('info.png', x * Common.TILE_SIZE, y * Common.TILE_SIZE)
 
   // Compute the panel position in the world map coordinates.
@@ -720,9 +735,11 @@ export function drawMap(panel: PanelInfo) {
           Math.round(localMousePos.x() / Common.TILE_SIZE),
           Math.round(localMousePos.y() / Common.TILE_SIZE)
         )
-        objectUnderMouse = state.replay.objects.find((obj: any) => {
-          const x: number = getAttr(obj, 'c')
-          const y: number = getAttr(obj, 'r')
+        objectUnderMouse = state.replay.objects.find((obj: Entity) => {
+          const position = getAttr(obj.position)
+          if (!position) return false
+          const x: number = position[0]
+          const y: number = position[1]
           return x === gridMousePos.x() && y === gridMousePos.y()
         })
       }
@@ -743,13 +760,16 @@ export function drawMap(panel: PanelInfo) {
       if (objectUnderMouse !== undefined) {
         updateSelection(objectUnderMouse)
         console.info('Selected Entity on the map:', state.selectedGridObject)
-        if (state.selectedGridObject.agent_id !== undefined) {
+        if (state.selectedGridObject && state.selectedGridObject.agentId !== null) {
           // If selecting an agent, focus the trace panel on the agent.
-          ui.tracePanel.focusPos(
-            state.step * Common.TRACE_WIDTH + Common.TRACE_WIDTH / 2,
-            getAttr(state.selectedGridObject, 'agent_id') * Common.TRACE_HEIGHT + Common.TRACE_HEIGHT / 2,
-            Common.DEFAULT_TRACE_ZOOM_LEVEL
-          )
+          const agentId = getAttr(state.selectedGridObject.agentId)
+          if (agentId !== null) {
+            ui.tracePanel.focusPos(
+              state.step * Common.TRACE_WIDTH + Common.TRACE_WIDTH / 2,
+              (agentId as number) * Common.TRACE_HEIGHT + Common.TRACE_HEIGHT / 2,
+              Common.DEFAULT_TRACE_ZOOM_LEVEL
+            )
+          }
         }
       }
     } else {
@@ -766,9 +786,12 @@ export function drawMap(panel: PanelInfo) {
 
   // If we're following a selection, center the map on it.
   if (state.followSelection && state.selectedGridObject !== null) {
-    const x = getAttr(state.selectedGridObject, 'c')
-    const y = getAttr(state.selectedGridObject, 'r')
-    panel.panPos = new Vec2f(-x * Common.TILE_SIZE, -y * Common.TILE_SIZE)
+    const position = getAttr(state.selectedGridObject.position)
+    if (position) {
+      const x = position[0]
+      const y = position[1]
+      panel.panPos = new Vec2f(-x * Common.TILE_SIZE, -y * Common.TILE_SIZE)
+    }
   }
 
   ctx.save()
@@ -796,8 +819,8 @@ export function drawMap(panel: PanelInfo) {
     ctx.drawSolidRect(
       -Common.TILE_SIZE / 2,
       -Common.TILE_SIZE / 2,
-      state.replay.map_size[0] * Common.TILE_SIZE,
-      state.replay.map_size[1] * Common.TILE_SIZE,
+      state.replay.mapSize[0] * Common.TILE_SIZE,
+      state.replay.mapSize[1] * Common.TILE_SIZE,
       [0, 0, 0, 0.80]
     )
 
@@ -805,10 +828,12 @@ export function drawMap(panel: PanelInfo) {
 
     // Draw matching objects on top of the overlay.
     for (const obj of state.replay.objects) {
-      const typeName = state.replay.type_names[getAttr(obj, 'type')]
-      let x = getAttr(obj, 'c')
-      let y = getAttr(obj, 'r')
-      if (searchMatch(typeName)) {
+      const typeId = getAttr(obj.typeId)
+      const typeName = state.replay.typeNames[typeId as number]
+      const position = getAttr(obj.position)
+      if (position && typeName && searchMatch(typeName)) {
+        let x = position[0]
+        let y = position[1]
         // Draw halo behind the Entity.
         ctx.drawSprite(
           'effects/halo.png',

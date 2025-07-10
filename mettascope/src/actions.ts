@@ -69,7 +69,7 @@ export function processActions(event: KeyboardEvent) {
 
   if (state.selectedGridObject != null) {
     const agent = state.selectedGridObject
-    const orientation = getAttr(agent, 'agent:orientation')
+    const orientation = getAttr(agent.rotation)
     if (event.key == 'w') {
       if (orientation != 0) {
         // Rotate up.

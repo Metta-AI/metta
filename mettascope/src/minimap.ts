@@ -39,21 +39,21 @@ export function drawMiniMap(panel: PanelInfo) {
   ctx.drawSolidRect(
     0,
     0,
-    state.replay.map_size[0] * Common.MINI_MAP_TILE_SIZE,
-    state.replay.map_size[1] * Common.MINI_MAP_TILE_SIZE,
+    state.replay.mapSize[0] * Common.MINI_MAP_TILE_SIZE,
+    state.replay.mapSize[1] * Common.MINI_MAP_TILE_SIZE,
     parseHtmlColor('#E7D4B7')
   )
 
   // Draw the grid objects on the minimap.
   for (const obj of state.replay.objects) {
-    const x = getAttr(obj, 'c')
-    const y = getAttr(obj, 'r')
-    const type = getAttr(obj, 'type')
-    const typeName = state.replay.type_names[type]
+    const x = getAttr(obj.position)?.[0]
+    const y = getAttr(obj.position)?.[1]
+    const type = getAttr(obj.typeId)
+    const typeName = state.replay.typeNames[type as number]
     var color = parseHtmlColor('#FFFFFF')
     if (typeName === 'wall') {
       color = parseHtmlColor('#61574B')
-    } else if (typeName === 'agent') {
+    } else if (typeName && typeName.startsWith('agent')) {
       continue
     }
     ctx.drawSolidRect(
@@ -67,11 +67,11 @@ export function drawMiniMap(panel: PanelInfo) {
 
   // Draw the agent pips on top.
   for (const obj of state.replay.objects) {
-    const x = getAttr(obj, 'c')
-    const y = getAttr(obj, 'r')
-    const type = getAttr(obj, 'type')
-    const typeName = state.replay.type_names[type]
-    if (typeName === 'agent') {
+    const x = getAttr(obj.position)?.[0]
+    const y = getAttr(obj.position)?.[1]
+    const type = getAttr(obj.typeId)
+    const typeName = state.replay.typeNames[type as number]
+    if (typeName && typeName.startsWith('agent')) {
       ctx.drawSprite(
         'minimapPip.png',
         x * Common.MINI_MAP_TILE_SIZE + 1,

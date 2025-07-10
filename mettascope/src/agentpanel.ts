@@ -14,6 +14,7 @@ import {
 import { state, setFollowSelection, html } from './common.js'
 import { getAttr, propertyName, propertyIcon } from './replay.js'
 import { updateSelection } from './main.js'
+import { Entity } from './replay.js'
 
 enum SortDirection {
   None = 0,
@@ -230,12 +231,12 @@ onEvent('click', '#agent-panel .header-cell', (target: HTMLElement, e: Event) =>
 /** Clicking on a data cell should select the agent. */
 onEvent('click', '#agent-panel .data-cell', (target: HTMLElement, e: Event) => {
   let agentId = findAttr(target, 'data-agent-id')
-  if (agentId != '') {
-    for (let i = 0; i < state.replay.objects.length; i++) {
-      let obj = state.replay.objects[i]
-      if (obj.hasOwnProperty('agent_id') && getAttr(obj, 'agent_id') == agentId) {
-        updateSelection(obj, true)
-        break
+  if (agentId != '' && state.replay && state.replayHelper) {
+    const agentIdNum = parseInt(agentId)
+    if (agentIdNum >= 0 && agentIdNum < state.replayHelper.agents.length) {
+      const agent = state.replayHelper.agents[agentIdNum]
+      if (agent) {
+        updateSelection(agent, true)
       }
     }
   }
@@ -296,6 +297,8 @@ onEvent('click', '#new-column-dropdown .final-check', (target: HTMLElement, e: E
 
 /** Update the available columns. */
 export function updateAvailableColumns() {
+  if (!state.replay || !state.replayHelper) return
+
   // The columns might change due to changes in:
   //   * The replay format.
   //   * The typeahead value.
@@ -309,9 +312,11 @@ export function updateAvailableColumns() {
 
   // All agent keys:
   let agentKeys = new Set<string>()
-  for (let agent of state.replay.agents) {
-    for (let key in agent) {
-      agentKeys.add(key)
+  for (let agent of state.replayHelper.agents) {
+    if (agent) {
+      for (let key in agent) {
+        agentKeys.add(key)
+      }
     }
   }
   // All inventory keys:
@@ -360,32 +365,38 @@ export function updateAvailableColumns() {
 
 /** Update the agent table. */
 export function updateAgentTable() {
-  // The agent table might change due to changes in:
-  //   * The columns array.
-  //   * The main sort column.
-  //   * The sort direction.
-  //   * The selected grid Entity.
-  //   * The selected agent.
+  if (!state.replay || !state.replayHelper) return
 
-  removeChildren(agentTable)
+  // Clear the table.
+  const tbody = find('#agent-table tbody')
+  removeChildren(tbody)
 
-  let list = state.replay.agents.slice()
-  let agents = list.sort((a: any, b: any) => {
-    var aValue, bValue: number
+  let agents: Entity[] = []
+  for (let agent of state.replayHelper.agents) {
+    if (agent) agents.push(agent)
+  }
+
+  // Sort the list.
+  let list = agents.slice()
+  list.sort((a: Entity, b: Entity) => {
+    var aValue: any, bValue: any
     if (mainSort.isFinal) {
       // Uses the final step for the sort.
-      aValue = getAttr(a, mainSort.field, state.replay.max_steps - 1)
-      bValue = getAttr(b, mainSort.field, state.replay.max_steps - 1)
+      const aProp = (a as any)[mainSort.field]
+      const bProp = (b as any)[mainSort.field]
+      aValue = aProp ? getAttr(aProp, state.replay!.maxSteps - 1) : 0
+      bValue = bProp ? getAttr(bProp, state.replay!.maxSteps - 1) : 0
     } else {
       // Uses the current step for the sort.
-      aValue = getAttr(a, mainSort.field)
-      bValue = getAttr(b, mainSort.field)
+      const aProp = (a as any)[mainSort.field]
+      const bProp = (b as any)[mainSort.field]
+      aValue = aProp ? getAttr(aProp) : 0
+      bValue = bProp ? getAttr(bProp) : 0
     }
-    // Sort direction adjustment.
     if (mainSort.sortDirection == SortDirection.Descending) {
-      return bValue - aValue
+      return (bValue as number) - (aValue as number)
     } else {
-      return aValue - bValue
+      return (aValue as number) - (bValue as number)
     }
   })
 
@@ -416,11 +427,13 @@ export function updateAgentTable() {
       if (agent != null) {
         let dataCell = dataCellTemplate.cloneNode(true) as HTMLElement
 
-        var value: number
+        var value: any
         if (columnDef.isFinal) {
-          value = getAttr(agent, columnDef.field, state.replay.max_steps - 1)
+          const prop = (agent as any)[columnDef.field]
+          value = prop ? getAttr(prop, state.replay!.maxSteps - 1) : 0
         } else {
-          value = getAttr(agent, columnDef.field)
+          const prop = (agent as any)[columnDef.field]
+          value = prop ? getAttr(prop) : 0
         }
         let valueStr = value.toString()
         if (valueStr.includes('.')) {
@@ -428,9 +441,9 @@ export function updateAgentTable() {
         }
 
         dataCell.children[0].textContent = valueStr
-        let agentId = getAttr(agent, 'agent_id')
-        dataCell.setAttribute('data-agent-id', agentId.toString())
-        if (state.selectedGridObject != null && agentId == getAttr(state.selectedGridObject, 'agent_id')) {
+        let agentId = getAttr(agent.agentId)
+        dataCell.setAttribute('data-agent-id', (agentId as number).toString())
+        if (state.selectedGridObject != null && agentId == getAttr(state.selectedGridObject.agentId)) {
           dataCell.classList.add('selected')
         }
         column.appendChild(dataCell)
@@ -445,9 +458,9 @@ export function updateAgentTable() {
   for (let i = 0; i < agents.length; i++) {
     let dataCell = newColumnDataCell.cloneNode(true) as HTMLElement
     let agent = agents[i]
-    let agentId = getAttr(agent, 'agent_id')
-    dataCell.setAttribute('data-agent-id', agentId.toString())
-    if (state.selectedGridObject != null && agentId == getAttr(state.selectedGridObject, 'agent_id')) {
+    let agentId = getAttr(agent.agentId)
+    dataCell.setAttribute('data-agent-id', (agentId as number).toString())
+    if (state.selectedGridObject != null && agentId == getAttr(state.selectedGridObject.agentId)) {
       dataCell.classList.add('selected')
     }
     newColumn.appendChild(dataCell)

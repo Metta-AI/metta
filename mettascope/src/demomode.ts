@@ -70,7 +70,7 @@ function choose<T>(values: T[]): T {
 }
 
 export function doDemoMode() {
-  if (!state.demoMode || state.replay == null) {
+  if (!state.demoMode || state.replay == null || !state.replayHelper) {
     return
   }
   state.isPlaying = true
@@ -92,17 +92,18 @@ export function doDemoMode() {
       shot.zoomLevel = ui.mapPanel.zoomLevel * 1.2
     } else {
       // Find an agent that will do some thing interesting soon.
-      var agentId = Math.floor(Math.random() * state.replay.agents.length)
-      for (let i = 0; i < state.replay.agents.length; i++) {
-        let agent = state.replay.agents[i]
+      var agentId = Math.floor(Math.random() * state.replayHelper.agents.length)
+      for (let i = 0; i < state.replayHelper.agents.length; i++) {
+        let agent = state.replayHelper.agents[i]
+        if (!agent) continue
         let actionFound = false
         for (let j = 0; j < 10; j++) {
-          let action = getAttr(agent, 'action', state.step + j)
-          if (action == null || action[0] == null || action[1] == null) {
+          let action = getAttr(agent.actionId, state.step + j)
+          if (action == null) {
             continue
           }
-          const actionName = state.replay.action_names[action[0]]
-          let actionSuccess = getAttr(agent, 'action_success', state.step + j)
+          const actionName = state.replay.actionNames[action as number]
+          let actionSuccess = getAttr(agent.actionSuccess, state.step + j)
           if (
             actionName != 'noop' &&
             actionName != 'rotate' &&
@@ -128,7 +129,7 @@ export function doDemoMode() {
         3,
         choose([-0.1, 0.1])
       )
-      state.selectedGridObject = state.replay.agents[shot.agentId]
+      state.selectedGridObject = state.replayHelper.agents[shot.agentId]
       state.followSelection = true
       focusMap(0, 0, 11 * Common.TILE_SIZE, 11 * Common.TILE_SIZE)
       shot.zoomLevel = ui.mapPanel.zoomLevel * 1.5
