@@ -7,9 +7,4 @@ tasks:
   /env/mettagrid/navigation/training/varied_terrain_balanced: 1
   /env/mettagrid/navigation/training/varied_terrain_maze: 1
   /env/mettagrid/navigation/training/varied_terrain_dense: 1
-<<<<<<< HEAD
   /env/mettagrid/navigation/training/sparse: 1
-=======
-  /env/mettagrid/navigation/training/sparse_small: 1
-  /env/mettagrid/navigation/training/sparse_medium: 1
->>>>>>> 69b067a6b (add sparse nav training)

@@ -25,8 +25,8 @@ game:
 
   map_builder:
     _target_: metta.map.mapgen.MapGen
-    width: ${sampling:40,100,60}
-    height: ${sampling:40,100,60}
+    width: ${sampling:60,100,80}
+    height: ${sampling:60,100,80}
     border_width: 6
 
     root:
