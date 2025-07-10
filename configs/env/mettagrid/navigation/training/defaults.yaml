@@ -6,6 +6,17 @@ sampling: 1
 game:
   num_agents: 4
   max_steps: 1000
+  actions:
+    noop:
+      enabled: false
+    put_items:
+      enabled: false
+    attack:
+      enabled: false
+    swap:
+      enabled: false
+    change_color:
+      enabled: false
   map_builder:
     _target_: metta.mettagrid.room.multi_room.MultiRoom
     num_rooms: ${..num_agents}
