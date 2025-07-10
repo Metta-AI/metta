@@ -52,25 +52,6 @@ check_cmd() {
     return $?
 }
 
-# More robust uv detection that checks direct paths
-find_uv() {
-    # First try command -v
-    if check_cmd uv; then
-        return 0
-    fi
-
-    # Check common installation paths directly
-    for path in "$HOME/.local/bin/uv" "$HOME/.cargo/bin/uv" "/opt/homebrew/bin/uv" "/usr/local/bin/uv"; do
-        if [ -x "$path" ]; then
-            # Found uv, export it directly
-            export UV_BIN="$path"
-            return 0
-        fi
-    done
-
-    return 1
-}
-
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 # Common locations where uv might be installed
@@ -78,7 +59,7 @@ UV_PATHS="$HOME/.local/bin/uv $HOME/.cargo/bin/uv /opt/homebrew/bin/uv /usr/loca
 
 echo "Welcome to Metta!"
 
-if ! find_uv; then
+if ! check_cmd uv; then
     echo "\nuv is not installed. Installing uv..."
     curl -LsSf https://astral.sh/uv/install.sh | sh
 
@@ -98,13 +79,10 @@ if ! find_uv; then
     # Force shell to rescan PATH (helps in some environments)
     hash -r 2>/dev/null || true
 
-    if ! find_uv; then
+    if ! check_cmd uv; then
         err "Failed to install uv. Please install it manually from https://github.com/astral-sh/uv"
     fi
 fi
-
-# Use UV_BIN if set (from direct path detection), otherwise use 'uv'
-UV="${UV_BIN:-uv}"
 
 cd "$SCRIPT_DIR" || err "Failed to change to project directory"
 
