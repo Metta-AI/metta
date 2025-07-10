@@ -448,9 +448,16 @@ export class Context3d {
   /** Load the atlas image. */
   private async loadAtlasImage(url: string): Promise<ImageBitmap | null> {
     try {
-      const res = await fetch(url);
+      const res = await fetch(url)
+      if (!res.ok) {
+        throw new Error(`Failed to fetch image: ${res.statusText}`)
+      }
       const blob = await res.blob()
-      return await createImageBitmap(blob)
+      // Use premultiplied alpha to fix border issues
+      return await createImageBitmap(blob, {
+        colorSpaceConversion: 'none',
+        premultiplyAlpha: 'premultiply',
+      })
     } catch (err) {
       console.error(`Error loading image ${url}:`, err)
       return null
