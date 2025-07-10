@@ -1,56 +1,62 @@
 # Python
-**/__pycache__/
-**/*.pyc
-**/*.pyo
-**/*.pyd
-**/*.so
-**/*.egg-info/
-**/.coverage
-**/.coverage.*
-**/.venv/
-**/venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.so
+*.egg
+*.egg-info/
+.coverage
+.coverage.*
+.venv/
+.pytest_cache/
 
-# Environment files (contain secrets)
-**/.env
+# Environment files
+.env
+# Note: devops/setup.env is tracked
 
 # IDE and Editors
-**/.vscode/
-**/.idea/
-**/*.swp
-**/*.swo
-**/*~
+.idea/
+*.swp
+*.swo
+*~
 
 # OS Files
-**/.DS_Store
-**/Thumbs.db
+.DS_Store
+Thumbs.db
 
 # Node.js / Frontend
-**/node_modules/
-**/dist/
-**/.vite/
+node_modules/
+dist/
+.vite/
 
 # Build artifacts
-**/build/
-**/build_debug/
-**/cpplint_output*
+build/
+build_debug/
+cpplint_output*
 
 # Testing and Benchmarks
-**/test_data/
-**/*benchmark_results.json
+test_data/
+*benchmark_results.json
 
 # Logs and temporary files
-**/*.log
+*.log
 .task
+*.tmp
+*.bak
 
-# Project-specific directories
-**/outputs/
-**/replays/
-**/train_dir/
-**/personal/
+# Project-specific directories at root
+/outputs/
+/replays/
+/train_dir/
+/personal/
 /wandb/
 
-# Configuration
+# Helm chart dependencies
+/devops/charts/**/charts
+
+# Local configuration
 .claude/settings.local.json
 
-# Installation artifacts
+# Created by skypilot (inside skypilot jobs or clusters)
 /Miniconda3-Linux.sh
