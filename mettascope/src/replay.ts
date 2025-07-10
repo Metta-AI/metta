@@ -66,15 +66,15 @@ export class Sequence<T> {
 // Entity and replay conform version 2 of the replay_spec.md.
 export class Entity {
   // Common keys.
-  id: Sequence<number> = new Sequence(0)
-  typeId: Sequence<number> = new Sequence(0)
-  groupId: Sequence<number> = new Sequence(0)
-  agentId: Sequence<number> = new Sequence(0)
+  id: number = 0
+  typeId: number = 0
+  groupId: number = 0
+  agentId: number = 0
   position: Sequence<[number, number]> = new Sequence([0, 0])
   rotation: Sequence<number> = new Sequence(0)
   layer: Sequence<number> = new Sequence(0)
   inventory: Sequence<number[]> = new Sequence([])
-  inventoryMax: Sequence<number> = new Sequence(0)
+  inventoryMax: number = 0
   color: Sequence<number> = new Sequence(0)
 
   // Agent specific keys.
@@ -85,16 +85,16 @@ export class Entity {
   totalReward: Sequence<number> = new Sequence(0)
   frozen: Sequence<boolean> = new Sequence(false)
   frozenProgress: Sequence<number> = new Sequence(0)
-  frozenTime: Sequence<number> = new Sequence(0)
+  frozenTime: number = 0
 
   // Building specific keys.
-  recipeInput: Sequence<number> = new Sequence(0)
-  recipeOutput: Sequence<number> = new Sequence(0)
-  recipeMax: Sequence<number> = new Sequence(0)
+  recipeInput: number[] = []
+  recipeOutput: number[] = []
+  recipeMax: number = 0
   productionProgress: Sequence<number> = new Sequence(0)
-  productionTime: Sequence<number> = new Sequence(0)
+  productionTime: number = 0
   cooldownProgress: Sequence<number> = new Sequence(0)
-  cooldownTime: Sequence<number> = new Sequence(0)
+  cooldownTime: number = 0
 
 }
 
@@ -282,15 +282,15 @@ async function loadReplayJson(url: string, replayData: any) {
   for (const objData of replayData.objects) {
     let obj = new Entity()
     let maxSteps = replayData.max_steps
-    obj.id.expand(objData['id'], maxSteps)
-    obj.typeId.expand(objData['type_id'], maxSteps)
-    obj.groupId.expand(objData['group_id'], maxSteps)
-    obj.agentId.expand(objData['agent_id'], maxSteps)
+    obj.id = objData['id']
+    obj.typeId = objData['type_id']
+    obj.groupId = objData['group_id']
+    obj.agentId = objData['agent_id']
     obj.position.expand(objData['position'], maxSteps)
     obj.rotation.expand(objData['rotation'], maxSteps)
     obj.layer.expand(objData['layer'], maxSteps)
     obj.inventory.expand(objData['inventory'], maxSteps)
-    obj.inventoryMax.expand(objData['inventory_max'], maxSteps)
+    obj.inventoryMax = objData['inventory_max']
     obj.actionId.expand(objData['action_id'], maxSteps)
     obj.actionParameter.expand(objData['action_parameter'], maxSteps)
     obj.actionSuccess.expand(objData['action_success'], maxSteps)
@@ -298,14 +298,14 @@ async function loadReplayJson(url: string, replayData: any) {
     obj.totalReward.expand(objData['total_reward'], maxSteps)
     obj.frozen.expand(objData['frozen'], maxSteps)
     obj.frozenProgress.expand(objData['frozen_progress'], maxSteps)
-    obj.frozenTime.expand(objData['frozen_time'], maxSteps)
-    obj.recipeInput.expand(objData['recipe_input'], maxSteps)
-    obj.recipeOutput.expand(objData['recipe_output'], maxSteps)
-    obj.recipeMax.expand(objData['recipe_max'], maxSteps)
+    obj.frozenTime = objData['frozen_time']
+    obj.recipeInput = objData['recipe_input']
+    obj.recipeOutput = objData['recipe_output']
+    obj.recipeMax = objData['recipe_max']
     obj.productionProgress.expand(objData['production_progress'], maxSteps)
-    obj.productionTime.expand(objData['production_time'], maxSteps)
+    obj.productionTime = objData['production_time']
     obj.cooldownProgress.expand(objData['cooldown_progress'], maxSteps)
-    obj.cooldownTime.expand(objData['cooldown_time'], maxSteps)
+    obj.cooldownTime = objData['cooldown_time']
     state.replay.objects.push(obj)
   }
 
@@ -314,7 +314,7 @@ async function loadReplayJson(url: string, replayData: any) {
   for (let i = 0; i < state.replay.numAgents; i++) {
     state.replayHelper.agents.push(null)
     for (const obj of state.replay.objects) {
-      if (obj.agentId.get() == i) {
+      if (obj.agentId == i) {
         state.replayHelper.agents[i] = obj
       }
     }
@@ -424,7 +424,7 @@ export function sendAction(actionName: string, actionParam: number) {
     console.error('WebSocket is not connected or no replay/selected object')
     return
   }
-  const agentId = state.selectedGridObject.agentId.get()
+  const agentId = state.selectedGridObject.agentId
   if (agentId != null) {
     const actionId = state.replay.actionNames.indexOf(actionName)
     if (actionId == -1) {

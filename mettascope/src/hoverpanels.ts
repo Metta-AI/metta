@@ -201,77 +201,77 @@ function updateDom(htmlPanel: HTMLElement, entity: Entity) {
     inventory.appendChild(item)
   }
 
-
-  // FIX ME: Recipe functionality not implemented
-  // Populate the recipe area if the Entity config has input_ or output_ resources.
-  /*
+  // Update recipe display
   let recipe = findIn(htmlPanel, '.recipe')
   removeChildren(recipe)
   let recipeArea = findIn(htmlPanel, '.recipe-area')
-  // let objectConfig = entity.objectConfig ? entity.objectConfig.get() : null
-  let objectConfig = null // FIX ME: objectConfig not implemented
-  let displayedResources = 0
-  if (objectConfig != null) {
-    recipeArea.classList.remove('hidden')
 
-    // If config has input_resources or output_resources use that,
-    // otherwise use input_{resource} and output_{resource}.
-    if (objectConfig.hasOwnProperty('input_resources') || objectConfig.hasOwnProperty('output_resources')) {
-      // input_resources is an object like {heart: 1, blueprint: 1}
-      for (let resource in objectConfig.input_resources) {
-        let item = itemTemplate.cloneNode(true) as HTMLElement
-        item.querySelector('.amount')!.textContent = objectConfig.input_resources[resource]
-        item.querySelector('.icon')!.setAttribute('src', 'data/atlas/resources/' + resource + '.png')
-        recipe.appendChild(item)
-        displayedResources++
-      }
-      // Add the arrow.
-      recipe.appendChild(recipeArrow.cloneNode(true))
-      // Add the output.
-      if (objectConfig.hasOwnProperty('output_resources')) {
-        for (let resource in objectConfig.output_resources) {
-          let item = itemTemplate.cloneNode(true) as HTMLElement
-          item.querySelector('.amount')!.textContent = objectConfig.output_resources[resource]
-          item.querySelector('.icon')!.setAttribute('src', 'data/atlas/resources/' + resource + '.png')
-          recipe.appendChild(item)
-          displayedResources++
-        }
-      }
-    } else {
-      // Configs have input_{resource} and output_{resource}.
-      for (let key in objectConfig) {
-        if (key.startsWith('input_')) {
-          let resource = key.replace('input_', '')
-          let amount = objectConfig[key]
-          let item = itemTemplate.cloneNode(true) as HTMLElement
-          item.querySelector('.amount')!.textContent = amount
-          item.querySelector('.icon')!.setAttribute('src', 'data/atlas/resources/' + resource + '.png')
-          recipe.appendChild(item)
-          displayedResources++
-        }
-      }
-      // Add the arrow.
-      recipe.appendChild(recipeArrow.cloneNode(true))
-      // Add the output.
-      for (let key in objectConfig) {
-        if (key.startsWith('output_')) {
-          let resource = key.replace('output_', '')
-          let amount = objectConfig[key]
-          let item = itemTemplate.cloneNode(true) as HTMLElement
-          item.querySelector('.amount')!.textContent = amount
-          item.querySelector('.icon')!.setAttribute('src', 'data/atlas/resources/' + resource + '.png')
-          recipe.appendChild(item)
-          displayedResources++
-        }
+  const recipeInput = entity.recipeInput?.get()
+  const recipeOutput = entity.recipeOutput?.get()
+
+  // Create maps for input and output items
+  let inputMap = new Map<string, number>()
+  let outputMap = new Map<string, number>()
+
+  // Build input map
+  if (recipeInput != null && Array.isArray(recipeInput) && state.replay) {
+    for (let itemId of recipeInput) {
+      if (itemId > 0 && itemId < state.replay.itemNames.length) {
+        const itemName = state.replay.itemNames[itemId]
+        inputMap.set(itemName, (inputMap.get(itemName) || 0) + 1)
       }
     }
   }
-  if (displayedResources > 0) {
+
+  // Build output map
+  if (recipeOutput != null && Array.isArray(recipeOutput) && state.replay) {
+    for (let itemId of recipeOutput) {
+      if (itemId > 0 && itemId < state.replay.itemNames.length) {
+        const itemName = state.replay.itemNames[itemId]
+        outputMap.set(itemName, (outputMap.get(itemName) || 0) + 1)
+      }
+    }
+  }
+
+  // Display recipe if there are any inputs or outputs
+  if (inputMap.size > 0 || outputMap.size > 0) {
     recipeArea.classList.remove('hidden')
+
+    // Show input items
+    for (let [itemName, quantity] of inputMap.entries()) {
+      const inputItem = itemTemplate.cloneNode(true) as HTMLElement
+      const inputIcon = inputItem.querySelector('.icon') as HTMLImageElement
+      if (inputIcon) {
+        inputIcon.src = 'data/atlas/resources/' + itemName + '.png'
+      }
+      const inputAmount = inputItem.querySelector('.amount')
+      if (inputAmount) {
+        inputAmount.textContent = quantity.toString()
+      }
+      recipe.appendChild(inputItem)
+    }
+
+    // Add arrow between inputs and outputs
+    if (inputMap.size > 0 && outputMap.size > 0 && recipeArrow) {
+      recipe.appendChild(recipeArrow.cloneNode(true))
+    }
+
+    // Show output items
+    for (let [itemName, quantity] of outputMap.entries()) {
+      const outputItem = itemTemplate.cloneNode(true) as HTMLElement
+      const outputIcon = outputItem.querySelector('.icon') as HTMLImageElement
+      if (outputIcon) {
+        outputIcon.src = 'data/atlas/resources/' + itemName + '.png'
+      }
+      const outputAmount = outputItem.querySelector('.amount')
+      if (outputAmount) {
+        outputAmount.textContent = quantity.toString()
+      }
+      recipe.appendChild(outputItem)
+    }
   } else {
     recipeArea.classList.add('hidden')
   }
-  */
 }
 
 /** Updates the readout of the selected Entity or replay info. */
