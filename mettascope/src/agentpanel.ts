@@ -364,7 +364,7 @@ export function updateAgentTable() {
   //   * The columns array.
   //   * The main sort column.
   //   * The sort direction.
-  //   * The selected grid object.
+  //   * The selected grid Entity.
   //   * The selected agent.
 
   removeChildren(agentTable)

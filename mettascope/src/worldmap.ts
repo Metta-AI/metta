@@ -2,7 +2,7 @@ import { Vec2f } from './vector_math.js'
 import { Grid } from './grid.js'
 import * as Common from './common.js'
 import { ui, state, ctx, setFollowSelection } from './common.js'
-import { getAttr, Object, sendAction } from './replay.js'
+import { getAttr, Entity, sendAction } from './replay.js'
 import { PanelInfo } from './panels.js'
 import { onFrame, updateSelection } from './main.js'
 import { parseHtmlColor, find } from './htmlutils.js'
@@ -16,8 +16,8 @@ function colorFromId(agentId: number) {
   return [(n * Math.PI) % 1.0, (n * Math.E) % 1.0, (n * Math.SQRT2) % 1.0, 1.0]
 }
 
-/** Checks to see if an object has any inventory. */
-function hasInventory(obj: Object) {
+/** Checks to see if an Entity has any inventory. */
+function hasInventory(obj: Entity) {
   return getAttr(obj.inventory).length > 0
 }
 
@@ -128,7 +128,7 @@ function drawWalls() {
   }
 }
 
-function drawObject(obj: Object) {
+function drawObject(obj: Entity) {
   const type: number = getAttr(obj.typeId)
   const typeName: string = state.replay!.typeNames[type]
   if (typeName === 'wall') {
@@ -140,7 +140,7 @@ function drawObject(obj: Object) {
   const y = position[1]
 
   if (getAttr(obj.agentId) !== null) {
-    // Respect the orientation of an object, usually an agent.
+    // Respect the orientation of an Entity, usually an agent.
     const orientation = getAttr(obj.rotation)
     var suffix = ''
     if (orientation == 0) {
@@ -281,7 +281,7 @@ function drawActions() {
   }
 }
 
-/** Draws the object's inventory. */
+/** Draws the Entity's inventory. */
 function drawInventory(useSearch = false) {
   if (!state.showResources) {
     return
@@ -292,7 +292,7 @@ function drawInventory(useSearch = false) {
     const x = position[0]
     const y = position[1]
 
-    // Sum up the object's inventory in case we need to condense it.
+    // Sum up the Entity's inventory in case we need to condense it.
     let inventoryX = Common.INVENTORY_PADDING
     let numItems = getAttr(obj.inventory).length
     // Draw the actual inventory icons.
@@ -329,7 +329,7 @@ function drawInventory(useSearch = false) {
   }
 }
 
-/** Draws the rewards on the bottom of the object. */
+/** Draws the rewards on the bottom of the Entity. */
 function drawRewards() {
   for (const obj of state.replay!.objects) {
     const position = getAttr(obj.position)
@@ -354,7 +354,7 @@ function drawRewards() {
   }
 }
 
-/** Draws the selection of the selected object. */
+/** Draws the selection of the selected Entity. */
 function drawSelection() {
   if (state.selectedGridObject === null) {
     return
@@ -366,7 +366,7 @@ function drawSelection() {
   ctx.drawSprite('selection.png', x * Common.TILE_SIZE, y * Common.TILE_SIZE)
 }
 
-/** Draws the trajectory of the selected object, with footprints or a future arrow. */
+/** Draws the trajectory of the selected Entity, with footprints or a future arrow. */
 function drawTrajectory() {
   if (state.selectedGridObject === null) {
     return
@@ -530,7 +530,7 @@ function drawVisibility() {
     // Compute the visibility map; each agent contributes to the visibility map.
     const visibilityMap = new Grid(state.replay!.mapSize[0], state.replay!.mapSize[1])
 
-    // Update the visibility map for a grid object.
+    // Update the visibility map for a grid Entity.
     function updateVisibilityMap(obj: any) {
       const x = getAttr(obj, 'c')
       const y = getAttr(obj, 'r')
@@ -543,10 +543,10 @@ function drawVisibility() {
     }
 
     if (state.selectedGridObject !== null && state.selectedGridObject.agent_id !== undefined) {
-      // When there is a selected grid object, only update its visibility.
+      // When there is a selected grid Entity, only update its visibility.
       updateVisibilityMap(state.selectedGridObject)
     } else {
-      // When there is no selected grid object, update the visibility map for all agents.
+      // When there is no selected grid Entity, update the visibility map for all agents.
       for (const obj of state.replay.objects) {
         const type = getAttr(obj, 'type')
         const typeName = state.replay.type_names[type]
@@ -679,10 +679,10 @@ function drawAttackMode() {
   }
 }
 
-/** Draw the info line from the object to the info panel. */
+/** Draw the info line from the Entity to the info panel. */
 function drawInfoLine(panel: HoverPanel) {
-  const x = getAttr(panel.object, 'c')
-  const y = getAttr(panel.object, 'r')
+  const x = getAttr(panel.Entity, 'c')
+  const y = getAttr(panel.Entity, 'r')
   ctx.drawSprite('info.png', x * Common.TILE_SIZE, y * Common.TILE_SIZE)
 
   // Compute the panel position in the world map coordinates.
@@ -690,7 +690,7 @@ function drawInfoLine(panel: HoverPanel) {
   const panelScreenPos = new Vec2f(panelBounds.left + 20, panelBounds.top + 20)
   const panelWorldPos = ui.mapPanel.transformOuter(panelScreenPos)
 
-  // Draw a line from the object to the panel.
+  // Draw a line from the Entity to the panel.
   ctx.drawSpriteLine(
     'dash.png',
     x * Common.TILE_SIZE,
@@ -712,7 +712,7 @@ export function drawMap(panel: PanelInfo) {
   // Handle mouse events for the map panel.
   if (ui.mouseTargets.includes('#worldmap-panel')) {
     if (ui.dragging == '' && !state.showAttackMode) {
-      // Find the object under the mouse.
+      // Find the Entity under the mouse.
       var objectUnderMouse = null
       const localMousePos = panel.transformOuter(ui.mousePos)
       if (localMousePos != null) {
@@ -739,10 +739,10 @@ export function drawMap(panel: PanelInfo) {
       console.info('Map click - clearing follow selection')
       setFollowSelection(false)
     } else if (ui.mouseUp && ui.mouseDownPos.sub(ui.mousePos).length() < 10) {
-      // Check if we are clicking on an object.
+      // Check if we are clicking on an Entity.
       if (objectUnderMouse !== undefined) {
         updateSelection(objectUnderMouse)
-        console.info('Selected object on the map:', state.selectedGridObject)
+        console.info('Selected Entity on the map:', state.selectedGridObject)
         if (state.selectedGridObject.agent_id !== undefined) {
           // If selecting an agent, focus the trace panel on the agent.
           ui.tracePanel.focusPos(
@@ -809,7 +809,7 @@ export function drawMap(panel: PanelInfo) {
       let x = getAttr(obj, 'c')
       let y = getAttr(obj, 'r')
       if (searchMatch(typeName)) {
-        // Draw halo behind the object.
+        // Draw halo behind the Entity.
         ctx.drawSprite(
           'effects/halo.png',
           x * Common.TILE_SIZE,

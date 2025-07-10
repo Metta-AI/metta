@@ -1,17 +1,17 @@
 // Info panels are used to display information about the current state of objects.
 
 // Lower-level hover rules:
-// * You need to hover over an object for one second for the info panel to show.
-// * You can hover off the object, and the panel will stay visible for one second.
+// * You need to hover over an Entity for one second for the info panel to show.
+// * You can hover off the Entity, and the panel will stay visible for one second.
 // * If you hover over the panel, it will stay visible as long as the mouse is over it.
 // * If you drag the panel, it will detach and stay on the screen.
 //   - It will only be closed by clicking on the X.
 //   - It will lose its hover stem on the bottom when it's in detached mode.
 
 // Hover panels show:
-// * The properties of the object (like position, which is hidden).
-// * The inventory of the object.
-// * The recipe of the object.
+// * The properties of the Entity (like position, which is hidden).
+// * The inventory of the Entity.
+// * The recipe of the Entity.
 // * The memory menu button.
 
 import { find, findIn, onEvent, removeChildren, findAttr } from './htmlutils.js'
@@ -22,16 +22,16 @@ import { Vec2f } from './vector_math.js'
 
 /** An info panel. */
 export class HoverPanel {
-  public object: any
+  public Entity: any
   public div: HTMLElement
 
-  constructor(object: any) {
-    this.object = object
+  constructor(Entity: any) {
+    this.Entity = Entity
     this.div = document.createElement('div')
   }
 
   public update() {
-    updateDom(this.div, this.object)
+    updateDom(this.div, this.Entity)
   }
 }
 
@@ -60,14 +60,14 @@ hoverPanel.addEventListener('mousedown', (e: MouseEvent) => {
   let tip = findIn(panel.div, '.tip')
   tip.remove()
   document.body.appendChild(panel.div)
-  updateDom(panel.div, panel.object)
+  updateDom(panel.div, panel.Entity)
   panel.div.style.top = hoverPanel.style.top
   panel.div.style.left = hoverPanel.style.left
 
-  // Show the actions buttons (memory, etc.) if the object is an agent
+  // Show the actions buttons (memory, etc.) if the Entity is an agent
   // and if the websocket is connected.
   let actions = findIn(panel.div, '.actions')
-  if (state.ws != null && panel.object.hasOwnProperty('agent_id')) {
+  if (state.ws != null && panel.Entity.hasOwnProperty('agent_id')) {
     actions.classList.remove('hidden')
   } else {
     actions.classList.add('hidden')
@@ -90,26 +90,26 @@ hoverPanel.addEventListener('mousedown', (e: MouseEvent) => {
 })
 
 /** Updates the hover panel's visibility, position, and DOM tree. */
-export function updateHoverPanel(object: any) {
-  if (object !== null && object !== undefined) {
-    let typeName = state.replay.type_names[getAttr(object, 'type')]
+export function updateHoverPanel(Entity: any) {
+  if (Entity !== null && Entity !== undefined) {
+    let typeName = state.replay.type_names[getAttr(Entity, 'type')]
     if (typeName == 'wall') {
       // Don't show hover panel for walls.
       hoverPanel.classList.add('hidden')
       return
     }
 
-    updateDom(hoverPanel, object)
+    updateDom(hoverPanel, Entity)
     hoverPanel.classList.remove('hidden')
 
     let panelRect = hoverPanel.getBoundingClientRect()
 
-    let x = getAttr(object, 'c') * Common.TILE_SIZE
-    let y = getAttr(object, 'r') * Common.TILE_SIZE
+    let x = getAttr(Entity, 'c') * Common.TILE_SIZE
+    let y = getAttr(Entity, 'r') * Common.TILE_SIZE
 
     let uiPoint = ui.mapPanel.transformInner(new Vec2f(x, y - Common.TILE_SIZE / 2))
 
-    // Put it in the center above the object.
+    // Put it in the center above the Entity.
     hoverPanel.style.left = uiPoint.x() - panelRect.width / 2 + 'px'
     hoverPanel.style.top = uiPoint.y() - panelRect.height + 'px'
   } else {
@@ -125,17 +125,17 @@ export function hideHoverPanel() {
 }
 
 /** Updates the DOM tree of the info panel. */
-function updateDom(htmlPanel: HTMLElement, object: any) {
+function updateDom(htmlPanel: HTMLElement, Entity: any) {
   // Update the readout.
-  htmlPanel.setAttribute('data-object-id', getAttr(object, 'id'))
-  htmlPanel.setAttribute('data-agent-id', getAttr(object, 'agent_id'))
+  htmlPanel.setAttribute('data-Entity-id', getAttr(Entity, 'id'))
+  htmlPanel.setAttribute('data-agent-id', getAttr(Entity, 'agent_id'))
 
   let params = findIn(htmlPanel, '.params')
   removeChildren(params)
   let inventory = findIn(htmlPanel, '.inventory')
   removeChildren(inventory)
-  for (const key in object) {
-    let value = getAttr(object, key)
+  for (const key in Entity) {
+    let value = getAttr(Entity, key)
     if ((key.startsWith('inv:') || key.startsWith('agent:inv:')) && value > 0) {
       let item = itemTemplate.cloneNode(true) as HTMLElement
       item.querySelector('.amount')!.textContent = value
@@ -162,11 +162,11 @@ function updateDom(htmlPanel: HTMLElement, object: any) {
     }
   }
 
-  // Populate the recipe area if the object config has input_ or output_ resources.
+  // Populate the recipe area if the Entity config has input_ or output_ resources.
   let recipe = findIn(htmlPanel, '.recipe')
   removeChildren(recipe)
   let recipeArea = findIn(htmlPanel, '.recipe-area')
-  let objectConfig = getObjectConfig(object)
+  let objectConfig = getObjectConfig(Entity)
   let displayedResources = 0
   if (objectConfig != null) {
     recipeArea.classList.remove('hidden')
@@ -174,7 +174,7 @@ function updateDom(htmlPanel: HTMLElement, object: any) {
     // If config has input_resources or output_resources use that,
     // otherwise use input_{resource} and output_{resource}.
     if (objectConfig.hasOwnProperty('input_resources') || objectConfig.hasOwnProperty('output_resources')) {
-      // input_resources is a object like {heart: 1, blueprint: 1}
+      // input_resources is a Entity like {heart: 1, blueprint: 1}
       for (let resource in objectConfig.input_resources) {
         let item = itemTemplate.cloneNode(true) as HTMLElement
         item.querySelector('.amount')!.textContent = objectConfig.input_resources[resource]
@@ -230,7 +230,7 @@ function updateDom(htmlPanel: HTMLElement, object: any) {
   }
 }
 
-/** Updates the readout of the selected object or replay info. */
+/** Updates the readout of the selected Entity or replay info. */
 export function updateReadout() {
   let readout = ''
   readout += 'Step: ' + state.step + '\n'

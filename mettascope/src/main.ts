@@ -289,13 +289,13 @@ function updateUrlParams() {
     urlParams.delete('step')
   }
 
-  // Handle the selected object.
+  // Handle the selected Entity.
   if (state.selectedGridObject !== null) {
-    // Find the index of the selected object.
+    // Find the index of the selected Entity.
     const selectedObjectIndex = state.replay.objects.indexOf(state.selectedGridObject)
     if (selectedObjectIndex !== -1) {
       urlParams.set('selectedObjectId', (selectedObjectIndex + 1).toString())
-      // Remove map position parameters when an object is selected.
+      // Remove map position parameters when an Entity is selected.
       urlParams.delete('mapPanX')
       urlParams.delete('mapPanY')
     }
@@ -303,7 +303,7 @@ function updateUrlParams() {
     // Include the map position.
     urlParams.set('mapPanX', Math.round(ui.mapPanel.panPos.x()).toString())
     urlParams.set('mapPanY', Math.round(ui.mapPanel.panPos.y()).toString())
-    // Remove the selected object when there is no selection.
+    // Remove the selected Entity when there is no selection.
     urlParams.delete('selectedObjectId')
   }
 
@@ -339,13 +339,13 @@ export function updateStep(newStep: number, skipScrubberUpdate = false) {
   requestFrame()
 }
 
-/** Centralized function to select an object. */
-export function updateSelection(object: any, setFollow = false) {
-  state.selectedGridObject = object
+/** Centralized function to select an Entity. */
+export function updateSelection(Entity: any, setFollow = false) {
+  state.selectedGridObject = Entity
   if (setFollow) {
     setFollowSelection(true)
   }
-  console.info('Selected object:', state.selectedGridObject)
+  console.info('Selected Entity:', state.selectedGridObject)
   updateAgentTable()
   requestFrame()
 }
@@ -529,14 +529,14 @@ async function parseUrlParams() {
       console.info('Playing state via query parameter:', state.isPlaying)
     }
 
-    // Set the selected object.
+    // Set the selected Entity.
     if (urlParams.get('selectedObjectId') !== null) {
       const selectedObjectId = parseInt(urlParams.get('selectedObjectId') || '-1') - 1
       if (selectedObjectId >= 0 && selectedObjectId < state.replay.objects.length) {
         updateSelection(state.replay.objects[selectedObjectId], true)
         ui.mapPanel.zoomLevel = Common.DEFAULT_ZOOM_LEVEL
         ui.tracePanel.zoomLevel = Common.DEFAULT_TRACE_ZOOM_LEVEL
-        console.info('Selected object via query parameter:', state.selectedGridObject)
+        console.info('Selected Entity via query parameter:', state.selectedGridObject)
       } else {
         console.warn('Invalid selectedObjectId:', selectedObjectId)
       }

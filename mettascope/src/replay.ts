@@ -7,8 +7,8 @@ import { updateAgentTable } from './agentpanel.js'
 
 type Sequence<T> = [number, T][] | [number, T] | null
 
-// Object and replay conform version 2 of the replay_spec.md.
-export class Object {
+// Entity and replay conform version 2 of the replay_spec.md.
+export class Entity {
   // Common keys.
   id: Sequence<number> = null
   typeId: Sequence<number> = null
@@ -52,7 +52,7 @@ export class Replay {
   actionNames: string[] = []
   itemNames: string[] = []
   groupNames: string[] = []
-  objects: Object[] = []
+  objects: Entity[] = []
   rewardSharingMatrix: number[][] = []
 }
 
@@ -64,7 +64,7 @@ class ReplayHelper {
 }
 
 
-/** Gets an attribute from a grid object, respecting the current step. */
+/** Gets an attribute from a grid Entity, respecting the current step. */
 export function getAttr<T>(sequence: Sequence<T>, atStep = -1): T {
   if (atStep == -1) {
     // When the step is not passed in, use the global step.
@@ -233,7 +233,7 @@ function fixReplay() {
   }
 }
 
-/** Loads a replay from a JSON object. */
+/** Loads a replay from a JSON Entity. */
 async function loadReplayJson(url: string, replayData: any) {
   state.replay = new Replay()
   state.replayHelper = new ReplayHelper()
@@ -253,9 +253,9 @@ async function loadReplayJson(url: string, replayData: any) {
   state.replay.actionNames = replayData.action_names
   state.replay.itemNames = replayData.item_names
 
-  // Go through each object and expand only known keys.
+  // Go through each Entity and expand only known keys.
   for (const objData of replayData.objects) {
-    let obj = new Object()
+    let obj = new Entity()
     let maxSteps = replayData.max_steps
     obj.id = expandSequence(objData['id'], maxSteps)
     obj.typeId = expandSequence(objData['type_id'], maxSteps)
@@ -325,7 +325,7 @@ export function loadReplayStep(replayStep: any) {
 
     // for (const key in obj) {
     //   const value = obj[key]
-    //   // Ensure that the grid object exists.
+    //   // Ensure that the grid Entity exists.
     //   while (state.replay.objects.length <= index) {
     //     state.replay.objects.push({})
     //   }
@@ -412,7 +412,7 @@ export function sendAction(actionName: string, actionParam: number) {
       })
     )
   } else {
-    console.error('No selected grid object')
+    console.error('No selected grid Entity')
   }
 }
 
