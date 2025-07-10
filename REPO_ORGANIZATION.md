@@ -7,9 +7,9 @@ This document outlines a flattened organization structure for the Metta monorepo
 ### Key Principles
 
 1. **Enforced Namespace**: All imports MUST use `metta.` prefix (enforced by linting)
-2. **Flat Structure**: Top-level package directories without src/ nesting
+2. **Flat Structure**: Top-level package directories without deep src/ nesting
 3. **Consistent Naming**: PyPI packages use `softmax-` prefix
-4. **PEP 420 Namespaces**: Symlinks enable the `metta.*` import pattern
+4. **Standard Python Packages**: Each package contains its own `metta/` namespace directory
 5. **Clean Imports**: Directory names remain simple (no prefix)
 
 ### Naming Convention
@@ -38,17 +38,36 @@ This gives us the best of all worlds:
 ```
 metta/
 ├── cogworks/                   # RL training framework
+│   ├── pyproject.toml
+│   └── metta/
+│       └── cogworks/
+│           ├── __init__.py
+│           ├── api.py
+│           ├── agent/
+│           ├── rl/
+│           └── ...
 ├── mettagrid/                  # C++/Python environment
+│   ├── pyproject.toml
+│   └── metta/
+│       └── mettagrid/
+│           ├── __init__.py
+│           └── ...
 ├── common/                     # Shared utilities
+│   ├── pyproject.toml
+│   └── metta/
+│       └── common/
+│           ├── __init__.py
+│           ├── util/
+│           └── ...
 ├── backend-shared/             # Shared backend services
+│   ├── pyproject.toml
+│   └── metta/
+│       └── backend_shared/
+│           ├── __init__.py
+│           └── ...
 ├── gridworks/                  # Map editor
 ├── observatory/                # Production monitoring
 ├── mettascope/                 # Replay viewer
-├── metta/                      # PEP 420 namespace (symlinks only)
-│   ├── cogworks → ../cogworks
-│   ├── mettagrid → ../mettagrid
-│   ├── common → ../common
-│   └── ...                     # Other symlinks
 ├── tools/                      # Standalone scripts
 ├── recipes/                    # Example scripts and workflows
 ├── configs/                    # Hydra configurations
@@ -63,39 +82,51 @@ metta/
 ```
 metta/
 ├── cogworks/                   # RL training framework (merged from metta/ + agent/)
-│   ├── agent/                  # From agent/src/metta/agent/
-│   ├── rl/                     # From metta/rl/
-│   ├── eval/                   # From metta/eval/
-│   ├── sweep/                  # From metta/sweep/
-│   ├── sim/                    # From metta/sim/
-│   ├── mapgen/                 # From metta/map/
-│   ├── tests/                  # Combined tests
 │   ├── pyproject.toml          # name = "softmax-cogworks"
-│   └── api.py                  # Main API (from metta/api.py)
+│   ├── tests/                  # Package tests
+│   └── metta/
+│       └── cogworks/
+│           ├── __init__.py
+│           ├── api.py          # Main API (from metta/api.py)
+│           ├── agent/          # From agent/src/metta/agent/
+│           ├── rl/             # From metta/rl/
+│           ├── eval/           # From metta/eval/
+│           ├── sweep/          # From metta/sweep/
+│           ├── sim/            # From metta/sim/
+│           └── mapgen/         # From metta/map/
 │
 ├── mettagrid/                  # C++/Python environment
+│   ├── pyproject.toml          # name = "softmax-mettagrid"
 │   ├── tests/
 │   ├── benchmarks/
 │   ├── configs/
-│   ├── *.py                    # Flattened Python files
-│   └── pyproject.toml          # name = "softmax-mettagrid"
+│   └── metta/
+│       └── mettagrid/
+│           ├── __init__.py
+│           └── *.py            # Flattened Python files
 │
 ├── common/                     # Shared Python utilities
-│   ├── util/                   # From common/src/metta/common/util/
-│   ├── profiling/              # From common/src/metta/common/profiling/
-│   ├── wandb/                  # From common/src/metta/common/wandb/
+│   ├── pyproject.toml          # name = "softmax-common"
 │   ├── tests/
-│   └── pyproject.toml          # name = "softmax-common"
+│   └── metta/
+│       └── common/
+│           ├── __init__.py
+│           ├── util/           # From common/src/metta/common/util/
+│           ├── profiling/      # From common/src/metta/common/profiling/
+│           └── wandb/          # From common/src/metta/common/wandb/
 │
 ├── backend-shared/             # Shared backend services
-│   ├── sweep_names.py          # Name registration service
-│   ├── stat_buffer.py          # Data persistence layer
-│   ├── auth.py                 # Authentication utilities
-│   ├── database.py             # Database connection pooling
-│   ├── cache.py                # Caching utilities
-│   ├── utils.py                # General backend utilities
+│   ├── pyproject.toml          # name = "softmax-backend-shared"
 │   ├── tests/
-│   └── pyproject.toml          # name = "softmax-backend-shared"
+│   └── metta/
+│       └── backend_shared/
+│           ├── __init__.py
+│           ├── sweep_names.py  # Name registration service
+│           ├── stat_buffer.py  # Data persistence layer
+│           ├── auth.py         # Authentication utilities
+│           ├── database.py     # Database connection pooling
+│           ├── cache.py        # Caching utilities
+│           └── utils.py        # General backend utilities
 │
 ├── ui-shared/                  # Shared UI components for web apps
 │   ├── components/             # Reusable React components
@@ -127,15 +158,6 @@ metta/
 │   ├── server.py               # Python replay server
 │   ├── replays.py              # Replay handling
 │   └── package.json
-│
-├── metta/                      # PEP 420 namespace package (NO __init__.py)
-│   ├── cogworks → ../cogworks         # Symlink to ../cogworks
-│   ├── mettagrid → ../mettagrid       # Symlink to ../mettagrid
-│   ├── common → ../common              # Symlink to ../common
-│   ├── backend_shared → ../backend-shared  # Symlink to ../backend-shared
-│   ├── gridworks → ../gridworks       # Symlink to ../gridworks
-│   ├── observatory → ../observatory   # Symlink to ../observatory
-│   └── mettascope → ../mettascope     # Symlink to ../mettascope
 │
 ├── tools/                      # Standalone scripts (train.py, sweep_*.py, etc.)
 ├── recipes/                    # Example scripts and workflows
@@ -179,9 +201,9 @@ name = "softmax-cogworks"
 version = "0.1.0"
 description = "Metta RL training framework"
 
-[tool.uv]
-# This ensures imports work as "from metta.cogworks import ..."
-# while the package installs as "pip install softmax-cogworks"
+[tool.setuptools]
+packages = ["metta.cogworks"]
+package-dir = {"": "."}
 ```
 
 **Imports:**
@@ -205,6 +227,10 @@ name = "softmax-mettagrid"
 version = "0.1.0"
 description = "High-performance grid environments"
 dependencies = ["softmax-common>=0.1.0"]
+
+[tool.setuptools]
+packages = ["metta.mettagrid"]
+package-dir = {"": "."}
 ```
 
 **Imports:**
@@ -221,6 +247,10 @@ from metta.mettagrid.wrappers import AsyncWrapper
 name = "softmax-common"
 version = "0.1.0"
 description = "Shared utilities for Metta packages"
+
+[tool.setuptools]
+packages = ["metta.common"]
+package-dir = {"": "."}
 ```
 
 **Imports:**
@@ -243,6 +273,10 @@ dependencies = [
     "sqlalchemy>=2.0.0",
     "redis>=5.0.0",
 ]
+
+[tool.setuptools]
+packages = ["metta.backend_shared"]
+package-dir = {"": "."}
 ```
 
 **Imports:**
@@ -262,13 +296,14 @@ pip install softmax-backend-shared
 
 ```
 # CURRENT LOCATION                      → NEW LOCATION
-metta/src/api.py                       → cogworks/api.py
-metta/src/rl/                          → cogworks/rl/
-metta/src/sweep/                       → cogworks/sweep/
-metta/src/setup/                       → cogworks/setup/
-metta/src/agent/                       → cogworks/agent/
-metta/src/map/                         → cogworks/mapgen/
-metta/src/eval/                        → cogworks/eval/
+metta/api.py                           → cogworks/metta/cogworks/api.py
+metta/rl/                              → cogworks/metta/cogworks/rl/
+metta/sweep/                           → cogworks/metta/cogworks/sweep/
+metta/setup/                           → cogworks/metta/cogworks/setup/
+agent/src/metta/agent/                 → cogworks/metta/cogworks/agent/
+metta/map/                             → cogworks/metta/cogworks/mapgen/
+metta/eval/                            → cogworks/metta/cogworks/eval/
+metta/sim/                             → cogworks/metta/cogworks/sim/
 metta/tests/                           → cogworks/tests/
 metta/configs/                         → configs/
 metta/tools/                           → tools/
@@ -276,11 +311,11 @@ metta/recipes/                         → recipes/
 metta/docs/                            → docs/
 metta/devops/                          → devops/
 
-common/src/metta/common/               → common/
-mettagrid/src/metta/mettagrid/         → mettagrid/
+common/src/metta/common/               → common/metta/common/
+mettagrid/src/metta/mettagrid/         → mettagrid/metta/mettagrid/
 
-backend/src/metta/backend/sweep_names/ → backend-shared/sweep_names.py
-backend/src/metta/backend/stat_buffer/ → backend-shared/stat_buffer.py
+backend/src/metta/backend/sweep_names/ → backend-shared/metta/backend_shared/sweep_names.py
+backend/src/metta/backend/stat_buffer/ → backend-shared/metta/backend_shared/stat_buffer.py
 backend/src/metta/backend/observatory/ → observatory/api/endpoints.py
 backend/docker/observatory/            → observatory/Dockerfile
 
@@ -295,12 +330,6 @@ metta-common                  → softmax-common
 metta-agent                   → (merged into softmax-cogworks)
 metta-mettagrid              → softmax-mettagrid
 metta-app-backend            → softmax-backend-shared (for shared services)
-
-# NAMESPACE SYMLINKS (NEW)
-(none)                                 → metta/cogworks → ../cogworks
-(none)                                 → metta/mettagrid → ../mettagrid
-(none)                                 → metta/common → ../common
-(none)                                 → metta/backend_shared → ../backend-shared
 ```
 
 ## Installation Examples
@@ -325,25 +354,18 @@ uv sync  # Installs all workspace packages
 # Built softmax-backend-shared @ file:///workspace/backend-shared
 ```
 
-## PEP 420 Namespace Setup
+## Python Package Structure
 
-The `metta/` directory is a PEP 420 implicit namespace package:
-- NO `__init__.py` file
-- Contains only symlinks to actual packages
-- Enables `metta.*` imports without code duplication
+Each Python package follows a standard structure:
+- Top-level directory contains `pyproject.toml`, tests, and other package files
+- `metta/` subdirectory contains the namespace package
+- Actual code lives in `metta/<package_name>/`
 
-**Creating the symlinks:**
-```bash
-mkdir -p metta
-cd metta
-ln -s ../cogworks cogworks
-ln -s ../mettagrid mettagrid
-ln -s ../common common
-ln -s ../backend-shared backend_shared
-ln -s ../gridworks gridworks
-ln -s ../observatory observatory
-ln -s ../mettascope mettascope
-```
+This approach:
+- Uses standard Python namespace packages (no PEP 420 needed)
+- Each package is self-contained with its own `metta` namespace
+- No symlinks or complex build configurations required
+- Works seamlessly with standard Python packaging tools
 
 ## Import Philosophy
 
@@ -365,10 +387,10 @@ In our case:
 1. **Brand Recognition**: All packages clearly belong to Softmax
 2. **No Naming Conflicts**: `softmax-` prefix prevents PyPI collisions
 3. **Enforced Consistency**: All code uses `metta.*` imports
-4. **Flat Structure**: Simple directory layout
+4. **Standard Structure**: Follows Python packaging best practices
 5. **Easy Migration**: Minimal changes to existing codebase imports
 6. **No Ambiguity**: Enforced import style prevents confusion
-7. **Semantic Grouping**: Top-level directories clearly indicate purpose
+7. **Self-Contained Packages**: Each package has its own namespace directory
 8. **Code Stability**: Existing `metta.*` imports continue to work
 
 ## Dependency Graph
@@ -395,7 +417,7 @@ As the web apps mature, they'll follow the same pattern:
 
 ## Migration Path
 
-1. Create `metta/` namespace directory with symlinks
+1. Restructure each package to have `metta/<package_name>/` structure
 2. Update all imports to use `metta.` prefix (minimal changes needed)
 3. Add lint rule to enforce `metta.` imports
 4. Update `pyproject.toml` files with `softmax-` prefixed names
