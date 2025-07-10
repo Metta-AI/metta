@@ -305,9 +305,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
 
         # Volume normalized metrics
         if self._total_grid_cells > 0:
-            metrics["exploration/unique_visits_normalized_by_volume"] = (
-                float(total_visited) / self._total_grid_cells
-            )
+            metrics["exploration/unique_visits_normalized_by_volume"] = float(total_visited) / self._total_grid_cells
             metrics["exploration/unique_observations_normalized_by_volume"] = (
                 float(total_observed) / self._total_grid_cells
             )
@@ -324,6 +322,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
         # Standard deviations
         if len(visited_counts) > 1:
             import numpy as np
+
             metrics["exploration/std_dev_agent_visits"] = float(np.std(visited_counts))
             metrics["exploration/std_dev_agent_observations"] = float(np.std(observed_counts))
         else:
