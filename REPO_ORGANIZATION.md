@@ -397,7 +397,7 @@ graph TD
 As the web apps mature, they'll follow the same pattern:
 - `gridworks/` → `from metta.gridworks` → `pip install softmax-gridworks`
 - `observatory/` → `from metta.observatory` → `pip install softmax-observatory`
-- `mettascope/` → `from metta.mettascope` → `pip install softmax-scope`
+- `mettascope/` → `from metta.mettascope` → `pip install softmax-mettascope`
 
 ## Migration Path
 
