@@ -1,203 +1,275 @@
 #!/usr/bin/env -S uv run
 """
-Analyze environment configurations from wandb artifacts.
+Analyze environment configurations from wandb runs.
 
-This script helps retrieve and analyze the environment configurations that were saved
-as artifacts during training runs, especially useful for understanding how curricula
-changed configs dynamically.
+This script helps retrieve and analyze environment configurations and task selection
+from wandb runs. With the new approach, task configs are stored in wandb.config and
+task selection is tracked as metrics.
 """
 
 import argparse
 import json
 import os
-from typing import Dict
+from typing import Dict, List
 
 import wandb
 
 
-def download_env_config_artifact(run_path: str, output_dir: str) -> str:
-    """Download environment configuration artifact from a wandb run."""
+def get_curriculum_data_from_run(run_path: str) -> Dict:
+    """Get curriculum task configs and selection history from a wandb run."""
     api = wandb.Api()
     run = api.run(run_path)
 
-    # Find the env config artifact
-    artifacts = run.logged_artifacts()
-    env_config_artifacts = [a for a in artifacts if a.type == "environment_configs"]
+    # Get task configs from wandb.config
+    curriculum_data = run.config.get("curriculum", {})
+    task_configs = curriculum_data.get("task_configs", {})
 
-    if not env_config_artifacts:
-        raise ValueError(f"No environment configuration artifacts found for run {run_path}")
+    if not task_configs:
+        raise ValueError(f"No curriculum task configs found in run {run_path}")
 
-    # Get the latest version
-    artifact = env_config_artifacts[-1]
-    print(f"Downloading artifact: {artifact.name} (version {artifact.version})")
+    print(f"Found {len(task_configs)} task configs in wandb.config")
 
-    # Download the artifact
-    artifact_dir = artifact.download(root=output_dir)
+    # Get task selection history from metrics
+    history = run.scan_history(keys=["curriculum/current_task_id", "curriculum/current_task_name"])
 
-    # Find the JSON file
-    json_files = [f for f in os.listdir(artifact_dir) if f.endswith(".json")]
-    if not json_files:
-        raise ValueError("No JSON file found in artifact")
+    history_list = list(history)
+    print(f"Found {len(history_list)} task selection records")
 
-    return os.path.join(artifact_dir, json_files[0])
+    # Post-hoc parameter extraction from task configs
+    enriched_history = []
+    for entry in history_list:
+        task_id = entry.get("curriculum/current_task_id")
+        if task_id and task_id in task_configs:
+            config = task_configs[task_id]
+            # Extract key parameters from config
+            game = config.get("game", {})
+            agent = game.get("agent", {})
 
+            enriched_entry = entry.copy()
+            enriched_entry["freeze_duration"] = agent.get("freeze_duration")
+            enriched_entry["max_steps"] = game.get("max_steps")
+            enriched_entry["num_agents"] = game.get("num_agents")
 
-def analyze_env_configs(config_file: str) -> Dict:
-    """Analyze environment configurations from a JSON file."""
-    with open(config_file, "r") as f:
-        data = json.load(f)
+            # Extract rewards
+            rewards = agent.get("rewards", {})
+            enriched_entry["reward_heart"] = rewards.get("heart")
 
-    history = data.get("history", [])
-    task_counts = data.get("task_counts", {})
-    curriculum_stats = data.get("curriculum_stats", {})
-
-    # Extract unique configurations
-    unique_configs = {}
-    config_changes = []
-
-    for entry in history:
-        task_id = entry["task_id"]
-        config = entry["config"]
-
-        # Create a config signature
-        config_str = json.dumps(config, sort_keys=True)
-
-        if task_id not in unique_configs:
-            unique_configs[task_id] = {}
-
-        if config_str not in unique_configs[task_id]:
-            unique_configs[task_id][config_str] = {
-                "first_seen_epoch": entry["epoch"],
-                "first_seen_step": entry["agent_step"],
-                "count": 0,
-                "config": config,
-            }
-
-            # Track when configs changed
-            if len(config_changes) == 0 or config_changes[-1]["config_str"] != config_str:
-                config_changes.append(
-                    {"epoch": entry["epoch"], "step": entry["agent_step"], "task_id": task_id, "config_str": config_str}
-                )
-
-        unique_configs[task_id][config_str]["count"] += 1
-
-    # Extract key parameters
-    key_params = {}
-    for entry in history:
-        config = entry["config"]
-        if "game" in config:
-            game_cfg = config["game"]
-
-            params = {
-                "max_steps": game_cfg.get("max_steps"),
-                "num_agents": game_cfg.get("num_agents"),
-            }
-
-            if "agent" in game_cfg:
-                agent_cfg = game_cfg["agent"]
-                params.update(
-                    {
-                        "freeze_duration": agent_cfg.get("freeze_duration"),
-                        "default_resource_limit": agent_cfg.get("default_resource_limit"),
-                    }
-                )
-
-                if "rewards" in agent_cfg:
-                    for k, v in agent_cfg["rewards"].items():
-                        params[f"reward_{k}"] = v
-
-            key = f"{entry['task_id']}_epoch_{entry['epoch']}"
-            key_params[key] = params
+            enriched_history.append(enriched_entry)
 
     return {
-        "total_configs": len(history),
-        "unique_tasks": len(task_counts),
-        "task_counts": task_counts,
-        "curriculum_stats": curriculum_stats,
-        "config_changes": config_changes,
-        "unique_configs_per_task": {task_id: len(configs) for task_id, configs in unique_configs.items()},
-        "key_parameters": key_params,
+        "curriculum_data": curriculum_data,
+        "task_configs": task_configs,
+        "task_selection_history": enriched_history,
+        "run_info": {"id": run.id, "name": run.name, "created_at": run.created_at, "url": run.url},
     }
+
+
+def analyze_env_configs(data: Dict) -> Dict:
+    """Analyze environment configurations and task selection patterns."""
+    task_configs = data["task_configs"]
+    history = data["task_selection_history"]
+
+    # Task frequency analysis
+    task_counts = {}
+    for entry in history:
+        task_id = entry.get("curriculum/current_task_id")
+        if task_id:
+            task_counts[task_id] = task_counts.get(task_id, 0) + 1
+
+    # Parameter analysis
+    param_analysis = {}
+
+    # Analyze freeze_duration values
+    freeze_durations = [entry.get("freeze_duration") for entry in history if entry.get("freeze_duration") is not None]
+    if freeze_durations:
+        param_analysis["freeze_duration"] = {
+            "min": min(freeze_durations),
+            "max": max(freeze_durations),
+            "unique_values": list(set(freeze_durations)),
+            "count": len(freeze_durations),
+        }
+
+    # Analyze from task configs
+    config_params = {}
+    for task_id, config in task_configs.items():
+        # Extract key parameters
+        params = {}
+        if "game" in config:
+            game = config["game"]
+            params["num_agents"] = game.get("num_agents")
+            params["max_steps"] = game.get("max_steps")
+
+            if "agent" in game:
+                agent = game["agent"]
+                params["freeze_duration"] = agent.get("freeze_duration")
+                params["default_resource_limit"] = agent.get("default_resource_limit")
+
+                if "rewards" in agent:
+                    for reward_name, value in agent["rewards"].items():
+                        params[f"reward_{reward_name}"] = value
+
+        config_params[task_id] = {k: v for k, v in params.items() if v is not None}
+
+    return {
+        "total_task_selections": len(history),
+        "unique_tasks": len(task_counts),
+        "task_frequencies": task_counts,
+        "parameter_analysis": param_analysis,
+        "task_config_parameters": config_params,
+        "curriculum_type": data["curriculum_data"].get("curriculum_type", "unknown"),
+    }
+
+
+def filter_runs_by_params(entity: str, project: str, **param_filters) -> List[str]:
+    """Filter runs by environment parameters (post-hoc analysis)."""
+    api = wandb.Api()
+
+    # Get all runs and filter post-hoc
+    runs = api.runs(f"{entity}/{project}")
+    matching_runs = []
+
+    for run in runs:
+        curriculum_data = run.config.get("curriculum", {})
+        task_configs = curriculum_data.get("task_configs", {})
+
+        if not task_configs:
+            continue
+
+        # Check if any task in this run matches the criteria
+        matches_criteria = False
+
+        for task_id, config in task_configs.items():
+            game = config.get("game", {})
+            agent = game.get("agent", {})
+
+            # Extract parameters for filtering
+            params = {
+                "freeze_duration": agent.get("freeze_duration"),
+                "max_steps": game.get("max_steps"),
+                "num_agents": game.get("num_agents"),
+            }
+
+            # Check each filter criterion
+            task_matches = True
+            for param_name, param_filter in param_filters.items():
+                param_value = params.get(param_name)
+
+                if param_value is None:
+                    task_matches = False
+                    break
+
+                if isinstance(param_filter, dict):
+                    if "$gt" in param_filter and not (param_value > param_filter["$gt"]):
+                        task_matches = False
+                        break
+                    elif "$lt" in param_filter and not (param_value < param_filter["$lt"]):
+                        task_matches = False
+                        break
+                else:
+                    if param_value != param_filter:
+                        task_matches = False
+                        break
+
+            if task_matches:
+                matches_criteria = True
+                break
+
+        if matches_criteria:
+            matching_runs.append(run.path)
+
+    return matching_runs
 
 
 def print_analysis(analysis: Dict):
     """Print analysis results in a readable format."""
     print("\n=== Environment Configuration Analysis ===")
-    print(f"Total configurations logged: {analysis['total_configs']}")
+    print(f"Curriculum type: {analysis['curriculum_type']}")
+    print(f"Total task selections: {analysis['total_task_selections']}")
     print(f"Unique tasks: {analysis['unique_tasks']}")
 
     print("\n=== Task Frequencies ===")
-    for task_id, count in analysis["task_counts"].items():
+    for task_id, count in analysis["task_frequencies"].items():
         print(f"  {task_id}: {count} times")
 
-    print("\n=== Configuration Changes ===")
-    print(f"Total configuration changes: {len(analysis['config_changes'])}")
-    for i, change in enumerate(analysis["config_changes"][:10]):  # Show first 10
-        print(f"  Change {i + 1}: Epoch {change['epoch']}, Step {change['step']}, Task: {change['task_id']}")
+    print("\n=== Parameter Analysis ===")
+    for param_name, param_data in analysis["parameter_analysis"].items():
+        print(f"\n  {param_name}:")
+        for key, value in param_data.items():
+            print(f"    {key}: {value}")
 
-    if len(analysis["config_changes"]) > 10:
-        print(f"  ... and {len(analysis['config_changes']) - 10} more changes")
-
-    print("\n=== Unique Configurations per Task ===")
-    for task_id, count in analysis["unique_configs_per_task"].items():
-        print(f"  {task_id}: {count} unique configurations")
-
-    # Show a sample of key parameters
-    print("\n=== Sample Key Parameters ===")
-    sample_keys = list(analysis["key_parameters"].keys())[:5]
-    for key in sample_keys:
-        params = analysis["key_parameters"][key]
-        print(f"\n  {key}:")
+    print("\n=== Sample Task Configurations ===")
+    for task_id, params in list(analysis["task_config_parameters"].items())[:3]:
+        print(f"\n  {task_id}:")
         for param, value in params.items():
-            if value is not None:
-                print(f"    {param}: {value}")
+            print(f"    {param}: {value}")
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Analyze environment configurations from wandb artifacts")
-    parser.add_argument("run_path", help="W&B run path (e.g., entity/project/run_id)")
-    parser.add_argument("--output-dir", default="./env_config_analysis", help="Output directory for artifacts")
-    parser.add_argument("--export-csv", help="Export key parameters to CSV file")
+    parser = argparse.ArgumentParser(description="Analyze environment configurations from wandb runs")
+
+    subparsers = parser.add_subparsers(dest="command", help="Available commands")
+
+    # Analyze single run
+    analyze_parser = subparsers.add_parser("analyze", help="Analyze a single run")
+    analyze_parser.add_argument("run_path", help="W&B run path (e.g., entity/project/run_id)")
+    analyze_parser.add_argument("--output-dir", default="./analysis", help="Output directory")
+
+    # Filter runs by parameters
+    filter_parser = subparsers.add_parser("filter", help="Filter runs by parameters")
+    filter_parser.add_argument("entity", help="W&B entity")
+    filter_parser.add_argument("project", help="W&B project")
+    filter_parser.add_argument("--freeze-duration-gt", type=int, help="Filter freeze_duration > value")
+    filter_parser.add_argument("--max-steps-lt", type=int, help="Filter max_steps < value")
+    filter_parser.add_argument("--num-agents", type=int, help="Filter by exact num_agents")
 
     args = parser.parse_args()
 
-    # Create output directory
-    os.makedirs(args.output_dir, exist_ok=True)
+    if args.command == "analyze":
+        try:
+            # Get data from run
+            data = get_curriculum_data_from_run(args.run_path)
 
-    try:
-        # Download artifact
-        config_file = download_env_config_artifact(args.run_path, args.output_dir)
-        print(f"\nConfiguration file downloaded to: {config_file}")
+            # Analyze
+            analysis = analyze_env_configs(data)
 
-        # Analyze configurations
-        analysis = analyze_env_configs(config_file)
+            # Print results
+            print_analysis(analysis)
 
-        # Print analysis
-        print_analysis(analysis)
+            # Save results
+            os.makedirs(args.output_dir, exist_ok=True)
+            analysis_file = os.path.join(args.output_dir, "analysis_results.json")
+            with open(analysis_file, "w") as f:
+                json.dump({"analysis": analysis, "run_info": data["run_info"]}, f, indent=2, default=str)
+            print(f"\nAnalysis results saved to: {analysis_file}")
 
-        # Export to CSV if requested
-        if args.export_csv:
-            import pandas as pd
+        except Exception as e:
+            print(f"Error: {e}")
+            return 1
 
-            # Convert key parameters to DataFrame
-            params_list = []
-            for key, params in analysis["key_parameters"].items():
-                row = {"config_key": key}
-                row.update(params)
-                params_list.append(row)
+    elif args.command == "filter":
+        try:
+            # Build parameter filters
+            filters = {}
+            if args.freeze_duration_gt:
+                filters["freeze_duration"] = {"$gt": args.freeze_duration_gt}
+            if args.max_steps_lt:
+                filters["max_steps"] = {"$lt": args.max_steps_lt}
+            if args.num_agents:
+                filters["num_agents"] = args.num_agents
 
-            df = pd.DataFrame(params_list)
-            df.to_csv(args.export_csv, index=False)
-            print(f"\nKey parameters exported to: {args.export_csv}")
+            # Find matching runs
+            matching_runs = filter_runs_by_params(args.entity, args.project, **filters)
 
-        # Save analysis results
-        analysis_file = os.path.join(args.output_dir, "analysis_results.json")
-        with open(analysis_file, "w") as f:
-            json.dump(analysis, f, indent=2)
-        print(f"\nAnalysis results saved to: {analysis_file}")
+            print(f"\nFound {len(matching_runs)} runs matching criteria:")
+            for run_path in matching_runs:
+                print(f"  {run_path}")
 
-    except Exception as e:
-        print(f"\nError: {e}")
+        except Exception as e:
+            print(f"Error: {e}")
+            return 1
+
+    else:
+        parser.print_help()
         return 1
 
     return 0
