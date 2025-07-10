@@ -305,7 +305,6 @@ function TrainingRunDescription({
   const [state, setState] = useState<DescriptionState>('idle')
   const [editDescription, setEditDescription] = useState('')
   const [generationError, setGenerationError] = useState<string | null>(null)
-  const [generationErrorFlag, setGenerationErrorFlag] = useState<string | null>(null)
 
   const canEditRun = currentUser && trainingRun.user_id === currentUser
   const canGenerate = canEditRun && !trainingRun.description && trainingRun.attributes?.git_hash
@@ -318,7 +317,6 @@ function TrainingRunDescription({
     setState('editing')
     setEditDescription(trainingRun.description || '')
     setGenerationError(null)
-    setGenerationErrorFlag(null)
   }, [trainingRun.description])
 
   const handleSaveDescription = useCallback(async () => {
@@ -329,7 +327,6 @@ function TrainingRunDescription({
       setState('idle')
       setEditDescription('')
       setGenerationError(null)
-      setGenerationErrorFlag(null)
     } catch (err: any) {
       onError(`Failed to update description: ${err.message}`)
       setState('editing') // Stay in editing mode on error
@@ -340,23 +337,19 @@ function TrainingRunDescription({
     setState('idle')
     setEditDescription('')
     setGenerationError(null)
-    setGenerationErrorFlag(null)
   }, [])
 
   const handleGenerateDescription = useCallback(async () => {
     try {
       setState('generating')
       setGenerationError(null)
-      setGenerationErrorFlag(null)
       const updatedRun = await repo.generateTrainingRunDescription(trainingRun.id)
       onUpdate(updatedRun)
       setState('idle')
-      setGenerationErrorFlag(null)
     } catch (err: any) {
       console.error('Failed to generate description:', err)
       const errorText = err.message || 'Internal error'
       setGenerationError(`Failed to generate: ${errorText}`)
-      setGenerationErrorFlag(errorText)
       setState('idle')
     }
   }, [repo, trainingRun.id, onUpdate])
@@ -383,28 +376,19 @@ function TrainingRunDescription({
             >
               Generate
             </button>
-            {generationErrorFlag && (
+            {generationError && (
               <span
                 style={{
                   color: '#d32f2f',
-                  fontWeight: '500',
-                  fontSize: '12px',
-                  cursor: 'help'
+                  fontSize: '12px'
                 }}
-                title={generationErrorFlag}
               >
-                (error generating)
+                {generationError}
               </span>
             )}
           </span>
         )}
       </div>
-
-      {generationError && (
-        <div style={{ color: '#dc3545', fontSize: '12px', marginTop: '4px' }}>
-          {generationError}
-        </div>
-      )}
 
       {state === 'editing' || state === 'saving' ? (
         <div className="edit-description-form">
