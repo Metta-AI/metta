@@ -42,8 +42,8 @@ protected:
       return false;
     }
 
-    short num_found = 0;
     Agent* last_agent = nullptr;
+    short num_skipped = 0;
 
     // Attack positions form a 3x3 grid in front of the agent
     // Visual representation of attack order (agent facing up):
@@ -51,38 +51,29 @@ protected:
     // 4 3 5  (2 cells forward)
     // 1 0 2  (1 cell forward)
     //   A    (Agent position)
-    static constexpr std::pair<short, short> ATTACK_POSITIONS[9] = {
-        {1, 0},   // 0: 1 forward, straight ahead
-        {1, -1},  // 1: 1 forward, 1 left
-        {1, 1},   // 2: 1 forward, 1 right
-        {2, 0},   // 3: 2 forward, straight ahead
-        {2, -1},  // 4: 2 forward, 1 left
-        {2, 1},   // 5: 2 forward, 1 right
-        {3, 0},   // 6: 3 forward, straight ahead
-        {3, -1},  // 7: 3 forward, 1 left
-        {3, 1},   // 8: 3 forward, 1 right
-    };
+
+    // Column offsets to check: center, left, right
+    static constexpr int COL_OFFSETS[3] = {0, -1, 1};
 
     // Scan the 9 squares in front of the agent (3x3 grid)
-    for (int i = 0; i < 9; ++i) {
-      auto [distance, offset] = ATTACK_POSITIONS[i];
-      GridLocation target_loc = _grid->relative_location(actor->location, actor->orientation, distance, offset);
-      target_loc.layer = GridLayer::AgentLayer;
+    for (int distance = 1; distance <= 3; distance++) {
+      for (int offset : COL_OFFSETS) {
+        GridLocation target_loc = _grid->relative_location(actor->location, actor->orientation, distance, offset);
+        target_loc.layer = GridLayer::AgentLayer;
 
-      Agent* agent_target = static_cast<Agent*>(_grid->object_at(target_loc));
-      if (agent_target != nullptr) {
-        last_agent = agent_target;
-
-        // If this is the agent at the requested index, attack it
-        if (num_found == arg) {
-          return _handle_target(*actor, *agent_target);
+        Agent* target_agent = static_cast<Agent*>(_grid->object_at(target_loc));  // we looked in AgentLayer
+        if (target_agent) {
+          last_agent = target_agent;
+          if (num_skipped == arg) {
+            return _handle_target(*actor, *target_agent);
+          }
+          num_skipped++;
         }
-        num_found++;
       }
     }
 
     // If we got here, it means we skipped over all the targets. Attack the last one.
-    if (last_agent != nullptr && arg >= num_found) {
+    if (last_agent != nullptr && arg >= num_skipped) {
       return _handle_target(*actor, *last_agent);
     }
 
