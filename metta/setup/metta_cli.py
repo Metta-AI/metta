@@ -383,7 +383,9 @@ Examples:
             self.setup_wizard()
             return
 
-        if args.command != "configure":
+        # Check if configuration is required for this command
+        # Allow configure and symlink-setup to run without config
+        if args.command not in ["configure", "symlink-setup"]:
             if not self.config.config_path.exists():
                 error("No configuration found. Please run 'metta configure' first.")
                 sys.exit(1)
