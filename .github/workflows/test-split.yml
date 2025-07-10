@@ -1,0 +1,32 @@
+# Example CI configuration for splitting fast and slow tests
+# This shows the minimal changes needed to run tests in two streams
+
+name: "Split Tests Example"
+on: pull_request
+
+jobs:
+  fast-tests:
+    name: "Fast Tests"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup environment
+        # ... setup steps ...
+
+      - name: Run fast tests
+        run: |
+          # Run all tests except those marked as slow
+          pytest -m "not slow" --tb=short
+
+  slow-tests:
+    name: "Slow Tests"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup environment
+        # ... setup steps ...
+
+      - name: Run slow tests
+        run: |
+          # Run only tests marked as slow
+          pytest -m slow --tb=short

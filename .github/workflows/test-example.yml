@@ -1,0 +1,51 @@
+name: Test Example
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  fast-tests:
+    name: Fast Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11.7'
+
+      - name: Install dependencies
+        run: |
+          pip install uv
+          uv pip install -e .
+
+      - name: Run fast tests
+        run: |
+          # Run all tests that are NOT marked as slow
+          pytest -m "not slow" --tb=short -v
+
+  slow-tests:
+    name: Slow Tests
+    runs-on: ubuntu-latest
+    # Only run on main branch or when explicitly requested
+    if: github.ref == 'refs/heads/main' || contains(github.event.pull_request.labels.*.name, 'run-slow-tests')
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11.7'
+
+      - name: Install dependencies
+        run: |
+          pip install uv
+          uv pip install -e .
+
+      - name: Run slow tests
+        run: |
+          # Run only tests marked as slow
+          pytest -m slow --tb=short -v
