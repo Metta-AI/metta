@@ -4,7 +4,6 @@ import { find, parseHtmlColor, localStorageGetNumber, toggleOpacity } from './ht
 import { PanelInfo } from './panels.js'
 import { HoverPanel } from './hoverpanels.js'
 
-
 // The 3D context, used for nearly everything.
 export const ctx = new Context3d(find('#global-canvas') as HTMLCanvasElement)
 

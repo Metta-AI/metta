@@ -10,7 +10,7 @@ export function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(value, max))
 }
 
-/** WebGL Mesh class for managing vertex data and buffers. */
+/** Mesh class responsible for managing vertex data. */
 class Mesh {
   private name: string
   private gl: WebGLRenderingContext
@@ -193,14 +193,14 @@ class Mesh {
     this.currentQuad += 1
   }
 
-  /** Get the vertex data. */
-  getVertexData(): Float32Array {
-    return this.vertexData
-  }
-
   /** Get the number of quads in the mesh. */
   getQuadCount(): number {
     return this.currentQuad
+  }
+
+  /** Get the vertex data. */
+  getVertexData(): Float32Array {
+    return this.vertexData
   }
 
   /** Get the current vertex count. */
