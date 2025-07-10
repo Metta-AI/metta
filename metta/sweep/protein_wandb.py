@@ -42,7 +42,7 @@ class WandbProtein:
 
         # Derive the sweep ID, if this run belongs to a sweep.
         sweep_obj = getattr(self._wandb_run, "sweep", None)
-        self._sweep_id = sweep_obj.id if sweep_obj else None
+        self._sweep_id = getattr(self._wandb_run, "sweep_id", None) or (sweep_obj.id if sweep_obj else None)
 
         logger.info(f"Sweep ID: {self._sweep_id}")
         self._api = wandb.Api()
