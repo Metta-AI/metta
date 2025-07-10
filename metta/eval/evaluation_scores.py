@@ -1,5 +1,3 @@
-"""Evaluation scores data structure."""
-
 from pydantic import Field
 
 from metta.common.util.typed_config import BaseModelWithForbidExtra
