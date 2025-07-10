@@ -217,31 +217,6 @@ function App() {
               <Link to="/sql-query" className={`nav-tab ${location.pathname === '/sql-query' ? 'active' : ''}`}>
                 SQL Query
               </Link>
-              <Link to="/library" className={`nav-tab ${location.pathname === '/library' ? 'active' : ''}`}>
-                <span 
-                  style={{ 
-                    display: 'inline-flex', 
-                    alignItems: 'center', 
-                    gap: '6px'
-                  }}
-                >
-                  <span 
-                  style={{
-                    transform: 'translateY(2px)'
-                  }}
-                  dangerouslySetInnerHTML={{ 
-                    __html: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                      <path d="M3 18h18"/>
-                      <rect x="3" y="8" width="3.6" height="10"/>
-                      <rect x="6.6" y="6" width="3.6" height="12"/>
-                      <rect x="10.2" y="9" width="3.6" height="9"/>
-                      <rect x="13.8" y="7" width="3.6" height="11"/>
-                      <rect x="17.4" y="5" width="3.6" height="13"/>
-                    </svg>`
-                  }} />
-                  Library
-                </span>
-              </Link>
             </div>
           </div>
         </nav>
