@@ -197,8 +197,8 @@ class MettaCLI:
     def cmd_symlink_setup(self, args) -> None:
         self.path_setup.setup_path(force=args.force)
 
-    def cmd_pytest(self, pytest_args: list[str]) -> None:
-        cmd = ["pytest"] + pytest_args
+    def cmd_pytest(self, args) -> None:
+        cmd = ["pytest"] + args
         try:
             subprocess.run(cmd, cwd=self.repo_root, check=True)
         except subprocess.CalledProcessError as e:
@@ -384,13 +384,16 @@ Examples:
         )
         symlink_parser.add_argument("--force", action="store_true", help="Replace existing metta command if it exists")
 
-        # Pytest command
-        test_parser = subparsers.add_parser("test", help="Run python unit tests")
-        test_changed_parser = subparsers.add_parser("test-changed", help="Run python unit tests affected by changes")
-        for parser in [test_parser, test_changed_parser]:
-            parser.add_argument("pytest_args", nargs=argparse.REMAINDER, help="Arguments to pass to pytest")
+        # Test commands
+        subparsers.add_parser("test", help="Run python unit tests")
+        subparsers.add_parser("test-changed", help="Run python unit tests affected by changes")
 
-        args = parser.parse_args()
+        # Use parse_known_args to handle unknown arguments for test commands
+        args, unknown_args = parser.parse_known_args()
+
+        if args.command not in ["test", "test-changed"]:
+            if unknown_args:
+                parser.error(f"unrecognized arguments: {' '.join(unknown_args)}")
 
         # Auto-run configure if no config exists and no command given
         if not args.command and not self.config.config_path.exists():
@@ -421,10 +424,10 @@ Examples:
             self.cmd_clean(args)
         elif args.command == "symlink-setup":
             self.cmd_symlink_setup(args)
-        elif args.command == "pytest":
-            self.cmd_pytest(args.pytest_args)
+        elif args.command == "test":
+            self.cmd_pytest(unknown_args)
         elif args.command == "test-changed":
-            self.cmd_pytest(args.pytest_args + ["--testmon"])
+            self.cmd_pytest(unknown_args + ["--testmon"])
         else:
             parser.print_help()
 
