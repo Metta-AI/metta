@@ -109,10 +109,9 @@ def main(cfg: DictConfig) -> int:
 
     if "LOCAL_RANK" in os.environ and cfg.device.startswith("cuda"):
         local_rank = int(os.environ["LOCAL_RANK"])
+        logger.info(f"Initializing distributed training with {os.environ['LOCAL_RANK']} {cfg.device}")
         torch.cuda.set_device(local_rank)
-        # ``torchrun`` already sets CUDA_VISIBLE_DEVICES per rank; letting NCCL infer
-        # the mapping avoids the AttributeError raised when an ``int`` is passed as
-        # ``device_id``.
+        cfg.device = f"{cfg.device}:{local_rank}"
         dist.init_process_group(backend="nccl")
 
     logger.info(f"Training {cfg.run} on {cfg.device}")
