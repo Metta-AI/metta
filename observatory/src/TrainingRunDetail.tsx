@@ -4,7 +4,6 @@ import Plot from 'react-plotly.js'
 import { TrainingRun, HeatmapData, Repo } from './repo'
 import { MapViewer } from './MapViewer'
 import { SuiteTabs } from './SuiteTabs'
-import { GroupSelector, parseGroupMetric } from './GroupSelector'
 import { TagEditor } from './TagEditor'
 import { DescriptionEditor } from './DescriptionEditor'
 
@@ -201,7 +200,6 @@ export function TrainingRunDetail({ repo }: TrainingRunDetailProps) {
   // UI state
   const [selectedMetric, setSelectedMetric] = useState<string>('reward')
   const [selectedSuite, setSelectedSuite] = useState<string>('navigation')
-  const [selectedGroupMetric, setSelectedGroupMetric] = useState<string>('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [isViewLocked, setIsViewLocked] = useState(false)
@@ -270,7 +268,6 @@ export function TrainingRunDetail({ repo }: TrainingRunDetailProps) {
           runId,
           selectedMetric,
           selectedSuite,
-          parseGroupMetric(selectedGroupMetric)
         )
         setHeatmapData(heatmapData)
       } catch (err: any) {
@@ -279,7 +276,7 @@ export function TrainingRunDetail({ repo }: TrainingRunDetailProps) {
     }
 
     loadHeatmapData()
-  }, [runId, selectedSuite, selectedMetric, selectedGroupMetric, repo])
+  }, [runId, selectedSuite, selectedMetric, repo])
 
   const setSelectedCellIfNotLocked = (cell: {
     policyUri: string
@@ -565,15 +562,6 @@ export function TrainingRunDetail({ repo }: TrainingRunDetailProps) {
                   </option>
                 ))}
               </select>
-            </div>
-            <div className="control-row">
-              <div className="control-label">Group Metric</div>
-              <GroupSelector
-                repo={repo}
-                selectedSuite={selectedSuite}
-                selectedGroupMetric={selectedGroupMetric}
-                onGroupMetricChange={setSelectedGroupMetric}
-              />
             </div>
           </div>
         </div>

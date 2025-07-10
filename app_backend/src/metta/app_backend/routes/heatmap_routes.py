@@ -35,18 +35,12 @@ class HeatmapData(BaseModel):
     evalMaxScores: Dict[str, float]
 
 
-class GroupDiff(BaseModel):
-    group_1: str
-    group_2: str
-
-
 class GroupHeatmapMetric(BaseModel):
-    group_metric: str | GroupDiff
     policy_selector: Literal["latest", "best"] = "latest"
 
 
 @dataclass
-class GroupDataRow:
+class DataRow:
     policy_uri: str
     eval_name: str
     replay_url: str | None
@@ -56,7 +50,7 @@ class GroupDataRow:
     end_training_epoch: int | None = None
 
 
-class GroupDataRetriever(ABC):
+class DataRetriever(ABC):
     """
     Abstract base class for retrieving evaluation data with encapsulated parameters.
     """
@@ -67,33 +61,32 @@ class GroupDataRetriever(ABC):
         self.filter_arg = filter_arg
 
     @abstractmethod
-    async def get_group_data(self, con: AsyncConnection, group: str) -> List[GroupDataRow]:
+    async def get_data(self, con: AsyncConnection) -> List[DataRow]:
         """
-        Retrieve group evaluation data for the specified group.
+        Retrieve evaluation data.
 
         Args:
             con: Database connection for querying evaluation data
-            group: Agent group identifier (empty string for all groups)
 
         Returns:
-            List of GroupDataRow containing policy evaluation results
+            List of DataRow containing policy evaluation results
         """
         pass
 
 
-class PolicySelectorDataRetriever(GroupDataRetriever):
+class PolicySelectorDataRetriever(DataRetriever):
     """
-    Retrieves group data with policy selector filtering ("latest" or "best").
+    Retrieves data with policy selector filtering ("latest" or "best").
 
     Used for the main dashboard heatmap where one policy per training run
     is selected based on the specified strategy.
     """
 
-    async def get_group_data(self, con: AsyncConnection, group: str) -> List[GroupDataRow]:
-        return await get_group_data(con, self.suite, self.metric, group, self.filter_arg)
+    async def get_data(self, con: AsyncConnection) -> List[DataRow]:
+        return await get_data(con, self.suite, self.metric, self.filter_arg)
 
 
-class TrainingRunDataRetriever(GroupDataRetriever):
+class TrainingRunDataRetriever(DataRetriever):
     """
     Retrieves all policies from a specific training run.
 
@@ -101,109 +94,62 @@ class TrainingRunDataRetriever(GroupDataRetriever):
     specified training run should be included in the heatmap.
     """
 
-    async def get_group_data(self, con: AsyncConnection, group: str) -> List[GroupDataRow]:
-        return await get_training_run_group_data(con, self.suite, self.metric, group, self.filter_arg)
+    async def get_data(self, con: AsyncConnection) -> List[DataRow]:
+        return await get_training_run_data(con, self.suite, self.metric, self.filter_arg)
 
 
-async def _get_group_data_with_policy_filter(
-    con: AsyncConnection, suite: str, metric: str, group: str, policy_cte: SQL, extra_params: Tuple[Any, ...] = ()
-) -> List[GroupDataRow]:
-    """Core group data query with configurable policy filtering."""
-    if group == "":
-        # Optimized query for all groups - avoids expensive JSON parsing and reduces CTEs
-        query_template = SQL("""
-            WITH
-            {} ,
+async def _get_data_with_policy_filter(
+    con: AsyncConnection, suite: str, metric: str, policy_cte: SQL, extra_params: Tuple[Any, ...] = ()
+) -> List[DataRow]:
+    """Core data query with configurable policy filtering."""
+    query_template = SQL("""
+        WITH
+        {} ,
 
-            pre_aggregated AS (
-              SELECT
-                episode_internal_id,
-                SUM(value) as total_value,
-                COUNT(*) as agent_count
-              FROM episode_agent_metrics
-              WHERE metric = %s
-              GROUP BY episode_internal_id
-            )
-            SELECT
-              p.name as policy_uri,
-              e.env_name as eval_name,
-              ANY_VALUE(e.replay_url) as replay_url,
-              pa.agent_count AS num_agents,
-              pa.total_value AS total_value,
-              p.run_id,
-              p.end_training_epoch
-            FROM episodes e
-            JOIN pre_aggregated pa ON e.internal_id = pa.episode_internal_id
-            JOIN filtered_policies p ON e.primary_policy_id = p.id
-            WHERE e.eval_category = %s
-            GROUP BY p.name, e.env_name, p.run_id, p.end_training_epoch, pa.agent_count, pa.total_value
-            ORDER BY p.run_id, p.end_training_epoch DESC;
-        """)
+        pre_aggregated AS (
+          SELECT
+            episode_internal_id,
+            SUM(value) as total_value,
+            COUNT(*) as agent_count
+          FROM episode_agent_metrics
+          WHERE metric = %s
+          GROUP BY episode_internal_id
+        )
+        SELECT
+          p.name as policy_uri,
+          e.env_name as eval_name,
+          ANY_VALUE(e.replay_url) as replay_url,
+          pa.agent_count AS num_agents,
+          pa.total_value AS total_value,
+          p.run_id,
+          p.end_training_epoch
+        FROM episodes e
+        JOIN pre_aggregated pa ON e.internal_id = pa.episode_internal_id
+        JOIN filtered_policies p ON e.primary_policy_id = p.id
+        WHERE e.eval_category = %s
+        GROUP BY p.name, e.env_name, p.run_id, p.end_training_epoch, pa.agent_count, pa.total_value
+        ORDER BY p.run_id, p.end_training_epoch DESC;
+    """)
 
-        query = query_template.format(policy_cte)
-        # For optimized query: extra_params come first (for CTE), then base params (for main query)
-        params = extra_params + (metric, suite)
-
-    else:
-        # Original query with group filtering - includes JSON parsing only when needed
-        query_template = SQL("""
-            WITH
-            filtered_episodes AS (
-                SELECT e.id, e.internal_id, e.env_name, e.primary_policy_id, e.replay_url, e.attributes
-                FROM episodes e
-                WHERE e.eval_category = %s
-            ),
-            episode_agent_metrics_with_group_id AS (
-                SELECT
-                    eam.episode_internal_id,
-                    eam.agent_id,
-                    eam.value,
-                    CAST ((fe.attributes->'agent_groups')[eam.agent_id] AS INTEGER) as group_id,
-                    fe.env_name,
-                    fe.primary_policy_id,
-                    fe.replay_url
-                FROM episode_agent_metrics eam
-                JOIN filtered_episodes fe ON fe.internal_id = eam.episode_internal_id
-                WHERE eam.metric = %s
-            ),
-            {}
-
-            SELECT
-              p.name as policy_uri,
-              eam.env_name as eval_name,
-              ANY_VALUE(eam.replay_url) as replay_url,
-              COUNT(*) AS num_agents,
-              SUM(eam.value) AS total_value,
-              p.run_id,
-              p.end_training_epoch
-            FROM episode_agent_metrics_with_group_id eam
-            JOIN filtered_policies p ON eam.primary_policy_id = p.id
-            WHERE eam.group_id = %s
-            GROUP BY p.name, eam.env_name, p.run_id, p.end_training_epoch
-            ORDER BY p.run_id, p.end_training_epoch DESC
-        """)
-
-        query = query_template.format(policy_cte)
-        base_params = (suite, metric) + extra_params
-        params = base_params + (group,)
+    query = query_template.format(policy_cte)
+    # For optimized query: extra_params come first (for CTE), then base params (for main query)
+    params = extra_params + (metric, suite)
 
     start_time = time.time()
-    async with con.cursor(row_factory=class_row(GroupDataRow)) as cursor:
+    async with con.cursor(row_factory=class_row(DataRow)) as cursor:
         await cursor.execute(query, params)
         results = await cursor.fetchall()
 
     end_time = time.time()
-    logger.info(f"Get group data execution time: {end_time - start_time:.3f}s")
+    logger.info(f"Get data execution time: {end_time - start_time:.3f}s")
     if end_time - start_time > query_logger.SLOW_QUERY_THRESHOLD_SECONDS:
         logger.warning(f"SLOW QUERY ({end_time - start_time:.3f}s): {query.as_string(con)}, Params: {params}")
 
     return results
 
 
-async def get_training_run_group_data(
-    con: AsyncConnection, suite: str, metric: str, group: str, run_id: str
-) -> List[GroupDataRow]:
-    """Get all policies from a specific training run for group data."""
+async def get_training_run_data(con: AsyncConnection, suite: str, metric: str, run_id: str) -> List[DataRow]:
+    """Get all policies from a specific training run for data."""
     training_run_policy_cte = SQL("""
         filtered_policies AS (
           SELECT
@@ -217,13 +163,11 @@ async def get_training_run_group_data(
         )
     """)
 
-    return await _get_group_data_with_policy_filter(con, suite, metric, group, training_run_policy_cte, (run_id,))
+    return await _get_data_with_policy_filter(con, suite, metric, training_run_policy_cte, (run_id,))
 
 
-async def get_group_data(
-    con: AsyncConnection, suite: str, metric: str, group: str, policy_selector: str = "latest"
-) -> List[GroupDataRow]:
-    """Get group data for all policies with policy selector filtering."""
+async def get_data(con: AsyncConnection, suite: str, metric: str, policy_selector: str = "latest") -> List[DataRow]:
+    """Get data for all policies with policy selector filtering."""
     all_policies_cte = SQL("""
         filtered_policies AS (
           SELECT
@@ -244,21 +188,19 @@ async def get_group_data(
         )
     """)
 
-    rows = await _get_group_data_with_policy_filter(con, suite, metric, group, all_policies_cte)
+    rows = await _get_data_with_policy_filter(con, suite, metric, all_policies_cte)
     return await _apply_policy_selector(rows, policy_selector, suite, con)
 
 
-async def _select_best_policies_per_run(
-    rows: List[GroupDataRow], suite: str, con: AsyncConnection
-) -> List[GroupDataRow]:
+async def _select_best_policies_per_run(rows: List[DataRow], suite: str, con: AsyncConnection) -> List[DataRow]:
     """
     Select the best policy per training run based on average score across all evaluations.
     For policies with no run_id (epoch_id is NULL), include them as-is.
     Ties are broken by selecting the latest policy (highest end_training_epoch).
     """
     # Group rows by run_id and policy_uri
-    run_policies: DefaultDict[str, DefaultDict[str, List[GroupDataRow]]] = defaultdict(lambda: defaultdict(list))
-    no_run_rows: List[GroupDataRow] = []
+    run_policies: DefaultDict[str, DefaultDict[str, List[DataRow]]] = defaultdict(lambda: defaultdict(list))
+    no_run_rows: List[DataRow] = []
 
     for row in rows:
         if row.run_id is None:
@@ -271,13 +213,13 @@ async def _select_best_policies_per_run(
     eval_rows = await result.fetchall()
     all_eval_names: Set[str] = {row[0] for row in eval_rows if row[0] is not None}
 
-    selected_rows: List[GroupDataRow] = []
+    selected_rows: List[DataRow] = []
 
     # Process each training run
     for _run_id, policies_dict in run_policies.items():
         best_avg_score = float("-inf")
         best_policy_epoch = float("-inf")
-        best_policy_rows: List[GroupDataRow] = []
+        best_policy_rows: List[DataRow] = []
 
         # Calculate average score for each policy in this run
         for _policy_uri, policy_rows in policies_dict.items():
@@ -313,8 +255,8 @@ async def _select_best_policies_per_run(
 
 
 async def _apply_policy_selector(
-    rows: List[GroupDataRow], policy_selector: str, suite: str, con: AsyncConnection
-) -> List[GroupDataRow]:
+    rows: List[DataRow], policy_selector: str, suite: str, con: AsyncConnection
+) -> List[DataRow]:
     """
     Apply the specified policy selection strategy to the rows.
     """
@@ -326,14 +268,14 @@ async def _apply_policy_selector(
         raise ValueError(f"Invalid policy_selector: {policy_selector}")
 
 
-def _select_latest_policies_per_run(rows: List[GroupDataRow]) -> List[GroupDataRow]:
+def _select_latest_policies_per_run(rows: List[DataRow]) -> List[DataRow]:
     """
     Select the latest policy per training run based on end_training_epoch.
     For policies with no run_id (epoch_id is NULL), include them as-is.
     """
     # Group rows by run_id
-    run_policies: DefaultDict[str, List[GroupDataRow]] = defaultdict(list)
-    no_run_rows: List[GroupDataRow] = []
+    run_policies: DefaultDict[str, List[DataRow]] = defaultdict(list)
+    no_run_rows: List[DataRow] = []
 
     for row in rows:
         if row.run_id is None:
@@ -341,7 +283,7 @@ def _select_latest_policies_per_run(rows: List[GroupDataRow]) -> List[GroupDataR
         else:
             run_policies[row.run_id].append(row)
 
-    selected_rows: List[GroupDataRow] = []
+    selected_rows: List[DataRow] = []
 
     # For each training run, select the policy with the highest end_training_epoch
     for _run_id, run_rows in run_policies.items():
@@ -373,16 +315,14 @@ def _select_latest_policies_per_run(rows: List[GroupDataRow]) -> List[GroupDataR
 
 async def _build_heatmap_data(
     con: AsyncConnection,
-    group_metric: GroupHeatmapMetric,
-    data_retriever: GroupDataRetriever,
+    data_retriever: DataRetriever,
 ) -> HeatmapData:
     """
     Core heatmap building logic that can be reused for different policy data sources.
 
     Args:
         con: Database connection for querying evaluation data
-        group_metric: Group metric specification (single group or group difference)
-        data_retriever: Configured GroupDataRetriever instance with suite, metric, and filter parameters
+        data_retriever: Configured DataRetriever instance with suite, metric, and filter parameters
 
     Returns:
         HeatmapData containing evaluation cells, policy averages, and evaluation names
@@ -397,40 +337,29 @@ async def _build_heatmap_data(
     )
     all_eval_names: List[str] = [row[0] for row in eval_rows]
 
-    # Step 2: Get group data
-    if isinstance(group_metric.group_metric, GroupDiff):
-        group1_rows = await data_retriever.get_group_data(con, group_metric.group_metric.group_1)
-        group2_rows = await data_retriever.get_group_data(con, group_metric.group_metric.group_2)
-    else:
-        group1_rows = await data_retriever.get_group_data(con, group_metric.group_metric)
-        group2_rows: List[GroupDataRow] = []
+    # Step 2: Get data
+    data_rows = await data_retriever.get_data(con)
 
     # Step 3: Process policy URIs and values
     all_policy_uris: Set[str] = set()
-    for row in group1_rows:
-        all_policy_uris.add(row.policy_uri)
-    for row in group2_rows:
+    for row in data_rows:
         all_policy_uris.add(row.policy_uri)
 
-    group_1_values: Dict[Tuple[str, str], Tuple[float, str | None]] = {}
-    group_2_values: Dict[Tuple[str, str], Tuple[float, str | None]] = {}
-    for row in group1_rows:
-        group_1_values[(row.policy_uri, row.eval_name)] = (row.total_value / row.num_agents, row.replay_url)
-    for row in group2_rows:
-        group_2_values[(row.policy_uri, row.eval_name)] = (row.total_value / row.num_agents, row.replay_url)
+    data_values: Dict[Tuple[str, str], Tuple[float, str | None]] = {}
+    for row in data_rows:
+        data_values[(row.policy_uri, row.eval_name)] = (row.total_value / row.num_agents, row.replay_url)
 
     # Step 4: Build heatmap cells
     cells: Dict[str, Dict[str, HeatmapCell]] = {}
     for policy_uri in all_policy_uris:
         cells[policy_uri] = {}  # Dict[str, HeatmapCell]
         for eval_name in all_eval_names:
-            group_1_value = group_1_values.get((policy_uri, eval_name), (0, None))
-            group_2_value = group_2_values.get((policy_uri, eval_name), (0, None))
+            cur_value = data_values.get((policy_uri, eval_name), (0, None))
 
             cells[policy_uri][eval_name] = HeatmapCell(
                 evalName=eval_name,
-                replayUrl=group_1_value[1] if group_1_value[1] is not None else group_2_value[1],
-                value=group_1_value[0] - group_2_value[0],
+                replayUrl=cur_value[1],
+                value=cur_value[0],
             )
 
     # Step 5: Calculate policy averages
@@ -461,15 +390,14 @@ def create_heatmap_router(metta_repo: MettaRepo) -> APIRouter:
         """Get heatmap data for a given suite, metric, and group metric."""
         async with metta_repo.connect() as con:
             data_retriever = PolicySelectorDataRetriever(suite, metric, group_metric.policy_selector)
-            return await _build_heatmap_data(con, group_metric, data_retriever)
+            return await _build_heatmap_data(con, data_retriever)
 
-    @router.post("/training-runs/{run_id}/suites/{suite}/metrics/{metric}/heatmap")
+    @router.get("/training-runs/{run_id}/suites/{suite}/metrics/{metric}/heatmap")
     @timed_route("get_training_run_heatmap_data")
     async def get_training_run_heatmap_data(  # type: ignore[reportUnusedFunction]
         run_id: str,
         suite: str,
         metric: str,
-        group_metric: GroupHeatmapMetric,
     ) -> HeatmapData:
         """Get heatmap data for a specific training run."""
         # Verify training run exists
@@ -479,6 +407,6 @@ def create_heatmap_router(metta_repo: MettaRepo) -> APIRouter:
 
         async with metta_repo.connect() as con:
             data_retriever = TrainingRunDataRetriever(suite, metric, run_id)
-            return await _build_heatmap_data(con, group_metric, data_retriever)
+            return await _build_heatmap_data(con, data_retriever)
 
     return router
