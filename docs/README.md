@@ -25,6 +25,11 @@ Documentation for creating and working with procedurally generated maps:
 - Using `LoadRandom` for dynamic map selection
 - Integration with map_builder configs
 
+### Development Guidelines
+
+- **[AGENTS.md](./AGENTS.md)** - Guidelines for AI agents working on the codebase
+- **[CLAUDE.md](./CLAUDE.md)** - Claude AI development guidelines and project patterns
+
 ## 🤖 Automation & Workflows
 
 ### [Workflows Documentation](./workflows/)
