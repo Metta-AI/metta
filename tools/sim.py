@@ -101,8 +101,8 @@ def main(cfg: DictConfig) -> None:
                     "name": pr.run_name,
                     "uri": pr.uri,
                     "metrics": {
+                        "avg_reward": policy_results.scores.avg_simulation_score,
                         "avg_reward_category_normalized": policy_results.scores.avg_category_score,
-                        "avg_reward_simulation_normalized": policy_results.scores.avg_simulation_score,
                         "detailed": policy_results.scores.to_wandb_metrics_format(),
                     },
                     "replay_url": policy_results.replay_url,
