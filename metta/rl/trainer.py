@@ -30,15 +30,18 @@ from metta.mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
 from metta.rl.experience import Experience
 from metta.rl.functions import (
     accumulate_rollout_stats,
+    build_wandb_stats,
     calculate_batch_sizes,
     calculate_explained_variance,
     calculate_prioritized_sampling_params,
     cleanup_old_policies,
     compute_advantage,
     compute_gradient_stats,
+    compute_timing_stats,
     get_lstm_config,
     get_observation,
     process_minibatch_update,
+    process_training_stats,
     run_policy_inference,
     validate_policy_environment_match,
 )
@@ -46,7 +49,7 @@ from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses
 from metta.rl.torch_profiler import TorchProfiler
 from metta.rl.trainer_checkpoint import TrainerCheckpoint
-from metta.rl.trainer_config import parse_trainer_config
+from metta.rl.trainer_config import create_trainer_config
 from metta.rl.vecenv import make_vecenv
 from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
@@ -86,7 +89,7 @@ class MettaTrainer:
             logger.info(f"Recent checkpoints: {', '.join(recent_files)}")
 
         self.cfg = cfg
-        self.trainer_cfg = trainer_cfg = parse_trainer_config(cfg)
+        self.trainer_cfg = trainer_cfg = create_trainer_config(cfg)
 
         # it doesn't make sense to evaluate more often than we checkpoint since we need a saved policy to evaluate
         if (
@@ -181,11 +184,6 @@ class MettaTrainer:
                 logger.info("Restoring timer state from checkpoint")
                 self.timer.load_state(checkpoint.stopwatch_state, resume_running=True)
 
-        # Note that these fields are specific to MettaGridEnv, which is why we can't keep
-        # self.vecenv.driver_env as just the parent class pufferlib.PufferEnv
-        actions_names = metta_grid_env.action_names
-        actions_max_params = metta_grid_env.max_action_args
-
         # Load or create policy with distributed coordination
         policy_record = self._load_policy(checkpoint, policy_store)
 
@@ -272,8 +270,7 @@ class MettaTrainer:
             trainer_cfg.kickstart,
             self.device,
             policy_store,
-            actions_names,
-            actions_max_params,
+            metta_grid_env,
         )
 
         if torch.distributed.is_initialized():
@@ -388,8 +385,8 @@ class MettaTrainer:
             stats_pct = (stats_time / total_time) * 100
 
             logger.info(
-                f"Epoch {self.epoch} - "
-                f"{steps_per_sec * self._world_size:.0f} steps/sec "
+                f"Epoch {self.epoch}, Agent step {self.agent_step}/{trainer_cfg.total_timesteps} "
+                f"{steps_per_sec:.0f} steps/sec "
                 f"({train_pct:.0f}% train / {rollout_pct:.0f}% rollout / {stats_pct:.0f}% stats)"
             )
 
@@ -439,7 +436,7 @@ class MettaTrainer:
             # Perform single rollout step
             # Receive environment data
             o, r, d, t, info, training_env_id, mask, num_steps = get_observation(self.vecenv, self.device, self.timer)
-            self.agent_step += num_steps
+            self.agent_step += num_steps * self._world_size
 
             # Run policy inference
             actions, selected_action_log_probs, values, lstm_state_to_store = run_policy_inference(
@@ -610,7 +607,6 @@ class MettaTrainer:
         checkpoint = TrainerCheckpoint(
             agent_step=self.agent_step,
             epoch=self.epoch,
-            total_agent_step=self.agent_step * self._world_size,
             optimizer_state_dict=self.optimizer.state_dict(),
             stopwatch_state=self.timer.save_state(),
             policy_path=self.latest_saved_policy_uri,
@@ -820,23 +816,19 @@ class MettaTrainer:
             self.grad_stats.clear()
             return
 
-        # convert lists of values (collected across all environments and rollout steps on this GPU)
-        # into single mean values and standard deviations.
-        mean_stats = {}
-        for k, v in self.stats.items():
-            try:
-                mean_stats[k] = np.mean(v)
-                # Add standard deviation with .std_dev suffix
-                # DISABLED(daveey): this is too noisy and so far not useful
-                # mean_stats[f"{k}.std_dev"] = np.std(v)
-            except (TypeError, ValueError) as e:
-                raise RuntimeError(
-                    f"Cannot compute mean for stat '{k}' with value {v!r} (type: {type(v)}). "
-                    f"All collected stats must be numeric values or lists of numeric values. "
-                    f"Error: {e}"
-                ) from e
-        self.stats = mean_stats
+        # Process training stats using shared function
+        processed_stats = process_training_stats(
+            raw_stats=self.stats,
+            losses=self.losses,
+            experience=self.experience,
+            trainer_config=self.trainer_cfg,
+            kickstarter=self.kickstarter,
+        )
 
+        # Update self.stats with mean values for consistency
+        self.stats = processed_stats["mean_stats"]
+
+        # Compute weight stats if on interval
         weight_stats = {}
         if self.cfg.agent.analyze_weights_interval != 0 and self.epoch % self.cfg.agent.analyze_weights_interval == 0:
             for metrics in self.policy.compute_weight_metrics():
@@ -845,105 +837,41 @@ class MettaTrainer:
                     if key != "name":
                         weight_stats[f"weights/{key}/{name}"] = value
 
-        elapsed_times = self.timer.get_all_elapsed()
-        wall_time = self.timer.get_elapsed()
-        train_time = elapsed_times.get("_rollout", 0) + elapsed_times.get("_train", 0)
+        # Compute timing stats using shared function
+        timing_info = compute_timing_stats(timer=self.timer, agent_step=self.agent_step)
 
-        lap_times = self.timer.lap_all(self.agent_step, exclude_global=False)
-        wall_time_for_lap = lap_times.pop("global", 0)
-
-        # X-axis values for wandb
-        metric_stats = {
-            "metric/agent_step": self.agent_step * self._world_size,
-            "metric/epoch": self.epoch,
-            "metric/total_time": wall_time,
-            "metric/train_time": train_time,
-        }
-
-        epoch_steps = self.timer.get_lap_steps()
-        assert epoch_steps is not None
-
-        epoch_steps_per_second = epoch_steps / wall_time_for_lap if wall_time_for_lap > 0 else 0
-        steps_per_second = self.timer.get_rate(self.agent_step) if wall_time > 0 else 0
-
-        epoch_steps_per_second *= self._world_size
-        steps_per_second *= self._world_size
-
-        timing_stats = {
-            **{
-                f"timing_per_epoch/frac/{op}": lap_elapsed / wall_time_for_lap if wall_time_for_lap > 0 else 0
-                for op, lap_elapsed in lap_times.items()
-            },
-            **{
-                f"timing_per_epoch/msec/{op}": lap_elapsed * 1000 if wall_time_for_lap > 0 else 0
-                for op, lap_elapsed in lap_times.items()
-            },
-            "timing_per_epoch/sps": epoch_steps_per_second,
-            **{
-                f"timing_cumulative/frac/{op}": elapsed / wall_time if wall_time > 0 else 0
-                for op, elapsed in elapsed_times.items()
-            },
-            "timing_cumulative/sps": steps_per_second,
-        }
-
-        environment_stats = {f"env_{k.split('/')[0]}/{'/'.join(k.split('/')[1:])}": v for k, v in self.stats.items()}
-
-        overview = {
-            "sps": epoch_steps_per_second,
-        }
-
-        # Calculate average reward from all env_task_reward entries
-        task_reward_values = [v for k, v in environment_stats.items() if k.startswith("env_task_reward")]
-        if task_reward_values:
-            mean_reward = sum(task_reward_values) / len(task_reward_values)
-            overview["reward"] = mean_reward
-            overview["reward_vs_total_time"] = mean_reward
-
-        # include custom stats from trainer config
-        if hasattr(self.trainer_cfg, "stats") and hasattr(self.trainer_cfg.stats, "overview"):
-            for k, v in self.trainer_cfg.stats.overview.items():
-                if k in self.stats:
-                    overview[v] = self.stats[k]
-
-        category_scores_map = {key.split("/")[0]: value for key, value in self.evals.items() if key.endswith("/score")}
-
-        for category, score in category_scores_map.items():
-            overview[f"{category}_score"] = score
-
-        losses = self.losses.stats()
-
-        # don't plot losses that are unused
-        if self.trainer_cfg.ppo.l2_reg_loss_coef == 0:
-            losses.pop("l2_reg_loss")
-        if self.trainer_cfg.ppo.l2_init_loss_coef == 0:
-            losses.pop("l2_init_loss")
-        if not self.kickstarter.enabled:
-            losses.pop("ks_action_loss")
-            losses.pop("ks_value_loss")
-
+        # Build parameters dictionary
         parameters = {
             "learning_rate": self.optimizer.param_groups[0]["lr"],
-            "epoch_steps": epoch_steps,
+            "epoch_steps": timing_info["epoch_steps"],
             "num_minibatches": self.experience.num_minibatches,
             "generation": self.current_policy_generation,
             "latest_saved_policy_epoch": self.latest_saved_policy_record.metadata.epoch,
         }
 
+        # Include custom stats from trainer config
+        if hasattr(self.trainer_cfg, "stats") and hasattr(self.trainer_cfg.stats, "overview"):
+            for k, v in self.trainer_cfg.stats.overview.items():
+                if k in self.stats:
+                    processed_stats["overview"][v] = self.stats[k]
+
+        # Build complete stats dictionary for wandb
+        all_stats = build_wandb_stats(
+            processed_stats=processed_stats,
+            timing_info=timing_info,
+            weight_stats=weight_stats,
+            grad_stats=self.grad_stats,
+            system_stats=self._system_monitor.stats() if hasattr(self, "_system_monitor") else {},
+            memory_stats=self._memory_monitor.stats() if hasattr(self, "_memory_monitor") else {},
+            parameters=parameters,
+            evals=self.evals,
+            agent_step=self.agent_step,
+            epoch=self.epoch,
+        )
+
+        # Log to wandb
         self.wandb_run.log(
-            {
-                **{f"overview/{k}": v for k, v in overview.items()},
-                **{f"losses/{k}": v for k, v in losses.items()},
-                **{f"experience/{k}": v for k, v in self.experience.stats().items()},
-                **{f"parameters/{k}": v for k, v in parameters.items()},
-                **{f"eval_{k}": v for k, v in self.evals.items()},
-                **{f"monitor/{k}": v for k, v in self._system_monitor.stats().items()},
-                **{f"trainer_memory/{k}": v for k, v in self._memory_monitor.stats().items()},
-                **environment_stats,
-                **weight_stats,
-                **timing_stats,
-                **metric_stats,
-                **self.grad_stats,
-            },
+            all_stats,
             # WandB can automatically increment step on each call to log, but we force the value here
             # to make WandB reject any non-monotonic data points. This hides duplicate data when resuming
             # from checkpoints and keeps graphs clean. The policy is reset to the checkpoint too so the

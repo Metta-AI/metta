@@ -1,6 +1,5 @@
 _target_: metta.rl.trainer.MettaTrainer
-
-num_workers: ???
+num_workers: null  # determined by train.py if not specified
 
 curriculum: ???
 env_overrides: {}

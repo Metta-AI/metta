@@ -1,5 +1,12 @@
 # @package __global__
 
-# For backward compatibility, loading mac_serial.yaml
-defaults:
-  - mac_serial
+device: cpu
+vectorization: serial
+
+trainer:
+  batch_size: 1024
+  minibatch_size: 1024
+  forward_pass_minibatch_target_size: 2
+  checkpoint:
+    checkpoint_interval: 10
+  bptt_horizon: 8

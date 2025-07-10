@@ -1,4 +1,5 @@
 #!/usr/bin/env -S uv run
+import multiprocessing
 import os
 import sys
 from logging import Logger
@@ -27,15 +28,36 @@ class TrainJob(Config):
     map_preview_uri: str | None = None
 
 
+def _calculate_default_num_workers(is_serial: bool) -> int:
+    if is_serial:
+        return 1
+
+    cpu_count = multiprocessing.cpu_count() or 1
+
+    if torch.cuda.is_available() and torch.distributed.is_initialized():
+        num_gpus = torch.cuda.device_count()
+    else:
+        num_gpus = 1
+
+    ideal_workers = (cpu_count // 2) // num_gpus
+
+    # Round down to nearest power of 2
+    num_workers = 1
+    while num_workers * 2 <= ideal_workers:
+        num_workers *= 2
+
+    return max(1, num_workers)
+
+
 def train(cfg: ListConfig | DictConfig, wandb_run: WandbRun | None, logger: Logger):
+    if not cfg.trainer.num_workers:
+        cfg.trainer.num_workers = _calculate_default_num_workers(cfg.vectorization == "serial")
     cfg = load_train_job_config_with_overrides(cfg)
 
     if os.environ.get("RANK", "0") == "0":
         with open(os.path.join(cfg.run_dir, "config.yaml"), "w") as f:
             OmegaConf.save(cfg, f)
-
     train_job = TrainJob(cfg.train_job)
-
     if torch.distributed.is_initialized():
         world_size = torch.distributed.get_world_size()
         if cfg.trainer.scale_batches_by_world_size:
@@ -44,7 +66,7 @@ def train(cfg: ListConfig | DictConfig, wandb_run: WandbRun | None, logger: Logg
             )
             cfg.trainer.batch_size = cfg.trainer.batch_size // world_size
 
-    policy_store = PolicyStore(cfg, wandb_run)
+    policy_store = PolicyStore(cfg, wandb_run)  # type: ignore[reportArgumentType]
     stats_client: StatsClient | None = get_stats_client(cfg, logger)
 
     # Instantiate the trainer directly with the typed config

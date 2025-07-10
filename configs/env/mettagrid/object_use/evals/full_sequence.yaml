@@ -20,7 +20,9 @@ game:
       cooldown: 1
 
   map_builder:
-    objects:
-      altar: 1
-      generator_red: 1
-      mine_red: 1
+    root:
+      params:
+        objects:
+          altar: 1
+          generator_red: 1
+          mine_red: 1
