@@ -133,7 +133,7 @@ export function hideHoverPanel() {
 }
 
 /** Updates the DOM tree of the info panel. */
-function updateDom(htmlPanel: HTMLElement, entity: any) {
+function updateDom(htmlPanel: HTMLElement, entity: Entity) {
   // Update the readout.
   htmlPanel.setAttribute('data-entity-id', (entity.id.get() || 0).toString())
   const agentId = entity.agentId.get()
@@ -143,26 +143,6 @@ function updateDom(htmlPanel: HTMLElement, entity: any) {
   removeChildren(params)
   let inventory = findIn(htmlPanel, '.inventory')
   removeChildren(inventory)
-
-  // Update inventory display
-  const inventoryData = entity.inventory?.get()
-  if (inventoryData && inventoryData.length > 0 && state.replay) {
-    for (let i = 0; i < inventoryData.length; i++) {
-      const quantity = inventoryData[i]
-      if (quantity > 0 && i < state.replay.itemNames.length) {
-        let item = itemTemplate.cloneNode(true) as HTMLElement
-        const icon = item.querySelector('.icon') as HTMLImageElement
-        if (icon) {
-          icon.src = 'data/atlas/resources/' + state.replay.itemNames[i] + '.png'
-        }
-        const amountEl = item.querySelector('.amount')
-        if (amountEl) {
-          amountEl.textContent = quantity.toString()
-        }
-        inventory.appendChild(item)
-      }
-    }
-  }
 
   // Update entity properties display
   let param = paramTemplate.cloneNode(true) as HTMLElement
@@ -204,37 +184,23 @@ function updateDom(htmlPanel: HTMLElement, entity: any) {
     params.appendChild(param)
   }
 
-  // FIX ME: Inventory functionality not implemented
-  // for (let key in entity) {
-  //   let value = (entity as any)[key].get()
-  //   if (key.startsWith('inventory') && value && (value as any[]).length > 0) {
-  //     const inventory = value as number[]
-  //     for (let i = 0; i < inventory.length; i++) {
-  //       if (inventory[i] > 0 && state.replay && i < state.replay.itemNames.length) {
-  //         let item = itemTemplate.cloneNode(true) as HTMLElement
-  //         item.querySelector('.icon')!.setAttribute('src', 'data/resources/' + state.replay.itemNames[i] + '.png')
-  //         item.querySelector('.amount')!.textContent = inventory[i].toString()
-  //         htmlPanel.querySelector('.items')!.appendChild(item)
-  //       }
-  //     }
-  //   } else if (key === 'typeId' && value != null && state.replay) {
-  //     value = state.replay.typeNames[value as number]
-  //   } else if (key === 'agentId' && value != null && (value as number) >= 0 && (value as number) < Common.COLORS.length) {
-  //     const colorName = Common.COLORS[value as number][0]
-  //     value = colorName
-  //   } else if (['group', 'total_reward', 'agent_id'].includes(key)) {
-  //     // If the value is a float and not an integer, round it to three decimal places.
-  //     if (typeof value === 'number' && !Number.isInteger(value)) {
-  //       value = value.toFixed(3)
-  //     }
-  //   } else {
-  //     continue
-  //   }
-  //   let param = paramTemplate.cloneNode(true) as HTMLElement
-  //   param.querySelector('.name')!.textContent = key
-  //   param.querySelector('.value')!.textContent = value != null ? value.toString() : ''
-  //   params.appendChild(param)
-  // }
+  // Update inventory display
+  let map = new Map<string, number>()
+  for (let itemId in entity.inventory.get()) {
+    const itemName = state.replay!.itemNames[itemId]
+    if (map.has(itemName)) {
+      map.set(itemName, map.get(itemName)! + 1)
+    } else {
+      map.set(itemName, 1)
+    }
+  }
+  for (let [itemName, quantity] of map.entries()) {
+    let item = itemTemplate.cloneNode(true) as HTMLElement
+    item.querySelector('.icon')!.setAttribute('src', 'data/atlas/resources/' + itemName + '.png')
+    item.querySelector('.amount')!.textContent = quantity.toString()
+    inventory.appendChild(item)
+  }
+
 
   // FIX ME: Recipe functionality not implemented
   // Populate the recipe area if the Entity config has input_ or output_ resources.
