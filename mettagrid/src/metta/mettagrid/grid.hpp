@@ -17,10 +17,10 @@ class Grid {
 public:
   const GridCoord height;
   const GridCoord width;
+  vector<std::unique_ptr<GridObject>> objects;
 
 private:
   GridType grid;
-  vector<std::unique_ptr<GridObject>> objects;
 
 public:
   Grid(GridCoord height, GridCoord width) : height(height), width(width) {
