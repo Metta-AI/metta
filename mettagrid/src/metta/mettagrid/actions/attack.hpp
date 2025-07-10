@@ -9,12 +9,11 @@
 #include "grid_object.hpp"
 #include "objects/agent.hpp"
 #include "objects/constants.hpp"
-#include "objects/metta_object.hpp"
 #include "types.hpp"
 
 // Attack takes an argument 0-8, which is the index of the target agent to attack.
-// Agents are scanned in a 3x3 grid in front of the agent, and are selected in order.
-// If the argument > num_agents, the last agent is attacked.
+// Target agents are those found in a 3x3 grid in front of the agent, indexed in scan order.
+// If the argument (agent index to attack) > num_agents, the last agent is attacked.
 struct AttackActionConfig : public ActionConfig {
   std::map<InventoryItem, InventoryQuantity> defense_resources;
 
@@ -39,32 +38,41 @@ protected:
   std::map<InventoryItem, InventoryQuantity> _defense_resources;
 
   bool _handle_action(Agent* actor, ActionArg arg) override {
-    Agent* target = nullptr;
-    Orientation orientation = static_cast<Orientation>(actor->orientation);
+    Agent* last_agent = nullptr;
     short num_skipped = 0;
+
+    // Attack positions form a 3x3 grid in front of the agent
+    // Visual representation of attack order (agent facing up):
+    // 7 6 8  (3 cells forward)
+    // 4 3 5  (2 cells forward)
+    // 1 0 2  (1 cell forward)
+    //   A    (Agent position)
+
+    // Column offsets to check: center, left, right
+    static constexpr int COL_OFFSETS[3] = {0, -1, 1};
 
     // Scan the 9 squares in front of the agent (3x3 grid)
     for (int distance = 1; distance <= 3; distance++) {
-      for (int offset = -1; offset <= 1; offset++) {
-        GridLocation target_loc =
-            _grid->relative_location(actor->location, orientation, distance, offset);
+      for (int offset : COL_OFFSETS) {
+        GridLocation target_loc = _grid->relative_location(actor->location, actor->orientation, distance, offset);
+        target_loc.layer = GridLayer::AgentLayer;
 
-        GridObject* obj = _grid->object_at(target_loc);
-        if (obj == nullptr) {
-          continue;
+        Agent* target_agent = static_cast<Agent*>(_grid->object_at(target_loc));  // we looked in AgentLayer
+        if (target_agent) {
+          last_agent = target_agent;
+          if (num_skipped == arg) {
+            return _handle_target(*actor, *target_agent);
+          }
+          num_skipped++;
         }
-
-        target = static_cast<Agent*>(obj);
-        if (num_skipped == arg) {
-          return _handle_target(*actor, *target);
-        }
-        num_skipped++;
       }
     }
+
     // If we got here, it means we skipped over all the targets. Attack the last one.
-    if (target) {
-      return _handle_target(*actor, *target);
+    if (last_agent) {
+      return _handle_target(*actor, *last_agent);
     }
+
     return false;
   }
 
@@ -75,7 +83,7 @@ protected:
     actor.stats.incr("action." + _action_name + "." + target.type_name);
     actor.stats.incr("action." + _action_name + "." + target.type_name + "." + actor.group_name);
     actor.stats.incr("action." + _action_name + "." + target.type_name + "." + actor.group_name + "." +
-                      target.group_name);
+                     target.group_name);
 
     if (target.group_name == actor.group_name) {
       actor.stats.incr("attack.own_team." + actor.group_name);
