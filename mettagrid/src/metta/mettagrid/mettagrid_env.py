@@ -321,15 +321,13 @@ class MettaGridEnv(PufferEnv, GymEnv):
                 self._total_grid_cells * self._c_env.num_agents
             )
 
-        # New metric: normalize observed pixels by (agents * (11*11 + 11*episode_length))
-        if self._c_env.num_agents > 0:
+        # New metric: effective rate of exploration (new pixels discovered per timestep per agent)
+        if self._c_env.num_agents > 0 and self.max_steps > 0:
             obs_area = 11 * 11  # 11x11 observation window
-            episode_length = self.max_steps  # Episode length is constant
-            potential_obs_per_agent = obs_area + 11 * episode_length  # 11*11 + 11*episode_length
-            total_potential_obs = self._c_env.num_agents * potential_obs_per_agent
-            metrics["explore/unique_observations_normalized_by_potential"] = (
-                float(total_unique_observed) / total_potential_obs
-            )
+            initial_obs_total = obs_area * self._c_env.num_agents  # Total initial observations
+            new_pixels_discovered = total_unique_observed - initial_obs_total  # Pixels beyond initial window
+            exploration_rate = new_pixels_discovered / (self.max_steps * self._c_env.num_agents)
+            metrics["explore/effective_exploration_rate"] = float(exploration_rate)
 
         # Standard deviations
         if len(visited_counts) > 1:
