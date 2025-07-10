@@ -58,11 +58,6 @@ Comprehensive documentation for all Weights & Biases metrics:
 - **[Documentation Index](./INDEX.md)** - Alphabetical index of all concepts
 - **[Configuration Guide](../configs/)** - Configuration system reference
 
-## 📝 Developer Guidelines
-
-- **[AGENTS.md](./AGENTS.md)** - Guidelines for Codex agents working in the repository
-- **[CLAUDE.md](./CLAUDE.md)** - Guidance for Claude Code when working with this codebase
-
 ## 📝 Contributing to Documentation
 
 When adding new documentation:
@@ -72,18 +67,19 @@ When adding new documentation:
 3. **Linking**: Update this README and the INDEX.md
 4. **Standards**: Follow the patterns in existing documentation
 
-### Developer Guidelines
-
-- **[AGENTS.md](./AGENTS.md)** - Guidelines for Codex agents working in the repository
-- **[CLAUDE.md](./CLAUDE.md)** - Guidance for Claude Code when working with this codebase
-
 ### Documentation Structure
 
 ```
 docs/
 ├── README.md           # This file
+├── INDEX.md           # Alphabetical index of concepts
+├── roadmap.md         # Research roadmap
+├── quick-guide.md     # Quick start guide
 ├── api.md             # API reference
 ├── mapgen.md          # Map generation guide
+├── development/       # Development guidelines
+│   ├── AGENTS.md      # AI agent guidelines
+│   └── CLAUDE.md      # Claude development guide
 ├── workflows/         # GitHub Actions documentation
 │   ├── README.md      # Workflows overview
 │   ├── pr-summary.md
