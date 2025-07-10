@@ -5,7 +5,7 @@ defaults:
 name: sweep_eval
 
 simulations:
-  navigation/emptyspace_withinsight:
+  navigation_emptyspace_withinsight:
     env: env/mettagrid/navigation/evals/emptyspace_withinsight
   simple:
     env: env/mettagrid/arena/advanced

@@ -5,29 +5,29 @@ defaults:
 name: object_use
 
 simulations:
-  object_use/altar_use_free:
+  object_use_altar_use_free:
     env: env/mettagrid/object_use/evals/altar_use_free
-  object_use/armory_use_free:
+  object_use_armory_use_free:
     env: env/mettagrid/object_use/evals/armory_use_free
-  object_use/armory_use:
+  object_use_armory_use:
     env: env/mettagrid/object_use/evals/armory_use
-  object_use/generator_use_free:
+  object_use_generator_use_free:
     env: env/mettagrid/object_use/evals/generator_use_free
   object_use/generator_use:
     env: env/mettagrid/object_use/evals/generator_use
   object_use/lasery_use_free:
     env: env/mettagrid/object_use/evals/lasery_use_free
-  object_use/lasery_use:
+  object_use_lasery_use:
     env: env/mettagrid/object_use/evals/lasery_use
-  object_use/mine_use:
+  object_use_mine_use:
     env: env/mettagrid/object_use/evals/mine_use
-  object_use/shoot_out:
+  object_use_shoot_out:
     env: env/mettagrid/object_use/evals/shoot_out
-  object_use/swap_in:
+  object_use_swap_in:
     env: env/mettagrid/object_use/evals/swap_in
-  object_use/swap_out:
+  object_use_swap_out:
     env: env/mettagrid/object_use/evals/swap_out
-  object_use/temple_use_free:
+  object_use_temple_use_free:
     env: env/mettagrid/object_use/evals/temple_use_free
-  object_use/full_sequence:
+  object_use_full_sequence:
     env: env/mettagrid/object_use/evals/full_sequence

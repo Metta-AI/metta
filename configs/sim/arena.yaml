@@ -5,11 +5,11 @@ defaults:
 name: arena
 
 simulations:
-  arena/basic:
+  arena_basic:
     env: /env/mettagrid/arena/basic
-  arena/combat:
+  arena_combat:
     env: /env/mettagrid/arena/combat
-  arena/advanced:
+  arena_advanced:
     env: /env/mettagrid/arena/advanced
-  arena/tag:
+  arena_tag:
     env: /env/mettagrid/arena/tag
