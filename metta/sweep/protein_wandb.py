@@ -228,10 +228,13 @@ class WandbProtein:
             return False
 
         if run.summary.get("protein.state") == "running":
-            # Parse heartbeat timestamp - WandB uses ISO format with microseconds
+            # Parse heartbeat timestamp - WandB uses ISO format with or without microseconds
             heartbeat_str = run._attrs["heartbeatAt"]
-            # Parse with microseconds format (most common)
-            last_hb = datetime.strptime(heartbeat_str, "%Y-%m-%dT%H:%M:%S.%fZ").replace(tzinfo=timezone.utc)
+            # Check if microseconds are present
+            if "." in heartbeat_str:
+                last_hb = datetime.strptime(heartbeat_str, "%Y-%m-%dT%H:%M:%S.%fZ").replace(tzinfo=timezone.utc)
+            else:
+                last_hb = datetime.strptime(heartbeat_str, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
 
             if (datetime.now(timezone.utc) - last_hb).total_seconds() > 5 * 60:
                 self._defunct += 1
