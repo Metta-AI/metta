@@ -243,12 +243,6 @@ dependencies = [
     "sqlalchemy>=2.0.0",
     "redis>=5.0.0",
 ]
-
-
-[tool.setuptools]
-packages = ["backend_shared"]
-package_dir = {"backend_shared": "backend-shared"}
-
 ```
 
 **Imports:**
