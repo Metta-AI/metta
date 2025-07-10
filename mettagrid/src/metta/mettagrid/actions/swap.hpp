@@ -22,14 +22,12 @@ protected:
     GridLocation target_loc =
         this->_grid->relative_location(actor->location, static_cast<Orientation>(actor->orientation));
 
-    // Get all objects at target location, indexed by layer
-    auto objects = this->_grid->objects_at(target_loc.r, target_loc.c);
-
     // Check layers in swap priority order
     const auto layers = {GridLayer::ObjectLayer, GridLayer::AgentLayer};
 
     for (auto layer : layers) {
-      GridObject* target = objects[layer];
+      target_loc.layer = layer;
+      GridObject* target = this->_grid->object_at(target_loc);
       if (target && target->swappable()) {
         actor->stats.incr("action." + this->_action_name + "." + target->type_name);
         this->_grid->swap_objects(actor->id, target->id);

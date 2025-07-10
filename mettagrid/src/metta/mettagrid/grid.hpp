@@ -126,31 +126,6 @@ public:
   }
 
   /**
-   * Get all objects at the given row and column, indexed by layer.
-   * Returns a fixed-size array where index corresponds to layer number.
-   * Elements will be nullptr if no object exists at that layer.
-   */
-  inline std::array<GridObject*, GridLayer::GridLayerCount> objects_at(GridCoord row, GridCoord col) const {
-    std::array<GridObject*, GridLayer::GridLayerCount> result{};  // Initialize to nullptr (empty space)
-
-    GridLocation loc{row, col, 0};  // layer doesn't matter for row/col validation
-    if (!is_valid_location(loc)) {
-      return result;
-    }
-
-    // grid[row][col] is already a vector<GridObjectId> indexed by layer!
-    const auto& layer_ids = grid[row][col];
-
-    for (ObservationType layer = 0; layer < GridLayer::GridLayerCount; ++layer) {
-      if (layer_ids[layer] != 0) {
-        result[layer] = object(layer_ids[layer]);  // collect a pointer into the objects array
-      }
-    }
-
-    return result;
-  }
-
-  /**
    * Get the location at a relative offset from the given orientation.
    * Note: The returned location has the same layer as the input location.
    */
