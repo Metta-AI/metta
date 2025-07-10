@@ -4,7 +4,7 @@ import datetime
 import logging
 import time
 import uuid
-from typing import Any, Dict, Optional, cast
+from typing import Any, Dict, List, Optional, cast
 
 import numpy as np
 from gymnasium import Env as GymEnv
@@ -98,6 +98,9 @@ class MettaGridEnv(PufferEnv, GymEnv):
         self._agent_observed_pixels: Dict[int, set] = {}  # agent_id -> set of (r, c) positions seen in observations
         self._total_grid_cells: int = 0  # Total number of accessible cells in grid
 
+        # Threshold tracking for observation coverage milestones
+        self._threshold_times: Dict[str, List[int]] = {"33%": [], "66%": [], "100%": []}
+
         self._initialize_c_env()
         super().__init__(buf)
 
@@ -174,6 +177,9 @@ class MettaGridEnv(PufferEnv, GymEnv):
             self._agent_visited_positions[agent_id] = set()
             self._agent_observed_pixels[agent_id] = set()
 
+        # Reset threshold tracking for this episode
+        self._threshold_times = {"33%": [], "66%": [], "100%": []}
+
         assert self.observations.dtype == dtype_observations
         assert self.terminals.dtype == dtype_terminals
         assert self.truncations.dtype == dtype_truncations
@@ -223,6 +229,8 @@ class MettaGridEnv(PufferEnv, GymEnv):
         self._track_agent_positions()
         # Track observed pixels for observation coverage metrics
         self._track_observed_pixels()
+        # Track threshold milestones for observation coverage
+        self._track_threshold_milestones()
 
         if self._replay_writer and self._episode_id:
             with self.timer("_replay_writer.log_step"):
@@ -283,6 +291,24 @@ class MettaGridEnv(PufferEnv, GymEnv):
                     for c in range(c_start, c_end):
                         self._agent_observed_pixels[agent_id].add((r, c))
 
+    def _track_threshold_milestones(self) -> None:
+        """Track when observation coverage reaches threshold milestones."""
+        if self._total_grid_cells == 0:
+            return
+
+        # Calculate current total unique observations
+        all_observed = set().union(*self._agent_observed_pixels.values()) if self._agent_observed_pixels else set()
+        total_observed = len(all_observed)
+
+        # Calculate coverage percentage
+        coverage_percentage = (total_observed / self._total_grid_cells) * 100
+
+        # Check each threshold and record the first time it's reached
+        thresholds = [("33%", 33), ("66%", 66), ("100%", 100)]
+        for threshold_name, threshold_value in thresholds:
+            if coverage_percentage >= threshold_value and not self._threshold_times[threshold_name]:
+                self._threshold_times[threshold_name].append(self._steps)
+
     def _calculate_exploration_metrics(self) -> Dict[str, float]:
         """Calculate exploration metrics aggregated across all agents."""
         metrics = {}
@@ -328,6 +354,18 @@ class MettaGridEnv(PufferEnv, GymEnv):
             new_pixels_discovered = total_unique_observed - initial_obs_total  # Pixels beyond initial window
             exploration_rate = new_pixels_discovered / (self.max_steps * self._c_env.num_agents)
             metrics["explore/effective_exploration_rate"] = float(exploration_rate)
+
+        # Median time to threshold percentage of observations
+        import numpy as np
+
+        for threshold_name in ["33%", "66%", "100%"]:
+            times = self._threshold_times[threshold_name]
+            if times:
+                median_time = np.median(times)
+                metrics[f"explore/median_time_to_{threshold_name}_coverage"] = float(median_time)
+            else:
+                # If threshold not reached, use episode length as fallback
+                metrics[f"explore/median_time_to_{threshold_name}_coverage"] = float(self.max_steps)
 
         # Standard deviations
         if len(visited_counts) > 1:
