@@ -925,7 +925,6 @@ def save_checkpoint(
     trainer_checkpoint = TrainerCheckpoint(
         agent_step=agent_step,
         epoch=epoch,
-        total_agent_step=agent_step,
         optimizer_state_dict=optimizer_state_dict,
         policy_path=saved_policy_record.uri if hasattr(saved_policy_record, "uri") else None,
         stopwatch_state=None,

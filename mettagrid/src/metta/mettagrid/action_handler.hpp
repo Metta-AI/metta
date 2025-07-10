@@ -11,11 +11,11 @@
 #include "objects/constants.hpp"
 #include "types.hpp"
 struct ActionConfig {
-  std::map<InventoryItem, int> required_resources;
-  std::map<InventoryItem, int> consumed_resources;
+  std::map<InventoryItem, InventoryQuantity> required_resources;
+  std::map<InventoryItem, InventoryQuantity> consumed_resources;
 
-  ActionConfig(const std::map<InventoryItem, int>& required_resources,
-               const std::map<InventoryItem, int>& consumed_resources)
+  ActionConfig(const std::map<InventoryItem, InventoryQuantity>& required_resources,
+               const std::map<InventoryItem, InventoryQuantity>& consumed_resources)
       : required_resources(required_resources), consumed_resources(consumed_resources) {}
 
   virtual ~ActionConfig() {}
@@ -67,7 +67,7 @@ public:
 
     if (has_needed_resources) {
       for (const auto& [item, amount] : _consumed_resources) {
-        actor->update_inventory(item, -amount);
+        actor->update_inventory(item, -static_cast<InventoryDelta>(amount));
       }
     }
 
@@ -98,8 +98,8 @@ protected:
   virtual bool _handle_action(Agent* actor, ActionArg arg) = 0;
 
   std::string _action_name;
-  std::map<InventoryItem, int> _required_resources;
-  std::map<InventoryItem, int> _consumed_resources;
+  std::map<InventoryItem, InventoryQuantity> _required_resources;
+  std::map<InventoryItem, InventoryQuantity> _consumed_resources;
 };
 
 #endif  // ACTION_HANDLER_HPP_
