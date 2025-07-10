@@ -10,7 +10,6 @@
 
 #include "action_handler.hpp"
 #include "actions/attack.hpp"
-#include "actions/attack_nearest.hpp"
 #include "actions/change_color.hpp"
 #include "actions/get_output.hpp"
 #include "actions/move.hpp"
@@ -33,7 +32,7 @@
 
 namespace py = pybind11;
 
-MettaGrid::MettaGrid(const GameConfig& cfg, py::list map, int seed)
+MettaGrid::MettaGrid(const GameConfig& cfg, py::list map, unsigned int seed)
     : max_steps(cfg.max_steps),
       obs_width(cfg.obs_width),
       obs_height(cfg.obs_height),
@@ -93,7 +92,6 @@ MettaGrid::MettaGrid(const GameConfig& cfg, py::list map, int seed)
         throw std::runtime_error("AttackActionConfig is not a valid action config");
       }
       _action_handlers.push_back(std::make_unique<Attack>(*attack_config));
-      _action_handlers.push_back(std::make_unique<AttackNearest>(*attack_config));
     } else if (action_name_str == "swap") {
       _action_handlers.push_back(std::make_unique<Swap>(*action_config));
     } else if (action_name_str == "change_color") {
@@ -176,7 +174,10 @@ MettaGrid::MettaGrid(const GameConfig& cfg, py::list map, int seed)
       if (agent_config) {
         Agent* agent = new Agent(r, c, *agent_config);
         _grid->add_object(agent);
-        agent->agent_id = _agents.size();
+        if (_agents.size() > std::numeric_limits<decltype(agent->agent_id)>::max()) {
+          throw std::runtime_error("Too many agents for agent_id type");
+        }
+        agent->agent_id = static_cast<decltype(agent->agent_id)>(_agents.size());
         agent->stats.set_environment(this);
         add_agent(agent);
         _group_sizes[agent->group] += 1;
@@ -258,20 +259,20 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
   // Global tokens
   ObservationToken* agent_obs_ptr = reinterpret_cast<ObservationToken*>(observation_view.mutable_data(agent_idx, 0, 0));
   ObservationTokens agent_obs_tokens(agent_obs_ptr, observation_view.shape(1) - tokens_written);
-  unsigned int episode_completion_pct = 0;
+
+  ObservationType episode_completion_pct = 0;
   if (max_steps > 0) {
-    episode_completion_pct = static_cast<unsigned int>(
+    episode_completion_pct = static_cast<ObservationType>(
         std::round((static_cast<float>(current_step) / max_steps) * std::numeric_limits<ObservationType>::max()));
   }
 
-  int reward_int = static_cast<int>(std::round(rewards_view(agent_idx) * 100.0f));
-  reward_int = std::clamp(reward_int, 0, static_cast<int>(std::numeric_limits<ObservationType>::max()));
+  ObservationType reward_int = static_cast<ObservationType>(std::round(rewards_view(agent_idx) * 100.0f));
 
   std::vector<PartialObservationToken> global_tokens = {
-      {ObservationFeature::EpisodeCompletionPct, static_cast<ObservationType>(episode_completion_pct)},
+      {ObservationFeature::EpisodeCompletionPct, episode_completion_pct},
       {ObservationFeature::LastAction, static_cast<ObservationType>(action)},
       {ObservationFeature::LastActionArg, static_cast<ObservationType>(action_arg)},
-      {ObservationFeature::LastReward, static_cast<ObservationType>(reward_int)}};
+      {ObservationFeature::LastReward, reward_int}};
 
   // Global tokens are always at the center of the observation.
   uint8_t global_location =
@@ -601,11 +602,11 @@ py::list MettaGrid::action_names() {
   return names;
 }
 
-unsigned int MettaGrid::map_width() {
+GridCoord MettaGrid::map_width() {
   return _grid->width;
 }
 
-unsigned int MettaGrid::map_height() {
+GridCoord MettaGrid::map_height() {
   return _grid->height;
 }
 
@@ -626,7 +627,7 @@ py::dict MettaGrid::feature_spec() {
   return feature_spec;
 }
 
-unsigned int MettaGrid::num_agents() {
+size_t MettaGrid::num_agents() {
   return _agents.size();
 }
 
@@ -768,7 +769,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
 
   // MettaGrid class bindings
   py::class_<MettaGrid>(m, "MettaGrid")
-      .def(py::init<const GameConfig&, const py::list&, int>())
+      .def(py::init<const GameConfig&, const py::list&, unsigned int>())
       .def("reset", &MettaGrid::reset)
       .def("step", &MettaGrid::step, py::arg("actions").noconvert())
       .def("set_buffers",
@@ -878,22 +879,17 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def_readwrite("color", &ConverterConfig::color);
 
   py::class_<ActionConfig, std::shared_ptr<ActionConfig>>(m, "ActionConfig")
-      .def(py::init<bool,
-                    const std::map<InventoryItem, InventoryQuantity>&,
+      .def(py::init<const std::map<InventoryItem, InventoryQuantity>&,
                     const std::map<InventoryItem, InventoryQuantity>&>(),
-           py::arg("enabled") = true,
            py::arg("required_resources") = std::map<InventoryItem, InventoryQuantity>(),
            py::arg("consumed_resources") = std::map<InventoryItem, InventoryQuantity>())
-      .def_readwrite("enabled", &ActionConfig::enabled)
       .def_readwrite("required_resources", &ActionConfig::required_resources)
       .def_readwrite("consumed_resources", &ActionConfig::consumed_resources);
 
   py::class_<AttackActionConfig, ActionConfig, std::shared_ptr<AttackActionConfig>>(m, "AttackActionConfig")
-      .def(py::init<bool,
-                    const std::map<InventoryItem, InventoryQuantity>&,
+      .def(py::init<const std::map<InventoryItem, InventoryQuantity>&,
                     const std::map<InventoryItem, InventoryQuantity>&,
                     const std::map<InventoryItem, InventoryQuantity>&>(),
-           py::arg("enabled") = true,
            py::arg("required_resources") = std::map<InventoryItem, InventoryQuantity>(),
            py::arg("consumed_resources") = std::map<InventoryItem, InventoryQuantity>(),
            py::arg("defense_resources") = std::map<InventoryItem, InventoryQuantity>())

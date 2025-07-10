@@ -11,14 +11,12 @@
 #include "objects/constants.hpp"
 #include "types.hpp"
 struct ActionConfig {
-  bool enabled;
   std::map<InventoryItem, InventoryQuantity> required_resources;
   std::map<InventoryItem, InventoryQuantity> consumed_resources;
 
-  ActionConfig(bool enabled,
-               const std::map<InventoryItem, InventoryQuantity>& required_resources,
+  ActionConfig(const std::map<InventoryItem, InventoryQuantity>& required_resources,
                const std::map<InventoryItem, InventoryQuantity>& consumed_resources)
-      : enabled(enabled), required_resources(required_resources), consumed_resources(consumed_resources) {}
+      : required_resources(required_resources), consumed_resources(consumed_resources) {}
 
   virtual ~ActionConfig() {}
 };
@@ -67,18 +65,19 @@ public:
       }
     }
 
-    if (has_needed_resources) {
-      for (const auto& [item, amount] : _consumed_resources) {
-        actor->update_inventory(item, -static_cast<InventoryDelta>(amount));
-      }
-    }
-
     // Execute the action
     bool success = has_needed_resources && _handle_action(actor, arg);
 
     // Track success/failure
     if (success) {
       actor->stats.incr("action." + _action_name + ".success");
+      for (const auto& [item, amount] : _consumed_resources) {
+        InventoryDelta delta = actor->update_inventory(item, -static_cast<InventoryDelta>(amount));
+        // We consume resources after the action succeeds, but in the future
+        // we might have an action that uses the resource. This check will
+        // catch that.
+        assert(delta == -amount);
+      }
     } else {
       actor->stats.incr("action." + _action_name + ".failed");
       actor->stats.incr("action.failure_penalty");

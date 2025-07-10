@@ -86,7 +86,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
         self._replay_writer = replay_writer
         self._episode_id: str | None = None
         self._reset_at = datetime.datetime.now()
-        self._current_seed = 0
+        self._current_seed: int = 0  # must be unsigned
 
         self.labels: list[str] = self._task.env_cfg().get("labels", [])
         self._should_reset = False
@@ -146,7 +146,15 @@ class MettaGridEnv(PufferEnv, GymEnv):
         # Convert string array to list of strings for C++ compatibility
         # TODO: push the not-numpy-array higher up the stack, and consider pushing not-a-sparse-list lower.
         with self.timer("_initialize_c_env.make_c_env"):
-            self._c_env = MettaGrid(from_mettagrid_config(game_config_dict), level.grid.tolist(), self._current_seed)
+            c_cfg = None
+            try:
+                c_cfg = from_mettagrid_config(game_config_dict)
+            except Exception as e:
+                logger.error(f"Error initializing C++ environment: {e}")
+                logger.error(f"Game config: {game_config_dict}")
+                raise e
+
+            self._c_env = MettaGrid(c_cfg, level.grid.tolist(), self._current_seed)
 
         self._grid_env = self._c_env
 

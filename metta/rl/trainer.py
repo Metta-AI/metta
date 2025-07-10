@@ -385,7 +385,7 @@ class MettaTrainer:
             stats_pct = (stats_time / total_time) * 100
 
             logger.info(
-                f"Epoch {self.epoch} - "
+                f"Epoch {self.epoch}, Agent step {self.agent_step}/{trainer_cfg.total_timesteps} "
                 f"{steps_per_sec * self._world_size:.0f} steps/sec "
                 f"({train_pct:.0f}% train / {rollout_pct:.0f}% rollout / {stats_pct:.0f}% stats)"
             )
@@ -436,7 +436,7 @@ class MettaTrainer:
             # Perform single rollout step
             # Receive environment data
             o, r, d, t, info, training_env_id, mask, num_steps = get_observation(self.vecenv, self.device, self.timer)
-            self.agent_step += num_steps
+            self.agent_step += num_steps * self._world_size
 
             # Run policy inference
             actions, selected_action_log_probs, values, lstm_state_to_store = run_policy_inference(
@@ -607,7 +607,6 @@ class MettaTrainer:
         checkpoint = TrainerCheckpoint(
             agent_step=self.agent_step,
             epoch=self.epoch,
-            total_agent_step=self.agent_step * self._world_size,
             optimizer_state_dict=self.optimizer.state_dict(),
             stopwatch_state=self.timer.save_state(),
             policy_path=self.latest_saved_policy_uri,
@@ -839,11 +838,7 @@ class MettaTrainer:
                         weight_stats[f"weights/{key}/{name}"] = value
 
         # Compute timing stats using shared function
-        timing_info = compute_timing_stats(
-            timer=self.timer,
-            agent_step=self.agent_step,
-            world_size=self._world_size,
-        )
+        timing_info = compute_timing_stats(timer=self.timer, agent_step=self.agent_step)
 
         # Build parameters dictionary
         parameters = {
@@ -872,7 +867,6 @@ class MettaTrainer:
             evals=self.evals,
             agent_step=self.agent_step,
             epoch=self.epoch,
-            world_size=self._world_size,
         )
 
         # Log to wandb

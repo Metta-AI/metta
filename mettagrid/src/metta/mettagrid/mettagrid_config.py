@@ -51,7 +51,7 @@ class PyAgentConfig(BaseModelWithForbidExtra):
     default_resource_limit: Optional[int] = Field(default=None, ge=0)
     resource_limits: Optional[dict[str, int]] = Field(default_factory=dict)
     freeze_duration: Optional[int] = Field(default=None, ge=-1)
-    rewards: Optional[PyAgentRewards] = None
+    rewards: Optional[PyAgentRewards] = Field(default=None)
     action_failure_penalty: Optional[float] = Field(default=None, ge=0)
 
 
@@ -67,15 +67,16 @@ class PyGroupConfig(BaseModelWithForbidExtra):
     id: int
     sprite: Optional[int] = Field(default=None)
     group_reward_pct: Optional[float] = Field(default=None, ge=0, le=1)
-    props: Optional[PyGroupProps] = None
+    props: Optional[PyGroupProps] = Field(default=None)
 
 
 class PyActionConfig(BaseModelWithForbidExtra):
     """Python action configuration."""
 
     enabled: bool
-    required_resources: Optional[dict[str, int]] = None
+    required_resources: Optional[dict[str, int]] = Field(default=None)
     consumed_resources: Optional[dict[str, int]] = Field(default_factory=dict)
+    # defaults to consumed_resources. Otherwise, should be a superset of consumed_resources.
 
 
 class PyAttackActionConfig(PyActionConfig):
@@ -101,7 +102,7 @@ class PyWallConfig(BaseModelWithForbidExtra):
     """Python wall/block configuration."""
 
     type_id: int
-    swappable: Optional[bool] = None
+    swappable: bool = Field(default=False)
 
 
 class PyConverterConfig(BaseModelWithForbidExtra):
@@ -109,12 +110,12 @@ class PyConverterConfig(BaseModelWithForbidExtra):
 
     input_resources: dict[str, int] = Field(default_factory=dict)
     output_resources: dict[str, int] = Field(default_factory=dict)
-    type_id: int
+    type_id: int = Field(default=0, ge=0, le=255)
     max_output: int = Field(ge=-1)
     conversion_ticks: int = Field(ge=0)
     cooldown: int = Field(ge=0)
     initial_resource_count: int = Field(ge=0)
-    color: Optional[int] = Field(default=0, ge=0, le=255)
+    color: int = Field(default=0, ge=0, le=255)
 
 
 class PyGameConfig(BaseModelWithForbidExtra):

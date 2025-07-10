@@ -29,7 +29,7 @@ const uint8_t EmptyTokenByte = 0xff;
 // per-policy basis.
 //
 // NOTE: We use a namespace here to avoid naming collisions:
-// - 'TypeId' conflicts with the uint8_t TypeId in grid_object.hpp
+// - 'TypeId' conflicts with grid_object.hpp::TypeId
 // - 'Orientation' conflicts with the enum class Orientation defined above
 // The namespace allows us to use these descriptive names without conflicts.
 namespace ObservationFeature {

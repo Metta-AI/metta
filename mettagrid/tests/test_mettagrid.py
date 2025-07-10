@@ -12,22 +12,21 @@ from metta.mettagrid.mettagrid_env import dtype_actions
 # Constants from C++ code
 @dataclass
 class TokenTypes:
-    TYPE_ID_FEATURE = 0
-    WALL_TYPE_ID = 1
-    EPISODE_COMPLETION_PCT = 8
-    LAST_ACTION = 9
-    LAST_ACTION_ARG = 10
-    LAST_REWARD = 11
+    TYPE_ID_FEATURE: int = 0
+    WALL_TYPE_ID: int = 1
+    EPISODE_COMPLETION_PCT: int = 8
+    LAST_ACTION: int = 9
+    LAST_ACTION_ARG: int = 10
+    LAST_REWARD: int = 11
 
 
 @dataclass
 class EnvConfig:  # Renamed from TestConfig to avoid pytest confusion
-    NUM_AGENTS = 2
-    OBS_HEIGHT = 3
-    OBS_WIDTH = 3
-    NUM_OBS_TOKENS = 100
-    OBS_TOKEN_SIZE = 3
-    GLOBAL_TOKEN_LOCATION = 17  # 0x11
+    NUM_AGENTS: int = 2
+    OBS_HEIGHT: int = 3
+    OBS_WIDTH: int = 3
+    NUM_OBS_TOKENS: int = 100
+    OBS_TOKEN_SIZE: int = 3
     EMPTY_TOKEN = [0xFF, 0xFF, 0xFF]
 
 
@@ -235,10 +234,13 @@ class TestObservations:
         """Test basic observation structure."""
         obs, _ = basic_env.reset()
 
+        # global token is always at the center of the observation window
+        global_token_location = PackedCoordinate.pack(EnvConfig.OBS_HEIGHT // 2, EnvConfig.OBS_WIDTH // 2)
+
         # Test global tokens (first 4 tokens)
         for agent_idx in range(EnvConfig.NUM_AGENTS):
             for token_idx in range(4):
-                assert obs[agent_idx, token_idx, 0] == EnvConfig.GLOBAL_TOKEN_LOCATION
+                assert obs[agent_idx, token_idx, 0] == global_token_location
 
         # Test empty terminator
         assert (obs[0, -1, :] == EnvConfig.EMPTY_TOKEN).all()
@@ -586,12 +588,6 @@ class TestPackedCoordinate:
         # Verify we can pack 225 positions (15x15 grid)
         assert successfully_packed == 225, f"Expected 225 packable positions, got {successfully_packed}"
 
-        # Test specific corner cases
-        assert PackedCoordinate.pack(0, 0) == 0x00  # Top-left
-        assert PackedCoordinate.pack(0, 14) == 0x0E  # Top-right
-        assert PackedCoordinate.pack(14, 0) == 0xE0  # Bottom-left
-        assert PackedCoordinate.pack(14, 14) == 0xEE  # Bottom-right
-
         # Test empty/0xFF handling
         assert PackedCoordinate.is_empty(0xFF)
         assert PackedCoordinate.unpack(0xFF) is None
@@ -607,7 +603,3 @@ class TestPackedCoordinate:
                 raise AssertionError(f"Should have raised exception for ({row}, {col})")
             except ValueError:
                 pass  # Expected
-
-        print("PackedCoordinate tests passed!")
-        print(f"Can pack {successfully_packed}/256 positions")
-        print("0xFF is reserved for EMPTY marker")

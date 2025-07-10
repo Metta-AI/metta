@@ -24,21 +24,18 @@ protected:
 
     Orientation move_direction = static_cast<Orientation>(actor->orientation);
 
-    // If arg == 1, calculate backward direction (opposite of facing)
     if (arg == 1) {
       move_direction = get_opposite_direction(move_direction);
     }
 
-    // Calculate target location based on movement direction
     GridLocation current_location = actor->location;
     GridLocation target_location = _grid->relative_location(current_location, move_direction);
 
-    // Check if movement is possible
+    // check if we are blocked by an obstacle
     if (!_grid->is_empty(target_location.r, target_location.c)) {
-      return false;  // Path blocked
+      return false;
     }
 
-    // Execute the forward movement
     return _grid->move_object(actor->id, target_location);
   }
 
@@ -55,7 +52,7 @@ private:
       case Orientation::Right:
         return Orientation::Left;
       default:
-        return orientation;
+        assert(false && "Invalid orientation passed to get_opposite_direction()");
     }
   }
 };

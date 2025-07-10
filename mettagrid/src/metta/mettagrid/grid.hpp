@@ -15,20 +15,35 @@ using GridType = std::vector<std::vector<std::vector<GridObjectId>>>;
 
 class Grid {
 public:
-  GridCoord height;
-  GridCoord width;
-
-  GridType grid;
+  const GridCoord height;
+  const GridCoord width;
   vector<std::unique_ptr<GridObject>> objects;
 
-  inline Grid(GridCoord height, GridCoord width) : height(height), width(width) {
+private:
+  GridType grid;
+
+public:
+  Grid(GridCoord height, GridCoord width) : height(height), width(width) {
     grid.resize(height, vector<vector<GridObjectId>>(width, vector<GridObjectId>(GridLayer::GridLayerCount, 0)));
 
-    // 0 is reserved for empty space
+    // Reserve space for objects to avoid frequent reallocations
+    // Assume ~50% of grid cells will contain objects
+    size_t estimated_objects = static_cast<size_t>(height) * width / 2;
+
+    // Cap preallocation at ~100MB of pointer memory
+    constexpr size_t MAX_PREALLOCATED_OBJECTS = 12'500'000;
+    size_t reserved_objects = std::min(estimated_objects, MAX_PREALLOCATED_OBJECTS);
+
+    objects.reserve(reserved_objects);
+
+    // GridObjectId "0" is reserved to mean empty space (GridObject pointer = nullptr).
+    // By pushing nullptr at index 0, we ensure that:
+    //   1. Grid initialization with zeros automatically represents empty spaces
+    //   2. Object IDs match their index in the objects vector (no off-by-one adjustments)
     objects.push_back(nullptr);
   }
 
-  virtual ~Grid() = default;
+  ~Grid() = default;
 
   inline bool is_valid_location(const GridLocation& loc) const {
     return loc.r < height && loc.c < width && loc.layer < GridLayer::GridLayerCount;
@@ -48,7 +63,7 @@ public:
     return true;
   }
 
-  // Removes and object from the grid and gives ownership of the object to the caller.
+  // Removes an object from the grid and gives ownership of the object to the caller.
   // Since the caller is now the owner, this can make the raw pointer invalid, if the
   // returned unique_ptr is destroyed.
   inline unique_ptr<GridObject> remove_object(GridObject* obj) {
@@ -96,6 +111,7 @@ public:
   }
 
   inline GridObject* object(GridObjectId obj_id) const {
+    assert(obj_id < objects.size() && "Invalid object ID");
     return objects[obj_id].get();
   }
 
@@ -109,10 +125,10 @@ public:
     return object(grid[loc.r][loc.c][loc.layer]);
   }
 
-  inline const GridLocation location(GridObjectId id) {
-    return object(id)->location;
-  }
-
+  /**
+   * Get the location at a relative offset from the given orientation.
+   * Note: The returned location has the same layer as the input location.
+   */
   inline const GridLocation relative_location(const GridLocation& loc,
                                               Orientation facing,
                                               short forward_distance,  // + is forward, - is backward
@@ -124,19 +140,19 @@ public:
     int new_c;
 
     switch (facing) {
-      case Up:
+      case Orientation::Up:
         new_r = r - forward_distance;  // Positive dist = go up (decrease row)
         new_c = c + lateral_offset;    // Positive offset = go right (increase col)
         break;
-      case Down:
+      case Orientation::Down:
         new_r = r + forward_distance;  // Positive dist = go down (increase row)
         new_c = c - lateral_offset;    // Positive offset = go left (decrease col)
         break;
-      case Left:
+      case Orientation::Left:
         new_c = c - forward_distance;  // Positive dist = go left (decrease col)
         new_r = r - lateral_offset;    // Positive offset = go up (decrease row)
         break;
-      case Right:
+      case Orientation::Right:
         new_c = c + forward_distance;  // Positive dist = go right (increase col)
         new_r = r + lateral_offset;    // Positive offset = go down (increase row)
         break;
@@ -148,6 +164,10 @@ public:
     return GridLocation(static_cast<GridCoord>(new_r), static_cast<GridCoord>(new_c), loc.layer);
   }
 
+  /**
+   * Get the location one step forward in the given orientation.
+   * Note: The returned location has the same layer as the input location.
+   */
   inline const GridLocation relative_location(const GridLocation& loc, Orientation orientation) {
     return this->relative_location(loc, orientation, 1, 0);
   }

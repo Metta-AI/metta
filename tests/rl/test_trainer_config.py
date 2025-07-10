@@ -188,7 +188,6 @@ class TestTypedConfigs:
         test_config_dict = {
             **valid_trainer_config,
             "env_overrides": {
-                "desync_episodes": True,
                 "max_steps": 1000,
                 "num_agents": 4,
             },
@@ -207,7 +206,6 @@ class TestTypedConfigs:
         # Test that env_overrides can be converted to DictConfig
         env_overrides_dict = DictConfig(validated_config.env_overrides)
         assert isinstance(env_overrides_dict, DictConfig)
-        assert env_overrides_dict.desync_episodes is True
         assert env_overrides_dict.max_steps == 1000
         assert env_overrides_dict.num_agents == 4
 
@@ -215,7 +213,6 @@ class TestTypedConfigs:
         config_dict = validated_config.model_dump(by_alias=True)
         assert config_dict["_target_"] == "metta.rl.trainer.MettaTrainer"
         assert config_dict["batch_size"] == 1024
-        assert config_dict["env_overrides"]["desync_episodes"] is True
         assert config_dict["env_overrides"]["max_steps"] == 1000
 
     def test_runtime_path_overrides(self):
