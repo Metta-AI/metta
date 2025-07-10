@@ -50,8 +50,6 @@ enum Orientation {
   Right = 3
 };
 
-using GridObjectId = unsigned int;
-
 struct GridObjectConfig {
   TypeId type_id;
   std::string type_name;
