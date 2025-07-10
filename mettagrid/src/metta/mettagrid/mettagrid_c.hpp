@@ -30,12 +30,13 @@ class ActionHandler;
 class Agent;
 class ObservationEncoder;
 class GridObject;
-class GridObjectConfig;
-class ConverterConfig;
-class WallConfig;
-class AgentConfig;
-class GameConfig;
-class ActionConfig;
+
+struct GridObjectConfig;
+struct ConverterConfig;
+struct WallConfig;
+struct AgentConfig;
+struct GameConfig;
+struct ActionConfig;
 
 namespace py = pybind11;
 

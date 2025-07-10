@@ -6,33 +6,31 @@
 #include <string>
 #include <vector>
 
-// using namespace std;  // Removed per cpplint
+#include "types.hpp"
 
-typedef unsigned short Layer;
-typedef uint8_t TypeId;
-typedef unsigned int GridCoord;
-using ObsType = uint8_t;
-using InventoryItem = uint8_t;
+using Layer = ObservationType;
+using TypeId = ObservationType;
+using GridCoord = ObservationType;
+
+struct PartialObservationToken {
+  ObservationType feature_id;
+  ObservationType value;
+};
 
 // These may make more sense in observation_encoder.hpp, but we need to include that
 // header in a lot of places, and it's nice to have these types defined in one place.
 struct alignas(1) ObservationToken {
-  uint8_t location;
-  uint8_t feature_id;
-  uint8_t value;
+  ObservationType location;
+  ObservationType feature_id;
+  ObservationType value;
 };
 
 // The alignas should make sure of this, but let's be explicit.
 // We're going to be reinterpret_casting things to this type, so
 // it'll be bad if the compiler pads this type.
-static_assert(sizeof(ObservationToken) == 3, "ObservationToken must be 3 bytes");
+static_assert(sizeof(ObservationToken) == 3 * sizeof(uint8_t), "ObservationToken must be 3 bytes");
 
 using ObservationTokens = std::span<ObservationToken>;
-
-struct PartialObservationToken {
-  uint8_t feature_id;
-  uint8_t value;
-};
 
 class GridLocation {
 public:
@@ -52,7 +50,7 @@ enum Orientation {
   Right = 3
 };
 
-typedef unsigned int GridObjectId;
+using GridObjectId = unsigned int;
 
 struct GridObjectConfig {
   TypeId type_id;
