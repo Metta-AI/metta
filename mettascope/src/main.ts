@@ -1,7 +1,7 @@
 import { Vec2f, Mat3f } from './vector_math.js'
 import * as Common from './common.js'
 import { ui, state, html, ctx, setFollowSelection } from './common.js'
-import { fetchReplay, getAttr, initWebSocket, readFile, sendAction } from './replay.js'
+import { fetchReplay, initWebSocket, readFile, sendAction } from './replay.js'
 import { focusFullMap, drawMap } from './worldmap.js'
 import { drawMiniMap } from './minimap.js'
 import { drawTraces } from './traces.js'
@@ -340,14 +340,14 @@ export function updateStep(newStep: number, skipScrubberUpdate = false) {
 }
 
 /** Centralized function to select an Entity. */
-export function updateSelection(Entity: any, setFollow = false) {
-  state.selectedGridObject = Entity
+export function updateSelection(entity: any, setFollow = false) {
+  state.selectedGridObject = entity
   if (setFollow) {
     setFollowSelection(true)
   }
-  console.info('Selected Entity:', state.selectedGridObject)
-  updateAgentTable()
   requestFrame()
+  updateReadout()
+  console.info('Selected Entity:', state.selectedGridObject)
 }
 
 /** Handles key down events. */

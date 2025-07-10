@@ -13,7 +13,7 @@ import { ui, state, html, ctx, setFollowSelection } from './common.js'
 import { onEvent } from './htmlutils.js'
 import { updateStep, requestFrame } from './main.js'
 import { clamp } from './context3d.js'
-import { getAttr } from './replay.js'
+import { Vec2f } from './vector_math.js'
 
 /** Initializes the timeline. */
 export function initTimeline() {
@@ -118,7 +118,7 @@ export function drawTimeline(panel: PanelInfo) {
     let prevFrozen = 0
     for (let j = 0; j < state.replay.maxSteps; j++) {
       // Build the segments for the frozen bars.
-      let frozen = getAttr(agent.frozen, j) ? 1 : 0
+      let frozen = agent.frozen.get(j) ? 1 : 0
       if (frozen > 0 && prevFrozen == 0) {
         let x = (j / fullSteps) * scrubberWidth
         ctx.drawSprite('agents/frozen.png', x, 12, [1, 1, 1, 1], 0.1, 0)

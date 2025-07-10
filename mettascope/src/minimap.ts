@@ -1,9 +1,8 @@
 import { Vec2f } from './vector_math.js'
 import * as Common from './common.js'
 import { ui, state, ctx } from './common.js'
-import { getAttr } from './replay.js'
-import { PanelInfo } from './panels.js'
 import { parseHtmlColor } from './htmlutils.js'
+import { PanelInfo } from './panels.js'
 
 /** Draws the minimap. */
 export function drawMiniMap(panel: PanelInfo) {
@@ -44,11 +43,13 @@ export function drawMiniMap(panel: PanelInfo) {
     parseHtmlColor('#E7D4B7')
   )
 
-  // Draw the grid objects on the minimap.
+  // Draw the entities.
   for (const obj of state.replay.objects) {
-    const x = getAttr(obj.position)?.[0]
-    const y = getAttr(obj.position)?.[1]
-    const type = getAttr(obj.typeId)
+    const position = obj.position.get()
+    if (!position) continue
+    const x = position[0]
+    const y = position[1]
+    const type = obj.typeId.get()
     const typeName = state.replay.typeNames[type as number]
     var color = parseHtmlColor('#FFFFFF')
     if (typeName === 'wall') {
@@ -65,11 +66,13 @@ export function drawMiniMap(panel: PanelInfo) {
     )
   }
 
-  // Draw the agent pips on top.
+  // Draw the agents.
   for (const obj of state.replay.objects) {
-    const x = getAttr(obj.position)?.[0]
-    const y = getAttr(obj.position)?.[1]
-    const type = getAttr(obj.typeId)
+    const position = obj.position.get()
+    if (!position) continue
+    const x = position[0]
+    const y = position[1]
+    const type = obj.typeId.get()
     const typeName = state.replay.typeNames[type as number]
     if (typeName && typeName.startsWith('agent')) {
       ctx.drawSprite(

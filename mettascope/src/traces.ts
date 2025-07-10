@@ -1,7 +1,6 @@
 import { Vec2f } from './vector_math.js'
 import * as Common from './common.js'
 import { ui, state, ctx, setFollowSelection } from './common.js'
-import { getAttr } from './replay.js'
 import { PanelInfo } from './panels.js'
 import { updateStep, updateSelection } from './main.js'
 import { parseHtmlColor } from './htmlutils.js'
@@ -35,7 +34,7 @@ export function drawTraces(panel: PanelInfo) {
           ) {
             updateSelection(state.replayHelper.agents[agentId])
             updateStep(selectedStep)
-            const position = state.selectedGridObject ? getAttr(state.selectedGridObject.position) : null
+            const position = state.selectedGridObject ? state.selectedGridObject.position.get() : null
             if (position) {
               ui.mapPanel.focusPos(
                 position[0] * Common.TILE_SIZE,
@@ -52,7 +51,7 @@ export function drawTraces(panel: PanelInfo) {
   // If we're following a selection, center the trace panel on it.
   if (state.followSelection && state.selectedGridObject !== null) {
     const x = state.step * Common.TRACE_WIDTH + Common.TRACE_WIDTH / 2
-    const agentId = getAttr(state.selectedGridObject.agentId)
+    const agentId = state.selectedGridObject.agentId.get()
     if (agentId !== null) {
       const y = (agentId as number) * Common.TRACE_HEIGHT + Common.TRACE_HEIGHT / 2
       panel.panPos = new Vec2f(-x, -y)
@@ -81,7 +80,7 @@ export function drawTraces(panel: PanelInfo) {
 
   // Draw a rectangle around the selected agent.
   if (state.selectedGridObject !== null && state.selectedGridObject.agentId !== null) {
-    const agentId = getAttr(state.selectedGridObject.agentId)
+    const agentId = state.selectedGridObject.agentId.get()
 
     // Draw the selection rectangle.
     ctx.drawSolidRect(0, agentId * Common.TRACE_HEIGHT, fullSize.x(), Common.TRACE_HEIGHT, [0.3, 0.3, 0.3, 1])
@@ -102,10 +101,10 @@ export function drawTraces(panel: PanelInfo) {
     if (!agent) continue
 
     for (let j = 0; j < state.replay.maxSteps; j++) {
-      const action = getAttr(agent.actionId, j)
-      const action_success = getAttr(agent.actionSuccess, j)
+      const action = agent.actionId.get(j)
+      const action_success = agent.actionSuccess.get(j)
 
-      if (getAttr(agent.frozen, j)) {
+      if (agent.frozen.get(j)) {
         // Draw the frozen state.
         ctx.drawSprite(
           'trace/frozen.png',
@@ -133,7 +132,7 @@ export function drawTraces(panel: PanelInfo) {
         )
       }
 
-      const reward = getAttr(agent.currentReward, j)
+      const reward = agent.currentReward.get(j)
       // If there is a reward, draw a coin.
       if ((reward as number) > 0) {
         ctx.drawSprite(

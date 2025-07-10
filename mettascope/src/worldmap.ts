@@ -1,8 +1,8 @@
 import { Vec2f } from './vector_math.js'
 import { Grid } from './grid.js'
 import * as Common from './common.js'
-import { ui, state, ctx, setFollowSelection } from './common.js'
-import { getAttr, Entity, sendAction } from './replay.js'
+import { ctx, ui, state, html, setFollowSelection, showToast } from './common.js'
+import { Entity, sendAction } from './replay.js'
 import { PanelInfo } from './panels.js'
 import { onFrame, updateSelection } from './main.js'
 import { parseHtmlColor, find } from './htmlutils.js'
@@ -18,7 +18,8 @@ function colorFromId(agentId: number) {
 
 /** Checks to see if an Entity has any inventory. */
 function hasInventory(obj: Entity) {
-  return getAttr(obj.inventory).length > 0
+  const inventory = obj.inventory.get()
+  return inventory && inventory.length > 0
 }
 
 /** Focus the screen on a specific area of the map. */
@@ -53,23 +54,23 @@ function drawWalls() {
   // Construct a wall adjacency map.
   var wallMap = new Grid(state.replay!.mapSize[0], state.replay!.mapSize[1])
   for (const obj of state.replay!.objects) {
-    const type = getAttr(obj.typeId)
-    const typeName = state.replay!.typeNames[type]
+    const type = obj.typeId.get()
+    const typeName = state.replay!.typeNames[type as number]
     if (typeName !== 'wall') {
       continue
     }
-    const position = getAttr(obj.position)
+    const position = obj.position.get()
     wallMap.set(position[0], position[1], true)
   }
 
   // Draw the walls, following the adjacency map.
   for (const obj of state.replay!.objects) {
-    const type = getAttr(obj.typeId)
-    const typeName = state.replay!.typeNames[type]
+    const type = obj.typeId.get()
+    const typeName = state.replay!.typeNames[type as number]
     if (typeName !== 'wall') {
       continue
     }
-    const position = getAttr(obj.position)
+    const position = obj.position.get()
     const x = position[0]
     const y = position[1]
     var suffix = '0'
@@ -97,12 +98,12 @@ function drawWalls() {
 
   // Draw the wall infill, following the adjacency map.
   for (const obj of state.replay!.objects) {
-    const type = getAttr(obj.typeId)
-    const typeName = state.replay!.typeNames[type]
+    const type = obj.typeId.get()
+    const typeName = state.replay!.typeNames[type as number]
     if (typeName !== 'wall') {
       continue
     }
-    const position = getAttr(obj.position)
+    const position = obj.position.get()
     const x = position[0]
     const y = position[1]
     // If walls to the E, S, and SE are filled, draw a wall fill.
@@ -131,10 +132,10 @@ function drawWalls() {
 function drawObject(obj: Entity) {
   if (!state.replayHelper) return
 
-  const position = getAttr(obj.position)
+  const position = obj.position.get()
   const x = position[0]
   const y = position[1]
-  const type: number = getAttr(obj.typeId) as number
+  const type: number = obj.typeId.get() as number
   const typeName: string = state.replay!.typeNames[type]
 
   if (typeName === 'wall') {
@@ -142,9 +143,9 @@ function drawObject(obj: Entity) {
     return
   }
 
-  if (getAttr(obj.agentId) !== null) {
+  if (obj.agentId.get() !== null) {
     // Respect the orientation of an Entity, usually an agent.
-    const orientation = getAttr(obj.rotation)
+    const orientation = obj.rotation.get()
     var suffix = ''
     if (orientation == 0) {
       suffix = 'n'
@@ -156,7 +157,7 @@ function drawObject(obj: Entity) {
       suffix = 'e'
     }
 
-    const agent_id = getAttr(obj.agentId)
+    const agent_id = obj.agentId.get()
 
     ctx.drawSprite(
       'agents/agent.' + suffix + '.png',
@@ -199,19 +200,19 @@ function drawObjects() {
 /** Draws actions above the objects. */
 function drawActions() {
   for (const obj of state.replay!.objects) {
-    const position = getAttr(obj.position)
+    const position = obj.position.get()
     const x = position[0]
     const y = position[1]
 
     // Do agent actions.
-    if (getAttr(obj.actionId) !== null) {
+    if (obj.actionId.get() !== null) {
       // Draw the action.
-      const actionId = getAttr(obj.actionId)
-      const actionParameter = getAttr(obj.actionParameter)
-      const actionSuccess = getAttr(obj.actionSuccess)
+      const actionId = obj.actionId.get()
+      const actionParameter = obj.actionParameter.get()
+      const actionSuccess = obj.actionSuccess.get()
       if (actionSuccess && actionId != null) {
         const action_name = state.replay!.actionNames[actionId]
-        const orientation = getAttr(obj.rotation)
+        const orientation = obj.rotation.get()
         var rotation = 0
         if (orientation == 0) {
           rotation = Math.PI / 2 // North
@@ -265,7 +266,7 @@ function drawActions() {
     }
 
     // Do building actions.
-    if (getAttr(obj.cooldownProgress) > 0) {
+    if (obj.cooldownProgress.get() > 0) {
       ctx.drawSprite(
         'actions/converting.png',
         x * Common.TILE_SIZE,
@@ -278,7 +279,7 @@ function drawActions() {
     }
 
     // Do states.
-    if (getAttr(obj.frozen)) {
+    if (obj.frozen.get()) {
       ctx.drawSprite('agents/frozen.png', x * Common.TILE_SIZE, y * Common.TILE_SIZE)
     }
   }
@@ -293,17 +294,17 @@ function drawInventory(useSearch = false) {
   }
 
   for (const obj of state.replay.objects) {
-    const position = getAttr(obj.position)
+    const position = obj.position.get()
     const x = position[0]
     const y = position[1]
 
     // Sum up the Entity's inventory in case we need to condense it.
     let inventoryX = Common.INVENTORY_PADDING
-    let numItems = getAttr(obj.inventory).length
+    let numItems = obj.inventory.get()?.length || 0
     // Draw the actual inventory icons.
     let advanceX = Math.min(32, (Common.TILE_SIZE - Common.INVENTORY_PADDING * 2) / numItems)
 
-    for (const itemId of getAttr(obj.inventory)) {
+    for (const itemId of obj.inventory.get() || []) {
       let itemName = state.replay!.itemNames[itemId]
       let icon = state.replayHelper.itemImages[itemId]
       if (useSearch) {
@@ -337,11 +338,11 @@ function drawInventory(useSearch = false) {
 /** Draws the rewards on the bottom of the Entity. */
 function drawRewards() {
   for (const obj of state.replay!.objects) {
-    const position = getAttr(obj.position)
+    const position = obj.position.get()
     const x = position[0]
     const y = position[1]
-    if (getAttr(obj.totalReward) !== null) {
-      const totalReward = getAttr(obj.totalReward)
+    if (obj.totalReward.get() !== null) {
+      const totalReward = obj.totalReward.get() as number
       let rewardX = 0
       let advanceX = Math.min(32, Common.TILE_SIZE / totalReward)
       for (let i = 0; i < totalReward; i++) {
@@ -365,7 +366,7 @@ function drawSelection() {
     return
   }
 
-  const position = getAttr(state.selectedGridObject.position)
+  const position = state.selectedGridObject.position.get()
   const x = position[0]
   const y = position[1]
   ctx.drawSprite('selection.png', x * Common.TILE_SIZE, y * Common.TILE_SIZE)
@@ -379,8 +380,8 @@ function drawTrajectory() {
   if (state.selectedGridObject.position.isSequence()) {
     // Draw both past and future trajectories.
     for (let i = 1; i < state.replay!.maxSteps; i++) {
-      const position0 = getAttr(state.selectedGridObject.position, i - 1)
-      const position1 = getAttr(state.selectedGridObject.position, i)
+      const position0 = state.selectedGridObject.position.get(i - 1)
+      const position1 = state.selectedGridObject.position.get(i)
       const cx0 = position0[0]
       const cy0 = position0[1]
       const cx1 = position1[0]
@@ -433,7 +434,7 @@ function drawThoughtBubbles() {
   // We don't have this directly from the policy yet, so the next best thing
   // is to show a future "key action."
   // It should be a good proxy for what the agent is thinking about.
-  if (state.selectedGridObject != null && state.selectedGridObject.agentId != null) {
+  if (state.selectedGridObject != null && state.selectedGridObject.agentId !== null) {
     // We need to find a key action in the future.
     // A key action is a successful action that is not a no-op, rotate, or move.
     // It must not be more than 20 steps in the future.
@@ -444,12 +445,12 @@ function drawThoughtBubbles() {
       actionStep < state.replay!.maxSteps && actionStep < state.step + 20;
       actionStep++
     ) {
-      const actionId = getAttr(state.selectedGridObject.actionId, actionStep)
+      const actionId = state.selectedGridObject.actionId.get(actionStep)
       if (actionId == null) {
         continue
       }
       const actionName = state.replay!.actionNames[actionId]
-      const actionSuccess = getAttr(state.selectedGridObject.actionSuccess, actionStep)
+      const actionSuccess = state.selectedGridObject.actionSuccess.get(actionStep)
       if (actionName == 'noop' || actionName == 'rotate' || actionName == 'move') {
         continue
       }
@@ -463,7 +464,7 @@ function drawThoughtBubbles() {
     if (keyAction != null) {
       // We have a key action, so draw the thought bubble.
       // Draw the key action icon with gained or lost resources.
-      const position = getAttr(state.selectedGridObject.position)
+      const position = state.selectedGridObject.position.get()
       const x = position[0]
       const y = position[1]
       if (state.step == keyActionStep) {
@@ -539,7 +540,7 @@ function drawVisibility() {
 
     // Update the visibility map for a grid Entity.
     function updateVisibilityMap(obj: Entity) {
-      const position = getAttr(obj.position)
+      const position = obj.position.get()
       if (!position) return
       const x = position[0]
       const y = position[1]
@@ -557,7 +558,7 @@ function drawVisibility() {
     } else {
       // When there is no selected grid Entity, update the visibility map for all agents.
       for (const obj of state.replay.objects) {
-        const type = getAttr(obj.typeId)
+        const type = obj.typeId.get()
         const typeName = state.replay.typeNames[type as number]
         if (typeName && typeName.startsWith('agent')) {
           updateVisibilityMap(obj)
@@ -670,12 +671,12 @@ function drawAttackMode() {
   }
 
   // Draw a selection of 3x3 grid of targets in the direction of the selected agent.
-  if (state.selectedGridObject !== null && state.selectedGridObject.agentId !== null) {
-    const position = getAttr(state.selectedGridObject.position)
+  if (state.selectedGridObject !== null && state.selectedGridObject.agentId.get() !== null) {
+    const position = state.selectedGridObject.position.get()
     if (!position) return
     const x = position[0]
     const y = position[1]
-    const orientation = getAttr(state.selectedGridObject.rotation) ?? 0
+    const orientation = (state.selectedGridObject.rotation.get() ?? 0) as number
 
     // Draw a 3x3 grid of targets in the direction of the selected agent.
     for (let attackIndex = 1; attackIndex <= 9; attackIndex++) {
@@ -694,7 +695,7 @@ function drawAttackMode() {
 
 /** Draw the info line from the Entity to the info panel. */
 function drawInfoLine(panel: HoverPanel) {
-  const position = getAttr(panel.Entity.position)
+  const position = panel.entity.position.get()
   if (!position || !Array.isArray(position)) return
   const x = position[0] as number
   const y = position[1] as number
@@ -736,7 +737,7 @@ export function drawMap(panel: PanelInfo) {
           Math.round(localMousePos.y() / Common.TILE_SIZE)
         )
         objectUnderMouse = state.replay.objects.find((obj: Entity) => {
-          const position = getAttr(obj.position)
+          const position = obj.position.get()
           if (!position) return false
           const x: number = position[0]
           const y: number = position[1]
@@ -760,9 +761,9 @@ export function drawMap(panel: PanelInfo) {
       if (objectUnderMouse !== undefined) {
         updateSelection(objectUnderMouse)
         console.info('Selected Entity on the map:', state.selectedGridObject)
-        if (state.selectedGridObject && state.selectedGridObject.agentId !== null) {
+        if (state.selectedGridObject && state.selectedGridObject.agentId.get() !== null) {
           // If selecting an agent, focus the trace panel on the agent.
-          const agentId = getAttr(state.selectedGridObject.agentId)
+          const agentId = state.selectedGridObject.agentId.get()
           if (agentId !== null) {
             ui.tracePanel.focusPos(
               state.step * Common.TRACE_WIDTH + Common.TRACE_WIDTH / 2,
@@ -786,7 +787,7 @@ export function drawMap(panel: PanelInfo) {
 
   // If we're following a selection, center the map on it.
   if (state.followSelection && state.selectedGridObject !== null) {
-    const position = getAttr(state.selectedGridObject.position)
+    const position = state.selectedGridObject.position.get()
     if (position) {
       const x = position[0]
       const y = position[1]
@@ -828,9 +829,9 @@ export function drawMap(panel: PanelInfo) {
 
     // Draw matching objects on top of the overlay.
     for (const obj of state.replay.objects) {
-      const typeId = getAttr(obj.typeId)
+      const typeId = obj.typeId.get()
       const typeName = state.replay.typeNames[typeId as number]
-      const position = getAttr(obj.position)
+      const position = obj.position.get()
       if (position && typeName && searchMatch(typeName)) {
         let x = position[0]
         let y = position[1]

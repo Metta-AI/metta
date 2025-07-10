@@ -19,21 +19,21 @@ import * as Common from './common.js'
 import { ctx, ui, state, html, showToast } from './common.js'
 import { findIn, removeChildren, parseHtmlColor, localStorageSetNumber, localStorageGetNumber } from './htmlutils.js'
 import { find, onEvent } from './htmlutils.js'
-import { Entity, getAttr, propertyName, propertyIcon } from './replay.js'
+import { Entity, propertyName, propertyIcon } from './replay.js'
 import { updateStep } from './main.js'
 
 /** An info panel. */
 export class HoverPanel {
-  public Entity: any
+  public entity: any
   public div: HTMLElement
 
-  constructor(Entity: any) {
-    this.Entity = Entity
+  constructor(entity: Entity) {
+    this.entity = entity
     this.div = document.createElement('div')
   }
 
   public update() {
-    updateDom(this.div, this.Entity)
+    updateDom(this.div, this.entity)
   }
 }
 
@@ -62,14 +62,14 @@ hoverPanel.addEventListener('mousedown', (e: MouseEvent) => {
   let tip = findIn(panel.div, '.tip')
   tip.remove()
   document.body.appendChild(panel.div)
-  updateDom(panel.div, panel.Entity)
+  updateDom(panel.div, panel.entity)
   panel.div.style.top = hoverPanel.style.top
   panel.div.style.left = hoverPanel.style.left
 
   // Show the actions buttons (memory, etc.) if the Entity is an agent
   // and if the websocket is connected.
   let actions = findIn(panel.div, '.actions')
-  if (state.ws != null && panel.Entity.hasOwnProperty('agent_id')) {
+  if (state.ws != null && panel.entity.hasOwnProperty('agent_id')) {
     actions.classList.remove('hidden')
   } else {
     actions.classList.add('hidden')
@@ -92,15 +92,15 @@ hoverPanel.addEventListener('mousedown', (e: MouseEvent) => {
 })
 
 /** Updates the hover panel's visibility, position, and DOM tree. */
-export function updateHoverPanel(Entity: Entity | null) {
+export function updateHoverPanel(entity: Entity | null) {
   if (!state.replay) return
 
-  if (Entity === null) {
+  if (entity === null) {
     hoverPanel.classList.add('hidden')
     return
   }
 
-  const typeId = getAttr(Entity.typeId)
+  const typeId = entity.typeId.get()
   let typeName = state.replay.typeNames[typeId as number]
   if (typeName == 'wall') {
     // Don't show hover panel for walls.
@@ -108,12 +108,12 @@ export function updateHoverPanel(Entity: Entity | null) {
     return
   }
 
-  updateDom(hoverPanel, Entity)
+  updateDom(hoverPanel, entity)
   hoverPanel.classList.remove('hidden')
 
   let panelRect = hoverPanel.getBoundingClientRect()
 
-  let position = getAttr(Entity.position)
+  let position = entity.position.get()
   if (!position) return
   let x = position[0] * Common.TILE_SIZE
   let y = position[1] * Common.TILE_SIZE
@@ -132,18 +132,18 @@ export function hideHoverPanel() {
 }
 
 /** Updates the DOM tree of the info panel. */
-function updateDom(htmlPanel: HTMLElement, Entity: any) {
+function updateDom(htmlPanel: HTMLElement, entity: any) {
   // Update the readout.
-  htmlPanel.setAttribute('data-Entity-id', (getAttr(Entity.id) || 0).toString())
-  const agentId = getAttr(Entity.agentId)
+  htmlPanel.setAttribute('data-entity-id', (entity.id.get() || 0).toString())
+  const agentId = entity.agentId.get()
   htmlPanel.setAttribute('data-agent-id', (agentId || -1).toString())
 
   let params = findIn(htmlPanel, '.params')
   removeChildren(params)
   let inventory = findIn(htmlPanel, '.inventory')
   removeChildren(inventory)
-  for (let key in Entity) {
-    let value = getAttr((Entity as any)[key])
+  for (let key in entity) {
+    let value = (entity as any)[key].get()
     if (key.startsWith('inventory') && value && (value as any[]).length > 0) {
       const inventory = value as number[]
       for (let i = 0; i < inventory.length; i++) {
@@ -179,7 +179,8 @@ function updateDom(htmlPanel: HTMLElement, Entity: any) {
   let recipe = findIn(htmlPanel, '.recipe')
   removeChildren(recipe)
   let recipeArea = findIn(htmlPanel, '.recipe-area')
-  let objectConfig = getAttr(Entity.objectConfig)
+  // let objectConfig = entity.objectConfig ? entity.objectConfig.get() : null
+  let objectConfig = null // FIX ME: objectConfig not implemented
   let displayedResources = 0
   if (objectConfig != null) {
     recipeArea.classList.remove('hidden')
@@ -187,7 +188,7 @@ function updateDom(htmlPanel: HTMLElement, Entity: any) {
     // If config has input_resources or output_resources use that,
     // otherwise use input_{resource} and output_{resource}.
     if (objectConfig.hasOwnProperty('input_resources') || objectConfig.hasOwnProperty('output_resources')) {
-      // input_resources is a Entity like {heart: 1, blueprint: 1}
+      // input_resources is an object like {heart: 1, blueprint: 1}
       for (let resource in objectConfig.input_resources) {
         let item = itemTemplate.cloneNode(true) as HTMLElement
         item.querySelector('.amount')!.textContent = objectConfig.input_resources[resource]
@@ -256,8 +257,8 @@ export function updateReadout() {
 
   let objectTypeCounts = new Map<string, number>()
   for (const obj of state.replay.objects) {
-    const type = getAttr(obj.typeId)
-    const typeName = state.replay.typeNames[type]
+    const type = obj.typeId.get()
+    const typeName = state.replay.typeNames[type as number]
     objectTypeCounts.set(typeName, (objectTypeCounts.get(typeName) || 0) + 1)
   }
   for (const [key, value] of objectTypeCounts.entries()) {

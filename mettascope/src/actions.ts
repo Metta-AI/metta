@@ -1,5 +1,5 @@
 import { state } from './common.js'
-import { getAttr, sendAction } from './replay.js'
+import { sendAction } from './replay.js'
 import { find } from './htmlutils.js'
 
 /** Initializes the action buttons. */
@@ -69,7 +69,7 @@ export function processActions(event: KeyboardEvent) {
 
   if (state.selectedGridObject != null) {
     const agent = state.selectedGridObject
-    const orientation = getAttr(agent.rotation)
+    const orientation = agent.rotation.get()
     if (event.key == 'w') {
       if (orientation != 0) {
         // Rotate up.

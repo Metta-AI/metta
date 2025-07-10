@@ -51,8 +51,9 @@ export class Sequence<T> {
     }
     if (this.sequence == null) {
       return this.value as T
+    } else {
+      return this.sequence[atStep] as T
     }
-    return this.sequence[atStep] as T
   }
 
   isSequence(): boolean {
@@ -359,7 +360,7 @@ async function loadReplayJson(url: string, replayData: any) {
   for (let i = 0; i < state.replay.numAgents; i++) {
     state.replayHelper.agents.push(null)
     for (const obj of state.replay.objects) {
-      if (getAttr(obj.agentId) == i) {
+      if (obj.agentId.get() == i) {
         state.replayHelper.agents[i] = obj
       }
     }
@@ -469,7 +470,7 @@ export function sendAction(actionName: string, actionParam: number) {
     console.error('WebSocket is not connected or no replay/selected object')
     return
   }
-  const agentId = getAttr(state.selectedGridObject.agentId)
+  const agentId = state.selectedGridObject.agentId.get()
   if (agentId != null) {
     const actionId = state.replay.actionNames.indexOf(actionName)
     if (actionId == -1) {
