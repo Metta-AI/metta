@@ -119,9 +119,9 @@ export function drawTimeline(panel: PanelInfo) {
       // Draw the frozen state.
       let frozen = getAttr(agent, 'agent:frozen', j)
       if (frozen > 0 && prevFrozen == 0) {
-        let x = (j / fullSteps) * scrubberWidth
+        let x = 16 + (j / fullSteps) * scrubberWidth
         ctx.drawSprite('agents/frozen.png', x, 12, [1, 1, 1, 1], 0.1, 0)
-        ctx.drawSolidRect(x, 24, 1, 8, [1, 1, 1, 1])
+        ctx.drawSolidRect(x - 1, 24, 2, 8, [1, 1, 1, 1])
       }
       prevFrozen = frozen
     }
