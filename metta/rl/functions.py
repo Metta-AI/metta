@@ -20,6 +20,7 @@ from metta.agent.policy_state import PolicyState
 from metta.agent.util.debug import assert_shape
 from metta.mettagrid.mettagrid_env import dtype_actions
 from metta.mettagrid.util.dict_utils import unroll_nested_dict
+from metta.rl import mps
 from metta.rl.experience import Experience
 from metta.rl.losses import Losses
 
@@ -246,54 +247,30 @@ def compute_advantage(
     device = torch.device(device) if isinstance(device, str) else device
 
     if str(device) == "mps":
-        # Native PyTorch implementation (MPS-compatible)
-        values = values.contiguous().to(device)
-        rewards = rewards.contiguous().to(device)
-        dones = dones.contiguous().to(device)
-        importance_sampling_ratio = importance_sampling_ratio.contiguous().to(device)
+        return mps.advantage(
+            values, rewards, dones, importance_sampling_ratio, vtrace_rho_clip, vtrace_c_clip, gamma, gae_lambda, device
+        )
 
-        T, B = rewards.shape
+    # CUDA implementation using custom kernel
+    tensors = [values, rewards, dones, importance_sampling_ratio, advantages]
+    tensors = [t.to(device) for t in tensors]
+    values, rewards, dones, importance_sampling_ratio, advantages = tensors
 
-        advantages = torch.zeros_like(values, device=device)
+    device_context = torch.cuda.device(device) if str(device).startswith("cuda") else nullcontext()
+    with device_context:
+        torch.ops.pufferlib.compute_puff_advantage(
+            values,
+            rewards,
+            dones,
+            importance_sampling_ratio,
+            advantages,
+            gamma,
+            gae_lambda,
+            vtrace_rho_clip,
+            vtrace_c_clip,
+        )
 
-        rho = torch.clamp(importance_sampling_ratio, max=vtrace_rho_clip)
-        c = torch.clamp(importance_sampling_ratio, max=vtrace_c_clip)
-
-        nextnonterminal = 1.0 - dones[1:]
-
-        delta = rho[:-1] * (rewards[1:] + gamma * values[1:] * nextnonterminal - values[:-1])
-
-        gamma_lambda = gamma * gae_lambda
-
-        lastpufferlam = torch.zeros(B, device=device)
-
-        for t in range(T - 2, -1, -1):
-            lastpufferlam = delta[t] + gamma_lambda * c[t] * lastpufferlam * nextnonterminal[t]
-            advantages[t] = lastpufferlam
-
-        return advantages
-
-    else:
-        # CUDA implementation using custom kernel
-        tensors = [values, rewards, dones, importance_sampling_ratio, advantages]
-        tensors = [t.to(device) for t in tensors]
-        values, rewards, dones, importance_sampling_ratio, advantages = tensors
-
-        device_context = torch.cuda.device(device) if str(device).startswith("cuda") else nullcontext()
-        with device_context:
-            torch.ops.pufferlib.compute_puff_advantage(
-                values,
-                rewards,
-                dones,
-                importance_sampling_ratio,
-                advantages,
-                gamma,
-                gae_lambda,
-                vtrace_rho_clip,
-                vtrace_c_clip,
-            )
-
-        return advantages
+    return advantages
 
 
 def normalize_advantage_distributed(adv: Tensor, norm_adv: bool = True) -> Tensor:
