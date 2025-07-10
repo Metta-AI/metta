@@ -23,7 +23,8 @@ jobs:
 
       - name: Install Playwright (Chromium only)
         run: |
-          npm install --no-save playwright
+          cd mettascope
+          npm install
           npx playwright install --with-deps chromium
 
       - name: Install uv
