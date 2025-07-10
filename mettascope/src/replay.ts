@@ -5,8 +5,6 @@ import { onResize, updateStep, requestFrame } from './main.js'
 import { updateAgentTable } from './agentpanel.js'
 
 
-// type Sequence<T> = [number, T][] | [number, T] | null
-
 export class Sequence<T> {
   private value: T | null = null
   private sequence: T[] | null = null
@@ -122,21 +120,6 @@ export class ReplayHelper {
   agents: (Entity | null)[] = []
 }
 
-
-/** Gets an attribute from a grid Entity, respecting the current step. */
-// export function getAttr<T>(sequence: Sequence<T>, atStep = -1): T {
-//   if (atStep == -1) {
-//     // When the step is not passed in, use the global step.
-//     atStep = state.step
-//   }
-//   if (sequence instanceof Array) {
-//     return sequence[atStep] as T
-//   } else {
-//     return sequence as T
-//   }
-// }
-
-
 /** Decompresses a stream. Used for compressed JSON from fetch or drag-and-drop. */
 async function decompressStream(stream: ReadableStream<Uint8Array>): Promise<string> {
   const decompressionStream = new DecompressionStream('deflate')
@@ -216,35 +199,6 @@ export async function readFile(file: File) {
   }
 }
 
-// /**
-//  * Expands a sequence of values.
-//  * Example: [[0, value1], [2, value2], ...] -> [value1, value1, value2, ...]
-//  */
-// // [[0, value1], [2, value2], ...] -> [value1, value1, value2, ...]
-// function expandSequence(sequence: any, numSteps: number): any {
-//   if (sequence == null) {
-//     // Null is a valid sequence.
-//     return null
-//   } else if (sequence instanceof Array) {
-//     // A sequence of pairs is expanded to a sequence of values.
-//     var expanded: any[] = []
-//     var i = 0
-//     var j = 0
-//     var v: any = null
-//     for (i = 0; i < numSteps; i++) {
-//       if (j < sequence.length && sequence[j][0] == i) {
-//         v = sequence[j][1]
-//         j++
-//       }
-//       expanded.push(v)
-//     }
-//     return expanded
-//   } else {
-//     // A single value is a valid sequence.
-//     return sequence
-//   }
-// }
-
 // Removes a prefix from a string.
 function removePrefix(str: string, prefix: string) {
   return str.startsWith(prefix) ? str.slice(prefix.length) : str
@@ -270,12 +224,12 @@ function fixReplay() {
   // Create type image mappings for faster access.
   state.replayHelper.typeImages = []
   for (const typeName of state.replay.typeNames) {
-    let path = 'trace/' + typeName + '.png'
+    let path = 'objects/' + typeName + '.png'
     if (ctx.hasImage(path)) {
       state.replayHelper.typeImages.push(path)
     } else {
       console.warn('Type not supported: ', path)
-      state.replayHelper.typeImages.push('trace/unknown.png')
+      state.replayHelper.typeImages.push('objects/unknown.png')
     }
   }
 
@@ -294,12 +248,12 @@ function fixReplay() {
   // Create item image mappings for faster access.
   state.replayHelper.itemImages = []
   for (const itemName of state.replay.itemNames) {
-    let path = 'trace/' + itemName + '.png'
+    let path = 'resources/' + itemName + '.png'
     if (ctx.hasImage(path)) {
       state.replayHelper.itemImages.push(path)
     } else {
       console.warn('Item not supported: ', path)
-      state.replayHelper.itemImages.push('trace/unknown.png')
+      state.replayHelper.itemImages.push('resources/unknown.png')
     }
   }
 }

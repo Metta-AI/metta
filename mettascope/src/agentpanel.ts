@@ -368,8 +368,7 @@ export function updateAgentTable() {
   if (!state.replay || !state.replayHelper) return
 
   // Clear the table.
-  const tbody = find('#agent-table tbody')
-  removeChildren(tbody)
+  removeChildren(agentTable)
 
   let agents: Entity[] = []
   for (let agent of state.replayHelper.agents) {

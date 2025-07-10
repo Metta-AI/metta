@@ -113,12 +113,6 @@ export function drawTraces(panel: PanelInfo) {
         )
       } else if (action_success && action != null && (action as number) >= 0 && (action as number) < state.replayHelper.actionImages.length) {
         ctx.drawSprite(
-          'trace/success.png',
-          j * Common.TRACE_WIDTH,
-          i * Common.TRACE_HEIGHT,
-          parseHtmlColor('#B8DBB8')
-        )
-        ctx.drawSprite(
           state.replayHelper.actionImages[action as number],
           j * Common.TRACE_WIDTH + Common.TRACE_WIDTH / 2,
           i * Common.TRACE_HEIGHT + Common.TRACE_HEIGHT / 2

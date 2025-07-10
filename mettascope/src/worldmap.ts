@@ -135,15 +135,15 @@ function drawObject(obj: Entity) {
   const position = obj.position.get()
   const x = position[0]
   const y = position[1]
-  const type: number = obj.typeId.get() as number
-  const typeName: string = state.replay!.typeNames[type]
+  const typeId: number = obj.typeId.get() as number
+  const typeName: string = state.replay!.typeNames[typeId]
 
   if (typeName === 'wall') {
     // Walls are drawn in a different way.
     return
   }
 
-  if (obj.agentId.get() !== null) {
+  if (typeName == "agent") {
     // Respect the orientation of an Entity, usually an agent.
     const orientation = obj.rotation.get()
     var suffix = ''
@@ -169,7 +169,7 @@ function drawObject(obj: Entity) {
     // Draw regular objects.
 
     // Draw the base layer.
-    ctx.drawSprite(state.replayHelper.typeImages[type][0], x * Common.TILE_SIZE, y * Common.TILE_SIZE)
+    ctx.drawSprite(state.replayHelper.typeImages[typeId], x * Common.TILE_SIZE, y * Common.TILE_SIZE)
 
     // FIX ME: We now do color differently.
     // Draw the color layer.
@@ -774,7 +774,7 @@ export function drawMap(panel: PanelInfo) {
         }
       }
     } else {
-      ui.hoverObject = objectUnderMouse
+      ui.hoverObject = objectUnderMouse ?? null
       clearTimeout(ui.hoverTimer)
       ui.hoverTimer = setTimeout(() => {
         if (ui.mouseTargets.includes('#worldmap-panel')) {

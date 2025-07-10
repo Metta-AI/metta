@@ -75,9 +75,9 @@ export const ui = {
   timelinePanel: new PanelInfo('#timeline-panel'),
 
   hoverPanels: [] as HoverPanel[],
-  hoverObject: null as any,
+  hoverObject: null as Entity | null,
   hoverTimer: null as any,
-  delayedHoverObject: null as any,
+  delayedHoverObject: null as Entity | null,
 }
 
 export const state = {

@@ -56,6 +56,7 @@ hoverPanel.classList.add('hidden')
 
 hoverPanel.addEventListener('mousedown', (e: MouseEvent) => {
   // Create a new info panel.
+  if (ui.delayedHoverObject === null) return
   let panel = new HoverPanel(ui.delayedHoverObject)
   panel.div = hoverPanelTemplate.cloneNode(true) as HTMLElement
   panel.div.classList.add('draggable')
@@ -142,36 +143,38 @@ function updateDom(htmlPanel: HTMLElement, entity: any) {
   removeChildren(params)
   let inventory = findIn(htmlPanel, '.inventory')
   removeChildren(inventory)
-  for (let key in entity) {
-    let value = (entity as any)[key].get()
-    if (key.startsWith('inventory') && value && (value as any[]).length > 0) {
-      const inventory = value as number[]
-      for (let i = 0; i < inventory.length; i++) {
-        if (inventory[i] > 0 && state.replay && i < state.replay.itemNames.length) {
-          let item = itemTemplate.cloneNode(true) as HTMLElement
-          item.querySelector('.icon')!.setAttribute('src', 'data/resources/' + state.replay.itemNames[i] + '.png')
-          item.querySelector('.amount')!.textContent = inventory[i].toString()
-          htmlPanel.querySelector('.items')!.appendChild(item)
-        }
-      }
-    } else if (key === 'typeId' && value != null && state.replay) {
-      value = state.replay.typeNames[value as number]
-    } else if (key === 'agentId' && value != null && (value as number) >= 0 && (value as number) < Common.COLORS.length) {
-      const colorName = Common.COLORS[value as number][0]
-      value = colorName
-    } else if (['group', 'total_reward', 'agent_id'].includes(key)) {
-      // If the value is a float and not an integer, round it to three decimal places.
-      if (typeof value === 'number' && !Number.isInteger(value)) {
-        value = value.toFixed(3)
-      }
-    } else {
-      continue
-    }
-    let param = paramTemplate.cloneNode(true) as HTMLElement
-    param.querySelector('.name')!.textContent = key
-    param.querySelector('.value')!.textContent = value != null ? value.toString() : ''
-    params.appendChild(param)
-  }
+
+  // FIX ME: Inventory functionality not implemented
+  // for (let key in entity) {
+  //   let value = (entity as any)[key].get()
+  //   if (key.startsWith('inventory') && value && (value as any[]).length > 0) {
+  //     const inventory = value as number[]
+  //     for (let i = 0; i < inventory.length; i++) {
+  //       if (inventory[i] > 0 && state.replay && i < state.replay.itemNames.length) {
+  //         let item = itemTemplate.cloneNode(true) as HTMLElement
+  //         item.querySelector('.icon')!.setAttribute('src', 'data/resources/' + state.replay.itemNames[i] + '.png')
+  //         item.querySelector('.amount')!.textContent = inventory[i].toString()
+  //         htmlPanel.querySelector('.items')!.appendChild(item)
+  //       }
+  //     }
+  //   } else if (key === 'typeId' && value != null && state.replay) {
+  //     value = state.replay.typeNames[value as number]
+  //   } else if (key === 'agentId' && value != null && (value as number) >= 0 && (value as number) < Common.COLORS.length) {
+  //     const colorName = Common.COLORS[value as number][0]
+  //     value = colorName
+  //   } else if (['group', 'total_reward', 'agent_id'].includes(key)) {
+  //     // If the value is a float and not an integer, round it to three decimal places.
+  //     if (typeof value === 'number' && !Number.isInteger(value)) {
+  //       value = value.toFixed(3)
+  //     }
+  //   } else {
+  //     continue
+  //   }
+  //   let param = paramTemplate.cloneNode(true) as HTMLElement
+  //   param.querySelector('.name')!.textContent = key
+  //   param.querySelector('.value')!.textContent = value != null ? value.toString() : ''
+  //   params.appendChild(param)
+  // }
 
   // FIX ME: Recipe functionality not implemented
   // Populate the recipe area if the Entity config has input_ or output_ resources.
