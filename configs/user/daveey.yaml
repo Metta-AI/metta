@@ -56,12 +56,12 @@ analyzer:
 
 replay_job:
   sim:
-    env: /env/mettagrid/arena/combat_easy
-    env_overrides:
-      game:
-        objects:
-          lasery:
-            initial_resource_count: 20
+    env: /env/mettagrid/arena/advanced_poor
+    # env_overrides:
+    #   game:
+    #     objects:
+    #       lasery:
+    #         initial_resource_count: 20
 
 # sim_job:
 # policy_agents_pct: 1
