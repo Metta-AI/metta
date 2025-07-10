@@ -24,7 +24,8 @@ from metta.common.util.fs import wait_for_file
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.system_monitor import SystemMonitor
 from metta.common.wandb.wandb_context import WandbRun
-from metta.eval.eval_job import EvaluationJob, EvaluationScores, evaluate_policy
+from metta.eval.eval_job import EvaluationJob, evaluate_policy
+from metta.eval.evaluation_scores import EvaluationScores
 from metta.mettagrid.curriculum.util import curriculum_from_config_path
 from metta.mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
 from metta.rl.experience import Experience

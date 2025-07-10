@@ -1,5 +1,6 @@
 from unittest.mock import MagicMock
 
+from metta.eval.evaluation_scores import EvaluationScores
 from metta.rl.functions import (
     build_wandb_stats,
     process_training_stats,
@@ -28,13 +29,15 @@ class TestMetricsFormattingMain:
         memory_stats = {"total_mb": 2048}
         parameters = {"learning_rate": 0.001, "batch_size": 32}
 
-        evals = {
-            "navigation/score": 0.8,
-            "survival/score": 0.6,
-            "navigation/maze": 0.7,
-            "navigation/random": 0.9,
-            "survival/basic": 0.6,
-        }
+        # Create EvaluationScores object instead of dict
+        evals = EvaluationScores(
+            suite_scores={"navigation": 0.8, "survival": 0.6},
+            simulation_scores={
+                ("navigation", "maze"): 0.7,
+                ("navigation", "random"): 0.9,
+                ("survival", "basic"): 0.6,
+            },
+        )
 
         result = build_wandb_stats(
             processed_stats,

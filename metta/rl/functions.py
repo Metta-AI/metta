@@ -18,7 +18,7 @@ from torch import Tensor
 
 from metta.agent.policy_state import PolicyState
 from metta.agent.util.debug import assert_shape
-from metta.eval.eval_job import EvaluationScores
+from metta.eval.evaluation_scores import EvaluationScores
 from metta.mettagrid.util.dict_utils import unroll_nested_dict
 from metta.rl.experience import Experience
 from metta.rl.losses import Losses

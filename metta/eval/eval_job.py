@@ -10,6 +10,7 @@ from metta.common.util.config import Config
 from metta.common.util.script_decorators import get_metta_logger
 from metta.common.util.typed_config import BaseModelWithForbidExtra
 from metta.eval.eval_stats_db import EvalStatsDB
+from metta.eval.evaluation_scores import EvaluationScores
 from metta.sim.simulation_config import SimulationSuiteConfig
 from metta.sim.simulation_stats_db import SimulationStatsDB
 from metta.sim.simulation_suite import SimulationSuite
@@ -30,22 +31,6 @@ class EvaluationJob(Config):
     export_stats_db_uri: str | None = None
     stats_epoch_id: uuid.UUID | None = None
     wandb_policy_name: str | None = None
-
-
-class EvaluationScores(BaseModelWithForbidExtra):
-    suite_scores: dict[str, float] = Field(default_factory=dict, description="Average reward for each sim suite")
-    simulation_scores: dict[tuple[str, str], float] = Field(
-        default_factory=dict, description="Average reward for each sim environment (keyed on (suite_name, sim_name))"
-    )
-
-    def to_json(self) -> dict[str, dict[str, float] | float]:
-        return {
-            "suite_scores": {f"{suite}/score": score for suite, score in self.suite_scores.items()},
-            "simulation_scores": {
-                f"{suite}/{sim}/score": score for (suite, sim), score in self.simulation_scores.items()
-            },
-            "reward_avg": sum(self.simulation_scores.values()) / len(self.simulation_scores),
-        }
 
 
 class EvaluationResults(BaseModelWithForbidExtra):
