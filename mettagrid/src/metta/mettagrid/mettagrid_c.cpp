@@ -855,22 +855,17 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def_readwrite("color", &ConverterConfig::color);
 
   py::class_<ActionConfig, std::shared_ptr<ActionConfig>>(m, "ActionConfig")
-      .def(py::init<bool,
-                    const std::map<InventoryItem, InventoryQuantity>&,
+      .def(py::init<const std::map<InventoryItem, InventoryQuantity>&,
                     const std::map<InventoryItem, InventoryQuantity>&>(),
-           py::arg("enabled") = true,
            py::arg("required_resources") = std::map<InventoryItem, InventoryQuantity>(),
            py::arg("consumed_resources") = std::map<InventoryItem, InventoryQuantity>())
-      .def_readwrite("enabled", &ActionConfig::enabled)
       .def_readwrite("required_resources", &ActionConfig::required_resources)
       .def_readwrite("consumed_resources", &ActionConfig::consumed_resources);
 
   py::class_<AttackActionConfig, ActionConfig, std::shared_ptr<AttackActionConfig>>(m, "AttackActionConfig")
-      .def(py::init<bool,
-                    const std::map<InventoryItem, InventoryQuantity>&,
+      .def(py::init<const std::map<InventoryItem, InventoryQuantity>&,
                     const std::map<InventoryItem, InventoryQuantity>&,
                     const std::map<InventoryItem, InventoryQuantity>&>(),
-           py::arg("enabled") = true,
            py::arg("required_resources") = std::map<InventoryItem, InventoryQuantity>(),
            py::arg("consumed_resources") = std::map<InventoryItem, InventoryQuantity>(),
            py::arg("defense_resources") = std::map<InventoryItem, InventoryQuantity>())
