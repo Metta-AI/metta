@@ -1,91 +1,68 @@
-# Python
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-*.so
-*.egg
-*.egg-info/
-.coverage
+# Environment and IDE
+.envrc
 .env
-.task
 .vscode/PythonImportHelper-v2-Completion.json
-/checkpoints/
-/mettagrid/dist
-/mettascope/dist
-/mettascope/node_modules
-/studio/node_modules
-/mettagrid/multirun
-cython_debug
-outputs
-replays
-stats.profile
-train_dir
-metta-research
-gpu_names_cache.json
-stderr.log
-sweep_id
-personal/
-/wandb
-/deps/*
-terrain_maps_nohearts*
-.idea
-.coverage.*
-.venv/
-.pytest_cache/
-
-# Environment files
-.env
-# Note: devops/setup.env is tracked
-
-# IDE and Editors
 .idea/
-*.swp
-*.swo
-*~
+.task
 
-# OS Files
-.DS_Store
-Thumbs.db
+# OS-specific
+**/.DS_Store
+
+# Python
+*.pyc
+*.egg-info
+**/__pycache__/
+.coverage
+.coverage.*
+cython_debug/
+.venv/
+
+# Build artifacts
+*.so
+build/
+build_debug/
 
 # Node.js / Frontend
 node_modules/
-dist/
+.next/
+.pnpm/
 .vite/
+dist/
 
-# Build artifacts
-build/
-build_debug/
+# Project-specific build outputs
+/mettagrid/dist/
+/mettascope/dist/
+/observatory/dist/
+
+# Project directories
+/checkpoints/
+/wandb/
+/deps/*
+outputs/
+replays/
+train_dir/
+personal/
+/mettagrid/multirun/
+
+# Test and benchmark
+test_data/
+**/*benchmark_results.json
+
+# Logs and profiling
+*.log
+stats.profile
 cpplint_output*
 
-# Testing and Benchmarks
-test_data/
-*benchmark_results.json
-
-# Logs and temporary files
-*.log
-.task
-*.tmp
-*.bak
-
-# Project-specific directories at root
-/outputs/
-/replays/
-/train_dir/
-/personal/
-/wandb/
-
-# Helm chart dependencies
-/devops/charts/**/charts
-
-# Local configuration
+# Configuration
+**/requirements_to_remove.txt
+/devops/charts/**/charts/
 .claude/settings.local.json
 
-# Created by skypilot (inside skypilot jobs or clusters)
-/Miniconda3-Linux.sh
-<<<<<<< HEAD
-.testmon*
-=======
-#*.next
-*.pnpm
->>>>>>> f68b35361 (cp)
+# External tools
+/Miniconda3-Linux.sh  # created by skypilot
+
+# Legacy / Research
+metta-research/
+terrain_maps_nohearts*
+gpu_names_cache.json
+sweep_id

@@ -5,12 +5,12 @@
 #include <string>
 #include <vector>
 
-#include "../action_handler.hpp"
-#include "../grid_object.hpp"
-#include "../objects/agent.hpp"
-#include "../objects/constants.hpp"
-#include "../objects/metta_object.hpp"
-#include "../types.hpp"
+#include "action_handler.hpp"
+#include "grid_object.hpp"
+#include "objects/agent.hpp"
+#include "objects/constants.hpp"
+#include "objects/metta_object.hpp"
+#include "types.hpp"
 
 struct AttackActionConfig : public ActionConfig {
   std::map<InventoryItem, InventoryQuantity> defense_resources;

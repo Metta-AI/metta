@@ -37,7 +37,7 @@ trainer:
 # policy_uri: wandb://run/b.daveey.t.1.lra.dr.muon
 # policy_uri: pytorch:///tmp/puffer_metta.pt
 # policy_uri: pytorch:///tmp/puffer_metta.pt
-policy_uri: wandb://run/daveey.arena.b_e_s.8x4
+policy_uri: wandb://run/daveey.arena.ces.32x4.3
 # policy_uri: pytorch://${data_dir}/puffer/puffer_metta.pt
 
 # policy_uri: ${trained_policy_uri}
@@ -56,7 +56,12 @@ analyzer:
 
 replay_job:
   sim:
-    env: /env/mettagrid/arena/advanced
+    env: /env/mettagrid/arena/combat_easy
+    env_overrides:
+      game:
+        objects:
+          lasery:
+            initial_resource_count: 20
 
 # sim_job:
 # policy_agents_pct: 1

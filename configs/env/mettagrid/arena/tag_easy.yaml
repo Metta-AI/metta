@@ -5,11 +5,5 @@ defaults:
 
 game:
   objects:
-    altar:
-      input_resources:
-        blueprint: 1
-      initial_resource_count: 1
-      cooldown: 1
-
     lasery:
       initial_resource_count: 1
