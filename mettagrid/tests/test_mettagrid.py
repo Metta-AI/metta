@@ -1,6 +1,6 @@
 import numpy as np
 
-from metta.mettagrid.mettagrid_c import MettaGrid
+from metta.mettagrid.mettagrid_c import MettaGrid, PackedCoordinate
 from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
 from metta.mettagrid.mettagrid_env import dtype_actions
 
@@ -83,6 +83,12 @@ def test_truncation_at_max_steps():
             assert not np.any(terminals), f"Terminals should remain False at max_steps (step {step_num})"
 
 
+def test_action_config_disabled():
+    """Test that disabled actions are not available."""
+    c_env = create_minimal_mettagrid_c_env()
+    assert "attack" not in c_env.action_names()
+
+
 class TestObservations:
     """Test observation functionality and formats."""
 
@@ -96,11 +102,11 @@ class TestObservations:
         # Agent 0 starts at (1,1) and should see walls above and to the left
         # for now we treat the walls as "something non-empty"
         for x, y in [(0, 1), (1, 0)]:
-            location = x << 4 | y
+            location = PackedCoordinate.pack(y, x)  # Note: pack takes (row, col) = (y, x)
             token_matches = obs[0, :, :] == [location, TYPE_ID_FEATURE, WALL_TYPE_ID]
             assert token_matches.all(axis=1).any(), f"Expected wall at location {x}, {y}"
         for x, y in [(2, 1), (1, 2)]:
-            location = x << 4 | y
+            location = PackedCoordinate.pack(y, x)  # Note: pack takes (row, col) = (y, x)
             token_matches = obs[0, :, 0] == location
             assert not token_matches.any(), f"Expected no tokens at location {x}, {y}"
         assert (obs[0, -1, :] == [0xFF, 0xFF, 0xFF]).all(), "Last token should be empty"
@@ -282,3 +288,47 @@ class TestGlobalTokens:
         assert obs[0, 1, 2] == move_action_idx, "Last action should be move action index"
         assert obs[0, 2, 2] == 1, "Last action arg should be 1 for backwards move"
         assert obs[0, 3, 2] == 0, "Last reward should be 0 for failed move"
+
+
+def test_packed_coordinate():
+    """Test the PackedCoordinate functionality."""
+    # Test constants
+    assert PackedCoordinate.MAX_PACKABLE_COORD == 14
+
+    # Test all valid coordinates
+    successfully_packed = 0
+    for row in range(15):  # 0-14
+        for col in range(15):  # 0-14
+            packed = PackedCoordinate.pack(row, col)
+            unpacked = PackedCoordinate.unpack(packed)
+            assert unpacked == (row, col), f"Roundtrip failed for ({row}, {col})"
+            successfully_packed += 1
+
+    # Verify we can pack 225 positions (15x15 grid)
+    assert successfully_packed == 225, f"Expected 225 packable positions, got {successfully_packed}"
+
+    # Test specific corner cases
+    assert PackedCoordinate.pack(0, 0) == 0x00  # Top-left
+    assert PackedCoordinate.pack(0, 14) == 0x0E  # Top-right
+    assert PackedCoordinate.pack(14, 0) == 0xE0  # Bottom-left
+    assert PackedCoordinate.pack(14, 14) == 0xEE  # Bottom-right
+
+    # Test empty/0xFF handling
+    assert PackedCoordinate.is_empty(0xFF)
+    assert PackedCoordinate.unpack(0xFF) is None
+    assert not PackedCoordinate.is_empty(0x00)
+    assert not PackedCoordinate.is_empty(0xE0)
+    assert not PackedCoordinate.is_empty(0xEE)
+
+    # Test invalid coordinates
+    invalid_coords = [(15, 0), (0, 15), (15, 15), (16, 0), (0, 16), (255, 255)]
+    for row, col in invalid_coords:
+        try:
+            PackedCoordinate.pack(row, col)
+            raise AssertionError(f"Should have raised exception for ({row}, {col})")
+        except ValueError:
+            pass  # Expected
+
+    print("PackedCoordinate tests passed!")
+    print(f"Can pack {successfully_packed}/256 positions")
+    print("0xFF is reserved for EMPTY marker")
