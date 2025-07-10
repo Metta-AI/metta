@@ -629,12 +629,14 @@ export class Context3d {
     const m = this.atlasMargin
 
     // Calculate UV coordinates (normalized 0.0 to 1.0).
+    // Add the margin to allow texture filtering to handle edge anti-aliasing.
     const u0 = (sx - m) / this.textureSize.x()
     const v0 = (sy - m) / this.textureSize.y()
     const u1 = (sx + sw + m) / this.textureSize.x()
     const v1 = (sy + sh + m) / this.textureSize.y()
 
     // Draw the rectangle with the image's texture coordinates.
+    // Adjust both UVs and vertex positions by the margin.
     this.drawRect(
       x - m, // Adjust x position by adding margin (from the right).
       y - m, // Adjust y position by adding margin.
@@ -693,8 +695,8 @@ export class Context3d {
       this.drawRect(
         x - sw / 2 - m, // Center horizontally with margin adjustment.
         y - sh / 2 - m, // Center vertically with margin adjustment.
-        sw + 2 * m, // Add width by twice the margin.
-        sh + 2 * m, // Add height by twice the margin.
+        sw + 2 * m, // Reduce width by twice the margin.
+        sh + 2 * m, // Reduce height by twice the margin.
         u0,
         v0,
         u1,
