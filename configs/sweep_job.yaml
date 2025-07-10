@@ -12,7 +12,7 @@ sweep_run: ???  # Will be set via command line override
 
 trainer:
   total_timesteps: 5_000_000   # 5M timesteps for proper RL training (was 50k - too short!)
-  curriculum: /env/mettagrid/arena/advanced
+  curriculum: /env/mettagrid/arena/basic_easy_shaped
   scale_batches_by_world_size: true
 
 
@@ -23,7 +23,7 @@ sim:
   env_overrides: {}
   simulations:
     simple:
-      env: env/mettagrid/arena/basic
+      env: env/mettagrid/arena/advanced
 
 wandb:
   group: ${sweep_run}
