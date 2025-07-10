@@ -287,63 +287,48 @@ class MettaGridEnv(PufferEnv, GymEnv):
         """Calculate exploration metrics aggregated across all agents."""
         metrics = {}
 
-        # Calculate aggregate metrics across all agents for visited locations
-        total_visited = sum(len(positions) for positions in self._agent_visited_positions.values())
+        # Calculate visited locations metrics
+        visited_counts = [len(positions) for positions in self._agent_visited_positions.values()]
+        total_visited = sum(visited_counts)
         avg_visited = total_visited / self._c_env.num_agents if self._c_env.num_agents > 0 else 0
 
-        metrics["exploration/total_unique_locations"] = float(total_visited)
-        metrics["exploration/avg_unique_locations_per_agent"] = float(avg_visited)
-
-        # Normalized aggregate metrics for visited locations
-        if self._total_grid_cells > 0:
-            metrics["exploration/total_unique_locations_normalized_by_volume"] = (
-                float(total_visited) / self._total_grid_cells
-            )
-            metrics["exploration/avg_unique_locations_per_agent_normalized_by_volume"] = (
-                float(avg_visited) / self._total_grid_cells
-            )
-
-        if self._c_env.num_agents > 0:
-            metrics["exploration/total_unique_locations_normalized_by_agents"] = (
-                float(total_visited) / self._c_env.num_agents
-            )
-
-        if self._total_grid_cells > 0 and self._c_env.num_agents > 0:
-            metrics["exploration/total_unique_locations_normalized_by_volume_and_agents"] = float(total_visited) / (
-                self._total_grid_cells * self._c_env.num_agents
-            )
-            metrics["exploration/avg_unique_locations_per_agent_normalized_by_volume_and_agents"] = float(
-                avg_visited
-            ) / (self._total_grid_cells * self._c_env.num_agents)
-
-        # Calculate aggregate metrics across all agents for observed pixels
-        total_observed = sum(len(pixels) for pixels in self._agent_observed_pixels.values())
+        # Calculate observed pixels metrics
+        observed_counts = [len(pixels) for pixels in self._agent_observed_pixels.values()]
+        total_observed = sum(observed_counts)
         avg_observed = total_observed / self._c_env.num_agents if self._c_env.num_agents > 0 else 0
 
-        metrics["exploration/total_observed_pixels"] = float(total_observed)
-        metrics["exploration/avg_observed_pixels_per_agent"] = float(avg_observed)
+        # Core metrics
+        metrics["exploration/total_unique_visits"] = float(total_visited)
+        metrics["exploration/total_unique_observations"] = float(total_observed)
+        metrics["exploration/avg_unique_visits_per_agent"] = float(avg_visited)
+        metrics["exploration/avg_unique_observations_per_agent"] = float(avg_observed)
 
-        # Normalized aggregate metrics for observed pixels
+        # Volume normalized metrics
         if self._total_grid_cells > 0:
-            metrics["exploration/total_observed_pixels_normalized_by_volume"] = (
+            metrics["exploration/unique_visits_normalized_by_volume"] = (
+                float(total_visited) / self._total_grid_cells
+            )
+            metrics["exploration/unique_observations_normalized_by_volume"] = (
                 float(total_observed) / self._total_grid_cells
             )
-            metrics["exploration/avg_observed_pixels_per_agent_normalized_by_volume"] = (
-                float(avg_observed) / self._total_grid_cells
-            )
 
-        if self._c_env.num_agents > 0:
-            metrics["exploration/total_observed_pixels_normalized_by_agents"] = (
-                float(total_observed) / self._c_env.num_agents
-            )
-
+        # Agent and volume normalized metrics
         if self._total_grid_cells > 0 and self._c_env.num_agents > 0:
-            metrics["exploration/total_observed_pixels_normalized_by_volume_and_agents"] = float(total_observed) / (
+            metrics["exploration/unique_visits_normalized_by_agent_volume"] = float(total_visited) / (
                 self._total_grid_cells * self._c_env.num_agents
             )
-            metrics["exploration/avg_observed_pixels_per_agent_normalized_by_volume_and_agents"] = float(
-                avg_observed
-            ) / (self._total_grid_cells * self._c_env.num_agents)
+            metrics["exploration/unique_observations_normalized_by_agent_volume"] = float(total_observed) / (
+                self._total_grid_cells * self._c_env.num_agents
+            )
+
+        # Standard deviations
+        if len(visited_counts) > 1:
+            import numpy as np
+            metrics["exploration/std_dev_agent_visits"] = float(np.std(visited_counts))
+            metrics["exploration/std_dev_agent_observations"] = float(np.std(observed_counts))
+        else:
+            metrics["exploration/std_dev_agent_visits"] = 0.0
+            metrics["exploration/std_dev_agent_observations"] = 0.0
 
         return metrics
 
