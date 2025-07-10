@@ -138,7 +138,7 @@ def filter_runs_by_params(entity: str, project: str, **param_filters) -> List[st
         # Check if any task in this run matches the criteria
         matches_criteria = False
 
-        for task_id, config in task_configs.items():
+        for _task_id, config in task_configs.items():
             game = config.get("game", {})
             agent = game.get("agent", {})
 
