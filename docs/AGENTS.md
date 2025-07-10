@@ -16,7 +16,7 @@ Codex agents working in this repository should follow these guidelines:
 
 - Always add type annotations to function parameters
 - Add return type annotations to public API functions
-- Follow selective annotation guidelines (see CLAUDE.md for details)
+- Follow selective annotation guidelines (see [CLAUDE.md](./CLAUDE.md) for details)
 - Run mypy to check type consistency before committing
 
 ## Pull request notes

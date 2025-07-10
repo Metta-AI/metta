@@ -50,6 +50,11 @@ Comprehensive documentation for all Weights & Biases metrics:
 - **[Documentation Index](./INDEX.md)** - Alphabetical index of all concepts
 - **[Configuration Guide](../configs/)** - Configuration system reference
 
+## 📝 Developer Guidelines
+
+- **[AGENTS.md](./AGENTS.md)** - Guidelines for Codex agents working in the repository
+- **[CLAUDE.md](./CLAUDE.md)** - Guidance for Claude Code when working with this codebase
+
 ## 📝 Contributing to Documentation
 
 When adding new documentation:
