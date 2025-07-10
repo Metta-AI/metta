@@ -9,29 +9,19 @@
 
 class ChangeColorAction : public ActionHandler {
 public:
-  explicit ChangeColorAction(const ActionConfig& cfg) : ActionHandler(cfg, "change_color") {}
+  explicit ChangeColorAction(const ActionConfig& cfg) : ActionHandler(cfg, "change_color") {
+    priority = 2;  // higher than attack
+  }
 
   unsigned char max_arg() const override {
-    return 3;
+    return 3;  // 4 possible actions (0-3)
   }
 
 protected:
   bool _handle_action(Agent* actor, ActionArg arg) override {
-    if (arg == 0) {  // Increment
-      if (actor->color < 255) {
-        actor->color += 1;
-      }
-    } else if (arg == 1) {  // Decrement
-      if (actor->color > 0) {
-        actor->color -= 1;
-      }
-    } else if (arg == 2) {  // Double
-      if (actor->color <= 127) {
-        actor->color *= 2;
-      }
-    } else if (arg == 3) {  // Half
-      actor->color = actor->color / 2;
-    }
+    // Map arg (0-3) to full color range (0-255)
+    // arg 0 -> 0, arg 1 -> 85, arg 2 -> 170, arg 3 -> 255
+    actor->color = (arg * 255) / max_arg();
 
     return true;
   }

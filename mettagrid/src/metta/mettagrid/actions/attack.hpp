@@ -66,73 +66,99 @@ protected:
         actor->stats.incr("attack.other_team." + actor->group_name);
       }
 
-      was_frozen = agent_target->frozen > 0;
+      bool was_already_frozen = target->frozen > 0;
 
-      bool blocked = _defense_resources.size() > 0;
-      for (const auto& [item, amount] : _defense_resources) {
-        if (agent_target->inventory[item] < amount) {
-          blocked = false;
-          break;
+      // Check if target can defend
+      if (!_defense_resources.empty()) {
+        bool target_can_defend = _check_defense_capability(target);
+
+        if (target_can_defend) {
+          _consume_defense_resources(target);
+          _log_blocked_attack(actor, target);
+          return true;
         }
       }
 
-      if (blocked) {
-        // Consume the defense resources
-        for (const auto& [item, amount] : _defense_resources) {
-          int used_amount = std::abs(agent_target->update_inventory(item, -amount));
-          assert(used_amount == amount);
-        }
+      // Attack succeeds
+      target->frozen = target->freeze_duration;
 
-        actor->stats.incr("attack.blocked." + agent_target->group_name);
-        actor->stats.incr("attack.blocked." + agent_target->group_name + "." + actor->group_name);
-        return true;
+      if (!was_already_frozen) {
+        _steal_resources(actor, target);
+        _log_successful_attack(actor, target);
       } else {
-        agent_target->frozen = agent_target->freeze_duration;
+        // Track wasted attacks on already-frozen targets
+        actor->stats.incr("action." + _action_name + ".wasted_on_frozen");
+      }
+      return true;
+    }
 
-        if (!was_frozen) {
-          // Actor (attacker) stats
-          actor->stats.incr("attack.win." + actor->group_name);
-          actor->stats.incr("attack.win." + actor->group_name + "." + agent_target->group_name);
-
-          // Target (victim) stats - these should be on agent_target, not actor
-          agent_target->stats.incr("attack.loss." + agent_target->group_name);
-          agent_target->stats.incr("attack.loss." + agent_target->group_name + "." + actor->group_name);
-
-          if (agent_target->group_name == actor->group_name) {
-            actor->stats.incr("attack.win.own_team." + actor->group_name);
-            agent_target->stats.incr("attack.loss.from_own_team." + agent_target->group_name);
-          } else {
-            actor->stats.incr("attack.win.other_team." + actor->group_name);
-            agent_target->stats.incr("attack.loss.from_other_team." + agent_target->group_name);
-          }
-
-          // Collect all items to steal first, then apply changes, since the changes
-          // can delete keys from the agent's inventory.
-          std::vector<std::pair<InventoryItem, int>> items_to_steal;
-          for (const auto& [item, amount] : agent_target->inventory) {
-            items_to_steal.emplace_back(item, amount);
-          }
-
-          // Now apply the stealing
-          for (const auto& [item, amount] : items_to_steal) {
-            int stolen = actor->update_inventory(item, amount);
-
-            agent_target->update_inventory(item, -stolen);
-            if (stolen > 0) {
-              actor->stats.add(actor->stats.inventory_item_name(item) + ".stolen." + actor->group_name, stolen);
-              // Also track what was stolen from the victim's perspective
-              agent_target->stats.add(
-                  agent_target->stats.inventory_item_name(item) + ".stolen_from." + agent_target->group_name, stolen);
-            }
-          }
+  private:
+    bool _check_defense_capability(const Agent* target) const {
+      for (const auto& [item, amount] : _defense_resources) {
+        auto it = target->inventory.find(item);
+        if (it == target->inventory.end() || it->second < amount) {
+          return false;
         }
+      }
+      return true;
+    }
 
-        return true;
+    void _consume_defense_resources(Agent * target) {
+      for (const auto& [item, amount] : _defense_resources) {
+        InventoryDelta used = std::abs(target->update_inventory(item, -static_cast<InventoryDelta>(amount)));
+        assert(used == static_cast<InventoryDelta>(amount));
       }
     }
 
-    return false;
-  }
-};
+    void _steal_resources(Agent * actor, Agent * target) {
+      // Create snapshot to avoid iterator invalidation
+      std::vector<std::pair<InventoryItem, InventoryQuantity>> snapshot;
+      for (const auto& [item, amount] : target->inventory) {
+        snapshot.emplace_back(item, amount);
+      }
+
+      // Transfer resources
+      for (const auto& [item, amount] : snapshot) {
+        InventoryDelta stolen = actor->update_inventory(item, static_cast<InventoryDelta>(amount));
+        target->update_inventory(item, -stolen);
+
+        if (stolen > 0) {
+          _log_resource_theft(actor, target, item, stolen);
+        }
+      }
+    }
+
+    void _log_blocked_attack(Agent * actor, const Agent* target) const {
+      const std::string& actor_group = actor->group_name;
+      const std::string& target_group = target->group_name;
+
+      // Just log that this actor's attack was blocked by this target group
+      actor->stats.incr("action." + _action_name + ".blocked_by." + target_group);
+    }
+
+    void _log_successful_attack(Agent * actor, Agent * target) const {
+      const std::string& actor_group = actor->group_name;
+      const std::string& target_group = target->group_name;
+      bool same_team = (actor_group == target_group);
+
+      // Key stats: who did you successfully attack and was it friendly fire?
+      if (same_team) {
+        actor->stats.incr("action." + _action_name + ".friendly_fire");
+        target->stats.incr("action." + _action_name + ".victim_of_friendly_fire");
+      } else {
+        actor->stats.incr("action." + _action_name + ".hits." + target_group);
+        target->stats.incr("action." + _action_name + ".hit_by." + actor_group);
+      }
+    }
+
+    void _log_resource_theft(Agent * actor, Agent * target, InventoryItem item, InventoryDelta amount) const {
+      const std::string& actor_group = actor->group_name;
+      const std::string& target_group = target->group_name;
+      const std::string item_name = actor->stats.inventory_item_name(item);
+
+      // Just track total resources stolen between groups
+      actor->stats.add(item_name + ".stolen_from." + target_group, amount);
+    }
+  };
 
 #endif  // ACTIONS_ATTACK_HPP_
