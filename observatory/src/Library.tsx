@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { useNavigate, useLocation } from 'react-router-dom'
 
 // MathJax type declarations
 declare global {
@@ -81,12 +82,176 @@ const navItems = [
     }
 ]
 
+// Mock scholars data
+const mockScholars = [
+    {
+        id: 'alice-johnson',
+        name: 'Dr. Alice Johnson',
+        username: '@alicej',
+        avatar: 'A',
+        institution: 'Stanford University',
+        department: 'Computer Science',
+        title: 'Assistant Professor',
+        bio: 'Research focuses on attention mechanisms and transformer architectures. Currently working on efficient attention methods for large language models.',
+        expertise: ['Attention Mechanisms', 'Transformer Architecture', 'Natural Language Processing'],
+        hIndex: 23,
+        totalCitations: 1247,
+        papers: [
+            {
+                id: 'arxiv:2023.attention',
+                title: 'Efficient Attention Mechanisms for Large Language Models',
+                year: 2023,
+                citations: 89,
+                url: 'https://arxiv.org/abs/2023.attention'
+            },
+            {
+                id: 'arxiv:2022.transformer',
+                title: 'Transformer Variants for Long Sequence Processing',
+                year: 2022,
+                citations: 156,
+                url: 'https://arxiv.org/abs/2022.transformer'
+            }
+        ],
+        recentActivity: '2 days ago',
+        isFollowing: true,
+        claimed: true
+    },
+    {
+        id: 'bob-chen',
+        name: 'Prof. Bob Chen',
+        username: '@bobchen',
+        avatar: 'B',
+        institution: 'MIT',
+        department: 'Electrical Engineering & Computer Science',
+        title: 'Associate Professor',
+        bio: 'Specializes in reinforcement learning and continuous control. Developing novel policy gradient methods for robotics applications.',
+        expertise: ['Reinforcement Learning', 'Robotics', 'Control Theory'],
+        hIndex: 31,
+        totalCitations: 2847,
+        papers: [
+            {
+                id: 'arxiv:1804.02464v3',
+                title: 'Natural Policy Gradients for Continuous Control',
+                year: 2018,
+                citations: 127,
+                url: 'https://arxiv.org/abs/1804.02464'
+            },
+            {
+                id: 'arxiv:2021.robotics',
+                title: 'Robust Policy Learning for Real-World Robotics',
+                year: 2021,
+                citations: 203,
+                url: 'https://arxiv.org/abs/2021.robotics'
+            }
+        ],
+        recentActivity: '1 week ago',
+        isFollowing: false,
+        claimed: false
+    },
+    {
+        id: 'carol-williams',
+        name: 'Dr. Carol Williams',
+        username: '@carolw',
+        avatar: 'C',
+        institution: 'UC Berkeley',
+        department: 'Mathematics',
+        title: 'Research Scientist',
+        bio: 'Theoretical computer scientist working on neural network theory and approximation algorithms. Expert in universal approximation theorems.',
+        expertise: ['Neural Network Theory', 'Approximation Algorithms', 'Theoretical Computer Science'],
+        hIndex: 18,
+        totalCitations: 892,
+        papers: [
+            {
+                id: 'arxiv:2023.theory',
+                title: 'Universal Approximation Theorems for Modern Neural Networks',
+                year: 2023,
+                citations: 45,
+                url: 'https://arxiv.org/abs/2023.theory'
+            }
+        ],
+        recentActivity: '3 days ago',
+        isFollowing: true,
+        claimed: true
+    },
+    {
+        id: 'david-kumar',
+        name: 'Prof. David Kumar',
+        username: '@davidk',
+        avatar: 'D',
+        institution: 'CMU',
+        department: 'Machine Learning',
+        title: 'Professor',
+        bio: 'Leading researcher in computer vision and deep learning. Pioneer in convolutional neural networks and their applications.',
+        expertise: ['Computer Vision', 'Deep Learning', 'Convolutional Neural Networks'],
+        hIndex: 45,
+        totalCitations: 5678,
+        papers: [
+            {
+                id: 'arxiv:2012.vision',
+                title: 'Advances in Convolutional Neural Networks for Vision',
+                year: 2012,
+                citations: 1234,
+                url: 'https://arxiv.org/abs/2012.vision'
+            }
+        ],
+        recentActivity: '5 days ago',
+        isFollowing: false,
+        claimed: false
+    },
+    {
+        id: 'eva-rodriguez',
+        name: 'Dr. Eva Rodriguez',
+        username: '@evarod',
+        avatar: 'E',
+        institution: 'Google Research',
+        department: 'AI Research',
+        title: 'Senior Research Scientist',
+        bio: 'Expert in generative models and variational methods. Currently working on large-scale generative AI systems.',
+        expertise: ['Generative Models', 'Variational Methods', 'Large Language Models'],
+        hIndex: 28,
+        totalCitations: 2156,
+        papers: [
+            {
+                id: 'arxiv:2023.vae',
+                title: 'Variational Autoencoders for High-Dimensional Data',
+                year: 2023,
+                citations: 78,
+                url: 'https://arxiv.org/abs/2023.vae'
+            }
+        ],
+        recentActivity: '1 day ago',
+        isFollowing: true,
+        claimed: true
+    }
+]
+
 export function Library({ repo: _repo }: Library2Props) {
-    const [activeNav, setActiveNav] = useState('feed')
+    const location = useLocation();
+    // Determine initial nav from path
+    const getNavFromPath = (pathname: string) => {
+        if (pathname.includes('/scholars')) return 'scholars';
+        if (pathname.includes('/collections')) return 'collections';
+        if (pathname.includes('/affiliations')) return 'affiliations';
+        if (pathname.includes('/papers')) return 'papers';
+        if (pathname.includes('/profile')) return 'profile';
+        if (pathname.includes('/search')) return 'search';
+        return 'feed';
+    };
+    const [activeNav, setActiveNav] = useState(() => getNavFromPath(location.pathname));
     const [mathJaxLoaded, setMathJaxLoaded] = useState(false)
     const postsRef = useRef<HTMLDivElement>(null)
     const [composerText, setComposerText] = useState('')
     const [expandedAbstracts, setExpandedAbstracts] = useState<Set<string>>(new Set())
+    const [scholars, setScholars] = useState(mockScholars)
+    const [searchQuery, setSearchQuery] = useState('')
+    const [selectedScholar, setSelectedScholar] = useState<string | null>(null)
+    const navigate = useNavigate();
+
+    // Sync activeNav with URL path
+    useEffect(() => {
+        const nav = getNavFromPath(location.pathname);
+        setActiveNav(nav);
+    }, [location.pathname]);
 
     // Initialize MathJax
     useEffect(() => {
@@ -162,6 +327,20 @@ export function Library({ repo: _repo }: Library2Props) {
         }
         setExpandedAbstracts(newExpanded)
     }
+
+    const toggleFollow = (scholarId: string) => {
+        setScholars(prev => prev.map(scholar => 
+            scholar.id === scholarId 
+                ? { ...scholar, isFollowing: !scholar.isFollowing }
+                : scholar
+        ))
+    }
+
+    const filteredScholars = scholars.filter(scholar =>
+        scholar.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        scholar.institution.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        scholar.expertise.some(exp => exp.toLowerCase().includes(searchQuery.toLowerCase()))
+    )
 
     // Dummy posts data with mathematical content
     const posts = [
@@ -304,6 +483,285 @@ The first term is the reconstruction loss, and the second is the KL divergence t
         )
     }
 
+    // Sidebar navigation handler
+    const handleNavClick = (id: string) => {
+        setActiveNav(id);
+        switch (id) {
+            case 'scholars':
+                navigate('/scholars');
+                break;
+            case 'feed':
+                navigate('/library');
+                break;
+            case 'search':
+                navigate('/search');
+                break;
+            case 'collections':
+                navigate('/collections');
+                break;
+            case 'papers':
+                navigate('/papers');
+                break;
+            case 'profile':
+                navigate('/profile');
+                break;
+            default:
+                break;
+        }
+    }
+
+    // ScholarCard component
+    const ScholarCard = ({ scholar }: { scholar: any }) => (
+        <div className="w-full min-w-[20rem] max-w-full bg-white rounded-lg border border-gray-200 p-4 hover:shadow transition-shadow overflow-hidden flex flex-col">
+            <div className="flex items-start justify-between mb-2 min-w-0">
+                <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-12 h-12 bg-primary-500 text-white rounded-full flex items-center justify-center text-lg font-semibold flex-shrink-0">
+                        {scholar.avatar}
+                    </div>
+                    <div className="min-w-0">
+                        <h3 className="text-lg font-semibold text-gray-900 break-words leading-tight">{scholar.name}</h3>
+                        <p className="text-gray-600 text-sm break-words leading-tight">{scholar.title}</p>
+                        <p className="text-gray-500 text-xs break-words leading-tight">{scholar.institution}</p>
+                    </div>
+                </div>
+                <div className="flex flex-col items-end gap-2 min-w-0">
+                    <span
+                        className={`px-3 py-0.5 rounded-full text-xs font-semibold mb-1 ${
+                            scholar.claimed
+                                ? 'bg-green-100 text-green-700 border border-green-200'
+                                : 'bg-gray-100 text-gray-600 border border-gray-200'
+                        }`}
+                        title={scholar.claimed ? 'This profile is claimed' : 'This profile is unclaimed'}
+                    >
+                        {scholar.claimed ? 'Claimed' : 'Unclaimed'}
+                    </span>
+                    <button
+                        onClick={() => toggleFollow(scholar.id)}
+                        className={`px-3 py-1 rounded-full font-medium transition-colors flex-shrink-0 whitespace-nowrap text-sm ${
+                            scholar.isFollowing
+                                ? 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                                : 'bg-primary-500 text-white hover:bg-primary-600'
+                        }`}
+                    >
+                        {scholar.isFollowing ? 'Following' : 'Follow'}
+                    </button>
+                </div>
+            </div>
+
+            <p className="text-gray-700 mb-2 text-sm leading-snug break-words">{scholar.bio}</p>
+
+            <div className="flex flex-wrap gap-1 mb-2">
+                {scholar.expertise.map((exp: string, index: number) => (
+                    <span
+                        key={index}
+                        className="px-2 py-0.5 bg-gray-100 text-gray-700 text-xs rounded-full"
+                    >
+                        {exp}
+                    </span>
+                ))}
+            </div>
+
+            <div className="flex items-center gap-4 text-xs text-gray-600 mb-2">
+                <div>
+                    <span className="font-semibold text-gray-900">{scholar.hIndex}</span>
+                    <span className="ml-1">h-index</span>
+                </div>
+                <div>
+                    <span className="font-semibold text-gray-900">{scholar.totalCitations.toLocaleString()}</span>
+                    <span className="ml-1">citations</span>
+                </div>
+                <div>
+                    <span className="font-semibold text-gray-900">{scholar.papers.length}</span>
+                    <span className="ml-1">papers</span>
+                </div>
+            </div>
+
+            <div className="border-t border-gray-200 pt-2 mt-2">
+                <h4 className="font-semibold text-gray-900 mb-2 text-sm">Recent Papers</h4>
+                <div className="space-y-1">
+                    {scholar.papers.slice(0, 2).map((paper: any) => (
+                        <div key={paper.id} className="flex items-center justify-between min-w-0">
+                            <div className="flex-1 min-w-0">
+                                <p className="text-xs font-medium text-gray-900 break-words leading-tight">{paper.title}</p>
+                                <p className="text-xs text-gray-500">{paper.year} • {paper.citations} citations</p>
+                            </div>
+                            <a
+                                href={paper.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-xs text-primary-500 hover:text-primary-600 ml-2 flex-shrink-0"
+                            >
+                                View
+                            </a>
+                        </div>
+                    ))}
+                </div>
+            </div>
+
+            <div className="mt-2 text-xs text-gray-500">
+                Active {scholar.recentActivity}
+            </div>
+        </div>
+    )
+
+    // Render different views based on activeNav
+    const renderContent = () => {
+        switch (activeNav) {
+            case 'scholars':
+                return (
+                    <div className="p-6">
+                        <div className="max-w-4xl mx-auto">
+                            <div className="mb-6">
+                                <h1 className="text-2xl font-bold text-gray-900 mb-2">Scholars</h1>
+                                <p className="text-gray-600">Discover and follow researchers in your field</p>
+                            </div>
+
+                            {/* Search Bar */}
+                            <div className="mb-6">
+                                <div className="relative">
+                                    <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <circle cx="11" cy="11" r="8" />
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="m21 21-4.35-4.35" />
+                                    </svg>
+                                    <input
+                                        type="text"
+                                        placeholder="Search scholars by name, institution, or expertise..."
+                                        value={searchQuery}
+                                        onChange={(e) => setSearchQuery(e.target.value)}
+                                        className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Scholars Grid */}
+                            <div
+                                className="grid gap-x-6 gap-y-6 px-4 justify-items-center"
+                                style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(20rem, 1fr))' }}
+                            >
+                                {filteredScholars.map(scholar => (
+                                    <ScholarCard key={scholar.id} scholar={scholar} />
+                                ))}
+                            </div>
+
+                            {filteredScholars.length === 0 && (
+                                <div className="text-center py-12">
+                                    <svg className="w-12 h-12 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                    </svg>
+                                    <p className="text-gray-500">No scholars found matching your search.</p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )
+
+            case 'feed':
+            default:
+                return (
+                    <>
+                        {/* Post Composer */}
+                        <div className="bg-white border-b border-gray-200 p-6">
+                            <div className="flex gap-4">
+                                <div className="w-10 h-10 bg-primary-500 text-white rounded-full flex items-center justify-center font-semibold text-sm flex-shrink-0">
+                                    U
+                                </div>
+                                <div className="flex-1">
+                                    <textarea
+                                        className="w-full min-h-[80px] max-h-32 border-0 resize-none focus:ring-0 focus:outline-none text-gray-900 placeholder-gray-500"
+                                        placeholder="Share your research insights… Include arXiv URLs to automatically import papers. LaTeX supported with $...$ or $$...$$"
+                                        value={composerText}
+                                        onChange={(e) => setComposerText(e.target.value)}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter' && !e.shiftKey) {
+                                                e.preventDefault()
+                                                handlePostSubmit()
+                                            }
+                                        }}
+                                    />
+                                    <div className="flex justify-end mt-3">
+                                        <button
+                                            className={`px-6 py-2 rounded-full font-medium transition-colors ${composerText.trim()
+                                                ? 'bg-primary-500 text-white hover:bg-primary-600'
+                                                : 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                                                }`}
+                                            disabled={!composerText.trim()}
+                                            onClick={handlePostSubmit}
+                                        >
+                                            Post
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Feed List */}
+                        <div className="max-w-2xl mx-auto" ref={postsRef}>
+                            {posts.map(post => {
+                                if (post.type === 'pure-paper') {
+                                    return (
+                                        <div key={post.id} className="bg-white border-b border-gray-200 p-6">
+                                            <PaperCard paper={post.paper} />
+                                        </div>
+                                    )
+                                }
+
+                                return (
+                                    <div key={post.id} className={`border-b border-gray-200 p-6 ${post.type === 'user-post' ? 'bg-blue-50' :
+                                        post.type === 'paper-post' ? 'bg-orange-50' : 'bg-white'
+                                        }`}>
+                                        <div className="flex items-center gap-3 mb-4">
+                                            <div className="w-8 h-8 bg-primary-500 text-white rounded-full flex items-center justify-center text-sm font-semibold">
+                                                {post.avatar}
+                                            </div>
+                                            <div className="flex items-center gap-2 text-sm">
+                                                <span className="font-semibold text-gray-900">{post.name}</span>
+                                                <span className="text-gray-500">·</span>
+                                                <span className="text-gray-500">{post.time}</span>
+                                            </div>
+                                        </div>
+
+                                        <div className="text-gray-900 leading-relaxed mb-4 whitespace-pre-wrap">
+                                            {post.content}
+                                        </div>
+
+                                        {post.type === 'paper-post' && post.paper && (
+                                            <PaperCard paper={post.paper} />
+                                        )}
+
+                                        <div className="flex items-center gap-6 text-gray-500">
+                                            <button className="flex items-center gap-2 hover:text-gray-700 transition-colors">
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                                                </svg>
+                                                <span className="text-sm">{post.replies || 0}</span>
+                                            </button>
+                                            <button className="flex items-center gap-2 hover:text-gray-700 transition-colors">
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                                                </svg>
+                                                <span className="text-sm">{post.retweets || 0}</span>
+                                            </button>
+                                            <button className="flex items-center gap-2 hover:text-red-500 transition-colors">
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                                                </svg>
+                                                <span className="text-sm">{post.likes || 0}</span>
+                                            </button>
+                                            <button className="flex items-center gap-2 hover:text-gray-700 transition-colors">
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.367 2.684 3 3 0 00-5.367-2.684z" />
+                                                </svg>
+                                            </button>
+                                        </div>
+                                    </div>
+                                )
+                            })}
+                        </div>
+                    </>
+                )
+        }
+    }
+
     return (
         <div className="min-h-screen bg-gray-50 font-inter">
             <div className="flex min-h-screen">
@@ -327,7 +785,7 @@ The first term is the reconstruction loss, and the second is the KL divergence t
                             {navItems.map(item => (
                                 <button
                                     key={item.id}
-                                    onClick={() => setActiveNav(item.id)}
+                                    onClick={() => handleNavClick(item.id)}
                                     className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors ${activeNav === item.id
                                         ? 'bg-primary-50 text-primary-700 border-r-2 border-primary-500'
                                         : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
@@ -349,104 +807,7 @@ The first term is the reconstruction loss, and the second is the KL divergence t
 
                 {/* Main Content */}
                 <div className="flex-1 ml-64">
-                    {/* Post Composer */}
-                    <div className="bg-white border-b border-gray-200 p-6">
-                        <div className="flex gap-4">
-                            <div className="w-10 h-10 bg-primary-500 text-white rounded-full flex items-center justify-center font-semibold text-sm flex-shrink-0">
-                                U
-                            </div>
-                            <div className="flex-1">
-                                <textarea
-                                    className="w-full min-h-[80px] max-h-32 border-0 resize-none focus:ring-0 focus:outline-none text-gray-900 placeholder-gray-500"
-                                    placeholder="Share your research insights… Include arXiv URLs to automatically import papers. LaTeX supported with $...$ or $$...$$"
-                                    value={composerText}
-                                    onChange={(e) => setComposerText(e.target.value)}
-                                    onKeyDown={(e) => {
-                                        if (e.key === 'Enter' && !e.shiftKey) {
-                                            e.preventDefault()
-                                            handlePostSubmit()
-                                        }
-                                    }}
-                                />
-                                <div className="flex justify-end mt-3">
-                                    <button
-                                        className={`px-6 py-2 rounded-full font-medium transition-colors ${composerText.trim()
-                                            ? 'bg-primary-500 text-white hover:bg-primary-600'
-                                            : 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                                            }`}
-                                        disabled={!composerText.trim()}
-                                        onClick={handlePostSubmit}
-                                    >
-                                        Post
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Feed List */}
-                    <div className="max-w-2xl mx-auto" ref={postsRef}>
-                        {posts.map(post => {
-                            if (post.type === 'pure-paper') {
-                                return (
-                                    <div key={post.id} className="bg-white border-b border-gray-200 p-6">
-                                        <PaperCard paper={post.paper} />
-                                    </div>
-                                )
-                            }
-
-                            return (
-                                <div key={post.id} className={`border-b border-gray-200 p-6 ${post.type === 'user-post' ? 'bg-blue-50' :
-                                    post.type === 'paper-post' ? 'bg-orange-50' : 'bg-white'
-                                    }`}>
-                                    <div className="flex items-center gap-3 mb-4">
-                                        <div className="w-8 h-8 bg-primary-500 text-white rounded-full flex items-center justify-center text-sm font-semibold">
-                                            {post.avatar}
-                                        </div>
-                                        <div className="flex items-center gap-2 text-sm">
-                                            <span className="font-semibold text-gray-900">{post.name}</span>
-                                            <span className="text-gray-500">·</span>
-                                            <span className="text-gray-500">{post.time}</span>
-                                        </div>
-                                    </div>
-
-                                    <div className="text-gray-900 leading-relaxed mb-4 whitespace-pre-wrap">
-                                        {post.content}
-                                    </div>
-
-                                    {post.type === 'paper-post' && post.paper && (
-                                        <PaperCard paper={post.paper} />
-                                    )}
-
-                                    <div className="flex items-center gap-6 text-gray-500">
-                                        <button className="flex items-center gap-2 hover:text-gray-700 transition-colors">
-                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                                            </svg>
-                                            <span className="text-sm">{post.replies || 0}</span>
-                                        </button>
-                                        <button className="flex items-center gap-2 hover:text-gray-700 transition-colors">
-                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-                                            </svg>
-                                            <span className="text-sm">{post.retweets || 0}</span>
-                                        </button>
-                                        <button className="flex items-center gap-2 hover:text-red-500 transition-colors">
-                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-                                            </svg>
-                                            <span className="text-sm">{post.likes || 0}</span>
-                                        </button>
-                                        <button className="flex items-center gap-2 hover:text-gray-700 transition-colors">
-                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.367 2.684 3 3 0 00-5.367-2.684z" />
-                                            </svg>
-                                        </button>
-                                    </div>
-                                </div>
-                            )
-                        })}
-                    </div>
+                    {renderContent()}
                 </div>
             </div>
         </div>

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import './index.css'
 import { Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom'
 import { ServerRepo, Repo } from './repo'
 import { Dashboard } from './Dashboard'
@@ -230,6 +231,9 @@ function App() {
             <Route path="/tokens" element={<TokenManager repo={state.repo} />} />
             <Route path="/sql-query" element={<SQLQuery repo={state.repo} />} />
             <Route path="/library" element={<Library repo={state.repo} />} />
+            <Route path="/scholars" element={<Library repo={state.repo} />} />
+            <Route path="/affiliations" element={<Library repo={state.repo} />} />
+            <Route path="/collections" element={<Library repo={state.repo} />} />
             <Route path="/" element={<Dashboard repo={state.repo} />} />
           </Routes>
         </div>
