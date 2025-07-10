@@ -692,6 +692,7 @@ export class Context3d {
       this.restore()
     } else {
       // Draw the rectangle with the image's texture coordinates.
+      // For centered drawing, we need to account for the reduced size.
       this.drawRect(
         x - sw / 2 - m, // Center horizontally with margin adjustment.
         y - sh / 2 - m, // Center vertically with margin adjustment.
@@ -838,7 +839,14 @@ export class Context3d {
     }
   }
 
-  /** Draws a line of sprites. */
+  /**
+   * Draws a line of sprites.
+   * The line is drawn from (x0, y0) to (x1, y1).
+   * The spacing is the distance between the centers of the sprites.
+   * The color is the color of the sprites.
+   * The skipStart and skipEnd are the number of sprites to skip at the start
+   * and end of the line.
+   */
   drawSpriteLine(
     imageName: string,
     x0: number,
