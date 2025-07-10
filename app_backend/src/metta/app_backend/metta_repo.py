@@ -223,8 +223,8 @@ MIGRATIONS = [
             """CREATE INDEX idx_eval_tasks_assignee ON eval_tasks(assignee)""",
             """CREATE TABLE eval_task_episodes (
                 eval_task_id UUID NOT NULL REFERENCES eval_tasks(id),
-                episode_id UUID NOT NULL REFERENCES episodes(id),
-                PRIMARY KEY (eval_task_id, episode_id)
+                episode_internal_id INTEGER NOT NULL REFERENCES episodes(internal_id),
+                PRIMARY KEY (eval_task_id, episode_internal_id)
             )""",
             """CREATE INDEX idx_eval_tasks_policy_id ON eval_tasks(policy_id)""",
             """CREATE INDEX idx_eval_tasks_sim_suite ON eval_tasks(sim_suite)""",
@@ -442,10 +442,10 @@ class MettaRepo:
             if eval_task_id is not None:
                 await con.execute(
                     """
-                    INSERT INTO eval_task_episodes (eval_task_id, episode_id)
+                    INSERT INTO eval_task_episodes (eval_task_id, episode_internal_id)
                     VALUES (%s, %s)
                     """,
-                    (eval_task_id, episode_id),
+                    (eval_task_id, episode_internal_id),
                 )
 
             return episode_id
