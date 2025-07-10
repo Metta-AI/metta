@@ -112,7 +112,7 @@ The Protein algorithm provides intelligent hyperparameter suggestions based on:
 - Adaptive exploration/exploitation balancing
 - Historical performance tracking
 
-Sweep initialization process:
+**Sweep initialization process**:
 1. Check if sweep already exists (idempotent operation)
 2. Create Wandb sweep with generated ID
 3. Initialize Protein with parameter bounds
@@ -173,7 +173,7 @@ NODE_INDEX=1 ./tools/sweep_init.py sweep_name=distributed_exp
 
 ### sim.py
 
-**Purpose**: Simulation driver for evaluating policies in the Metta environment.
+**Purpose**: Comprehensive policy evaluation tool that runs simulation suites and exports statistics.
 
 This tool provides comprehensive policy evaluation capabilities, allowing you to:
 - Evaluate single or multiple policies in batch
@@ -182,14 +182,14 @@ This tool provides comprehensive policy evaluation capabilities, allowing you to
 - Generate replays for visualization
 - Support various policy selection strategies (latest, top-k by metric)
 
-The evaluation process:
+**The evaluation process**:
  ▸ For every requested *policy URI*
    ▸ choose the checkpoint(s) according to selector/metric
    ▸ run the configured `SimulationSuite`
    ▸ export the merged stats DB if an output URI is provided
    ▸ output JSON results for programmatic processing
 
-Integration points:
+**Integration points**:
 - PolicyStore: For loading trained policies
 - SimulationSuite: For running evaluation scenarios
 - StatsDB: For storing and exporting metrics
@@ -236,19 +236,19 @@ Integration points:
 
 ### analyze.py
 
-**Purpose**: Analysis tool for MettaGrid evaluation results.
+**Purpose**: Generate detailed analysis reports from evaluation results, including performance metrics and behavior analysis.
 
 This tool generates comprehensive analysis reports from policy evaluation data,
 providing insights into agent behavior, performance metrics, and learning progress.
 
-Key features:
+**Key features**:
 - Statistical analysis of agent performance across episodes
 - Behavior pattern detection and visualization
 - Comparative analysis between checkpoints
 - Export to multiple formats (HTML, JSON, PDF)
 - Integration with PolicyStore for policy metadata
 
-The analysis pipeline:
+**The analysis pipeline**:
 1. Load policy from PolicyStore using specified selector
 2. Retrieve evaluation statistics from connected databases
 3. Generate statistical summaries and visualizations
@@ -275,12 +275,12 @@ The analysis pipeline:
 
 ### renderer.py
 
-**Purpose**: Real-time visualization tool for observing agent behavior in MettaGrid environments.
+**Purpose**: Real-time visualization of agent behavior with ASCII or Miniscope rendering.
 
 This tool provides interactive visualization of policies (random, heuristic, or trained)
 running in MettaGrid environments with support for multiple rendering backends.
 
-Key features:
+**Key features**:
 - Multiple policy types: random, simple heuristic, or trained neural networks
 - Multiple rendering modes: ASCII (NetHack-style), Miniscope (rich visuals)
 - Real-time performance metrics display
@@ -288,15 +288,15 @@ Key features:
 - Configurable simulation speed
 - Action validation for trained policies
 
-Policy types:
-- random: Generates valid random actions for baseline comparison
-- simple: Heuristic policy with movement preferences (60% cardinal, 20% diagonal, etc.)
-- trained: Loads policies from PolicyStore with automatic action validation
+**Policy types**:
+- `random`: Generates valid random actions for baseline comparison
+- `simple`: Heuristic policy with movement preferences (60% cardinal, 20% diagonal, etc.)
+- `trained`: Loads policies from PolicyStore with automatic action validation
 
-Rendering modes:
-- human: ASCII renderer with NetHack-style display (default)
-- miniscope: Rich graphical renderer with sprites and effects
-- nethack: Alias for human mode
+**Rendering modes**:
+- `human`: ASCII renderer with NetHack-style display (default)
+- `miniscope`: Rich graphical renderer with sprites and effects
+- `nethack`: Alias for human mode
 
 **Usage**:
 ```bash
@@ -364,14 +364,14 @@ Rendering modes:
 This tool aggregates metrics and statistics from multiple training runs and evaluations
 to create a unified dashboard view accessible via the Metta Observatory web interface.
 
-Key features:
+**Key features**:
 - Aggregates metrics across multiple training runs
 - Generates interactive visualization data
 - Supports both local and S3 output destinations
 - Provides direct links to web-based dashboard viewer
 - Compatible with Metta Observatory for real-time monitoring
 
-The dashboard generation process:
+**The dashboard generation process**:
 1. Collect metrics from specified training runs
 2. Aggregate statistics across policies and checkpoints
 3. Generate JSON data structure for web visualization
@@ -401,21 +401,21 @@ This tool creates game maps using different generation algorithms including:
 - Random: Stochastic map generation with constraints
 - Template-based: Fixed layouts with random variations
 
-Key features:
+**Key features**:
 - Batch generation support for creating map datasets
 - Multiple output formats (YAML, visual preview)
 - S3 and local file system support
 - Configuration override system for parameter tuning
 - Automatic map validation and normalization
 
-The generation pipeline:
+**The generation pipeline**:
 1. Load map configuration (Hydra or OmegaConf format)
 2. Initialize chosen generation algorithm
 3. Generate map according to constraints
 4. Validate generated content
 5. Save or display results
 
-Output modes:
+**Output modes**:
 - Save to file/S3 with automatic format detection
 - Display in MettaScope web viewer
 - ASCII terminal display
@@ -517,32 +517,25 @@ Output modes:
 
 ### validate_config.py
 
-**Purpose**: Validate and debug Hydra configuration files used throughout the Metta ecosystem.
+**Purpose**: Load and validate Hydra configuration files, useful for debugging config issues.
 
 This tool helps developers understand and troubleshoot complex Hydra configurations
 by loading, resolving, and displaying them in a readable format. It's particularly
 useful for debugging configuration composition and interpolation issues.
 
-Key features:
+**Key features**:
 - Loads any Hydra configuration with proper composition
 - Handles complex configuration groups (env, trainer, agent, etc.)
 - Attempts to resolve interpolations where possible
 - Provides fallback for configs with missing dependencies
 - Supports both simple configs and complex multi-file compositions
 
-The validation process:
+**The validation process**:
 1. Load configuration using Hydra's composition system
 2. Apply necessary overrides for missing required fields
 3. Attempt to resolve all interpolations
 4. Display final configuration in YAML format
 5. Report any issues or unresolvable references
-
-Common use cases:
-- Verify configuration before long training runs
-- Debug interpolation and composition issues
-- Understand final configuration after overrides
-- Check available configuration options
-- Validate custom configuration files
 
 **Usage**:
 ```bash
@@ -559,31 +552,30 @@ Common use cases:
 ./tools/validate_config.py configs/sweep/fast.yaml
 ```
 
-Note: Currently this script prints the configuration, but future versions
-will add schema validation and constraint checking.
+**Note**: Currently this script prints the configuration, but future versions will add schema validation and constraint checking.
 
 ### stats_duckdb_cli.py
 
-**Purpose**: Interactive DuckDB CLI for exploring Metta evaluation statistics databases.
+**Purpose**: Interactive DuckDB CLI for exploring evaluation statistics databases.
 
 This tool provides a convenient interface for analyzing evaluation metrics stored
 in DuckDB databases, with automatic downloading from remote sources (Wandb, S3).
 
-Key features:
+**Key features**:
 - Automatic download from wandb:// or s3:// URIs
 - Direct DuckDB CLI access for SQL queries
 - Temporary local caching of remote databases
 - Full SQL support for complex analytics
 - Integration with evaluation pipeline outputs
 
-Common query patterns:
+**Common query patterns**:
 - Agent performance metrics aggregation
 - Episode-level statistics analysis
 - Policy comparison queries
 - Temporal performance trends
 - Multi-agent coordination metrics
 
-Database schema typically includes:
+**Database schema typically includes**:
 - agent_metrics: Per-step agent observations and rewards
 - episode_summary: Aggregated episode statistics
 - policy_metadata: Policy configuration and versioning
@@ -596,12 +588,6 @@ Database schema typically includes:
 
 # Open stats from S3
 ./tools/stats_duckdb_cli.py +eval_db_uri=s3://my-bucket/evaluations/experiment_001.db
-
-# Common queries:
-# - List all tables: .tables
-# - Schema info: .schema agent_metrics
-# - Average rewards: SELECT AVG(value) FROM agent_metrics WHERE metric='reward'
-# - Episode analysis: SELECT episode, SUM(value) FROM agent_metrics GROUP BY episode
 ```
 
 **Example Queries**:
@@ -619,6 +605,9 @@ GROUP BY policy_name;
 SELECT policy_name, episode, COUNT(*) as steps
 FROM agent_metrics
 GROUP BY policy_name, episode;
+
+-- Schema info
+.schema agent_metrics
 ```
 
 ### upload_map_imgs.py
@@ -778,218 +767,3 @@ Key environment variables used by tools:
 5. **Use sweep tools** for systematic hyperparameter search
 6. **Generate replays** for debugging unexpected behaviors
 7. **Document custom configurations** in version control
-
-## Tool Relationships
-
-The tools work together in several workflows:
-
-1. **Training → Evaluation → Analysis**:
-   - `train.py` produces policies
-   - `sim.py` evaluates them
-   - `analyze.py` generates reports
-   - `dashboard.py` visualizes results
-
-2. **Hyperparameter Optimization**:
-   - `sweep_init.py` sets up experiments
-   - `train.py` runs with suggested parameters
-   - `sweep_eval.py` feeds results back to optimizer
-
-3. **Development and Debugging**:
-   - `validate_config.py` checks configurations
-   - `renderer.py` visualizes behavior
-   - `replay.py` captures episodes for analysis
-   - `stats_duckdb_cli.py` explores metrics
-
-4. **Map Development**:
-   - `map/gen.py` creates maps
-   - `map/view.py` inspects them
-   - `map/normalize_*.py` ensures consistency
-   - `renderer.py` tests with agents
-
-## Tool Dependencies and Requirements
-
-### System Requirements
-
-| Requirement | Tools | Notes |
-|-------------|-------|-------|
-| **GPU (CUDA)** | `train.py`, `sim.py`, `renderer.py`, `replay.py`, `sweep_eval.py` | Recommended for performance, CPU fallback available |
-| **Python 3.10+** | All tools | Required by uv package manager |
-| **DuckDB CLI** | `stats_duckdb_cli.py` | For interactive SQL queries |
-| **AWS CLI** | `upload_map_imgs.py`, S3-related operations | For S3 access |
-| **Wandb Account** | `train.py`, `sweep_*.py`, `sim.py` | For experiment tracking |
-
-### Python Package Dependencies
-
-Core dependencies managed by uv:
-- **torch**: Neural network training and inference
-- **hydra-core**: Configuration management
-- **wandb**: Experiment tracking
-- **numpy**: Numerical operations
-- **omegaconf**: Configuration handling
-- **duckdb**: Database operations
-- **boto3**: AWS S3 interactions
-
-### Database Connections
-
-Tools requiring database access:
-- **Write Access**: `train.py`, `sim.py`, `sweep_eval.py`
-- **Read Access**: `analyze.py`, `dashboard.py`, `stats_duckdb_cli.py`
-- **Optional**: `renderer.py`, `replay.py` (for policy loading)
-
-## Advanced Usage Patterns
-
-### Distributed Training
-
-```bash
-# Single node, multiple GPUs
-torchrun --nproc_per_node=4 tools/train.py trainer.num_workers=16
-
-# Multi-node training (node 0)
-NODE_INDEX=0 MASTER_ADDR=10.0.0.1 MASTER_PORT=29500 \
-torchrun --nnodes=2 --nproc_per_node=8 --node_rank=0 tools/train.py
-
-# Multi-node training (node 1)
-NODE_INDEX=1 MASTER_ADDR=10.0.0.1 MASTER_PORT=29500 \
-torchrun --nnodes=2 --nproc_per_node=8 --node_rank=1 tools/train.py
-```
-
-### Batch Evaluation
-
-```bash
-# Evaluate all policies from a sweep
-for run in $(ls runs/my_sweep/); do
-    ./tools/sim.py sim_job.policy_uris="[\"wandb://run/$run\"]" \
-        sim_job.stats_db_uri="s3://bucket/evals/$run.db"
-done
-```
-
-### Custom Rendering Backends
-
-```python
-# Create custom policy for renderer.py
-class CustomPolicy:
-    def predict(self, obs):
-        # Your custom logic here
-        return actions
-```
-
-### Programmatic Tool Usage
-
-```python
-# Using tools as Python modules
-from tools.sim import simulate_policy
-from omegaconf import OmegaConf
-
-cfg = OmegaConf.load("configs/sim_job.yaml")
-results = simulate_policy(sim_job, policy_uri, cfg, logger)
-```
-
-## Configuration Override Patterns
-
-### Nested Configuration Updates
-```bash
-# Deep configuration updates
-./tools/train.py trainer.optimizer.lr=0.001 trainer.optimizer.eps=1e-8
-
-# List modifications
-./tools/sim.py 'sim_job.policy_uris=["uri1","uri2","uri3"]'
-
-# Adding new keys
-./tools/train.py +custom.debug_mode=true
-```
-
-### Environment-Specific Overrides
-```bash
-# Development
-./tools/train.py hydra.run.dir=./outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}
-
-# Production
-./tools/train.py hydra.sweep.dir=s3://bucket/sweeps hydra.sweep.subdir=${sweep.name}
-```
-
-## Performance Optimization Tips
-
-### Training Performance
-- **Batch Size**: Larger batches generally train faster but use more memory
-- **Worker Count**: Set to number of CPU cores divided by 2 for optimal performance
-- **Mixed Precision**: Use `trainer.mixed_precision=true` for faster training on modern GPUs
-
-### Evaluation Performance
-- **Vectorization**: Use `vectorization=parallel` for multi-core evaluation
-- **Batch Evaluation**: Process multiple policies in one `sim.py` call
-- **Stats Export**: Use binary formats for large datasets
-
-### Map Generation Performance
-- **Parallel Generation**: Use shell loops for batch generation
-- **S3 Uploads**: Use `--count` parameter instead of loops for S3 destinations
-- **Preview Mode**: Disable preview with `--show-mode=none` for batch operations
-
-## Debugging and Troubleshooting
-
-### Common Error Messages
-
-| Error | Cause | Solution |
-|-------|-------|----------|
-| `KeyError: 'groups'` | Missing environment config | Ensure `env` parameter is set correctly |
-| `CUDA out of memory` | Batch size too large | Reduce `trainer.batch_size` or use gradient accumulation |
-| `Hydra composition error` | Invalid config path | Use `validate_config.py` to check configuration |
-| `PolicyStore: Policy not found` | Invalid URI or missing policy | Check wandb run exists and is accessible |
-| `DuckDB: File not found` | Stats DB doesn't exist | Ensure evaluation completed successfully |
-
-### Debug Modes
-
-```bash
-# Enable debug logging
-HYDRA_FULL_ERROR=1 ./tools/train.py hydra.verbose=true
-
-# Dry run mode (configuration only)
-./tools/train.py --cfg job
-
-# Print configuration
-./tools/train.py --cfg job --package trainer
-```
-
-### Profiling Tools
-
-```bash
-# CPU profiling
-python -m cProfile -o profile.stats tools/train.py
-
-# Memory profiling
-memray run tools/sim.py
-memray flamegraph profile.bin
-
-# GPU profiling
-nsys profile -o profile tools/train.py
-```
-
-## Integration with External Systems
-
-### Wandb Integration
-- **Project Structure**: `entity/project/sweep_id/run_id`
-- **Artifact Storage**: Policies saved as wandb artifacts
-- **Metric Logging**: Real-time training metrics
-- **Sweep Management**: Hyperparameter optimization tracking
-
-### S3 Integration
-- **URI Format**: `s3://bucket/path/to/file`
-- **Credentials**: Via AWS CLI configuration or IAM roles
-- **Public Access**: Dashboard and map images via public buckets
-- **Batch Operations**: Efficient multi-file uploads
-
-### MettaScope Integration
-- **Replay Format**: Binary format for efficient storage
-- **WebSocket Protocol**: Real-time agent control
-- **Renderer Types**: ASCII and Miniscope visualization
-- **Local Server**: Automatic launch for development
-
-## Future Enhancements
-
-Planned improvements for the tools:
-- Schema validation in `validate_config.py`
-- Distributed evaluation in `sim.py`
-- Real-time training monitoring dashboard
-- Map generation templates library
-- Automated performance regression testing
-- Cloud-native job orchestration
-- Interactive policy debugging interface
