@@ -186,7 +186,7 @@ function updateDom(htmlPanel: HTMLElement, entity: Entity) {
 
   // Update inventory display
   let map = new Map<string, number>()
-  for (let itemId in entity.inventory.get()) {
+  for (let itemId of entity.inventory.get()) {
     const itemName = state.replay!.itemNames[itemId]
     if (map.has(itemName)) {
       map.set(itemName, map.get(itemName)! + 1)

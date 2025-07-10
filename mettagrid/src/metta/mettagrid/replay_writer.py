@@ -127,18 +127,6 @@ class EpisodeReplay:
                     obj[key] = changes[0][1]
 
         self.replay_data["config"] = OmegaConf.to_container(self.env._task.env_cfg(), resolve=True)
-
-        # # FIX ME: This is a hack as map_width and map_height are not set in the replay_writer.
-        # # Go over all objects and find the max x and y and set that as the map size.
-        # max_x = 0
-        # max_y = 0
-        # for obj in self.objects:
-        #     for key, changes in list(obj.items()):
-        #         if key == "position":
-        #             max_x = max(max_x, changes[-1][1][0])
-        #             max_y = max(max_y, changes[-1][1][1])
-        # self.replay_data["map_size"] = [max_x + 1, max_y + 1]
-
         return self.replay_data
 
     def write_replay(self, path: str):
