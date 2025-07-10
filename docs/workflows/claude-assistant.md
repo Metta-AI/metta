@@ -297,7 +297,7 @@ When PR creation fails, Claude posts a diagnostic comment:
 
 ### 3. Code Quality
 
-- Claude follows project standards (CLAUDE.md)
+- Claude follows project standards (docs/development/claude.md)
 - Reviews can be requested before PR creation
 - Automated tests still run on Claude's PRs
 
@@ -319,7 +319,7 @@ When PR creation fails, Claude posts a diagnostic comment:
 
 ### Custom Instructions
 
-The workflow accepts custom instructions through the `CLAUDE.md` file:
+The workflow accepts custom instructions through the `docs/development/claude.md` file:
 
 - Coding standards
 - Project-specific patterns

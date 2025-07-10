@@ -34,15 +34,15 @@ Detailed documentation for GitHub Actions workflows and automation:
 - **[Claude Review System](./workflows/claude-review-system.md)** - AI-powered code review with targeted feedback
 - **[Claude Assistant](./workflows/claude-assistant.md)** - Interactive bot for Q&A and automated PR creation
 
-## �️ Development Guidelines
+## 🛠️ Development Guidelines
 
 ### [Development Documentation](./development/)
 Guidelines for developers and AI tools working on the codebase:
 
-- **[AI Agent Guidelines](./development/AGENTS.md)** - Guidelines for Codex agents working in the repository
-- **[Claude Development Guide](./development/CLAUDE.md)** - Comprehensive guidance for Claude AI including project patterns and PR creation
+- **[AI Agent Guidelines](./development/agents.md)** - Guidelines for Codex agents working in the repository
+- **[Claude Development Guide](./development/claude.md)** - Comprehensive guidance for Claude AI including project patterns and PR creation
 
-## �📊 Metrics & Monitoring
+## 📊 Metrics & Monitoring
 
 ### [WandB Metrics Guide](./wandb/metrics/)
 Comprehensive documentation for all Weights & Biases metrics:
@@ -55,7 +55,7 @@ Comprehensive documentation for all Weights & Biases metrics:
 
 - **[Main README](../README.md)** - Project overview and quick start
 - **[Research Roadmap](./roadmap.md)** - Detailed research directions
-- **[Documentation Index](./INDEX.md)** - Alphabetical index of all concepts
+- **[Documentation Index](./index.md)** - Alphabetical index of all concepts
 - **[Configuration Guide](../configs/)** - Configuration system reference
 
 ## 📝 Contributing to Documentation
@@ -64,7 +64,7 @@ When adding new documentation:
 
 1. **Location**: Place topic-specific docs in this directory
 2. **Format**: Use clear markdown with proper headers and code examples
-3. **Linking**: Update this README and the INDEX.md
+3. **Linking**: Update this README and the index.md
 4. **Standards**: Follow the patterns in existing documentation
 
 ### Documentation Structure
@@ -72,14 +72,14 @@ When adding new documentation:
 ```
 docs/
 ├── README.md           # This file
-├── INDEX.md           # Alphabetical index of concepts
+├── index.md           # Alphabetical index of concepts
 ├── roadmap.md         # Research roadmap
 ├── quick-guide.md     # Quick start guide
 ├── api.md             # API reference
 ├── mapgen.md          # Map generation guide
 ├── development/       # Development guidelines
-│   ├── AGENTS.md      # AI agent guidelines
-│   └── CLAUDE.md      # Claude development guide
+│   ├── agents.md      # AI agent guidelines
+│   └── claude.md      # Claude development guide
 ├── workflows/         # GitHub Actions documentation
 │   ├── README.md      # Workflows overview
 │   ├── pr-summary.md

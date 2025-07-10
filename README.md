@@ -46,8 +46,8 @@ A reinforcement learning codebase focusing on the emergence of cooperation and a
   - [Claude Assistant](docs/workflows/claude-assistant.md)
 - **[WandB Metrics Guide](docs/wandb/metrics/)** - Comprehensive metrics documentation
 - **[Development Guidelines](docs/development/)** - Guidelines for AI tools and contributors
-  - [AI Agent Guidelines](docs/development/AGENTS.md)
-  - [Claude Development Guide](docs/development/CLAUDE.md)
+  - [AI Agent Guidelines](docs/development/agents.md)
+  - [Claude Development Guide](docs/development/claude.md)
 
 ### 🔧 Component Documentation
 
@@ -61,7 +61,7 @@ A reinforcement learning codebase focusing on the emergence of cooperation and a
 
 ### 🗺️ Project Resources
 
-- **[Documentation Index](docs/INDEX.md)** - Alphabetical index of key concepts
+- **[Documentation Index](docs/index.md)** - Alphabetical index of key concepts
 - **[Research Roadmap](docs/roadmap.md)** - Detailed research directions and future plans
 - **[Configuration Guide](configs/)** - Configuration system and examples
 - **[DevOps Documentation](devops/)** - Infrastructure and deployment
