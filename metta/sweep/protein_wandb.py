@@ -40,13 +40,10 @@ class WandbProtein:
         assert self._wandb_run is not None, "No active wandb run found"
         self._wandb_run = cast(Any, self._wandb_run)
 
-        # Get sweep ID - handle both sweep_id attribute and sweep.id fallback
-        self._sweep_id = getattr(self._wandb_run, "sweep_id", None)
-        if self._sweep_id is None and hasattr(self._wandb_run, "sweep") and self._wandb_run.sweep:
-            logger.debug("WANDB_PROTEIN: went into condition 1")
-            self._sweep_id = self._wandb_run.sweep.id
-        else:
-            logger.debug("WANDB_PROTEIN: went into condition 2")
+        # Derive the sweep ID, if this run belongs to a sweep.
+        sweep_obj = getattr(self._wandb_run, "sweep", None)
+        self._sweep_id = getattr(self._wandb_run, "sweep_id", None) or (sweep_obj.id if sweep_obj else None)
+
         logger.info(f"Sweep ID: {self._sweep_id}")
         self._api = wandb.Api()
 

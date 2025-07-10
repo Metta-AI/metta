@@ -97,12 +97,6 @@ def create_run(cfg: DictConfig | ListConfig, logger: Logger) -> str:
     cfg.wandb.group = cfg.sweep_run
     cfg.wandb.name = run_id
 
-    # Note: run_id will be set by wandb.agent when it creates the run
-    # this is needed for the interpolations to be resolved
-    if hasattr(cfg.wandb, "run_id"):
-        # TODO: Find a more elegant solution to interpolation problem
-        cfg.wandb.run_id = "temp"  # Temporary value, will be replaced by wandb.agent
-
     def init_run():
         with WandbContext(cfg.wandb, cfg) as wandb_run:
             assert wandb_run, "Wandb should be enabled"
@@ -122,7 +116,7 @@ def create_run(cfg: DictConfig | ListConfig, logger: Logger) -> str:
 
             # Apply Protein suggestions on top of sweep_job overrides
             # Make a deepcopy of the sweep_job config to avoid modifying the original
-            # CRITICAL: Resolve interpolations first to avoid recursive references
+            cfg.sweep_job.run = cfg.run  # give the subtree its own copy, otherwise resolve fails
             sweep_job_container = OmegaConf.to_container(cfg.sweep_job, resolve=True)
             assert isinstance(sweep_job_container, dict), "sweep_job must be a dictionary structure"
             sweep_job_copy = DictConfig(sweep_job_container)
