@@ -24,7 +24,7 @@ public:
     this->_swappable = cfg.swappable;
   }
 
-  virtual vector<PartialObservationToken> obs_features() const override {
+  vector<PartialObservationToken> obs_features() const override {
     vector<PartialObservationToken> features;
     features.reserve(2);
     features.push_back({ObservationFeature::TypeId, static_cast<ObservationType>(this->type_id)});
@@ -37,7 +37,7 @@ public:
     return features;
   }
 
-  virtual bool swappable() const override {
+  bool swappable() const override {
     return this->_swappable;
   }
 };

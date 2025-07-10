@@ -131,11 +131,11 @@ public:
     this->current_resource_reward = new_reward;
   }
 
-  virtual bool swappable() const override {
+  bool swappable() const override {
     return this->frozen;
   }
 
-  virtual std::vector<PartialObservationToken> obs_features() const override {
+  std::vector<PartialObservationToken> obs_features() const override {
     std::vector<PartialObservationToken> features;
     features.reserve(5 + this->inventory.size());
     features.push_back({ObservationFeature::TypeId, static_cast<ObservationType>(type_id)});
