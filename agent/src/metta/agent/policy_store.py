@@ -204,7 +204,10 @@ class PolicyStore:
         trainer_cfg: TrainerConfig = create_trainer_config(self._cfg)
 
         path = override_path if override_path is not None else os.path.join(trainer_cfg.checkpoint.checkpoint_dir, name)
-        metadata = PolicyMetadata()
+        # Ensure the initial checkpoint carries a "score" field so downstream
+        # selectors that default to metric="score" do not warn about missing
+        # metadata on the first epoch before any evaluation has run.
+        metadata = PolicyMetadata(score=0.0)
         return PolicyRecord(self, name, f"file://{path}", metadata)
 
     def save(self, pr: PolicyRecord, path: str | None = None) -> PolicyRecord:
