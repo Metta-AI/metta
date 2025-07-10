@@ -30,8 +30,8 @@ from metta.common.profiling.memory_monitor import MemoryMonitor
 from metta.common.profiling.stopwatch import Stopwatch
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.system_monitor import SystemMonitor
-from metta.eval.evaluation_scores import EvaluationScores
 from metta.eval.eval_stats_db import EvalStatsDB
+from metta.eval.evaluation_scores import EvaluationScores
 from metta.mettagrid import mettagrid_c  # noqa: F401
 from metta.mettagrid.mettagrid_env import dtype_actions
 from metta.rl.experience import Experience
