@@ -132,7 +132,8 @@
 			"cinttypes": "cpp",
 			"csignal": "cpp",
 			"fstream": "cpp",
-			"future": "cpp"
+			"future": "cpp",
+			"__config": "cpp"
 		}
 	}
 }
