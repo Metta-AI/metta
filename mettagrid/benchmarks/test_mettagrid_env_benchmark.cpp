@@ -30,10 +30,10 @@ GameConfig CreateBenchmarkConfig(int num_agents) {
   std::vector<std::string> inventory_item_names = {"ore", "heart"};
 
   std::shared_ptr<ActionConfig> action_cfg = std::make_shared<ActionConfig>(
-      true, std::map<InventoryItem, InventoryQuantity>(), std::map<InventoryItem, InventoryQuantity>());
+      std::map<InventoryItem, InventoryQuantity>(), std::map<InventoryItem, InventoryQuantity>());
+
   std::shared_ptr<AttackActionConfig> attack_cfg =
-      std::make_shared<AttackActionConfig>(true,
-                                           std::map<InventoryItem, InventoryQuantity>(),
+      std::make_shared<AttackActionConfig>(std::map<InventoryItem, InventoryQuantity>(),
                                            std::map<InventoryItem, InventoryQuantity>(),
                                            std::map<InventoryItem, InventoryQuantity>());
 

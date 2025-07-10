@@ -228,6 +228,12 @@ class TestBasicFunctionality:
         assert actions1 == actions2
 
 
+def test_action_config_disabled():
+    """Test that disabled actions are not available."""
+    c_env = create_minimal_mettagrid_c_env()
+    assert "attack" not in c_env.action_names()
+
+
 class TestObservations:
     """Test observation functionality."""
 
