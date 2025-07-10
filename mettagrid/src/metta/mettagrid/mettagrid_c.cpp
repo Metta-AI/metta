@@ -258,20 +258,20 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
   // Global tokens
   ObservationToken* agent_obs_ptr = reinterpret_cast<ObservationToken*>(observation_view.mutable_data(agent_idx, 0, 0));
   ObservationTokens agent_obs_tokens(agent_obs_ptr, observation_view.shape(1) - tokens_written);
-  unsigned int episode_completion_pct = 0;
+
+  ObservationType episode_completion_pct = 0;
   if (max_steps > 0) {
-    episode_completion_pct = static_cast<unsigned int>(
+    episode_completion_pct = static_cast<ObservationType>(
         std::round((static_cast<float>(current_step) / max_steps) * std::numeric_limits<ObservationType>::max()));
   }
 
-  int reward_int = static_cast<int>(std::round(rewards_view(agent_idx) * 100.0f));
-  reward_int = std::clamp(reward_int, 0, static_cast<int>(std::numeric_limits<ObservationType>::max()));
+  ObservationType reward_int = static_cast<ObservationType>(std::round(rewards_view(agent_idx) * 100.0f));
 
   std::vector<PartialObservationToken> global_tokens = {
-      {ObservationFeature::EpisodeCompletionPct, static_cast<ObservationType>(episode_completion_pct)},
+      {ObservationFeature::EpisodeCompletionPct, episode_completion_pct},
       {ObservationFeature::LastAction, static_cast<ObservationType>(action)},
       {ObservationFeature::LastActionArg, static_cast<ObservationType>(action_arg)},
-      {ObservationFeature::LastReward, static_cast<ObservationType>(reward_int)}};
+      {ObservationFeature::LastReward, reward_int}};
 
   // Global tokens are always at the center of the observation.
   uint8_t global_location =

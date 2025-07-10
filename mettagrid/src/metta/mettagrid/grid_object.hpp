@@ -6,7 +6,6 @@
 #include <string>
 #include <vector>
 
-#include "packed_coordinate.hpp"
 #include "types.hpp"
 
 using Layer = ObservationType;
@@ -51,8 +50,6 @@ enum Orientation {
   Right = 3
 };
 
-using GridObjectId = unsigned int;
-
 struct GridObjectConfig {
   TypeId type_id;
   std::string type_name;
@@ -77,7 +74,13 @@ public:
     this->location = object_location;
   }
 
-  virtual std::vector<PartialObservationToken> obs_features() const = 0;
+  virtual bool swappable() const {
+    return false;
+  }
+
+  virtual std::vector<PartialObservationToken> obs_features() const {
+    return {};  // Default: no observable features
+  }
 };
 
 #endif  // GRID_OBJECT_HPP_

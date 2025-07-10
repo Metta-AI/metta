@@ -11,7 +11,6 @@
 #include "agent.hpp"
 #include "constants.hpp"
 #include "has_inventory.hpp"
-#include "metta_object.hpp"
 
 // #MettagridConfig
 struct ConverterConfig : public GridObjectConfig {
@@ -180,7 +179,7 @@ public:
     return delta;
   }
 
-  virtual vector<PartialObservationToken> obs_features() const override {
+  vector<PartialObservationToken> obs_features() const override {
     vector<PartialObservationToken> features;
     features.reserve(5 + this->inventory.size());
     features.push_back({ObservationFeature::TypeId, static_cast<ObservationType>(this->type_id)});

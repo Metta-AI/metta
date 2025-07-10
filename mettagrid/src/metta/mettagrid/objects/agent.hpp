@@ -9,7 +9,6 @@
 #include "../grid_object.hpp"
 #include "../stats_tracker.hpp"
 #include "constants.hpp"
-#include "metta_object.hpp"
 #include "types.hpp"
 
 // #MettagridConfig
@@ -43,7 +42,7 @@ struct AgentConfig : public GridObjectConfig {
   float group_reward_pct;
 };
 
-class Agent : public MettaObject {
+class Agent : public GridObject {
 public:
   unsigned char group;
   short frozen;
@@ -132,11 +131,11 @@ public:
     this->current_resource_reward = new_reward;
   }
 
-  virtual bool swappable() const override {
+  bool swappable() const override {
     return this->frozen;
   }
 
-  virtual std::vector<PartialObservationToken> obs_features() const override {
+  std::vector<PartialObservationToken> obs_features() const override {
     std::vector<PartialObservationToken> features;
     features.reserve(5 + this->inventory.size());
     features.push_back({ObservationFeature::TypeId, static_cast<ObservationType>(type_id)});
