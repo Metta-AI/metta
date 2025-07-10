@@ -15,14 +15,16 @@ using GridType = std::vector<std::vector<std::vector<GridObjectId>>>;
 
 class Grid {
 public:
-  GridCoord height;
-  GridCoord width;
+  const GridCoord height;
+  const GridCoord width;
 
+private:
   GridType grid;
   vector<std::unique_ptr<GridObject>> objects;
 
-  inline Grid(GridCoord height, GridCoord width) : height(height), width(width) {
-    grid.resize(static_cast<size_t>(height) * width);
+public:
+  Grid(GridCoord height, GridCoord width) : height(height), width(width) {
+    grid.resize(height, vector<vector<GridObjectId>>(width, vector<GridObjectId>(GridLayer::GridLayerCount, 0)));
 
     // Reserve space for objects to avoid frequent reallocations
     // Assume ~50% of grid cells will contain objects
@@ -41,7 +43,7 @@ public:
     objects.push_back(nullptr);
   }
 
-  virtual ~Grid() = default;
+  ~Grid() = default;
 
   inline bool is_valid_location(const GridLocation& loc) const {
     return loc.r < height && loc.c < width && loc.layer < GridLayer::GridLayerCount;
@@ -61,7 +63,7 @@ public:
     return true;
   }
 
-  // Removes and object from the grid and gives ownership of the object to the caller.
+  // Removes an object from the grid and gives ownership of the object to the caller.
   // Since the caller is now the owner, this can make the raw pointer invalid, if the
   // returned unique_ptr is destroyed.
   inline unique_ptr<GridObject> remove_object(GridObject* obj) {
