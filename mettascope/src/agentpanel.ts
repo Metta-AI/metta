@@ -422,6 +422,9 @@ export function updateAgentTable() {
         } else {
           value = getAttr(agent, columnDef.field)
         }
+        if (value == null) {
+          value = 0
+        }
         let valueStr = value.toString()
         if (valueStr.includes('.')) {
           valueStr = value.toFixed(3)
