@@ -44,3 +44,52 @@ uv run python server.py
 
 - `/dashboard/*` - Dashboard-related endpoints
 - `/stats/*` - Statistics and data recording endpoints
+
+---
+
+## arXiv Ingestion Helper
+
+This module provides a helper to fetch metadata (and optionally download PDFs) for arXiv papers.
+
+### Usage (CLI)
+
+```sh
+uv run python -m metta.app_backend.arxiv_ingest 1804.02464 --pdf --out papers/
+```
+
+Prints structured metadata as JSON to stdout and downloads the PDF to the specified directory.
+
+### Usage (Python)
+
+```python
+from metta.app_backend.arxiv_ingest import fetch_arxiv_paper
+
+meta = fetch_arxiv_paper("1804.02464", download_pdf=True, dest_dir=Path("papers/"))
+print(meta)
+```
+
+### Error Handling
+- `InvalidArxivIDError`: Raised for invalid arXiv IDs
+- `ArxivFetchError`: Raised for network or API errors
+
+### Dependencies
+- `requests`, `feedparser`, `pydantic`
+
+### Testing
+Run tests (including integration tests):
+
+```sh
+uv run pytest --integration
+```
+
+### CI/CD Integration
+To ensure dependencies are always available in CI/CD:
+
+1. **Add to your CI pipeline:**
+   ```yaml
+   - name: Install dependencies
+     run: uv sync --group dev
+
+   - name: Run tests
+     run: uv run pytest
+   ```
