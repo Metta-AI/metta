@@ -504,6 +504,10 @@ async function parseUrlParams() {
   // Load the replay.
   const replayUrl = urlParams.get('replayUrl')
   const wsUrl = urlParams.get('wsUrl')
+  if (urlParams.get('play') !== null) {
+    // if the play parameter is set, we should preserve it when loading a replay
+    state.isPlaying = urlParams.get('play') === 'true'
+  }
   if (replayUrl) {
     console.info('Loading replay from URL: ', replayUrl)
     await fetchReplay(replayUrl)
