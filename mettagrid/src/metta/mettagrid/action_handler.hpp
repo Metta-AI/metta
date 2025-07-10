@@ -14,8 +14,7 @@ struct ActionConfig {
   std::map<InventoryItem, InventoryQuantity> required_resources;
   std::map<InventoryItem, InventoryQuantity> consumed_resources;
 
-  ActionConfig(bool enabled,
-               const std::map<InventoryItem, InventoryQuantity>& required_resources,
+  ActionConfig(const std::map<InventoryItem, InventoryQuantity>& required_resources,
                const std::map<InventoryItem, InventoryQuantity>& consumed_resources)
       : required_resources(required_resources), consumed_resources(consumed_resources) {}
 
