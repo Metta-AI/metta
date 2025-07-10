@@ -49,7 +49,7 @@ export function drawMiniMap(panel: PanelInfo) {
     if (!position) continue
     const x = position[0]
     const y = position[1]
-    const type = obj.typeId.get()
+    const type = obj.typeId
     const typeName = state.replay.typeNames[type as number]
     var color = parseHtmlColor('#FFFFFF')
     if (typeName === 'wall') {
@@ -72,7 +72,7 @@ export function drawMiniMap(panel: PanelInfo) {
     if (!position) continue
     const x = position[0]
     const y = position[1]
-    const type = obj.typeId.get()
+    const type = obj.typeId
     const typeName = state.replay.typeNames[type as number]
     if (typeName && typeName.startsWith('agent')) {
       ctx.drawSprite(

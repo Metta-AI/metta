@@ -101,7 +101,7 @@ export function updateHoverPanel(entity: Entity | null) {
     return
   }
 
-  const typeId = entity.typeId.get()
+  const typeId = entity.typeId
   let typeName = state.replay.typeNames[typeId as number]
   if (typeName == 'wall') {
     // Don't show hover panel for walls.
@@ -135,8 +135,8 @@ export function hideHoverPanel() {
 /** Updates the DOM tree of the info panel. */
 function updateDom(htmlPanel: HTMLElement, entity: Entity) {
   // Update the readout.
-  htmlPanel.setAttribute('data-entity-id', (entity.id.get() || 0).toString())
-  const agentId = entity.agentId.get()
+  htmlPanel.setAttribute('data-entity-id', (entity.id || 0).toString())
+  const agentId = entity.agentId
   htmlPanel.setAttribute('data-agent-id', (agentId || -1).toString())
 
   let params = findIn(htmlPanel, '.params')
@@ -149,12 +149,12 @@ function updateDom(htmlPanel: HTMLElement, entity: Entity) {
 
   // Show entity ID
   param.querySelector('.name')!.textContent = 'ID'
-  param.querySelector('.value')!.textContent = entity.id.get().toString()
+  param.querySelector('.value')!.textContent = entity.id.toString()
   params.appendChild(param)
 
   // Show entity type
   if (state.replay && entity.typeId) {
-    const typeId = entity.typeId.get()
+    const typeId = entity.typeId
     if (typeId != null && typeId < state.replay.typeNames.length) {
       param = paramTemplate.cloneNode(true) as HTMLElement
       param.querySelector('.name')!.textContent = 'Type'
@@ -206,8 +206,8 @@ function updateDom(htmlPanel: HTMLElement, entity: Entity) {
   removeChildren(recipe)
   let recipeArea = findIn(htmlPanel, '.recipe-area')
 
-  const recipeInput = entity.recipeInput?.get()
-  const recipeOutput = entity.recipeOutput?.get()
+  const recipeInput = entity.recipeInput
+  const recipeOutput = entity.recipeOutput
 
   // Create maps for input and output items
   let inputMap = new Map<string, number>()
@@ -286,7 +286,7 @@ export function updateReadout() {
 
   let objectTypeCounts = new Map<string, number>()
   for (const obj of state.replay.objects) {
-    const type = obj.typeId.get()
+    const type = obj.typeId
     const typeName = state.replay.typeNames[type as number]
     objectTypeCounts.set(typeName, (objectTypeCounts.get(typeName) || 0) + 1)
   }

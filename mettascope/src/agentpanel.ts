@@ -440,9 +440,9 @@ export function updateAgentTable() {
         }
 
         dataCell.children[0].textContent = valueStr
-        let agentId = agent.agentId.get()
+        let agentId = agent.agentId
         dataCell.setAttribute('data-agent-id', (agentId as number).toString())
-        if (state.selectedGridObject != null && agentId == state.selectedGridObject.agentId.get()) {
+        if (state.selectedGridObject != null && agentId == state.selectedGridObject.agentId) {
           dataCell.classList.add('selected')
         }
         column.appendChild(dataCell)
@@ -457,9 +457,9 @@ export function updateAgentTable() {
   for (let i = 0; i < agents.length; i++) {
     let dataCell = newColumnDataCell.cloneNode(true) as HTMLElement
     let agent = agents[i]
-    let agentId = agent.agentId.get()
+    let agentId = agent.agentId
     dataCell.setAttribute('data-agent-id', (agentId as number).toString())
-    if (state.selectedGridObject != null && agentId == state.selectedGridObject.agentId.get()) {
+    if (state.selectedGridObject != null && agentId == state.selectedGridObject.agentId) {
       dataCell.classList.add('selected')
     }
     newColumn.appendChild(dataCell)

@@ -54,8 +54,8 @@ function drawWalls() {
   // Construct a wall adjacency map.
   var wallMap = new Grid(state.replay!.mapSize[0], state.replay!.mapSize[1])
   for (const obj of state.replay!.objects) {
-    const type = obj.typeId.get()
-    const typeName = state.replay!.typeNames[type as number]
+    const type = obj.typeId
+    const typeName = state.replay!.typeNames[type]
     if (typeName !== 'wall') {
       continue
     }
@@ -65,8 +65,8 @@ function drawWalls() {
 
   // Draw the walls, following the adjacency map.
   for (const obj of state.replay!.objects) {
-    const type = obj.typeId.get()
-    const typeName = state.replay!.typeNames[type as number]
+    const type = obj.typeId
+    const typeName = state.replay!.typeNames[type]
     if (typeName !== 'wall') {
       continue
     }
@@ -98,8 +98,8 @@ function drawWalls() {
 
   // Draw the wall infill, following the adjacency map.
   for (const obj of state.replay!.objects) {
-    const type = obj.typeId.get()
-    const typeName = state.replay!.typeNames[type as number]
+    const type = obj.typeId
+    const typeName = state.replay!.typeNames[type]
     if (typeName !== 'wall') {
       continue
     }
@@ -135,8 +135,8 @@ function drawObject(obj: Entity) {
   const position = obj.position.get()
   const x = position[0]
   const y = position[1]
-  const typeId: number = obj.typeId.get() as number
-  const typeName: string = state.replay!.typeNames[typeId]
+  const typeId: number = obj.typeId as number
+  const typeName = state.replay!.typeNames[typeId] || ''
 
   if (typeName === 'wall') {
     // Walls are drawn in a different way.
@@ -157,14 +157,15 @@ function drawObject(obj: Entity) {
       suffix = 'e'
     }
 
-    const agent_id = obj.agentId.get()
-
-    ctx.drawSprite(
-      'agents/agent.' + suffix + '.png',
-      x * Common.TILE_SIZE,
-      y * Common.TILE_SIZE,
-      colorFromId(agent_id)
-    )
+    const agent_id = obj.agentId
+    if (agent_id !== null && agent_id !== 0) {
+      ctx.drawSprite(
+        'agents/agent.' + suffix + '.png',
+        x * Common.TILE_SIZE,
+        y * Common.TILE_SIZE,
+        colorFromId(agent_id)
+      )
+    }
   } else {
     // Draw regular objects.
 
@@ -558,8 +559,8 @@ function drawVisibility() {
     } else {
       // When there is no selected grid Entity, update the visibility map for all agents.
       for (const obj of state.replay.objects) {
-        const type = obj.typeId.get()
-        const typeName = state.replay.typeNames[type as number]
+        const type = obj.typeId
+        const typeName = state.replay.typeNames[type]
         if (typeName && typeName.startsWith('agent')) {
           updateVisibilityMap(obj)
         }
@@ -671,7 +672,7 @@ function drawAttackMode() {
   }
 
   // Draw a selection of 3x3 grid of targets in the direction of the selected agent.
-  if (state.selectedGridObject !== null && state.selectedGridObject.agentId.get() !== null) {
+  if (state.selectedGridObject !== null && state.selectedGridObject.agentId !== null) {
     const position = state.selectedGridObject.position.get()
     if (!position) return
     const x = position[0]
@@ -761,10 +762,10 @@ export function drawMap(panel: PanelInfo) {
       if (objectUnderMouse !== undefined) {
         updateSelection(objectUnderMouse)
         console.info('Selected Entity on the map:', state.selectedGridObject)
-        if (state.selectedGridObject && state.selectedGridObject.agentId.get() !== null) {
+        if (state.selectedGridObject && state.selectedGridObject.agentId !== null) {
           // If selecting an agent, focus the trace panel on the agent.
-          const agentId = state.selectedGridObject.agentId.get()
-          if (agentId !== null) {
+          const agentId = state.selectedGridObject.agentId
+          if (state.replayHelper && agentId >= 0 && agentId < state.replayHelper.agents.length) {
             ui.tracePanel.focusPos(
               state.step * Common.TRACE_WIDTH + Common.TRACE_WIDTH / 2,
               (agentId as number) * Common.TRACE_HEIGHT + Common.TRACE_HEIGHT / 2,
@@ -829,8 +830,8 @@ export function drawMap(panel: PanelInfo) {
 
     // Draw matching objects on top of the overlay.
     for (const obj of state.replay.objects) {
-      const typeId = obj.typeId.get()
-      const typeName = state.replay.typeNames[typeId as number]
+      const typeId = obj.typeId
+      const typeName = state.replay.typeNames[typeId]
       const position = obj.position.get()
       if (position && typeName && searchMatch(typeName)) {
         let x = position[0]

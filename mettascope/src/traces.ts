@@ -51,7 +51,7 @@ export function drawTraces(panel: PanelInfo) {
   // If we're following a selection, center the trace panel on it.
   if (state.followSelection && state.selectedGridObject !== null) {
     const x = state.step * Common.TRACE_WIDTH + Common.TRACE_WIDTH / 2
-    const agentId = state.selectedGridObject.agentId.get()
+    const agentId = state.selectedGridObject.agentId
     if (agentId !== null) {
       const y = (agentId as number) * Common.TRACE_HEIGHT + Common.TRACE_HEIGHT / 2
       panel.panPos = new Vec2f(-x, -y)
@@ -80,7 +80,7 @@ export function drawTraces(panel: PanelInfo) {
 
   // Draw a rectangle around the selected agent.
   if (state.selectedGridObject !== null && state.selectedGridObject.agentId !== null) {
-    const agentId = state.selectedGridObject.agentId.get()
+    const agentId = state.selectedGridObject.agentId
 
     // Draw the selection rectangle.
     ctx.drawSolidRect(0, agentId * Common.TRACE_HEIGHT, fullSize.x(), Common.TRACE_HEIGHT, [0.3, 0.3, 0.3, 1])
