@@ -77,7 +77,13 @@ public:
     this->location = object_location;
   }
 
-  virtual std::vector<PartialObservationToken> obs_features() const = 0;
+  virtual bool swappable() const {
+    return false;
+  }
+
+  virtual std::vector<PartialObservationToken> obs_features() const {
+    return {};  // Default: no observable features
+  }
 };
 
 #endif  // GRID_OBJECT_HPP_

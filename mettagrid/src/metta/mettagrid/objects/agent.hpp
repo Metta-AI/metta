@@ -9,7 +9,6 @@
 #include "../grid_object.hpp"
 #include "../stats_tracker.hpp"
 #include "constants.hpp"
-#include "metta_object.hpp"
 #include "types.hpp"
 
 // #MettagridConfig
@@ -43,7 +42,7 @@ struct AgentConfig : public GridObjectConfig {
   float group_reward_pct;
 };
 
-class Agent : public MettaObject {
+class Agent : public GridObject {
 public:
   unsigned char group;
   short frozen;

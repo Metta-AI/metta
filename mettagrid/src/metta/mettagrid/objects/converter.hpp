@@ -11,7 +11,6 @@
 #include "agent.hpp"
 #include "constants.hpp"
 #include "has_inventory.hpp"
-#include "metta_object.hpp"
 
 // #MettagridConfig
 struct ConverterConfig : public GridObjectConfig {

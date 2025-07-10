@@ -24,7 +24,10 @@ public:
   inline Grid(GridCoord height, GridCoord width) : height(height), width(width) {
     grid.resize(height, vector<vector<GridObjectId>>(width, vector<GridObjectId>(GridLayer::GridLayerCount, 0)));
 
-    // 0 is reserved for empty space
+    // GridObjectId "0" is reserved to mean empty space (GridObject pointer = nullptr).
+    // By pushing nullptr at index 0, we ensure that:
+    //   1. Grid initialization with zeros automatically represents empty spaces
+    //   2. Object IDs match their index in the objects vector (no off-by-one adjustments)
     objects.push_back(nullptr);
   }
 
@@ -109,10 +112,35 @@ public:
     return object(grid[loc.r][loc.c][loc.layer]);
   }
 
-  inline const GridLocation location(GridObjectId id) {
-    return object(id)->location;
+  /**
+   * Get all objects at the given row and column, indexed by layer.
+   * Returns a fixed-size array where index corresponds to layer number.
+   * Elements will be nullptr if no object exists at that layer.
+   */
+  inline std::array<GridObject*, GridLayer::GridLayerCount> objects_at(GridCoord row, GridCoord col) const {
+    std::array<GridObject*, GridLayer::GridLayerCount> result{};  // Initialize to nullptr (empty space)
+
+    GridLocation loc{row, col, 0};  // layer doesn't matter for row/col validation
+    if (!is_valid_location(loc)) {
+      return result;
+    }
+
+    // grid[row][col] is already a vector<GridObjectId> indexed by layer!
+    const auto& layer_ids = grid[row][col];
+
+    for (ObservationType layer = 0; layer < GridLayer::GridLayerCount; ++layer) {
+      if (layer_ids[layer] != 0) {
+        result[layer] = object(layer_ids[layer]);  // collect a pointer into the objects array
+      }
+    }
+
+    return result;
   }
 
+  /**
+   * Get the location at a relative offset from the given orientation.
+   * Note: The returned location has the same layer as the input location.
+   */
   inline const GridLocation relative_location(const GridLocation& loc,
                                               Orientation facing,
                                               short forward_distance,  // + is forward, - is backward
@@ -148,6 +176,10 @@ public:
     return GridLocation(static_cast<GridCoord>(new_r), static_cast<GridCoord>(new_c), loc.layer);
   }
 
+  /**
+   * Get the location one step forward in the given orientation.
+   * Note: The returned location has the same layer as the input location.
+   */
   inline const GridLocation relative_location(const GridLocation& loc, Orientation orientation) {
     return this->relative_location(loc, orientation, 1, 0);
   }

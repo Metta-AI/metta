@@ -8,7 +8,6 @@
 #include "grid_object.hpp"
 #include "objects/agent.hpp"
 #include "objects/constants.hpp"
-#include "objects/metta_object.hpp"
 #include "types.hpp"
 
 struct AttackActionConfig : public ActionConfig {
@@ -64,7 +63,7 @@ protected:
   }
 
   bool _handle_target(Agent* actor, GridLocation target_loc) {
-    target_loc.layer = GridLayer::Agent_Layer;
+    target_loc.layer = GridLayer::AgentLayer;
     Agent* agent_target = static_cast<Agent*>(_grid->object_at(target_loc));
 
     bool was_frozen = false;

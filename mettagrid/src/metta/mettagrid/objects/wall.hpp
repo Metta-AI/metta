@@ -6,7 +6,6 @@
 
 #include "../grid_object.hpp"
 #include "constants.hpp"
-#include "metta_object.hpp"
 
 // #MettagridConfig
 struct WallConfig : public GridObjectConfig {
@@ -16,7 +15,7 @@ struct WallConfig : public GridObjectConfig {
   bool swappable;
 };
 
-class Wall : public MettaObject {
+class Wall : public GridObject {
 public:
   bool _swappable;
 
