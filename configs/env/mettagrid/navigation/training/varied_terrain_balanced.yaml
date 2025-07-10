@@ -5,17 +5,6 @@ defaults:
 sampling: 1
 
 game:
-  num_agents: 4
   map_builder:
     room:
       dir: ${choose:varied_terrain/balanced_large,varied_terrain/balanced_medium,varied_terrain/balanced_small}
-  objects:
-    altar:
-      cooldown: 1000
-      input_resources:
-        battery_red: 3
-      output_resources:
-        heart: 1
-      max_output: 5
-      conversion_ticks: 1
-      initial_resource_count: 1
