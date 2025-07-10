@@ -95,6 +95,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
 
         # Exploration tracking attributes
         self._agent_visited_positions: Dict[int, set] = {}  # agent_id -> set of (r, c) positions
+        self._agent_observed_pixels: Dict[int, set] = {}  # agent_id -> set of (r, c) positions seen in observations
         self._total_grid_cells: int = 0  # Total number of accessible cells in grid
 
         self._initialize_c_env()
@@ -168,8 +169,10 @@ class MettaGridEnv(PufferEnv, GymEnv):
 
         # Initialize exploration tracking for this episode
         self._agent_visited_positions = {}
+        self._agent_observed_pixels = {}
         for agent_id in range(self._c_env.num_agents):
             self._agent_visited_positions[agent_id] = set()
+            self._agent_observed_pixels[agent_id] = set()
 
         assert self.observations.dtype == dtype_observations
         assert self.terminals.dtype == dtype_terminals
@@ -218,6 +221,8 @@ class MettaGridEnv(PufferEnv, GymEnv):
 
         # Track agent positions for exploration metrics
         self._track_agent_positions()
+        # Track observed pixels for observation coverage metrics
+        self._track_observed_pixels()
 
         if self._replay_writer and self._episode_id:
             with self.timer("_replay_writer.log_step"):
@@ -253,18 +258,43 @@ class MettaGridEnv(PufferEnv, GymEnv):
                 position = (obj_data["r"], obj_data["c"])
                 self._agent_visited_positions[agent_id].add(position)
 
+    def _track_observed_pixels(self) -> None:
+        """Track pixels that agents have seen in their observations (11x11 matrix around center)."""
+        grid_objects = self._c_env.grid_objects()
+        obs_width = self.obs_width
+        obs_height = self.obs_height
+
+        for _obj_id, obj_data in grid_objects.items():
+            if "agent_id" in obj_data:
+                agent_id = obj_data["agent_id"]
+                agent_r, agent_c = obj_data["r"], obj_data["c"]
+
+                # Calculate observation boundaries (11x11 around agent center)
+                obs_width_radius = obs_width // 2
+                obs_height_radius = obs_height // 2
+
+                r_start = max(0, agent_r - obs_height_radius)
+                r_end = min(self.map_height, agent_r + obs_height_radius + 1)
+                c_start = max(0, agent_c - obs_width_radius)
+                c_end = min(self.map_width, agent_c + obs_width_radius + 1)
+
+                # Add all pixels in the observation window to the agent's observed set
+                for r in range(r_start, r_end):
+                    for c in range(c_start, c_end):
+                        self._agent_observed_pixels[agent_id].add((r, c))
+
     def _calculate_exploration_metrics(self) -> Dict[str, float]:
         """Calculate exploration metrics aggregated across all agents."""
         metrics = {}
 
-        # Calculate aggregate metrics across all agents
+        # Calculate aggregate metrics across all agents for visited locations
         total_visited = sum(len(positions) for positions in self._agent_visited_positions.values())
         avg_visited = total_visited / self._c_env.num_agents if self._c_env.num_agents > 0 else 0
 
         metrics["exploration/total_unique_locations"] = float(total_visited)
         metrics["exploration/avg_unique_locations_per_agent"] = float(avg_visited)
 
-        # Normalized aggregate metrics
+        # Normalized aggregate metrics for visited locations
         if self._total_grid_cells > 0:
             metrics["exploration/total_unique_locations_normalized_by_volume"] = (
                 float(total_visited) / self._total_grid_cells
@@ -284,6 +314,35 @@ class MettaGridEnv(PufferEnv, GymEnv):
             )
             metrics["exploration/avg_unique_locations_per_agent_normalized_by_volume_and_agents"] = float(
                 avg_visited
+            ) / (self._total_grid_cells * self._c_env.num_agents)
+
+        # Calculate aggregate metrics across all agents for observed pixels
+        total_observed = sum(len(pixels) for pixels in self._agent_observed_pixels.values())
+        avg_observed = total_observed / self._c_env.num_agents if self._c_env.num_agents > 0 else 0
+
+        metrics["exploration/total_observed_pixels"] = float(total_observed)
+        metrics["exploration/avg_observed_pixels_per_agent"] = float(avg_observed)
+
+        # Normalized aggregate metrics for observed pixels
+        if self._total_grid_cells > 0:
+            metrics["exploration/total_observed_pixels_normalized_by_volume"] = (
+                float(total_observed) / self._total_grid_cells
+            )
+            metrics["exploration/avg_observed_pixels_per_agent_normalized_by_volume"] = (
+                float(avg_observed) / self._total_grid_cells
+            )
+
+        if self._c_env.num_agents > 0:
+            metrics["exploration/total_observed_pixels_normalized_by_agents"] = (
+                float(total_observed) / self._c_env.num_agents
+            )
+
+        if self._total_grid_cells > 0 and self._c_env.num_agents > 0:
+            metrics["exploration/total_observed_pixels_normalized_by_volume_and_agents"] = float(total_observed) / (
+                self._total_grid_cells * self._c_env.num_agents
+            )
+            metrics["exploration/avg_observed_pixels_per_agent_normalized_by_volume_and_agents"] = float(
+                avg_observed
             ) / (self._total_grid_cells * self._c_env.num_agents)
 
         return metrics
