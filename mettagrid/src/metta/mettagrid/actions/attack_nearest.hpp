@@ -31,8 +31,8 @@ protected:
         GridObject* obj = _grid->object_at(target_loc);
         if (!obj) continue;
 
-        // we know obj is an Agent because it is in the agent layer
-        return _handle_target(static_cast<Agent*>(obj), target_loc);
+        // we know obj is another Agent because it is in the agent layer - proceed with attack
+        return _handle_target(actor, target_loc);
       }
     }
 
