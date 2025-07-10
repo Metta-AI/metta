@@ -104,6 +104,7 @@ public:
   }
 
   inline GridObject* object(GridObjectId obj_id) const {
+    assert(obj_id < objects.size() && "Invalid object ID");
     return objects[obj_id].get();
   }
 
