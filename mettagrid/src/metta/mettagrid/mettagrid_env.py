@@ -321,10 +321,11 @@ class MettaGridEnv(PufferEnv, GymEnv):
                 self._total_grid_cells * self._c_env.num_agents
             )
 
-        # New metric: normalize observed pixels by (agents * (11*11 + 11*timesteps))
+        # New metric: normalize observed pixels by (agents * (11*11 + 11*episode_length))
         if self._c_env.num_agents > 0:
             obs_area = 11 * 11  # 11x11 observation window
-            potential_obs_per_agent = obs_area + 11 * self._steps  # 11*11 + 11*timesteps
+            episode_length = self.max_steps  # Episode length is constant
+            potential_obs_per_agent = obs_area + 11 * episode_length  # 11*11 + 11*episode_length
             total_potential_obs = self._c_env.num_agents * potential_obs_per_agent
             metrics["explore/unique_observations_normalized_by_potential"] = (
                 float(total_unique_observed) / total_potential_obs
