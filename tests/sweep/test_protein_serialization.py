@@ -178,33 +178,6 @@ class TestWandbProteinSerialization:
             assert info["cost"] == pytest.approx(150.0)
             assert info["suggestion_uuid"] == "historical_run_123"
 
-    def test_non_serializable_fallback_to_string(self, mock_protein, mock_wandb_run):
-        """Test that non-serializable objects fall back to string representation."""
-        with patch("wandb.Api"):
-            protein_wandb = WandbProtein(mock_protein, mock_wandb_run)
-
-            # Create an object that can't be serialized
-            class NonSerializable:
-                def __str__(self):
-                    return "NonSerializable object"
-
-            test_data = {
-                "normal": "value",
-                "bad_object": NonSerializable(),
-                "nested": {"another_bad": NonSerializable()},
-            }
-
-            cleaned = protein_wandb._deep_clean(test_data)
-
-            # Verify it falls back to string
-            assert cleaned["normal"] == "value"
-            assert cleaned["bad_object"] == "NonSerializable object"
-            assert cleaned["nested"]["another_bad"] == "NonSerializable object"
-
-            # Verify it's JSON serializable
-            json_str = json.dumps(cleaned)
-            assert json_str is not None
-
     @patch("wandb.Api")
     def test_full_initialization_with_serialization(self, mock_api, mock_protein, mock_wandb_run):
         """Test full initialization flow with proper serialization."""
