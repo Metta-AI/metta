@@ -38,10 +38,6 @@ protected:
   std::map<InventoryItem, InventoryQuantity> _defense_resources;
 
   bool _handle_action(Agent* actor, ActionArg arg) override {
-    if (arg > 8 || arg < 0) {
-      return false;
-    }
-
     Agent* last_agent = nullptr;
     short num_skipped = 0;
 
