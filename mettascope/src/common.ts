@@ -1,14 +1,12 @@
 import { Vec2f } from './vector_math.js'
 import { Context3d } from './context3d.js'
-import { ContextWebgl } from './contextWebgl.js'
 import { find, parseHtmlColor, localStorageGetNumber, toggleOpacity } from './htmlutils.js'
 import { PanelInfo } from './panels.js'
 import { HoverPanel } from './hoverpanels.js'
 
 
 // The 3D context, used for nearly everything.
-export const ctx = new ContextWebgl(find('#global-canvas') as HTMLCanvasElement)
-// export const ctx = new Context3d(find('#global-canvas') as HTMLCanvasElement)
+export const ctx = new Context3d(find('#global-canvas') as HTMLCanvasElement)
 
 ; (window as any).ctx = ctx
 
