@@ -89,7 +89,7 @@ class WallConfig(BaseModelWithForbidExtra):
     """Wall/Block configuration."""
 
     type_id: int
-    swappable: Optional[bool] = None
+    swappable: bool = False
 
 
 class ConverterConfig(BaseModelWithForbidExtra):
@@ -102,7 +102,7 @@ class ConverterConfig(BaseModelWithForbidExtra):
     conversion_ticks: int = Field(ge=0)
     cooldown: int = Field(ge=0)
     initial_resource_count: int = Field(ge=0)
-    color: Optional[int] = Field(default=0, ge=0, le=255)
+    color: int = Field(default=0, ge=0, le=255)
 
 
 class GameConfig(BaseModelWithForbidExtra):
