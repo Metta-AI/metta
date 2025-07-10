@@ -37,7 +37,7 @@ trainer:
 # policy_uri: wandb://run/b.daveey.t.1.lra.dr.muon
 # policy_uri: pytorch:///tmp/puffer_metta.pt
 # policy_uri: pytorch:///tmp/puffer_metta.pt
-policy_uri: wandb://run/daveey.arena.ces.32x4.3
+policy_uri: wandb://run/daveey.fixattack.cr.4x4.0
 # policy_uri: pytorch://${data_dir}/puffer/puffer_metta.pt
 
 # policy_uri: ${trained_policy_uri}

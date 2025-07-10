@@ -122,9 +122,9 @@ export function processActions(event: KeyboardEvent) {
       // No-op.
       sendAction('noop', 0)
     }
-    if (event.key >= '0' && event.key <= '8') {
+    if (event.key >= '1' && event.key <= '9') {
       // Keys 1-9 are the attack matrix.
-      sendAction('attack', parseInt(event.key))
+      sendAction('attack', parseInt(event.key) - 1)
     }
     if (event.key == 'Z') {
       // Show attack mode menu (a bunch of little circles that you can click on).
