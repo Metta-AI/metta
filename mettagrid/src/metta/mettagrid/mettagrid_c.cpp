@@ -10,7 +10,6 @@
 
 #include "action_handler.hpp"
 #include "actions/attack.hpp"
-#include "actions/attack_nearest.hpp"
 #include "actions/change_color.hpp"
 #include "actions/get_output.hpp"
 #include "actions/move.hpp"
@@ -93,7 +92,6 @@ MettaGrid::MettaGrid(const GameConfig& cfg, py::list map, unsigned int seed)
         throw std::runtime_error("AttackActionConfig is not a valid action config");
       }
       _action_handlers.push_back(std::make_unique<Attack>(*attack_config));
-      _action_handlers.push_back(std::make_unique<AttackNearest>(*attack_config));
     } else if (action_name_str == "swap") {
       _action_handlers.push_back(std::make_unique<Swap>(*action_config));
     } else if (action_name_str == "change_color") {
