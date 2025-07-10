@@ -18,5 +18,8 @@ game:
         altar: ${sampling:10, 50, 30}
   objects:
     altar:
-      cooldown: 1000
       initial_resource_count: 1
+      # This makes it so the altar is always "full", and will never produce new resources.
+      # Note that they shouldn't produce any resources anyways, since none of the training
+      # maps have the necessary inputs.
+      max_output: 0
