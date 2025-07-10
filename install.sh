@@ -54,18 +54,30 @@ check_cmd() {
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
+# Common locations where uv might be installed
+UV_PATHS="$HOME/.local/bin/uv $HOME/.cargo/bin/uv /opt/homebrew/bin/uv /usr/local/bin/uv"
+
 echo "Welcome to Metta!"
 
 if ! check_cmd uv; then
     echo "\nuv is not installed. Installing uv..."
     curl -LsSf https://astral.sh/uv/install.sh | sh
 
-    # Add all common uv installation paths to PATH
-    export PATH="$HOME/.local/bin:$HOME/.cargo/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
+    # Add directories containing uv to PATH (only if not already present)
+    for uv_path in $UV_PATHS; do
+        dir=$(dirname "$uv_path")
+        case ":$PATH:" in
+            *":$dir:"*) ;;  # Already in PATH
+            *) export PATH="$dir:$PATH" ;;
+        esac
+    done
 
     # Source env files if they exist
     [ -f "$HOME/.local/bin/env" ] && . "$HOME/.local/bin/env"
     [ -f "$HOME/.cargo/env" ] && . "$HOME/.cargo/env"
+
+    # Force shell to rescan PATH (helps in some environments)
+    hash -r 2>/dev/null || true
 
     if ! check_cmd uv; then
         err "Failed to install uv. Please install it manually from https://github.com/astral-sh/uv"
@@ -73,6 +85,10 @@ if ! check_cmd uv; then
 fi
 
 cd "$SCRIPT_DIR" || err "Failed to change to project directory"
+
+# Set the project environment to ensure we use the correct venv
+export UV_PROJECT_ENVIRONMENT="${SCRIPT_DIR}/.venv"
+
 uv sync || err "Failed to install Python dependencies"
 uv run python -m metta.setup.metta_cli symlink-setup || err "Failed to set up metta command in ~/.local/bin"
 uv run python -m metta.setup.metta_cli configure $PROFILE || err "Failed to run configuration"
