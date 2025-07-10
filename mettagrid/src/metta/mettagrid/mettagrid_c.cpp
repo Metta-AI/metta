@@ -33,7 +33,7 @@
 
 namespace py = pybind11;
 
-MettaGrid::MettaGrid(const GameConfig& cfg, py::list map, int seed)
+MettaGrid::MettaGrid(const GameConfig& cfg, py::list map, unsigned int seed)
     : max_steps(cfg.max_steps),
       obs_width(cfg.obs_width),
       obs_height(cfg.obs_height),
@@ -176,7 +176,10 @@ MettaGrid::MettaGrid(const GameConfig& cfg, py::list map, int seed)
       if (agent_config) {
         Agent* agent = new Agent(r, c, *agent_config);
         _grid->add_object(agent);
-        agent->agent_id = _agents.size();
+        if (_agents.size() > std::numeric_limits<decltype(agent->agent_id)>::max()) {
+          throw std::runtime_error("Too many agents for agent_id type");
+        }
+        agent->agent_id = static_cast<decltype(agent->agent_id)>(_agents.size());
         agent->stats.set_environment(this);
         add_agent(agent);
         _group_sizes[agent->group] += 1;
@@ -585,11 +588,11 @@ py::list MettaGrid::action_names() {
   return names;
 }
 
-unsigned int MettaGrid::map_width() {
+GridCoord MettaGrid::map_width() {
   return _grid->width;
 }
 
-unsigned int MettaGrid::map_height() {
+GridCoord MettaGrid::map_height() {
   return _grid->height;
 }
 
@@ -610,7 +613,7 @@ py::dict MettaGrid::feature_spec() {
   return feature_spec;
 }
 
-unsigned int MettaGrid::num_agents() {
+size_t MettaGrid::num_agents() {
   return _agents.size();
 }
 
@@ -752,7 +755,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
 
   // MettaGrid class bindings
   py::class_<MettaGrid>(m, "MettaGrid")
-      .def(py::init<const GameConfig&, const py::list&, int>())
+      .def(py::init<const GameConfig&, const py::list&, unsigned int>())
       .def("reset", &MettaGrid::reset)
       .def("step", &MettaGrid::step, py::arg("actions").noconvert())
       .def("set_buffers",
