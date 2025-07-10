@@ -22,12 +22,17 @@ public:
   vector<std::unique_ptr<GridObject>> objects;
 
   inline Grid(GridCoord height, GridCoord width) : height(height), width(width) {
-    grid.resize(height, vector<vector<GridObjectId>>(width, vector<GridObjectId>(GridLayer::GridLayerCount, 0)));
+    grid.resize(static_cast<size_t>(height) * width);
 
     // Reserve space for objects to avoid frequent reallocations
     // Assume ~50% of grid cells will contain objects
-    size_t estimated_objects = static_cast<size_t>(height * width) / 2;
-    objects.reserve(estimated_objects);
+    size_t estimated_objects = static_cast<size_t>(height) * width / 2;
+
+    // Cap preallocation at ~100MB of pointer memory
+    constexpr size_t MAX_PREALLOCATED_OBJECTS = 12'500'000;
+    size_t reserved_objects = std::min(estimated_objects, MAX_PREALLOCATED_OBJECTS);
+
+    objects.reserve(reserved_objects);
 
     // GridObjectId "0" is reserved to mean empty space (GridObject pointer = nullptr).
     // By pushing nullptr at index 0, we ensure that:
