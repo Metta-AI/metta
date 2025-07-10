@@ -144,6 +144,66 @@ function updateDom(htmlPanel: HTMLElement, entity: any) {
   let inventory = findIn(htmlPanel, '.inventory')
   removeChildren(inventory)
 
+  // Update inventory display
+  const inventoryData = entity.inventory?.get()
+  if (inventoryData && inventoryData.length > 0 && state.replay) {
+    for (let i = 0; i < inventoryData.length; i++) {
+      const quantity = inventoryData[i]
+      if (quantity > 0 && i < state.replay.itemNames.length) {
+        let item = itemTemplate.cloneNode(true) as HTMLElement
+        const icon = item.querySelector('.icon') as HTMLImageElement
+        if (icon) {
+          icon.src = 'data/atlas/resources/' + state.replay.itemNames[i] + '.png'
+        }
+        const amountEl = item.querySelector('.amount')
+        if (amountEl) {
+          amountEl.textContent = quantity.toString()
+        }
+        inventory.appendChild(item)
+      }
+    }
+  }
+
+  // Update entity properties display
+  let param = paramTemplate.cloneNode(true) as HTMLElement
+
+  // Show entity ID
+  param.querySelector('.name')!.textContent = 'ID'
+  param.querySelector('.value')!.textContent = entity.id.get().toString()
+  params.appendChild(param)
+
+  // Show entity type
+  if (state.replay && entity.typeId) {
+    const typeId = entity.typeId.get()
+    if (typeId != null && typeId < state.replay.typeNames.length) {
+      param = paramTemplate.cloneNode(true) as HTMLElement
+      param.querySelector('.name')!.textContent = 'Type'
+      param.querySelector('.value')!.textContent = state.replay.typeNames[typeId]
+      params.appendChild(param)
+    }
+  }
+
+  // Show agent ID with color name (reuse existing agentId variable)
+  if (agentId != null && agentId != 0) {
+    param = paramTemplate.cloneNode(true) as HTMLElement
+    param.querySelector('.name')!.textContent = 'Agent'
+    let agentText = agentId.toString()
+    param.querySelector('.value')!.textContent = agentText
+    params.appendChild(param)
+  }
+
+  // Show total reward if available
+  const totalReward = entity.totalReward?.get()
+  if (totalReward != null && totalReward != 0) {
+    param = paramTemplate.cloneNode(true) as HTMLElement
+    param.querySelector('.name')!.textContent = 'Total Reward'
+    const rewardText = typeof totalReward === 'number' && !Number.isInteger(totalReward)
+      ? totalReward.toFixed(3)
+      : totalReward.toString()
+    param.querySelector('.value')!.textContent = rewardText
+    params.appendChild(param)
+  }
+
   // FIX ME: Inventory functionality not implemented
   // for (let key in entity) {
   //   let value = (entity as any)[key].get()
