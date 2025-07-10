@@ -177,7 +177,7 @@ NODE_INDEX=1 ./tools/sweep_init.py sweep_name=distributed_exp
 
 This tool provides comprehensive policy evaluation capabilities, allowing you to:
 - Evaluate single or multiple policies in batch
-- Run complete simulation suites with configurable environments  
+- Run complete simulation suites with configurable environments
 - Export detailed statistics for analysis
 - Generate replays for visualization
 - Support various policy selection strategies (latest, top-k by metric)
@@ -200,7 +200,7 @@ Integration points:
 # Evaluate a single policy
 ./tools/sim.py sim_job.policy_uris='["wandb://run/experiment_001"]'
 
-# Evaluate multiple policies  
+# Evaluate multiple policies
 ./tools/sim.py sim_job.policy_uris='["wandb://team/project/model:v0", "wandb://run/exp_002"]'
 
 # Export stats to S3
@@ -373,7 +373,7 @@ Key features:
 
 The dashboard generation process:
 1. Collect metrics from specified training runs
-2. Aggregate statistics across policies and checkpoints  
+2. Aggregate statistics across policies and checkpoints
 3. Generate JSON data structure for web visualization
 4. Upload to S3 or save locally with viewer URL
 
@@ -571,7 +571,7 @@ in DuckDB databases, with automatic downloading from remote sources (Wandb, S3).
 
 Key features:
 - Automatic download from wandb:// or s3:// URIs
-- Direct DuckDB CLI access for SQL queries  
+- Direct DuckDB CLI access for SQL queries
 - Temporary local caching of remote databases
 - Full SQL support for complex analytics
 - Integration with evaluation pipeline outputs
@@ -610,8 +610,8 @@ Database schema typically includes:
 .tables
 
 -- Get average rewards by policy
-SELECT policy_name, AVG(value) as avg_reward 
-FROM agent_metrics 
+SELECT policy_name, AVG(value) as avg_reward
+FROM agent_metrics
 WHERE metric = 'reward'
 GROUP BY policy_name;
 
@@ -805,3 +805,191 @@ The tools work together in several workflows:
    - `map/view.py` inspects them
    - `map/normalize_*.py` ensures consistency
    - `renderer.py` tests with agents
+
+## Tool Dependencies and Requirements
+
+### System Requirements
+
+| Requirement | Tools | Notes |
+|-------------|-------|-------|
+| **GPU (CUDA)** | `train.py`, `sim.py`, `renderer.py`, `replay.py`, `sweep_eval.py` | Recommended for performance, CPU fallback available |
+| **Python 3.10+** | All tools | Required by uv package manager |
+| **DuckDB CLI** | `stats_duckdb_cli.py` | For interactive SQL queries |
+| **AWS CLI** | `upload_map_imgs.py`, S3-related operations | For S3 access |
+| **Wandb Account** | `train.py`, `sweep_*.py`, `sim.py` | For experiment tracking |
+
+### Python Package Dependencies
+
+Core dependencies managed by uv:
+- **torch**: Neural network training and inference
+- **hydra-core**: Configuration management
+- **wandb**: Experiment tracking
+- **numpy**: Numerical operations
+- **omegaconf**: Configuration handling
+- **duckdb**: Database operations
+- **boto3**: AWS S3 interactions
+
+### Database Connections
+
+Tools requiring database access:
+- **Write Access**: `train.py`, `sim.py`, `sweep_eval.py`
+- **Read Access**: `analyze.py`, `dashboard.py`, `stats_duckdb_cli.py`
+- **Optional**: `renderer.py`, `replay.py` (for policy loading)
+
+## Advanced Usage Patterns
+
+### Distributed Training
+
+```bash
+# Single node, multiple GPUs
+torchrun --nproc_per_node=4 tools/train.py trainer.num_workers=16
+
+# Multi-node training (node 0)
+NODE_INDEX=0 MASTER_ADDR=10.0.0.1 MASTER_PORT=29500 \
+torchrun --nnodes=2 --nproc_per_node=8 --node_rank=0 tools/train.py
+
+# Multi-node training (node 1)
+NODE_INDEX=1 MASTER_ADDR=10.0.0.1 MASTER_PORT=29500 \
+torchrun --nnodes=2 --nproc_per_node=8 --node_rank=1 tools/train.py
+```
+
+### Batch Evaluation
+
+```bash
+# Evaluate all policies from a sweep
+for run in $(ls runs/my_sweep/); do
+    ./tools/sim.py sim_job.policy_uris="[\"wandb://run/$run\"]" \
+        sim_job.stats_db_uri="s3://bucket/evals/$run.db"
+done
+```
+
+### Custom Rendering Backends
+
+```python
+# Create custom policy for renderer.py
+class CustomPolicy:
+    def predict(self, obs):
+        # Your custom logic here
+        return actions
+```
+
+### Programmatic Tool Usage
+
+```python
+# Using tools as Python modules
+from tools.sim import simulate_policy
+from omegaconf import OmegaConf
+
+cfg = OmegaConf.load("configs/sim_job.yaml")
+results = simulate_policy(sim_job, policy_uri, cfg, logger)
+```
+
+## Configuration Override Patterns
+
+### Nested Configuration Updates
+```bash
+# Deep configuration updates
+./tools/train.py trainer.optimizer.lr=0.001 trainer.optimizer.eps=1e-8
+
+# List modifications
+./tools/sim.py 'sim_job.policy_uris=["uri1","uri2","uri3"]'
+
+# Adding new keys
+./tools/train.py +custom.debug_mode=true
+```
+
+### Environment-Specific Overrides
+```bash
+# Development
+./tools/train.py hydra.run.dir=./outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}
+
+# Production
+./tools/train.py hydra.sweep.dir=s3://bucket/sweeps hydra.sweep.subdir=${sweep.name}
+```
+
+## Performance Optimization Tips
+
+### Training Performance
+- **Batch Size**: Larger batches generally train faster but use more memory
+- **Worker Count**: Set to number of CPU cores divided by 2 for optimal performance
+- **Mixed Precision**: Use `trainer.mixed_precision=true` for faster training on modern GPUs
+
+### Evaluation Performance
+- **Vectorization**: Use `vectorization=parallel` for multi-core evaluation
+- **Batch Evaluation**: Process multiple policies in one `sim.py` call
+- **Stats Export**: Use binary formats for large datasets
+
+### Map Generation Performance
+- **Parallel Generation**: Use shell loops for batch generation
+- **S3 Uploads**: Use `--count` parameter instead of loops for S3 destinations
+- **Preview Mode**: Disable preview with `--show-mode=none` for batch operations
+
+## Debugging and Troubleshooting
+
+### Common Error Messages
+
+| Error | Cause | Solution |
+|-------|-------|----------|
+| `KeyError: 'groups'` | Missing environment config | Ensure `env` parameter is set correctly |
+| `CUDA out of memory` | Batch size too large | Reduce `trainer.batch_size` or use gradient accumulation |
+| `Hydra composition error` | Invalid config path | Use `validate_config.py` to check configuration |
+| `PolicyStore: Policy not found` | Invalid URI or missing policy | Check wandb run exists and is accessible |
+| `DuckDB: File not found` | Stats DB doesn't exist | Ensure evaluation completed successfully |
+
+### Debug Modes
+
+```bash
+# Enable debug logging
+HYDRA_FULL_ERROR=1 ./tools/train.py hydra.verbose=true
+
+# Dry run mode (configuration only)
+./tools/train.py --cfg job
+
+# Print configuration
+./tools/train.py --cfg job --package trainer
+```
+
+### Profiling Tools
+
+```bash
+# CPU profiling
+python -m cProfile -o profile.stats tools/train.py
+
+# Memory profiling
+memray run tools/sim.py
+memray flamegraph profile.bin
+
+# GPU profiling
+nsys profile -o profile tools/train.py
+```
+
+## Integration with External Systems
+
+### Wandb Integration
+- **Project Structure**: `entity/project/sweep_id/run_id`
+- **Artifact Storage**: Policies saved as wandb artifacts
+- **Metric Logging**: Real-time training metrics
+- **Sweep Management**: Hyperparameter optimization tracking
+
+### S3 Integration
+- **URI Format**: `s3://bucket/path/to/file`
+- **Credentials**: Via AWS CLI configuration or IAM roles
+- **Public Access**: Dashboard and map images via public buckets
+- **Batch Operations**: Efficient multi-file uploads
+
+### MettaScope Integration
+- **Replay Format**: Binary format for efficient storage
+- **WebSocket Protocol**: Real-time agent control
+- **Renderer Types**: ASCII and Miniscope visualization
+- **Local Server**: Automatic launch for development
+
+## Future Enhancements
+
+Planned improvements for the tools:
+- Schema validation in `validate_config.py`
+- Distributed evaluation in `sim.py`
+- Real-time training monitoring dashboard
+- Map generation templates library
+- Automated performance regression testing
+- Cloud-native job orchestration
+- Interactive policy debugging interface
