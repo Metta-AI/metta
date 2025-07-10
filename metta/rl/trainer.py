@@ -775,6 +775,11 @@ class MettaTrainer:
             sim_short_name = sim_name.split("/")[-1]
             self.evals[f"{category}/{sim_short_name}"] = score
 
+        # Store overall score for policy comparison (use mean score of all categories)
+        scores = [v for k, v in self.evals.items() if k.endswith("/score")]
+        if scores:
+            self.latest_saved_policy_record.metadata["score"] = float(np.mean(scores))
+
         # Store evaluation scores in policy metadata for policy comparison
         if self.latest_saved_policy_record is not None and self.evals:
             # Update policy metadata with evaluation scores
@@ -784,18 +789,9 @@ class MettaTrainer:
             # Store all evaluation scores
             self.latest_saved_policy_record.metadata["eval_scores"].update(self.evals)
 
-            # Store overall score for policy comparison (use first category score as default)
-            if "score" not in self.latest_saved_policy_record.metadata:
-                # Find the first category score to use as overall score
-                for key, value in self.evals.items():
-                    if key.endswith("/score"):
-                        self.latest_saved_policy_record.metadata["score"] = value
-                        logger.info(f"Stored overall score in policy metadata: {value}")
-                        break
-
-            # Save updated policy record with scores
-            self.policy_store.save(self.latest_saved_policy_record)
-            logger.info(f"Updated policy metadata with {len(self.evals)} evaluation scores")
+        # Save updated policy record with scores
+        self.policy_store.save(self.latest_saved_policy_record)
+        logger.info(f"Updated policy metadata with {len(self.evals)} evaluation scores")
 
     def _maybe_generate_replay(self, force=False):
         """Generate replay if on replay interval"""
