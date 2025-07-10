@@ -46,24 +46,24 @@ protected:
     Agent* last_agent = nullptr;
 
     // Attack positions form a 3x3 grid in front of the agent
-    // Visual representation of scan order (agent facing up):
-    // 6 7 8  (3 cells forward)
-    // 3 4 5  (2 cells forward)
-    // 0 1 2  (1 cell forward)
+    // Visual representation of attack order (agent facing up):
+    // 7 6 8  (3 cells forward)
+    // 4 3 5  (2 cells forward)
+    // 1 0 2  (1 cell forward)
     //   A    (Agent position)
     static constexpr std::pair<short, short> ATTACK_POSITIONS[9] = {
-        {1, -1},  // 0: 1 forward, 1 left
-        {1, 0},   // 1: 1 forward, straight ahead
+        {1, 0},   // 0: 1 forward, straight ahead
+        {1, -1},  // 1: 1 forward, 1 left
         {1, 1},   // 2: 1 forward, 1 right
-        {2, -1},  // 3: 2 forward, 1 left
-        {2, 0},   // 4: 2 forward, straight ahead
+        {2, 0},   // 3: 2 forward, straight ahead
+        {2, -1},  // 4: 2 forward, 1 left
         {2, 1},   // 5: 2 forward, 1 right
-        {3, -1},  // 6: 3 forward, 1 left
-        {3, 0},   // 7: 3 forward, straight ahead
+        {3, 0},   // 6: 3 forward, straight ahead
+        {3, -1},  // 7: 3 forward, 1 left
         {3, 1},   // 8: 3 forward, 1 right
     };
 
-    // Scan all positions to find agents
+    // Scan the 9 squares in front of the agent (3x3 grid)
     for (int i = 0; i < 9; ++i) {
       auto [distance, offset] = ATTACK_POSITIONS[i];
       GridLocation target_loc = _grid->relative_location(actor->location, actor->orientation, distance, offset);
@@ -81,12 +81,11 @@ protected:
       }
     }
 
-    // If arg > num_agents found, attack the last agent found
+    // If we got here, it means we skipped over all the targets. Attack the last one.
     if (last_agent != nullptr && arg >= num_found) {
       return _handle_target(*actor, *last_agent);
     }
 
-    // No valid target found
     return false;
   }
 
