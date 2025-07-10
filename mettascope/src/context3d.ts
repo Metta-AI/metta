@@ -292,7 +292,7 @@ export class Context3d {
     this.currentMesh = newMesh
     this.currentMeshName = name
   }
-  
+
   /** Sets the scissor rect for the current mesh. */
   setScissorRect(x: number, y: number, width: number, height: number): void {
     this.ensureMeshSelected()
@@ -300,13 +300,13 @@ export class Context3d {
     this.currentMesh!.scissorEnabled = true
     this.currentMesh!.scissorRect = [x, y, width, height]
   }
-  
+
   /** Disable scissoring for the current mesh. */
   disableScissor(): void {
     this.ensureMeshSelected()
     this.currentMesh!.scissorEnabled = false
   }
-  
+
   /** Helper method to ensure a mesh is selected before drawing. */
   private ensureMeshSelected(): void {
     if (!this.currentMesh) {
@@ -331,7 +331,7 @@ export class Context3d {
       )
     )
   }
-  
+
   /** Restore the last transform. */
   restore(): void {
     // Pop the last transform from the stack
@@ -341,30 +341,30 @@ export class Context3d {
       console.warn('Transform stack is empty')
     }
   }
-  
+
   /** Translate the current transform. */
   translate(x: number, y: number): void {
     const translateMatrix = Mat3f.translate(x, y)
     this.currentTransform = this.currentTransform.mul(translateMatrix)
   }
-  
+
   /** Rotate the current transform. */
   rotate(angle: number): void {
     const rotateMatrix = Mat3f.rotate(angle)
     this.currentTransform = this.currentTransform.mul(rotateMatrix)
   }
-  
+
   /** Scale the current transform. */
   scale(x: number, y: number): void {
     const scaleMatrix = Mat3f.scale(x, y)
     this.currentTransform = this.currentTransform.mul(scaleMatrix)
   }
-  
+
   /** Reset the current transform. */
   resetTransform(): void {
     this.currentTransform = Mat3f.identity()
   }
-  
+
   /** Initialize the WebGL context. */
   async init(atlasJsonUrl: string, atlasImageUrl: string): Promise<boolean> {
     this.dpr = 1.0
