@@ -389,7 +389,7 @@ graph TD
     D --> F[softmax-observatory]
     A --> E
     A --> F
-    A --> G[softmax-scope]
+    A --> G[softmax-mettascope]
 ```
 
 ## Future Packages
