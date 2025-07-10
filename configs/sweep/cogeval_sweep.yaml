@@ -3,11 +3,8 @@
 
 # Sweep metadata for Protein optimizer
 metric: action.use.altar
-goal: maximize  # Protein requires explicit goal
-test: raw # glicko, elo, raw
-
-rollout_count: 100000
-num_random_samples: 10
+goal: maximize
+method: bayes
 
 # Protein optimizer configuration
 protein:
@@ -18,87 +15,19 @@ protein:
   random_suggestions: 5  # Number of random suggestions per iteration
   suggestions_per_pareto: 3  # Suggestions per Pareto front point
 
-eval:
-  num_episodes: 100
-  max_time_s: 600
-  policy_agents_pct: 1.0
-
-generation:
-  enabled: false
-  min_samples: 5
-  regen_pct: 0.25
-
 # Parameter search space using Protein distributions
 parameters:
-  env:
-    game:
-      max_steps:
-        distribution: uniform
-        min: 500
-        max: 3000
-        scale: auto
-        mean: 1750
-
   trainer:
-    learning_rate:
-      distribution: log_normal
-      min: 1e-5
-      max: 1e-1
-      scale: auto
-      mean: 3e-4
+    optimizer:
+      learning_rate: {distribution: log_normal, min: 1e-5, max: 1e-1, mean: 3e-4, scale: auto}
 
-    gamma:
-      distribution: logit_normal
-      min: 0.0
-      max: 1.0
-      scale: auto
-      mean: 0.99
+    ppo:
+      gamma:        {distribution: logit_normal, min: 0.0, max: 1.0, mean: 0.99, scale: auto}
+      gae_lambda:   {distribution: logit_normal, min: 0.0, max: 1.0, mean: 0.95, scale: auto}
+      vf_coef:      {distribution: logit_normal, min: 0.0, max: 1.0, mean: 0.5,  scale: auto}
+      ent_coef:     {distribution: log_normal,   min: 1e-4, max: 1e-1, mean: 1e-3, scale: auto}
 
-    gae_lambda:
-      distribution: logit_normal
-      min: 0.0
-      max: 1.0
-      scale: auto
-      mean: 0.95
-
-    vf_coef:
-      distribution: logit_normal
-      min: 0.0
-      max: 1.0
-      scale: auto
-      mean: 0.5
-
-    ent_coef:
-      distribution: log_normal
-      min: 1e-4
-      max: 1e-1
-      scale: auto
-      mean: 1e-3
-
-    batch_size:
-      distribution: uniform_pow2
-      min: 131072
-      max: 524288
-      scale: auto
-      mean: 262144
-
-    minibatch_size:
-      distribution: uniform_pow2
-      min: 1024
-      max: 131072
-      scale: auto
-      mean: 16384
-
-    bptt_horizon:
-      distribution: uniform_pow2
-      min: 1
-      max: 128
-      scale: auto
-      mean: 16
-
-    total_timesteps:
-      distribution: log_normal
-      min: 1e9
-      max: 6e9
-      scale: auto
-      mean: 1.1e9  # Using the original search_center value
+    # batch_size:      {distribution: uniform_pow2, min: 131072, max: 524288, mean: 262144, scale: auto}
+    # minibatch_size:  {distribution: uniform_pow2, min: 1024,   max: 131072, mean: 16384,  scale: auto}
+    bptt_horizon:    {distribution: uniform_pow2, min: 1,      max: 128,    mean: 16,     scale: auto}
+    # total_timesteps: {distribution: log_normal,   min: 1e9,    max: 6e9,    mean: 1.1e9,  scale: auto}
