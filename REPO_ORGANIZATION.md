@@ -345,7 +345,7 @@ cd metta
 ln -s ../cogworks cogworks
 ln -s ../mettagrid mettagrid
 ln -s ../common common
-ln -s ../backend-shared backend_shared
+ln -s ../backend-shared backend-shared
 ln -s ../gridworks gridworks
 ln -s ../observatory observatory
 ln -s ../mettascope mettascope
