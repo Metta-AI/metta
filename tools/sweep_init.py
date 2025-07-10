@@ -22,7 +22,7 @@ from metta.common.util.numpy_helpers import clean_numpy_types
 from metta.common.util.script_decorators import metta_script
 from metta.common.wandb.wandb_context import WandbContext
 from metta.sweep.protein_metta import MettaProtein
-from metta.sweep.sweep_wandb import create_wandb_sweep, generate_run_id_for_sweep, sweep_id_from_name
+from metta.sweep.wandb_utils import create_wandb_sweep, generate_run_id_for_sweep, sweep_id_from_name
 
 logger = setup_mettagrid_logger("sweep_init")
 
@@ -100,6 +100,7 @@ def create_run(cfg: DictConfig | ListConfig, logger: Logger) -> str:
     # Note: run_id will be set by wandb.agent when it creates the run
     # this is needed for the interpolations to be resolved
     if hasattr(cfg.wandb, "run_id"):
+        # TODO: Find a more elegant solution to interpolation problem
         cfg.wandb.run_id = "temp"  # Temporary value, will be replaced by wandb.agent
 
     def init_run():

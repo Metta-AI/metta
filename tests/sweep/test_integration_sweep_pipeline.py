@@ -161,7 +161,7 @@ class TestSweepPipelineIntegration:
         with patch("wandb.sweep") as mock_sweep:
             mock_sweep.return_value = "test_sweep_123"
 
-            from metta.sweep.sweep_wandb import create_wandb_sweep
+            from metta.sweep.wandb_utils import create_wandb_sweep
 
             # Test sweep creation
             sweep_id = create_wandb_sweep(
@@ -506,7 +506,7 @@ class TestSweepPipelineIntegration:
         with patch("wandb.sweep") as mock_sweep:
             mock_sweep.return_value = "e2e_test_sweep_id"
 
-            from metta.sweep.sweep_wandb import create_wandb_sweep
+            from metta.sweep.wandb_utils import create_wandb_sweep
 
             result = create_wandb_sweep(
                 sweep_name="e2e_test_sweep",
