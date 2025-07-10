@@ -1,5 +1,5 @@
 import uuid
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
@@ -16,7 +16,7 @@ class PolicyIdResponse(BaseModel):
 
 class TrainingRunCreate(BaseModel):
     name: str
-    attributes: Dict[str, str] = Field(default_factory=dict)
+    attributes: Dict[str, Union[str, bool]] = Field(default_factory=dict)
     url: Optional[str] = None
 
 
@@ -27,7 +27,7 @@ class TrainingRunResponse(BaseModel):
 class EpochCreate(BaseModel):
     start_training_epoch: int
     end_training_epoch: int
-    attributes: Dict[str, str] = Field(default_factory=dict)
+    attributes: Dict[str, Union[str, bool]] = Field(default_factory=dict)
 
 
 class EpochResponse(BaseModel):

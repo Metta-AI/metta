@@ -157,6 +157,19 @@ class TestStatsServerSimple:
         policy_ids = stats_client.get_policy_ids(["nonexistent_policy"])
         assert policy_ids.policy_ids == {}
 
+    def test_training_run_with_git_data(self, stats_client: StatsClient) -> None:
+        """Test training run creation with boolean attributes (for git hash functionality)."""
+        # Test git-like attributes with boolean values
+        git_attributes = {
+            "git_hash": "2308eaf792dc19726ba7056cda0a32f5b3cacf3a",
+            "has_uncommitted_changes": True,  # Native boolean
+        }
+
+        training_run = stats_client.create_training_run(
+            name="test_git_attributes_run", attributes=git_attributes, url="https://example.com/git-run"
+        )
+        assert training_run.id is not None
+
 
 if __name__ == "__main__":
     # Simple test runner for debugging

@@ -1,5 +1,5 @@
 import uuid
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 import httpx
 from pydantic import BaseModel
@@ -82,7 +82,7 @@ class StatsClient:
         return ClientPolicyIdResponse(policy_ids=policy_ids_uuid)
 
     def create_training_run(
-        self, name: str, attributes: Optional[Dict[str, str]] = None, url: Optional[str] = None
+        self, name: str, attributes: Optional[Dict[str, Union[str, bool]]] = None, url: Optional[str] = None
     ) -> ClientTrainingRunResponse:
         """
         Create a new training run.
@@ -113,7 +113,7 @@ class StatsClient:
         run_id: uuid.UUID,
         start_training_epoch: int,
         end_training_epoch: int,
-        attributes: Optional[Dict[str, str]] = None,
+        attributes: Optional[Dict[str, Union[str, bool]]] = None,
     ) -> ClientEpochResponse:
         """
         Create a new policy epoch.

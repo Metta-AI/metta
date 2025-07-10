@@ -1,6 +1,10 @@
 import json
 import subprocess
 
+# NOTE: This file duplicates functionality with app_backend/git_client.py
+# Both files implement similar git operations but with different interfaces.
+# TODO: Extract common git functionality into a shared library to avoid duplication.
+
 
 class GitError(Exception):
     """Custom exception for git-related errors."""
