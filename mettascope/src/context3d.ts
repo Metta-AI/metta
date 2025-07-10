@@ -225,6 +225,7 @@ class Mesh {
   }
 }
 
+/** Context3d class responsible for managing the WebGL context. */
 export class Context3d {
   public canvas: HTMLCanvasElement
   public gl: WebGLRenderingContext
