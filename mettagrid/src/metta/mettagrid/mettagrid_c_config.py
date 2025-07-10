@@ -69,8 +69,8 @@ def from_mettagrid_config(mettagrid_config_dict: dict[str, Any]) -> GameConfig_c
             converter_config_cpp = ConverterConfig_cpp(
                 type_id=object_config.type_id,
                 type_name=object_type,
-                input_resources=dict((resource_ids[k], v) for k, v in object_config.input_resources.items()),
-                output_resources=dict((resource_ids[k], v) for k, v in object_config.output_resources.items()),
+                input_resources=dict((resource_ids[k], v) for k, v in object_config.input_resources.items() if v > 0),
+                output_resources=dict((resource_ids[k], v) for k, v in object_config.output_resources.items() if v > 0),
                 max_output=object_config.max_output,
                 conversion_ticks=object_config.conversion_ticks,
                 cooldown=object_config.cooldown,
