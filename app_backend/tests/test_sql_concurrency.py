@@ -14,6 +14,7 @@ from metta.app_backend.metta_repo import MettaRepo
 from metta.app_backend.server import create_app
 
 
+@pytest.mark.slow
 class TestSQLConcurrency:
     """Tests for SQL route concurrency to validate async behavior."""
 
