@@ -7,6 +7,7 @@
 #include <utility>
 
 #include "objects/constants.hpp"
+
 /**
  * Utilities for packing/unpacking grid coordinates into compact byte representation.
  *
@@ -20,12 +21,15 @@
  * - Special value 0xFF represents empty/invalid coordinate
  */
 namespace PackedCoordinate {
+
 // Constants for bit packing
 constexpr uint8_t ROW_SHIFT = 4;
 constexpr uint8_t COL_MASK = 0x0F;
 constexpr uint8_t ROW_MASK = 0xF0;
+
 // Maximum coordinate value that can be packed (4 bits = 0-14)
 constexpr uint8_t MAX_PACKABLE_COORD = 14;
+
 /**
  * Pack grid coordinates into a single byte.
  *
@@ -42,6 +46,7 @@ inline uint8_t pack(uint8_t row, uint8_t col) {
   }
   return static_cast<uint8_t>((row << ROW_SHIFT) | (col & COL_MASK));
 }
+
 /**
  * Unpack byte into coordinates with empty handling.
  *
@@ -59,8 +64,9 @@ inline std::optional<std::pair<uint8_t, uint8_t>> unpack(uint8_t packed) {
 /**
  * Check if a packed coordinate represents an empty/invalid position.
  */
-inline bool is_empty(uint8_t packed) {
-  return packed == EmptyTokenByte;
+inline bool is_empty(uint8_t packed_data) {
+  return packed_data == EmptyTokenByte;
 }
+
 }  // namespace PackedCoordinate
 #endif  // PACKED_COORDINATE_HPP_
