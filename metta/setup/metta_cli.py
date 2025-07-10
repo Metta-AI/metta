@@ -197,13 +197,8 @@ class MettaCLI:
     def cmd_symlink_setup(self, args) -> None:
         self.path_setup.setup_path(force=args.force)
 
-<<<<<<< HEAD
-    def cmd_pytest(self, args) -> None:
-        cmd = ["pytest"] + args
-=======
     def cmd_pytest(self, pytest_args: list[str]) -> None:
         cmd = ["pytest"] + pytest_args
->>>>>>> 5bff90958 (metta test and testmon support)
         try:
             subprocess.run(cmd, cwd=self.repo_root, check=True)
         except subprocess.CalledProcessError as e:
@@ -390,6 +385,7 @@ Examples:
         symlink_parser.add_argument("--force", action="store_true", help="Replace existing metta command if it exists")
 
 <<<<<<< HEAD
+<<<<<<< HEAD
         # Test commands
         subparsers.add_parser("test", help="Run python unit tests")
         subparsers.add_parser("test-changed", help="Run python unit tests affected by changes")
@@ -409,6 +405,18 @@ Examples:
 
         args = parser.parse_args()
 >>>>>>> 5bff90958 (metta test and testmon support)
+=======
+        # Test commands
+        subparsers.add_parser("test", help="Run python unit tests")
+        subparsers.add_parser("test-changed", help="Run python unit tests affected by changes")
+
+        # Use parse_known_args to handle unknown arguments for test commands
+        args, unknown_args = parser.parse_known_args()
+
+        if args.command not in ["test", "test-changed"]:
+            if unknown_args:
+                parser.error(f"unrecognized arguments: {' '.join(unknown_args)}")
+>>>>>>> abee9d433 (update)
 
         # Auto-run configure if no config exists and no command given
         if not args.command and not self.config.config_path.exists():
@@ -440,6 +448,7 @@ Examples:
         elif args.command == "symlink-setup":
             self.cmd_symlink_setup(args)
 <<<<<<< HEAD
+<<<<<<< HEAD
         elif args.command == "test":
             self.cmd_pytest(unknown_args)
         elif args.command == "test-changed":
@@ -450,6 +459,12 @@ Examples:
         elif args.command == "test-changed":
             self.cmd_pytest(args.pytest_args + ["--testmon"])
 >>>>>>> 5bff90958 (metta test and testmon support)
+=======
+        elif args.command == "test":
+            self.cmd_pytest(unknown_args)
+        elif args.command == "test-changed":
+            self.cmd_pytest(unknown_args + ["--testmon"])
+>>>>>>> abee9d433 (update)
         else:
             parser.print_help()
 
