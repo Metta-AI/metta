@@ -8,5 +8,7 @@ tasks:
   /env/mettagrid/navigation/training/varied_terrain_maze: 1
   /env/mettagrid/navigation/training/varied_terrain_dense: 1
   /env/mettagrid/navigation/training/sparse_small: 1
-  /env/mettagrid/navigation/training/sparse_medium: 1
-  /env/mettagrid/navigation/training/sparse_large: 1
+  /env/mettagrid/navigation/training/sparse_medium_low_time: 1
+  /env/mettagrid/navigation/training/sparse_medium_high_time: 1
+  /env/mettagrid/navigation/training/sparse_large_low_time: 1
+  /env/mettagrid/navigation/training/sparse_large_high_time: 1

@@ -1,11 +1,11 @@
-${sampling:3,5,4}defaults:
+defaults:
   - /env/mettagrid/mettagrid@
   - _self_
 
 sampling: 1
 
 game:
-  max_steps: 1500 # ${width * height} / 10
+  max_steps: ${sampling:400,700,500} # close to ${width * height} / 10
   num_agents: 4
   actions:
     noop:
@@ -24,8 +24,8 @@ game:
       initial_resource_count: 1
   map_builder:
     _target_: metta.map.mapgen.MapGen
-    width: ${sampling:200,250,225}
-    height: ${sampling:200,250,225}
+    width: ${sampling:100,200,150}
+    height: ${sampling:100,200,150}
     border_width: 6
 
     root:
