@@ -19,6 +19,7 @@
 #include <string>
 #include <vector>
 
+#include "packed_coordinate.hpp"
 #include "types.hpp"
 
 // Forward declarations of existing C++ classes
@@ -29,12 +30,13 @@ class ActionHandler;
 class Agent;
 class ObservationEncoder;
 class GridObject;
-class GridObjectConfig;
-class ConverterConfig;
-class WallConfig;
-class AgentConfig;
-class GameConfig;
-class ActionConfig;
+
+struct GridObjectConfig;
+struct ConverterConfig;
+struct WallConfig;
+struct AgentConfig;
+struct GameConfig;
+struct ActionConfig;
 
 namespace py = pybind11;
 
