@@ -5,7 +5,7 @@ defaults:
 sampling: 1
 
 game:
-  max_steps: 250 # ${width * height} / 10
+  max_steps: ${sampling:100,250,150} # close to ${width * height} / 10
   num_agents: 4
   actions:
     noop:
