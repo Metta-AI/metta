@@ -326,6 +326,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
         # Standard deviations
         if len(visited_counts) > 1:
             import numpy as np
+
             metrics["exploration/std_dev_agent_visits"] = float(np.std(visited_counts))
             metrics["exploration/std_dev_agent_observations"] = float(np.std(observed_counts))
         else:
