@@ -56,7 +56,7 @@ When adding new documentation:
 
 1. **Location**: Place topic-specific docs in this directory
 2. **Format**: Use clear markdown with proper headers and code examples
-3. **Linking**: Update this README and the main INDEX.md
+3. **Linking**: Update this README and the INDEX.md
 4. **Standards**: Follow the patterns in existing documentation
 
 ### Developer Guidelines
