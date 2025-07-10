@@ -2,3 +2,14 @@ defaults:
   - tag
   - /env/mettagrid/game/objects/combat_easy@game.objects:
   - _self_
+
+game:
+  objects:
+    altar:
+      input_resources:
+        blueprint: 1
+      initial_resource_count: 1
+      cooldown: 1
+
+    lasery:
+      initial_resource_count: 1

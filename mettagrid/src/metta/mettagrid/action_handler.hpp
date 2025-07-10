@@ -81,6 +81,10 @@ public:
       actor->stats.incr("action." + _action_name + ".failed");
       actor->stats.incr("action.failure_penalty");
       *actor->reward -= actor->action_failure_penalty;
+      // Return the resources to the actor
+      for (const auto& [item, amount] : _consumed_resources) {
+        actor->update_inventory(item, amount);
+      }
     }
 
     return success;

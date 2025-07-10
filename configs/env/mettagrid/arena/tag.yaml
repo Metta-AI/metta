@@ -27,7 +27,7 @@ game:
         objects:
           mine_red: 10
           generator_red: 5
-          altar: 10
+          altar: 2
           lasery: 2
           armory: 2
 
@@ -37,6 +37,6 @@ game:
   objects:
     altar:
       input_resources:
-        heart: 1
+        blueprint: 1
       initial_resource_count: 1
       cooldown: 1

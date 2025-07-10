@@ -7,6 +7,29 @@ __pycache__/
 *.egg
 *.egg-info/
 .coverage
+.env
+.task
+.vscode/PythonImportHelper-v2-Completion.json
+/checkpoints/
+/mettagrid/dist
+/mettascope/dist
+/mettascope/node_modules
+/studio/node_modules
+/mettagrid/multirun
+cython_debug
+outputs
+replays
+stats.profile
+train_dir
+metta-research
+gpu_names_cache.json
+stderr.log
+sweep_id
+personal/
+/wandb
+/deps/*
+terrain_maps_nohearts*
+.idea
 .coverage.*
 .venv/
 .pytest_cache/
@@ -60,4 +83,9 @@ test_data/
 
 # Created by skypilot (inside skypilot jobs or clusters)
 /Miniconda3-Linux.sh
+<<<<<<< HEAD
 .testmon*
+=======
+#*.next
+*.pnpm
+>>>>>>> f68b35361 (cp)
