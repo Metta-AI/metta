@@ -53,6 +53,8 @@ def dummy_init(monkeypatch):
     yield
 
 
+@pytest.mark.daily
+@pytest.mark.integration
 def test_enter_disabled_does_not_init(monkeypatch):
     # Prepare disabled config
     cfg_off = OmegaConf.create(dict(enabled=False))
@@ -71,6 +73,8 @@ def test_enter_disabled_does_not_init(monkeypatch):
     assert not init_called, "wandb.init should not be called when disabled"
 
 
+@pytest.mark.daily
+@pytest.mark.integration
 def test_structured_config(monkeypatch, dummy_init):
     # Prepare config that's already validated
     cfg_off = WandbConfigOff(enabled=False)
@@ -82,6 +86,8 @@ def test_structured_config(monkeypatch, dummy_init):
     assert ctx.cfg == cfg_off
 
 
+@pytest.mark.daily
+@pytest.mark.integration
 def test_run_fields(monkeypatch, dummy_init, tmp_path):
     # Prepare enabled config
     cfg_on = OmegaConf.create(
@@ -117,6 +123,8 @@ def test_run_fields(monkeypatch, dummy_init, tmp_path):
     assert run.save_code is True
 
 
+@pytest.mark.daily
+@pytest.mark.integration
 def test_tags_and_notes(monkeypatch, dummy_init, tmp_path):
     cfg_on = OmegaConf.create(
         dict(
@@ -141,6 +149,8 @@ def test_tags_and_notes(monkeypatch, dummy_init, tmp_path):
     assert run.notes == "hello"
 
 
+@pytest.mark.daily
+@pytest.mark.integration
 def test_exit_finishes_run(monkeypatch, dummy_init, tmp_path):
     # Prepare enabled config
     cfg_on = WandbConfigOn(

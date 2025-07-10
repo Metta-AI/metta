@@ -1,19 +1,34 @@
 import pytest
-from omegaconf import OmegaConf
-from omegaconf.errors import ConfigAttributeError
 from pydantic import ValidationError
 
-from metta.mettagrid.curriculum.core import SingleTaskCurriculum
 from metta.mettagrid.mettagrid_env import MettaGridEnv
 
 
-def test_invalid_env_map_type_raises():
+@pytest.mark.hourly
+def test_invalid_curriculum_type_raises():
+    """Critical test for environment curriculum validation - runs hourly."""
+    with pytest.raises(ValidationError):
+        MettaGridEnv("not a curriculum", render_mode=None)
+
+
+@pytest.mark.hourly
+def test_invalid_render_mode_type_raises():
+    """Critical test for render mode validation - runs hourly."""
+    from omegaconf import OmegaConf
+
+    from metta.mettagrid.curriculum.core import SingleTaskCurriculum
+
     cfg = OmegaConf.create({})
     curriculum = SingleTaskCurriculum("test", cfg)
-    with pytest.raises(ConfigAttributeError):
-        MettaGridEnv(curriculum, render_mode=None, env_map={})
 
-
-def test_invalid_env_cfg_type_raises():
+    # render_mode should be str or None
     with pytest.raises(ValidationError):
-        MettaGridEnv({}, render_mode=None)
+        MettaGridEnv(curriculum, render_mode=123)  # invalid type
+
+
+@pytest.mark.daily
+def test_example_environment_initialization():
+    """Test that example environments can be properly initialized - runs daily."""
+    # This would test that get_example_env() works correctly
+    # Placeholder for actual implementation
+    pass

@@ -125,6 +125,7 @@ def make_cfg(trainer_cfg: dict) -> DictConfig:
 
 
 class TestTypedConfigs:
+    @pytest.mark.hourly
     def test_basic_typed_config_parsing(self):
         trainer_config = create_trainer_config(make_cfg(valid_trainer_config))
         assert trainer_config.optimizer.type == "adam"
@@ -135,6 +136,7 @@ class TestTypedConfigs:
         assert trainer_config.checkpoint.checkpoint_dir == "/tmp/test_run/checkpoints"
         assert trainer_config.simulation.replay_dir == "s3://softmax-public/replays/test_run"
 
+    @pytest.mark.hourly
     def test_config_field_validation(self):
         # invalid field
         with pytest.raises(ValidationError) as err:
@@ -252,6 +254,7 @@ def load_config_with_hydra(trainer_name: str, overrides: list[str] | None = None
 
 
 class TestRealTypedConfigs:
+    @pytest.mark.daily
     def test_all_trainer_configs_comprehensive(self):
         config_files = [f.stem for f in Path(configs_dir).glob("*.yaml")]
 
@@ -272,6 +275,7 @@ class TestRealTypedConfigs:
                 print(f"Error loading config {config_name}: {e}")
                 raise e
 
+    @pytest.mark.daily
     def test_all_config_overrides_comprehensive(self):
         """Test all config files that override trainer settings (hardware and user configs)."""
         configs_root = Path(__file__).parent.parent.parent / "configs"
