@@ -117,11 +117,19 @@ def generate_run_id_for_sweep(sweep_id: str, sweep_runs_dir: str) -> str:
     used_ids = set()
     used_names = set(run.name for run in sweep.runs).union(set(os.listdir(sweep_runs_dir)))
     for name in used_names:
-        try:
-            id = int(name.split(".")[-1])
-            used_ids.add(id)
-        except ValueError:
-            logger.warning(f"Invalid run name: {name}, not ending with an integer")
+        # Skip None names
+        if name is None:
+            continue
+
+        # Only process names that look like they follow our pattern (contain '.r.')
+        if ".r." in name:
+            try:
+                # Extract ID from names like "sweep_name.r.123"
+                id = int(name.split(".r.")[-1])
+                used_ids.add(id)
+            except ValueError:
+                logger.warning(f"Invalid run name format: {name}, expected format: <sweep_name>.r.<integer>")
+        # Silently skip other names (WandB auto-generated names, artifacts, etc.)
 
     id = 0
     if len(used_ids) > 0:
