@@ -136,10 +136,12 @@ class BidirectionalLearningProgress:
 
     def _update(self):
         """Update learning progress tracking with current task success rates."""
-        task_success_rates = np.array([
-            np.mean(self._outcomes[i]) if len(self._outcomes[i]) > 0 else DEFAULT_SUCCESS_RATE 
-            for i in range(self._num_tasks)
-        ])
+        task_success_rates = np.array(
+            [
+                np.mean(self._outcomes[i]) if len(self._outcomes[i]) > 0 else DEFAULT_SUCCESS_RATE
+                for i in range(self._num_tasks)
+            ]
+        )
         # Handle NaN values in task success rates (empty lists)
         task_success_rates = np.nan_to_num(task_success_rates, nan=DEFAULT_SUCCESS_RATE)
 
@@ -247,7 +249,7 @@ class BidirectionalLearningProgress:
         self._stale_dist = False
 
         out_vec = [
-            np.mean(self._outcomes[i]) if len(self._outcomes[i]) > 0 else DEFAULT_SUCCESS_RATE 
+            np.mean(self._outcomes[i]) if len(self._outcomes[i]) > 0 else DEFAULT_SUCCESS_RATE
             for i in range(self._num_tasks)
         ]
         out_vec = [DEFAULT_SUCCESS_RATE if np.isnan(x) else x for x in out_vec]  # Handle NaN in outcomes
