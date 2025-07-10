@@ -97,6 +97,7 @@ def main(cfg: DictConfig) -> None:
                 ),
                 policy_store=policy_store,
                 stats_client=stats_client,
+                logger=logger,
             )
             results["checkpoints"].append(
                 {

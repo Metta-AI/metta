@@ -749,6 +749,7 @@ class MettaTrainer:
             ),
             policy_store=self.policy_store,
             stats_client=self._stats_client,
+            logger=logger,
         )
         logger.info("Simulation complete")
         self.evals = evaluation_results.scores

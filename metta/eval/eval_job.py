@@ -1,3 +1,4 @@
+import logging
 import uuid
 
 import torch
@@ -7,7 +8,6 @@ from metta.agent.policy_record import PolicyRecord
 from metta.agent.policy_store import PolicyStore
 from metta.app_backend.stats_client import StatsClient
 from metta.common.util.config import Config
-from metta.common.util.script_decorators import get_metta_logger
 from metta.common.util.typed_config import BaseModelWithForbidExtra
 from metta.eval.eval_stats_db import EvalStatsDB
 from metta.eval.evaluation_scores import EvaluationScores
@@ -42,6 +42,7 @@ def evaluate_policy(
     job: EvaluationJob,
     policy_store: PolicyStore,
     stats_client: StatsClient | None,
+    logger: logging.Logger,
 ) -> EvaluationResults:
     """
     Evaluate **one** policy URI (may expand to several checkpoints).
@@ -51,7 +52,6 @@ def evaluate_policy(
     Returns:
         Dictionary containing simulation results and metrics
     """
-    logger = get_metta_logger()
     pr = job.policy_record
 
     # For each checkpoint of the policy, simulate
@@ -72,7 +72,7 @@ def evaluate_policy(
     sim_results = sim.simulate()
 
     eval_stats_db = EvalStatsDB.from_sim_stats_db(sim_results.stats_db)
-    scores = extract_scores(job, eval_stats_db)
+    scores = extract_scores(job, eval_stats_db, logger)
     logger.info("Evaluation complete for policy %s", pr.uri)
 
     if job.export_stats_db_uri is not None:
@@ -101,8 +101,7 @@ def extract_replay_url(stats_db: SimulationStatsDB, policy_pr: PolicyRecord) -> 
     return None
 
 
-def extract_scores(job: EvaluationJob, stats_db: EvalStatsDB) -> EvaluationScores:
-    logger = get_metta_logger()
+def extract_scores(job: EvaluationJob, stats_db: EvalStatsDB, logger: logging.Logger) -> EvaluationScores:
     categories: set[str] = set()
     for sim_name in job.simulation_suite.simulations.keys():
         categories.add(sim_name.split("/")[0])
