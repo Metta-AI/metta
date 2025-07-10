@@ -129,10 +129,10 @@ def test_max_arg_reduction():
     backward_action = np.array([[move_idx, 1]], dtype=np.int32)
 
     env.step(forward_action)
-    assert env.action_success()[0] or True  # Might fail due to walls, but won't be invalid_arg
+    assert env.action_success()[0] or env.action_success()[1] != "invalid_arg", "Action failed due to invalid argument"
 
     env.step(backward_action)
-    assert env.action_success()[0] or True  # Might fail due to walls, but won't be invalid_arg
+    assert env.action_success()[0] or env.action_success()[1] != "invalid_arg", "Action failed due to invalid argument"
 
     # If we could modify max_arg at runtime (which we can't in current implementation),
     # the backward action would become invalid
