@@ -460,45 +460,47 @@ class TestProgressiveCurriculumScenarios:
         weight_history = results["weight_history"]
         score_history = results["score_history"]
         assert len(weight_history) == 100, f"Should have 100 weight snapshots, got {len(weight_history)}"
-        
+
         # Debug: Print first 20 scores to understand progression
         print(f"First 20 scores: {score_history[:20]}")
-        
+
         # Early: should focus on task_1
         early_weights = weight_history[5]
         print(f"Early weights (step 5): {early_weights}")
         assert early_weights["task_1"] > 0.8, f"Should start strongly focused on task_1, got {early_weights}"
         assert early_weights.get("task_2", 0) < 0.2, f"Task 2 should have minimal weight early, got {early_weights}"
         assert early_weights.get("task_3", 0) < 0.1, f"Task 3 should have minimal weight early, got {early_weights}"
-        
+
         # Debug: Check final curriculum stats
         curriculum_stats = results["curriculum_stats"]
         print(f"Final curriculum stats: {curriculum_stats}")
-        
+
         # The issue is that with monotonic linear scores and smoothing,
         # it takes many steps to reach the 0.8 threshold
         # Let's check progression more gradually
-        
+
         # Check if progress has started by step 50
         mid_weights = weight_history[50]
         print(f"Mid weights (step 50): {mid_weights}")
         progress = curriculum_stats.get("progress", 0)
         print(f"Progress at end: {progress}")
-        
+
         # If no progress by step 50, the threshold might not be reached yet
         if progress > 0:
-            assert mid_weights.get("task_2", 0) > 0.01, f"Should show some task_2 weight if progress > 0, got {mid_weights}"
+            assert mid_weights.get("task_2", 0) > 0.01, (
+                f"Should show some task_2 weight if progress > 0, got {mid_weights}"
+            )
         # Task 1 should have reduced weight
         assert mid_weights["task_1"] < 0.7, f"Task 1 weight should decrease by middle, got {mid_weights}"
         # Later tasks should have meaningful weight
         later_tasks_weight = mid_weights.get("task_2", 0) + mid_weights.get("task_3", 0)
         assert later_tasks_weight > 0.3, f"Should show clear progression by middle, got {mid_weights}"
-        
+
         # Late: should show further progression
         late_weights = weight_history[80]
         print(f"Late weights (step 80): {late_weights}")
         assert late_weights.get("task_3", 0) > 0.05, f"Task 3 should have some weight by late stage, got {late_weights}"
-        
+
         # Final state analysis
         final_weights = results["final_weights"]
         task_counts = results["task_counts"]
@@ -506,32 +508,36 @@ class TestProgressiveCurriculumScenarios:
         print(f"Final weights: {final_weights}")
         print(f"Task counts: {task_counts}")
         print(f"Curriculum stats: {curriculum_stats}")
-        
+
         # Progress should be meaningful (0.3 progression rate * number of threshold crossings)
         progress = curriculum_stats.get("progress", 0)
         assert progress > 0.3, f"Should show significant progress with monotonic signal, got {progress}"
-        
+
         # Should have sampled all tasks at least once
         assert len(task_counts) == 3, f"Should have tried all 3 tasks, got {task_counts.keys()}"
-        assert all(count > 0 for count in task_counts.values()), f"All tasks should be sampled at least once, got {task_counts}"
-        
+        assert all(count > 0 for count in task_counts.values()), (
+            f"All tasks should be sampled at least once, got {task_counts}"
+        )
+
         # Task 1 should have been sampled early but not dominate overall
         total_samples = sum(task_counts.values())
         # Extract counts for each base task (handle curriculum prefix)
         task_1_count = sum(count for task, count in task_counts.items() if "task_1" in task)
         task_2_count = sum(count for task, count in task_counts.items() if "task_2" in task)
         task_3_count = sum(count for task, count in task_counts.items() if "task_3" in task)
-        
+
         task_1_ratio = task_1_count / total_samples
         task_2_ratio = task_2_count / total_samples
         task_3_ratio = task_3_count / total_samples
-        
+
         print(f"Task ratios - 1: {task_1_ratio:.2f}, 2: {task_2_ratio:.2f}, 3: {task_3_ratio:.2f}")
-        
+
         # With monotonic linear progress, we expect progression through tasks
         assert task_1_count > 10, f"Task 1 should be sampled early, got {task_1_count}"
-        assert task_3_count > task_1_count, f"Task 3 should be sampled more than task 1 by end, got {task_3_count} vs {task_1_count}"
-        
+        assert task_3_count > task_1_count, (
+            f"Task 3 should be sampled more than task 1 by end, got {task_3_count} vs {task_1_count}"
+        )
+
         print("✓ PASSED: Monotonic signal correctly advances through tasks with expected timing")
 
     def test_scenario_2_zero_signal_stays_on_first(self, monkeypatch):
@@ -604,8 +610,8 @@ class TestProgressiveCurriculumScenarios:
 
         # Final weights should favor task_1 with the same distribution
         assert final_weights["task_1"] > 0.5, f"Should favor task_1, got {final_weights['task_1']}"
-        assert final_weights["task_1"] > final_weights.get("task_2", 0), f"Task 1 should have more weight than task 2"
-        assert final_weights["task_1"] > final_weights.get("task_3", 0), f"Task 1 should have more weight than task 3"
+        assert final_weights["task_1"] > final_weights.get("task_2", 0), "Task 1 should have more weight than task 2"
+        assert final_weights["task_1"] > final_weights.get("task_3", 0), "Task 1 should have more weight than task 3"
 
         # Task 1 should dominate selection counts
         total_selections = sum(task_counts.values())
@@ -616,7 +622,9 @@ class TestProgressiveCurriculumScenarios:
 
         # Progress should be zero or near-zero
         progress = curriculum_stats.get("progress", 0)
-        assert progress == 0.0, f"Progress should be exactly 0 with zero signal (never crosses threshold), got {progress}"
+        assert progress == 0.0, (
+            f"Progress should be exactly 0 with zero signal (never crosses threshold), got {progress}"
+        )
 
         # Performance tracking should show zero scores
         perf_tracking = curriculum_stats.get("performance_tracking", {})
@@ -679,18 +687,20 @@ class TestProgressiveCurriculumScenarios:
         # Check very early to see initial state
         very_early_weights = weight_history[5]
         print(f"Very early weights (step 5): {very_early_weights}")
-        
+
         # By step 20, with random scores and heavy smoothing, weights may already be distributed
         early_weights = weight_history[20]
         print(f"Early weights (step 20): {early_weights}")
         # Just verify all tasks have some weight (exploration happening)
-        assert all(early_weights.get(task, 0) > 0.01 for task in tasks), f"All tasks should have some weight by step 20, got {early_weights}"
+        assert all(early_weights.get(task, 0) > 0.01 for task in tasks), (
+            f"All tasks should have some weight by step 20, got {early_weights}"
+        )
 
         # Check progression is happening
         mid_early_weights = weight_history[50]
         print(f"Mid-early weights (step 50): {mid_early_weights}")
         # Progress should be advancing
-        assert progress > 0, f"Should show progress after 300 steps with random signal"
+        assert progress > 0, "Should show progress after 300 steps with random signal"
 
         # Middle: should show clear progression
         mid_weights = weight_history[150]
@@ -702,12 +712,16 @@ class TestProgressiveCurriculumScenarios:
         late_weights = weight_history[250]
         print(f"Late weights (step 250): {late_weights}")
         task_2_and_3_weight = late_weights.get("task_2", 0) + late_weights.get("task_3", 0)
-        assert task_2_and_3_weight > 0.1, f"Later tasks should have combined weight > 0.1 by late stage, got {late_weights}"
+        assert task_2_and_3_weight > 0.1, (
+            f"Later tasks should have combined weight > 0.1 by late stage, got {late_weights}"
+        )
 
         # Final analysis
         # Should have tried all tasks due to randomness and progression
         assert len(task_counts) == 3, f"Should have tried all 3 tasks with 300 steps, got {task_counts.keys()}"
-        assert all(count > 0 for count in task_counts.values()), f"All tasks should be sampled at least once, got {task_counts}"
+        assert all(count > 0 for count in task_counts.values()), (
+            f"All tasks should be sampled at least once, got {task_counts}"
+        )
 
         # Progress should be meaningful
         # With 0.4 threshold, uniform random 0-1, and 5% progression rate
@@ -722,7 +736,7 @@ class TestProgressiveCurriculumScenarios:
         task_1_count = sum(count for task, count in task_counts.items() if "task_1" in task)
         task_2_count = sum(count for task, count in task_counts.items() if "task_2" in task)
         task_3_count = sum(count for task, count in task_counts.items() if "task_3" in task)
-        
+
         task_1_ratio = task_1_count / total_selections
         task_2_ratio = task_2_count / total_selections
         task_3_ratio = task_3_count / total_selections
@@ -730,9 +744,11 @@ class TestProgressiveCurriculumScenarios:
         print(f"Task ratios - 1: {task_1_ratio:.2f}, 2: {task_2_ratio:.2f}, 3: {task_3_ratio:.2f}")
 
         # With full progression (progress=1.0), later tasks should dominate
-        assert task_3_ratio > task_1_ratio, f"Task 3 should be sampled more than task 1 with full progression"
+        assert task_3_ratio > task_1_ratio, "Task 3 should be sampled more than task 1 with full progression"
         assert task_1_ratio < 0.5, f"Task 1 should not dominate with full progression, got {task_1_ratio:.2f}"
-        assert task_3_ratio > 0.3, f"Task 3 should have significant samples with full progression, got {task_3_ratio:.2f}"
+        assert task_3_ratio > 0.3, (
+            f"Task 3 should have significant samples with full progression, got {task_3_ratio:.2f}"
+        )
 
         print("✓ PASSED: Random signal enables gradual progression with appropriate parameters")
 
@@ -800,7 +816,7 @@ class TestLearningProgressScenarios:
         # Check very early weights to see exploration phase
         very_early_weights = weight_history[5]
         print(f"Very early weights (step 5): {very_early_weights}")
-        
+
         # By step 30, learning progress may already identify differences
         early_weights = weight_history[30]
         print(f"Early weights (step 30): {early_weights}")
@@ -921,7 +937,6 @@ class TestLearningProgressScenarios:
         weight_history = results["weight_history"]
         task_counts = results["task_counts"]
         final_weights = results["final_weights"]
-        curriculum_stats = results["curriculum_stats"]
 
         print(f"Task counts: {task_counts}")
         print(f"Final weights: {final_weights}")
@@ -933,7 +948,9 @@ class TestLearningProgressScenarios:
         early_weights = weight_history[10]
         print(f"Early weights (step 10): {early_weights}")
         # With 50% random sampling, primary might not dominate early
-        assert early_weights.get("primary", 0) >= 0.5, f"Primary should have at least 50% weight early, got {early_weights}"
+        assert early_weights.get("primary", 0) >= 0.5, (
+            f"Primary should have at least 50% weight early, got {early_weights}"
+        )
 
         # After ~5 steps, primary reaches threshold and flatlines
         # Check weights after primary flatlines
@@ -966,7 +983,9 @@ class TestLearningProgressScenarios:
 
         # Secondary should be sampled at least a few times due to rand_task_rate=0.5
         # But learning progress quickly identifies primary as better, so secondary gets few samples
-        assert secondary_count > 0, f"Should sample secondary task at least once due to random exploration, got {secondary_count}"
+        assert secondary_count > 0, (
+            f"Should sample secondary task at least once due to random exploration, got {secondary_count}"
+        )
 
         # Analyze sampling ratios
         primary_ratio = primary_count / total_samples
@@ -991,7 +1010,10 @@ class TestLearningProgressScenarios:
                 print("✓ Algorithm focused on early learning progress but didn't fully discover secondary's potential")
 
         # Final weights analysis
-        print(f"Final weights - Primary: {final_weights.get('primary', 0):.3f}, Secondary: {final_weights.get('secondary', 0):.3f}")
+        print(
+            f"Final weights - Primary: {final_weights.get('primary', 0):.3f}, "
+            f"Secondary: {final_weights.get('secondary', 0):.3f}"
+        )
 
         # The algorithm's behavior is correct either way:
         # - It correctly identified primary's initial learning progress
@@ -1006,7 +1028,7 @@ class TestLowRewardCurriculumScenarios:
     def test_scenario_6_all_linear_scaling_equal_distribution(self, monkeypatch):
         """
         Scenario 6: All tasks have linear scaling rewards.
-        
+
         Expected: With the same linear progression, max/avg ratio should be similar for all tasks,
         leading to approximately equal distribution over time.
         """
@@ -1028,17 +1050,18 @@ class TestLowRewardCurriculumScenarios:
         # Each task gets its own independent linear progression
         class IndependentLinearScores(ScoreGenerator):
             """Each task has its own counter for linear progression."""
+
             def __init__(self, increment: float = 0.1):
                 self.increment = increment
                 self.task_counters = {}
-            
+
             def get_score(self, task_id: str) -> float:
                 if task_id not in self.task_counters:
                     self.task_counters[task_id] = 0
                 score = self.task_counters[task_id] * self.increment
                 self.task_counters[task_id] += 1
                 return min(score, 1.0)  # Cap at 1.0
-        
+
         score_gen = IndependentLinearScores(increment=0.05)
 
         curriculum = LowRewardCurriculum(
@@ -1057,7 +1080,6 @@ class TestLowRewardCurriculumScenarios:
         weight_history = results["weight_history"]
         final_weights = results["final_weights"]
         task_counts = results["task_counts"]
-        curriculum_stats = results["curriculum_stats"]
 
         print(f"Task counts: {task_counts}")
         print(f"Final weights: {final_weights}")
@@ -1084,7 +1106,9 @@ class TestLowRewardCurriculumScenarios:
         print(f"Final weight variance: {weight_variance:.6f}")
 
         # Weights should be relatively equal (low variance)
-        assert weight_variance < 0.01, f"Weights should be relatively equal with same linear progression, variance: {weight_variance}"
+        assert weight_variance < 0.01, (
+            f"Weights should be relatively equal with same linear progression, variance: {weight_variance}"
+        )
 
         # Task counts should be relatively balanced
         total_samples = sum(task_counts.values())
@@ -1105,7 +1129,7 @@ class TestLowRewardCurriculumScenarios:
     def test_scenario_7_one_impossible_task_gets_lowest_weight(self, monkeypatch):
         """
         Scenario 7: One task is impossible (always returns 0), others have linear scaling.
-        
+
         Expected: The impossible task has max/avg = 0/0, resulting in weight = epsilon.
         Learnable tasks have higher weights since max/avg > 0.
         The curriculum should focus on learnable tasks.
@@ -1192,8 +1216,10 @@ class TestLowRewardCurriculumScenarios:
         learnable_1_ratio = learnable_1_count / total_samples if total_samples > 0 else 0
         learnable_2_ratio = learnable_2_count / total_samples if total_samples > 0 else 0
 
-        print(f"Sampling ratios - Impossible: {impossible_ratio:.3f}, "
-              f"Learnable_1: {learnable_1_ratio:.3f}, Learnable_2: {learnable_2_ratio:.3f}")
+        print(
+            f"Sampling ratios - Impossible: {impossible_ratio:.3f}, "
+            f"Learnable_1: {learnable_1_ratio:.3f}, Learnable_2: {learnable_2_ratio:.3f}"
+        )
 
         # Impossible task should be sampled less than the dominant learnable task
         # One learnable task will dominate, but we don't know which one
