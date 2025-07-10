@@ -25,11 +25,6 @@ Documentation for creating and working with procedurally generated maps:
 - Using `LoadRandom` for dynamic map selection
 - Integration with map_builder configs
 
-### Development Guidelines
-
-- **[AGENTS.md](./AGENTS.md)** - Guidelines for AI agents working on the codebase
-- **[CLAUDE.md](./CLAUDE.md)** - Claude AI development guidelines and project patterns
-
 ## 🤖 Automation & Workflows
 
 ### [Workflows Documentation](./workflows/)
@@ -39,7 +34,15 @@ Detailed documentation for GitHub Actions workflows and automation:
 - **[Claude Review System](./workflows/claude-review-system.md)** - AI-powered code review with targeted feedback
 - **[Claude Assistant](./workflows/claude-assistant.md)** - Interactive bot for Q&A and automated PR creation
 
-## 📊 Metrics & Monitoring
+## �️ Development Guidelines
+
+### [Development Documentation](./development/)
+Guidelines for developers and AI tools working on the codebase:
+
+- **[AI Agent Guidelines](./development/AGENTS.md)** - Guidelines for Codex agents working in the repository
+- **[Claude Development Guide](./development/CLAUDE.md)** - Comprehensive guidance for Claude AI including project patterns and PR creation
+
+## �📊 Metrics & Monitoring
 
 ### [WandB Metrics Guide](./wandb/metrics/)
 Comprehensive documentation for all Weights & Biases metrics:

@@ -45,9 +45,9 @@ A reinforcement learning codebase focusing on the emergence of cooperation and a
   - [Claude Review System](docs/workflows/claude-review-system.md)
   - [Claude Assistant](docs/workflows/claude-assistant.md)
 - **[WandB Metrics Guide](docs/wandb/metrics/)** - Comprehensive metrics documentation
-- **Developer Guidelines**
-  - [AGENTS.md](docs/AGENTS.md) - Guidelines for Codex agents
-  - [CLAUDE.md](docs/CLAUDE.md) - Guidance for Claude Code
+- **[Development Guidelines](docs/development/)** - Guidelines for AI tools and contributors
+  - [AI Agent Guidelines](docs/development/AGENTS.md)
+  - [Claude Development Guide](docs/development/CLAUDE.md)
 
 ### 🔧 Component Documentation
 
