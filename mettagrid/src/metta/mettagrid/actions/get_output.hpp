@@ -26,7 +26,7 @@ protected:
     // Once we generalize this to `get`, we should be able to get from any HasInventory object, which
     // should include agents. That's (e.g.) why we're checking inventory_is_accessible.
     Converter* converter = dynamic_cast<Converter*>(_grid->object_at(target_loc));
-    if (converter == nullptr) {
+    if (!converter) {
       return false;
     }
 

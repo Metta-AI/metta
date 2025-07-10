@@ -26,7 +26,7 @@ protected:
     // Once we generalize this to `put`, we should be able to put to any HasInventory object, which
     // should include agents.
     Converter* converter = dynamic_cast<Converter*>(_grid->object_at(target_loc));
-    if (converter == nullptr) {
+    if (!converter) {
       return false;
     }
 

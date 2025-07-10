@@ -48,7 +48,7 @@ private:
   void maybe_start_converting() {
     // We can't start converting if there's no event manager, since we won't
     // be able to schedule the finishing event.
-    assert(this->event_manager != nullptr);
+    assert(this->event_manager);
     // We also need to have an id to schedule the finishing event. If our id
     // is zero, we probably haven't been added to the grid yet.
     assert(this->id != 0);

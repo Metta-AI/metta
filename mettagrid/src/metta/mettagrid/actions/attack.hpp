@@ -69,7 +69,7 @@ protected:
     }
 
     // If we got here, it means we skipped over all the targets. Attack the last one.
-    if (last_agent != nullptr) {
+    if (last_agent) {
       return _handle_target(*actor, *last_agent);
     }
 
