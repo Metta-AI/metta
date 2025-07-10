@@ -47,7 +47,6 @@ class TestMetricsFormattingMain:
             evals,
             agent_step=10000,
             epoch=100,
-            world_size=2,
         )
 
         # Check overview metrics
@@ -93,7 +92,7 @@ class TestMetricsFormattingMain:
         assert result["timing/epoch_time"] == 60
 
         # Check metric axes
-        assert result["metric/agent_step"] == 20000  # 10000 * 2 (world_size)
+        assert result["metric/agent_step"] == 10000
         assert result["metric/epoch"] == 100
         assert result["metric/total_time"] == 3600
         assert result["metric/train_time"] == 3000
