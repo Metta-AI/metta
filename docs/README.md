@@ -46,8 +46,8 @@ Comprehensive documentation for all Weights & Biases metrics:
 ## 🔗 Quick Links
 
 - **[Main README](../README.md)** - Project overview and quick start
-- **[Research Roadmap](../roadmap.md)** - Detailed research directions
-- **[Documentation Index](../INDEX.md)** - Alphabetical index of all concepts
+- **[Research Roadmap](./roadmap.md)** - Detailed research directions
+- **[Documentation Index](./INDEX.md)** - Alphabetical index of all concepts
 - **[Configuration Guide](../configs/)** - Configuration system reference
 
 ## 📝 Contributing to Documentation
@@ -58,6 +58,11 @@ When adding new documentation:
 2. **Format**: Use clear markdown with proper headers and code examples
 3. **Linking**: Update this README and the main INDEX.md
 4. **Standards**: Follow the patterns in existing documentation
+
+### Developer Guidelines
+
+- **[AGENTS.md](./AGENTS.md)** - Guidelines for Codex agents working in the repository
+- **[CLAUDE.md](./CLAUDE.md)** - Guidance for Claude Code when working with this codebase
 
 ### Documentation Structure
 
@@ -87,7 +92,7 @@ New to Metta AI? Start here:
 4. Explore [example configurations](../configs/)
 
 For researchers:
-- Review the [research roadmap](../roadmap.md)
+- Review the [research roadmap](./roadmap.md)
 - Explore [evaluation suites](../configs/eval/)
 - Check [training configurations](../configs/trainer/)
 

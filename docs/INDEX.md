@@ -5,7 +5,7 @@ This index provides quick access to key concepts and components in the Metta AI 
 ## A
 
 - **Action Space** → [configs/README.md#action-space](configs/README.md#action-space)
-- **Agent Architecture** → [agent/README.md](agent/README.md), [roadmap.md#2-agent-architecture-research](roadmap.md#2-agent-architecture-research)
+- **Agent Architecture** → [../agent/README.md](../agent/README.md), [roadmap.md#2-agent-architecture-research](roadmap.md#2-agent-architecture-research)
 - **Agent Diversity** → [roadmap.md#12-agent-diversity](roadmap.md#12-agent-diversity)
 - **API Reference** → [docs/api.md](docs/api.md)
 - **App Backend** → [app_backend/README.md](app_backend/README.md)

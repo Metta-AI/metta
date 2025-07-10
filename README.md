@@ -45,6 +45,9 @@ A reinforcement learning codebase focusing on the emergence of cooperation and a
   - [Claude Review System](docs/workflows/claude-review-system.md)
   - [Claude Assistant](docs/workflows/claude-assistant.md)
 - **[WandB Metrics Guide](docs/wandb/metrics/)** - Comprehensive metrics documentation
+- **Developer Guidelines**
+  - [AGENTS.md](docs/AGENTS.md) - Guidelines for Codex agents
+  - [CLAUDE.md](docs/CLAUDE.md) - Guidance for Claude Code
 
 ### 🔧 Component Documentation
 
@@ -58,8 +61,8 @@ A reinforcement learning codebase focusing on the emergence of cooperation and a
 
 ### 🗺️ Project Resources
 
-- **[Documentation Index](INDEX.md)** - Alphabetical index of key concepts
-- **[Research Roadmap](roadmap.md)** - Detailed research directions and future plans
+- **[Documentation Index](docs/INDEX.md)** - Alphabetical index of key concepts
+- **[Research Roadmap](docs/roadmap.md)** - Detailed research directions and future plans
 - **[Configuration Guide](configs/)** - Configuration system and examples
 - **[DevOps Documentation](devops/)** - Infrastructure and deployment
 - **[Test Suite](tests/)** - Testing framework and examples
@@ -177,7 +180,7 @@ Develop tools and infrastructure for efficient management, tracking, and deploym
 cluster management, experiment tracking and visualization, and continuous integration and deployment pipelines.
 
 This README provides only a brief overview of research explorations. Visit the
-[research roadmap](https://github.com/Metta-AI/metta/blob/main/roadmap.md) for more details.
+[research roadmap](docs/roadmap.md) for more details.
 
 ## Installation
 
