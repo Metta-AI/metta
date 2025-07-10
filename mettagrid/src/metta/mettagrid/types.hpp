@@ -55,4 +55,7 @@ using InventoryItem = uint8_t;
 using InventoryQuantity = uint8_t;
 using InventoryDelta = int16_t;  // cover full range of allowed changes (+/-255)
 
+using GridCoord = uint16_t;     // this sets the maximum possible map width or height
+using GridObjectId = uint32_t;  // this sets the maximum tracked objects
+
 #endif  // TYPES_HPP_

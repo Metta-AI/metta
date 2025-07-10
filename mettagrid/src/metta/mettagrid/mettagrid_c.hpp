@@ -19,6 +19,7 @@
 #include <string>
 #include <vector>
 
+#include "grid_object.hpp"
 #include "packed_coordinate.hpp"
 #include "types.hpp"
 
@@ -133,10 +134,10 @@ private:
 
   void init_action_handlers();
   void add_agent(Agent* agent);
-  void _compute_observation(unsigned int observer_r,
-                            unsigned int observer_c,
-                            unsigned short obs_width,
-                            unsigned short obs_height,
+  void _compute_observation(GridCoord observer_r,
+                            GridCoord observer_c,
+                            ObservationCoord obs_width,
+                            ObservationCoord obs_height,
                             size_t agent_idx,
                             ActionType action,
                             ActionArg action_arg);
