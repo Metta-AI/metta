@@ -14,11 +14,10 @@
 struct AttackActionConfig : public ActionConfig {
   std::map<InventoryItem, int> defense_resources;
 
-  AttackActionConfig(bool enabled,
-                     const std::map<InventoryItem, int>& required_resources,
+  AttackActionConfig(const std::map<InventoryItem, int>& required_resources,
                      const std::map<InventoryItem, int>& consumed_resources,
                      const std::map<InventoryItem, int>& defense_resources)
-      : ActionConfig(enabled, required_resources, consumed_resources), defense_resources(defense_resources) {}
+      : ActionConfig(required_resources, consumed_resources), defense_resources(defense_resources) {}
 };
 
 class Attack : public ActionHandler {
