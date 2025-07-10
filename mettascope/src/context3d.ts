@@ -271,7 +271,7 @@ export class Context3d {
     // Initialize transformation matrix
     this.currentTransform = Mat3f.identity()
   }
-  
+
   /** Create or switch to a mesh with the given name. */
   useMesh(name: string): void {
     if (!this.gl || !this.ready) {
@@ -296,7 +296,7 @@ export class Context3d {
   /** Sets the scissor rect for the current mesh. */
   setScissorRect(x: number, y: number, width: number, height: number): void {
     this.ensureMeshSelected()
-    
+
     this.currentMesh!.scissorEnabled = true
     this.currentMesh!.scissorRect = [x, y, width, height]
   }
@@ -365,7 +365,7 @@ export class Context3d {
     this.currentTransform = Mat3f.identity()
   }
 
-  /** Initialize the WebGL context. */
+  /** Initialize the context. */
   async init(atlasJsonUrl: string, atlasImageUrl: string): Promise<boolean> {
     this.dpr = 1.0
     if (window.devicePixelRatio > 1.0) {
@@ -446,15 +446,11 @@ export class Context3d {
   }
 
   /** Load the atlas image. */
-  private async loadAtlasImage(url: string): Promise<HTMLImageElement | null> {
+  private async loadAtlasImage(url: string): Promise<ImageBitmap | null> {
     try {
-      const img = new Image()
-      img.crossOrigin = 'anonymous'
-      return new Promise((resolve, reject) => {
-        img.onload = () => resolve(img)
-        img.onerror = () => reject(new Error(`Failed to load image: ${url}`))
-        img.src = url
-      })
+      const res = await fetch(url);
+      const blob = await res.blob()
+      return await createImageBitmap(blob)
     } catch (err) {
       console.error(`Error loading image ${url}:`, err)
       return null
@@ -552,7 +548,7 @@ export class Context3d {
       }
     `
   }
-  
+
   /** Clears all meshes for a new frame. */
   clear(): void {
     if (!this.ready) return
@@ -588,6 +584,7 @@ export class Context3d {
     const pos = new Vec2f(x, y)
 
     // Calculate vertex positions (screen pixels, origin top-left)
+    // We'll make 4 vertices for a quad
     const untransformedTopLeft = pos
     const untransformedBottomLeft = new Vec2f(pos.x(), pos.y() + height)
     const untransformedTopRight = new Vec2f(pos.x() + width, pos.y())
@@ -608,7 +605,7 @@ export class Context3d {
     return this.atlasData?.[imageName] !== undefined
   }
 
-  /** Draws an image from the atlas with its top-left corner at (x, y). */
+  /** Draws an image from the atlas with its top-right corner at (x, y). */
   drawImage(imageName: string, x: number, y: number, color: number[] = [1, 1, 1, 1]): void {
     if (!this.ready) {
       throw new Error('Drawer not initialized')
@@ -632,10 +629,10 @@ export class Context3d {
 
     // Draw the rectangle with the image's texture coordinates.
     this.drawRect(
-      x - m, // Adjust x position by adding margin.
+      x - m, // Adjust x position by adding margin (from the right).
       y - m, // Adjust y position by adding margin.
-      sw + 2 * m, // Add width by twice the margin.
-      sh + 2 * m, // Add height by twice the margin.
+      sw + 2 * m, // Reduce width by twice the margin (left and right).
+      sh + 2 * m, // Reduce height by twice the margin (top and bottom).
       u0,
       v0,
       u1,
@@ -661,6 +658,7 @@ export class Context3d {
     const m = this.atlasMargin
 
     // Calculate UV coordinates (normalized 0.0 to 1.0).
+    // Add the margin to allow texture filtering to handle edge anti-aliasing.
     const u0 = (sx - m) / this.textureSize.x()
     const v0 = (sy - m) / this.textureSize.y()
     const u1 = (sx + sw + m) / this.textureSize.x()
@@ -674,8 +672,8 @@ export class Context3d {
       this.drawRect(
         -sw / 2 - m, // Center horizontally with margin adjustment.
         -sh / 2 - m, // Center vertically with margin adjustment.
-        sw + 2 * m, // Add width by twice the margin.
-        sh + 2 * m, // Add height by twice the margin.
+        sw + 2 * m, // Reduce width by twice the margin.
+        sh + 2 * m, // Reduce height by twice the margin.
         u0,
         v0,
         u1,
