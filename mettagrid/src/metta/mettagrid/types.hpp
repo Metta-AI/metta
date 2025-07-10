@@ -42,13 +42,17 @@ inline py::object dtype_success() {
   return np.attr("dtype")(np.attr("bool_"));
 }
 
-typedef uint8_t ObservationType;
-typedef bool TerminalType;
-typedef bool TruncationType;
-typedef float RewardType;
-typedef int32_t ActionType;
-typedef ActionType ActionArg;
-typedef bool MaskType;
-typedef bool SuccessType;
+using ObservationType = uint8_t;
+using TerminalType = bool;
+using TruncationType = bool;
+using RewardType = float;
+using ActionType = int32_t;
+using ActionArg = ActionType;
+using MaskType = bool;
+using SuccessType = bool;
+
+using InventoryItem = uint8_t;
+using InventoryQuantity = uint8_t;
+using InventoryDelta = int16_t;  // cover full range of allowed changes (+/-255)
 
 #endif  // TYPES_HPP_
