@@ -18,130 +18,210 @@ declare global {
   }
 }
 
-// CSS for feed page
+// CSS for feed page with new design system
 const FEED_CSS = `
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow-x: hidden;
+}
+
 .feed-container {
   display: flex;
-  max-width: 1200px;
-  margin: 0 auto;
   min-height: calc(100vh - 60px);
+  font-family: 'Inter', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  margin-top: 60px;
 }
 
 .feed-sidebar {
-  width: 250px;
-  background: #fff;
-  border-right: 1px solid #e1e8ed;
-  padding: 20px 0;
-  position: sticky;
-  top: 0;
-  height: fit-content;
+  width: 240px;
+  background: #ffffff;
+  border-right: 1px solid #e5e7eb;
+  position: fixed;
+  top: 60px;
+  left: 0;
+  height: calc(100vh - 60px);
+  display: flex;
+  flex-direction: column;
+  z-index: 10;
+  overflow-y: auto;
+}
+
+.sidebar-nav {
+  flex: 1;
+  padding: 16px 0;
+}
+
+.sidebar-cta {
+  padding: 16px;
+  border-top: 1px solid #e5e7eb;
+  flex-shrink: 0;
 }
 
 .feed-main {
   flex: 1;
-  background: #fff;
+  background: #ffffff;
+  margin-left: 240px;
+  min-height: calc(100vh - 60px);
+  padding-bottom: 40px;
+  overflow-y: auto;
 }
 
-.feed-header {
-  padding: 15px 20px;
-  border-bottom: 1px solid #e1e8ed;
-  background: #fff;
-  position: sticky;
-  top: 0;
-  z-index: 10;
+/* Post Composer */
+.post-composer {
+  background: #ffffff;
+  border-bottom: 1px solid #e5e7eb;
+  padding: 16px 24px;
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
 }
 
-.feed-header h1 {
-  font-size: 20px;
-  font-weight: 700;
-  color: #14171a;
-  margin: 0;
-}
-
-.nav-item {
+.composer-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #2D5BFF;
   display: flex;
   align-items: center;
-  padding: 12px 20px;
-  color: #14171a;
-  text-decoration: none;
-  font-weight: 500;
-  font-size: 15px;
-  transition: background-color 0.2s ease;
-  border-radius: 25px;
-  margin: 0 10px 4px 10px;
+  justify-content: center;
+  color: white;
+  font-weight: 600;
+  font-size: 14px;
+  flex-shrink: 0;
 }
 
-.nav-item:hover {
-  background-color: #f7f9fa;
+.composer-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
-.nav-item.active {
-  font-weight: 700;
+.composer-textarea {
+  width: 100%;
+  min-height: 60px;
+  max-height: 120px;
+  border: none;
+  resize: none;
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.5;
+  outline: none;
+  padding: 0;
 }
 
-.nav-item svg {
-  margin-right: 12px;
-  width: 20px;
-  height: 20px;
+.composer-textarea::placeholder {
+  color: #9ca3af;
 }
 
-.post {
-  padding: 15px 20px;
-  border-bottom: 1px solid #e1e8ed;
-  transition: background-color 0.2s ease;
+.composer-actions {
+  display: flex;
+  justify-content: flex-end;
 }
 
-.post:hover {
-  background-color: #f7f9fa;
+.post-button {
+  background: #2D5BFF;
+  color: white;
+  border: none;
+  border-radius: 20px;
+  padding: 8px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.post-button:disabled {
+  background: #d1d5db;
+  cursor: not-allowed;
+}
+
+.post-button:not(:disabled):hover {
+  background: #1e40af;
+}
+
+/* Feed Items */
+.feed-list {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.feed-item {
+  padding: 16px 24px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.feed-item.user-post {
+  background: #EDF1FF;
+  border-radius: 8px;
+  margin: 0 24px 0 24px;
+  border-bottom: none;
+}
+
+.feed-item.paper-post {
+  background: #FFF7E8;
+  border-radius: 8px;
+  margin: 0 24px 0 24px;
+  border-bottom: none;
+}
+
+.feed-item.pure-paper {
+  background: #ffffff;
+  border-radius: 8px;
+  margin: 0 24px 0 24px;
+  border-bottom: none;
 }
 
 .post-header {
   display: flex;
   align-items: center;
-  margin-bottom: 8px;
+  gap: 12px;
+  margin-bottom: 12px;
 }
 
 .post-avatar {
-  width: 48px;
-  height: 48px;
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
-  background: #1da1f2;
+  background: #2D5BFF;
   display: flex;
   align-items: center;
   justify-content: center;
   color: white;
-  font-weight: 700;
-  font-size: 18px;
-  margin-right: 12px;
+  font-weight: 600;
+  font-size: 12px;
 }
 
 .post-user-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   flex: 1;
 }
 
 .post-name {
-  font-weight: 700;
-  color: #14171a;
-  font-size: 15px;
-  margin: 0;
-}
-
-.post-username {
-  color: #657786;
+  font-weight: 600;
+  color: #111827;
   font-size: 14px;
-  margin: 0;
 }
 
 .post-time {
-  color: #657786;
-  font-size: 14px;
+  color: #6b7280;
+  font-size: 13px;
 }
 
 .post-content {
-  color: #14171a;
-  font-size: 15px;
-  line-height: 1.5;
-  margin-bottom: 12px;
+  color: #111827;
+  font-size: 14px;
+  line-height: 1.6;
+  margin-bottom: 16px;
 }
 
 .post-content .math {
@@ -152,13 +232,13 @@ const FEED_CSS = `
 .post-content .math-display {
   display: block;
   text-align: center;
-  margin: 10px 0;
+  margin: 12px 0;
 }
 
 .post-actions {
   display: flex;
-  gap: 60px;
-  color: #657786;
+  gap: 48px;
+  color: #6b7280;
   font-size: 13px;
 }
 
@@ -171,86 +251,282 @@ const FEED_CSS = `
 }
 
 .post-action:hover {
-  color: #1da1f2;
+  color: #2D5BFF;
 }
 
-.post-action svg {
+/* PaperCard */
+.paper-card {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.paper-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.paper-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #f59e0b;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-weight: 600;
+  font-size: 10px;
+}
+
+.paper-author {
+  font-size: 14px;
+  font-weight: 500;
+  color: #111827;
+}
+
+.paper-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #111827;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  line-height: 1.4;
+}
+
+.paper-title svg {
+  width: 16px;
+  height: 16px;
+  color: #6b7280;
+}
+
+.paper-summary {
+  border-left: 4px solid #2D5BFF;
+  background: #F2F6FF;
+  padding: 8px 12px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #374151;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.paper-abstract {
+  font-size: 14px;
+  line-height: 1.6;
+  color: #374151;
+  display: -webkit-box;
+  -webkit-line-clamp: 5;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.paper-abstract.expanded {
+  display: block;
+  -webkit-line-clamp: unset;
+}
+
+.paper-badge {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.paper-badge-left {
+  background: #f3f4f6;
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+}
+
+.paper-badge-right {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
+
+.paper-badge-right svg {
+  width: 14px;
+  height: 14px;
+  color: #ef4444;
+}
+
+.show-more-btn {
+  color: #2D5BFF;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 0;
+  margin-top: 4px;
+}
+
+.show-more-btn:hover {
+  text-decoration: underline;
+}
+
+
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  height: 40px;
+  padding: 0 12px;
+  color: #6b7280;
+  text-decoration: none;
+  font-weight: 500;
+  font-size: 14px;
+  transition: all 0.2s ease;
+  border-radius: 20px;
+  margin: 0 12px 2px 12px;
+  cursor: pointer;
+  gap: 8px;
+}
+
+.nav-item:hover {
+  background-color: #f3f4f6;
+  color: #111827;
+}
+
+.nav-item.active {
+  background-color: rgba(45, 91, 255, 0.1);
+  color: #2D5BFF;
+  font-weight: 600;
+}
+
+.nav-item span {
+  display: flex;
+  align-items: center;
+}
+
+.nav-item span svg {
+  width: 20px;
+  height: 20px;
+}
+}
+
+.post-action {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: color 0.2s ease;
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+
+.post-action:hover {
+  color: #2D5BFF;
+  background-color: #f3f4f6;
+}
+
+.post-action span {
+  display: flex;
+  align-items: center;
+}
+
+.post-action span svg {
   width: 16px;
   height: 16px;
 }
 
 .compose-button {
-  background: #1da1f2;
+  background: #2D5BFF;
   color: white;
   border: none;
-  border-radius: 25px;
-  padding: 15px 20px;
-  font-weight: 700;
-  font-size: 15px;
+  border-radius: 8px;
+  padding: 12px 20px;
+  font-weight: 600;
+  font-size: 14px;
   cursor: pointer;
-  width: calc(100% - 20px);
-  margin: 0 10px 20px 10px;
+  width: calc(100% - 24px);
+  margin: 0 12px 20px 12px;
   transition: background-color 0.2s ease;
 }
 
 .compose-button:hover {
-  background: #1a91da;
+  background: #1e40af;
 }
 
-.trending-section {
-  padding: 15px 20px;
-  border-bottom: 1px solid #e1e8ed;
-}
-
-.trending-title {
-  font-weight: 700;
-  color: #14171a;
-  font-size: 15px;
-  margin-bottom: 12px;
-}
-
-.trending-item {
-  padding: 8px 0;
-  cursor: pointer;
-}
-
-.trending-topic {
-  font-weight: 700;
-  color: #14171a;
+.cta-button {
+  width: 100%;
+  height: 40px;
+  background-color: #2D5BFF;
+  color: #ffffff;
+  border: none;
+  border-radius: 20px;
   font-size: 14px;
-  margin-bottom: 2px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.trending-count {
-  color: #657786;
-  font-size: 12px;
+.cta-button:hover {
+  background-color: #1e40af;
+  transform: translateY(-1px);
 }
+
+
 
 .paper-preview {
-  background: #f8f9fa;
-  border: 1px solid #e1e8ed;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
   border-radius: 8px;
-  padding: 12px;
-  margin: 8px 0;
+  padding: 16px;
+  margin: 12px 0;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
 }
 
 .paper-title {
   font-weight: 600;
-  color: #14171a;
+  color: #111827;
   font-size: 14px;
   margin-bottom: 4px;
 }
 
 .paper-authors {
-  color: #657786;
+  color: #6b7280;
   font-size: 12px;
-  margin-bottom: 4px;
+  margin-bottom: 8px;
 }
 
 .paper-abstract {
-  color: #14171a;
+  color: #374151;
   font-size: 13px;
-  line-height: 1.4;
+  line-height: 1.5;
+}
+
+/* Custom scrollbar for sidebar */
+.feed-sidebar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.feed-sidebar::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+
+.feed-sidebar::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+.feed-sidebar::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
 }
 `
 
@@ -259,9 +535,11 @@ interface LibraryProps {
 }
 
 export function Library({ repo: _repo }: LibraryProps) {
-  const [activeNav, setActiveNav] = useState('home')
+  const [activeNav, setActiveNav] = useState('feed')
   const [mathJaxLoaded, setMathJaxLoaded] = useState(false)
   const postsRef = useRef<HTMLDivElement>(null)
+  const [composerText, setComposerText] = useState('')
+  const [expandedAbstracts, setExpandedAbstracts] = useState<Set<number>>(new Set())
 
   // Initialize MathJax
   useEffect(() => {
@@ -331,6 +609,24 @@ export function Library({ repo: _repo }: LibraryProps) {
     }
   }, [mathJaxLoaded])
 
+  const handlePostSubmit = () => {
+    if (composerText.trim()) {
+      // In a real app, this would submit to the backend
+      console.log('Posting:', composerText)
+      setComposerText('')
+    }
+  }
+
+  const toggleAbstract = (postId: number) => {
+    const newExpanded = new Set(expandedAbstracts)
+    if (newExpanded.has(postId)) {
+      newExpanded.delete(postId)
+    } else {
+      newExpanded.add(postId)
+    }
+    setExpandedAbstracts(newExpanded)
+  }
+
   // Dummy posts data with mathematical content
   const posts = [
     {
@@ -348,22 +644,30 @@ Test inline: $x^2 + y^2 = z^2$ and $\\alpha + \\beta = \\gamma$`,
       time: '2h',
       likes: 24,
       retweets: 8,
-      replies: 3
+      replies: 3,
+      type: 'user-post'
     },
     {
       id: 2,
       name: 'Prof. Bob Chen',
       username: '@bobchen',
       avatar: 'B',
-      content: `Excited to share our new paper on reinforcement learning with continuous action spaces! We introduce a novel policy gradient method that uses the natural gradient $\\nabla_\\theta J(\\theta) = F^{-1}(\\theta) \\nabla_\\theta J(\\theta)$ where $F(\\theta)$ is the Fisher information matrix. This leads to more stable training and better sample efficiency. The key equation is:
-
-$$\\theta_{t+1} = \\theta_t + \\alpha F^{-1}(\\theta_t) \\nabla_\\theta J(\\theta_t)$$
-
-Our experiments show 40% improvement in sample efficiency on continuous control tasks! 📊 #RL #PolicyGradients`,
+      content: `Excited to share our new paper on reinforcement learning with continuous action spaces! We introduce a novel policy gradient method that uses the natural gradient $\\nabla_\\theta J(\\theta) = F^{-1}(\\theta) \\nabla_\\theta J(\\theta)$ where $F(\\theta)$ is the Fisher information matrix. This leads to more stable training and better sample efficiency.`,
       time: '4h',
       likes: 42,
       retweets: 15,
-      replies: 7
+      replies: 7,
+      type: 'paper-post',
+      paper: {
+        id: 'arxiv:1804.02464v3',
+        title: 'Natural Policy Gradients for Continuous Control',
+        author: 'Robert Chen',
+        authorInitial: 'R',
+        summary: 'This paper introduces a novel policy gradient method using natural gradients that achieves 40% improvement in sample efficiency on continuous control tasks. The key innovation is the use of the Fisher information matrix to compute more stable policy updates.',
+        abstract: 'We present a novel policy gradient method for reinforcement learning in continuous action spaces that uses the natural gradient to improve sample efficiency and training stability. Our approach leverages the Fisher information matrix to compute more effective policy updates, leading to faster convergence and better final performance. We demonstrate the effectiveness of our method on a variety of continuous control benchmarks, showing significant improvements over standard policy gradient methods. The theoretical analysis provides insights into why natural gradients are particularly effective for policy optimization in continuous spaces.',
+        citations: 127,
+        url: 'https://arxiv.org/abs/1804.02464'
+      }
     },
     {
       id: 3,
@@ -378,18 +682,22 @@ where $\\sigma$ is a sigmoid activation function. This theoretical result explai
       time: '6h',
       likes: 67,
       retweets: 23,
-      replies: 12
+      replies: 12,
+      type: 'user-post'
     },
     {
       id: 4,
-      name: 'David Kim',
-      username: '@davidkim',
-      avatar: 'D',
-      content: `Working on transformer architectures for time series forecasting. The key challenge is handling the quadratic complexity $O(n^2)$ of self-attention. We're exploring sparse attention patterns where each position only attends to $O(\\log n)$ other positions. The attention complexity becomes $O(n \\log n)$, making it much more efficient for long sequences! ⚡ #Transformers #TimeSeries`,
-      time: '8h',
-      likes: 31,
-      retweets: 9,
-      replies: 5
+      type: 'pure-paper',
+      paper: {
+        id: 'arxiv:1706.03762',
+        title: 'Attention Is All You Need',
+        author: 'Ashish Vaswani',
+        authorInitial: 'A',
+        summary: 'This seminal paper introduces the Transformer architecture, which relies entirely on self-attention mechanisms and has become the foundation for modern language models. The paper demonstrates that attention mechanisms alone can achieve state-of-the-art results in machine translation.',
+        abstract: 'The dominant sequence transduction models are based on complex recurrent or convolutional neural networks that include an encoder and a decoder. The best performing models also connect the encoder and decoder through an attention mechanism. We propose a new simple network architecture, the Transformer, based solely on attention mechanisms, dispensing with recurrence and convolutions entirely. Experiments on two machine translation tasks show that these models are superior in quality while being more parallelizable and requiring significantly less time to train. Our model achieves 28.4 BLEU on the WMT 2014 English-to-German translation task, improving over the existing best results, including ensembles, by over 2 BLEU. On the WMT 2014 English-to-French translation task, our model establishes a new single-model state-of-the-art BLEU score of 41.8 after training for 3.5 days on eight GPUs, a small fraction of the training costs of the best models from the literature. We show that the Transformer generalizes well to other tasks by applying it successfully to English constituency parsing with large amounts of training data.',
+        citations: 45678,
+        url: 'https://arxiv.org/abs/1706.03762'
+      }
     },
     {
       id: 5,
@@ -404,105 +712,269 @@ The first term is the reconstruction loss, and the second is the KL divergence t
       time: '10h',
       likes: 53,
       retweets: 18,
-      replies: 9
+      replies: 9,
+      type: 'user-post'
     }
   ]
 
-  const trendingTopics = [
-    { topic: '#AttentionMechanisms', count: '12.5K posts' },
-    { topic: '#ReinforcementLearning', count: '8.2K posts' },
-    { topic: '#NeuralNetworks', count: '5.7K posts' },
-    { topic: '#Transformers', count: '4.1K posts' },
-    { topic: '#GenerativeModels', count: '3.8K posts' }
-  ]
+  // PaperCard component
+  const PaperCard = ({ paper }: { paper: any }) => {
+    const isExpanded = expandedAbstracts.has(paper.id)
+    
+    return (
+      <div className="paper-card">
+        <div className="paper-header">
+          <div className="paper-avatar">
+            {paper.authorInitial}
+          </div>
+          <div className="paper-author">
+            {paper.author}
+          </div>
+        </div>
+        
+        <div className="paper-title">
+          {paper.title}
+          <span dangerouslySetInnerHTML={{ __html: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+            <polyline points="15,3 21,3 21,9"/>
+            <line x1="10" y1="14" x2="21" y2="3"/>
+          </svg>` }} />
+        </div>
+        
+        <div className="paper-summary">
+          {paper.summary}
+        </div>
+        
+        <div>
+          <div className={`paper-abstract ${isExpanded ? 'expanded' : ''}`}>
+            {paper.abstract}
+          </div>
+          <button 
+            className="show-more-btn"
+            onClick={() => toggleAbstract(paper.id)}
+          >
+            {isExpanded ? 'Show less' : 'Show more'}
+          </button>
+        </div>
+        
+        <div className="paper-badge">
+          <div className="paper-badge-left">
+            Auto-imported from {paper.id} · {paper.citations} citations
+          </div>
+          <div className="paper-badge-right">
+            <span dangerouslySetInnerHTML={{ __html: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 2v6h-6"/>
+              <path d="M3 12a9 9 0 0 1 15-6.7L21 8"/>
+              <path d="M3 22v-6h6"/>
+              <path d="M21 12a9 9 0 0 1-15 6.7L3 16"/>
+            </svg>` }} />
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   const navItems = [
-    { id: 'home', label: 'Home', icon: '🏠' },
-    { id: 'explore', label: 'Explore', icon: '🔍' },
-    { id: 'notifications', label: 'Notifications', icon: '🔔' },
-    { id: 'messages', label: 'Messages', icon: '💬' },
-    { id: 'bookmarks', label: 'Bookmarks', icon: '🔖' },
-    { id: 'profile', label: 'Profile', icon: '👤' }
+    { 
+      id: 'feed', 
+      label: 'Feed', 
+      icon: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M8 6h8"/>
+        <path d="M8 12h8"/>
+        <path d="M8 18h8"/>
+        <path d="M4 6h.01"/>
+        <path d="M4 12h.01"/>
+        <path d="M4 18h.01"/>
+      </svg>`
+    },
+    { 
+      id: 'search', 
+      label: 'Search', 
+      icon: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="11" cy="11" r="8"/>
+        <path d="m21 21-4.35-4.35"/>
+      </svg>`
+    },
+    { 
+      id: 'collections', 
+      label: 'Collections', 
+      icon: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 3h18v18H3z"/>
+        <path d="M9 9h6v6H9z"/>
+        <path d="M3 9h6"/>
+        <path d="M15 9h6"/>
+        <path d="M3 15h6"/>
+        <path d="M15 15h6"/>
+      </svg>`
+    },
+    { 
+      id: 'scholars', 
+      label: 'Scholars', 
+      icon: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
+        <circle cx="9" cy="7" r="4"/>
+        <path d="m22 21-2-2"/>
+        <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+      </svg>`
+    },
+    { 
+      id: 'affiliations', 
+      label: 'Affiliations', 
+      icon: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 21h18"/>
+        <path d="M5 21V7l8-4v18"/>
+        <path d="M19 21V11l-6-4"/>
+        <path d="M9 9h.01"/>
+        <path d="M9 13h.01"/>
+        <path d="M9 17h.01"/>
+        <path d="M14 13h.01"/>
+        <path d="M14 17h.01"/>
+      </svg>`
+    },
+    { 
+      id: 'papers', 
+      label: 'Papers Only', 
+      icon: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+        <polyline points="14,2 14,8 20,8"/>
+        <line x1="16" y1="13" x2="8" y2="13"/>
+        <line x1="16" y1="17" x2="8" y2="17"/>
+        <polyline points="10,9 9,9 8,9"/>
+      </svg>`
+    },
+    { 
+      id: 'profile', 
+      label: 'Profile', 
+      icon: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+        <circle cx="12" cy="7" r="4"/>
+      </svg>`
+    }
   ]
 
   return (
-    <div style={{ fontFamily: 'Arial, sans-serif' }}>
+    <div style={{ fontFamily: 'Inter, Helvetica Neue, Helvetica, Arial, sans-serif' }}>
       <style>{FEED_CSS}</style>
       
       <div className="feed-container">
         {/* Left Sidebar */}
         <div className="feed-sidebar">
-          <button className="compose-button">
-            Post
-          </button>
+          <div className="sidebar-nav">
+            {navItems.map(item => (
+              <div
+                key={item.id}
+                className={`nav-item ${activeNav === item.id ? 'active' : ''}`}
+                onClick={() => setActiveNav(item.id)}
+              >
+                <span dangerouslySetInnerHTML={{ __html: item.icon }} />
+                {item.label}
+              </div>
+            ))}
+          </div>
           
-          {navItems.map(item => (
-            <div
-              key={item.id}
-              className={`nav-item ${activeNav === item.id ? 'active' : ''}`}
-              onClick={() => setActiveNav(item.id)}
-            >
-              <span>{item.icon}</span>
-              {item.label}
-            </div>
-          ))}
+          <div className="sidebar-cta">
+            <button className="cta-button">
+              Post Research
+            </button>
+          </div>
         </div>
 
         {/* Main Content */}
         <div className="feed-main">
-          <div className="feed-header">
-            <h1>Home</h1>
+          {/* Post Composer */}
+          <div className="post-composer">
+            <div className="composer-avatar">
+              U
+            </div>
+            <div className="composer-content">
+              <textarea
+                className="composer-textarea"
+                placeholder="Share your research insights… Include arXiv URLs to automatically import papers. LaTeX supported with $...$ or $$...$$"
+                value={composerText}
+                onChange={(e) => setComposerText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault()
+                    handlePostSubmit()
+                  }
+                }}
+              />
+              <div className="composer-actions">
+                <button 
+                  className="post-button"
+                  disabled={!composerText.trim()}
+                  onClick={handlePostSubmit}
+                >
+                  Post
+                </button>
+              </div>
+            </div>
           </div>
 
-          {/* Posts Feed */}
-          <div ref={postsRef}>
-            {posts.map(post => (
-              <div key={post.id} className="post">
-                <div className="post-header">
-                  <div className="post-avatar">
-                    {post.avatar}
+          {/* Feed List */}
+          <div className="feed-list" ref={postsRef}>
+            {posts.map(post => {
+              if (post.type === 'pure-paper') {
+                return (
+                  <div key={post.id} className="feed-item pure-paper">
+                    <PaperCard paper={post.paper} />
                   </div>
-                  <div className="post-user-info">
-                    <div className="post-name">{post.name}</div>
-                    <div className="post-username">{post.username}</div>
-                  </div>
-                  <div className="post-time">{post.time}</div>
-                </div>
-                
-                <div className="post-content">
-                  {post.content}
-                </div>
-                
-                <div className="post-actions">
-                  <div className="post-action">
-                    <span>💬</span>
-                    {post.replies}
-                  </div>
-                  <div className="post-action">
-                    <span>🔄</span>
-                    {post.retweets}
-                  </div>
-                  <div className="post-action">
-                    <span>❤️</span>
-                    {post.likes}
-                  </div>
-                  <div className="post-action">
-                    <span>📤</span>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
+                )
+              }
 
-          {/* Trending Section */}
-          <div className="trending-section">
-            <div className="trending-title">Trending</div>
-            {trendingTopics.map((topic, index) => (
-              <div key={index} className="trending-item">
-                <div className="trending-topic">{topic.topic}</div>
-                <div className="trending-count">{topic.count}</div>
-              </div>
-            ))}
+              return (
+                <div key={post.id} className={`feed-item ${post.type}`}>
+                  <div className="post-header">
+                    <div className="post-avatar">
+                      {post.avatar}
+                    </div>
+                    <div className="post-user-info">
+                      <div className="post-name">{post.name}</div>
+                      <span>·</span>
+                      <div className="post-time">{post.time}</div>
+                    </div>
+                  </div>
+                  
+                  <div className="post-content">
+                    {post.content}
+                  </div>
+                  
+                  {post.type === 'paper-post' && post.paper && (
+                    <PaperCard paper={post.paper} />
+                  )}
+                  
+                  <div className="post-actions">
+                    <div className="post-action">
+                      <span dangerouslySetInnerHTML={{ __html: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                      </svg>` }} />
+                      {post.replies || 0}
+                    </div>
+                    <div className="post-action">
+                      <span dangerouslySetInnerHTML={{ __html: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M17 1l4 4-4 4"/>
+                        <path d="M3 11V9a4 4 0 0 1 4-4h14"/>
+                        <path d="M7 23l-4-4 4-4"/>
+                        <path d="M21 13v2a4 4 0 0 1-4 4H3"/>
+                      </svg>` }} />
+                      {post.retweets || 0}
+                    </div>
+                    <div className="post-action">
+                      <span dangerouslySetInnerHTML={{ __html: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+                      </svg>` }} />
+                      {post.likes || 0}
+                    </div>
+                    <div className="post-action">
+                      <span dangerouslySetInnerHTML={{ __html: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M22 2L11 13"/>
+                        <path d="M22 2l-7 20-4-9-9-4 20-7z"/>
+                      </svg>` }} />
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
           </div>
         </div>
       </div>

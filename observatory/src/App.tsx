@@ -17,6 +17,12 @@ const NAV_CSS = `
   border-bottom: 1px solid #ddd;
   padding: 0 20px;
   box-shadow: 0 1px 3px rgba(0,0,0,.1);
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  height: 60px;
 }
 
 .nav-content {
@@ -58,7 +64,7 @@ const NAV_CSS = `
 }
 
 .page-container {
-  padding-top: 0;
+  padding-top: 60px;
 }
 `
 
@@ -212,7 +218,29 @@ function App() {
                 SQL Query
               </Link>
               <Link to="/library" className={`nav-tab ${location.pathname === '/library' ? 'active' : ''}`}>
-                Library
+                <span 
+                  style={{ 
+                    display: 'inline-flex', 
+                    alignItems: 'center', 
+                    gap: '6px'
+                  }}
+                >
+                  <span 
+                  style={{
+                    transform: 'translateY(2px)'
+                  }}
+                  dangerouslySetInnerHTML={{ 
+                    __html: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M3 18h18"/>
+                      <rect x="3" y="8" width="3.6" height="10"/>
+                      <rect x="6.6" y="6" width="3.6" height="12"/>
+                      <rect x="10.2" y="9" width="3.6" height="9"/>
+                      <rect x="13.8" y="7" width="3.6" height="11"/>
+                      <rect x="17.4" y="5" width="3.6" height="13"/>
+                    </svg>`
+                  }} />
+                  Library
+                </span>
               </Link>
             </div>
           </div>
