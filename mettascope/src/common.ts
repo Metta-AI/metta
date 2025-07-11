@@ -164,6 +164,12 @@ export const html = {
   toast: find('#toast'),
 }
 
+/** Generates a color from an agent ID. */
+export function colorFromId(agentId: number) {
+  let n = agentId + Math.PI + Math.E + Math.SQRT2
+  return [(n * Math.PI) % 1.0, (n * Math.E) % 1.0, (n * Math.SQRT2) % 1.0, 1.0]
+}
+
 /** Sets the follow selection state. You can pass null to leave a state unchanged. */
 export function setFollowSelection(map: boolean | null) {
   if (map != null) {

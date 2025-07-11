@@ -10,12 +10,6 @@ import { updateHoverPanel, updateReadout, HoverPanel } from './hoverpanels.js'
 import { search, searchMatch } from './search.js'
 import { renderMinimapObjects } from './minimap.js'
 
-/** Generates a color from an agent ID. */
-function colorFromId(agentId: number) {
-  let n = agentId + Math.PI + Math.E + Math.SQRT2
-  return [(n * Math.PI) % 1.0, (n * Math.E) % 1.0, (n * Math.SQRT2) % 1.0, 1.0]
-}
-
 /** Checks to see if an object has any inventory. */
 function hasInventory(obj: any) {
   for (const [key, [icon, color]] of state.replay.resource_inventory) {
@@ -162,7 +156,7 @@ function drawObject(gridObject: any) {
       'agents/agent.' + suffix + '.png',
       x * Common.TILE_SIZE,
       y * Common.TILE_SIZE,
-      colorFromId(agent_id)
+      Common.colorFromId(agent_id)
     )
   } else {
     // Draw regular objects.

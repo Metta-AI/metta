@@ -50,11 +50,12 @@ export function renderMinimapObjects(tileSize: number, offsetX: number = 0, offs
     if (typeName === 'agent') {
       // Scale the pip based on tile size - for minimap use scale 1, for world map scale proportionally
       const scale = tileSize <= Common.MINI_MAP_TILE_SIZE ? 1 : (tileSize / Common.MINI_MAP_TILE_SIZE) * 0.50
+      const agent_id = getAttr(gridObject, 'agent_id')
       ctx.drawSprite(
         'minimapPip.png',
         x * tileSize + offsetX + (tileSize > 2 ? 1 : 0),
         y * tileSize + offsetY + (tileSize > 2 ? 1 : 0),
-        [1, 0, 0, 1],
+        Common.colorFromId(agent_id),
         scale,
         0
       )
