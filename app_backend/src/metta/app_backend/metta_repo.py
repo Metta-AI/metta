@@ -1,4 +1,5 @@
 import hashlib
+import json
 import secrets
 import uuid
 from contextlib import asynccontextmanager
@@ -895,22 +896,37 @@ class MettaRepo:
         self,
         assignee: str,
         task_statuses: Dict[uuid.UUID, str],
+        error_reasons: Dict[uuid.UUID, str] | None = None,
     ) -> Dict[uuid.UUID, str]:
         if not task_statuses:
             return {}
 
+        error_reasons = error_reasons or {}
         updated = {}
         async with self.connect() as con:
             for task_id, status in task_statuses.items():
-                result = await con.execute(
-                    """
-                    UPDATE eval_tasks
-                    SET status = %s
-                    WHERE id = %s AND assignee = %s
-                    RETURNING id
-                    """,
-                    (status, task_id, assignee),
-                )
+                error_reason = error_reasons.get(task_id)
+                if error_reason:
+                    result = await con.execute(
+                        """
+                        UPDATE eval_tasks
+                        SET status = %s,
+                            attributes = attributes || %s::jsonb
+                        WHERE id = %s AND assignee = %s
+                        RETURNING id
+                        """,
+                        (status, json.dumps({"error_reason": error_reason}), task_id, assignee),
+                    )
+                else:
+                    result = await con.execute(
+                        """
+                        UPDATE eval_tasks
+                        SET status = %s
+                        WHERE id = %s AND assignee = %s
+                        RETURNING id
+                        """,
+                        (status, task_id, assignee),
+                    )
                 if result.rowcount > 0:
                     updated[task_id] = status
 
