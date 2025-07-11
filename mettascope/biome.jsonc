@@ -3,12 +3,6 @@
   "extends": ["../biome.jsonc"],
   // MettaScope uses all the workspace defaults
   "formatter": {
-    "ignore": ["./index.css", "./index.html"],
-    "lineWidth": 110
-  },
-  "javascript": {
-    "formatter": {
-      "bracketSpacing": true
-    }
+    "ignore": ["./index.css", "./index.html"]
   }
 }

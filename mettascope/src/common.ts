@@ -134,14 +134,7 @@ export const html = {
 
   actionButtons: find('#action-buttons'),
 
-  speedButtons: [
-    find('#speed1'),
-    find('#speed2'),
-    find('#speed3'),
-    find('#speed4'),
-    find('#speed5'),
-    find('#speed6'),
-  ],
+  speedButtons: [find('#speed1'), find('#speed2'), find('#speed3'), find('#speed4'), find('#speed5'), find('#speed6')],
 
   focusToggle: find('#focus-toggle'),
 

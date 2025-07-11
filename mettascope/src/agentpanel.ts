@@ -113,9 +113,7 @@ function saveAgentTable() {
 export function initAgentTable() {
   // Load the columns from local storage.
   let plainColumns = localStorageGetObject('agentPanelColumns', columns)
-  columns = plainColumns.map(
-    (column) => new ColumnDefinition(column.field, column.isFinal, column.sortDirection)
-  )
+  columns = plainColumns.map((column) => new ColumnDefinition(column.field, column.isFinal, column.sortDirection))
 
   // Hide the column menu and new column dropdown.
   columnMenu.classList.add('hidden')
@@ -217,9 +215,7 @@ onEvent('click', '#agent-panel .header-cell', (target: HTMLElement, e: Event) =>
             column.sortDirection = SortDirection.Descending
           } else {
             column.sortDirection =
-              column.sortDirection == SortDirection.Descending
-                ? SortDirection.Ascending
-                : SortDirection.Descending
+              column.sortDirection == SortDirection.Descending ? SortDirection.Ascending : SortDirection.Descending
           }
         } else {
           column.sortDirection = SortDirection.Descending

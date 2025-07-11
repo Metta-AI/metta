@@ -646,14 +646,7 @@ export class Context3d {
   }
 
   /** Draws an image from the atlas centered at (x, y). */
-  drawSprite(
-    imageName: string,
-    x: number,
-    y: number,
-    color: number[] = [1, 1, 1, 1],
-    scale = 1,
-    rotation = 0
-  ) {
+  drawSprite(imageName: string, x: number, y: number, color: number[] = [1, 1, 1, 1], scale = 1, rotation = 0) {
     if (!this.ready) {
       throw new Error('Drawer not initialized')
     }

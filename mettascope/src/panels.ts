@@ -30,10 +30,7 @@ export class PanelInfo {
   /** Checks if a point is inside the panel. */
   inside(point: Vec2f): boolean {
     return (
-      point.x() >= this.x &&
-      point.x() < this.x + this.width &&
-      point.y() >= this.y &&
-      point.y() < this.y + this.height
+      point.x() >= this.x && point.x() < this.x + this.width && point.y() >= this.y && point.y() < this.y + this.height
     )
   }
 

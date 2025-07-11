@@ -157,12 +157,7 @@ function drawObject(gridObject: any) {
 
     const agent_id = getAttr(gridObject, 'agent_id')
 
-    ctx.drawSprite(
-      'agents/agent.' + suffix + '.png',
-      x * Common.TILE_SIZE,
-      y * Common.TILE_SIZE,
-      colorFromId(agent_id)
-    )
+    ctx.drawSprite('agents/agent.' + suffix + '.png', x * Common.TILE_SIZE, y * Common.TILE_SIZE, colorFromId(agent_id))
   } else {
     // Draw regular objects.
 
@@ -255,14 +250,7 @@ function drawActions() {
             rotation
           )
         } else if (action_name == 'swap') {
-          ctx.drawSprite(
-            'actions/swap.png',
-            x * Common.TILE_SIZE,
-            y * Common.TILE_SIZE,
-            [1, 1, 1, 1],
-            1,
-            rotation
-          )
+          ctx.drawSprite('actions/swap.png', x * Common.TILE_SIZE, y * Common.TILE_SIZE, [1, 1, 1, 1], 1, rotation)
         }
       }
     }
@@ -539,9 +527,7 @@ function drawVisibility() {
     function updateVisibilityMap(gridObject: any) {
       const x = getAttr(gridObject, 'c')
       const y = getAttr(gridObject, 'r')
-      var visionSize = Math.floor(
-        getAttr(gridObject, 'agent:vision_size', state.step, Common.DEFAULT_VISION_SIZE) / 2
-      )
+      var visionSize = Math.floor(getAttr(gridObject, 'agent:vision_size', state.step, Common.DEFAULT_VISION_SIZE) / 2)
       for (let dx = -visionSize; dx <= visionSize; dx++) {
         for (let dy = -visionSize; dy <= visionSize; dy++) {
           visibilityMap.set(x + dx, y + dy, true)

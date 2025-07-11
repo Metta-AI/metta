@@ -18,10 +18,7 @@ export function drawMiniMap(panel: PanelInfo) {
       Math.round(localMousePos.x() / Common.MINI_MAP_TILE_SIZE),
       Math.round(localMousePos.y() / Common.MINI_MAP_TILE_SIZE)
     )
-    ui.mapPanel.panPos = new Vec2f(
-      -miniMapMousePos.x() * Common.TILE_SIZE,
-      -miniMapMousePos.y() * Common.TILE_SIZE
-    )
+    ui.mapPanel.panPos = new Vec2f(-miniMapMousePos.x() * Common.TILE_SIZE, -miniMapMousePos.y() * Common.TILE_SIZE)
     state.followSelection = false
   }
 
