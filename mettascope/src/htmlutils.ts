@@ -239,7 +239,8 @@ export function initHighDpiMode() {
           if (node instanceof HTMLImageElement) {
             swapToHighDpiImage(node)
           } else if (node.nodeType === Node.ELEMENT_NODE) {
-            ;(node as HTMLElement).querySelectorAll('img').forEach((img) => swapToHighDpiImage(img as HTMLImageElement))
+            let e = node as HTMLElement
+            e.querySelectorAll('img').forEach((img) => swapToHighDpiImage(img as HTMLImageElement))
           }
         }
       }
