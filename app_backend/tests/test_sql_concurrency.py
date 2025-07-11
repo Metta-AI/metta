@@ -30,6 +30,13 @@ class TestSQLConcurrency(BaseAsyncTest):
                 pass
 
     @pytest.fixture(scope="function")
+    def test_app(self, metta_repo: MettaRepo) -> FastAPI:
+        """Create a test FastAPI app with dependency injection."""
+        from metta.app_backend.server import create_app
+
+        return create_app(metta_repo)
+
+    @pytest.fixture(scope="function")
     def base_url(self, test_app: FastAPI) -> str:
         """Get the base URL for the test app."""
         # For this test, we'll use httpx.AsyncClient with the app directly
