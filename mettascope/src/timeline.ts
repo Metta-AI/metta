@@ -109,7 +109,7 @@ export function drawTimeline(panel: PanelInfo) {
     let tracesX = (-ui.tracePanel.panPos.x() / Common.TRACE_WIDTH) * scrubberTileSize
     let zoomLevel = ui.tracePanel.zoomLevel
     let tracesW = (ui.tracePanel.width / zoomLevel / Common.TRACE_WIDTH) * scrubberTileSize
-    ctx.drawStrokeRect(16 + tracesX - tracesW / 2 - 1, 0, tracesW, 64, 1, [1, 1, 1, 1])
+    ctx.drawStrokeRect(16 + (tracesX - tracesW / 2) / ui.dpr - 1, 0, tracesW, 64, 1, [1, 1, 1, 1])
   }
 
   // Draw key actions on the timeline.
