@@ -156,7 +156,7 @@ private:
   };
 
   // Simple LRU cache for observation patterns
-  static constexpr size_t MAX_CACHED_PATTERNS = 3;
+  static constexpr size_t MAX_CACHED_PATTERNS = 1;
   struct PatternCacheEntry {
     ObservationCoord width;
     ObservationCoord height;
