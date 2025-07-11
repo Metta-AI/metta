@@ -1,0 +1,14 @@
+# Simple map with mines / generators / altar
+# and default settings.
+
+defaults:
+  - basic
+  - _self_
+
+game:
+  map_builder:
+    root:
+      params:
+        objects:
+          mine_red: 3
+          generator_red: 2

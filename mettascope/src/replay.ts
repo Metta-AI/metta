@@ -183,7 +183,7 @@ function fixReplay() {
     var imageItem = 'objects/' + typeName + '.item.png'
     var imageColor = 'objects/' + typeName + '.color.png'
     if (!ctx.hasImage(image)) {
-      console.warn('Object not supported: ', typeName)
+      console.warn('Object name not supported: "' + typeName + '"')
       // Use the "unknown" image.
       image = 'objects/unknown.png'
       imageItem = 'objects/unknown.item.png'

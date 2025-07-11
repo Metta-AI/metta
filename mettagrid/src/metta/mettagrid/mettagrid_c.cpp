@@ -10,7 +10,6 @@
 
 #include "action_handler.hpp"
 #include "actions/attack.hpp"
-#include "actions/attack_nearest.hpp"
 #include "actions/change_color.hpp"
 #include "actions/get_output.hpp"
 #include "actions/move.hpp"
@@ -33,7 +32,7 @@
 
 namespace py = pybind11;
 
-MettaGrid::MettaGrid(const GameConfig& cfg, py::list map, int seed)
+MettaGrid::MettaGrid(const GameConfig& cfg, py::list map, unsigned int seed)
     : max_steps(cfg.max_steps),
       obs_width(cfg.obs_width),
       obs_height(cfg.obs_height),
@@ -48,10 +47,18 @@ MettaGrid::MettaGrid(const GameConfig& cfg, py::list map, int seed)
 
   current_step = 0;
 
-  int height = map.size();
-  int width = map[0].cast<py::list>().size();
+  bool observation_size_is_packable =
+      obs_width <= PackedCoordinate::MAX_PACKABLE_COORD + 1 && obs_height <= PackedCoordinate::MAX_PACKABLE_COORD + 1;
 
-  _grid = std::make_unique<Grid>(width, height);
+  if (!observation_size_is_packable) {
+    throw std::runtime_error("Observation window size (" + std::to_string(obs_width) + "x" +
+                             std::to_string(obs_height) + ") exceeds maximum packable size (16x16)");
+  }
+
+  GridCoord height = static_cast<GridCoord>(py::len(map));
+  GridCoord width = static_cast<GridCoord>(py::len(map[0]));
+
+  _grid = std::make_unique<Grid>(height, width);
   _obs_encoder = std::make_unique<ObservationEncoder>(inventory_item_names);
   _feature_normalizations = _obs_encoder->feature_normalizations();
 
@@ -85,7 +92,6 @@ MettaGrid::MettaGrid(const GameConfig& cfg, py::list map, int seed)
         throw std::runtime_error("AttackActionConfig is not a valid action config");
       }
       _action_handlers.push_back(std::make_unique<Attack>(*attack_config));
-      _action_handlers.push_back(std::make_unique<AttackNearest>(*attack_config));
     } else if (action_name_str == "swap") {
       _action_handlers.push_back(std::make_unique<Swap>(*action_config));
     } else if (action_name_str == "change_color") {
@@ -125,9 +131,10 @@ MettaGrid::MettaGrid(const GameConfig& cfg, py::list map, int seed)
   std::string grid_hash_data;                   // String to accumulate grid data for hashing
   grid_hash_data.reserve(height * width * 20);  // Pre-allocate for efficiency
 
-  for (int r = 0; r < height; r++) {
-    for (int c = 0; c < width; c++) {
-      auto cell = map[r].cast<py::list>()[c].cast<std::string>();
+  for (GridCoord r = 0; r < height; r++) {
+    for (GridCoord c = 0; c < width; c++) {
+      auto py_cell = map[r].cast<py::list>()[c].cast<py::str>();
+      auto cell = py_cell.cast<std::string>();
 
       // Add cell position and type to hash data
       grid_hash_data += std::to_string(r) + "," + std::to_string(c) + ":" + cell + ";";
@@ -167,7 +174,10 @@ MettaGrid::MettaGrid(const GameConfig& cfg, py::list map, int seed)
       if (agent_config) {
         Agent* agent = new Agent(r, c, *agent_config);
         _grid->add_object(agent);
-        agent->agent_id = _agents.size();
+        if (_agents.size() > std::numeric_limits<decltype(agent->agent_id)>::max()) {
+          throw std::runtime_error("Too many agents for agent_id type");
+        }
+        agent->agent_id = static_cast<decltype(agent->agent_id)>(_agents.size());
         agent->stats.set_environment(this);
         add_agent(agent);
         _group_sizes[agent->group] += 1;
@@ -186,10 +196,12 @@ MettaGrid::MettaGrid(const GameConfig& cfg, py::list map, int seed)
   // so nothing above should depend on them before this point.
   std::vector<ssize_t> shape;
   shape = {static_cast<ssize_t>(num_agents), static_cast<ssize_t>(_num_observation_tokens), static_cast<ssize_t>(3)};
-  auto observations = py::array_t<uint8_t, py::array::c_style>(shape);
-  auto terminals = py::array_t<bool, py::array::c_style>({static_cast<ssize_t>(num_agents)}, {sizeof(bool)});
-  auto truncations = py::array_t<bool, py::array::c_style>({static_cast<ssize_t>(num_agents)}, {sizeof(bool)});
-  auto rewards = py::array_t<float, py::array::c_style>({static_cast<ssize_t>(num_agents)}, {sizeof(float)});
+  auto observations = py::array_t<ObservationType, py::array::c_style>(shape);
+  auto terminals =
+      py::array_t<TerminalType, py::array::c_style>({static_cast<ssize_t>(num_agents)}, {sizeof(TerminalType)});
+  auto truncations =
+      py::array_t<TruncationType, py::array::c_style>({static_cast<ssize_t>(num_agents)}, {sizeof(TruncationType)});
+  auto rewards = py::array_t<RewardType, py::array::c_style>({static_cast<ssize_t>(num_agents)}, {sizeof(RewardType)});
 
   set_buffers(observations, terminals, truncations, rewards);
 }
@@ -220,28 +232,22 @@ void MettaGrid::add_agent(Agent* agent) {
   _agents.push_back(agent);
 }
 
-void MettaGrid::_compute_observation(unsigned int observer_row,
-                                     unsigned int observer_col,
-                                     unsigned short obs_width,
-                                     unsigned short obs_height,
+void MettaGrid::_compute_observation(GridCoord observer_row,
+                                     GridCoord observer_col,
+                                     ObservationCoord observable_width,
+                                     ObservationCoord observable_height,
                                      size_t agent_idx,
                                      ActionType action,
                                      ActionArg action_arg) {
   // Calculate observation boundaries
-  unsigned int obs_width_radius = obs_width >> 1;
-  unsigned int obs_height_radius = obs_height >> 1;
+  ObservationCoord obs_width_radius = observable_width >> 1;
+  ObservationCoord obs_height_radius = observable_height >> 1;
 
-  unsigned int r_start = observer_row >= obs_height_radius ? observer_row - obs_height_radius : 0;
-  unsigned int c_start = observer_col >= obs_width_radius ? observer_col - obs_width_radius : 0;
+  GridCoord r_start = observer_row >= obs_height_radius ? observer_row - obs_height_radius : 0;
+  GridCoord c_start = observer_col >= obs_width_radius ? observer_col - obs_width_radius : 0;
 
-  unsigned int r_end = observer_row + obs_height_radius + 1;
-  if (r_end > _grid->height) {
-    r_end = _grid->height;
-  }
-  unsigned int c_end = observer_col + obs_width_radius + 1;
-  if (c_end > _grid->width) {
-    c_end = _grid->width;
-  }
+  GridCoord r_end = std::min(static_cast<GridCoord>(observer_row + obs_height_radius + 1), _grid->height);
+  GridCoord c_end = std::min(static_cast<GridCoord>(observer_col + obs_width_radius + 1), _grid->width);
 
   // Fill in visible objects. Observations should have been cleared in _step, so
   // we don't need to do that here.
@@ -253,18 +259,21 @@ void MettaGrid::_compute_observation(unsigned int observer_row,
   // Global tokens
   ObservationToken* agent_obs_ptr = reinterpret_cast<ObservationToken*>(observation_view.mutable_data(agent_idx, 0, 0));
   ObservationTokens agent_obs_tokens(agent_obs_ptr, observation_view.shape(1) - tokens_written);
-  unsigned int episode_completion_pct = 0;
+
+  ObservationType episode_completion_pct = 0;
   if (max_steps > 0) {
-    episode_completion_pct =
-        static_cast<unsigned int>(std::round((static_cast<double>(current_step) / max_steps) * 255.0));
+    episode_completion_pct = static_cast<ObservationType>(
+        std::round((static_cast<float>(current_step) / max_steps) * std::numeric_limits<ObservationType>::max()));
   }
-  int reward_int = static_cast<int>(std::round(rewards_view(agent_idx) * 100.0f));
-  reward_int = std::clamp(reward_int, 0, 255);
+
+  ObservationType reward_int = static_cast<ObservationType>(std::round(rewards_view(agent_idx) * 100.0f));
+
   std::vector<PartialObservationToken> global_tokens = {
-      {ObservationFeature::EpisodeCompletionPct, static_cast<uint8_t>(episode_completion_pct)},
-      {ObservationFeature::LastAction, static_cast<uint8_t>(action)},
-      {ObservationFeature::LastActionArg, static_cast<uint8_t>(action_arg)},
-      {ObservationFeature::LastReward, static_cast<uint8_t>(reward_int)}};
+      {ObservationFeature::EpisodeCompletionPct, episode_completion_pct},
+      {ObservationFeature::LastAction, static_cast<ObservationType>(action)},
+      {ObservationFeature::LastActionArg, static_cast<ObservationType>(action_arg)},
+      {ObservationFeature::LastReward, reward_int}};
+
   // Global tokens are always at the center of the observation.
   uint8_t global_location =
       PackedCoordinate::pack(static_cast<uint8_t>(obs_height_radius), static_cast<uint8_t>(obs_width_radius));
@@ -317,7 +326,8 @@ void MettaGrid::_compute_observation(unsigned int observer_row,
 
 void MettaGrid::_compute_observations(py::array_t<ActionType, py::array::c_style> actions) {
   auto actions_view = actions.unchecked<2>();
-  auto observation_view = _observations.mutable_unchecked<3>();
+  // auto observation_view = _observations.mutable_unchecked<3>();
+
   for (size_t idx = 0; idx < _agents.size(); idx++) {
     auto& agent = _agents[idx];
     _compute_observation(
@@ -342,7 +352,7 @@ void MettaGrid::_step(py::array_t<ActionType, py::array::c_style> actions) {
   std::fill(
       static_cast<float*>(_rewards.request().ptr), static_cast<float*>(_rewards.request().ptr) + _rewards.size(), 0);
 
-  auto obs_ptr = static_cast<uint8_t*>(_observations.request().ptr);
+  auto obs_ptr = static_cast<ObservationType*>(_observations.request().ptr);
   auto obs_size = _observations.size();
   std::fill(obs_ptr, obs_ptr + obs_size, EmptyTokenByte);
 
@@ -576,11 +586,11 @@ py::list MettaGrid::action_names() {
   return names;
 }
 
-unsigned int MettaGrid::map_width() {
+GridCoord MettaGrid::map_width() {
   return _grid->width;
 }
 
-unsigned int MettaGrid::map_height() {
+GridCoord MettaGrid::map_height() {
   return _grid->height;
 }
 
@@ -601,7 +611,7 @@ py::dict MettaGrid::feature_spec() {
   return feature_spec;
 }
 
-unsigned int MettaGrid::num_agents() {
+size_t MettaGrid::num_agents() {
   return _agents.size();
 }
 
@@ -743,7 +753,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
 
   // MettaGrid class bindings
   py::class_<MettaGrid>(m, "MettaGrid")
-      .def(py::init<const GameConfig&, const py::list&, int>())
+      .def(py::init<const GameConfig&, const py::list&, unsigned int>())
       .def("reset", &MettaGrid::reset)
       .def("step", &MettaGrid::step, py::arg("actions").noconvert())
       .def("set_buffers",
@@ -798,9 +808,9 @@ PYBIND11_MODULE(mettagrid_c, m) {
                     const std::string&,
                     unsigned char,
                     float,
-                    const std::map<InventoryItem, uint8_t>&,
-                    const std::map<InventoryItem, float>&,
-                    const std::map<InventoryItem, uint8_t>&,
+                    const std::map<InventoryItem, InventoryQuantity>&,
+                    const std::map<InventoryItem, RewardType>&,
+                    const std::map<InventoryItem, InventoryQuantity>&,
                     float>(),
            py::arg("type_id"),
            py::arg("type_name") = "agent",
@@ -808,9 +818,9 @@ PYBIND11_MODULE(mettagrid_c, m) {
            py::arg("group_name"),
            py::arg("freeze_duration") = 0,
            py::arg("action_failure_penalty") = 0,
-           py::arg("resource_limits") = std::map<InventoryItem, uint8_t>(),
-           py::arg("resource_rewards") = std::map<InventoryItem, float>(),
-           py::arg("resource_reward_max") = std::map<InventoryItem, uint8_t>(),
+           py::arg("resource_limits") = std::map<InventoryItem, InventoryQuantity>(),
+           py::arg("resource_rewards") = std::map<InventoryItem, RewardType>(),
+           py::arg("resource_reward_max") = std::map<InventoryItem, InventoryQuantity>(),
            py::arg("group_reward_pct") = 0)
       .def_readwrite("type_id", &AgentConfig::type_id)
       .def_readwrite("type_name", &AgentConfig::type_name)
@@ -826,13 +836,13 @@ PYBIND11_MODULE(mettagrid_c, m) {
   py::class_<ConverterConfig, GridObjectConfig, std::shared_ptr<ConverterConfig>>(m, "ConverterConfig")
       .def(py::init<TypeId,
                     const std::string&,
-                    const std::map<InventoryItem, uint8_t>&,
-                    const std::map<InventoryItem, uint8_t>&,
+                    const std::map<InventoryItem, InventoryQuantity>&,
+                    const std::map<InventoryItem, InventoryQuantity>&,
                     short,
                     unsigned short,
                     unsigned short,
                     unsigned char,
-                    ObsType>(),
+                    ObservationType>(),
            py::arg("type_id"),
            py::arg("type_name"),
            py::arg("input_resources"),
@@ -853,20 +863,20 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def_readwrite("color", &ConverterConfig::color);
 
   py::class_<ActionConfig, std::shared_ptr<ActionConfig>>(m, "ActionConfig")
-      .def(py::init<const std::map<InventoryItem, int>&, const std::map<InventoryItem, int>&>(),
-           py::arg("required_resources") = std::map<InventoryItem, int>(),
-           py::arg("consumed_resources") = std::map<InventoryItem, int>())
+      .def(py::init<const std::map<InventoryItem, InventoryQuantity>&,
+                    const std::map<InventoryItem, InventoryQuantity>&>(),
+           py::arg("required_resources") = std::map<InventoryItem, InventoryQuantity>(),
+           py::arg("consumed_resources") = std::map<InventoryItem, InventoryQuantity>())
       .def_readwrite("required_resources", &ActionConfig::required_resources)
       .def_readwrite("consumed_resources", &ActionConfig::consumed_resources);
 
   py::class_<AttackActionConfig, ActionConfig, std::shared_ptr<AttackActionConfig>>(m, "AttackActionConfig")
-      .def(py::init<const std::map<InventoryItem, int>&,
-                    const std::map<InventoryItem, int>&,
-                    const std::map<InventoryItem, int>&>(),
-
-           py::arg("required_resources") = std::map<InventoryItem, int>(),
-           py::arg("consumed_resources") = std::map<InventoryItem, int>(),
-           py::arg("defense_resources") = std::map<InventoryItem, int>())
+      .def(py::init<const std::map<InventoryItem, InventoryQuantity>&,
+                    const std::map<InventoryItem, InventoryQuantity>&,
+                    const std::map<InventoryItem, InventoryQuantity>&>(),
+           py::arg("required_resources") = std::map<InventoryItem, InventoryQuantity>(),
+           py::arg("consumed_resources") = std::map<InventoryItem, InventoryQuantity>(),
+           py::arg("defense_resources") = std::map<InventoryItem, InventoryQuantity>())
       .def_readwrite("defense_resources", &AttackActionConfig::defense_resources);
 
   py::class_<GameConfig>(m, "GameConfig")
