@@ -344,10 +344,11 @@ class HeatmapCache:
                 else:
                     # Build new cache entry
                     cached = await self._build_cache_entry(con, suite, metric)
-                if selector == "best":
-                    return build_heatmap(cached.best_evaluations, cached.eval_names)
-                else:
-                    return build_heatmap(cached.latest_evaluations, cached.eval_names)
+
+            if selector == "best":
+                return build_heatmap(cached.best_evaluations, cached.eval_names)
+            else:
+                return build_heatmap(cached.latest_evaluations, cached.eval_names)
 
     async def _build_cache_entry(self, con: AsyncConnection, suite: str, metric: str) -> CachedHeatmap:
         """Build a new cache entry."""
