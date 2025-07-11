@@ -205,7 +205,6 @@ class MettaCLI:
             sys.exit(e.returncode)
 
     def cmd_tool(self, tool_name: str, args: list[str]) -> None:
-        """Run a tool from the tools/ directory using uv run."""
         tool_path = self.repo_root / "tools" / f"{tool_name}.py"
         if not tool_path.exists():
             error(f"Tool '{tool_name}' not found at {tool_path}")
@@ -213,6 +212,8 @@ class MettaCLI:
 
         cmd = [str(tool_path)] + args
         try:
+            # Prefixing with `uv run` should not be necessary
+            # because PATH is inherited and tools have uv shebangs
             subprocess.run(cmd, cwd=self.repo_root, check=True)
         except subprocess.CalledProcessError as e:
             sys.exit(e.returncode)
