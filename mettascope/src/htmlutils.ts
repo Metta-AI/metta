@@ -72,7 +72,11 @@ type Handler = {
 
 var globalHandlers: Map<string, Handler[]> = new Map()
 
-export function onEvent(event: string, selector: string, callback: (target: HTMLElement, event: Event) => void) {
+export function onEvent(
+  event: string,
+  selector: string,
+  callback: (target: HTMLElement, event: Event) => void
+) {
   let handler: Handler = {
     selector: selector,
     event: event,
@@ -239,7 +243,9 @@ export function initHighDpiMode() {
           if (node instanceof HTMLImageElement) {
             swapToHighDpiImage(node)
           } else if (node.nodeType === Node.ELEMENT_NODE) {
-            ;(node as HTMLElement).querySelectorAll('img').forEach((img) => swapToHighDpiImage(img as HTMLImageElement))
+            ;(node as HTMLElement)
+              .querySelectorAll('img')
+              .forEach((img) => swapToHighDpiImage(img as HTMLImageElement))
           }
         }
       }

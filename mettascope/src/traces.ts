@@ -67,7 +67,10 @@ export function drawTrace(panel: PanelInfo) {
   const rect = panel.rectInner()
   ctx.setScissorRect(rect.x, rect.y, rect.width, rect.height)
 
-  const fullSize = new Vec2f(state.replay.max_steps * Common.TRACE_WIDTH, state.replay.num_agents * Common.TRACE_HEIGHT)
+  const fullSize = new Vec2f(
+    state.replay.max_steps * Common.TRACE_WIDTH,
+    state.replay.num_agents * Common.TRACE_HEIGHT
+  )
 
   // Draw the background.
   ctx.drawSolidRect(
@@ -114,7 +117,12 @@ export function drawTrace(panel: PanelInfo) {
           j * Common.TRACE_WIDTH + Common.TRACE_WIDTH / 2,
           i * Common.TRACE_HEIGHT + Common.TRACE_HEIGHT / 2
         )
-      } else if (action_success && action != null && action[0] >= 0 && action[0] < state.replay.action_images.length) {
+      } else if (
+        action_success &&
+        action != null &&
+        action[0] >= 0 &&
+        action[0] < state.replay.action_images.length
+      ) {
         // Draw the action.
         ctx.drawSprite(
           state.replay.action_images[action[0]],

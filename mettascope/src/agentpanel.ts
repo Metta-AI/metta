@@ -113,7 +113,9 @@ function saveAgentTable() {
 export function initAgentTable() {
   // Load the columns from local storage.
   let plainColumns = localStorageGetObject('agentPanelColumns', columns)
-  columns = plainColumns.map((column) => new ColumnDefinition(column.field, column.isFinal, column.sortDirection))
+  columns = plainColumns.map(
+    (column) => new ColumnDefinition(column.field, column.isFinal, column.sortDirection)
+  )
 
   // Hide the column menu and new column dropdown.
   columnMenu.classList.add('hidden')
@@ -126,7 +128,10 @@ export function initAgentTable() {
 }
 
 /** Given an element, get the field and isFinal information thats up the DOM tree. */
-function getFieldInfo(target: HTMLElement): { columnField: string; columnIsFinal: boolean } {
+function getFieldInfo(target: HTMLElement): {
+  columnField: string
+  columnIsFinal: boolean
+} {
   let columnField = findAttr(target, 'data-column-field')
   let columnIsFinal = findAttr(target, 'data-column-is-final') == 'true'
   return { columnField, columnIsFinal }
@@ -212,7 +217,9 @@ onEvent('click', '#agent-panel .header-cell', (target: HTMLElement, e: Event) =>
             column.sortDirection = SortDirection.Descending
           } else {
             column.sortDirection =
-              column.sortDirection == SortDirection.Descending ? SortDirection.Ascending : SortDirection.Descending
+              column.sortDirection == SortDirection.Descending
+                ? SortDirection.Ascending
+                : SortDirection.Descending
           }
         } else {
           column.sortDirection = SortDirection.Descending

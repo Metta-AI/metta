@@ -66,7 +66,17 @@ class Vec2f {
 class Mat3f {
   public data: Float32Array
 
-  constructor(a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) {
+  constructor(
+    a: number,
+    b: number,
+    c: number,
+    d: number,
+    e: number,
+    f: number,
+    g: number,
+    h: number,
+    i: number
+  ) {
     // Use Float32Array as backing storage for better performance
     this.data = new Float32Array(9)
     this.data[0] = a

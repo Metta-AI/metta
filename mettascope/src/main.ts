@@ -10,7 +10,13 @@ import { initAgentTable, updateAgentTable } from './agentpanel.js'
 import { localStorageSetNumber, onEvent, initHighDpiMode, find, toggleOpacity } from './htmlutils.js'
 import { updateReadout, hideHoverPanel } from './hoverpanels.js'
 import { initObjectMenu } from './objmenu.js'
-import { drawTimeline, initTimeline, updateTimeline, onScrubberChange, onTraceMinimapChange } from './timeline.js'
+import {
+  drawTimeline,
+  initTimeline,
+  updateTimeline,
+  onScrubberChange,
+  onTraceMinimapChange,
+} from './timeline.js'
 import { initDemoMode, startDemoMode, stopDemoMode, doDemoMode } from './demomode.js'
 
 /** A flag to prevent multiple calls to requestAnimationFrame. */
@@ -354,7 +360,10 @@ onEvent('keydown', 'body', (target: HTMLElement, e: Event) => {
   let event = e as KeyboardEvent
 
   // Prevent keyboard events if we are focused on an text field.
-  if (document.activeElement instanceof HTMLInputElement || document.activeElement instanceof HTMLTextAreaElement) {
+  if (
+    document.activeElement instanceof HTMLInputElement ||
+    document.activeElement instanceof HTMLTextAreaElement
+  ) {
     return
   }
 
@@ -509,7 +518,11 @@ async function parseUrlParams() {
     await fetchReplay(replayUrl)
     focusFullMap(ui.mapPanel)
   } else if (wsUrl) {
-    Common.showModal('info', 'Connecting to a websocket', 'Please wait a few seconds for the environment to load.')
+    Common.showModal(
+      'info',
+      'Connecting to a websocket',
+      'Please wait a few seconds for the environment to load.'
+    )
     initWebSocket(wsUrl)
   } else {
     Common.showModal('info', 'Welcome to MettaScope', 'Please drop a replay file here to see the replay.')
