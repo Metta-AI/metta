@@ -47,6 +47,7 @@ GameConfig CreateBenchmarkConfig(int num_agents) {
   actions_cfg["put_items"] = action_cfg;
   actions_cfg["get_items"] = action_cfg;
   actions_cfg["change_color"] = action_cfg;
+  actions_cfg["change_glyph"] = action_cfg;
 
   std::map<std::string, std::shared_ptr<GridObjectConfig>> objects_cfg;
 

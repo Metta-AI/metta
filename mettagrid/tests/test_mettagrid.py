@@ -78,6 +78,7 @@ class TestEnvironmentBuilder:
                 "get_items": {"enabled": False},
                 "swap": {"enabled": False},
                 "change_color": {"enabled": False},
+                "change_glyph": {"enabled": False, "number_of_glyphs": 4},
             },
             "groups": {"red": {"id": 0, "props": {}}},
             "objects": {"wall": {"type_id": 1}},
@@ -374,6 +375,7 @@ class TestObservations:
                 "get_items": {"enabled": False},
                 "swap": {"enabled": False},
                 "change_color": {"enabled": False},
+                "change_glyph": {"enabled": False, "number_of_glyphs": 4},
             },
             "groups": {"red": {"id": 0, "props": {}}},
             "objects": {

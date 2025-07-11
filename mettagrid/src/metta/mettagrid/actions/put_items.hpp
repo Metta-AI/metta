@@ -1,5 +1,5 @@
-#ifndef ACTIONS_PUT_RECIPE_ITEMS_HPP_
-#define ACTIONS_PUT_RECIPE_ITEMS_HPP_
+#ifndef ACTIONS_PUT_ITEMS_HPP_
+#define ACTIONS_PUT_ITEMS_HPP_
 
 #include <string>
 
@@ -10,9 +10,9 @@
 #include "objects/converter.hpp"
 #include "types.hpp"
 
-class PutRecipeItems : public ActionHandler {
+class PutItems : public ActionHandler {
 public:
-  explicit PutRecipeItems(const ActionConfig& cfg) : ActionHandler(cfg, "put_recipe_items") {}
+  explicit PutItems(const ActionConfig& cfg) : ActionHandler(cfg, "put_items") {}
 
   unsigned char max_arg() const override {
     return 0;
@@ -22,7 +22,7 @@ protected:
   bool _handle_action(Agent* actor, ActionArg /*arg*/) override {
     GridLocation target_loc = _grid->relative_location(actor->location, static_cast<Orientation>(actor->orientation));
     target_loc.layer = GridLayer::ObjectLayer;
-    // put_recipe_items only works on Converters, since only Converters have a recipe.
+    // put_items only works on Converters, since only Converters have a recipe.
     // Once we generalize this to `put`, we should be able to put to any HasInventory object, which
     // should include agents.
     Converter* converter = dynamic_cast<Converter*>(_grid->object_at(target_loc));
@@ -53,4 +53,4 @@ protected:
   }
 };
 
-#endif  // ACTIONS_PUT_RECIPE_ITEMS_HPP_
+#endif  // ACTIONS_PUT_ITEMS_HPP_

@@ -50,6 +50,7 @@ def create_heart_reward_test_env(max_steps=50, num_agents=NUM_AGENTS):
             "attack": {"enabled": True, "consumed_resources": {"laser": 1}, "defense_resources": {"armor": 1}},
             "swap": {"enabled": True},
             "change_color": {"enabled": True},
+            "change_glyph": {"enabled": False, "number_of_glyphs": 4},
         },
         "groups": {"red": {"id": 0, "props": {}}},
         "objects": {
@@ -101,6 +102,7 @@ def create_reward_test_env(max_steps=10, width=5, height=5, num_agents=NUM_AGENT
             "get_items": {"enabled": False},
             "swap": {"enabled": False},
             "change_color": {"enabled": False},
+            "change_glyph": {"enabled": False, "number_of_glyphs": 4},
         },
         "groups": {
             "red": {"id": 1, "group_reward_pct": 0.1},
@@ -153,7 +155,7 @@ def collect_heart_from_altar(env):
         return False, 0.0
 
     # Collect heart
-    obs, reward, success = perform_action(env, "get_output", 0)
+    obs, reward, success = perform_action(env, "get_items", 0)
     return success, reward
 
 

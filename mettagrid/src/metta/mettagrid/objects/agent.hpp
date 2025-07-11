@@ -57,6 +57,7 @@ public:
   float action_failure_penalty;
   std::string group_name;
   ObservationType color;
+  ObservationType glyph;
   unsigned char agent_id;
   StatsTracker stats;
   float current_resource_reward;
@@ -73,6 +74,7 @@ public:
         action_failure_penalty(config.action_failure_penalty),
         group_name(config.group_name),
         color(0),
+        glyph(0),
         agent_id(0),
         // stats - default constructed
         current_resource_reward(0),
