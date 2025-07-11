@@ -128,7 +128,6 @@ export interface Repo {
   getHeatmapData(
     metric: string,
     suite: string,
-    groupMetric: GroupHeatmapMetric,
     policySelector?: PolicySelector
   ): Promise<HeatmapData>
 
@@ -161,7 +160,6 @@ export interface Repo {
     runId: string,
     metric: string,
     suite: string,
-    groupMetric: GroupHeatmapMetric
   ): Promise<HeatmapData>
 }
 
@@ -228,13 +226,12 @@ export class ServerRepo implements Repo {
   async getHeatmapData(
     metric: string,
     suite: string,
-    groupMetric: GroupHeatmapMetric,
     policySelector: PolicySelector = 'latest'
   ): Promise<HeatmapData> {
     // Use POST endpoint for GroupDiff
     const apiData = await this.apiCallWithBody<HeatmapData>(
       `/dashboard/suites/${encodeURIComponent(suite)}/metrics/${encodeURIComponent(metric)}/heatmap`,
-      { group_metric: groupMetric, policy_selector: policySelector }
+      { policy_selector: policySelector }
     )
     return apiData
   }
@@ -314,11 +311,9 @@ export class ServerRepo implements Repo {
     runId: string,
     metric: string,
     suite: string,
-    groupMetric: GroupHeatmapMetric
   ): Promise<HeatmapData> {
-    return this.apiCallWithBody<HeatmapData>(
+    return this.apiCall<HeatmapData>(
       `/dashboard/training-runs/${encodeURIComponent(runId)}/suites/${encodeURIComponent(suite)}/metrics/${encodeURIComponent(metric)}/heatmap`,
-      { group_metric: groupMetric }
     )
   }
 }
