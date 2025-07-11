@@ -6,7 +6,6 @@ import { Heatmap } from './Heatmap'
 import { SaveDashboardModal } from './SaveDashboardModal'
 import { MultiSelectDropdown } from './MultiSelectDropdown'
 import { SuiteTabs } from './SuiteTabs'
-import { GroupSelector, parseGroupMetric } from './GroupSelector'
 
 // CSS for dashboard
 const DASHBOARD_CSS = `
@@ -157,7 +156,7 @@ export function Dashboard({ repo }: DashboardProps) {
     const loadSuiteData = async () => {
       if (!selectedSuite) return
 
-      const metricsData = await repo.getMetrics(selectedSuite)
+      const metricsData = await repo.getAllMetrics()
       setMetrics(metricsData)
     }
 

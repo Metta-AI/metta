@@ -126,7 +126,10 @@ export function initAgentTable() {
 }
 
 /** Given an element, get the field and isFinal information thats up the DOM tree. */
-function getFieldInfo(target: HTMLElement): { columnField: string; columnIsFinal: boolean } {
+function getFieldInfo(target: HTMLElement): {
+  columnField: string
+  columnIsFinal: boolean
+} {
   let columnField = findAttr(target, 'data-column-field')
   let columnIsFinal = findAttr(target, 'data-column-is-final') == 'true'
   return { columnField, columnIsFinal }
