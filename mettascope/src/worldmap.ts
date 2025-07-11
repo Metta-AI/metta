@@ -152,12 +152,7 @@ function drawObject(gridObject: any) {
 
     const agent_id = getAttr(gridObject, 'agent_id')
 
-    ctx.drawSprite(
-      'agents/agent.' + suffix + '.png',
-      x * Common.TILE_SIZE,
-      y * Common.TILE_SIZE,
-      Common.colorFromId(agent_id)
-    )
+    ctx.drawSprite('agents/agent.' + suffix + '.png', x * Common.TILE_SIZE, y * Common.TILE_SIZE, Common.colorFromId(agent_id))
   } else {
     // Draw regular objects.
 
@@ -799,7 +794,7 @@ export function drawMap(panel: PanelInfo) {
       -Common.TILE_SIZE / 2,
       state.replay.map_size[0] * Common.TILE_SIZE,
       state.replay.map_size[1] * Common.TILE_SIZE,
-      [0, 0, 0, 0.80]
+      [0, 0, 0, 0.8]
     )
 
     drawSelection()
@@ -811,22 +806,13 @@ export function drawMap(panel: PanelInfo) {
       let y = getAttr(gridObject, 'r')
       if (searchMatch(typeName)) {
         // Draw halo behind the object.
-        ctx.drawSprite(
-          'effects/halo.png',
-          x * Common.TILE_SIZE,
-          y * Common.TILE_SIZE,
-          [1, 1, 1, 1],
-          1.5,
-          0
-        )
+        ctx.drawSprite('effects/halo.png', x * Common.TILE_SIZE, y * Common.TILE_SIZE, [1, 1, 1, 1], 1.5, 0)
         drawObject(gridObject)
       }
     }
 
     drawInventory(true)
   }
-
-
 
   if (state.showAttackMode) {
     drawAttackMode()

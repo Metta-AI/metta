@@ -1,11 +1,14 @@
 import logging
+from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
+from psycopg import AsyncConnection
 from pydantic import BaseModel
 
 from metta.app_backend.auth import create_user_or_token_dependency
 from metta.app_backend.metta_repo import MettaRepo
+from metta.app_backend.query_logger import execute_query_and_log
 from metta.app_backend.route_logger import timed_route
 
 # Set up logging for heatmap performance analysis
@@ -59,9 +62,101 @@ class TrainingRunTagsUpdate(BaseModel):
     tags: List[str]
 
 
+# ============================================================================
+# Metrics Cache Implementation
+# ============================================================================
+
+GET_ALL_METRICS_QUERY = """
+    SELECT DISTINCT eam.metric
+    FROM episode_agent_metrics eam
+    WHERE eam.episode_internal_id > %s
+    ORDER BY eam.metric
+"""
+
+GET_MAX_EPISODE_QUERY = "SELECT MAX(internal_id) FROM episodes"
+
+
+@dataclass
+class CachedMetrics:
+    """Cached metrics data with metadata."""
+
+    last_episode_id: int
+    metrics: List[str]
+
+
+class MetricsCache:
+    """Cache for all distinct metrics."""
+
+    def __init__(self, metta_repo: MettaRepo):
+        self.metta_repo = metta_repo
+        self.cache: Optional[CachedMetrics] = None
+
+    async def get(self) -> List[str]:
+        """Get all distinct metrics, using cache when possible."""
+        async with self.metta_repo.connect() as con:
+            cached = self.cache
+
+            if cached:
+                # Check for new data
+                new_max_episode_id = await self._get_max_episode_id(con)
+
+                if new_max_episode_id > cached.last_episode_id:
+                    # Update cache with fresh data
+                    cached = await self._build_cache_entry(con, cached.last_episode_id)
+
+                return cached.metrics
+            else:
+                # Build new cache entry
+                cached = await self._build_cache_entry(con, 0)
+                return cached.metrics
+
+    async def _build_cache_entry(self, con: AsyncConnection, min_episode_id: int) -> CachedMetrics:
+        """Build a new cache entry, optionally merging with existing cache."""
+        if min_episode_id == 0:
+            # Initial cache build - fetch all metrics
+            metrics_rows = await execute_query_and_log(
+                con,
+                "SELECT DISTINCT eam.metric FROM episode_agent_metrics eam ORDER BY eam.metric",
+                (),
+                "get_all_metrics_initial",
+            )
+            new_metrics = [row[0] for row in metrics_rows if row[0] is not None]
+            all_metrics = new_metrics
+        else:
+            # Incremental update - fetch only new metrics and merge with existing
+            metrics_rows = await execute_query_and_log(con, GET_ALL_METRICS_QUERY, (min_episode_id,), "get_new_metrics")
+            new_metrics = [row[0] for row in metrics_rows if row[0] is not None]
+
+            # Merge with existing cached metrics
+            existing_metrics = self.cache.metrics if self.cache else []
+            all_metrics = sorted(set(existing_metrics + new_metrics))
+
+        # Get max episode ID
+        max_id = await self._get_max_episode_id(con)
+
+        # Store in cache
+        entry = CachedMetrics(max_id, all_metrics)
+        self.cache = entry
+
+        return entry
+
+    async def _get_max_episode_id(self, con: AsyncConnection) -> int:
+        """Get the maximum episode ID."""
+        result = await con.execute(GET_MAX_EPISODE_QUERY)
+        row = await result.fetchone()
+        return row[0] if row and row[0] else 0
+
+    def clear(self) -> None:
+        """Clear the cache."""
+        self.cache = None
+
+
 def create_dashboard_router(metta_repo: MettaRepo) -> APIRouter:
     """Create a dashboard router with the given StatsRepo instance."""
     router = APIRouter(prefix="/dashboard", tags=["dashboard"])
+
+    # Create the metrics cache
+    metrics_cache = MetricsCache(metta_repo)
 
     # Create the user-or-token authentication dependency
     user_or_token = Depends(create_user_or_token_dependency(metta_repo))
@@ -70,6 +165,12 @@ def create_dashboard_router(metta_repo: MettaRepo) -> APIRouter:
     @timed_route("get_suites")
     async def get_suites() -> List[str]:  # type: ignore[reportUnusedFunction]
         return await metta_repo.get_suites()
+
+    @router.get("/metrics")
+    @timed_route("get_all_metrics")
+    async def get_all_metrics() -> List[str]:  # type: ignore[reportUnusedFunction]
+        """Get all distinct metrics across all suites."""
+        return await metrics_cache.get()
 
     @router.get("/suites/{suite}/metrics")
     @timed_route("get_metrics")
@@ -308,5 +409,12 @@ def create_dashboard_router(metta_repo: MettaRepo) -> APIRouter:
             description=training_run["description"],
             tags=training_run["tags"],
         )
+
+    @router.post("/clear_metrics_cache")
+    @timed_route("clear_metrics_cache")
+    async def clear_metrics_cache() -> Dict[str, str]:  # type: ignore[reportUnusedFunction]
+        """Clear the metrics cache."""
+        metrics_cache.clear()
+        return {"message": "Metrics cache cleared successfully"}
 
     return router
