@@ -105,7 +105,6 @@ export function Dashboard({ repo }: DashboardProps) {
     policyUri: string
     evalName: string
   } | null>(null)
-  const [selectedGroupMetric, setSelectedGroupMetric] = useState<string>('')
   const [numPoliciesToShow, setNumPoliciesToShow] = useState(20)
   const [selectedPolicies, setSelectedPolicies] = useState<Set<string>>(new Set())
   const [policySelector, setPolicySelector] = useState<PolicySelector>('latest')
@@ -134,7 +133,6 @@ export function Dashboard({ repo }: DashboardProps) {
           const state = dashboard.dashboard_state
           setSelectedSuite(state.suite || suitesData[0])
           setSelectedMetric(state.metric || 'reward')
-          setSelectedGroupMetric(state.group_metric || '')
           setNumPoliciesToShow(state.num_policies_to_show || 20)
           setSelectedPolicies(new Set(state.selected_policies || []))
           setPolicySelector(state.policy_selector || 'latest')
@@ -174,14 +172,13 @@ export function Dashboard({ repo }: DashboardProps) {
       const heatmapData = await repo.getHeatmapData(
         selectedMetric,
         selectedSuite,
-        parseGroupMetric(selectedGroupMetric),
         policySelector
       )
       setHeatmapData(heatmapData)
     }
 
     loadHeatmapData()
-  }, [selectedSuite, selectedMetric, selectedGroupMetric, policySelector, repo])
+  }, [selectedSuite, selectedMetric, policySelector, repo])
 
   const handleSaveDashboard = async (dashboardData: SavedDashboardCreate) => {
     try {
@@ -190,7 +187,6 @@ export function Dashboard({ repo }: DashboardProps) {
         dashboard_state: {
           suite: selectedSuite,
           metric: selectedMetric,
-          group_metric: selectedGroupMetric,
           num_policies_to_show: numPoliciesToShow,
           selected_policies: Array.from(selectedPolicies),
           policy_selector: policySelector,
@@ -433,22 +429,6 @@ export function Dashboard({ repo }: DashboardProps) {
                     </option>
                   ))}
                 </select>
-              </div>
-
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '12px',
-                }}
-              >
-                <div style={{ color: '#666', fontSize: '14px', minWidth: '120px' }}>Group Metric</div>
-                <GroupSelector
-                  repo={repo}
-                  selectedSuite={selectedSuite}
-                  selectedGroupMetric={selectedGroupMetric}
-                  onGroupMetricChange={setSelectedGroupMetric}
-                />
               </div>
 
               <div

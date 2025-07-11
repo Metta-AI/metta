@@ -330,9 +330,7 @@ class TestTrainingRunsRoutes:
         """Test getting heatmap data for a specific training run."""
         run1 = test_training_runs["runs"][0]
 
-        response = test_client.post(
-            f"/dashboard/training-runs/{run1.id}/suites/test_suite/metrics/reward/heatmap", json={"group_metric": "1"}
-        )
+        response = test_client.get(f"/dashboard/training-runs/{run1.id}/suites/test_suite/metrics/reward/heatmap")
         assert response.status_code == 200
         data = response.json()
 
@@ -368,9 +366,7 @@ class TestTrainingRunsRoutes:
         """Test that training run heatmap includes all policies from the run."""
         run2 = test_training_runs["runs"][1]
 
-        response = test_client.post(
-            f"/dashboard/training-runs/{run2.id}/suites/test_suite/metrics/reward/heatmap", json={"group_metric": "2"}
-        )
+        response = test_client.get(f"/dashboard/training-runs/{run2.id}/suites/test_suite/metrics/reward/heatmap")
         assert response.status_code == 200
         data = response.json()
 
@@ -393,9 +389,7 @@ class TestTrainingRunsRoutes:
         """Test training run heatmap with different evaluation suite."""
         run1 = test_training_runs["runs"][0]
 
-        response = test_client.post(
-            f"/dashboard/training-runs/{run1.id}/suites/object_suite/metrics/reward/heatmap", json={"group_metric": "1"}
-        )
+        response = test_client.get(f"/dashboard/training-runs/{run1.id}/suites/object_suite/metrics/reward/heatmap")
         assert response.status_code == 200
         data = response.json()
 
@@ -416,9 +410,7 @@ class TestTrainingRunsRoutes:
         """Test training run heatmap with different metric."""
         run1 = test_training_runs["runs"][0]
 
-        response = test_client.post(
-            f"/dashboard/training-runs/{run1.id}/suites/test_suite/metrics/success/heatmap", json={"group_metric": "1"}
-        )
+        response = test_client.get(f"/dashboard/training-runs/{run1.id}/suites/test_suite/metrics/success/heatmap")
         assert response.status_code == 200
         data = response.json()
 
@@ -432,10 +424,7 @@ class TestTrainingRunsRoutes:
         """Test training run heatmap with group difference calculation."""
         run1 = test_training_runs["runs"][0]
 
-        response = test_client.post(
-            f"/dashboard/training-runs/{run1.id}/suites/test_suite/metrics/reward/heatmap",
-            json={"group_metric": {"group_1": "1", "group_2": "2"}},
-        )
+        response = test_client.get(f"/dashboard/training-runs/{run1.id}/suites/test_suite/metrics/reward/heatmap")
         assert response.status_code == 200
         data = response.json()
 
@@ -452,26 +441,21 @@ class TestTrainingRunsRoutes:
         """Test training run heatmap with non-existent run."""
         fake_id = "00000000-0000-0000-0000-000000000000"
 
-        response = test_client.post(
-            f"/dashboard/training-runs/{fake_id}/suites/test_suite/metrics/reward/heatmap", json={"group_metric": "1"}
-        )
+        response = test_client.get(f"/dashboard/training-runs/{fake_id}/suites/test_suite/metrics/reward/heatmap")
         assert response.status_code == 404
         assert "Training run not found" in response.json()["detail"]
 
     def test_training_run_heatmap_invalid_uuid(self, test_client: TestClient) -> None:
         """Test training run heatmap with invalid UUID."""
-        response = test_client.post(
-            "/dashboard/training-runs/invalid-uuid/suites/test_suite/metrics/reward/heatmap", json={"group_metric": "1"}
-        )
+        response = test_client.get("/dashboard/training-runs/invalid-uuid/suites/test_suite/metrics/reward/heatmap")
         assert response.status_code == 404
 
     def test_training_run_heatmap_missing_suite_data(self, test_client: TestClient, test_training_runs: Dict) -> None:
         """Test training run heatmap with suite that has no data."""
         run1 = test_training_runs["runs"][0]
 
-        response = test_client.post(
-            f"/dashboard/training-runs/{run1.id}/suites/nonexistent_suite/metrics/reward/heatmap",
-            json={"group_metric": "1"},
+        response = test_client.get(
+            f"/dashboard/training-runs/{run1.id}/suites/nonexistent_suite/metrics/reward/heatmap"
         )
         assert response.status_code == 200
         data = response.json()
@@ -486,9 +470,7 @@ class TestTrainingRunsRoutes:
         """Test training run heatmap with empty group metric (total across all groups)."""
         run2 = test_training_runs["runs"][1]
 
-        response = test_client.post(
-            f"/dashboard/training-runs/{run2.id}/suites/test_suite/metrics/reward/heatmap", json={"group_metric": ""}
-        )
+        response = test_client.get(f"/dashboard/training-runs/{run2.id}/suites/test_suite/metrics/reward/heatmap")
         assert response.status_code == 200
         data = response.json()
 
@@ -505,9 +487,7 @@ class TestTrainingRunsRoutes:
         """Test that policies are ordered correctly in training run heatmap."""
         run2 = test_training_runs["runs"][1]
 
-        response = test_client.post(
-            f"/dashboard/training-runs/{run2.id}/suites/test_suite/metrics/reward/heatmap", json={"group_metric": "2"}
-        )
+        response = test_client.get(f"/dashboard/training-runs/{run2.id}/suites/test_suite/metrics/reward/heatmap")
         assert response.status_code == 200
         data = response.json()
 
