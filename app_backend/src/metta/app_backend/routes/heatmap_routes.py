@@ -51,10 +51,10 @@ class PolicyEvaluation:
     eval_name: str
     replay_url: Optional[str]
     total_score: float  # Total score across all agents/episodes
-    num_agents: int     # Total number of agents across all episodes
+    num_agents: int  # Total number of agents across all episodes
     run_id: Optional[str] = None
     epoch: Optional[int] = None
-    
+
     @property
     def value(self) -> float:
         """Average score per agent."""
@@ -116,14 +116,20 @@ TRAINING_RUN_FILTER = """
 SPECIFIC_POLICIES_FILTER = """
     filtered_policies AS (
         SELECT p.id, p.name, ep.run_id, ep.end_training_epoch
-        FROM policies p
+        FROM (
+            SELECT DISTINCT e.primary_policy_id
+            FROM episodes e
+            WHERE e.eval_category = %s
+            AND e.internal_id > %s
+        ) e
+        JOIN policies p ON e.primary_policy_id = p.id
         LEFT JOIN epochs ep ON p.epoch_id = ep.id
-        WHERE p.name = ANY(%s)
     )
 """
 
 GET_EVAL_NAMES_QUERY = "SELECT DISTINCT env_name FROM episodes WHERE eval_category = %s"
 GET_MAX_EPISODE_QUERY = "SELECT MAX(internal_id) FROM episodes WHERE eval_category = %s"
+HAS_NEW_DATA_QUERY = "SELECT 1 FROM episodes WHERE eval_category = %s AND internal_id > %s LIMIT 1"
 
 
 # ============================================================================
@@ -305,11 +311,11 @@ class HeatmapCache:
                 self._touch(key)
 
                 # Check for new data
-                new_evals = await fetch_evaluation_data(con, suite, metric, min_episode_id=cached.last_episode_id + 1)
+                has_new_data = await self._has_new_data(con, suite, metric, cached.last_episode_id)
 
-                if new_evals:
+                if has_new_data:
                     # Update cache with new data
-                    cached = await self._update_cache(con, suite, metric, cached, new_evals)
+                    cached = await self._update_cache(con, suite, metric, cached)
 
                 # Apply selector and build heatmap
                 eval_names_set = set(cached.eval_names)
@@ -344,31 +350,28 @@ class HeatmapCache:
         return build_heatmap(selected_evals, eval_names)
 
     async def _update_cache(
-        self, con: AsyncConnection, suite: str, metric: str, cached: CachedHeatmap, new_evals: List[PolicyEvaluation]
+        self, con: AsyncConnection, suite: str, metric: str, cached: CachedHeatmap
     ) -> CachedHeatmap:
         """Update cached data with new evaluations."""
-        # Find policies affected by new episodes
-        affected_policies = list({e.policy_uri for e in new_evals})
-        
-        if affected_policies:
-            # Fetch complete historical data for affected policies only
-            affected_evals = await fetch_evaluation_data(
-                con, suite, metric, min_episode_id=0, 
-                policy_filter=SPECIFIC_POLICIES_FILTER, 
-                filter_params=(affected_policies,)
-            )
-            
-            # Create map starting with cached evaluations
-            eval_map = {(e.policy_uri, e.eval_name): e for e in cached.evaluations}
-            
-            # Replace/update with complete data for affected policies
-            for eval in affected_evals:
-                eval_map[(eval.policy_uri, eval.eval_name)] = eval
-            
-            all_evals = list(eval_map.values())
-        else:
-            # No affected policies, just use cached data
-            all_evals = cached.evaluations
+
+        # Fetch complete historical data for affected policies only
+        affected_evals = await fetch_evaluation_data(
+            con,
+            suite,
+            metric,
+            min_episode_id=0,
+            policy_filter=SPECIFIC_POLICIES_FILTER,
+            filter_params=(suite, cached.last_episode_id),
+        )
+
+        # Create map starting with cached evaluations
+        eval_map = {(e.policy_uri, e.eval_name): e for e in cached.evaluations}
+
+        # Replace/update with complete data for affected policies
+        for eval in affected_evals:
+            eval_map[(eval.policy_uri, eval.eval_name)] = eval
+
+        all_evals = list(eval_map.values())
 
         # Update eval names if needed
         eval_names = await get_evaluation_names(con, suite)
@@ -379,6 +382,12 @@ class HeatmapCache:
         self.cache[(suite, metric)] = entry
 
         return entry
+
+    async def _has_new_data(self, con: AsyncConnection, suite: str, metric: str, last_episode_id: int) -> bool:
+        """Check if there are new episodes since the last cached episode ID."""
+        result = await con.execute(HAS_NEW_DATA_QUERY, (suite, last_episode_id))
+        row = await result.fetchone()
+        return row is not None
 
     def _touch(self, key: Tuple[str, str]) -> None:
         """Update LRU access order."""
