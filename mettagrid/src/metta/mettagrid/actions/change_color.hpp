@@ -8,16 +8,15 @@
 #include "types.hpp"
 
 // Color change action for multi-agent communication
-// Uses direct mapping to preserve semantic distance when vocabulary expands
+// Uses direct mapping to make communication instantaneous
 // Example: 4 colors map to quadrants of color wheel (red/green/cyan/purple)
 //          8 colors add intermediate hues while preserving original positions
-// This allows agents with different vocabulary sizes to partially understand each other
-// Priority=2 ensures communication happens before other actions like attacks
+// This is inserting a bias that our communication channel is a continuum variable
+// see discussion in PR #1435
+// TODO: drop "color" and change this action to "signal"
 class ChangeColorAction : public ActionHandler {
 public:
-  explicit ChangeColorAction(const ActionConfig& cfg) : ActionHandler(cfg, "change_color") {
-    priority = 2;  // higher than attack
-  }
+  explicit ChangeColorAction(const ActionConfig& cfg) : ActionHandler(cfg, "change_color") {}
 
   unsigned char max_arg() const override {
     return 3;  // 4 possible actions (0-3)
