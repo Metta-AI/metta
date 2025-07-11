@@ -16,6 +16,7 @@ trainer:
     evaluate_interval: 10
   checkpoint:
     checkpoint_interval: 5
+    wandb_checkpoint_interval: 5
 
 sim_job:
   policy_uris:
