@@ -7,6 +7,12 @@
 #include "objects/agent.hpp"
 #include "types.hpp"
 
+// Color change action for multi-agent communication
+// Uses direct mapping to preserve semantic distance when vocabulary expands
+// Example: 4 colors map to quadrants of color wheel (red/green/cyan/purple)
+//          8 colors add intermediate hues while preserving original positions
+// This allows agents with different vocabulary sizes to partially understand each other
+// Priority=2 ensures communication happens before other actions like attacks
 class ChangeColorAction : public ActionHandler {
 public:
   explicit ChangeColorAction(const ActionConfig& cfg) : ActionHandler(cfg, "change_color") {
@@ -19,9 +25,9 @@ public:
 
 protected:
   bool _handle_action(Agent* actor, ActionArg arg) override {
-    // Map arg (0-3) to full color range (0-255)
-    // arg 0 -> 0, arg 1 -> 85, arg 2 -> 170, arg 3 -> 255
-    actor->color = (arg * 255) / max_arg();
+    // Map action argument to full color range with n equally-spaced values
+    // For n colors: 0, 255/(n-1), 2*255/(n-1), ..., 255
+    actor->color = (arg * 255) / (max_arg() > 0 ? max_arg() : 1);
 
     return true;
   }
