@@ -18,9 +18,9 @@ public:
   }
 
 protected:
-  bool _handle_action(Agent* actor, ActionArg arg) override {
-    GridLocation target_loc =
-        this->_grid->relative_location(actor->location, static_cast<Orientation>(actor->orientation));
+  bool _handle_action(Agent* actor, ActionArg /*arg*/) override {
+    // target the square we are facing
+    GridLocation target_loc = _grid->relative_location(actor->location, static_cast<Orientation>(actor->orientation));
 
     // Check layers in swap priority order
     const auto layers = {GridLayer::ObjectLayer, GridLayer::AgentLayer};
