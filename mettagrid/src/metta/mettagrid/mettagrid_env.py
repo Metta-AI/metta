@@ -86,7 +86,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
         self._replay_writer = replay_writer
         self._episode_id: str | None = None
         self._reset_at = datetime.datetime.now()
-        self._current_seed = 0
+        self._current_seed: int = 0  # must be unsigned
 
         self.labels: list[str] = self._task.env_cfg().get("labels", [])
         self._should_reset = False

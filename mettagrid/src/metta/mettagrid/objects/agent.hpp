@@ -87,10 +87,11 @@ public:
   InventoryDelta update_inventory(InventoryItem item, InventoryDelta attempted_delta) {
     InventoryQuantity initial_amount = this->inventory[item];
 
-    InventoryQuantity new_amount = std::clamp(
-        static_cast<int>(initial_amount + attempted_delta), 0, static_cast<int>(this->resource_limits[item]));
+    InventoryQuantity new_amount = static_cast<InventoryQuantity>(std::clamp(
+        static_cast<int>(initial_amount + attempted_delta), 0, static_cast<int>(this->resource_limits[item])));
 
     InventoryDelta delta = new_amount - initial_amount;
+
     if (new_amount > 0) {
       this->inventory[item] = new_amount;
     } else {
