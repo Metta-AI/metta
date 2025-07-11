@@ -748,25 +748,42 @@ class MettaTrainer:
             training_replays = {k: v for k, v in replay_urls.items() if "training_task" in k}
             eval_replays = {k: v for k, v in replay_urls.items() if "training_task" not in k}
             
-            # Build links list
-            links = []
+            # Group replays by base name (for future multi-episode support)
+            replay_groups = {}
             
-            # Add training link first
+            # Process training replays
             for sim_name, replay_url in sorted(training_replays.items()):
-                player_url = "https://metta-ai.github.io/metta/?replayUrl=" + replay_url
-                links.append(f'<a href="{player_url}" target="_blank">training</a>')
+                if "training" not in replay_groups:
+                    replay_groups["training"] = []
+                replay_groups["training"].append(replay_url)
             
-            # Add evaluation links
+            # Process evaluation replays
             for sim_name, replay_url in sorted(eval_replays.items()):
-                player_url = "https://metta-ai.github.io/metta/?replayUrl=" + replay_url
                 # Clean up the display name - remove "eval/" prefix
                 display_name = sim_name.replace("eval/", "")
-                links.append(f'<a href="{player_url}" target="_blank">{display_name}</a>')
+                if display_name not in replay_groups:
+                    replay_groups[display_name] = []
+                replay_groups[display_name].append(replay_url)
             
-            # Join all links with " | " separator
-            html_content = " | ".join(links)
+            # Build HTML with episode numbers
+            links = []
+            for name, urls in replay_groups.items():
+                if len(urls) == 1:
+                    # Single episode - just show the name
+                    player_url = "https://metta-ai.github.io/metta/?replayUrl=" + urls[0]
+                    links.append(f'<a href="{player_url}" target="_blank">{name}</a>')
+                else:
+                    # Multiple episodes - show with numbers
+                    episode_links = []
+                    for i, url in enumerate(urls, 1):
+                        player_url = "https://metta-ai.github.io/metta/?replayUrl=" + url
+                        episode_links.append(f'<a href="{player_url}" target="_blank">{i}</a>')
+                    links.append(f'{name} [{" ".join(episode_links)}]')
+            
+            # Join all links with " | " separator and add epoch prefix
+            html_content = f"epoch {self.epoch}: " + " | ".join(links)
         else:
-            html_content = "No replays available."
+            html_content = f"epoch {self.epoch}: No replays available."
 
         # Log the unified HTML with step parameter for wandb's epoch slider
         link_summary = {"replays/all_links": wandb.Html(html_content)}
