@@ -316,7 +316,7 @@ class HeatmapCache:
                 # Apply selector and build heatmap
                 eval_names_set = set(cached.eval_names)
                 if selector == "best":
-                    selected_evals = await select_best_per_run(cached.evaluations, eval_names_set)
+                    selected_evals = select_best_per_run(cached.evaluations, eval_names_set)
                 else:
                     selected_evals = select_latest_per_run(cached.evaluations)
                 return build_heatmap(selected_evals, cached.eval_names)
@@ -337,7 +337,7 @@ class HeatmapCache:
 
         # Apply selector and build heatmap
         if selector == "best":
-            selected_evals = await select_best_per_run(evaluations, eval_names_set)
+            selected_evals = select_best_per_run(evaluations, eval_names_set)
         else:
             selected_evals = select_latest_per_run(evaluations)
         return build_heatmap(selected_evals, eval_names)
