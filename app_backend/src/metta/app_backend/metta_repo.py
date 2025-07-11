@@ -202,6 +202,14 @@ MIGRATIONS = [
             """ALTER TABLE episode_agent_metrics DROP COLUMN episode_id""",
         ],
     ),
+    SqlMigration(
+        version=11,
+        description="Add episode_internal_id index to episode_agent_metrics table",
+        sql_statements=[
+            """CREATE INDEX IF NOT EXISTS idx_episode_agent_metrics_episode_internal_id
+                ON episode_agent_metrics(episode_internal_id)""",
+        ],
+    ),
 ]
 
 
