@@ -115,10 +115,10 @@ class MetricsCache:
         if min_episode_id == 0:
             # Initial cache build - fetch all metrics
             metrics_rows = await execute_query_and_log(
-                con, 
+                con,
                 "SELECT DISTINCT eam.metric FROM episode_agent_metrics eam ORDER BY eam.metric",
-                (), 
-                "get_all_metrics_initial"
+                (),
+                "get_all_metrics_initial",
             )
             new_metrics = [row[0] for row in metrics_rows if row[0] is not None]
             all_metrics = new_metrics
@@ -126,7 +126,7 @@ class MetricsCache:
             # Incremental update - fetch only new metrics and merge with existing
             metrics_rows = await execute_query_and_log(con, GET_ALL_METRICS_QUERY, (min_episode_id,), "get_new_metrics")
             new_metrics = [row[0] for row in metrics_rows if row[0] is not None]
-            
+
             # Merge with existing cached metrics
             existing_metrics = self.cache.metrics if self.cache else []
             all_metrics = sorted(set(existing_metrics + new_metrics))
