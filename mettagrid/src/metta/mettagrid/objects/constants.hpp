@@ -45,7 +45,8 @@ constexpr ObservationType EpisodeCompletionPct = 8;
 constexpr ObservationType LastAction = 9;
 constexpr ObservationType LastActionArg = 10;
 constexpr ObservationType LastReward = 11;
-constexpr ObservationType ObservationFeatureCount = 12;
+constexpr ObservationType Glyph = 12;
+constexpr ObservationType ObservationFeatureCount = 13;
 }  // namespace ObservationFeature
 
 const ObservationType InventoryFeatureOffset = ObservationFeature::ObservationFeatureCount;
@@ -81,6 +82,7 @@ const std::map<ObservationType, float> FeatureNormalizations = {
     {ObservationFeature::Color, 255.0},
     {ObservationFeature::ConvertingOrCoolingDown, 1.0},
     {ObservationFeature::Swappable, 1.0},
+    {ObservationFeature::Glyph, 255.0},
 };
 
 const float DEFAULT_INVENTORY_NORMALIZATION = 100.0;

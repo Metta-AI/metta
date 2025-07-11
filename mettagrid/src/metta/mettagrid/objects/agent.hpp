@@ -146,6 +146,7 @@ public:
     features.push_back({ObservationFeature::Frozen, static_cast<ObservationType>(frozen != 0 ? 1 : 0)});
     features.push_back({ObservationFeature::Orientation, static_cast<ObservationType>(orientation)});
     features.push_back({ObservationFeature::Color, static_cast<ObservationType>(color)});
+    features.push_back({ObservationFeature::Glyph, static_cast<ObservationType>(glyph)});
     for (const auto& [item, amount] : this->inventory) {
       // inventory should only contain non-zero amounts
       assert(amount > 0);
