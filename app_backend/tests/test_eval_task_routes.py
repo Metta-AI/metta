@@ -2,73 +2,13 @@ import uuid
 from typing import Dict
 
 import pytest
-from fastapi import FastAPI
-from fastapi.testclient import TestClient
-from testcontainers.postgres import PostgresContainer
 
 from metta.app_backend.metta_repo import MettaRepo
-from metta.app_backend.server import create_app
 from metta.app_backend.stats_client import StatsClient
 
 
 class TestEvalTaskRoutes:
     """End-to-end tests for eval task routes."""
-
-    @pytest.fixture(scope="class")
-    def postgres_container(self):
-        """Create a PostgreSQL container for testing."""
-        try:
-            container = PostgresContainer(
-                image="postgres:17",
-                username="test_user",
-                password="test_password",
-                dbname="test_db",
-                driver=None,
-            )
-            container.start()
-            yield container
-            container.stop()
-        except Exception as e:
-            pytest.skip(f"Failed to start PostgreSQL container: {e}")
-
-    @pytest.fixture(scope="class")
-    def db_uri(self, postgres_container: PostgresContainer) -> str:
-        """Get the database URI for the test container."""
-        return postgres_container.get_connection_url()
-
-    @pytest.fixture(scope="class")
-    def stats_repo(self, db_uri: str) -> MettaRepo:
-        """Create a MettaRepo instance with the test database."""
-        return MettaRepo(db_uri)
-
-    @pytest.fixture(scope="class")
-    def test_app(self, stats_repo: MettaRepo) -> FastAPI:
-        """Create a test FastAPI app with dependency injection."""
-        return create_app(stats_repo)
-
-    @pytest.fixture(scope="class")
-    def test_client(self, test_app: FastAPI) -> TestClient:
-        """Create a test client."""
-        return TestClient(test_app)
-
-    @pytest.fixture(scope="class")
-    def test_user_headers(self) -> Dict[str, str]:
-        """Headers for authenticated requests."""
-        return {"X-Auth-Request-Email": "test_user@example.com"}
-
-    @pytest.fixture(scope="class")
-    def stats_client(self, test_client: TestClient) -> StatsClient:
-        """Create a stats client for testing."""
-        # First create a machine token
-        token_response = test_client.post(
-            "/tokens",
-            json={"name": "test_eval_tasks_token"},
-            headers={"X-Auth-Request-Email": "test_user@example.com"},
-        )
-        assert token_response.status_code == 200
-        token = token_response.json()["token"]
-
-        return StatsClient(test_client, machine_token=token)
 
     @pytest.fixture
     def test_policy_id(self, stats_client: StatsClient) -> str:
@@ -93,7 +33,7 @@ class TestEvalTaskRoutes:
 
         return str(policy.id)
 
-    def test_create_eval_task(self, test_client: TestClient, test_user_headers: Dict[str, str], test_policy_id: str):
+    def test_create_eval_task(self, test_client, test_user_headers: Dict[str, str], test_policy_id: str):
         """Test creating an eval task."""
         response = test_client.post(
             "/tasks",
@@ -116,7 +56,7 @@ class TestEvalTaskRoutes:
         assert data["attributes"]["git_hash"] == "abc123def456"
         assert data["attributes"]["env_overrides"] == {"key": "value"}
 
-    def test_get_available_tasks(self, test_client: TestClient, test_user_headers: Dict[str, str], test_policy_id: str):
+    def test_get_available_tasks(self, test_client, test_user_headers: Dict[str, str], test_policy_id: str):
         """Test getting available tasks."""
         # Create some tasks
         task_ids = []
@@ -146,9 +86,7 @@ class TestEvalTaskRoutes:
         for task_id in task_ids:
             assert task_id in returned_ids
 
-    def test_claim_and_update_tasks(
-        self, test_client: TestClient, test_user_headers: Dict[str, str], test_policy_id: str
-    ):
+    def test_claim_and_update_tasks(self, test_client, test_user_headers: Dict[str, str], test_policy_id: str):
         """Test the complete workflow of claiming and updating tasks."""
         # Create tasks
         create_response = test_client.post(
@@ -207,7 +145,7 @@ class TestEvalTaskRoutes:
         assert task_id not in available_ids
 
     def test_task_assignment_expiry(
-        self, test_client: TestClient, test_user_headers: Dict[str, str], test_policy_id: str, stats_repo: MettaRepo
+        self, test_client, test_user_headers: Dict[str, str], test_policy_id: str, stats_repo: MettaRepo
     ):
         """Test that assigned tasks become available again after expiry."""
         # Create a task
@@ -252,7 +190,7 @@ class TestEvalTaskRoutes:
         assert any(task["id"] == task_id for task in claimed_tasks)
 
     def test_multiple_workers_claiming_same_task(
-        self, test_client: TestClient, test_user_headers: Dict[str, str], test_policy_id: str
+        self, test_client, test_user_headers: Dict[str, str], test_policy_id: str
     ):
         """Test that only one worker can claim a task."""
         # Create a task
@@ -293,8 +231,14 @@ class TestEvalTaskRoutes:
         # Should return empty list since task is already claimed
         assert task_id not in claim2_response.json()
 
-    def test_record_episode_with_eval_task(
-        self, stats_client: StatsClient, test_policy_id: str, test_client: TestClient, test_user_headers: Dict[str, str]
+    @pytest.mark.asyncio
+    async def test_record_episode_with_eval_task(
+        self,
+        stats_client: StatsClient,
+        test_policy_id: str,
+        test_client,
+        test_user_headers: Dict[str, str],
+        stats_repo: MettaRepo,
     ):
         """Test recording an episode linked to an eval task."""
         # Create an eval task
@@ -325,11 +269,31 @@ class TestEvalTaskRoutes:
         )
 
         assert episode.id is not None
-        # The eval_task_episodes relationship should be created in the database
 
-    def test_invalid_status_update(
-        self, test_client: TestClient, test_user_headers: Dict[str, str], test_policy_id: str
-    ):
+        # Verify the eval_task_episodes relationship was created in the database
+        async with stats_repo.connect() as con:
+            # First get the episode's internal_id
+            result = await con.execute(
+                "SELECT internal_id FROM episodes WHERE id = %s",
+                (episode.id,),
+            )
+            episode_row = await result.fetchone()
+            assert episode_row is not None
+            episode_internal_id = episode_row[0]
+
+            # Then check the join table
+            result = await con.execute(
+                """
+                SELECT COUNT(*) FROM eval_task_episodes
+                WHERE eval_task_id = %s AND episode_internal_id = %s
+                """,
+                (eval_task_uuid, episode_internal_id),
+            )
+            row = await result.fetchone()
+            assert row is not None
+            assert row[0] == 1  # Exactly one relationship should exist
+
+    def test_invalid_status_update(self, test_client, test_user_headers: Dict[str, str], test_policy_id: str):
         """Test that invalid status updates are rejected."""
         # Create and claim a task
         create_response = test_client.post(

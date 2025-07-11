@@ -9,7 +9,14 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from metta.app_backend.auth import user_from_header_or_token
 from metta.app_backend.metta_repo import MettaRepo
-from metta.app_backend.routes import dashboard_routes, eval_task_routes, heatmap_routes, sql_routes, stats_routes, token_routes
+from metta.app_backend.routes import (
+    dashboard_routes,
+    eval_task_routes,
+    heatmap_routes,
+    sql_routes,
+    stats_routes,
+    token_routes,
+)
 
 _logging_configured = False
 
