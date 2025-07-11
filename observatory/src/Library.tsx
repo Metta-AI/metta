@@ -1,5 +1,10 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
+import ReactDOM from 'react-dom';
+import { mockUsers } from './mockData/users';
+import { mockScholars } from './mockData/scholars';
+import { mockAffiliations } from './mockData/affiliations';
+import { mockPapers } from './mockData/papers';
 
 // MathJax type declarations
 declare global {
@@ -31,6 +36,15 @@ const navItems = [
         icon: (
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+        )
+    },
+    {
+        id: 'papers',
+        label: 'Papers',
+        icon: (
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
             </svg>
         )
     },
@@ -81,15 +95,6 @@ const navItems = [
         )
     },
     {
-        id: 'papers',
-        label: 'Papers Only',
-        icon: (
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>
-        )
-    },
-    {
         id: 'profile',
         label: 'Profile',
         icon: (
@@ -97,204 +102,6 @@ const navItems = [
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
             </svg>
         )
-    }
-]
-
-// Mock scholars data
-const mockScholars = [
-    {
-        id: 'alice-johnson',
-        name: 'Dr. Alice Johnson',
-        username: '@alicej',
-        avatar: 'A',
-        institution: 'Stanford University',
-        department: 'Computer Science',
-        title: 'Assistant Professor',
-        bio: 'Research focuses on attention mechanisms and transformer architectures. Currently working on efficient attention methods for large language models.',
-        expertise: ['Attention Mechanisms', 'Transformer Architecture', 'Natural Language Processing'],
-        hIndex: 23,
-        totalCitations: 1247,
-        papers: [
-            {
-                id: 'arxiv:2023.attention',
-                title: 'Efficient Attention Mechanisms for Large Language Models',
-                year: 2023,
-                citations: 89,
-                url: 'https://arxiv.org/abs/2023.attention'
-            },
-            {
-                id: 'arxiv:2022.transformer',
-                title: 'Transformer Variants for Long Sequence Processing',
-                year: 2022,
-                citations: 156,
-                url: 'https://arxiv.org/abs/2022.transformer'
-            }
-        ],
-        recentActivity: '2 days ago',
-        isFollowing: true,
-        claimed: true
-    },
-    {
-        id: 'bob-chen',
-        name: 'Prof. Bob Chen',
-        username: '@bobchen',
-        avatar: 'B',
-        institution: 'MIT',
-        department: 'Electrical Engineering & Computer Science',
-        title: 'Associate Professor',
-        bio: 'Specializes in reinforcement learning and continuous control. Developing novel policy gradient methods for robotics applications.',
-        expertise: ['Reinforcement Learning', 'Robotics', 'Control Theory'],
-        hIndex: 31,
-        totalCitations: 2847,
-        papers: [
-            {
-                id: 'arxiv:1804.02464v3',
-                title: 'Natural Policy Gradients for Continuous Control',
-                year: 2018,
-                citations: 127,
-                url: 'https://arxiv.org/abs/1804.02464'
-            },
-            {
-                id: 'arxiv:2021.robotics',
-                title: 'Robust Policy Learning for Real-World Robotics',
-                year: 2021,
-                citations: 203,
-                url: 'https://arxiv.org/abs/2021.robotics'
-            }
-        ],
-        recentActivity: '1 week ago',
-        isFollowing: false,
-        claimed: false
-    },
-    {
-        id: 'carol-williams',
-        name: 'Dr. Carol Williams',
-        username: '@carolw',
-        avatar: 'C',
-        institution: 'UC Berkeley',
-        department: 'Mathematics',
-        title: 'Research Scientist',
-        bio: 'Theoretical computer scientist working on neural network theory and approximation algorithms. Expert in universal approximation theorems.',
-        expertise: ['Neural Network Theory', 'Approximation Algorithms', 'Theoretical Computer Science'],
-        hIndex: 18,
-        totalCitations: 892,
-        papers: [
-            {
-                id: 'arxiv:2023.theory',
-                title: 'Universal Approximation Theorems for Modern Neural Networks',
-                year: 2023,
-                citations: 45,
-                url: 'https://arxiv.org/abs/2023.theory'
-            }
-        ],
-        recentActivity: '3 days ago',
-        isFollowing: true,
-        claimed: true
-    },
-    {
-        id: 'david-kumar',
-        name: 'Prof. David Kumar',
-        username: '@davidk',
-        avatar: 'D',
-        institution: 'CMU',
-        department: 'Machine Learning',
-        title: 'Professor',
-        bio: 'Leading researcher in computer vision and deep learning. Pioneer in convolutional neural networks and their applications.',
-        expertise: ['Computer Vision', 'Deep Learning', 'Convolutional Neural Networks'],
-        hIndex: 45,
-        totalCitations: 5678,
-        papers: [
-            {
-                id: 'arxiv:2012.vision',
-                title: 'Advances in Convolutional Neural Networks for Vision',
-                year: 2012,
-                citations: 1234,
-                url: 'https://arxiv.org/abs/2012.vision'
-            }
-        ],
-        recentActivity: '5 days ago',
-        isFollowing: false,
-        claimed: false
-    },
-    {
-        id: 'eva-rodriguez',
-        name: 'Dr. Eva Rodriguez',
-        username: '@evarod',
-        avatar: 'E',
-        institution: 'Google Research',
-        department: 'AI Research',
-        title: 'Senior Research Scientist',
-        bio: 'Expert in generative models and variational methods. Currently working on large-scale generative AI systems.',
-        expertise: ['Generative Models', 'Variational Methods', 'Large Language Models'],
-        hIndex: 28,
-        totalCitations: 2156,
-        papers: [
-            {
-                id: 'arxiv:2023.vae',
-                title: 'Variational Autoencoders for High-Dimensional Data',
-                year: 2023,
-                citations: 78,
-                url: 'https://arxiv.org/abs/2023.vae'
-            }
-        ],
-        recentActivity: '1 day ago',
-        isFollowing: true,
-        claimed: true
-    }
-]
-
-// Mock affiliations data
-const mockAffiliations = [
-    {
-        id: 'stanford-ai-lab',
-        name: 'Stanford University',
-        label: 'Stanford AI Lab',
-        logo: '', // leave blank to use initials fallback
-        initials: 'SAIL',
-        location: 'Stanford, USA',
-        type: 'University',
-        memberCount: 42,
-        papers: 320,
-        citations: 15400,
-        tags: ['AI', 'Robotics', 'NLP', 'Vision', 'Theory'],
-        lastActive: '2024-06-01',
-        website: 'https://ai.stanford.edu',
-        isFavorite: true,
-        isAdmin: false
-    },
-    {
-        id: 'deepmind',
-        name: 'DeepMind',
-        label: 'DeepMind',
-        logo: '',
-        initials: 'DM',
-        location: 'London, UK',
-        type: 'Corporate Lab',
-        memberCount: 87,
-        papers: 510,
-        citations: 32000,
-        tags: ['Reinforcement Learning', 'Neuroscience', 'AI'],
-        lastActive: '2024-05-28',
-        website: 'https://deepmind.com',
-        isFavorite: false,
-        isAdmin: true
-    },
-    {
-        id: 'berkeley-ai',
-        name: 'UC Berkeley',
-        label: 'Berkeley AI Research',
-        logo: '',
-        initials: 'BAIR',
-        location: 'Berkeley, USA',
-        type: 'University',
-        memberCount: 35,
-        papers: 210,
-        citations: 9800,
-        tags: ['Robotics', 'Vision', 'ML Theory'],
-        lastActive: '2024-05-15',
-        website: 'https://bair.berkeley.edu',
-        isFavorite: false,
-        isAdmin: false
     }
 ]
 
@@ -742,6 +549,173 @@ The first term is the reconstruction loss, and the second is the KL divergence t
         </div>
     )
 
+    // UserHoverCard component
+    const UserHoverCard = ({ user, position }: { user: any, position: { x: number, y: number } }) =>
+        ReactDOM.createPortal(
+            <div
+                className="fixed z-50 bg-white border border-gray-200 rounded-lg shadow-lg p-4 min-w-[180px] max-w-xs pointer-events-auto"
+                style={{ left: position.x, top: position.y }}
+            >
+                <div className="flex items-center gap-3 mb-2">
+                    <div className="w-10 h-10 bg-primary-500 text-white rounded-full flex items-center justify-center text-lg font-semibold">
+                        {user.avatar}
+                    </div>
+                    <div>
+                        <div className="font-semibold text-gray-900 text-base leading-tight">{user.name}</div>
+                        {user.email && <div className="text-xs text-gray-500">{user.email}</div>}
+                    </div>
+                </div>
+                <a
+                    href={`/scholars/${user.id}`}
+                    className="inline-block mt-2 text-xs text-primary-600 hover:underline font-medium"
+                >
+                    View profile
+                </a>
+            </div>,
+            document.body
+        );
+
+    // PapersTable component
+    const [papersSort, setPapersSort] = useState<{col: string, dir: 'asc'|'desc'}>({col: 'title', dir: 'asc'});
+    const [papers, setPapers] = useState(mockPapers);
+    const handleSort = (col: string) => {
+        setPapersSort(prev => {
+            const dir = prev.col === col && prev.dir === 'asc' ? 'desc' : 'asc';
+            return { col, dir };
+        });
+        setPapers(prev => {
+            const newDir = papersSort.col === col && papersSort.dir === 'asc' ? 'desc' : 'asc';
+            const sorted = [...prev].sort((a, b) => {
+                if (col === 'title') {
+                    return (a.title.localeCompare(b.title)) * (newDir === 'asc' ? 1 : -1);
+                }
+                if (col === 'stars') {
+                    return (a.stars - b.stars) * (newDir === 'asc' ? 1 : -1);
+                }
+                return 0;
+            });
+            return sorted;
+        });
+    };
+    const toggleStar = (id: string) => {
+        setPapers(prev => prev.map(p => p.id === id ? { ...p, starred: !p.starred, stars: p.starred ? p.stars - 1 : p.stars + 1 } : p));
+    };
+    const [hoveredUser, setHoveredUser] = useState<{ user: any, position: { x: number, y: number } } | null>(null);
+    const PapersTable = () => (
+        <div className="overflow-x-auto relative">
+            {hoveredUser && <UserHoverCard user={hoveredUser.user} position={hoveredUser.position} />}
+            <table className="min-w-full bg-white border border-gray-200 rounded-lg text-sm">
+                <thead>
+                    <tr className="bg-gray-50">
+                        <th className="px-4 py-2 text-left cursor-pointer sticky left-0 z-10 bg-white border-r border-gray-200" onClick={() => handleSort('title')}>
+                            Title
+                            <span className="ml-1 align-middle">{papersSort.col === 'title' ? (papersSort.dir === 'asc' ? '▲' : '▼') : ''}</span>
+                        </th>
+                        <th className="px-4 py-2 text-left">Authors</th>
+                        <th className="px-4 py-2 text-left">Affiliations</th>
+                        <th className="px-4 py-2 text-left">Tags</th>
+                        <th className="px-4 py-2 text-left">Read by</th>
+                        <th className="px-4 py-2 text-left">Link</th>
+                        <th className="px-4 py-2 text-left">Queued</th>
+                        <th className="px-4 py-2 text-left cursor-pointer" onClick={() => handleSort('stars')}>
+                            Stars
+                            <span className="ml-1 align-middle">{papersSort.col === 'stars' ? (papersSort.dir === 'asc' ? '▲' : '▼') : ''}</span>
+                        </th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {papers.map(paper => (
+                        <tr key={paper.id} className="border-t border-gray-100 hover:bg-gray-50">
+                            <td className="px-4 py-2 whitespace-nowrap flex items-center gap-2 sticky left-0 z-10 bg-white border-r border-gray-200">
+                                <button onClick={() => toggleStar(paper.id)} className="focus:outline-none">
+                                    {paper.starred ? (
+                                        <svg className="w-4 h-4 text-yellow-400" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.286 3.967a1 1 0 00.95.69h4.175c.969 0 1.371 1.24.588 1.81l-3.38 2.455a1 1 0 00-.364 1.118l1.287 3.966c.3.922-.755 1.688-1.54 1.118l-3.38-2.454a1 1 0 00-1.175 0l-3.38 2.454c-.784.57-1.838-.196-1.54-1.118l1.287-3.966a1 1 0 00-.364-1.118L2.05 9.394c-.783-.57-.38-1.81.588-1.81h4.175a1 1 0 00.95-.69l1.286-3.967z"/></svg>
+                                    ) : (
+                                        <svg className="w-4 h-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 20 20"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 15l-5.878 3.09 1.122-6.545L.488 6.91l6.564-.955L10 0l2.948 5.955 6.564.955-4.756 4.635 1.122 6.545z"/></svg>
+                                    )}
+                                </button>
+                                <span>{paper.title}</span>
+                            </td>
+                            <td className="px-4 py-2 whitespace-nowrap">
+                                {paper.authors.map((author, idx) => (
+                                    <a key={author.id} href={`/scholars/${author.id}`} className="text-primary-600 hover:underline mr-1">
+                                        {author.name}{idx < paper.authors.length - 1 ? ',' : ''}
+                                    </a>
+                                ))}
+                            </td>
+                            <td className="px-4 py-2 whitespace-nowrap">
+                                {paper.affiliations.map((aff, idx) => (
+                                    <a key={aff.id} href={`/affiliations/${aff.id}`} className="text-primary-600 hover:underline mr-1">
+                                        {aff.label}{idx < paper.affiliations.length - 1 ? ',' : ''}
+                                    </a>
+                                ))}
+                            </td>
+                            <td className="px-4 py-2 whitespace-nowrap">
+                                {paper.tags.map((tag, idx) => (
+                                    <span key={idx} className="inline-block bg-gray-100 text-gray-700 text-xs rounded-full px-2 py-0.5 mr-1 mb-0.5">{tag}</span>
+                                ))}
+                            </td>
+                            <td className="px-4 py-2 whitespace-nowrap">
+                                <div className="flex -space-x-2">
+                                    {paper.readBy.map(user => (
+                                        <span
+                                            key={user.id}
+                                            className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-primary-200 text-primary-800 text-xs font-bold border-2 border-white cursor-pointer"
+                                            title={user.name}
+                                            onMouseEnter={e => {
+                                                const rect = (e.target as HTMLElement).getBoundingClientRect();
+                                                setHoveredUser({
+                                                    user,
+                                                    position: {
+                                                        x: rect.right + 8, // right edge of circle + 8px
+                                                        y: rect.top // top edge of circle (viewport coordinates)
+                                                    }
+                                                });
+                                            }}
+                                            onMouseLeave={() => setHoveredUser(null)}
+                                        >
+                                            {user.avatar}
+                                        </span>
+                                    ))}
+                                </div>
+                            </td>
+                            <td className="px-4 py-2 whitespace-nowrap">
+                                <a href={paper.link} target="_blank" rel="noopener noreferrer" className="text-primary-500 hover:text-primary-600">
+                                    <svg className="w-4 h-4 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 3h7v7m0 0L10 21l-7-7 11-11z"/></svg>
+                                </a>
+                            </td>
+                            <td className="px-4 py-2 whitespace-nowrap">
+                                <div className="flex -space-x-2">
+                                    {paper.queued.map(user => (
+                                        <span
+                                            key={user.id}
+                                            className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-primary-100 text-primary-700 text-xs font-bold border-2 border-white cursor-pointer"
+                                            title={user.name}
+                                            onMouseEnter={e => {
+                                                const rect = (e.target as HTMLElement).getBoundingClientRect();
+                                                setHoveredUser({
+                                                    user,
+                                                    position: {
+                                                        x: rect.right + 8,
+                                                        y: rect.top
+                                                    }
+                                                });
+                                            }}
+                                            onMouseLeave={() => setHoveredUser(null)}
+                                        >
+                                            {user.avatar}
+                                        </span>
+                                    ))}
+                                </div>
+                            </td>
+                            <td className="px-4 py-2 whitespace-nowrap text-center">{paper.stars}</td>
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
+        </div>
+    );
+
     // Render different views based on activeNav
     const renderContent = () => {
         switch (activeNav) {
@@ -806,6 +780,19 @@ The first term is the reconstruction loss, and the second is the KL divergence t
                                     <AffiliationsCard key={aff.id} affiliation={aff} isAdmin={aff.isAdmin} />
                                 ))}
                             </div>
+                        </div>
+                    </div>
+                )
+
+            case 'papers':
+                return (
+                    <div className="p-6">
+                        <div className="max-w-6xl mx-auto">
+                            <div className="mb-6">
+                                <h1 className="text-2xl font-bold text-gray-900 mb-2">Papers</h1>
+                                <p className="text-gray-600">Browse and sort all papers in the system</p>
+                            </div>
+                            <PapersTable />
                         </div>
                     </div>
                 )

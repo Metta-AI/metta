@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import './index.css'
-import { Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom'
+import { Routes, Route, Link, useLocation, useNavigate, Outlet } from 'react-router-dom'
 import { ServerRepo, Repo } from './repo'
 import { Dashboard } from './Dashboard'
 import { TokenManager } from './TokenManager'
@@ -68,6 +68,52 @@ const NAV_CSS = `
   padding-top: 60px;
 }
 `
+
+// DashboardLayout component for dashboard-related routes
+function DashboardLayout() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const handleDashboardPageChange = () => {
+    navigate('/dashboard');
+  };
+  return (
+    <div style={{ fontFamily: 'Arial, sans-serif', margin: 0 }}>
+      <style>{NAV_CSS}</style>
+      <nav className="nav-container">
+        <div className="nav-content">
+          <Link to="/dashboard" className="nav-brand" onClick={handleDashboardPageChange}>
+            Policy Evaluation Dashboard
+          </Link>
+          <div className="nav-tabs">
+            <Link
+              to="/dashboard"
+              className={`nav-tab ${location.pathname === '/dashboard' ? 'active' : ''}`}
+              onClick={handleDashboardPageChange}
+            >
+              Dashboard
+            </Link>
+            <Link
+              to="/training-runs"
+              className={`nav-tab ${location.pathname.startsWith('/training-run') ? 'active' : ''}`}
+            >
+              Training Runs
+            </Link>
+            <Link to="/saved" className={`nav-tab ${location.pathname === '/saved' ? 'active' : ''}`}>
+              Saved Dashboards
+            </Link>
+            <Link to="/tokens" className={`nav-tab ${location.pathname === '/tokens' ? 'active' : ''}`}>
+              Token Management
+            </Link>
+            <Link to="/sql-query" className={`nav-tab ${location.pathname === '/sql-query' ? 'active' : ''}`}>
+              SQL Query
+            </Link>
+          </div>
+        </div>
+      </nav>
+      <div className="page-container"><Outlet /></div>
+    </div>
+  );
+}
 
 function App() {
   // Data loading state
@@ -188,56 +234,24 @@ function App() {
 
   if (state.type === 'repo') {
     return (
-      <div style={{ fontFamily: 'Arial, sans-serif', margin: 0 }}>
-        <style>{NAV_CSS}</style>
-        <nav className="nav-container">
-          <div className="nav-content">
-            <Link to="/dashboard" className="nav-brand" onClick={handleDashboardPageChange}>
-              Policy Evaluation Dashboard
-            </Link>
-            <div className="nav-tabs">
-              <Link
-                to="/dashboard"
-                className={`nav-tab ${location.pathname === '/dashboard' ? 'active' : ''}`}
-                onClick={handleDashboardPageChange}
-              >
-                Dashboard
-              </Link>
-              <Link
-                to="/training-runs"
-                className={`nav-tab ${location.pathname.startsWith('/training-run') ? 'active' : ''}`}
-              >
-                Training Runs
-              </Link>
-              <Link to="/saved" className={`nav-tab ${location.pathname === '/saved' ? 'active' : ''}`}>
-                Saved Dashboards
-              </Link>
-              <Link to="/tokens" className={`nav-tab ${location.pathname === '/tokens' ? 'active' : ''}`}>
-                Token Management
-              </Link>
-              <Link to="/sql-query" className={`nav-tab ${location.pathname === '/sql-query' ? 'active' : ''}`}>
-                SQL Query
-              </Link>
-            </div>
-          </div>
-        </nav>
-
-        <div className="page-container">
-          <Routes>
-            <Route path="/dashboard" element={<Dashboard repo={state.repo} />} />
-            <Route path="/training-runs" element={<TrainingRuns repo={state.repo} />} />
-            <Route path="/training-run/:runId" element={<TrainingRunDetail repo={state.repo} />} />
-            <Route path="/saved" element={<SavedDashboards repo={state.repo} currentUser={state.currentUser} />} />
-            <Route path="/tokens" element={<TokenManager repo={state.repo} />} />
-            <Route path="/sql-query" element={<SQLQuery repo={state.repo} />} />
-            <Route path="/library" element={<Library repo={state.repo} />} />
-            <Route path="/scholars" element={<Library repo={state.repo} />} />
-            <Route path="/affiliations" element={<Library repo={state.repo} />} />
-            <Route path="/collections" element={<Library repo={state.repo} />} />
-            <Route path="/" element={<Dashboard repo={state.repo} />} />
-          </Routes>
-        </div>
-      </div>
+      <Routes>
+        {/* Dashboard layout routes */}
+        <Route element={<DashboardLayout />}>
+          <Route path="/dashboard" element={<Dashboard repo={state.repo} />} />
+          <Route path="/training-runs" element={<TrainingRuns repo={state.repo} />} />
+          <Route path="/training-run/:runId" element={<TrainingRunDetail repo={state.repo} />} />
+          <Route path="/saved" element={<SavedDashboards repo={state.repo} currentUser={state.currentUser} />} />
+          <Route path="/tokens" element={<TokenManager repo={state.repo} />} />
+          <Route path="/sql-query" element={<SQLQuery repo={state.repo} />} />
+          <Route path="/" element={<Dashboard repo={state.repo} />} />
+        </Route>
+        {/* Library routes (no dashboard header/nav) */}
+        <Route path="/library" element={<Library repo={state.repo} />} />
+        <Route path="/scholars" element={<Library repo={state.repo} />} />
+        <Route path="/affiliations" element={<Library repo={state.repo} />} />
+        <Route path="/collections" element={<Library repo={state.repo} />} />
+        <Route path="/papers" element={<Library repo={state.repo} />} />
+      </Routes>
     )
   }
 
