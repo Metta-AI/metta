@@ -374,9 +374,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
         """
         Return the observation space for a single agent.
         Returns:
-            Box: A Box space with shape depending on whether observation tokens are used.
-                If using tokens: (num_agents, num_observation_tokens, 3)
-                Otherwise: (obs_height, obs_width, num_grid_features)
+            Box: A Box space with shape (num_agents, num_observation_tokens, 3)
         """
         return self._c_env.observation_space
 
@@ -390,15 +388,9 @@ class MettaGridEnv(PufferEnv, GymEnv):
         """
         return self._c_env.action_space
 
-    # obs_width and obs_height correspond to the view window size, and should indicate the grid from which
-    # tokens are being computed.
     @property
     def obs_width(self):
         return self._c_env.obs_width
-
-    @property
-    def obs_height(self):
-        return self._c_env.obs_height
 
     @property
     def action_names(self) -> list[str]:
@@ -424,7 +416,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
     def feature_normalizations(self) -> dict[int, float]:
         return self._c_env.feature_normalizations()
 
-    def get_observation_features(self) -> dict[str, dict]:
+    def get_observation_features(self) -> dict[str, dict[str, int | float]]:
         """
         Build the features dictionary for initialize_to_environment.
 
@@ -436,7 +428,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
 
         features = {}
         for feature_name, feature_info in feature_spec.items():
-            feature_dict = {"id": feature_info["id"]}
+            feature_dict: dict[str, int | float] = {"id": feature_info["id"]}
 
             # Add normalization if present
             if "normalization" in feature_info:

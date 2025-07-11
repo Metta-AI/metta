@@ -16,7 +16,6 @@ from metta.mettagrid.util.actions import (
 )
 
 OBS_WIDTH = 3  # should be odd
-OBS_HEIGHT = 3  # should be odd
 NUM_OBS_TOKENS = 100
 OBS_TOKEN_SIZE = 3
 
@@ -28,7 +27,6 @@ def base_config():
         "max_steps": 50,
         "num_agents": 1,
         "obs_width": OBS_WIDTH,
-        "obs_height": OBS_HEIGHT,
         "num_observation_tokens": NUM_OBS_TOKENS,
         "inventory_item_names": ["laser", "armor"],
         "actions": {
@@ -236,7 +234,6 @@ def test_agent_walks_across_room(configured_env, corridor_game_map):
         {
             "max_steps": 20,
             "obs_width": 3,
-            "obs_height": 3,
         },
     )
 
@@ -284,7 +281,6 @@ def test_agent_walks_across_room(configured_env, corridor_game_map):
         {
             "max_steps": 20,
             "obs_width": 3,
-            "obs_height": 3,
         },
     )
 

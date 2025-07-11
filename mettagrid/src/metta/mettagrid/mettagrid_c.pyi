@@ -101,13 +101,11 @@ class GameConfig:
     num_agents: int
     max_steps: int
     obs_width: int
-    obs_height: int
     inventory_item_names: list[str]
     num_observation_tokens: int
 
 class MettaGrid:
     obs_width: int
-    obs_height: int
     max_steps: int
     current_step: int
     map_width: int
@@ -133,3 +131,4 @@ class MettaGrid:
     def inventory_item_names(self) -> list[str]: ...
     def get_agent_groups(self) -> np.ndarray: ...
     def feature_normalizations(self) -> dict[int, float]: ...
+    def feature_spec(self) -> dict[str, dict[str, int | float]]: ...

@@ -45,7 +45,6 @@ struct GameConfig {
   int num_agents;
   unsigned int max_steps;
   ObservationCoord obs_width;
-  ObservationCoord obs_height;
   std::vector<std::string> inventory_item_names;
   unsigned int num_observation_tokens;
   std::map<std::string, std::shared_ptr<ActionConfig>> actions;
@@ -58,7 +57,6 @@ public:
   ~MettaGrid();
 
   ObservationCoord obs_width;
-  ObservationCoord obs_height;
 
   unsigned int current_step;
   unsigned int max_steps;
@@ -137,7 +135,6 @@ private:
   void _compute_observation(GridCoord observer_r,
                             GridCoord observer_c,
                             ObservationCoord obs_width,
-                            ObservationCoord obs_height,
                             size_t agent_idx,
                             ActionType action,
                             ActionArg action_arg);

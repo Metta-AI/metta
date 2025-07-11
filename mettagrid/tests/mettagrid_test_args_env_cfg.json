@@ -5,7 +5,6 @@
   "game": {
     "num_agents": 24,
     "obs_width": 11,
-    "obs_height": 11,
     "max_steps": 1000,
     "inventory_items": [
       "ore_red",

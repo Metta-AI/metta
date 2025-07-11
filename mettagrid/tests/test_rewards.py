@@ -17,7 +17,6 @@ from metta.mettagrid.util.actions import (
 )
 
 NUM_AGENTS = 1
-OBS_HEIGHT = 3
 OBS_WIDTH = 3
 NUM_OBS_TOKENS = 100
 OBS_TOKEN_SIZE = 3
@@ -38,7 +37,6 @@ def create_heart_reward_test_env(max_steps=50, num_agents=NUM_AGENTS):
         "max_steps": max_steps,
         "num_agents": num_agents,
         "obs_width": OBS_WIDTH,
-        "obs_height": OBS_HEIGHT,
         "num_observation_tokens": NUM_OBS_TOKENS,
         "inventory_item_names": ["laser", "armor", "heart"],
         "actions": {
@@ -89,7 +87,6 @@ def create_reward_test_env(max_steps=10, width=5, height=5, num_agents=NUM_AGENT
         "max_steps": max_steps,
         "num_agents": num_agents,
         "obs_width": OBS_WIDTH,
-        "obs_height": OBS_HEIGHT,
         "num_observation_tokens": NUM_OBS_TOKENS,
         "inventory_item_names": ["laser", "armor", "heart"],
         "actions": {

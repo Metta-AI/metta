@@ -23,7 +23,6 @@ class TokenTypes:
 @dataclass
 class EnvConfig:  # Renamed from TestConfig to avoid pytest confusion
     NUM_AGENTS: int = 2
-    OBS_HEIGHT: int = 3
     OBS_WIDTH: int = 3
     NUM_OBS_TOKENS: int = 100
     OBS_TOKEN_SIZE: int = 3
@@ -66,7 +65,6 @@ class TestEnvironmentBuilder:
             "max_steps": max_steps,
             "num_agents": num_agents,
             "obs_width": EnvConfig.OBS_WIDTH,
-            "obs_height": EnvConfig.OBS_HEIGHT,
             "num_observation_tokens": EnvConfig.NUM_OBS_TOKENS,
             "inventory_item_names": ["laser", "armor"],
             "actions": {
@@ -235,7 +233,7 @@ class TestObservations:
         obs, _ = basic_env.reset()
 
         # global token is always at the center of the observation window
-        global_token_location = PackedCoordinate.pack(EnvConfig.OBS_HEIGHT // 2, EnvConfig.OBS_WIDTH // 2)
+        global_token_location = PackedCoordinate.pack(EnvConfig.OBS_WIDTH // 2, EnvConfig.OBS_WIDTH // 2)
 
         # Test global tokens (first 4 tokens)
         for agent_idx in range(EnvConfig.NUM_AGENTS):
@@ -362,7 +360,6 @@ class TestObservations:
             "max_steps": 10,
             "num_agents": 1,  # Just one agent for this test
             "obs_width": EnvConfig.OBS_WIDTH,
-            "obs_height": EnvConfig.OBS_HEIGHT,
             "num_observation_tokens": EnvConfig.NUM_OBS_TOKENS,
             "inventory_item_names": ["resource1", "resource2"],
             "actions": {
@@ -631,7 +628,6 @@ class TestEdgeObservations:
             "max_steps": 50,  # Enough steps to walk around
             "num_agents": 1,
             "obs_width": 7,
-            "obs_height": 7,
             "num_observation_tokens": 200,
             "inventory_item_names": ["resource1", "resource2"],
             "actions": {

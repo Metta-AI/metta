@@ -78,40 +78,56 @@ struct ObservationPattern {
     int8_t c_offset;
   };
 
-  // Pre-sorted offsets by Manhattan distance for the maximum 15x15 window
+  // Pre-sorted offsets organized so that square windows can use a contiguous prefix
   std::array<Offset, MAX_PATTERN_SIZE> offsets;
   size_t size;  // Actual number of valid offsets
 
+  // For each possible square window size (1x1, 3x3, 5x5, ..., 15x15),
+  // store the end index in the offsets array
+  // Window sizes: 1x1=1, 3x3=9, 5x5=25, 7x7=49, 9x9=81, 11x11=121, 13x13=169, 15x15=225
+  std::array<size_t, 8> window_end_indices;  // For radius 0-7
+
   ObservationPattern() {
     size = 0;
-    const int8_t radius = MAX_OBSERVABLE_SIZE / 2;
+    const int8_t max_radius = MAX_OBSERVABLE_SIZE / 2;  // 7 for 15x15
 
-    // Build list of all offsets with their distances
-    struct OffsetWithDistance {
+    // Build offsets organized by radius layers, then by distance within each layer
+    struct OffsetInfo {
       int8_t r_offset;
       int8_t c_offset;
-      uint8_t distance;
+      uint8_t radius_needed;  // max(|r|, |c|) - determines which square window includes this
+      uint8_t distance;       // |r| + |c| - for sorting within same radius
     };
 
-    std::vector<OffsetWithDistance> temp_offsets;
+    std::vector<OffsetInfo> temp_offsets;
     temp_offsets.reserve(MAX_PATTERN_SIZE);
 
-    // Generate all positions in the maximum observation window
-    for (int r = -radius; r <= radius; r++) {
-      for (int c = -radius; c <= radius; c++) {
+    // Generate all positions
+    for (int r = -max_radius; r <= max_radius; r++) {
+      for (int c = -max_radius; c <= max_radius; c++) {
+        uint8_t radius_needed = std::max(std::abs(r), std::abs(c));
         uint8_t distance = std::abs(r) + std::abs(c);
-        temp_offsets.push_back({static_cast<int8_t>(r), static_cast<int8_t>(c), distance});
+        temp_offsets.push_back({static_cast<int8_t>(r), static_cast<int8_t>(c), radius_needed, distance});
       }
     }
 
-    // Sort by Manhattan distance (stable sort preserves order for same distance)
-    std::stable_sort(temp_offsets.begin(),
-                     temp_offsets.end(),
-                     [](const OffsetWithDistance& a, const OffsetWithDistance& b) { return a.distance < b.distance; });
+    // Sort by: 1) radius needed (which square window), 2) Manhattan distance within that radius
+    std::stable_sort(temp_offsets.begin(), temp_offsets.end(), [](const OffsetInfo& a, const OffsetInfo& b) {
+      if (a.radius_needed != b.radius_needed) {
+        return a.radius_needed < b.radius_needed;
+      }
+      return a.distance < b.distance;
+    });
 
-    // Copy to our fixed array
-    for (const auto& offset : temp_offsets) {
-      offsets[size++] = {offset.r_offset, offset.c_offset};
+    // Copy to our fixed array and record end indices for each radius
+    std::fill(window_end_indices.begin(), window_end_indices.end(), 0);
+
+    for (const auto& info : temp_offsets) {
+      offsets[size++] = {info.r_offset, info.c_offset};
+      // Update end index for this radius and all larger radii
+      for (uint8_t r = info.radius_needed; r <= max_radius; ++r) {
+        window_end_indices[r] = size;
+      }
     }
   }
 };
@@ -123,40 +139,35 @@ inline const ObservationPattern& get_observation_pattern() {
 }
 
 /**
- * Lightweight view into the observation pattern for a specific window size.
- * This class provides an iterator interface over the relevant offsets.
+ * Lightweight view into the observation pattern for a specific square window size.
+ *
+ * This class provides zero-allocation iteration over observation offsets for square
+ * windows. The allowed window sizes are 1x1, 3x3, 5x5, 7x7, 9x9, 11x11, 13x13, and 15x15.
+ *
+ * The offsets are pre-sorted so that each window size corresponds to a contiguous
+ * prefix of the global pattern, enabling simple pointer-based iteration.
  */
 class ObservationSearchPattern {
+  static_assert(MAX_PACKABLE_COORD == 14, "This implementation assumes 15x15 max window");
+
 private:
   const ObservationPattern::Offset* begin_ptr;
   const ObservationPattern::Offset* end_ptr;
 
 public:
-  ObservationSearchPattern(uint8_t width, uint8_t height) {
+  explicit ObservationSearchPattern(uint8_t width) {
+    // in debug, assert we have a valid odd width
+    assert(width % 2 == 1 && "Window size must be odd");
+    assert(width <= ObservationPattern::MAX_OBSERVABLE_SIZE && "Window size must be <= 15");
+
     const auto& pattern = get_observation_pattern();
-
-    // For a given observation window, we only need offsets within its bounds
-    uint8_t width_radius = width >> 1;
-    uint8_t height_radius = height >> 1;
-
-    // Find how many offsets from the pre-computed pattern we need
-    size_t count = 0;
-    for (size_t i = 0; i < pattern.size; ++i) {
-      const auto& offset = pattern.offsets[i];
-      if (std::abs(offset.r_offset) <= height_radius && std::abs(offset.c_offset) <= width_radius) {
-        count++;
-      } else {
-        // Since offsets are sorted by distance, once we're outside bounds,
-        // all remaining offsets will also be outside
-        break;
-      }
-    }
+    uint8_t radius = width >> 1;
 
     begin_ptr = pattern.offsets.data();
-    end_ptr = begin_ptr + count;
+    end_ptr = begin_ptr + pattern.window_end_indices[radius];
   }
 
-  // Iterator interface
+  // Simple contiguous iterator interface
   const ObservationPattern::Offset* begin() const {
     return begin_ptr;
   }
@@ -164,7 +175,6 @@ public:
     return end_ptr;
   }
 
-  // Also support span-like interface
   size_t size() const {
     return end_ptr - begin_ptr;
   }

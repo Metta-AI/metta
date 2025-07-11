@@ -35,7 +35,6 @@ namespace py = pybind11;
 MettaGrid::MettaGrid(const GameConfig& cfg, py::list map, unsigned int seed)
     : max_steps(cfg.max_steps),
       obs_width(cfg.obs_width),
-      obs_height(cfg.obs_height),
       inventory_item_names(cfg.inventory_item_names),
       _num_observation_tokens(cfg.num_observation_tokens) {
   _seed = seed;
@@ -47,12 +46,10 @@ MettaGrid::MettaGrid(const GameConfig& cfg, py::list map, unsigned int seed)
 
   current_step = 0;
 
-  bool observation_size_is_packable =
-      obs_width <= PackedCoordinate::MAX_PACKABLE_COORD + 1 && obs_height <= PackedCoordinate::MAX_PACKABLE_COORD + 1;
-
+  bool observation_size_is_packable = obs_width <= PackedCoordinate::MAX_PACKABLE_COORD + 1;
   if (!observation_size_is_packable) {
-    throw std::runtime_error("Observation window size (" + std::to_string(obs_width) + "x" +
-                             std::to_string(obs_height) + ") exceeds maximum packable size (16x16)");
+    throw std::runtime_error("Observation window size (" + std::to_string(obs_width) +
+                             ") exceeds maximum packable size");
   }
 
   GridCoord height = static_cast<GridCoord>(py::len(map));
@@ -235,21 +232,19 @@ void MettaGrid::add_agent(Agent* agent) {
 void MettaGrid::_compute_observation(GridCoord observer_row,
                                      GridCoord observer_col,
                                      ObservationCoord observable_width,
-                                     ObservationCoord observable_height,
                                      size_t agent_idx,
                                      ActionType action,
                                      ActionArg action_arg) {
   // Calculate observation boundaries
-  ObservationCoord obs_width_radius = observable_width >> 1;
-  ObservationCoord obs_height_radius = observable_height >> 1;
+  ObservationCoord obs_radius = observable_width >> 1;
 
-  int r_start = std::max(static_cast<int>(observer_row) - static_cast<int>(obs_height_radius), 0);
-  int c_start = std::max(static_cast<int>(observer_col) - static_cast<int>(obs_width_radius), 0);
+  int r_start = std::max(static_cast<int>(observer_row) - static_cast<int>(obs_radius), 0);
+  int c_start = std::max(static_cast<int>(observer_col) - static_cast<int>(obs_radius), 0);
 
-  int r_end = std::min(static_cast<int>(observer_row) + static_cast<int>(obs_height_radius) + 1,
-                       static_cast<int>(_grid->height));
+  int r_end =
+      std::min(static_cast<int>(observer_row) + static_cast<int>(obs_radius) + 1, static_cast<int>(_grid->height));
   int c_end =
-      std::min(static_cast<int>(observer_col) + static_cast<int>(obs_width_radius) + 1, static_cast<int>(_grid->width));
+      std::min(static_cast<int>(observer_col) + static_cast<int>(obs_radius) + 1, static_cast<int>(_grid->width));
 
   // Fill in visible objects. Observations should have been cleared in _step, so
   // we don't need to do that here.
@@ -282,8 +277,7 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
       {ObservationFeature::LastActionArg, static_cast<ObservationType>(action_arg)},
       {ObservationFeature::LastReward, static_cast<ObservationType>(reward_int)}};
 
-  uint8_t global_location =
-      PackedCoordinate::pack(static_cast<uint8_t>(obs_height_radius), static_cast<uint8_t>(obs_width_radius));
+  uint8_t global_location = PackedCoordinate::pack(static_cast<uint8_t>(obs_radius), static_cast<uint8_t>(obs_radius));
 
   attempted_tokens_written +=
       _obs_encoder->append_tokens_if_room_available(agent_obs_tokens, global_tokens, global_location);
@@ -302,8 +296,8 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
       ObservationTokens obs_tokens(obs_ptr, observation_view.shape(1) - tokens_written);
 
       // Calculate position within the observation window (agent is at the center)
-      int obs_r = r - static_cast<int>(observer_row) + static_cast<int>(obs_height_radius);
-      int obs_c = c - static_cast<int>(observer_col) + static_cast<int>(obs_width_radius);
+      int obs_r = r - static_cast<int>(observer_row) + static_cast<int>(obs_radius);
+      int obs_c = c - static_cast<int>(observer_col) + static_cast<int>(obs_radius);
 
       // Encode location and add tokens
       uint8_t location = PackedCoordinate::pack(static_cast<uint8_t>(obs_r), static_cast<uint8_t>(obs_c));
@@ -312,7 +306,7 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
     }
   };
 
-  auto search_pattern = PackedCoordinate::ObservationSearchPattern(observable_width, observable_height);
+  auto search_pattern = PackedCoordinate::ObservationSearchPattern(observable_width);
 
   // Process locations in order using the search pattern
   for (const auto& offset : search_pattern) {
@@ -340,7 +334,7 @@ void MettaGrid::_compute_observations(py::array_t<ActionType, py::array::c_style
   for (size_t idx = 0; idx < _agents.size(); idx++) {
     auto& agent = _agents[idx];
     _compute_observation(
-        agent->location.r, agent->location.c, obs_width, obs_height, idx, actions_view(idx, 0), actions_view(idx, 1));
+        agent->location.r, agent->location.c, obs_width, idx, actions_view(idx, 0), actions_view(idx, 1));
   }
 }
 
@@ -786,7 +780,6 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def("object_type_names", &MettaGrid::object_type_names_py)
       .def("feature_spec", &MettaGrid::feature_spec)
       .def_readonly("obs_width", &MettaGrid::obs_width)
-      .def_readonly("obs_height", &MettaGrid::obs_height)
       .def_readonly("max_steps", &MettaGrid::max_steps)
       .def_readonly("current_step", &MettaGrid::current_step)
       .def("inventory_item_names", &MettaGrid::inventory_item_names_py)
@@ -892,7 +885,6 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def(py::init<int,
                     unsigned int,
                     unsigned short,
-                    unsigned short,
                     const std::vector<std::string>&,
                     unsigned int,
                     const std::map<std::string, std::shared_ptr<ActionConfig>>&,
@@ -900,7 +892,6 @@ PYBIND11_MODULE(mettagrid_c, m) {
            py::arg("num_agents"),
            py::arg("max_steps"),
            py::arg("obs_width"),
-           py::arg("obs_height"),
            py::arg("inventory_item_names"),
            py::arg("num_observation_tokens"),
            py::arg("actions"),
@@ -908,7 +899,6 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def_readwrite("num_agents", &GameConfig::num_agents)
       .def_readwrite("max_steps", &GameConfig::max_steps)
       .def_readwrite("obs_width", &GameConfig::obs_width)
-      .def_readwrite("obs_height", &GameConfig::obs_height)
       .def_readwrite("inventory_item_names", &GameConfig::inventory_item_names)
       .def_readwrite("num_observation_tokens", &GameConfig::num_observation_tokens);
   // We don't expose these since they're copied on read, and this means that mutations
