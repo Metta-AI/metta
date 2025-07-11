@@ -197,7 +197,7 @@ def select_latest_per_run(evaluations: List[PolicyEvaluation]) -> List[PolicyEva
     return selected + no_run
 
 
-async def select_best_per_run(evaluations: List[PolicyEvaluation], all_eval_names: Set[str]) -> List[PolicyEvaluation]:
+def select_best_per_run(evaluations: List[PolicyEvaluation], all_eval_names: Set[str]) -> List[PolicyEvaluation]:
     """Select evaluations for the best performing policy in each training run."""
     by_run, no_run = group_by_run(evaluations)
     selected = []
