@@ -25,9 +25,9 @@ public:
 
 protected:
   bool _handle_action(Agent* actor, ActionArg arg) override {
-    // Map action argument to full color range with n equally-spaced values
-    // For n colors: 0, 255/(n-1), 2*255/(n-1), ..., 255
-    actor->color = (arg * 255) / (max_arg() > 0 ? max_arg() : 1);
+    // Map action argument to evenly distributed values [0, 255)
+    // For n colors: 0, 255/n, 2*255/n, ..., (n-1)*255/n
+    actor->color = (arg * 255) / max(max_arg() + 1, 1);
 
     return true;
   }
