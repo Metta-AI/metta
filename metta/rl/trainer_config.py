@@ -228,6 +228,35 @@ class TrainerConfig(BaseModelWithForbidExtra):
         if not self.curriculum and not self.env:
             raise ValueError("curriculum or env must be set")
 
+        # it doesn't make sense to evaluate more often than we checkpoint since we need a saved policy to evaluate
+        if (
+            self.simulation.evaluate_interval != 0
+            and self.simulation.evaluate_interval < self.checkpoint.checkpoint_interval
+        ):
+            raise ValueError(
+                f"evaluate_interval must be at least as large as checkpoint_interval "
+                f"({self.simulation.evaluate_interval} < {self.checkpoint.checkpoint_interval})"
+            )
+        if (
+            self.simulation.evaluate_interval != 0
+            and self.simulation.evaluate_interval < self.checkpoint.wandb_checkpoint_interval
+        ):
+            raise ValueError(
+                f"evaluate_interval must be at least as large as wandb_checkpoint_interval "
+                f"({self.simulation.evaluate_interval} < {self.checkpoint.wandb_checkpoint_interval})"
+            )
+        # Validate that we save policies locally at least as often as we upload to wandb
+        if (
+            self.checkpoint.wandb_checkpoint_interval != 0
+            and self.checkpoint.checkpoint_interval != 0
+            and self.checkpoint.wandb_checkpoint_interval < self.checkpoint.checkpoint_interval
+        ):
+            raise ValueError(
+                f"wandb_checkpoint_interval must be at least as large as checkpoint_interval "
+                f"to ensure policies exist locally before uploading to wandb "
+                f"({self.checkpoint.wandb_checkpoint_interval} < {self.checkpoint.checkpoint_interval})"
+            )
+
         return self
 
     @property
