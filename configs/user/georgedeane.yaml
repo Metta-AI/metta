@@ -8,6 +8,9 @@ trainer:
   env: /env/mettagrid/walkaround
   simulation:
     evaluate_interval: 2
+  checkpoint:
+    checkpoint_interval: 2
+    wandb_checkpoint_interval: 2
 
 # eval_db_uri: wandb://artifacts/memory_db
 
