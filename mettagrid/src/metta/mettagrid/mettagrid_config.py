@@ -1,12 +1,8 @@
-# mettagrid_config.py - Python configuration models and conversion logic
-
 from typing import Any, Optional
 
 from pydantic import Field, RootModel
 
 from metta.common.util.typed_config import BaseModelWithForbidExtra
-
-# Import C++ types from the extension module
 
 # ===== Python Configuration Models =====
 
