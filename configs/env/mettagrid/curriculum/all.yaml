@@ -1,6 +1,6 @@
 _target_: metta.mettagrid.curriculum.random.RandomCurriculum
 
-curricula_cfgs:
+tasks:
   /env/mettagrid/curriculum/arena: 5
   /env/mettagrid/curriculum/navigation/prioritized_regressed: 3
   /env/mettagrid/curriculum/object_use: 2
