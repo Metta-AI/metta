@@ -48,6 +48,15 @@ export function findAttr(element: HTMLElement, attribute: string): string {
   return ''
 }
 
+/** Toggles the opacity of a button. */
+export function toggleOpacity(button: HTMLElement, show: boolean) {
+  if (show) {
+    button.classList.remove('transparent')
+  } else {
+    button.classList.add('transparent')
+  }
+}
+
 /**
  * I don't like how the DOM handles events. I think they should be done
  * via CSS selectors rather than handlers that one attaches and detaches all the time.

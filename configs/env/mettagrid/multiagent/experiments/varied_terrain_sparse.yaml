@@ -1,5 +1,5 @@
 defaults:
-  - /env/mettagrid/multiagent/training/varied_terrain@
+  - /env/mettagrid/multiagent/experiments/varied_terrain@
   - _self_
 
 game:

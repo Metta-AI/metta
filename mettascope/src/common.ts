@@ -1,11 +1,13 @@
 import { Vec2f } from './vector_math.js'
 import { Context3d } from './context3d.js'
-import { find, parseHtmlColor, localStorageGetNumber } from './htmlutils.js'
+import { find, parseHtmlColor, localStorageGetNumber, toggleOpacity } from './htmlutils.js'
 import { PanelInfo } from './panels.js'
 import { HoverPanel } from './hoverpanels.js'
 
 // The 3D context, used for nearly everything.
 export const ctx = new Context3d(find('#global-canvas') as HTMLCanvasElement)
+
+; (window as any).ctx = ctx
 
 // Constants
 export const MIN_ZOOM_LEVEL = 0.025
@@ -109,7 +111,10 @@ export const state = {
   // Playing over a WebSocket
   ws: null as WebSocket | null,
   isOneToOneAction: false,
-}
+};
+
+// Expose state for easier testing
+(window as any).state = state
 
 export const html = {
   globalCanvas: find('#global-canvas') as HTMLCanvasElement,
@@ -162,11 +167,7 @@ export const html = {
 export function setFollowSelection(map: boolean | null) {
   if (map != null) {
     state.followSelection = map
-    if (map) {
-      html.focusToggle.style.opacity = '1'
-    } else {
-      html.focusToggle.style.opacity = '0.2'
-    }
+    toggleOpacity(html.focusToggle, map)
   }
 }
 

@@ -1,29 +1,35 @@
 generator_red:
   type_id: 5
-  input_ore_red: 1
-  output_battery_red: 1
+  input_resources:
+    ore_red: 1
+  output_resources:
+    battery_red: 1
   color: 0
   max_output: 5
   conversion_ticks: 1
   cooldown: 25
-  initial_items: 0
+  initial_resource_count: 0
 
 generator_blue:
   type_id: 6
-  input_ore_blue: 1
-  output_battery_blue: 1
+  input_resources:
+    ore_blue: 1
+  output_resources:
+    battery_blue: 1
   color: 1
   max_output: 5
   conversion_ticks: 1
   cooldown: 25
-  initial_items: 0
+  initial_resource_count: 0
 
 generator_green:
   type_id: 7
-  input_ore_green: 1
-  output_battery_green: 1
+  input_resources:
+    ore_green: 1
+  output_resources:
+    battery_green: 1
   color: 2
   max_output: 5
   conversion_ticks: 1
   cooldown: 25
-  initial_items: 0
+  initial_resource_count: 0

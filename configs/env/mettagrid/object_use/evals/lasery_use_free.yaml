@@ -1,16 +1,19 @@
 defaults:
   - /env/mettagrid/object_use/evals/defaults@
+  - /env/mettagrid/game/objects/combat@game.objects
   - _self_
 
 game:
   max_steps: 80
   objects:
     lasery:
-      initial_items: 1
+      initial_resource_count: 1
       cooldown: 255
   agent:
     rewards:
       laser: 1
   map_builder:
-    objects:
-      lasery: 1
+    root:
+      params:
+        objects:
+          lasery: 1

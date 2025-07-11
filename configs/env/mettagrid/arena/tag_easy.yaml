@@ -1,0 +1,9 @@
+defaults:
+  - tag
+  - /env/mettagrid/game/objects/combat_easy@game.objects:
+  - _self_
+
+game:
+  objects:
+    lasery:
+      initial_resource_count: 1

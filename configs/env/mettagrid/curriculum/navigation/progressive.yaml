@@ -5,16 +5,12 @@ defaults:
 
 # Navigation-specific tasks
 tasks:
-  /env/mettagrid/navigation/training/terrain_from_numpy: 1
-  /env/mettagrid/navigation/training/cylinder_world: 1
-  /env/mettagrid/navigation/training/varied_terrain_sparse: 1
-  /env/mettagrid/navigation/training/varied_terrain_balanced: 1
-  /env/mettagrid/navigation/training/varied_terrain_maze: 1
-  /env/mettagrid/navigation/training/varied_terrain_dense: 1
+  /env/mettagrid/navigation/training/small: 1
+  /env/mettagrid/navigation/training/medium: 1
+  /env/mettagrid/navigation/training/large: 1
 
 # Navigation-specific env_overrides (extends base env_overrides)
 env_overrides:
-  desync_episodes: true
   game:
     num_agents: 4
 

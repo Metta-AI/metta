@@ -98,13 +98,13 @@ def main():
         "--heartbeat-timeout-seconds",
         type=int,
         default=600,
-        help="Automatically terminate the job after this many seconds",
+        help="Automatically terminate the job if no heartbeat signal is received for this many seconds",
     )
     parser.add_argument(
-        "--timeout-hours",
+        "--max-runtime-hours",
         type=float,
         default=None,
-        help="Automatically terminate the job after this many hours (supports decimals, e.g., 1.5 for 90 minutes)",
+        help="Maximum job runtime in hours before automatic termination (supports decimals, e.g., 1.5 = 90 minutes)",
     )
     parser.add_argument("--skip-git-check", action="store_true", help="Skip git state validation")
     parser.add_argument("-c", "--confirm", action="store_true", help="Show confirmation prompt")
@@ -152,7 +152,12 @@ def main():
     task.validate_name()
 
     task = patch_task(
-        task, cpus=args.cpus, gpus=args.gpus, nodes=args.nodes, no_spot=args.no_spot, timeout_hours=args.timeout_hours
+        task,
+        cpus=args.cpus,
+        gpus=args.gpus,
+        nodes=args.nodes,
+        no_spot=args.no_spot,
+        timeout_hours=args.max_runtime_hours,
     )
 
     if args.confirm:
@@ -166,7 +171,7 @@ def main():
             task_args=cmd_args,
             commit_hash=commit_hash,
             git_ref=args.git_ref,
-            timeout_hours=args.timeout_hours,
+            timeout_hours=args.max_runtime_hours,
             task=task,
             **extra_details,
         )

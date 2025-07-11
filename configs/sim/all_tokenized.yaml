@@ -11,6 +11,8 @@ simulations:
     env: env/mettagrid/navigation/evals/emptyspace_outofsight
   navigation/emptyspace_sparse:
     env: env/mettagrid/navigation/evals/emptyspace_sparse
+  navigation/emptyspace_sparse_medium:
+    env: env/mettagrid/navigation/evals/emptyspace_sparse_medium
   navigation/walls_withinsight:
     env: env/mettagrid/navigation/evals/walls_withinsight
   navigation/walls_outofsight:
@@ -35,7 +37,7 @@ simulations:
     env: env/mettagrid/navigation/evals/radialmaze
     policy_agents_pct: 1.0
   # npc/simple:
-  #   env: env/mettagrid/simple
+  #   env: env/mettagrid/arena/advanced
   #   policy_agents_pct: 0.5
   #   npc_policy_uri: wandb://run/b.daphne.npc_simple
   objectuse/altar_use_free:

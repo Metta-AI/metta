@@ -5,15 +5,6 @@ defaults:
 sampling: 1
 
 game:
-  num_agents: 4
   map_builder:
     room:
       dir: ${choose:varied_terrain/balanced_small,varied_terrain/maze_small,varied_terrain/sparse_small,varied_terrain/dense_small,varied_terrain/cylinder-world_small}
-  objects:
-    altar:
-      cooldown: 1000
-      input_battery_red: 3
-      output_heart: 1
-      max_output: 5
-      conversion_ticks: 1
-      initial_items: 1

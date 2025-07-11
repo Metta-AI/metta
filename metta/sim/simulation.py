@@ -26,6 +26,7 @@ from omegaconf import OmegaConf
 from metta.agent.policy_record import PolicyRecord
 from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyStore
+from metta.api import PreBuiltConfigCurriculum
 from metta.app_backend.stats_client import StatsClient
 from metta.mettagrid.curriculum.sampling import SamplingCurriculum
 from metta.mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
@@ -82,7 +83,15 @@ class Simulation:
         logger.info(f"config.env {config.env}")
         logger.info(f"config.env_overrides {config.env_overrides}")
 
-        env_overrides = OmegaConf.create(config.env_overrides)
+        # Extract pre_built_config if present (for Hydra-free operation)
+        pre_built_config = config.env_overrides.get("_pre_built_env_config", None)
+
+        # Create env_overrides without _pre_built_env_config
+        if pre_built_config is not None:
+            env_overrides_dict = {k: v for k, v in config.env_overrides.items() if k != "_pre_built_env_config"}
+            env_overrides = OmegaConf.create(env_overrides_dict)
+        else:
+            env_overrides = OmegaConf.create(config.env_overrides)
 
         self._env_name = config.env
 
@@ -96,9 +105,33 @@ class Simulation:
         self._device = device
 
         # ----------------
-        num_envs = min(config.num_episodes, os.cpu_count() or 1)
-        logger.info(f"Creating vecenv with {num_envs} environments")
-        curriculum = SamplingCurriculum(config.env, env_overrides)
+        # Calculate number of parallel environments and episodes per environment
+        # to achieve the target total number of episodes
+        max_envs = os.cpu_count() or 1
+        if config.num_episodes <= max_envs:
+            # If we want fewer episodes than CPUs, create one env per episode
+            num_envs = config.num_episodes
+            episodes_per_env = 1
+        else:
+            # Otherwise, use all CPUs and distribute episodes
+            num_envs = max_envs
+            episodes_per_env = (config.num_episodes + num_envs - 1) // num_envs  # Ceiling division
+
+        logger.info(
+            f"Creating vecenv with {num_envs} environments, {episodes_per_env} "
+            f"episodes per env (total target: {config.num_episodes})"
+        )
+
+        if pre_built_config is not None:
+            # Use our custom curriculum that doesn't require Hydra
+            # Apply any additional env_overrides to the pre_built config
+            if env_overrides:
+                pre_built_config = OmegaConf.merge(pre_built_config, env_overrides)
+            curriculum = PreBuiltConfigCurriculum(config.env, pre_built_config)
+        else:
+            # Use the standard SamplingCurriculum that loads from Hydra
+            curriculum = SamplingCurriculum(config.env, env_overrides)
+
         env_cfg = curriculum.get_task().env_cfg()
         self._vecenv = make_vecenv(
             curriculum,
@@ -109,7 +142,7 @@ class Simulation:
         )
 
         self._num_envs = num_envs
-        self._min_episodes = config.num_episodes
+        self._min_episodes = episodes_per_env
         self._max_time_s = config.max_time_s
         self._agents_per_env = env_cfg.game.num_agents
 
@@ -468,3 +501,4 @@ class SimulationResults:
     """
 
     stats_db: SimulationStatsDB
+    replay_urls: dict[str, list[str]] | None = None  # Maps simulation names to lists of replay URLs

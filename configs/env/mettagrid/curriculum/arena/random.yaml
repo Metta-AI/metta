@@ -1,0 +1,21 @@
+_target_: metta.mettagrid.curriculum.random.RandomCurriculum
+
+tasks:
+  /env/mettagrid/arena/basic: 1
+  /env/mettagrid/arena/basic_easy: 1
+  /env/mettagrid/arena/basic_easy_shaped: 1
+  /env/mettagrid/arena/basic_poor: 1
+
+  /env/mettagrid/arena/combat: 1
+  /env/mettagrid/arena/combat_easy: 1
+  /env/mettagrid/arena/combat_easy_shaped: 1
+  /env/mettagrid/arena/combat_poor: 1
+
+  /env/mettagrid/arena/advanced: 1
+  /env/mettagrid/arena/advanced_easy: 1
+  /env/mettagrid/arena/advanced_easy_shaped: 1
+  /env/mettagrid/arena/advanced_poor: 1
+
+  /env/mettagrid/arena/tag: 1
+  /env/mettagrid/arena/tag_easy: 1
+  /env/mettagrid/arena/tag_easy_shaped: 1

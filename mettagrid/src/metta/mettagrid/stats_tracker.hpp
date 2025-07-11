@@ -14,11 +14,11 @@ using InventoryItem = uint8_t;
 class StatsTracker {
 private:
   std::map<std::string, float> _stats;
-  std::map<std::string, int> _first_seen_at;
-  std::map<std::string, int> _last_seen_at;
+  std::map<std::string, unsigned int> _first_seen_at;
+  std::map<std::string, unsigned int> _last_seen_at;
   std::map<std::string, float> _min_value;
   std::map<std::string, float> _max_value;
-  std::map<std::string, int> _update_count;
+  std::map<std::string, unsigned int> _update_count;
   MettaGrid* _env;
 
   // Track timing for any update

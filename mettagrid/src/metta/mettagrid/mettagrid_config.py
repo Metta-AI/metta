@@ -8,45 +8,36 @@ from metta.common.util.typed_config import BaseModelWithForbidExtra
 class AgentRewards(BaseModelWithForbidExtra):
     """Agent reward configuration."""
 
-    action_failure_penalty: Optional[float] = Field(default=None, ge=0)
     ore_red: Optional[float] = Field(default=None)
     ore_blue: Optional[float] = Field(default=None)
     ore_green: Optional[float] = Field(default=None)
-    ore_red_max: Optional[float] = Field(default=None)
-    ore_blue_max: Optional[float] = Field(default=None)
-    ore_green_max: Optional[float] = Field(default=None)
+    ore_red_max: Optional[int] = Field(default=None)
+    ore_blue_max: Optional[int] = Field(default=None)
+    ore_green_max: Optional[int] = Field(default=None)
     battery_red: Optional[float] = Field(default=None)
     battery_blue: Optional[float] = Field(default=None)
     battery_green: Optional[float] = Field(default=None)
-    battery_red_max: Optional[float] = Field(default=None)
-    battery_blue_max: Optional[float] = Field(default=None)
-    battery_green_max: Optional[float] = Field(default=None)
+    battery_red_max: Optional[int] = Field(default=None)
+    battery_blue_max: Optional[int] = Field(default=None)
+    battery_green_max: Optional[int] = Field(default=None)
     heart: Optional[float] = Field(default=None)
-    heart_max: Optional[float] = Field(default=None)
+    heart_max: Optional[int] = Field(default=None)
     armor: Optional[float] = Field(default=None)
-    armor_max: Optional[float] = Field(default=None)
+    armor_max: Optional[int] = Field(default=None)
     laser: Optional[float] = Field(default=None)
-    laser_max: Optional[float] = Field(default=None)
+    laser_max: Optional[int] = Field(default=None)
     blueprint: Optional[float] = Field(default=None)
-    blueprint_max: Optional[float] = Field(default=None)
+    blueprint_max: Optional[int] = Field(default=None)
 
 
 class AgentConfig(BaseModelWithForbidExtra):
     """Agent configuration."""
 
-    default_item_max: Optional[int] = Field(default=None, ge=0)
+    default_resource_limit: Optional[int] = Field(default=None, ge=0)
+    resource_limits: Optional[Dict[str, int]] = Field(default_factory=dict)
     freeze_duration: Optional[int] = Field(default=None, ge=-1)
-    rewards: Optional[AgentRewards] = None
-    ore_red_max: Optional[int] = Field(default=None)
-    ore_blue_max: Optional[int] = Field(default=None)
-    ore_green_max: Optional[int] = Field(default=None)
-    battery_red_max: Optional[int] = Field(default=None)
-    battery_blue_max: Optional[int] = Field(default=None)
-    battery_green_max: Optional[int] = Field(default=None)
-    heart_max: Optional[int] = Field(default=None)
-    armor_max: Optional[int] = Field(default=None)
-    laser_max: Optional[int] = Field(default=None)
-    blueprint_max: Optional[int] = Field(default=None)
+    rewards: Optional[AgentRewards] = Field(default=None)
+    action_failure_penalty: Optional[float] = Field(default=None, ge=0)
 
 
 class GroupProps(RootModel[Dict[str, Any]]):
@@ -63,7 +54,7 @@ class GroupConfig(BaseModelWithForbidExtra):
     # Values outside of 0 and 1 are probably mistakes, and are probably
     # unstable. If you want to use values outside this range, please update this comment!
     group_reward_pct: Optional[float] = Field(default=None, ge=0, le=1)
-    props: Optional[GroupProps] = None
+    props: Optional[GroupProps] = Field(default=None)
 
 
 class ActionConfig(BaseModelWithForbidExtra):
@@ -71,7 +62,7 @@ class ActionConfig(BaseModelWithForbidExtra):
 
     enabled: bool
     # defaults to consumed_resources. Otherwise, should be a superset of consumed_resources.
-    required_resources: Optional[Dict[str, int]] = None
+    required_resources: Optional[Dict[str, int]] = Field(default=None)
     consumed_resources: Optional[Dict[str, int]] = Field(default_factory=dict)
 
 
@@ -98,55 +89,20 @@ class WallConfig(BaseModelWithForbidExtra):
     """Wall/Block configuration."""
 
     type_id: int
-    swappable: Optional[bool] = None
+    swappable: bool = Field(default=False)
 
 
 class ConverterConfig(BaseModelWithForbidExtra):
     """Converter configuration for objects that convert items."""
 
-    # Input items (e.g., "input_ore_red": 3)
-    input_ore_red: Optional[int] = Field(default=None, ge=0, le=255)
-    input_ore_blue: Optional[int] = Field(default=None, ge=0, le=255)
-    input_ore_green: Optional[int] = Field(default=None, ge=0, le=255)
-    input_battery_red: Optional[int] = Field(default=None, ge=0, le=255)
-    input_battery_blue: Optional[int] = Field(default=None, ge=0, le=255)
-    input_battery_green: Optional[int] = Field(default=None, ge=0, le=255)
-    input_heart: Optional[int] = Field(default=None, ge=0, le=255)
-    input_armor: Optional[int] = Field(default=None, ge=0, le=255)
-    input_laser: Optional[int] = Field(default=None, ge=0, le=255)
-    input_blueprint: Optional[int] = Field(default=None, ge=0, le=255)
-
-    # Output items (e.g., "output_ore_red": 1)
-    output_ore_red: Optional[int] = Field(default=None, ge=0, le=255)
-    output_ore_blue: Optional[int] = Field(default=None, ge=0, le=255)
-    output_ore_green: Optional[int] = Field(default=None, ge=0, le=255)
-    output_battery_red: Optional[int] = Field(default=None, ge=0, le=255)
-    output_battery_blue: Optional[int] = Field(default=None, ge=0, le=255)
-    output_battery_green: Optional[int] = Field(default=None, ge=0, le=255)
-    output_heart: Optional[int] = Field(default=None, ge=0, le=255)
-    output_armor: Optional[int] = Field(default=None, ge=0, le=255)
-    output_laser: Optional[int] = Field(default=None, ge=0, le=255)
-    output_blueprint: Optional[int] = Field(default=None, ge=0, le=255)
-
-    # Converter properties
-    type_id: int
+    input_resources: Dict[str, int] = Field(default_factory=dict)
+    output_resources: Dict[str, int] = Field(default_factory=dict)
+    type_id: int = Field(default=0, ge=0, le=255)
     max_output: int = Field(ge=-1)
     conversion_ticks: int = Field(ge=0)
     cooldown: int = Field(ge=0)
-    initial_items: int = Field(ge=0)
-    color: Optional[int] = Field(default=None, ge=0, le=255)
-
-
-class RewardSharingGroup(RootModel[Dict[str, float]]):
-    """Reward sharing configuration for a group."""
-
-    pass
-
-
-class RewardSharingConfig(BaseModelWithForbidExtra):
-    """Reward sharing configuration."""
-
-    groups: Optional[Dict[str, RewardSharingGroup]] = None
+    initial_resource_count: int = Field(ge=0)
+    color: int = Field(default=0, ge=0, le=255)
 
 
 class GameConfig(BaseModelWithForbidExtra):
@@ -164,4 +120,3 @@ class GameConfig(BaseModelWithForbidExtra):
     groups: Dict[str, GroupConfig] = Field(min_length=1)
     actions: ActionsConfig
     objects: Dict[str, ConverterConfig | WallConfig]
-    reward_sharing: Optional[RewardSharingConfig] = None
