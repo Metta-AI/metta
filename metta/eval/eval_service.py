@@ -62,15 +62,24 @@ def evaluate_policy(
         logger.info("Exporting merged stats DB → %s", export_stats_db_uri)
         result.stats_db.export(export_stats_db_uri)
 
+    # Handle replay URLs
+    replay_url = None
+    replay_urls: dict[str, str] = {}
+    
     if replay_dir is not None:
-        logger.info("Generating replay URL")
+        # Get legacy single replay URL for backward compatibility
+        logger.info("Extracting replay URLs")
         replay_url = extract_replay_url(result.stats_db, pr)
-    else:
-        replay_url = None
+        
+        # Get all replay URLs from simulation results
+        if result.replay_urls:
+            replay_urls = result.replay_urls
+            logger.info(f"Found {len(replay_urls)} replay URLs from simulations")
 
     results = EvalResults(
         scores=scores,
         replay_url=replay_url,
+        replay_urls=replay_urls,
     )
 
     return results

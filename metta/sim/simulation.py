@@ -487,3 +487,4 @@ class SimulationResults:
     """
 
     stats_db: SimulationStatsDB
+    replay_urls: dict[str, str] | None = None  # Maps simulation names to replay URLs

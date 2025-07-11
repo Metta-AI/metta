@@ -50,6 +50,7 @@ class SimulationSuite:
         merged_db: SimulationStatsDB = SimulationStatsDB(Path(f"{self._stats_dir}/all_{uuid.uuid4().hex[:8]}.duckdb"))
 
         successful_simulations = 0
+        replay_urls: dict[str, str] = {}
 
         for name, sim_config in self._config.simulations.items():
             try:
@@ -72,6 +73,15 @@ class SimulationSuite:
                 logger.info("=== Simulation '%s' ===", name)
                 sim_result = sim.simulate()
                 merged_db.merge_in(sim_result.stats_db)
+                
+                # Collect replay URLs if available
+                if self._replay_dir is not None:
+                    key, version = sim_result.stats_db.key_and_version(self._policy_pr)
+                    sim_replay_urls = sim_result.stats_db.get_replay_urls(key, version)
+                    if sim_replay_urls:
+                        replay_urls[name] = sim_replay_urls[0]
+                        logger.info(f"Collected replay URL for simulation '{name}'")
+                
                 sim_result.stats_db.close()
                 successful_simulations += 1
 
@@ -90,4 +100,4 @@ class SimulationSuite:
             raise RuntimeError("No simulations could be run successfully")
 
         logger.info("Completed %d/%d simulations successfully", successful_simulations, len(self._config.simulations))
-        return SimulationResults(merged_db)
+        return SimulationResults(merged_db, replay_urls=replay_urls if replay_urls else None)
