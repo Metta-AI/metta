@@ -438,7 +438,6 @@ while agent_step < trainer_config.total_timesteps:
     timing_info = compute_timing_stats(
         timer=timer,
         agent_step=agent_step,
-        world_size=world_size,
     )
 
     # Build complete stats for wandb
@@ -474,7 +473,6 @@ while agent_step < trainer_config.total_timesteps:
             evals=evaluation_scores.get(epoch, EvalRewardSummary()),
             agent_step=agent_step,
             epoch=epoch,
-            world_size=world_size,
         )
 
         # Log to wandb if available
