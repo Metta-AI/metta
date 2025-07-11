@@ -1,4 +1,6 @@
+import asyncio
 import logging
+import sys
 from collections import defaultdict
 from dataclasses import dataclass
 from typing import Dict, List, LiteralString, Optional, Set, Tuple
@@ -12,7 +14,7 @@ from metta.app_backend.metta_repo import MettaRepo
 from metta.app_backend.query_logger import execute_query_and_log
 from metta.app_backend.route_logger import timed_route
 
-logger = logging.getLogger("dashboard_performance")
+logger = logging.getLogger("heatmap_routes")
 
 # ============================================================================
 # Data Models
@@ -287,42 +289,60 @@ class CachedHeatmap:
 
 
 class HeatmapCache:
-    """LRU cache for heatmap data."""
+    """LRU cache for heatmap data with async locking."""
 
     def __init__(self, metta_repo: MettaRepo, max_size: int = 50):
         self.metta_repo = metta_repo
         self.max_size = max_size
         self.cache: Dict[Tuple[str, str], CachedHeatmap] = {}
         self.access_order: List[Tuple[str, str]] = []
+        self._locks: Dict[Tuple[str, str], asyncio.Lock] = {}
+        self._global_lock = asyncio.Lock()
+
+    def log_cache_stats(self) -> None:
+        """Log cache statistics."""
+        logger.info(
+            f"Heatmap cache stats: {len(self.cache)} entries, {len(self.access_order)} access order, "
+            + f"memory usage: {sys.getsizeof(self.cache)} bytes, "
+            + f"rows per entry: {sum(len(entry.evaluations) for entry in self.cache.values()) / len(self.cache)}"
+        )
 
     async def get(self, suite: str, metric: str, selector: str) -> HeatmapData:
         """Get heatmap data, using cache when possible."""
         key = (suite, metric)
 
-        async with self.metta_repo.connect() as con:
-            cached = self.cache.get(key)
+        # Get or create a lock for this specific cache key
+        async with self._global_lock:
+            if key not in self._locks:
+                self._locks[key] = asyncio.Lock()
+            lock = self._locks[key]
 
-            if cached:
-                # Update LRU order
-                self._touch(key)
+        # Use the specific lock for this cache key
+        async with lock:
+            async with self.metta_repo.connect() as con:
+                cached = self.cache.get(key)
 
-                # Check for new data
-                has_new_data = await self._has_new_data(con, suite, metric, cached.last_episode_id)
+                if cached:
+                    # Update LRU order
+                    self._touch(key)
 
-                if has_new_data:
-                    # Update cache with new data
-                    cached = await self._update_cache(con, suite, metric, cached)
+                    # Check for new data
+                    has_new_data = await self._has_new_data(con, suite, metric, cached.last_episode_id)
 
-                # Apply selector and build heatmap
-                eval_names_set = set(cached.eval_names)
-                if selector == "best":
-                    selected_evals = select_best_per_run(cached.evaluations, eval_names_set)
+                    if has_new_data:
+                        # Update cache with new data
+                        cached = await self._update_cache(con, suite, metric, cached)
+
+                    # Apply selector and build heatmap
+                    eval_names_set = set(cached.eval_names)
+                    if selector == "best":
+                        selected_evals = select_best_per_run(cached.evaluations, eval_names_set)
+                    else:
+                        selected_evals = select_latest_per_run(cached.evaluations)
+                    return build_heatmap(selected_evals, cached.eval_names)
                 else:
-                    selected_evals = select_latest_per_run(cached.evaluations)
-                return build_heatmap(selected_evals, cached.eval_names)
-            else:
-                # Build new cache entry
-                return await self._build_cache_entry(con, suite, metric, selector)
+                    # Build new cache entry
+                    return await self._build_cache_entry(con, suite, metric, selector)
 
     async def _build_cache_entry(self, con: AsyncConnection, suite: str, metric: str, selector: str) -> HeatmapData:
         """Build a new cache entry."""
@@ -334,6 +354,8 @@ class HeatmapCache:
         # Store in cache
         entry = CachedHeatmap(evaluations, eval_names)
         self._store(suite, metric, entry)
+
+        self.log_cache_stats()
 
         # Apply selector and build heatmap
         if selector == "best":
@@ -372,6 +394,8 @@ class HeatmapCache:
         entry = CachedHeatmap(all_evals, eval_names)
         self.cache[(suite, metric)] = entry
 
+        self.log_cache_stats()
+
         return entry
 
     async def _has_new_data(self, con: AsyncConnection, suite: str, metric: str, last_episode_id: int) -> bool:
@@ -381,27 +405,31 @@ class HeatmapCache:
         return row is not None
 
     def _touch(self, key: Tuple[str, str]) -> None:
-        """Update LRU access order."""
+        """Update LRU access order. Must be called while holding the key's lock."""
         if key in self.access_order:
             self.access_order.remove(key)
         self.access_order.append(key)
 
     def _store(self, suite: str, metric: str, entry: CachedHeatmap) -> None:
-        """Store entry with LRU eviction."""
+        """Store entry with LRU eviction. Must be called while holding the key's lock."""
         key = (suite, metric)
 
         # Evict if needed
         if len(self.cache) >= self.max_size and key not in self.cache:
             lru_key = self.access_order.pop(0)
             del self.cache[lru_key]
+            # Also clean up the lock for the evicted key
+            self._locks.pop(lru_key, None)
 
         self.cache[key] = entry
         self._touch(key)
 
-    def clear(self) -> None:
+    async def clear(self) -> None:
         """Clear the cache."""
-        self.cache.clear()
-        self.access_order.clear()
+        async with self._global_lock:
+            self.cache.clear()
+            self.access_order.clear()
+            self._locks.clear()
 
 
 # ============================================================================
@@ -443,7 +471,7 @@ def create_heatmap_router(metta_repo: MettaRepo) -> APIRouter:
     @timed_route("clear_heatmap_cache")
     async def clear_heatmap_cache() -> dict:
         """Clear the heatmap cache."""
-        cache.clear()
+        await cache.clear()
         return {"message": "Heatmap cache cleared successfully"}
 
     return router

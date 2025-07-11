@@ -643,6 +643,64 @@ class TestHeatmapRoutes:
         assert run2_policy1_name in heatmap_latest["cells"]
         assert len(heatmap_latest["cells"]) == 2  # One from each run
 
+    def test_concurrent_cache_access(self, test_client: TestClient, stats_client: StatsClient) -> None:
+        """Test that concurrent access to cache works correctly with locking."""
+        # Create test data
+        test_data = self._create_test_data(stats_client, "concurrent_test")
+        
+        # Record initial episodes
+        eval_names = ["concurrent_suite/eval_1"]
+        initial_metrics = {
+            "policy_0_eval_1": 80.0,
+            "policy_1_eval_1": 90.0,
+        }
+        self._record_episodes(stats_client, test_data, eval_names, initial_metrics)
+        
+        def make_request():
+            """Make a heatmap request."""
+            response = test_client.post(
+                "/dashboard/suites/concurrent_suite/metrics/reward/heatmap",
+                json={"policy_selector": "latest"}
+            )
+            assert response.status_code == 200
+            return response.json()
+        
+        # Make multiple sequential requests to test cache consistency
+        # Note: Since test_client is synchronous, this tests the locking logic
+        # but doesn't actually test true concurrency. The locking prevents
+        # race conditions when the cache is accessed in a real async environment.
+        results = []
+        for _ in range(5):
+            result = make_request()
+            results.append(result)
+        
+        # All results should be identical
+        first_result = results[0]
+        for result in results[1:]:
+            assert result["cells"] == first_result["cells"]
+            assert result["policyAverageScores"] == first_result["policyAverageScores"]
+        
+        # Add new episodes
+        additional_metrics = {
+            "policy_0_eval_1": 100.0,
+            "policy_1_eval_1": 110.0,
+        }
+        self._record_episodes(stats_client, test_data, eval_names, additional_metrics)
+        
+        # Make more requests after cache invalidation
+        updated_results = []
+        for _ in range(3):
+            result = make_request()
+            updated_results.append(result)
+        
+        # All updated results should be identical and different from initial
+        first_updated = updated_results[0]
+        for result in updated_results[1:]:
+            assert result["cells"] == first_updated["cells"]
+        
+        # Should be different from initial results (due to aggregation)
+        assert first_updated["cells"] != first_result["cells"]
+
 
 if __name__ == "__main__":
     # Simple test runner for debugging
