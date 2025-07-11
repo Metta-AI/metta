@@ -142,8 +142,7 @@ private:
     const std::string& actor_group = actor.group_name;
     const std::string& target_group = target.group_name;
 
-    // Just log that this actor's attack was blocked by this target group
-    actor.stats.incr("action." + _action_name + ".blocked_by." + target_group);
+    actor.stats.incr("action." + _action_name + "." + actor_group + ".blocked_by." + target_group);
   }
 
   void _log_successful_attack(Agent& actor, Agent& target) const {
@@ -151,13 +150,12 @@ private:
     const std::string& target_group = target.group_name;
     bool same_team = (actor_group == target_group);
 
-    // Key stats: who did you successfully attack and was it friendly fire?
     if (same_team) {
-      actor.stats.incr("action." + _action_name + ".friendly_fire");
-      target.stats.incr("action." + _action_name + ".victim_of_friendly_fire");
+      actor.stats.incr("action." + _action_name + "." + actor_group + ".friendly_fire");
+      target.stats.incr("action." + _action_name + "." + target_group + ".victim_of_friendly_fire");
     } else {
-      actor.stats.incr("action." + _action_name + ".hit." + target_group);
-      target.stats.incr("action." + _action_name + ".hit_by." + actor_group);
+      actor.stats.incr("action." + _action_name + "." + actor_group + ".hit." + target_group);
+      target.stats.incr("action." + _action_name + "." + target_group + ".hit_by." + actor_group);
     }
   }
 
@@ -166,8 +164,7 @@ private:
     const std::string& target_group = target.group_name;
     const std::string item_name = actor.stats.inventory_item_name(item);
 
-    // Just track total resources stolen between groups
-    actor.stats.add(item_name + ".stolen_from." + target_group, amount);
+    actor.stats.add(actor_group + ".steals." + item_name + ".from." + target_group, amount);
   }
 };
 
