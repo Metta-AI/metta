@@ -19,9 +19,7 @@ function trackPageErrors(page: Page): ErrorCollections {
 
   page.on('requestfailed', (request) => {
     const failure = request.failure()
-    networkErrors.push(
-      `FAILED ${request.method()} ${request.url()}${failure ? ` – ${failure.errorText}` : ''}`,
-    )
+    networkErrors.push(`FAILED ${request.method()} ${request.url()}${failure ? ` – ${failure.errorText}` : ''}`)
   })
 
   page.on('response', (response) => {
@@ -59,7 +57,7 @@ test('load a replay', async ({ page }) => {
       const state = (window as any).state
       return state && state.replay !== null
     },
-    { timeout: 10000 },
+    { timeout: 10000 }
   )
 
   expectNoErrors(errors)
@@ -75,7 +73,7 @@ test('load a replay and play it', async ({ page }) => {
       const state = (window as any).state
       return state && state.isPlaying == true
     },
-    { timeout: 10000 },
+    { timeout: 10000 }
   )
 
   expectNoErrors(errors)
