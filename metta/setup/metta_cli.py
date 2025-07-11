@@ -5,7 +5,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from metta.setup.config import CURRENT_CONFIG_VERSION, PROFILE_DEFINITIONS, SetupConfig, UserType
+from metta.setup.config import CURRENT_CONFIG_VERSION, SetupConfig, UserType
 from metta.setup.registry import get_all_modules, get_applicable_modules
 from metta.setup.symlink_setup import PathSetup
 from metta.setup.utils import error, header, import_all_modules_from_subpackage, info, success, warning
@@ -84,14 +84,17 @@ class MettaCLI:
         self.config.setup_custom_profile(user_type)
 
         info("\nCustomize components:")
-        # Get all available components from the base profile
-        base_components = PROFILE_DEFINITIONS.get(user_type, {}).get("components", {})
-        for comp in base_components:
-            current = self.config.is_component_enabled(comp)
-            prompt = f"Enable {comp}? (y/n, current: {'y' if current else 'n'}): "
+        # Get all registered components
+        all_modules = get_all_modules(self.config)
+        # Sort by name for consistent ordering
+        all_modules.sort(key=lambda m: m.name)
+
+        for module in all_modules:
+            current = self.config.is_component_enabled(module.name)
+            prompt = f"Enable {module.name}? (y/n, current: {'y' if current else 'n'}): "
             choice = input(prompt).strip().lower()
             if choice in ["y", "n"]:
-                self.config.set(f"components.{comp}.enabled", choice == "y")
+                self.config.set(f"components.{module.name}.enabled", choice == "y")
 
         success("\nCustom configuration saved.")
         info("\nRun 'metta install' to set up your environment.")
