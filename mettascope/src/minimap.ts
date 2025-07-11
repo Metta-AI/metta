@@ -6,15 +6,15 @@ import { PanelInfo } from './panels.js'
 import { parseHtmlColor } from './htmlutils.js'
 
 /** Core minimap rendering logic that can be shared between minimap and minimap-style rendering */
-export function renderMinimapObjects(tileSize: number, offsetX: number = 0, offsetY: number = 0) {
+export function renderMinimapObjects(offset: Vec2f, tileSize: number) {
   if (state.replay === null || ctx === null || ctx.ready === false) {
     return
   }
 
   // Draw a background rect that's the size of the map.
   ctx.drawSolidRect(
-    offsetX,
-    offsetY,
+    offset.x(),
+    offset.y(),
     state.replay.map_size[0] * tileSize,
     state.replay.map_size[1] * tileSize,
     parseHtmlColor('#E7D4B7')
@@ -33,8 +33,8 @@ export function renderMinimapObjects(tileSize: number, offsetX: number = 0, offs
       continue // Draw agents separately on top
     }
     ctx.drawSolidRect(
-      x * tileSize + offsetX,
-      y * tileSize + offsetY,
+      x * tileSize + offset.x(),
+      y * tileSize + offset.y(),
       tileSize,
       tileSize,
       color
@@ -53,8 +53,8 @@ export function renderMinimapObjects(tileSize: number, offsetX: number = 0, offs
       const agent_id = getAttr(gridObject, 'agent_id')
       ctx.drawSprite(
         'minimapPip.png',
-        x * tileSize + offsetX + (tileSize > 2 ? 1 : 0),
-        y * tileSize + offsetY + (tileSize > 2 ? 1 : 0),
+        x * tileSize + offset.x() + (tileSize > 2 ? 1 : 0),
+        y * tileSize + offset.y() + (tileSize > 2 ? 1 : 0),
         Common.colorFromId(agent_id),
         scale,
         0
@@ -94,7 +94,7 @@ export function drawMiniMap(panel: PanelInfo) {
   ctx.scale(ui.dpr, ui.dpr)
 
   // Use the shared rendering logic
-  renderMinimapObjects(Common.MINI_MAP_TILE_SIZE, 0, 0)
+  renderMinimapObjects(new Vec2f(0, 0), Common.MINI_MAP_TILE_SIZE)
 
   // Draw where the screen is on the minimap.
   const pos = new Vec2f(
