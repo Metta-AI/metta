@@ -57,6 +57,8 @@ class PyGroupConfig(BaseModelWithForbidExtra):
 
     id: int
     sprite: Optional[int] = Field(default=None)
+    # group_reward_pct values outside of [0.0,1.0] are probably mistakes, and are probably
+    # unstable. If you want to use values outside this range, please update this comment!
     group_reward_pct: Optional[float] = Field(default=None, ge=0, le=1)
     props: Optional[PyGroupProps] = Field(default=None)
 
@@ -65,9 +67,9 @@ class PyActionConfig(BaseModelWithForbidExtra):
     """Python action configuration."""
 
     enabled: bool
+    # required_resources defaults to consumed_resources. Otherwise, should be a superset of consumed_resources.
     required_resources: Optional[dict[str, int]] = Field(default=None)
     consumed_resources: Optional[dict[str, int]] = Field(default_factory=dict)
-    # defaults to consumed_resources. Otherwise, should be a superset of consumed_resources.
 
 
 class PyAttackActionConfig(PyActionConfig):
@@ -114,6 +116,7 @@ class PyGameConfig(BaseModelWithForbidExtra):
 
     inventory_item_names: list[str]
     num_agents: int = Field(ge=1)
+    # max_steps = zero means "no limit"
     max_steps: int = Field(ge=0)
     obs_width: int = Field(ge=1)
     obs_height: int = Field(ge=1)

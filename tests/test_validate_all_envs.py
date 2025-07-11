@@ -7,7 +7,7 @@ from omegaconf import OmegaConf
 from metta.common.util.mettagrid_cfgs import MettagridCfgFileMetadata
 from metta.common.util.resolvers import register_resolvers
 from metta.map.utils.storable_map import StorableMap
-from metta.mettagrid.mettagrid_config import from_mettagrid_config
+from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
 
 register_resolvers()
 
