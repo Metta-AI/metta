@@ -710,7 +710,7 @@ class MettaTrainer:
             simulations=dict(self.sim_suite_config.simulations),  # Copy existing simulations
             env_overrides=self.sim_suite_config.env_overrides,
         )
-        
+
         # Add training task to the suite
         training_task_config = SingleEnvSimulationConfig(
             env="/env/mettagrid/mettagrid",  # won't be used, dynamic `env_cfg()` should override all of it
@@ -734,21 +734,21 @@ class MettaTrainer:
         )
         logger.info("Simulation complete")
         self.evals = evaluation_results.scores
-        
+
         # Generate and upload replay HTML if we have wandb
         if self.wandb_run is not None and evaluation_results.replay_urls:
             self._upload_replay_html(evaluation_results.replay_urls)
-    
+
     def _upload_replay_html(self, replay_urls: dict[str, str]):
         """Upload replay HTML to wandb"""
         # Create unified HTML with all replay links
         html_content = f"<h3>Replays for Epoch {self.epoch}</h3>"
-        
+
         if replay_urls:
             # Separate training and evaluation replays
             training_replays = {k: v for k, v in replay_urls.items() if "training_task" in k}
             eval_replays = {k: v for k, v in replay_urls.items() if "training_task" not in k}
-            
+
             # Add training replay link if available
             if training_replays:
                 html_content += "<p><strong>Training Environment:</strong></p><ul>"
@@ -758,7 +758,7 @@ class MettaTrainer:
                     display_name = sim_name.replace("eval/", "")
                     html_content += f'<li><a href="{player_url}" target="_blank">{display_name}</a></li>'
                 html_content += "</ul>"
-            
+
             # Add evaluation replay links if available
             if eval_replays:
                 html_content += "<p><strong>Evaluation Environments:</strong></p><ul>"
@@ -768,13 +768,11 @@ class MettaTrainer:
                 html_content += "</ul>"
         else:
             html_content += "<p>No replays available.</p>"
-        
+
         # Log the unified HTML
-        link_summary = {
-            "replays/all_links": wandb.Html(html_content)
-        }
+        link_summary = {"replays/all_links": wandb.Html(html_content)}
         self.wandb_run.log(link_summary)
-        
+
         # Also log individual link for backward compatibility
         if "eval/training_task" in replay_urls:
             training_url = replay_urls["eval/training_task"]
