@@ -47,6 +47,7 @@ personal/
 # Test and benchmark
 test_data/
 **/*benchmark_results.json
+.testmondata*
 
 # Logs and profiling
 *.log
