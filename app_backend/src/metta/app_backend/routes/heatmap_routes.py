@@ -1,7 +1,7 @@
 import logging
 from collections import defaultdict
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Dict, List, LiteralString, Optional, Set, Tuple
 
 from fastapi import APIRouter, HTTPException
 from psycopg import AsyncConnection
@@ -52,6 +52,8 @@ class PolicyEvaluation:
     replay_url: Optional[str]
     total_score: float  # Total score across all agents/episodes
     num_agents: int  # Total number of agents across all episodes
+    episode_id: int  # The episode ID of the latest episode for this policy/eval pair
+
     run_id: Optional[str] = None
     epoch: Optional[int] = None
 
@@ -85,8 +87,9 @@ EVALUATION_DATA_QUERY_TEMPLATE = """
         ANY_VALUE(e.replay_url) as replay_url,
         SUM(pa.total_value) as total_score,
         SUM(pa.agent_count)::INTEGER as num_agents,
+        MAX(e.internal_id) as episode_id
         p.run_id,
-        p.end_training_epoch as epoch
+        p.end_training_epoch as epoch,
     FROM episodes e
     JOIN pre_aggregated pa ON e.internal_id = pa.episode_internal_id
     JOIN filtered_policies p ON e.primary_policy_id = p.id
@@ -142,7 +145,7 @@ async def fetch_evaluation_data(
     suite: str,
     metric: str,
     min_episode_id: int = 0,
-    policy_filter: str = ALL_POLICIES_FILTER,
+    policy_filter: LiteralString = ALL_POLICIES_FILTER,
     filter_params: Tuple = (),
 ) -> List[PolicyEvaluation]:
     """Fetch evaluation data from database."""
@@ -158,13 +161,6 @@ async def get_evaluation_names(con: AsyncConnection, suite: str) -> List[str]:
     """Get all evaluation names for a suite."""
     rows = await execute_query_and_log(con, GET_EVAL_NAMES_QUERY, (suite,), "get_evaluation_names")
     return [row[0] for row in rows if row[0] is not None]
-
-
-async def get_max_episode_id(con: AsyncConnection, suite: str) -> int:
-    """Get the maximum episode ID for a suite."""
-    result = await con.execute(GET_MAX_EPISODE_QUERY, (suite,))
-    row = await result.fetchone()
-    return row[0] if row and row[0] else 0
 
 
 def group_by_run(
@@ -281,13 +277,13 @@ def build_heatmap(evaluations: List[PolicyEvaluation], all_eval_names: List[str]
 # ============================================================================
 
 
-@dataclass
 class CachedHeatmap:
     """Cached heatmap data with metadata."""
 
-    last_episode_id: int
-    evaluations: List[PolicyEvaluation]
-    eval_names: List[str]
+    def __init__(self, evaluations: List[PolicyEvaluation], eval_names: List[str]):
+        self.evaluations = evaluations
+        self.eval_names = eval_names
+        self.last_episode_id = max(e.episode_id for e in evaluations)
 
 
 class HeatmapCache:
@@ -335,11 +331,8 @@ class HeatmapCache:
         eval_names = await get_evaluation_names(con, suite)
         eval_names_set = set(eval_names)
 
-        # Get max episode ID
-        max_id = await get_max_episode_id(con, suite) if evaluations else 0
-
         # Store in cache
-        entry = CachedHeatmap(max_id, evaluations, eval_names)
+        entry = CachedHeatmap(evaluations, eval_names)
         self._store(suite, metric, entry)
 
         # Apply selector and build heatmap
@@ -376,9 +369,7 @@ class HeatmapCache:
         # Update eval names if needed
         eval_names = await get_evaluation_names(con, suite)
 
-        # Update cache
-        max_id = await get_max_episode_id(con, suite)
-        entry = CachedHeatmap(max_id, all_evals, eval_names)
+        entry = CachedHeatmap(all_evals, eval_names)
         self.cache[(suite, metric)] = entry
 
         return entry
