@@ -1,7 +1,9 @@
 import uuid
+from typing import AsyncGenerator
 
 import pytest
 import pytest_asyncio
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from metta.app_backend.metta_repo import MettaRepo
@@ -11,7 +13,7 @@ class TestSavedDashboards:
     """Tests for the saved dashboard functionality."""
 
     @pytest_asyncio.fixture(scope="function")
-    async def metta_repo(self, db_uri: str) -> MettaRepo:
+    async def metta_repo(self, db_uri: str) -> AsyncGenerator[MettaRepo, None]:
         """Create a MettaRepo instance with the test database."""
         repo = MettaRepo(db_uri)
         yield repo
@@ -22,6 +24,18 @@ class TestSavedDashboards:
             except RuntimeError:
                 # Event loop might be closed, ignore
                 pass
+
+    @pytest.fixture(scope="function")
+    def test_app(self, metta_repo: MettaRepo) -> FastAPI:
+        """Create a test FastAPI app with dependency injection."""
+        from metta.app_backend.server import create_app
+
+        return create_app(metta_repo)
+
+    @pytest.fixture(scope="function")
+    def test_client(self, test_app: FastAPI) -> TestClient:
+        """Create a test client."""
+        return TestClient(test_app)
 
     @pytest.fixture(scope="class")
     def user_id(self) -> str:
