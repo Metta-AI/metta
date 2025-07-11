@@ -76,18 +76,6 @@ protected:
   }
 
   bool _handle_target(Agent& actor, Agent& target) {
-    // Track attack targets
-    actor.stats.incr("action." + _action_name + "." + target.type_name);
-    actor.stats.incr("action." + _action_name + "." + target.type_name + "." + actor.group_name);
-    actor.stats.incr("action." + _action_name + "." + target.type_name + "." + actor.group_name + "." +
-                     target.group_name);
-
-    if (target.group_name == actor.group_name) {
-      actor.stats.incr("attack.own_team." + actor.group_name);
-    } else {
-      actor.stats.incr("attack.other_team." + actor.group_name);
-    }
-
     bool was_already_frozen = target.frozen > 0;
 
     // Check if target can defend
@@ -168,7 +156,7 @@ private:
       actor.stats.incr("action." + _action_name + ".friendly_fire");
       target.stats.incr("action." + _action_name + ".victim_of_friendly_fire");
     } else {
-      actor.stats.incr("action." + _action_name + ".hits." + target_group);
+      actor.stats.incr("action." + _action_name + ".hit." + target_group);
       target.stats.incr("action." + _action_name + ".hit_by." + actor_group);
     }
   }
