@@ -14,7 +14,7 @@ export const MAX_ZOOM_LEVEL = 2.5
 export const DEFAULT_ZOOM_LEVEL = 1 / 3
 export const DEFAULT_TRACE_ZOOM_LEVEL = 1 / 4
 export const SPLIT_DRAG_THRESHOLD = 10 // Pixels to detect split dragging.
-export const ZOOM_SENSITIVITY = 0.005 // Controls zoom speed - smaller = slower, smoother zoom
+export const ZOOM_SENSITIVITY = 0.003 // Controls zoom speed - smaller = slower, smoother zoom
 export const MINIMAP_ZOOM_THRESHOLD = 0.05 // when to switch the map to 'minimap style' rendering
 export const PANEL_BOTTOM_MARGIN = 60
 export const HEADER_HEIGHT = 60
