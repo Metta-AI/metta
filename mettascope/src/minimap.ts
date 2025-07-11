@@ -6,7 +6,7 @@ import { PanelInfo } from './panels.js'
 import { parseHtmlColor } from './htmlutils.js'
 
 /** Core minimap rendering logic that can be shared between minimap and minimap-style rendering */
-export function renderMinimapObjects(offset: Vec2f, tileSize: number) {
+export function renderMinimapObjects(offset: Vec2f, pipScale: number = 1) {
   if (state.replay === null || ctx === null || ctx.ready === false) {
     return
   }
@@ -15,8 +15,8 @@ export function renderMinimapObjects(offset: Vec2f, tileSize: number) {
   ctx.drawSolidRect(
     offset.x(),
     offset.y(),
-    state.replay.map_size[0] * tileSize,
-    state.replay.map_size[1] * tileSize,
+    state.replay.map_size[0],
+    state.replay.map_size[1],
     parseHtmlColor('#E7D4B7')
   )
 
@@ -33,10 +33,10 @@ export function renderMinimapObjects(offset: Vec2f, tileSize: number) {
       continue // Draw agents separately on top
     }
     ctx.drawSolidRect(
-      x * tileSize + offset.x(),
-      y * tileSize + offset.y(),
-      tileSize,
-      tileSize,
+      x + offset.x(),
+      y + offset.y(),
+      1,
+      1,
       color
     )
   }
@@ -48,15 +48,13 @@ export function renderMinimapObjects(offset: Vec2f, tileSize: number) {
     const type = getAttr(gridObject, 'type')
     const typeName = state.replay.object_types[type]
     if (typeName === 'agent') {
-      // Scale the pip based on tile size - for minimap use scale 1, for world map scale proportionally
-      const scale = tileSize <= Common.MINI_MAP_TILE_SIZE ? 1 : (tileSize / Common.MINI_MAP_TILE_SIZE) * 0.50
       const agent_id = getAttr(gridObject, 'agent_id')
       ctx.drawSprite(
         'minimapPip.png',
-        x * tileSize + offset.x() + (tileSize > 2 ? 1 : 0),
-        y * tileSize + offset.y() + (tileSize > 2 ? 1 : 0),
+        x + offset.x(),
+        y + offset.y(),
         Common.colorFromId(agent_id),
-        scale,
+        pipScale,
         0
       )
     }
@@ -88,7 +86,8 @@ export function drawMiniMap(panel: PanelInfo) {
   ctx.scale(ui.dpr, ui.dpr)
 
   // Use the shared rendering logic
-  renderMinimapObjects(new Vec2f(0, 0), Common.MINI_MAP_TILE_SIZE)
+  ctx.scale(Common.MINI_MAP_TILE_SIZE, Common.MINI_MAP_TILE_SIZE)
+  renderMinimapObjects(new Vec2f(0, 0))
 
   // Draw where the screen is on the minimap.
   const pos = new Vec2f(

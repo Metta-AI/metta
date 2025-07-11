@@ -771,7 +771,8 @@ export function drawMap(panel: PanelInfo) {
     /** Draws a simplified block-based version of the map similar to the standalone
      * minimap.  This is used when the user zooms out far enough that normal
      * sprites would be unreadable. */
-    renderMinimapObjects(new Vec2f(-Common.TILE_SIZE / 2, -Common.TILE_SIZE / 2), Common.TILE_SIZE)
+    ctx.scale(Common.TILE_SIZE, Common.TILE_SIZE)
+    renderMinimapObjects(new Vec2f(-0.5, -0.5), 0.5)
     drawSelection()
   } else {
     drawFloor()
