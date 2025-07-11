@@ -29,8 +29,8 @@ from omegaconf import DictConfig, OmegaConf
 from metta.mettagrid.curriculum.bucketed import BucketedCurriculum, _expand_buckets
 from metta.mettagrid.curriculum.core import Curriculum, SingleTaskCurriculum
 from metta.mettagrid.curriculum.learning_progress import LearningProgressCurriculum
-from metta.mettagrid.curriculum.prioritize_regressed import PrioritizeRegressedCurriculum
 from metta.mettagrid.curriculum.multi_task import MultiTaskCurriculum
+from metta.mettagrid.curriculum.prioritize_regressed import PrioritizeRegressedCurriculum
 from metta.mettagrid.curriculum.progressive import ProgressiveCurriculum, ProgressiveMultiTaskCurriculum
 from metta.mettagrid.curriculum.random import RandomCurriculum
 from metta.mettagrid.curriculum.sampling import SampledTaskCurriculum, SamplingCurriculum
@@ -83,7 +83,9 @@ def test_prioritize_regressed_curriculum_updates(monkeypatch, env_cfg):
     weight_after_a = curr._task_weights["a"]
     # Task "a" has max/avg = 0.1/0.1 = 1.0, task "b" has max/avg = 0/0 (undefined, uses epsilon)
     # So task "a" should have higher weight
-    assert weight_after_a > curr._task_weights["b"], "Task with actual performance should have higher weight than untried task"
+    assert weight_after_a > curr._task_weights["b"], (
+        "Task with actual performance should have higher weight than untried task"
+    )
 
     # Complete task "b" with high reward 1.0
     prev_b = curr._task_weights["b"]
@@ -1034,7 +1036,7 @@ class TestLearningProgressScenarios:
 
 class TestPrioritizeRegressedCurriculumScenarios:
     """Test the specific Prioritize Regressed Curriculum scenarios.
-    
+
     This curriculum prioritizes tasks where performance has regressed from peak.
     Weight = max_reward / average_reward, so high weight means we've done better before.
     """
@@ -1210,7 +1212,7 @@ class TestPrioritizeRegressedCurriculumScenarios:
             f"Impossible task should have lower weight than learnable tasks: "
             f"{final_weights['impossible']} vs {max_learnable_weight}"
         )
-        
+
         # The impossible task weight should be close to epsilon relative to learnable tasks
         assert final_weights["impossible"] < 0.01, (
             f"Impossible task should have minimal normalized weight, got {final_weights['impossible']}"

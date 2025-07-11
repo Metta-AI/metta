@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 class PrioritizeRegressedCurriculum(RandomCurriculum):
     """Curriculum that prioritizes tasks where current performance has regressed relative to peak performance.
-    
+
     This curriculum tracks both the maximum reward achieved and the moving average of rewards for each task.
     Tasks with high max/average ratios get higher weight, meaning tasks where we've seen good performance
     but are currently performing poorly get prioritized.

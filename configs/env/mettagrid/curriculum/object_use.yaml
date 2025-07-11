@@ -1,4 +1,4 @@
-_target_: metta.mettagrid.curriculum.prioritize_regressed.PrioritizedRegressedCurriculumCurriculum
+_target_: metta.mettagrid.curriculum.prioritize_regressed.PrioritizeRegressedCurriculum
 
 tasks:
   /env/mettagrid/curriculum/objects/all_objects: 2
