@@ -7,7 +7,7 @@ services:
       dockerfile: devops/docker/Dockerfile.eval_worker
     environment:
       - BACKEND_URL=${BACKEND_URL:-http://host.docker.internal:8000}
-      - WORKER_POOL_SIZE=${WORKER_POOL_SIZE:-5}
+      - WORKER_IDLE_TIMEOUT=${WORKER_IDLE_TIMEOUT:-600}
       - PYTHONPATH=/workspace/metta
     volumes:
       # Mount Docker socket for container management

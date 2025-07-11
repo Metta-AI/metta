@@ -1,16 +1,15 @@
 #!/usr/bin/env -S uv run
 """
-Orchestrates a pool of Docker containers to process eval tasks.
+Orchestrates Docker containers to process eval tasks, one container per git hash.
 
 This script:
-1. Maintains a pool of worker containers
-2. Pulls tasks from the backend queue one at a time
-3. Dispatches each task to an available container
+1. Maintains one worker container per unique git hash
+2. Pulls tasks from the backend queue and routes them to the appropriate worker
+3. Dynamically creates workers for new git hashes
 4. Monitors container status and reports results
 """
 
 import asyncio
-import json
 import os
 import socket
 import subprocess
@@ -25,30 +24,32 @@ from metta.common.util.script_decorators import get_metta_logger, metta_script
 
 
 @dataclass
-class ContainerTask:
-    """Information about a task running in a container."""
+class GitHashWorker:
+    """Information about a worker container for a specific git hash."""
 
-    task_id: str
+    git_hash: str
     container_id: str
-    start_time: float
+    current_task_id: Optional[str] = None
+    task_start_time: Optional[float] = None
+    last_activity: float = 0
 
 
 class WorkerPool:
-    """Manages a pool of Docker containers for processing eval tasks."""
+    """Manages Docker containers for processing eval tasks, one per git hash."""
 
     def __init__(
         self,
         backend_url: str,
-        pool_size: int = 5,
         docker_image: str = "metta/eval-worker:latest",
         poll_interval: float = 5.0,
+        worker_idle_timeout: float = 600.0,  # 10 minutes
     ):
         self.backend_url = backend_url
-        self.pool_size = pool_size
         self.docker_image = docker_image
         self.poll_interval = poll_interval
-        self.active_containers: Dict[str, ContainerTask] = {}
-        self.assignee = f"worker-{socket.gethostname()}-{os.getpid()}"
+        self.worker_idle_timeout = worker_idle_timeout
+        self.workers_by_git_hash: Dict[str, GitHashWorker] = {}
+        self.assignee = f"orchestrator-{socket.gethostname()}-{os.getpid()}"
         self.logger = get_metta_logger()
         self.client = httpx.AsyncClient(timeout=30.0)
 
@@ -91,16 +92,15 @@ class WorkerPool:
         except Exception as e:
             self.logger.error(f"Failed to update task status: {e}")
 
-    def start_container(self, task: dict) -> str:
-        """Start a Docker container for a task."""
+    def start_worker_container(self, git_hash: str) -> str:
+        """Start a Docker container for a specific git hash."""
+        worker_assignee = f"worker-{git_hash[:8]}-{socket.gethostname()}-{os.getpid()}"
+
         env_vars = {
             "BACKEND_URL": self.backend_url,
-            "EVAL_TASK_ID": task["id"],
-            "POLICY_ID": task["policy_id"],
-            "SIM_SUITE": task["sim_suite"],
-            "GIT_HASH": task["attributes"]["git_hash"],
-            "ASSIGNEE": self.assignee,
-            "ENV_OVERRIDES": json.dumps(task["attributes"].get("env_overrides", {})),
+            "GIT_HASH": git_hash,
+            "WORKER_ASSIGNEE": worker_assignee,
+            "ORCHESTRATOR_ASSIGNEE": self.assignee,
         }
 
         cmd = [
@@ -109,7 +109,7 @@ class WorkerPool:
             "--rm",  # Remove container when it exits
             "-d",  # Run in detached mode
             "--name",
-            f"eval-task-{task['id'][:8]}",
+            f"eval-worker-{git_hash[:8]}",
         ]
 
         # Add environment variables
@@ -119,18 +119,18 @@ class WorkerPool:
         # Mount the train_dir for policy access
         cmd.extend(["-v", f"{os.path.abspath('./train_dir')}:/workspace/train_dir"])
 
-        # Add the image and command
-        cmd.extend([self.docker_image, "python tools/eval_task_runner.py"])
+        # Add the image and command - run a persistent worker
+        cmd.extend([self.docker_image, "python", "tools/eval_task_runner.py", "--worker-mode"])
 
-        self.logger.info(f"Starting container for task {task['id']}")
+        self.logger.info(f"Starting worker container for git hash {git_hash}")
 
         try:
             result = subprocess.run(cmd, capture_output=True, text=True, check=True)
             container_id = result.stdout.strip()
-            self.logger.info(f"Started container {container_id[:12]} for task {task['id']}")
+            self.logger.info(f"Started worker container {container_id[:12]} for git hash {git_hash}")
             return container_id
         except subprocess.CalledProcessError as e:
-            self.logger.error(f"Failed to start container: {e.stderr}")
+            self.logger.error(f"Failed to start worker container: {e.stderr}")
             raise
 
     def check_container_status(self, container_id: str) -> tuple[bool, int, Optional[str]]:
@@ -185,60 +185,133 @@ class WorkerPool:
         except Exception as e:
             self.logger.warning(f"Failed to cleanup container {container_id}: {e}")
 
+    async def get_or_create_worker(self, git_hash: str) -> GitHashWorker:
+        """Get existing worker for git hash or create a new one."""
+        if git_hash in self.workers_by_git_hash:
+            worker = self.workers_by_git_hash[git_hash]
+            # Check if container is still running
+            is_running = self.check_container_health(worker.container_id)
+            if is_running:
+                return worker
+            else:
+                # Container died, remove it
+                self.logger.warning(f"Worker container for git hash {git_hash} died, creating new one")
+                del self.workers_by_git_hash[git_hash]
+
+        # Create new worker
+        container_id = self.start_worker_container(git_hash)
+        worker = GitHashWorker(git_hash=git_hash, container_id=container_id, last_activity=time.time())
+        self.workers_by_git_hash[git_hash] = worker
+        self.logger.info(f"Created new worker for git hash {git_hash}")
+        return worker
+
+    def check_container_health(self, container_id: str) -> bool:
+        """Check if a container is healthy and running."""
+        try:
+            result = subprocess.run(
+                ["docker", "inspect", "-f", "{{.State.Running}}", container_id],
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            return result.stdout.strip() == "true"
+        except subprocess.CalledProcessError:
+            return False
+
+    async def notify_worker_of_task(self, worker: GitHashWorker, task: dict) -> None:
+        """Notify a worker container about a new task."""
+        # The worker will poll for tasks assigned to it
+        # So we don't need to actively notify it
+        pass
+
+    async def check_task_completion(self, task_id: str) -> bool:
+        """Check if a task has been completed."""
+        try:
+            # Query the backend for task status
+            response = await self.client.get(f"{self.backend_url}/tasks/status/{task_id}")
+            if response.status_code == 200:
+                task_data = response.json()
+                return task_data.get("status") in ["done", "error", "canceled"]
+            else:
+                # If we can't get status, assume it's still running
+                return False
+        except Exception:
+            # On error, assume task is still running
+            return False
+
     async def run(self) -> None:
         """Main orchestrator loop."""
-        self.logger.info(f"Starting worker pool with {self.pool_size} slots")
+        self.logger.info("Starting per-git-hash worker orchestrator")
         self.logger.info(f"Backend URL: {self.backend_url}")
-        self.logger.info(f"Assignee: {self.assignee}")
+        self.logger.info(f"Orchestrator assignee: {self.assignee}")
+        self.logger.info(f"Worker idle timeout: {self.worker_idle_timeout}s")
 
         while True:
             try:
-                # Check for available container slots
-                if len(self.active_containers) < self.pool_size:
-                    # Pull one task from queue
-                    tasks = await self.get_available_tasks(limit=1)
-                    if tasks:
-                        task = tasks[0]
-                        # Claim it
+                # Get available tasks (up to 10 to see what git hashes we need)
+                tasks = await self.get_available_tasks(limit=10)
+
+                # Group tasks by git hash
+                tasks_by_git_hash = {}
+                for task in tasks:
+                    git_hash = task["attributes"]["git_hash"]
+                    if git_hash not in tasks_by_git_hash:
+                        tasks_by_git_hash[git_hash] = []
+                    tasks_by_git_hash[git_hash].append(task)
+
+                # Process each git hash
+                for git_hash, git_tasks in tasks_by_git_hash.items():
+                    # Get or create worker for this git hash
+                    worker = await self.get_or_create_worker(git_hash)
+
+                    # Check if worker is busy
+                    if worker.current_task_id is None:
+                        # Worker is available, assign first task
+                        task = git_tasks[0]
+
+                        # Claim the task
                         claimed = await self.claim_tasks([task["id"]])
                         if claimed:
-                            # Dispatch to new container
-                            try:
-                                container_id = self.start_container(task)
-                                self.active_containers[container_id] = ContainerTask(
-                                    task_id=task["id"], container_id=container_id, start_time=time.time()
-                                )
-                            except Exception as e:
-                                # Failed to start container, update task status
-                                await self.update_task_status(task["id"], "error", f"Failed to start container: {e}")
+                            # Assign to worker
+                            worker.current_task_id = task["id"]
+                            worker.task_start_time = time.time()
+                            worker.last_activity = time.time()
 
-                # Monitor running containers
-                for container_id, task_info in list(self.active_containers.items()):
-                    finished, exit_code, error_message = self.check_container_status(container_id)
+                            # Notify worker about the task (we'll implement this via a file or API)
+                            await self.notify_worker_of_task(worker, task)
 
-                    if finished:
-                        if exit_code == 0:
-                            # Success - status should already be updated by the container
-                            self.logger.info(f"Task {task_info.task_id} completed successfully")
-                        else:
-                            # Failure - update status if not already done
-                            self.logger.error(f"Task {task_info.task_id} failed: {error_message}")
-                            if exit_code == -1:
-                                # Container inspection failed, update status
-                                await self.update_task_status(
-                                    task_info.task_id, "error", error_message or "Container failed"
-                                )
+                            self.logger.info(f"Assigned task {task['id']} to worker for git hash {git_hash}")
 
-                        # Cleanup
-                        self.cleanup_container(container_id)
-                        del self.active_containers[container_id]
+                # Monitor existing workers
+                for git_hash, worker in list(self.workers_by_git_hash.items()):
+                    # Check if worker has a task
+                    if worker.current_task_id:
+                        # Check task status via backend
+                        task_completed = await self.check_task_completion(worker.current_task_id)
 
-                        duration = time.time() - task_info.start_time
-                        self.logger.info(f"Task {task_info.task_id} took {duration:.1f} seconds")
+                        if task_completed:
+                            duration = time.time() - worker.task_start_time
+                            self.logger.info(f"Task {worker.current_task_id} completed in {duration:.1f}s")
+                            worker.current_task_id = None
+                            worker.task_start_time = None
+                            worker.last_activity = time.time()
 
-                # Log pool status periodically
-                if len(self.active_containers) > 0:
-                    self.logger.debug(f"Active containers: {len(self.active_containers)}/{self.pool_size}")
+                    # Check for idle timeout
+                    if worker.current_task_id is None:
+                        idle_time = time.time() - worker.last_activity
+                        if idle_time > self.worker_idle_timeout:
+                            self.logger.info(f"Worker for git hash {git_hash} idle for {idle_time:.0f}s, removing")
+                            self.cleanup_container(worker.container_id)
+                            del self.workers_by_git_hash[git_hash]
+
+                # Log status
+                active_count = sum(1 for w in self.workers_by_git_hash.values() if w.current_task_id)
+                if self.workers_by_git_hash:
+                    self.logger.debug(
+                        f"Workers: {len(self.workers_by_git_hash)} total, "
+                        f"{active_count} active, "
+                        f"{len(self.workers_by_git_hash) - active_count} idle"
+                    )
 
             except Exception as e:
                 self.logger.error(f"Error in orchestrator loop: {e}", exc_info=True)
@@ -250,18 +323,24 @@ class WorkerPool:
 async def main(cfg: DictConfig) -> None:
     """Main entry point."""
     backend_url = cfg.get("backend_url", os.environ.get("BACKEND_URL", "http://localhost:8000"))
-    pool_size = cfg.get("pool_size", int(os.environ.get("WORKER_POOL_SIZE", "5")))
     docker_image = cfg.get("docker_image", "metta/eval-worker:latest")
     poll_interval = cfg.get("poll_interval", 5.0)
+    worker_idle_timeout = cfg.get("worker_idle_timeout", float(os.environ.get("WORKER_IDLE_TIMEOUT", "600")))
 
     pool = WorkerPool(
-        backend_url=backend_url, pool_size=pool_size, docker_image=docker_image, poll_interval=poll_interval
+        backend_url=backend_url,
+        docker_image=docker_image,
+        poll_interval=poll_interval,
+        worker_idle_timeout=worker_idle_timeout,
     )
 
     try:
         await pool.run()
     finally:
         await pool.client.aclose()
+        # Cleanup all workers on exit
+        for worker in pool.workers_by_git_hash.values():
+            pool.cleanup_container(worker.container_id)
 
 
 if __name__ == "__main__":
