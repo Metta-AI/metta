@@ -97,7 +97,8 @@ protected:
       _log_successful_attack(actor, target);
     } else {
       // Track wasted attacks on already-frozen targets
-      actor.stats.incr("action." + _action_name + ".wasted_on_frozen");
+      const std::string& actor_group = actor.group_name;
+      actor.stats.incr(_action_prefix(actor_group) + "wasted_on_frozen");
     }
     return true;
   }
@@ -138,11 +139,15 @@ private:
     }
   }
 
+  std::string _action_prefix(const std::string& group) const {
+    return "action." + _action_name + "." + group + ".";
+  }
+
   void _log_blocked_attack(Agent& actor, const Agent& target) const {
     const std::string& actor_group = actor.group_name;
     const std::string& target_group = target.group_name;
 
-    actor.stats.incr("action." + _action_name + "." + actor_group + ".blocked_by." + target_group);
+    actor.stats.incr(_action_prefix(actor_group) + "blocked_by." + target_group);
   }
 
   void _log_successful_attack(Agent& actor, Agent& target) const {
@@ -151,11 +156,11 @@ private:
     bool same_team = (actor_group == target_group);
 
     if (same_team) {
-      actor.stats.incr("action." + _action_name + "." + actor_group + ".friendly_fire");
-      target.stats.incr("action." + _action_name + "." + target_group + ".victim_of_friendly_fire");
+      actor.stats.incr(_action_prefix(actor_group) + "friendly_fire");
+      target.stats.incr(_action_prefix(target_group) + "victim_of_friendly_fire");
     } else {
-      actor.stats.incr("action." + _action_name + "." + actor_group + ".hit." + target_group);
-      target.stats.incr("action." + _action_name + "." + target_group + ".hit_by." + actor_group);
+      actor.stats.incr(_action_prefix(actor_group) + "hit." + target_group);
+      target.stats.incr(_action_prefix(target_group) + "hit_by." + actor_group);
     }
   }
 
@@ -164,7 +169,7 @@ private:
     const std::string& target_group = target.group_name;
     const std::string item_name = actor.stats.inventory_item_name(item);
 
-    actor.stats.add(actor_group + ".steals." + item_name + ".from." + target_group, amount);
+    actor.stats.add(_action_prefix(actor_group) + "steals." + item_name + ".from." + target_group, amount);
   }
 };
 
