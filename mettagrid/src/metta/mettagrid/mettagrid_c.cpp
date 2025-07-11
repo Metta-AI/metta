@@ -232,63 +232,6 @@ void MettaGrid::add_agent(Agent* agent) {
   _agents.push_back(agent);
 }
 
-const MettaGrid::ObservationPattern& MettaGrid::_get_observation_pattern(ObservationCoord width,
-                                                                         ObservationCoord height) const {
-  for (auto& entry : _pattern_cache) {
-    if (entry.width == width && entry.height == height) {
-      entry.last_used = ++_cache_access_count;
-      return entry.pattern;
-    }
-  }
-
-  // Create new pattern
-  ObservationPattern pattern;
-  ObservationCoord width_radius = width >> 1;
-  ObservationCoord height_radius = height >> 1;
-
-  // Build list of all offsets with their distances
-  struct OffsetWithDistance {
-    int8_t r_offset;
-    int8_t c_offset;
-    uint8_t distance;
-  };
-
-  std::vector<OffsetWithDistance> offsets;
-  offsets.reserve(width * height);
-
-  // Generate all positions in the observation window
-  for (int r = -height_radius; r <= height_radius; r++) {
-    for (int c = -width_radius; c <= width_radius; c++) {
-      uint8_t distance = std::abs(r) + std::abs(c);
-      offsets.push_back({static_cast<int8_t>(r), static_cast<int8_t>(c), distance});
-    }
-  }
-
-  // Sort by Manhattan distance
-  std::stable_sort(offsets.begin(), offsets.end(), [](const OffsetWithDistance& a, const OffsetWithDistance& b) {
-    return a.distance < b.distance;
-  });
-
-  // Convert to pattern format
-  pattern.offsets.reserve(offsets.size());
-  for (const auto& offset : offsets) {
-    pattern.offsets.emplace_back(offset.r_offset, offset.c_offset);
-  }
-
-  // Add to cache (with LRU eviction if needed)
-  if (_pattern_cache.size() >= MAX_CACHED_PATTERNS) {
-    // Find least recently used entry
-    auto lru_it = std::min_element(_pattern_cache.begin(), _pattern_cache.end(), [](const auto& a, const auto& b) {
-      return a.last_used < b.last_used;
-    });
-    *lru_it = {width, height, std::move(pattern), ++_cache_access_count};
-    return lru_it->pattern;
-  } else {
-    _pattern_cache.push_back({width, height, std::move(pattern), ++_cache_access_count});
-    return _pattern_cache.back().pattern;
-  }
-}
-
 void MettaGrid::_compute_observation(GridCoord observer_row,
                                      GridCoord observer_col,
                                      ObservationCoord observable_width,
@@ -369,18 +312,18 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
     }
   };
 
-  // Get cached observation pattern
-  const auto& pattern = _get_observation_pattern(observable_width, observable_height);
+  auto search_pattern = PackedCoordinate::ObservationSearchPattern(observable_width, observable_height);
 
-  // Process locations in order using cached pattern
-  for (const auto& [r_offset, c_offset] : pattern.offsets) {
-    int r = static_cast<int>(observer_row) + r_offset;
-    int c = static_cast<int>(observer_col) + c_offset;
+  // Process locations in order using the search pattern
+  for (const auto& offset : search_pattern) {
+    int r = static_cast<int>(observer_row) + offset.r_offset;
+    int c = static_cast<int>(observer_col) + offset.c_offset;
 
-    // Skip if outside observation bounds
+    // Skip if outside grid bounds
     if (r < r_start || r >= r_end || c < c_start || c >= c_end) {
       continue;
     }
+
     process_location(r, c);
   }
 

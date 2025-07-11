@@ -68,5 +68,110 @@ inline bool is_empty(uint8_t packed_data) {
   return packed_data == EmptyTokenByte;
 }
 
+// Single pre-computed pattern for maximum observable size (15x15)
+struct ObservationPattern {
+  static constexpr size_t MAX_OBSERVABLE_SIZE = MAX_PACKABLE_COORD + 1;
+  static constexpr size_t MAX_PATTERN_SIZE = MAX_OBSERVABLE_SIZE * MAX_OBSERVABLE_SIZE;
+
+  struct Offset {
+    int8_t r_offset;
+    int8_t c_offset;
+  };
+
+  // Pre-sorted offsets by Manhattan distance for the maximum 15x15 window
+  std::array<Offset, MAX_PATTERN_SIZE> offsets;
+  size_t size;  // Actual number of valid offsets
+
+  ObservationPattern() {
+    size = 0;
+    const int8_t radius = MAX_OBSERVABLE_SIZE / 2;
+
+    // Build list of all offsets with their distances
+    struct OffsetWithDistance {
+      int8_t r_offset;
+      int8_t c_offset;
+      uint8_t distance;
+    };
+
+    std::vector<OffsetWithDistance> temp_offsets;
+    temp_offsets.reserve(MAX_PATTERN_SIZE);
+
+    // Generate all positions in the maximum observation window
+    for (int r = -radius; r <= radius; r++) {
+      for (int c = -radius; c <= radius; c++) {
+        uint8_t distance = std::abs(r) + std::abs(c);
+        temp_offsets.push_back({static_cast<int8_t>(r), static_cast<int8_t>(c), distance});
+      }
+    }
+
+    // Sort by Manhattan distance (stable sort preserves order for same distance)
+    std::stable_sort(temp_offsets.begin(),
+                     temp_offsets.end(),
+                     [](const OffsetWithDistance& a, const OffsetWithDistance& b) { return a.distance < b.distance; });
+
+    // Copy to our fixed array
+    for (const auto& offset : temp_offsets) {
+      offsets[size++] = {offset.r_offset, offset.c_offset};
+    }
+  }
+};
+
+// Get the global pattern instance
+inline const ObservationPattern& get_observation_pattern() {
+  static const ObservationPattern pattern;
+  return pattern;
+}
+
+/**
+ * Lightweight view into the observation pattern for a specific window size.
+ * This class provides an iterator interface over the relevant offsets.
+ */
+class ObservationSearchPattern {
+private:
+  const ObservationPattern::Offset* begin_ptr;
+  const ObservationPattern::Offset* end_ptr;
+
+public:
+  ObservationSearchPattern(uint8_t width, uint8_t height) {
+    const auto& pattern = get_observation_pattern();
+
+    // For a given observation window, we only need offsets within its bounds
+    uint8_t width_radius = width >> 1;
+    uint8_t height_radius = height >> 1;
+
+    // Find how many offsets from the pre-computed pattern we need
+    size_t count = 0;
+    for (size_t i = 0; i < pattern.size; ++i) {
+      const auto& offset = pattern.offsets[i];
+      if (std::abs(offset.r_offset) <= height_radius && std::abs(offset.c_offset) <= width_radius) {
+        count++;
+      } else {
+        // Since offsets are sorted by distance, once we're outside bounds,
+        // all remaining offsets will also be outside
+        break;
+      }
+    }
+
+    begin_ptr = pattern.offsets.data();
+    end_ptr = begin_ptr + count;
+  }
+
+  // Iterator interface
+  const ObservationPattern::Offset* begin() const {
+    return begin_ptr;
+  }
+  const ObservationPattern::Offset* end() const {
+    return end_ptr;
+  }
+
+  // Also support span-like interface
+  size_t size() const {
+    return end_ptr - begin_ptr;
+  }
+  const ObservationPattern::Offset& operator[](size_t idx) const {
+    return begin_ptr[idx];
+  }
+};
+
 }  // namespace PackedCoordinate
 #endif  // PACKED_COORDINATE_HPP_
