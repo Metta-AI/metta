@@ -87,9 +87,9 @@ EVALUATION_DATA_QUERY_TEMPLATE = """
         ANY_VALUE(e.replay_url) as replay_url,
         SUM(pa.total_value) as total_score,
         SUM(pa.agent_count)::INTEGER as num_agents,
-        MAX(e.internal_id) as episode_id
+        MAX(e.internal_id) as episode_id,
         p.run_id,
-        p.end_training_epoch as epoch,
+        p.end_training_epoch as epoch
     FROM episodes e
     JOIN pre_aggregated pa ON e.internal_id = pa.episode_internal_id
     JOIN filtered_policies p ON e.primary_policy_id = p.id
