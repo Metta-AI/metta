@@ -145,9 +145,29 @@ private:
   void _step(py::array_t<ActionType, py::array::c_style> actions);
 
   void _handle_invalid_action(size_t agent_idx, const std::string& stat, ActionType type, ActionArg arg);
+
   AgentConfig _create_agent_config(const py::dict& agent_group_cfg_py);
   ConverterConfig _create_converter_config(const py::dict& converter_cfg_py);
   WallConfig _create_wall_config(const py::dict& wall_cfg_py);
+
+  // Cache for sorted observation patterns
+  struct ObservationPattern {
+    std::vector<std::pair<int8_t, int8_t>> offsets;  // relative positions sorted by distance
+  };
+
+  // Simple LRU cache for observation patterns
+  static constexpr size_t MAX_CACHED_PATTERNS = 3;
+  struct PatternCacheEntry {
+    ObservationCoord width;
+    ObservationCoord height;
+    ObservationPattern pattern;
+    uint64_t last_used;
+  };
+  mutable std::vector<PatternCacheEntry> _pattern_cache;
+  mutable uint64_t _cache_access_count = 0;
+
+  // Helper to get or create observation pattern
+  const ObservationPattern& _get_observation_pattern(ObservationCoord width, ObservationCoord height) const;
 };
 
 #endif  // METTAGRID_C_HPP_
