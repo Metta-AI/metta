@@ -44,8 +44,8 @@ namespace py = pybind11;
 struct GameConfig {
   int num_agents;
   unsigned int max_steps;
-  unsigned short obs_width;
-  unsigned short obs_height;
+  ObservationCoord obs_width;
+  ObservationCoord obs_height;
   std::vector<std::string> inventory_item_names;
   unsigned int num_observation_tokens;
   std::map<std::string, std::shared_ptr<ActionConfig>> actions;
@@ -54,11 +54,11 @@ struct GameConfig {
 
 class METTAGRID_API MettaGrid {
 public:
-  MettaGrid(const GameConfig& cfg, py::list map, int seed);
+  MettaGrid(const GameConfig& cfg, py::list map, unsigned int seed);
   ~MettaGrid();
 
-  unsigned short obs_width;
-  unsigned short obs_height;
+  ObservationCoord obs_width;
+  ObservationCoord obs_height;
 
   unsigned int current_step;
   unsigned int max_steps;
@@ -78,11 +78,11 @@ public:
   py::dict grid_objects();
   py::list action_names();
 
-  unsigned int map_width();
-  unsigned int map_height();
+  GridCoord map_width();
+  GridCoord map_height();
   py::dict feature_normalizations();
   py::dict feature_spec();
-  unsigned int num_agents();
+  size_t num_agents();
   py::array_t<float> get_episode_rewards();
   py::dict get_episode_stats();
   py::object action_space();
@@ -103,7 +103,7 @@ private:
   std::unique_ptr<EventManager> _event_manager;
 
   std::vector<std::unique_ptr<ActionHandler>> _action_handlers;
-  int _num_action_handlers;
+  size_t _num_action_handlers;
   std::vector<unsigned char> _max_action_args;
   unsigned char _max_action_arg;
   unsigned char _max_action_priority;
@@ -111,7 +111,7 @@ private:
   std::unique_ptr<ObservationEncoder> _obs_encoder;
   std::unique_ptr<StatsTracker> _stats;
 
-  unsigned int _num_observation_tokens;
+  size_t _num_observation_tokens;
 
   // TODO: currently these are owned and destroyed by the grid, but we should
   // probably move ownership here.
@@ -130,7 +130,7 @@ private:
   std::vector<bool> _action_success;
 
   std::mt19937 _rng;
-  int _seed;
+  unsigned int _seed;
 
   void init_action_handlers();
   void add_agent(Agent* agent);
