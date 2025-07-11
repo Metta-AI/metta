@@ -11,7 +11,7 @@ from metta.mettagrid.mettagrid_config import PyAgentRewards, PyConverterConfig, 
 
 
 def from_mettagrid_config(mettagrid_config_dict: dict[str, Any]) -> CppGameConfig:
-    """Convert a Python PyGameConfig to a CppGameConfig."""
+    """Convert a PyGameConfig to a CppGameConfig."""
 
     py_mettagrid_config = PyGameConfig(**mettagrid_config_dict)
 
@@ -97,6 +97,9 @@ def from_mettagrid_config(mettagrid_config_dict: dict[str, Any]) -> CppGameConfi
     cpp_actions_config = {}
     # Add required and consumed resources to the attack action
     for py_action_name, py_cfg in py_game_config["actions"].items():
+        if not py_cfg["enabled"]:
+            continue
+
         params = {}
         params["consumed_resources"] = dict((resource_ids[k], v) for k, v in py_cfg["consumed_resources"].items())
         if py_cfg.get("required_resources", None) is not None:
