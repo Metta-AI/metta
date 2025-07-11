@@ -1,0 +1,15 @@
+defaults:
+  - env/mettagrid/communication/defaults
+  - _self_
+
+game:
+  num_agents: 24
+
+  map_builder:
+    root:
+      params:
+        uri: configs/env/mettagrid/maps/communication/right_ising_24_agents.map
+
+  groups:
+    team_2:
+      props: {"color": 3} # "go right"

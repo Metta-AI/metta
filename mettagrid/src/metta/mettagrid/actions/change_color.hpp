@@ -19,7 +19,7 @@ public:
   explicit ChangeColorAction(const ActionConfig& cfg) : ActionHandler(cfg, "change_color") {}
 
   unsigned char max_arg() const override {
-    return 3;  // 4 possible actions (0-3)
+    return 4;  // 0: no meaning, 1: go up, 2: go down, 3: go right, 4: go left
   }
 
 protected:
