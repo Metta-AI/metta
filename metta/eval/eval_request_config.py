@@ -26,5 +26,4 @@ class EvalRewardSummary(BaseModelWithForbidExtra):
 
 class EvalResults(BaseModelWithForbidExtra):
     scores: EvalRewardSummary = Field(..., description="Evaluation scores")
-    replay_url: str | None = Field(..., description="Replay URL")  # Deprecated, use replay_urls instead
     replay_urls: dict[str, str] = Field(default_factory=dict, description="Replay URLs for each simulation")

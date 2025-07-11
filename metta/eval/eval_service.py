@@ -63,14 +63,9 @@ def evaluate_policy(
         result.stats_db.export(export_stats_db_uri)
 
     # Handle replay URLs
-    replay_url = None
     replay_urls: dict[str, str] = {}
     
     if replay_dir is not None:
-        # Get legacy single replay URL for backward compatibility
-        logger.info("Extracting replay URLs")
-        replay_url = extract_replay_url(result.stats_db, pr)
-        
         # Get all replay URLs from simulation results
         if result.replay_urls:
             replay_urls = result.replay_urls
@@ -78,19 +73,12 @@ def evaluate_policy(
 
     results = EvalResults(
         scores=scores,
-        replay_url=replay_url,
         replay_urls=replay_urls,
     )
 
     return results
 
 
-def extract_replay_url(stats_db: SimulationStatsDB, policy_pr: PolicyRecord) -> str | None:
-    key, version = stats_db.key_and_version(policy_pr)
-    replay_urls = stats_db.get_replay_urls(key, version)
-    if len(replay_urls) > 0:
-        return replay_urls[0]
-    return None
 
 
 def extract_scores(

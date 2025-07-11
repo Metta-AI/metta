@@ -105,7 +105,7 @@ def main(cfg: DictConfig) -> None:
                         "reward_avg_category_normalized": policy_results.scores.avg_category_score,
                         "detailed": policy_results.scores.to_wandb_metrics_format(),
                     },
-                    "replay_url": policy_results.replay_url,
+                    "replay_url": next(iter(policy_results.replay_urls.values())) if policy_results.replay_urls else None,
                 }
             )
         all_results["policies"].append(results)
