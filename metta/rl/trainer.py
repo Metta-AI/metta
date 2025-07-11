@@ -122,7 +122,7 @@ class MettaTrainer:
 
         self.timer = Stopwatch(logger)
         self.timer.start()
-        
+
         # Initialize eval replay URLs
         self._eval_replay_urls: dict[str, str] = {}
 
@@ -723,7 +723,7 @@ class MettaTrainer:
         )
         logger.info("Simulation complete")
         self.evals = evaluation_results.scores
-        
+
         # Store evaluation replay URLs for later use
         self._eval_replay_urls = evaluation_results.replay_urls
 
@@ -740,12 +740,12 @@ class MettaTrainer:
             num_episodes=1,
             env_overrides=self._curriculum.get_task().env_cfg(),
         )
-        
+
         training_suite_config = SimulationSuiteConfig(
             name="training_replay",
             simulations={"eval/training_task": training_sim_config},
         )
-        
+
         # Use evaluate_policy to generate the training replay
         logger.info(f"Generating training replay for epoch {self.epoch}")
         training_replay_results = evaluate_policy(
@@ -758,27 +758,27 @@ class MettaTrainer:
             stats_client=self._stats_client,
             logger=logger,
         )
-        
+
         if self.wandb_run is not None:
             # Combine all replay URLs (evaluation + training)
             all_replay_urls = {}
-            
+
             # Add evaluation replay URLs
             if self._eval_replay_urls:
                 all_replay_urls.update(self._eval_replay_urls)
-            
+
             # Add training replay URL
             if training_replay_results.replay_urls:
                 all_replay_urls.update(training_replay_results.replay_urls)
-            
+
             # Create unified HTML with all replay links
             html_content = f"<h3>Replays for Epoch {self.epoch}</h3>"
-            
+
             if all_replay_urls:
                 # Separate training and evaluation replays
                 training_replays = {k: v for k, v in all_replay_urls.items() if "training_task" in k}
                 eval_replays = {k: v for k, v in all_replay_urls.items() if "training_task" not in k}
-                
+
                 # Add training replay link if available
                 if training_replays:
                     html_content += "<p><strong>Training Environment:</strong></p><ul>"
@@ -788,7 +788,7 @@ class MettaTrainer:
                         display_name = sim_name.replace("eval/", "")
                         html_content += f'<li><a href="{player_url}" target="_blank">{display_name}</a></li>'
                     html_content += "</ul>"
-                
+
                 # Add evaluation replay links if available
                 if eval_replays:
                     html_content += "<p><strong>Evaluation Environments:</strong></p><ul>"
@@ -798,13 +798,11 @@ class MettaTrainer:
                     html_content += "</ul>"
             else:
                 html_content += "<p>No replays available.</p>"
-            
+
             # Log the unified HTML
-            link_summary = {
-                "replays/all_links": wandb.Html(html_content)
-            }
+            link_summary = {"replays/all_links": wandb.Html(html_content)}
             self.wandb_run.log(link_summary)
-            
+
             # Also log individual link for backward compatibility
             if "eval/training_task" in all_replay_urls:
                 training_url = all_replay_urls["eval/training_task"]

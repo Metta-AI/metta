@@ -73,7 +73,7 @@ class SimulationSuite:
                 logger.info("=== Simulation '%s' ===", name)
                 sim_result = sim.simulate()
                 merged_db.merge_in(sim_result.stats_db)
-                
+
                 # Collect replay URLs if available
                 if self._replay_dir is not None:
                     key, version = sim_result.stats_db.key_and_version(self._policy_pr)
@@ -81,7 +81,7 @@ class SimulationSuite:
                     if sim_replay_urls:
                         replay_urls[name] = sim_replay_urls[0]
                         logger.info(f"Collected replay URL for simulation '{name}'")
-                
+
                 sim_result.stats_db.close()
                 successful_simulations += 1
 

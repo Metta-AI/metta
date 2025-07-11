@@ -9,7 +9,6 @@ from metta.app_backend.stats_client import StatsClient
 from metta.eval.eval_request_config import EvalResults, EvalRewardSummary
 from metta.eval.eval_stats_db import EvalStatsDB
 from metta.sim.simulation_config import SimulationSuiteConfig
-from metta.sim.simulation_stats_db import SimulationStatsDB
 from metta.sim.simulation_suite import SimulationSuite
 
 
@@ -64,7 +63,7 @@ def evaluate_policy(
 
     # Handle replay URLs
     replay_urls: dict[str, str] = {}
-    
+
     if replay_dir is not None:
         # Get all replay URLs from simulation results
         if result.replay_urls:
@@ -77,8 +76,6 @@ def evaluate_policy(
     )
 
     return results
-
-
 
 
 def extract_scores(
