@@ -198,6 +198,8 @@ MIGRATIONS = [
             """CREATE INDEX IF NOT EXISTS idx_episode_agent_metrics_metric_eiid_value
                 ON episode_agent_metrics(metric, episode_internal_id)
                 INCLUDE (value)""",
+            """CREATE INDEX IF NOT EXISTS idx_episode_agent_metrics_episode_internal_id
+                ON episode_agent_metrics(episode_internal_id)""",
             """DROP INDEX idx_episode_agent_metrics_metric_episode_value""",
             """ALTER TABLE episode_agent_metrics DROP COLUMN episode_id""",
         ],
