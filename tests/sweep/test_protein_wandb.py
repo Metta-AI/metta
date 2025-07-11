@@ -85,7 +85,7 @@ class TestWandbProtein:
             assert info["cost"] == 75.0
             assert info["score"] == 0.88
             assert info["rating"] == 0.7
-            assert "suggestion_uuid" in info
+            # Note: suggestion_uuid was removed during cleanup
 
             # Verify data was stored in wandb summary
             assert wandb_protein._wandb_run.summary.get("protein.suggestion") == expected_suggestion
@@ -138,13 +138,15 @@ class TestWandbProtein:
 
             result = wandb_protein._transform_suggestion(suggestion_with_numpy)
 
-            # Note: The base WandbProtein._transform_suggestion doesn't actually convert numpy types
-            # This just tests that the method works and returns the suggestion as-is
-            # The numpy conversion would be implemented in MettaProtein._transform_suggestion
-            assert result["learning_rate"] == np.float64(0.001)
-            assert result["batch_size"] == np.int32(64)
-            assert result["regularization"] == np.float32(0.01)
-            assert isinstance(result["nested"]["param"], np.ndarray)
+            # WandbProtein._transform_suggestion DOES convert numpy types
+            assert isinstance(result["learning_rate"], float)
+            assert result["learning_rate"] == pytest.approx(0.001)
+            assert isinstance(result["batch_size"], int)
+            assert result["batch_size"] == 64
+            assert isinstance(result["regularization"], float)
+            assert result["regularization"] == pytest.approx(0.01)
+            assert isinstance(result["nested"]["param"], list)
+            assert result["nested"]["param"] == [1, 2, 3]
 
         finally:
             wandb.finish()
@@ -170,9 +172,8 @@ class TestWandbProtein:
             # Verify original config is preserved
             assert config["initial_param"] == "value"
 
-            # Verify parameters section also exists
-            assert "parameters" in config
-            assert config["parameters"]["learning_rate"] == 0.003
+            # Note: separate parameters section was removed during cleanup -
+            # suggestions are now applied directly to the main config
 
         finally:
             wandb.finish()
@@ -192,7 +193,7 @@ class TestWandbProtein:
             # Create WandbProtein
             _ = WandbProtein(mock_protein)
 
-            # After initialization, protein state should be set
+            # After initialization, protein state should be "running"
             assert wandb.run.summary.get("protein.state") == "running"
 
         finally:

@@ -51,7 +51,7 @@ test('load a replay', async ({ page }) => {
   const errors = trackPageErrors(page)
   await page.goto(`${host}/?wsUrl=%2Fws`)
 
-  // Wait for replay to load
+  // Wait for the page to fully load the replay and render the first frame
   await page.waitForFunction(
     () => {
       const state = (window as any).state
@@ -59,7 +59,6 @@ test('load a replay', async ({ page }) => {
     },
     { timeout: 10000 }
   )
-
   expectNoErrors(errors)
 })
 
@@ -67,7 +66,7 @@ test('load a replay and play it', async ({ page }) => {
   const errors = trackPageErrors(page)
   await page.goto(`${host}/?wsUrl=%2Fws&play=true`)
 
-  // Wait for replay to start playing
+  // Wait for the page to fully load the replay and render the first frame
   await page.waitForFunction(
     () => {
       const state = (window as any).state
@@ -75,6 +74,5 @@ test('load a replay and play it', async ({ page }) => {
     },
     { timeout: 10000 }
   )
-
   expectNoErrors(errors)
 })

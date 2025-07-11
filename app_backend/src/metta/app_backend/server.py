@@ -51,10 +51,15 @@ def setup_logging():
     route_logger = logging.getLogger("route_performance")
     route_logger.setLevel(logging.INFO)
 
+    # Configure heatmap logger
+    heatmap_logger = logging.getLogger("heatmap_routes")
+    heatmap_logger.setLevel(logging.INFO)
+
     # Ensure the loggers don't duplicate messages from root logger
     heatmap_logger.propagate = True
     db_logger.propagate = True
     route_logger.propagate = True
+    heatmap_logger.propagate = True
 
     # Filter out /whoami requests from uvicorn access logs
     uvicorn_access_logger = logging.getLogger("uvicorn.access")
