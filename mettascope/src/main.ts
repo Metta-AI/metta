@@ -277,44 +277,84 @@ document.addEventListener('blur', function (e) {
   requestFrame()
 })
 
+/** Track previous URL parameter values to avoid unnecessary updates. */
+let previousUrlState = {
+  step: -1,
+  selectedObjectIndex: -1,
+  mapPanX: 0,
+  mapPanY: 0,
+  mapZoom: 1,
+  isPlaying: false
+}
+
 /** Updates all URL parameters without creating browser history entries. */
 function updateUrlParams() {
+  // Get current values
+  const currentStep = state.step
+  const currentSelectedObjectIndex = state.selectedGridObject !== null ? 
+    state.replay.grid_objects.indexOf(state.selectedGridObject) : -1
+  const currentMapPanX = Math.round(ui.mapPanel.panPos.x())
+  const currentMapPanY = Math.round(ui.mapPanel.panPos.y())
+  const currentMapZoom = parseFloat(ui.mapPanel.zoomLevel.toFixed(3))
+  const currentIsPlaying = state.isPlaying
+
+  // Check if any values have changed
+  const hasChanged = (
+    currentStep !== previousUrlState.step ||
+    currentSelectedObjectIndex !== previousUrlState.selectedObjectIndex ||
+    currentMapPanX !== previousUrlState.mapPanX ||
+    currentMapPanY !== previousUrlState.mapPanY ||
+    currentMapZoom !== previousUrlState.mapZoom ||
+    currentIsPlaying !== previousUrlState.isPlaying
+  )
+
+  if (!hasChanged) {
+    return // No changes, skip update
+  }
+
+  // Update previous state
+  previousUrlState = {
+    step: currentStep,
+    selectedObjectIndex: currentSelectedObjectIndex,
+    mapPanX: currentMapPanX,
+    mapPanY: currentMapPanY,
+    mapZoom: currentMapZoom,
+    isPlaying: currentIsPlaying
+  }
+
   // Get the current URL parameters.
   const urlParams = new URLSearchParams(window.location.search)
 
   // Update the step when it's not zero.
-  if (state.step !== 0) {
-    urlParams.set('step', state.step.toString())
+  if (currentStep !== 0) {
+    urlParams.set('step', currentStep.toString())
   } else {
     urlParams.delete('step')
   }
 
   // Handle the selected object.
-  if (state.selectedGridObject !== null) {
-    // Find the index of the selected object.
-    const selectedObjectIndex = state.replay.grid_objects.indexOf(state.selectedGridObject)
-    if (selectedObjectIndex !== -1) {
-      urlParams.set('selectedObjectId', (selectedObjectIndex + 1).toString())
-      // Remove map position parameters when an object is selected.
-      urlParams.delete('mapPanX')
-      urlParams.delete('mapPanY')
-    }
+  if (currentSelectedObjectIndex !== -1) {
+    urlParams.set('selectedObjectId', (currentSelectedObjectIndex + 1).toString())
+    // Remove map position parameters when an object is selected.
+    urlParams.delete('mapPanX')
+    urlParams.delete('mapPanY')
   } else {
     // Include the map position.
-    urlParams.set('mapPanX', Math.round(ui.mapPanel.panPos.x()).toString())
-    urlParams.set('mapPanY', Math.round(ui.mapPanel.panPos.y()).toString())
+    urlParams.set('mapPanX', currentMapPanX.toString())
+    urlParams.set('mapPanY', currentMapPanY.toString())
     // Remove the selected object when there is no selection.
     urlParams.delete('selectedObjectId')
   }
 
   // Include the map zoom level.
-  if (ui.mapPanel.zoomLevel != 1) {
-    // Only include zoom to three decimal places.
-    urlParams.set('mapZoom', ui.mapPanel.zoomLevel.toFixed(3))
+  if (currentMapZoom != 1) {
+    urlParams.set('mapZoom', currentMapZoom.toString())
+  } else {
+    urlParams.delete('mapZoom')
   }
 
   // Handle the play state; only include it when true.
-  if (state.isPlaying) {
+  if (currentIsPlaying) {
     urlParams.set('play', 'true')
   } else {
     urlParams.delete('play')
