@@ -105,8 +105,19 @@ class Simulation:
         self._device = device
 
         # ----------------
-        num_envs = min(config.num_episodes, os.cpu_count() or 1)
-        logger.info(f"Creating vecenv with {num_envs} environments")
+        # Calculate number of parallel environments and episodes per environment
+        # to achieve the target total number of episodes
+        max_envs = os.cpu_count() or 1
+        if config.num_episodes <= max_envs:
+            # If we want fewer episodes than CPUs, create one env per episode
+            num_envs = config.num_episodes
+            episodes_per_env = 1
+        else:
+            # Otherwise, use all CPUs and distribute episodes
+            num_envs = max_envs
+            episodes_per_env = (config.num_episodes + num_envs - 1) // num_envs  # Ceiling division
+        
+        logger.info(f"Creating vecenv with {num_envs} environments, {episodes_per_env} episodes per env (total target: {config.num_episodes})")
 
         if pre_built_config is not None:
             # Use our custom curriculum that doesn't require Hydra
@@ -128,7 +139,7 @@ class Simulation:
         )
 
         self._num_envs = num_envs
-        self._min_episodes = config.num_episodes
+        self._min_episodes = episodes_per_env
         self._max_time_s = config.max_time_s
         self._agents_per_env = env_cfg.game.num_agents
 
@@ -487,4 +498,4 @@ class SimulationResults:
     """
 
     stats_db: SimulationStatsDB
-    replay_urls: dict[str, str] | None = None  # Maps simulation names to replay URLs
+    replay_urls: dict[str, list[str]] | None = None  # Maps simulation names to lists of replay URLs

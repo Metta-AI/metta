@@ -50,7 +50,7 @@ class SimulationSuite:
         merged_db: SimulationStatsDB = SimulationStatsDB(Path(f"{self._stats_dir}/all_{uuid.uuid4().hex[:8]}.duckdb"))
 
         successful_simulations = 0
-        replay_urls: dict[str, str] = {}
+        replay_urls: dict[str, list[str]] = {}
 
         for name, sim_config in self._config.simulations.items():
             try:
@@ -79,8 +79,8 @@ class SimulationSuite:
                     key, version = sim_result.stats_db.key_and_version(self._policy_pr)
                     sim_replay_urls = sim_result.stats_db.get_replay_urls(key, version)
                     if sim_replay_urls:
-                        replay_urls[name] = sim_replay_urls[0]
-                        logger.info(f"Collected replay URL for simulation '{name}'")
+                        replay_urls[name] = sim_replay_urls  # Store all URLs, not just the first
+                        logger.info(f"Collected {len(sim_replay_urls)} replay URL(s) for simulation '{name}'")
 
                 sim_result.stats_db.close()
                 successful_simulations += 1

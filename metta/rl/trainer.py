@@ -740,30 +740,25 @@ class MettaTrainer:
         if self.wandb_run is not None and evaluation_results.replay_urls:
             self._upload_replay_html(evaluation_results.replay_urls)
 
-    def _upload_replay_html(self, replay_urls: dict[str, str]):
+    def _upload_replay_html(self, replay_urls: dict[str, list[str]]):
         """Upload replay HTML to wandb"""
         # Create unified HTML with all replay links on a single line
         if replay_urls:
-            # Separate training and evaluation replays
-            training_replays = {k: v for k, v in replay_urls.items() if "training_task" in k}
-            eval_replays = {k: v for k, v in replay_urls.items() if "training_task" not in k}
-            
-            # Group replays by base name (for future multi-episode support)
+            # Group replays by base name
             replay_groups = {}
             
-            # Process training replays
-            for sim_name, replay_url in sorted(training_replays.items()):
-                if "training" not in replay_groups:
-                    replay_groups["training"] = []
-                replay_groups["training"].append(replay_url)
-            
-            # Process evaluation replays
-            for sim_name, replay_url in sorted(eval_replays.items()):
-                # Clean up the display name - remove "eval/" prefix
-                display_name = sim_name.replace("eval/", "")
-                if display_name not in replay_groups:
-                    replay_groups[display_name] = []
-                replay_groups[display_name].append(replay_url)
+            for sim_name, urls in sorted(replay_urls.items()):
+                if "training_task" in sim_name:
+                    # Training replays
+                    if "training" not in replay_groups:
+                        replay_groups["training"] = []
+                    replay_groups["training"].extend(urls)
+                else:
+                    # Evaluation replays - clean up the display name
+                    display_name = sim_name.replace("eval/", "")
+                    if display_name not in replay_groups:
+                        replay_groups[display_name] = []
+                    replay_groups[display_name].extend(urls)
             
             # Build HTML with episode numbers
             links = []
@@ -790,8 +785,8 @@ class MettaTrainer:
         self.wandb_run.log(link_summary, step=self.agent_step)
 
         # Also log individual link for backward compatibility
-        if "eval/training_task" in replay_urls:
-            training_url = replay_urls["eval/training_task"]
+        if "eval/training_task" in replay_urls and replay_urls["eval/training_task"]:
+            training_url = replay_urls["eval/training_task"][0]  # Use first URL for backward compatibility
             player_url = "https://metta-ai.github.io/metta/?replayUrl=" + training_url
             link_summary = {
                 "replays/link": wandb.Html(f'<a href="{player_url}">MetaScope Replay (Epoch {self.epoch})</a>')

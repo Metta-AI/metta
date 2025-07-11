@@ -62,7 +62,7 @@ def evaluate_policy(
         result.stats_db.export(export_stats_db_uri)
 
     # Handle replay URLs
-    replay_urls: dict[str, str] = {}
+    replay_urls: dict[str, list[str]] = {}
 
     if replay_dir is not None:
         # Get all replay URLs from simulation results
