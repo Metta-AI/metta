@@ -1,35 +1,30 @@
-# mettagrid_config.py - Python configuration models and conversion logic
-
 import copy
 from typing import Any
 
-# Import C++ types from the extension module
-from metta.mettagrid.mettagrid_c import (
-    ActionConfig,
-    AgentConfig,
-    AttackActionConfig,
-    ConverterConfig,
-    GameConfig,
-    WallConfig,
-)
+from metta.mettagrid.mettagrid_c import ActionConfig as CppActionConfig
+from metta.mettagrid.mettagrid_c import AgentConfig as CppAgentConfig
+from metta.mettagrid.mettagrid_c import AttackActionConfig as CppAttackActionConfig
+from metta.mettagrid.mettagrid_c import ConverterConfig as CppConverterConfig
+from metta.mettagrid.mettagrid_c import GameConfig as CppGameConfig
+from metta.mettagrid.mettagrid_c import WallConfig as CppWallConfig
 from metta.mettagrid.mettagrid_config import PyAgentRewards, PyConverterConfig, PyGameConfig, PyWallConfig
 
 
-def from_mettagrid_config(mettagrid_config_dict: dict[str, Any]) -> GameConfig:
-    """Convert a Python PyGameConfig to a C++ GameConfig."""
+def from_mettagrid_config(mettagrid_config_dict: dict[str, Any]) -> CppGameConfig:
+    """Convert a Python PyGameConfig to a CppGameConfig."""
 
-    mettagrid_config = PyGameConfig(**mettagrid_config_dict)
+    py_mettagrid_config = PyGameConfig(**mettagrid_config_dict)
 
-    resource_names = list(mettagrid_config.inventory_item_names)
+    resource_names = list(py_mettagrid_config.inventory_item_names)
     resource_ids = dict((name, i) for i, name in enumerate(resource_names))
 
-    object_configs = {}
+    cpp_object_configs = {}
 
     # These are the baseline settings for all agents
-    agent_default_config_dict = mettagrid_config.agent.model_dump(by_alias=True, exclude_unset=True)
+    agent_default_config_dict = py_mettagrid_config.agent.model_dump(by_alias=True, exclude_unset=True)
 
     # Group information is more specific than the defaults, so it should override
-    for group_name, group_config in mettagrid_config.groups.items():
+    for group_name, group_config in py_mettagrid_config.groups.items():
         group_config_dict = group_config.model_dump(by_alias=True, exclude_unset=True)
         merged_config = copy.deepcopy(agent_default_config_dict)
 
@@ -70,61 +65,55 @@ def from_mettagrid_config(mettagrid_config_dict: dict[str, Any]) -> GameConfig:
         # HardCodedConfig
         agent_group_config["type_id"] = 0
         agent_group_config["type_name"] = "agent"
-        object_configs["agent." + group_name] = AgentConfig(**agent_group_config)
+        cpp_object_configs["agent." + group_name] = CppAgentConfig(**agent_group_config)
 
     # Convert other objects
-    for object_type, object_config in mettagrid_config.objects.items():
-        if isinstance(object_config, PyConverterConfig):
-            converter_config = ConverterConfig(
-                type_id=object_config.type_id,
-                type_name=object_type,
-                input_resources=dict((resource_ids[k], v) for k, v in object_config.input_resources.items()),
-                output_resources=dict((resource_ids[k], v) for k, v in object_config.output_resources.items()),
-                max_output=object_config.max_output,
-                conversion_ticks=object_config.conversion_ticks,
-                cooldown=object_config.cooldown,
-                initial_resource_count=object_config.initial_resource_count,
-                color=object_config.color or 0,
+    for py_object_type, py_cfg in py_mettagrid_config.objects.items():
+        if isinstance(py_cfg, PyConverterConfig):
+            cpp_converter_config = CppConverterConfig(
+                type_id=py_cfg.type_id,
+                type_name=py_object_type,
+                input_resources=dict((resource_ids[k], v) for k, v in py_cfg.input_resources.items() if v > 0),
+                output_resources=dict((resource_ids[k], v) for k, v in py_cfg.output_resources.items() if v > 0),
+                max_output=py_cfg.max_output,
+                conversion_ticks=py_cfg.conversion_ticks,
+                cooldown=py_cfg.cooldown,
+                initial_resource_count=py_cfg.initial_resource_count,
+                color=py_cfg.color,
             )
-            object_configs[object_type] = converter_config
-        elif isinstance(object_config, PyWallConfig):
-            wall_config = WallConfig(
-                type_id=object_config.type_id,
-                type_name=object_type,
-                swappable=object_config.swappable or False,
+            cpp_object_configs[py_object_type] = cpp_converter_config
+        elif isinstance(py_cfg, PyWallConfig):
+            cpp_wall_config = CppWallConfig(
+                type_id=py_cfg.type_id,
+                type_name=py_object_type,
+                swappable=py_cfg.swappable,
             )
-            object_configs[object_type] = wall_config
+            cpp_object_configs[py_object_type] = cpp_wall_config
         else:
-            raise ValueError(f"Unknown object type: {object_type}")
+            raise ValueError(f"Unknown object type: {py_object_type}")
 
-    game_config = mettagrid_config.model_dump(by_alias=True, exclude_none=True)
+    py_game_config = py_mettagrid_config.model_dump(by_alias=True, exclude_none=True)
 
-    # Convert actions
-    actions_config = {}
-    for action_name, action_config in game_config["actions"].items():
-        action_config_params = {}
-        action_config_params["consumed_resources"] = dict(
-            (resource_ids[k], v) for k, v in action_config["consumed_resources"].items()
-        )
-        if action_config.get("required_resources", None) is not None:
-            action_config_params["required_resources"] = dict(
-                (resource_ids[k], v) for k, v in action_config["required_resources"].items()
-            )
+    cpp_actions_config = {}
+    # Add required and consumed resources to the attack action
+    for py_action_name, py_cfg in py_game_config["actions"].items():
+        params = {}
+        params["consumed_resources"] = dict((resource_ids[k], v) for k, v in py_cfg["consumed_resources"].items())
+        if py_cfg.get("required_resources", None) is not None:
+            params["required_resources"] = dict((resource_ids[k], v) for k, v in py_cfg["required_resources"].items())
         else:
-            action_config_params["required_resources"] = action_config_params["consumed_resources"]
+            params["required_resources"] = params["consumed_resources"]
 
-        if action_name == "attack":
-            action_config_params["defense_resources"] = dict(
-                (resource_ids[k], v) for k, v in action_config["defense_resources"].items()
-            )
-            actions_config[action_name] = AttackActionConfig(**action_config_params)
+        if py_action_name == "attack":
+            params["defense_resources"] = dict((resource_ids[k], v) for k, v in py_cfg["defense_resources"].items())
+            cpp_actions_config[py_action_name] = CppAttackActionConfig(**params)
         else:
-            actions_config[action_name] = ActionConfig(**action_config_params)
+            cpp_actions_config[py_action_name] = CppActionConfig(**params)
 
-    game_config["actions"] = actions_config
+    py_game_config["actions"] = cpp_actions_config
 
-    del game_config["agent"]
-    del game_config["groups"]
-    game_config["objects"] = object_configs
+    del py_game_config["agent"]
+    del py_game_config["groups"]
+    py_game_config["objects"] = cpp_object_configs
 
-    return GameConfig(**game_config)
+    return CppGameConfig(**py_game_config)

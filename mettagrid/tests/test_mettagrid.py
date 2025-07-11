@@ -5,7 +5,7 @@ import numpy as np
 import pytest
 
 from metta.mettagrid.mettagrid_c import MettaGrid, PackedCoordinate
-from metta.mettagrid.mettagrid_config import from_mettagrid_config
+from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
 from metta.mettagrid.mettagrid_env import dtype_actions
 
 
