@@ -742,37 +742,35 @@ class MettaTrainer:
 
     def _upload_replay_html(self, replay_urls: dict[str, str]):
         """Upload replay HTML to wandb"""
-        # Create unified HTML with all replay links
-        html_content = f"<h3>Replays for Epoch {self.epoch}</h3>"
-
+        # Create unified HTML with all replay links on a single line
         if replay_urls:
             # Separate training and evaluation replays
             training_replays = {k: v for k, v in replay_urls.items() if "training_task" in k}
             eval_replays = {k: v for k, v in replay_urls.items() if "training_task" not in k}
-
-            # Add training replay link if available
-            if training_replays:
-                html_content += "<p><strong>Training Environment:</strong></p><ul>"
-                for sim_name, replay_url in sorted(training_replays.items()):
-                    player_url = "https://metta-ai.github.io/metta/?replayUrl=" + replay_url
-                    # Clean up the display name
-                    display_name = sim_name.replace("eval/", "")
-                    html_content += f'<li><a href="{player_url}" target="_blank">{display_name}</a></li>'
-                html_content += "</ul>"
-
-            # Add evaluation replay links if available
-            if eval_replays:
-                html_content += "<p><strong>Evaluation Environments:</strong></p><ul>"
-                for sim_name, replay_url in sorted(eval_replays.items()):
-                    player_url = "https://metta-ai.github.io/metta/?replayUrl=" + replay_url
-                    html_content += f'<li><a href="{player_url}" target="_blank">{sim_name}</a></li>'
-                html_content += "</ul>"
+            
+            # Build links list
+            links = []
+            
+            # Add training link first
+            for sim_name, replay_url in sorted(training_replays.items()):
+                player_url = "https://metta-ai.github.io/metta/?replayUrl=" + replay_url
+                links.append(f'<a href="{player_url}" target="_blank">training</a>')
+            
+            # Add evaluation links
+            for sim_name, replay_url in sorted(eval_replays.items()):
+                player_url = "https://metta-ai.github.io/metta/?replayUrl=" + replay_url
+                # Clean up the display name - remove "eval/" prefix
+                display_name = sim_name.replace("eval/", "")
+                links.append(f'<a href="{player_url}" target="_blank">{display_name}</a>')
+            
+            # Join all links with " | " separator
+            html_content = " | ".join(links)
         else:
-            html_content += "<p>No replays available.</p>"
+            html_content = "No replays available."
 
-        # Log the unified HTML
+        # Log the unified HTML with step parameter for wandb's epoch slider
         link_summary = {"replays/all_links": wandb.Html(html_content)}
-        self.wandb_run.log(link_summary)
+        self.wandb_run.log(link_summary, step=self.agent_step)
 
         # Also log individual link for backward compatibility
         if "eval/training_task" in replay_urls:
@@ -781,7 +779,7 @@ class MettaTrainer:
             link_summary = {
                 "replays/link": wandb.Html(f'<a href="{player_url}">MetaScope Replay (Epoch {self.epoch})</a>')
             }
-            self.wandb_run.log(link_summary)
+            self.wandb_run.log(link_summary, step=self.agent_step)
 
     @with_instance_timer("_process_stats")
     def _process_stats(self):
