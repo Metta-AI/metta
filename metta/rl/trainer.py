@@ -746,7 +746,7 @@ class MettaTrainer:
         if replay_urls:
             # Group replays by base name
             replay_groups = {}
-            
+
             for sim_name, urls in sorted(replay_urls.items()):
                 if "training_task" in sim_name:
                     # Training replays
@@ -759,7 +759,7 @@ class MettaTrainer:
                     if display_name not in replay_groups:
                         replay_groups[display_name] = []
                     replay_groups[display_name].extend(urls)
-            
+
             # Build HTML with episode numbers
             links = []
             for name, urls in replay_groups.items():
@@ -773,8 +773,8 @@ class MettaTrainer:
                     for i, url in enumerate(urls, 1):
                         player_url = "https://metta-ai.github.io/metta/?replayUrl=" + url
                         episode_links.append(f'<a href="{player_url}" target="_blank">{i}</a>')
-                    links.append(f'{name} [{" ".join(episode_links)}]')
-            
+                    links.append(f"{name} [{' '.join(episode_links)}]")
+
             # Join all links with " | " separator and add epoch prefix
             html_content = f"epoch {self.epoch}: " + " | ".join(links)
         else:

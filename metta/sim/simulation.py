@@ -116,8 +116,11 @@ class Simulation:
             # Otherwise, use all CPUs and distribute episodes
             num_envs = max_envs
             episodes_per_env = (config.num_episodes + num_envs - 1) // num_envs  # Ceiling division
-        
-        logger.info(f"Creating vecenv with {num_envs} environments, {episodes_per_env} episodes per env (total target: {config.num_episodes})")
+
+        logger.info(
+            f"Creating vecenv with {num_envs} environments, {episodes_per_env} "
+            + "episodes per env (total target: {config.num_episodes})"
+        )
 
         if pre_built_config is not None:
             # Use our custom curriculum that doesn't require Hydra
