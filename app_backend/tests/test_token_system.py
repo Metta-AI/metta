@@ -1,11 +1,26 @@
 import pytest
+import pytest_asyncio
 from fastapi.testclient import TestClient
 
+from metta.app_backend.metta_repo import MettaRepo
 from tests.base_async_test import BaseAsyncTest
 
 
 class TestTokenSystem(BaseAsyncTest):
     """Tests for the machine token system."""
+
+    @pytest_asyncio.fixture(scope="function")
+    async def stats_repo(self, db_uri: str) -> MettaRepo:
+        """Create a MettaRepo instance with the test database."""
+        repo = MettaRepo(db_uri)
+        yield repo
+        # Ensure pool is closed gracefully
+        if repo._pool is not None:
+            try:
+                await repo._pool.close()
+            except RuntimeError:
+                # Event loop might be closed, ignore
+                pass
 
     def test_create_token(self, test_client: TestClient) -> None:
         """Test creating a machine token."""

@@ -49,6 +49,12 @@ def stats_repo(db_uri: str) -> MettaRepo:
 
 
 @pytest.fixture(scope="class")
+def metta_repo(db_uri: str) -> MettaRepo:
+    """Alias for stats_repo for backward compatibility."""
+    return MettaRepo(db_uri)
+
+
+@pytest.fixture(scope="class")
 def test_app(stats_repo: MettaRepo) -> FastAPI:
     """Create a test FastAPI app with dependency injection."""
     return create_app(stats_repo)
