@@ -7,7 +7,7 @@ from metta.mettagrid.mettagrid_c import AttackActionConfig as CppAttackActionCon
 from metta.mettagrid.mettagrid_c import ConverterConfig as CppConverterConfig
 from metta.mettagrid.mettagrid_c import GameConfig as CppGameConfig
 from metta.mettagrid.mettagrid_c import WallConfig as CppWallConfig
-from metta.mettagrid.mettagrid_config import PyAgentRewards, PyConverterConfig, PyGameConfig, PyWallConfig
+from metta.mettagrid.mettagrid_config import PyConverterConfig, PyGameConfig, PyWallConfig
 
 
 def from_mettagrid_config(mettagrid_config_dict: dict[str, Any]) -> CppGameConfig:
@@ -41,10 +41,7 @@ def from_mettagrid_config(mettagrid_config_dict: dict[str, Any]) -> CppGameConfi
         # Handle rewards conversion
         rewards_dict = {}
         if merged_config.get("rewards"):
-            if isinstance(merged_config["rewards"], PyAgentRewards):
-                rewards_dict = merged_config["rewards"].model_dump(exclude_none=True)
-            elif isinstance(merged_config["rewards"], dict):
-                rewards_dict = merged_config["rewards"]
+            rewards_dict = merged_config["rewards"]
 
         cpp_agent_group_params = {
             "freeze_duration": merged_config.get("freeze_duration", 0),
