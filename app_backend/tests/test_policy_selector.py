@@ -1,54 +1,13 @@
 from typing import Dict
 
 import pytest
-from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from testcontainers.postgres import PostgresContainer
 
-from metta.app_backend.metta_repo import MettaRepo
-from metta.app_backend.server import create_app
 from metta.app_backend.stats_client import StatsClient
 
 
 class TestPolicySelector:
     """Integration tests for the policy_selector functionality in heatmap endpoints."""
-
-    @pytest.fixture(scope="class")
-    def postgres_container(self):
-        """Create a PostgreSQL container for testing."""
-        try:
-            container = PostgresContainer(
-                image="postgres:17",
-                username="test_user",
-                password="test_password",
-                dbname="test_db",
-                driver=None,
-            )
-            container.start()
-            yield container
-            container.stop()
-        except Exception as e:
-            pytest.skip(f"Failed to start PostgreSQL container: {e}")
-
-    @pytest.fixture(scope="class")
-    def db_uri(self, postgres_container: PostgresContainer) -> str:
-        """Get the database URI for the test container."""
-        return postgres_container.get_connection_url()
-
-    @pytest.fixture(scope="class")
-    def metta_repo(self, db_uri: str) -> MettaRepo:
-        """Create a MettaRepo instance with the test database."""
-        return MettaRepo(db_uri)
-
-    @pytest.fixture(scope="class")
-    def test_app(self, metta_repo: MettaRepo) -> FastAPI:
-        """Create a test FastAPI app with dependency injection."""
-        return create_app(metta_repo)
-
-    @pytest.fixture(scope="class")
-    def test_client(self, test_app: FastAPI) -> TestClient:
-        """Create a test client."""
-        return TestClient(test_app)
 
     @pytest.fixture(scope="class")
     def stats_client(self, test_client: TestClient) -> StatsClient:
