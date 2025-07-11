@@ -207,7 +207,7 @@ MIGRATIONS = [
     ),
     SqlMigration(
         version=11,
-        description="Add eval_tasks and eval_task_episodes tables",
+        description="Add eval_tasks table",
         sql_statements=[
             """CREATE TABLE eval_tasks (
                 id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -221,16 +221,19 @@ MIGRATIONS = [
             )""",
             """CREATE INDEX idx_eval_tasks_status_assigned ON eval_tasks(status, assigned_at)""",
             """CREATE INDEX idx_eval_tasks_assignee ON eval_tasks(assignee)""",
-            """CREATE TABLE eval_task_episodes (
-                eval_task_id UUID NOT NULL REFERENCES eval_tasks(id),
-                episode_internal_id INTEGER NOT NULL REFERENCES episodes(internal_id),
-                PRIMARY KEY (eval_task_id, episode_internal_id)
-            )""",
             """CREATE INDEX idx_eval_tasks_policy_id ON eval_tasks(policy_id)""",
             """CREATE INDEX idx_eval_tasks_sim_suite ON eval_tasks(sim_suite)""",
             """CREATE INDEX idx_eval_tasks_unprocessed_assigned
                ON eval_tasks(assigned_at)
                WHERE status = 'unprocessed'""",
+        ],
+    ),
+    SqlMigration(
+        version=12,
+        description="Add eval_task_id to episodes table",
+        sql_statements=[
+            """ALTER TABLE episodes ADD COLUMN eval_task_id UUID REFERENCES eval_tasks(id)""",
+            """CREATE INDEX idx_episodes_eval_task_id ON episodes(eval_task_id)""",
         ],
     ),
 ]
@@ -388,9 +391,10 @@ class MettaRepo:
                     env_name,
                     primary_policy_id,
                     stats_epoch,
-                    attributes
+                    attributes,
+                    eval_task_id
                 ) VALUES (
-                    %s, %s, %s, %s, %s, %s, %s, %s
+                    %s, %s, %s, %s, %s, %s, %s, %s, %s
                 ) RETURNING id, internal_id
                 """,
                 (
@@ -402,6 +406,7 @@ class MettaRepo:
                     primary_policy_id,
                     stats_epoch,
                     Jsonb(attributes),
+                    eval_task_id,
                 ),
             )
             row = await result.fetchone()
@@ -436,16 +441,6 @@ class MettaRepo:
                   VALUES (%s, %s, %s, %s)
                   """,
                     rows,
-                )
-
-            # Insert eval_task_episode relationship if eval_task_id is provided
-            if eval_task_id is not None:
-                await con.execute(
-                    """
-                    INSERT INTO eval_task_episodes (eval_task_id, episode_internal_id)
-                    VALUES (%s, %s)
-                    """,
-                    (eval_task_id, episode_internal_id),
                 )
 
             return episode_id

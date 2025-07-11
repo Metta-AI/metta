@@ -270,28 +270,15 @@ class TestEvalTaskRoutes:
 
         assert episode.id is not None
 
-        # Verify the eval_task_episodes relationship was created in the database
+        # Verify the eval_task_id was set in the episodes table
         async with stats_repo.connect() as con:
-            # First get the episode's internal_id
             result = await con.execute(
-                "SELECT internal_id FROM episodes WHERE id = %s",
+                "SELECT eval_task_id FROM episodes WHERE id = %s",
                 (episode.id,),
             )
             episode_row = await result.fetchone()
             assert episode_row is not None
-            episode_internal_id = episode_row[0]
-
-            # Then check the join table
-            result = await con.execute(
-                """
-                SELECT COUNT(*) FROM eval_task_episodes
-                WHERE eval_task_id = %s AND episode_internal_id = %s
-                """,
-                (eval_task_uuid, episode_internal_id),
-            )
-            row = await result.fetchone()
-            assert row is not None
-            assert row[0] == 1  # Exactly one relationship should exist
+            assert episode_row[0] == eval_task_uuid
 
     def test_invalid_status_update(self, test_client, test_user_headers: Dict[str, str], test_policy_id: str):
         """Test that invalid status updates are rejected."""
