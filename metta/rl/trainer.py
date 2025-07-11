@@ -123,9 +123,6 @@ class MettaTrainer:
         self.timer = Stopwatch(logger)
         self.timer.start()
 
-        # Initialize eval replay URLs
-        self._eval_replay_urls: dict[str, str] = {}
-
         if self._master:
             self._memory_monitor = MemoryMonitor()
             self._system_monitor = SystemMonitor(
@@ -369,7 +366,6 @@ class MettaTrainer:
             self._maybe_save_training_state()
             wandb_policy_name = self._maybe_upload_policy_record_to_wandb()
             self._maybe_evaluate_policy(wandb_policy_name)
-            self._maybe_generate_replay()
             self._maybe_compute_grad_stats()
 
             self._on_train_step()
@@ -708,10 +704,25 @@ class MettaTrainer:
                 attributes={},
             ).id
 
-        logger.info(f"Simulating policy: {self.latest_saved_policy_uri} with config: {self.sim_suite_config}")
+        # Create an extended simulation suite that includes the training task
+        extended_suite_config = SimulationSuiteConfig(
+            name=self.sim_suite_config.name,
+            simulations=dict(self.sim_suite_config.simulations),  # Copy existing simulations
+            env_overrides=self.sim_suite_config.env_overrides,
+        )
+        
+        # Add training task to the suite
+        training_task_config = SingleEnvSimulationConfig(
+            env="/env/mettagrid/mettagrid",  # won't be used, dynamic `env_cfg()` should override all of it
+            num_episodes=1,
+            env_overrides=self._curriculum.get_task().env_cfg(),
+        )
+        extended_suite_config.simulations["eval/training_task"] = training_task_config
+
+        logger.info(f"Simulating policy: {self.latest_saved_policy_uri} with extended config including training task")
         evaluation_results = evaluate_policy(
             policy_record=self.latest_saved_policy_record,
-            simulation_suite=self.sim_suite_config,
+            simulation_suite=extended_suite_config,
             device=self.device,
             vectorization=self.cfg.vectorization,
             replay_dir=self.trainer_cfg.simulation.replay_dir,  # Pass replay_dir to enable replay generation
@@ -723,94 +734,55 @@ class MettaTrainer:
         )
         logger.info("Simulation complete")
         self.evals = evaluation_results.scores
-
-        # Store evaluation replay URLs for later use
-        self._eval_replay_urls = evaluation_results.replay_urls
-
-    def _maybe_generate_replay(self, force=False):
-        """Generate replay if on replay interval"""
-        if self._should_run(self.trainer_cfg.simulation.replay_interval, force):
-            self._generate_and_upload_replay()
-
-    @with_instance_timer("_generate_and_upload_replay", log_level=logging.INFO)
-    def _generate_and_upload_replay(self):
-        # Create a simulation suite config with just the training task
-        training_sim_config = SingleEnvSimulationConfig(
-            env="/env/mettagrid/mettagrid",  # won't be used, dynamic `env_cfg()` should override all of it
-            num_episodes=1,
-            env_overrides=self._curriculum.get_task().env_cfg(),
-        )
-
-        training_suite_config = SimulationSuiteConfig(
-            name="training_replay",
-            simulations={"eval/training_task": training_sim_config},
-        )
-
-        # Use evaluate_policy to generate the training replay
-        logger.info(f"Generating training replay for epoch {self.epoch}")
-        training_replay_results = evaluate_policy(
-            policy_record=self.latest_saved_policy_record,
-            simulation_suite=training_suite_config,
-            device=self.device,
-            vectorization=self.cfg.vectorization,
-            replay_dir=self.trainer_cfg.simulation.replay_dir,
-            policy_store=self.policy_store,
-            stats_client=self._stats_client,
-            logger=logger,
-        )
-
-        if self.wandb_run is not None:
-            # Combine all replay URLs (evaluation + training)
-            all_replay_urls = {}
-
-            # Add evaluation replay URLs
-            if self._eval_replay_urls:
-                all_replay_urls.update(self._eval_replay_urls)
-
-            # Add training replay URL
-            if training_replay_results.replay_urls:
-                all_replay_urls.update(training_replay_results.replay_urls)
-
-            # Create unified HTML with all replay links
-            html_content = f"<h3>Replays for Epoch {self.epoch}</h3>"
-
-            if all_replay_urls:
-                # Separate training and evaluation replays
-                training_replays = {k: v for k, v in all_replay_urls.items() if "training_task" in k}
-                eval_replays = {k: v for k, v in all_replay_urls.items() if "training_task" not in k}
-
-                # Add training replay link if available
-                if training_replays:
-                    html_content += "<p><strong>Training Environment:</strong></p><ul>"
-                    for sim_name, replay_url in sorted(training_replays.items()):
-                        player_url = "https://metta-ai.github.io/metta/?replayUrl=" + replay_url
-                        # Clean up the display name
-                        display_name = sim_name.replace("eval/", "")
-                        html_content += f'<li><a href="{player_url}" target="_blank">{display_name}</a></li>'
-                    html_content += "</ul>"
-
-                # Add evaluation replay links if available
-                if eval_replays:
-                    html_content += "<p><strong>Evaluation Environments:</strong></p><ul>"
-                    for sim_name, replay_url in sorted(eval_replays.items()):
-                        player_url = "https://metta-ai.github.io/metta/?replayUrl=" + replay_url
-                        html_content += f'<li><a href="{player_url}" target="_blank">{sim_name}</a></li>'
-                    html_content += "</ul>"
-            else:
-                html_content += "<p>No replays available.</p>"
-
-            # Log the unified HTML
-            link_summary = {"replays/all_links": wandb.Html(html_content)}
+        
+        # Generate and upload replay HTML if we have wandb
+        if self.wandb_run is not None and evaluation_results.replay_urls:
+            self._upload_replay_html(evaluation_results.replay_urls)
+    
+    def _upload_replay_html(self, replay_urls: dict[str, str]):
+        """Upload replay HTML to wandb"""
+        # Create unified HTML with all replay links
+        html_content = f"<h3>Replays for Epoch {self.epoch}</h3>"
+        
+        if replay_urls:
+            # Separate training and evaluation replays
+            training_replays = {k: v for k, v in replay_urls.items() if "training_task" in k}
+            eval_replays = {k: v for k, v in replay_urls.items() if "training_task" not in k}
+            
+            # Add training replay link if available
+            if training_replays:
+                html_content += "<p><strong>Training Environment:</strong></p><ul>"
+                for sim_name, replay_url in sorted(training_replays.items()):
+                    player_url = "https://metta-ai.github.io/metta/?replayUrl=" + replay_url
+                    # Clean up the display name
+                    display_name = sim_name.replace("eval/", "")
+                    html_content += f'<li><a href="{player_url}" target="_blank">{display_name}</a></li>'
+                html_content += "</ul>"
+            
+            # Add evaluation replay links if available
+            if eval_replays:
+                html_content += "<p><strong>Evaluation Environments:</strong></p><ul>"
+                for sim_name, replay_url in sorted(eval_replays.items()):
+                    player_url = "https://metta-ai.github.io/metta/?replayUrl=" + replay_url
+                    html_content += f'<li><a href="{player_url}" target="_blank">{sim_name}</a></li>'
+                html_content += "</ul>"
+        else:
+            html_content += "<p>No replays available.</p>"
+        
+        # Log the unified HTML
+        link_summary = {
+            "replays/all_links": wandb.Html(html_content)
+        }
+        self.wandb_run.log(link_summary)
+        
+        # Also log individual link for backward compatibility
+        if "eval/training_task" in replay_urls:
+            training_url = replay_urls["eval/training_task"]
+            player_url = "https://metta-ai.github.io/metta/?replayUrl=" + training_url
+            link_summary = {
+                "replays/link": wandb.Html(f'<a href="{player_url}">MetaScope Replay (Epoch {self.epoch})</a>')
+            }
             self.wandb_run.log(link_summary)
-
-            # Also log individual link for backward compatibility
-            if "eval/training_task" in all_replay_urls:
-                training_url = all_replay_urls["eval/training_task"]
-                player_url = "https://metta-ai.github.io/metta/?replayUrl=" + training_url
-                link_summary = {
-                    "replays/link": wandb.Html(f'<a href="{player_url}">MetaScope Replay (Epoch {self.epoch})</a>')
-                }
-                self.wandb_run.log(link_summary)
 
     @with_instance_timer("_process_stats")
     def _process_stats(self):
