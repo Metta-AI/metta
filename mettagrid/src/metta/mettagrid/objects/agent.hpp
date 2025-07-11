@@ -140,7 +140,7 @@ public:
 
   std::vector<PartialObservationToken> obs_features() const override {
     std::vector<PartialObservationToken> features;
-    features.reserve(5 + this->inventory.size());
+    features.reserve(6 + this->inventory.size());
     features.push_back({ObservationFeature::TypeId, static_cast<ObservationType>(type_id)});
     features.push_back({ObservationFeature::Group, static_cast<ObservationType>(group)});
     features.push_back({ObservationFeature::Frozen, static_cast<ObservationType>(frozen != 0 ? 1 : 0)});
