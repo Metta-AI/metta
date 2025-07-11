@@ -8,7 +8,7 @@ import { onFrame, updateSelection } from './main.js'
 import { parseHtmlColor, find } from './htmlutils.js'
 import { updateHoverPanel, updateReadout, HoverPanel } from './hoverpanels.js'
 import { search, searchMatch } from './search.js'
-
+import { renderMinimapObjects } from './minimap.js'
 
 /** Generates a color from an agent ID. */
 function colorFromId(agentId: number) {
@@ -778,17 +778,25 @@ export function drawMap(panel: PanelInfo) {
   ctx.scale(panel.zoomLevel, panel.zoomLevel)
   ctx.translate(panel.panPos.x(), panel.panPos.y())
 
-  drawFloor()
-  drawWalls()
-  drawTrajectory()
-  drawObjects()
-  drawActions()
-  drawSelection()
-  drawInventory()
-  drawRewards()
-  drawVisibility()
-  drawGrid()
-  drawThoughtBubbles()
+  if (panel.zoomLevel < Common.MINIMAP_ZOOM_THRESHOLD) {
+    /** Draws a simplified block-based version of the map similar to the standalone
+     * minimap.  This is used when the user zooms out far enough that normal
+     * sprites would be unreadable. */
+    renderMinimapObjects(Common.TILE_SIZE, -Common.TILE_SIZE / 2, -Common.TILE_SIZE / 2)
+    drawSelection()
+  } else {
+    drawFloor()
+    drawWalls()
+    drawTrajectory()
+    drawObjects()
+    drawActions()
+    drawSelection()
+    drawInventory()
+    drawRewards()
+    drawVisibility()
+    drawGrid()
+    drawThoughtBubbles()
+  }
 
   if (search.active) {
     // Draw the black overlay over the map.

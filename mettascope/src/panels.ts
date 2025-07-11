@@ -92,7 +92,8 @@ export class PanelInfo {
 
     if (ui.scrollDelta !== 0) {
       const oldMousePoint = this.transformOuter(ui.mousePos)
-      this.zoomLevel = this.zoomLevel + ui.scrollDelta / Common.SCROLL_ZOOM_FACTOR
+      // Use exponential zoom for smooth feel at any zoom level
+      this.zoomLevel = this.zoomLevel * Math.pow(1 - Common.ZOOM_SENSITIVITY, ui.scrollDelta)
       this.zoomLevel = Math.max(Math.min(this.zoomLevel, Common.MAX_ZOOM_LEVEL), Common.MIN_ZOOM_LEVEL)
       const newMousePoint = this.transformOuter(ui.mousePos)
       if (oldMousePoint != null && newMousePoint != null) {

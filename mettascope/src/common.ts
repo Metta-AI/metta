@@ -11,11 +11,12 @@ export const ctx = new Context3d(find('#global-canvas') as HTMLCanvasElement)
 
 // Constants
 export const MIN_ZOOM_LEVEL = 0.025
-export const MAX_ZOOM_LEVEL = 2.0
-export const DEFAULT_ZOOM_LEVEL = 1 / 2
+export const MAX_ZOOM_LEVEL = 2.5
+export const DEFAULT_ZOOM_LEVEL = 1 / 3
 export const DEFAULT_TRACE_ZOOM_LEVEL = 1 / 4
 export const SPLIT_DRAG_THRESHOLD = 10 // Pixels to detect split dragging.
-export const SCROLL_ZOOM_FACTOR = 1000 // Divisor for scroll delta to zoom conversion.
+export const ZOOM_SENSITIVITY = 0.005 // Controls zoom speed - smaller = slower, smoother zoom
+export const MINIMAP_ZOOM_THRESHOLD = 0.10 // when to switch the map to 'minimap style' rendering
 export const PANEL_BOTTOM_MARGIN = 60
 export const HEADER_HEIGHT = 60
 export const FOOTER_HEIGHT = 128
