@@ -2,38 +2,16 @@
 
 import asyncio
 import time
-from typing import AsyncGenerator
 
 import httpx
 import pytest
-import pytest_asyncio
 from fastapi import FastAPI
 
-from metta.app_backend.metta_repo import MettaRepo
+from tests.base_async_test import BaseAsyncTest
 
 
-class TestSQLConcurrency:
+class TestSQLConcurrency(BaseAsyncTest):
     """Tests for SQL route concurrency to validate async behavior."""
-
-    @pytest_asyncio.fixture(scope="function")
-    async def metta_repo(self, db_uri: str) -> AsyncGenerator[MettaRepo, None]:
-        """Create a MettaRepo instance with the test database."""
-        repo = MettaRepo(db_uri)
-        yield repo
-        # Ensure pool is closed gracefully
-        if repo._pool is not None:
-            try:
-                await repo._pool.close()
-            except RuntimeError:
-                # Event loop might be closed, ignore
-                pass
-
-    @pytest.fixture(scope="function")
-    def test_app(self, metta_repo: MettaRepo) -> FastAPI:
-        """Create a test FastAPI app with dependency injection."""
-        from metta.app_backend.server import create_app
-
-        return create_app(metta_repo)
 
     @pytest.fixture(scope="function")
     def base_url(self, test_app: FastAPI) -> str:
