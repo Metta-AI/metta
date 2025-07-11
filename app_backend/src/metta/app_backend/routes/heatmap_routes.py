@@ -282,10 +282,17 @@ def build_heatmap(evaluations: List[PolicyEvaluation], all_eval_names: List[str]
 class CachedHeatmap:
     """Cached heatmap data with metadata."""
 
-    def __init__(self, evaluations: List[PolicyEvaluation], eval_names: List[str]):
-        self.evaluations = evaluations
+    def __init__(
+        self,
+        eval_names: List[str],
+        latest_evaluations: List[PolicyEvaluation],
+        best_evaluations: List[PolicyEvaluation],
+        last_episode_id: int,
+    ):
         self.eval_names = eval_names
-        self.last_episode_id = max(e.episode_id for e in evaluations)
+        self.latest_evaluations = latest_evaluations
+        self.best_evaluations = best_evaluations
+        self.last_episode_id = last_episode_id
 
 
 class HeatmapCache:
@@ -301,10 +308,11 @@ class HeatmapCache:
 
     def log_cache_stats(self) -> None:
         """Log cache statistics."""
+        total_rows = sum(len(entry.latest_evaluations) + len(entry.best_evaluations) for entry in self.cache.values())
         logger.info(
             f"Heatmap cache stats: {len(self.cache)} entries, {len(self.access_order)} access order, "
             + f"memory usage: {sys.getsizeof(self.cache)} bytes, "
-            + f"rows per entry: {sum(len(entry.evaluations) for entry in self.cache.values()) / len(self.cache)}"
+            + f"rows per entry: {total_rows / len(self.cache)}"
         )
 
     async def get(self, suite: str, metric: str, selector: str) -> HeatmapData:
@@ -333,36 +341,29 @@ class HeatmapCache:
                         # Update cache with new data
                         cached = await self._update_cache(con, suite, metric, cached)
 
-                    # Apply selector and build heatmap
-                    eval_names_set = set(cached.eval_names)
-                    if selector == "best":
-                        selected_evals = select_best_per_run(cached.evaluations, eval_names_set)
-                    else:
-                        selected_evals = select_latest_per_run(cached.evaluations)
-                    return build_heatmap(selected_evals, cached.eval_names)
                 else:
                     # Build new cache entry
-                    return await self._build_cache_entry(con, suite, metric, selector)
+                    cached = await self._build_cache_entry(con, suite, metric)
+                if selector == "best":
+                    return build_heatmap(cached.best_evaluations, cached.eval_names)
+                else:
+                    return build_heatmap(cached.latest_evaluations, cached.eval_names)
 
-    async def _build_cache_entry(self, con: AsyncConnection, suite: str, metric: str, selector: str) -> HeatmapData:
+    async def _build_cache_entry(self, con: AsyncConnection, suite: str, metric: str) -> CachedHeatmap:
         """Build a new cache entry."""
         # Fetch all data
         evaluations = await fetch_evaluation_data(con, suite, metric)
         eval_names = await get_evaluation_names(con, suite)
         eval_names_set = set(eval_names)
 
+        latest_evaluations = select_latest_per_run(evaluations)
+        best_evaluations = select_best_per_run(evaluations, eval_names_set)
+
         # Store in cache
-        entry = CachedHeatmap(evaluations, eval_names)
+        entry = CachedHeatmap(eval_names, latest_evaluations, best_evaluations, max(e.episode_id for e in evaluations))
         self._store(suite, metric, entry)
-
         self.log_cache_stats()
-
-        # Apply selector and build heatmap
-        if selector == "best":
-            selected_evals = select_best_per_run(evaluations, eval_names_set)
-        else:
-            selected_evals = select_latest_per_run(evaluations)
-        return build_heatmap(selected_evals, eval_names)
+        return entry
 
     async def _update_cache(
         self, con: AsyncConnection, suite: str, metric: str, cached: CachedHeatmap
@@ -380,18 +381,23 @@ class HeatmapCache:
         )
 
         # Create map starting with cached evaluations
-        eval_map = {(e.policy_uri, e.eval_name): e for e in cached.evaluations}
+        latest_eval_map = {(e.policy_uri, e.eval_name): e for e in cached.latest_evaluations}
+        best_eval_map = {(e.policy_uri, e.eval_name): e for e in cached.best_evaluations}
 
         # Replace/update with complete data for affected policies
         for eval in affected_evals:
-            eval_map[(eval.policy_uri, eval.eval_name)] = eval
-
-        all_evals = list(eval_map.values())
+            latest_eval_map[(eval.policy_uri, eval.eval_name)] = eval
+            best_eval_map[(eval.policy_uri, eval.eval_name)] = eval
 
         # Update eval names if needed
         eval_names = await get_evaluation_names(con, suite)
 
-        entry = CachedHeatmap(all_evals, eval_names)
+        latest_evaluations = select_latest_per_run(list(latest_eval_map.values()))
+        best_evaluations = select_best_per_run(list(best_eval_map.values()), set(eval_names))
+
+        entry = CachedHeatmap(
+            eval_names, latest_evaluations, best_evaluations, max(e.episode_id for e in affected_evals)
+        )
         self.cache[(suite, metric)] = entry
 
         self.log_cache_stats()
