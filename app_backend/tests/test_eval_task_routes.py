@@ -316,3 +316,157 @@ class TestEvalTaskRoutes:
         )
         assert update_response.status_code == 400
         assert "Invalid status" in update_response.json()["detail"]
+
+    def test_update_task_with_error_reason(self, test_client, test_user_headers: Dict[str, str], test_policy_id: str):
+        """Test updating task status to error with an error reason."""
+        # Create and claim a task
+        create_response = test_client.post(
+            "/tasks",
+            json={
+                "policy_id": test_policy_id,
+                "git_hash": "error_reason_test",
+                "sim_suite": "navigation",
+            },
+            headers=test_user_headers,
+        )
+        assert create_response.status_code == 200
+        task_id = create_response.json()["id"]
+
+        claim_response = test_client.post(
+            "/tasks/claim",
+            json={
+                "eval_task_ids": [task_id],
+                "assignee": "worker_error",
+            },
+            headers=test_user_headers,
+        )
+        assert claim_response.status_code == 200
+
+        # Update task to error status with error reason
+        error_reason = "Failed to checkout git hash: fatal: reference is not a tree"
+        update_response = test_client.post(
+            "/tasks/claimed/update",
+            json={
+                "assignee": "worker_error",
+                "statuses": {task_id: {"status": "error", "error_reason": error_reason}},
+            },
+            headers=test_user_headers,
+        )
+        assert update_response.status_code == 200
+        assert update_response.json()[task_id] == "error"
+
+        # Verify task is no longer available (error tasks are not re-queued)
+        available_response = test_client.get("/tasks/available", headers=test_user_headers)
+        available_ids = [task["id"] for task in available_response.json()["tasks"]]
+        assert task_id not in available_ids
+
+    def test_update_task_mixed_formats(self, test_client, test_user_headers: Dict[str, str], test_policy_id: str):
+        """Test updating multiple tasks with mixed string and object formats."""
+        # Create and claim multiple tasks
+        task_ids = []
+        for i in range(3):
+            create_response = test_client.post(
+                "/tasks",
+                json={
+                    "policy_id": test_policy_id,
+                    "git_hash": f"mixed_test_{i}",
+                    "sim_suite": "all",
+                },
+                headers=test_user_headers,
+            )
+            assert create_response.status_code == 200
+            task_ids.append(create_response.json()["id"])
+
+        # Claim all tasks
+        claim_response = test_client.post(
+            "/tasks/claim",
+            json={
+                "eval_task_ids": task_ids,
+                "assignee": "worker_mixed",
+            },
+            headers=test_user_headers,
+        )
+        assert claim_response.status_code == 200
+        assert len(claim_response.json()) == 3
+
+        # Update with mixed formats
+        update_response = test_client.post(
+            "/tasks/claimed/update",
+            json={
+                "assignee": "worker_mixed",
+                "statuses": {
+                    task_ids[0]: "done",  # String format
+                    task_ids[1]: {  # Object format with error
+                        "status": "error",
+                        "error_reason": "Simulation failed: OOM",
+                    },
+                    task_ids[2]: {  # Object format without error
+                        "status": "canceled",
+                        "error_reason": None,
+                    },
+                },
+            },
+            headers=test_user_headers,
+        )
+        assert update_response.status_code == 200
+        result = update_response.json()
+        assert result[task_ids[0]] == "done"
+        assert result[task_ids[1]] == "error"
+        assert result[task_ids[2]] == "canceled"
+
+    def test_error_reason_stored_in_db(
+        self, test_client, test_user_headers: Dict[str, str], test_policy_id: str, stats_repo: MettaRepo
+    ):
+        """Test that error_reason is properly stored in the database attributes."""
+        # Create and claim a task
+        create_response = test_client.post(
+            "/tasks",
+            json={
+                "policy_id": test_policy_id,
+                "git_hash": "db_error_test",
+                "sim_suite": "navigation",
+            },
+            headers=test_user_headers,
+        )
+        assert create_response.status_code == 200
+        task_id = create_response.json()["id"]
+
+        claim_response = test_client.post(
+            "/tasks/claim",
+            json={
+                "eval_task_ids": [task_id],
+                "assignee": "worker_db_test",
+            },
+            headers=test_user_headers,
+        )
+        assert claim_response.status_code == 200
+
+        # Update with error and reason
+        error_reason = "Database connection timeout after 30 seconds"
+        update_response = test_client.post(
+            "/tasks/claimed/update",
+            json={
+                "assignee": "worker_db_test",
+                "statuses": {task_id: {"status": "error", "error_reason": error_reason}},
+            },
+            headers=test_user_headers,
+        )
+        assert update_response.status_code == 200
+
+        # Query the database directly to verify error_reason is stored
+        import asyncio
+
+        async def check_db():
+            async with stats_repo.connect() as con:
+                result = await con.execute(
+                    "SELECT status, attributes FROM eval_tasks WHERE id = %s", (uuid.UUID(task_id),)
+                )
+                row = await result.fetchone()
+                assert row is not None
+                assert row[0] == "error"  # status
+                attributes = row[1]
+                assert attributes is not None
+                assert "error_reason" in attributes
+                assert attributes["error_reason"] == error_reason
+
+        asyncio.run(check_db())
