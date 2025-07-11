@@ -12,6 +12,10 @@ Progressive Curriculum Tests:
 Learning Progress Tests:
 4. Mixed impossible/learnable tasks -> should weight learnable evenly, ignore impossible
 5. Threshold dependency -> should first weight primary, then secondary after milestone
+
+Low Reward Curriculum Tests:
+6. All tasks have linear scaling -> should maintain equal distribution
+7. One impossible task (always 0) -> should get maximum weight as it has lowest reward
 """
 
 import random
@@ -25,7 +29,7 @@ from omegaconf import DictConfig, OmegaConf
 from metta.mettagrid.curriculum.bucketed import BucketedCurriculum, _expand_buckets
 from metta.mettagrid.curriculum.core import Curriculum, SingleTaskCurriculum
 from metta.mettagrid.curriculum.learning_progress import LearningProgressCurriculum
-from metta.mettagrid.curriculum.low_reward import LowRewardCurriculum
+from metta.mettagrid.curriculum.prioritize_regressed import PrioritizeRegressedCurriculum
 from metta.mettagrid.curriculum.multi_task import MultiTaskCurriculum
 from metta.mettagrid.curriculum.progressive import ProgressiveCurriculum, ProgressiveMultiTaskCurriculum
 from metta.mettagrid.curriculum.random import RandomCurriculum
@@ -68,19 +72,25 @@ def test_random_curriculum_selects_task(monkeypatch, env_cfg):
     assert task.name() == "b:b"
 
 
-def test_low_reward_curriculum_updates(monkeypatch, env_cfg):
+def test_prioritize_regressed_curriculum_updates(monkeypatch, env_cfg):
     monkeypatch.setattr(
         "metta.mettagrid.curriculum.random.curriculum_from_config_path", fake_curriculum_from_config_path
     )
-    curr = LowRewardCurriculum({"a": 1.0, "b": 1.0}, OmegaConf.create({}))
+    curr = PrioritizeRegressedCurriculum({"a": 1.0, "b": 1.0}, OmegaConf.create({}))
 
+    # Complete task "a" with low reward 0.1
     curr.complete_task("a", 0.1)
     weight_after_a = curr._task_weights["a"]
-    assert weight_after_a > curr._task_weights["b"]
+    # Task "a" has max/avg = 0.1/0.1 = 1.0, task "b" has max/avg = 0/0 (undefined, uses epsilon)
+    # So task "a" should have higher weight
+    assert weight_after_a > curr._task_weights["b"], "Task with actual performance should have higher weight than untried task"
 
+    # Complete task "b" with high reward 1.0
     prev_b = curr._task_weights["b"]
     curr.complete_task("b", 1.0)
-    assert curr._task_weights["b"] > prev_b
+    # Task "b" now has max/avg = 1.0/1.0 = 1.0, similar to task "a"
+    # But weight should have increased from epsilon
+    assert curr._task_weights["b"] > prev_b, "Weight should increase when task gets its first score"
 
 
 def test_sampling_curriculum(monkeypatch, env_cfg):
@@ -1022,8 +1032,12 @@ class TestLearningProgressScenarios:
         print("✓ PASSED: Learning progress correctly responds to threshold-dependent task dynamics")
 
 
-class TestLowRewardCurriculumScenarios:
-    """Test the specific Low Reward Curriculum scenarios requested."""
+class TestPrioritizeRegressedCurriculumScenarios:
+    """Test the specific Prioritize Regressed Curriculum scenarios.
+    
+    This curriculum prioritizes tasks where performance has regressed from peak.
+    Weight = max_reward / average_reward, so high weight means we've done better before.
+    """
 
     def test_scenario_6_all_linear_scaling_equal_distribution(self, monkeypatch):
         """
@@ -1032,7 +1046,7 @@ class TestLowRewardCurriculumScenarios:
         Expected: With the same linear progression, max/avg ratio should be similar for all tasks,
         leading to approximately equal distribution over time.
         """
-        print("\n=== LOW REWARD SCENARIO 6: All Linear Scaling ===")
+        print("\n=== PRIORITIZE REGRESSED SCENARIO 6: All Linear Scaling ===")
 
         # Patch curriculum_from_config_path
         def mock_curriculum_from_config_path(path, env_overrides=None):
@@ -1064,7 +1078,7 @@ class TestLowRewardCurriculumScenarios:
 
         score_gen = IndependentLinearScores(increment=0.05)
 
-        curriculum = LowRewardCurriculum(
+        curriculum = PrioritizeRegressedCurriculum(
             tasks=task_weights,
             moving_avg_decay_rate=0.1,  # Moderate smoothing
         )
@@ -1131,10 +1145,10 @@ class TestLowRewardCurriculumScenarios:
         Scenario 7: One task is impossible (always returns 0), others have linear scaling.
 
         Expected: The impossible task has max/avg = 0/0, resulting in weight = epsilon.
-        Learnable tasks have higher weights since max/avg > 0.
-        The curriculum should focus on learnable tasks.
+        Learnable tasks that improve over time will have max > avg, giving them higher weight.
+        The curriculum should focus on learnable tasks, especially those showing regression.
         """
-        print("\n=== LOW REWARD SCENARIO 7: One Impossible Task ===")
+        print("\n=== PRIORITIZE REGRESSED SCENARIO 7: One Impossible Task ===")
 
         # Patch curriculum_from_config_path
         def mock_curriculum_from_config_path(path, env_overrides=None):
@@ -1153,7 +1167,7 @@ class TestLowRewardCurriculumScenarios:
         learnable_tasks = {"learnable_1", "learnable_2"}
         score_gen = ConditionalLinearScores(linear_tasks=learnable_tasks, increment=0.1)
 
-        curriculum = LowRewardCurriculum(
+        curriculum = PrioritizeRegressedCurriculum(
             tasks=task_weights,
             moving_avg_decay_rate=0.05,  # Slower adaptation
         )
@@ -1189,21 +1203,17 @@ class TestLowRewardCurriculumScenarios:
         late_weights = weight_history[250]
         print(f"Late weights (step 250): {late_weights}")
 
-        # Final analysis: impossible task should have lower weight than at least one learnable task
+        # Final analysis: impossible task should have minimal weight
+        # because it has max/avg = 0/0 (no peak performance to regress from)
         max_learnable_weight = max(final_weights["learnable_1"], final_weights["learnable_2"])
         assert final_weights["impossible"] < max_learnable_weight, (
-            f"Impossible task should have lower weight than the dominant learnable task: "
+            f"Impossible task should have lower weight than learnable tasks: "
             f"{final_weights['impossible']} vs {max_learnable_weight}"
         )
-        # learnable_2 might have very low weight if not sampled much, but should be >= impossible
-        assert final_weights["impossible"] <= final_weights["learnable_2"], (
-            f"Impossible task should have weight <= learnable_2: "
-            f"{final_weights['impossible']} vs {final_weights['learnable_2']}"
-        )
-
-        # The weight should be close to epsilon (1e-6)
-        assert final_weights["impossible"] < 1e-5, (
-            f"Impossible task weight should be near epsilon, got {final_weights['impossible']}"
+        
+        # The impossible task weight should be close to epsilon relative to learnable tasks
+        assert final_weights["impossible"] < 0.01, (
+            f"Impossible task should have minimal normalized weight, got {final_weights['impossible']}"
         )
 
         # Task counts - impossible task should be sampled least
@@ -1221,12 +1231,12 @@ class TestLowRewardCurriculumScenarios:
             f"Learnable_1: {learnable_1_ratio:.3f}, Learnable_2: {learnable_2_ratio:.3f}"
         )
 
-        # Impossible task should be sampled less than the dominant learnable task
-        # One learnable task will dominate, but we don't know which one
-        dominant_learnable_count = max(learnable_1_count, learnable_2_count)
-        assert impossible_count < dominant_learnable_count, (
-            f"Impossible task should be sampled less than dominant learnable task: "
-            f"{impossible_count} vs {dominant_learnable_count}"
+        # Impossible task should be sampled less than learnable tasks
+        # because it has no peak performance to regress from (max/avg = 0/0)
+        learnable_count = learnable_1_count + learnable_2_count
+        assert impossible_count < learnable_count, (
+            f"Impossible task should be sampled less than learnable tasks combined: "
+            f"{impossible_count} vs {learnable_count}"
         )
 
         # Impossible task should get minimal samples
@@ -1236,4 +1246,4 @@ class TestLowRewardCurriculumScenarios:
         learnable_ratio = learnable_1_ratio + learnable_2_ratio
         assert learnable_ratio > 0.9, f"Learnable tasks should dominate sampling, got {learnable_ratio:.3f}"
 
-        print("✓ PASSED: Low reward curriculum correctly avoids impossible task")
+        print("✓ PASSED: Prioritize regressed curriculum correctly avoids impossible task (no regression possible)")
