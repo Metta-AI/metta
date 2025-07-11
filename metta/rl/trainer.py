@@ -709,6 +709,7 @@ class MettaTrainer:
             name=self.sim_suite_config.name,
             simulations=dict(self.sim_suite_config.simulations),  # Copy existing simulations
             env_overrides=self.sim_suite_config.env_overrides,
+            num_episodes=self.sim_suite_config.num_episodes,
         )
 
         # Add training task to the suite
