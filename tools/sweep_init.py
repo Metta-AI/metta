@@ -12,14 +12,13 @@ import sys
 import time
 from logging import Logger
 
-import hydra
 import wandb
 from omegaconf import DictConfig, ListConfig, OmegaConf
 
 from metta.common.util.lock import run_once
 from metta.common.util.logging_helpers import setup_mettagrid_logger
 from metta.common.util.numpy_helpers import clean_numpy_types
-from metta.common.util.script_decorators import metta_script
+from metta.common.util.script_decorators import hydra_main, metta_script
 from metta.common.wandb.wandb_context import WandbContext
 from metta.sweep.protein_metta import MettaProtein
 from metta.sweep.wandb_utils import create_wandb_sweep, generate_run_id_for_sweep, sweep_id_from_name
@@ -27,7 +26,7 @@ from metta.sweep.wandb_utils import create_wandb_sweep, generate_run_id_for_swee
 logger = setup_mettagrid_logger("sweep_init")
 
 
-@hydra.main(config_path="../configs", config_name="sweep_job", version_base=None)
+@hydra_main(config_path="../configs", config_name="sweep_job", version_base=None)
 @metta_script
 def main(cfg: DictConfig | ListConfig) -> int:
     # Extract sweep base name from CLI sweep_run parameter (e.g., "simple_sweep")

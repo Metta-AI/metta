@@ -6,10 +6,10 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Any, List, Protocol, Tuple
 
-import hydra
 import numpy as np
 from omegaconf import DictConfig, OmegaConf
 
+from metta.common.util.script_decorators import hydra_main
 from metta.mettagrid.curriculum.core import SingleTaskCurriculum
 from metta.mettagrid.mettagrid_env import (
     MettaGridEnv,
@@ -330,7 +330,7 @@ def run_renderer(cfg: DictConfig) -> None:
     print(f"\n🎯 Final Results: {total_reward:.3f} reward over {step_count:,} steps")
 
 
-@hydra.main(version_base=None, config_path="../configs", config_name="renderer_job")
+@hydra_main(version_base=None, config_path="../configs", config_name="renderer_job")
 def main(cfg: DictConfig) -> None:
     run_renderer(cfg)
 

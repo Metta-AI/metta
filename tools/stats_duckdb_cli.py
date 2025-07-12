@@ -8,11 +8,11 @@ Usage:
 
 import subprocess
 
-import hydra
 from omegaconf import DictConfig
 
 from metta.common.util.logging_helpers import setup_mettagrid_logger
 from metta.common.util.runtime_configuration import setup_mettagrid_environment
+from metta.common.util.script_decorators import hydra_main
 from metta.eval.eval_stats_db import EvalStatsDB
 from metta.mettagrid.util.file import local_copy
 
@@ -41,7 +41,7 @@ def launch_duckdb_cli(file_path):
     return subprocess.call(["duckdb", str(file_path)], shell=False)
 
 
-@hydra.main(version_base=None, config_path="../configs", config_name="analyze_job")
+@hydra_main(version_base=None, config_path="../configs", config_name="analyze_job")
 def main(cfg: DictConfig) -> int:
     """
     Main function to download a stats file and launch duckdb against it.

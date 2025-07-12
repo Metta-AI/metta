@@ -1,14 +1,13 @@
 #!/usr/bin/env -S uv run
 # Starts a websocket server that allows you to play as a metta agent.
 
-import hydra
 from omegaconf import OmegaConf
 
 import mettascope.server as server
-from metta.common.util.script_decorators import get_metta_logger, metta_script
+from metta.common.util.script_decorators import get_metta_logger, hydra_main, metta_script
 
 
-@hydra.main(version_base=None, config_path="../configs", config_name="replay_job")
+@hydra_main(version_base=None, config_path="../configs", config_name="replay_job")
 @metta_script
 def main(cfg):
     logger = get_metta_logger()
