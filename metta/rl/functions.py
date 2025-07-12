@@ -18,6 +18,7 @@ from torch import Tensor
 
 from metta.agent.policy_state import PolicyState
 from metta.agent.util.debug import assert_shape
+from metta.eval.eval_request_config import EvalRewardSummary
 from metta.mettagrid.util.dict_utils import unroll_nested_dict
 from metta.rl.experience import Experience
 from metta.rl.losses import Losses
@@ -621,14 +622,12 @@ def process_training_stats(
 def compute_timing_stats(
     timer: Any,
     agent_step: int,
-    world_size: int = 1,
 ) -> Dict[str, Any]:
     """Compute timing statistics from a Stopwatch timer.
 
     Args:
         timer: Stopwatch instance
         agent_step: Current agent step count
-        world_size: Number of distributed processes
 
     Returns:
         Dictionary with timing statistics including:
@@ -651,10 +650,6 @@ def compute_timing_stats(
 
     epoch_steps_per_second = epoch_steps / wall_time_for_lap if wall_time_for_lap > 0 else 0
     steps_per_second = timer.get_rate(agent_step) if wall_time > 0 else 0
-
-    # Scale by world size for distributed training
-    epoch_steps_per_second *= world_size
-    steps_per_second *= world_size
 
     timing_stats = {
         **{
@@ -694,10 +689,9 @@ def build_wandb_stats(
     system_stats: Dict[str, Any],
     memory_stats: Dict[str, Any],
     parameters: Dict[str, Any],
-    evals: Dict[str, float],
+    evals: EvalRewardSummary,
     agent_step: int,
     epoch: int,
-    world_size: int = 1,
 ) -> Dict[str, Any]:
     """Build complete statistics dictionary for wandb logging.
 
@@ -712,7 +706,6 @@ def build_wandb_stats(
         evals: Evaluation scores
         agent_step: Current agent step
         epoch: Current epoch
-        world_size: Number of distributed processes
 
     Returns:
         Complete dictionary ready for wandb logging
@@ -724,8 +717,7 @@ def build_wandb_stats(
     }
 
     # Add evaluation scores to overview
-    category_scores_map = {key.split("/")[0]: value for key, value in evals.items() if key.endswith("/score")}
-    for category, score in category_scores_map.items():
+    for category, score in evals.category_scores.items():
         overview[f"{category}_score"] = score
 
     # Also add reward_vs_total_time if we have reward
@@ -734,7 +726,7 @@ def build_wandb_stats(
 
     # X-axis values for wandb
     metric_stats = {
-        "metric/agent_step": agent_step * world_size,
+        "metric/agent_step": agent_step,
         "metric/epoch": epoch,
         "metric/total_time": timing_info["wall_time"],
         "metric/train_time": timing_info["train_time"],
@@ -746,7 +738,7 @@ def build_wandb_stats(
         **{f"losses/{k}": v for k, v in processed_stats["losses_stats"].items()},
         **{f"experience/{k}": v for k, v in processed_stats["experience_stats"].items()},
         **{f"parameters/{k}": v for k, v in parameters.items()},
-        **{f"eval_{k}": v for k, v in evals.items()},
+        **{f"eval_{k}": v for k, v in evals.to_wandb_metrics_format().items()},
         **system_stats,  # Already has monitor/ prefix from SystemMonitor.stats()
         **{f"trainer_memory/{k}": v for k, v in memory_stats.items()},
         **processed_stats["environment_stats"],

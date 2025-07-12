@@ -18,25 +18,24 @@ public:
   }
 
 protected:
-  bool _handle_action(Agent* actor, ActionArg arg) override {
+  bool _handle_action(Agent* actor, ActionArg /*arg*/) override {
+    // target the square we are facing
     GridLocation target_loc = _grid->relative_location(actor->location, static_cast<Orientation>(actor->orientation));
-    MettaObject* target = static_cast<MettaObject*>(_grid->object_at(target_loc));
-    if (target == nullptr) {
-      target_loc.layer = GridLayer::Object_Layer;
-      target = static_cast<MettaObject*>(_grid->object_at(target_loc));
-    }
-    if (target == nullptr) {
-      return false;
+
+    // Check layers in swap priority order
+    const auto layers = {GridLayer::ObjectLayer, GridLayer::AgentLayer};
+
+    for (auto layer : layers) {
+      target_loc.layer = layer;
+      GridObject* target = this->_grid->object_at(target_loc);
+      if (target && target->swappable()) {
+        actor->stats.incr("action." + this->_action_name + "." + target->type_name);
+        this->_grid->swap_objects(actor->id, target->id);
+        return true;
+      }
     }
 
-    if (!target->swappable()) {
-      return false;
-    }
-
-    actor->stats.incr("action." + _action_name + "." + target->type_name);
-
-    _grid->swap_objects(actor->id, target->id);
-    return true;
+    return false;
   }
 };
 
