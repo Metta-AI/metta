@@ -30,6 +30,7 @@ from metta.common.profiling.memory_monitor import MemoryMonitor
 from metta.common.profiling.stopwatch import Stopwatch
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.system_monitor import SystemMonitor
+from metta.eval.eval_request_config import EvalRewardSummary
 from metta.eval.eval_stats_db import EvalStatsDB
 from metta.mettagrid import mettagrid_c  # noqa: F401
 from metta.mettagrid.mettagrid_env import dtype_actions
@@ -437,7 +438,6 @@ while agent_step < trainer_config.total_timesteps:
     timing_info = compute_timing_stats(
         timer=timer,
         agent_step=agent_step,
-        world_size=world_size,
     )
 
     # Build complete stats for wandb
@@ -470,10 +470,9 @@ while agent_step < trainer_config.total_timesteps:
             system_stats=system_stats,
             memory_stats=memory_stats,
             parameters=parameters,
-            evals=evaluation_scores.get(epoch, {}),
+            evals=evaluation_scores.get(epoch, EvalRewardSummary()),
             agent_step=agent_step,
             epoch=epoch,
-            world_size=world_size,
         )
 
         # Log to wandb if available
@@ -577,7 +576,7 @@ while agent_step < trainer_config.total_timesteps:
         logger.info("Evaluation complete")
 
         # Build evaluation metrics
-        eval_scores = {}
+        category_scores: dict[str, float] = {}
         categories = set()
         for sim_name in evaluation_config.simulations.keys():
             categories.add(sim_name.split("/")[0])
@@ -587,16 +586,20 @@ while agent_step < trainer_config.total_timesteps:
             logger.info(f"{category} score: {score}")
             record_heartbeat()
             if score is not None:
-                eval_scores[f"{category}/score"] = score
+                category_scores[category] = score
 
         # Get detailed per-simulation scores
+        per_sim_scores: dict[tuple[str, str], float] = {}
         all_scores = stats_db.simulation_scores(saved_policy_path, "reward")
         for (_, sim_name, _), score in all_scores.items():
             category = sim_name.split("/")[0]
             sim_short_name = sim_name.split("/")[-1]
-            eval_scores[f"{category}/{sim_short_name}"] = score
+            per_sim_scores[(category, sim_short_name)] = score
 
-        evaluation_scores[epoch] = eval_scores
+        evaluation_scores[epoch] = EvalRewardSummary(
+            category_scores=category_scores,
+            simulation_scores=per_sim_scores,
+        )
         stats_db.close()
 
     # Replay generation (master only)

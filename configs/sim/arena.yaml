@@ -13,3 +13,5 @@ simulations:
     env: /env/mettagrid/arena/advanced
   arena/tag:
     env: /env/mettagrid/arena/tag
+  arena/advanced_poor:
+    env: /env/mettagrid/arena/advanced_poor

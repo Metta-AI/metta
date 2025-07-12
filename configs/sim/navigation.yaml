@@ -11,6 +11,8 @@ simulations:
     env: env/mettagrid/navigation/evals/emptyspace_outofsight
   navigation/emptyspace_sparse:
     env: env/mettagrid/navigation/evals/emptyspace_sparse
+  navigation/emptyspace_sparse_medium:
+    env: env/mettagrid/navigation/evals/emptyspace_sparse_medium
   navigation/walls_withinsight:
     env: env/mettagrid/navigation/evals/walls_withinsight
   navigation/walls_outofsight:
