@@ -274,13 +274,16 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
         std::round((static_cast<float>(current_step) / max_steps) * std::numeric_limits<ObservationType>::max()));
   }
 
+  ObservationType step_lsb = static_cast<ObservationType>(current_step & 0xFF);
+
   ObservationType reward_int = static_cast<ObservationType>(std::round(rewards_view(agent_idx) * 100.0f));
 
   std::vector<PartialObservationToken> global_tokens = {
       {ObservationFeature::EpisodeCompletionPct, episode_completion_pct},
       {ObservationFeature::LastAction, static_cast<ObservationType>(action)},
       {ObservationFeature::LastActionArg, static_cast<ObservationType>(action_arg)},
-      {ObservationFeature::LastReward, reward_int}};
+      {ObservationFeature::LastReward, reward_int},
+      {ObservationFeature::StepLsb, step_lsb}};
 
   // Global tokens are always at the center of the observation.
   uint8_t global_location =
