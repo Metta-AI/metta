@@ -13,7 +13,6 @@ import { initObjectMenu } from './objmenu.js'
 import { drawTimeline, initTimeline, updateTimeline, onScrubberChange, onTraceMinimapChange } from './timeline.js'
 import { initDemoMode, startDemoMode, stopDemoMode, doDemoMode } from './demomode.js'
 
-
 /** A flag to prevent multiple calls to requestAnimationFrame. */
 let frameRequested = false
 
@@ -122,15 +121,15 @@ export function onResize() {
 
 /** Shows all UI elements. */
 function showUi() {
-  find("#header").classList.remove('hidden')
-  find("#footer").classList.remove('hidden')
+  find('#header').classList.remove('hidden')
+  find('#footer').classList.remove('hidden')
   onResize()
 }
 
 /** Hides all UI elements. */
 function hideUi() {
-  find("#header").classList.add('hidden')
-  find("#footer").classList.add('hidden')
+  find('#header').classList.add('hidden')
+  find('#footer').classList.add('hidden')
   state.showMiniMap = false
   state.showInfo = false
   state.showTraces = false
@@ -355,10 +354,7 @@ onEvent('keydown', 'body', (target: HTMLElement, e: Event) => {
   let event = e as KeyboardEvent
 
   // Prevent keyboard events if we are focused on an text field.
-  if (
-    document.activeElement instanceof HTMLInputElement ||
-    document.activeElement instanceof HTMLTextAreaElement
-  ) {
+  if (document.activeElement instanceof HTMLInputElement || document.activeElement instanceof HTMLTextAreaElement) {
     return
   }
 
@@ -457,9 +453,6 @@ export function onFrame() {
   }
 
   ctx.flush()
-
-  // Update URL parameters with the current state once per frame.
-  updateUrlParams()
 
   if (state.isPlaying) {
     state.partialStep += state.playbackSpeed
@@ -566,6 +559,8 @@ async function parseUrlParams() {
 
 /** Handles share button clicks. */
 function onShareButtonClick() {
+  // Update URL parameters with the current state before sharing.
+  updateUrlParams()
   // Copy the current URL to the clipboard.
   navigator.clipboard.writeText(window.location.href)
   // Show a toast notification.
@@ -830,7 +825,6 @@ initTimeline()
 initDemoMode()
 
 window.addEventListener('load', async () => {
-
   // Use a local atlas texture.
   const atlasImageUrl = 'dist/atlas.png'
   const atlasJsonUrl = 'dist/atlas.json'
