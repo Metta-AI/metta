@@ -20,7 +20,8 @@ from metta.common.util.runtime_configuration import setup_mettagrid_environment
 
 def metta_script(main: Callable[[DictConfig], int | None], config_name: str) -> None:
     """
-    Wrapper for Metta script entry points that performs environment setup and configuration.
+    Wrapper for Metta script entry points that performs environment setup and
+    configuration before calling the `main` function.
 
     Example usage:
     ```python
@@ -29,13 +30,14 @@ def metta_script(main: Callable[[DictConfig], int | None], config_name: str) -> 
     def main(cfg: DictConfig):
         ...
 
-    metta_script(main, "config_name")
+    # call main() with the config from configs/my_job.yaml
+    metta_script(main, "my_job")
     ```
 
-    Calling this function will call the `main` function with the config, but only when the script is run as a script.
+    Calling this function will do nothing if the script is loaded as a module.
 
     This wrapper:
-    1. Configures Hydra to load the `config_name` config
+    1. Configures Hydra to load the `config_name` config and pass it to the `main` function
     2. Sets up logging to both stdout and run_dir/logs/
     3. Calls setup_mettagrid_environment() to:
        - Create required directories (including run_dir)
@@ -52,8 +54,10 @@ def metta_script(main: Callable[[DictConfig], int | None], config_name: str) -> 
     if caller_globals.get("__name__") != "__main__":
         return
 
+    script_path = caller_globals["__file__"]
+
     # Wrapped main function that we want to run.
-    # This code runs after the Hydra was configured. Depending on args such as `--help`, it may not run at all.
+    # This code runs after the Hydra was configured. Depending on CLI args such as `--help`, it may not run at all.
     def extended_main(cfg: ListConfig | DictConfig) -> None:
         if not isinstance(cfg, DictConfig):
             raise ValueError("Metta scripts must be run with a DictConfig")
@@ -64,7 +68,7 @@ def metta_script(main: Callable[[DictConfig], int | None], config_name: str) -> 
         # Then add file logging (after console handlers are set up)
         setup_file_logging(cfg)
 
-        logger.info(f"Starting {main.__name__} with run_dir: {cfg.get('run_dir', 'not set')}")
+        logger.info(f"Starting {main.__name__} from {script_path} with run_dir: {cfg.get('run_dir', 'not set')}")
 
         # Patch the config to set the device to "cpu" if CUDA is not available
         set_hardware_configurations(cfg, logger)
@@ -86,15 +90,17 @@ def metta_script(main: Callable[[DictConfig], int | None], config_name: str) -> 
     functools.update_wrapper(extended_main, main)
 
     # Hydra needs the config path to be relative to the original script.
-    script_dir = os.path.abspath(os.path.dirname(caller_globals["__file__"]))
+    script_dir = os.path.abspath(os.path.dirname(script_path))
     abs_config_path = str(get_repo_root() / "configs")
     relative_config_path = os.path.relpath(abs_config_path, script_dir)
 
-    decorated_main = hydra.main(config_path=relative_config_path, config_name=config_name, version_base=None)(
+    # Calling `hydra.main` as a function instead of a decorator, because `extended_main` function
+    # needs to be patched with `functools.update_wrapper` first.
+    configured_main = hydra.main(config_path=relative_config_path, config_name=config_name, version_base=None)(
         extended_main
     )
 
-    decorated_main()
+    configured_main()
 
 
 def setup_file_logging(cfg: DictConfig) -> None:
