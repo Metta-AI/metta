@@ -79,6 +79,8 @@ def train(cfg: DictConfig | ListConfig, wandb_run: WandbRun | None, logger: Logg
     policy_store = PolicyStore(cfg, wandb_run)  # type: ignore[reportArgumentType]
     stats_client: StatsClient | None = get_stats_client(cfg, logger)
 
+    logger.info("config:\n%s", OmegaConf.to_yaml(cfg))
+
     # Instantiate the trainer directly with the typed config
     trainer = hydra.utils.instantiate(
         cfg.trainer,

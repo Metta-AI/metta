@@ -1,5 +1,5 @@
 defaults:
-  - env/mettagrid/communication/defaults
+  - /env/mettagrid/communication/defaults@
   - _self_
 
 game:

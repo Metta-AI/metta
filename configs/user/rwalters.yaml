@@ -1,14 +1,18 @@
 # @package __global__
+
 defaults:
+  - override /agent: fast_5x5
+  - override /sim: communication
   - _self_
 
 seed: null
 
+# multicore training
 device: cpu
-
 vectorization: multiprocessing
 
 trainer:
+  # multicore training
   num_workers: 4
   update_epochs: 1
   batch_size: 4096
@@ -19,17 +23,19 @@ trainer:
     checkpoint_interval: 10
   bptt_horizon: 8
 
-  env: /env/mettagrid/curriculum/communication
+  curriculum: /env/mettagrid/curriculum/communication
   simulation:
     evaluate_interval: 300
+
+env_overrides:
+  game:
+    max_steps: 50
 
 policy_uri: null
 npc_policy_uri: null
 eval_db_uri: null
 
-env_overrides:
-  game:
-    max_steps: 50
+
 
 eval:
   policy_uri: ${..policy_uri}
@@ -44,7 +50,7 @@ analyzer:
 sweep:
   metric: "action.use.altar.agent"
 
-run_id: 0
+run_id: 2
 run: ${oc.env:USER}.local.${now:MMDD}.${run_id}
 trained_policy_uri: ${run_dir}/checkpoints
 sweep_name: "${oc.env:USER}.local.sweep.${run_id}"

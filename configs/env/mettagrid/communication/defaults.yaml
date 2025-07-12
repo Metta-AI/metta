@@ -1,3 +1,5 @@
+# the agent can not be overridden here so I am putting it in my user file for now
+
 defaults:
   - _self_
 
@@ -54,8 +56,19 @@ game:
 
   objects:
     altar:
+      type_id: 8
+      output_resources:
+        heart: 1
       cooldown: 255
+      max_output: 50
+      conversion_ticks: 1
+      initial_resource_count: 1
       #TODO: does -1 mean "forever" here?
+
+    wall:
+      type_id: 1
+      swappable: false
+
 
   groups:
     # team 1 is meant to learn to communicate and collect hearts
@@ -70,4 +83,5 @@ game:
       id: 2
       sprite: 4
       group_reward_pct: 0.0
-      props: {glyph: ??} # must be overridden
+      props:
+        glyph: ?? # must be overridden
