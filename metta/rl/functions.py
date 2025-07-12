@@ -20,6 +20,7 @@ from metta.agent.policy_state import PolicyState
 from metta.agent.util.debug import assert_shape
 from metta.eval.eval_request_config import EvalRewardSummary
 from metta.mettagrid.util.dict_utils import unroll_nested_dict
+from metta.rl import mps
 from metta.rl.experience import Experience
 from metta.rl.losses import Losses
 
@@ -227,19 +228,22 @@ def compute_advantage(
     vtrace_c_clip: float,
     device: torch.device,
 ) -> Tensor:
-    """CUDA kernel for puffer advantage with automatic CPU fallback.
-
+    """CUDA kernel for puffer advantage with automatic CPU & MPS fallback.
     This matches the trainer.py implementation exactly.
     """
-    # Get correct device
+
     device = torch.device(device) if isinstance(device, str) else device
 
-    # Move tensors to device and compute advantage
+    if str(device) == "mps":
+        return mps.advantage(
+            values, rewards, dones, importance_sampling_ratio, vtrace_rho_clip, vtrace_c_clip, gamma, gae_lambda, device
+        )
+
+    # CUDA implementation using custom kernel
     tensors = [values, rewards, dones, importance_sampling_ratio, advantages]
     tensors = [t.to(device) for t in tensors]
     values, rewards, dones, importance_sampling_ratio, advantages = tensors
 
-    # Create context manager that only applies CUDA device context if needed
     device_context = torch.cuda.device(device) if str(device).startswith("cuda") else nullcontext()
     with device_context:
         torch.ops.pufferlib.compute_puff_advantage(
