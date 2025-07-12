@@ -92,6 +92,14 @@ hoverPanel.addEventListener('mousedown', (e: MouseEvent) => {
 /** Updates the hover panel's visibility, position, and DOM tree. */
 export function updateHoverPanel(object: any) {
   if (object !== null && object !== undefined) {
+    // Is there a popup open for this object?
+    // Then don't show a new one.
+    for (let panel of ui.hoverPanels) {
+      if (panel.object === object) {
+        return
+      }
+    }
+
     let typeName = state.replay.object_types[getAttr(object, 'type')]
     if (typeName == 'wall') {
       // Don't show hover panel for walls.

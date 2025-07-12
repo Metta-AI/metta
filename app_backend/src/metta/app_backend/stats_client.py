@@ -194,6 +194,7 @@ class StatsClient:
         simulation_suite: Optional[str] = None,
         replay_url: Optional[str] = None,
         attributes: Optional[Dict[str, Any]] = None,
+        eval_task_id: Optional[uuid.UUID] = None,
     ) -> ClientEpisodeResponse:
         """
         Record a new episode with agent policies and metrics.
@@ -207,6 +208,7 @@ class StatsClient:
             simulation_suite: Optional simulation suite identifier
             replay_url: Optional URL to the replay
             attributes: Optional additional attributes
+            eval_task_id: Optional UUID of the eval task this episode is for
 
         Returns:
             ClientEpisodeResponse containing the created episode UUID
@@ -219,6 +221,7 @@ class StatsClient:
         primary_policy_id_str = str(primary_policy_id)
         stats_epoch_str = str(stats_epoch) if stats_epoch else None
 
+        eval_task_id_str = str(eval_task_id) if eval_task_id else None
         data = EpisodeCreate(
             agent_policies=agent_policies_str,
             agent_metrics=agent_metrics,
@@ -228,6 +231,7 @@ class StatsClient:
             simulation_suite=simulation_suite,
             replay_url=replay_url,
             attributes=attributes or {},
+            eval_task_id=eval_task_id_str,
         )
         headers = {"X-Auth-Token": self.machine_token}
         response = self.http_client.post("/stats/episodes", json=data.model_dump(), headers=headers)
