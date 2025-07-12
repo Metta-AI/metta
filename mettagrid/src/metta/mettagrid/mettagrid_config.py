@@ -72,6 +72,12 @@ class AttackActionConfig(ActionConfig):
     defense_resources: Optional[Dict[str, int]] = Field(default_factory=dict)
 
 
+class ChangeGlyphActionConfig(ActionConfig):
+    """Change glyph action configuration."""
+
+    number_of_glyphs: int = Field(default=0, ge=0, le=255)
+
+
 class ActionsConfig(BaseModelWithForbidExtra):
     """Actions configuration."""
 
@@ -83,6 +89,7 @@ class ActionsConfig(BaseModelWithForbidExtra):
     attack: AttackActionConfig
     swap: ActionConfig
     change_color: ActionConfig
+    change_glyph: ChangeGlyphActionConfig
 
 
 class WallConfig(BaseModelWithForbidExtra):

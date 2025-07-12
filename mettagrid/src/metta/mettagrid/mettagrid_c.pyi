@@ -97,6 +97,9 @@ class ActionConfig:
 class AttackActionConfig(ActionConfig):
     defense_resources: dict[int, int]
 
+class ChangeGlyphActionConfig(ActionConfig):
+    number_of_glyphs: int
+
 class GameConfig:
     num_agents: int
     max_steps: int
