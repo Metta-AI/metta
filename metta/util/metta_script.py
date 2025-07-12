@@ -113,8 +113,14 @@ def setup_file_logging(cfg: DictConfig) -> None:
     logs_dir = os.path.join(run_dir, "logs")
     os.makedirs(logs_dir, exist_ok=True)
 
+    node_index = os.environ.get("NODE_INDEX", "0")
+    if node_index == "0":
+        log_file = "script.log"
+    else:
+        log_file = f"script_{node_index}.log"
+
     # Set up file handler for the root logger
-    log_file = os.path.join(logs_dir, "script.log")
+    log_file = os.path.join(logs_dir, log_file)
     file_handler = logging.FileHandler(log_file, mode="a")
 
     # Use the same formatter as the existing console handler
