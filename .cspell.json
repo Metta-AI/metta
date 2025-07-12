@@ -100,6 +100,7 @@
     "initializedcheck",
     "iomanip",
     "iosfwd",
+    "ising",
     "isinstance",
     "jmespath",
     "keepdim",

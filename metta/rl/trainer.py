@@ -52,7 +52,7 @@ from metta.rl.torch_profiler import TorchProfiler
 from metta.rl.trainer_checkpoint import TrainerCheckpoint
 from metta.rl.trainer_config import create_trainer_config
 from metta.rl.vecenv import make_vecenv
-from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
+from metta.sim.simulation_config import SimulationSuiteConfig
 
 try:
     from pufferlib import _C  # noqa: F401 - Required for torch.ops.pufferlib
@@ -712,13 +712,14 @@ class MettaTrainer:
             num_episodes=self.sim_suite_config.num_episodes,
         )
 
-        # Add training task to the suite
-        training_task_config = SingleEnvSimulationConfig(
-            env="/env/mettagrid/mettagrid",  # won't be used, dynamic `env_cfg()` should override all of it
-            num_episodes=1,
-            env_overrides=self._curriculum.get_task().env_cfg(),
-        )
-        extended_suite_config.simulations["eval/training_task"] = training_task_config
+        # Add training task to the suite -- seems broken?
+
+        # training_task_config = SingleEnvSimulationConfig(
+        #     env="/env/mettagrid/mettagrid",  # won't be used, dynamic `env_cfg()` should override all of it
+        #     num_episodes=1,
+        #     env_overrides=self._curriculum.get_task().env_cfg(),
+        # )
+        # extended_suite_config.simulations["eval/training_task"] = training_task_config
 
         logger.info(f"Simulating policy: {self.latest_saved_policy_uri} with extended config including training task")
         evaluation_results = evaluate_policy(
