@@ -19,6 +19,7 @@ struct ConverterConfig : public GridObjectConfig {
                   const std::map<InventoryItem, InventoryQuantity>& input_resources,
                   const std::map<InventoryItem, InventoryQuantity>& output_resources,
                   short max_output,
+                  short max_conversions,
                   unsigned short conversion_ticks,
                   unsigned short cooldown,
                   InventoryQuantity initial_resource_count,
@@ -27,6 +28,7 @@ struct ConverterConfig : public GridObjectConfig {
         input_resources(input_resources),
         output_resources(output_resources),
         max_output(max_output),
+        max_conversions(max_conversions),
         conversion_ticks(conversion_ticks),
         cooldown(cooldown),
         initial_resource_count(initial_resource_count),
@@ -35,6 +37,7 @@ struct ConverterConfig : public GridObjectConfig {
   std::map<InventoryItem, InventoryQuantity> input_resources;
   std::map<InventoryItem, InventoryQuantity> output_resources;
   short max_output;
+  short max_conversions;
   unsigned short conversion_ticks;
   unsigned short cooldown;
   InventoryQuantity initial_resource_count;
@@ -105,6 +108,7 @@ public:
   // is to make Mines (etc) have a maximum output.
   // -1 means no limit
   short max_output;
+  short max_conversions;            // Maximum number of conversions allowed
   unsigned short conversion_ticks;  // Time to produce output
   unsigned short cooldown;          // Time to wait after producing before starting again
   bool converting;                  // Currently in production phase
@@ -112,17 +116,20 @@ public:
   unsigned char color;
   EventManager* event_manager;
   StatsTracker stats;
+  unsigned short conversions_completed;  // Number of conversions completed
 
   Converter(GridCoord r, GridCoord c, const ConverterConfig& cfg)
       : input_resources(cfg.input_resources),
         output_resources(cfg.output_resources),
         max_output(cfg.max_output),
+        max_conversions(cfg.max_conversions),
         conversion_ticks(cfg.conversion_ticks),
         cooldown(cfg.cooldown),
         color(cfg.color) {
     GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c, GridLayer::ObjectLayer));
     this->converting = false;
     this->cooling_down = false;
+    this->conversions_completed = 0;
 
     // Initialize inventory with initial_resource_count for all output types
     for (const auto& [item, _] : this->output_resources) {
@@ -137,12 +144,18 @@ public:
 
   void finish_converting() {
     this->converting = false;
+    this->conversions_completed++;
     stats.incr("conversions.completed");
 
     // Add output to inventory
     for (const auto& [item, amount] : this->output_resources) {
       HasInventory::update_inventory(item, static_cast<InventoryDelta>(amount));
       stats.add(stats.inventory_item_name(item) + ".produced", amount);
+    }
+
+    // Check if we've reached max_conversions
+    if (this->max_conversions >= 0 && this->conversions_completed >= this->max_conversions) {
+      this->cooldown = -1;  // Set to permanent stop
     }
 
     if (this->cooldown > 0) {
