@@ -454,9 +454,6 @@ export function onFrame() {
 
   ctx.flush()
 
-  // Update URL parameters with the current state once per frame.
-  updateUrlParams()
-
   if (state.isPlaying) {
     state.partialStep += state.playbackSpeed
     if (state.partialStep >= 1) {
@@ -562,6 +559,8 @@ async function parseUrlParams() {
 
 /** Handles share button clicks. */
 function onShareButtonClick() {
+  // Update URL parameters with the current state before sharing.
+  updateUrlParams()
   // Copy the current URL to the clipboard.
   navigator.clipboard.writeText(window.location.href)
   // Show a toast notification.
