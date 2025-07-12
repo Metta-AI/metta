@@ -1,0 +1,18 @@
+{
+    "name": "Metta Development",
+    "dockerComposeFile": "docker-compose.yml",
+    "service": "metta-dev",
+    "workspaceFolder": "/workspace/metta",
+    "customizations": {
+        "vscode": {
+            "settings": {
+                "dev.containers.defaultExtensions": [
+                    "ms-python.python",
+                    "charliermarsh.ruff",
+                    "ms-vscode.cpptools"
+                ]
+            }
+        }
+    },
+    "postCreateCommand": "echo 'Choose a dev container configuration: gpu-dev (default), cpu-dev, or remote-gpu. See docs/vscode_devcontainer.md for details.'"
+}

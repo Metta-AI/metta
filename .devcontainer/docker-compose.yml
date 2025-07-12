@@ -1,0 +1,61 @@
+version: '3.8'
+
+services:
+  metta-dev:
+    build:
+      context: ..
+      dockerfile: devops/docker/Dockerfile
+    image: metta-dev:latest
+
+    # GPU support - comment out for CPU-only development
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+
+    volumes:
+      # Workspace
+      - ..:/workspace/metta:cached
+
+      # X11 forwarding for GUI applications
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      - /mnt/wslg:/mnt/wslg:rw
+
+      # Docker socket for container-in-container
+      - /var/run/docker.sock:/var/run/docker.sock
+
+      # Persistent storage
+      - metta-train-data:/workspace/metta/train_dir
+      - metta-checkpoints:/workspace/metta/checkpoints
+      - metta-cache:/root/.cache
+      - metta-wandb:/workspace/metta/.wandb
+
+    network_mode: host
+
+    shm_size: 80g
+
+    ulimits:
+      nofile:
+        soft: 64000
+        hard: 64000
+      nproc:
+        soft: 640000
+        hard: 640000
+
+    stdin_open: true
+    tty: true
+
+    command: /bin/bash
+
+volumes:
+  metta-train-data:
+  metta-checkpoints:
+  metta-cache:
+  metta-wandb:
