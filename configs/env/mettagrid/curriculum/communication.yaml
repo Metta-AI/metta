@@ -9,7 +9,7 @@ tasks:
   /env/mettagrid/communication/training/left_ising_corridor: 1
   /env/mettagrid/communication/training/right_ising_corridor_mirror: 1
   /env/mettagrid/communication/training/right_ising_corridor: 1
-  /env/mettagrid/navigation_sequence/experiments/mem_balanced: 1
-  /env/mettagrid/navigation_sequence/experiments/mem_dense: 1
-  /env/mettagrid/navigation_sequence/experiments/mem_sparse: 1
+  # /env/mettagrid/navigation_sequence/experiments/mem_balanced: 1
+  # /env/mettagrid/navigation_sequence/experiments/mem_dense: 1
+  # /env/mettagrid/navigation_sequence/experiments/mem_sparse: 1
 

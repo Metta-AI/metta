@@ -1,12 +1,25 @@
 # @package __global__
-
-seed: null
-
 defaults:
   - _self_
 
+seed: null
+
+device: cpu
+
+vectorization: multiprocessing
+
 trainer:
-  env: /env/mettagrid/arena/advanced
+  num_workers: 4
+  update_epochs: 1
+  batch_size: 4096
+  minibatch_size: 1024
+  forward_pass_minibatch_target_size: 512
+  async_factor: 1
+  checkpoint:
+    checkpoint_interval: 10
+  bptt_horizon: 8
+
+  env: /env/mettagrid/curriculum/communication
   simulation:
     evaluate_interval: 300
 
@@ -16,7 +29,7 @@ eval_db_uri: null
 
 env_overrides:
   game:
-    max_steps: 1000
+    max_steps: 50
 
 eval:
   policy_uri: ${..policy_uri}
@@ -31,7 +44,7 @@ analyzer:
 sweep:
   metric: "action.use.altar.agent"
 
-run_id: 6
+run_id: 0
 run: ${oc.env:USER}.local.${now:MMDD}.${run_id}
 trained_policy_uri: ${run_dir}/checkpoints
 sweep_name: "${oc.env:USER}.local.sweep.${run_id}"
