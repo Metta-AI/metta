@@ -123,6 +123,7 @@ export type SQLQueryResponse = {
 export interface Repo {
   getSuites(): Promise<string[]>
   getMetrics(suite: string): Promise<string[]>
+  getAllMetrics(): Promise<string[]>
   getGroupIds(suite: string): Promise<string[]>
 
   getHeatmapData(
@@ -217,6 +218,10 @@ export class ServerRepo implements Repo {
 
   async getMetrics(suite: string): Promise<string[]> {
     return this.apiCall<string[]>(`/dashboard/suites/${encodeURIComponent(suite)}/metrics`)
+  }
+
+  async getAllMetrics(): Promise<string[]> {
+    return this.apiCall<string[]>('/dashboard/metrics')
   }
 
   async getGroupIds(suite: string): Promise<string[]> {
