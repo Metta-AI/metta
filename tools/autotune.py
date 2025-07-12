@@ -2,6 +2,8 @@
 import hydra
 import pufferlib.vector
 
+from metta.common.util.script_decorators import hydra_main
+
 
 def make_env():
     global env_config
@@ -14,7 +16,7 @@ def make_env():
     return env
 
 
-@hydra.main(version_base=None, config_path="../configs", config_name="config")
+@hydra_main(version_base=None, config_path="../configs", config_name="config")
 def main(cfg):
     global env_config
     env_config = cfg

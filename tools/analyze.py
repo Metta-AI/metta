@@ -1,17 +1,17 @@
 #!/usr/bin/env -S uv run
 """Analysis tool for MettaGrid evaluation results."""
 
-import hydra
 from omegaconf import DictConfig, OmegaConf
 
 from metta.agent.policy_store import PolicyStore
 from metta.common.util.logging_helpers import setup_mettagrid_logger
 from metta.common.util.runtime_configuration import setup_mettagrid_environment
+from metta.common.util.script_decorators import hydra_main
 from metta.eval.analysis import analyze
 from metta.eval.analysis_config import AnalysisConfig
 
 
-@hydra.main(version_base=None, config_path="../configs", config_name="analyze_job")
+@hydra_main(version_base=None, config_path="../configs", config_name="analyze_job")
 def main(cfg: DictConfig) -> None:
     setup_mettagrid_environment(cfg)
     logger = setup_mettagrid_logger("analyze")
