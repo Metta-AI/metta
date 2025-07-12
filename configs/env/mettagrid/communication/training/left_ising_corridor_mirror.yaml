@@ -1,0 +1,15 @@
+defaults:
+  - env/mettagrid/communication/defaults
+  - _self_
+
+game:
+  num_agents: 24
+
+  map_builder:
+    root:
+      params:
+        uri: configs/env/mettagrid/maps/communication/left_ising_24_agents_mirror.map
+
+  groups:
+    team_2:
+      props: {"color": 4} # "go left"
