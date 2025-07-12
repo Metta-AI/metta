@@ -10,6 +10,3 @@ game:
       params:
         uri: configs/env/mettagrid/maps/communication/bountiful_right.map
 
-  groups:
-    team_2:
-      props: {"color": 3} # "go right"

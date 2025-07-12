@@ -7,8 +7,8 @@ game:
   num_agents: ??
   obs_width: 5
   obs_height: 5
-  num_observation_tokens: 200
-  max_steps: 64
+  num_observation_tokens: 40
+  max_steps: 100
 
   # We could figure this out implicitly, but being explicit reduces the risk of people accidentally configuring
   # inventory they didn't intend (e.g., "ore" instead of "ore_red").
@@ -31,8 +31,10 @@ game:
     swap:
       enabled: false
     change_color:
+      enabled: false
+    change_glyph:
       enabled: true
-      #TODO: ideally we could set max_args here!
+      number_of_glyphs: 4
 
   agent:
     rewards:
@@ -61,11 +63,11 @@ game:
       id: 1
       sprite: 1
       group_reward_pct: 1.0
-      props: {"color": 0}
+      props: {glyph: 0}
 
     # team 2 is the signal agent and is locked in
     team_2:
       id: 2
       sprite: 4
       group_reward_pct: 0.0
-      props: {"color": ??} # must be overridden
+      props: {glyph: ??} # must be overridden

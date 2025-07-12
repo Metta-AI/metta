@@ -12,4 +12,4 @@ game:
 
   groups:
     team_2:
-      props: {"color": 2} # "go down"
+      props: {glyph: 2} # "go down"

@@ -9,7 +9,3 @@ game:
     root:
       params:
         uri: configs/env/mettagrid/maps/communication/bountiful_left.map
-
-  groups:
-    team_2:
-      props: {"color": 4} # "go left"
