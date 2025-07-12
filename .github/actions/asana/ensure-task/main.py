@@ -424,6 +424,14 @@ def ensure_asana_task_exists(
         asana_attachment_secret,
     )
     print(f"Created new Asana task: {new_task_url}")
+    existing_task = find_and_validate_task(project_id, github_url, github_url_field_id, asana_token, workspace_id)
+    if existing_task:
+        print(f"Found existing Asana task via search: {existing_task['permalink_url']}")
+        return existing_task["permalink_url"]
+    else:
+        print(f"No existing task found after creation with GitHub URL: {github_url}")
+        return new_task_url
+
     return new_task_url
 
 
