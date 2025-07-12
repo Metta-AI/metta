@@ -26,11 +26,11 @@ trainer:
   curriculum: /env/mettagrid/curriculum/communication
 
   simulation:
-    evaluate_interval: 500
+    evaluate_interval: 1000
 
 env_overrides:
   game:
-    max_steps: 50
+    max_steps: 200
 
 policy_uri: null
 npc_policy_uri: null
