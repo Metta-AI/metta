@@ -22,6 +22,18 @@ def metta_script(main: Callable[[DictConfig], int | None], config_name: str) -> 
     """
     Wrapper for Metta script entry points that performs environment setup and configuration.
 
+    Example usage:
+    ```python
+    from metta.util.metta_script import metta_script
+
+    def main(cfg: DictConfig):
+        ...
+
+    metta_script(main, "config_name")
+    ```
+
+    Calling this function will call the `main` function with the config, but only when the script is run as a script.
+
     This wrapper:
     1. Configures Hydra to load the `config_name` config
     2. Sets up logging to both stdout and run_dir/logs/
