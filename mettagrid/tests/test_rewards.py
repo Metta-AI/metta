@@ -155,7 +155,7 @@ def collect_heart_from_altar(env):
         return False, 0.0
 
     # Collect heart
-    obs, reward, success = perform_action(env, "get_items", 0)
+    obs, reward, success = perform_action(env, "get_output", 0)
     return success, reward
 
 

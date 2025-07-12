@@ -1,8 +1,8 @@
 #include <gtest/gtest.h>
 
 #include "actions/attack.hpp"
-#include "actions/get_items.hpp"
-#include "actions/put_items.hpp"
+#include "actions/get_output.hpp"
+#include "actions/put_recipe_items.hpp"
 #include "event.hpp"
 #include "grid.hpp"
 #include "objects/agent.hpp"
