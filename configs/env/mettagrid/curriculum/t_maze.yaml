@@ -1,0 +1,5 @@
+_target_: mettagrid.curriculum.RandomCurriculum
+
+tasks:
+  /env/mettagrid/memory/experimental/t_maze_blue: 1
+  /env/mettagrid/memory/experimental/t_maze_green: 1
