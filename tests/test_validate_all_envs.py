@@ -4,10 +4,10 @@ import pytest
 from botocore.exceptions import NoCredentialsError, ProfileNotFound
 from omegaconf import OmegaConf
 
-import metta.mettagrid.mettagrid_c_config
 from metta.common.util.mettagrid_cfgs import MettagridCfgFileMetadata
 from metta.common.util.resolvers import register_resolvers
 from metta.map.utils.storable_map import StorableMap
+from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
 
 register_resolvers()
 
@@ -65,4 +65,4 @@ class TestValidateAllEnvs:
         # uncomment for debugging
         print(OmegaConf.to_yaml(OmegaConf.create(game_config_dict)))
 
-        metta.mettagrid.mettagrid_c_config.from_mettagrid_config(cast(dict[str, Any], game_config_dict))
+        from_mettagrid_config(cast(dict[str, Any], game_config_dict))
