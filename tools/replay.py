@@ -1,19 +1,19 @@
 #!/usr/bin/env -S uv run
 # Generate a replay file that can be used in MettaScope to visualize a single run.
 
+import logging
 import platform
 from urllib.parse import quote
 
-import hydra
-from omegaconf import OmegaConf
+from omegaconf import DictConfig, OmegaConf
 
 import mettascope.server as server
 from metta.agent.policy_store import PolicyStore
 from metta.common.util.config import Config
-from metta.common.util.script_decorators import get_metta_logger, metta_script
 from metta.common.wandb.wandb_context import WandbContext
 from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SingleEnvSimulationConfig
+from metta.util.metta_script import metta_script
 
 
 # TODO: This job can be replaced with sim now that Simulations create replays
@@ -27,10 +27,8 @@ class ReplayJob(Config):
     open_browser_on_start: bool
 
 
-@hydra.main(version_base=None, config_path="../configs", config_name="replay_job")
-@metta_script
-def main(cfg):
-    logger = get_metta_logger()
+def main(cfg: DictConfig):
+    logger = logging.getLogger("tools.replay")
 
     logger.info(f"tools.replay job config:\n{OmegaConf.to_yaml(cfg, resolve=True)}")
 
@@ -75,5 +73,4 @@ def main(cfg):
                     server.run(cfg)
 
 
-if __name__ == "__main__":
-    main()
+metta_script(main, "replay_job")
