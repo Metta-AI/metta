@@ -33,7 +33,7 @@ game:
     change_color:
       enabled: false
     change_glyph:
-      enabled: true
+      enabled: false
       number_of_glyphs: 4
 
   map_builder:

@@ -243,7 +243,7 @@ TEST_F(MettaGridCppTest, AttackAction) {
   EXPECT_EQ(attacker->inventory[TestItems::ARMOR], 2);
 }
 
-TEST_F(MettaGridCppTest, PutItems) {
+TEST_F(MettaGridCppTest, PutRecipeItems) {
   Grid grid(10, 10);
 
   AgentConfig agent_cfg = create_test_agent_config();
@@ -276,7 +276,7 @@ TEST_F(MettaGridCppTest, PutItems) {
 
   // Create put_items action handler
   ActionConfig put_cfg({}, {});
-  PutItems put(put_cfg);
+  PutRecipeItems put(put_cfg);
   put.init(&grid);
 
   // Test putting matching items
@@ -293,7 +293,7 @@ TEST_F(MettaGridCppTest, PutItems) {
   EXPECT_EQ(generator->inventory[TestItems::HEART], 0);  // No heart in generator
 }
 
-TEST_F(MettaGridCppTest, GetItems) {
+TEST_F(MettaGridCppTest, GetOutput) {
   Grid grid(10, 10);
 
   AgentConfig agent_cfg = create_test_agent_config();
@@ -325,7 +325,7 @@ TEST_F(MettaGridCppTest, GetItems) {
 
   // Create get_items action handler
   ActionConfig get_cfg({}, {});
-  GetItems get(get_cfg);
+  GetOutput get(get_cfg);
   get.init(&grid);
 
   // Test getting output

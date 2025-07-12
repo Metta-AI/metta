@@ -1,5 +1,5 @@
-#ifndef ACTIONS_PUT_ITEMS_HPP_
-#define ACTIONS_PUT_ITEMS_HPP_
+#ifndef ACTIONS_PUT_RECIPE_ITEMS_HPP_
+#define ACTIONS_PUT_RECIPE_ITEMS_HPP_
 
 #include <string>
 
@@ -10,9 +10,9 @@
 #include "objects/converter.hpp"
 #include "types.hpp"
 
-class PutItems : public ActionHandler {
+class PutRecipeItems : public ActionHandler {
 public:
-  explicit PutItems(const ActionConfig& cfg) : ActionHandler(cfg, "put_items") {}
+  explicit PutRecipeItems(const ActionConfig& cfg) : ActionHandler(cfg, "put_items") {}
 
   unsigned char max_arg() const override {
     return 0;
@@ -53,4 +53,4 @@ protected:
   }
 };
 
-#endif  // ACTIONS_PUT_ITEMS_HPP_
+#endif  // ACTIONS_PUT_RECIPE_ITEMS_HPP_

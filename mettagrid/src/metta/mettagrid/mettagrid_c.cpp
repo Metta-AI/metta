@@ -78,9 +78,9 @@ MettaGrid::MettaGrid(const GameConfig& cfg, py::list map, unsigned int seed)
     std::string action_name_str = action_name;
 
     if (action_name_str == "put_items") {
-      _action_handlers.push_back(std::make_unique<PutItems>(*action_config));
+      _action_handlers.push_back(std::make_unique<PutRecipeItems>(*action_config));
     } else if (action_name_str == "get_items") {
-      _action_handlers.push_back(std::make_unique<GetItems>(*action_config));
+      _action_handlers.push_back(std::make_unique<GetOutput>(*action_config));
     } else if (action_name_str == "noop") {
       _action_handlers.push_back(std::make_unique<Noop>(*action_config));
     } else if (action_name_str == "move") {

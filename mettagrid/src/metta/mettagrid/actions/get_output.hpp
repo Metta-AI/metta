@@ -1,5 +1,5 @@
-#ifndef ACTIONS_GET_ITEMS_HPP_
-#define ACTIONS_GET_ITEMS_HPP_
+#ifndef ACTIONS_GET_OUTPUT_HPP_
+#define ACTIONS_GET_OUTPUT_HPP_
 
 #include <string>
 
@@ -10,9 +10,9 @@
 #include "objects/converter.hpp"
 #include "types.hpp"
 
-class GetItems : public ActionHandler {
+class GetOutput : public ActionHandler {
 public:
-  explicit GetItems(const ActionConfig& cfg) : ActionHandler(cfg, "get_items") {}
+  explicit GetOutput(const ActionConfig& cfg) : ActionHandler(cfg, "get_items") {}
 
   unsigned char max_arg() const override {
     return 0;
@@ -56,4 +56,4 @@ protected:
   }
 };
 
-#endif  // ACTIONS_GET_ITEMS_HPP_
+#endif  // ACTIONS_GET_OUTPUT_HPP_
