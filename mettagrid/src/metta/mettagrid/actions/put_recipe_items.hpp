@@ -12,7 +12,7 @@
 
 class PutRecipeItems : public ActionHandler {
 public:
-  explicit PutRecipeItems(const ActionConfig& cfg) : ActionHandler(cfg, "put_items") {}
+  explicit PutRecipeItems(const ActionConfig& cfg) : ActionHandler(cfg, "put_recipe_items") {}
 
   unsigned char max_arg() const override {
     return 0;
@@ -22,7 +22,7 @@ protected:
   bool _handle_action(Agent* actor, ActionArg /*arg*/) override {
     GridLocation target_loc = _grid->relative_location(actor->location, static_cast<Orientation>(actor->orientation));
     target_loc.layer = GridLayer::ObjectLayer;
-    // put_items only works on Converters, since only Converters have a recipe.
+    // put_recipe_items only works on Converters, since only Converters have a recipe.
     // Once we generalize this to `put`, we should be able to put to any HasInventory object, which
     // should include agents.
     Converter* converter = dynamic_cast<Converter*>(_grid->object_at(target_loc));

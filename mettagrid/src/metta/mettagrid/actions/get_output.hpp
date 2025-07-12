@@ -12,7 +12,7 @@
 
 class GetOutput : public ActionHandler {
 public:
-  explicit GetOutput(const ActionConfig& cfg) : ActionHandler(cfg, "get_items") {}
+  explicit GetOutput(const ActionConfig& cfg) : ActionHandler(cfg, "get_output") {}
 
   unsigned char max_arg() const override {
     return 0;
@@ -22,7 +22,7 @@ protected:
   bool _handle_action(Agent* actor, ActionArg /*arg*/) override {
     GridLocation target_loc = _grid->relative_location(actor->location, static_cast<Orientation>(actor->orientation));
     target_loc.layer = GridLayer::ObjectLayer;
-    // get_items only works on Converters, since only Converters have an output.
+    // get_output only works on Converters, since only Converters have an output.
     // Once we generalize this to `get`, we should be able to get from any HasInventory object, which
     // should include agents. That's (e.g.) why we're checking inventory_is_accessible.
     Converter* converter = dynamic_cast<Converter*>(_grid->object_at(target_loc));
