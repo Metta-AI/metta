@@ -11,7 +11,7 @@ import torch
 import torch.distributed
 import wandb
 from heavyball import ForeachMuon
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 
 from metta.agent.metta_agent import DistributedMettaAgent, make_policy
 from metta.agent.policy_metadata import PolicyMetadata
@@ -123,6 +123,8 @@ class MettaTrainer:
         self.timer = Stopwatch(logger)
         self.timer.start()
 
+        # Environment config tracking now handled by storing all task configs in wandb.config once
+
         if self._master:
             self._memory_monitor = MemoryMonitor()
             self._system_monitor = SystemMonitor(
@@ -135,6 +137,11 @@ class MettaTrainer:
         curriculum_config = trainer_cfg.curriculum_or_env
         env_overrides = DictConfig(trainer_cfg.env_overrides)
         self._curriculum = curriculum_from_config_path(curriculum_config, env_overrides)
+
+        # Load and store all task configs in wandb.config once at initialization
+        if self.wandb_run and self._master:
+            self._store_curriculum_task_configs(env_overrides)
+
         self._make_vecenv()
 
         metta_grid_env: MettaGridEnv = self.vecenv.driver_env  # type: ignore
@@ -383,7 +390,9 @@ class MettaTrainer:
         self._maybe_upload_policy_record_to_wandb(force=True)
 
     def _on_train_step(self):
-        pass
+        # Track the current task selection (configs are already in wandb.config)
+        task = self._curriculum.get_task()
+        self._track_env_config(task.env_cfg(), self.epoch)
 
     @with_instance_timer("_rollout")
     def _rollout(self):
@@ -867,6 +876,9 @@ class MettaTrainer:
         self.grad_stats.clear()
 
     def close(self):
+        """Clean up trainer resources."""
+        logger.info("Closing trainer")
+
         self.vecenv.close()
         if self._master:
             self._memory_monitor.clear()
@@ -1029,6 +1041,153 @@ class MettaTrainer:
             )
         else:
             policy.activate_actions(metta_grid_env.action_names, metta_grid_env.max_action_args, device)
+
+    def _track_env_config(self, task_config: DictConfig, epoch: int) -> None:
+        """Track task selection - full configs are stored in wandb.config."""
+        if not self.wandb_run or not self._master:
+            return
+
+        task = self._curriculum.get_task()
+
+        # Minimal logging: just track which task is active
+        metrics = {
+            "curriculum/current_task_id": task.id(),
+            "curriculum/current_task_name": task.name(),
+        }
+
+        # Add task probabilities if available (useful for curriculum analysis)
+        if hasattr(self._curriculum, "get_task_probs"):
+            task_probs = self._curriculum.get_task_probs()
+            for task_id, prob in task_probs.items():
+                metrics[f"curriculum/task_prob/{task_id}"] = prob
+
+        # Log to wandb - minimal overhead
+        self.wandb_run.log(metrics, step=self.agent_step)
+
+    def _store_curriculum_task_configs(self, env_overrides: DictConfig):
+        """Load and store task configs from the curriculum in wandb.config."""
+        if self.wandb_run is None or not self._master:
+            return
+
+        # Check if config storage is disabled
+        if not self.trainer_cfg.store_curriculum_configs:
+            logger.info("Curriculum config storage disabled by trainer.store_curriculum_configs=False")
+            # Store minimal metadata only
+            try:
+                self.wandb_run.config.update(
+                    {
+                        "curriculum": {
+                            "curriculum_type": type(self._curriculum).__name__,
+                            "curriculum_path": self.trainer_cfg.curriculum_or_env,
+                            "config_storage_disabled": True,
+                        }
+                    },
+                    allow_val_change=True,
+                )
+            except Exception as e:
+                logger.error(f"Failed to store minimal curriculum info: {e}")
+            return
+
+        try:
+            task_configs = {}
+            max_configs = self.trainer_cfg.max_curriculum_configs
+
+            # Handle different curriculum types
+            if hasattr(self._curriculum, "_curricula"):
+                # MultiTaskCurriculum types (RandomCurriculum, LowRewardCurriculum, etc.)
+                total_tasks = len(self._curriculum._curricula)
+
+                if total_tasks <= max_configs:
+                    # Store all configs
+                    for task_id, sub_curriculum in self._curriculum._curricula.items():
+                        try:
+                            task = sub_curriculum.get_task()
+                            task_configs[task_id] = OmegaConf.to_container(task.env_cfg(), resolve=True)
+                        except Exception as e:
+                            logger.warning(f"Failed to load config for task {task_id}: {e}")
+                    logger.info(f"Stored all {len(task_configs)} task configs in wandb.config")
+                else:
+                    # Sample representative configs
+                    import random
+
+                    sampled_task_ids = random.sample(list(self._curriculum._curricula.keys()), max_configs)
+
+                    for task_id in sampled_task_ids:
+                        try:
+                            sub_curriculum = self._curriculum._curricula[task_id]
+                            task = sub_curriculum.get_task()
+                            task_configs[task_id] = OmegaConf.to_container(task.env_cfg(), resolve=True)
+                        except Exception as e:
+                            logger.warning(f"Failed to load config for task {task_id}: {e}")
+
+                    logger.info(
+                        f"Large curriculum detected ({total_tasks} tasks). "
+                        f"Sampled {len(task_configs)} representative configs. "
+                        f"Set trainer.max_curriculum_configs > {total_tasks} to store all configs."
+                    )
+
+            elif hasattr(self._curriculum, "_task_id") and hasattr(self._curriculum, "_task_cfg"):
+                # SingleTaskCurriculum
+                task_configs[self._curriculum._task_id] = OmegaConf.to_container(
+                    self._curriculum._task_cfg, resolve=True
+                )
+                logger.info("Stored single task config in wandb.config")
+
+            elif hasattr(self._curriculum, "_cfg_template"):
+                # SamplingCurriculum - store the template config (not resolved samples)
+                template_id = f"sampling_template({self._curriculum._cfg_template.get('sampling', 'unknown')})"
+                task_configs[template_id] = OmegaConf.to_container(
+                    self._curriculum._cfg_template,
+                    resolve=False,  # Don't resolve sampling params
+                )
+                logger.info("Stored sampling template config in wandb.config")
+
+            else:
+                # For other curriculum types, try to get the current task
+                logger.info(f"Unknown curriculum type {type(self._curriculum)}, storing current task config")
+                task = self._curriculum.get_task()
+                task_configs[task.id()] = OmegaConf.to_container(task.env_cfg(), resolve=True)
+
+            # Store in wandb.config
+            curriculum_data = {
+                "task_configs": task_configs,
+                "curriculum_type": type(self._curriculum).__name__,
+                "curriculum_path": self.trainer_cfg.curriculum_or_env,
+            }
+
+            # Add metadata for large curricula
+            if hasattr(self._curriculum, "_curricula"):
+                total_tasks = len(self._curriculum._curricula)
+                curriculum_data["total_tasks"] = total_tasks
+                if total_tasks > max_configs:
+                    curriculum_data["sampled_configs"] = len(task_configs)
+                    curriculum_data["sampling_note"] = f"Sampled {len(task_configs)} of {total_tasks} total tasks"
+
+            # Add task probabilities if available
+            if hasattr(self._curriculum, "get_task_probs"):
+                curriculum_data["task_probs"] = self._curriculum.get_task_probs()
+
+            self.wandb_run.config.update(
+                {"curriculum": curriculum_data},
+                allow_val_change=True,
+            )
+
+        except Exception as e:
+            logger.error(f"Failed to store curriculum task configs: {e}")
+            # Store minimal info if detailed extraction fails
+            try:
+                self.wandb_run.config.update(
+                    {
+                        "curriculum": {
+                            "curriculum_type": type(self._curriculum).__name__,
+                            "curriculum_path": self.trainer_cfg.curriculum_or_env,
+                            "config_extraction_failed": str(e),
+                        }
+                    },
+                    allow_val_change=True,
+                )
+            except Exception as nested_e:
+                logger.error(f"Failed to store even minimal curriculum info: {nested_e}")
 
 
 class AbortingTrainer(MettaTrainer):
