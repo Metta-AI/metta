@@ -6,7 +6,7 @@
 
 ./devops/skypilot/launch.py train \
 run=$USER.navigation.low_reward.baseline.$(date +%m-%d) \
-trainer.curriculum=env/mettagrid/curriculum/navigation/low_reward \
+trainer.curriculum=env/mettagrid/curriculum/navigation/prioritize_regressed \
 --gpus=1 \
 +trainer.env_overrides.game.num_agents=4 \
 sim=navigation \

@@ -3,6 +3,6 @@ _target_: metta.mettagrid.curriculum.random.RandomCurriculum
 #train this pretrained on our best navigation policy
 #dd_navigation_curriculum:v54
 tasks:
-  /env/mettagrid/curriculum/navigation/low_reward: 1
+  /env/mettagrid/curriculum/navigation/prioritize_regressed: 1
   /env/mettagrid/curriculum/navsequence/backchain_seq: 1
   /env/mettagrid/curriculum/navsequence/mem_medium: 1

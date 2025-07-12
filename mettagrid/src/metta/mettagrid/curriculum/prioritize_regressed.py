@@ -10,8 +10,13 @@ from metta.mettagrid.curriculum.random import RandomCurriculum
 logger = logging.getLogger(__name__)
 
 
-class LowRewardCurriculum(RandomCurriculum):
-    """Curriculum that adaptively samples tasks to focus on low-reward scenarios."""
+class PrioritizeRegressedCurriculum(RandomCurriculum):
+    """Curriculum that prioritizes tasks where current performance has regressed relative to peak performance.
+
+    This curriculum tracks both the maximum reward achieved and the moving average of rewards for each task.
+    Tasks with high max/average ratios get higher weight, meaning tasks where we've seen good performance
+    but are currently performing poorly get prioritized.
+    """
 
     def __init__(
         self, tasks: Dict[str, float], env_overrides: DictConfig | None = None, moving_avg_decay_rate: float = 0.01

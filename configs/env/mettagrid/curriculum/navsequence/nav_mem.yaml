@@ -3,6 +3,6 @@ _target_: metta.mettagrid.curriculum.random.RandomCurriculum
 #use this environment pretrained on a policy that is the best at navigation sequence already
 #gd_backchain_mem_pretained:v18
 tasks:
-  /env/mettagrid/curriculum/navigation/low_reward: 5
+  /env/mettagrid/curriculum/navigation/prioritize_regressed: 5
   /env/mettagrid/curriculum/navsequence/mem_medium: 5
   # /env/mettagrid/curriculum/navsequence/mem_hard: 2
