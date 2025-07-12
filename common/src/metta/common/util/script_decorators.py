@@ -4,12 +4,7 @@ import functools
 import logging
 import multiprocessing
 import sys
-
 from contextvars import ContextVar
-from typing import TypeVar
-
-T = TypeVar("T")
-
 from typing import Callable, TypeVar
 
 import hydra
