@@ -248,7 +248,7 @@ export function TrainingRunDetail({ repo }: TrainingRunDetailProps) {
       if (!selectedSuite) return
 
       try {
-        const metricsData = await repo.getMetrics(selectedSuite)
+        const metricsData = await repo.getAllMetrics()
         setMetrics(metricsData)
       } catch (err: any) {
         setError(`Failed to load suite data: ${err.message}`)

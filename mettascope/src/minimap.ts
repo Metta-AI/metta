@@ -12,19 +12,13 @@ export function drawMiniMap(panel: PanelInfo) {
   }
 
   if (ui.mouseDown && panel.inside(ui.mousePos)) {
-    const localMousePos = new Vec2f(
-      ui.mousePos.x() - panel.x,
-      ui.mousePos.y() - panel.y
-    )
+    const localMousePos = new Vec2f(ui.mousePos.x() - panel.x, ui.mousePos.y() - panel.y)
     // Pan the main map to the minimap's mouse position.
     const miniMapMousePos = new Vec2f(
       Math.round(localMousePos.x() / Common.MINI_MAP_TILE_SIZE),
       Math.round(localMousePos.y() / Common.MINI_MAP_TILE_SIZE)
     )
-    ui.mapPanel.panPos = new Vec2f(
-      -miniMapMousePos.x() * Common.TILE_SIZE,
-      -miniMapMousePos.y() * Common.TILE_SIZE
-    )
+    ui.mapPanel.panPos = new Vec2f(-miniMapMousePos.x() * Common.TILE_SIZE, -miniMapMousePos.y() * Common.TILE_SIZE)
     state.followSelection = false
   }
 

@@ -85,7 +85,7 @@ class Mesh {
   }
 
   /** Set up the index buffer pattern once. */
-  setupIndexPattern(){
+  setupIndexPattern() {
     // For each quad: triangles are formed by indices
     // 0-1-2 (top-left, bottom-left, top-right)
     // 2-1-3 (top-right, bottom-left, bottom-right)
@@ -102,7 +102,7 @@ class Mesh {
   }
 
   /** Create WebGL buffers. */
-  createBuffers(){
+  createBuffers() {
     if (!this.gl) return
 
     // Create vertex buffer
@@ -121,7 +121,7 @@ class Mesh {
   }
 
   /** Resize the maximum number of quads the mesh can hold. */
-  resizeMaxQuads(newMaxQuads: number){
+  resizeMaxQuads(newMaxQuads: number) {
     console.info('Resizing max ', this.name, ' quads from', this.maxQuads, 'to', newMaxQuads)
 
     if (newMaxQuads <= this.maxQuads) {
@@ -166,7 +166,7 @@ class Mesh {
   }
 
   /** Clear the mesh for a new frame. */
-  clear(){
+  clear() {
     // Reset counters instead of recreating arrays
     this.currentQuad = 0
     this.currentVertex = 0
@@ -187,7 +187,7 @@ class Mesh {
     u1: number,
     v1: number,
     color: number[] = [1, 1, 1, 1]
-  ){
+  ) {
     // Check if we need to resize before adding more vertices
     if (this.currentQuad >= this.maxQuads) {
       this.resizeMaxQuads(this.maxQuads * 2)
@@ -256,7 +256,7 @@ class Mesh {
   }
 
   /** Reset the counters. */
-  resetCounters(){
+  resetCounters() {
     this.currentQuad = 0
     this.currentVertex = 0
   }
@@ -311,7 +311,7 @@ export class Context3d {
   }
 
   /** Create or switch to a mesh with the given name. */
-  useMesh(name: string){
+  useMesh(name: string) {
     if (!this.gl || !this.ready) {
       throw new Error('Cannot use mesh before initialization')
     }
@@ -332,7 +332,7 @@ export class Context3d {
   }
 
   /** Sets the scissor rect for the current mesh. */
-  setScissorRect(x: number, y: number, width: number, height: number){
+  setScissorRect(x: number, y: number, width: number, height: number) {
     this.ensureMeshSelected()
 
     this.currentMesh!.scissorEnabled = true
@@ -340,20 +340,20 @@ export class Context3d {
   }
 
   /** Disable scissoring for the current mesh. */
-  disableScissor(){
+  disableScissor() {
     this.ensureMeshSelected()
     this.currentMesh!.scissorEnabled = false
   }
 
   /** Helper method to ensure a mesh is selected before drawing. */
-  private ensureMeshSelected(){
+  private ensureMeshSelected() {
     if (!this.currentMesh) {
       throw new Error('No mesh selected. Call useMesh() before drawing.')
     }
   }
 
   /** Save the current transform. */
-  save(){
+  save() {
     // Push a copy of the current transform onto the stack
     this.transformStack.push(
       new Mat3f(
@@ -371,7 +371,7 @@ export class Context3d {
   }
 
   /** Restore the last transform. */
-  restore(){
+  restore() {
     // Pop the last transform from the stack
     if (this.transformStack.length > 0) {
       this.currentTransform = this.transformStack.pop()!
@@ -381,25 +381,25 @@ export class Context3d {
   }
 
   /** Translate the current transform. */
-  translate(x: number, y: number){
+  translate(x: number, y: number) {
     const translateMatrix = Mat3f.translate(x, y)
     this.currentTransform = this.currentTransform.mul(translateMatrix)
   }
 
   /** Rotate the current transform. */
-  rotate(angle: number){
+  rotate(angle: number) {
     const rotateMatrix = Mat3f.rotate(angle)
     this.currentTransform = this.currentTransform.mul(rotateMatrix)
   }
 
   /** Scale the current transform. */
-  scale(x: number, y: number){
+  scale(x: number, y: number) {
     const scaleMatrix = Mat3f.scale(x, y)
     this.currentTransform = this.currentTransform.mul(scaleMatrix)
   }
 
   /** Reset the current transform. */
-  resetTransform(){
+  resetTransform() {
     this.currentTransform = Mat3f.identity()
   }
 
@@ -475,7 +475,7 @@ export class Context3d {
   }
 
   /** Fail the context. */
-  private fail(msg: string){
+  private fail(msg: string) {
     console.error(msg)
     const failDiv = document.createElement('div')
     failDiv.id = 'fail'
@@ -552,7 +552,7 @@ export class Context3d {
   }
 
   /** Clears all meshes for a new frame. */
-  clear(){
+  clear() {
     if (!this.ready) return
 
     // Clear all meshes in the map
@@ -576,7 +576,7 @@ export class Context3d {
     u1: number,
     v1: number,
     color: number[] = [1, 1, 1, 1]
-  ){
+  ) {
     if (!this.ready) {
       throw new Error('Drawer not initialized')
     }
@@ -608,7 +608,7 @@ export class Context3d {
   }
 
   /** Draws an image from the atlas with its top-right corner at (x, y). */
-  drawImage(imageName: string, x: number, y: number, color: number[] = [1, 1, 1, 1]){
+  drawImage(imageName: string, x: number, y: number, color: number[] = [1, 1, 1, 1]) {
     if (!this.ready) {
       throw new Error('Drawer not initialized')
     }
@@ -646,7 +646,7 @@ export class Context3d {
   }
 
   /** Draws an image from the atlas centered at (x, y). */
-  drawSprite(imageName: string, x: number, y: number, color: number[] = [1, 1, 1, 1], scale = 1, rotation = 0){
+  drawSprite(imageName: string, x: number, y: number, color: number[] = [1, 1, 1, 1], scale = 1, rotation = 0) {
     if (!this.ready) {
       throw new Error('Drawer not initialized')
     }
@@ -703,7 +703,7 @@ export class Context3d {
   }
 
   /** Draws a solid filled rectangle. */
-  drawSolidRect(x: number, y: number, width: number, height: number, color: number[]){
+  drawSolidRect(x: number, y: number, width: number, height: number, color: number[]) {
     if (!this.ready) {
       throw new Error('Drawer not initialized')
     }
@@ -723,7 +723,7 @@ export class Context3d {
   }
 
   /** Draws a stroked rectangle with set stroke width. */
-  drawStrokeRect(x: number, y: number, width: number, height: number, strokeWidth: number, color: number[]){
+  drawStrokeRect(x: number, y: number, width: number, height: number, strokeWidth: number, color: number[]) {
     // Draw 4 rectangles as borders for the stroke rectangle.
     // Top border.
     this.drawSolidRect(x, y, width, strokeWidth, color)
@@ -736,7 +736,7 @@ export class Context3d {
   }
 
   /** Flushes all non-empty meshes to the screen. */
-  flush(){
+  flush() {
     if (!this.ready || !this.gl || !this.shaderProgram) {
       return
     }
@@ -852,7 +852,7 @@ export class Context3d {
     color: number[],
     skipStart: number = 0,
     skipEnd: number = 0
-  ){
+  ) {
     // Compute the angle of the line.
     const angle = Math.atan2(y1 - y0, x1 - x0)
     // Compute the length of the line.
