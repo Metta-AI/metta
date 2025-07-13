@@ -8,8 +8,6 @@ game:
   max_steps: ${sampling:1500,2000,1750} # close to ${width * height} / 10
   num_agents: 4
   actions:
-    noop:
-      enabled: false
     put_items:
       enabled: false
     attack:
