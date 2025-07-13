@@ -5,11 +5,13 @@ import pufferlib
 import pufferlib.vector
 from pydantic import validate_call
 
+from metta.common.util.logging_helpers import setup_mettagrid_logger
 from metta.common.util.resolvers import register_resolvers
 from metta.mettagrid.curriculum.core import Curriculum
 from metta.mettagrid.mettagrid_env import MettaGridEnv
 from metta.mettagrid.replay_writer import ReplayWriter
 from metta.mettagrid.stats_writer import StatsWriter
+from metta.util.metta_script import setup_file_logging
 
 logger = logging.getLogger("vecenv")
 
@@ -22,10 +24,15 @@ def make_env_func(
     stats_writer: Optional[StatsWriter] = None,
     replay_writer: Optional[ReplayWriter] = None,
     is_training: bool = False,
+    run_dir: str | None = None,
     **kwargs,
 ):
     # we are not calling into our configs hierarchy here so we need to manually register the custom resolvers
     register_resolvers()
+
+    setup_mettagrid_logger("vecenv")
+    if run_dir:
+        setup_file_logging(run_dir)
 
     # Create the environment instance
     env = MettaGridEnv(
@@ -54,6 +61,7 @@ def make_vecenv(
     stats_writer: Optional[StatsWriter] = None,
     replay_writer: Optional[ReplayWriter] = None,
     is_training: bool = False,
+    run_dir: str | None = None,
     **kwargs,
 ):
     # Determine the vectorization class
@@ -76,6 +84,7 @@ def make_vecenv(
         "stats_writer": stats_writer,
         "replay_writer": replay_writer,
         "is_training": is_training,
+        "run_dir": run_dir,
     }
 
     # Note: PufferLib's vector.make accepts Serial, Multiprocessing, and Ray as valid backends,

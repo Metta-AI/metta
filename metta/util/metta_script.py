@@ -66,7 +66,9 @@ def metta_script(main: Callable[[DictConfig], int | None], config_name: str) -> 
         logger = setup_mettagrid_logger("metta_script")
 
         # Then add file logging (after console handlers are set up)
-        setup_file_logging(cfg)
+        run_dir = cfg.get("run_dir")
+        if run_dir:
+            setup_file_logging(run_dir)
 
         logger.info(f"Starting {main.__name__} from {script_path} with run_dir: {cfg.get('run_dir', 'not set')}")
 
@@ -103,12 +105,8 @@ def metta_script(main: Callable[[DictConfig], int | None], config_name: str) -> 
     configured_main()
 
 
-def setup_file_logging(cfg: DictConfig) -> None:
+def setup_file_logging(run_dir: str) -> None:
     """Set up file logging in addition to stdout logging."""
-    run_dir = cfg.get("run_dir")
-    if not run_dir:
-        return
-
     # Create logs directory
     logs_dir = os.path.join(run_dir, "logs")
     os.makedirs(logs_dir, exist_ok=True)
