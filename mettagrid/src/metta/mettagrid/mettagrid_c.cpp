@@ -282,8 +282,7 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
       {ObservationFeature::EpisodeCompletionPct, episode_completion_pct},
       {ObservationFeature::LastAction, static_cast<ObservationType>(action)},
       {ObservationFeature::LastActionArg, static_cast<ObservationType>(action_arg)},
-      {ObservationFeature::LastReward, reward_int},
-      {ObservationFeature::StepLsb, step_lsb}};
+      {ObservationFeature::LastReward, reward_int}};
 
   // Global tokens are always at the center of the observation.
   uint8_t global_location =
