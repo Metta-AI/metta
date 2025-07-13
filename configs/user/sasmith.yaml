@@ -14,5 +14,5 @@ replay_job:
   replay_dir: s3://softmax-public/replays/${run}
 
 seed: null
-run_id: 20250712.01
+run_id: 20250712.02
 run: ${oc.env:USER}.local.${run_id}
