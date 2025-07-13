@@ -79,6 +79,8 @@ class MapGen(LevelBuilder):
                     ChildrenAction(
                         scene=self.root,
                         where=AreaWhere(tags=["room"]),
+                        limit=self.instances,
+                        order_by="first",
                     )
                 ],
             )
