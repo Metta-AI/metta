@@ -1,0 +1,13 @@
+_target_: metta.mettagrid.curriculum.bucketed.BucketedCurriculum
+
+env_cfg_template: /env/mettagrid/navigation/training/sparse_bucketed_cfg
+
+buckets:
+  game.max_steps:
+    range: [100, 2000]
+    bins: 5
+  game.map_builder.width:
+    range: [60, 300]
+    bins: 4
+  game.map_builder.room.objects.altar:
+    range: [3, 5]
