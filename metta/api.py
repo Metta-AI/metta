@@ -376,7 +376,8 @@ def _get_default_env_config(num_agents: int = 4, width: int = 32, height: int = 
                 "get_items": {"enabled": True},
                 "attack": {"enabled": True, "consumed_resources": {"laser": 1}, "defense_resources": {"armor": 1}},
                 "swap": {"enabled": True},
-                "change_color": {"enabled": True},
+                "change_color": {"enabled": False},
+                "change_glyph": {"enabled": False, "number_of_glyphs": 4},
             },
             "objects": {
                 "mine_red": {
@@ -925,7 +926,6 @@ def save_checkpoint(
     trainer_checkpoint = TrainerCheckpoint(
         agent_step=agent_step,
         epoch=epoch,
-        total_agent_step=agent_step,
         optimizer_state_dict=optimizer_state_dict,
         policy_path=saved_policy_record.uri if hasattr(saved_policy_record, "uri") else None,
         stopwatch_state=None,

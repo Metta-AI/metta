@@ -36,7 +36,7 @@ class AgentConfig(BaseModelWithForbidExtra):
     default_resource_limit: Optional[int] = Field(default=None, ge=0)
     resource_limits: Optional[Dict[str, int]] = Field(default_factory=dict)
     freeze_duration: Optional[int] = Field(default=None, ge=-1)
-    rewards: Optional[AgentRewards] = None
+    rewards: Optional[AgentRewards] = Field(default=None)
     action_failure_penalty: Optional[float] = Field(default=None, ge=0)
 
 
@@ -54,7 +54,7 @@ class GroupConfig(BaseModelWithForbidExtra):
     # Values outside of 0 and 1 are probably mistakes, and are probably
     # unstable. If you want to use values outside this range, please update this comment!
     group_reward_pct: Optional[float] = Field(default=None, ge=0, le=1)
-    props: Optional[GroupProps] = None
+    props: Optional[GroupProps] = Field(default=None)
 
 
 class ActionConfig(BaseModelWithForbidExtra):
@@ -62,7 +62,7 @@ class ActionConfig(BaseModelWithForbidExtra):
 
     enabled: bool
     # defaults to consumed_resources. Otherwise, should be a superset of consumed_resources.
-    required_resources: Optional[Dict[str, int]] = None
+    required_resources: Optional[Dict[str, int]] = Field(default=None)
     consumed_resources: Optional[Dict[str, int]] = Field(default_factory=dict)
 
 
@@ -70,6 +70,12 @@ class AttackActionConfig(ActionConfig):
     """Attack action configuration."""
 
     defense_resources: Optional[Dict[str, int]] = Field(default_factory=dict)
+
+
+class ChangeGlyphActionConfig(ActionConfig):
+    """Change glyph action configuration."""
+
+    number_of_glyphs: int = Field(default=0, ge=0, le=255)
 
 
 class ActionsConfig(BaseModelWithForbidExtra):
@@ -83,13 +89,14 @@ class ActionsConfig(BaseModelWithForbidExtra):
     attack: AttackActionConfig
     swap: ActionConfig
     change_color: ActionConfig
+    change_glyph: ChangeGlyphActionConfig
 
 
 class WallConfig(BaseModelWithForbidExtra):
     """Wall/Block configuration."""
 
     type_id: int
-    swappable: Optional[bool] = None
+    swappable: bool = Field(default=False)
 
 
 class ConverterConfig(BaseModelWithForbidExtra):
@@ -97,12 +104,12 @@ class ConverterConfig(BaseModelWithForbidExtra):
 
     input_resources: Dict[str, int] = Field(default_factory=dict)
     output_resources: Dict[str, int] = Field(default_factory=dict)
-    type_id: int
+    type_id: int = Field(default=0, ge=0, le=255)
     max_output: int = Field(ge=-1)
     conversion_ticks: int = Field(ge=0)
     cooldown: int = Field(ge=0)
     initial_resource_count: int = Field(ge=0)
-    color: Optional[int] = Field(default=0, ge=0, le=255)
+    color: int = Field(default=0, ge=0, le=255)
 
 
 class GameConfig(BaseModelWithForbidExtra):

@@ -11,19 +11,18 @@
 #include "agent.hpp"
 #include "constants.hpp"
 #include "has_inventory.hpp"
-#include "metta_object.hpp"
 
 // #MettagridConfig
 struct ConverterConfig : public GridObjectConfig {
   ConverterConfig(TypeId type_id,
                   const std::string& type_name,
-                  const std::map<InventoryItem, uint8_t>& input_resources,
-                  const std::map<InventoryItem, uint8_t>& output_resources,
+                  const std::map<InventoryItem, InventoryQuantity>& input_resources,
+                  const std::map<InventoryItem, InventoryQuantity>& output_resources,
                   short max_output,
                   unsigned short conversion_ticks,
                   unsigned short cooldown,
-                  unsigned char initial_resource_count,
-                  ObsType color)
+                  InventoryQuantity initial_resource_count,
+                  ObservationType color)
       : GridObjectConfig(type_id, type_name),
         input_resources(input_resources),
         output_resources(output_resources),
@@ -33,13 +32,13 @@ struct ConverterConfig : public GridObjectConfig {
         initial_resource_count(initial_resource_count),
         color(color) {}
 
-  std::map<InventoryItem, uint8_t> input_resources;
-  std::map<InventoryItem, uint8_t> output_resources;
+  std::map<InventoryItem, InventoryQuantity> input_resources;
+  std::map<InventoryItem, InventoryQuantity> output_resources;
   short max_output;
   unsigned short conversion_ticks;
   unsigned short cooldown;
-  unsigned char initial_resource_count;
-  ObsType color;
+  InventoryQuantity initial_resource_count;
+  ObservationType color;
 };
 
 class Converter : public HasInventory {
@@ -49,7 +48,7 @@ private:
   void maybe_start_converting() {
     // We can't start converting if there's no event manager, since we won't
     // be able to schedule the finishing event.
-    assert(this->event_manager != nullptr);
+    assert(this->event_manager);
     // We also need to have an id to schedule the finishing event. If our id
     // is zero, we probably haven't been added to the grid yet.
     assert(this->id != 0);
@@ -99,8 +98,8 @@ private:
   }
 
 public:
-  std::map<InventoryItem, uint8_t> input_resources;
-  std::map<InventoryItem, uint8_t> output_resources;
+  std::map<InventoryItem, InventoryQuantity> input_resources;
+  std::map<InventoryItem, InventoryQuantity> output_resources;
   // The converter won't convert if its output already has this many things of
   // the type it produces. This may be clunky in some cases, but the main usage
   // is to make Mines (etc) have a maximum output.
@@ -121,13 +120,13 @@ public:
         conversion_ticks(cfg.conversion_ticks),
         cooldown(cfg.cooldown),
         color(cfg.color) {
-    GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c, GridLayer::Object_Layer));
+    GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c, GridLayer::ObjectLayer));
     this->converting = false;
     this->cooling_down = false;
 
     // Initialize inventory with initial_resource_count for all output types
     for (const auto& [item, _] : this->output_resources) {
-      HasInventory::update_inventory(item, cfg.initial_resource_count);
+      HasInventory::update_inventory(item, static_cast<InventoryDelta>(cfg.initial_resource_count));
     }
   }
 
@@ -142,7 +141,7 @@ public:
 
     // Add output to inventory
     for (const auto& [item, amount] : this->output_resources) {
-      HasInventory::update_inventory(item, amount);
+      HasInventory::update_inventory(item, static_cast<InventoryDelta>(amount));
       stats.add(stats.inventory_item_name(item) + ".produced", amount);
     }
 
@@ -167,8 +166,8 @@ public:
     this->maybe_start_converting();
   }
 
-  int update_inventory(InventoryItem item, short amount) override {
-    int delta = HasInventory::update_inventory(item, amount);
+  InventoryDelta update_inventory(InventoryItem item, InventoryDelta attempted_delta) override {
+    InventoryDelta delta = HasInventory::update_inventory(item, attempted_delta);
     if (delta != 0) {
       if (delta > 0) {
         stats.add(stats.inventory_item_name(item) + ".added", delta);
@@ -180,16 +179,18 @@ public:
     return delta;
   }
 
-  virtual vector<PartialObservationToken> obs_features() const override {
+  vector<PartialObservationToken> obs_features() const override {
     vector<PartialObservationToken> features;
     features.reserve(5 + this->inventory.size());
-    features.push_back({ObservationFeature::TypeId, type_id});
-    features.push_back({ObservationFeature::Color, color});
-    features.push_back({ObservationFeature::ConvertingOrCoolingDown, this->converting || this->cooling_down});
+    features.push_back({ObservationFeature::TypeId, static_cast<ObservationType>(this->type_id)});
+    features.push_back({ObservationFeature::Color, static_cast<ObservationType>(this->color)});
+    features.push_back({ObservationFeature::ConvertingOrCoolingDown,
+                        static_cast<ObservationType>(this->converting || this->cooling_down)});
     for (const auto& [item, amount] : this->inventory) {
       // inventory should only contain non-zero amounts
       assert(amount > 0);
-      features.push_back({static_cast<uint8_t>(item + InventoryFeatureOffset), amount});
+      features.push_back(
+          {static_cast<ObservationType>(item + InventoryFeatureOffset), static_cast<ObservationType>(amount)});
     }
     return features;
   }

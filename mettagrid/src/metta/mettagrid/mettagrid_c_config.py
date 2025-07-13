@@ -4,6 +4,7 @@ from typing import Any
 from metta.mettagrid.mettagrid_c import ActionConfig as ActionConfig_cpp
 from metta.mettagrid.mettagrid_c import AgentConfig as AgentConfig_cpp
 from metta.mettagrid.mettagrid_c import AttackActionConfig as AttackActionConfig_cpp
+from metta.mettagrid.mettagrid_c import ChangeGlyphActionConfig as ChangeGlyphActionConfig_cpp
 from metta.mettagrid.mettagrid_c import ConverterConfig as ConverterConfig_cpp
 from metta.mettagrid.mettagrid_c import GameConfig as GameConfig_cpp
 from metta.mettagrid.mettagrid_c import WallConfig as WallConfig_cpp
@@ -69,8 +70,8 @@ def from_mettagrid_config(mettagrid_config_dict: dict[str, Any]) -> GameConfig_c
             converter_config_cpp = ConverterConfig_cpp(
                 type_id=object_config.type_id,
                 type_name=object_type,
-                input_resources=dict((resource_ids[k], v) for k, v in object_config.input_resources.items()),
-                output_resources=dict((resource_ids[k], v) for k, v in object_config.output_resources.items()),
+                input_resources=dict((resource_ids[k], v) for k, v in object_config.input_resources.items() if v > 0),
+                output_resources=dict((resource_ids[k], v) for k, v in object_config.output_resources.items() if v > 0),
                 max_output=object_config.max_output,
                 conversion_ticks=object_config.conversion_ticks,
                 cooldown=object_config.cooldown,
@@ -110,6 +111,9 @@ def from_mettagrid_config(mettagrid_config_dict: dict[str, Any]) -> GameConfig_c
                 (resource_ids[k], v) for k, v in action_config["defense_resources"].items()
             )
             actions_config_cpp[action_name] = AttackActionConfig_cpp(**action_config_cpp_params)
+        elif action_name == "change_glyph":
+            action_config_cpp_params["number_of_glyphs"] = action_config["number_of_glyphs"]
+            actions_config_cpp[action_name] = ChangeGlyphActionConfig_cpp(**action_config_cpp_params)
         else:
             actions_config_cpp[action_name] = ActionConfig_cpp(**action_config_cpp_params)
 
