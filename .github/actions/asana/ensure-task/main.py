@@ -531,6 +531,7 @@ if __name__ == "__main__":
     github_token = os.getenv("INPUT_GITHUB_TOKEN")
 
     # just print this out for now
+    # touch
     get_pull_request_from_github("Metta-AI", github_repo, pr_number, github_token)
 
     github_logins = set(assignees + reviewers + [author])
