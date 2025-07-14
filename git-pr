@@ -22,7 +22,7 @@ fi
 uv sync
 
 # Lint and format
-uv run metta lint
+uv run metta lint --fix
 
 # Run tests for Metta
 uv run metta test
