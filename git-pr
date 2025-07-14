@@ -22,7 +22,7 @@ fi
 uv sync
 
 # Lint and format
-uv run metta lint --staged
+uv run metta lint
 
 # Run tests for Metta
 uv run metta test
