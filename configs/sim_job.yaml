@@ -1,7 +1,7 @@
 defaults:
   - common
   - wandb: metta_research
-  - sim: systematic_exploration
+  - sim: all
   - _self_
 
 run: null # Auto-generated if not provided
