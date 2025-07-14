@@ -1,0 +1,8 @@
+defaults:
+  - /env/mettagrid/nav_memory_sequence/experiments/sequence_defaults@
+  - _self_
+
+game:
+  map_builder:
+    room:
+      dir: ${choose:varied_terrain/maze_small,varied_terrain/maze_medium,varied_terrain/maze_large}

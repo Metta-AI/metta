@@ -1,0 +1,51 @@
+defaults:
+  - sim_suite
+  - _self_
+
+name: nav_memory_advanced
+
+simulations:
+  nav_memory_advanced/access_cross:
+    env: env/mettagrid/nav_memory_advanced/evals/access_cross
+  nav_memory_advanced/boxout:
+    env: env/mettagrid/nav_memory_advanced/evals/boxout
+  nav_memory_advanced/choose_wisely:
+    env: env/mettagrid/nav_memory_advanced/evals/choose_wisely
+  nav_memory_advanced/corners:
+    env: env/mettagrid/nav_memory_advanced/evals/corners
+  nav_memory_advanced/easy_sequence:
+    env: env/mettagrid/nav_memory_advanced/evals/easy_sequence
+  nav_memory_advanced/hall_of_mirrors:
+    env: env/mettagrid/nav_memory_advanced/evals/hall_of_mirrors
+  nav_memory_advanced/hard_sequence:
+    env: env/mettagrid/nav_memory_advanced/evals/hard_sequence
+  nav_memory_advanced/journey_home:
+    env: env/mettagrid/nav_memory_advanced/evals/journey_home
+  nav_memory_advanced/little_landmark_easy:
+    env: env/mettagrid/nav_memory_advanced/evals/little_landmark_easy
+  nav_memory_advanced/little_landmark_hard:
+    env: env/mettagrid/nav_memory_advanced/evals/little_landmark_hard
+  nav_memory_advanced/lobster_legs:
+    env: env/mettagrid/nav_memory_advanced/evals/lobster_legs
+  nav_memory_advanced/lobster_legs_cues:
+    env: env/mettagrid/nav_memory_advanced/evals/lobster_legs_cues
+  nav_memory_advanced/medium_sequence:
+    env: env/mettagrid/nav_memory_advanced/evals/medium_sequence
+  nav_memory_advanced/memory_swirls:
+    env: env/mettagrid/nav_memory_advanced/evals/memory_swirls
+  nav_memory_advanced/memory_swirls_hard:
+    env: env/mettagrid/nav_memory_advanced/evals/memory_swirls_hard
+  nav_memory_advanced/passing_things:
+    env: env/mettagrid/nav_memory_advanced/evals/passing_things
+  nav_memory_advanced/spacey_memory:
+    env: env/mettagrid/nav_memory_advanced/evals/spacey_memory
+  nav_memory_advanced/tease:
+    env: env/mettagrid/nav_memory_advanced/evals/tease
+  nav_memory_advanced/tease_small:
+    env: env/mettagrid/nav_memory_advanced/evals/tease_small
+  nav_memory_advanced/venture_out:
+    env: env/mettagrid/nav_memory_advanced/evals/venture_out
+  nav_memory_advanced/which_way:
+    env: env/mettagrid/nav_memory_advanced/evals/which_way
+  nav_memory_advanced/you_shall_not_pass:
+    env: env/mettagrid/nav_memory_advanced/evals/you_shall_not_pass

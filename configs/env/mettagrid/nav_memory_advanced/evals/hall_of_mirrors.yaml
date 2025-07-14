@@ -1,0 +1,7 @@
+defaults:
+  - /env/mettagrid/nav_memory_advanced/evals/defaults@
+
+game:
+  max_steps: 175
+  map_builder:
+    uri: "configs/env/mettagrid/maps/nav_memory_advanced/hall_of_mirrors.map"

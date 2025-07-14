@@ -1,0 +1,8 @@
+defaults:
+  - /env/mettagrid/nav_memory_advanced/evals/defaults@
+
+game:
+  num_agents: 2
+  max_steps: 90
+  map_builder:
+    uri: "configs/env/mettagrid/maps/nav_memory_advanced/easy_sequence.map"

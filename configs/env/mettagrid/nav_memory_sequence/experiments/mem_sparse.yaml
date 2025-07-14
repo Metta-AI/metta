@@ -1,0 +1,8 @@
+defaults:
+  - /env/mettagrid/nav_memory_sequence/experiments/mem_defaults@
+  - _self_
+
+game:
+  map_builder:
+    room:
+      dir: varied_terrain/sparse_small
