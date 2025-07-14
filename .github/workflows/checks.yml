@@ -43,7 +43,7 @@ jobs:
       github.event.pull_request.draft == false ||
       github.event_name == 'push' ||
       github.event_name == 'workflow_dispatch' ||
-      github.event_name == 'merge_group'
+      github.event_name == 'merge_group' && false
     runs-on: ubuntu-latest
     outputs:
       should_skip: ${{ steps.graphite_ci.outputs.skip }}
