@@ -3,7 +3,7 @@ import os
 import traceback
 from collections import defaultdict
 from pathlib import Path
-from typing import Any
+from typing import Any, Set
 from uuid import UUID
 
 import numpy as np
@@ -26,6 +26,8 @@ from metta.common.util.system_monitor import SystemMonitor
 from metta.common.wandb.wandb_context import WandbRun
 from metta.eval.eval_request_config import EvalRewardSummary
 from metta.eval.eval_service import evaluate_policy
+from metta.eval.performance_threshold_tracker import PerformanceThresholdTracker
+from metta.eval.performance_threshold_config import get_default_arena_thresholds, load_performance_thresholds
 from metta.mettagrid.curriculum.util import curriculum_from_config_path
 from metta.mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
 from metta.rl.experience import Experience
@@ -120,8 +122,72 @@ class MettaTrainer:
         self.policy_store = policy_store
         self.evals = EvalRewardSummary()
 
+        # Initialize performance threshold tracker
+        self._init_performance_threshold_tracker()
+
         self.timer = Stopwatch(logger)
         self.timer.start()
+
+    def _init_performance_threshold_tracker(self):
+        """Initialize performance threshold tracker based on environment."""
+        env_type = self._detect_environment_type()
+        config_path = f"configs/performance_thresholds/{env_type}.yaml"
+
+        try:
+            thresholds, aws_config = load_performance_thresholds(config_path)
+            logger.info(f"Loaded performance thresholds from {config_path}")
+        except FileNotFoundError:
+            logger.warning(f"Performance threshold config not found: {config_path}")
+            logger.info("Falling back to default arena thresholds")
+            thresholds, aws_config = get_default_arena_thresholds()
+
+        # Get available metrics for validation
+        available_metrics = self._get_available_metrics()
+
+        self.performance_threshold_tracker = PerformanceThresholdTracker(thresholds, available_metrics)
+        self.aws_config = aws_config
+        logger.info(f"Initialized performance threshold tracker with {len(thresholds)} thresholds for {env_type} environment")
+
+    def _detect_environment_type(self) -> str:
+        """Detect environment type from curriculum path."""
+        curriculum_path = self.trainer_cfg.curriculum_or_env
+
+        if "arena" in curriculum_path:
+            return "arena"
+        elif "navigation" in curriculum_path:
+            return "navigation"
+        elif "memory" in curriculum_path:
+            return "memory"
+        elif "object_use" in curriculum_path:
+            return "object_use"
+        else:
+            logger.warning(f"Unknown environment type from curriculum path: {curriculum_path}")
+            return "default"
+
+    def _get_available_metrics(self) -> Set[str]:
+        """Get available metrics from environment stats."""
+        # Common metrics that might be available across environments
+        common_metrics = {
+            "env_agent/heart.gained",
+            "env_agent/action.move.success.rate",
+            "env_agent/goal_reached",
+            "env_agent/steps_to_goal",
+            "env_agent/reward",
+            "env_agent/action.move.success",
+            "env_agent/action.move.failed",
+            "env_agent/action.attack.success",
+            "env_agent/action.attack.failed",
+            "env_agent/action.get.success",
+            "env_agent/action.put.success",
+        }
+
+        # Add any metrics from current stats if available
+        if hasattr(self, 'stats'):
+            for key in self.stats.keys():
+                if key.startswith('env_agent/'):
+                    common_metrics.add(key)
+
+        return common_metrics
 
         if self._master:
             self._memory_monitor = MemoryMonitor()
@@ -812,6 +878,15 @@ class MettaTrainer:
         # Update self.stats with mean values for consistency
         self.stats = processed_stats["mean_stats"]
 
+        # Update performance threshold tracker
+        if hasattr(self, 'performance_threshold_tracker'):
+            self.performance_threshold_tracker.update(
+                metrics=self.stats,
+                samples=self.agent_step,
+                instance_type=self.aws_config.get('instance_type', 'g5.4xlarge'),
+                use_spot=self.aws_config.get('use_spot', False)
+            )
+
         # Compute weight stats if on interval
         weight_stats = {}
         if self.cfg.agent.analyze_weights_interval != 0 and self.epoch % self.cfg.agent.analyze_weights_interval == 0:
@@ -852,6 +927,11 @@ class MettaTrainer:
             agent_step=self.agent_step,
             epoch=self.epoch,
         )
+
+        # Add performance threshold metrics
+        if hasattr(self, 'performance_threshold_tracker'):
+            threshold_metrics = self.performance_threshold_tracker.get_wandb_metrics()
+            all_stats.update(threshold_metrics)
 
         # Log to wandb
         self.wandb_run.log(

@@ -1,0 +1,28 @@
+# Performance threshold configuration for navigation environment
+# Tracks navigation-specific performance metrics
+
+environment_type: "navigation"
+
+thresholds:
+  - name: "success_rate_80"
+    metric: "env_agent/action.move.success.rate"
+    target_value: 0.8
+    comparison: ">="
+    smoothing_factor: 0.1
+
+  - name: "goal_reached_50"
+    metric: "env_agent/goal_reached"
+    target_value: 0.5
+    comparison: ">="
+    smoothing_factor: 0.1
+
+  - name: "efficiency_20_steps"
+    metric: "env_agent/steps_to_goal"
+    target_value: 20.0
+    comparison: "<="
+    smoothing_factor: 0.1
+
+# AWS instance configuration for cost calculation
+aws:
+  instance_type: "g5.4xlarge"  # Default instance type
+  use_spot: false  # Assume on-demand pricing unless specified
