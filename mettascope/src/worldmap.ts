@@ -757,11 +757,37 @@ export function drawMap(panel: PanelInfo) {
     }
   }
 
-  // If we're following a selection, center the map on it.
+  // Handle automatic camera panning when following an object.
+  // we don't want to stay fixed to the object as this can be very disorienting.
+  // only move the camera when the agent tries to leave a bounding box and then do a single 'screen jump'.
+  // This is similar to how top down games work.
   if (state.followSelection && state.selectedGridObject !== null) {
-    const x = getAttr(state.selectedGridObject, 'c')
-    const y = getAttr(state.selectedGridObject, 'r')
-    panel.panPos = new Vec2f(-x * Common.TILE_SIZE, -y * Common.TILE_SIZE)
+    const objX = getAttr(state.selectedGridObject, 'c') * Common.TILE_SIZE
+    const objY = getAttr(state.selectedGridObject, 'r') * Common.TILE_SIZE
+
+    // Calculate the screen‐space position of the followed object.
+    const rect = panel.rectInner()
+    const screenX =
+      rect.x +
+      rect.width / 2 +
+      (objX + panel.panPos.x()) * panel.zoomLevel
+    const screenY =
+      rect.y +
+      rect.height / 2 +
+      (objY + panel.panPos.y()) * panel.zoomLevel
+
+    // Define an inner bounding box (25 % margin on every side).
+    const marginX = rect.width * Common.CAMERA_FOLLOW_MARGIN
+    const marginY = rect.height * Common.CAMERA_FOLLOW_MARGIN
+    const boxLeft = rect.x + marginX
+    const boxRight = rect.x + rect.width - marginX
+    const boxTop = rect.y + marginY
+    const boxBottom = rect.y + rect.height - marginY
+
+    // Re-center camera only when the object leaves this box.
+    if (screenX < boxLeft || screenX > boxRight || screenY < boxTop || screenY > boxBottom) {
+      panel.panPos = new Vec2f(-objX, -objY)
+    }
   }
 
   ctx.save()

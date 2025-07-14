@@ -37,3 +37,9 @@ Follow the repository-wide rules described in `/AGENTS.md`:
 
 * Short, present-tense commit messages
 * Run lint/format before pushing
+
+## Constants
+
+- common.ts is imported by most parts of mettascope and contains all the state.
+- Most constants should live in ./mettascope/src/common.ts
+- Do not use 'magic numbers' in code, instead name them as constants in common.ts
