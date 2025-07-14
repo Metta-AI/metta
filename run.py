@@ -98,7 +98,6 @@ trainer_config = TrainerConfig(
     ),
     simulation=SimulationConfig(
         evaluate_interval=300,
-        replay_interval=300,
         replay_dir=dirs.replay_dir,
     ),
     profiler=TorchProfilerConfig(

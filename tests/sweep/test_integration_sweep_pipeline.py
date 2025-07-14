@@ -129,7 +129,6 @@ class TestSweepPipelineIntegration:
                     "kickstart": {},
                     "checkpoint_interval": 1000,
                     "wandb_checkpoint_interval": 1000,
-                    "replay_interval": 0,
                     "grad_mean_variance_interval": 0,
                     "optimizer": {
                         "learning_rate": 0.001,
