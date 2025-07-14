@@ -50,6 +50,16 @@ inputs:
   asana_attachment_secret:
     description: "The Asana attachment secret. This is used to authenticate the Asana attachment action."
     required: true
+  pr_number:
+    description: "Github PR number."
+    required: true
+  github_repo:
+    description: "Github repo URL."
+    required: true
+  github_token:
+    description: "Github token."
+    required: true
+
 
 outputs:
   task_url:

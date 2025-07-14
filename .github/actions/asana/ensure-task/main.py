@@ -478,7 +478,7 @@ def ensure_github_url_in_asana_task(
         return None
 
 
-def get_pull_request_from_github(owner, repo, pr_number, github_token):
+def get_pull_request_from_github(repo, pr_number, github_token):
     """
     Get pull request details from GitHub API
 
@@ -491,7 +491,7 @@ def get_pull_request_from_github(owner, repo, pr_number, github_token):
     Returns:
         dict: Pull request data
     """
-    url = f"https://api.github.com/repos/{owner}/{repo}/pulls/{pr_number}"
+    url = f"https://api.github.com/repos/{repo}/pulls/{pr_number}"
 
     headers = {
         "Accept": "application/vnd.github+json",
@@ -532,7 +532,7 @@ if __name__ == "__main__":
 
     # just print this out for now
     # touch
-    get_pull_request_from_github("Metta-AI", github_repo, pr_number, github_token)
+    get_pull_request_from_github(github_repo, pr_number, github_token)
 
     github_logins = set(assignees + reviewers + [author])
     github_login_to_asana_email = get_asana_users_by_github_logins(
