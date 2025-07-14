@@ -279,6 +279,7 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
   ObservationType reward_int = static_cast<ObservationType>(std::round(rewards_view(agent_idx) * 100.0f));
 
   std::vector<PartialObservationToken> global_tokens = {
+      {ObservationFeature::EpisodeCompletionPct, episode_completion_pct},
       {ObservationFeature::LastAction, static_cast<ObservationType>(action)},
       {ObservationFeature::LastActionArg, static_cast<ObservationType>(action_arg)},
       {ObservationFeature::LastReward, reward_int}};

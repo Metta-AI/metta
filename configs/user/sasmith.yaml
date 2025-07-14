@@ -10,7 +10,7 @@ trainer:
 policy_uri: wandb://run/sasmith-nav20250710
 replay_job:
   sim:
-    env: /env/mettagrid/navigation/training/sparse_medium_low_time
+    curriculum: /env/mettagrid/navigation/training/sparse_bucketed
   replay_dir: s3://softmax-public/replays/${run}
 
 seed: null
