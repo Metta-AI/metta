@@ -47,10 +47,10 @@ public:
   Grid* grid;
   map<EventType, unique_ptr<EventHandler>> event_handlers;
 
-  EventManager() : grid(nullptr), _current_timestep(0) {}
+  EventManager() : _event_queue(), _current_timestep(0), grid(nullptr), event_handlers() {}
 
-  void init(Grid* grid) {
-    this->grid = grid;
+  void init(Grid* grid_ptr) {
+    this->grid = grid_ptr;
   }
 
   void schedule_event(EventType event_type, unsigned int delay, GridObjectId object_id, EventArg arg) {

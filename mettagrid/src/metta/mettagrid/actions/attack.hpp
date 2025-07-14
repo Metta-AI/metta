@@ -49,11 +49,11 @@ protected:
     //   A    (Agent position)
 
     // Column offsets to check: center, left, right
-    static constexpr int COL_OFFSETS[3] = {0, -1, 1};
+    static constexpr short COL_OFFSETS[3] = {0, -1, 1};
 
     // Scan the 9 squares in front of the agent (3x3 grid)
-    for (int distance = 1; distance <= 3; distance++) {
-      for (int offset : COL_OFFSETS) {
+    for (short distance = 1; distance <= 3; distance++) {
+      for (short offset : COL_OFFSETS) {
         GridLocation target_loc = _grid->relative_location(actor->location, actor->orientation, distance, offset);
         target_loc.layer = GridLayer::AgentLayer;
 

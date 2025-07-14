@@ -44,7 +44,7 @@ struct ChangeGlyphActionConfig;
 namespace py = pybind11;
 
 struct GameConfig {
-  int num_agents;
+  unsigned int num_agents;
   unsigned int max_steps;
   ObservationCoord obs_width;
   ObservationCoord obs_height;
@@ -101,6 +101,8 @@ private:
   // Member variables
   std::map<unsigned int, float> _group_reward_pct;
   std::map<unsigned int, unsigned int> _group_sizes;
+  std::vector<RewardType> _group_rewards;
+
   std::unique_ptr<Grid> _grid;
   std::unique_ptr<EventManager> _event_manager;
 
