@@ -12,12 +12,23 @@ from metta.mettagrid.mettagrid_env import dtype_actions
 # Constants from C++ code
 @dataclass
 class TokenTypes:
+    # Observation features
     TYPE_ID_FEATURE: int = 0
-    WALL_TYPE_ID: int = 1
+    GROUP: int = 1
+    HP: int = 2
+    FROZEN: int = 3
+    ORIENTATION: int = 4
+    COLOR: int = 5
+    CONVERTING_OR_COOLING_DOWN: int = 6
+    SWAPPABLE: int = 7
     EPISODE_COMPLETION_PCT: int = 8
     LAST_ACTION: int = 9
     LAST_ACTION_ARG: int = 10
     LAST_REWARD: int = 11
+    GLYPH: int = 12
+
+    # Object type IDs
+    WALL_TYPE_ID: int = 1
 
 
 @dataclass
@@ -78,6 +89,7 @@ class TestEnvironmentBuilder:
                 "get_items": {"enabled": False},
                 "swap": {"enabled": False},
                 "change_color": {"enabled": False},
+                "change_glyph": {"enabled": False, "number_of_glyphs": 4},
             },
             "groups": {"red": {"id": 0, "props": {}}},
             "objects": {"wall": {"type_id": 1}},
@@ -374,6 +386,7 @@ class TestObservations:
                 "get_items": {"enabled": False},
                 "swap": {"enabled": False},
                 "change_color": {"enabled": False},
+                "change_glyph": {"enabled": False, "number_of_glyphs": 4},
             },
             "groups": {"red": {"id": 0, "props": {}}},
             "objects": {
@@ -566,6 +579,299 @@ class TestGlobalTokens:
         assert obs[0, 0, 2] == expected_completion
         assert obs[0, 1, 2] == move_idx
         assert obs[0, 2, 2] == 1
+
+    def test_glyph_signaling(self):
+        """Test that agents can signal using glyphs and observe each other's glyphs."""
+        # Create a 5x5 environment with two adjacent agents
+        builder = TestEnvironmentBuilder()
+        game_map = builder.create_basic_grid(5, 5)
+
+        # Place two agents next to each other
+        # Agent 0 at (1,2), Agent 1 at (2,2)
+        game_map[2, 1] = "agent.red"
+        game_map[2, 2] = "agent.blue"
+
+        # Create environment with change_glyph enabled and 8 glyphs
+        game_config = {
+            "max_steps": 10,
+            "num_agents": 2,
+            "obs_width": EnvConfig.OBS_WIDTH,
+            "obs_height": EnvConfig.OBS_HEIGHT,
+            "num_observation_tokens": EnvConfig.NUM_OBS_TOKENS,
+            "inventory_item_names": ["laser", "armor"],
+            "actions": {
+                "noop": {"enabled": True},
+                "move": {"enabled": True},
+                "rotate": {"enabled": True},
+                "attack": {"enabled": False},
+                "put_items": {"enabled": False},
+                "get_items": {"enabled": False},
+                "swap": {"enabled": False},
+                "change_color": {"enabled": False},
+                "change_glyph": {"enabled": True, "number_of_glyphs": 8},
+            },
+            "groups": {"red": {"id": 0, "props": {}}, "blue": {"id": 1, "props": {}}},
+            "objects": {"wall": {"type_id": 1}},
+            "agent": {},
+        }
+
+        env = MettaGrid(from_mettagrid_config(game_config), game_map.tolist(), 42)
+        obs, _ = env.reset()
+
+        # Define glyph feature type
+        GLYPH_FEATURE = TokenTypes.GLYPH
+
+        # Helper function to find glyph tokens
+        def find_glyph_at_location(observation, x, y):
+            location = PackedCoordinate.pack(y, x)
+            location_tokens = observation[observation[:, 0] == location]
+            glyph_tokens = location_tokens[location_tokens[:, 1] == GLYPH_FEATURE]
+            return glyph_tokens[0, 2] if len(glyph_tokens) > 0 else None
+
+        print("\n=== Testing Initial Glyph Values ===")
+
+        # Initially, both agents should have glyph 0 (default)
+        # Since glyph 0 is suppressed, we should NOT find any glyph tokens
+        agent0_self_glyph = find_glyph_at_location(obs[0], 1, 1)
+        assert agent0_self_glyph is None, f"Agent 0 with glyph 0 should have no glyph token, got {agent0_self_glyph}"
+
+        agent0_sees_agent1_glyph = find_glyph_at_location(obs[0], 2, 1)
+        assert agent0_sees_agent1_glyph is None, (
+            f"Agent 0 should see Agent 1 with no glyph token (glyph 0), got {agent0_sees_agent1_glyph}"
+        )
+
+        agent1_self_glyph = find_glyph_at_location(obs[1], 1, 1)
+        assert agent1_self_glyph is None, f"Agent 1 with glyph 0 should have no glyph token, got {agent1_self_glyph}"
+
+        agent1_sees_agent0_glyph = find_glyph_at_location(obs[1], 0, 1)
+        assert agent1_sees_agent0_glyph is None, (
+            f"Agent 1 should see Agent 0 with no glyph token (glyph 0), got {agent1_sees_agent0_glyph}"
+        )
+
+        print("✓ Both agents start with glyph 0 (no glyph token)")
+
+        # Test changing glyphs
+        print("\n=== Testing Glyph Changes ===")
+
+        change_glyph_idx = env.action_names().index("change_glyph")
+        noop_idx = env.action_names().index("noop")
+
+        # Test 1: Agent 0 changes to glyph 3, Agent 1 stays at 0
+        actions = np.array(
+            [
+                [change_glyph_idx, 3],  # Agent 0 changes to glyph 3
+                [noop_idx, 0],  # Agent 1 does nothing
+            ],
+            dtype=dtype_actions,
+        )
+
+        obs, _, _, _, _ = env.step(actions)
+
+        agent0_self_glyph = find_glyph_at_location(obs[0], 1, 1)
+        assert agent0_self_glyph == 3, f"Agent 0 should have glyph 3, got {agent0_self_glyph}"
+
+        agent1_sees_agent0_glyph = find_glyph_at_location(obs[1], 0, 1)
+        assert agent1_sees_agent0_glyph == 3, f"Agent 1 should see Agent 0 with glyph 3, got {agent1_sees_agent0_glyph}"
+
+        agent1_self_glyph = find_glyph_at_location(obs[1], 1, 1)
+        assert agent1_self_glyph is None, f"Agent 1 should still have no glyph token (glyph 0), got {agent1_self_glyph}"
+
+        print("✓ Agent 0 successfully changed to glyph 3")
+
+        # Test 2: Both agents change glyphs simultaneously
+        actions = np.array(
+            [
+                [change_glyph_idx, 5],  # Agent 0 changes to glyph 5
+                [change_glyph_idx, 7],  # Agent 1 changes to glyph 7
+            ],
+            dtype=dtype_actions,
+        )
+
+        obs, _, _, _, _ = env.step(actions)
+
+        agent0_self_glyph = find_glyph_at_location(obs[0], 1, 1)
+        agent1_self_glyph = find_glyph_at_location(obs[1], 1, 1)
+
+        assert agent0_self_glyph == 5, f"Agent 0 should have glyph 5, got {agent0_self_glyph}"
+        assert agent1_self_glyph == 7, f"Agent 1 should have glyph 7, got {agent1_self_glyph}"
+
+        # Verify they see each other's new glyphs
+        agent0_sees_agent1 = find_glyph_at_location(obs[0], 2, 1)
+        agent1_sees_agent0 = find_glyph_at_location(obs[1], 0, 1)
+
+        assert agent0_sees_agent1 == 7, f"Agent 0 should see Agent 1 with glyph 7, got {agent0_sees_agent1}"
+        assert agent1_sees_agent0 == 5, f"Agent 1 should see Agent 0 with glyph 5, got {agent1_sees_agent0}"
+
+        print("✓ Both agents successfully changed glyphs simultaneously")
+
+        # Test 3: Test all valid glyph values (0-7)
+        print("\n=== Testing All Glyph Values ===")
+
+        for glyph in range(8):
+            actions = np.array(
+                [
+                    [change_glyph_idx, glyph],
+                    [change_glyph_idx, (glyph + 4) % 8],  # Different glyph for agent 1
+                ],
+                dtype=dtype_actions,
+            )
+
+            obs, _, _, _, _ = env.step(actions)
+
+            agent0_glyph = find_glyph_at_location(obs[0], 1, 1)
+            agent1_glyph = find_glyph_at_location(obs[1], 1, 1)
+            expected_agent1_glyph = (glyph + 4) % 8
+
+            # Glyph 0 should not produce a token
+            if glyph == 0:
+                assert agent0_glyph is None, f"Agent 0 with glyph 0 should have no token, got {agent0_glyph}"
+            else:
+                assert agent0_glyph == glyph, f"Agent 0 should have glyph {glyph}, got {agent0_glyph}"
+
+            if expected_agent1_glyph == 0:
+                assert agent1_glyph is None, f"Agent 1 with glyph 0 should have no token, got {agent1_glyph}"
+            else:
+                assert agent1_glyph == expected_agent1_glyph, (
+                    f"Agent 1 should have glyph {expected_agent1_glyph}, got {agent1_glyph}"
+                )
+
+            # Verify cross-visibility
+            agent0_sees_agent1 = find_glyph_at_location(obs[0], 2, 1)
+            agent1_sees_agent0 = find_glyph_at_location(obs[1], 0, 1)
+
+            if expected_agent1_glyph == 0:
+                assert agent0_sees_agent1 is None, (
+                    f"Agent 0 should see Agent 1 with no glyph token (glyph 0), got {agent0_sees_agent1}"
+                )
+            else:
+                assert agent0_sees_agent1 == expected_agent1_glyph, (
+                    f"Agent 0 should see Agent 1 with glyph {expected_agent1_glyph}, got {agent0_sees_agent1}"
+                )
+
+            if glyph == 0:
+                assert agent1_sees_agent0 is None, (
+                    f"Agent 1 should see Agent 0 with no glyph token (glyph 0), got {agent1_sees_agent0}"
+                )
+            else:
+                assert agent1_sees_agent0 == glyph, (
+                    f"Agent 1 should see Agent 0 with glyph {glyph}, got {agent1_sees_agent0}"
+                )
+
+        print("✓ All glyph values (0-7) work correctly with glyph 0 suppressed")
+
+        # Test 4: Invalid glyph values (should be no-op)
+        print("\n=== Testing Invalid Glyph Values ===")
+
+        # First set agents to known glyph values
+        actions = np.array(
+            [
+                [change_glyph_idx, 3],  # Agent 0 to glyph 3
+                [change_glyph_idx, 5],  # Agent 1 to glyph 5
+            ],
+            dtype=dtype_actions,
+        )
+        obs, _, _, _, _ = env.step(actions)
+
+        # Verify initial glyphs
+        assert find_glyph_at_location(obs[0], 1, 1) == 3
+        assert find_glyph_at_location(obs[1], 1, 1) == 5
+
+        test_cases = [
+            (8, "8 should be no-op"),
+            (10, "10 should be no-op"),
+            (255, "255 should be no-op"),
+            (100, "100 should be no-op"),
+        ]
+
+        for invalid_value, description in test_cases:
+            actions = np.array(
+                [
+                    [change_glyph_idx, invalid_value],  # Agent 0 tries invalid glyph
+                    [noop_idx, 0],  # Agent 1 does nothing
+                ],
+                dtype=dtype_actions,
+            )
+
+            obs, _, _, _, _ = env.step(actions)
+
+            agent0_glyph = find_glyph_at_location(obs[0], 1, 1)
+            agent1_glyph = find_glyph_at_location(obs[1], 1, 1)
+
+            # Glyphs should remain unchanged
+            assert agent0_glyph == 3, f"{description}: Agent 0 glyph should stay 3, got {agent0_glyph}"
+            assert agent1_glyph == 5, f"Agent 1 glyph should stay 5, got {agent1_glyph}"
+
+        print("✓ Invalid glyph values correctly ignored (no-op)")
+
+        # Test 5: Glyph persistence (glyphs should stay until changed)
+        print("\n=== Testing Glyph Persistence ===")
+
+        # Set distinct glyphs
+        actions = np.array(
+            [
+                [change_glyph_idx, 2],
+                [change_glyph_idx, 6],
+            ],
+            dtype=dtype_actions,
+        )
+        obs, _, _, _, _ = env.step(actions)
+
+        # Take several noop actions - glyphs should persist
+        for i in range(3):
+            actions = np.array(
+                [
+                    [noop_idx, 0],
+                    [noop_idx, 0],
+                ],
+                dtype=dtype_actions,
+            )
+            obs, _, _, _, _ = env.step(actions)
+
+            agent0_glyph = find_glyph_at_location(obs[0], 1, 1)
+            agent1_glyph = find_glyph_at_location(obs[1], 1, 1)
+
+            assert agent0_glyph == 2, f"Agent 0 glyph should persist as 2 after {i + 1} steps, got {agent0_glyph}"
+            assert agent1_glyph == 6, f"Agent 1 glyph should persist as 6 after {i + 1} steps, got {agent1_glyph}"
+
+        print("✓ Glyphs persist correctly across multiple steps")
+
+        # Test 6: Changing back to glyph 0 removes the token
+        print("\n=== Testing Changing Back to Glyph 0 ===")
+
+        # First set to non-zero glyphs
+        actions = np.array(
+            [
+                [change_glyph_idx, 4],
+                [change_glyph_idx, 5],
+            ],
+            dtype=dtype_actions,
+        )
+        obs, _, _, _, _ = env.step(actions)
+
+        # Verify they have glyph tokens
+        assert find_glyph_at_location(obs[0], 1, 1) == 4
+        assert find_glyph_at_location(obs[1], 1, 1) == 5
+
+        # Change back to glyph 0
+        actions = np.array(
+            [
+                [change_glyph_idx, 0],
+                [change_glyph_idx, 0],
+            ],
+            dtype=dtype_actions,
+        )
+        obs, _, _, _, _ = env.step(actions)
+
+        # Verify glyph tokens are gone
+        agent0_glyph = find_glyph_at_location(obs[0], 1, 1)
+        agent1_glyph = find_glyph_at_location(obs[1], 1, 1)
+
+        assert agent0_glyph is None, f"Agent 0 changed to glyph 0 should have no token, got {agent0_glyph}"
+        assert agent1_glyph is None, f"Agent 1 changed to glyph 0 should have no token, got {agent1_glyph}"
+
+        print("✓ Changing back to glyph 0 correctly removes glyph tokens")
+
+        print("\n=== All Glyph Tests Passed! ===")
 
 
 class TestPackedCoordinate:

@@ -12,12 +12,12 @@ from metta.mettagrid.curriculum.core import Curriculum
 from metta.mettagrid.curriculum.sampling import SampledTaskCurriculum
 from metta.mettagrid.curriculum.util import config_from_path
 
-from .low_reward import LowRewardCurriculum
+from .prioritize_regressed import PrioritizeRegressedCurriculum
 
 logger = logging.getLogger(__name__)
 
 
-class BucketedCurriculum(LowRewardCurriculum):
+class BucketedCurriculum(PrioritizeRegressedCurriculum):
     def __init__(
         self,
         env_cfg_template: str,

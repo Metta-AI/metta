@@ -74,17 +74,28 @@ class PyAttackActionConfig(PyActionConfig):
     defense_resources: Optional[dict[str, int]] = Field(default_factory=dict)
 
 
-class PyActionsConfig(BaseModelWithForbidExtra):
-    """Python actions configuration."""
+class PyChangeGlyphActionConfig(PyActionsConfig):
+    """Change glyph action configuration."""
 
-    noop: PyActionConfig
-    move: PyActionConfig
-    rotate: PyActionConfig
-    put_items: PyActionConfig
-    get_items: PyActionConfig
-    attack: PyAttackActionConfig
-    swap: PyActionConfig
-    change_color: PyActionConfig
+    number_of_glyphs: int = Field(default=0, ge=0, le=255)
+
+
+class PyActionsConfig(BaseModelWithForbidExtra):
+    """
+    Actions configuration.
+
+    Omitted actions are disabled by default.
+    """
+
+    noop: Optional[PyActionConfig] = None
+    move: Optional[PyActionConfig] = None
+    rotate: Optional[PyActionConfig] = None
+    put_items: Optional[PyActionConfig] = None
+    get_items: Optional[PyActionConfig] = None
+    attack: Optional[PyAttackActionConfig] = None
+    swap: Optional[PyActionConfig] = None
+    change_color: Optional[PyActionConfig] = None
+    change_glyph: Optional[PyChangeGlyphActionConfig] = None
 
 
 class PyWallConfig(BaseModelWithForbidExtra):
@@ -118,6 +129,7 @@ class PyGameConfig(BaseModelWithForbidExtra):
     obs_height: int = Field(ge=1)
     num_observation_tokens: int = Field(ge=1)
     agent: PyAgentConfig
+    # Every agent must be in a group, so we need at least one group
     groups: dict[str, PyGroupConfig] = Field(min_length=1)
     actions: PyActionsConfig
     objects: dict[str, PyConverterConfig | PyWallConfig]

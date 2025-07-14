@@ -4,6 +4,7 @@ from typing import Any
 from metta.mettagrid.mettagrid_c import ActionConfig as CppActionConfig
 from metta.mettagrid.mettagrid_c import AgentConfig as CppAgentConfig
 from metta.mettagrid.mettagrid_c import AttackActionConfig as CppAttackActionConfig
+from metta.mettagrid.mettagrid_c import ChangeGlyphActionConfig as CppChangeGlyphActionConfig
 from metta.mettagrid.mettagrid_c import ConverterConfig as CppConverterConfig
 from metta.mettagrid.mettagrid_c import GameConfig as CppGameConfig
 from metta.mettagrid.mettagrid_c import WallConfig as CppWallConfig
@@ -93,28 +94,30 @@ def from_mettagrid_config(mettagrid_config_dict: dict[str, Any]) -> CppGameConfi
 
     cpp_actions_config = {}
     # Add required and consumed resources to the attack action
-    for action_name, cfg in game_config["actions"].items():
+    for action_name, action_config in game_config["actions"].items():
         if not cfg["enabled"]:
             continue
-
-        cpp_action_params = {}
-        cpp_action_params["consumed_resources"] = dict(
-            (resource_ids[k], v) for k, v in cfg["consumed_resources"].items()
+        action_config_cpp_params = {}
+        action_config_cpp_params["consumed_resources"] = dict(
+            (resource_ids[k], v) for k, v in action_config["consumed_resources"].items()
         )
-        if cfg.get("required_resources", None) is not None:
-            cpp_action_params["required_resources"] = dict(
-                (resource_ids[k], v) for k, v in cfg["required_resources"].items()
+        if action_config.get("required_resources", None) is not None:
+            action_config_cpp_params["required_resources"] = dict(
+                (resource_ids[k], v) for k, v in action_config["required_resources"].items()
             )
         else:
-            cpp_action_params["required_resources"] = cpp_action_params["consumed_resources"]
+            action_config_cpp_params["required_resources"] = action_config_cpp_params["consumed_resources"]
 
         if action_name == "attack":
-            cpp_action_params["defense_resources"] = dict(
-                (resource_ids[k], v) for k, v in cfg["defense_resources"].items()
+            action_config_cpp_params["defense_resources"] = dict(
+                (resource_ids[k], v) for k, v in action_config["defense_resources"].items()
             )
-            cpp_actions_config[action_name] = CppAttackActionConfig(**cpp_action_params)
+            action_config_cpp_params[action_name] = CppAttackActionConfig(**action_config_cpp_params)
+        elif action_name == "change_glyph":
+            action_config_cpp_params["number_of_glyphs"] = action_config["number_of_glyphs"]
+            cpp_actions_config[action_name] = CppChangeGlyphActionConfig(**action_config_cpp_params)
         else:
-            cpp_actions_config[action_name] = CppActionConfig(**cpp_action_params)
+            cpp_actions_config[action_name] = CppActionConfig(**action_config_cpp_params)
 
     game_config["actions"] = cpp_actions_config
 
