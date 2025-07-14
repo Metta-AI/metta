@@ -378,6 +378,7 @@ class MettaTrainer:
             logger.info(f"  {name}: {self.timer.format_time(summary['total_elapsed'])}")
 
         # Force final saves
+        self._maybe_evaluate_policy(force=True)
         self._maybe_save_policy(force=True)
         self._maybe_save_training_state(force=True)
         self._maybe_upload_policy_record_to_wandb(force=True)
