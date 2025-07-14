@@ -776,14 +776,8 @@ export function drawMap(panel: PanelInfo) {
 
     // Calculate the screen‐space position of the followed object.
     const rect = panel.rectInner()
-    const screenX =
-      rect.x +
-      rect.width / 2 +
-      (objX + panel.panPos.x()) * panel.zoomLevel
-    const screenY =
-      rect.y +
-      rect.height / 2 +
-      (objY + panel.panPos.y()) * panel.zoomLevel
+    const screenX = rect.x + rect.width / 2 + (objX + panel.panPos.x()) * panel.zoomLevel
+    const screenY = rect.y + rect.height / 2 + (objY + panel.panPos.y()) * panel.zoomLevel
 
     // Define an inner bounding box (25 % margin on every side).
     const marginX = rect.width * Common.CAMERA_FOLLOW_MARGIN
