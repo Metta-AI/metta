@@ -15,12 +15,8 @@ simulations:
     env: env/mettagrid/systematic_exploration_memory/evals/corners
   systematic_exploration_memory/hall_of_mirrors:
     env: env/mettagrid/systematic_exploration_memory/evals/hall_of_mirrors
-  systematic_exploration_memory/hard_sequence:
-    env: env/mettagrid/systematic_exploration_memory/evals/hard_sequence
   systematic_exploration_memory/journey_home:
     env: env/mettagrid/systematic_exploration_memory/evals/journey_home
-  systematic_exploration_memory/little_landmark_easy:
-    env: env/mettagrid/systematic_exploration_memory/evals/little_landmark_easy
   systematic_exploration_memory/little_landmark_hard:
     env: env/mettagrid/systematic_exploration_memory/evals/little_landmark_hard
   systematic_exploration_memory/lobster_legs_cues:
@@ -34,7 +30,7 @@ simulations:
   systematic_exploration_memory/passing_things:
     env: env/mettagrid/systematic_exploration_memory/evals/passing_things
   systematic_exploration_memory/roomy_memory:
-    env: env/mettagrid/systematic_exploration_memory/evals/roomy_memory
+    env: env/mettagrid/systematic_exploration_memory/evals/rooms
   systematic_exploration_memory/spacey_memory:
     env: env/mettagrid/systematic_exploration_memory/evals/spacey_memory
   systematic_exploration_memory/tease:
