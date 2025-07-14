@@ -10,6 +10,7 @@ from metta.setup.utils import info, success, warning
 class ObservatoryKeySetup(SetupModule):
     install_once = True
     server_url: str = "https://observatory.softmax-research.net/api"
+    extra_server_urls: list[str] = ["https://api.observatory.softmax-research.net"]
 
     @property
     def name(self) -> str:
@@ -28,7 +29,11 @@ class ObservatoryKeySetup(SetupModule):
 
     def check_installed(self) -> bool:
         # Check if we have a token for this server
-        return get_machine_token(self.server_url) is not None
+        server_urls = [self.server_url] + self.extra_server_urls
+        for server_url in server_urls:
+            if get_machine_token(server_url) is None:
+                return False
+        return True
 
     def install(self) -> None:
         info(f"Setting up Observatory authentication for {self.server_url}...")
@@ -58,6 +63,7 @@ class ObservatoryKeySetup(SetupModule):
 @register_module
 class ObservatoryKeyLocalSetup(ObservatoryKeySetup):
     server_url: str = "http://localhost:8000"
+    extra_server_urls: list[str] = []
 
     @property
     def name(self) -> str:

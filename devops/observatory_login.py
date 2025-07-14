@@ -146,6 +146,8 @@ class CLIAuthenticator:
 
             # Update with new token
             existing_tokens[self.auth_server_url] = token
+            if self.auth_server_url == "https://observatory.softmax-research.net/api":
+                existing_tokens["https://api.observatory.softmax-research.net"] = token
 
             # Write all tokens back
             with open(self.yaml_file, "w") as f:
