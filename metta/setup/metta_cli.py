@@ -223,14 +223,17 @@ class MettaCLI:
 
         check_cmd = ["uv", "run", "ruff", "check"]
         format_cmd = ["uv", "run", "ruff", "format"]
+        cmds = [check_cmd, format_cmd]
+
         if args.fix:
             check_cmd.append("--fix")
+        elif args.check:
+            format_cmd.append("--check")
 
         if files:
-            check_cmd.extend(files)
-            format_cmd.extend(files)
+            for cmd in cmds:
+                cmd.extend(files)
 
-        cmds = [check_cmd, format_cmd]
         for cmd in cmds:
             try:
                 subprocess.run(cmd, cwd=self.repo_root, check=True)
@@ -442,6 +445,7 @@ Examples:
         # Lint command
         lint_parser = subparsers.add_parser("lint", help="Run linting and formatting")
         lint_parser.add_argument("--fix", action="store_true", help="Apply fixes automatically")
+        lint_parser.add_argument("--check", action="store_true", help="Only check for linting issues")
         lint_parser.add_argument("--staged", action="store_true", help="Only lint staged files")
 
         # Tool command
@@ -451,7 +455,7 @@ Examples:
         # Use parse_known_args to handle unknown arguments for test commands
         args, unknown_args = parser.parse_known_args()
 
-        if args.command not in ["test", "test-changed", "tool", "lint"]:
+        if args.command not in ["test", "test-changed", "tool"]:
             if unknown_args:
                 parser.error(f"unrecognized arguments: {' '.join(unknown_args)}")
 
@@ -486,6 +490,7 @@ Examples:
             self.cmd_symlink_setup(args)
         elif args.command == "test":
             self.cmd_pytest(unknown_args)
+
         elif args.command == "test-changed":
             self.cmd_pytest(unknown_args + ["--testmon"])
         elif args.command == "tool":
