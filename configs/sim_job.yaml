@@ -1,10 +1,10 @@
 defaults:
   - common
   - wandb: metta_research
-  - sim: all
+  - sim: systematic_exploration
   - _self_
 
-run: null  # Auto-generated if not provided
+run: null # Auto-generated if not provided
 policy_uri: ???
 
 sim_job:
