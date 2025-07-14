@@ -41,7 +41,7 @@ class ObservatoryKeySetup(SetupModule):
 
         if login_script.exists():
             try:
-                self.run_command([str(login_script), self.server_url])
+                self.run_command([str(login_script), self.server_url], capture_output=True)
                 success(f"Observatory auth configured for {self.server_url}")
             except subprocess.CalledProcessError:
                 warning("Observatory login failed. You can manually run:")
