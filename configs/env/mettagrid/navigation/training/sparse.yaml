@@ -1,5 +1,5 @@
 defaults:
-  - /env/mettagrid/mettagrid@
+  - /env/mettagrid/navigation/training/defaults@
   - /env/mettagrid/game/objects/mines@game.objects
   - /env/mettagrid/game/objects/generators@game.objects
   - /env/mettagrid/game/objects/combat@game.objects

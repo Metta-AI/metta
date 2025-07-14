@@ -15,7 +15,7 @@ defaults:
 sim: systematic_exploration
 
 trainer:
-  curriculum: /env/mettagrid/curriculum/navigation/bucketed
+  curriculum: /env/mettagrid/curriculum/navigation/learning_progress
 
 policy_uri: wandb://run/george.navigation.bucketed.07-10
 
