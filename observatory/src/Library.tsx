@@ -5,6 +5,7 @@ import { mockUsers } from './mockData/users';
 import { mockScholars } from './mockData/scholars';
 import { mockAffiliations } from './mockData/affiliations';
 import { mockPapers } from './mockData/papers';
+import { UserProfile } from './UserProfile';
 
 // MathJax type declarations
 declare global {
@@ -25,7 +26,8 @@ declare global {
 }
 
 interface Library2Props {
-    repo: unknown // Using unknown for now since this is a dummy component
+    repo: unknown; // Using unknown for now since this is a dummy component
+    currentUser?: string; // Optional current user email
 }
 
 // Navigation items with simplified gray outline icons
@@ -105,7 +107,7 @@ const navItems = [
     }
 ]
 
-export function Library({ repo: _repo }: Library2Props) {
+export function Library({ repo: _repo, currentUser }: Library2Props) {
     const location = useLocation();
     // Determine initial nav from path
     const getNavFromPath = (pathname: string) => {
@@ -1126,6 +1128,15 @@ The first term is the reconstruction loss, and the second is the KL divergence t
                                 <p className="text-gray-600">Browse and sort all papers in the system</p>
                             </div>
                             <PapersTable />
+                        </div>
+                    </div>
+                )
+
+            case 'profile':
+                return (
+                    <div className="p-6">
+                        <div className="max-w-6xl mx-auto">
+                            <UserProfile repo={_repo} currentUser={currentUser || "alice@example.com"} />
                         </div>
                     </div>
                 )

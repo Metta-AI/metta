@@ -248,13 +248,14 @@ function App() {
           <Route path="/" element={<Dashboard repo={state.repo} />} />
         </Route>
         {/* Library routes (no dashboard header/nav) */}
-        <Route path="/library" element={<Library repo={state.repo} />} />
-        <Route path="/scholars" element={<Library repo={state.repo} />} />
+        <Route path="/library" element={<Library repo={state.repo} currentUser={state.currentUser} />} />
+        <Route path="/scholars" element={<Library repo={state.repo} currentUser={state.currentUser} />} />
         <Route path="/scholars/:scholarId" element={<ScholarProfile repo={state.repo} />} />
-        <Route path="/affiliations" element={<Library repo={state.repo} />} />
+        <Route path="/affiliations" element={<Library repo={state.repo} currentUser={state.currentUser} />} />
         <Route path="/affiliations/:affiliationId" element={<AffiliationProfile repo={state.repo} />} />
-        <Route path="/collections" element={<Library repo={state.repo} />} />
-        <Route path="/papers" element={<Library repo={state.repo} />} />
+        <Route path="/profile" element={<Library repo={state.repo} currentUser={state.currentUser} />} />
+        <Route path="/collections" element={<Library repo={state.repo} currentUser={state.currentUser} />} />
+        <Route path="/papers" element={<Library repo={state.repo} currentUser={state.currentUser} />} />
       </Routes>
     )
   }
