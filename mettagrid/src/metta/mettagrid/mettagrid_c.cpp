@@ -569,18 +569,27 @@ py::dict MettaGrid::grid_objects() {
     obj_dict["c"] = obj->location.c;
     obj_dict["layer"] = obj->location.layer;
 
+    // Inject observation features
     auto features = obj->obs_features();
     for (const auto& feature : features) {
       obj_dict[py::str(_obs_encoder->feature_names().at(feature.feature_id))] = feature.value;
     }
 
-    objects[py::int_(obj_id)] = obj_dict;
-  }
+    // Inject agent-specific info
+    if (auto* agent = dynamic_cast<Agent*>(obj)) {
+      obj_dict["orientation"] = static_cast<int>(agent->orientation);
+      obj_dict["group_name"] = agent->group_name;
+      obj_dict["frozen"] = agent->frozen;
 
-  // Add agent IDs
-  for (size_t agent_idx = 0; agent_idx < _agents.size(); agent_idx++) {
-    auto agent_object = objects[py::int_(_agents[agent_idx]->id)];
-    agent_object["agent_id"] = agent_idx;
+      py::dict inventory_dict;
+      for (const auto& [item, quantity] : agent->inventory) {
+        inventory_dict[py::int_(item)] = quantity;
+      }
+      obj_dict["inventory"] = inventory_dict;
+      obj_dict["agent_id"] = agent->agent_id;
+    }
+
+    objects[py::int_(obj_id)] = obj_dict;
   }
 
   return objects;

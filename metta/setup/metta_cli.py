@@ -204,6 +204,20 @@ class MettaCLI:
         except subprocess.CalledProcessError as e:
             sys.exit(e.returncode)
 
+    def cmd_tool(self, tool_name: str, args: list[str]) -> None:
+        tool_path = self.repo_root / "tools" / f"{tool_name}.py"
+        if not tool_path.exists():
+            error(f"Tool '{tool_name}' not found at {tool_path}")
+            sys.exit(1)
+
+        cmd = [str(tool_path)] + args
+        try:
+            # Prefixing with `uv run` should not be necessary
+            # because PATH is inherited and tools have uv shebangs
+            subprocess.run(cmd, cwd=self.repo_root, check=True)
+        except subprocess.CalledProcessError as e:
+            sys.exit(e.returncode)
+
     def cmd_status(self, _args) -> None:
         """Show status of all components."""
         modules = get_all_modules(self.config)
@@ -342,8 +356,12 @@ Examples:
   metta status                         # Show component status
   metta clean                          # Clean build artifacts
   metta symlink-setup                  # Set up symlink to make metta command globally available
+
   metta test ...                       # Run python unit tests
   metta test-changed ...               # Run python unit tests affected by changes
+
+  metta tool train run=test            # Run train.py tool with arguments
+  metta tool sim policy_uri=...        # Run sim.py tool with arguments
             """,
         )
 
@@ -388,10 +406,14 @@ Examples:
         subparsers.add_parser("test", help="Run python unit tests")
         subparsers.add_parser("test-changed", help="Run python unit tests affected by changes")
 
+        # Tool command
+        tool_parser = subparsers.add_parser("tool", help="Run a tool from the tools/ directory")
+        tool_parser.add_argument("tool_name", help="Name of the tool to run (e.g., 'train', 'sim', 'analyze')")
+
         # Use parse_known_args to handle unknown arguments for test commands
         args, unknown_args = parser.parse_known_args()
 
-        if args.command not in ["test", "test-changed"]:
+        if args.command not in ["test", "test-changed", "tool"]:
             if unknown_args:
                 parser.error(f"unrecognized arguments: {' '.join(unknown_args)}")
 
@@ -428,6 +450,8 @@ Examples:
             self.cmd_pytest(unknown_args)
         elif args.command == "test-changed":
             self.cmd_pytest(unknown_args + ["--testmon"])
+        elif args.command == "tool":
+            self.cmd_tool(args.tool_name, unknown_args)
         else:
             parser.print_help()
 
