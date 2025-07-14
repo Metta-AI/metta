@@ -5,38 +5,49 @@ import { mockScholars } from './mockData/scholars';
 import { mockPapers } from './mockData/papers';
 
 interface AffiliationProfileProps {
-    repo: unknown
+    repo?: unknown;
+    affiliation?: any;
+    onClose?: () => void;
 }
 
-export function AffiliationProfile({ repo: _repo }: AffiliationProfileProps) {
+export function AffiliationProfile({ repo: _repo, affiliation: propAffiliation, onClose }: AffiliationProfileProps) {
     const { affiliationId } = useParams<{ affiliationId: string }>();
     const navigate = useNavigate();
-    const [affiliation, setAffiliation] = useState<any>(null);
+    const [affiliation, setAffiliation] = useState<any>(propAffiliation || null);
     const [affiliationMembers, setAffiliationMembers] = useState<any[]>([]);
     const [affiliationPapers, setAffiliationPapers] = useState<any[]>([]);
     const [activeTab, setActiveTab] = useState<'overview' | 'members' | 'papers'>('overview');
 
     useEffect(() => {
-        if (affiliationId) {
+        if (propAffiliation) {
+            setAffiliation(propAffiliation);
+            // Find scholars associated with this affiliation
+            const members = mockScholars.filter(scholar => 
+                scholar.institution.toLowerCase().includes(propAffiliation.name.toLowerCase()) ||
+                scholar.institution.toLowerCase().includes(propAffiliation.label.toLowerCase())
+            );
+            setAffiliationMembers(members);
+            // Find papers from this affiliation
+            const papers = mockPapers.filter(paper => 
+                paper.affiliations.some((aff: any) => aff.id === propAffiliation.id)
+            );
+            setAffiliationPapers(papers);
+        } else if (affiliationId) {
             const foundAffiliation = mockAffiliations.find(a => a.id === affiliationId);
             if (foundAffiliation) {
                 setAffiliation(foundAffiliation);
-                
-                // Find scholars associated with this affiliation
                 const members = mockScholars.filter(scholar => 
                     scholar.institution.toLowerCase().includes(foundAffiliation.name.toLowerCase()) ||
                     scholar.institution.toLowerCase().includes(foundAffiliation.label.toLowerCase())
                 );
                 setAffiliationMembers(members);
-                
-                // Find papers from this affiliation
                 const papers = mockPapers.filter(paper => 
                     paper.affiliations.some((aff: any) => aff.id === affiliationId)
                 );
                 setAffiliationPapers(papers);
             }
         }
-    }, [affiliationId]);
+    }, [propAffiliation, affiliationId]);
 
     if (!affiliation) {
         return (

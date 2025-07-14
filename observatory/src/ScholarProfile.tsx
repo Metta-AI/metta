@@ -5,29 +5,36 @@ import { mockPapers } from './mockData/papers';
 import { mockAffiliations } from './mockData/affiliations';
 
 interface ScholarProfileProps {
-    repo: unknown
+    repo?: unknown;
+    scholar?: any;
+    onClose?: () => void;
 }
 
-export function ScholarProfile({ repo: _repo }: ScholarProfileProps) {
+export function ScholarProfile({ repo: _repo, scholar: propScholar, onClose }: ScholarProfileProps) {
     const { scholarId } = useParams<{ scholarId: string }>();
     const navigate = useNavigate();
-    const [scholar, setScholar] = useState<any>(null);
+    const [scholar, setScholar] = useState<any>(propScholar || null);
     const [scholarPapers, setScholarPapers] = useState<any[]>([]);
     const [activeTab, setActiveTab] = useState<'overview' | 'papers' | 'network'>('overview');
 
     useEffect(() => {
-        if (scholarId) {
+        if (propScholar) {
+            setScholar(propScholar);
+            const papers = mockPapers.filter(paper => 
+                paper.authors.some(author => author.id === propScholar.id)
+            );
+            setScholarPapers(papers);
+        } else if (scholarId) {
             const foundScholar = mockScholars.find(s => s.id === scholarId);
             if (foundScholar) {
                 setScholar(foundScholar);
-                // Find papers authored by this scholar
                 const papers = mockPapers.filter(paper => 
                     paper.authors.some(author => author.id === scholarId)
                 );
                 setScholarPapers(papers);
             }
         }
-    }, [scholarId]);
+    }, [propScholar, scholarId]);
 
     if (!scholar) {
         return (

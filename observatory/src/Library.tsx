@@ -6,6 +6,9 @@ import { mockScholars } from './mockData/scholars';
 import { mockAffiliations } from './mockData/affiliations';
 import { mockPapers } from './mockData/papers';
 import { UserProfile } from './UserProfile';
+import { ScholarCard, AffiliationCard, PaperCard, UserHoverCard } from './components/library/cards';
+import { ScholarProfile } from './ScholarProfile';
+import { AffiliationProfile } from './AffiliationProfile';
 
 // MathJax type declarations
 declare global {
@@ -138,6 +141,26 @@ export function Library({ repo: _repo, currentUser }: Library2Props) {
     const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     // Add a ref for the filter input at the top of Library
     const filterInputRef = useRef<HTMLInputElement>(null);
+    // Add state for overlay modals
+    const [overlayScholarId, setOverlayScholarId] = useState<string | null>(null);
+    const [overlayAffiliationId, setOverlayAffiliationId] = useState<string | null>(null);
+
+    // Overlay close handler
+    const closeOverlay = () => {
+        setOverlayScholarId(null);
+        setOverlayAffiliationId(null);
+    };
+
+    // ESC key closes overlay
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') closeOverlay();
+        };
+        if (overlayScholarId || overlayAffiliationId) {
+            window.addEventListener('keydown', handleKeyDown);
+        }
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [overlayScholarId, overlayAffiliationId]);
 
     // Sync activeNav with URL path
     useEffect(() => {
@@ -420,56 +443,7 @@ The first term is the reconstruction loss, and the second is the KL divergence t
         }
     ]
 
-    // PaperCard component
-    const PaperCard = ({ paper }: { paper: any }) => {
-        const isExpanded = expandedAbstracts.has(paper.id)
 
-        return (
-            <div className="bg-white rounded-lg border border-gray-200 p-4 mt-3">
-                <div className="flex items-center gap-3 mb-3">
-                    <div className="w-8 h-8 bg-primary-500 text-white rounded-full flex items-center justify-center text-sm font-semibold">
-                        {paper.authorInitial}
-                    </div>
-                    <div className="text-sm text-gray-600">
-                        {paper.author}
-                    </div>
-                </div>
-
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                    {paper.title}
-                </h3>
-
-                <p className="text-sm text-gray-600 mb-3">
-                    {paper.summary}
-                </p>
-
-                <div className="flex items-center gap-4 text-xs text-gray-500 mb-3">
-                    <span>{paper.citations.toLocaleString()} citations</span>
-                    <a
-                        href={paper.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-primary-500 hover:text-primary-600 underline"
-                    >
-                        View Paper
-                    </a>
-                </div>
-
-                <button
-                    onClick={() => toggleAbstract(paper.id)}
-                    className="text-sm text-primary-500 hover:text-primary-600 font-medium"
-                >
-                    {isExpanded ? 'Hide Abstract' : 'Show Abstract'}
-                </button>
-
-                {isExpanded && (
-                    <div className="mt-3 p-3 bg-gray-50 rounded-md text-sm text-gray-700 leading-relaxed">
-                        {paper.abstract}
-                    </div>
-                )}
-            </div>
-        )
-    }
 
     // Sidebar navigation handler
     const handleNavClick = (id: string) => {
@@ -501,288 +475,11 @@ The first term is the reconstruction loss, and the second is the KL divergence t
         }
     }
 
-    // ScholarCard component
-    const ScholarCard = ({ scholar, expanded, onExpand, onCollapse }: { scholar: any, expanded: boolean, onExpand: (id: string) => void, onCollapse: (id: string) => void }) => {
-        const cardRef = useRef<HTMLDivElement>(null);
-        const containerRef = useRef<HTMLDivElement>(null);
-
-        // Tag logic - show all expertise tags
-        const tagsToShow = scholar.expertise;
-
-        // Robust hover logic using mouse tracking
-        const handleMouseEnter = () => {
-            // Clear any pending collapse timeout
-            if (hoverTimeoutRef.current) {
-                clearTimeout(hoverTimeoutRef.current);
-                hoverTimeoutRef.current = null;
-            }
-            
-            // Set this scholar as hovered
-            setHoveredScholarId(scholar.id);
-            
-            // Expand immediately
-            onExpand(scholar.id);
-        };
-
-        const handleMouseLeave = (event: React.MouseEvent) => {
-            // Check if we're moving to a child element (like the drawer)
-            const relatedTarget = event.relatedTarget as HTMLElement;
-            if (containerRef.current && relatedTarget && containerRef.current.contains(relatedTarget)) {
-                return; // Still within the container, don't collapse
-            }
-
-            // Set a timeout to collapse, but only if we're not hovering over the drawer
-            hoverTimeoutRef.current = setTimeout(() => {
-                setHoveredScholarId(null);
-                onCollapse(scholar.id);
-            }, 150); // Slightly longer timeout for better UX
-        };
-
-        // Check if mouse is still over the container (for drawer interactions)
-        const handleContainerMouseMove = () => {
-            if (hoveredScholarId === scholar.id) {
-                // Mouse is still over this scholar, ensure it stays expanded
-                onExpand(scholar.id);
-            }
-        };
-
-        // Cleanup timeout on unmount
-        useEffect(() => {
-            return () => {
-                if (hoverTimeoutRef.current) {
-                    clearTimeout(hoverTimeoutRef.current);
-                }
-            };
-        }, []);
-
-        return (
-            <div
-                ref={containerRef}
-                className="relative break-inside-avoid mb-6"
-                onMouseEnter={handleMouseEnter}
-                onMouseLeave={handleMouseLeave}
-                onMouseMove={handleContainerMouseMove}
-            >
-                {/* Scholar card with simplified, robust layout */}
-                <div 
-                    ref={cardRef}
-                    className="relative w-full bg-white rounded-lg border border-gray-200 p-3 hover:shadow-md transition-all cursor-pointer"
-                    style={{ minHeight: '160px' }}
-                    onClick={() => navigate(`/scholars/${scholar.id}`)}
-                >
-                    {/* Avatar and follow button section */}
-                    <div className="flex items-start gap-3 min-w-0 mb-3">
-                        <div className="flex flex-col items-center flex-shrink-0" style={{ width: 60 }}>
-                            <div className={`w-12 h-12 rounded-full flex items-center justify-center text-sm font-semibold ${scholar.claimed ? 'bg-primary-500 text-white' : 'bg-gray-300 text-gray-600'}`}> 
-                                {scholar.initials || (scholar.name.split(' ').map((n: string) => n[0]).join('').toUpperCase())}
-                            </div>
-                            {scholar.claimed && (
-                                <button
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        toggleFollow(scholar.id);
-                                    }}
-                                    className={`mt-1 px-2 py-0.5 rounded-full text-[9px] uppercase tracking-wider font-semibold transition-colors ${
-                                        scholar.isFollowing
-                                            ? 'bg-orange-100 text-orange-700'
-                                            : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
-                                    }`}
-                                >
-                                    {scholar.isFollowing ? 'FOLLOWING' : 'FOLLOW'}
-                                </button>
-                            )}
-                        </div>
-                        
-                        {/* Name and institution section */}
-                        <div className="flex-1 min-w-0">
-                            <h3 className="text-base font-semibold text-gray-900 break-words leading-tight mb-1">
-                                {highlightMatchingText(scholar.name, searchQuery)}
-                            </h3>
-                            <p className="text-gray-600 text-sm break-words leading-tight">
-                                {highlightMatchingText(scholar.institution, searchQuery)}
-                            </p>
-                        </div>
-                    </div>
-                    
-                    {/* Expertise tags as flowing text with consistent spacing */}
-                    <div className="w-full">
-                        <div className="text-xs font-semibold text-gray-700 leading-tight break-words">
-                            {tagsToShow.map((exp: string, index: number) => (
-                                <React.Fragment key={exp}>
-                                    {index > 0 && <span className="text-gray-400"> • </span>}
-                                    <button
-                                        type="button"
-                                        className="hover:text-primary-600 hover:underline transition-colors cursor-pointer p-0 m-0 bg-transparent border-none font-semibold break-words"
-                                        style={{ display: 'inline', background: 'none' }}
-                                        onClick={e => {
-                                            e.stopPropagation();
-                                            setSearchQuery(exp);
-                                            filterInputRef.current?.focus();
-                                        }}
-                                    >
-                                        {highlightMatchingText(exp, searchQuery)}
-                                    </button>
-                                </React.Fragment>
-                            ))}
-                        </div>
-                    </div>
-                </div>
-                {/* Hover drawer, absolutely positioned outside the card, never affects card layout */}
-                {expanded && (
-                    <div
-                        className="absolute left-0 top-full -mt-4.75 w-full bg-gray-200 border-l border-r border-b border-gray-300 shadow-lg p-4 rounded-b-lg rounded-t-none"
-                        style={{ 
-                            zIndex: 30, 
-                            pointerEvents: 'auto',
-                            transform: 'translateY(-4px)' // Slight overlap for seamless look
-                        }}
-                    >
-                        <div className="flex items-center gap-4 text-xs text-gray-600 mb-3">
-                            <div>
-                                <span className="font-semibold text-gray-900">{scholar.hIndex}</span>
-                                <span className="ml-1">h-index</span>
-                            </div>
-                            <div>
-                                <span className="font-semibold text-gray-900">{scholar.totalCitations.toLocaleString()}</span>
-                                <span className="ml-1">citations</span>
-                            </div>
-                            <div>
-                                <span className="font-semibold text-gray-900">{scholar.papers.length}</span>
-                                <span className="ml-1">papers</span>
-                            </div>
-                        </div>
-                        <div className="border-t border-gray-300 pt-2">
-                            <h4 className="font-semibold text-gray-900 mb-2 text-sm">Recent Papers</h4>
-                            <div className="space-y-1">
-                                {scholar.papers.slice(0, 2).map((paper: any) => (
-                                    <div key={paper.id} className="min-w-0">
-                                        <a
-                                            href={paper.url}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="text-xs font-medium text-gray-900 break-words leading-tight hover:text-primary-600 block"
-                                            onClick={(e) => e.stopPropagation()}
-                                        >
-                                            {paper.title}
-                                        </a>
-                                        <p className="text-xs text-gray-500">{paper.year} • {paper.citations} citations</p>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                        <div className="mt-2 text-xs text-gray-500">
-                            Active {scholar.recentActivity}
-                        </div>
-                    </div>
-                )}
-            </div>
-        );
-    };
-
-    // AffiliationsCard component
 
 
-    const AffiliationsCard = ({ affiliation, isAdmin }: { affiliation: any, isAdmin: boolean }) => (
-        <div 
-            className="w-full min-w-[20rem] max-w-full bg-white rounded-lg border border-gray-200 p-4 hover:shadow transition-shadow overflow-hidden flex flex-col cursor-pointer"
-            onClick={() => navigate(`/affiliations/${affiliation.id}`)}
-        >
-            <div className="flex items-start justify-between mb-2 min-w-0">
-                <div className="flex items-center gap-3 min-w-0">
-                    {affiliation.logo ? (
-                        <img src={affiliation.logo} alt={affiliation.label} className="w-12 h-12 rounded-full object-cover flex-shrink-0" />
-                    ) : (
-                        <div className="w-12 h-12 bg-primary-500 text-white rounded-full flex items-center justify-center text-lg font-semibold flex-shrink-0">
-                            {affiliation.initials}
-                        </div>
-                    )}
-                    <div className="min-w-0">
-                        <h3 className="text-lg font-semibold text-gray-900 break-words leading-tight">{affiliation.label}</h3>
-                        <p className="text-gray-600 text-sm break-words leading-tight">{affiliation.name}</p>
-                        <p className="text-gray-500 text-xs break-words leading-tight">{affiliation.location}</p>
-                    </div>
-                </div>
-                <div className="flex flex-col items-end gap-2 min-w-0">
-                    <span className="px-3 py-0.5 rounded-full text-xs font-semibold mb-1 bg-gray-100 text-gray-600 border border-gray-200" title={affiliation.type}>{affiliation.type}</span>
-                </div>
-            </div>
-            <div className="flex flex-wrap gap-1 mb-2">
-                {affiliation.tags.map((tag: string, idx: number) => (
-                    <span key={idx} className="px-2 py-0.5 bg-gray-100 text-gray-700 text-xs rounded-full">{tag}</span>
-                ))}
-            </div>
-            <div className="flex items-center gap-4 text-xs text-gray-600 mb-2">
-                <div>
-                    <span className="font-semibold text-gray-900">{affiliation.memberCount}</span>
-                    <span className="ml-1">members</span>
-                </div>
-                <div>
-                    <span className="font-semibold text-gray-900">{affiliation.papers}</span>
-                    <span className="ml-1">papers</span>
-                </div>
-                <div>
-                    <span className="font-semibold text-gray-900">{affiliation.citations.toLocaleString()}</span>
-                    <span className="ml-1">citations</span>
-                </div>
-            </div>
-            <div className="border-t border-gray-200 pt-2 mt-2 flex items-center justify-between">
-                <span className="text-xs text-gray-500">Active {affiliation.lastActive}</span>
-                <div className="flex gap-2 items-center">
-                    <a 
-                        href={affiliation.website} 
-                        target="_blank" 
-                        rel="noopener noreferrer" 
-                        className="text-xs text-primary-500 hover:text-primary-600 underline"
-                        onClick={(e) => e.stopPropagation()}
-                    >
-                        Website
-                    </a>
-                    {isAdmin && (
-                        <>
-                            <button 
-                                className="px-2 py-0.5 rounded bg-gray-100 text-gray-700 text-xs border border-gray-200 hover:bg-gray-200"
-                                onClick={(e) => e.stopPropagation()}
-                            >
-                                Merge
-                            </button>
-                            <button 
-                                className="px-2 py-0.5 rounded bg-gray-100 text-gray-700 text-xs border border-gray-200 hover:bg-gray-200"
-                                onClick={(e) => e.stopPropagation()}
-                            >
-                                Mark Duplicate
-                            </button>
-                        </>
-                    )}
-                </div>
-            </div>
-        </div>
-    )
 
-    // UserHoverCard component
-    const UserHoverCard = ({ user, position }: { user: any, position: { x: number, y: number } }) =>
-        ReactDOM.createPortal(
-            <div
-                className="fixed z-50 bg-white border border-gray-200 rounded-lg shadow-lg p-4 min-w-[180px] max-w-xs pointer-events-auto"
-                style={{ left: position.x, top: position.y }}
-            >
-                <div className="flex items-center gap-3 mb-2">
-                    <div className="w-10 h-10 bg-primary-500 text-white rounded-full flex items-center justify-center text-lg font-semibold">
-                        {user.avatar}
-                    </div>
-                    <div>
-                        <div className="font-semibold text-gray-900 text-base leading-tight">{user.name}</div>
-                        {user.email && <div className="text-xs text-gray-500">{user.email}</div>}
-                    </div>
-                </div>
-                <a
-                    href={`/scholars/${user.id}`}
-                    className="inline-block mt-2 text-xs text-primary-600 hover:underline font-medium"
-                >
-                    View profile
-                </a>
-            </div>,
-            document.body
-        );
+
+
 
     // PapersTable component
     const [papersSort, setPapersSort] = useState<{col: string, dir: 'asc'|'desc'}>({col: 'title', dir: 'asc'});
@@ -1024,6 +721,11 @@ The first term is the reconstruction loss, and the second is the KL divergence t
                                         onCollapse={id => {
                                             if (expandedScholarId === id) setExpandedScholarId(null);
                                         }}
+                                        searchQuery={searchQuery}
+                                        onToggleFollow={toggleFollow}
+                                        onTagClick={(tag) => setSearchQuery(tag)}
+                                        filterInputRef={filterInputRef}
+                                        onCardClick={() => setOverlayScholarId(scholar.id)}
                                     />
                                 ))}
                             </div>
@@ -1104,7 +806,12 @@ The first term is the reconstruction loss, and the second is the KL divergence t
                                 className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"
                             >
                                 {filteredAffiliations.map(affiliation => (
-                                    <AffiliationsCard key={affiliation.id} affiliation={affiliation} isAdmin={affiliation.isAdmin} />
+                                    <AffiliationCard
+                                        key={affiliation.id}
+                                        affiliation={affiliation}
+                                        isAdmin={affiliation.isAdmin}
+                                        onCardClick={() => setOverlayAffiliationId(affiliation.id)}
+                                    />
                                 ))}
                             </div>
                             {filteredAffiliations.length === 0 && (
@@ -1186,7 +893,11 @@ The first term is the reconstruction loss, and the second is the KL divergence t
                                 if (post.type === 'pure-paper') {
                                     return (
                                         <div key={post.id} className="bg-white border-b border-gray-200 p-6">
-                                            <PaperCard paper={post.paper} />
+                                            <PaperCard 
+                                                paper={post.paper} 
+                                                expandedAbstracts={expandedAbstracts}
+                                                onToggleAbstract={toggleAbstract}
+                                            />
                                         </div>
                                     )
                                 }
@@ -1211,7 +922,11 @@ The first term is the reconstruction loss, and the second is the KL divergence t
                                         </div>
 
                                         {post.type === 'paper-post' && post.paper && (
-                                            <PaperCard paper={post.paper} />
+                                            <PaperCard 
+                                                paper={post.paper} 
+                                                expandedAbstracts={expandedAbstracts}
+                                                onToggleAbstract={toggleAbstract}
+                                            />
                                         )}
 
                                         <div className="flex items-center gap-6 text-gray-500">
@@ -1253,42 +968,34 @@ The first term is the reconstruction loss, and the second is the KL divergence t
             <div className="flex min-h-screen">
                 {/* Left Sidebar */}
                 <div className="w-64 bg-white border-r border-gray-200 fixed top-0 left-0 h-full flex flex-col z-10">
-                    <div className="flex-1 py-4">
-                        <div className="px-4 mb-6 flex items-center gap-3">
-                            {/* Bookshelf Icon (from /library) */}
-                            <svg className="w-7 h-7 text-gray-400" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                <path d="M3 18h18" />
-                                <rect x="3" y="8" width="3.6" height="10" />
-                                <rect x="6.6" y="6" width="3.6" height="12" />
-                                <rect x="10.2" y="9" width="3.6" height="9" />
-                                <rect x="13.8" y="7" width="3.6" height="11" />
-                                <rect x="17.4" y="5" width="3.6" height="13" />
-                            </svg>
-                            <h1 className="text-xl font-bold text-gray-900">Library</h1>
-                        </div>
-
-                        <nav className="space-y-1">
-                            {navItems.map(item => (
-                                <button
-                                    key={item.id}
-                                    onClick={() => handleNavClick(item.id)}
-                                    className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors ${activeNav === item.id
-                                        ? 'bg-primary-50 text-primary-700 border-r-2 border-primary-500'
-                                        : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                                        }`}
-                                >
-                                    {item.icon}
-                                    <span className="font-medium">{item.label}</span>
-                                </button>
-                            ))}
-                        </nav>
+                    <div className="px-4 mb-6 flex items-center gap-3">
+                        {/* Bookshelf Icon (from /library) */}
+                        <svg className="w-7 h-7 text-gray-400" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M3 18h18" />
+                            <rect x="3" y="8" width="3.6" height="10" />
+                            <rect x="6.6" y="6" width="3.6" height="12" />
+                            <rect x="10.2" y="9" width="3.6" height="9" />
+                            <rect x="13.8" y="7" width="3.6" height="11" />
+                            <rect x="17.4" y="5" width="3.6" height="13" />
+                        </svg>
+                        <h1 className="text-xl font-bold text-gray-900">Library</h1>
                     </div>
 
-                    <div className="p-4 border-t border-gray-200">
-                        <button className="w-full bg-primary-500 text-white py-2 px-4 rounded-lg font-medium hover:bg-primary-600 transition-colors">
-                            Post Research
-                        </button>
-                    </div>
+                    <nav className="space-y-1">
+                        {navItems.map(item => (
+                            <button
+                                key={item.id}
+                                onClick={() => handleNavClick(item.id)}
+                                className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors ${activeNav === item.id
+                                    ? 'bg-primary-50 text-primary-700 border-r-2 border-primary-500'
+                                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                                    }`}
+                            >
+                                {item.icon}
+                                <span className="font-medium">{item.label}</span>
+                            </button>
+                        ))}
+                    </nav>
                 </div>
 
                 {/* Main Content */}
@@ -1296,6 +1003,33 @@ The first term is the reconstruction loss, and the second is the KL divergence t
                     {renderContent()}
                 </div>
             </div>
+            {(overlayScholarId || overlayAffiliationId) && (
+                <div
+                    className="fixed inset-0 z-50 flex items-start justify-center bg-black bg-opacity-40 pt-12 pb-12"
+                    onClick={closeOverlay}
+                    style={{ animation: 'fadeIn 0.2s' }}
+                >
+                    <div
+                        className="bg-white rounded-lg shadow-xl max-w-2xl max-h-[80vh] overflow-y-auto"
+                        style={{ padding: '2rem 0.5rem', margin: 'auto 0' }}
+                        onClick={e => e.stopPropagation()}
+                        tabIndex={-1}
+                    >
+                        {overlayScholarId && (
+                            <ScholarProfile
+                                scholar={scholars.find(s => s.id === overlayScholarId)}
+                                onClose={closeOverlay}
+                            />
+                        )}
+                        {overlayAffiliationId && (
+                            <AffiliationProfile
+                                affiliation={affiliations.find(a => a.id === overlayAffiliationId)}
+                                onClose={closeOverlay}
+                            />
+                        )}
+                    </div>
+                </div>
+            )}
         </div>
     )
 }
