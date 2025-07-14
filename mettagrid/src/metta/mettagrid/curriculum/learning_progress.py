@@ -7,7 +7,7 @@ import numpy as np
 from gymnasium.spaces import Discrete
 from omegaconf import DictConfig
 
-from metta.mettagrid.curriculum.random import RandomCurriculum
+from metta.mettagrid.curriculum.bucketed import BucketedCurriculum
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +17,7 @@ DEFAULT_WEIGHT = 1.0
 RANDOM_BASELINE_CAP = 0.75
 
 
-class LearningProgressCurriculum(RandomCurriculum):
+class LearningProgressCurriculum(BucketedCurriculum):
     """Curriculum that adaptively samples tasks based on learning progress."""
 
     def __init__(
