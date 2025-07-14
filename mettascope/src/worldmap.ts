@@ -183,26 +183,18 @@ function drawObject(gridObject: any) {
       } else {
         // Special handling for heart altars so that the overlay
         // reflects the actual contents (battery vs. heart).
-        let hasHeart = false
-        let hasBattery = false
-
-        if (gridObject["inv:heart"] > 0) {
-          hasHeart = true
-        }
-
-        if (gridObject["inv:battery"] > 0) {
-          hasBattery = true
-        }
+        let hasHeart = gridObject['inv:heart'] > 0
+        let hasBattery = gridObject['inv:battery'] > 0
 
         if (hasHeart) {
           // Default overlay already depicts a heart.
           ctx.drawSprite(state.replay.object_images[type][1], x * Common.TILE_SIZE, y * Common.TILE_SIZE)
         } else if (hasBattery) {
           // Display the battery resource on top of the altar
-          let batteryKey = "inv:battery"
+          let batteryKey = 'inv:battery'
           let pos = new Vec2f(x * Common.TILE_SIZE, y * Common.TILE_SIZE)
           // bump the position up a bit to look right
-          pos.setY(pos.y() - (Common.TILE_SIZE * 0.40))
+          pos.setY(pos.y() - Common.TILE_SIZE * 0.4)
           ctx.drawSprite(state.replay.resource_inventory.get(batteryKey)[0], pos.x(), pos.y(), [1, 1, 1, 1], 0.5, 0)
         }
       }
