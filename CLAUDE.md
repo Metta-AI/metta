@@ -36,7 +36,7 @@ metta install aws wandb              # Install specific components
 
 ```bash
 # Run all tests with coverage
-`metta test --cov=mettagrid --cov-report=term-missing`
+metta test --cov=mettagrid --cov-report=term-missing
 
 # Run linting with Ruff
 uv run ruff check .
