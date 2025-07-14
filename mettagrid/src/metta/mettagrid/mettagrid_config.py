@@ -74,7 +74,7 @@ class PyAttackActionConfig(PyActionConfig):
     defense_resources: Optional[dict[str, int]] = Field(default_factory=dict)
 
 
-class PyChangeGlyphActionConfig(PyActionsConfig):
+class PyChangeGlyphActionConfig(PyActionConfig):
     """Change glyph action configuration."""
 
     number_of_glyphs: int = Field(default=0, ge=0, le=255)
