@@ -349,7 +349,7 @@ def find_and_validate_task(
     return None
 
 
-def ensure_asana_task_exists(
+def ensure_asana_task(
     title: str,
     description: str,
     task_completed: bool,
@@ -509,7 +509,7 @@ if __name__ == "__main__":
     task_completed = pr_state == "closed"
 
     # Ensure task exists and output URL
-    task_url = ensure_asana_task_exists(
+    task_url = ensure_asana_task(
         title,
         description,
         task_completed,
