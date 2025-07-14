@@ -4,10 +4,19 @@ import * as Common from './common.js'
 import { ui, state, ctx, setFollowSelection } from './common.js'
 import { getAttr, sendAction } from './replay.js'
 import { PanelInfo } from './panels.js'
-import { onFrame, updateSelection } from './main.js'
+import { onFrame, updateSelection, requestFrame } from './main.js'
 import { parseHtmlColor, find } from './htmlutils.js'
 import { updateHoverPanel, updateReadout, HoverPanel } from './hoverpanels.js'
 import { search, searchMatch } from './search.js'
+
+/** Starts a smooth camera animation to the target position. */
+function startCameraAnimation(targetPos: Vec2f, panel: PanelInfo) {
+  ui.cameraStartPos = new Vec2f(panel.panPos.x(), panel.panPos.y())
+  ui.cameraTargetPos = targetPos
+  ui.cameraAnimStartTime = performance.now()
+  ui.cameraAnimating = true
+  requestFrame() // Ensure animation loop continues
+}
 
 /** Generates a color from an agent ID. */
 function colorFromId(agentId: number) {
@@ -759,9 +768,9 @@ export function drawMap(panel: PanelInfo) {
 
   // Handle automatic camera panning when following an object.
   // we don't want to stay fixed to the object as this can be very disorienting.
-  // only move the camera when the agent tries to leave a bounding box and then do a single 'screen jump'.
+  // only move the camera when the agent tries to leave a bounding box and then smoothly pan.
   // This is similar to how top down games work.
-  if (state.followSelection && state.selectedGridObject !== null) {
+  if (state.followSelection && state.selectedGridObject !== null && !ui.cameraAnimating) {
     const objX = getAttr(state.selectedGridObject, 'c') * Common.TILE_SIZE
     const objY = getAttr(state.selectedGridObject, 'r') * Common.TILE_SIZE
 
@@ -786,7 +795,7 @@ export function drawMap(panel: PanelInfo) {
 
     // Re-center camera only when the object leaves this box.
     if (screenX < boxLeft || screenX > boxRight || screenY < boxTop || screenY > boxBottom) {
-      panel.panPos = new Vec2f(-objX, -objY)
+      startCameraAnimation(new Vec2f(-objX, -objY), panel)
     }
   }
 
