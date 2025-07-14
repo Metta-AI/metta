@@ -34,9 +34,9 @@ jobs:
           echo "assignees=$assignees" >> $GITHUB_OUTPUT
           echo "reviewers=$reviewers" >> $GITHUB_OUTPUT
 
-      - name: Ensure Asana Task
+      - name: Sync PR Task (GH to Asana)
         id: ensure-asana-task
-        uses: ./.github/actions/asana/ensure-task
+        uses: ./.github/actions/asana/pr_gh_to_asana
         with:
           title: ${{ github.event.pull_request.title }}
           description: ${{ github.event.pull_request.body }}
@@ -59,10 +59,20 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
 
-      - name: Update PR Description
-        uses: ./.github/actions/asana/update-pr-description
+      - name: Sync PR Description (GH to Asana)
+        uses: ./.github/actions/asana/pr_description_gh_to_asana
         with:
           pr_number: ${{ github.event.pull_request.number }}
           repo: ${{ github.repository }}
           token: ${{ secrets.GITHUB_TOKEN }}
           task_url: ${{ steps.ensure-asana-task.outputs.task_url }}
+
+      - name: Sync PR Review (GH To Asana)
+        if: github.event_name == 'pull_request_review'
+        uses: ./.github/actions/asana/pr_review_gh_to_asana
+        with:
+          task_url: ${{ steps.ensure-asana-task.outputs.task_url }}
+          state: ${{ github.event.review.state }}
+          author: ${{ github.event.review.user.login }}
+          comment: ${{ github.event.review.body }}
+          asana_token: ${{ secrets.ASANA_API_KEY }}

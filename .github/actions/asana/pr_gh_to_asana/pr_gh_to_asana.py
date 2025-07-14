@@ -146,6 +146,9 @@ def _get_task_custom_fields_from_project(
     }
     while True:
         response = requests.get(url, headers=headers, params=params, timeout=30)
+        print(f"getting roster project details from asana: {url}")
+        print(json.dumps(response.json(), indent=2))
+        print("-----------")
         if response.status_code != 200:
             print(f"Asana API Error (_get_task_custom_fields_from_project): {response.status_code} - {response.text}")
             sys.exit(1)
@@ -174,12 +177,14 @@ def get_asana_users_by_github_logins(
         asana_email = None
         for field in custom_fields:
             if field.get("gid") == gh_login_field_id:
-                gh_login = field.get("text_value")
+                gh_login = value.strip() if (value := field.get("text_value")) else None
                 if gh_login not in github_logins:
                     # This isn't the user we're looking for.
                     break
             if field.get("gid") == asana_email_field_id:
                 asana_email = field.get("text_value")
+                if asana_email and asana_email.strip() == "mh.next@gmail.com, mhollander@stem.ai":
+                    asana_email = "mh.next@gmail.com"
             if gh_login and asana_email:
                 github_login_to_asana_email[gh_login] = asana_email
                 break
@@ -478,7 +483,7 @@ def ensure_github_url_in_asana_task(
         return None
 
 
-def get_pull_request_from_github(owner, repo, pr_number, github_token):
+def get_pull_request_from_github(repo, pr_number, github_token):
     """
     Get pull request details from GitHub API
 
@@ -491,7 +496,7 @@ def get_pull_request_from_github(owner, repo, pr_number, github_token):
     Returns:
         dict: Pull request data
     """
-    url = f"https://api.github.com/repos/{owner}/{repo}/pulls/{pr_number}"
+    url = f"https://api.github.com/repos/{repo}/pulls/{pr_number}"
 
     headers = {
         "Accept": "application/vnd.github+json",
@@ -531,7 +536,8 @@ if __name__ == "__main__":
     github_token = os.getenv("INPUT_GITHUB_TOKEN")
 
     # just print this out for now
-    get_pull_request_from_github("Metta-AI", github_repo, pr_number, github_token)
+    # touch
+    get_pull_request_from_github(github_repo, pr_number, github_token)
 
     github_logins = set(assignees + reviewers + [author])
     github_login_to_asana_email = get_asana_users_by_github_logins(
