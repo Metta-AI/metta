@@ -177,7 +177,45 @@ function drawObject(gridObject: any) {
 
     // Draw the item layer.
     if (hasInventory(gridObject)) {
-      ctx.drawSprite(state.replay.object_images[type][1], x * Common.TILE_SIZE, y * Common.TILE_SIZE)
+      // Special handling for heart altars so that the overlay
+      // reflects the actual contents (battery vs. heart).
+      if (typeName === 'altar') {
+        let hasHeart = false
+        let batteryKey: string | null = null
+
+        for (const [key, value] of Object.entries(gridObject)) {
+          if (!key.startsWith('inv:')) {
+            continue
+          }
+          if (typeof value !== 'number' || value <= 0) {
+            continue
+          }
+
+          if (key.includes('heart')) {
+            hasHeart = true
+            break
+          }
+          if (key.includes('battery') && batteryKey === null) {
+            batteryKey = key
+          }
+        }
+
+        if (hasHeart) {
+          // Default overlay already depicts a heart.
+          ctx.drawSprite(state.replay.object_images[type][1], x * Common.TILE_SIZE, y * Common.TILE_SIZE)
+        } else if (batteryKey !== null) {
+          const resource = state.replay.resource_inventory.get(batteryKey)
+          if (resource !== undefined) {
+            const [img, color] = resource as [string, number[]]
+            ctx.drawSprite(img, x * Common.TILE_SIZE, y * Common.TILE_SIZE, color)
+          }
+        } else {
+          // Fallback to default behaviour.
+          ctx.drawSprite(state.replay.object_images[type][1], x * Common.TILE_SIZE, y * Common.TILE_SIZE)
+        }
+      } else {
+        ctx.drawSprite(state.replay.object_images[type][1], x * Common.TILE_SIZE, y * Common.TILE_SIZE)
+      }
     }
   }
 }
