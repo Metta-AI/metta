@@ -14,7 +14,7 @@
       "Bash(rm:*)",
       "WebFetch(domain:docs.astral.sh)",
       "Bash(ruff check:*)",
-      "Bash(metta configure):*",
+      "Bash(metta configure:*)",
       "Bash(metta status):*",
       "Bash(metta install):*",
       "Bash(metta test):*",
