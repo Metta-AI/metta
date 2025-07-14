@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import ReactDOM from 'react-dom';
 import { mockUsers } from './mockData/users';
@@ -125,7 +125,14 @@ export function Library({ repo: _repo }: Library2Props) {
     const [scholars, setScholars] = useState(mockScholars)
     const [searchQuery, setSearchQuery] = useState('')
     const [selectedScholar, setSelectedScholar] = useState<string | null>(null)
+    const [sortBy, setSortBy] = useState<'name' | 'affiliation' | 'recentActivity' | 'papers' | 'citations' | 'hIndex'>('name')
+    const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
     const navigate = useNavigate();
+    const [expandedScholarId, setExpandedScholarId] = useState<string | null>(null);
+    const [hoveredScholarId, setHoveredScholarId] = useState<string | null>(null);
+    const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    // Add a ref for the filter input at the top of Library
+    const filterInputRef = useRef<HTMLInputElement>(null);
 
     // Sync activeNav with URL path
     useEffect(() => {
@@ -216,11 +223,58 @@ export function Library({ repo: _repo }: Library2Props) {
         ))
     }
 
-    const filteredScholars = scholars.filter(scholar =>
-        scholar.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        scholar.institution.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        scholar.expertise.some(exp => exp.toLowerCase().includes(searchQuery.toLowerCase()))
-    )
+    const filteredScholars = scholars
+        .filter(scholar => {
+            // Only filter when search query is 2+ characters long
+            if (searchQuery.length < 2) return true;
+            
+            const query = searchQuery.toLowerCase();
+            return scholar.name.toLowerCase().includes(query) ||
+                scholar.institution.toLowerCase().includes(query) ||
+                scholar.expertise.some(exp => exp.toLowerCase().includes(query));
+        })
+        .sort((a, b) => {
+            let aValue: string | number;
+            let bValue: string | number;
+            
+            switch (sortBy) {
+                case 'name':
+                    // Sort by last name
+                    const aLastName = a.name.split(' ').pop()?.toLowerCase() || '';
+                    const bLastName = b.name.split(' ').pop()?.toLowerCase() || '';
+                    aValue = aLastName;
+                    bValue = bLastName;
+                    break;
+                case 'affiliation':
+                    aValue = a.institution.toLowerCase();
+                    bValue = b.institution.toLowerCase();
+                    break;
+                case 'recentActivity':
+                    // Convert activity strings to numbers for sorting (lower = more recent)
+                    const activityOrder = { '1 day ago': 1, '2 days ago': 2, '3 days ago': 3, '4 days ago': 4, '5 days ago': 5, '1 week ago': 7 };
+                    aValue = activityOrder[a.recentActivity as keyof typeof activityOrder] || 10;
+                    bValue = activityOrder[b.recentActivity as keyof typeof activityOrder] || 10;
+                    break;
+                case 'papers':
+                    aValue = a.papers.length;
+                    bValue = b.papers.length;
+                    break;
+                case 'citations':
+                    aValue = a.totalCitations;
+                    bValue = b.totalCitations;
+                    break;
+                case 'hIndex':
+                    aValue = a.hIndex;
+                    bValue = b.hIndex;
+                    break;
+                default:
+                    return 0;
+            }
+            
+            if (aValue < bValue) return sortDirection === 'asc' ? -1 : 1;
+            if (aValue > bValue) return sortDirection === 'asc' ? 1 : -1;
+            return 0;
+        });
 
     // Dummy posts data with mathematical content
     const posts = [
@@ -391,98 +445,182 @@ The first term is the reconstruction loss, and the second is the KL divergence t
     }
 
     // ScholarCard component
-    const ScholarCard = ({ scholar }: { scholar: any }) => (
-        <div className="w-full min-w-[20rem] max-w-full bg-white rounded-lg border border-gray-200 p-4 hover:shadow transition-shadow overflow-hidden flex flex-col">
-            <div className="flex items-start justify-between mb-2 min-w-0">
-                <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-12 h-12 bg-primary-500 text-white rounded-full flex items-center justify-center text-lg font-semibold flex-shrink-0">
-                        {scholar.avatar}
-                    </div>
-                    <div className="min-w-0">
-                        <h3 className="text-lg font-semibold text-gray-900 break-words leading-tight">{scholar.name}</h3>
-                        <p className="text-gray-600 text-sm break-words leading-tight">{scholar.title}</p>
-                        <p className="text-gray-500 text-xs break-words leading-tight">{scholar.institution}</p>
-                    </div>
-                </div>
-                <div className="flex flex-col items-end gap-2 min-w-0">
-                    <span
-                        className={`px-3 py-0.5 rounded-full text-xs font-semibold mb-1 ${
-                            scholar.claimed
-                                ? 'bg-green-100 text-green-700 border border-green-200'
-                                : 'bg-gray-100 text-gray-600 border border-gray-200'
-                        }`}
-                        title={scholar.claimed ? 'This profile is claimed' : 'This profile is unclaimed'}
-                    >
-                        {scholar.claimed ? 'Claimed' : 'Unclaimed'}
-                    </span>
-                    <button
-                        onClick={() => toggleFollow(scholar.id)}
-                        className={`px-3 py-1 rounded-full font-medium transition-colors flex-shrink-0 whitespace-nowrap text-sm ${
-                            scholar.isFollowing
-                                ? 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                                : 'bg-primary-500 text-white hover:bg-primary-600'
-                        }`}
-                    >
-                        {scholar.isFollowing ? 'Following' : 'Follow'}
-                    </button>
-                </div>
-            </div>
+    const ScholarCard = ({ scholar, expanded, onExpand, onCollapse }: { scholar: any, expanded: boolean, onExpand: (id: string) => void, onCollapse: (id: string) => void }) => {
+        const cardRef = useRef<HTMLDivElement>(null);
+        const containerRef = useRef<HTMLDivElement>(null);
 
-            <p className="text-gray-700 mb-2 text-sm leading-snug break-words">{scholar.bio}</p>
+        // Tag logic - show all expertise tags
+        const tagsToShow = scholar.expertise;
 
-            <div className="flex flex-wrap gap-1 mb-2">
-                {scholar.expertise.map((exp: string, index: number) => (
-                    <span
-                        key={index}
-                        className="px-2 py-0.5 bg-gray-100 text-gray-700 text-xs rounded-full"
-                    >
-                        {exp}
-                    </span>
-                ))}
-            </div>
+        // Robust hover logic using mouse tracking
+        const handleMouseEnter = () => {
+            // Clear any pending collapse timeout
+            if (hoverTimeoutRef.current) {
+                clearTimeout(hoverTimeoutRef.current);
+                hoverTimeoutRef.current = null;
+            }
+            
+            // Set this scholar as hovered
+            setHoveredScholarId(scholar.id);
+            
+            // Expand immediately
+            onExpand(scholar.id);
+        };
 
-            <div className="flex items-center gap-4 text-xs text-gray-600 mb-2">
-                <div>
-                    <span className="font-semibold text-gray-900">{scholar.hIndex}</span>
-                    <span className="ml-1">h-index</span>
-                </div>
-                <div>
-                    <span className="font-semibold text-gray-900">{scholar.totalCitations.toLocaleString()}</span>
-                    <span className="ml-1">citations</span>
-                </div>
-                <div>
-                    <span className="font-semibold text-gray-900">{scholar.papers.length}</span>
-                    <span className="ml-1">papers</span>
-                </div>
-            </div>
+        const handleMouseLeave = (event: React.MouseEvent) => {
+            // Check if we're moving to a child element (like the drawer)
+            const relatedTarget = event.relatedTarget as HTMLElement;
+            if (containerRef.current && relatedTarget && containerRef.current.contains(relatedTarget)) {
+                return; // Still within the container, don't collapse
+            }
 
-            <div className="border-t border-gray-200 pt-2 mt-2">
-                <h4 className="font-semibold text-gray-900 mb-2 text-sm">Recent Papers</h4>
-                <div className="space-y-1">
-                    {scholar.papers.slice(0, 2).map((paper: any) => (
-                        <div key={paper.id} className="flex items-center justify-between min-w-0">
-                            <div className="flex-1 min-w-0">
-                                <p className="text-xs font-medium text-gray-900 break-words leading-tight">{paper.title}</p>
-                                <p className="text-xs text-gray-500">{paper.year} • {paper.citations} citations</p>
+            // Set a timeout to collapse, but only if we're not hovering over the drawer
+            hoverTimeoutRef.current = setTimeout(() => {
+                setHoveredScholarId(null);
+                onCollapse(scholar.id);
+            }, 150); // Slightly longer timeout for better UX
+        };
+
+        // Check if mouse is still over the container (for drawer interactions)
+        const handleContainerMouseMove = () => {
+            if (hoveredScholarId === scholar.id) {
+                // Mouse is still over this scholar, ensure it stays expanded
+                onExpand(scholar.id);
+            }
+        };
+
+        // Cleanup timeout on unmount
+        useEffect(() => {
+            return () => {
+                if (hoverTimeoutRef.current) {
+                    clearTimeout(hoverTimeoutRef.current);
+                }
+            };
+        }, []);
+
+        return (
+            <div
+                ref={containerRef}
+                className="relative break-inside-avoid mb-6"
+                onMouseEnter={handleMouseEnter}
+                onMouseLeave={handleMouseLeave}
+                onMouseMove={handleContainerMouseMove}
+            >
+                {/* Scholar card with simplified, robust layout */}
+                <div 
+                    ref={cardRef}
+                    className="relative w-full bg-white rounded-lg border border-gray-200 p-3 hover:shadow-md transition-all cursor-pointer"
+                    style={{ minHeight: '160px' }}
+                    onClick={() => navigate(`/scholars/${scholar.id}`)}
+                >
+                    {/* Avatar and follow button section */}
+                    <div className="flex items-start gap-3 min-w-0 mb-3">
+                        <div className="flex flex-col items-center flex-shrink-0" style={{ width: 60 }}>
+                            <div className={`w-12 h-12 rounded-full flex items-center justify-center text-sm font-semibold ${scholar.claimed ? 'bg-primary-500 text-white' : 'bg-gray-300 text-gray-600'}`}> 
+                                {scholar.initials || (scholar.name.split(' ').map((n: string) => n[0]).join('').toUpperCase())}
                             </div>
-                            <a
-                                href={paper.url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-xs text-primary-500 hover:text-primary-600 ml-2 flex-shrink-0"
-                            >
-                                View
-                            </a>
+                            {scholar.claimed && (
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        toggleFollow(scholar.id);
+                                    }}
+                                    className={`mt-1 px-2 py-0.5 rounded-full text-[9px] uppercase tracking-wider font-semibold transition-colors ${
+                                        scholar.isFollowing
+                                            ? 'bg-orange-100 text-orange-700'
+                                            : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                                    }`}
+                                >
+                                    {scholar.isFollowing ? 'FOLLOWING' : 'FOLLOW'}
+                                </button>
+                            )}
                         </div>
-                    ))}
+                        
+                        {/* Name and institution section */}
+                        <div className="flex-1 min-w-0">
+                            <h3 className="text-base font-semibold text-gray-900 break-words leading-tight mb-1">
+                                {highlightMatchingText(scholar.name, searchQuery)}
+                            </h3>
+                            <p className="text-gray-600 text-sm break-words leading-tight">
+                                {highlightMatchingText(scholar.institution, searchQuery)}
+                            </p>
+                        </div>
+                    </div>
+                    
+                    {/* Expertise tags as flowing text with consistent spacing */}
+                    <div className="w-full">
+                        <div className="text-xs font-semibold text-gray-700 leading-tight break-words">
+                            {tagsToShow.map((exp: string, index: number) => (
+                                <React.Fragment key={exp}>
+                                    {index > 0 && <span className="text-gray-400"> • </span>}
+                                    <button
+                                        type="button"
+                                        className="hover:text-primary-600 hover:underline transition-colors cursor-pointer p-0 m-0 bg-transparent border-none font-semibold break-words"
+                                        style={{ display: 'inline', background: 'none' }}
+                                        onClick={e => {
+                                            e.stopPropagation();
+                                            setSearchQuery(exp);
+                                            filterInputRef.current?.focus();
+                                        }}
+                                    >
+                                        {highlightMatchingText(exp, searchQuery)}
+                                    </button>
+                                </React.Fragment>
+                            ))}
+                        </div>
+                    </div>
                 </div>
+                {/* Hover drawer, absolutely positioned outside the card, never affects card layout */}
+                {expanded && (
+                    <div
+                        className="absolute left-0 top-full -mt-4.75 w-full bg-gray-200 border-l border-r border-b border-gray-300 shadow-lg p-4 rounded-b-lg rounded-t-none"
+                        style={{ 
+                            zIndex: 30, 
+                            pointerEvents: 'auto',
+                            transform: 'translateY(-4px)' // Slight overlap for seamless look
+                        }}
+                    >
+                        <div className="flex items-center gap-4 text-xs text-gray-600 mb-3">
+                            <div>
+                                <span className="font-semibold text-gray-900">{scholar.hIndex}</span>
+                                <span className="ml-1">h-index</span>
+                            </div>
+                            <div>
+                                <span className="font-semibold text-gray-900">{scholar.totalCitations.toLocaleString()}</span>
+                                <span className="ml-1">citations</span>
+                            </div>
+                            <div>
+                                <span className="font-semibold text-gray-900">{scholar.papers.length}</span>
+                                <span className="ml-1">papers</span>
+                            </div>
+                        </div>
+                        <div className="border-t border-gray-300 pt-2">
+                            <h4 className="font-semibold text-gray-900 mb-2 text-sm">Recent Papers</h4>
+                            <div className="space-y-1">
+                                {scholar.papers.slice(0, 2).map((paper: any) => (
+                                    <div key={paper.id} className="min-w-0">
+                                        <a
+                                            href={paper.url}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="text-xs font-medium text-gray-900 break-words leading-tight hover:text-primary-600 block"
+                                            onClick={(e) => e.stopPropagation()}
+                                        >
+                                            {paper.title}
+                                        </a>
+                                        <p className="text-xs text-gray-500">{paper.year} • {paper.citations} citations</p>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                        <div className="mt-2 text-xs text-gray-500">
+                            Active {scholar.recentActivity}
+                        </div>
+                    </div>
+                )}
             </div>
-
-            <div className="mt-2 text-xs text-gray-500">
-                Active {scholar.recentActivity}
-            </div>
-        </div>
-    )
+        );
+    };
 
     // AffiliationsCard component
     const AffiliationsCard = ({ affiliation, isAdmin }: { affiliation: any, isAdmin: boolean }) => (
@@ -601,6 +739,23 @@ The first term is the reconstruction loss, and the second is the KL divergence t
         setPapers(prev => prev.map(p => p.id === id ? { ...p, starred: !p.starred, stars: p.starred ? p.stars - 1 : p.stars + 1 } : p));
     };
     const [hoveredUser, setHoveredUser] = useState<{ user: any, position: { x: number, y: number } } | null>(null);
+    
+    // Helper function to highlight matching text in tags
+    const highlightMatchingText = (text: string, query: string) => {
+        if (query.length < 2) return text;
+        
+        const regex = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+        const parts = text.split(regex);
+        
+        return parts.map((part, index) => 
+            regex.test(part) ? (
+                <strong key={index} className="font-bold">{part}</strong>
+            ) : (
+                part
+            )
+        );
+    };
+    
     const PapersTable = () => (
         <div className="overflow-x-auto relative">
             {hoveredUser && <UserHoverCard user={hoveredUser.user} position={hoveredUser.position} />}
@@ -637,18 +792,24 @@ The first term is the reconstruction loss, and the second is the KL divergence t
                                 <span>{paper.title}</span>
                             </td>
                             <td className="px-4 py-2 whitespace-nowrap">
-                                {paper.authors.map((author, idx) => (
-                                    <a key={author.id} href={`/scholars/${author.id}`} className="text-primary-600 hover:underline mr-1">
-                                        {author.name}{idx < paper.authors.length - 1 ? ',' : ''}
-                                    </a>
-                                ))}
+                                {paper.authors.map((authorId: string, idx: number) => {
+                                    const author = mockScholars.find(s => s.id === authorId);
+                                    return author ? (
+                                        <a key={author.id} href={`/scholars/${author.id}`} className="text-primary-600 hover:underline mr-1">
+                                            {author.name}{idx < paper.authors.length - 1 ? ',' : ''}
+                                        </a>
+                                    ) : null;
+                                })}
                             </td>
                             <td className="px-4 py-2 whitespace-nowrap">
-                                {paper.affiliations.map((aff, idx) => (
-                                    <a key={aff.id} href={`/affiliations/${aff.id}`} className="text-primary-600 hover:underline mr-1">
-                                        {aff.label}{idx < paper.affiliations.length - 1 ? ',' : ''}
-                                    </a>
-                                ))}
+                                {paper.affiliations.map((affId: string, idx: number) => {
+                                    const aff = mockAffiliations.find(a => a.id === affId);
+                                    return aff ? (
+                                        <a key={aff.id} href={`/affiliations/${aff.id}`} className="text-primary-600 hover:underline mr-1">
+                                            {aff.label}{idx < paper.affiliations.length - 1 ? ',' : ''}
+                                        </a>
+                                    ) : null;
+                                })}
                             </td>
                             <td className="px-4 py-2 whitespace-nowrap">
                                 {paper.tags.map((tag, idx) => (
@@ -657,7 +818,7 @@ The first term is the reconstruction loss, and the second is the KL divergence t
                             </td>
                             <td className="px-4 py-2 whitespace-nowrap">
                                 <div className="flex -space-x-2">
-                                    {paper.readBy.map(user => (
+                                    {Array.isArray(paper.readBy) && paper.readBy.length > 0 ? paper.readBy.map((user: any) => (
                                         <span
                                             key={user.id}
                                             className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-primary-200 text-primary-800 text-xs font-bold border-2 border-white cursor-pointer"
@@ -676,7 +837,7 @@ The first term is the reconstruction loss, and the second is the KL divergence t
                                         >
                                             {user.avatar}
                                         </span>
-                                    ))}
+                                    )) : null}
                                 </div>
                             </td>
                             <td className="px-4 py-2 whitespace-nowrap">
@@ -686,7 +847,7 @@ The first term is the reconstruction loss, and the second is the KL divergence t
                             </td>
                             <td className="px-4 py-2 whitespace-nowrap">
                                 <div className="flex -space-x-2">
-                                    {paper.queued.map(user => (
+                                    {Array.isArray(paper.queued) && paper.queued.length > 0 ? paper.queued.map((user: any) => (
                                         <span
                                             key={user.id}
                                             className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-primary-100 text-primary-700 text-xs font-bold border-2 border-white cursor-pointer"
@@ -705,7 +866,7 @@ The first term is the reconstruction loss, and the second is the KL divergence t
                                         >
                                             {user.avatar}
                                         </span>
-                                    ))}
+                                    )) : null}
                                 </div>
                             </td>
                             <td className="px-4 py-2 whitespace-nowrap text-center">{paper.stars}</td>
@@ -721,46 +882,86 @@ The first term is the reconstruction loss, and the second is the KL divergence t
         switch (activeNav) {
             case 'scholars':
                 return (
-                    <div className="p-6">
-                        <div className="max-w-4xl mx-auto">
-                            <div className="mb-6">
-                                <h1 className="text-2xl font-bold text-gray-900 mb-2">Scholars</h1>
-                                <p className="text-gray-600">Discover and follow researchers in your field</p>
-                            </div>
-
+                    <div className="p-4">
+                        {/* Filter and Sort Controls: left-aligned, max width */}
+                        <div className="max-w-4xl mb-4 space-y-4">
                             {/* Search Bar */}
-                            <div className="mb-6">
-                                <div className="relative">
-                                    <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <circle cx="11" cy="11" r="8" />
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="m21 21-4.35-4.35" />
-                                    </svg>
-                                    <input
-                                        type="text"
-                                        placeholder="Search scholars by name, institution, or expertise..."
-                                        value={searchQuery}
-                                        onChange={(e) => setSearchQuery(e.target.value)}
-                                        className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                                    />
+                            <div className="relative">
+                                <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <circle cx="11" cy="11" r="8" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="m21 21-4.35-4.35" />
+                                </svg>
+                                <input
+                                    ref={filterInputRef}
+                                    type="text"
+                                    placeholder="Filter by name, institution, or expertise..."
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                                />
+                            </div>
+                            {/* Sort Controls */}
+                            <div className="flex items-center gap-4 text-sm">
+                                <span className="text-gray-600 font-medium">Sort by:</span>
+                                <div className="flex gap-2">
+                                    {[
+                                        { key: 'name', label: 'Name' },
+                                        { key: 'affiliation', label: 'Affiliation' },
+                                        { key: 'recentActivity', label: 'Recent Activity' },
+                                        { key: 'papers', label: 'Papers' },
+                                        { key: 'citations', label: 'Citations' },
+                                        { key: 'hIndex', label: 'H-index' }
+                                    ].map(({ key, label }) => (
+                                        <button
+                                            key={key}
+                                            onClick={() => {
+                                                if (sortBy === key) {
+                                                    setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+                                                } else {
+                                                    setSortBy(key as any);
+                                                    setSortDirection('asc');
+                                                }
+                                            }}
+                                            className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                                                sortBy === key
+                                                    ? 'bg-primary-100 text-primary-700 border border-primary-200'
+                                                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-200'
+                                            }`}
+                                        >
+                                            {label}
+                                            {sortBy === key && (
+                                                <span className="ml-1">
+                                                    {sortDirection === 'asc' ? '↑' : '↓'}
+                                                </span>
+                                            )}
+                                        </button>
+                                    ))}
                                 </div>
                             </div>
-
-                            {/* Scholars Grid */}
+                        </div>
+                        {/* Scholars Grid: left-to-right flow like text */}
+                        <div className="w-full px-2">
                             <div
-                                className="grid gap-x-6 gap-y-6 px-4 justify-items-center"
-                                style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(20rem, 1fr))' }}
+                                className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"
                             >
                                 {filteredScholars.map(scholar => (
-                                    <ScholarCard key={scholar.id} scholar={scholar} />
+                                    <ScholarCard
+                                        key={scholar.id}
+                                        scholar={scholar}
+                                        expanded={expandedScholarId === scholar.id}
+                                        onExpand={id => setExpandedScholarId(id)}
+                                        onCollapse={id => {
+                                            if (expandedScholarId === id) setExpandedScholarId(null);
+                                        }}
+                                    />
                                 ))}
                             </div>
-
                             {filteredScholars.length === 0 && (
-                                <div className="text-center py-12">
+                                <div className="text-center py-8">
                                     <svg className="w-12 h-12 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                                     </svg>
-                                    <p className="text-gray-500">No scholars found matching your search.</p>
+                                    <p className="text-gray-500">No scholars found matching your filter.</p>
                                 </div>
                             )}
                         </div>

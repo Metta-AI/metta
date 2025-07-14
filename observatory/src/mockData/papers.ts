@@ -96,85 +96,33 @@ function generateRealisticTitle(): string {
         .replace('{approach}', approach);
 }
 
-export const mockPapers: Paper[] = Array.from({ length: 100 }, (_, i) => {
-    const authors = getRandomElements(mockScholars, Math.floor(Math.random() * 3) + 1).map(s => ({ id: s.id, name: s.name }));
-    const affiliations = getRandomElements(mockAffiliations, Math.floor(Math.random() * 2) + 1).map(a => ({ id: a.id, label: a.label }));
-    const tags = getRandomElements(tagPool, Math.floor(Math.random() * 3) + 1);
-    const readBy = getRandomElements(mockUsers, Math.floor(Math.random() * 5));
-    const queued = getRandomElements(mockUsers, Math.floor(Math.random() * 3));
-    return {
-        id: `p${i + 1}`,
-        title: generateRealisticTitle(),
-        starred: Math.random() > 0.8,
-        authors,
-        affiliations,
-        tags,
-        readBy,
-        queued,
-        link: `https://arxiv.org/abs/mock${i + 1}`,
-        stars: Math.floor(Math.random() * 20),
-    };
-});
-
-mockPapers.push(...Array.from({ length: 100 }, (_, i) => {
-    const idx = i + 100;
-    const authors = getRandomElements(mockScholars, Math.floor(Math.random() * 3) + 1).map(s => ({ id: s.id, name: s.name }));
-    const affiliations = getRandomElements(mockAffiliations, Math.floor(Math.random() * 2) + 1).map(a => ({ id: a.id, label: a.label }));
-    const tags = getRandomElements(tagPool, Math.floor(Math.random() * 3) + 1);
-    const readBy = getRandomElements(mockUsers, Math.floor(Math.random() * 5));
-    const queued = getRandomElements(mockUsers, Math.floor(Math.random() * 3));
-    return {
-        id: `p${idx + 1}`,
-        title: generateRealisticTitle(),
-        starred: Math.random() > 0.8,
-        authors,
-        affiliations,
-        tags,
-        readBy,
-        queued,
-        link: `https://arxiv.org/abs/mock${idx + 1}`,
-        stars: Math.floor(Math.random() * 20),
-    };
-}));
-
-mockPapers.push(...Array.from({ length: 100 }, (_, i) => {
-    const idx = i + 200;
-    const authors = getRandomElements(mockScholars, Math.floor(Math.random() * 3) + 1).map(s => ({ id: s.id, name: s.name }));
-    const affiliations = getRandomElements(mockAffiliations, Math.floor(Math.random() * 2) + 1).map(a => ({ id: a.id, label: a.label }));
-    const tags = getRandomElements(tagPool, Math.floor(Math.random() * 3) + 1);
-    const readBy = getRandomElements(mockUsers, Math.floor(Math.random() * 5));
-    const queued = getRandomElements(mockUsers, Math.floor(Math.random() * 3));
-    return {
-        id: `p${idx + 1}`,
-        title: generateRealisticTitle(),
-        starred: Math.random() > 0.8,
-        authors,
-        affiliations,
-        tags,
-        readBy,
-        queued,
-        link: `https://arxiv.org/abs/mock${idx + 1}`,
-        stars: Math.floor(Math.random() * 20),
-    };
-}));
-
-mockPapers.push(...Array.from({ length: 100 }, (_, i) => {
-    const idx = i + 300;
-    const authors = getRandomElements(mockScholars, Math.floor(Math.random() * 3) + 1).map(s => ({ id: s.id, name: s.name }));
-    const affiliations = getRandomElements(mockAffiliations, Math.floor(Math.random() * 2) + 1).map(a => ({ id: a.id, label: a.label }));
-    const tags = getRandomElements(tagPool, Math.floor(Math.random() * 3) + 1);
-    const readBy = getRandomElements(mockUsers, Math.floor(Math.random() * 5));
-    const queued = getRandomElements(mockUsers, Math.floor(Math.random() * 3));
-    return {
-        id: `p${idx + 1}`,
-        title: generateRealisticTitle(),
-        starred: Math.random() > 0.8,
-        authors,
-        affiliations,
-        tags,
-        readBy,
-        queued,
-        link: `https://arxiv.org/abs/mock${idx + 1}`,
-        stars: Math.floor(Math.random() * 20),
-    };
-})); 
+export const mockPapers = [
+  {
+    id: "paper1",
+    title: "Conversational AI for Robotics",
+    year: 2022,
+    citations: 500,
+    authors: ["scholar1", "scholar2"], // scholar IDs
+    affiliations: ["aff1"], // affiliation IDs
+    tags: ["Conversational AI", "Robotics"],
+    link: "https://arxiv.org/abs/1234.5678",
+    readBy: [],
+    queued: [],
+    starred: false,
+    stars: 10,
+  },
+  {
+    id: "paper2",
+    title: "Natural Language Processing in Autonomous Vehicles",
+    year: 2021,
+    citations: 700,
+    authors: ["scholar2"],
+    affiliations: ["aff2"],
+    tags: ["NLP", "Autonomous Vehicles"],
+    link: "https://arxiv.org/abs/2345.6789",
+    readBy: [],
+    queued: [],
+    starred: false,
+    stars: 8,
+  },
+]; 
