@@ -28,10 +28,17 @@ class MapGenParams(Config):
     # This value usually shouldn't be changed.
     border_width: int = 5
 
-    # Number of root scene instances to generate.
-    # If set, the map will be generated as a grid of instances, with the given border width.
-    # This is useful for additional parallelization.
-    # By default, the map will be generated as a single root scene instance, with the given width and height.
+    # Number of root scene instances to generate. If set, the map will be
+    # generated as a grid of instances, separated by the given
+    # `instance_border_width`.
+    #
+    # MapGen will try to make the grid as square as possible, and if that
+    # square-ish grid will have more areas than the number of instances, it will
+    # leave some areas empty.
+    #
+    # This is useful for additional parallelization. By default, the map will be
+    # generated as a single root scene instance, with the given width and
+    # height.
     instances: int = 1
     instance_border_width: int = 5
 
@@ -79,6 +86,8 @@ class MapGen(LevelBuilder):
                     ChildrenAction(
                         scene=self.root,
                         where=AreaWhere(tags=["room"]),
+                        limit=self.instances,
+                        order_by="first",
                     )
                 ],
             )

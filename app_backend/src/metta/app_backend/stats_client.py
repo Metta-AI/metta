@@ -34,6 +34,15 @@ class ClientEpisodeResponse(BaseModel):
     id: uuid.UUID
 
 
+class _NotAuthenticatedError(ConnectionError):
+    """Exception raised when the stats client is not authenticated."""
+
+    def __init__(self, message: str | None = None):
+        super().__init__(
+            message or "Unable to authenticate with the stats server. Run `metta status` to configure your token"
+        )
+
+
 class StatsClient:
     """Client for interacting with the stats API."""
 
@@ -57,6 +66,19 @@ class StatsClient:
     def close(self):
         """Close the HTTP client."""
         self.http_client.close()
+
+    def validate_authenticated(self) -> str:
+        try:
+            response = self.http_client.get("/whoami")
+            response.raise_for_status()
+            if (auth_user := response.json().get("user_email")) not in ["unknown", None]:
+                return auth_user
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 401:
+                raise _NotAuthenticatedError(None) from e
+            else:
+                raise e
+        raise _NotAuthenticatedError()
 
     def get_policy_ids(self, policy_names: List[str]) -> ClientPolicyIdResponse:
         """
