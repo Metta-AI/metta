@@ -882,11 +882,23 @@ class MettaTrainer:
 
         # Update performance threshold tracker
         if hasattr(self, "performance_threshold_tracker"):
+            # Get elapsed time from timer
+            elapsed_time = self.timer.elapsed() if hasattr(self, "timer") else None
+
+            # Get instance information from SkyPilot environment or config
+            instance_type = self.aws_config.get("instance_type", None)
+            use_spot = self.aws_config.get("use_spot", None)
+            num_nodes = int(os.environ.get("SKYPILOT_NUM_NODES", "1"))
+            num_gpus_per_node = int(os.environ.get("SKYPILOT_NUM_GPUS_PER_NODE", "1"))
+
             self.performance_threshold_tracker.update(
                 metrics=self.stats,
                 samples=self.agent_step,
-                instance_type=self.aws_config.get("instance_type", "g5.4xlarge"),
-                use_spot=self.aws_config.get("use_spot", False),
+                elapsed_time=elapsed_time,
+                instance_type=instance_type,
+                use_spot=use_spot,
+                num_nodes=num_nodes,
+                num_gpus_per_node=num_gpus_per_node,
             )
 
         # Compute weight stats if on interval
