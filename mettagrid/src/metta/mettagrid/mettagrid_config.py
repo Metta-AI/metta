@@ -79,17 +79,21 @@ class ChangeGlyphActionConfig(ActionConfig):
 
 
 class ActionsConfig(BaseModelWithForbidExtra):
-    """Actions configuration."""
+    """
+    Actions configuration.
 
-    noop: ActionConfig
-    move: ActionConfig
-    rotate: ActionConfig
-    put_items: ActionConfig
-    get_items: ActionConfig
-    attack: AttackActionConfig
-    swap: ActionConfig
-    change_color: ActionConfig
-    change_glyph: ChangeGlyphActionConfig
+    Omitted actions are disabled by default.
+    """
+
+    noop: Optional[ActionConfig] = None
+    move: Optional[ActionConfig] = None
+    rotate: Optional[ActionConfig] = None
+    put_items: Optional[ActionConfig] = None
+    get_items: Optional[ActionConfig] = None
+    attack: Optional[AttackActionConfig] = None
+    swap: Optional[ActionConfig] = None
+    change_color: Optional[ActionConfig] = None
+    change_glyph: Optional[ChangeGlyphActionConfig] = None
 
 
 class WallConfig(BaseModelWithForbidExtra):
