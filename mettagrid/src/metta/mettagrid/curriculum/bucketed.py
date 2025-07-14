@@ -9,15 +9,14 @@ from tqdm import tqdm
 
 from metta.common.util.config import copy_omegaconf_config
 from metta.mettagrid.curriculum.core import Curriculum
+from metta.mettagrid.curriculum.learning_progress import LearningProgressCurriculum
 from metta.mettagrid.curriculum.sampling import SampledTaskCurriculum
 from metta.mettagrid.curriculum.util import config_from_path
-
-from .low_reward import LowRewardCurriculum
 
 logger = logging.getLogger(__name__)
 
 
-class BucketedCurriculum(LowRewardCurriculum):
+class BucketedCurriculum(LearningProgressCurriculum):
     def __init__(
         self,
         env_cfg_template: str,
