@@ -31,11 +31,11 @@ dtype_actions = np.dtype(np.int32)
 class MettaGridGymEnv(MettaGridEnv, GymEnv):
     """
     Gymnasium adapter for MettaGrid environments.
-    
+
     This class provides a Gymnasium-compatible interface for MettaGrid environments,
     supporting both single-agent and multi-agent scenarios.
     """
-    
+
     def __init__(
         self,
         curriculum: Curriculum,
@@ -49,7 +49,7 @@ class MettaGridGymEnv(MettaGridEnv, GymEnv):
     ):
         """
         Initialize Gymnasium environment.
-        
+
         Args:
             curriculum: Curriculum for task management
             render_mode: Rendering mode
@@ -71,92 +71,89 @@ class MettaGridGymEnv(MettaGridEnv, GymEnv):
             is_training=is_training,
             **kwargs,
         )
-        
+
         # Initialize Gym environment
         GymEnv.__init__(self)
-        
+
         self._single_agent = single_agent
-        
+
         # Create initial core environment for property access
         self._core_env = self._create_core_env(0)
-        
+
         # Buffers for environment data
         self._observations: Optional[np.ndarray] = None
         self._terminals: Optional[np.ndarray] = None
         self._truncations: Optional[np.ndarray] = None
         self._rewards: Optional[np.ndarray] = None
-    
+
     def _allocate_buffers(self) -> None:
         """Allocate buffers based on environment dimensions."""
         if self._core_env is None:
             raise RuntimeError("Core environment not initialized")
-        
+
         num_agents = self._core_env.num_agents
         obs_space = self._core_env.observation_space
-        
+
         # Allocate buffers
         self._observations = np.zeros((num_agents,) + obs_space.shape, dtype=dtype_observations)
         self._terminals = np.zeros(num_agents, dtype=dtype_terminals)
         self._truncations = np.zeros(num_agents, dtype=dtype_truncations)
         self._rewards = np.zeros(num_agents, dtype=dtype_rewards)
-    
+
     @override
     def _get_initial_observations(self) -> np.ndarray:
         """
         Get initial observations and set up buffers.
-        
+
         Returns:
             Initial observations array
         """
         if self._core_env is None:
             raise RuntimeError("Core environment not initialized")
-        
+
         # Allocate buffers
         self._allocate_buffers()
-        
+
         # Set buffers in core environment
         assert self._observations is not None
         assert self._terminals is not None
         assert self._truncations is not None
         assert self._rewards is not None
         self._core_env.set_buffers(self._observations, self._terminals, self._truncations, self._rewards)
-        
+
         # Get initial observations
         obs = self._core_env.get_initial_observations()
-        
+
         # Return single agent observation if in single agent mode
         if self._single_agent:
             return obs[0]
-        
+
         return obs
-    
+
     @override
     def reset(
-        self, 
-        *, 
-        seed: Optional[int] = None, 
-        options: Optional[Dict[str, Any]] = None
+        self, *, seed: Optional[int] = None, options: Optional[Dict[str, Any]] = None
     ) -> Tuple[np.ndarray, Dict[str, Any]]:
         """
         Reset the environment.
-        
+
         Args:
             seed: Random seed
             options: Additional options (unused)
-            
+
         Returns:
             Tuple of (observations, info)
         """
         return self.reset_base(seed)
-    
+
     @override
     def step(self, action: np.ndarray) -> Tuple[np.ndarray, float, bool, bool, Dict[str, Any]]:
         """
         Execute one timestep of the environment dynamics.
-        
+
         Args:
             action: Action array. For single-agent: shape (2,). For multi-agent: shape (num_agents, 2)
-            
+
         Returns:
             Tuple of (observation, reward, terminated, truncated, info)
         """
@@ -169,22 +166,22 @@ class MettaGridGymEnv(MettaGridEnv, GymEnv):
                 actions = action
         else:
             actions = action
-        
+
         # Ensure correct dtype
         actions = actions.astype(dtype_actions)
-        
+
         # Call base step implementation
         infos = self.step_base(actions)
-        
+
         # Get step results
         if self._observations is None or self._rewards is None or self._terminals is None or self._truncations is None:
             raise RuntimeError("Buffers not initialized")
-        
+
         observations = self._observations.copy()
         rewards = self._rewards.copy()
         terminals = self._terminals.copy()
         truncations = self._truncations.copy()
-        
+
         # Handle single-agent return format
         if self._single_agent:
             return (
@@ -192,18 +189,12 @@ class MettaGridGymEnv(MettaGridEnv, GymEnv):
                 float(rewards[0]),  # Single agent reward
                 bool(terminals[0]),  # Single agent terminal
                 bool(truncations[0]),  # Single agent truncation
-                infos
+                infos,
             )
         else:
             # Multi-agent format - return arrays
-            return (
-                observations,
-                rewards,
-                terminals,
-                truncations,
-                infos
-            )
-    
+            return (observations, rewards, terminals, truncations, infos)
+
     # Gymnasium required properties
     @property
     @override
@@ -211,43 +202,39 @@ class MettaGridGymEnv(MettaGridEnv, GymEnv):
         """Get observation space."""
         if self._core_env is None:
             raise RuntimeError("Environment not initialized")
-        
+
         single_space = self._core_env.observation_space
-        
+
         if self._single_agent:
             return single_space
         else:
             # Multi-agent space - return array of spaces
-            return spaces.Dict({
-                f"agent_{i}": single_space for i in range(self._core_env.num_agents)
-            })
-    
+            return spaces.Dict({f"agent_{i}": single_space for i in range(self._core_env.num_agents)})
+
     @property
     @override
     def action_space(self) -> spaces.Space:
         """Get action space."""
         if self._core_env is None:
             raise RuntimeError("Environment not initialized")
-        
+
         single_space = self._core_env.action_space
-        
+
         if self._single_agent:
             return single_space
         else:
             # Multi-agent space - return array of spaces
-            return spaces.Dict({
-                f"agent_{i}": single_space for i in range(self._core_env.num_agents)
-            })
+            return spaces.Dict({f"agent_{i}": single_space for i in range(self._core_env.num_agents)})
 
 
 class SingleAgentMettaGridGymEnv(MettaGridGymEnv):
     """
     Single-agent wrapper for MettaGrid Gymnasium environments.
-    
+
     This is a convenience class that automatically sets single_agent=True
     and provides a cleaner interface for single-agent use cases.
     """
-    
+
     def __init__(
         self,
         curriculum: Curriculum,
@@ -260,7 +247,7 @@ class SingleAgentMettaGridGymEnv(MettaGridGymEnv):
     ):
         """
         Initialize single-agent Gymnasium environment.
-        
+
         Args:
             curriculum: Curriculum for task management
             render_mode: Rendering mode
@@ -280,7 +267,7 @@ class SingleAgentMettaGridGymEnv(MettaGridGymEnv):
             single_agent=True,
             **kwargs,
         )
-    
+
     @property
     @override
     def observation_space(self) -> spaces.Box:
@@ -288,7 +275,7 @@ class SingleAgentMettaGridGymEnv(MettaGridGymEnv):
         if self._core_env is None:
             raise RuntimeError("Environment not initialized")
         return self._core_env.observation_space
-    
+
     @property
     @override
     def action_space(self) -> spaces.MultiDiscrete:
