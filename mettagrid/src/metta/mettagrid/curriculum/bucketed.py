@@ -17,7 +17,7 @@ from .prioritize_regressed import PrioritizeRegressedCurriculum
 logger = logging.getLogger(__name__)
 
 
-class BucketedCurriculum(PrioritizeRegressedCurriculum):
+class CurriculBucketedum(LowRewardCurriculum):
     def __init__(
         self,
         env_cfg_template: str,

@@ -1,0 +1,31 @@
+_target_: metta.mettagrid.curriculum.learning_progress.LearningProgressCurriculum
+
+tasks:
+  # Original navigation tasks
+  /env/mettagrid/navigation/training/terrain_from_numpy: 1
+  /env/mettagrid/navigation/training/cylinder_world: 1
+  /env/mettagrid/navigation/training/varied_terrain_sparse: 1
+  /env/mettagrid/navigation/training/varied_terrain_balanced: 1
+  /env/mettagrid/navigation/training/varied_terrain_maze: 1
+  /env/mettagrid/navigation/training/varied_terrain_dense: 1
+
+  # Center altar tasks (structured navigation)
+  /env/mettagrid/navigation/evals/center_altar_3: 1
+  /env/mettagrid/navigation/evals/center_altar_4: 1
+  /env/mettagrid/navigation/evals/center_altar_5: 1
+  /env/mettagrid/navigation/evals/center_altar_6: 1
+  /env/mettagrid/navigation/evals/center_altar_7: 1
+  /env/mettagrid/navigation/evals/center_altar_8: 1
+
+# Learning progress parameters
+num_active_tasks: 5  # Focus on 5 out of 12 tasks at a time
+ema_timescale: 0.001
+progress_smoothing: 0.05
+rand_task_rate: 0.15  # 15% random exploration
+sample_threshold: 10
+memory: 25
+
+env_overrides:
+  sampling: 1
+  game:
+    num_agents: 4  # Use standard 4 agents for navigation training

@@ -1,0 +1,61 @@
+defaults:
+  - /env/mettagrid/navigation/evals/defaults@
+  - _self_
+
+sampling: 1
+
+game:
+  max_steps: 1000
+
+  map_builder:
+    _target_: metta.map.mapgen.MapGen
+    width: 100
+    height: 100
+    border_width: 5
+
+    root:
+      type: metta.map.scenes.room_grid.RoomGrid
+      params:
+        border_width: 0
+        layout: [
+          ["border", "border", "border", "border", "border"],
+          ["border", "middle", "middle", "middle", "border"],
+          ["border", "middle", "middle", "middle", "border"],
+          ["border", "middle", "middle", "middle", "border"],
+          ["border", "border", "border", "border", "border"]
+        ]
+      children:
+        # Place altars in the center of 3 randomly selected middle cells
+        - where:
+            tags:
+              - middle
+          limit: 3
+          lock: lock
+          scene:
+            type: metta.map.scenes.layout.Layout
+            params:
+              areas:
+                - width: 1
+                  height: 1
+                  placement: center
+                  tag: altar_spot
+            children:
+              - where:
+                  tags:
+                    - altar_spot
+                scene:
+                  type: metta.map.scenes.random.Random
+                  params:
+                    objects:
+                      altar: 1
+
+        # Place agents randomly in middle cells
+        - where:
+            tags:
+              - middle
+          limit: 4
+          lock: lock
+          scene:
+            type: metta.map.scenes.random.Random
+            params:
+              agents: 1

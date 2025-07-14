@@ -1,0 +1,25 @@
+_target_: metta.mettagrid.curriculum.bucketed.CurriculBucketedum
+
+env_cfg_template: /env/mettagrid/navigation/evals/center_altar_test
+
+buckets:
+  # Vary the map size
+  game.map_builder.width:
+    values: [60, 80, 100, 120]
+
+  game.map_builder.height:
+    values: [60, 80, 100, 120]
+
+  # Vary the number of altars (3-8 out of 9 possible middle cells)
+  game.map_builder.root.children[0].limit:
+    values: [3, 4, 5, 6, 7, 8]
+
+  # Vary max steps based on map size
+  game.max_steps:
+    values: [600, 800, 1000, 1200]
+
+# Simple overrides only
+env_overrides:
+  sampling: 1
+  game:
+    num_agents: 1
