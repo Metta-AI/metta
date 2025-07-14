@@ -6,6 +6,14 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
 import { PageLayout } from "@/components/ui/PageLayout";
+import {
+	ClerkProvider,
+	SignInButton,
+	SignUpButton,
+	SignedIn,
+	SignedOut,
+	UserButton,
+} from "@clerk/nextjs";
 
 export const metadata: Metadata = {
 	title: "Softmax Library",
@@ -14,19 +22,37 @@ export const metadata: Metadata = {
 const GlobalProviders: FC<PropsWithChildren> = async ({ children }) => {
 	// Configure any other global providers here
 	return (
-		<Suspense>
-			<NuqsAdapter>{children}</NuqsAdapter>
-		</Suspense>
+		<ClerkProvider>
+			<Suspense>
+				<NuqsAdapter>{children}</NuqsAdapter>
+			</Suspense>
+		</ClerkProvider>
 	);
 };
 
 const TopMenu: FC = () => {
 	return (
-		<div className="flex items-center gap-6 border-b border-gray-200 bg-gray-50 px-8 py-2">
-			<Link href="/" className="font-bold">
-				Softmax Library
-			</Link>
-			{/* Add more links here */}
+		<div className="flex items-center justify-between border-b border-gray-200 bg-gray-50 px-8 py-2">
+			<div className="flex items-center gap-4">
+				<Link href="/" className="font-bold">
+					Softmax Library
+				</Link>
+				{/* Add more links here */}
+			</div>
+			<div className="flex items-center gap-4">
+				{/* Standard styling from Clerk, feel free to change */}
+				<SignedOut>
+					<SignInButton />
+					<SignUpButton>
+						<button className="bg-[#6c47ff] text-white rounded-full font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 cursor-pointer">
+							Sign Up
+						</button>
+					</SignUpButton>
+				</SignedOut>
+				<SignedIn>
+					<UserButton />
+				</SignedIn>
+			</div>
 		</div>
 	);
 };

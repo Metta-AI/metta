@@ -1,6 +1,7 @@
 # Environment and IDE
 .envrc
 .env
+.env.*
 .vscode/PythonImportHelper-v2-Completion.json
 .idea/
 .task
