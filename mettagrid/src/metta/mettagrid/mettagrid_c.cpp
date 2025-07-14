@@ -192,11 +192,11 @@ MettaGrid::MettaGrid(const GameConfig& cfg, py::list map, unsigned int seed)
         continue;
       }
 
-      _group_rewards.resize(_group_sizes.size());
-
       throw std::runtime_error("Unable to create object of type " + cell + " at (" + std::to_string(r) + ", " +
                                std::to_string(c) + ")");
     }
+
+    _group_rewards.resize(_group_sizes.size());
   }
 
   // Use wyhash for deterministic, high-performance grid fingerprinting across platforms
@@ -523,6 +523,7 @@ void MettaGrid::set_buffers(const py::array_t<uint8_t, py::array::c_style>& obse
 
 py::tuple MettaGrid::step(py::array_t<ActionType, py::array::c_style> actions) {
   _step(actions);
+
   auto rewards_view = _rewards.mutable_unchecked<1>();
 
   // Clear group rewards from previous step
