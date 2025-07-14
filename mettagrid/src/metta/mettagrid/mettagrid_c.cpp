@@ -586,14 +586,7 @@ py::dict MettaGrid::grid_objects() {
         inventory_dict[py::int_(item)] = quantity;
       }
       obj_dict["inventory"] = inventory_dict;
-
-      // Find agent index and inject agent_id
-      for (size_t idx = 0; idx < _agents.size(); idx++) {
-        if (_agents[idx]->id == obj_id) {
-          obj_dict["agent_id"] = idx;
-          break;
-        }
-      }
+      obj_dict["agent_id"] = agent->agent_id;
     }
 
     objects[py::int_(obj_id)] = obj_dict;

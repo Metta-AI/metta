@@ -28,15 +28,9 @@ def test_swap():
             "noop": {"enabled": True},
             "move": {"enabled": True},
             "rotate": {"enabled": True},
-            "attack": {"enabled": False},
-            "put_items": {"enabled": False},
-            "get_items": {"enabled": False},
             "swap": {
                 "enabled": True,
-                "required_resources": {},  # No resources needed
-                "consumed_resources": {},
             },
-            "change_color": {"enabled": False},
         },
         "groups": {"red": {"id": 0, "props": {}}},
         "objects": {
@@ -120,7 +114,7 @@ def test_swap():
     assert (agent_final["r"], agent_final["c"]) == block_pos, "Agent should be at block's position"
     assert (block_final["r"], block_final["c"]) == agent_pos, "Block should be at agent's position"
 
-    # CRITICAL: Verify layers were preserved (not swapped)
+    # Verify layers were preserved (not swapped)
     layers_correct = agent_final["layer"] == agent_layer and block_final["layer"] == block_layer
 
     if not layers_correct:
@@ -133,6 +127,7 @@ def test_swap():
     print("\nSUCCESS: Layers were correctly preserved during swap!")
 
 
+# TODO -- consider moving this to actions integration test file
 def test_swap_frozen_agent_preserves_layers():
     """Test that swap_objects preserves layers when swapping with a frozen agent.
 
@@ -167,33 +162,25 @@ def test_swap_frozen_agent_preserves_layers():
         "obs_width": 3,
         "obs_height": 3,
         "num_observation_tokens": 100,
-        "inventory_item_names": ["laser"],  # Include laser as a resource
+        "inventory_item_names": ["laser"],
         "actions": {
             "noop": {"enabled": True},
             "move": {"enabled": True},
             "rotate": {"enabled": True},
             "attack": {
                 "enabled": True,
-                "required_resources": {},  # Try without resource requirements first
-                "consumed_resources": {},
-                "defense_resources": {},  # Add this for attack action
             },
-            "put_items": {"enabled": False},
-            "get_items": {"enabled": False},
             "swap": {
                 "enabled": True,
-                "required_resources": {},
-                "consumed_resources": {},
             },
-            "change_color": {"enabled": False},
         },
         "groups": {"red": {"id": 0, "props": {}}, "blue": {"id": 1, "props": {}}},
         "objects": {
             "wall": {"type_id": 1, "swappable": False},
         },
         "agent": {
-            "freeze_duration": 6,  # Agents freeze for 5 steps when attacked
-            "resource_limits": {"laser": 10},  # Allow agents to hold lasers if needed
+            "freeze_duration": 6,
+            "resource_limits": {"laser": 10},  # Allow agents to hold lasers
         },
     }
 
