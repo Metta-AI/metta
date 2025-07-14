@@ -50,5 +50,3 @@ if __name__ == "__main__":
     # Update the PR description
     update_pr_description(repo, pr_number, task_url, token)
 
-
-#
