@@ -177,44 +177,34 @@ function drawObject(gridObject: any) {
 
     // Draw the item layer.
     if (hasInventory(gridObject)) {
-      // Special handling for heart altars so that the overlay
-      // reflects the actual contents (battery vs. heart).
-      if (typeName === 'altar') {
+      if (typeName !== 'altar') {
+        // Default render case
+        ctx.drawSprite(state.replay.object_images[type][1], x * Common.TILE_SIZE, y * Common.TILE_SIZE)
+      } else {
+        // Special handling for heart altars so that the overlay
+        // reflects the actual contents (battery vs. heart).
         let hasHeart = false
-        let batteryKey: string | null = null
+        let hasBattery = false
 
-        for (const [key, value] of Object.entries(gridObject)) {
-          if (!key.startsWith('inv:')) {
-            continue
-          }
-          if (typeof value !== 'number' || value <= 0) {
-            continue
-          }
+        if (gridObject["inv:heart"].length > 0) {
+          hasHeart = true
+        }
 
-          if (key.includes('heart')) {
-            hasHeart = true
-            break
-          }
-          if (key.includes('battery') && batteryKey === null) {
-            batteryKey = key
-          }
+        if (gridObject["inv:battery"].length > 0) {
+          hasBattery = true
         }
 
         if (hasHeart) {
           // Default overlay already depicts a heart.
           ctx.drawSprite(state.replay.object_images[type][1], x * Common.TILE_SIZE, y * Common.TILE_SIZE)
-        } else if (batteryKey !== null) {
-          const resource = state.replay.resource_inventory.get(batteryKey)
-          if (resource !== undefined) {
-            const [img, color] = resource as [string, number[]]
-            ctx.drawSprite(img, x * Common.TILE_SIZE, y * Common.TILE_SIZE, color)
-          }
-        } else {
-          // Fallback to default behaviour.
-          ctx.drawSprite(state.replay.object_images[type][1], x * Common.TILE_SIZE, y * Common.TILE_SIZE)
+        } else if (hasBattery) {
+          // Display the battery resource on top of the altar
+          let batteryKey = "inv:battery"
+          let pos = new Vec2f(x * Common.TILE_SIZE, y * Common.TILE_SIZE)
+          // bump the position up a bit to look right
+          pos.setY(pos.y() - (Common.TILE_SIZE * 0.40))
+          ctx.drawSprite(state.replay.resource_inventory.get(batteryKey)[0], pos.x(), pos.y(), [1, 1, 1, 1], 0.5, 0)
         }
-      } else {
-        ctx.drawSprite(state.replay.object_images[type][1], x * Common.TILE_SIZE, y * Common.TILE_SIZE)
       }
     }
   }
