@@ -123,10 +123,13 @@ export function Library({ repo: _repo }: Library2Props) {
     const [composerText, setComposerText] = useState('')
     const [expandedAbstracts, setExpandedAbstracts] = useState<Set<string>>(new Set())
     const [scholars, setScholars] = useState(mockScholars)
+    const [affiliations, setAffiliations] = useState(mockAffiliations)
     const [searchQuery, setSearchQuery] = useState('')
     const [selectedScholar, setSelectedScholar] = useState<string | null>(null)
     const [sortBy, setSortBy] = useState<'name' | 'affiliation' | 'recentActivity' | 'papers' | 'citations' | 'hIndex'>('name')
+    const [affiliationsSortBy, setAffiliationsSortBy] = useState<'name' | 'location' | 'type' | 'members' | 'papers' | 'citations'>('name')
     const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
+    const [affiliationsSortDirection, setAffiliationsSortDirection] = useState<'asc' | 'desc'>('asc')
     const navigate = useNavigate();
     const [expandedScholarId, setExpandedScholarId] = useState<string | null>(null);
     const [hoveredScholarId, setHoveredScholarId] = useState<string | null>(null);
@@ -273,6 +276,55 @@ export function Library({ repo: _repo }: Library2Props) {
             
             if (aValue < bValue) return sortDirection === 'asc' ? -1 : 1;
             if (aValue > bValue) return sortDirection === 'asc' ? 1 : -1;
+            return 0;
+        });
+
+    const filteredAffiliations = affiliations
+        .filter(affiliation => {
+            // Only filter when search query is 2+ characters long
+            if (searchQuery.length < 2) return true;
+            
+            const query = searchQuery.toLowerCase();
+            return affiliation.label.toLowerCase().includes(query) ||
+                affiliation.name.toLowerCase().includes(query) ||
+                affiliation.location.toLowerCase().includes(query) ||
+                affiliation.tags.some(tag => tag.toLowerCase().includes(query));
+        })
+        .sort((a, b) => {
+            let aValue: string | number;
+            let bValue: string | number;
+            
+            switch (affiliationsSortBy) {
+                case 'name':
+                    aValue = a.label.toLowerCase();
+                    bValue = b.label.toLowerCase();
+                    break;
+                case 'location':
+                    aValue = a.location.toLowerCase();
+                    bValue = b.location.toLowerCase();
+                    break;
+                case 'type':
+                    aValue = a.type.toLowerCase();
+                    bValue = b.type.toLowerCase();
+                    break;
+                case 'members':
+                    aValue = a.memberCount;
+                    bValue = b.memberCount;
+                    break;
+                case 'papers':
+                    aValue = a.papers;
+                    bValue = b.papers;
+                    break;
+                case 'citations':
+                    aValue = a.citations;
+                    bValue = b.citations;
+                    break;
+                default:
+                    return 0;
+            }
+            
+            if (aValue < bValue) return affiliationsSortDirection === 'asc' ? -1 : 1;
+            if (aValue > bValue) return affiliationsSortDirection === 'asc' ? 1 : -1;
             return 0;
         });
 
@@ -423,6 +475,9 @@ The first term is the reconstruction loss, and the second is the KL divergence t
         switch (id) {
             case 'scholars':
                 navigate('/scholars');
+                break;
+            case 'affiliations':
+                navigate('/affiliations');
                 break;
             case 'feed':
                 navigate('/library');
@@ -623,8 +678,13 @@ The first term is the reconstruction loss, and the second is the KL divergence t
     };
 
     // AffiliationsCard component
+
+
     const AffiliationsCard = ({ affiliation, isAdmin }: { affiliation: any, isAdmin: boolean }) => (
-        <div className="w-full min-w-[20rem] max-w-full bg-white rounded-lg border border-gray-200 p-4 hover:shadow transition-shadow overflow-hidden flex flex-col">
+        <div 
+            className="w-full min-w-[20rem] max-w-full bg-white rounded-lg border border-gray-200 p-4 hover:shadow transition-shadow overflow-hidden flex flex-col cursor-pointer"
+            onClick={() => navigate(`/affiliations/${affiliation.id}`)}
+        >
             <div className="flex items-start justify-between mb-2 min-w-0">
                 <div className="flex items-center gap-3 min-w-0">
                     {affiliation.logo ? (
@@ -642,15 +702,6 @@ The first term is the reconstruction loss, and the second is the KL divergence t
                 </div>
                 <div className="flex flex-col items-end gap-2 min-w-0">
                     <span className="px-3 py-0.5 rounded-full text-xs font-semibold mb-1 bg-gray-100 text-gray-600 border border-gray-200" title={affiliation.type}>{affiliation.type}</span>
-                    <button
-                        className={`px-3 py-1 rounded-full font-medium transition-colors flex-shrink-0 whitespace-nowrap text-sm ${
-                            affiliation.isFavorite
-                                ? 'bg-yellow-100 text-yellow-700 border border-yellow-200'
-                                : 'bg-gray-200 text-gray-700 hover:bg-gray-300 border border-gray-300'
-                        }`}
-                    >
-                        {affiliation.isFavorite ? '★ Favorited' : '☆ Follow'}
-                    </button>
                 </div>
             </div>
             <div className="flex flex-wrap gap-1 mb-2">
@@ -675,11 +726,29 @@ The first term is the reconstruction loss, and the second is the KL divergence t
             <div className="border-t border-gray-200 pt-2 mt-2 flex items-center justify-between">
                 <span className="text-xs text-gray-500">Active {affiliation.lastActive}</span>
                 <div className="flex gap-2 items-center">
-                    <a href={affiliation.website} target="_blank" rel="noopener noreferrer" className="text-xs text-primary-500 hover:text-primary-600 underline">Website</a>
+                    <a 
+                        href={affiliation.website} 
+                        target="_blank" 
+                        rel="noopener noreferrer" 
+                        className="text-xs text-primary-500 hover:text-primary-600 underline"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        Website
+                    </a>
                     {isAdmin && (
                         <>
-                            <button className="px-2 py-0.5 rounded bg-gray-100 text-gray-700 text-xs border border-gray-200 hover:bg-gray-200">Merge</button>
-                            <button className="px-2 py-0.5 rounded bg-gray-100 text-gray-700 text-xs border border-gray-200 hover:bg-gray-200">Mark Duplicate</button>
+                            <button 
+                                className="px-2 py-0.5 rounded bg-gray-100 text-gray-700 text-xs border border-gray-200 hover:bg-gray-200"
+                                onClick={(e) => e.stopPropagation()}
+                            >
+                                Merge
+                            </button>
+                            <button 
+                                className="px-2 py-0.5 rounded bg-gray-100 text-gray-700 text-xs border border-gray-200 hover:bg-gray-200"
+                                onClick={(e) => e.stopPropagation()}
+                            >
+                                Mark Duplicate
+                            </button>
                         </>
                     )}
                 </div>
@@ -970,17 +1039,80 @@ The first term is the reconstruction loss, and the second is the KL divergence t
 
             case 'affiliations':
                 return (
-                    <div className="p-6">
-                        <div className="max-w-4xl mx-auto">
-                            <div className="mb-6">
-                                <h1 className="text-2xl font-bold text-gray-900 mb-2">Affiliations</h1>
-                                <p className="text-gray-600">Browse research organizations and labs</p>
+                    <div className="p-4">
+                        {/* Filter and Sort Controls: left-aligned, max width */}
+                        <div className="max-w-4xl mb-4 space-y-4">
+                            {/* Search Bar */}
+                            <div className="relative">
+                                <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <circle cx="11" cy="11" r="8" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="m21 21-4.35-4.35" />
+                                </svg>
+                                <input
+                                    ref={filterInputRef}
+                                    type="text"
+                                    placeholder="Filter by name, location, or tags..."
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                                />
                             </div>
-                            <div className="grid gap-x-6 gap-y-6 px-4 justify-items-center" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(20rem, 1fr))' }}>
-                                {mockAffiliations.map(aff => (
-                                    <AffiliationsCard key={aff.id} affiliation={aff} isAdmin={aff.isAdmin} />
+                            {/* Sort Controls */}
+                            <div className="flex items-center gap-4 text-sm">
+                                <span className="text-gray-600 font-medium">Sort by:</span>
+                                <div className="flex gap-2">
+                                    {[
+                                        { key: 'name', label: 'Name' },
+                                        { key: 'location', label: 'Location' },
+                                        { key: 'type', label: 'Type' },
+                                        { key: 'members', label: 'Members' },
+                                        { key: 'papers', label: 'Papers' },
+                                        { key: 'citations', label: 'Citations' }
+                                    ].map(({ key, label }) => (
+                                        <button
+                                            key={key}
+                                            onClick={() => {
+                                                if (affiliationsSortBy === key) {
+                                                    setAffiliationsSortDirection(affiliationsSortDirection === 'asc' ? 'desc' : 'asc');
+                                                } else {
+                                                    setAffiliationsSortBy(key as any);
+                                                    setAffiliationsSortDirection('asc');
+                                                }
+                                            }}
+                                            className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                                                affiliationsSortBy === key
+                                                    ? 'bg-primary-100 text-primary-700 border border-primary-200'
+                                                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-200'
+                                            }`}
+                                        >
+                                            {label}
+                                            {affiliationsSortBy === key && (
+                                                <span className="ml-1">
+                                                    {affiliationsSortDirection === 'asc' ? '↑' : '↓'}
+                                                </span>
+                                            )}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                        {/* Affiliations Grid: left-to-right flow like text */}
+                        <div className="w-full px-2">
+                            <div
+                                className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"
+                            >
+                                {filteredAffiliations.map(affiliation => (
+                                    <AffiliationsCard key={affiliation.id} affiliation={affiliation} isAdmin={affiliation.isAdmin} />
                                 ))}
                             </div>
+                            {filteredAffiliations.length === 0 && (
+                                <div className="text-center py-8">
+                                    <svg className="w-12 h-12 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                    </svg>
+                                    <p className="text-gray-500">No affiliations found matching your filter.</p>
+                                </div>
+                            )}
                         </div>
                     </div>
                 )

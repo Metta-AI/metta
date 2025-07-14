@@ -10,6 +10,7 @@ import { TrainingRuns } from './TrainingRuns'
 import { TrainingRunDetail } from './TrainingRunDetail'
 import { Library } from './Library'
 import { ScholarProfile } from './ScholarProfile'
+import { AffiliationProfile } from './AffiliationProfile'
 import { config } from './config'
 
 // CSS for navigation
@@ -251,6 +252,7 @@ function App() {
         <Route path="/scholars" element={<Library repo={state.repo} />} />
         <Route path="/scholars/:scholarId" element={<ScholarProfile repo={state.repo} />} />
         <Route path="/affiliations" element={<Library repo={state.repo} />} />
+        <Route path="/affiliations/:affiliationId" element={<AffiliationProfile repo={state.repo} />} />
         <Route path="/collections" element={<Library repo={state.repo} />} />
         <Route path="/papers" element={<Library repo={state.repo} />} />
       </Routes>
