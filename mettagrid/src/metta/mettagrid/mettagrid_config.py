@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 from pydantic import Field, RootModel
 
@@ -34,13 +34,13 @@ class AgentConfig(BaseModelWithForbidExtra):
     """Agent configuration."""
 
     default_resource_limit: Optional[int] = Field(default=None, ge=0)
-    resource_limits: Optional[Dict[str, int]] = Field(default_factory=dict)
+    resource_limits: Optional[dict[str, int]] = Field(default_factory=dict)
     freeze_duration: Optional[int] = Field(default=None, ge=-1)
     rewards: Optional[AgentRewards] = Field(default=None)
     action_failure_penalty: Optional[float] = Field(default=None, ge=0)
 
 
-class GroupProps(RootModel[Dict[str, Any]]):
+class GroupProps(RootModel[dict[str, Any]]):
     """Group properties configuration."""
 
     pass
@@ -62,14 +62,14 @@ class ActionConfig(BaseModelWithForbidExtra):
 
     enabled: bool
     # defaults to consumed_resources. Otherwise, should be a superset of consumed_resources.
-    required_resources: Optional[Dict[str, int]] = Field(default=None)
-    consumed_resources: Optional[Dict[str, int]] = Field(default_factory=dict)
+    required_resources: Optional[dict[str, int]] = Field(default=None)
+    consumed_resources: Optional[dict[str, int]] = Field(default_factory=dict)
 
 
 class AttackActionConfig(ActionConfig):
     """Attack action configuration."""
 
-    defense_resources: Optional[Dict[str, int]] = Field(default_factory=dict)
+    defense_resources: Optional[dict[str, int]] = Field(default_factory=dict)
 
 
 class ChangeGlyphActionConfig(ActionConfig):
@@ -106,8 +106,8 @@ class WallConfig(BaseModelWithForbidExtra):
 class ConverterConfig(BaseModelWithForbidExtra):
     """Converter configuration for objects that convert items."""
 
-    input_resources: Dict[str, int] = Field(default_factory=dict)
-    output_resources: Dict[str, int] = Field(default_factory=dict)
+    input_resources: dict[str, int] = Field(default_factory=dict)
+    output_resources: dict[str, int] = Field(default_factory=dict)
     type_id: int = Field(default=0, ge=0, le=255)
     max_output: int = Field(ge=-1)
     conversion_ticks: int = Field(ge=0)
@@ -119,7 +119,7 @@ class ConverterConfig(BaseModelWithForbidExtra):
 class GameConfig(BaseModelWithForbidExtra):
     """Game configuration."""
 
-    inventory_item_names: List[str]
+    inventory_item_names: list[str]
     num_agents: int = Field(ge=1)
     # zero means "no limit"
     max_steps: int = Field(ge=0)
@@ -128,6 +128,6 @@ class GameConfig(BaseModelWithForbidExtra):
     num_observation_tokens: int = Field(ge=1)
     agent: AgentConfig
     # Every agent must be in a group, so we need at least one group
-    groups: Dict[str, GroupConfig] = Field(min_length=1)
+    groups: dict[str, GroupConfig] = Field(min_length=1)
     actions: ActionsConfig
-    objects: Dict[str, ConverterConfig | WallConfig]
+    objects: dict[str, ConverterConfig | WallConfig]
