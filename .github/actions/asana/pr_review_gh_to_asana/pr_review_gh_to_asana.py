@@ -1,4 +1,5 @@
 import os
+import re
 
 import requests
 
@@ -33,6 +34,13 @@ def add_comment_to_asana_task(task_url, comment_text, access_token):
 if __name__ == "__main__":
     # Inputs from the Action
     task_url = os.getenv("INPUT_TASK_URL")
+
+    task_match = re.search(r"/task/(\d+)", task_url)
+    if task_match:
+        task_url = task_match.group(1)
+    else:
+        raise ValueError("Could not find task ID in URL")
+
     state = os.getenv("INPUT_STATE")
     author = os.getenv("INPUT_AUTHOR")
     text = os.getenv("INPUT_COMMENT")
