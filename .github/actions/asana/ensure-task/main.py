@@ -177,7 +177,7 @@ def get_asana_users_by_github_logins(
         asana_email = None
         for field in custom_fields:
             if field.get("gid") == gh_login_field_id:
-                gh_login = field.get("text_value")
+                gh_login = value.strip() if (value := field.get("text_value")) else None
                 if gh_login not in github_logins:
                     # This isn't the user we're looking for.
                     break
