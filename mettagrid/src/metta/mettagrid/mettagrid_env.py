@@ -128,6 +128,9 @@ class MettaGridEnv(PufferEnv, GymEnv):
         )
 
         game_config_dict = OmegaConf.to_container(task.env_cfg().game)
+        assert isinstance(game_config_dict, dict), "No valid game config dictionary in the environment config"
+        game_config_dict = cast(Dict[str, Any], game_config_dict)
+
         # map_builder probably shouldn't be in the game config. For now we deal with this by removing it, so we can
         # have GameConfig validate strictly. I'm less sure about diversity_bonus, but it's not used in the C++ code.
         if "map_builder" in game_config_dict:
@@ -136,7 +139,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
         # During training, we run a lot of envs in parallel, and it's better if they are not
         # all synced together. The desync_episodes flag is used to desync the episodes.
         # Ideally vecenv would have a way to desync the episodes, but it doesn't.
-        if self._is_training and self._resets == 0:
+        if isinstance(game_config_dict, dict) and self._is_training and self._resets == 0:
             max_steps = game_config_dict["max_steps"]
             game_config_dict["max_steps"] = int(np.random.randint(1, max_steps + 1))
             # logger.info(f"Desync episode with max_steps {game_config_dict['max_steps']}")
@@ -281,7 +284,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
             "steps": self._steps,
             "resets": self._resets,
             "max_steps": self.max_steps,
-            "completion_time": time.time(),
+            "completion_time": int(time.time()),
         }
         infos["attributes"] = attributes
 

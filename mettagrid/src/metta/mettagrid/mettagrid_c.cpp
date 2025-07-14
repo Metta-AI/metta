@@ -909,7 +909,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def_readonly("number_of_glyphs", &ChangeGlyphActionConfig::number_of_glyphs);
 
   py::class_<GameConfig>(m, "GameConfig")
-      .def(py::init<int,
+      .def(py::init<unsigned int,
                     unsigned int,
                     unsigned short,
                     unsigned short,
