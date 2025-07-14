@@ -178,13 +178,13 @@ def get_asana_users_by_github_logins(
         for field in custom_fields:
             if field.get("gid") == gh_login_field_id:
                 gh_login = value.strip() if (value := field.get("text_value")) else None
-                if gh_login == "mh.next@gmail.com, mhollander@stem.ai":
-                    gh_login = "mh.next@gmail.com"
                 if gh_login not in github_logins:
                     # This isn't the user we're looking for.
                     break
             if field.get("gid") == asana_email_field_id:
                 asana_email = field.get("text_value")
+                if asana_email == "mh.next@gmail.com, mhollander@stem.ai":
+                    asana_email = "mh.next@gmail.com"
             if gh_login and asana_email:
                 github_login_to_asana_email[gh_login] = asana_email
                 break
