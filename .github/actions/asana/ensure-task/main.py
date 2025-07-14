@@ -183,7 +183,7 @@ def get_asana_users_by_github_logins(
                     break
             if field.get("gid") == asana_email_field_id:
                 asana_email = field.get("text_value")
-                if asana_email == "mh.next@gmail.com, mhollander@stem.ai":
+                if asana_email and asana_email.strip() == "mh.next@gmail.com, mhollander@stem.ai":
                     asana_email = "mh.next@gmail.com"
             if gh_login and asana_email:
                 github_login_to_asana_email[gh_login] = asana_email
