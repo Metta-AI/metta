@@ -146,6 +146,9 @@ def _get_task_custom_fields_from_project(
     }
     while True:
         response = requests.get(url, headers=headers, params=params, timeout=30)
+        print(f"getting roster project details from asana: {url}")
+        print(json.dumps(response.json(), indent=2))
+        print("-----------")
         if response.status_code != 200:
             print(f"Asana API Error (_get_task_custom_fields_from_project): {response.status_code} - {response.text}")
             sys.exit(1)
