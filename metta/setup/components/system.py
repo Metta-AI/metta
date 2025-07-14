@@ -27,6 +27,10 @@ class SystemSetup(SetupModule):
     def supported_for_platform(self) -> bool:
         return platform.system() == "Darwin" or self._find_brew_path() is not None
 
+    def _install_linux_dependencies(self):
+        info("Installing Linux dependencies...")
+        self.run_command(["sudo", "./devops/linux/install.sh"])
+
     @override
     def check_installed(self) -> bool:
         if not self.supported_for_platform:
@@ -51,9 +55,13 @@ class SystemSetup(SetupModule):
         info("Setting up system dependencies...")
 
         if self.supported_for_platform:
-            if platform.system() == "Darwin" and not self._find_brew_path():
-                self._install_homebrew()
-            self._run_brew_bundle("Brewfile")
+            if platform.system() == "Darwin":
+                if not self._find_brew_path():
+                    self._install_homebrew()
+                self._run_brew_bundle("Brewfile")
+            elif platform.system() == "Linux":
+                self._install_linux_dependencies()
+                self._run_brew_bundle("LinuxBrewfile")
             success("System dependencies installed")
         else:
             # NOTE: need to implement this at some point
