@@ -414,7 +414,8 @@ class TestEvalTaskRoutes:
         assert result[task_ids[1]] == "error"
         assert result[task_ids[2]] == "canceled"
 
-    def test_error_reason_stored_in_db(
+    @pytest.mark.asyncio
+    async def test_error_reason_stored_in_db(
         self, test_client, test_user_headers: Dict[str, str], test_policy_id: str, stats_repo: MettaRepo
     ):
         """Test that error_reason is properly stored in the database attributes."""
@@ -453,20 +454,12 @@ class TestEvalTaskRoutes:
         )
         assert update_response.status_code == 200
 
-        # Query the database directly to verify error_reason is stored
-        import asyncio
-
-        async def check_db():
-            async with stats_repo.connect() as con:
-                result = await con.execute(
-                    "SELECT status, attributes FROM eval_tasks WHERE id = %s", (uuid.UUID(task_id),)
-                )
-                row = await result.fetchone()
-                assert row is not None
-                assert row[0] == "error"  # status
-                attributes = row[1]
-                assert attributes is not None
-                assert "error_reason" in attributes
-                assert attributes["error_reason"] == error_reason
-
-        asyncio.run(check_db())
+        async with stats_repo.connect() as con:
+            result = await con.execute("SELECT status, attributes FROM eval_tasks WHERE id = %s", (uuid.UUID(task_id),))
+            row = await result.fetchone()
+            assert row is not None
+            assert row[0] == "error"  # status
+            attributes = row[1]
+            assert attributes is not None
+            assert "error_reason" in attributes
+            assert attributes["error_reason"] == error_reason
