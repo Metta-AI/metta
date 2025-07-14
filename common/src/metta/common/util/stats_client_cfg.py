@@ -9,6 +9,10 @@ from omegaconf import DictConfig, ListConfig
 
 from metta.app_backend.stats_client import StatsClient
 
+_URI_FALLBACKS = {
+    "https://api.observatory.softmax-research.net": "https://observatory.softmax-research.net/api",
+}
+
 
 def get_machine_token(stats_server_uri: str | None = None) -> str | None:
     """Get machine token for the given stats server.
@@ -36,6 +40,8 @@ def get_machine_token(stats_server_uri: str | None = None) -> str | None:
                     # Try exact match first
                     if stats_server_uri in tokens:
                         token = tokens[stats_server_uri]
+                    elif (fallback_uri := _URI_FALLBACKS.get(stats_server_uri)) and fallback_uri in tokens:
+                        token = tokens[fallback_uri]
                     else:
                         # Try hostname match
                         hostname = urlparse(stats_server_uri).hostname
