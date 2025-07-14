@@ -602,38 +602,33 @@ while agent_step < trainer_config.total_timesteps:
         )
         stats_db.close()
 
-    # Replay generation (master only)
-    if (
-        is_master
-        and trainer_config.simulation.replay_interval > 0
-        and epoch % trainer_config.simulation.replay_interval == 0
-        and saved_policy_path
-    ):
-        logger.info(f"Generating replay at epoch {epoch}")
+        # Replay generation (master only)
+        if is_master and saved_policy_path:
+            logger.info(f"Generating replay at epoch {epoch}")
 
-        # Generate replay on the bucketed curriculum environment
-        replay_sim_config = create_replay_config("varied_terrain/balanced_medium")
+            # Generate replay on the bucketed curriculum environment
+            replay_sim_config = create_replay_config("varied_terrain/balanced_medium")
 
-        replay_simulator = Simulation(
-            name=f"replay_{epoch}",
-            config=replay_sim_config,
-            policy_pr=saved_policy_path,
-            policy_store=policy_store,
-            device=device,
-            vectorization="serial",
-            replay_dir=dirs.replay_dir,
-        )
+            replay_simulator = Simulation(
+                name=f"replay_{epoch}",
+                config=replay_sim_config,
+                policy_pr=saved_policy_path,
+                policy_store=policy_store,
+                device=device,
+                vectorization="serial",
+                replay_dir=dirs.replay_dir,
+            )
 
-        results = replay_simulator.simulate()
+            results = replay_simulator.simulate()
 
-        # Get replay URLs from the database
-        replay_urls = results.stats_db.get_replay_urls()
-        if replay_urls:
-            replay_url = replay_urls[0]
-            player_url = f"https://metta-ai.github.io/metta/?replayUrl={replay_url}"
-            logger.info(f"Replay available at: {player_url}")
+            # Get replay URLs from the database
+            replay_urls = results.stats_db.get_replay_urls()
+            if replay_urls:
+                replay_url = replay_urls[0]
+                player_url = f"https://metta-ai.github.io/metta/?replayUrl={replay_url}"
+                logger.info(f"Replay available at: {player_url}")
 
-        results.stats_db.close()
+            results.stats_db.close()
 
 # Training complete
 total_elapsed = time.time() - epoch_start_time
