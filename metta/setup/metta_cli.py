@@ -225,9 +225,13 @@ class MettaCLI:
         format_cmd = ["uv", "run", "ruff", "format"]
         cmds = [check_cmd, format_cmd]
 
+        # ruff check: warns
+        # ruff format check: warns
+        # ruff check --fix: auto-fixes
+        # ruff format: auto-fixes
         if args.fix:
             check_cmd.append("--fix")
-        elif args.check:
+        else:
             format_cmd.append("--check")
 
         if files:
@@ -236,6 +240,7 @@ class MettaCLI:
 
         for cmd in cmds:
             try:
+                info(f"Running: {' '.join(cmd)}")
                 subprocess.run(cmd, cwd=self.repo_root, check=True)
             except subprocess.CalledProcessError as e:
                 sys.exit(e.returncode)
@@ -444,8 +449,11 @@ Examples:
 
         # Lint command
         lint_parser = subparsers.add_parser("lint", help="Run linting and formatting")
-        lint_parser.add_argument("--fix", action="store_true", help="Apply fixes automatically")
-        lint_parser.add_argument("--check", action="store_true", help="Only check for linting issues")
+        lint_parser.add_argument(
+            "--fix",
+            action="store_true",
+            help="Apply fixes automatically. If not specified, just checks for issues.",
+        )
         lint_parser.add_argument("--staged", action="store_true", help="Only lint staged files")
 
         # Tool command
@@ -490,7 +498,6 @@ Examples:
             self.cmd_symlink_setup(args)
         elif args.command == "test":
             self.cmd_pytest(unknown_args)
-
         elif args.command == "test-changed":
             self.cmd_pytest(unknown_args + ["--testmon"])
         elif args.command == "tool":
