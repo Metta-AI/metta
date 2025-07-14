@@ -186,11 +186,11 @@ function drawObject(gridObject: any) {
         let hasHeart = false
         let hasBattery = false
 
-        if (gridObject["inv:heart"].length > 0) {
+        if (gridObject["inv:heart"] > 0) {
           hasHeart = true
         }
 
-        if (gridObject["inv:battery"].length > 0) {
+        if (gridObject["inv:battery"] > 0) {
           hasBattery = true
         }
 
