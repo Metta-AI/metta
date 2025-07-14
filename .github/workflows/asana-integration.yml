@@ -34,9 +34,9 @@ jobs:
           echo "assignees=$assignees" >> $GITHUB_OUTPUT
           echo "reviewers=$reviewers" >> $GITHUB_OUTPUT
 
-      - name: Ensure Asana Task
+      - name: Sync PR Task (GH to Asana)
         id: ensure-asana-task
-        uses: ./.github/actions/asana/ensure-task
+        uses: ./.github/actions/asana/pr_gh_to_asana
         with:
           title: ${{ github.event.pull_request.title }}
           description: ${{ github.event.pull_request.body }}
@@ -59,33 +59,20 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
 
-      - name: Update PR Description
-        uses: ./.github/actions/asana/update-pr-description
+      - name: Sync PR Description (GH to Asana)
+        uses: ./.github/actions/asana/pr_description_gh_to_asana
         with:
           pr_number: ${{ github.event.pull_request.number }}
           repo: ${{ github.repository }}
           token: ${{ secrets.GITHUB_TOKEN }}
           task_url: ${{ steps.ensure-asana-task.outputs.task_url }}
 
-      - name: Add Pull Request Review To Asana
+      - name: Sync PR Review (GH To Asana)
         if: github.event_name == 'pull_request_review'
-        uses: ./.github/actions/asana/on-review
+        uses: ./.github/actions/asana/pr_review_gh_to_asana
         with:
-          title: ${{ github.event.pull_request.title }}
-          description: ${{ github.event.pull_request.body }}
-          review_state: ${{ github.event.review.state }}
+          task_url: ${{ steps.ensure-asana-task.outputs.task_url }}
+          state: ${{ github.event.review.state }}
           author: ${{ github.event.review.user.login }}
-          project_id: ${{ vars.ASANA_PROJECT_GID }}
-          workspace_id: ${{ vars.ASANA_WORKSPACE_GID }}
+          comment: ${{ github.event.review.body }}
           asana_token: ${{ secrets.ASANA_API_KEY }}
-          github_url: ${{ github.event.pull_request.html_url }}
-          github_url_field_id: ${{ vars.ASANA_GITHUB_URL_FIELD_GID }}
-          roster_project_id: ${{ vars.ASANA_ROSTER_PROJECT_GID }}
-          gh_login_field_id: ${{ vars.ASANA_GH_LOGIN_FIELD_GID }}
-          asana_email_field_id: ${{ vars.ASANA_EMAIL_FIELD_GID }}
-          pr_author_field_id: ${{ vars.ASANA_PR_AUTHOR_FIELD_GID }}
-          asana_attachment_secret: ${{ secrets.ASANA_ATTACHMENT_SECRET }}
-          pr_number: ${{ github.event.pull_request.number }}
-          github_repo: ${{ github.repository }}
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-

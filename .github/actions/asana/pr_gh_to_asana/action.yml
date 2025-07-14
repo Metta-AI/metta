@@ -1,4 +1,4 @@
-name: "Ensure Asana Task Exists"
+name: "Sync PR Task (GH to Asana)"
 description: "Ensures an Asana task exists with the given GitHub URL. Creates a new task if none is found."
 
 inputs:
@@ -77,7 +77,7 @@ runs:
 
     - name: Ensure Asana Task
       id: ensure-task
-      run: uv run ${{ github.action_path }}/main.py
+      run: uv run ${{ github.action_path }}/pr_gh_to_asana.py
       shell: bash
       env:
         INPUT_TITLE: ${{ inputs.title }}
