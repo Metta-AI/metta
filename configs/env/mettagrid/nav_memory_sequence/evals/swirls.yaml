@@ -1,8 +1,0 @@
-defaults:
-  - /env/mettagrid/nav_memory_sequence/evals/defaults@
-  - _self_
-
-game:
-  max_steps: 350
-  map_builder:
-    uri: "configs/env/mettagrid/maps/nav_memory_sequence/swirls.map"

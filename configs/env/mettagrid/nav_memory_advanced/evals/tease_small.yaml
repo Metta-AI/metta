@@ -1,7 +1,0 @@
-defaults:
-  - /env/mettagrid/nav_memory_advanced/evals/defaults@
-
-game:
-  max_steps: 375
-  map_builder:
-    uri: "configs/env/mettagrid/maps/nav_memory_advanced/tease_small.map"

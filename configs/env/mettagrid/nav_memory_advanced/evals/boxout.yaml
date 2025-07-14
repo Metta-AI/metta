@@ -1,7 +1,0 @@
-defaults:
-  - /env/mettagrid/nav_memory_advanced/evals/defaults@
-
-game:
-  max_steps: 350
-  map_builder:
-    uri: "configs/env/mettagrid/maps/nav_memory_advanced/boxout.map"
