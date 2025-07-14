@@ -11,6 +11,7 @@
 #include "action_handler.hpp"
 #include "actions/attack.hpp"
 #include "actions/change_color.hpp"
+#include "actions/change_glyph.hpp"
 #include "actions/get_output.hpp"
 #include "actions/move.hpp"
 #include "actions/noop.hpp"
@@ -89,10 +90,17 @@ MettaGrid::MettaGrid(const GameConfig& cfg, py::list map, unsigned int seed)
         throw std::runtime_error("AttackActionConfig is not a valid action config");
       }
       _action_handlers.push_back(std::make_unique<Attack>(*attack_config));
+    } else if (action_name_str == "change_glyph") {
+      const ChangeGlyphActionConfig* change_glyph_config =
+          dynamic_cast<const ChangeGlyphActionConfig*>(action_config.get());
+      if (!change_glyph_config) {
+        throw std::runtime_error("ChangeGlyphActionConfig is not a valid action config");
+      }
+      _action_handlers.push_back(std::make_unique<ChangeGlyph>(*change_glyph_config));
     } else if (action_name_str == "swap") {
       _action_handlers.push_back(std::make_unique<Swap>(*action_config));
     } else if (action_name_str == "change_color") {
-      _action_handlers.push_back(std::make_unique<ChangeColorAction>(*action_config));
+      _action_handlers.push_back(std::make_unique<ChangeColor>(*action_config));
     } else {
       throw std::runtime_error("Unknown action: " + action_name_str);
     }
@@ -564,18 +572,27 @@ py::dict MettaGrid::grid_objects() {
     obj_dict["c"] = obj->location.c;
     obj_dict["layer"] = obj->location.layer;
 
+    // Inject observation features
     auto features = obj->obs_features();
     for (const auto& feature : features) {
       obj_dict[py::str(_obs_encoder->feature_names().at(feature.feature_id))] = feature.value;
     }
 
-    objects[py::int_(obj_id)] = obj_dict;
-  }
+    // Inject agent-specific info
+    if (auto* agent = dynamic_cast<Agent*>(obj)) {
+      obj_dict["orientation"] = static_cast<int>(agent->orientation);
+      obj_dict["group_name"] = agent->group_name;
+      obj_dict["frozen"] = agent->frozen;
 
-  // Add agent IDs
-  for (size_t agent_idx = 0; agent_idx < _agents.size(); agent_idx++) {
-    auto agent_object = objects[py::int_(_agents[agent_idx]->id)];
-    agent_object["agent_id"] = agent_idx;
+      py::dict inventory_dict;
+      for (const auto& [item, quantity] : agent->inventory) {
+        inventory_dict[py::int_(item)] = quantity;
+      }
+      obj_dict["inventory"] = inventory_dict;
+      obj_dict["agent_id"] = agent->agent_id;
+    }
+
+    objects[py::int_(obj_id)] = obj_dict;
   }
 
   return objects;
@@ -880,6 +897,16 @@ PYBIND11_MODULE(mettagrid_c, m) {
            py::arg("consumed_resources") = std::map<InventoryItem, InventoryQuantity>(),
            py::arg("defense_resources") = std::map<InventoryItem, InventoryQuantity>())
       .def_readwrite("defense_resources", &AttackActionConfig::defense_resources);
+
+  py::class_<ChangeGlyphActionConfig, ActionConfig, std::shared_ptr<ChangeGlyphActionConfig>>(m,
+                                                                                              "ChangeGlyphActionConfig")
+      .def(py::init<const std::map<InventoryItem, InventoryQuantity>&,
+                    const std::map<InventoryItem, InventoryQuantity>&,
+                    const int>(),
+           py::arg("required_resources") = std::map<InventoryItem, InventoryQuantity>(),
+           py::arg("consumed_resources") = std::map<InventoryItem, InventoryQuantity>(),
+           py::arg("number_of_glyphs"))
+      .def_readonly("number_of_glyphs", &ChangeGlyphActionConfig::number_of_glyphs);
 
   py::class_<GameConfig>(m, "GameConfig")
       .def(py::init<int,

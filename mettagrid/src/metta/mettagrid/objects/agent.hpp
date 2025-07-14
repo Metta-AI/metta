@@ -57,7 +57,8 @@ public:
   float action_failure_penalty;
   std::string group_name;
   ObservationType color;
-  unsigned char agent_id;
+  ObservationType glyph;
+  unsigned char agent_id;  // index into MettaGrid._agents (vector<Agent*>)
   StatsTracker stats;
   float current_resource_reward;
   float* reward;
@@ -73,6 +74,7 @@ public:
         action_failure_penalty(config.action_failure_penalty),
         group_name(config.group_name),
         color(0),
+        glyph(0),
         agent_id(0),
         // stats - default constructed
         current_resource_reward(0),
@@ -137,19 +139,25 @@ public:
   }
 
   std::vector<PartialObservationToken> obs_features() const override {
+    const int num_tokens = this->inventory.size() + 5 + (glyph > 0 ? 1 : 0);
+
     std::vector<PartialObservationToken> features;
-    features.reserve(5 + this->inventory.size());
+    features.reserve(num_tokens);
+
     features.push_back({ObservationFeature::TypeId, static_cast<ObservationType>(type_id)});
     features.push_back({ObservationFeature::Group, static_cast<ObservationType>(group)});
     features.push_back({ObservationFeature::Frozen, static_cast<ObservationType>(frozen != 0 ? 1 : 0)});
     features.push_back({ObservationFeature::Orientation, static_cast<ObservationType>(orientation)});
     features.push_back({ObservationFeature::Color, static_cast<ObservationType>(color)});
+    if (glyph != 0) features.push_back({ObservationFeature::Glyph, static_cast<ObservationType>(glyph)});
+
     for (const auto& [item, amount] : this->inventory) {
       // inventory should only contain non-zero amounts
       assert(amount > 0);
       ObservationType item_observation_feature = InventoryFeatureOffset + item;
       features.push_back({item_observation_feature, static_cast<ObservationType>(amount)});
     }
+
     return features;
   }
 

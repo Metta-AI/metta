@@ -38,6 +38,8 @@ struct WallConfig;
 struct AgentConfig;
 struct GameConfig;
 struct ActionConfig;
+struct AttackActionConfig;
+struct ChangeGlyphActionConfig;
 
 namespace py = pybind11;
 
