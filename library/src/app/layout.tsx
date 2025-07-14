@@ -5,6 +5,7 @@ import { FC, PropsWithChildren, Suspense } from "react";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
+import { PageLayout } from "@/components/ui/PageLayout";
 
 export const metadata: Metadata = {
 	title: "Softmax Library",
@@ -37,7 +38,7 @@ export default function RootLayout({ children }: PropsWithChildren) {
 				<GlobalProviders>
 					<div className="flex h-screen flex-col">
 						<TopMenu />
-						{children}
+						<PageLayout>{children}</PageLayout>
 					</div>
 				</GlobalProviders>
 			</body>
