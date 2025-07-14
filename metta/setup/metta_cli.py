@@ -204,6 +204,36 @@ class MettaCLI:
         except subprocess.CalledProcessError as e:
             sys.exit(e.returncode)
 
+    def cmd_lint(self, args) -> None:
+        files = []
+        if args.staged:
+            result = subprocess.run(
+                ["git", "diff", "--cached", "--name-only", "--diff-filter=ACM"],
+                cwd=self.repo_root,
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            files = [f for f in result.stdout.strip().split("\n") if f.endswith(".py") and f]
+            if not files:
+                return
+
+        check_cmd = ["uv", "run", "ruff", "check"]
+        format_cmd = ["uv", "run", "ruff", "format"]
+        if args.fix:
+            check_cmd.append("--fix")
+
+        if files:
+            check_cmd.extend(files)
+            format_cmd.extend(files)
+
+        cmds = [check_cmd, format_cmd]
+        for cmd in cmds:
+            try:
+                subprocess.run(cmd, cwd=self.repo_root, check=True)
+            except subprocess.CalledProcessError as e:
+                sys.exit(e.returncode)
+
     def cmd_tool(self, tool_name: str, args: list[str]) -> None:
         tool_path = self.repo_root / "tools" / f"{tool_name}.py"
         if not tool_path.exists():
@@ -406,6 +436,11 @@ Examples:
         subparsers.add_parser("test", help="Run python unit tests")
         subparsers.add_parser("test-changed", help="Run python unit tests affected by changes")
 
+        # Lint command
+        lint_parser = subparsers.add_parser("lint", help="Run linting and formatting")
+        lint_parser.add_argument("--fix", action="store_true", help="Apply fixes automatically")
+        lint_parser.add_argument("--staged", action="store_true", help="Only lint staged files")
+
         # Tool command
         tool_parser = subparsers.add_parser("tool", help="Run a tool from the tools/ directory")
         tool_parser.add_argument("tool_name", help="Name of the tool to run (e.g., 'train', 'sim', 'analyze')")
@@ -413,7 +448,7 @@ Examples:
         # Use parse_known_args to handle unknown arguments for test commands
         args, unknown_args = parser.parse_known_args()
 
-        if args.command not in ["test", "test-changed", "tool"]:
+        if args.command not in ["test", "test-changed", "tool", "lint"]:
             if unknown_args:
                 parser.error(f"unrecognized arguments: {' '.join(unknown_args)}")
 
@@ -452,6 +487,8 @@ Examples:
             self.cmd_pytest(unknown_args + ["--testmon"])
         elif args.command == "tool":
             self.cmd_tool(args.tool_name, unknown_args)
+        elif args.command == "lint":
+            self.cmd_lint(args)
         else:
             parser.print_help()
 
