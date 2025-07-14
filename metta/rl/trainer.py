@@ -26,8 +26,8 @@ from metta.common.util.system_monitor import SystemMonitor
 from metta.common.wandb.wandb_context import WandbRun
 from metta.eval.eval_request_config import EvalRewardSummary
 from metta.eval.eval_service import evaluate_policy
-from metta.eval.performance_threshold_tracker import PerformanceThresholdTracker
 from metta.eval.performance_threshold_config import get_default_arena_thresholds, load_performance_thresholds
+from metta.eval.performance_threshold_tracker import PerformanceThresholdTracker
 from metta.mettagrid.curriculum.util import curriculum_from_config_path
 from metta.mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
 from metta.rl.experience import Experience
@@ -146,7 +146,9 @@ class MettaTrainer:
 
         self.performance_threshold_tracker = PerformanceThresholdTracker(thresholds, available_metrics)
         self.aws_config = aws_config
-        logger.info(f"Initialized performance threshold tracker with {len(thresholds)} thresholds for {env_type} environment")
+        logger.info(
+            f"Initialized performance threshold tracker with {len(thresholds)} thresholds for {env_type} environment"
+        )
 
     def _detect_environment_type(self) -> str:
         """Detect environment type from curriculum path."""
@@ -182,9 +184,9 @@ class MettaTrainer:
         }
 
         # Add any metrics from current stats if available
-        if hasattr(self, 'stats'):
+        if hasattr(self, "stats"):
             for key in self.stats.keys():
-                if key.startswith('env_agent/'):
+                if key.startswith("env_agent/"):
                     common_metrics.add(key)
 
         return common_metrics
@@ -198,8 +200,8 @@ class MettaTrainer:
                 auto_start=True,  # Start monitoring immediately
             )
 
-        curriculum_config = trainer_cfg.curriculum_or_env
-        env_overrides = DictConfig(trainer_cfg.env_overrides)
+        curriculum_config = self.trainer_cfg.curriculum_or_env
+        env_overrides = DictConfig(self.trainer_cfg.env_overrides)
         self._curriculum = curriculum_from_config_path(curriculum_config, env_overrides)
         self._make_vecenv()
 
@@ -211,7 +213,7 @@ class MettaTrainer:
         self.agent_step: int = 0
         self.epoch: int = 0
 
-        checkpoint = TrainerCheckpoint.load(cfg.run_dir)
+        checkpoint = TrainerCheckpoint.load(self.cfg.run_dir)
         if checkpoint:
             logger.info(f"Restoring from checkpoint at {checkpoint.agent_step} steps")
             self.agent_step = checkpoint.agent_step
@@ -221,7 +223,7 @@ class MettaTrainer:
                 self.timer.load_state(checkpoint.stopwatch_state, resume_running=True)
 
         # Load or create policy with distributed coordination
-        policy_record = self._load_policy(checkpoint, policy_store)
+        policy_record = self._load_policy(checkpoint, self.policy_store)
 
         if policy_record is not None:
             logging.info(f"Rank {self._rank}: LOADED {policy_record.uri}")
@@ -249,7 +251,7 @@ class MettaTrainer:
             if torch.distributed.is_initialized() and not self._master:
                 # Non-master ranks wait for master to create and save the policy
                 default_policy_path = os.path.join(
-                    trainer_cfg.checkpoint.checkpoint_dir, policy_store.make_model_name(0)
+                    self.trainer_cfg.checkpoint.checkpoint_dir, self.policy_store.make_model_name(0)
                 )
                 logger.info(f"Rank {self._rank}: Waiting for master to create policy at {default_policy_path}")
 
@@ -281,7 +283,7 @@ class MettaTrainer:
                 self._initialize_policy_to_environment(self.policy, metta_grid_env, self.device)
             else:
                 # Master creates and saves new policy
-                policy_record = self._create_and_save_policy_record(policy_store, metta_grid_env)
+                policy_record = self._create_and_save_policy_record(self.policy_store, metta_grid_env)
                 self.initial_policy_record = policy_record
                 self.latest_saved_policy_record = policy_record
                 self.policy = policy_record.policy
@@ -298,14 +300,14 @@ class MettaTrainer:
         if self._master:
             logger.info(f"MettaTrainer loaded: {self.policy}")
 
-        if trainer_cfg.compile:
+        if self.trainer_cfg.compile:
             logger.info("Compiling policy")
-            self.policy = torch.compile(self.policy, mode=trainer_cfg.compile_mode)
+            self.policy = torch.compile(self.policy, mode=self.trainer_cfg.compile_mode)
 
         self.kickstarter = Kickstarter(
-            trainer_cfg.kickstart,
+            self.trainer_cfg.kickstart,
             self.device,
-            policy_store,
+            self.policy_store,
             metta_grid_env,
         )
 
@@ -322,24 +324,24 @@ class MettaTrainer:
         self._stats_run_id: UUID | None = None
 
         # Optimizer
-        optimizer_type = trainer_cfg.optimizer.type
+        optimizer_type = self.trainer_cfg.optimizer.type
         assert optimizer_type in ("adam", "muon"), f"Optimizer type must be 'adam' or 'muon', got {optimizer_type}"
         opt_cls = torch.optim.Adam if optimizer_type == "adam" else ForeachMuon
         self.optimizer = opt_cls(
             self.policy.parameters(),
-            lr=trainer_cfg.optimizer.learning_rate,
-            betas=(trainer_cfg.optimizer.beta1, trainer_cfg.optimizer.beta2),
-            eps=trainer_cfg.optimizer.eps,
-            weight_decay=trainer_cfg.optimizer.weight_decay,
+            lr=self.trainer_cfg.optimizer.learning_rate,
+            betas=(self.trainer_cfg.optimizer.beta1, self.trainer_cfg.optimizer.beta2),
+            eps=self.trainer_cfg.optimizer.eps,
+            weight_decay=self.trainer_cfg.optimizer.weight_decay,
         )
 
         # Validate that policy matches environment
         validate_policy_environment_match(self.policy, metta_grid_env)
 
         self.lr_scheduler = None
-        if trainer_cfg.lr_scheduler.enabled:
+        if self.trainer_cfg.lr_scheduler.enabled:
             self.lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-                self.optimizer, T_max=trainer_cfg.total_timesteps // trainer_cfg.batch_size
+                self.optimizer, T_max=self.trainer_cfg.total_timesteps // self.trainer_cfg.batch_size
             )
 
         if checkpoint and checkpoint.optimizer_state_dict:
@@ -349,14 +351,14 @@ class MettaTrainer:
             except ValueError:
                 logger.warning("Optimizer state dict doesn't match. Starting with fresh optimizer state.")
 
-        if wandb_run and self._master:
+        if self.wandb_run and self._master:
             # Define metrics (wandb x-axis values)
             metrics = ["agent_step", "epoch", "total_time", "train_time"]
             for metric in metrics:
-                wandb_run.define_metric(f"metric/{metric}")
+                self.wandb_run.define_metric(f"metric/{metric}")
 
             # set the default x-axis to be step count
-            wandb_run.define_metric("*", step_metric="metric/agent_step")
+            self.wandb_run.define_metric("*", step_metric="metric/agent_step")
 
             # set up plots that do not use steps as the x-axis
             metric_overrides = [
@@ -364,7 +366,7 @@ class MettaTrainer:
             ]
 
             for metric_name, step_metric in metric_overrides:
-                wandb_run.define_metric(metric_name, step_metric=step_metric)
+                self.wandb_run.define_metric(metric_name, step_metric=step_metric)
 
         if self._master:
             self._memory_monitor.add(self, name="MettaTrainer", track_attributes=True)
@@ -879,12 +881,12 @@ class MettaTrainer:
         self.stats = processed_stats["mean_stats"]
 
         # Update performance threshold tracker
-        if hasattr(self, 'performance_threshold_tracker'):
+        if hasattr(self, "performance_threshold_tracker"):
             self.performance_threshold_tracker.update(
                 metrics=self.stats,
                 samples=self.agent_step,
-                instance_type=self.aws_config.get('instance_type', 'g5.4xlarge'),
-                use_spot=self.aws_config.get('use_spot', False)
+                instance_type=self.aws_config.get("instance_type", "g5.4xlarge"),
+                use_spot=self.aws_config.get("use_spot", False),
             )
 
         # Compute weight stats if on interval
@@ -929,7 +931,7 @@ class MettaTrainer:
         )
 
         # Add performance threshold metrics
-        if hasattr(self, 'performance_threshold_tracker'):
+        if hasattr(self, "performance_threshold_tracker"):
             threshold_metrics = self.performance_threshold_tracker.get_wandb_metrics()
             all_stats.update(threshold_metrics)
 

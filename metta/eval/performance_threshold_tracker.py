@@ -8,8 +8,7 @@ reach specified thresholds and calculate the associated samples, time, and cost.
 import logging
 import time
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple, Any, Set
-import numpy as np
+from typing import Any, Dict, List, Optional, Set
 
 logger = logging.getLogger(__name__)
 
@@ -17,6 +16,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class PerformanceThreshold:
     """Configuration for a performance threshold to track."""
+
     name: str
     metric: str
     target_value: float
@@ -27,6 +27,7 @@ class PerformanceThreshold:
 @dataclass
 class ThresholdResult:
     """Result of performance threshold tracking."""
+
     threshold_name: str
     metric: str
     target_value: float
@@ -55,11 +56,10 @@ class PerformanceThresholdTracker:
 
         self.smoothed_values = {t.name: None for t in thresholds}
         self.threshold_reached = {t.name: False for t in thresholds}
-        self.results = {t.name: ThresholdResult(
-            threshold_name=t.name,
-            metric=t.metric,
-            target_value=t.target_value
-        ) for t in thresholds}
+        self.results = {
+            t.name: ThresholdResult(threshold_name=t.name, metric=t.metric, target_value=t.target_value)
+            for t in thresholds
+        }
 
         # Training tracking
         self.start_time = time.time()
@@ -71,25 +71,28 @@ class PerformanceThresholdTracker:
         """Validate that all threshold metrics are available."""
         for threshold in self.thresholds:
             if threshold.metric not in self.available_metrics:
-                logger.warning(f"Metric '{threshold.metric}' for threshold '{threshold.name}' not available in environment")
+                logger.warning(
+                    f"Metric '{threshold.metric}' for threshold '{threshold.name}' not available in environment"
+                )
                 logger.warning(f"Available metrics: {sorted(self.available_metrics)}")
 
         # Cost calculation (AWS pricing)
         self.aws_pricing = {
             "g4dn.xlarge": {"on_demand": 0.526, "spot": 0.1578},  # 1 GPU
-            "g5.xlarge": {"on_demand": 1.006, "spot": 0.3018},    # 1 GPU
-            "g5.2xlarge": {"on_demand": 1.212, "spot": 0.3636},   # 1 GPU
-            "g5.4xlarge": {"on_demand": 2.424, "spot": 0.7272},   # 1 GPU
-            "g5.8xlarge": {"on_demand": 4.848, "spot": 1.4544},   # 1 GPU
+            "g5.xlarge": {"on_demand": 1.006, "spot": 0.3018},  # 1 GPU
+            "g5.2xlarge": {"on_demand": 1.212, "spot": 0.3636},  # 1 GPU
+            "g5.4xlarge": {"on_demand": 2.424, "spot": 0.7272},  # 1 GPU
+            "g5.8xlarge": {"on_demand": 4.848, "spot": 1.4544},  # 1 GPU
             "g5.12xlarge": {"on_demand": 7.272, "spot": 2.1816},  # 4 GPU
-            "g5.24xlarge": {"on_demand": 14.544, "spot": 4.3632}, # 8 GPU
-            "p3.2xlarge": {"on_demand": 3.06, "spot": 0.918},     # 1 GPU
-            "p3.8xlarge": {"on_demand": 12.24, "spot": 3.672},    # 4 GPU
-            "p3.16xlarge": {"on_demand": 24.48, "spot": 7.344},   # 8 GPU
+            "g5.24xlarge": {"on_demand": 14.544, "spot": 4.3632},  # 8 GPU
+            "p3.2xlarge": {"on_demand": 3.06, "spot": 0.918},  # 1 GPU
+            "p3.8xlarge": {"on_demand": 12.24, "spot": 3.672},  # 4 GPU
+            "p3.16xlarge": {"on_demand": 24.48, "spot": 7.344},  # 8 GPU
         }
 
-    def update(self, metrics: Dict[str, float], samples: int,
-               instance_type: str = "g5.4xlarge", use_spot: bool = False):
+    def update(
+        self, metrics: Dict[str, float], samples: int, instance_type: str = "g5.4xlarge", use_spot: bool = False
+    ):
         """
         Update tracker with new metrics and check for threshold crossings.
 
@@ -113,14 +116,14 @@ class PerformanceThresholdTracker:
                 self.smoothed_values[threshold.name] = current_value
             else:
                 self.smoothed_values[threshold.name] = (
-                    threshold.smoothing_factor * current_value +
-                    (1 - threshold.smoothing_factor) * self.smoothed_values[threshold.name]
+                    threshold.smoothing_factor * current_value
+                    + (1 - threshold.smoothing_factor) * self.smoothed_values[threshold.name]
                 )
 
-                        # Check if threshold was just reached
-            if (not self.threshold_reached[threshold.name] and
-                self._check_threshold(threshold, self.smoothed_values[threshold.name])):
-
+                # Check if threshold was just reached
+            if not self.threshold_reached[threshold.name] and self._check_threshold(
+                threshold, self.smoothed_values[threshold.name]
+            ):
                 self.threshold_reached[threshold.name] = True
                 result = self.results[threshold.name]
                 result.achieved = True
@@ -129,7 +132,7 @@ class PerformanceThresholdTracker:
                 result.cost_to_threshold = self._calculate_cost(
                     self.current_time / 3600.0,  # Convert to hours
                     instance_type,
-                    use_spot
+                    use_spot,
                 )
                 result.final_smoothed_value = self.smoothed_values[threshold.name]
 
@@ -192,9 +195,9 @@ class PerformanceThresholdTracker:
                 metrics[f"{prefix}/cost_to_threshold"] = result.cost_to_threshold
             else:
                 # Use NaN for unachieved thresholds
-                metrics[f"{prefix}/samples_to_threshold"] = float('nan')
-                metrics[f"{prefix}/minutes_to_threshold"] = float('nan')
-                metrics[f"{prefix}/cost_to_threshold"] = float('nan')
+                metrics[f"{prefix}/samples_to_threshold"] = float("nan")
+                metrics[f"{prefix}/minutes_to_threshold"] = float("nan")
+                metrics[f"{prefix}/cost_to_threshold"] = float("nan")
 
         return metrics
 
@@ -202,11 +205,10 @@ class PerformanceThresholdTracker:
         """Reset tracker state for new training run."""
         self.smoothed_values = {t.name: None for t in self.thresholds}
         self.threshold_reached = {t.name: False for t in self.thresholds}
-        self.results = {t.name: ThresholdResult(
-            threshold_name=t.name,
-            metric=t.metric,
-            target_value=t.target_value
-        ) for t in self.thresholds}
+        self.results = {
+            t.name: ThresholdResult(threshold_name=t.name, metric=t.metric, target_value=t.target_value)
+            for t in self.thresholds
+        }
         self.start_time = time.time()
         self.start_samples = 0
         self.current_samples = 0
