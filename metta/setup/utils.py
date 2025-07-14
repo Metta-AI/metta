@@ -2,7 +2,25 @@ import importlib
 import textwrap
 from pathlib import Path
 
-from metta.common.util.colorama import Fore, blue, bold, colorize, cyan, green, red, yellow
+# Try to import colorama utilities, but don't fail if metta.common isn't installed yet
+try:
+    from metta.common.util.colorama import Fore, blue, bold, colorize, cyan, green, red, yellow
+    _COLORAMA_AVAILABLE = True
+except ImportError:
+    # Fallback to basic printing when colorama isn't available
+    _COLORAMA_AVAILABLE = False
+
+    def _no_color(text):
+        return text
+
+    Fore = None
+    blue = _no_color
+    bold = _no_color
+    colorize = _no_color
+    cyan = _no_color
+    green = _no_color
+    red = _no_color
+    yellow = _no_color
 
 
 def _format_message(message: str) -> str:

@@ -120,3 +120,4 @@ class GameConfig(BaseModelWithForbidExtra):
     groups: Dict[str, GroupConfig] = Field(min_length=1)
     actions: ActionsConfig
     objects: Dict[str, ConverterConfig | WallConfig]
+    enable_exploration_tracking: bool = Field(default=False, description="Enable C++ exploration tracking for better performance")

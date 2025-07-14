@@ -180,6 +180,10 @@ class MettaGridEnv(PufferEnv, GymEnv):
         # Reset threshold tracking for this episode
         self._threshold_times = {"33%": [], "66%": [], "100%": []}
 
+        # Reset C++ exploration tracking if available
+        if hasattr(self._c_env, 'reset_exploration_tracking'):
+            self._c_env.reset_exploration_tracking()
+
         assert self.observations.dtype == dtype_observations
         assert self.terminals.dtype == dtype_terminals
         assert self.truncations.dtype == dtype_truncations
@@ -232,6 +236,10 @@ class MettaGridEnv(PufferEnv, GymEnv):
         # Track threshold milestones for observation coverage
         self._track_threshold_milestones()
 
+        # Update C++ exploration thresholds if available
+        if hasattr(self._c_env, 'update_exploration_thresholds'):
+            self._c_env.update_exploration_thresholds()
+
         if self._replay_writer and self._episode_id:
             with self.timer("_replay_writer.log_step"):
                 self._replay_writer.log_step(self._episode_id, actions, self.rewards)
@@ -259,6 +267,11 @@ class MettaGridEnv(PufferEnv, GymEnv):
 
     def _track_agent_positions(self) -> None:
         """Track current agent positions for exploration metrics."""
+        # Only use Python tracking if C++ tracking is disabled
+        if hasattr(self._c_env, 'get_exploration_metrics'):
+            # C++ tracking is available, skip Python tracking
+            return
+
         grid_objects = self._c_env.grid_objects()
         for _obj_id, obj_data in grid_objects.items():
             if "agent_id" in obj_data:
@@ -268,6 +281,11 @@ class MettaGridEnv(PufferEnv, GymEnv):
 
     def _track_observed_pixels(self) -> None:
         """Track pixels that agents have seen in their observations (11x11 matrix around center)."""
+        # Only use Python tracking if C++ tracking is disabled
+        if hasattr(self._c_env, 'get_exploration_metrics'):
+            # C++ tracking is available, skip Python tracking
+            return
+
         grid_objects = self._c_env.grid_objects()
         obs_width = self.obs_width
         obs_height = self.obs_height
@@ -293,6 +311,11 @@ class MettaGridEnv(PufferEnv, GymEnv):
 
     def _track_threshold_milestones(self) -> None:
         """Track when observation coverage reaches threshold milestones."""
+        # Only use Python tracking if C++ tracking is disabled
+        if hasattr(self._c_env, 'get_exploration_metrics'):
+            # C++ tracking is available, skip Python tracking
+            return
+
         if self._total_grid_cells == 0:
             return
 
@@ -311,6 +334,11 @@ class MettaGridEnv(PufferEnv, GymEnv):
 
     def _calculate_exploration_metrics(self) -> Dict[str, float]:
         """Calculate exploration metrics aggregated across all agents."""
+        # Use C++ exploration metrics if available
+        if hasattr(self._c_env, 'get_exploration_metrics'):
+            return self._c_env.get_exploration_metrics()
+
+        # Fall back to Python implementation
         metrics = {}
 
         # Calculate visited locations metrics

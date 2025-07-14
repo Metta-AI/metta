@@ -49,6 +49,7 @@ struct GameConfig {
   unsigned int num_observation_tokens;
   std::map<std::string, std::shared_ptr<ActionConfig>> actions;
   std::map<std::string, std::shared_ptr<GridObjectConfig>> objects;
+  bool enable_exploration_tracking;  // Toggle for exploration tracking
 };
 
 class METTAGRID_API MettaGrid {
@@ -93,6 +94,11 @@ public:
   py::array_t<unsigned int> get_agent_groups() const;
 
   uint64_t initial_grid_hash;
+
+  // Exploration tracking methods
+  py::dict get_exploration_metrics();
+  void reset_exploration_tracking();
+  void update_exploration_thresholds();
 
 private:
   // Member variables

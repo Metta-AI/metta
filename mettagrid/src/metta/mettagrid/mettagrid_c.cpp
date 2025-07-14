@@ -52,6 +52,10 @@ MettaGrid::MettaGrid(const GameConfig& cfg, py::list map, int seed)
   int width = map[0].cast<py::list>().size();
 
   _grid = std::make_unique<Grid>(width, height);
+
+  // Initialize exploration tracking
+  _grid->exploration_tracker.initialize(width, height, num_agents, max_steps, cfg.enable_exploration_tracking);
+
   _obs_encoder = std::make_unique<ObservationEncoder>(inventory_item_names);
   _feature_normalizations = _obs_encoder->feature_normalizations();
 
@@ -245,6 +249,10 @@ void MettaGrid::_compute_observation(unsigned int observer_row,
     c_end = _grid->width;
   }
 
+  // Track observation window for exploration metrics
+  _grid->exploration_tracker.track_observation_window(agent_idx, observer_row, observer_col,
+                                                    obs_width, obs_height, _grid->width, _grid->height);
+
   // Fill in visible objects. Observations should have been cleared in _step, so
   // we don't need to do that here.
   size_t attempted_tokens_written = 0;
@@ -412,6 +420,9 @@ py::tuple MettaGrid::reset() {
   if (current_step > 0) {
     throw std::runtime_error("Cannot reset after stepping");
   }
+
+  // Reset exploration tracking
+  reset_exploration_tracking();
 
   // Reset all buffers
   // Views are created only for validating types; actual clearing is done via
@@ -611,6 +622,34 @@ py::array_t<float> MettaGrid::get_episode_rewards() {
   return _episode_rewards;
 }
 
+py::dict MettaGrid::get_exploration_metrics() {
+  // Update current step in exploration tracker
+  _grid->exploration_tracker.current_step = current_step;
+
+  // Update threshold times
+  _grid->exploration_tracker.update_threshold_times();
+
+  // Get metrics from exploration tracker
+  auto metrics = _grid->exploration_tracker.get_metrics();
+
+  // Convert to Python dict
+  py::dict result;
+  for (const auto& [key, value] : metrics) {
+    result[py::str(key)] = py::float_(value);
+  }
+
+  return result;
+}
+
+void MettaGrid::reset_exploration_tracking() {
+  _grid->exploration_tracker.reset();
+}
+
+void MettaGrid::update_exploration_thresholds() {
+  _grid->exploration_tracker.current_step = current_step;
+  _grid->exploration_tracker.update_threshold_times();
+}
+
 py::dict MettaGrid::get_episode_stats() {
   // Returns a dictionary with the following structure:
   // {
@@ -774,7 +813,10 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def_readonly("current_step", &MettaGrid::current_step)
       .def("inventory_item_names", &MettaGrid::inventory_item_names_py)
       .def("get_agent_groups", &MettaGrid::get_agent_groups)
-      .def_readonly("initial_grid_hash", &MettaGrid::initial_grid_hash);
+      .def_readonly("initial_grid_hash", &MettaGrid::initial_grid_hash)
+      .def("get_exploration_metrics", &MettaGrid::get_exploration_metrics)
+      .def("reset_exploration_tracking", &MettaGrid::reset_exploration_tracking)
+      .def("update_exploration_thresholds", &MettaGrid::update_exploration_thresholds);
 
   // Expose this so we can cast python WallConfig / AgentConfig / ConverterConfig to a common GridConfig cpp object.
   py::class_<GridObjectConfig, std::shared_ptr<GridObjectConfig>>(m, "GridObjectConfig");
@@ -879,7 +921,8 @@ PYBIND11_MODULE(mettagrid_c, m) {
                     const std::vector<std::string>&,
                     unsigned int,
                     const std::map<std::string, std::shared_ptr<ActionConfig>>&,
-                    const std::map<std::string, std::shared_ptr<GridObjectConfig>>&>(),
+                    const std::map<std::string, std::shared_ptr<GridObjectConfig>>&,
+                    bool>(),
            py::arg("num_agents"),
            py::arg("max_steps"),
            py::arg("obs_width"),
@@ -887,13 +930,15 @@ PYBIND11_MODULE(mettagrid_c, m) {
            py::arg("inventory_item_names"),
            py::arg("num_observation_tokens"),
            py::arg("actions"),
-           py::arg("objects"))
+           py::arg("objects"),
+           py::arg("enable_exploration_tracking") = false)
       .def_readwrite("num_agents", &GameConfig::num_agents)
       .def_readwrite("max_steps", &GameConfig::max_steps)
       .def_readwrite("obs_width", &GameConfig::obs_width)
       .def_readwrite("obs_height", &GameConfig::obs_height)
       .def_readwrite("inventory_item_names", &GameConfig::inventory_item_names)
-      .def_readwrite("num_observation_tokens", &GameConfig::num_observation_tokens);
+      .def_readwrite("num_observation_tokens", &GameConfig::num_observation_tokens)
+      .def_readwrite("enable_exploration_tracking", &GameConfig::enable_exploration_tracking);
   // We don't expose these since they're copied on read, and this means that mutations
   // to the dictionaries don't impact the underlying cpp objects. This is confusing!
   // This can be fixed, but until we do that, we're not exposing these.

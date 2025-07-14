@@ -119,4 +119,7 @@ def from_mettagrid_config(mettagrid_config_dict: dict[str, Any]) -> GameConfig_c
     del game_config["groups"]
     game_config["objects"] = object_configs
 
+    # Add exploration tracking toggle (default to False for backward compatibility)
+    game_config["enable_exploration_tracking"] = game_config.get("enable_exploration_tracking", False)
+
     return GameConfig_cpp(**game_config)
