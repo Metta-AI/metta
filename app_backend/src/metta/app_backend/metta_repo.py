@@ -911,7 +911,7 @@ class MettaRepo:
                         """
                         UPDATE eval_tasks
                         SET status = %s,
-                            attributes = attributes || %s::jsonb
+                            attributes = COALESCE(attributes, '{}'::jsonb) || %s::jsonb
                         WHERE id = %s AND assignee = %s
                         RETURNING id
                         """,
