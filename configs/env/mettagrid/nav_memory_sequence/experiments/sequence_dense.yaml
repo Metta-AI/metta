@@ -1,8 +1,0 @@
-defaults:
-  - /env/mettagrid/nav_memory_sequence/experiments/sequence_defaults@
-  - _self_
-
-game:
-  map_builder:
-    room:
-      dir: ${choose:varied_terrain/dense_small,varied_terrain/dense_medium,varied_terrain/dense_large}
