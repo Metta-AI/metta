@@ -13,9 +13,9 @@ Learning Progress Tests:
 4. Mixed impossible/learnable tasks -> should weight learnable evenly, ignore impossible
 5. Threshold dependency -> should first weight primary, then secondary after milestone
 
-Low Reward Curriculum Tests:
+Prioritize Regressed Curriculum Tests:
 6. All tasks have linear scaling -> should maintain equal distribution
-7. One impossible task (always 0) -> should get maximum weight as it has lowest reward
+7. One impossible task (always 0) -> should get minimum weight as max_score = 0 ==> LP = epislon
 """
 
 import random
