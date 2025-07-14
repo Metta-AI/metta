@@ -86,4 +86,9 @@ runs:
         INPUT_ASANA_EMAIL_FIELD_ID: ${{ inputs.asana_email_field_id }}
         INPUT_PR_AUTHOR_FIELD_ID: ${{ inputs.pr_author_field_id }}
         INPUT_ASANA_ATTACHMENT_SECRET: ${{ inputs.asana_attachment_secret }}
+        INPUT_PR_NUMBER: ${{ inputs.pr_number }}
+        INPUT_GITHUB_REPO: ${{ inputs.github_repo }}
+        INPUT_GITHUB_TOKEN: ${{ inputs.github_token }}
+
+
 

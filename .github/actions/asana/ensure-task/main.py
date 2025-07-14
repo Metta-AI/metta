@@ -6,6 +6,7 @@
 # ]
 # ///
 
+import json
 import os
 import re
 import sys
@@ -113,7 +114,7 @@ def search_asana_tasks(
 
     response = requests.get(url, headers=headers, params=params, timeout=30)
     if response.status_code != 200:
-        print(f"Asana API Error: {response.status_code} - {response.text}")
+        print(f"Asana API Error (search_asana_tasks): {response.status_code} - {response.text}")
         sys.exit(1)
 
     data = response.json()
@@ -146,7 +147,7 @@ def _get_task_custom_fields_from_project(
     while True:
         response = requests.get(url, headers=headers, params=params, timeout=30)
         if response.status_code != 200:
-            print(f"Asana API Error: {response.status_code} - {response.text}")
+            print(f"Asana API Error (_get_task_custom_fields_from_project): {response.status_code} - {response.text}")
             sys.exit(1)
         data = response.json()
         tasks = data["data"]
@@ -244,7 +245,7 @@ def create_asana_task(
         ensure_github_url_in_asana_task(asana_attachment_secret, project_id, task_url, title, github_url)
         return task_url
     else:
-        print(f"Asana API Error: {response.status_code} - {response.text}")
+        print(f"Asana API Error (create_asana_task): {response.status_code} - {response.text}")
         sys.exit(1)
 
 
@@ -287,7 +288,7 @@ def update_asana_task(
     if response.status_code == 200:
         print(f"Successfully updated task {task_gid}")
     else:
-        print(f"Asana API Error updating task: {response.status_code} - {response.text}")
+        print(f"Asana API Error (update_asana_task): {response.status_code} - {response.text}")
 
 
 def update_task_if_needed(
@@ -424,6 +425,15 @@ def ensure_asana_task(
         asana_attachment_secret,
     )
     print(f"Created new Asana task: {new_task_url}")
+
+    existing_task = find_and_validate_task(project_id, github_url, github_url_field_id, asana_token, workspace_id)
+    if existing_task:
+        print(f"Found existing Asana task via search: {existing_task['permalink_url']}")
+        return existing_task["permalink_url"]
+    else:
+        print(f"No existing task found after creation with GitHub URL: {github_url}")
+        return new_task_url
+
     return new_task_url
 
 
@@ -464,8 +474,38 @@ def ensure_github_url_in_asana_task(
     if response.status_code == 200:
         return response.json()
     else:
-        print(f"Asana API Error: {response.status_code} - {response.text}")
+        print(f"Asana API Error (ensure_github_url_in_asana_task): {response.status_code} - {response.text}")
         return None
+
+
+def get_pull_request_from_github(owner, repo, pr_number, github_token):
+    """
+    Get pull request details from GitHub API
+
+    Args:
+        owner (str): Repository owner
+        repo (str): Repository name
+        pr_number (int): Pull request number
+        github_token (str): GitHub personal access token
+
+    Returns:
+        dict: Pull request data
+    """
+    url = f"https://api.github.com/repos/{owner}/{repo}/pulls/{pr_number}"
+
+    headers = {
+        "Accept": "application/vnd.github+json",
+        "Authorization": f"Bearer {github_token}",
+        "X-GitHub-Api-Version": "2022-11-28",
+    }
+
+    response = requests.get(url, headers=headers)
+    response.raise_for_status()  # Raises an exception for bad status codes
+
+    d = response.json()
+    print(f"Pull request retrieved from GitHub: {json.dumps(d, indent=2)}")
+
+    return d
 
 
 if __name__ == "__main__":
@@ -486,6 +526,12 @@ if __name__ == "__main__":
     roster_project_id = os.getenv("INPUT_ROSTER_PROJECT_ID")
     pr_author_field_id = os.getenv("INPUT_PR_AUTHOR_FIELD_ID")
     asana_attachment_secret = os.getenv("INPUT_ASANA_ATTACHMENT_SECRET")
+    pr_number = os.getenv("INPUT_PR_NUMBER")
+    github_repo = os.getenv("INPUT_GITHUB_REPO")
+    github_token = os.getenv("INPUT_GITHUB_TOKEN")
+
+    # just print this out for now
+    get_pull_request_from_github("Metta-AI", github_repo, pr_number, github_token)
 
     github_logins = set(assignees + reviewers + [author])
     github_login_to_asana_email = get_asana_users_by_github_logins(
