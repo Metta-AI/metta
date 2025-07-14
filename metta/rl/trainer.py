@@ -378,10 +378,13 @@ class MettaTrainer:
             logger.info(f"  {name}: {self.timer.format_time(summary['total_elapsed'])}")
 
         # Force final saves
-        self._maybe_evaluate_policy(force=True)
         self._maybe_save_policy(force=True)
         self._maybe_save_training_state(force=True)
         self._maybe_upload_policy_record_to_wandb(force=True)
+
+        if self._stats_epoch_start < self.epoch:
+            # If we have not just evaluated the latest policy, evaluate it
+            self._maybe_evaluate_policy(force=True)
 
     def _on_train_step(self):
         pass
