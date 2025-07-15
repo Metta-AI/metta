@@ -52,6 +52,9 @@ struct GameConfig {
   unsigned int num_observation_tokens;
   std::map<std::string, std::shared_ptr<ActionConfig>> actions;
   std::map<std::string, std::shared_ptr<GridObjectConfig>> objects;
+  // New reward logic fields
+  bool sparse_reward_top_heart_winners_every_N_steps = false;
+  unsigned int heart_winners_reward_interval_in_steps = 0;
 };
 
 class METTAGRID_API MettaGrid {
@@ -67,6 +70,10 @@ public:
 
   std::vector<std::string> inventory_item_names;
   std::vector<std::string> object_type_names;
+
+  // Add these member variables for reward logic
+  bool sparse_reward_top_heart_winners_every_N_steps = false;
+  unsigned int heart_winners_reward_interval_in_steps = 0;
 
   // Python API methods
   py::tuple reset();

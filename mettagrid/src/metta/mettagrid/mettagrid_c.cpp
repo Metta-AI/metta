@@ -38,7 +38,10 @@ MettaGrid::MettaGrid(const GameConfig& cfg, py::list map, unsigned int seed)
       obs_width(cfg.obs_width),
       obs_height(cfg.obs_height),
       inventory_item_names(cfg.inventory_item_names),
-      _num_observation_tokens(cfg.num_observation_tokens) {
+      _num_observation_tokens(cfg.num_observation_tokens),
+      sparse_reward_top_heart_winners_every_N_steps(cfg.sparse_reward_top_heart_winners_every_N_steps),
+      heart_winners_reward_interval_in_steps(cfg.heart_winners_reward_interval_in_steps)
+{
   _seed = seed;
   _rng = std::mt19937(seed);
 
@@ -369,6 +372,59 @@ void MettaGrid::_step(py::array_t<ActionType, py::array::c_style> actions) {
   // Increment timestep and process events
   current_step++;
   _event_manager->process_events(current_step);
+
+  // Custom sparse top-heart-winners reward logic
+  if (sparse_reward_top_heart_winners_every_N_steps) {
+    // Zero all rewards (already done above)
+    if (heart_winners_reward_interval_in_steps > 0 && current_step % heart_winners_reward_interval_in_steps == 0) {
+      // Find max hearts held by any agent
+      int max_hearts = 0;
+      std::vector<size_t> winners;
+      for (size_t i = 0; i < _agents.size(); i++) {
+        int hearts = 0;
+        // Find the index of "heart" in inventory_item_names
+        int heart_idx = -1;
+        for (size_t idx = 0; idx < inventory_item_names.size(); ++idx) {
+            if (inventory_item_names[idx] == "heart") {
+                heart_idx = idx;
+                break;
+            }
+        }
+        if (heart_idx == -1) {
+            // handle error: "heart" not found
+        }
+        auto it = _agents[i]->inventory.find(static_cast<unsigned char>(heart_idx));
+        if (it != _agents[i]->inventory.end()) {
+          hearts = it->second;
+        }
+        if (hearts > max_hearts) {
+          max_hearts = hearts;
+          winners.clear();
+          winners.push_back(i);
+        } else if (hearts == max_hearts) {
+          winners.push_back(i);
+        }
+      }
+      if (max_hearts >= 1) {
+        for (size_t idx : winners) {
+          rewards_view(idx) = 1.0f;
+        }
+      }
+    }
+    // Skip all other reward logic
+    // Update episode rewards
+    auto episode_rewards_view = _episode_rewards.mutable_unchecked<1>();
+    for (py::ssize_t i = 0; i < rewards_view.shape(0); i++) {
+      episode_rewards_view(i) += rewards_view(i);
+    }
+    // Check for truncation
+    if (max_steps > 0 && current_step >= max_steps) {
+      std::fill(static_cast<bool*>(_truncations.request().ptr),
+                static_cast<bool*>(_truncations.request().ptr) + _truncations.size(),
+                1);
+    }
+    return;
+  }
 
   // Create and shuffle agent indices for randomized action order
   std::vector<size_t> agent_indices(_agents.size());

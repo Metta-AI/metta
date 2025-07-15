@@ -127,3 +127,5 @@ class GameConfig(BaseModelWithForbidExtra):
     groups: Dict[str, GroupConfig] = Field(min_length=1)
     actions: ActionsConfig
     objects: Dict[str, ConverterConfig | WallConfig]
+    sparse_reward_top_heart_winners_every_N_steps: bool = Field(default=False)
+    heart_winners_reward_interval_in_steps: int = Field(default=0)

@@ -123,4 +123,12 @@ def from_mettagrid_config(mettagrid_config_dict: dict[str, Any]) -> GameConfig_c
     del game_config["groups"]
     game_config["objects"] = object_configs
 
+    # Propagate new reward flags
+    if hasattr(mettagrid_config, "sparse_reward_top_heart_winners_every_N_steps"):
+        game_config["sparse_reward_top_heart_winners_every_N_steps"] = (
+            mettagrid_config.sparse_reward_top_heart_winners_every_N_steps
+        )
+    if hasattr(mettagrid_config, "heart_winners_reward_interval_in_steps"):
+        game_config["heart_winners_reward_interval_in_steps"] = mettagrid_config.heart_winners_reward_interval_in_steps
+
     return GameConfig_cpp(**game_config)

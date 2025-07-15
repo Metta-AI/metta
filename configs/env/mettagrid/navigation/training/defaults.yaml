@@ -4,6 +4,8 @@ defaults:
 
 sampling: 1
 game:
+  sparse_reward_top_heart_winners_every_N_steps: true
+  heart_winners_reward_interval_in_steps: 10
   num_agents: 4
   max_steps: 1000
   actions:
