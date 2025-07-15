@@ -18,6 +18,7 @@ import { useNavigate } from 'react-router-dom';
 interface AffiliationCardProps {
     affiliation: any;
     isAdmin: boolean;
+    searchQuery?: string;
     onToggleFavorite?: (affiliationId: string) => void;
     /**
      * Optional click handler for the card. If provided, called when the card is clicked.
@@ -25,8 +26,31 @@ interface AffiliationCardProps {
     onCardClick?: () => void;
 }
 
-export function AffiliationCard({ affiliation, isAdmin, onToggleFavorite, onCardClick }: AffiliationCardProps) {
+export function AffiliationCard({ affiliation, isAdmin, searchQuery = '', onToggleFavorite, onCardClick }: AffiliationCardProps) {
     const navigate = useNavigate();
+
+    // Helper function to highlight matching text in search results
+    const highlightMatchingText = (text: string, query: string) => {
+        if (!query.trim() || !text) {
+            return text;
+        }
+        
+        const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const regex = new RegExp(`(${escapedQuery})`, 'gi');
+        const parts = text.split(regex);
+        
+        return parts.map((part, index) => {
+            // Check if this part matches the query (case-insensitive)
+            if (part.toLowerCase() === query.toLowerCase()) {
+                return (
+                    <span key={index} className="bg-yellow-200 px-0.5 rounded">
+                        {part}
+                    </span>
+                );
+            }
+            return part;
+        });
+    };
 
     return (
         <div 
@@ -43,9 +67,9 @@ export function AffiliationCard({ affiliation, isAdmin, onToggleFavorite, onCard
                         </div>
                     )}
                     <div className="min-w-0">
-                        <h3 className="text-lg font-semibold text-gray-900 break-words leading-tight">{affiliation.label}</h3>
-                        <p className="text-gray-600 text-sm break-words leading-tight">{affiliation.name}</p>
-                        <p className="text-gray-500 text-xs break-words leading-tight">{affiliation.location}</p>
+                        <h3 className="text-lg font-semibold text-gray-900 break-words leading-tight">{highlightMatchingText(affiliation.label, searchQuery)}</h3>
+                        <p className="text-gray-600 text-sm break-words leading-tight">{highlightMatchingText(affiliation.name, searchQuery)}</p>
+                        <p className="text-gray-500 text-xs break-words leading-tight">{highlightMatchingText(affiliation.location, searchQuery)}</p>
                     </div>
                 </div>
                 <div className="flex flex-col items-end gap-2 min-w-0">
@@ -54,7 +78,7 @@ export function AffiliationCard({ affiliation, isAdmin, onToggleFavorite, onCard
             </div>
             <div className="flex flex-wrap gap-1 mb-2">
                 {affiliation.tags.map((tag: string, idx: number) => (
-                    <span key={idx} className="px-2 py-0.5 bg-gray-100 text-gray-700 text-xs rounded-full">{tag}</span>
+                    <span key={idx} className="px-2 py-0.5 bg-gray-100 text-gray-700 text-xs rounded-full">{highlightMatchingText(tag, searchQuery)}</span>
                 ))}
             </div>
             <div className="flex items-center gap-4 text-xs text-gray-600 mb-2">

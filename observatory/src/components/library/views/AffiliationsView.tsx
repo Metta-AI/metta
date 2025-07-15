@@ -85,6 +85,7 @@ export function AffiliationsView({
                             key={affiliation.id}
                             affiliation={affiliation}
                             isAdmin={affiliation.isAdmin}
+                            searchQuery={searchQuery}
                             onCardClick={() => onCardClick(affiliation.id)}
                         />
                     ))}

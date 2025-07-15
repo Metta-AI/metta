@@ -48,16 +48,25 @@ export function ScholarCard({
 
     // Helper function to highlight matching text in search results
     const highlightMatchingText = (text: string, query: string) => {
-        if (query.length < 2) return text;
-        const regex = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+        if (!query.trim() || !text) {
+            return text;
+        }
+        
+        const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const regex = new RegExp(`(${escapedQuery})`, 'gi');
         const parts = text.split(regex);
-        return parts.map((part, index) => 
-            regex.test(part) ? (
-                <strong key={index} className="font-bold">{part}</strong>
-            ) : (
-                part
-            )
-        );
+        
+        return parts.map((part, index) => {
+            // Check if this part matches the query (case-insensitive)
+            if (part.toLowerCase() === query.toLowerCase()) {
+                return (
+                    <span key={index} className="bg-yellow-200 px-0.5 rounded">
+                        {part}
+                    </span>
+                );
+            }
+            return part;
+        });
     };
 
     return (
