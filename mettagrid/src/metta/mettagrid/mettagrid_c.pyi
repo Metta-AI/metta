@@ -103,6 +103,7 @@ class ChangeGlyphActionConfig(ActionConfig):
 class GameConfig:
     num_agents: int
     max_steps: int
+    use_dones: bool
     obs_width: int
     obs_height: int
     inventory_item_names: list[str]

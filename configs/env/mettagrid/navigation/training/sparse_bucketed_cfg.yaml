@@ -7,6 +7,7 @@ sampling: 1
 game:
   max_steps: ???
   num_agents: 4
+  use_dones: true
   actions:
     put_items:
       enabled: false
@@ -37,4 +38,4 @@ game:
             params:
               objects:
                 altar: ${num_altars}
-                agent: 1
+              agent: 1
