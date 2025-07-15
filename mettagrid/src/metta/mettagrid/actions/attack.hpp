@@ -157,7 +157,6 @@ private:
 
     if (same_team) {
       actor.stats.incr(_action_prefix(actor_group) + "friendly_fire");
-      target.stats.incr(_action_prefix(target_group) + "victim_of_friendly_fire");
     } else {
       actor.stats.incr(_action_prefix(actor_group) + "hit." + target_group);
       target.stats.incr(_action_prefix(target_group) + "hit_by." + actor_group);
