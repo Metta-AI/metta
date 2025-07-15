@@ -162,10 +162,11 @@ class TerrainFromNumpy(Room):
         adjacent = [(y + 1, x), (y - 1, x), (y, x + 1), (y, x - 1)]
         for pos in adjacent:
             if pos in valid_positions and len(agent_positions) < num_agents:
+                print(f"Adding agent at {pos}")
                 agent_positions.append(pos)
 
         if len(agent_positions) < num_agents:
-            agent_positions.extend(valid_positions[1 : num_agents - len(agent_positions)])
+            agent_positions.append(valid_positions[1])
 
         for pos, label in zip(agent_positions, agent_labels, strict=False):
             level[pos] = label
