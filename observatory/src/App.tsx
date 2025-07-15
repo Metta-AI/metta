@@ -9,7 +9,7 @@ import { SQLQuery } from './SQLQuery'
 import { TrainingRuns } from './TrainingRuns'
 import { TrainingRunDetail } from './TrainingRunDetail'
 import { Library } from './Library'
-import { ScholarProfile } from './ScholarProfile'
+import { AuthorProfile } from './AuthorProfile'
 import { AffiliationProfile } from './AffiliationProfile'
 import { config } from './config'
 
@@ -249,6 +249,7 @@ function App() {
         </Route>
         {/* Library routes (no dashboard header/nav) */}
         <Route path="/library" element={<Library repo={state.repo} currentUser={state.currentUser} />} />
+        <Route path="/authors" element={<Library repo={state.repo} currentUser={state.currentUser} />} />
         <Route path="/scholars" element={<Library repo={state.repo} currentUser={state.currentUser} />} />
         <Route path="/affiliations" element={<Library repo={state.repo} currentUser={state.currentUser} />} />
         <Route path="/profile" element={<Library repo={state.repo} currentUser={state.currentUser} />} />

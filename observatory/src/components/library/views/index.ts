@@ -5,10 +5,10 @@
  * This allows other components to import multiple views from a single import statement.
  * 
  * Example usage:
- * import { ScholarsView, AffiliationsView, PapersView } from '../views';
+ * import { AuthorsView, AffiliationsView, PapersView } from '../views';
  */
 
-export { ScholarsView } from './ScholarsView';
+export { AuthorsView } from './AuthorsView';
 export { AffiliationsView } from './AffiliationsView';
 export { PapersView } from './PapersView';
 export { FeedView } from './FeedView';

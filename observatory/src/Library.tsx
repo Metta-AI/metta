@@ -3,9 +3,9 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { mockScholars } from './mockData/scholars';
 import { mockAffiliations } from './mockData/affiliations';
 import { mockPapers } from './mockData/papers';
-import { ScholarProfile } from './ScholarProfile';
+import { AuthorProfile } from './AuthorProfile';
 import { AffiliationProfile } from './AffiliationProfile';
-import { ScholarsView, AffiliationsView, PapersView, FeedView, ProfileView } from './components/library/views';
+import { AuthorsView, AffiliationsView, PapersView, FeedView, ProfileView } from './components/library/views';
 
 // MathJax type declarations
 declare global {
@@ -70,8 +70,8 @@ const navItems = [
         )
     },
     {
-        id: 'scholars',
-        label: 'Scholars',
+        id: 'authors',
+        label: 'Authors',
         icon: (
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
@@ -111,7 +111,7 @@ export function Library({ repo: _repo, currentUser }: Library2Props) {
     const location = useLocation();
     // Determine initial nav from path
     const getNavFromPath = (pathname: string) => {
-        if (pathname.includes('/scholars')) return 'scholars';
+        if (pathname.includes('/authors')) return 'authors';
         if (pathname.includes('/collections')) return 'collections';
         if (pathname.includes('/affiliations')) return 'affiliations';
         if (pathname.includes('/papers')) return 'papers';
@@ -123,7 +123,7 @@ export function Library({ repo: _repo, currentUser }: Library2Props) {
     const [mathJaxLoaded, setMathJaxLoaded] = useState(false)
     const postsRef = useRef<HTMLDivElement>(null)
 
-    const [scholars, setScholars] = useState(mockScholars)
+    const [authors, setAuthors] = useState(mockScholars)
     const [affiliations] = useState(mockAffiliations)
     const [searchQuery, setSearchQuery] = useState('')
     const [papersSearchQuery, setPapersSearchQuery] = useState('')
@@ -132,17 +132,17 @@ export function Library({ repo: _repo, currentUser }: Library2Props) {
     const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
     const [affiliationsSortDirection, setAffiliationsSortDirection] = useState<'asc' | 'desc'>('asc')
     const navigate = useNavigate();
-    const [expandedScholarId, setExpandedScholarId] = useState<string | null>(null);
+    const [expandedAuthorId, setExpandedAuthorId] = useState<string | null>(null);
     // Add refs for the filter inputs
     const filterInputRef = useRef<HTMLInputElement>(null);
     const papersFilterInputRef = useRef<HTMLInputElement>(null);
     // Add state for overlay modals
-    const [overlayScholarId, setOverlayScholarId] = useState<string | null>(null);
+    const [overlayAuthorId, setOverlayAuthorId] = useState<string | null>(null);
     const [overlayAffiliationId, setOverlayAffiliationId] = useState<string | null>(null);
 
     // Overlay close handler
     const closeOverlay = () => {
-        setOverlayScholarId(null);
+        setOverlayAuthorId(null);
         setOverlayAffiliationId(null);
     };
 
@@ -153,11 +153,11 @@ export function Library({ repo: _repo, currentUser }: Library2Props) {
         };
         
         // Only add listener when overlay is active
-        if (overlayScholarId || overlayAffiliationId) {
+        if (overlayAuthorId || overlayAffiliationId) {
             window.addEventListener('keydown', handleKeyDown);
             return () => window.removeEventListener('keydown', handleKeyDown);
         }
-    }, [overlayScholarId, overlayAffiliationId]);
+    }, [overlayAuthorId, overlayAffiliationId]);
 
     // Sync activeNav with URL path
     useEffect(() => {
@@ -225,23 +225,23 @@ export function Library({ repo: _repo, currentUser }: Library2Props) {
 
 
 
-    const toggleFollow = (scholarId: string) => {
-        setScholars(prev => prev.map(scholar => 
-            scholar.id === scholarId 
-                ? { ...scholar, isFollowing: !scholar.isFollowing }
-                : scholar
+        const toggleFollow = (authorId: string) => {
+        setAuthors(prev => prev.map(author =>
+            author.id === authorId
+                ? { ...author, isFollowing: !author.isFollowing }
+                : author
         ))
     }
 
-    const filteredScholars = scholars
-        .filter(scholar => {
+    const filteredAuthors = authors
+        .filter(author => {
             // Only filter when search query is 2+ characters long
             if (searchQuery.length < 2) return true;
             
             const query = searchQuery.toLowerCase();
-            return scholar.name.toLowerCase().includes(query) ||
-                scholar.institution.toLowerCase().includes(query) ||
-                scholar.expertise.some(exp => exp.toLowerCase().includes(query));
+            return author.name.toLowerCase().includes(query) ||
+                author.institution.toLowerCase().includes(query) ||
+                author.expertise.some(exp => exp.toLowerCase().includes(query));
         })
         .sort((a, b) => {
             let aValue: string | number;
@@ -343,9 +343,9 @@ export function Library({ repo: _repo, currentUser }: Library2Props) {
     const handleNavClick = (id: string) => {
         setActiveNav(id);
         switch (id) {
-            case 'scholars':
-                navigate('/scholars');
-                break;
+                    case 'authors':
+            navigate('/authors');
+            break;
             case 'affiliations':
                 navigate('/affiliations');
                 break;
@@ -388,25 +388,25 @@ export function Library({ repo: _repo, currentUser }: Library2Props) {
     // Render different views based on activeNav
     const renderContent = () => {
         switch (activeNav) {
-            case 'scholars':
+                        case 'authors':
                 return (
-                    <ScholarsView
-                        filteredScholars={filteredScholars}
+                    <AuthorsView
+                        filteredAuthors={filteredAuthors}
                         searchQuery={searchQuery}
                         sortBy={sortBy}
                         sortDirection={sortDirection}
-                        expandedScholarId={expandedScholarId}
+                        expandedAuthorId={expandedAuthorId}
                         filterInputRef={filterInputRef}
                         onSearchChange={setSearchQuery}
                         onSortChange={(key) => setSortBy(key as any)}
                         onSortDirectionChange={setSortDirection}
-                        onExpandScholar={setExpandedScholarId}
-                        onCollapseScholar={(id) => {
-                            if (expandedScholarId === id) setExpandedScholarId(null);
+                        onExpandAuthor={setExpandedAuthorId}
+                        onCollapseAuthor={(id) => {
+                            if (expandedAuthorId === id) setExpandedAuthorId(null);
                         }}
                         onToggleFollow={toggleFollow}
                         onTagClick={(tag) => setSearchQuery(tag)}
-                        onCardClick={setOverlayScholarId}
+                        onCardClick={setOverlayAuthorId}
                     />
                 )
 
@@ -429,13 +429,13 @@ export function Library({ repo: _repo, currentUser }: Library2Props) {
                 return (
                     <PapersView
                         papers={mockPapers}
-                        scholars={scholars}
+                        scholars={authors}
                         affiliations={affiliations}
                         onToggleStar={toggleStar}
                         searchQuery={papersSearchQuery}
                         onSearchChange={setPapersSearchQuery}
                         filterInputRef={papersFilterInputRef}
-                        onShowScholarOverlay={setOverlayScholarId}
+                        onShowScholarOverlay={setOverlayAuthorId}
                         onShowAffiliationOverlay={setOverlayAffiliationId}
                     />
                 )
@@ -468,9 +468,9 @@ export function Library({ repo: _repo, currentUser }: Library2Props) {
                                         });
                                     }
                                 }, 500);
-                            }
-                        }}
-                    />
+                                            }
+                                        }}
+                                    />
                 )
         }
     }
@@ -515,7 +515,7 @@ export function Library({ repo: _repo, currentUser }: Library2Props) {
                     {renderContent()}
                 </div>
             </div>
-            {(overlayScholarId || overlayAffiliationId) && (
+            {(overlayAuthorId || overlayAffiliationId) && (
                 <div
                     className="fixed inset-0 z-50 flex items-start justify-center bg-black bg-opacity-40 pt-12 pb-12"
                     onClick={closeOverlay}
@@ -527,9 +527,9 @@ export function Library({ repo: _repo, currentUser }: Library2Props) {
                         onClick={e => e.stopPropagation()}
                         tabIndex={-1}
                     >
-                        {overlayScholarId && (
-                            <ScholarProfile
-                                scholar={scholars.find(s => s.id === overlayScholarId)}
+                        {overlayAuthorId && (
+                            <AuthorProfile
+                                author={authors.find(s => s.id === overlayAuthorId)}
                                 onClose={closeOverlay}
                             />
                         )}

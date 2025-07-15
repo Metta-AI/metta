@@ -4,49 +4,49 @@ import { mockScholars } from './mockData/scholars';
 import { mockPapers } from './mockData/papers';
 import { mockAffiliations } from './mockData/affiliations';
 
-interface ScholarProfileProps {
+interface AuthorProfileProps {
     repo?: unknown;
-    scholar?: any;
+    author?: any;
     onClose?: () => void;
 }
 
-export function ScholarProfile({ repo: _repo, scholar: propScholar, onClose }: ScholarProfileProps) {
-    const { scholarId } = useParams<{ scholarId: string }>();
+export function AuthorProfile({ repo: _repo, author: propAuthor, onClose }: AuthorProfileProps) {
+    const { authorId } = useParams<{ authorId: string }>();
     const navigate = useNavigate();
-    const [scholar, setScholar] = useState<any>(propScholar || null);
-    const [scholarPapers, setScholarPapers] = useState<any[]>([]);
+    const [author, setAuthor] = useState<any>(propAuthor || null);
+    const [authorPapers, setAuthorPapers] = useState<any[]>([]);
     const [activeTab, setActiveTab] = useState<'overview' | 'papers' | 'network'>('overview');
 
     useEffect(() => {
-        if (propScholar) {
-            setScholar(propScholar);
+        if (propAuthor) {
+            setAuthor(propAuthor);
             const papers = mockPapers.filter(paper => 
-                paper.authors.some(author => author.id === propScholar.id)
+                paper.authors.some(authorId => authorId === propAuthor.id)
             );
-            setScholarPapers(papers);
-        } else if (scholarId) {
-            const foundScholar = mockScholars.find(s => s.id === scholarId);
-            if (foundScholar) {
-                setScholar(foundScholar);
+            setAuthorPapers(papers);
+        } else if (authorId) {
+            const foundAuthor = mockScholars.find(s => s.id === authorId);
+            if (foundAuthor) {
+                setAuthor(foundAuthor);
                 const papers = mockPapers.filter(paper => 
-                    paper.authors.some(author => author.id === scholarId)
+                    paper.authors.some(paperAuthorId => paperAuthorId === authorId)
                 );
-                setScholarPapers(papers);
+                setAuthorPapers(papers);
             }
         }
-    }, [propScholar, scholarId]);
+    }, [propAuthor, authorId]);
 
-    if (!scholar) {
+    if (!author) {
         return (
             <div className="min-h-screen bg-gray-50 flex items-center justify-center">
                 <div className="text-center">
-                    <h1 className="text-2xl font-bold text-gray-900 mb-2">Scholar not found</h1>
-                    <p className="text-gray-600 mb-4">The scholar you're looking for doesn't exist.</p>
+                    <h1 className="text-2xl font-bold text-gray-900 mb-2">Author not found</h1>
+                    <p className="text-gray-600 mb-4">The author you're looking for doesn't exist.</p>
                     <button 
-                        onClick={() => navigate('/scholars')}
+                        onClick={() => navigate('/authors')}
                         className="bg-primary-500 text-white px-4 py-2 rounded-lg hover:bg-primary-600 transition-colors"
                     >
-                        Back to Scholars
+                        Back to Authors
                     </button>
                 </div>
             </div>
@@ -54,7 +54,7 @@ export function ScholarProfile({ repo: _repo, scholar: propScholar, onClose }: S
     }
 
     const toggleFollow = () => {
-        setScholar((prev: any) => ({ ...prev, isFollowing: !prev.isFollowing }));
+        setAuthor((prev: any) => ({ ...prev, isFollowing: !prev.isFollowing }));
     };
 
     return (
@@ -64,54 +64,54 @@ export function ScholarProfile({ repo: _repo, scholar: propScholar, onClose }: S
                 <div className="max-w-6xl mx-auto px-4 py-6">
 
 
-                    {/* Scholar Info */}
+                    {/* Author Info */}
                     <div className="flex items-start gap-6">
                         <div className="w-24 h-24 bg-primary-500 text-white rounded-full flex items-center justify-center text-3xl font-semibold flex-shrink-0">
-                            {scholar.avatar}
+                            {author.avatar}
                         </div>
                         <div className="flex-1 min-w-0">
-                            <h2 className="text-3xl font-bold text-gray-900 mb-2">{scholar.name}</h2>
-                            <p className="text-xl text-gray-600 mb-1">{scholar.title}</p>
-                            <p className="text-lg text-gray-500 mb-3">{scholar.institution}</p>
+                            <h2 className="text-3xl font-bold text-gray-900 mb-2">{author.name}</h2>
+                            <p className="text-xl text-gray-600 mb-1">{author.title}</p>
+                            <p className="text-lg text-gray-500 mb-3">{author.institution}</p>
                             
                             <div className="flex items-center gap-4 mb-4">
                                 <div className="flex items-center gap-6 text-sm text-gray-600">
                                     <div>
-                                        <span className="font-semibold text-gray-900 text-lg">{scholar.hIndex}</span>
+                                        <span className="font-semibold text-gray-900 text-lg">{author.hIndex}</span>
                                         <span className="ml-1">h-index</span>
                                     </div>
                                     <div>
-                                        <span className="font-semibold text-gray-900 text-lg">{scholar.totalCitations.toLocaleString()}</span>
+                                        <span className="font-semibold text-gray-900 text-lg">{author.totalCitations.toLocaleString()}</span>
                                         <span className="ml-1">citations</span>
                                     </div>
                                     <div>
-                                        <span className="font-semibold text-gray-900 text-lg">{scholar.papers.length}</span>
+                                        <span className="font-semibold text-gray-900 text-lg">{author.papers.length}</span>
                                         <span className="ml-1">papers</span>
                                     </div>
                                 </div>
                                 <button
                                     onClick={toggleFollow}
                                     className={`px-6 py-2 rounded-full font-medium transition-colors ${
-                                        scholar.isFollowing
+                                        author.isFollowing
                                             ? 'bg-gray-200 text-gray-700 hover:bg-gray-300'
                                             : 'bg-primary-500 text-white hover:bg-primary-600'
                                     }`}
                                 >
-                                    {scholar.isFollowing ? 'Following' : 'Follow'}
+                                    {author.isFollowing ? 'Following' : 'Follow'}
                                 </button>
                                 <span
                                     className={`px-3 py-1 rounded-full text-sm font-semibold ${
-                                        scholar.claimed
+                                        author.claimed
                                             ? 'bg-green-100 text-green-700 border border-green-200'
                                             : 'bg-gray-100 text-gray-600 border border-gray-200'
                                     }`}
                                 >
-                                    {scholar.claimed ? 'Claimed Profile' : 'Unclaimed Profile'}
+                                    {author.claimed ? 'Claimed Profile' : 'Unclaimed Profile'}
                                 </span>
                             </div>
 
                             <div className="flex flex-wrap gap-2">
-                                {scholar.expertise.map((exp: string, index: number) => (
+                                {author.expertise.map((exp: string, index: number) => (
                                     <span
                                         key={index}
                                         className="px-3 py-1 bg-gray-100 text-gray-700 text-sm rounded-full"
@@ -131,7 +131,7 @@ export function ScholarProfile({ repo: _repo, scholar: propScholar, onClose }: S
                     <div className="flex space-x-8">
                         {[
                             { id: 'overview', label: 'Overview' },
-                            { id: 'papers', label: `Papers (${scholarPapers.length})` },
+                            { id: 'papers', label: `Papers (${authorPapers.length})` },
                             { id: 'network', label: 'Network' }
                         ].map(tab => (
                             <button
@@ -158,7 +158,7 @@ export function ScholarProfile({ repo: _repo, scholar: propScholar, onClose }: S
                             <div className="bg-white rounded-lg border border-gray-200 p-6">
                                 <h3 className="text-lg font-semibold text-gray-900 mb-4">Recent Papers</h3>
                                 <div className="space-y-4">
-                                    {scholar.papers.slice(0, 5).map((paper: any) => (
+                                    {author.papers.slice(0, 5).map((paper: any) => (
                                         <div key={paper.id} className="border-b border-gray-100 pb-4 last:border-b-0">
                                             <h4 className="font-medium text-gray-900 mb-1">{paper.title}</h4>
                                             <p className="text-sm text-gray-600 mb-2">{paper.year} • {paper.citations} citations</p>
@@ -179,7 +179,7 @@ export function ScholarProfile({ repo: _repo, scholar: propScholar, onClose }: S
                             <div className="bg-white rounded-lg border border-gray-200 p-6">
                                 <h3 className="text-lg font-semibold text-gray-900 mb-4">Affiliations</h3>
                                 <div className="space-y-3">
-                                    {scholarPapers.map(paper => 
+                                    {authorPapers.map(paper => 
                                         paper.affiliations.map((aff: any) => {
                                             const affiliation = mockAffiliations.find(a => a.id === aff.id);
                                             return affiliation ? (
@@ -199,7 +199,7 @@ export function ScholarProfile({ repo: _repo, scholar: propScholar, onClose }: S
                             </div>
                             <div className="bg-white rounded-lg border border-gray-200 p-6">
                                 <h3 className="text-lg font-semibold text-gray-900 mb-4">Activity</h3>
-                                <p className="text-sm text-gray-600">Last active {scholar.recentActivity}</p>
+                                <p className="text-sm text-gray-600">Last active {author.recentActivity}</p>
                             </div>
                         </div>
                     </div>
@@ -211,7 +211,7 @@ export function ScholarProfile({ repo: _repo, scholar: propScholar, onClose }: S
                             <h3 className="text-lg font-semibold text-gray-900">All Papers</h3>
                         </div>
                         <div className="divide-y divide-gray-200">
-                            {scholarPapers.map((paper, index) => (
+                            {authorPapers.map((paper, index) => (
                                 <div key={paper.id} className="p-6">
                                     <div className="flex items-start justify-between">
                                         <div className="flex-1">
