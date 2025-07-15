@@ -10,7 +10,7 @@
  * 
  * Features:
  * - Real-time filtering by name, institution, or expertise
- * - Multi-column sorting (name, affiliation, recent activity, papers, citations, h-index)
+ * - Multi-column sorting (name, institution, recent activity, papers, citations, h-index)
  * - Responsive grid layout
  * - Integration with author cards and overlay modals
  */
@@ -25,7 +25,7 @@ interface AuthorsViewProps {
     
     // State
     searchQuery: string;
-    sortBy: 'name' | 'affiliation' | 'recentActivity' | 'papers' | 'citations' | 'hIndex';
+    sortBy: 'name' | 'institution' | 'recentActivity' | 'papers' | 'citations' | 'hIndex';
     sortDirection: 'asc' | 'desc';
     expandedAuthorId: string | null;
     
@@ -63,7 +63,7 @@ export function AuthorsView({
     // Sort options configuration for authors
     const sortOptions = [
         { key: 'name', label: 'Name' },
-        { key: 'affiliation', label: 'Affiliation' },
+        { key: 'institution', label: 'Institution' },
         { key: 'recentActivity', label: 'Recent Activity' },
         { key: 'papers', label: 'Papers' },
         { key: 'citations', label: 'Citations' },

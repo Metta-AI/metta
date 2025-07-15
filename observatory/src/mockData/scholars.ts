@@ -19,7 +19,7 @@ export interface Scholar {
     recentActivity: string;
     isFollowing: boolean;
     claimed: boolean;
-    affiliationId: string;
+    institutionId: string;
 }
 
 import { scholarsA_M } from './scholarsA_M';

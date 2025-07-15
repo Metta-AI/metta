@@ -8,7 +8,7 @@
  * The papers table includes:
  * - Paper titles with star/favorite functionality
  * - Author links to scholar profiles (clickable for overlays)
- * - Affiliation links to institution profiles (clickable for overlays)
+ * - Institution links to institution profiles (clickable for overlays)
  * - Research tags for categorization (clickable to filter)
  * - User avatars showing who has read or queued the paper
  * - External links to paper sources
@@ -18,17 +18,17 @@
  * - Sortable columns (all columns are clickable to sort)
  * - Interactive star/favorite toggling
  * - Clickable tags that apply search filters
- * - Clickable authors and affiliations that show overlays
+ * - Clickable authors and institutions that show overlays
  * - User hover cards showing user details
  * - Responsive table design with horizontal scrolling
- * - Links to related scholars and affiliations
+ * - Links to related scholars and institutions
  * 
  * Usage Example:
  * ```tsx
  * <PapersView
  *   papers={papers}
  *   scholars={scholars}
- *   affiliations={affiliations}
+ *   institutions={institutions}
  *   onToggleStar={handleToggleStar}
  * />
  * ```
@@ -45,7 +45,7 @@ interface Paper {
     title: string;
     starred: boolean;
     authors: string[]; // Array of scholar IDs
-    affiliations: string[]; // Array of affiliation IDs
+    institutions: string[]; // Array of institution IDs
     tags: string[];
     readBy: any[]; // Array of user objects
     queued: any[]; // Array of user objects
@@ -64,9 +64,9 @@ interface Scholar {
 }
 
 /**
- * Defines the structure of an affiliation object
+ * Defines the structure of an institution object
  */
-interface Affiliation {
+interface Institution {
     id: string;
     label: string;
 }
@@ -81,8 +81,8 @@ interface PapersViewProps {
     /** Array of scholars for resolving author IDs to names */
     scholars: Scholar[];
     
-    /** Array of affiliations for resolving affiliation IDs to labels */
-    affiliations: Affiliation[];
+    /** Array of institutions for resolving institution IDs to labels */
+    institutions: Institution[];
     
     /** Callback function called when user toggles the star/favorite status of a paper */
     onToggleStar: (paperId: string) => void;
@@ -99,8 +99,8 @@ interface PapersViewProps {
     /** Callback function called when a scholar overlay should be shown */
     onShowScholarOverlay?: (scholarId: string) => void;
     
-    /** Callback function called when an affiliation overlay should be shown */
-    onShowAffiliationOverlay?: (affiliationId: string) => void;
+    /** Callback function called when an institution overlay should be shown */
+    onShowInstitutionOverlay?: (institutionId: string) => void;
 }
 
 /**
@@ -112,13 +112,13 @@ interface PapersViewProps {
 export function PapersView({
     papers,
     scholars,
-    affiliations,
+    institutions,
     onToggleStar,
     searchQuery = '',
     onSearchChange,
     filterInputRef,
     onShowScholarOverlay,
-    onShowAffiliationOverlay
+    onShowInstitutionOverlay
 }: PapersViewProps) {
     
     // Validate required props
@@ -132,9 +132,9 @@ export function PapersView({
         return <div className="p-6 text-red-600">Error: Invalid scholars data</div>;
     }
     
-    if (!Array.isArray(affiliations)) {
-        console.error('PapersView: affiliations prop must be an array');
-        return <div className="p-6 text-red-600">Error: Invalid affiliations data</div>;
+    if (!Array.isArray(institutions)) {
+        console.error('PapersView: institutions prop must be an array');
+        return <div className="p-6 text-red-600">Error: Invalid institutions data</div>;
     }
     
     if (typeof onToggleStar !== 'function') {
@@ -226,10 +226,10 @@ export function PapersView({
                     aValue = aFirstAuthor ? aFirstAuthor.name.toLowerCase() : '';
                     bValue = bFirstAuthor ? bFirstAuthor.name.toLowerCase() : '';
                     break;
-                case 'affiliations':
-                    // Sort by first affiliation label with bounds checking
-                    const aFirstAff = a.affiliations.length > 0 ? affiliations.find(aff => aff.id === a.affiliations[0]) : null;
-                    const bFirstAff = b.affiliations.length > 0 ? affiliations.find(aff => aff.id === b.affiliations[0]) : null;
+                case 'institutions':
+                    // Sort by first institution label with bounds checking
+                    const aFirstAff = a.institutions.length > 0 ? institutions.find(aff => aff.id === a.institutions[0]) : null;
+                    const bFirstAff = b.institutions.length > 0 ? institutions.find(aff => aff.id === b.institutions[0]) : null;
                     aValue = aFirstAff ? aFirstAff.label.toLowerCase() : '';
                     bValue = bFirstAff ? bFirstAff.label.toLowerCase() : '';
                     break;
@@ -260,7 +260,7 @@ export function PapersView({
             if (aValue > bValue) return papersSort.dir === 'asc' ? 1 : -1;
             return 0;
         });
-    }, [papers, scholars, affiliations, searchQuery, showOnlyStarred, papersSort]);
+    }, [papers, scholars, institutions, searchQuery, showOnlyStarred, papersSort]);
 
     /**
      * Handles sorting when a column header is clicked
@@ -347,21 +347,21 @@ export function PapersView({
     };
 
     /**
-     * Handles clicking on an affiliation to show its overlay
+     * Handles clicking on an institution to show its overlay
      * 
-     * When a user clicks on an affiliation name, it shows the affiliation overlay
+     * When a user clicks on an institution name, it shows the institution overlay
      * instead of navigating to a URL
      * 
-     * @param affiliationId - The ID of the affiliation to show in the overlay
+     * @param institutionId - The ID of the institution to show in the overlay
      */
-    const handleAffiliationClick = (affiliationId: string) => {
-        if (!affiliationId || typeof affiliationId !== 'string') {
-            console.warn('Invalid affiliationId provided to handleAffiliationClick:', affiliationId);
+    const handleInstitutionClick = (institutionId: string) => {
+        if (!institutionId || typeof institutionId !== 'string') {
+            console.warn('Invalid institutionId provided to handleInstitutionClick:', institutionId);
             return;
         }
         
-        if (onShowAffiliationOverlay) {
-            onShowAffiliationOverlay(affiliationId);
+        if (onShowInstitutionOverlay) {
+            onShowInstitutionOverlay(institutionId);
         }
     };
 
@@ -521,13 +521,13 @@ export function PapersView({
                                     {renderSortIndicator('authors')}
                                 </th>
                                 
-                                {/* Affiliations Column - sortable */}
+                                {/* Institutions Column - sortable */}
                                 <th 
                                     className="px-4 py-2 text-left cursor-pointer hover:bg-gray-100 transition-colors" 
-                                    onClick={() => handleSort('affiliations')}
+                                    onClick={() => handleSort('institutions')}
                                 >
-                                    Affiliations
-                                    {renderSortIndicator('affiliations')}
+                                    Institutions
+                                    {renderSortIndicator('institutions')}
                                 </th>
                                 
                                 {/* Tags Column - sortable */}
@@ -625,25 +625,25 @@ export function PapersView({
                                         })}
                                     </td>
                                     
-                                    {/* Affiliations Cell - clickable links to affiliation overlays */}
+                                    {/* Institutions Cell - clickable links to institution overlays */}
                                     <td className="px-4 py-2 whitespace-nowrap">
-                                        {paper.affiliations.map((affId: string, idx: number) => {
-                                            const aff = affiliations.find(a => a.id === affId);
+                                        {paper.institutions.map((affId: string, idx: number) => {
+                                            const aff = institutions.find(a => a.id === affId);
                                             if (!aff) {
-                                                console.warn(`Affiliation with ID "${affId}" not found for paper "${paper.title}"`);
+                                                console.warn(`Institution with ID "${affId}" not found for paper "${paper.title}"`);
                                                 return (
                                                     <span key={`unknown-${affId}-${idx}`} className="text-gray-400 italic mr-1">
-                                                        Unknown Institution{idx < paper.affiliations.length - 1 ? ',' : ''}
+                                                        Unknown Institution{idx < paper.institutions.length - 1 ? ',' : ''}
                                                     </span>
                                                 );
                                             }
                                             return (
                                                 <button
                                                     key={aff.id}
-                                                    onClick={() => handleAffiliationClick(aff.id)}
+                                                    onClick={() => handleInstitutionClick(aff.id)}
                                                     className="text-primary-600 hover:text-primary-700 hover:underline mr-1 cursor-pointer bg-transparent border-none p-0 font-inherit"
                                                 >
-                                                    {highlightText(aff.label, searchQuery)}{idx < paper.affiliations.length - 1 ? ',' : ''}
+                                                    {highlightText(aff.label, searchQuery)}{idx < paper.institutions.length - 1 ? ',' : ''}
                                                 </button>
                                             );
                                         })}

@@ -1,13 +1,13 @@
 import { mockUsers, User } from './users';
 import { mockScholars, Scholar } from './scholars';
-import { mockAffiliations, Affiliation } from './affiliations';
+import { mockInstitutions, Institution } from './institutions';
 
 export interface Paper {
     id: string;
     title: string;
     starred: boolean;
     authors: { id: string; name: string }[];
-    affiliations: { id: string; label: string }[];
+    institutions: { id: string; label: string }[];
     tags: string[];
     readBy: User[];
     queued: User[];
@@ -103,7 +103,7 @@ export const mockPapers = [
     year: 2022,
     citations: 500,
     authors: ["alex-abbott", "bella-baker"], // Using actual scholar IDs
-    affiliations: ["stanford-ai-lab"], // Using actual affiliation IDs
+    institutions: ["stanford-ai-lab"], // Using actual institution IDs
     tags: ["Conversational AI", "Robotics"],
     link: "https://arxiv.org/abs/1234.5678",
     readBy: [],
@@ -117,7 +117,7 @@ export const mockPapers = [
     year: 2021,
     citations: 700,
     authors: ["carla-chen"], // Using actual scholar IDs
-    affiliations: ["berkeley-ai"], // Using actual affiliation IDs
+    institutions: ["berkeley-ai"], // Using actual institution IDs
     tags: ["NLP", "Autonomous Vehicles"],
     link: "https://arxiv.org/abs/2345.6789",
     readBy: [],
@@ -131,7 +131,7 @@ export const mockPapers = [
     year: 2023,
     citations: 1200,
     authors: ["daniel-diaz"], // Using actual scholar IDs
-    affiliations: ["mit-csail"], // Using actual affiliation IDs
+    institutions: ["mit-csail"], // Using actual institution IDs
     tags: ["Transformer", "Computer Vision", "Deep Learning"],
     link: "https://arxiv.org/abs/3456.7890",
     readBy: [],
@@ -145,7 +145,7 @@ export const mockPapers = [
     year: 2022,
     citations: 850,
     authors: ["emma-evans"], // Using actual scholar IDs
-    affiliations: ["openai"], // Using actual affiliation IDs
+    institutions: ["openai"], // Using actual institution IDs
     tags: ["VAE", "Generative Models", "Deep Learning"],
     link: "https://arxiv.org/abs/4567.8901",
     readBy: [],
@@ -159,7 +159,7 @@ export const mockPapers = [
     year: 2021,
     citations: 950,
     authors: ["felix-foster", "grace-garcia"], // Using actual scholar IDs
-    affiliations: ["cmu-ml", "google-brain"], // Using actual affiliation IDs
+    institutions: ["cmu-ml", "google-brain"], // Using actual institution IDs
     tags: ["Reinforcement Learning", "Game Playing", "AI Safety"],
     link: "https://arxiv.org/abs/5678.9012",
     readBy: [],
@@ -173,7 +173,7 @@ export const mockPapers = [
     year: 2023,
     citations: 1500,
     authors: ["hannah-hughes", "ian-irving"], // Using actual scholar IDs
-    affiliations: ["oxford-ai", "facebook-ai"], // Using actual affiliation IDs
+    institutions: ["oxford-ai", "facebook-ai"], // Using actual institution IDs
     tags: ["Attention Mechanisms", "Large Language Models", "NLP"],
     link: "https://arxiv.org/abs/6789.0123",
     readBy: [],
@@ -187,7 +187,7 @@ export const mockPapers = [
     year: 2022,
     citations: 1100,
     authors: ["julia-jones"], // Using actual scholar IDs
-    affiliations: ["toronto-ai"], // Using actual affiliation IDs
+    institutions: ["toronto-ai"], // Using actual institution IDs
     tags: ["Deep Learning", "Computer Vision", "Neural Networks"],
     link: "https://arxiv.org/abs/7890.1234",
     readBy: [],
@@ -201,7 +201,7 @@ export const mockPapers = [
     year: 2023,
     citations: 800,
     authors: ["karen-kim", "liam-lee"], // Using actual scholar IDs
-    affiliations: ["microsoft-research", "eth-zurich"], // Using actual affiliation IDs
+    institutions: ["microsoft-research", "eth-zurich"], // Using actual institution IDs
     tags: ["AI Systems", "Distributed Computing", "Machine Learning Infrastructure"],
     link: "https://arxiv.org/abs/8901.2345",
     readBy: [],
@@ -215,7 +215,7 @@ export const mockPapers = [
     year: 2023,
     citations: 950,
     authors: ["nina-nash", "oliver-owens"], // Using actual scholar IDs
-    affiliations: ["mit-csail", "openai"], // Using actual affiliation IDs
+    institutions: ["mit-csail", "openai"], // Using actual institution IDs
     tags: ["Neural Architecture Search", "AutoML", "Model Optimization"],
     link: "https://arxiv.org/abs/9012.3456",
     readBy: [],
@@ -229,7 +229,7 @@ export const mockPapers = [
     year: 2022,
     citations: 1300,
     authors: ["paula-perez", "quincy-quinn", "rachel-ryan"], // Using actual scholar IDs
-    affiliations: ["cmu-ml", "google-brain", "oxford-ai"], // Using actual affiliation IDs
+    institutions: ["cmu-ml", "google-brain", "oxford-ai"], // Using actual institution IDs
     tags: ["Multimodal Learning", "Vision-Language", "Computer Vision"],
     link: "https://arxiv.org/abs/0123.4567",
     readBy: [],
@@ -243,7 +243,7 @@ export const mockPapers = [
     year: 2023,
     citations: 750,
     authors: ["steven-smith"], // Using actual scholar IDs
-    affiliations: ["facebook-ai"], // Using actual affiliation IDs
+    institutions: ["facebook-ai"], // Using actual institution IDs
     tags: ["Robotics", "Autonomous Navigation", "Machine Learning"],
     link: "https://arxiv.org/abs/1234.5679",
     readBy: [],
@@ -257,7 +257,7 @@ export const mockPapers = [
     year: 2021,
     citations: 1800,
     authors: ["tina-tan", "ulrich-ulrich"], // Using actual scholar IDs
-    affiliations: ["toronto-ai", "microsoft-research"], // Using actual affiliation IDs
+    institutions: ["toronto-ai", "microsoft-research"], // Using actual institution IDs
     tags: ["Theoretical Machine Learning", "Deep Learning", "Optimization Theory"],
     link: "https://arxiv.org/abs/2345.6780",
     readBy: [],

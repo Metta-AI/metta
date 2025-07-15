@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { mockScholars } from './mockData/scholars';
-import { mockAffiliations } from './mockData/affiliations';
+import { mockInstitutions } from './mockData/institutions';
 import { mockPapers } from './mockData/papers';
 import { AuthorProfile } from './AuthorProfile';
-import { AffiliationProfile } from './AffiliationProfile';
-import { AuthorsView, AffiliationsView, PapersView, FeedView, ProfileView } from './components/library/views';
+import { InstitutionProfile } from './InstitutionProfile';
+import { AuthorsView, InstitutionsView, PapersView, FeedView, ProfileView } from './components/library/views';
 
 // MathJax type declarations
 declare global {
@@ -79,8 +79,8 @@ const navItems = [
         )
     },
     {
-        id: 'affiliations',
-        label: 'Affiliations',
+        id: 'institutions',
+        label: 'Institutions',
         icon: (
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 {/* Triangle roof */}
@@ -113,7 +113,7 @@ export function Library({ repo: _repo, currentUser }: Library2Props) {
     const getNavFromPath = (pathname: string) => {
         if (pathname.includes('/authors')) return 'authors';
         if (pathname.includes('/collections')) return 'collections';
-        if (pathname.includes('/affiliations')) return 'affiliations';
+        if (pathname.includes('/institutions')) return 'institutions';
         if (pathname.includes('/papers')) return 'papers';
         if (pathname.includes('/profile')) return 'profile';
         if (pathname.includes('/search')) return 'search';
@@ -124,13 +124,13 @@ export function Library({ repo: _repo, currentUser }: Library2Props) {
     const postsRef = useRef<HTMLDivElement>(null)
 
     const [authors, setAuthors] = useState(mockScholars)
-    const [affiliations] = useState(mockAffiliations)
+    const [institutions] = useState(mockInstitutions)
     const [searchQuery, setSearchQuery] = useState('')
     const [papersSearchQuery, setPapersSearchQuery] = useState('')
-    const [sortBy, setSortBy] = useState<'name' | 'affiliation' | 'recentActivity' | 'papers' | 'citations' | 'hIndex'>('name')
-    const [affiliationsSortBy, setAffiliationsSortBy] = useState<'name' | 'location' | 'type' | 'members' | 'papers' | 'citations'>('name')
+    const [sortBy, setSortBy] = useState<'name' | 'institution' | 'recentActivity' | 'papers' | 'citations' | 'hIndex'>('name')
+    const [institutionsSortBy, setInstitutionsSortBy] = useState<'name' | 'location' | 'type' | 'members' | 'papers' | 'citations'>('name')
     const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
-    const [affiliationsSortDirection, setAffiliationsSortDirection] = useState<'asc' | 'desc'>('asc')
+    const [institutionsSortDirection, setInstitutionsSortDirection] = useState<'asc' | 'desc'>('asc')
     const navigate = useNavigate();
     const [expandedAuthorId, setExpandedAuthorId] = useState<string | null>(null);
     // Add refs for the filter inputs
@@ -138,12 +138,12 @@ export function Library({ repo: _repo, currentUser }: Library2Props) {
     const papersFilterInputRef = useRef<HTMLInputElement>(null);
     // Add state for overlay modals
     const [overlayAuthorId, setOverlayAuthorId] = useState<string | null>(null);
-    const [overlayAffiliationId, setOverlayAffiliationId] = useState<string | null>(null);
+    const [overlayInstitutionId, setOverlayInstitutionId] = useState<string | null>(null);
 
     // Overlay close handler
     const closeOverlay = () => {
         setOverlayAuthorId(null);
-        setOverlayAffiliationId(null);
+        setOverlayInstitutionId(null);
     };
 
     // ESC key closes overlay
@@ -153,11 +153,11 @@ export function Library({ repo: _repo, currentUser }: Library2Props) {
         };
         
         // Only add listener when overlay is active
-        if (overlayAuthorId || overlayAffiliationId) {
+        if (overlayAuthorId || overlayInstitutionId) {
             window.addEventListener('keydown', handleKeyDown);
             return () => window.removeEventListener('keydown', handleKeyDown);
         }
-    }, [overlayAuthorId, overlayAffiliationId]);
+    }, [overlayAuthorId, overlayInstitutionId]);
 
     // Sync activeNav with URL path
     useEffect(() => {
@@ -255,7 +255,7 @@ export function Library({ repo: _repo, currentUser }: Library2Props) {
                     aValue = aLastName;
                     bValue = bLastName;
                     break;
-                case 'affiliation':
+                case 'institution':
                     aValue = a.institution.toLowerCase();
                     bValue = b.institution.toLowerCase();
                     break;
@@ -286,22 +286,22 @@ export function Library({ repo: _repo, currentUser }: Library2Props) {
             return 0;
         });
 
-    const filteredAffiliations = affiliations
-        .filter(affiliation => {
+    const filteredInstitutions = institutions
+        .filter(institution => {
             // Only filter when search query is 2+ characters long
             if (searchQuery.length < 2) return true;
             
             const query = searchQuery.toLowerCase();
-            return affiliation.label.toLowerCase().includes(query) ||
-                affiliation.name.toLowerCase().includes(query) ||
-                affiliation.location.toLowerCase().includes(query) ||
-                affiliation.tags.some(tag => tag.toLowerCase().includes(query));
+            return institution.label.toLowerCase().includes(query) ||
+                institution.name.toLowerCase().includes(query) ||
+                institution.location.toLowerCase().includes(query) ||
+                institution.tags.some(tag => tag.toLowerCase().includes(query));
         })
         .sort((a, b) => {
             let aValue: string | number;
             let bValue: string | number;
             
-            switch (affiliationsSortBy) {
+            switch (institutionsSortBy) {
                 case 'name':
                     aValue = a.label.toLowerCase();
                     bValue = b.label.toLowerCase();
@@ -330,8 +330,8 @@ export function Library({ repo: _repo, currentUser }: Library2Props) {
                     return 0;
             }
             
-            if (aValue < bValue) return affiliationsSortDirection === 'asc' ? -1 : 1;
-            if (aValue > bValue) return affiliationsSortDirection === 'asc' ? 1 : -1;
+            if (aValue < bValue) return institutionsSortDirection === 'asc' ? -1 : 1;
+            if (aValue > bValue) return institutionsSortDirection === 'asc' ? 1 : -1;
             return 0;
         });
 
@@ -346,8 +346,8 @@ export function Library({ repo: _repo, currentUser }: Library2Props) {
                     case 'authors':
             navigate('/authors');
             break;
-            case 'affiliations':
-                navigate('/affiliations');
+            case 'institutions':
+                navigate('/institutions');
                 break;
             case 'feed':
                 navigate('/library');
@@ -410,18 +410,18 @@ export function Library({ repo: _repo, currentUser }: Library2Props) {
                     />
                 )
 
-            case 'affiliations':
+            case 'institutions':
                 return (
-                    <AffiliationsView
-                        filteredAffiliations={filteredAffiliations}
+                    <InstitutionsView
+                        filteredInstitutions={filteredInstitutions}
                         searchQuery={searchQuery}
-                        sortBy={affiliationsSortBy}
-                        sortDirection={affiliationsSortDirection}
+                        sortBy={institutionsSortBy}
+                        sortDirection={institutionsSortDirection}
                         filterInputRef={filterInputRef}
                         onSearchChange={setSearchQuery}
-                        onSortChange={(key) => setAffiliationsSortBy(key as any)}
-                        onSortDirectionChange={setAffiliationsSortDirection}
-                        onCardClick={setOverlayAffiliationId}
+                        onSortChange={(key) => setInstitutionsSortBy(key as any)}
+                        onSortDirectionChange={setInstitutionsSortDirection}
+                        onCardClick={setOverlayInstitutionId}
                     />
                 )
 
@@ -430,13 +430,13 @@ export function Library({ repo: _repo, currentUser }: Library2Props) {
                     <PapersView
                         papers={mockPapers}
                         scholars={authors}
-                        affiliations={affiliations}
+                        institutions={institutions}
                         onToggleStar={toggleStar}
                         searchQuery={papersSearchQuery}
                         onSearchChange={setPapersSearchQuery}
                         filterInputRef={papersFilterInputRef}
                         onShowScholarOverlay={setOverlayAuthorId}
-                        onShowAffiliationOverlay={setOverlayAffiliationId}
+                        onShowInstitutionOverlay={setOverlayInstitutionId}
                     />
                 )
 
@@ -515,7 +515,7 @@ export function Library({ repo: _repo, currentUser }: Library2Props) {
                     {renderContent()}
                 </div>
             </div>
-            {(overlayAuthorId || overlayAffiliationId) && (
+            {(overlayAuthorId || overlayInstitutionId) && (
                 <div
                     className="fixed inset-0 z-50 flex items-start justify-center bg-black bg-opacity-40 pt-12 pb-12"
                     onClick={closeOverlay}
@@ -533,9 +533,9 @@ export function Library({ repo: _repo, currentUser }: Library2Props) {
                                 onClose={closeOverlay}
                             />
                         )}
-                        {overlayAffiliationId && (
-                            <AffiliationProfile
-                                affiliation={affiliations.find(a => a.id === overlayAffiliationId)}
+                        {overlayInstitutionId && (
+                            <InstitutionProfile
+                                institution={institutions.find(a => a.id === overlayInstitutionId)}
                                 onClose={closeOverlay}
                             />
                         )}

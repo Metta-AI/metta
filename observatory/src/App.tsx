@@ -10,7 +10,7 @@ import { TrainingRuns } from './TrainingRuns'
 import { TrainingRunDetail } from './TrainingRunDetail'
 import { Library } from './Library'
 import { AuthorProfile } from './AuthorProfile'
-import { AffiliationProfile } from './AffiliationProfile'
+import { InstitutionProfile } from './InstitutionProfile'
 import { config } from './config'
 
 // CSS for navigation
@@ -251,7 +251,7 @@ function App() {
         <Route path="/library" element={<Library repo={state.repo} currentUser={state.currentUser} />} />
         <Route path="/authors" element={<Library repo={state.repo} currentUser={state.currentUser} />} />
         <Route path="/scholars" element={<Library repo={state.repo} currentUser={state.currentUser} />} />
-        <Route path="/affiliations" element={<Library repo={state.repo} currentUser={state.currentUser} />} />
+        <Route path="/institutions" element={<Library repo={state.repo} currentUser={state.currentUser} />} />
         <Route path="/profile" element={<Library repo={state.repo} currentUser={state.currentUser} />} />
         <Route path="/collections" element={<Library repo={state.repo} currentUser={state.currentUser} />} />
         <Route path="/papers" element={<Library repo={state.repo} currentUser={state.currentUser} />} />

@@ -16,7 +16,7 @@ export const scholarsN_Z: Scholar[] = [
     recentActivity: '2 days ago',
     isFollowing: true,
     claimed: false,
-    affiliationId: 'mit-csail',
+    institutionId: 'mit-csail',
   },
   {
     id: 'oliver-owens',
@@ -33,7 +33,7 @@ export const scholarsN_Z: Scholar[] = [
     recentActivity: '1 week ago',
     isFollowing: false,
     claimed: true,
-    affiliationId: 'openai',
+    institutionId: 'openai',
   },
   {
     id: 'paula-perez',
@@ -50,7 +50,7 @@ export const scholarsN_Z: Scholar[] = [
     recentActivity: '4 days ago',
     isFollowing: true,
     claimed: false,
-    affiliationId: 'cmu-ml',
+    institutionId: 'cmu-ml',
   },
   {
     id: 'quincy-quinn',
@@ -67,7 +67,7 @@ export const scholarsN_Z: Scholar[] = [
     recentActivity: '2 days ago',
     isFollowing: false,
     claimed: true,
-    affiliationId: 'google-brain',
+    institutionId: 'google-brain',
   },
   {
     id: 'rachel-ryan',
@@ -84,7 +84,7 @@ export const scholarsN_Z: Scholar[] = [
     recentActivity: '5 days ago',
     isFollowing: true,
     claimed: false,
-    affiliationId: 'oxford-ai',
+    institutionId: 'oxford-ai',
   },
   {
     id: 'steven-smith',
@@ -101,7 +101,7 @@ export const scholarsN_Z: Scholar[] = [
     recentActivity: '3 days ago',
     isFollowing: false,
     claimed: true,
-    affiliationId: 'facebook-ai',
+    institutionId: 'facebook-ai',
   },
   {
     id: 'tina-tan',
@@ -118,7 +118,7 @@ export const scholarsN_Z: Scholar[] = [
     recentActivity: '2 days ago',
     isFollowing: true,
     claimed: false,
-    affiliationId: 'toronto-ai',
+    institutionId: 'toronto-ai',
   },
   {
     id: 'ulrich-ulrich',
@@ -135,7 +135,7 @@ export const scholarsN_Z: Scholar[] = [
     recentActivity: '1 week ago',
     isFollowing: false,
     claimed: true,
-    affiliationId: 'microsoft-research',
+    institutionId: 'microsoft-research',
   },
   {
     id: 'valerie-vargas',
@@ -152,7 +152,7 @@ export const scholarsN_Z: Scholar[] = [
     recentActivity: '2 days ago',
     isFollowing: true,
     claimed: false,
-    affiliationId: 'eth-zurich',
+    institutionId: 'eth-zurich',
   },
   {
     id: 'walter-wilson',
@@ -169,7 +169,7 @@ export const scholarsN_Z: Scholar[] = [
     recentActivity: '3 days ago',
     isFollowing: false,
     claimed: true,
-    affiliationId: 'nvidia-research',
+    institutionId: 'nvidia-research',
   },
   {
     id: 'xena-xu',
@@ -186,7 +186,7 @@ export const scholarsN_Z: Scholar[] = [
     recentActivity: '4 days ago',
     isFollowing: true,
     claimed: false,
-    affiliationId: 'caltech-ai',
+    institutionId: 'caltech-ai',
   },
   {
     id: 'yuki-yamamoto',
@@ -203,7 +203,7 @@ export const scholarsN_Z: Scholar[] = [
     recentActivity: '2 days ago',
     isFollowing: false,
     claimed: true,
-    affiliationId: 'amazon-ai',
+    institutionId: 'amazon-ai',
   },
   {
     id: 'zara-zimmerman',
@@ -220,7 +220,7 @@ export const scholarsN_Z: Scholar[] = [
     recentActivity: '5 days ago',
     isFollowing: true,
     claimed: false,
-    affiliationId: 'ucl-ai',
+    institutionId: 'ucl-ai',
   },
   {
     id: 'aaron-anderson',
@@ -237,7 +237,7 @@ export const scholarsN_Z: Scholar[] = [
     recentActivity: '1 week ago',
     isFollowing: false,
     claimed: true,
-    affiliationId: 'apple-ai',
+    institutionId: 'apple-ai',
   },
   {
     id: 'brittany-brown',
@@ -254,7 +254,7 @@ export const scholarsN_Z: Scholar[] = [
     recentActivity: '2 days ago',
     isFollowing: true,
     claimed: false,
-    affiliationId: 'epfl-ai',
+    institutionId: 'epfl-ai',
   },
   {
     id: 'carlos-cruz',
@@ -271,7 +271,7 @@ export const scholarsN_Z: Scholar[] = [
     recentActivity: '3 days ago',
     isFollowing: false,
     claimed: true,
-    affiliationId: 'ibm-research',
+    institutionId: 'ibm-research',
   },
   {
     id: 'diana-davis',
@@ -288,7 +288,7 @@ export const scholarsN_Z: Scholar[] = [
     recentActivity: '4 days ago',
     isFollowing: true,
     claimed: false,
-    affiliationId: 'nyu-ai',
+    institutionId: 'nyu-ai',
   },
   {
     id: 'ethan-edwards',
@@ -305,7 +305,7 @@ export const scholarsN_Z: Scholar[] = [
     recentActivity: '2 days ago',
     isFollowing: false,
     claimed: true,
-    affiliationId: 'salesforce-ai',
+    institutionId: 'salesforce-ai',
   },
   {
     id: 'fiona-fisher',
@@ -322,7 +322,7 @@ export const scholarsN_Z: Scholar[] = [
     recentActivity: '5 days ago',
     isFollowing: true,
     claimed: false,
-    affiliationId: 'cambridge-ai',
+    institutionId: 'cambridge-ai',
   },
   {
     id: 'gavin-garcia',
@@ -339,7 +339,7 @@ export const scholarsN_Z: Scholar[] = [
     recentActivity: '3 days ago',
     isFollowing: false,
     claimed: true,
-    affiliationId: 'netflix-ai',
+    institutionId: 'netflix-ai',
   },
   {
     id: 'hazel-harris',
@@ -356,7 +356,7 @@ export const scholarsN_Z: Scholar[] = [
     recentActivity: '2 days ago',
     isFollowing: true,
     claimed: false,
-    affiliationId: 'imperial-ai',
+    institutionId: 'imperial-ai',
   },
   {
     id: 'ivan-ivanov',
@@ -373,7 +373,7 @@ export const scholarsN_Z: Scholar[] = [
     recentActivity: '1 week ago',
     isFollowing: false,
     claimed: true,
-    affiliationId: 'spotify-ai',
+    institutionId: 'spotify-ai',
   },
   {
     id: 'jasmine-johnson',
@@ -390,7 +390,7 @@ export const scholarsN_Z: Scholar[] = [
     recentActivity: '2 days ago',
     isFollowing: true,
     claimed: false,
-    affiliationId: 'edinburgh-ai',
+    institutionId: 'edinburgh-ai',
   },
   {
     id: 'kevin-kumar',
@@ -407,7 +407,7 @@ export const scholarsN_Z: Scholar[] = [
     recentActivity: '3 days ago',
     isFollowing: false,
     claimed: true,
-    affiliationId: 'uber-ai',
+    institutionId: 'uber-ai',
   },
   {
     id: 'luna-lewis',
@@ -424,7 +424,7 @@ export const scholarsN_Z: Scholar[] = [
     recentActivity: '2 days ago',
     isFollowing: true,
     claimed: false,
-    affiliationId: 'manchester-ai',
+    institutionId: 'manchester-ai',
   },
   {
     id: 'marcus-martinez',
@@ -441,7 +441,7 @@ export const scholarsN_Z: Scholar[] = [
     recentActivity: '1 week ago',
     isFollowing: false,
     claimed: true,
-    affiliationId: 'airbnb-ai',
+    institutionId: 'airbnb-ai',
   },
   {
     id: 'nora-nelson',
@@ -458,7 +458,7 @@ export const scholarsN_Z: Scholar[] = [
     recentActivity: '2 days ago',
     isFollowing: true,
     claimed: false,
-    affiliationId: 'bristol-ai',
+    institutionId: 'bristol-ai',
   },
   {
     id: 'oscar-ortiz',
@@ -475,7 +475,7 @@ export const scholarsN_Z: Scholar[] = [
     recentActivity: '3 days ago',
     isFollowing: false,
     claimed: true,
-    affiliationId: 'linkedin-ai',
+    institutionId: 'linkedin-ai',
   },
   {
     id: 'penny-peterson',
@@ -492,7 +492,7 @@ export const scholarsN_Z: Scholar[] = [
     recentActivity: '2 days ago',
     isFollowing: true,
     claimed: false,
-    affiliationId: 'warwick-ai',
+    institutionId: 'warwick-ai',
   },
   {
     id: 'quinn-quincy',
@@ -509,7 +509,7 @@ export const scholarsN_Z: Scholar[] = [
     recentActivity: '1 week ago',
     isFollowing: false,
     claimed: true,
-    affiliationId: 'twitter-ai',
+    institutionId: 'twitter-ai',
   },
   {
     id: 'riley-rodriguez',
@@ -526,7 +526,7 @@ export const scholarsN_Z: Scholar[] = [
     recentActivity: '2 days ago',
     isFollowing: true,
     claimed: false,
-    affiliationId: 'sheffield-ai',
+    institutionId: 'sheffield-ai',
   },
   {
     id: 'sophia-singh',
@@ -543,7 +543,7 @@ export const scholarsN_Z: Scholar[] = [
     recentActivity: '3 days ago',
     isFollowing: false,
     claimed: true,
-    affiliationId: 'snap-ai',
+    institutionId: 'snap-ai',
   },
   {
     id: 'theo-thompson',
@@ -560,7 +560,7 @@ export const scholarsN_Z: Scholar[] = [
     recentActivity: '2 days ago',
     isFollowing: true,
     claimed: false,
-    affiliationId: 'leeds-ai',
+    institutionId: 'leeds-ai',
   },
   {
     id: 'una-umara',
@@ -577,7 +577,7 @@ export const scholarsN_Z: Scholar[] = [
     recentActivity: '1 week ago',
     isFollowing: false,
     claimed: true,
-    affiliationId: 'pinterest-ai',
+    institutionId: 'pinterest-ai',
   },
   {
     id: 'vince-vasquez',
@@ -594,7 +594,7 @@ export const scholarsN_Z: Scholar[] = [
     recentActivity: '2 days ago',
     isFollowing: true,
     claimed: false,
-    affiliationId: 'liverpool-ai',
+    institutionId: 'liverpool-ai',
   },
   {
     id: 'willa-williams',
@@ -611,7 +611,7 @@ export const scholarsN_Z: Scholar[] = [
     recentActivity: '3 days ago',
     isFollowing: false,
     claimed: true,
-    affiliationId: 'yelp-ai',
+    institutionId: 'yelp-ai',
   },
   {
     id: 'xander-xavier',
@@ -628,7 +628,7 @@ export const scholarsN_Z: Scholar[] = [
     recentActivity: '2 days ago',
     isFollowing: true,
     claimed: false,
-    affiliationId: 'nottingham-ai',
+    institutionId: 'nottingham-ai',
   },
   {
     id: 'yara-yates',
@@ -645,7 +645,7 @@ export const scholarsN_Z: Scholar[] = [
     recentActivity: '1 week ago',
     isFollowing: false,
     claimed: true,
-    affiliationId: 'reddit-ai',
+    institutionId: 'reddit-ai',
   },
   {
     id: 'zane-zimmerman',
@@ -662,6 +662,6 @@ export const scholarsN_Z: Scholar[] = [
     recentActivity: '2 days ago',
     isFollowing: true,
     claimed: false,
-    affiliationId: 'birmingham-ai',
+    institutionId: 'birmingham-ai',
   },
 ]; 

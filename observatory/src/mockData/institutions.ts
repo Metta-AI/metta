@@ -1,4 +1,4 @@
-export interface Affiliation {
+export interface Institution {
     id: string;
     name: string;
     label: string;
@@ -16,7 +16,7 @@ export interface Affiliation {
     isAdmin: boolean;
 }
 
-export const mockAffiliations: Affiliation[] = [
+export const mockInstitutions: Institution[] = [
     {
         id: 'stanford-ai-lab',
         name: 'Stanford University',

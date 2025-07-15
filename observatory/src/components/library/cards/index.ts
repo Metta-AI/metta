@@ -6,6 +6,6 @@
  */
 
 export { AuthorCard } from './AuthorCard';
-export { AffiliationCard } from './AffiliationCard';
+export { InstitutionCard } from './InstitutionCard';
 export { PaperCard } from './PaperCard';
 export { UserHoverCard } from './UserHoverCard'; 

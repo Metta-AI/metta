@@ -45,7 +45,7 @@ export function PaperCard({ paper, expandedAbstracts, onToggleAbstract }: PaperC
                         <span>•</span>
                         <span>{paper.citations} citations</span>
                         <span>•</span>
-                        <span>{(paper.affiliations ?? []).join(', ')}</span>
+                        <span>{(paper.institutions ?? []).join(', ')}</span>
                     </div>
                 </div>
                 <div className="flex items-center gap-2 ml-4">

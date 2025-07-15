@@ -7,7 +7,7 @@
  */
 
 import React from 'react';
-import { Scholar, Affiliation, Paper, FilterSortConfig } from './LibraryTypes';
+import { Scholar, Institution, Paper, FilterSortConfig } from './LibraryTypes';
 
 // ============================================================================
 // NAVIGATION UTILITIES
@@ -26,7 +26,7 @@ import { Scholar, Affiliation, Paper, FilterSortConfig } from './LibraryTypes';
 export function getNavFromPath(pathname: string): string {
     if (pathname.includes('/scholars')) return 'scholars';
     if (pathname.includes('/collections')) return 'collections';
-    if (pathname.includes('/affiliations')) return 'affiliations';
+    if (pathname.includes('/institutions')) return 'institutions';
     if (pathname.includes('/papers')) return 'papers';
     if (pathname.includes('/profile')) return 'profile';
     if (pathname.includes('/search')) return 'search';
@@ -87,8 +87,8 @@ export const navigationItems = [
         )
     },
     {
-        id: 'affiliations',
-        label: 'Affiliations',
+        id: 'institutions',
+        label: 'Institutions',
         icon: (
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
@@ -149,7 +149,7 @@ export function filterAndSortScholars(
                     aValue = aLastName;
                     bValue = bLastName;
                     break;
-                case 'affiliation':
+                case 'institution':
                     aValue = a.institution.toLowerCase();
                     bValue = b.institution.toLowerCase();
                     break;
@@ -185,32 +185,32 @@ export function filterAndSortScholars(
 }
 
 /**
- * Filters and sorts affiliations based on search query and sort configuration
+ * Filters and sorts institutions based on search query and sort configuration
  * 
- * @param affiliations - Array of all affiliations
+ * @param institutions - Array of all institutions
  * @param config - Filtering and sorting configuration
- * @returns Filtered and sorted array of affiliations
+ * @returns Filtered and sorted array of institutions
  * 
  * This function applies search filtering (by name, location, tags)
- * and sorting (by various affiliation attributes) to the affiliations array.
+ * and sorting (by various institution attributes) to the institutions array.
  * Filtering only occurs when the query is at least 2 characters long.
  */
-export function filterAndSortAffiliations(
-    affiliations: Affiliation[], 
+export function filterAndSortInstitutions(
+    institutions: Institution[], 
     config: FilterSortConfig
-): Affiliation[] {
+): Institution[] {
     const { query, sortBy, sortDirection, minQueryLength = 2 } = config;
     
-    return affiliations
-        .filter(affiliation => {
+    return institutions
+        .filter(institution => {
             // Only filter when search query meets minimum length
             if (query.length < minQueryLength) return true;
             
             const searchQuery = query.toLowerCase();
-            return affiliation.label.toLowerCase().includes(searchQuery) ||
-                affiliation.name.toLowerCase().includes(searchQuery) ||
-                affiliation.location.toLowerCase().includes(searchQuery) ||
-                affiliation.tags.some(tag => tag.toLowerCase().includes(searchQuery));
+            return institution.label.toLowerCase().includes(searchQuery) ||
+                institution.name.toLowerCase().includes(searchQuery) ||
+                institution.location.toLowerCase().includes(searchQuery) ||
+                institution.tags.some(tag => tag.toLowerCase().includes(searchQuery));
         })
         .sort((a, b) => {
             let aValue: string | number;

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { mockScholars } from './mockData/scholars';
 import { mockPapers } from './mockData/papers';
-import { mockAffiliations } from './mockData/affiliations';
+import { mockInstitutions } from './mockData/institutions';
 
 interface AuthorProfileProps {
     repo?: unknown;
@@ -177,19 +177,19 @@ export function AuthorProfile({ repo: _repo, author: propAuthor, onClose }: Auth
                         </div>
                         <div className="space-y-6">
                             <div className="bg-white rounded-lg border border-gray-200 p-6">
-                                <h3 className="text-lg font-semibold text-gray-900 mb-4">Affiliations</h3>
+                                <h3 className="text-lg font-semibold text-gray-900 mb-4">Institutions</h3>
                                 <div className="space-y-3">
                                     {authorPapers.map(paper => 
-                                        paper.affiliations.map((aff: any) => {
-                                            const affiliation = mockAffiliations.find(a => a.id === aff.id);
-                                            return affiliation ? (
+                                        paper.institutions.map((aff: any) => {
+                                            const institution = mockInstitutions.find(a => a.id === aff.id);
+                                            return institution ? (
                                                 <div key={aff.id} className="flex items-center gap-3">
                                                     <div className="w-8 h-8 bg-primary-100 text-primary-600 rounded-full flex items-center justify-center text-xs font-semibold">
-                                                        {affiliation.initials}
+                                                        {institution.initials}
                                                     </div>
                                                     <div>
-                                                        <p className="text-sm font-medium text-gray-900">{affiliation.label}</p>
-                                                        <p className="text-xs text-gray-500">{affiliation.location}</p>
+                                                        <p className="text-sm font-medium text-gray-900">{institution.label}</p>
+                                                        <p className="text-xs text-gray-500">{institution.location}</p>
                                                     </div>
                                                 </div>
                                             ) : null;
@@ -231,7 +231,7 @@ export function AuthorProfile({ repo: _repo, author: propAuthor, onClose }: Auth
                                                 ))}
                                             </div>
                                             <div className="flex items-center gap-4 text-sm text-gray-600">
-                                                <span>Affiliations: {paper.affiliations.map((aff: any) => aff.label).join(', ')}</span>
+                                                <span>Institutions: {paper.institutions.map((aff: any) => aff.label).join(', ')}</span>
                                             </div>
                                         </div>
                                         <a

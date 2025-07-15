@@ -2,7 +2,7 @@
  * FilterSortControls Component
  * 
  * A reusable component that provides search filtering and sorting controls for data grids.
- * This component is used across multiple views (scholars, affiliations, etc.) to provide
+ * This component is used across multiple views (scholars, institutions, etc.) to provide
  * consistent filtering and sorting functionality.
  * 
  * The component consists of two main parts:
