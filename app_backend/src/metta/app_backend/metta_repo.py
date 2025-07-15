@@ -1,7 +1,9 @@
 import hashlib
+import json
 import secrets
 import uuid
 from contextlib import asynccontextmanager
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Tuple
 
@@ -14,6 +16,13 @@ from metta.app_backend.schema_manager import SqlMigration, run_migrations
 
 # Constants
 EVAL_TASK_MAX_ASSIGNMENT_AGE_MINUTES = 60
+
+
+@dataclass
+class TaskStatusUpdate:
+    status: str
+    details: dict[str, Any] | None = None
+
 
 # This is a list of migrations that will be applied to the eval database.
 # Do not change existing migrations, only add new ones.
@@ -894,23 +903,37 @@ class MettaRepo:
     async def update_task_statuses(
         self,
         assignee: str,
-        task_statuses: Dict[uuid.UUID, str],
+        task_updates: Dict[uuid.UUID, TaskStatusUpdate],
     ) -> Dict[uuid.UUID, str]:
-        if not task_statuses:
+        if not task_updates:
             return {}
 
         updated = {}
         async with self.connect() as con:
-            for task_id, status in task_statuses.items():
-                result = await con.execute(
-                    """
-                    UPDATE eval_tasks
-                    SET status = %s
-                    WHERE id = %s AND assignee = %s
-                    RETURNING id
-                    """,
-                    (status, task_id, assignee),
-                )
+            for task_id, update in task_updates.items():
+                status = update.status
+                details = update.details
+                if details:
+                    result = await con.execute(
+                        """
+                        UPDATE eval_tasks
+                        SET status = %s,
+                            attributes = COALESCE(attributes, '{}'::jsonb) || %s::jsonb
+                        WHERE id = %s AND assignee = %s
+                        RETURNING id
+                        """,
+                        (status, json.dumps(details), task_id, assignee),
+                    )
+                else:
+                    result = await con.execute(
+                        """
+                        UPDATE eval_tasks
+                        SET status = %s
+                        WHERE id = %s AND assignee = %s
+                        RETURNING id
+                        """,
+                        (status, task_id, assignee),
+                    )
                 if result.rowcount > 0:
                     updated[task_id] = status
 
