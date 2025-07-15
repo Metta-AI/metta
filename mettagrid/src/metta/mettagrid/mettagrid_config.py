@@ -125,6 +125,7 @@ class PyGameConfig(BaseModelWithForbidExtra):
     num_agents: int = Field(ge=1)
     # max_steps = zero means "no limit"
     max_steps: int = Field(ge=0)
+    use_dones: bool = Field(default=False)
     obs_width: int = Field(ge=1)
     obs_height: int = Field(ge=1)
     num_observation_tokens: int = Field(ge=1)
