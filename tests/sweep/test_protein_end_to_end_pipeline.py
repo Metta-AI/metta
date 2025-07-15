@@ -358,7 +358,7 @@ class TestProteinEndToEndPipeline:
                 failure_obs = protein._protein.success_observations[0]
                 assert failure_obs["is_failure"]
                 assert failure_obs["output"] == 0.0
-                assert failure_obs["cost"] == 0.0
+                assert failure_obs["cost"] == 0.001
 
                 # Verify WandB summary
                 assert mock_run.summary.get("protein.state") == "failure"
