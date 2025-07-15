@@ -131,4 +131,29 @@ def from_mettagrid_config(mettagrid_config_dict: dict[str, Any]) -> GameConfig_c
     if hasattr(mettagrid_config, "heart_winners_reward_interval_in_steps"):
         game_config["heart_winners_reward_interval_in_steps"] = mettagrid_config.heart_winners_reward_interval_in_steps
 
-    return GameConfig_cpp(**game_config)
+    # Extract required arguments in the correct order for the C++ constructor
+    num_agents = mettagrid_config.num_agents
+    max_steps = mettagrid_config.max_steps
+    obs_width = mettagrid_config.obs_width
+    obs_height = mettagrid_config.obs_height
+    inventory_item_names = list(mettagrid_config.inventory_item_names)
+    num_observation_tokens = mettagrid_config.num_observation_tokens
+    actions = actions_config_cpp
+    objects = object_configs
+    sparse_reward_top_heart_winners_every_N_steps = getattr(
+        mettagrid_config, "sparse_reward_top_heart_winners_every_N_steps", False
+    )
+    heart_winners_reward_interval_in_steps = getattr(mettagrid_config, "heart_winners_reward_interval_in_steps", 0)
+
+    return GameConfig_cpp(
+        num_agents,
+        max_steps,
+        obs_width,
+        obs_height,
+        inventory_item_names,
+        num_observation_tokens,
+        actions,
+        objects,
+        sparse_reward_top_heart_winners_every_N_steps,
+        heart_winners_reward_interval_in_steps,
+    )

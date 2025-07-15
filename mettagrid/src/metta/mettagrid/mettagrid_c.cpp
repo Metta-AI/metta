@@ -961,7 +961,9 @@ PYBIND11_MODULE(mettagrid_c, m) {
                     const std::vector<std::string>&,
                     unsigned int,
                     const std::map<std::string, std::shared_ptr<ActionConfig>>&,
-                    const std::map<std::string, std::shared_ptr<GridObjectConfig>>&>(),
+                    const std::map<std::string, std::shared_ptr<GridObjectConfig>>&,
+                    bool,
+                    unsigned int>(),
            py::arg("num_agents"),
            py::arg("max_steps"),
            py::arg("obs_width"),
@@ -969,16 +971,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
            py::arg("inventory_item_names"),
            py::arg("num_observation_tokens"),
            py::arg("actions"),
-           py::arg("objects"))
-      .def_readwrite("num_agents", &GameConfig::num_agents)
-      .def_readwrite("max_steps", &GameConfig::max_steps)
-      .def_readwrite("obs_width", &GameConfig::obs_width)
-      .def_readwrite("obs_height", &GameConfig::obs_height)
-      .def_readwrite("inventory_item_names", &GameConfig::inventory_item_names)
-      .def_readwrite("num_observation_tokens", &GameConfig::num_observation_tokens);
-  // We don't expose these since they're copied on read, and this means that mutations
-  // to the dictionaries don't impact the underlying cpp objects. This is confusing!
-  // This can be fixed, but until we do that, we're not exposing these.
-  // .def_readwrite("actions", &GameConfig::actions)
-  // .def_readwrite("objects", &GameConfig::objects);
+           py::arg("objects"),
+           py::arg("sparse_reward_top_heart_winners_every_N_steps"),
+           py::arg("heart_winners_reward_interval_in_steps"));
 }
