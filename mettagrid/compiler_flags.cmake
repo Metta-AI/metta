@@ -45,12 +45,8 @@ target_compile_options(mettagrid_warnings INTERFACE
     -Wnon-virtual-dtor
 
     # Logic and control flow
-    -Wshadow        # Consider adding -Wno-shadow if too noisy
+    -Wshadow=compatible-local # gcc shadowing warnings are very aggressive by default
     -Wfloat-equal
-
-    # Note: Removed platform-specific warnings:
-    # - Clang: -Wthread-safety (not in GCC)
-    # - GCC: -Wuseless-cast, -Wduplicated-cond, -Wlogical-op (not in Clang)
   >
 )
 
@@ -84,8 +80,6 @@ target_compile_options(mettagrid_debug_flags INTERFACE
     # Only warnings that behave consistently
     -Wstrict-overflow=5
     -Wfloat-conversion
-
-    # Platform-specific debug warnings moved to opt-in strict mode
   >
 )
 
