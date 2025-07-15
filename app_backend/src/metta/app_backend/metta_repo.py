@@ -5,7 +5,7 @@ import uuid
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Tuple
 
 from psycopg import Connection
 from psycopg.types.json import Jsonb
@@ -21,7 +21,7 @@ EVAL_TASK_MAX_ASSIGNMENT_AGE_MINUTES = 60
 @dataclass
 class TaskStatusUpdate:
     status: str
-    error_reason: Optional[str] = None
+    details: dict[str, Any] | None = None
 
 
 # This is a list of migrations that will be applied to the eval database.
@@ -912,8 +912,8 @@ class MettaRepo:
         async with self.connect() as con:
             for task_id, update in task_updates.items():
                 status = update.status
-                error_reason = update.error_reason
-                if error_reason:
+                details = update.details
+                if details:
                     result = await con.execute(
                         """
                         UPDATE eval_tasks
@@ -922,7 +922,7 @@ class MettaRepo:
                         WHERE id = %s AND assignee = %s
                         RETURNING id
                         """,
-                        (status, json.dumps({"error_reason": error_reason}), task_id, assignee),
+                        (status, json.dumps(details), task_id, assignee),
                     )
                 else:
                     result = await con.execute(

@@ -129,7 +129,7 @@ class TestEvalTaskRoutes:
             "/tasks/claimed/update",
             json={
                 "assignee": "worker_1",
-                "statuses": {task_id: "done"},
+                "statuses": {task_id: {"status": "done"}},
             },
             headers=test_user_headers,
         )
@@ -310,12 +310,12 @@ class TestEvalTaskRoutes:
             "/tasks/claimed/update",
             json={
                 "assignee": "worker_invalid",
-                "statuses": {task_id: "invalid_status"},
+                "statuses": {task_id: {"status": "invalid_status"}},
             },
             headers=test_user_headers,
         )
-        assert update_response.status_code == 400
-        assert "Invalid status" in update_response.json()["detail"]
+        assert update_response.status_code == 422  # Pydantic validation error
+        # The error detail is in the validation errors format
 
     def test_update_task_with_error_reason(self, test_client, test_user_headers: Dict[str, str], test_policy_id: str):
         """Test updating task status to error with an error reason."""
@@ -348,7 +348,7 @@ class TestEvalTaskRoutes:
             "/tasks/claimed/update",
             json={
                 "assignee": "worker_error",
-                "statuses": {task_id: {"status": "error", "error_reason": error_reason}},
+                "statuses": {task_id: {"status": "error", "details": {"error_reason": error_reason}}},
             },
             headers=test_user_headers,
         )
@@ -395,14 +395,13 @@ class TestEvalTaskRoutes:
             json={
                 "assignee": "worker_mixed",
                 "statuses": {
-                    task_ids[0]: "done",  # String format
-                    task_ids[1]: {  # Object format with error
+                    task_ids[0]: {"status": "done"},  # Object format
+                    task_ids[1]: {  # Object format with error details
                         "status": "error",
-                        "error_reason": "Simulation failed: OOM",
+                        "details": {"error_reason": "Simulation failed: OOM"},
                     },
-                    task_ids[2]: {  # Object format without error
+                    task_ids[2]: {  # Object format without details
                         "status": "canceled",
-                        "error_reason": None,
                     },
                 },
             },
@@ -448,7 +447,7 @@ class TestEvalTaskRoutes:
             "/tasks/claimed/update",
             json={
                 "assignee": "worker_db_test",
-                "statuses": {task_id: {"status": "error", "error_reason": error_reason}},
+                "statuses": {task_id: {"status": "error", "details": {"error_reason": error_reason}}},
             },
             headers=test_user_headers,
         )
