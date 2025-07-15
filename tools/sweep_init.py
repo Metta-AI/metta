@@ -208,8 +208,6 @@ def validate_protein_suggestion(config: DictConfig, suggestion: dict):
     minibatch_size = trainer_config.get("minibatch_size")
     bppt = trainer_config.get("bptt_horizon")
 
-    logger.info(f"Config values: batch_size={batch_size}, minibatch_size={minibatch_size}, bppt={bppt}")
-
     # Parse the protein suggestion
     if "trainer" in suggestion:
         if "batch_size" in suggestion["trainer"]:
@@ -218,8 +216,6 @@ def validate_protein_suggestion(config: DictConfig, suggestion: dict):
             minibatch_size = suggestion["trainer"]["minibatch_size"]
         if "bptt_horizon" in suggestion["trainer"]:
             bppt = suggestion["trainer"]["bptt_horizon"]
-
-    logger.info(f"After Suggestion values: batch_size={batch_size}, minibatch_size={minibatch_size}, bppt={bppt}")
 
     # Validate the suggestion
     if batch_size is not None and minibatch_size is not None and batch_size % minibatch_size != 0:
@@ -232,7 +228,7 @@ def validate_protein_suggestion(config: DictConfig, suggestion: dict):
 def generate_protein_suggestion(config: DictConfig, protein: MettaProtein):
     """Generate a protein suggestion."""
     suggestion, _ = protein.suggest()
-    logger.info(f"Suggestion: {suggestion}")
+    logger.info(f"Protein suggestion: {suggestion}")
     try:
         validate_protein_suggestion(config, suggestion)
     except Exception as e:
