@@ -109,7 +109,7 @@ class TestGenerateProteinSuggestion:
             {"sweep": {"parameters": {}}, "trainer": {"ppo": {"batch_size": 2048, "minibatch_size": 64, "bppt": 32}}}
         )
 
-        result = generate_protein_suggestion(config)
+        result = generate_protein_suggestion(config, mock_protein)
 
         # Check numpy types were cleaned
         assert isinstance(result["learning_rate"], float)
@@ -135,7 +135,7 @@ class TestGenerateProteinSuggestion:
             {"sweep": {"parameters": {}}, "trainer": {"ppo": {"batch_size": 2048, "minibatch_size": 64, "bppt": 32}}}
         )
 
-        result = generate_protein_suggestion(config)
+        result = generate_protein_suggestion(config, mock_protein)
 
         # Should have called record_failure for the invalid suggestion
         mock_protein.record_failure.assert_called_once()
@@ -161,7 +161,7 @@ class TestGenerateProteinSuggestion:
         )
 
         with pytest.raises(ValueError, match="Batch size 1000 must be divisible by minibatch size 64"):
-            generate_protein_suggestion(config)
+            generate_protein_suggestion(config, mock_protein)
 
         # Should have recorded 10 failures
         assert mock_protein.record_failure.call_count == 10
@@ -300,7 +300,7 @@ class TestIntegration:
         )
 
         # Generate suggestion
-        suggestion = generate_protein_suggestion(config)
+        suggestion = generate_protein_suggestion(config, mock_protein)
 
         # Apply suggestion to a copy of the config
         config_copy = DictConfig(OmegaConf.to_container(config, resolve=True))

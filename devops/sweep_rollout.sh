@@ -33,7 +33,7 @@ EOF
 
 # Initialize sweep
 echo "[SWEEP:$sweep_run] Initializing sweep configuration..."
-cmd="./tools/sweep_init.py dist_cfg_path=$DIST_CFG_PATH $args"
+cmd="tools/sweep_init.py dist_cfg_path=$DIST_CFG_PATH $args"
 echo "[SWEEP:$sweep_run] Running: $cmd"
 if ! $cmd; then
   echo "[ERROR] Sweep initialization failed: $sweep_run"
