@@ -1,6 +1,6 @@
 import logging
 import os
-import traceback
+from collections import defaultdict
 from typing import Any, Dict, Optional, Tuple
 
 import numpy as np
@@ -11,6 +11,9 @@ from omegaconf import DictConfig
 
 from metta.api import TrainerState
 from metta.common.util.heartbeat import record_heartbeat
+from metta.common.util.system_monitor import SystemMonitor
+from metta.eval.eval_request_config import EvalRewardSummary
+from metta.eval.eval_service import evaluate_policy as eval_service_evaluate_policy
 from metta.mettagrid.curriculum.util import curriculum_from_config_path
 from metta.mettagrid.mettagrid_env import dtype_actions
 from metta.rl.functions import (
@@ -20,7 +23,6 @@ from metta.rl.functions import (
     calculate_prioritized_sampling_params,
     cleanup_old_policies,
     compute_advantage,
-    evaluate_policy,
     generate_replay,
     get_lstm_config,
     get_observation,
@@ -38,6 +40,7 @@ from metta.rl.torch_profiler import TorchProfiler
 from metta.rl.trainer_checkpoint import TrainerCheckpoint
 from metta.rl.trainer_config import create_trainer_config
 from metta.rl.vecenv import make_vecenv
+from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
 
 try:
     from pufferlib import _C  # noqa: F401 - Required for torch.ops.pufferlib
@@ -108,7 +111,6 @@ def _maybe_save_training_state(
     timer: Any,
     latest_saved_policy_uri: Optional[str],
     kickstarter: Any,
-    world_size: int,
     is_master: bool = True,
 ) -> None:
     """Save training checkpoint state.
@@ -129,7 +131,6 @@ def _maybe_save_training_state(
     checkpoint = TrainerCheckpoint(
         agent_step=agent_step,
         epoch=epoch,
-        total_agent_step=agent_step * world_size,
         optimizer_state_dict=optimizer.state_dict(),
         stopwatch_state=timer.save_state(),
         policy_path=latest_saved_policy_uri,
@@ -307,7 +308,6 @@ def _maybe_save_policy(
     run_name: str,
     is_master: bool,
     trainer_cfg: Any,
-    world_size: int,
     force: bool = False,
 ) -> Optional[Any]:
     """Save policy with distributed synchronization."""
@@ -362,40 +362,58 @@ def _upload_policy_to_wandb(
         return None
 
     result = policy_store.add_to_wandb_run(wandb_run.name, policy_record)
-    logger.info(f"Uploaded policy to wandb at epoch {policy_record.metadata.epoch}")
+    logger.info(f"Uploaded policy to wandb at epoch {policy_record.metadata.get('epoch', 'unknown')}")
     return result
 
 
 def _maybe_evaluate_policy(
     policy_record: Any,
-    policy_store: Any,
-    sim_suite_config: Any,
+    sim_suite_config: SimulationSuiteConfig,
+    curriculum: Any,
     stats_client: Optional[Any],
     state: TrainerState,
     device: torch.device,
     vectorization: str,
-    wandb_policy_name: Optional[str] = None,
-) -> Tuple[Dict[str, float], Optional[Any]]:
-    """Evaluate policy."""
-    try:
-        eval_scores, stats_epoch_id = evaluate_policy(
-            policy_record=policy_record,
-            policy_store=policy_store,
-            sim_suite_config=sim_suite_config,
-            stats_client=stats_client,
-            stats_run_id=state.stats_run_id,
-            stats_epoch_start=state.stats_epoch_start,
-            epoch=state.epoch,
-            device=device,
-            vectorization=vectorization,
-            wandb_policy_name=wandb_policy_name,
-        )
-        state.stats_epoch_start = state.epoch + 1
-        return eval_scores, stats_epoch_id
-    except Exception as e:
-        logger.error(f"Error evaluating policy: {e}")
-        logger.error(traceback.format_exc())
-        return {}, None
+    replay_dir: str,
+    wandb_policy_name: Optional[str],
+    policy_store: Any,
+    logger: Any,
+) -> EvalRewardSummary:
+    """Evaluate policy using the new eval service."""
+    # Create an extended simulation suite that includes the training task
+    extended_suite_config = SimulationSuiteConfig(
+        name=sim_suite_config.name,
+        simulations=dict(sim_suite_config.simulations),
+        env_overrides=sim_suite_config.env_overrides,
+        num_episodes=sim_suite_config.num_episodes,
+    )
+
+    # Add training task to the suite
+    training_task_config = SingleEnvSimulationConfig(
+        env="/env/mettagrid/mettagrid",
+        num_episodes=1,
+        env_overrides=curriculum.get_task().env_cfg(),
+    )
+    extended_suite_config.simulations["eval/training_task"] = training_task_config
+
+    logger.info("Simulating policy with extended config including training task")
+
+    # Use the eval service evaluate_policy function
+    evaluation_results = eval_service_evaluate_policy(
+        policy_record=policy_record,
+        simulation_suite=extended_suite_config,
+        device=device,
+        vectorization=vectorization,
+        replay_dir=replay_dir,
+        stats_epoch_id=state.stats_epoch_id,
+        wandb_policy_name=wandb_policy_name,
+        policy_store=policy_store,
+        stats_client=stats_client,
+        logger=logger,
+    )
+
+    logger.info("Simulation complete")
+    return evaluation_results.scores
 
 
 def _maybe_generate_replay(
@@ -498,6 +516,7 @@ def train(
         world_size,
         rank,
         state,
+        curriculum,
     ) = create_training_components(
         cfg=cfg,
         wandb_run=wandb_run,
@@ -614,7 +633,7 @@ def train(
         # Save policy
         if _should_run(state.epoch, trainer_cfg.checkpoint.checkpoint_interval):
             saved_record = _maybe_save_policy(
-                policy, policy_store, state, timer, vecenv, cfg.run, is_master, trainer_cfg, world_size
+                policy, policy_store, state, timer, vecenv, cfg.run, is_master, trainer_cfg
             )
             if saved_record:
                 state.latest_saved_policy_record = saved_record
@@ -631,7 +650,6 @@ def train(
                 if state.latest_saved_policy_record
                 else None,
                 kickstarter=kickstarter,
-                world_size=world_size,
                 is_master=is_master,
             )
 
@@ -642,18 +660,30 @@ def train(
         # Evaluate policy
         if _should_run(state.epoch, trainer_cfg.simulation.evaluate_interval, is_master):
             if state.latest_saved_policy_record:
-                eval_scores, stats_epoch_id = _maybe_evaluate_policy(
+                # Create stats epoch if needed
+                if stats_client is not None and state.stats_run_id is not None:
+                    state.stats_epoch_id = stats_client.create_epoch(
+                        run_id=state.stats_run_id,
+                        start_training_epoch=state.stats_epoch_start,
+                        end_training_epoch=state.epoch,
+                        attributes={},
+                    ).id
+
+                eval_scores = _maybe_evaluate_policy(
                     state.latest_saved_policy_record,
-                    policy_store,
                     sim_suite_config,
+                    curriculum,
                     stats_client,
                     state,
                     device,
                     cfg.vectorization,
+                    trainer_cfg.simulation.replay_dir,
                     wandb_policy_name,
+                    policy_store,
+                    logger,
                 )
                 state.evals = eval_scores
-                state.stats_epoch_id = stats_epoch_id
+                state.stats_epoch_start = state.epoch + 1
 
         # Generate replay
         if _should_run(state.epoch, trainer_cfg.simulation.replay_interval, is_master):
@@ -686,7 +716,7 @@ def train(
     # Force final saves
     if is_master:
         saved_record = _maybe_save_policy(
-            policy, policy_store, state, timer, vecenv, cfg.run, is_master, trainer_cfg, world_size, force=True
+            policy, policy_store, state, timer, vecenv, cfg.run, is_master, trainer_cfg, force=True
         )
         if saved_record:
             state.latest_saved_policy_record = saved_record
@@ -699,7 +729,6 @@ def train(
         timer=timer,
         latest_saved_policy_uri=state.latest_saved_policy_record.uri if state.latest_saved_policy_record else None,
         kickstarter=kickstarter,
-        world_size=world_size,
         is_master=is_master,
     )
 
@@ -726,7 +755,6 @@ def create_training_components(
     from metta.agent.metta_agent import DistributedMettaAgent
     from metta.common.profiling.memory_monitor import MemoryMonitor
     from metta.common.profiling.stopwatch import Stopwatch
-    from metta.common.util.system_monitor import SystemMonitor
     from metta.mettagrid.curriculum.util import curriculum_from_config_path
     from metta.mettagrid.mettagrid_env import MettaGridEnv
     from metta.rl.experience import Experience
@@ -797,6 +825,9 @@ def create_training_components(
 
     # Initialize state
     state = TrainerState()
+    state.evals = EvalRewardSummary()  # Initialize with empty scores
+    state.stats = defaultdict(list)  # Initialize stats dict
+    state.grad_stats = {}  # Initialize grad stats
 
     # Load checkpoint if exists
     checkpoint = TrainerCheckpoint.load(cfg.run_dir)
@@ -916,6 +947,7 @@ def create_training_components(
         world_size,
         rank,
         state,
+        curriculum,
     )
 
 

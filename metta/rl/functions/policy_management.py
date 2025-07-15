@@ -1,11 +1,13 @@
-"""Policy management functions for Metta training."""
+"""Policy management utilities for Metta."""
 
 import logging
 import os
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 import torch
+
+from metta.eval.eval_request_config import EvalRewardSummary
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +46,7 @@ def save_policy_with_metadata(
     policy_store: Any,
     epoch: int,
     agent_step: int,
-    evals: Dict[str, float],
+    evals: EvalRewardSummary,
     timer: Any,
     vecenv: Any,
     initial_policy_record: Optional[Any],
@@ -59,37 +61,47 @@ def save_policy_with_metadata(
     if not is_master:
         return None
 
+    logger.info(f"Saving policy at epoch {epoch}")
+
+    # Extract the actual policy module from distributed wrapper if needed
+    from torch.nn.parallel import DistributedDataParallel
+
     from metta.agent.metta_agent import DistributedMettaAgent
-    from metta.agent.policy_metadata import PolicyMetadata
-    from metta.mettagrid.mettagrid_env import MettaGridEnv
 
-    name = policy_store.make_model_name(epoch)
-
-    metta_grid_env: MettaGridEnv = vecenv.driver_env
-    assert isinstance(metta_grid_env, MettaGridEnv), "vecenv.driver_env must be a MettaGridEnv"
-
-    training_time = timer.get_elapsed("_rollout") + timer.get_elapsed("_train")
-
-    category_scores_map = {key.split("/")[0]: value for key, value in evals.items() if key.endswith("/score")}
-    category_score_values = [v for k, v in category_scores_map.items()]
-    overall_score = sum(category_score_values) / len(category_score_values) if category_score_values else 0
-
-    metadata = PolicyMetadata(
-        agent_step=agent_step,
-        epoch=epoch,
-        run=run_name,
-        action_names=metta_grid_env.action_names,
-        generation=initial_policy_record.metadata.get("generation", 0) + 1 if initial_policy_record else 0,
-        initial_uri=initial_policy_record.uri if initial_policy_record else None,
-        train_time=training_time,
-        score=overall_score,
-        eval_scores=category_scores_map,
-    )
-
-    # Extract actual policy from distributed wrapper
     policy_to_save = policy
     if isinstance(policy, DistributedMettaAgent):
         policy_to_save = policy.module
+    elif isinstance(policy, DistributedDataParallel):
+        policy_to_save = policy.module
+
+    # Build metadata
+    name = policy_store.make_model_name(epoch)
+    # Get curriculum task distribution from vecenv
+    task_probs = vecenv.driver_env.curriculum.get_task_probs() if hasattr(vecenv, "driver_env") else {}
+
+    # Extract average reward from evals
+    avg_reward = evals.avg_category_score if evals else 0.0
+
+    metadata = {
+        "epoch": epoch,
+        "agent_step": agent_step,
+        "total_time": timer.get_elapsed(),
+        "total_train_time": timer.get_all_elapsed().get("_rollout", 0) + timer.get_all_elapsed().get("_train", 0),
+        "run": run_name,
+        "initial_pr": initial_policy_record.uri if initial_policy_record else None,
+        "generation": initial_policy_record.metadata.get("generation", 0) + 1 if initial_policy_record else 0,
+        "curriculum_task_probs": task_probs,
+        # Convert EvalRewardSummary to dict for metadata storage
+        "evals": {
+            "category_scores": evals.category_scores,
+            "simulation_scores": {f"{cat}/{sim}": score for (cat, sim), score in evals.simulation_scores.items()},
+            "avg_category_score": evals.avg_category_score,
+            "avg_simulation_score": evals.avg_simulation_score,
+        }
+        if evals
+        else {},
+        "avg_reward": avg_reward,
+    }
 
     # Save original feature mapping
     if hasattr(policy_to_save, "get_original_feature_mapping"):
@@ -103,10 +115,10 @@ def save_policy_with_metadata(
     policy_record.metadata = metadata
     policy_record.policy = policy_to_save
 
-    saved_record = policy_store.save(policy_record)
+    saved_policy_record = policy_store.save(policy_record)
     logger.info(f"Successfully saved policy at epoch {epoch}")
 
-    return saved_record
+    return saved_policy_record
 
 
 def validate_policy_environment_match(policy: Any, env: Any) -> None:
