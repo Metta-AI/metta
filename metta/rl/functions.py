@@ -18,6 +18,7 @@ from torch import Tensor
 
 from metta.agent.policy_state import PolicyState
 from metta.agent.util.debug import assert_shape
+from metta.eval.eval_request_config import EvalRewardSummary
 from metta.mettagrid.util.dict_utils import unroll_nested_dict
 from metta.rl.experience import Experience
 from metta.rl.losses import Losses
@@ -688,7 +689,7 @@ def build_wandb_stats(
     system_stats: Dict[str, Any],
     memory_stats: Dict[str, Any],
     parameters: Dict[str, Any],
-    evals: Dict[str, float],
+    evals: EvalRewardSummary,
     agent_step: int,
     epoch: int,
 ) -> Dict[str, Any]:
@@ -716,8 +717,7 @@ def build_wandb_stats(
     }
 
     # Add evaluation scores to overview
-    category_scores_map = {key.split("/")[0]: value for key, value in evals.items() if key.endswith("/score")}
-    for category, score in category_scores_map.items():
+    for category, score in evals.category_scores.items():
         overview[f"{category}_score"] = score
 
     # Also add reward_vs_total_time if we have reward
@@ -738,7 +738,7 @@ def build_wandb_stats(
         **{f"losses/{k}": v for k, v in processed_stats["losses_stats"].items()},
         **{f"experience/{k}": v for k, v in processed_stats["experience_stats"].items()},
         **{f"parameters/{k}": v for k, v in parameters.items()},
-        **{f"eval_{k}": v for k, v in evals.items()},
+        **{f"eval_{k}": v for k, v in evals.to_wandb_metrics_format().items()},
         **system_stats,  # Already has monitor/ prefix from SystemMonitor.stats()
         **{f"trainer_memory/{k}": v for k, v in memory_stats.items()},
         **processed_stats["environment_stats"],

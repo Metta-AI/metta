@@ -1,13 +1,8 @@
 {
   "$schema": "https://biomejs.dev/schemas/1.9.4/schema.json",
-  "extends": [
-    "../biome.jsonc"
-  ],
+  "extends": ["../biome.jsonc"],
   // MettaScope uses all the workspace defaults
   "formatter": {
-    "ignore": [
-      "./index.css",
-      "./index.html"
-    ]
+    "ignore": ["./index.css", "./index.html"]
   }
 }
