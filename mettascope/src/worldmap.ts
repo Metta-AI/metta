@@ -181,14 +181,12 @@ function drawObject(gridObject: any) {
         // Default render case
         ctx.drawSprite(state.replay.object_images[type][1], x * Common.TILE_SIZE, y * Common.TILE_SIZE)
       } else {
-        // Special handling for heart altars so that the overlay
-        // reflects the actual contents (battery vs. heart).
+        // Special handling for heart altars to only show if it contains the output item
         let hasHeart = gridObject['inv:heart'] > 0
 
         if (hasHeart) {
-          // Default overlay already depicts a heart.
           ctx.drawSprite(state.replay.object_images[type][1], x * Common.TILE_SIZE, y * Common.TILE_SIZE)
-        }  // don't render item if it only has a battery
+        }  // else don't render item if it only has a battery
       }
     }
   }
