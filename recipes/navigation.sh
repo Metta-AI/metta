@@ -14,7 +14,7 @@
 # "$@"
 
 ./devops/skypilot/launch.py train \
-run=$USER.navigation.regular_heart_reward.$(date +%m-%d) \
+run=$USER.navigation.rewrriten_regular_heart_reward_SANITY_CHECK.$(date +%m-%d) \
 trainer.curriculum=env/mettagrid/curriculum/navigation/prioritize_regressed \
 --gpus=1 \
 +USER=greg \

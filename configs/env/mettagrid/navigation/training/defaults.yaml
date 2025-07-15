@@ -32,8 +32,8 @@ game:
 
   agent:
     rewards:
-      heart: 1.0
+      heart: 0.0
 
 
-sparse_reward_top_heart_winners_every_N_steps: false
+sparse_reward_top_heart_winners_every_N_steps: true
 heart_winners_reward_interval_in_steps: 10
