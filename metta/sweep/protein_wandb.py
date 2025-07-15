@@ -349,7 +349,7 @@ class WandbProtein:
         # version as a list of (key, value) tuples to preserve the exact format
         flattened_items = list(self._suggestion.items()) if isinstance(self._suggestion, dict) else []
 
-        self._wandb_run.summary.update(
+        self._wandb_run.summary.update(  # type: ignore[attr-defined]
             {
                 "protein.suggestion": cleaned_suggestion,
                 "protein.suggestion_flattened_items": flattened_items,  # Save as list to prevent auto-nesting
