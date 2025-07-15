@@ -13,6 +13,10 @@ import yaml
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 
+_EXTRA_URIS: dict[str, list[str]] = {
+    "https://observatory.softmax-research.net/api": ["https://api.observatory.softmax-research.net"],
+}
+
 
 class CLIAuthenticator:
     def __init__(self, auth_server_url: str):
@@ -146,6 +150,9 @@ class CLIAuthenticator:
 
             # Update with new token
             existing_tokens[self.auth_server_url] = token
+            if extra_uris := _EXTRA_URIS.get(self.auth_server_url):
+                for uri in extra_uris:
+                    existing_tokens[uri] = token
 
             # Write all tokens back
             with open(self.yaml_file, "w") as f:
@@ -243,7 +250,8 @@ class CLIAuthenticator:
             try:
                 with open(self.yaml_file, "r") as f:
                     tokens = yaml.safe_load(f) or {}
-                    return self.auth_server_url in tokens
+                all_urls = [self.auth_server_url] + _EXTRA_URIS.get(self.auth_server_url, [])
+                return all(url in tokens for url in all_urls)
             except Exception:
                 pass
 
@@ -272,6 +280,9 @@ def migrate_legacy_token(authenticator: CLIAuthenticator) -> None:
 
                 # Write in new YAML format
                 tokens = {production_url: token}
+                for extra_uri in _EXTRA_URIS.get(production_url, []):
+                    tokens[extra_uri] = token
+
                 with open(authenticator.yaml_file, "w") as f:
                     yaml.safe_dump(tokens, f, default_flow_style=False)
 

@@ -24,6 +24,8 @@ The codebase consists of:
 metta status                         # Check component status
 metta configure --profile=softmax    # Reconfigure for different profile
 metta install aws wandb              # Install specific components
+
+# Run `metta -h` to see all available commands
 ```
 
 ## Common Commands
@@ -34,10 +36,10 @@ metta install aws wandb              # Install specific components
 
 ```bash
 # Run all tests with coverage
-uv run pytest --cov=mettagrid --cov-report=term-missing
+metta test --cov=mettagrid --cov-report=term-missing
 
-# Run linting with Ruff
-uv run ruff check .
+# Run linting and formatting on python files with Ruff
+metta lint # optional --fix and --staged arguments
 
 # Auto-fix Ruff errors with Claude (requires ANTHROPIC_API_KEY)
 uv run ./devops/tools/auto_ruff_fix.py path/to/file
@@ -51,11 +53,8 @@ uv run ./devops/tools/auto_ruff_fix.py path/to/file
 Not needed, just run scripts, they'll work automatically through uv-powered shebangs.
 
 ```bash
-# Clean debug cmake build artifacts
-make clean
-
-# Run tests
-make test
+# Clean debug cmake build artifacts. `metta install` also does this
+metta clean
 ```
 
 ## Code Architecture
