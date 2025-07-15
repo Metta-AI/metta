@@ -1,12 +1,10 @@
 import "server-only";
 
-import NextAuth, { NextAuthConfig, NextAuthResult } from "next-auth";
+import NextAuth, { NextAuthConfig, NextAuthResult, Session } from "next-auth";
 import { Provider } from "next-auth/providers";
 import { DrizzleAdapter } from "@auth/drizzle-adapter";
-import Credentials from "next-auth/providers/credentials";
-import Resend from "next-auth/providers/resend";
 import { db } from "./db";
-import { usersTable } from "./db/schema/auth";
+import { redirect } from "next/navigation";
 
 function buildAuthConfig(): NextAuthConfig {
   const providers: Provider[] = [];
@@ -44,3 +42,24 @@ function makeAuth(): NextAuthResult {
 }
 
 export const { handlers, signIn, signOut, auth } = makeAuth();
+
+export type SignedInSession = Session & {
+  user: NonNullable<Session["user"]> & {
+    id: NonNullable<NonNullable<Session["user"]>["id"]>;
+    email: NonNullable<NonNullable<Session["user"]>["email"]>;
+  };
+};
+
+export function isSignedIn(
+  session: Session | null
+): session is SignedInSession {
+  return Boolean(session?.user?.email);
+}
+
+export async function getSessionOrRedirect() {
+  const session = await auth();
+  if (isSignedIn(session)) {
+    return session;
+  }
+  redirect("/api/auth/signin"); // TODO - callbackUrl
+}
