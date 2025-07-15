@@ -1,14 +1,11 @@
-import React, { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import ReactDOM from 'react-dom';
-import { mockUsers } from './mockData/users';
 import { mockScholars } from './mockData/scholars';
 import { mockAffiliations } from './mockData/affiliations';
 import { mockPapers } from './mockData/papers';
-import { UserProfile } from './UserProfile';
-import { ScholarCard, AffiliationCard, PaperCard, UserHoverCard } from './components/library/cards';
 import { ScholarProfile } from './ScholarProfile';
 import { AffiliationProfile } from './AffiliationProfile';
+import { ScholarsView, AffiliationsView, PapersView, FeedView, ProfileView } from './components/library/views';
 
 // MathJax type declarations
 declare global {
@@ -125,20 +122,16 @@ export function Library({ repo: _repo, currentUser }: Library2Props) {
     const [activeNav, setActiveNav] = useState(() => getNavFromPath(location.pathname));
     const [mathJaxLoaded, setMathJaxLoaded] = useState(false)
     const postsRef = useRef<HTMLDivElement>(null)
-    const [composerText, setComposerText] = useState('')
-    const [expandedAbstracts, setExpandedAbstracts] = useState<Set<string>>(new Set())
+
     const [scholars, setScholars] = useState(mockScholars)
-    const [affiliations, setAffiliations] = useState(mockAffiliations)
+    const [affiliations] = useState(mockAffiliations)
     const [searchQuery, setSearchQuery] = useState('')
-    const [selectedScholar, setSelectedScholar] = useState<string | null>(null)
     const [sortBy, setSortBy] = useState<'name' | 'affiliation' | 'recentActivity' | 'papers' | 'citations' | 'hIndex'>('name')
     const [affiliationsSortBy, setAffiliationsSortBy] = useState<'name' | 'location' | 'type' | 'members' | 'papers' | 'citations'>('name')
     const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
     const [affiliationsSortDirection, setAffiliationsSortDirection] = useState<'asc' | 'desc'>('asc')
     const navigate = useNavigate();
     const [expandedScholarId, setExpandedScholarId] = useState<string | null>(null);
-    const [hoveredScholarId, setHoveredScholarId] = useState<string | null>(null);
-    const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     // Add a ref for the filter input at the top of Library
     const filterInputRef = useRef<HTMLInputElement>(null);
     // Add state for overlay modals
@@ -226,22 +219,7 @@ export function Library({ repo: _repo, currentUser }: Library2Props) {
         }
     }, [mathJaxLoaded])
 
-    const handlePostSubmit = () => {
-        if (composerText.trim()) {
-            console.log('Posting:', composerText)
-            setComposerText('')
-        }
-    }
 
-    const toggleAbstract = (paperId: string) => {
-        const newExpanded = new Set(expandedAbstracts)
-        if (newExpanded.has(paperId)) {
-            newExpanded.delete(paperId)
-        } else {
-            newExpanded.add(paperId)
-        }
-        setExpandedAbstracts(newExpanded)
-    }
 
     const toggleFollow = (scholarId: string) => {
         setScholars(prev => prev.map(scholar => 
@@ -353,95 +331,7 @@ export function Library({ repo: _repo, currentUser }: Library2Props) {
             return 0;
         });
 
-    // Dummy posts data with mathematical content
-    const posts = [
-        {
-            id: 1,
-            name: 'Dr. Alice Johnson',
-            username: '@alicej',
-            avatar: 'A',
-            content: `Just published our latest work on attention mechanisms! The key insight is that self-attention can be viewed as a form of differentiable memory access. The attention weights $\\alpha_{ij}$ for query $i$ and key $j$ are computed as:
 
-$$\\alpha_{ij} = \\frac{\\exp(e_{ij})}{\\sum_k \\exp(e_{ik})}$$
-
-where $e_{ij} = \\frac{Q_i^T K_j}{\\sqrt{d_k}}$ is the scaled dot-product attention. This formulation allows the model to learn which parts of the input to focus on dynamically. 🧠 #AttentionMechanisms #DeepLearning
-
-Test inline: $x^2 + y^2 = z^2$ and $\\alpha + \\beta = \\gamma$`,
-            time: '2h',
-            likes: 24,
-            retweets: 8,
-            replies: 3,
-            type: 'user-post'
-        },
-        {
-            id: 2,
-            name: 'Prof. Bob Chen',
-            username: '@bobchen',
-            avatar: 'B',
-            content: `Excited to share our new paper on reinforcement learning with continuous action spaces! We introduce a novel policy gradient method that uses the natural gradient $\\nabla_\\theta J(\\theta) = F^{-1}(\\theta) \\nabla_\\theta J(\\theta)$ where $F(\\theta)$ is the Fisher information matrix. This leads to more stable training and better sample efficiency.`,
-            time: '4h',
-            likes: 42,
-            retweets: 15,
-            replies: 7,
-            type: 'paper-post',
-            paper: {
-                id: 'arxiv:1804.02464v3',
-                title: 'Natural Policy Gradients for Continuous Control',
-                author: 'Robert Chen',
-                authorInitial: 'R',
-                summary: 'This paper introduces a novel policy gradient method using natural gradients that achieves 40% improvement in sample efficiency on continuous control tasks. The key innovation is the use of the Fisher information matrix to compute more stable policy updates.',
-                abstract: 'We present a novel policy gradient method for reinforcement learning in continuous action spaces that uses the natural gradient to improve sample efficiency and training stability. Our approach leverages the Fisher information matrix to compute more effective policy updates, leading to faster convergence and better final performance. We demonstrate the effectiveness of our method on a variety of continuous control benchmarks, showing significant improvements over standard policy gradient methods. The theoretical analysis provides insights into why natural gradients are particularly effective for policy optimization in continuous spaces.',
-                citations: 127,
-                url: 'https://arxiv.org/abs/1804.02464'
-            }
-        },
-        {
-            id: 3,
-            name: 'Dr. Carol Williams',
-            username: '@carolw',
-            avatar: 'C',
-            content: `Fascinating discussion about the universal approximation theorem in our seminar today! For any continuous function $f: [0,1]^n \\rightarrow \\mathbb{R}$ and $\\epsilon > 0$, there exists a neural network with one hidden layer that can approximate $f$ within $\\epsilon$ error. Formally:
-
-$$|f(x) - \\sum_{i=1}^N \\alpha_i \\sigma(w_i^T x + b_i)| < \\epsilon$$
-
-where $\\sigma$ is a sigmoid activation function. This theoretical result explains why neural networks are so powerful! 🧮 #NeuralNetworks #Theory`,
-            time: '6h',
-            likes: 67,
-            retweets: 23,
-            replies: 12,
-            type: 'user-post'
-        },
-        {
-            id: 4,
-            type: 'pure-paper',
-            paper: {
-                id: 'arxiv:1706.03762',
-                title: 'Attention Is All You Need',
-                author: 'Ashish Vaswani',
-                authorInitial: 'A',
-                summary: 'This seminal paper introduces the Transformer architecture, which relies entirely on self-attention mechanisms and has become the foundation for modern language models. The paper demonstrates that attention mechanisms alone can achieve state-of-the-art results in machine translation.',
-                abstract: 'The dominant sequence transduction models are based on complex recurrent or convolutional neural networks that include an encoder and a decoder. The best performing models also connect the encoder and decoder through an attention mechanism. We propose a new simple network architecture, the Transformer, based solely on attention mechanisms, dispensing with recurrence and convolutions entirely. Experiments on two machine translation tasks show that these models are superior in quality while being more parallelizable and requiring significantly less time to train. Our model achieves 28.4 BLEU on the WMT 2014 English-to-German translation task, improving over the existing best results, including ensembles, by over 2 BLEU. On the WMT 2014 English-to-French translation task, our model establishes a new single-model state-of-the-art BLEU score of 41.8 after training for 3.5 days on eight GPUs, a small fraction of the training costs of the best models from the literature. We show that the Transformer generalizes well to other tasks by applying it successfully to English constituency parsing with large amounts of training data.',
-                citations: 45678,
-                url: 'https://arxiv.org/abs/1706.03762'
-            }
-        },
-        {
-            id: 5,
-            name: 'Eva Rodriguez',
-            username: '@evarod',
-            avatar: 'E',
-            content: `Just finished implementing variational autoencoders (VAEs)! The ELBO objective is:
-
-$$\\mathcal{L} = \\mathbb{E}_{q_\\phi(z|x)}[\\log p_\\theta(x|z)] - D_{KL}(q_\\phi(z|x) \\| p(z))$$
-
-The first term is the reconstruction loss, and the second is the KL divergence that regularizes the latent space. The reparameterization trick $z = \\mu + \\sigma \\odot \\epsilon$ where $\\epsilon \\sim \\mathcal{N}(0,I)$ makes training possible through backpropagation! 🎨 #VAE #GenerativeModels`,
-            time: '10h',
-            likes: 53,
-            retweets: 18,
-            replies: 9,
-            type: 'user-post'
-        }
-    ]
 
 
 
@@ -481,484 +371,97 @@ The first term is the reconstruction loss, and the second is the KL divergence t
 
 
 
-    // PapersTable component
-    const [papersSort, setPapersSort] = useState<{col: string, dir: 'asc'|'desc'}>({col: 'title', dir: 'asc'});
-    const [papers, setPapers] = useState(mockPapers);
-    const handleSort = (col: string) => {
-        setPapersSort(prev => {
-            const dir = prev.col === col && prev.dir === 'asc' ? 'desc' : 'asc';
-            return { col, dir };
-        });
-        setPapers(prev => {
-            const newDir = papersSort.col === col && papersSort.dir === 'asc' ? 'desc' : 'asc';
-            const sorted = [...prev].sort((a, b) => {
-                if (col === 'title') {
-                    return (a.title.localeCompare(b.title)) * (newDir === 'asc' ? 1 : -1);
-                }
-                if (col === 'stars') {
-                    return (a.stars - b.stars) * (newDir === 'asc' ? 1 : -1);
-                }
-                return 0;
-            });
-            return sorted;
-        });
-    };
     const toggleStar = (id: string) => {
-        setPapers(prev => prev.map(p => p.id === id ? { ...p, starred: !p.starred, stars: p.starred ? p.stars - 1 : p.stars + 1 } : p));
-    };
-    const [hoveredUser, setHoveredUser] = useState<{ user: any, position: { x: number, y: number } } | null>(null);
-    
-    // Helper function to highlight matching text in tags
-    const highlightMatchingText = (text: string, query: string) => {
-        if (query.length < 2) return text;
-        
-        const regex = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
-        const parts = text.split(regex);
-        
-        return parts.map((part, index) => 
-            regex.test(part) ? (
-                <strong key={index} className="font-bold">{part}</strong>
-            ) : (
-                part
-            )
-        );
+        // This function is now passed to PapersView component
+        // The actual state management is handled within PapersView
+        console.log('Toggle star for paper:', id);
     };
     
-    const PapersTable = () => (
-        <div className="overflow-x-auto relative">
-            {hoveredUser && <UserHoverCard user={hoveredUser.user} position={hoveredUser.position} />}
-            <table className="min-w-full bg-white border border-gray-200 rounded-lg text-sm">
-                <thead>
-                    <tr className="bg-gray-50">
-                        <th className="px-4 py-2 text-left cursor-pointer sticky left-0 z-10 bg-white border-r border-gray-200" onClick={() => handleSort('title')}>
-                            Title
-                            <span className="ml-1 align-middle">{papersSort.col === 'title' ? (papersSort.dir === 'asc' ? '▲' : '▼') : ''}</span>
-                        </th>
-                        <th className="px-4 py-2 text-left">Authors</th>
-                        <th className="px-4 py-2 text-left">Affiliations</th>
-                        <th className="px-4 py-2 text-left">Tags</th>
-                        <th className="px-4 py-2 text-left">Read by</th>
-                        <th className="px-4 py-2 text-left">Link</th>
-                        <th className="px-4 py-2 text-left">Queued</th>
-                        <th className="px-4 py-2 text-left cursor-pointer" onClick={() => handleSort('stars')}>
-                            Stars
-                            <span className="ml-1 align-middle">{papersSort.col === 'stars' ? (papersSort.dir === 'asc' ? '▲' : '▼') : ''}</span>
-                        </th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {papers.map(paper => (
-                        <tr key={paper.id} className="border-t border-gray-100 hover:bg-gray-50">
-                            <td className="px-4 py-2 whitespace-nowrap flex items-center gap-2 sticky left-0 z-10 bg-white border-r border-gray-200">
-                                <button onClick={() => toggleStar(paper.id)} className="focus:outline-none">
-                                    {paper.starred ? (
-                                        <svg className="w-4 h-4 text-yellow-400" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.286 3.967a1 1 0 00.95.69h4.175c.969 0 1.371 1.24.588 1.81l-3.38 2.455a1 1 0 00-.364 1.118l1.287 3.966c.3.922-.755 1.688-1.54 1.118l-3.38-2.454a1 1 0 00-1.175 0l-3.38 2.454c-.784.57-1.838-.196-1.54-1.118l1.287-3.966a1 1 0 00-.364-1.118L2.05 9.394c-.783-.57-.38-1.81.588-1.81h4.175a1 1 0 00.95-.69l1.286-3.967z"/></svg>
-                                    ) : (
-                                        <svg className="w-4 h-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 20 20"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 15l-5.878 3.09 1.122-6.545L.488 6.91l6.564-.955L10 0l2.948 5.955 6.564.955-4.756 4.635 1.122 6.545z"/></svg>
-                                    )}
-                                </button>
-                                <span>{paper.title}</span>
-                            </td>
-                            <td className="px-4 py-2 whitespace-nowrap">
-                                {paper.authors.map((authorId: string, idx: number) => {
-                                    const author = mockScholars.find(s => s.id === authorId);
-                                    return author ? (
-                                        <a key={author.id} href={`/scholars/${author.id}`} className="text-primary-600 hover:underline mr-1">
-                                            {author.name}{idx < paper.authors.length - 1 ? ',' : ''}
-                                        </a>
-                                    ) : null;
-                                })}
-                            </td>
-                            <td className="px-4 py-2 whitespace-nowrap">
-                                {paper.affiliations.map((affId: string, idx: number) => {
-                                    const aff = mockAffiliations.find(a => a.id === affId);
-                                    return aff ? (
-                                        <a key={aff.id} href={`/affiliations/${aff.id}`} className="text-primary-600 hover:underline mr-1">
-                                            {aff.label}{idx < paper.affiliations.length - 1 ? ',' : ''}
-                                        </a>
-                                    ) : null;
-                                })}
-                            </td>
-                            <td className="px-4 py-2 whitespace-nowrap">
-                                {paper.tags.map((tag, idx) => (
-                                    <span key={idx} className="inline-block bg-gray-100 text-gray-700 text-xs rounded-full px-2 py-0.5 mr-1 mb-0.5">{tag}</span>
-                                ))}
-                            </td>
-                            <td className="px-4 py-2 whitespace-nowrap">
-                                <div className="flex -space-x-2">
-                                    {Array.isArray(paper.readBy) && paper.readBy.length > 0 ? paper.readBy.map((user: any) => (
-                                        <span
-                                            key={user.id}
-                                            className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-primary-200 text-primary-800 text-xs font-bold border-2 border-white cursor-pointer"
-                                            title={user.name}
-                                            onMouseEnter={e => {
-                                                const rect = (e.target as HTMLElement).getBoundingClientRect();
-                                                setHoveredUser({
-                                                    user,
-                                                    position: {
-                                                        x: rect.right + 8, // right edge of circle + 8px
-                                                        y: rect.top // top edge of circle (viewport coordinates)
-                                                    }
-                                                });
-                                            }}
-                                            onMouseLeave={() => setHoveredUser(null)}
-                                        >
-                                            {user.avatar}
-                                        </span>
-                                    )) : null}
-                                </div>
-                            </td>
-                            <td className="px-4 py-2 whitespace-nowrap">
-                                <a href={paper.link} target="_blank" rel="noopener noreferrer" className="text-primary-500 hover:text-primary-600">
-                                    <svg className="w-4 h-4 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 3h7v7m0 0L10 21l-7-7 11-11z"/></svg>
-                                </a>
-                            </td>
-                            <td className="px-4 py-2 whitespace-nowrap">
-                                <div className="flex -space-x-2">
-                                    {Array.isArray(paper.queued) && paper.queued.length > 0 ? paper.queued.map((user: any) => (
-                                        <span
-                                            key={user.id}
-                                            className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-primary-100 text-primary-700 text-xs font-bold border-2 border-white cursor-pointer"
-                                            title={user.name}
-                                            onMouseEnter={e => {
-                                                const rect = (e.target as HTMLElement).getBoundingClientRect();
-                                                setHoveredUser({
-                                                    user,
-                                                    position: {
-                                                        x: rect.right + 8,
-                                                        y: rect.top
-                                                    }
-                                                });
-                                            }}
-                                            onMouseLeave={() => setHoveredUser(null)}
-                                        >
-                                            {user.avatar}
-                                        </span>
-                                    )) : null}
-                                </div>
-                            </td>
-                            <td className="px-4 py-2 whitespace-nowrap text-center">{paper.stars}</td>
-                        </tr>
-                    ))}
-                </tbody>
-            </table>
-        </div>
-    );
+
+    
+
 
     // Render different views based on activeNav
     const renderContent = () => {
         switch (activeNav) {
             case 'scholars':
                 return (
-                    <div className="p-4">
-                        {/* Filter and Sort Controls: left-aligned, max width */}
-                        <div className="max-w-4xl mb-4 space-y-4">
-                            {/* Search Bar */}
-                            <div className="relative">
-                                <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <circle cx="11" cy="11" r="8" />
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="m21 21-4.35-4.35" />
-                                </svg>
-                                <input
-                                    ref={filterInputRef}
-                                    type="text"
-                                    placeholder="Filter by name, institution, or expertise..."
-                                    value={searchQuery}
-                                    onChange={(e) => setSearchQuery(e.target.value)}
-                                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                                />
-                            </div>
-                            {/* Sort Controls */}
-                            <div className="flex items-center gap-4 text-sm">
-                                <span className="text-gray-600 font-medium">Sort by:</span>
-                                <div className="flex gap-2">
-                                    {[
-                                        { key: 'name', label: 'Name' },
-                                        { key: 'affiliation', label: 'Affiliation' },
-                                        { key: 'recentActivity', label: 'Recent Activity' },
-                                        { key: 'papers', label: 'Papers' },
-                                        { key: 'citations', label: 'Citations' },
-                                        { key: 'hIndex', label: 'H-index' }
-                                    ].map(({ key, label }) => (
-                                        <button
-                                            key={key}
-                                            onClick={() => {
-                                                if (sortBy === key) {
-                                                    setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
-                                                } else {
-                                                    setSortBy(key as any);
-                                                    setSortDirection('asc');
-                                                }
-                                            }}
-                                            className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
-                                                sortBy === key
-                                                    ? 'bg-primary-100 text-primary-700 border border-primary-200'
-                                                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-200'
-                                            }`}
-                                        >
-                                            {label}
-                                            {sortBy === key && (
-                                                <span className="ml-1">
-                                                    {sortDirection === 'asc' ? '↑' : '↓'}
-                                                </span>
-                                            )}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-                        </div>
-                        {/* Scholars Grid: left-to-right flow like text */}
-                        <div className="w-full px-2">
-                            <div
-                                className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"
-                            >
-                                {filteredScholars.map(scholar => (
-                                    <ScholarCard
-                                        key={scholar.id}
-                                        scholar={scholar}
-                                        expanded={expandedScholarId === scholar.id}
-                                        onExpand={id => setExpandedScholarId(id)}
-                                        onCollapse={id => {
-                                            if (expandedScholarId === id) setExpandedScholarId(null);
-                                        }}
-                                        searchQuery={searchQuery}
-                                        onToggleFollow={toggleFollow}
-                                        onTagClick={(tag) => setSearchQuery(tag)}
-                                        filterInputRef={filterInputRef}
-                                        onCardClick={() => setOverlayScholarId(scholar.id)}
-                                    />
-                                ))}
-                            </div>
-                            {filteredScholars.length === 0 && (
-                                <div className="text-center py-8">
-                                    <svg className="w-12 h-12 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                                    </svg>
-                                    <p className="text-gray-500">No scholars found matching your filter.</p>
-                                </div>
-                            )}
-                        </div>
-                    </div>
+                    <ScholarsView
+                        filteredScholars={filteredScholars}
+                        searchQuery={searchQuery}
+                        sortBy={sortBy}
+                        sortDirection={sortDirection}
+                        expandedScholarId={expandedScholarId}
+                        filterInputRef={filterInputRef}
+                        onSearchChange={setSearchQuery}
+                        onSortChange={(key) => setSortBy(key as any)}
+                        onSortDirectionChange={setSortDirection}
+                        onExpandScholar={setExpandedScholarId}
+                        onCollapseScholar={(id) => {
+                            if (expandedScholarId === id) setExpandedScholarId(null);
+                        }}
+                        onToggleFollow={toggleFollow}
+                        onTagClick={(tag) => setSearchQuery(tag)}
+                        onCardClick={setOverlayScholarId}
+                    />
                 )
 
             case 'affiliations':
                 return (
-                    <div className="p-4">
-                        {/* Filter and Sort Controls: left-aligned, max width */}
-                        <div className="max-w-4xl mb-4 space-y-4">
-                            {/* Search Bar */}
-                            <div className="relative">
-                                <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <circle cx="11" cy="11" r="8" />
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="m21 21-4.35-4.35" />
-                                </svg>
-                                <input
-                                    ref={filterInputRef}
-                                    type="text"
-                                    placeholder="Filter by name, location, or tags..."
-                                    value={searchQuery}
-                                    onChange={(e) => setSearchQuery(e.target.value)}
-                                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                                />
-                            </div>
-                            {/* Sort Controls */}
-                            <div className="flex items-center gap-4 text-sm">
-                                <span className="text-gray-600 font-medium">Sort by:</span>
-                                <div className="flex gap-2">
-                                    {[
-                                        { key: 'name', label: 'Name' },
-                                        { key: 'location', label: 'Location' },
-                                        { key: 'type', label: 'Type' },
-                                        { key: 'members', label: 'Members' },
-                                        { key: 'papers', label: 'Papers' },
-                                        { key: 'citations', label: 'Citations' }
-                                    ].map(({ key, label }) => (
-                                        <button
-                                            key={key}
-                                            onClick={() => {
-                                                if (affiliationsSortBy === key) {
-                                                    setAffiliationsSortDirection(affiliationsSortDirection === 'asc' ? 'desc' : 'asc');
-                                                } else {
-                                                    setAffiliationsSortBy(key as any);
-                                                    setAffiliationsSortDirection('asc');
-                                                }
-                                            }}
-                                            className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
-                                                affiliationsSortBy === key
-                                                    ? 'bg-primary-100 text-primary-700 border border-primary-200'
-                                                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-200'
-                                            }`}
-                                        >
-                                            {label}
-                                            {affiliationsSortBy === key && (
-                                                <span className="ml-1">
-                                                    {affiliationsSortDirection === 'asc' ? '↑' : '↓'}
-                                                </span>
-                                            )}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-                        </div>
-                        {/* Affiliations Grid: left-to-right flow like text */}
-                        <div className="w-full px-2">
-                            <div
-                                className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"
-                            >
-                                {filteredAffiliations.map(affiliation => (
-                                    <AffiliationCard
-                                        key={affiliation.id}
-                                        affiliation={affiliation}
-                                        isAdmin={affiliation.isAdmin}
-                                        onCardClick={() => setOverlayAffiliationId(affiliation.id)}
-                                    />
-                                ))}
-                            </div>
-                            {filteredAffiliations.length === 0 && (
-                                <div className="text-center py-8">
-                                    <svg className="w-12 h-12 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                                    </svg>
-                                    <p className="text-gray-500">No affiliations found matching your filter.</p>
-                                </div>
-                            )}
-                        </div>
-                    </div>
+                    <AffiliationsView
+                        filteredAffiliations={filteredAffiliations}
+                        searchQuery={searchQuery}
+                        sortBy={affiliationsSortBy}
+                        sortDirection={affiliationsSortDirection}
+                        filterInputRef={filterInputRef}
+                        onSearchChange={setSearchQuery}
+                        onSortChange={(key) => setAffiliationsSortBy(key as any)}
+                        onSortDirectionChange={setAffiliationsSortDirection}
+                        onCardClick={setOverlayAffiliationId}
+                    />
                 )
 
             case 'papers':
                 return (
-                    <div className="p-6">
-                        <div className="max-w-6xl mx-auto">
-                            <div className="mb-6">
-                                <h1 className="text-2xl font-bold text-gray-900 mb-2">Papers</h1>
-                                <p className="text-gray-600">Browse and sort all papers in the system</p>
-                            </div>
-                            <PapersTable />
-                        </div>
-                    </div>
+                    <PapersView
+                        papers={mockPapers}
+                        scholars={scholars}
+                        affiliations={affiliations}
+                        onToggleStar={toggleStar}
+                    />
                 )
 
             case 'profile':
                 return (
-                    <div className="p-6">
-                        <div className="max-w-6xl mx-auto">
-                            <UserProfile repo={_repo} currentUser={currentUser || "alice@example.com"} />
-                        </div>
-                    </div>
+                    <ProfileView 
+                        repo={_repo} 
+                        currentUser={currentUser || "alice@example.com"} 
+                    />
                 )
 
             case 'feed':
             default:
                 return (
-                    <>
-                        {/* Post Composer */}
-                        <div className="bg-white border-b border-gray-200 p-6">
-                            <div className="flex gap-4">
-                                <div className="w-10 h-10 bg-primary-500 text-white rounded-full flex items-center justify-center font-semibold text-sm flex-shrink-0">
-                                    U
-                                </div>
-                                <div className="flex-1">
-                                    <textarea
-                                        className="w-full min-h-[80px] max-h-32 border-0 resize-none focus:ring-0 focus:outline-none text-gray-900 placeholder-gray-500"
-                                        placeholder="Share your research insights… Include arXiv URLs to automatically import papers. LaTeX supported with $...$ or $$...$$"
-                                        value={composerText}
-                                        onChange={(e) => setComposerText(e.target.value)}
-                                        onKeyDown={(e) => {
-                                            if (e.key === 'Enter' && !e.shiftKey) {
-                                                e.preventDefault()
-                                                handlePostSubmit()
-                                            }
-                                        }}
-                                    />
-                                    <div className="flex justify-end mt-3">
-                                        <button
-                                            className={`px-6 py-2 rounded-full font-medium transition-colors ${composerText.trim()
-                                                ? 'bg-primary-500 text-white hover:bg-primary-600'
-                                                : 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                                                }`}
-                                            disabled={!composerText.trim()}
-                                            onClick={handlePostSubmit}
-                                        >
-                                            Post
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Feed List */}
-                        <div className="max-w-2xl mx-auto" ref={postsRef}>
-                            {posts.map(post => {
-                                if (post.type === 'pure-paper') {
-                                    return (
-                                        <div key={post.id} className="bg-white border-b border-gray-200 p-6">
-                                            <PaperCard 
-                                                paper={post.paper} 
-                                                expandedAbstracts={expandedAbstracts}
-                                                onToggleAbstract={toggleAbstract}
-                                            />
-                                        </div>
-                                    )
-                                }
-
-                                return (
-                                    <div key={post.id} className={`border-b border-gray-200 p-6 ${post.type === 'user-post' ? 'bg-blue-50' :
-                                        post.type === 'paper-post' ? 'bg-orange-50' : 'bg-white'
-                                        }`}>
-                                        <div className="flex items-center gap-3 mb-4">
-                                            <div className="w-8 h-8 bg-primary-500 text-white rounded-full flex items-center justify-center text-sm font-semibold">
-                                                {post.avatar}
-                                            </div>
-                                            <div className="flex items-center gap-2 text-sm">
-                                                <span className="font-semibold text-gray-900">{post.name}</span>
-                                                <span className="text-gray-500">·</span>
-                                                <span className="text-gray-500">{post.time}</span>
-                                            </div>
-                                        </div>
-
-                                        <div className="text-gray-900 leading-relaxed mb-4 whitespace-pre-wrap">
-                                            {post.content}
-                                        </div>
-
-                                        {post.type === 'paper-post' && post.paper && (
-                                            <PaperCard 
-                                                paper={post.paper} 
-                                                expandedAbstracts={expandedAbstracts}
-                                                onToggleAbstract={toggleAbstract}
-                                            />
-                                        )}
-
-                                        <div className="flex items-center gap-6 text-gray-500">
-                                            <button className="flex items-center gap-2 hover:text-gray-700 transition-colors">
-                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                                                </svg>
-                                                <span className="text-sm">{post.replies || 0}</span>
-                                            </button>
-                                            <button className="flex items-center gap-2 hover:text-gray-700 transition-colors">
-                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-                                                </svg>
-                                                <span className="text-sm">{post.retweets || 0}</span>
-                                            </button>
-                                            <button className="flex items-center gap-2 hover:text-red-500 transition-colors">
-                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-                                                </svg>
-                                                <span className="text-sm">{post.likes || 0}</span>
-                                            </button>
-                                            <button className="flex items-center gap-2 hover:text-gray-700 transition-colors">
-                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.367 2.684 3 3 0 00-5.367-2.684z" />
-                                                </svg>
-                                            </button>
-                                        </div>
-                                    </div>
-                                )
-                            })}
-                        </div>
-                    </>
+                    <FeedView
+                        mathJaxLoaded={mathJaxLoaded}
+                        postsRef={postsRef}
+                        onPostsChange={() => {
+                            // Trigger MathJax re-rendering when posts change
+                            if (mathJaxLoaded && postsRef.current && window.MathJax?.typesetPromise) {
+                                setTimeout(() => {
+                                    const mathJax = window.MathJax;
+                                    const postsElement = postsRef.current;
+                                    if (mathJax?.typesetPromise && postsElement) {
+                                        mathJax.typesetPromise([postsElement]).then(() => {
+                                            console.log('MathJax re-rendered after post change');
+                                        }).catch(err => {
+                                            console.error('MathJax re-rendering error:', err);
+                                        });
+                                    }
+                                }, 500);
+                            }
+                        }}
+                    />
                 )
         }
     }
