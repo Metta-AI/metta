@@ -134,6 +134,7 @@ class TerrainFromNumpy(Room):
             uri = self._file
 
         level = safe_load(f"{map_dir}/{uri}")
+        level = level[:25, :25]
         height, width = level.shape
         self.set_size_labels(width, height)
 
@@ -153,7 +154,19 @@ class TerrainFromNumpy(Room):
         random.shuffle(valid_positions)
 
         # 5. Place agents in first slice
-        agent_positions = valid_positions[:num_agents]
+        # Take first position and its neighbor for agents
+        agent_positions = [valid_positions[0]]
+        y, x = valid_positions[0]
+
+        # Check adjacent positions and use first valid one
+        adjacent = [(y + 1, x), (y - 1, x), (y, x + 1), (y, x - 1)]
+        for pos in adjacent:
+            if pos in valid_positions and len(agent_positions) < num_agents:
+                agent_positions.append(pos)
+
+        if len(agent_positions) < num_agents:
+            agent_positions.extend(valid_positions[1 : num_agents - len(agent_positions)])
+
         for pos, label in zip(agent_positions, agent_labels, strict=False):
             level[pos] = label
 
@@ -161,9 +174,12 @@ class TerrainFromNumpy(Room):
         valid_positions_set = set(valid_positions[num_agents:])
 
         for obj_name, count in self._objects.items():
-            count = count - np.where(level == obj_name, 1, 0).sum()
-            if count < 0:
-                continue
+            if obj_name == "altar":
+                count = 1
+            else:
+                count = count - np.where(level == obj_name, 1, 0).sum()
+            # if count < 0:
+            #     continue
             # Sample from remaining valid positions
             positions = random.sample(list(valid_positions_set), min(count, len(valid_positions_set)))
             for pos in positions:
