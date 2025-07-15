@@ -18,7 +18,6 @@ game:
       enabled: false
 
   agent:
-    view_dist: 7
     rewards:
       heart: 1.0
 

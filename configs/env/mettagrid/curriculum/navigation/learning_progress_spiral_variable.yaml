@@ -1,0 +1,26 @@
+_target_: metta.mettagrid.curriculum.learning_progress.LearningProgressCurriculum
+
+tasks:
+  # Fixed spiral tasks for consistent benchmarking
+  /env/mettagrid/navigation/evals/spiral_altar_5: 1
+  /env/mettagrid/navigation/evals/spiral_altar_8: 1
+  /env/mettagrid/navigation/evals/spiral_altar_12: 1
+
+  # Simple variable spiral for diverse training (64 combinations)
+  /env/mettagrid/curriculum/navigation/simple_variable_spiral: 3
+
+  # Size-specific variable spirals for focused training (9 combinations each)
+  /env/mettagrid/curriculum/navigation/small_variable_spiral: 1
+  /env/mettagrid/curriculum/navigation/medium_variable_spiral: 1
+  /env/mettagrid/curriculum/navigation/large_variable_spiral: 1
+
+  # Spiral variants for specialized training
+  /env/mettagrid/navigation/evals/spiral_altar_tight: 1
+  /env/mettagrid/navigation/evals/spiral_altar_loose: 1
+
+# Focus on subset of tasks at once
+num_active_tasks: 4
+ema_timescale: 0.001
+progress_smoothing: 0.05
+rand_task_rate: 0.25
+memory: 25  # Keep last 25 episode scores per task

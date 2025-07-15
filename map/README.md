@@ -62,6 +62,7 @@ Maps are represented as 2D numpy arrays where each cell contains a string identi
 | `WFC` | Wave Function Collapse pattern generation | `pattern`, `pattern_size` |
 | `Mirror` | Symmetry operations | `axes` (horizontal/vertical/x4) |
 | `Layout` | Custom area definitions | `areas` with positions/tags |
+| `Spiral` | Places objects along spiral path | `spacing`, `radius_increment`, `angle_increment` |
 
 ### Utility Scenes
 
@@ -144,6 +145,17 @@ objects:
   wall: 5                                   # Fixed count
 ```
 
+### Parameter Sampling
+
+For training environments, you can use parameter sampling to create variety:
+
+```yaml
+# Use ${sampling:min, max, center} syntax
+width: ${sampling:80, 120, 100}
+spacing: ${sampling:12, 21, 16}
+altar: ${sampling:4, 12, 8}
+```
+
 ## Usage Examples
 
 ### Simple Random Map
@@ -205,6 +217,27 @@ map_builder:
         - scene:
             type: metta.map.scenes.maze.Maze
           weight: 1
+```
+
+### Spiral Navigation Map
+
+```yaml
+map_builder:
+  _target_: metta.map.mapgen.MapGen
+  width: 100
+  height: 100
+  root:
+    type: metta.map.scenes.spiral.Spiral
+    params:
+      objects:
+        altar: 8  # Number of objects along spiral
+      agents: 1  # Agent starts at center
+      spacing: 15  # Minimum distance between objects
+      start_radius: 0
+      radius_increment: 2.5  # How quickly spiral expands
+      angle_increment: 0.3  # Rotation per step (radians)
+      randomize_position: 2  # Random offset for variety
+      place_at_center: true  # First placement at exact center
 ```
 
 ## Creating Custom Scenes
@@ -291,4 +324,10 @@ labels = level.labels  # metadata
 
 ## Integration with Curriculum Learning
 
-Maps integrate seamlessly with the curriculum system through environment configurations. See the [Curriculum README](../mettagrid/src/metta/mettagrid/curriculum/README.md) for details on how maps are used in learning curricula.
+Maps integrate seamlessly with the curriculum system through environment configurations. You can use:
+
+1. **Bucketed Curriculums**: Define discrete parameter combinations with `bins` or `values`
+2. **Random Sampling**: Use `${sampling:min, max, center}` syntax for continuous parameter ranges
+3. **Combined Approach**: Mix buckets for some parameters with random sampling for others
+
+See the [MAPS_AND_CURRICULUMS guide](../docs/MAPS_AND_CURRICULUMS.md) for detailed examples and the [Curriculum README](../mettagrid/src/metta/mettagrid/curriculum/README.md) for implementation details.

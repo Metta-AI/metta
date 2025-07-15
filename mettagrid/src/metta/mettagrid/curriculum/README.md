@@ -199,9 +199,6 @@ buckets:
     range: [10, 50]
     bins: 3
 
-  game.agent.view_dist:
-    values: [5, 7, 9]
-
 env_overrides:
   game:
     num_agents: 16
@@ -514,7 +511,6 @@ python -m tools.train \
    - Total objects should be < `map_area * 0.66`
 
 3. **View Distance**: Limited by observation window
-   - `agent.view_dist` typically 5-11
    - Must fit in `obs_width` and `obs_height`
 
 4. **Resource Limits**: Must include all inventory items
@@ -562,9 +558,7 @@ buckets:
     range: [1, 5]
     bins: 2  # [1,3) and [3,5]
 
-  # Agent parameters
-  game.agent.view_dist:
-    values: [5, 7, 9]
+
 
   game.agent.rewards.ore_red:
     values: [0.01, 0.05, 0.1]
@@ -572,7 +566,7 @@ buckets:
 # Override to ensure consistency
 env_overrides:
   game:
-    obs_width: 11  # Must accommodate largest view_dist
+    obs_width: 11
     obs_height: 11
 ```
 

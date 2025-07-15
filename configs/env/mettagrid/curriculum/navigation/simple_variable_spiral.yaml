@@ -1,0 +1,26 @@
+_target_: metta.mettagrid.curriculum.bucketed.BucketedCurriculum
+
+env_cfg_template: /env/mettagrid/navigation/evals/spiral_altar_base
+
+buckets:
+  # Fixed map size
+  game.map_builder.width:
+    values: [100]
+
+  game.map_builder.height:
+    values: [100]
+
+  # Just vary altar count from 5 to 12
+  game.map_builder.root.params.objects.altar:
+    values: [5, 6, 7, 8, 9, 10, 11, 12]
+
+  # Adaptive max steps
+  game.max_steps:
+    values: [500, 550, 600, 650, 700, 750, 800, 850]
+
+env_overrides:
+  sampling: 1
+  game:
+    num_agents: 1
+
+# Now: 1 × 1 × 8 × 8 = 64 combinations

@@ -1,0 +1,5 @@
+_target_: metta.mettagrid.curriculum.random.RandomCurriculum
+
+tasks:
+  # Single bucket - 4 rooms with randomly sampled spiral parameters each episode
+  /env/mettagrid/navigation/evals/spiral_altar_multiroom_random: 1.0

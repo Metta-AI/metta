@@ -68,7 +68,7 @@ def main():
     show_mode = args.show_mode
     if not show_mode and not args.output_uri:
         # if not asked to save, show the map
-        show_mode = "mettascope"
+        show_mode = "ascii"
 
     output_uri = args.output_uri
     count = args.count

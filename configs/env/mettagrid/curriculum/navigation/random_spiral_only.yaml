@@ -1,0 +1,5 @@
+_target_: metta.mettagrid.curriculum.random.RandomCurriculum
+
+tasks:
+  # Single bucket - randomly samples parameters each episode
+  /env/mettagrid/navigation/evals/spiral_altar_random: 1.0

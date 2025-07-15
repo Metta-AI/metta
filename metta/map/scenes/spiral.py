@@ -43,7 +43,7 @@ class Spiral(Scene[SpiralParams]):
         else:
             raise ValueError(f"Invalid agents: {params.agents}")
 
-        # Determine placement order - agents first if placing at center
+            # Determine placement order - agents first if placing at center
         if params.place_at_center and agents:
             all_symbols = agents + symbols
         else:
@@ -60,12 +60,11 @@ class Spiral(Scene[SpiralParams]):
         # Place first item at center if requested
         if params.place_at_center and all_symbols:
             positions.append((cx, cy))
-            all_symbols = all_symbols[1:]
             angle += params.angle_increment
 
         # Generate remaining positions along spiral
         last_x, last_y = cx, cy
-        while len(positions) < len(all_symbols) + 1:  # +1 for the center position already added
+        while len(positions) < len(all_symbols):
             # Calculate next position on spiral
             x = int(cx + radius * np.cos(angle))
             y = int(cy + radius * np.sin(angle))
@@ -94,7 +93,7 @@ class Spiral(Scene[SpiralParams]):
             if radius > max(width, height):
                 break
 
-        # Place symbols at the calculated positions
+                # Place symbols at the calculated positions
         for i, symbol in enumerate(all_symbols):
             if i < len(positions):
                 x, y = positions[i]

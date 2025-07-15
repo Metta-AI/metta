@@ -55,7 +55,6 @@ game:
   max_steps: 250
 
   agent:
-    view_dist: 7
     rewards:
       heart: 1.0
 
@@ -97,7 +96,9 @@ game:
 
 ### Room Sizing Guidelines
 
-Based on our testing, follow these room size requirements:
+Based on our testing, follow these room size requirements to ensure agents cannot see between rooms:
+
+**Note**: Agent observation size is controlled by the environment configuration (`obs_width`/`obs_height`), not by individual agent parameters.
 
 ```yaml
 # For different altar counts, use these minimum room sizes:
@@ -145,7 +146,6 @@ center_altar_8:
   max_steps: 800
 ```
 
-**Critical Requirement**: Each grid cell must be at least 7×7 cells so agents with `view_dist: 7` cannot see multiple altars from any position.
 
 ## Step 2: Create Individual Task Configurations
 
@@ -222,6 +222,75 @@ buckets:
     bins: 4
 
 # Total combinations: 4 × 4 × 6 × 4 = 384 tasks
+```
+
+### Alternative: Single-Task Random Sampling Approach
+
+As an alternative to bucketed curriculums, you can use a single configuration that randomly samples parameters from continuous ranges. Both approaches are valid:
+
+```yaml
+# configs/env/mettagrid/navigation/spiral_altar_random.yaml
+defaults:
+  - /env/mettagrid/navigation/evals/defaults@
+  - _self_
+
+sampling: 1  # Enable parameter sampling
+
+game:
+  num_agents: 1
+  # Random max steps using sampling syntax: ${sampling:min, max, center}
+  max_steps: ${sampling:400, 1000, 700}
+
+  map_builder:
+    _target_: metta.map.mapgen.MapGen
+    # Random map size
+    width: ${sampling:80, 120, 100}
+    height: ${sampling:80, 120, 100}
+    border_width: 1
+
+    root:
+      type: metta.map.scenes.spiral.Spiral
+      params:
+        objects:
+          altar: ${sampling:4, 12, 8}  # Random 4-12 altars
+        agents: 1
+        spacing: ${sampling:12, 21, 16}  # Random spacing
+        start_radius: 0
+        radius_increment: ${sampling:2.0, 3.0, 2.5}  # Random tightness
+        angle_increment: 0.3
+        randomize_position: ${sampling:0, 4, 2}  # Random variation
+        place_at_center: true
+```
+
+**When to use this approach:**
+- **Simplicity**: When you want one configuration file instead of managing combinations
+- **Continuous ranges**: When you need any value within the range, not just discrete bins
+- **Exploration**: When you want maximum parameter diversity
+- **Quick iteration**: When you're experimenting with parameter ranges
+
+**When to use bucketed approach:**
+- **Systematic coverage**: When you need to ensure specific parameter combinations are tested
+- **Reproducibility**: When you want exact control over which values are used
+- **Analysis**: When you need to track performance for specific parameter values
+- **Curriculum progression**: When using progressive curriculums that need discrete steps
+
+**Important: Parameter Sampling Syntax**
+The correct syntax for random sampling is: `${sampling:min, max, center}`
+- `min`: Minimum value
+- `max`: Maximum value
+- `center`: Center/default value used for scaling
+
+### Single-Task Curriculum
+
+Create a simple curriculum using the random task:
+
+```yaml
+# configs/env/mettagrid/curriculum/navigation/random_spiral_only.yaml
+_target_: metta.mettagrid.curriculum.random.RandomCurriculum
+
+tasks:
+  # Single task with random parameters each episode
+  /env/mettagrid/navigation/evals/spiral_altar_random: 1.0
 ```
 
 ### Learning Progress Curriculum for Adaptation
@@ -460,7 +529,34 @@ buckets:
     values: [250, 300, 400, 550, 700, 800]
 ```
 
-### Pattern 3: Adaptive Focus
+### Pattern 3: Combining Buckets with Random Sampling
+```yaml
+# Use buckets for some parameters and random sampling for others
+_target_: metta.mettagrid.curriculum.bucketed.BucketedCurriculum
+
+env_cfg_template: /env/mettagrid/navigation/spiral_altar_base
+
+buckets:
+  # Use discrete buckets for map sizes
+  game.map_builder.width:
+    values: [80, 100, 120]
+
+  game.map_builder.height:
+    values: [80, 100, 120]
+
+# Use random sampling within each bucket task
+env_overrides:
+  game:
+    map_builder:
+      root:
+        params:
+          objects:
+            altar: ${sampling:4, 12, 8}  # Random within each bucket
+          spacing: ${sampling:12, 21, 16}
+          radius_increment: ${sampling:2.0, 3.0, 2.5}
+```
+
+### Pattern 4: Adaptive Focus
 ```yaml
 # Combine low-reward focus with learning progress
 _target_: metta.mettagrid.curriculum.low_reward.LowRewardCurriculum
@@ -553,6 +649,11 @@ tasks:
 **"agents must be >= 1"**
 - Solution: Add agent placement to scene configuration
 - Add: `agents: 1` or `agents: {middle: 1}` to scene params
+
+**"Extra inputs are not permitted"** (e.g., for `agent.view_dist`)
+- Solution: Remove invalid configuration fields
+- Note: `view_dist` is not a valid agent parameter
+- Check the schema for valid fields under each configuration section
 
 **"Expected DictConfig, got str"**
 - Solution: Check YAML indentation and structure

@@ -48,7 +48,6 @@ game:
   max_steps: 1000
 
   agent:
-    view_dist: 7
     resource_limits:
       health: 100
     rewards:
@@ -107,9 +106,7 @@ buckets:
     range: [20, 100]
     bins: 4  # Creates: [20,40), [40,60), [60,80), [80,100]
 
-  # Exact values
-  game.agent.view_dist:
-    values: [5, 7, 9]
+
 
   # Mixed types work too
   game.map_builder.room.objects.altar:
@@ -318,14 +315,7 @@ agent_collectible_reward: 0.1
 
 ### 4. Documentation
 
-```yaml
-# Document complex parameters
-game:
-  agent:
-    # View distance in grid cells
-    # Higher values = more computational cost
-    view_dist: 7  # default: 7, reasonable range: 5-11
-```
+
 
 ### 5. Validation
 
