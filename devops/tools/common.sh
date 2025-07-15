@@ -53,7 +53,7 @@ setup_uv_paths() {
 # Ensure uv is in PATH, installed, and uv project environment associated with this repo
 ensure_uv_setup() {
   if ! check_cmd uv; then
-    echo "\nuv is not installed. Installing uv..."
+    echo "uv is not installed. Installing uv..."
     curl -LsSf https://astral.sh/uv/install.sh | sh
 
     setup_uv_paths
