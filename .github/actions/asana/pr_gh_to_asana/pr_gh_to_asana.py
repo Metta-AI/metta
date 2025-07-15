@@ -526,6 +526,15 @@ def get_pull_request_from_github(repo, pr_number, github_token):
         print(f"Failed to fetch PR comments: {comments_response.status_code} - {comments_response.text}")
         d["comments"] = []
 
+    # Fetch PR reviews
+    reviews_url = f"https://api.github.com/repos/{repo}/pulls/{pr_number}/reviews"
+    reviews_response = requests.get(reviews_url, headers=headers)
+    if reviews_response.status_code == 200:
+        d["reviews"] = reviews_response.json()
+    else:
+        print(f"Failed to fetch PR reviews: {reviews_response.status_code} - {reviews_response.text}")
+        d["reviews"] = []
+
     return d
 
 
