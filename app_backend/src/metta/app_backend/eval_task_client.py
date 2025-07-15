@@ -20,7 +20,7 @@ T = TypeVar("T", bound=BaseModel)
 class EvalTaskClient:
     def __init__(self, backend_url: str) -> None:
         self._http_client = httpx.AsyncClient(base_url=backend_url, timeout=30.0)
-        if not (token := get_machine_token()):
+        if not (token := get_machine_token(backend_url)):
             raise ValueError("Machine token is not set")
         self._machine_token = token
 
