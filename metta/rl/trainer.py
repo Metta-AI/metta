@@ -12,6 +12,7 @@ from omegaconf import DictConfig
 from metta.api import TrainerState
 from metta.common.util.heartbeat import record_heartbeat
 from metta.mettagrid.curriculum.util import curriculum_from_config_path
+from metta.mettagrid.mettagrid_env import dtype_actions
 from metta.rl.functions import (
     accumulate_rollout_stats,
     calculate_batch_sizes,
@@ -183,8 +184,6 @@ def _rollout(
 
         # Send actions to environment
         with timer("_rollout.env"):
-            from metta.mettagrid.mettagrid_env import dtype_actions
-
             vecenv.send(actions.cpu().numpy().astype(dtype_actions))
 
         # Collect info
@@ -441,6 +440,34 @@ def _check_abort(wandb_run: Optional[Any], trainer_cfg: Any, agent_step: int) ->
         return False
 
 
+def _initialize_stats_tracking(
+    state: TrainerState,
+    stats_client: Optional[Any],
+    wandb_run: Optional[Any],
+) -> None:
+    """Initialize stats tracking for training run."""
+    if stats_client is None:
+        return
+
+    if wandb_run is not None:
+        name = wandb_run.name if wandb_run.name is not None else "unknown"
+        url = wandb_run.url
+        tags = list(wandb_run.tags) if wandb_run.tags is not None else None
+        description = wandb_run.notes
+    else:
+        name = "unknown"
+        url = None
+        tags = None
+        description = None
+
+    try:
+        state.stats_run_id = stats_client.create_training_run(
+            name=name, attributes={}, url=url, description=description, tags=tags
+        ).id
+    except Exception as e:
+        logger.warning(f"Failed to create training run: {e}")
+
+
 def train(
     cfg: DictConfig,
     wandb_run: Any | None,
@@ -480,24 +507,7 @@ def train(
     )
 
     # Initialize stats tracking
-    if stats_client is not None:
-        if wandb_run is not None:
-            name = wandb_run.name if wandb_run.name is not None else "unknown"
-            url = wandb_run.url
-            tags = list(wandb_run.tags) if wandb_run.tags is not None else None
-            description = wandb_run.notes
-        else:
-            name = "unknown"
-            url = None
-            tags = None
-            description = None
-
-        try:
-            state.stats_run_id = stats_client.create_training_run(
-                name=name, attributes={}, url=url, description=description, tags=tags
-            ).id
-        except Exception as e:
-            logger.warning(f"Failed to create training run: {e}")
+    _initialize_stats_tracking(state, stats_client, wandb_run)
 
     logger.info(f"Training on {device}")
     wandb_policy_name: str | None = None

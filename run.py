@@ -3,7 +3,6 @@ import logging
 import os
 import time
 from collections import defaultdict
-from typing import Dict
 
 import torch
 from omegaconf import DictConfig, OmegaConf
@@ -53,6 +52,7 @@ from metta.rl.functions import (
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.kickstarter_config import KickstartConfig
 from metta.rl.losses import Losses
+from metta.rl.trainer import _maybe_compute_grad_stats, _should_run
 from metta.rl.trainer_config import (
     CheckpointConfig,
     OptimizerConfig,
@@ -69,51 +69,6 @@ from metta.sim.simulation_suite import SimulationSuite
 # Set up logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
-
-
-def _should_run(
-    epoch: int,
-    interval: int,
-    is_master: bool = True,
-    force: bool = False,
-) -> bool:
-    """Check if a periodic task should run based on interval and master status."""
-    if not is_master or not interval:
-        return False
-
-    if force:
-        return True
-
-    return epoch % interval == 0
-
-
-def _maybe_compute_grad_stats(policy: torch.nn.Module) -> Dict[str, float]:
-    """Compute gradient statistics for the policy.
-
-    Returns:
-        Dictionary with 'grad/mean', 'grad/variance', and 'grad/norm' keys
-    """
-    all_gradients = []
-    for param in policy.parameters():
-        if param.grad is not None:
-            all_gradients.append(param.grad.view(-1))
-
-    if not all_gradients:
-        return {}
-
-    all_gradients_tensor = torch.cat(all_gradients).to(torch.float32)
-
-    grad_mean = all_gradients_tensor.mean()
-    grad_variance = all_gradients_tensor.var()
-    grad_norm = all_gradients_tensor.norm(2)
-
-    grad_stats = {
-        "grad/mean": grad_mean.item(),
-        "grad/variance": grad_variance.item(),
-        "grad/norm": grad_norm.item(),
-    }
-
-    return grad_stats
 
 
 # Set up directories and distributed training
