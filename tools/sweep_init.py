@@ -85,7 +85,8 @@ def create_run(cfg: DictConfig | ListConfig, logger: Logger) -> str:
     sweep_metadata = OmegaConf.load(os.path.join(cfg.sweep_dir, "config.yaml"))
 
     # Generate a new run ID for the sweep, e.g. "simple_sweep.r.0"
-    run_id = generate_run_id_for_sweep(sweep_metadata.wandb_sweep_id, cfg.runs_dir)
+    # TODO: Use sweep_id instead of sweep_path, currently very confusing.
+    run_id = generate_run_id_for_sweep(sweep_metadata.wandb_path, cfg.runs_dir)
     logger.info(f"Creating new run: {run_id}")
 
     run_dir = os.path.join(cfg.runs_dir, run_id)
@@ -115,7 +116,7 @@ def create_run(cfg: DictConfig | ListConfig, logger: Logger) -> str:
             # Protein may fail to generate a valid suggestion, in which case it will raise an exception.
             # generate_protein_suggestion will retry up to 10 times, and record failures to the protein.
             try:
-                clean_suggestion = generate_protein_suggestion(cfg)
+                clean_suggestion = generate_protein_suggestion(cfg, protein)
             except Exception as e:
                 logger.warning("Failed to generate protein suggestion after 10 attempts. Giving up.")
                 raise e
@@ -221,9 +222,8 @@ def validate_protein_suggestion(config: DictConfig, suggestion: dict):
 
 
 @retry_on_exception(max_retries=10, retry_delay=0.1, exceptions=(ValueError,))
-def generate_protein_suggestion(config: DictConfig):
+def generate_protein_suggestion(config: DictConfig, protein: MettaProtein):
     """Generate a protein suggestion."""
-    protein = MettaProtein(config.sweep, None)
     suggestion, _ = protein.suggest()
     try:
         validate_protein_suggestion(config, suggestion)
@@ -232,8 +232,7 @@ def generate_protein_suggestion(config: DictConfig):
         logger.warning(f"Invalid suggestion: {e}")
         protein.record_failure(str(e))
         raise e
-    clean_suggestion = clean_numpy_types(suggestion)
-    return clean_suggestion
+    return clean_numpy_types(suggestion)
 
 
 def apply_protein_suggestion(config: DictConfig, suggestion: dict):
