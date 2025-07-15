@@ -274,8 +274,6 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
         std::round((static_cast<float>(current_step) / max_steps) * std::numeric_limits<ObservationType>::max()));
   }
 
-  ObservationType step_lsb = static_cast<ObservationType>(current_step & 0xFF);
-
   ObservationType reward_int = static_cast<ObservationType>(std::round(rewards_view(agent_idx) * 100.0f));
 
   std::vector<PartialObservationToken> global_tokens = {
