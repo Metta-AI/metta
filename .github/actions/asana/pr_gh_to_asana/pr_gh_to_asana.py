@@ -521,19 +521,19 @@ def get_pull_request_from_github(repo, pr_number, github_token):
     comments_url = f"https://api.github.com/repos/{repo}/issues/{pr_number}/comments"
     comments_response = requests.get(comments_url, headers=headers)
     if comments_response.status_code == 200:
-        d["comments"] = comments_response.json()
+        d["retrieved_comments"] = comments_response.json()
     else:
         print(f"Failed to fetch PR comments: {comments_response.status_code} - {comments_response.text}")
-        d["comments"] = []
+        d["retrieved_comments"] = []
 
     # Fetch PR reviews
     reviews_url = f"https://api.github.com/repos/{repo}/pulls/{pr_number}/reviews"
     reviews_response = requests.get(reviews_url, headers=headers)
     if reviews_response.status_code == 200:
-        d["reviews"] = reviews_response.json()
+        d["retrieved_reviews"] = reviews_response.json()
     else:
         print(f"Failed to fetch PR reviews: {reviews_response.status_code} - {reviews_response.text}")
-        d["reviews"] = []
+        d["retrieved_reviews"] = []
 
     return d
 
