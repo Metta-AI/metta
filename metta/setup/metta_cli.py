@@ -5,10 +5,11 @@ import subprocess
 import sys
 from pathlib import Path
 
+from metta.common.util.console_messages import error, header, info, success, warning
 from metta.setup.config import CURRENT_CONFIG_VERSION, SetupConfig, UserType
 from metta.setup.registry import get_all_modules, get_applicable_modules
 from metta.setup.symlink_setup import PathSetup
-from metta.setup.utils import error, header, import_all_modules_from_subpackage, info, success, warning
+from metta.setup.utils import import_all_modules_from_subpackage
 
 # Import all component modules to register them with the registry
 import_all_modules_from_subpackage("metta.setup", "components")
@@ -206,6 +207,9 @@ class MettaCLI:
             subprocess.run(cmd, cwd=self.repo_root, check=True)
         except subprocess.CalledProcessError as e:
             sys.exit(e.returncode)
+
+    def cmd_shell(self) -> None:
+        subprocess.run(["uv", "run", "metta/setup/shell.py"], cwd=self.repo_root, check=True)
 
     def cmd_lint(self, args) -> None:
         files = []
@@ -460,6 +464,9 @@ Examples:
         tool_parser = subparsers.add_parser("tool", help="Run a tool from the tools/ directory")
         tool_parser.add_argument("tool_name", help="Name of the tool to run (e.g., 'train', 'sim', 'analyze')")
 
+        # Shell command
+        subparsers.add_parser("shell", help="Start an IPython shell with Metta imports")
+
         # Use parse_known_args to handle unknown arguments for test commands
         args, unknown_args = parser.parse_known_args()
 
@@ -504,6 +511,8 @@ Examples:
             self.cmd_tool(args.tool_name, unknown_args)
         elif args.command == "lint":
             self.cmd_lint(args)
+        elif args.command == "shell":
+            self.cmd_shell()
         else:
             parser.print_help()
 

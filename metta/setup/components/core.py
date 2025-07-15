@@ -1,9 +1,9 @@
 import subprocess
 import sys
 
+from metta.common.util.console_messages import error, success
 from metta.setup.components.base import SetupModule
 from metta.setup.registry import register_module
-from metta.setup.utils import error, success
 
 
 @register_module

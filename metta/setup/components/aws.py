@@ -1,9 +1,9 @@
 import json
 from pathlib import Path
 
+from metta.common.util.console_messages import info
 from metta.setup.components.base import SetupModule
 from metta.setup.registry import register_module
-from metta.setup.utils import info
 
 
 @register_module
