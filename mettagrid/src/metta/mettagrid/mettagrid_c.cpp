@@ -416,10 +416,12 @@ void MettaGrid::_step(py::array_t<ActionType, py::array::c_style> actions) {
     episode_rewards_view(i) += rewards_view(i);
   }
 
-  // Check for truncation
+  // Check for termination. We could set truncations here instead,
+  // to make the agent think episodes never end. But currently
+  // we think it's more realistic to have episodes end.
   if (max_steps > 0 && current_step >= max_steps) {
-    std::fill(static_cast<bool*>(_truncations.request().ptr),
-              static_cast<bool*>(_truncations.request().ptr) + _truncations.size(),
+    std::fill(static_cast<bool*>(_terminals.request().ptr),
+              static_cast<bool*>(_terminals.request().ptr) + _terminals.size(),
               1);
   }
 }

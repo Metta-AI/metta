@@ -27,3 +27,4 @@ tasks:
   /env/mettagrid/curriculum/bbc/agent_1.armor: 1
   /env/mettagrid/curriculum/bbc/agent_1.combat: 1
   /env/mettagrid/curriculum/bbc/agent_1.tag: 1
+  /env/mettagrid/curriculum/arena/learning_progress: 1
