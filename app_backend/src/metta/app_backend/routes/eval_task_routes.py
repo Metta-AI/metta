@@ -1,12 +1,13 @@
 import uuid
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from metta.app_backend.auth import create_user_or_token_dependency
 from metta.app_backend.metta_repo import MettaRepo
+from metta.app_backend.metta_repo import TaskStatusUpdate as RepoTaskStatusUpdate
 from metta.app_backend.route_logger import timed_route
 
 
@@ -29,7 +30,7 @@ class TaskStatusUpdate(BaseModel):
 
 class TaskUpdateRequest(BaseModel):
     assignee: str
-    statuses: Dict[str, Union[str, TaskStatusUpdate]]
+    statuses: Dict[str, TaskStatusUpdate]
 
 
 class TaskResponse(BaseModel):
@@ -158,31 +159,25 @@ def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
             valid_statuses = {"unprocessed", "canceled", "done", "error"}
 
             task_updates = {}
-            error_reasons = {}
 
-            for task_id, status_or_update in request.statuses.items():
-                if isinstance(status_or_update, str):
-                    status = status_or_update
-                    error_reason = None
-                else:
-                    status = status_or_update.status
-                    error_reason = status_or_update.error_reason
-
-                if status not in valid_statuses:
+            for task_id, status_update in request.statuses.items():
+                if status_update.status not in valid_statuses:
                     raise HTTPException(
                         status_code=400,
-                        detail=f"Invalid status '{status}' for task {task_id}. Valid statuses: {valid_statuses}",
+                        detail=(
+                            f"Invalid status '{status_update.status}' for task {task_id}. "
+                            f"Valid statuses: {valid_statuses}"
+                        ),
                     )
 
                 task_uuid = uuid.UUID(task_id)
-                task_updates[task_uuid] = status
-                if error_reason:
-                    error_reasons[task_uuid] = error_reason
+                task_updates[task_uuid] = RepoTaskStatusUpdate(
+                    status=status_update.status, error_reason=status_update.error_reason
+                )
 
             updated = await stats_repo.update_task_statuses(
                 assignee=request.assignee,
-                task_statuses=task_updates,
-                error_reasons=error_reasons,
+                task_updates=task_updates,
             )
 
             return {str(task_id): status for task_id, status in updated.items()}
