@@ -53,7 +53,6 @@ def validate_asana_task_url(
 
     # Fetch task details from Asana API
     url = f"https://app.asana.com/api/1.0/tasks/{task_gid}"
-    print(f"[validate_asana_task_url] Fetching task from asana api: {url}")
     headers = {
         "Authorization": f"Bearer {asana_token}",
         "Content-Type": "application/json",
@@ -65,38 +64,30 @@ def validate_asana_task_url(
 
     try:
         response = requests.get(url, headers=headers, params=params, timeout=30)
-        print(f"[validate_asana_task_url] Asana API response status: {response.status_code}")
         if response.status_code != 200:
             print(f"Asana API Error validating task {task_url}: {response.status_code} - {response.text}")
             return None
 
         task_data = response.json()["data"]
-        print(f"[validate_asana_task_url] Task data: {json.dumps(task_data, indent=2)}")
 
         # Check if task belongs to the specified project
         task_projects = [project["gid"] for project in task_data.get("projects", [])]
-        print(f"[validate_asana_task_url] Task projects: {task_projects}")
         if project_id not in task_projects:
-            print(f"[validate_asana_task_url] Task {task_url} does not belong to project {project_id}")
             return None
 
         # Check if the GitHub URL custom field matches the expected GitHub URL
         custom_fields = task_data.get("custom_fields", [])
-        print(f"[validate_asana_task_url] Custom fields: {json.dumps(custom_fields, indent=2)}")
         task_github_url = None
         for field in custom_fields:
-            print(f"[validate_asana_task_url] Checking custom field: {field}")
             if field.get("gid") == github_url_field_id:
                 task_github_url = field.get("text_value")
                 print(f"Found github_url_field_id: {github_url_field_id}, value: {task_github_url}")
                 break
 
-        print(f"[validate_asana_task_url] task_github_url: {task_github_url} (expected: {github_url})")
         if task_github_url != github_url:
             print(f"Task {task_url} has GitHub URL '{task_github_url}' but expected '{github_url}'")
             return None
 
-        print(f"[validate_asana_task_url] Validated Asana task: {task_url}")
         return task_data
 
     except Exception as e:
@@ -510,7 +501,7 @@ def get_pull_request_from_github(repo, pr_number, github_token):
         github_token (str): GitHub personal access token
 
     Returns:
-        dict: Pull request data
+        dict: Pull request data, including comments under the 'comments' key
     """
     url = f"https://api.github.com/repos/{repo}/pulls/{pr_number}"
 
@@ -525,6 +516,15 @@ def get_pull_request_from_github(repo, pr_number, github_token):
 
     d = response.json()
     print(f"Pull request retrieved from GitHub: {json.dumps(d, indent=2)}")
+
+    # Fetch PR comments (issue comments)
+    comments_url = f"https://api.github.com/repos/{repo}/issues/{pr_number}/comments"
+    comments_response = requests.get(comments_url, headers=headers)
+    if comments_response.status_code == 200:
+        d["comments"] = comments_response.json()
+    else:
+        print(f"Failed to fetch PR comments: {comments_response.status_code} - {comments_response.text}")
+        d["comments"] = []
 
     return d
 
@@ -553,7 +553,10 @@ if __name__ == "__main__":
 
     # just print this out for now
     # touch
-    get_pull_request_from_github(github_repo, pr_number, github_token)
+    pr = get_pull_request_from_github(github_repo, pr_number, github_token)
+
+    # Use PR body as description instead of INPUT_DESCRIPTION
+    description = pr.get("body", "")
 
     github_logins = set(assignees + reviewers + [author])
     github_login_to_asana_email = get_asana_users_by_github_logins(
