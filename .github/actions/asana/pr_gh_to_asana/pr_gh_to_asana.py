@@ -515,13 +515,13 @@ def get_pull_request_from_github(repo, pr_number, github_token):
     response.raise_for_status()  # Raises an exception for bad status codes
 
     d = response.json()
-    print(f"Pull request retrieved from GitHub: {json.dumps(d, indent=2)}")
 
     # Fetch PR comments (issue comments)
     comments_url = f"https://api.github.com/repos/{repo}/issues/{pr_number}/comments"
     comments_response = requests.get(comments_url, headers=headers)
     if comments_response.status_code == 200:
         d["retrieved_comments"] = comments_response.json()
+
     else:
         print(f"Failed to fetch PR comments: {comments_response.status_code} - {comments_response.text}")
         d["retrieved_comments"] = []
@@ -535,6 +535,7 @@ def get_pull_request_from_github(repo, pr_number, github_token):
         print(f"Failed to fetch PR reviews: {reviews_response.status_code} - {reviews_response.text}")
         d["retrieved_reviews"] = []
 
+    print(f"Pull request retrieved from GitHub: {json.dumps(d, indent=2)}")
     return d
 
 
