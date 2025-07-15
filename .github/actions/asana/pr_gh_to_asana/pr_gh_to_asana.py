@@ -492,7 +492,7 @@ def ensure_github_url_in_asana_task(
         "pullRequestURL": github_url,
     }
     response = requests.post(ASANA_GITHUB_ATTACHMENT_ACTION_URL, json=payload, headers=headers, timeout=30)
-    if response.status_code == 200:
+    if response.status_code == 201:
         return response.json()
     else:
         print(f"Asana API Error (ensure_github_url_in_asana_task): {response.status_code} - {response.text}")
