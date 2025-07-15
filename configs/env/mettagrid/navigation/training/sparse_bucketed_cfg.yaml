@@ -38,4 +38,4 @@ game:
             params:
               objects:
                 altar: ${num_altars}
-              agent: 1
+              agents: 1
