@@ -68,8 +68,9 @@ class StatsClient:
         self.http_client.close()
 
     def validate_authenticated(self) -> str:
+        auth_user = None
         try:
-            response = self.http_client.get("/whoami")
+            response = self.http_client.get("/whoami", headers={"X-Auth-Token": self.machine_token})
             response.raise_for_status()
             if (auth_user := response.json().get("user_email")) not in ["unknown", None]:
                 return auth_user
@@ -78,7 +79,7 @@ class StatsClient:
                 raise _NotAuthenticatedError(None) from e
             else:
                 raise e
-        raise _NotAuthenticatedError()
+        raise _NotAuthenticatedError(auth_user and f"Authenticated as {auth_user}")
 
     def get_policy_ids(self, policy_names: List[str]) -> ClientPolicyIdResponse:
         """
