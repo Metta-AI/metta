@@ -70,9 +70,9 @@ class StatsClient:
     def validate_authenticated(self) -> str:
         auth_user = None
         try:
-            response = self.http_client.get("/whoami")
+            response = self.http_client.get("/whoami", headers={"X-Auth-Token": self.machine_token})
             response.raise_for_status()
-            if auth_user := response.json().get("user_email"):
+            if (auth_user := response.json().get("user_email")) not in ["unknown", None]:
                 return auth_user
         except httpx.HTTPStatusError as e:
             if e.response.status_code == 401:
