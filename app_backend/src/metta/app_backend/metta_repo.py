@@ -5,7 +5,7 @@ import uuid
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Tuple
+from typing import Any
 
 from psycopg import Connection
 from psycopg.types.json import Jsonb
@@ -284,7 +284,7 @@ class MettaRepo:
 
     # All methods are async - no sync versions
 
-    async def get_policy_ids(self, policy_names: List[str]) -> Dict[str, uuid.UUID]:
+    async def get_policy_ids(self, policy_names: list[str]) -> dict[str, uuid.UUID]:
         if not policy_names:
             return {}
 
@@ -302,10 +302,10 @@ class MettaRepo:
         self,
         name: str,
         user_id: str,
-        attributes: Dict[str, str],
+        attributes: dict[str, str],
         url: str | None,
         description: str | None,
-        tags: List[str] | None,
+        tags: list[str] | None,
     ) -> uuid.UUID:
         status = "running"
         async with self.connect() as con:
@@ -338,7 +338,7 @@ class MettaRepo:
         run_id: uuid.UUID,
         start_training_epoch: int,
         end_training_epoch: int,
-        attributes: Dict[str, str],
+        attributes: dict[str, str],
     ) -> uuid.UUID:
         async with self.connect() as con:
             result = await con.execute(
@@ -376,14 +376,14 @@ class MettaRepo:
 
     async def record_episode(
         self,
-        agent_policies: Dict[int, uuid.UUID],
-        agent_metrics: Dict[int, Dict[str, float]],
+        agent_policies: dict[int, uuid.UUID],
+        agent_metrics: dict[int, dict[str, float]],
         primary_policy_id: uuid.UUID,
         stats_epoch: uuid.UUID | None,
         eval_name: str | None,
         simulation_suite: str | None,
         replay_url: str | None,
-        attributes: Dict[str, Any],
+        attributes: dict[str, Any],
         eval_task_id: uuid.UUID | None = None,
     ) -> uuid.UUID:
         async with self.connect() as con:
@@ -440,7 +440,7 @@ class MettaRepo:
                 )
 
             # Insert agent metrics in bulk
-            rows: List[Tuple[int, int, str, float]] = []
+            rows: list[tuple[int, int, str, float]] = []
             for agent_id, metrics in agent_metrics.items():
                 for metric_name, value in metrics.items():
                     rows.append((episode_internal_id, agent_id, metric_name, value))
@@ -456,7 +456,7 @@ class MettaRepo:
 
             return episode_id
 
-    async def get_suites(self) -> List[str]:
+    async def get_suites(self) -> list[str]:
         async with self.connect() as con:
             result = await con.execute("""
                 SELECT DISTINCT eval_category
@@ -467,7 +467,7 @@ class MettaRepo:
             rows = await result.fetchall()
             return [row[0] for row in rows]
 
-    async def get_metrics(self, suite: str) -> List[str]:
+    async def get_metrics(self, suite: str) -> list[str]:
         """Get all available metrics for a given suite."""
         async with self.connect() as con:
             result = await con.execute(
@@ -483,7 +483,7 @@ class MettaRepo:
             rows = await result.fetchall()
             return [row[0] for row in rows]
 
-    async def get_group_ids(self, suite: str) -> List[str]:
+    async def get_group_ids(self, suite: str) -> list[str]:
         """Get all available group IDs for a given suite."""
         async with self.connect() as con:
             result = await con.execute(
@@ -498,7 +498,7 @@ class MettaRepo:
             rows = await result.fetchall()
             return [row[0] for row in rows]
 
-    async def get_training_runs(self) -> List[Dict[str, Any]]:
+    async def get_training_runs(self) -> list[dict[str, Any]]:
         """Get all training runs."""
         async with self.connect() as con:
             result = await con.execute(
@@ -524,7 +524,7 @@ class MettaRepo:
                 for row in rows
             ]
 
-    async def get_training_run(self, run_id: str) -> Dict[str, Any] | None:
+    async def get_training_run(self, run_id: str) -> dict[str, Any] | None:
         """Get a specific training run by ID."""
         try:
             run_uuid = uuid.UUID(run_id)
@@ -577,7 +577,7 @@ class MettaRepo:
 
         return token
 
-    async def list_machine_tokens(self, user_id: str) -> List[Dict[str, Any]]:
+    async def list_machine_tokens(self, user_id: str) -> list[dict[str, Any]]:
         """List all machine tokens for a user."""
         async with self.connect() as con:
             result = await con.execute(
@@ -646,7 +646,7 @@ class MettaRepo:
         name: str,
         description: str | None,
         dashboard_type: str,
-        dashboard_state: Dict[str, Any],
+        dashboard_state: dict[str, Any],
     ) -> uuid.UUID:
         """Create a new saved dashboard (no upsert, always insert)."""
         async with self.connect() as con:
@@ -664,7 +664,7 @@ class MettaRepo:
                 raise RuntimeError("Failed to create saved dashboard")
             return row[0]
 
-    async def list_saved_dashboards(self) -> List[Dict[str, Any]]:
+    async def list_saved_dashboards(self) -> list[dict[str, Any]]:
         """List all saved dashboards."""
         async with self.connect() as con:
             result = await con.execute(
@@ -689,7 +689,7 @@ class MettaRepo:
                 for row in rows
             ]
 
-    async def get_saved_dashboard(self, dashboard_id: str) -> Dict[str, Any] | None:
+    async def get_saved_dashboard(self, dashboard_id: str) -> dict[str, Any] | None:
         """Get a specific saved dashboard by ID."""
         try:
             dashboard_uuid = uuid.UUID(dashboard_id)
@@ -745,7 +745,7 @@ class MettaRepo:
         name: str,
         description: str | None,
         dashboard_type: str,
-        dashboard_state: Dict[str, Any],
+        dashboard_state: dict[str, Any],
     ) -> bool:
         """Update an existing saved dashboard."""
         try:
@@ -782,7 +782,7 @@ class MettaRepo:
             )
             return result.rowcount > 0
 
-    async def update_training_run_tags(self, user_id: str, run_id: str, tags: List[str]) -> bool:
+    async def update_training_run_tags(self, user_id: str, run_id: str, tags: list[str]) -> bool:
         """Update the tags of a training run."""
         try:
             run_uuid = uuid.UUID(run_id)
@@ -804,23 +804,33 @@ class MettaRepo:
         self,
         policy_id: uuid.UUID,
         sim_suite: str,
-        attributes: Dict[str, Any],
-    ) -> uuid.UUID:
+        attributes: dict[str, Any],
+    ) -> dict[str, Any]:
         async with self.connect() as con:
             result = await con.execute(
                 """
                 INSERT INTO eval_tasks (policy_id, sim_suite, attributes)
                 VALUES (%s, %s, %s)
-                RETURNING id
+                RETURNING id, policy_id, sim_suite, status, assigned_at,
+                         assignee, created_at, attributes
                 """,
                 (policy_id, sim_suite, Jsonb(attributes)),
             )
             row = await result.fetchone()
             if row is None:
                 raise RuntimeError("Failed to create eval task")
-            return row[0]
+            return {
+                "id": row[0],
+                "policy_id": row[1],
+                "sim_suite": row[2],
+                "status": row[3],
+                "assigned_at": row[4],
+                "assignee": row[5],
+                "created_at": row[6],
+                "attributes": row[7],
+            }
 
-    async def get_available_tasks(self, limit: int = 200) -> List[Dict[str, Any]]:
+    async def get_available_tasks(self, limit: int = 200) -> list[dict[str, Any]]:
         async with self.connect() as con:
             result = await con.execute(
                 """
@@ -851,9 +861,9 @@ class MettaRepo:
 
     async def claim_tasks(
         self,
-        task_ids: List[uuid.UUID],
+        task_ids: list[uuid.UUID],
         assignee: str,
-    ) -> List[uuid.UUID]:
+    ) -> list[uuid.UUID]:
         if not task_ids:
             return []
 
@@ -872,7 +882,7 @@ class MettaRepo:
             rows = await result.fetchall()
             return [row[0] for row in rows]
 
-    async def get_claimed_tasks(self, assignee: str) -> List[Dict[str, Any]]:
+    async def get_claimed_tasks(self, assignee: str) -> list[dict[str, Any]]:
         async with self.connect() as con:
             result = await con.execute(
                 """
@@ -900,11 +910,36 @@ class MettaRepo:
                 for row in rows
             ]
 
+    async def get_task_by_id(self, task_id: uuid.UUID) -> dict[str, Any] | None:
+        async with self.connect() as con:
+            result = await con.execute(
+                """
+                SELECT id, policy_id, sim_suite, status, assigned_at,
+                       assignee, created_at, attributes
+                FROM eval_tasks
+                WHERE id = %s
+                """,
+                (task_id,),
+            )
+            row = await result.fetchone()
+            if row is None:
+                return None
+            return {
+                "id": row[0],
+                "policy_id": row[1],
+                "sim_suite": row[2],
+                "status": row[3],
+                "assigned_at": row[4],
+                "assignee": row[5],
+                "created_at": row[6],
+                "attributes": row[7],
+            }
+
     async def update_task_statuses(
         self,
         assignee: str,
-        task_updates: Dict[uuid.UUID, TaskStatusUpdate],
-    ) -> Dict[uuid.UUID, str]:
+        task_updates: dict[uuid.UUID, TaskStatusUpdate],
+    ) -> dict[uuid.UUID, str]:
         if not task_updates:
             return {}
 
