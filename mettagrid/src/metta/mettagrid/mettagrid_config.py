@@ -4,9 +4,11 @@ from pydantic import Field, RootModel
 
 from metta.common.util.typed_config import BaseModelWithForbidExtra
 
+# ===== Python Configuration Models =====
 
-class AgentRewards(BaseModelWithForbidExtra):
-    """Agent reward configuration."""
+
+class PyAgentRewards(BaseModelWithForbidExtra):
+    """Python agent reward configuration."""
 
     ore_red: Optional[float] = Field(default=None)
     ore_blue: Optional[float] = Field(default=None)
@@ -30,81 +32,81 @@ class AgentRewards(BaseModelWithForbidExtra):
     blueprint_max: Optional[int] = Field(default=None)
 
 
-class AgentConfig(BaseModelWithForbidExtra):
-    """Agent configuration."""
+class PyAgentConfig(BaseModelWithForbidExtra):
+    """Python agent configuration."""
 
     default_resource_limit: Optional[int] = Field(default=None, ge=0)
     resource_limits: Optional[dict[str, int]] = Field(default_factory=dict)
     freeze_duration: Optional[int] = Field(default=None, ge=-1)
-    rewards: Optional[AgentRewards] = Field(default=None)
+    rewards: Optional[PyAgentRewards] = Field(default=None)
     action_failure_penalty: Optional[float] = Field(default=None, ge=0)
 
 
-class GroupProps(RootModel[dict[str, Any]]):
-    """Group properties configuration."""
+class PyGroupProps(RootModel[dict[str, Any]]):
+    """Python group properties configuration."""
 
     pass
 
 
-class GroupConfig(BaseModelWithForbidExtra):
-    """Group configuration."""
+class PyGroupConfig(BaseModelWithForbidExtra):
+    """Python group configuration."""
 
     id: int
     sprite: Optional[int] = Field(default=None)
-    # Values outside of 0 and 1 are probably mistakes, and are probably
+    # group_reward_pct values outside of [0.0,1.0] are probably mistakes, and are probably
     # unstable. If you want to use values outside this range, please update this comment!
     group_reward_pct: Optional[float] = Field(default=None, ge=0, le=1)
-    props: Optional[GroupProps] = Field(default=None)
+    props: Optional[PyGroupProps] = Field(default=None)
 
 
-class ActionConfig(BaseModelWithForbidExtra):
-    """Action configuration."""
+class PyActionConfig(BaseModelWithForbidExtra):
+    """Python action configuration."""
 
     enabled: bool
-    # defaults to consumed_resources. Otherwise, should be a superset of consumed_resources.
+    # required_resources defaults to consumed_resources. Otherwise, should be a superset of consumed_resources.
     required_resources: Optional[dict[str, int]] = Field(default=None)
     consumed_resources: Optional[dict[str, int]] = Field(default_factory=dict)
 
 
-class AttackActionConfig(ActionConfig):
-    """Attack action configuration."""
+class PyAttackActionConfig(PyActionConfig):
+    """Python attack action configuration."""
 
     defense_resources: Optional[dict[str, int]] = Field(default_factory=dict)
 
 
-class ChangeGlyphActionConfig(ActionConfig):
+class PyChangeGlyphActionConfig(PyActionConfig):
     """Change glyph action configuration."""
 
     number_of_glyphs: int = Field(default=0, ge=0, le=255)
 
 
-class ActionsConfig(BaseModelWithForbidExtra):
+class PyActionsConfig(BaseModelWithForbidExtra):
     """
     Actions configuration.
 
     Omitted actions are disabled by default.
     """
 
-    noop: Optional[ActionConfig] = None
-    move: Optional[ActionConfig] = None
-    rotate: Optional[ActionConfig] = None
-    put_items: Optional[ActionConfig] = None
-    get_items: Optional[ActionConfig] = None
-    attack: Optional[AttackActionConfig] = None
-    swap: Optional[ActionConfig] = None
-    change_color: Optional[ActionConfig] = None
-    change_glyph: Optional[ChangeGlyphActionConfig] = None
+    noop: Optional[PyActionConfig] = None
+    move: Optional[PyActionConfig] = None
+    rotate: Optional[PyActionConfig] = None
+    put_items: Optional[PyActionConfig] = None
+    get_items: Optional[PyActionConfig] = None
+    attack: Optional[PyAttackActionConfig] = None
+    swap: Optional[PyActionConfig] = None
+    change_color: Optional[PyActionConfig] = None
+    change_glyph: Optional[PyChangeGlyphActionConfig] = None
 
 
-class WallConfig(BaseModelWithForbidExtra):
-    """Wall/Block configuration."""
+class PyWallConfig(BaseModelWithForbidExtra):
+    """Python wall/block configuration."""
 
     type_id: int
     swappable: bool = Field(default=False)
 
 
-class ConverterConfig(BaseModelWithForbidExtra):
-    """Converter configuration for objects that convert items."""
+class PyConverterConfig(BaseModelWithForbidExtra):
+    """Python converter configuration."""
 
     input_resources: dict[str, int] = Field(default_factory=dict)
     output_resources: dict[str, int] = Field(default_factory=dict)
@@ -116,18 +118,18 @@ class ConverterConfig(BaseModelWithForbidExtra):
     color: int = Field(default=0, ge=0, le=255)
 
 
-class GameConfig(BaseModelWithForbidExtra):
-    """Game configuration."""
+class PyGameConfig(BaseModelWithForbidExtra):
+    """Python game configuration."""
 
     inventory_item_names: list[str]
     num_agents: int = Field(ge=1)
-    # zero means "no limit"
+    # max_steps = zero means "no limit"
     max_steps: int = Field(ge=0)
     obs_width: Literal[1, 3, 5, 7, 9, 11, 13, 15]
 
     num_observation_tokens: int = Field(ge=1)
-    agent: AgentConfig
+    agent: PyAgentConfig
     # Every agent must be in a group, so we need at least one group
-    groups: dict[str, GroupConfig] = Field(min_length=1)
-    actions: ActionsConfig
-    objects: dict[str, ConverterConfig | WallConfig]
+    groups: dict[str, PyGroupConfig] = Field(min_length=1)
+    actions: PyActionsConfig
+    objects: dict[str, PyConverterConfig | PyWallConfig]
