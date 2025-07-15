@@ -38,8 +38,8 @@ metta install aws wandb              # Install specific components
 # Run all tests with coverage
 metta test --cov=mettagrid --cov-report=term-missing
 
-# Run linting with Ruff
-uv run ruff check .
+# Run linting and formatting on python files with Ruff
+metta lint # optional --fix and --staged arguments
 
 # Auto-fix Ruff errors with Claude (requires ANTHROPIC_API_KEY)
 uv run ./devops/tools/auto_ruff_fix.py path/to/file
