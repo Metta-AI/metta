@@ -1,6 +1,6 @@
 _target_: metta.mettagrid.curriculum.random.RandomCurriculum
 
 tasks:
-  /env/mettagrid/curriculum/navigation/low_reward: 1
+  /env/mettagrid/curriculum/navigation/prioritize_regressed: 1
   /env/mettagrid/curriculum/navsequence/navsequence_all: 1
   /env/mettagrid/curriculum/navsequence/backchain_seq: 1

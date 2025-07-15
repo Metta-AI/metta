@@ -90,7 +90,6 @@ valid_trainer_config = {
     },
     "simulation": {
         "evaluate_interval": 300,
-        "replay_interval": 300,
     },
 }
 
