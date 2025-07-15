@@ -38,7 +38,7 @@ class BucketedCurriculum(LearningProgressCurriculum):
                 curriculum_id, env_cfg_template, expanded_buckets.keys(), parameter_values
             )
         tasks = {t: 1.0 for t in self._id_to_curriculum.keys()}
-        super().__init__(tasks=tasks, env_overrides=env_overrides, moving_avg_decay_rate=moving_avg_decay_rate)
+        super().__init__(tasks=tasks, env_overrides=env_overrides)
 
     def _curriculum_from_id(self, id: str) -> Curriculum:
         return self._id_to_curriculum[id]
