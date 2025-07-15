@@ -78,6 +78,8 @@ def train(cfg: DictConfig | ListConfig, wandb_run: WandbRun | None, logger: Logg
 
     policy_store = PolicyStore(cfg, wandb_run)  # type: ignore[reportArgumentType]
     stats_client: StatsClient | None = get_stats_client(cfg, logger)
+    if stats_client is not None:
+        stats_client.validate_authenticated()
 
     # Instantiate the trainer directly with the typed config
     trainer = hydra.utils.instantiate(

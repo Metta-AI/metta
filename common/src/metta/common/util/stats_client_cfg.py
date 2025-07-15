@@ -1,25 +1,48 @@
 import os
 from logging import Logger
+from pathlib import Path
 
+import yaml
 from httpx import Client
 from omegaconf import DictConfig, ListConfig
 
 from metta.app_backend.stats_client import StatsClient
 
 
-def get_machine_token() -> str | None:
+def get_machine_token(stats_server_uri: str | None = None) -> str | None:
+    """Get machine token for the given stats server.
+
+    Args:
+        stats_server_uri: The stats server URI to get token for.
+                         If None, returns token from env var or legacy location.
+
+    Returns:
+        The machine token or None if not found.
+    """
+    # First check environment variable (takes precedence)
     env_token = os.getenv("METTA_API_KEY")
     if env_token is not None:
         token = env_token
     else:
-        token_file = os.path.expanduser("~/.metta/observatory_token")
-        if os.path.exists(token_file):
-            with open(token_file) as f:
-                token = f.read().strip()
+        # Try YAML file first
+        yaml_file = Path.home() / ".metta" / "observatory_tokens.yaml"
+        if yaml_file.exists():
+            with open(yaml_file) as f:
+                tokens = yaml.safe_load(f) or {}
+            if isinstance(tokens, dict) and stats_server_uri in tokens:
+                token = tokens[stats_server_uri].strip()
+            else:
+                return None
         else:
-            return None
+            # Fall back to legacy token file
+            legacy_file = Path.home() / ".metta" / "observatory_token"
+            if legacy_file.exists():
+                with open(legacy_file) as f:
+                    token = f.read().strip()
+            else:
+                return None
 
-    if not token or token.lower() == "none" or len(token.strip()) == 0:
+    if not token or token.lower() == "none":
         return None
 
     return token
@@ -28,7 +51,7 @@ def get_machine_token() -> str | None:
 def get_stats_client(cfg: DictConfig | ListConfig, logger: Logger) -> StatsClient | None:
     if isinstance(cfg, DictConfig):
         stats_server_uri: str | None = cfg.get("stats_server_uri", None)
-        machine_token = get_machine_token()
+        machine_token = get_machine_token(stats_server_uri)
 
         if stats_server_uri is not None and machine_token is not None:
             logger.info(f"Using stats client at {stats_server_uri}")
@@ -40,6 +63,6 @@ def get_stats_client(cfg: DictConfig | ListConfig, logger: Logger) -> StatsClien
             if machine_token is None:
                 logger.warning(
                     "No machine token provided, running without stats collection. "
-                    + "You can set METTA_API_KEY or ~/.metta/observatory_token to enable stats collection."
+                    + f"You can set METTA_API_KEY or save a token for {stats_server_uri} to enable stats collection."
                 )
     return None
