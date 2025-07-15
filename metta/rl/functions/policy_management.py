@@ -142,23 +142,50 @@ def validate_policy_environment_match(policy: Any, env: Any) -> None:
         for component_name, component in agent.components.items():
             if hasattr(component, "_obs_shape"):
                 found_match = True
-                component_shape = component._obs_shape
-                # Convert both shapes to tuples for comparison
-                component_shape_tuple = tuple(component_shape) if isinstance(component_shape, list) else component_shape
-                environment_shape_tuple = (
-                    tuple(environment_shape) if isinstance(environment_shape, list) else environment_shape
+                component_shape = (
+                    tuple(component._obs_shape) if isinstance(component._obs_shape, list) else component._obs_shape
                 )
-
-                if component_shape_tuple != environment_shape_tuple:
+                if component_shape != environment_shape:
                     raise ValueError(
-                        f"Component '{component_name}' observation shape {component_shape} "
-                        f"does not match environment shape {environment_shape}"
+                        f"Observation space mismatch error:\n"
+                        f"[policy] component_name: {component_name}\n"
+                        f"[policy] component_shape: {component_shape}\n"
+                        f"environment_shape: {environment_shape}\n"
                     )
 
         if not found_match:
-            logger.warning("No components with _obs_shape found for validation")
-    else:
-        logger.warning("Agent has no components attribute for shape validation")
+            raise ValueError(
+                "No component with observation shape found in policy. "
+                f"Environment observation shape: {environment_shape}"
+            )
+
+
+def wrap_agent_distributed(agent: Any, device: torch.device) -> Any:
+    """Wrap agent in DistributedMettaAgent if distributed training is initialized.
+
+    Args:
+        agent: The agent to potentially wrap
+        device: The device to use
+
+    Returns:
+        The agent, possibly wrapped in DistributedMettaAgent
+    """
+    if torch.distributed.is_initialized():
+        from torch.nn.parallel import DistributedDataParallel
+
+        from metta.agent.metta_agent import DistributedMettaAgent
+
+        # For CPU, we need to handle DistributedDataParallel differently
+        if device.type == "cpu":
+            # Convert BatchNorm to SyncBatchNorm
+            agent = torch.nn.SyncBatchNorm.convert_sync_batchnorm(agent)
+            # For CPU, don't pass device_ids
+            agent = DistributedDataParallel(agent)
+        else:
+            # For GPU, use the custom DistributedMettaAgent wrapper
+            agent = DistributedMettaAgent(agent, device)
+
+    return agent
 
 
 def ensure_initial_policy(

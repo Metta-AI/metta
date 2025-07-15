@@ -202,6 +202,51 @@ def setup_distributed_vars() -> Tuple[bool, int, int]:
     return _master, _world_size, _rank
 
 
+def should_run(
+    epoch: int,
+    interval: int,
+    is_master: bool = True,
+    force: bool = False,
+) -> bool:
+    """Check if a periodic task should run based on interval and master status."""
+    if not is_master or not interval:
+        return False
+
+    if force:
+        return True
+
+    return epoch % interval == 0
+
+
+def compute_gradient_stats(policy: torch.nn.Module) -> Dict[str, float]:
+    """Compute gradient statistics for the policy.
+
+    Returns:
+        Dictionary with 'grad/mean', 'grad/variance', and 'grad/norm' keys
+    """
+    all_gradients = []
+    for param in policy.parameters():
+        if param.grad is not None:
+            all_gradients.append(param.grad.view(-1))
+
+    if not all_gradients:
+        return {}
+
+    all_gradients_tensor = torch.cat(all_gradients).to(torch.float32)
+
+    grad_mean = all_gradients_tensor.mean()
+    grad_variance = all_gradients_tensor.var()
+    grad_norm = all_gradients_tensor.norm(2)
+
+    grad_stats = {
+        "grad/mean": grad_mean.item(),
+        "grad/variance": grad_variance.item(),
+        "grad/norm": grad_norm.item(),
+    }
+
+    return grad_stats
+
+
 def maybe_update_l2_weights(
     agent: Any,
     epoch: int,

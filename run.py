@@ -40,6 +40,7 @@ from metta.rl.functions import (
     calculate_prioritized_sampling_params,
     cleanup_old_policies,
     compute_advantage,
+    compute_gradient_stats,
     compute_timing_stats,
     get_lstm_config,
     get_observation,
@@ -49,11 +50,12 @@ from metta.rl.functions import (
     process_training_stats,
     run_policy_inference,
     save_policy_with_metadata,
+    should_run,
 )
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.kickstarter_config import KickstartConfig
 from metta.rl.losses import Losses
-from metta.rl.trainer import _maybe_compute_grad_stats, _should_run
+from metta.rl.trainer_checkpoint import TrainerCheckpoint
 from metta.rl.trainer_config import (
     CheckpointConfig,
     OptimizerConfig,
@@ -117,7 +119,6 @@ checkpoint_config = CheckpointConfig(
 
 simulation_config = SimulationConfig(
     evaluate_interval=300,
-    replay_interval=300,
     replay_dir=dirs.replay_dir,
 )
 
@@ -567,7 +568,7 @@ while agent_step < trainer_config.total_timesteps:
     )
 
     # Record heartbeat periodically (master only)
-    if _should_run(epoch, 10, is_master):
+    if should_run(epoch, 10, is_master):
         record_heartbeat()
 
     # Update L2 weights if configured
@@ -580,11 +581,11 @@ while agent_step < trainer_config.total_timesteps:
         )
 
     # Compute gradient statistics (master only)
-    if _should_run(epoch, trainer_config.grad_mean_variance_interval, is_master):
-        grad_stats = _maybe_compute_grad_stats(agent)
+    if should_run(epoch, trainer_config.grad_mean_variance_interval, is_master):
+        grad_stats = compute_gradient_stats(agent)
 
     # Save checkpoint periodically
-    if _should_run(epoch, trainer_config.checkpoint.checkpoint_interval, True):  # All ranks participate
+    if should_run(epoch, trainer_config.checkpoint.checkpoint_interval, True):  # All ranks participate
         # Save policy with metadata (master only)
         if is_master:
             saved_record = save_policy_with_metadata(
@@ -609,8 +610,6 @@ while agent_step < trainer_config.total_timesteps:
 
         # Save training state (master only)
         if is_master:
-            from metta.rl.trainer_checkpoint import TrainerCheckpoint
-
             extra_args = {}
             if kickstarter.enabled and kickstarter.teacher_uri is not None:
                 extra_args["teacher_pr_uri"] = kickstarter.teacher_uri

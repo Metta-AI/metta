@@ -686,7 +686,7 @@ def train(
                 state.stats_epoch_start = state.epoch + 1
 
         # Generate replay
-        if _should_run(state.epoch, trainer_cfg.simulation.replay_interval, is_master):
+        if _should_run(state.epoch, trainer_cfg.simulation.evaluate_interval, is_master):
             if state.latest_saved_policy_record:
                 _maybe_generate_replay(
                     state.latest_saved_policy_record,
