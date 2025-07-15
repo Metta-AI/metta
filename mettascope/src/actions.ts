@@ -44,10 +44,6 @@ export function initActionButtons() {
     state.showAttackMode = !state.showAttackMode
   })
 
-  find('#action-buttons .attack-nearest').addEventListener('click', () => {
-    sendAction('attack_nearest', 0)
-  })
-
   find('#action-buttons .change-color').addEventListener('click', () => {
     sendAction('change_color', 0)
   })
@@ -128,15 +124,11 @@ export function processActions(event: KeyboardEvent) {
     }
     if (event.key >= '1' && event.key <= '9') {
       // Keys 1-9 are the attack matrix.
-      sendAction('attack', parseInt(event.key))
+      sendAction('attack', parseInt(event.key) - 1)
     }
     if (event.key == 'Z') {
       // Show attack mode menu (a bunch of little circles that you can click on).
       state.showAttackMode = !state.showAttackMode
-    }
-    if (event.key == 'z') {
-      // Attack the nearest agent.
-      sendAction('attack_nearest', 0)
     }
     if (event.key == 'c') {
       // Change color.

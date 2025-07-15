@@ -1,6 +1,41 @@
-/// <reference types="@webgpu/types" />
-
 import { Vec2f, Mat3f } from './vector_math.js'
+
+const VERTEX_SHADER_SOURCE = `
+  attribute vec2 a_position;
+  attribute vec2 a_texcoord;
+  attribute vec4 a_color;
+  
+  uniform vec2 u_canvasSize;
+  
+  varying vec2 v_texcoord;
+  varying vec4 v_color;
+  
+  void main() {
+    vec2 zeroToOne = a_position / u_canvasSize;
+    vec2 zeroToTwo = zeroToOne * 2.0;
+    vec2 clipSpace = zeroToTwo - vec2(1.0, 1.0);
+    gl_Position = vec4(clipSpace.x, -clipSpace.y, 0.0, 1.0);
+    
+    v_texcoord = a_texcoord;
+    v_color = a_color;
+  }
+`
+
+const FRAGMENT_SHADER_SOURCE = `
+  precision mediump float;
+  
+  uniform sampler2D u_sampler;
+  
+  varying vec2 v_texcoord;
+  varying vec4 v_color;
+  
+  void main() {
+    vec4 texColor = texture2D(u_sampler, v_texcoord);
+    // Do the premultiplied alpha conversion.
+    vec4 premultipliedColor = vec4(texColor.rgb * texColor.a, texColor.a);
+    gl_FragColor = premultipliedColor * v_color;
+  }
+`
 
 /** Type definition for atlas data. */
 interface AtlasData {
@@ -15,9 +50,9 @@ export function clamp(value: number, min: number, max: number): number {
 /** Mesh class responsible for managing vertex data. */
 class Mesh {
   private name: string
-  private device: GPUDevice
-  private vertexBuffer: GPUBuffer | null = null
-  private indexBuffer: GPUBuffer | null = null
+  private gl: WebGLRenderingContext
+  private vertexBuffer: WebGLBuffer | null = null
+  private indexBuffer: WebGLBuffer | null = null
 
   // Buffer management
   private maxQuads: number
@@ -32,9 +67,9 @@ class Mesh {
   public scissorEnabled: boolean = false
   public scissorRect: [number, number, number, number] = [0, 0, 0, 0] // x, y, width, height
 
-  constructor(name: string, device: GPUDevice, maxQuads: number = 1024 * 8) {
+  constructor(name: string, gl: WebGLRenderingContext, maxQuads: number = 1024 * 8) {
     this.name = name
-    this.device = device
+    this.gl = gl
     this.maxQuads = maxQuads
 
     // Pre-allocated buffers for better performance
@@ -50,7 +85,7 @@ class Mesh {
   }
 
   /** Set up the index buffer pattern once. */
-  setupIndexPattern(): void {
+  setupIndexPattern() {
     // For each quad: triangles are formed by indices
     // 0-1-2 (top-left, bottom-left, top-right)
     // 2-1-3 (top-right, bottom-left, bottom-right)
@@ -66,32 +101,27 @@ class Mesh {
     }
   }
 
-  /** Create GPU buffers. */
-  createBuffers(): void {
-    if (!this.device) return
+  /** Create WebGL buffers. */
+  createBuffers() {
+    if (!this.gl) return
 
     // Create vertex buffer
-    this.vertexBuffer = this.device.createBuffer({
-      label: 'vertex buffer',
-      size: this.vertexCapacity * 8 * Float32Array.BYTES_PER_ELEMENT,
-      // x, y, u, v, r, g, b, a
-      usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
-    })
+    this.vertexBuffer = this.gl.createBuffer()
+    if (this.vertexBuffer) {
+      this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.vertexBuffer)
+      this.gl.bufferData(this.gl.ARRAY_BUFFER, this.vertexData, this.gl.DYNAMIC_DRAW)
+    }
 
     // Create index buffer
-    this.indexBuffer = this.device.createBuffer({
-      label: 'index buffer',
-      size: this.indexCapacity * Uint32Array.BYTES_PER_ELEMENT,
-      // Using 32-bit indices
-      usage: GPUBufferUsage.INDEX | GPUBufferUsage.COPY_DST,
-    })
-
-    // Write the index pattern to the GPU immediately (it never changes)
-    this.device.queue.writeBuffer(this.indexBuffer, 0, this.indexData, 0, this.indexData.length)
+    this.indexBuffer = this.gl.createBuffer()
+    if (this.indexBuffer) {
+      this.gl.bindBuffer(this.gl.ELEMENT_ARRAY_BUFFER, this.indexBuffer)
+      this.gl.bufferData(this.gl.ELEMENT_ARRAY_BUFFER, this.indexData, this.gl.STATIC_DRAW)
+    }
   }
 
   /** Resize the maximum number of quads the mesh can hold. */
-  resizeMaxQuads(newMaxQuads: number): void {
+  resizeMaxQuads(newMaxQuads: number) {
     console.info('Resizing max ', this.name, ' quads from', this.maxQuads, 'to', newMaxQuads)
 
     if (newMaxQuads <= this.maxQuads) {
@@ -118,30 +148,25 @@ class Mesh {
     // Rebuild index data (includes the new pattern for additional quads)
     this.setupIndexPattern()
 
-    // If we already have GPU buffers, we need to recreate them
-    if (this.vertexBuffer && this.indexBuffer && this.device) {
+    // If we already have WebGL buffers, we need to recreate them
+    if (this.vertexBuffer && this.indexBuffer && this.gl) {
       // Delete old buffers
-      this.vertexBuffer.destroy()
-      this.indexBuffer.destroy()
+      this.gl.deleteBuffer(this.vertexBuffer)
+      this.gl.deleteBuffer(this.indexBuffer)
 
       // Create new buffers with increased capacity
       this.createBuffers()
 
       // Write the existing vertex data to the new vertex buffer
       if (currentVertexCount > 0) {
-        this.device.queue.writeBuffer(
-          this.vertexBuffer,
-          0,
-          this.vertexData,
-          0,
-          currentVertexCount * 8 // 8 floats per vertex
-        )
+        this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.vertexBuffer)
+        this.gl.bufferSubData(this.gl.ARRAY_BUFFER, 0, this.vertexData.subarray(0, currentVertexCount * 8))
       }
     }
   }
 
   /** Clear the mesh for a new frame. */
-  clear(): void {
+  clear() {
     // Reset counters instead of recreating arrays
     this.currentQuad = 0
     this.currentVertex = 0
@@ -162,8 +187,8 @@ class Mesh {
     u1: number,
     v1: number,
     color: number[] = [1, 1, 1, 1]
-  ): void {
-    // Check if we need to flush before adding more vertices
+  ) {
+    // Check if we need to resize before adding more vertices
     if (this.currentQuad >= this.maxQuads) {
       this.resizeMaxQuads(this.maxQuads * 2)
     }
@@ -221,39 +246,42 @@ class Mesh {
   }
 
   /** Get the vertex buffer. */
-  getVertexBuffer(): GPUBuffer | null {
+  getVertexBuffer(): WebGLBuffer | null {
     return this.vertexBuffer
   }
 
   /** Get the index buffer. */
-  getIndexBuffer(): GPUBuffer | null {
+  getIndexBuffer(): WebGLBuffer | null {
     return this.indexBuffer
   }
 
   /** Reset the counters. */
-  resetCounters(): void {
+  resetCounters() {
     this.currentQuad = 0
     this.currentVertex = 0
   }
 }
 
-/** Context3d class responsible for managing the WebGPU context. */
+/** Context3d class responsible for managing the WebGL context. */
 export class Context3d {
-  // Canvas and WebGPU state
   public canvas: HTMLCanvasElement
-  public device: GPUDevice | null
-  private context: GPUCanvasContext | null
-  private pipeline: GPURenderPipeline | null
-  private sampler: GPUSampler | null
-  private atlasTexture: GPUTexture | null
-  private textureSize: Vec2f
-  public atlasData: AtlasData | null
-  private bindGroup: GPUBindGroup | null
-  private renderPassDescriptor: GPURenderPassDescriptor | null
-  private canvasSizeUniformBuffer: GPUBuffer | null
-  private canvasSize: Vec2f
-  private atlasMargin: number
-  public dpr: number
+  public gl: WebGLRenderingContext
+  public ready: boolean = false
+  public dpr: number = 1
+  public atlasData: AtlasData | null = null
+
+  // WebGL rendering state
+  private shaderProgram: WebGLProgram | null = null
+  private atlasTexture: WebGLTexture | null = null
+  private textureSize: Vec2f = new Vec2f(0, 0)
+  private atlasMargin: number = 4
+
+  // Shader locations
+  private positionLocation: number = -1
+  private texcoordLocation: number = -1
+  private colorLocation: number = -1
+  private canvasSizeLocation: WebGLUniformLocation | null = null
+  private samplerLocation: WebGLUniformLocation | null = null
 
   // Mesh management
   private meshes: Map<string, Mesh> = new Map()
@@ -264,34 +292,27 @@ export class Context3d {
   private currentTransform: Mat3f
   private transformStack: Mat3f[] = []
 
-  // State tracking
-  public ready: boolean
-
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas
-    this.device = null
-    this.context = null
-    this.pipeline = null
-    this.sampler = null
-    this.atlasTexture = null
-    this.textureSize = new Vec2f(0, 0)
-    this.atlasData = null
-    this.bindGroup = null
-    this.renderPassDescriptor = null
-    this.canvasSizeUniformBuffer = null
-    this.canvasSize = new Vec2f(0, 0)
-    this.atlasMargin = 4 // Default margin for texture sampling.
-    this.dpr = 1
+    const gl = canvas.getContext('webgl')
+    if (!gl) {
+      throw new Error('Failed to get WebGL context')
+    }
+    this.gl = gl
+
+    // Enable 32-bit index extension for WebGL1
+    const uintExtension = gl.getExtension('OES_element_index_uint')
+    if (!uintExtension) {
+      throw new Error('OES_element_index_uint extension not supported - required for 32-bit indices')
+    }
 
     // Initialize transformation matrix
     this.currentTransform = Mat3f.identity()
-
-    this.ready = false
   }
 
   /** Create or switch to a mesh with the given name. */
-  useMesh(name: string): void {
-    if (!this.device || !this.ready) {
+  useMesh(name: string) {
+    if (!this.gl || !this.ready) {
       throw new Error('Cannot use mesh before initialization')
     }
 
@@ -303,7 +324,7 @@ export class Context3d {
     }
 
     // Otherwise, create a new mesh
-    const newMesh = new Mesh(name, this.device)
+    const newMesh = new Mesh(name, this.gl)
     newMesh.createBuffers()
     this.meshes.set(name, newMesh)
     this.currentMesh = newMesh
@@ -311,7 +332,7 @@ export class Context3d {
   }
 
   /** Sets the scissor rect for the current mesh. */
-  setScissorRect(x: number, y: number, width: number, height: number): void {
+  setScissorRect(x: number, y: number, width: number, height: number) {
     this.ensureMeshSelected()
 
     this.currentMesh!.scissorEnabled = true
@@ -319,20 +340,20 @@ export class Context3d {
   }
 
   /** Disable scissoring for the current mesh. */
-  disableScissor(): void {
+  disableScissor() {
     this.ensureMeshSelected()
     this.currentMesh!.scissorEnabled = false
   }
 
   /** Helper method to ensure a mesh is selected before drawing. */
-  private ensureMeshSelected(): void {
+  private ensureMeshSelected() {
     if (!this.currentMesh) {
       throw new Error('No mesh selected. Call useMesh() before drawing.')
     }
   }
 
   /** Save the current transform. */
-  save(): void {
+  save() {
     // Push a copy of the current transform onto the stack
     this.transformStack.push(
       new Mat3f(
@@ -350,7 +371,7 @@ export class Context3d {
   }
 
   /** Restore the last transform. */
-  restore(): void {
+  restore() {
     // Pop the last transform from the stack
     if (this.transformStack.length > 0) {
       this.currentTransform = this.transformStack.pop()!
@@ -360,25 +381,25 @@ export class Context3d {
   }
 
   /** Translate the current transform. */
-  translate(x: number, y: number): void {
+  translate(x: number, y: number) {
     const translateMatrix = Mat3f.translate(x, y)
     this.currentTransform = this.currentTransform.mul(translateMatrix)
   }
 
   /** Rotate the current transform. */
-  rotate(angle: number): void {
+  rotate(angle: number) {
     const rotateMatrix = Mat3f.rotate(angle)
     this.currentTransform = this.currentTransform.mul(rotateMatrix)
   }
 
   /** Scale the current transform. */
-  scale(x: number, y: number): void {
+  scale(x: number, y: number) {
     const scaleMatrix = Mat3f.scale(x, y)
     this.currentTransform = this.currentTransform.mul(scaleMatrix)
   }
 
   /** Reset the current transform. */
-  resetTransform(): void {
+  resetTransform() {
     this.currentTransform = Mat3f.identity()
   }
 
@@ -387,14 +408,6 @@ export class Context3d {
     this.dpr = 1.0
     if (window.devicePixelRatio > 1.0) {
       this.dpr = 2.0 // Retina display only, we don't support other DPI scales.
-    }
-
-    // Initialize WebGPU device.
-    const adapter = await navigator.gpu?.requestAdapter()
-    this.device = (await adapter?.requestDevice()) || null
-    if (!this.device) {
-      this.fail('Need a browser that supports WebGPU')
-      return false
     }
 
     // Load Atlas and Texture.
@@ -410,172 +423,59 @@ export class Context3d {
     this.atlasData = atlasData
     this.textureSize = new Vec2f(source.width, source.height)
 
-    // Configure Canvas.
-    this.context = this.canvas.getContext('webgpu')
-    if (!this.context) {
-      this.fail('Failed to get WebGPU context')
+    // Create and compile shaders
+    const vertexShader = this.createShader(this.gl.VERTEX_SHADER, VERTEX_SHADER_SOURCE)
+    const fragmentShader = this.createShader(this.gl.FRAGMENT_SHADER, FRAGMENT_SHADER_SOURCE)
+
+    if (!vertexShader || !fragmentShader) {
+      this.fail('Failed to create shaders')
       return false
     }
 
-    const presentationFormat = navigator.gpu.getPreferredCanvasFormat()
-    this.context.configure({
-      device: this.device,
-      format: presentationFormat,
-    })
+    // Create shader program
+    this.shaderProgram = this.createProgram(vertexShader, fragmentShader)
+    if (!this.shaderProgram) {
+      this.fail('Failed to create shader program')
+      return false
+    }
 
-    // Calculate number of mip levels.
-    const mipLevels = Math.floor(Math.log2(Math.max(this.textureSize.x(), this.textureSize.y()))) + 1
-    // Create Texture and Sampler.
-    this.atlasTexture = this.device.createTexture({
-      label: atlasImageUrl,
-      format: 'rgba8unorm',
-      size: [this.textureSize.x(), this.textureSize.y()],
-      usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT,
-      mipLevelCount: mipLevels,
-    })
-    this.device.queue.copyExternalImageToTexture(
-      { source, flipY: false }, // Don't flip Y if UVs start top-left.
-      { texture: this.atlasTexture },
-      { width: this.textureSize.x(), height: this.textureSize.y() }
-    )
+    // Get attribute and uniform locations
+    this.positionLocation = this.gl.getAttribLocation(this.shaderProgram, 'a_position')
+    this.texcoordLocation = this.gl.getAttribLocation(this.shaderProgram, 'a_texcoord')
+    this.colorLocation = this.gl.getAttribLocation(this.shaderProgram, 'a_color')
+    this.canvasSizeLocation = this.gl.getUniformLocation(this.shaderProgram, 'u_canvasSize')
+    this.samplerLocation = this.gl.getUniformLocation(this.shaderProgram, 'u_sampler')
 
-    // Generate mipmaps for the texture.
-    this.generateMipmaps(this.atlasTexture, this.textureSize.x(), this.textureSize.y())
+    // Create texture
+    this.atlasTexture = this.gl.createTexture()
+    if (!this.atlasTexture) {
+      this.fail('Failed to create texture')
+      return false
+    }
 
-    this.sampler = this.device.createSampler({
-      addressModeU: 'repeat',
-      addressModeV: 'repeat',
-      magFilter: 'linear', // Normal smooth style (was 'nearest').
-      minFilter: 'linear', // Normal smooth style (was 'nearest').
-      mipmapFilter: 'linear', // Linear filtering between mipmap levels.
-    })
+    // Upload texture data
+    this.gl.bindTexture(this.gl.TEXTURE_2D, this.atlasTexture)
+    this.gl.texImage2D(this.gl.TEXTURE_2D, 0, this.gl.RGBA, this.gl.RGBA, this.gl.UNSIGNED_BYTE, source)
 
-    this.canvasSizeUniformBuffer = this.device.createBuffer({
-      label: 'canvas size uniform buffer',
-      size: 2 * Float32Array.BYTES_PER_ELEMENT, // vec2f (width, height).
-      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-    })
+    // Generate mipmaps
+    this.gl.generateMipmap(this.gl.TEXTURE_2D)
 
-    // Shader Module.
-    const shaderModule = this.device.createShaderModule({
-      label: 'Sprite Shader Module',
-      code: `
-        struct VertexInput {
-          @location(0) position: vec2f,
-          @location(1) texcoord: vec2f,
-          @location(2) color: vec4f,
-        };
+    // Set texture parameters
+    this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_S, this.gl.REPEAT)
+    this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_T, this.gl.REPEAT)
+    this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MIN_FILTER, this.gl.LINEAR_MIPMAP_LINEAR)
+    this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MAG_FILTER, this.gl.LINEAR)
 
-        struct VertexOutput {
-          @builtin(position) position: vec4f,
-          @location(0) texcoord: vec2f,
-          @location(1) color: vec4f,
-        };
-
-        struct CanvasInfo {
-          resolution: vec2f,
-        };
-        @group(0) @binding(2) var<uniform> canvas: CanvasInfo;
-
-        @vertex fn vs(vert: VertexInput) -> VertexOutput {
-          var out: VertexOutput;
-          let zero_to_one = vert.position / canvas.resolution;
-          let zero_to_two = zero_to_one * 2.0;
-          let clip_space = zero_to_two - vec2f(1.0, 1.0);
-          out.position = vec4f(clip_space.x, -clip_space.y, 0.0, 1.0);
-          out.texcoord = vert.texcoord;
-          out.color = vert.color;
-          return out;
-        }
-
-        @group(0) @binding(0) var imgSampler: sampler;
-        @group(0) @binding(1) var imgTexture: texture_2d<f32>;
-
-        @fragment fn fs(in: VertexOutput) -> @location(0) vec4f {
-          let texColor = textureSample(imgTexture, imgSampler, in.texcoord);
-          // Do the premultiplied alpha conversion.
-          let premultipliedColor = vec4f(texColor.rgb * texColor.a, texColor.a);
-          return premultipliedColor * in.color;
-        }
-      `,
-    })
-
-    // Render Pipeline.
-    this.pipeline = this.device.createRenderPipeline({
-      label: 'Sprite Render Pipeline',
-      layout: 'auto',
-      vertex: {
-        module: shaderModule,
-        entryPoint: 'vs',
-        buffers: [
-          {
-            // Vertex buffer layout.
-            arrayStride: 8 * Float32Array.BYTES_PER_ELEMENT, // 2 pos, 2 uv, 4 color.
-            attributes: [
-              { shaderLocation: 0, offset: 0, format: 'float32x2' }, // Position.
-              { shaderLocation: 1, offset: 2 * Float32Array.BYTES_PER_ELEMENT, format: 'float32x2' }, // Texcoord.
-              { shaderLocation: 2, offset: 4 * Float32Array.BYTES_PER_ELEMENT, format: 'float32x4' }, // Color.
-            ],
-          },
-        ],
-      },
-      fragment: {
-        module: shaderModule,
-        entryPoint: 'fs',
-        targets: [
-          {
-            format: presentationFormat,
-            blend: {
-              color: {
-                srcFactor: 'one',
-                dstFactor: 'one-minus-src-alpha',
-                operation: 'add',
-              },
-              alpha: {
-                srcFactor: 'one',
-                dstFactor: 'one-minus-src-alpha',
-                operation: 'add',
-              },
-            },
-          },
-        ],
-      },
-      primitive: {
-        topology: 'triangle-list', // Each sprite is 2 triangles.
-      },
-    })
-
-    // Bind Group for the pipeline.
-    this.bindGroup = this.device.createBindGroup({
-      label: 'Sprite Bind Group',
-      layout: this.pipeline.getBindGroupLayout(0),
-      entries: [
-        { binding: 0, resource: this.sampler },
-        { binding: 1, resource: this.atlasTexture.createView() },
-        { binding: 2, resource: { buffer: this.canvasSizeUniformBuffer } },
-      ],
-    })
-
-    // Render Pass Descriptor for the pipeline.
-    this.renderPassDescriptor = {
-      label: 'Canvas Render Pass',
-      colorAttachments: [
-        {
-          // View is acquired later.
-          clearValue: { r: 0.1, g: 0.1, b: 0.1, a: 1.0 }, // Dark grey clear.
-          loadOp: 'clear',
-          storeOp: 'store',
-          view: undefined!, // This is set just before render in flush()
-        },
-      ] as GPURenderPassColorAttachment[],
-    } as GPURenderPassDescriptor
+    // Enable blending for premultiplied alpha
+    this.gl.enable(this.gl.BLEND)
+    this.gl.blendFunc(this.gl.ONE, this.gl.ONE_MINUS_SRC_ALPHA)
 
     this.ready = true
     return true
   }
 
   /** Fail the context. */
-  fail(msg: string): void {
+  private fail(msg: string) {
     console.error(msg)
     const failDiv = document.createElement('div')
     failDiv.id = 'fail'
@@ -584,7 +484,7 @@ export class Context3d {
   }
 
   /** Load the atlas image. */
-  async loadAtlasImage(url: string): Promise<ImageBitmap | null> {
+  private async loadAtlasImage(url: string): Promise<ImageBitmap | null> {
     try {
       const res = await fetch(url)
       if (!res.ok) {
@@ -603,7 +503,7 @@ export class Context3d {
   }
 
   /** Load the atlas JSON. */
-  async loadAtlasJson(url: string): Promise<AtlasData | null> {
+  private async loadAtlasJson(url: string): Promise<AtlasData | null> {
     try {
       const res = await fetch(url)
       if (!res.ok) {
@@ -616,8 +516,43 @@ export class Context3d {
     }
   }
 
+  /** Create and compile a shader. */
+  private createShader(type: number, source: string): WebGLShader | null {
+    const shader = this.gl.createShader(type)
+    if (!shader) return null
+
+    this.gl.shaderSource(shader, source)
+    this.gl.compileShader(shader)
+
+    if (!this.gl.getShaderParameter(shader, this.gl.COMPILE_STATUS)) {
+      console.error('Error compiling shader:', this.gl.getShaderInfoLog(shader))
+      this.gl.deleteShader(shader)
+      return null
+    }
+
+    return shader
+  }
+
+  /** Create and link a shader program. */
+  private createProgram(vertexShader: WebGLShader, fragmentShader: WebGLShader): WebGLProgram | null {
+    const program = this.gl.createProgram()
+    if (!program) return null
+
+    this.gl.attachShader(program, vertexShader)
+    this.gl.attachShader(program, fragmentShader)
+    this.gl.linkProgram(program)
+
+    if (!this.gl.getProgramParameter(program, this.gl.LINK_STATUS)) {
+      console.error('Error linking program:', this.gl.getProgramInfoLog(program))
+      this.gl.deleteProgram(program)
+      return null
+    }
+
+    return program
+  }
+
   /** Clears all meshes for a new frame. */
-  clear(): void {
+  clear() {
     if (!this.ready) return
 
     // Clear all meshes in the map
@@ -641,7 +576,7 @@ export class Context3d {
     u1: number,
     v1: number,
     color: number[] = [1, 1, 1, 1]
-  ): void {
+  ) {
     if (!this.ready) {
       throw new Error('Drawer not initialized')
     }
@@ -673,7 +608,7 @@ export class Context3d {
   }
 
   /** Draws an image from the atlas with its top-right corner at (x, y). */
-  drawImage(imageName: string, x: number, y: number, color: number[] = [1, 1, 1, 1]): void {
+  drawImage(imageName: string, x: number, y: number, color: number[] = [1, 1, 1, 1]) {
     if (!this.ready) {
       throw new Error('Drawer not initialized')
     }
@@ -711,7 +646,7 @@ export class Context3d {
   }
 
   /** Draws an image from the atlas centered at (x, y). */
-  drawSprite(imageName: string, x: number, y: number, color: number[] = [1, 1, 1, 1], scale = 1, rotation = 0): void {
+  drawSprite(imageName: string, x: number, y: number, color: number[] = [1, 1, 1, 1], scale = 1, rotation = 0) {
     if (!this.ready) {
       throw new Error('Drawer not initialized')
     }
@@ -801,8 +736,8 @@ export class Context3d {
   }
 
   /** Flushes all non-empty meshes to the screen. */
-  flush(): void {
-    if (!this.ready || !this.device) {
+  flush() {
+    if (!this.ready || !this.gl || !this.shaderProgram) {
       return
     }
 
@@ -821,204 +756,82 @@ export class Context3d {
       this.canvas.height = screenHeight
       this.canvas.style.width = `${clientWidth}px`
       this.canvas.style.height = `${clientHeight}px`
+      this.gl.viewport(0, 0, screenWidth, screenHeight)
     }
 
-    // Setup for rendering
-    const device = this.device
-    this.canvasSize = new Vec2f(screenWidth, screenHeight)
-    device.queue.writeBuffer(
-      this.canvasSizeUniformBuffer!,
-      0, // Buffer offset.
-      this.canvasSize.data // Use Vec2f data directly.
-    )
+    // Clear the canvas
+    this.gl.clearColor(0.1, 0.1, 0.1, 1.0) // Dark grey clear
+    this.gl.clear(this.gl.COLOR_BUFFER_BIT)
 
-    // Prepare command encoder
-    const commandEncoder = device.createCommandEncoder({ label: 'Frame Command Encoder' })
+    // Use shader program
+    this.gl.useProgram(this.shaderProgram)
 
-    // Acquire the canvas texture view for the render pass
-    if (this.renderPassDescriptor && this.context) {
-      const descriptor = this.renderPassDescriptor as {
-        colorAttachments: GPURenderPassColorAttachment[]
+    // Set canvas size uniform
+    this.gl.uniform2f(this.canvasSizeLocation, screenWidth, screenHeight)
+
+    // Bind texture
+    this.gl.activeTexture(this.gl.TEXTURE0)
+    this.gl.bindTexture(this.gl.TEXTURE_2D, this.atlasTexture)
+    this.gl.uniform1i(this.samplerLocation, 0)
+
+    // Draw each mesh that has quads
+    for (const mesh of this.meshes.values()) {
+      const quadCount = mesh.getQuadCount()
+      if (quadCount === 0) continue
+
+      const vertexBuffer = mesh.getVertexBuffer()
+      const indexBuffer = mesh.getIndexBuffer()
+
+      if (!vertexBuffer || !indexBuffer) continue
+
+      // Calculate data sizes
+      const vertexDataCount = mesh.getCurrentVertexCount() * 8 // 8 floats per vertex
+      const indexDataCount = quadCount * 6 // 6 indices per quad
+
+      // Update vertex buffer with current data
+      this.gl.bindBuffer(this.gl.ARRAY_BUFFER, vertexBuffer)
+      this.gl.bufferSubData(this.gl.ARRAY_BUFFER, 0, mesh.getVertexData().subarray(0, vertexDataCount))
+
+      // Set up attributes
+      this.gl.enableVertexAttribArray(this.positionLocation)
+      this.gl.vertexAttribPointer(this.positionLocation, 2, this.gl.FLOAT, false, 8 * 4, 0) // position (2 floats)
+
+      this.gl.enableVertexAttribArray(this.texcoordLocation)
+      this.gl.vertexAttribPointer(this.texcoordLocation, 2, this.gl.FLOAT, false, 8 * 4, 2 * 4) // texcoord (2 floats)
+
+      this.gl.enableVertexAttribArray(this.colorLocation)
+      this.gl.vertexAttribPointer(this.colorLocation, 4, this.gl.FLOAT, false, 8 * 4, 4 * 4) // color (4 floats)
+
+      // Bind index buffer
+      this.gl.bindBuffer(this.gl.ELEMENT_ARRAY_BUFFER, indexBuffer)
+
+      // Apply scissor if enabled for this mesh
+      if (mesh.scissorEnabled) {
+        const [x, y, width, height] = mesh.scissorRect
+        const w = Math.floor(screenWidth)
+        const h = Math.floor(screenHeight)
+        this.gl.enable(this.gl.SCISSOR_TEST)
+        this.gl.scissor(
+          clamp(Math.floor(x), 0, w),
+          clamp(Math.floor(h - y - height), 0, h), // WebGL scissor Y is bottom-up
+          clamp(Math.floor(width), 0, w - Math.floor(x)),
+          clamp(Math.floor(height), 0, h - Math.floor(y))
+        )
+      } else {
+        this.gl.disable(this.gl.SCISSOR_TEST)
       }
 
-      descriptor.colorAttachments[0].view = this.context.getCurrentTexture().createView()
-
-      const passEncoder = commandEncoder.beginRenderPass(this.renderPassDescriptor)
-      passEncoder.setPipeline(this.pipeline!)
-      passEncoder.setBindGroup(0, this.bindGroup!)
-
-      // Draw each mesh that has quads
-      for (const mesh of this.meshes.values()) {
-        const quadCount = mesh.getQuadCount()
-        if (quadCount === 0) continue
-
-        const vertexBuffer = mesh.getVertexBuffer()
-        const indexBuffer = mesh.getIndexBuffer()
-
-        if (!vertexBuffer || !indexBuffer) continue
-
-        // Calculate data sizes
-        const vertexDataCount = mesh.getCurrentVertexCount() * 8 // 8 floats per vertex
-        const indexDataCount = quadCount * 6 // 6 indices per quad
-
-        // Write vertex data to the GPU
-        device.queue.writeBuffer(vertexBuffer, 0, mesh.getVertexData(), 0, vertexDataCount)
-
-        // Set buffers
-        passEncoder.setVertexBuffer(0, vertexBuffer)
-        passEncoder.setIndexBuffer(indexBuffer, 'uint32')
-
-        // Apply scissor if enabled for this mesh
-        if (mesh.scissorEnabled) {
-          const [x, y, width, height] = mesh.scissorRect
-          const w = Math.floor(screenWidth)
-          const h = Math.floor(screenHeight)
-          passEncoder.setScissorRect(
-            clamp(Math.floor(x), 0, w),
-            clamp(Math.floor(y), 0, h),
-            clamp(Math.floor(width), 0, w - x),
-            clamp(Math.floor(height), 0, h - y)
-          )
-        } else {
-          // Reset scissor to full canvas if previously set
-          passEncoder.setScissorRect(0, 0, screenWidth, screenHeight)
-        }
-
-        // Draw the mesh
-        passEncoder.drawIndexed(indexDataCount)
-      }
-
-      passEncoder.end()
+      // Draw the mesh
+      this.gl.drawElements(this.gl.TRIANGLES, indexDataCount, this.gl.UNSIGNED_INT, 0)
     }
 
-    const commandBuffer = commandEncoder.finish()
-    device.queue.submit([commandBuffer])
+    // Disable scissor test for next frame
+    this.gl.disable(this.gl.SCISSOR_TEST)
 
     // Reset all mesh counters after rendering
     for (const mesh of this.meshes.values()) {
       mesh.resetCounters()
     }
-  }
-
-  /** Helper method to generate mipmaps for a texture. */
-  generateMipmaps(texture: GPUTexture, width: number, height: number): void {
-    // Don't try to generate mipmaps if the device doesn't support it.
-    if (!this.device || !texture) return
-
-    // Create a render pipeline for mipmap generation.
-    const mipmapShaderModule = this.device.createShaderModule({
-      label: 'Mipmap Shader',
-      code: `
-        struct VertexOutput {
-          @builtin(position) position: vec4f,
-          @location(0) texCoord: vec2f,
-        };
-
-        @vertex
-        fn vertexMain(@builtin(vertex_index) vertexIndex: u32) -> VertexOutput {
-          var pos = array<vec2f, 4>(
-            vec2f(-1.0, -1.0),
-            vec2f(1.0, -1.0),
-            vec2f(-1.0, 1.0),
-            vec2f(1.0, 1.0)
-          );
-
-          var texCoord = array<vec2f, 4>(
-            vec2f(0.0, 1.0),
-            vec2f(1.0, 1.0),
-            vec2f(0.0, 0.0),
-            vec2f(1.0, 0.0)
-          );
-
-          var output: VertexOutput;
-          output.position = vec4f(pos[vertexIndex], 0.0, 1.0);
-          output.texCoord = texCoord[vertexIndex];
-          return output;
-        }
-
-        @group(0) @binding(0) var imgSampler: sampler;
-        @group(0) @binding(1) var imgTexture: texture_2d<f32>;
-
-        @fragment
-        fn fragmentMain(@location(0) texCoord: vec2f) -> @location(0) vec4f {
-          return textureSample(imgTexture, imgSampler, texCoord);
-        }
-      `,
-    })
-
-    const mipmapPipeline = this.device.createRenderPipeline({
-      label: 'Mipmap Pipeline',
-      layout: 'auto',
-      vertex: {
-        module: mipmapShaderModule,
-        entryPoint: 'vertexMain',
-      },
-      fragment: {
-        module: mipmapShaderModule,
-        entryPoint: 'fragmentMain',
-        targets: [{ format: 'rgba8unorm' }],
-      },
-      primitive: {
-        topology: 'triangle-strip',
-        stripIndexFormat: 'uint32',
-      },
-    })
-
-    // Create a temporary sampler for mipmap generation.
-    const mipmapSampler = this.device.createSampler({
-      minFilter: 'linear',
-      magFilter: 'linear',
-    })
-
-    // Calculate number of mip levels.
-    const mipLevelCount = Math.floor(Math.log2(Math.max(width, height))) + 1
-
-    // Generate each mip level.
-    const commandEncoder = this.device.createCommandEncoder({
-      label: 'Mipmap Command Encoder',
-    })
-
-    // Create bind groups and render passes for each mip level.
-    for (let i = 1; i < mipLevelCount; i++) {
-      const srcView = texture.createView({
-        baseMipLevel: i - 1,
-        mipLevelCount: 1,
-      })
-
-      const dstView = texture.createView({
-        baseMipLevel: i,
-        mipLevelCount: 1,
-      })
-
-      // Create bind group for this mip level.
-      const bindGroup = this.device.createBindGroup({
-        layout: mipmapPipeline.getBindGroupLayout(0),
-        entries: [
-          { binding: 0, resource: mipmapSampler },
-          { binding: 1, resource: srcView },
-        ],
-      })
-
-      // Render to the next mip level.
-      const renderPassDescriptor: GPURenderPassDescriptor = {
-        colorAttachments: [
-          {
-            view: dstView,
-            loadOp: 'clear',
-            storeOp: 'store',
-            clearValue: [0, 0, 0, 0],
-          },
-        ],
-      }
-
-      const passEncoder = commandEncoder.beginRenderPass(renderPassDescriptor)
-      passEncoder.setPipeline(mipmapPipeline)
-      passEncoder.setBindGroup(0, bindGroup)
-      passEncoder.draw(4)
-      passEncoder.end()
-    }
-
-    this.device.queue.submit([commandEncoder.finish()])
   }
 
   /**
@@ -1039,7 +852,7 @@ export class Context3d {
     color: number[],
     skipStart: number = 0,
     skipEnd: number = 0
-  ): void {
+  ) {
     // Compute the angle of the line.
     const angle = Math.atan2(y1 - y0, x1 - x0)
     // Compute the length of the line.

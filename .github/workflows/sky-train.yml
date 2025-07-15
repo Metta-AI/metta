@@ -31,7 +31,7 @@ on:
 env:
   DEFAULT_TRAINER_ENV: "env/mettagrid/arena/advanced"
   DEFAULT_TIMEOUT_HOURS: 1
-  RUN_NAME_PREFIX: "github.sky" # Define the prefix for run names here
+  RUN_NAME_PREFIX: "github.sky"
 
 jobs:
   launch-batch-job:
@@ -74,8 +74,20 @@ jobs:
           # - For 'workflow_dispatch', it's github.event.inputs.commit_to_run.
           SHORT_COMMIT_HASH=$(git rev-parse --short HEAD)
 
+          # Extract trainer env suffix (everything after env/mettagrid)
           if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
-            # Manual dispatch: run name is github.sky.<short_hash>.<timestamp>
+            TRAINER_ENV="${{ github.event.inputs.trainer_env }}"
+          else
+            TRAINER_ENV="${{ env.DEFAULT_TRAINER_ENV }}"
+          fi
+
+          # Extract everything after "env/mettagrid/" and replace slashes with dots
+          # e.g., "env/mettagrid/arena/advanced" -> "arena.advanced"
+          # e.g., "env/mettagrid/a/b/c" -> "a.b.c"
+          TRAINER_ENV_SUFFIX=$(echo "$TRAINER_ENV" | sed 's|^env/mettagrid/||' | sed 's|/|.|g')
+
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            # Manual dispatch: run name is github.sky.<short_hash>.<trainer_env_suffix>.<timestamp>
             # The github.event.inputs.pr_number is not used for the run name itself here.
             if [ -z "${{ github.event.inputs.commit_to_run }}" ]; then
               echo "Error: commit_to_run is required for workflow_dispatch and was not provided."
@@ -87,7 +99,7 @@ jobs:
                 echo "Warning: Checked out HEAD's short hash ($SHORT_COMMIT_HASH) does not match input commit_to_run's short hash ($INPUT_SHORT_HASH). Using checked out HEAD."
             fi
             RUN_NAME_BASE="${{ env.RUN_NAME_PREFIX }}"
-            FINAL_RUN_NAME="$RUN_NAME_BASE.$SHORT_COMMIT_HASH.$TIMESTAMP"
+            FINAL_RUN_NAME="$RUN_NAME_BASE.$SHORT_COMMIT_HASH.$TRAINER_ENV_SUFFIX.$TIMESTAMP"
             echo "Manual dispatch: Using commit ($SHORT_COMMIT_HASH). Run name: $FINAL_RUN_NAME"
 
           elif [ "${{ github.event_name }}" == "push" ]; then
@@ -103,7 +115,7 @@ jobs:
               RUN_NAME_BASE="${{ env.RUN_NAME_PREFIX }}.${BRANCH_NAME_SANITIZED}"
               echo "Push event: Using branch name '$BRANCH_NAME_SANITIZED' in run name base: $RUN_NAME_BASE (PR number not found in commit)"
             fi
-            FINAL_RUN_NAME="$RUN_NAME_BASE.$SHORT_COMMIT_HASH.$TIMESTAMP"
+            FINAL_RUN_NAME="$RUN_NAME_BASE.$SHORT_COMMIT_HASH.$TRAINER_ENV_SUFFIX.$TIMESTAMP"
             echo "Push event: Run name: $FINAL_RUN_NAME"
           else
             echo "Error: Unhandled event type ${{ github.event_name }}"
@@ -111,6 +123,7 @@ jobs:
           fi
 
           echo "Generated run name for SkyPilot: $FINAL_RUN_NAME"
+          echo "Trainer environment suffix: $TRAINER_ENV_SUFFIX"
           echo "run_name=$FINAL_RUN_NAME" >> $GITHUB_OUTPUT
 
       - name: Launch SkyPilot Job via Custom Action
