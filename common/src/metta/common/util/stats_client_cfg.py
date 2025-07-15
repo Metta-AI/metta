@@ -1,7 +1,6 @@
 import os
 from logging import Logger
 from pathlib import Path
-from urllib.parse import urlparse
 
 import yaml
 from httpx import Client
@@ -28,43 +27,22 @@ def get_machine_token(stats_server_uri: str | None = None) -> str | None:
         # Try YAML file first
         yaml_file = Path.home() / ".metta" / "observatory_tokens.yaml"
         if yaml_file.exists():
-            try:
-                with open(yaml_file) as f:
-                    tokens = yaml.safe_load(f) or {}
-
-                if stats_server_uri and isinstance(tokens, dict):
-                    # Try exact match first
-                    if stats_server_uri in tokens:
-                        token = tokens[stats_server_uri]
-                    else:
-                        # Try hostname match
-                        hostname = urlparse(stats_server_uri).hostname
-                        if hostname:
-                            for server_uri, token_value in tokens.items():
-                                if urlparse(server_uri).hostname == hostname:
-                                    token = token_value
-                                    break
-                            else:
-                                # No match found
-                                return None
-                        else:
-                            return None
-                else:
-                    # No specific server requested, can't determine which token to use
-                    return None
-            except Exception:
-                # Fall back to legacy file if YAML parsing fails
-                pass
-
-        # Fall back to legacy token file
-        legacy_file = Path.home() / ".metta" / "observatory_token"
-        if legacy_file.exists():
-            with open(legacy_file) as f:
-                token = f.read().strip()
+            with open(yaml_file) as f:
+                tokens = yaml.safe_load(f) or {}
+            if isinstance(tokens, dict) and stats_server_uri in tokens:
+                token = tokens[stats_server_uri].strip()
+            else:
+                return None
         else:
-            return None
+            # Fall back to legacy token file
+            legacy_file = Path.home() / ".metta" / "observatory_token"
+            if legacy_file.exists():
+                with open(legacy_file) as f:
+                    token = f.read().strip()
+            else:
+                return None
 
-    if not token or token.lower() == "none" or len(token.strip()) == 0:
+    if not token or token.lower() == "none":
         return None
 
     return token
