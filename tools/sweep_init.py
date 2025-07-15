@@ -116,7 +116,7 @@ def create_run(cfg: DictConfig | ListConfig, logger: Logger) -> str:
             # Protein may fail to generate a valid suggestion, in which case it will raise an exception.
             # generate_protein_suggestion will retry up to 10 times, and record failures to the protein.
             try:
-                clean_suggestion = generate_protein_suggestion(cfg, protein)
+                clean_suggestion = generate_protein_suggestion(cfg.sweep_job, protein)
             except Exception as e:
                 logger.warning("Failed to generate protein suggestion after 10 attempts. Giving up.")
                 raise e
@@ -201,23 +201,30 @@ def validate_protein_suggestion(config: DictConfig, suggestion: dict):
     # Parse the config values first
     config_values = OmegaConf.to_container(config, resolve=True)
     assert isinstance(config_values, dict), "config must be a dictionary"
-    batch_size = config_values["trainer"]["ppo"]["batch_size"]
-    minibatch_size = config_values["trainer"]["ppo"]["minibatch_size"]
-    bppt = config_values["trainer"]["ppo"]["bppt"]
+
+    # Try nested structure first, then flat structure
+    trainer_config = config_values["trainer"]
+    batch_size = trainer_config.get("batch_size")
+    minibatch_size = trainer_config.get("minibatch_size")
+    bppt = trainer_config.get("bptt_horizon")
+
+    logger.info(f"Config values: batch_size={batch_size}, minibatch_size={minibatch_size}, bppt={bppt}")
 
     # Parse the protein suggestion
-    for key, value in suggestion.items():
-        if key == "batch_size":
-            batch_size = value
-        if key == "minibatch_size":
-            minibatch_size = value
-        if key == "bppt":
-            bppt = value
+    if "trainer" in suggestion:
+        if "batch_size" in suggestion["trainer"]:
+            batch_size = suggestion["trainer"]["batch_size"]
+        if "minibatch_size" in suggestion["trainer"]:
+            minibatch_size = suggestion["trainer"]["minibatch_size"]
+        if "bptt_horizon" in suggestion["trainer"]:
+            bppt = suggestion["trainer"]["bptt_horizon"]
+
+    logger.info(f"After Suggestion values: batch_size={batch_size}, minibatch_size={minibatch_size}, bppt={bppt}")
 
     # Validate the suggestion
-    if batch_size % minibatch_size != 0:
+    if batch_size is not None and minibatch_size is not None and batch_size % minibatch_size != 0:
         raise ValueError(f"Batch size {batch_size} must be divisible by minibatch size {minibatch_size}")
-    if minibatch_size % bppt != 0:
+    if minibatch_size is not None and bppt is not None and minibatch_size % bppt != 0:
         raise ValueError(f"Minibatch size {minibatch_size} must be divisible by bppt {bppt}")
 
 
@@ -225,6 +232,7 @@ def validate_protein_suggestion(config: DictConfig, suggestion: dict):
 def generate_protein_suggestion(config: DictConfig, protein: MettaProtein):
     """Generate a protein suggestion."""
     suggestion, _ = protein.suggest()
+    logger.info(f"Suggestion: {suggestion}")
     try:
         validate_protein_suggestion(config, suggestion)
     except Exception as e:
