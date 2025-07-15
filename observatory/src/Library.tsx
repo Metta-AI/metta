@@ -126,14 +126,16 @@ export function Library({ repo: _repo, currentUser }: Library2Props) {
     const [scholars, setScholars] = useState(mockScholars)
     const [affiliations] = useState(mockAffiliations)
     const [searchQuery, setSearchQuery] = useState('')
+    const [papersSearchQuery, setPapersSearchQuery] = useState('')
     const [sortBy, setSortBy] = useState<'name' | 'affiliation' | 'recentActivity' | 'papers' | 'citations' | 'hIndex'>('name')
     const [affiliationsSortBy, setAffiliationsSortBy] = useState<'name' | 'location' | 'type' | 'members' | 'papers' | 'citations'>('name')
     const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
     const [affiliationsSortDirection, setAffiliationsSortDirection] = useState<'asc' | 'desc'>('asc')
     const navigate = useNavigate();
     const [expandedScholarId, setExpandedScholarId] = useState<string | null>(null);
-    // Add a ref for the filter input at the top of Library
+    // Add refs for the filter inputs
     const filterInputRef = useRef<HTMLInputElement>(null);
+    const papersFilterInputRef = useRef<HTMLInputElement>(null);
     // Add state for overlay modals
     const [overlayScholarId, setOverlayScholarId] = useState<string | null>(null);
     const [overlayAffiliationId, setOverlayAffiliationId] = useState<string | null>(null);
@@ -149,10 +151,12 @@ export function Library({ repo: _repo, currentUser }: Library2Props) {
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.key === 'Escape') closeOverlay();
         };
+        
+        // Only add listener when overlay is active
         if (overlayScholarId || overlayAffiliationId) {
             window.addEventListener('keydown', handleKeyDown);
+            return () => window.removeEventListener('keydown', handleKeyDown);
         }
-        return () => window.removeEventListener('keydown', handleKeyDown);
     }, [overlayScholarId, overlayAffiliationId]);
 
     // Sync activeNav with URL path
@@ -428,6 +432,11 @@ export function Library({ repo: _repo, currentUser }: Library2Props) {
                         scholars={scholars}
                         affiliations={affiliations}
                         onToggleStar={toggleStar}
+                        searchQuery={papersSearchQuery}
+                        onSearchChange={setPapersSearchQuery}
+                        filterInputRef={papersFilterInputRef}
+                        onShowScholarOverlay={setOverlayScholarId}
+                        onShowAffiliationOverlay={setOverlayAffiliationId}
                     />
                 )
 
