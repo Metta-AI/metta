@@ -1,45 +1,54 @@
 import uuid
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from metta.app_backend.auth import create_user_or_token_dependency
 from metta.app_backend.metta_repo import MettaRepo
+from metta.app_backend.metta_repo import TaskStatusUpdate as RepoTaskStatusUpdate
 from metta.app_backend.route_logger import timed_route
+
+TaskIdStr = str
+TaskStatus = Literal["unprocessed", "canceled", "done", "error"]
 
 
 class TaskCreateRequest(BaseModel):
     policy_id: str
     git_hash: str
-    env_overrides: Dict[str, Any] = Field(default_factory=dict)
+    env_overrides: dict[str, Any] = Field(default_factory=dict)
     sim_suite: str = "all"
 
 
 class TaskClaimRequest(BaseModel):
-    eval_task_ids: List[str]
+    eval_task_ids: list[TaskIdStr]
     assignee: str
+
+
+class TaskStatusUpdate(BaseModel):
+    status: TaskStatus
+    details: dict[str, Any] | None = None
 
 
 class TaskUpdateRequest(BaseModel):
     assignee: str
-    statuses: Dict[str, str]
+    statuses: dict[TaskIdStr, TaskStatusUpdate]
 
 
 class TaskResponse(BaseModel):
-    id: str
+    id: TaskIdStr
     policy_id: str
     sim_suite: str
-    status: str
-    assigned_at: Optional[datetime] = None
-    assignee: Optional[str] = None
+    status: TaskStatus
+    assigned_at: datetime | None = None
+    assignee: str | None = None
     created_at: datetime
-    attributes: Dict[str, Any]
+    attributes: dict[str, Any]
 
 
 class AvailableTasksResponse(BaseModel):
-    tasks: List[TaskResponse]
+    tasks: list[TaskResponse]
 
 
 def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
@@ -107,7 +116,7 @@ def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
 
     @router.post("/claim")
     @timed_route("claim_tasks")
-    async def claim_tasks(request: TaskClaimRequest, user: str = user_or_token) -> List[str]:
+    async def claim_tasks(request: TaskClaimRequest, user: str = user_or_token) -> list[TaskIdStr]:
         try:
             task_uuids = [uuid.UUID(task_id) for task_id in request.eval_task_ids]
 
@@ -148,29 +157,24 @@ def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
 
     @router.post("/claimed/update")
     @timed_route("update_task_statuses")
-    async def update_task_statuses(request: TaskUpdateRequest, user: str = user_or_token) -> Dict[str, str]:
+    async def update_task_statuses(request: TaskUpdateRequest, user: str = user_or_token) -> dict[TaskIdStr, str]:
         try:
-            valid_statuses = {"unprocessed", "canceled", "done"}
+            task_updates = {
+                uuid.UUID(task_id): RepoTaskStatusUpdate(status=status_update.status, details=status_update.details)
+                for task_id, status_update in request.statuses.items()
+            }
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail="Invalid format") from e
 
-            for task_id, status in request.statuses.items():
-                if status not in valid_statuses:
-                    raise HTTPException(
-                        status_code=400,
-                        detail=f"Invalid status '{status}' for task {task_id}. Valid statuses: {valid_statuses}",
-                    )
-
-            task_updates = {uuid.UUID(task_id): status for task_id, status in request.statuses.items()}
-
+        try:
             updated = await stats_repo.update_task_statuses(
                 assignee=request.assignee,
-                task_statuses=task_updates,
+                task_updates=task_updates,
             )
 
             return {str(task_id): status for task_id, status in updated.items()}
         except HTTPException:
             raise
-        except ValueError as e:
-            raise HTTPException(status_code=400, detail="Invalid UUID format") from e
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to update task statuses: {str(e)}") from e
 
