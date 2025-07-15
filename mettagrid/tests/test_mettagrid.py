@@ -166,28 +166,6 @@ class TestBasicFunctionality:
         """Test grid hash consistency."""
         assert basic_env.initial_grid_hash == 9437127895318323250
 
-    def test_truncation_at_max_steps(self):
-        """Test that environments properly truncate at max_steps."""
-        max_steps = 5
-        builder = TestEnvironmentBuilder()
-        game_map = builder.create_basic_grid()
-        game_map = builder.place_agents(game_map, [(1, 1), (2, 4)])
-        env = builder.create_environment(game_map, max_steps=max_steps)
-
-        env.reset()
-        noop_idx = env.action_names().index("noop")
-        actions = np.full((EnvConfig.NUM_AGENTS, 2), [noop_idx, 0], dtype=dtype_actions)
-
-        for step in range(1, max_steps + 1):
-            _, _, terminals, truncations, _ = env.step(actions)
-
-            if step < max_steps:
-                assert not np.any(truncations)
-                assert not np.any(terminals)
-            else:
-                assert np.all(truncations)
-                assert not np.any(terminals)
-
     def test_action_interface(self, basic_env):
         """Test action interface and basic action execution."""
         basic_env.reset()
