@@ -1,0 +1,16 @@
+defaults:
+  - spiral_altar_base
+  - _self_
+
+game:
+  max_steps: 500
+  map_builder:
+    width: 120
+    height: 120
+    root:
+      params:
+        objects:
+          altar: 6  # Fewer altars for loose spiral
+        radius_increment: 4.0  # Looser spiral
+        angle_increment: 0.4  # Larger angle steps
+        spacing: 20  # More spacing needed for loose spiral

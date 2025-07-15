@@ -2,22 +2,20 @@ from __future__ import annotations
 
 import logging
 from itertools import product
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 from omegaconf import DictConfig
 from tqdm import tqdm
 
-from metta.common.util.config import copy_omegaconf_config
 from metta.mettagrid.curriculum.core import Curriculum
+from metta.mettagrid.curriculum.prioritize_regressed import PrioritizeRegressedCurriculum
 from metta.mettagrid.curriculum.sampling import SampledTaskCurriculum
 from metta.mettagrid.curriculum.util import config_from_path
-
-from .prioritize_regressed import PrioritizeRegressedCurriculum
 
 logger = logging.getLogger(__name__)
 
 
-class CurriculBucketedum(LowRewardCurriculum):
+class BucketedCurriculum(PrioritizeRegressedCurriculum):
     def __init__(
         self,
         env_cfg_template: str,
@@ -30,13 +28,12 @@ class CurriculBucketedum(LowRewardCurriculum):
 
         self._id_to_curriculum = {}
         base_cfg = config_from_path(env_cfg_template, env_overrides)
-        env_cfg_template = copy_omegaconf_config(base_cfg)
 
         logger.info("Generating bucketed tasks")
         for parameter_values in tqdm(product(*expanded_buckets.values())):
-            curriculum_id = get_id(expanded_buckets.keys(), parameter_values)
+            curriculum_id = get_id(list(expanded_buckets.keys()), parameter_values)
             self._id_to_curriculum[curriculum_id] = SampledTaskCurriculum(
-                curriculum_id, env_cfg_template, expanded_buckets.keys(), parameter_values
+                curriculum_id, base_cfg, list(expanded_buckets.keys()), list(parameter_values)
             )
         tasks = {t: 1.0 for t in self._id_to_curriculum.keys()}
         super().__init__(tasks=tasks, env_overrides=env_overrides, moving_avg_decay_rate=moving_avg_decay_rate)
@@ -58,7 +55,7 @@ def get_id(parameters, values):
     return curriculum_id
 
 
-def _expand_buckets(buckets: Dict[str, Dict[str, Any]], default_bins: int = 1) -> Tuple[List[str], List[List[Any]]]:
+def _expand_buckets(buckets: Dict[str, Dict[str, Any]], default_bins: int = 1) -> Dict[str, List[Any]]:
     """
     buckets: specified in the config, values or ranges for each parameter
     returns: unpacked configurations for each parameter given the number of bins

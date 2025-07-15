@@ -1,0 +1,13 @@
+defaults:
+  - spiral_altar_base
+  - _self_
+
+game:
+  max_steps: 400
+  map_builder:
+    width: 80
+    height: 80
+    root:
+      params:
+        objects:
+          altar: 5
