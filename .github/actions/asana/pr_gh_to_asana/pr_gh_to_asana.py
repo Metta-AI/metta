@@ -556,7 +556,7 @@ if __name__ == "__main__":
     pr = get_pull_request_from_github(github_repo, pr_number, github_token)
 
     # Use PR body as description instead of INPUT_DESCRIPTION
-    description = pr.get("body", "")
+    description = pr.get("body", "") or ""
 
     github_logins = set(assignees + reviewers + [author])
     github_login_to_asana_email = get_asana_users_by_github_logins(
