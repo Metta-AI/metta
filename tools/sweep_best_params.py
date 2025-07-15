@@ -2,62 +2,18 @@
 """Find the best hyperparameters from a sweep and generate config patches."""
 
 import argparse
-import ast
 import os
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
 import hydra
-import wandb
-import yaml
 from omegaconf import DictConfig, OmegaConf
 
 from metta.common.util.logging_helpers import setup_mettagrid_logger
-from metta.common.wandb.sweep import sweep_id_from_name
+from metta.sweep.wandb_utils import get_sweep_runs, sweep_id_from_name
 
 logger = setup_mettagrid_logger("sweep_best_params")
-
-
-def convert_to_yaml(data: Union[str, Dict[str, Any]]) -> str:
-    """Convert a dict or string representation of dict to YAML format.
-
-    Args:
-        data: Either a dictionary or a string representation of a dictionary
-
-    Returns:
-        YAML formatted string
-    """
-    # If it's a string that looks like a dict, parse it first
-    if isinstance(data, str):
-        data = data.strip()
-        if data.startswith("{") and data.endswith("}"):
-            try:
-                data = ast.literal_eval(data)
-            except (ValueError, SyntaxError) as e:
-                logger.warning(f"Failed to parse string as dict: {e}")
-                return data
-
-    # Convert to YAML
-    return yaml.dump(data, default_flow_style=False, sort_keys=False)
-
-
-def get_sweep_runs(sweep_id: str, entity: str, project: str) -> List[Any]:
-    """Get all runs from a sweep sorted by score."""
-    api = wandb.Api()
-    sweep = api.sweep(f"{entity}/{project}/{sweep_id}")
-
-    # Get all runs and filter for successful ones
-    runs = []
-    for run in sweep.runs:
-        if run.summary.get("protein.state") == "success":
-            score = run.summary.get("score", run.summary.get("protein.objective", 0))
-            if score is not None and score > 0:  # Filter out failed runs
-                runs.append(run)
-
-    # Sort by score (descending for reward metric)
-    runs.sort(key=lambda r: r.summary.get("score", r.summary.get("protein.objective", 0)), reverse=True)
-    return runs
 
 
 def extract_hyperparameters_from_run(run: Any) -> Dict[str, Any]:
