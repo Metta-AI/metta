@@ -34,17 +34,26 @@ def validate_asana_task_url(
     task_url: str, project_id: str, github_url: str, github_url_field_id: str, asana_token: str
 ) -> dict | None:
     """Validate that an Asana task URL exists, belongs to the specified project, and has the expected GitHub URL."""
+    print("[validate_asana_task_url] Called with:")
+    print(f"  task_url: {task_url}")
+    print(f"  project_id: {project_id}")
+    print(f"  github_url: {github_url}")
+    print(f"  github_url_field_id: {github_url_field_id}")
+    print(f"  asana_token: {'set' if asana_token else 'not set'}")
+
     # Extract task GID from URL
     # URL format: https://app.asana.com/0/123456789/123456789
     match = re.search(r"https://app\.asana\.com/\d+/\d+/(\d+)", task_url)
     if not match:
-        print(f"Invalid Asana task URL format: {task_url}")
+        print(f"[validate_asana_task_url] Invalid Asana task URL format: {task_url}")
         return None
 
     task_gid = match.group(1)
+    print(f"[validate_asana_task_url] Extracted task_gid: {task_gid}")
 
     # Fetch task details from Asana API
     url = f"https://app.asana.com/api/1.0/tasks/{task_gid}"
+    print(f"[validate_asana_task_url] Fetching task from asana api: {url}")
     headers = {
         "Authorization": f"Bearer {asana_token}",
         "Content-Type": "application/json",
@@ -56,35 +65,42 @@ def validate_asana_task_url(
 
     try:
         response = requests.get(url, headers=headers, params=params, timeout=30)
+        print(f"[validate_asana_task_url] Asana API response status: {response.status_code}")
         if response.status_code != 200:
             print(f"Asana API Error validating task {task_url}: {response.status_code} - {response.text}")
             return None
 
         task_data = response.json()["data"]
+        print(f"[validate_asana_task_url] Task data: {json.dumps(task_data, indent=2)}")
 
         # Check if task belongs to the specified project
         task_projects = [project["gid"] for project in task_data.get("projects", [])]
+        print(f"[validate_asana_task_url] Task projects: {task_projects}")
         if project_id not in task_projects:
-            print(f"Task {task_url} does not belong to project {project_id}")
+            print(f"[validate_asana_task_url] Task {task_url} does not belong to project {project_id}")
             return None
 
         # Check if the GitHub URL custom field matches the expected GitHub URL
         custom_fields = task_data.get("custom_fields", [])
+        print(f"[validate_asana_task_url] Custom fields: {json.dumps(custom_fields, indent=2)}")
         task_github_url = None
         for field in custom_fields:
+            print(f"[validate_asana_task_url] Checking custom field: {field}")
             if field.get("gid") == github_url_field_id:
                 task_github_url = field.get("text_value")
+                print(f"Found github_url_field_id: {github_url_field_id}, value: {task_github_url}")
                 break
 
+        print(f"[validate_asana_task_url] task_github_url: {task_github_url} (expected: {github_url})")
         if task_github_url != github_url:
             print(f"Task {task_url} has GitHub URL '{task_github_url}' but expected '{github_url}'")
             return None
 
-        print(f"Validated Asana task: {task_url}")
+        print(f"[validate_asana_task_url] Validated Asana task: {task_url}")
         return task_data
 
     except Exception as e:
-        print(f"Error validating Asana task {task_url}: {e}")
+        print(f"[validate_asana_task_url] Error validating Asana task {task_url}: {e}")
         return None
 
 
