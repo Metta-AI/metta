@@ -29,3 +29,11 @@ game:
     altar:
       cooldown: 1000
       initial_resource_count: 1
+
+  agent:
+    rewards:
+      heart: 0.0
+
+
+sparse_reward_top_heart_winners_every_N_steps: true
+heart_winners_reward_interval_in_steps: 10

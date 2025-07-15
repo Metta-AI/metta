@@ -214,6 +214,28 @@ class MettaGridEnv(PufferEnv, GymEnv):
             self._c_env.step(actions)
             self._steps += 1
 
+        # Sparse heart winner reward logic
+        env_cfg = self._task.env_cfg()
+        sparse_flag = getattr(env_cfg, "sparse_reward_top_heart_winners_every_N_steps", False)
+        interval = getattr(env_cfg, "heart_winners_reward_interval_in_steps", None)
+        if sparse_flag and interval is not None:
+            self.rewards[:] = 0
+            if self._steps % interval == 0:
+                num_agents = self.num_agents
+                heart_counts = [0] * num_agents
+                for v in self._c_env.grid_objects().values():
+                    if v.get("type") == 0:  # agent
+                        agent_id = v.get("agent_id")
+                        if agent_id is not None and 0 <= agent_id < num_agents:
+                            heart_counts[agent_id] = v.get("inv:heart", 0)
+                if heart_counts:
+                    max_hearts = max(heart_counts)
+                    if max_hearts >= 1:
+                        for agent_id, count in enumerate(heart_counts):
+                            if count == max_hearts:
+                                self.rewards[agent_id] = 1
+                # print(f"Step {self._steps}: heart_counts={heart_counts}, rewards={self.rewards}")
+
         if self._replay_writer and self._episode_id:
             with self.timer("_replay_writer.log_step"):
                 self._replay_writer.log_step(self._episode_id, actions, self.rewards)
