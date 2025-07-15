@@ -100,6 +100,22 @@ Based on our testing, follow these room size requirements to ensure agents canno
 
 **Note**: Agent observation size is controlled by the environment configuration (`obs_width`/`obs_height`), not by individual agent parameters.
 
+### Action Configuration
+
+Actions should be configured as a dictionary with enabled flags:
+
+```yaml
+actions:
+  attack:
+    enabled: false
+  swap:
+    enabled: false
+  change_color:
+    enabled: false
+  put_items:
+    enabled: false
+```
+
 ```yaml
 # For different altar counts, use these minimum room sizes:
 
@@ -353,24 +369,43 @@ rand_task_rate: 0.25
 Scale to multi-agent environments for production training:
 
 ```yaml
-# Add to any environment config for multi-agent training
+# Multiroom configuration using MultiRoom class
 game:
-  num_agents: 4  # Use 4 agents for MultiRoom structure
+  num_agents: 4
+  max_steps: ${sampling:400, 1000, 700}
+
+  # Actions should be configured with enabled flags
+  actions:
+    attack:
+      enabled: false
+    swap:
+      enabled: false
+    change_color:
+      enabled: false
+    put_items:
+      enabled: false
+
+  agent:
+    rewards:
+      heart: 1.0
+    # Do NOT add view_shape or clip_shape here
 
   map_builder:
-    _target_: metta.map.mapgen.MapGen
-    width: 60
-    height: 60
+    _target_: metta.mettagrid.room.multi_room.MultiRoom
+    num_rooms: ${..num_agents}
+    border_width: 8
+    room:
+      _target_: metta.map.mapgen.MapGen
+      width: ${sampling:50, 70, 60}
+      height: ${sampling:50, 70, 60}
+      border_width: 4
 
-    root:
-      type: metta.map.scenes.structures.MultiRoom
-      params:
-        # Each agent gets private environment copy
-        rooms:
-          - scene_file: /env/mettagrid/navigation/center_altar_3
-          - scene_file: /env/mettagrid/navigation/center_altar_3
-          - scene_file: /env/mettagrid/navigation/center_altar_3
-          - scene_file: /env/mettagrid/navigation/center_altar_3
+      root:
+        type: metta.map.scenes.your_scene.YourScene
+        params:
+          objects:
+            altar: ${sampling:5, 25, 12}
+          agents: 1  # One agent per room
 ```
 
 ## Step 5: Common Issues and Solutions
@@ -653,6 +688,7 @@ tasks:
 **"Extra inputs are not permitted"** (e.g., for `agent.view_dist`)
 - Solution: Remove invalid configuration fields
 - Note: `view_dist` is not a valid agent parameter
+- Do not add `view_shape` or `clip_shape` to agent config
 - Check the schema for valid fields under each configuration section
 
 **"Expected DictConfig, got str"**
@@ -667,6 +703,42 @@ tasks:
 - Solution: Check room sizing and object placement constraints
 - Verify: Room size allows for proper object placement
 
+## Scene Implementation Patterns
+
+When creating custom scenes, follow these patterns:
+
+```python
+from metta.config import Config
+from metta.map.scene import Scene
+
+class YourSceneParams(Config):
+    """Parameters for your scene."""
+    objects: dict[str, int] = {"altar": 10}  # Use dict for objects
+    agents: int | dict[str, int] = 0
+    your_param: int = 5
+
+class YourScene(Scene[YourSceneParams]):
+    """Your scene description."""
+
+    def render(self):
+        """Use render() method, not create_grid()."""
+        height, width, params = self.height, self.width, self.params
+
+        # Collect objects
+        symbols = []
+        for obj_name, count in params.objects.items():
+            symbols.extend([obj_name] * count)
+
+        # Handle agents
+        if isinstance(params.agents, int):
+            agents = ["agent.agent"] * params.agents
+        elif isinstance(params.agents, dict):
+            agents = ["agent." + str(agent) for agent, na in params.agents.items() for _ in range(na)]
+
+        # Place items on self.grid[y, x] = symbol
+        # Check if self.grid[y, x] == "empty" before placing
+```
+
 ## Best Practices Summary
 
 1. **Start Simple**: Begin with single-agent, small maps
@@ -677,6 +749,9 @@ tasks:
 6. **Validate Configurations**: Test configs before long training runs
 7. **Document Parameters**: Keep notes on effective parameter combinations
 8. **Version Control**: Track curriculum configs alongside code changes
+9. **Actions Format**: Use dict with enabled flags, not lists of action names
+10. **Multiroom Setup**: Use MultiRoom class for multi-agent environments
+11. **Scene Parameters**: Use objects dict and agents field in scene params
 
 ## Related Documentation
 

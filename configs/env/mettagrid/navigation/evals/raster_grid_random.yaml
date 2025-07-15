@@ -1,0 +1,41 @@
+defaults:
+  - /env/mettagrid/navigation/evals/defaults@
+  - _self_
+
+sampling: 1
+
+game:
+  num_agents: 1
+  max_steps: ${sampling:400, 1000, 700}
+  actions:
+    attack:
+      enabled: false
+    swap:
+      enabled: false
+    change_color:
+      enabled: false
+    put_items:
+      enabled: false
+
+  agent:
+    rewards:
+      heart: 1.0
+
+  map_builder:
+    _target_: metta.map.mapgen.MapGen
+    width: ${sampling:100, 150, 120}
+    height: ${sampling:100, 150, 120}
+    border_width: 1
+
+    root:
+      type: metta.map.scenes.grid_altars.GridAltars
+      params:
+        objects:
+          altar: ${sampling:10, 50, 25}
+        agents: 1
+        grid_rows: ${sampling:3, 8, 5}  # Random grid dimensions
+        grid_cols: ${sampling:3, 8, 5}
+        margin: ${sampling:5, 15, 10}
+        min_spacing: ${sampling:12, 20, 15}
+        randomize_position: 0  # Perfect grid alignment
+        place_agent_center: true

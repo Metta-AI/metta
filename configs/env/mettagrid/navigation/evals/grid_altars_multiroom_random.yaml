@@ -1,0 +1,47 @@
+defaults:
+  - /env/mettagrid/navigation/evals/defaults@
+  - _self_
+
+sampling: 1
+
+game:
+  num_agents: 4
+  # Random max steps between 600-1200
+  max_steps: ${sampling:600, 1200, 900}
+  actions:
+    attack:
+      enabled: false
+    swap:
+      enabled: false
+    change_color:
+      enabled: false
+    put_items:
+      enabled: false
+
+  agent:
+    rewards:
+      heart: 1.0
+
+  map_builder:
+    _target_: metta.mettagrid.room.multi_room.MultiRoom
+    num_rooms: ${..num_agents}
+    border_width: 8
+    room:
+      _target_: metta.map.mapgen.MapGen
+      # Random room size 100-130
+      width: ${sampling:100, 130, 120}
+      height: ${sampling:100, 130, 120}
+      border_width: 4
+
+                    root:
+        type: metta.map.scenes.grid_altars.GridAltars
+        params:
+          objects:
+            altar: ${sampling:16, 49, 36}  # Random 16-49 altars per room (4x4 to 7x7 grid)
+          agents: 1
+          grid_rows: ${sampling:4, 7, 6}  # Random 4-7 rows
+          grid_cols: ${sampling:4, 7, 6}  # Random 4-7 columns
+          margin: ${sampling:8, 12, 10}  # Random margin
+          min_spacing: ${sampling:12, 18, 15}  # Random minimum spacing
+          randomize_position: ${sampling:0, 3, 2}  # Random position variation
+          place_agent_center: true

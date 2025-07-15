@@ -1,0 +1,5 @@
+_target_: metta.mettagrid.curriculum.random.RandomCurriculum
+
+tasks:
+  # Single bucket - 4 rooms with randomly sampled grid altar parameters each episode
+  /env/mettagrid/navigation/evals/grid_altars_multiroom_random: 1.0

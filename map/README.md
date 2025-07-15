@@ -63,6 +63,7 @@ Maps are represented as 2D numpy arrays where each cell contains a string identi
 | `Mirror` | Symmetry operations | `axes` (horizontal/vertical/x4) |
 | `Layout` | Custom area definitions | `areas` with positions/tags |
 | `Spiral` | Places objects along spiral path | `spacing`, `radius_increment`, `angle_increment` |
+| `GridAltars` | Places objects on regular grid | `grid_rows`, `grid_cols`, `min_spacing` |
 
 ### Utility Scenes
 

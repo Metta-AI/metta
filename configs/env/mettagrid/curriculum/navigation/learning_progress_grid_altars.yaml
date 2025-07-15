@@ -1,0 +1,22 @@
+_target_: metta.mettagrid.curriculum.learning_progress.LearningProgressCurriculum
+
+tasks:
+  # Original navigation tasks (all use 4 agents in 4 rooms)
+  /env/mettagrid/navigation/training/terrain_from_numpy: 1
+  /env/mettagrid/navigation/training/wfc_random: 1
+  /env/mettagrid/navigation/training/maze_random: 1
+  /env/mettagrid/navigation/training/rooms_random: 1
+  /env/mettagrid/navigation/training/open_random: 1
+  /env/mettagrid/navigation/training/varied_mix: 1
+
+  # Grid altar task with random parameters (4 agents in 4 rooms)
+  /env/mettagrid/navigation/evals/grid_altars_multiroom_random: 1
+
+  # Spiral altar task with random parameters (4 agents in 4 rooms)
+  /env/mettagrid/navigation/evals/spiral_altar_multiroom_random: 1
+
+# Focus on subset of tasks at once
+num_active_tasks: 4
+ema_timescale: 0.001
+progress_smoothing: 0.05
+rand_task_rate: 0.25

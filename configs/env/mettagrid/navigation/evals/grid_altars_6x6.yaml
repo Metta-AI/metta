@@ -1,0 +1,10 @@
+defaults:
+  - grid_altars_base
+  - _self_
+
+# Simple 6x6 grid configuration
+# Already configured in base with:
+# - 36 altars in 6x6 grid
+# - 120x120 map size
+# - Minimum spacing of 15
+# - Agent at center
