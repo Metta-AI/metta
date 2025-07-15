@@ -452,7 +452,7 @@ class MettaRepo:
             result = await con.execute("""
                 SELECT DISTINCT eval_category
                 FROM episodes
-                WHERE eval_category IS NOT NULL
+                WHERE eval_category IS NOT NULL AND env_name IS NOT NULL
                 ORDER BY eval_category
             """)
             rows = await result.fetchall()
