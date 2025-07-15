@@ -2,28 +2,22 @@ import { auth, signOut } from "@/lib/auth";
 import Link from "next/link";
 import { FC } from "react";
 import { SignOutButton } from "./SignOutButton";
-
-const SignInButton: FC = () => {
-  return (
-    <Link href="/api/auth/signin" className="text-blue-500 hover:underline">
-      Sign In
-    </Link>
-  );
-};
+import { redirect } from "next/navigation";
 
 const UserInfo: FC = async () => {
   const session = await auth();
 
-  if (session?.user?.email) {
-    return (
-      <div className="flex items-center gap-2">
-        <span>{session.user.email}</span>
-        <SignOutButton />
-      </div>
-    );
+  if (!session?.user?.email) {
+    // usually shouldn't happen, we check auth in top-level layout
+    redirect("/api/auth/signin");
   }
 
-  return <SignInButton />;
+  return (
+    <div className="flex items-center gap-2">
+      <span>{session.user.email}</span>
+      <SignOutButton />
+    </div>
+  );
 };
 
 export const TopMenu: FC = async () => {

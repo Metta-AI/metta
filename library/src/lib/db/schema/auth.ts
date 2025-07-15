@@ -8,6 +8,8 @@ import {
 } from "drizzle-orm/pg-core";
 import type { AdapterAccountType } from "@auth/core/adapters";
 
+// Schemas from https://authjs.dev/getting-started/adapters/drizzle#schemas
+
 export const usersTable = pgTable("user", {
   id: text("id")
     .primaryKey()
