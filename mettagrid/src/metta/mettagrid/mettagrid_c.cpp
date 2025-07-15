@@ -35,7 +35,7 @@ namespace py = pybind11;
 
 MettaGrid::MettaGrid(const GameConfig& cfg, py::list map, unsigned int seed)
     : max_steps(cfg.max_steps),
-      use_dones(cfg.use_dones),
+      episode_truncates(cfg.episode_truncates),
       obs_width(cfg.obs_width),
       obs_height(cfg.obs_height),
       inventory_item_names(cfg.inventory_item_names),
@@ -419,13 +419,13 @@ void MettaGrid::_step(py::array_t<ActionType, py::array::c_style> actions) {
 
   // Check for truncation
   if (max_steps > 0 && current_step >= max_steps) {
-    if (use_dones) {
-      std::fill(static_cast<bool*>(_terminals.request().ptr),
-                static_cast<bool*>(_terminals.request().ptr) + _terminals.size(),
-                1);
-    } else {
+    if (episode_truncates) {
       std::fill(static_cast<bool*>(_truncations.request().ptr),
                 static_cast<bool*>(_truncations.request().ptr) + _truncations.size(),
+                1);
+    } else {
+      std::fill(static_cast<bool*>(_terminals.request().ptr),
+                static_cast<bool*>(_terminals.request().ptr) + _terminals.size(),
                 1);
     }
   }
@@ -925,7 +925,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
                     const std::map<std::string, std::shared_ptr<GridObjectConfig>>&>(),
            py::arg("num_agents"),
            py::arg("max_steps"),
-           py::arg("use_dones"),
+           py::arg("episode_truncates"),
            py::arg("obs_width"),
            py::arg("obs_height"),
            py::arg("inventory_item_names"),
@@ -934,7 +934,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
            py::arg("objects"))
       .def_readwrite("num_agents", &GameConfig::num_agents)
       .def_readwrite("max_steps", &GameConfig::max_steps)
-      .def_readwrite("use_dones", &GameConfig::use_dones)
+      .def_readwrite("episode_truncates", &GameConfig::episode_truncates)
       .def_readwrite("obs_width", &GameConfig::obs_width)
       .def_readwrite("obs_height", &GameConfig::obs_height)
       .def_readwrite("inventory_item_names", &GameConfig::inventory_item_names)
