@@ -162,7 +162,6 @@ class TerrainFromNumpy(Room):
         adjacent = [(y + 1, x), (y - 1, x), (y, x + 1), (y, x - 1)]
         for pos in adjacent:
             if pos in valid_positions and len(agent_positions) < num_agents:
-                print(f"Adding agent at {pos}")
                 agent_positions.append(pos)
 
         if len(agent_positions) < num_agents:
