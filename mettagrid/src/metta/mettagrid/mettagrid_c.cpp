@@ -33,7 +33,7 @@
 
 namespace py = pybind11;
 
-MettaGrid::MettaGrid(const GameConfig& cfg, py::list map, unsigned int seed)
+MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int seed)
     : obs_width(cfg.obs_width),
       obs_height(cfg.obs_height),
       max_steps(cfg.max_steps),
@@ -334,7 +334,7 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
   _stats->add("tokens_free_space", static_cast<float>(observation_view.shape(1) - tokens_written));
 }
 
-void MettaGrid::_compute_observations(py::array_t<ActionType, py::array::c_style> actions) {
+void MettaGrid::_compute_observations(const py::array_t<ActionType, py::array::c_style> actions) {
   auto actions_view = actions.unchecked<2>();
   // auto observation_view = _observations.mutable_unchecked<3>();
 
@@ -521,7 +521,7 @@ void MettaGrid::set_buffers(const py::array_t<uint8_t, py::array::c_style>& obse
   validate_buffers();
 }
 
-py::tuple MettaGrid::step(py::array_t<ActionType, py::array::c_style> actions) {
+py::tuple MettaGrid::step(const py::array_t<ActionType, py::array::c_style> actions) {
   _step(actions);
 
   auto rewards_view = _rewards.mutable_unchecked<1>();
@@ -666,9 +666,9 @@ py::dict MettaGrid::get_episode_stats() {
     Converter* converter = dynamic_cast<Converter*>(obj);
     if (converter) {
       // Add metadata to the converter's stats tracker BEFORE converting to dict
-      converter->stats.set("type_id", static_cast<int>(converter->type_id));
-      converter->stats.set("location.r", static_cast<int>(converter->location.r));
-      converter->stats.set("location.c", static_cast<int>(converter->location.c));
+      converter->stats.set("type_id", static_cast<float>(converter->type_id));
+      converter->stats.set("location.r", static_cast<float>(converter->location.r));
+      converter->stats.set("location.c", static_cast<float>(converter->location.c));
 
       // Now convert to dict - all values will be floats
       py::dict converter_stat = py::cast(converter->stats.to_dict());

@@ -59,7 +59,7 @@ public:
     // later when the event resolves.
     assert(object_id != 0);
 
-    Event event;
+    Event event{};
     event.timestamp = this->_current_timestep + delay;
     event.event_type = event_type;
     event.object_id = object_id;

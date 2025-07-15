@@ -46,7 +46,7 @@ protected:
       InventoryDelta taken = actor->update_inventory(item, resources_available);
 
       if (taken > 0) {
-        actor->stats.add(actor->stats.inventory_item_name(item) + ".get", taken);
+        actor->stats.add(actor->stats.inventory_item_name(item) + ".get", static_cast<float>(taken));
         converter->update_inventory(item, -taken);
         resources_taken = true;
       }

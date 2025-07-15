@@ -1,4 +1,4 @@
-.PHONY: help build lint test clean install pytest
+.PHONY: help build lint test clean install pytest tidy
 
 # Default target
 help:
@@ -6,6 +6,7 @@ help:
 	@echo "  build      - Build project for tests"
 	@echo "  build-prod - Build project for production"
 	@echo "  lint       - Run cpplint on all C++ source files"
+	@echo "  tidy       - Run clang-tidy static analysis"
 	@echo "  test       - Build and run all C++ tests"
 	@echo "  pytest     - Install package and run all Python tests"
 	@echo "  clean      - Clean all build artifacts"
@@ -45,3 +46,7 @@ install:
 pytest: install
 	@echo "Running Python tests..."
 	UV_PROJECT_ENVIRONMENT=../.venv uv run pytest
+
+tidy: build
+	@echo "Running clang-tidy..."
+	@bash clang-tidy.sh

@@ -145,9 +145,11 @@ protected:
 
         target.update_inventory(item, -stolen);
         if (stolen > 0) {
-          actor.stats.add(actor.stats.inventory_item_name(item) + ".stolen." + actor.group_name, stolen);
+          actor.stats.add(actor.stats.inventory_item_name(item) + ".stolen." + actor.group_name,
+                          static_cast<float>(stolen));
           // Also track what was stolen from the victim's perspective
-          target.stats.add(target.stats.inventory_item_name(item) + ".stolen_from." + target.group_name, stolen);
+          target.stats.add(target.stats.inventory_item_name(item) + ".stolen_from." + target.group_name,
+                           static_cast<float>(stolen));
         }
       }
     }

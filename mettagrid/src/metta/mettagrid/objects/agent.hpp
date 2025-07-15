@@ -58,7 +58,7 @@ public:
   std::string group_name;
   ObservationType color;
   ObservationType glyph;
-  unsigned char agent_id;  // index into MettaGrid._agents (vector<Agent*>)
+  unsigned char agent_id;  // index into MettaGrid._agents (std::vector<Agent*>)
   StatsTracker stats;
   RewardType current_resource_reward;
   RewardType* reward;
@@ -110,9 +110,9 @@ public:
 
     // Update stats
     if (delta > 0) {
-      this->stats.add(this->stats.inventory_item_name(item) + ".gained", delta);
+      this->stats.add(this->stats.inventory_item_name(item) + ".gained", static_cast<float>(delta));
     } else if (delta < 0) {
-      this->stats.add(this->stats.inventory_item_name(item) + ".lost", -delta);
+      this->stats.add(this->stats.inventory_item_name(item) + ".lost", static_cast<float>(-delta));
     }
 
     // Update resource rewards incrementally

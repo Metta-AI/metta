@@ -89,7 +89,7 @@ public:
     if (it == _update_count.end()) return 0.0f;
 
     unsigned int steps = get_current_step();
-    return (steps > 0) ? static_cast<float>(it->second) / steps : 0.0f;
+    return (steps > 0) ? static_cast<float>(it->second) / static_cast<float>(steps) : 0.0f;
   }
 
   // Convert to map for Python API (all values as floats)

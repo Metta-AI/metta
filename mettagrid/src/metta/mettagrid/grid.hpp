@@ -24,7 +24,8 @@ private:
 
 public:
   Grid(GridCoord height, GridCoord width) : height(height), width(width) {
-    grid.resize(height, vector<vector<GridObjectId>>(width, vector<GridObjectId>(GridLayer::GridLayerCount, 0)));
+    grid.resize(height,
+                std::vector<std::vector<GridObjectId>>(width, std::vector<GridObjectId>(GridLayer::GridLayerCount, 0)));
 
     // Reserve space for objects to avoid frequent reallocations
     // Assume ~50% of grid cells will contain objects
