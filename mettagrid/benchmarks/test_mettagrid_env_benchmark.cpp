@@ -209,8 +209,9 @@ static void BM_MettaGridStep(benchmark::State& state) {  // NOLINT(runtime/refer
   }
 
   // Report steps/second as custom counters
-  state.counters["env_rate"] = benchmark::Counter(state.iterations(), benchmark::Counter::kIsRate);
-  state.counters["agent_rate"] = benchmark::Counter(state.iterations() * num_agents, benchmark::Counter::kIsRate);
+  state.counters["env_rate"] = benchmark::Counter(static_cast<double>(state.iterations()), benchmark::Counter::kIsRate);
+  state.counters["agent_rate"] = benchmark::Counter(
+      static_cast<double>(state.iterations()) * static_cast<double>(num_agents), benchmark::Counter::kIsRate);
 }
 
 // Register benchmarks to match Python tests
