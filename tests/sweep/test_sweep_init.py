@@ -18,7 +18,7 @@ class TestValidateProteinSuggestion:
 
     def test_valid_suggestion_no_changes(self):
         """Test validation passes when suggestion doesn't change parameters."""
-        config = DictConfig({"trainer": {"ppo": {"batch_size": 2048, "minibatch_size": 64, "bppt": 32}}})
+        config = DictConfig({"trainer": {"batch_size": 2048, "minibatch_size": 64, "bptt_horizon": 32}})
         suggestion = {"learning_rate": 0.001}  # No batch-related changes
 
         # Should not raise
@@ -26,18 +26,20 @@ class TestValidateProteinSuggestion:
 
     def test_valid_suggestion_with_changes(self):
         """Test validation passes with valid batch size changes."""
-        config = DictConfig({"trainer": {"ppo": {"batch_size": 2048, "minibatch_size": 64, "bppt": 32}}})
-        suggestion = {"batch_size": 4096, "minibatch_size": 128, "bppt": 64}
+        config = DictConfig({"trainer": {"batch_size": 2048, "minibatch_size": 64, "bptt_horizon": 32}})
+        suggestion = {"trainer": {"batch_size": 4096, "minibatch_size": 128, "bptt_horizon": 64}}
 
         # Should not raise - 4096 % 128 == 0 and 128 % 64 == 0
         validate_protein_suggestion(config, suggestion)
 
     def test_invalid_batch_size_not_divisible_by_minibatch(self):
         """Test validation fails when batch_size is not divisible by minibatch_size."""
-        config = DictConfig({"trainer": {"ppo": {"batch_size": 2048, "minibatch_size": 64, "bppt": 32}}})
+        config = DictConfig({"trainer": {"batch_size": 2048, "minibatch_size": 64, "bptt_horizon": 32}})
         suggestion = {
-            "batch_size": 1000,  # Not divisible by 64
-            "minibatch_size": 64,
+            "trainer": {
+                "batch_size": 1000,  # Not divisible by 64
+                "minibatch_size": 64,
+            }
         }
 
         with pytest.raises(ValueError, match="Batch size 1000 must be divisible by minibatch size 64"):
@@ -45,11 +47,13 @@ class TestValidateProteinSuggestion:
 
     def test_invalid_minibatch_not_divisible_by_bppt(self):
         """Test validation fails when minibatch_size is not divisible by bppt."""
-        config = DictConfig({"trainer": {"ppo": {"batch_size": 2048, "minibatch_size": 64, "bppt": 32}}})
+        config = DictConfig({"trainer": {"batch_size": 2048, "minibatch_size": 64, "bptt_horizon": 32}})
         suggestion = {
-            "batch_size": 2048,  # Keep batch_size valid
-            "minibatch_size": 64,  # Valid for batch_size
-            "bppt": 50,  # 64 is not divisible by 50
+            "trainer": {
+                "batch_size": 2048,  # Keep batch_size valid
+                "minibatch_size": 64,  # Valid for batch_size
+                "bptt_horizon": 50,  # 64 is not divisible by 50
+            }
         }
 
         with pytest.raises(ValueError, match="Minibatch size 64 must be divisible by bppt 50"):
@@ -57,9 +61,11 @@ class TestValidateProteinSuggestion:
 
     def test_suggestion_updates_only_some_parameters(self):
         """Test validation when suggestion updates only some batch parameters."""
-        config = DictConfig({"trainer": {"ppo": {"batch_size": 2048, "minibatch_size": 64, "bppt": 32}}})
+        config = DictConfig({"trainer": {"batch_size": 2048, "minibatch_size": 64, "bptt_horizon": 32}})
         suggestion = {
-            "batch_size": 4096  # Only updating batch_size
+            "trainer": {
+                "batch_size": 4096  # Only updating batch_size
+            }
         }
 
         # Should not raise - 4096 % 64 == 0
@@ -67,25 +73,23 @@ class TestValidateProteinSuggestion:
 
     def test_edge_case_all_equal(self):
         """Test edge case where all parameters are equal."""
-        config = DictConfig({"trainer": {"ppo": {"batch_size": 64, "minibatch_size": 64, "bppt": 64}}})
+        config = DictConfig({"trainer": {"batch_size": 64, "minibatch_size": 64, "bptt_horizon": 64}})
         suggestion = {}
 
         # Should not raise - 64 % 64 == 0
         validate_protein_suggestion(config, suggestion)
 
     def test_suggestion_with_nested_structure(self):
-        """Test validation ignores nested suggestion structures."""
-        config = DictConfig({"trainer": {"ppo": {"batch_size": 2048, "minibatch_size": 64, "bppt": 32}}})
+        """Test validation handles nested suggestion structures."""
+        config = DictConfig({"trainer": {"batch_size": 2048, "minibatch_size": 64, "bptt_horizon": 32}})
         suggestion = {
             "trainer": {
-                "ppo": {
-                    "batch_size": 4096  # Nested structure - should be ignored
-                }
-            },
-            "batch_size": 4096,  # This should be used
+                "batch_size": 4096,  # Nested structure
+                "minibatch_size": 128,
+            }
         }
 
-        # Should not raise
+        # Should not raise - 4096 % 128 == 0
         validate_protein_suggestion(config, suggestion)
 
 
@@ -106,7 +110,7 @@ class TestGenerateProteinSuggestion:
         )
 
         config = DictConfig(
-            {"sweep": {"parameters": {}}, "trainer": {"ppo": {"batch_size": 2048, "minibatch_size": 64, "bppt": 32}}}
+            {"sweep": {"parameters": {}}, "trainer": {"batch_size": 2048, "minibatch_size": 64, "bptt_horizon": 32}}
         )
 
         result = generate_protein_suggestion(config, mock_protein)
@@ -127,12 +131,12 @@ class TestGenerateProteinSuggestion:
 
         # First suggestion is invalid, second is valid
         mock_protein.suggest.side_effect = [
-            ({"batch_size": 1000, "minibatch_size": 64}, {}),  # Invalid
-            ({"batch_size": 2048, "minibatch_size": 64}, {}),  # Valid
+            ({"trainer": {"batch_size": 1000, "minibatch_size": 64}}, {}),  # Invalid
+            ({"trainer": {"batch_size": 2048, "minibatch_size": 64}}, {}),  # Valid
         ]
 
         config = DictConfig(
-            {"sweep": {"parameters": {}}, "trainer": {"ppo": {"batch_size": 2048, "minibatch_size": 64, "bppt": 32}}}
+            {"sweep": {"parameters": {}}, "trainer": {"batch_size": 2048, "minibatch_size": 64, "bptt_horizon": 32}}
         )
 
         result = generate_protein_suggestion(config, mock_protein)
@@ -144,7 +148,7 @@ class TestGenerateProteinSuggestion:
         )
 
         # Should return the valid suggestion
-        assert result["batch_size"] == 2048
+        assert result["trainer"]["batch_size"] == 2048
 
     @patch("tools.sweep_init.MettaProtein")
     def test_max_retries_exceeded(self, mock_protein_class):
@@ -154,10 +158,10 @@ class TestGenerateProteinSuggestion:
         mock_protein_class.return_value = mock_protein
 
         # Always return invalid suggestion
-        mock_protein.suggest.return_value = ({"batch_size": 1000, "minibatch_size": 64}, {})
+        mock_protein.suggest.return_value = ({"trainer": {"batch_size": 1000, "minibatch_size": 64}}, {})
 
         config = DictConfig(
-            {"sweep": {"parameters": {}}, "trainer": {"ppo": {"batch_size": 2048, "minibatch_size": 64, "bppt": 32}}}
+            {"sweep": {"parameters": {}}, "trainer": {"batch_size": 2048, "minibatch_size": 64, "bptt_horizon": 32}}
         )
 
         with pytest.raises(ValueError, match="Batch size 1000 must be divisible by minibatch size 64"):
