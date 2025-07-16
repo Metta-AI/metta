@@ -18,11 +18,9 @@ from metta.agent.policy_metadata import PolicyMetadata
 from metta.agent.policy_record import PolicyRecord
 from metta.agent.policy_store import PolicyStore
 from metta.app_backend.stats_client import StatsClient
-from metta.common.profiling.memory_monitor import MemoryMonitor
 from metta.common.profiling.stopwatch import Stopwatch, with_instance_timer
 from metta.common.util.fs import wait_for_file
 from metta.common.util.heartbeat import record_heartbeat
-from metta.common.util.system_monitor import SystemMonitor
 from metta.common.wandb.wandb_context import WandbRun
 from metta.eval.eval_request_config import EvalRewardSummary
 from metta.eval.eval_service import evaluate_policy
