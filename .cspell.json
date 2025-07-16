@@ -230,9 +230,9 @@
   ],
   "ignoreWords": [],
   "ignorePaths": [
-    "node_modules",
-    "venv",
-    ".git",
+    "node_modules/**",
+    "venv/**",
+    ".git/**",
     "*.map"
   ]
 }
