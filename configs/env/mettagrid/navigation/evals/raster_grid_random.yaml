@@ -31,11 +31,11 @@ game:
       type: metta.map.scenes.grid_altars.GridAltars
       params:
         objects:
-          altar: ${sampling:10, 50, 25}
+          altar: ${sampling:9, 225, 49}  # 9-225 altars (3x3 to 15x15 grid)
         agents: 1
-        grid_rows: ${sampling:3, 8, 5}  # Random grid dimensions
-        grid_cols: ${sampling:3, 8, 5}
+        grid_rows: ${sampling:3, 15, 7}  # 3-15 rows
+        grid_cols: ${sampling:3, 15, 7}  # 3-15 columns
         margin: ${sampling:5, 15, 10}
-        min_spacing: ${sampling:12, 20, 15}
+        min_spacing: ${sampling:5, 10, 8}
         randomize_position: 0  # Perfect grid alignment
         place_agent_center: true
