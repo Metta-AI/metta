@@ -72,7 +72,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(levelna
 logger = logging.getLogger(__name__)
 
 # Define run name in a single place
-RUN_NAME = "bullm_arena_functional_runpy_v2"
+RUN_NAME = "bullm_arena_functional_runpy_v3_stable"
 
 # Set up directories and distributed training
 dirs = setup_run_directories()
@@ -85,7 +85,7 @@ device, is_master, world_size, rank = setup_distributed_training("cuda" if torch
 
 # Core training parameters
 num_workers = 4
-total_timesteps = 100_000_000_000  # Increased from 10M to 100M timesteps (10x longer)
+total_timesteps = 50_000_000  # Reduced to 50M timesteps for stability
 batch_size = 524288 if torch.cuda.is_available() else 131072  # 512k for GPU, 128k for CPU
 minibatch_size = 16384 if torch.cuda.is_available() else 4096  # 16k for GPU, 4k for CPU
 curriculum = "/env/mettagrid/curriculum/arena/learning_progress"
@@ -104,11 +104,12 @@ ppo_config = PPOConfig(
     ent_coef=0.01,
     gamma=0.99,
     gae_lambda=0.95,
+    max_grad_norm=0.5,  # Add gradient clipping for stability
 )
 
 optimizer_config = OptimizerConfig(
     type="muon",
-    learning_rate=4.5e-3,  # Arena-specific learning rate
+    learning_rate=2.0e-3,  # Reduced learning rate for stability
 )
 
 checkpoint_config = CheckpointConfig(
