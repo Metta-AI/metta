@@ -150,8 +150,6 @@ class TerrainFromNumpy(Room):
         num_agents = len(agent_labels)
 
         valid_positions = self.get_valid_positions(level)
-        print(f"num agents: {num_agents}")
-        random.shuffle(valid_positions)
 
         # 5. Place agents in first slice
         # Take first position and its neighbor for agents
@@ -160,19 +158,16 @@ class TerrainFromNumpy(Room):
 
         # Check adjacent positions and use first valid one
         adjacent = [(y + 1, x), (y - 1, x), (y, x + 1), (y, x - 1)]
-        for pos in adjacent:
-            if pos in valid_positions and len(agent_positions) < num_agents:
-                agent_positions.append(pos)
-
-        if len(agent_positions) < num_agents:
-            agent_positions.append(valid_positions[1])
+        agent_positions.extend(random.sample(adjacent, 1))
 
         for pos, label in zip(agent_positions, agent_labels, strict=False):
             level[pos] = label
-        print(f"agent positions: {agent_positions}")
+
+        valid_positions = valid_positions[num_agents:]
+        random.shuffle(valid_positions)
 
         # Convert to set for O(1) removal operations
-        valid_positions_set = set(valid_positions[num_agents:])
+        valid_positions_set = set(valid_positions)
 
         for obj_name, count in self._objects.items():
             if obj_name == "altar":
