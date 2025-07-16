@@ -33,11 +33,9 @@ class EvalTaskClient:
     async def close(self):
         await self._http_client.aclose()
 
-    async def _make_request(self, response_type: Type[T] | None, method: str, url: str, **kwargs) -> T:
+    async def _make_request(self, response_type: Type[T], method: str, url: str, **kwargs) -> T:
         response = await self._http_client.request(method, url, headers={"X-Auth-Token": self._machine_token}, **kwargs)
         response.raise_for_status()
-        if response_type is None:
-            return response.json()
         return response_type.model_validate(response.json())
 
     async def create_task(self, request: TaskCreateRequest) -> TaskResponse:
