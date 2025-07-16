@@ -173,9 +173,14 @@ onEvent('pointerup', 'body', () => {
 
   // Due to how we select objects on pointer-up (pointer-down is drag/pan),
   // we need to check for double-click on pointer-up as well.
+  // BUT don't detect double-click if we're pinching or just finished pinching
   const currentTime = new Date().getTime()
-  ui.mouseDoubleClick = currentTime - ui.lastClickTime < 300 // 300ms threshold for double-click
-  ui.lastClickTime = currentTime
+  if (!ui.isPinching && ui.touches.length === 0) {
+    ui.mouseDoubleClick = currentTime - ui.lastClickTime < 300 // 300ms threshold for double-click
+    ui.lastClickTime = currentTime
+  } else {
+    ui.mouseDoubleClick = false
+  }
 
   requestFrame()
 })
@@ -260,7 +265,11 @@ onEvent('pointerdown', '.draggable', (target: HTMLElement, e: Event) => {
 onEvent('wheel', 'body', (target: HTMLElement, e: Event) => {
   let event = e as WheelEvent
   ui.scrollDelta = event.deltaY
-  // Prevent pinch-to-zoom.
+  // Only prevent default for mouse wheel, not touch pinch gestures
+  if (event.ctrlKey) {
+    // This is likely a pinch gesture on trackpad, allow it through
+    return
+  }
   event.preventDefault()
   requestFrame()
 })
@@ -276,6 +285,81 @@ document.addEventListener('pointerout', function (e) {
 /** Handles the window losing focus. */
 document.addEventListener('blur', function (e) {
   hideHoverPanel()
+  requestFrame()
+})
+
+/** Handles touch start events for pinch-to-zoom. */
+onEvent('touchstart', 'body', (target: HTMLElement, e: Event) => {
+  let event = e as TouchEvent
+  ui.touches = Array.from(event.touches)
+
+  if (ui.touches.length === 2) {
+    // Start pinch gesture
+    const touch1 = new Vec2f(ui.touches[0].clientX, ui.touches[0].clientY)
+    const touch2 = new Vec2f(ui.touches[1].clientX, ui.touches[1].clientY)
+    const initialDistance = touch1.sub(touch2).length()
+
+    // Only start pinching if fingers are far enough apart to avoid zoom spikes
+    if (initialDistance > 20) {
+      ui.pinchCenter = touch1.add(touch2).mul(0.5)
+      ui.lastPinchCenter = ui.pinchCenter
+      ui.pinchDistance = initialDistance
+      ui.lastPinchDistance = initialDistance
+      ui.isPinching = true
+
+      // Prevent default to avoid interference with other gestures
+      event.preventDefault()
+    }
+  } else {
+    // Reset all pinch state when not pinching
+    ui.isPinching = false
+    ui.pinchDistance = 0
+    ui.lastPinchDistance = 0
+    ui.pinchCenter = new Vec2f(0, 0)
+    ui.lastPinchCenter = new Vec2f(0, 0)
+  }
+
+  requestFrame()
+})
+
+/** Handles touch move events for pinch-to-zoom. */
+onEvent('touchmove', 'body', (target: HTMLElement, e: Event) => {
+  let event = e as TouchEvent
+  ui.touches = Array.from(event.touches)
+
+  if (ui.isPinching && ui.touches.length === 2) {
+    // Prevent default scrolling during pinch
+    event.preventDefault()
+  }
+
+  requestFrame()
+})
+
+/** Handles touch end events for pinch-to-zoom. */
+onEvent('touchend', 'body', (target: HTMLElement, e: Event) => {
+  let event = e as TouchEvent
+  ui.touches = Array.from(event.touches)
+
+  if (ui.touches.length < 2) {
+    ui.isPinching = false
+    ui.pinchDistance = 0
+    ui.lastPinchDistance = 0
+    ui.pinchCenter = new Vec2f(0, 0)
+    ui.lastPinchCenter = new Vec2f(0, 0)
+  }
+
+  requestFrame()
+})
+
+/** Handles touch cancel events for pinch-to-zoom. */
+onEvent('touchcancel', 'body', (target: HTMLElement, e: Event) => {
+  // Reset all pinch state when touch is cancelled
+  ui.isPinching = false
+  ui.touches = []
+  ui.pinchDistance = 0
+  ui.lastPinchDistance = 0
+  ui.pinchCenter = new Vec2f(0, 0)
+  ui.lastPinchCenter = new Vec2f(0, 0)
   requestFrame()
 })
 
@@ -593,10 +677,10 @@ function setPlaybackSpeed(speed: number) {
 // Initial resize.
 onResize()
 
-// Disable pinch-to-zoom.
+// Enable pinch-to-zoom.
 let meta = document.createElement('meta')
 meta.name = 'viewport'
-meta.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no'
+meta.content = 'width=device-width, initial-scale=1.0'
 document.head.appendChild(meta)
 
 html.modal.classList.add('hidden')

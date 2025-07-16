@@ -81,6 +81,48 @@ export class PanelInfo {
       this.isPanning = false
     }
 
+    // Handle pinch-to-zoom gestures
+    if (ui.isPinching && ui.touches.length === 2) {
+      // Calculate the center point between the two touches
+      const touch1 = new Vec2f(ui.touches[0].clientX, ui.touches[0].clientY)
+      const touch2 = new Vec2f(ui.touches[1].clientX, ui.touches[1].clientY)
+      const center = touch1.add(touch2).mul(0.5)
+      const distance = touch1.sub(touch2).length()
+
+      // Only process zoom if we have a valid previous distance and sufficient change
+      if (ui.lastPinchDistance > 20 && Math.abs(distance - ui.lastPinchDistance) > 5) {
+        // Calculate zoom delta (similar to scroll wheel) - make it less sensitive
+        const zoomRatio = distance / ui.lastPinchDistance
+        const scrollEquivalent = (zoomRatio - 1.0) * 500 // Convert to scroll-like delta
+
+        // Use the exact same logic as mouse wheel zoom
+        const oldCenterPoint = this.transformOuter(center)
+        this.zoomLevel = this.zoomLevel + scrollEquivalent / Common.SCROLL_ZOOM_FACTOR
+        this.zoomLevel = Math.max(Math.min(this.zoomLevel, Common.MAX_ZOOM_LEVEL), Common.MIN_ZOOM_LEVEL)
+        const newCenterPoint = this.transformOuter(center)
+        if (oldCenterPoint != null && newCenterPoint != null) {
+          this.panPos = this.panPos.add(newCenterPoint.sub(oldCenterPoint))
+        }
+
+        // Update stored values only after successful zoom
+        ui.lastPinchDistance = distance
+      }
+
+      // Handle panning during pinch - update center every frame for smooth panning
+      const centerDelta = center.sub(ui.lastPinchCenter)
+      if (centerDelta.length() > 2) { // Minimum movement threshold
+        const lastCenterPoint = this.transformOuter(ui.lastPinchCenter)
+        const newCenterPoint = this.transformOuter(center)
+        if (lastCenterPoint != null && newCenterPoint != null) {
+          this.panPos = this.panPos.add(newCenterPoint.sub(lastCenterPoint))
+        }
+      }
+
+      // Always update center for next frame
+      ui.lastPinchCenter = center
+      return true
+    }
+
     if (this.isPanning && ui.mousePos.sub(ui.lastMousePos).length() > 1) {
       const lastMousePoint = this.transformOuter(ui.lastMousePos)
       const newMousePoint = this.transformOuter(ui.mousePos)

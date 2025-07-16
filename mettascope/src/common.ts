@@ -6,7 +6,7 @@ import { HoverPanel } from './hoverpanels.js'
 
 // The 3D context, used for nearly everything.
 export const ctx = new Context3d(find('#global-canvas') as HTMLCanvasElement)
-;(window as any).ctx = ctx
+  ; (window as any).ctx = ctx
 
 // Constants
 export const MIN_ZOOM_LEVEL = 0.025
@@ -60,6 +60,15 @@ export const ui = {
   mainScrubberDown: false,
   mainTraceMinimapDown: false,
 
+  // Touch events for pinch-to-zoom
+  touches: [] as Touch[],
+  lastTouches: [] as Touch[],
+  pinchDistance: 0,
+  lastPinchDistance: 0,
+  pinchCenter: new Vec2f(0, 0),
+  lastPinchCenter: new Vec2f(0, 0),
+  isPinching: false,
+
   dpr: 1, // DPI scale factor used for Retina displays.
 
   // Split between trace and info panels.
@@ -112,8 +121,8 @@ export const state = {
   isOneToOneAction: false,
 }
 
-// Expose state for easier testing
-;(window as any).state = state
+  // Expose state for easier testing
+  ; (window as any).state = state
 
 export const html = {
   globalCanvas: find('#global-canvas') as HTMLCanvasElement,
