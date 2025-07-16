@@ -14,8 +14,6 @@ from metta.api import (
     Optimizer,
     cleanup_distributed,
     cleanup_wandb,
-    create_evaluation_config_suite,
-    create_replay_config,
     ensure_initial_policy,
     initialize_wandb,
     save_experiment_config,
@@ -767,15 +765,17 @@ while agent_step < trainer_config.total_timesteps:
                 "num_episodes": 1,
                 "max_time_s": 60,
                 "env_overrides": {
-                    "_pre_built_env_config": DictConfig({
-                        "sampling": 0,  # Disable sampling for replay
-                        "num_agents": 4,
-                        "width": 32,
-                        "height": 32,
-                    }),
+                    "_pre_built_env_config": DictConfig(
+                        {
+                            "sampling": 0,  # Disable sampling for replay
+                            "num_agents": 4,
+                            "width": 32,
+                            "height": 32,
+                        }
+                    ),
                 },
             }
-            
+
             replay_sim_config = SingleEnvSimulationConfig(**arena_replay_config)
 
             replay_simulator = Simulation(
