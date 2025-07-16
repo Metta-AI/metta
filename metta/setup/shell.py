@@ -1,3 +1,4 @@
+import importlib.util
 import logging
 import sys
 from functools import partial
@@ -18,6 +19,10 @@ REPO_ROOT = get_repo_root()
 CONFIGS_DIR = REPO_ROOT / "configs"
 
 load_cfg = partial(load_and_print_config, exit_on_failure=False, print_cfg=False)
+
+from metta.common.util.stats_client_cfg import get_stats_client  # noqa
+from metta.agent.policy_store import PolicyStore  # noqa
+from metta.app_backend.stats_client import StatsClient  # noqa
 
 
 def help_configs() -> None:
@@ -44,7 +49,22 @@ try:
     personal_dir = str(REPO_ROOT / "personal")
     if personal_dir not in sys.path:
         sys.path.insert(0, personal_dir)
-    from personal.shell_startup import *  # noqa
+
+    spec = importlib.util.spec_from_file_location("personal.shell_startup", REPO_ROOT / "personal" / "shell_startup.py")
+    if spec and spec.loader:
+        shell_startup = importlib.util.module_from_spec(spec)
+        # Inject our current globals into the module's namespace
+        current_globals = globals().copy()
+        current_globals.update(locals())
+        for key, value in current_globals.items():
+            if key not in ["__name__", "__file__", "__cached__"]:
+                setattr(shell_startup, key, value)
+
+        # Now execute the module with our globals available
+        spec.loader.exec_module(shell_startup)
+        # Import names from shell_startup into our namespace
+        for name in dir(shell_startup):
+            locals()[name] = getattr(shell_startup, name)
 
     success("Personal shell startup loaded successfully")
 except ImportError:
