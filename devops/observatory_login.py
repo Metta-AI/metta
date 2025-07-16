@@ -255,14 +255,6 @@ class CLIAuthenticator:
             except Exception:
                 pass
 
-        # Check legacy file as fallback
-        if self.legacy_file.exists():
-            try:
-                with open(self.legacy_file, "r") as f:
-                    return bool(f.read().strip())
-            except Exception:
-                pass
-
         return False
 
 
