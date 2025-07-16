@@ -884,7 +884,8 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def_readwrite("conversion_ticks", &ConverterConfig::conversion_ticks)
       .def_readwrite("cooldown", &ConverterConfig::cooldown)
       .def_readwrite("initial_resource_count", &ConverterConfig::initial_resource_count)
-      .def_readwrite("color", &ConverterConfig::color);
+      .def_readwrite("color", &ConverterConfig::color)
+      .def_readwrite("show_recipe_inputs", &ConverterConfig::show_recipe_inputs);
 
   py::class_<ActionConfig, std::shared_ptr<ActionConfig>>(m, "ActionConfig")
       .def(py::init<const std::map<InventoryItem, InventoryQuantity>&,
