@@ -329,7 +329,6 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
     }
   }
 
-  // Update statistics
   _stats->add("tokens_written", static_cast<float>(tokens_written));
   _stats->add("tokens_dropped", static_cast<float>(attempted_tokens_written - tokens_written));
   _stats->add("tokens_free_space", static_cast<float>(observation_view.shape(1) - tokens_written));

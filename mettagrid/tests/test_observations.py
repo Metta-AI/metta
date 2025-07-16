@@ -1,22 +1,12 @@
 from typing import List, Tuple
 
 import numpy as np
-import pytest
 
 from metta.mettagrid.mettagrid_c import MettaGrid, PackedCoordinate
 from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
 from metta.mettagrid.mettagrid_env import dtype_actions
 
 from .test_mettagrid import EnvConfig, TestEnvironmentBuilder, TokenTypes
-
-
-@pytest.fixture
-def adjacent_agents_env():
-    """Create an environment with adjacent agents."""
-    builder = TestEnvironmentBuilder()
-    game_map = builder.create_basic_grid(5, 5)
-    game_map = builder.place_agents(game_map, [(2, 1), (2, 2)])
-    return builder.create_environment(game_map)
 
 
 class ObservationHelper:

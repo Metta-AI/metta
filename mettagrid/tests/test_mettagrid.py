@@ -2,7 +2,6 @@ from dataclasses import dataclass
 from typing import List, Tuple
 
 import numpy as np
-import pytest
 
 from metta.mettagrid.mettagrid_c import MettaGrid, PackedCoordinate
 from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
@@ -39,15 +38,6 @@ class EnvConfig:  # Renamed from TestConfig to avoid pytest confusion
     NUM_OBS_TOKENS: int = 100
     OBS_TOKEN_SIZE: int = 3
     EMPTY_TOKEN = [0xFF, 0xFF, 0xFF]
-
-
-@pytest.fixture
-def basic_env():
-    """Create a basic test environment."""
-    builder = TestEnvironmentBuilder()
-    game_map = builder.create_basic_grid()
-    game_map = builder.place_agents(game_map, [(1, 1), (2, 4)])
-    return builder.create_environment(game_map)
 
 
 class TestEnvironmentBuilder:
