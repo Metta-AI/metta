@@ -21,6 +21,7 @@ import boto3
 import wandb
 from botocore.exceptions import ClientError, NoCredentialsError
 from wandb.errors import CommError
+from wandb.sdk.wandb_run import Run
 
 # --------------------------------------------------------------------------- #
 #  Globals                                                                     #
@@ -66,7 +67,7 @@ def exists(path: str) -> bool:
 
 def write_data(path: str, data: Union[str, bytes], *, content_type: str = "application/octet-stream") -> None:
     """
-    Write in-memory bytes/str to *local*, *s3://* or *wandb://* destinations.
+    Write in-memory bytes/str to *local*, *s3://* or *wandb://* (as an artifact) destinations.
     """
     logger = logging.getLogger(__name__)
 
@@ -266,6 +267,9 @@ class WandbURI:
 
 
 def upload_bytes_to_wandb(uri: WandbURI, blob: bytes, name: str) -> None:
+    """
+    Upload bytes to W&B as an artifact.
+    """
     with tempfile.NamedTemporaryFile(delete=False) as fh:
         fh.write(blob)
         tmpname = fh.name
@@ -363,3 +367,26 @@ def upload_file_to_wandb(uri, local_file: str, name: str) -> None:
     except Exception as e:
         logger.error(f"Failed to upload file to wandb: {e}")
         raise
+
+
+def upload_data_as_wandb_file(data: Union[str, bytes], filename: str, run: Run) -> None:
+    """
+    Upload data to the current wandb run as a file (not artifact).
+
+    Args:
+        data: Data to upload - str or bytes
+        filename: Name for the file (e.g., "config.json", "data.txt")
+        run: wandb run to use
+    """
+    logger = logging.getLogger(__name__)
+
+    # Write to the wandb run directory directly
+    run_dir = run.dir
+    file_path = os.path.join(run_dir, filename)
+
+    mode = "w" if isinstance(data, str) else "wb"
+    with open(file_path, mode) as f:
+        f.write(data)
+
+    wandb.save(file_path, base_path=run_dir, policy="now")
+    logger.info(f"Uploaded {filename} to wandb run directory")

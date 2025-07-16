@@ -323,6 +323,9 @@ class PreBuiltConfigCurriculum(Curriculum):
         task_name = f"prebuilt({self._env_name})"
         return {task_name: 1.0}
 
+    def get_env_cfg_by_bucket(self) -> dict[str, DictConfig]:
+        return {self._env_name: self._cfg_template}
+
 
 def _get_default_env_config(num_agents: int = 4, width: int = 32, height: int = 32) -> Dict[str, Any]:
     """Get default environment configuration for navigation training."""
@@ -526,6 +529,9 @@ class NavigationBucketedCurriculum(Curriculum):
         self.terrain_dirs = terrain_dirs
         self.altar_range = altar_range
         self.current_idx = 0
+
+    def get_env_cfg_by_bucket(self) -> dict[str, DictConfig]:
+        return {self._env_name: self._cfg_template}
 
     def get_task(self) -> "Task":
         import random
