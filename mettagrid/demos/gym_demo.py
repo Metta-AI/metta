@@ -15,14 +15,10 @@ from omegaconf import DictConfig
 from metta.mettagrid.curriculum.core import SingleTaskCurriculum
 from metta.mettagrid.gym_env import MettaGridGymEnv, SingleAgentMettaGridGymEnv
 
-
-import os
-import sys
 # Add the src directory to the path to ensure imports work correctly
 script_dir = os.path.dirname(os.path.abspath(__file__))
 src_dir = os.path.abspath(os.path.join(script_dir, "..", "src"))
 sys.path.insert(0, src_dir)
-
 
 
 def create_simple_config():
