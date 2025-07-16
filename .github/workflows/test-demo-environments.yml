@@ -27,18 +27,17 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
     
-    - name: Install uv
-      uses: astral-sh/setup-uv@v4
+    - name: Setup uv
+      uses: ./.github/actions/setup-uv
       with:
-        version: "0.7.3"
-        enable-cache: true
+        install-mode: "no-mettagrid"
     
     - name: Install local packages
       run: |
         echo "Installing metta-mettagrid..."
-        uv pip install -e ./mettagrid
+        uv pip install --no-build-isolation --no-deps -e ./mettagrid
         echo "Installing metta-common..."
-        uv pip install -e ./common
+        uv pip install --no-deps -e ./common
         echo "Verifying installations..."
         uv pip list | grep -E "(metta-mettagrid|metta-common)"
         
@@ -65,18 +64,17 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
     
-    - name: Install uv
-      uses: astral-sh/setup-uv@v4
+    - name: Setup uv
+      uses: ./.github/actions/setup-uv
       with:
-        version: "0.7.3"
-        enable-cache: true
+        install-mode: "no-mettagrid"
     
     - name: Install local packages
       run: |
         echo "Installing metta-mettagrid..."
-        uv pip install -e ./mettagrid
+        uv pip install --no-build-isolation --no-deps -e ./mettagrid
         echo "Installing metta-common..."
-        uv pip install -e ./common
+        uv pip install --no-deps -e ./common
         echo "Verifying installations..."
         uv pip list | grep -E "(metta-mettagrid|metta-common)"
         
