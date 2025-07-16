@@ -12,6 +12,7 @@ from metta.mettagrid.mettagrid_env import (
 )
 
 NUM_AGENTS = 2
+OBS_HEIGHT = 3
 OBS_WIDTH = 3
 NUM_OBS_TOKENS = 100
 OBS_TOKEN_SIZE = 3
@@ -43,6 +44,7 @@ def create_minimal_mettagrid_c_env(max_steps=10, width=5, height=5, config_overr
         "max_steps": max_steps,
         "num_agents": NUM_AGENTS,
         "obs_width": OBS_WIDTH,
+        "obs_height": OBS_HEIGHT,
         "num_observation_tokens": NUM_OBS_TOKENS,
         "inventory_item_names": ["laser", "armor"],
         "actions": {
