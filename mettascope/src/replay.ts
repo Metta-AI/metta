@@ -243,8 +243,6 @@ function fixReplay() {
     // Force a resize to update the minimap panel.
     onResize()
   }
-
-  console.info('replay: ', state.replay)
 }
 
 /** Loads a replay from a JSON object. */
@@ -351,7 +349,7 @@ export function initWebSocket(wsUrl: string) {
   state.ws = new WebSocket(wsUrl)
   state.ws.onmessage = (event) => {
     const data = JSON.parse(event.data)
-    console.info('Received message: ', data.type)
+    // console.info('Received message: ', data.type)
     if (data.type === 'replay') {
       loadReplayJson(wsUrl, data.replay)
       Common.closeModal()
@@ -359,7 +357,7 @@ export function initWebSocket(wsUrl: string) {
     } else if (data.type === 'replay_step') {
       loadReplayStep(data.replay_step)
     } else if (data.type === 'message') {
-      console.info('Received message: ', data.message)
+      // console.info('Received message data: ', data.message)
     } else if (data.type === 'memory_copied') {
       navigator.clipboard.writeText(JSON.stringify(data.memory))
     }
