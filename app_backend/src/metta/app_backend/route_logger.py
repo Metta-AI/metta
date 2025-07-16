@@ -27,10 +27,9 @@ def timed_http_handler(func):
             return await timed_func(*args, **kwargs)
         except HTTPException:
             raise
-        except ValueError as e:
-            raise HTTPException(status_code=400, detail=str(e)) from e
         except Exception as e:
             operation = func.__name__.replace("_", " ")
+            route_logger.error(f"Failed to {operation}", exc_info=True)
             raise HTTPException(status_code=500, detail=f"Failed to {operation}: {str(e)}") from e
 
     return wrapper

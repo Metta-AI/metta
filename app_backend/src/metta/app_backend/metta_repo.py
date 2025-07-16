@@ -284,6 +284,24 @@ class MettaRepo:
 
     # All methods are async - no sync versions
 
+    async def get_policy_by_id(self, policy_id: uuid.UUID) -> dict[str, Any] | None:
+        async with self.connect() as con:
+            res = await con.execute(
+                """
+                SELECT id, name
+                FROM policies
+                WHERE id = %s
+                """,
+                (policy_id,),
+            )
+            row = await res.fetchone()
+            if row is None:
+                return None
+            return {
+                "id": str(row[0]),
+                "name": row[1],
+            }
+
     async def get_policy_ids(self, policy_names: list[str]) -> dict[str, uuid.UUID]:
         if not policy_names:
             return {}

@@ -36,7 +36,7 @@ class TestEvalTaskRoutes:
         return client
 
     @pytest.fixture
-    def test_policy_id(self, stats_client: StatsClient) -> str:
+    def test_policy_id(self, stats_client: StatsClient) -> uuid.UUID:
         """Create a test policy and return its ID."""
         # Create training run, epoch, and policy
         training_run = stats_client.create_training_run(
@@ -56,10 +56,10 @@ class TestEvalTaskRoutes:
             epoch_id=epoch.id,
         )
 
-        return str(policy.id)
+        return policy.id
 
     @pytest.mark.asyncio
-    async def test_create_eval_task(self, eval_task_client: EvalTaskClient, test_policy_id: str):
+    async def test_create_eval_task(self, eval_task_client: EvalTaskClient, test_policy_id: uuid.UUID):
         """Test creating an eval task."""
         request = TaskCreateRequest(
             policy_id=test_policy_id,
@@ -70,7 +70,7 @@ class TestEvalTaskRoutes:
 
         response = await eval_task_client.create_task(request)
 
-        assert str(response.policy_id) == test_policy_id
+        assert response.policy_id == test_policy_id
         assert response.sim_suite == "navigation"
         assert response.status == "unprocessed"
         assert response.assigned_at is None
@@ -79,7 +79,7 @@ class TestEvalTaskRoutes:
         assert response.attributes["env_overrides"] == {"key": "value"}
 
     @pytest.mark.asyncio
-    async def test_get_available_tasks(self, eval_task_client: EvalTaskClient, test_policy_id: str):
+    async def test_get_available_tasks(self, eval_task_client: EvalTaskClient, test_policy_id: uuid.UUID):
         """Test getting available tasks."""
         # Create some tasks
         task_ids = []
@@ -104,7 +104,7 @@ class TestEvalTaskRoutes:
             assert task_id in returned_ids
 
     @pytest.mark.asyncio
-    async def test_claim_and_update_tasks(self, eval_task_client: EvalTaskClient, test_policy_id: str):
+    async def test_claim_and_update_tasks(self, eval_task_client: EvalTaskClient, test_policy_id: uuid.UUID):
         """Test the complete workflow of claiming and updating tasks."""
         # Create tasks
         create_request = TaskCreateRequest(
@@ -142,7 +142,7 @@ class TestEvalTaskRoutes:
         assert task_id not in available_ids
 
     @pytest.mark.asyncio
-    async def test_task_assignment_expiry(self, eval_task_client: EvalTaskClient, test_policy_id: str):
+    async def test_task_assignment_expiry(self, eval_task_client: EvalTaskClient, test_policy_id: uuid.UUID):
         """Test that assigned tasks become available again after expiry."""
         # Create a task
         request = TaskCreateRequest(
@@ -173,7 +173,9 @@ class TestEvalTaskRoutes:
         assert any(task.id == task_id for task in claimed_response.tasks)
 
     @pytest.mark.asyncio
-    async def test_multiple_workers_claiming_same_task(self, eval_task_client: EvalTaskClient, test_policy_id: str):
+    async def test_multiple_workers_claiming_same_task(
+        self, eval_task_client: EvalTaskClient, test_policy_id: uuid.UUID
+    ):
         """Test that only one worker can claim a task."""
         # Create a task
         request = TaskCreateRequest(
@@ -205,7 +207,7 @@ class TestEvalTaskRoutes:
     async def test_record_episode_with_eval_task(
         self,
         stats_client: StatsClient,
-        test_policy_id: str,
+        test_policy_id: uuid.UUID,
         eval_task_client: EvalTaskClient,
         stats_repo: MettaRepo,
     ):
@@ -219,13 +221,11 @@ class TestEvalTaskRoutes:
         task_response = await eval_task_client.create_task(request)
         eval_task_id = task_response.id
 
-        # Record an episode with the eval_task_id
-        policy_uuid = uuid.UUID(test_policy_id)
         eval_task_uuid = eval_task_id
         episode = stats_client.record_episode(
-            agent_policies={0: policy_uuid},
+            agent_policies={0: test_policy_id},
             agent_metrics={0: {"score": 100.0, "steps": 50}},
-            primary_policy_id=policy_uuid,
+            primary_policy_id=test_policy_id,
             eval_name="navigation/simple",
             simulation_suite="navigation",
             replay_url="https://example.com/replay",
@@ -247,7 +247,11 @@ class TestEvalTaskRoutes:
 
     @pytest.mark.asyncio
     async def test_invalid_status_update(
-        self, eval_task_client: EvalTaskClient, test_policy_id: str, test_client, test_user_headers: dict[str, str]
+        self,
+        eval_task_client: EvalTaskClient,
+        test_policy_id: uuid.UUID,
+        test_client,
+        test_user_headers: dict[str, str],
     ):
         """Test that invalid status updates are rejected."""
         # Create and claim a task
@@ -278,7 +282,7 @@ class TestEvalTaskRoutes:
         assert update_response.status_code == 422
 
     @pytest.mark.asyncio
-    async def test_update_task_with_error_reason(self, eval_task_client: EvalTaskClient, test_policy_id: str):
+    async def test_update_task_with_error_reason(self, eval_task_client: EvalTaskClient, test_policy_id: uuid.UUID):
         """Test updating task status to error with an error reason."""
         # Create and claim a task
         create_request = TaskCreateRequest(
@@ -311,7 +315,7 @@ class TestEvalTaskRoutes:
         assert task_id not in available_ids
 
     @pytest.mark.asyncio
-    async def test_update_task_mixed_formats(self, eval_task_client: EvalTaskClient, test_policy_id: str):
+    async def test_update_task_mixed_formats(self, eval_task_client: EvalTaskClient, test_policy_id: uuid.UUID):
         """Test updating multiple tasks with mixed string and object formats."""
         # Create and claim multiple tasks
         task_ids = []
@@ -353,7 +357,7 @@ class TestEvalTaskRoutes:
 
     @pytest.mark.asyncio
     async def test_error_reason_stored_in_db(
-        self, eval_task_client: EvalTaskClient, test_policy_id: str, stats_repo: MettaRepo
+        self, eval_task_client: EvalTaskClient, test_policy_id: uuid.UUID, stats_repo: MettaRepo
     ):
         """Test that error_reason is properly stored in the database attributes."""
         # Create and claim a task

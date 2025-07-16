@@ -16,7 +16,7 @@ TaskStatus = Literal["unprocessed", "canceled", "done", "error"]
 
 
 class TaskCreateRequest(BaseModel):
-    policy_id: str
+    policy_id: uuid.UUID
     git_hash: str
     env_overrides: dict[str, Any] = Field(default_factory=dict)
     sim_suite: str = "all"
@@ -81,15 +81,15 @@ def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
     @router.post("", response_model=TaskResponse)
     @timed_http_handler
     async def create_task(request: TaskCreateRequest, user: str = user_or_token) -> TaskResponse:
-        policy_uuid = uuid.UUID(request.policy_id)
-
         attributes = {
             "env_overrides": request.env_overrides,
             "git_hash": request.git_hash,
         }
+        if not await stats_repo.get_policy_by_id(request.policy_id):
+            raise HTTPException(status_code=404, detail=f"Policy {request.policy_id} not found")
 
         task = await stats_repo.create_eval_task(
-            policy_id=policy_uuid,
+            policy_id=request.policy_id,
             sim_suite=request.sim_suite,
             attributes=attributes,
         )
