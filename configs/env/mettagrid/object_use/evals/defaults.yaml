@@ -1,7 +1,5 @@
 defaults:
   - /env/mettagrid/mettagrid@
-  - /env/mettagrid/game/objects/mines@game.objects
-  - /env/mettagrid/game/objects/generators@game.objects
   - _self_
 
 game:
@@ -11,34 +9,35 @@ game:
     rewards:
       heart: 1
   map_builder:
-    _target_: metta.map.mapgen.MapGen
+    _target_: mettagrid.room.mean_distance.MeanDistance
     width: 11
     height: 11
+    mean_distance: 6
     border_width: 3
-
-    root:
-      type: metta.map.scenes.mean_distance.MeanDistance
-      params:
-        mean_distance: 6
-        objects: {} # will be filled by specific eval configs
+    agents: 1
 
   objects:
     altar:
-      input_resources:
-        battery_red: 1
-      output_resources:
-        heart: 1
+      input_battery.red: 1
+      output_heart: 1
+      max_output: 5
       conversion_ticks: 1
-      initial_resource_count: 1
-    mine_red:
-      output_resources:
-        ore_red: 1
+      cooldown: ${sampling:1, 20, 10}
+      initial_items: 0
+
+    mine.red:
+      output_ore.red: 1
+      color: 0
+      max_output: 5
       conversion_ticks: 1
-      initial_resource_count: 1
-    generator_red:
-      input_resources:
-        ore_red: 1
-      output_resources:
-        battery_red: 1
+      cooldown: ${sampling:0, 100, 50}
+      initial_items: 1
+
+    generator.red:
+      input_ore.red: 1
+      output_battery.red: 1
+      color: 0
+      max_output: 5
       conversion_ticks: 1
-      initial_resource_count: 1
+      cooldown: ${sampling:0, 50, 25}
+      initial_items: 0

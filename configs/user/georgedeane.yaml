@@ -21,7 +21,7 @@ trainer:
 # policy_uri: wandb://run/daveey.ar.cards.1
 # policy_uri: wandb://run/b.daveey.t.32.instant
 #policy_uri: ${trained_policy_uri}
-policy_uri: wandb://run/dd.2objectuse_curriculum
+policy_uri: wandb://run/george.navigation.bucketed.07-14
 # b.daphne.terrain_varied_cyl_lab_pretrained:v0
 # policy_uri: wandb://run/terrain_training_multienv_april18
 # policy_uri: wandb://run/b.daphne.terrain_multienv_april18
@@ -37,6 +37,7 @@ policy_uri: wandb://run/dd.2objectuse_curriculum
 dashboard:
   output_path: evalresults/memory_db.html
 
+run_id: 3
 run: ${oc.env:USER}.local.${run_id}
 trained_policy_uri: ${run_dir}/checkpoints
 
