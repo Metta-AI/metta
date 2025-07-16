@@ -549,12 +549,12 @@ if __name__ == "__main__":
 
         reviewers = [
             review["user"]["login"]
-            for review in pr.json().get("retrieved_reviews", [])
+            for review in pr.get("retrieved_reviews", [])
             if review.get("user") and review["user"].get("login")
         ]
         commenters = [
             review["user"]["login"]
-            for review in pr.json().get("retrieved_comments", [])
+            for review in pr.get("retrieved_comments", [])
             if review.get("user") and review["user"].get("login")
         ]
 
@@ -656,3 +656,4 @@ if __name__ == "__main__":
             f.write(f"task_url={task_url}\n")
     except Exception:
         traceback.print_exc()
+        raise
