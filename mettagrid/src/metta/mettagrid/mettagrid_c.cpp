@@ -286,11 +286,11 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
 
   // Add game_rewards token if enabled
   if (_cfg.global_obs.game_rewards) {
-    // Find inventory indices for ore_red, battery_red, laser, armor
+    // Find inventory indices for ore, battery, laser, armor
     int ore_idx = -1, battery_idx = -1, laser_idx = -1, armor_idx = -1;
     for (size_t i = 0; i < inventory_item_names.size(); i++) {
-      if (inventory_item_names[i] == "ore_red") ore_idx = i;
-      else if (inventory_item_names[i] == "battery_red") battery_idx = i;
+      if (inventory_item_names[i] == "ore") ore_idx = i;
+      else if (inventory_item_names[i] == "battery") battery_idx = i;
       else if (inventory_item_names[i] == "laser") laser_idx = i;
       else if (inventory_item_names[i] == "armor") armor_idx = i;
     }
