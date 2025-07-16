@@ -35,6 +35,7 @@ namespace py = pybind11;
 
 MettaGrid::MettaGrid(const GameConfig& cfg, py::list map, unsigned int seed)
     : max_steps(cfg.max_steps),
+      max_reward(cfg.max_reward),
       episode_truncates(cfg.episode_truncates),
       obs_width(cfg.obs_width),
       obs_height(cfg.obs_height),
@@ -426,7 +427,21 @@ void MettaGrid::_step(py::array_t<ActionType, py::array::c_style> actions) {
     episode_rewards_view(i) += rewards_view(i);
   }
 
-  // Check for truncation
+  // Check for episode end due to reward limit
+  if (max_reward > 0) {
+    float total_reward = 0;
+    for (py::ssize_t i = 0; i < episode_rewards_view.shape(0); i++) {
+      total_reward += episode_rewards_view(i);
+    }
+    if (total_reward >= max_reward) {
+      std::fill(static_cast<bool*>(_terminals.request().ptr),
+                static_cast<bool*>(_terminals.request().ptr) + _terminals.size(),
+                1);
+      return;
+    }
+  }
+
+  // Check for episode end due to time limit
   if (max_steps > 0 && current_step >= max_steps) {
     if (episode_truncates) {
       std::fill(static_cast<bool*>(_truncations.request().ptr),
@@ -938,6 +953,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
   py::class_<GameConfig>(m, "GameConfig")
       .def(py::init<int,
                     unsigned int,
+                    float,
                     bool,
                     unsigned short,
                     unsigned short,
@@ -948,6 +964,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
                     const std::map<std::string, std::shared_ptr<GridObjectConfig>>&>(),
            py::arg("num_agents"),
            py::arg("max_steps"),
+           py::arg("max_reward"),
            py::arg("episode_truncates"),
            py::arg("obs_width"),
            py::arg("obs_height"),
@@ -958,6 +975,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
            py::arg("objects"))
       .def_readwrite("num_agents", &GameConfig::num_agents)
       .def_readwrite("max_steps", &GameConfig::max_steps)
+      .def_readwrite("max_reward", &GameConfig::max_reward)
       .def_readwrite("episode_truncates", &GameConfig::episode_truncates)
       .def_readwrite("obs_width", &GameConfig::obs_width)
       .def_readwrite("obs_height", &GameConfig::obs_height)
