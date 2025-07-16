@@ -23,6 +23,7 @@ def evaluate_policy(
     export_stats_db_uri: str | None = None,
     stats_epoch_id: uuid.UUID | None = None,
     wandb_policy_name: str | None = None,
+    eval_task_id: uuid.UUID | None = None,
     policy_store: PolicyStore,
     stats_client: StatsClient | None,
     logger: logging.Logger,
@@ -50,6 +51,7 @@ def evaluate_policy(
         stats_client=stats_client,
         stats_epoch_id=stats_epoch_id,
         wandb_policy_name=wandb_policy_name,
+        eval_task_id=eval_task_id,
     )
     result = sim.simulate()
 

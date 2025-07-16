@@ -58,7 +58,7 @@ public:
   std::string group_name;
   ObservationType color;
   ObservationType glyph;
-  unsigned char agent_id;
+  unsigned char agent_id;  // index into MettaGrid._agents (vector<Agent*>)
   StatsTracker stats;
   float current_resource_reward;
   float* reward;
