@@ -52,7 +52,7 @@ from metta.rl.torch_profiler import TorchProfiler
 from metta.rl.trainer_checkpoint import TrainerCheckpoint
 from metta.rl.trainer_config import create_trainer_config
 from metta.rl.vecenv import make_vecenv
-from metta.sim.simulation_config import SimulationSuiteConfig
+from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
 
 try:
     from pufferlib import _C  # noqa: F401 - Required for torch.ops.pufferlib
