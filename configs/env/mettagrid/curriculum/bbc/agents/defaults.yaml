@@ -20,6 +20,14 @@ env_overrides:
             generator_red: 3
             altar: 3
 
+    agent:
+      rewards:
+        ore_red_max: 1
+        battery_red_max: 1
+        laser_max: 1
+        armor_max: 1
+        blueprint_max: 1
+
 tasks:
   /env/mettagrid/curriculum/bbc/tasks/basic: 1
   /env/mettagrid/curriculum/bbc/tasks/altar: 1
