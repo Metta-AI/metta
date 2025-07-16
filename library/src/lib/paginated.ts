@@ -6,10 +6,8 @@ export type Paginated<T> = {
 };
 
 export function findPaginated<T>(cursor: string | undefined, limit: number) {
-  return {
-    cursor: cursor ? { id: cursor } : undefined,
-    take: limit + 1, // Select one extra row to check if we're at the end. Last row is sliced in `makePaginated`.
-  };
+  // TODO - implement this.
+  // (I had a version of this function for Prisma, but now we use Drizzle so you'll have to rewrite it.)
 }
 
 export function makePaginated<T>(

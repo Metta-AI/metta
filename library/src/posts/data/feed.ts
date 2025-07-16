@@ -30,9 +30,15 @@ export async function loadFeedPosts({
   cursor?: Date;
 } = {}): Promise<Paginated<FeedPostDTO>> {
   const rows = await db.query.postsTable.findMany({
+    // TODO - these parameters might be possible to abstract into a generic function.
+    //
+    // You could have a function called `findPaginated` that takes a cursor and a limit,
+    // and call it here through `...findPaginated(cursor, limit)`.
+    //
+    // See `src/lib/paginated.ts` for a placeholder implementation.
     where: (postsTable, { lt }) =>
       cursor ? lt(postsTable.createdAt, cursor) : undefined,
-    limit: limit + 1,
+    limit: limit + 1, // it's important to select one extra row to check if we're at the end.
     orderBy: [desc(postsTable.createdAt)],
   });
 
