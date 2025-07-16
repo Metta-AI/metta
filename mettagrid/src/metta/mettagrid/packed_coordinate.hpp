@@ -100,7 +100,7 @@ struct ObservationPattern {
       return *this;
     }
 
-    bool operator!=(const Iterator& other) const {
+    bool operator!=(const Iterator& /*other*/) const {
       return !done;
     }
 

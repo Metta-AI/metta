@@ -136,8 +136,8 @@ MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int see
   }
 
   // Initialize objects from map
-  std::string grid_hash_data;                   // String to accumulate grid data for hashing
-  grid_hash_data.reserve(height * width * 20);  // Pre-allocate for efficiency
+  std::string grid_hash_data;                                        // String to accumulate grid data for hashing
+  grid_hash_data.reserve(static_cast<size_t>(height * width * 20));  // Pre-allocate for efficiency
 
   for (GridCoord r = 0; r < height; r++) {
     for (GridCoord c = 0; c < width; c++) {
@@ -270,7 +270,8 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
 
   // Global tokens
   ObservationToken* agent_obs_ptr = reinterpret_cast<ObservationToken*>(observation_view.mutable_data(agent_idx, 0, 0));
-  ObservationTokens agent_obs_tokens(agent_obs_ptr, observation_view.shape(1) - tokens_written);
+  ObservationTokens agent_obs_tokens(
+      agent_obs_ptr, static_cast<size_t>(observation_view.shape(1)) - static_cast<size_t>(tokens_written));
 
   // Calculate episode completion percentage
   ObservationType episode_completion_pct = 0;
@@ -318,7 +319,8 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
       // Prepare observation buffer for this object
       ObservationToken* obs_ptr =
           reinterpret_cast<ObservationToken*>(observation_view.mutable_data(agent_idx, tokens_written, 0));
-      ObservationTokens obs_tokens(obs_ptr, observation_view.shape(1) - tokens_written);
+      ObservationTokens obs_tokens(
+          obs_ptr, static_cast<size_t>(observation_view.shape(1)) - static_cast<size_t>(tokens_written));
 
       // Calculate position within the observation window (agent is at the center)
       int obs_r = r - static_cast<int>(observer_row) + static_cast<int>(obs_height_radius);
@@ -333,7 +335,8 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
 
   _stats->add("tokens_written", static_cast<float>(tokens_written));
   _stats->add("tokens_dropped", static_cast<float>(attempted_tokens_written - tokens_written));
-  _stats->add("tokens_free_space", static_cast<float>(observation_view.shape(1) - tokens_written));
+  _stats->add("tokens_free_space",
+              static_cast<float>(static_cast<size_t>(observation_view.shape(1)) - static_cast<size_t>(tokens_written)));
 }
 
 void MettaGrid::_compute_observations(const py::array_t<ActionType, py::array::c_style> actions) {
@@ -387,19 +390,19 @@ void MettaGrid::_step(py::array_t<ActionType, py::array::c_style> actions) {
       ActionType action = actions_view(agent_idx, 0);
       ActionArg arg = actions_view(agent_idx, 1);
 
-      // Tolerate invalid action types
-      if (action < 0 || action >= _num_action_handlers) {
+      if (action < 0 || static_cast<size_t>(action) >= _num_action_handlers) {
         _handle_invalid_action(agent_idx, "action.invalid_type", action, arg);
         continue;
       }
+      size_t action_idx = static_cast<size_t>(action);
 
-      auto& handler = _action_handlers[action];
+      auto& handler = _action_handlers[action_idx];
       if (handler->priority != current_priority) {
         continue;
       }
 
       // Tolerate invalid action arguments
-      if (arg > _max_action_args[action]) {
+      if (arg > _max_action_args[action_idx]) {
         _handle_invalid_action(agent_idx, "action.invalid_arg", action, arg);
         continue;
       }

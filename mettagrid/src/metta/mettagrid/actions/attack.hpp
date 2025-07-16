@@ -124,6 +124,7 @@ private:
   void _steal_resources(Agent& actor, Agent& target) {
     // Create snapshot to avoid iterator invalidation
     std::vector<std::pair<InventoryItem, InventoryQuantity>> snapshot;
+    snapshot.reserve(target.inventory.size());
     for (const auto& [item, amount] : target.inventory) {
       snapshot.emplace_back(item, amount);
     }
