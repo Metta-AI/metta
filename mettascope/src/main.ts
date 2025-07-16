@@ -138,8 +138,10 @@ function hideUi() {
   onResize()
 }
 
-/** Handles mouse down events. */
-onEvent('mousedown', 'body', () => {
+/** Handles pointer down events. */
+onEvent('pointerdown', 'body', (target: HTMLElement, e: Event) => {
+  let event = e as PointerEvent
+  ui.mousePos = new Vec2f(event.clientX, event.clientY)
   ui.lastMousePos = ui.mousePos
   ui.mouseDownPos = ui.mousePos
   ui.mouseClick = true
@@ -159,8 +161,8 @@ onEvent('mousedown', 'body', () => {
   requestFrame()
 })
 
-/** Handles mouse up events. */
-onEvent('mouseup', 'body', () => {
+/** Handles pointer up events. */
+onEvent('pointerup', 'body', () => {
   ui.mouseUp = true
   ui.mouseDown = false
   ui.dragging = ''
@@ -169,8 +171,8 @@ onEvent('mouseup', 'body', () => {
   ui.mainScrubberDown = false
   ui.mainTraceMinimapDown = false
 
-  // Due to how we select objects on mouse-up (mouse-down is drag/pan),
-  // we need to check for double-click on mouse-up as well.
+  // Due to how we select objects on pointer-up (pointer-down is drag/pan),
+  // we need to check for double-click on pointer-up as well.
   const currentTime = new Date().getTime()
   ui.mouseDoubleClick = currentTime - ui.lastClickTime < 300 // 300ms threshold for double-click
   ui.lastClickTime = currentTime
@@ -178,9 +180,9 @@ onEvent('mouseup', 'body', () => {
   requestFrame()
 })
 
-/** Handles mouse move events. */
-onEvent('mousemove', 'body', (target: HTMLElement, e: Event) => {
-  let event = e as MouseEvent
+/** Handles pointer move events. */
+onEvent('pointermove', 'body', (target: HTMLElement, e: Event) => {
+  let event = e as PointerEvent
   ui.mousePos = new Vec2f(event.clientX, event.clientY)
   var target = event.target as HTMLElement
   while (target.id === '' && target.parentElement != null) {
@@ -198,7 +200,7 @@ onEvent('mousemove', 'body', (target: HTMLElement, e: Event) => {
     p = p.parentElement as HTMLElement
   }
 
-  // If the mouse is close to a panel's edge, change the cursor.
+  // If the pointer is close to a panel's edge, change the cursor.
   document.body.style.cursor = 'default'
   if (Math.abs(ui.mousePos.y() - ui.tracePanel.y) < Common.SPLIT_DRAG_THRESHOLD) {
     document.body.style.cursor = 'ns-resize'
@@ -244,8 +246,9 @@ onEvent('mousemove', 'body', (target: HTMLElement, e: Event) => {
 })
 
 /** Handles dragging draggable elements. */
-onEvent('mousedown', '.draggable', (target: HTMLElement, e: Event) => {
-  let event = e as MouseEvent
+onEvent('pointerdown', '.draggable', (target: HTMLElement, e: Event) => {
+  let event = e as PointerEvent
+  ui.mousePos = new Vec2f(event.clientX, event.clientY)
   ui.dragHtml = target
   let rect = target.getBoundingClientRect()
   ui.dragOffset = new Vec2f(event.clientX - rect.left, event.clientY - rect.top)
@@ -262,8 +265,8 @@ onEvent('wheel', 'body', (target: HTMLElement, e: Event) => {
   requestFrame()
 })
 
-/** Handles the mouse moving outside the window. */
-document.addEventListener('mouseout', function (e) {
+/** Handles the pointer moving outside the window. */
+document.addEventListener('pointerout', function (e) {
   if (!e.relatedTarget) {
     hideHoverPanel()
     requestFrame()

@@ -91,7 +91,7 @@ export function onEvent(event: string, selector: string, callback: (target: HTML
           var target = e.target as HTMLElement
           while (target != null) {
             for (let handler of handlers) {
-              if (target.matches(handler.selector)) {
+              if (target.matches && target.matches(handler.selector)) {
                 handler.callback(target, e)
                 return
               }
