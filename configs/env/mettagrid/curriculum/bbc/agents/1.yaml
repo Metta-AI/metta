@@ -3,7 +3,6 @@ defaults:
 
 env_overrides:
   game:
-    actions:
     map_builder:
       instances: 24
       root:
