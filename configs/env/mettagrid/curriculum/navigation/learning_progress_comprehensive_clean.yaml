@@ -3,18 +3,19 @@ _target_: metta.mettagrid.curriculum.learning_progress.LearningProgressCurriculu
 tasks:
   # Traditional navigation tasks
   /env/mettagrid/navigation/training/terrain_from_numpy: 1
-  /env/mettagrid/navigation/training/wfc_random: 1
-  /env/mettagrid/navigation/training/maze_random: 1
-  /env/mettagrid/navigation/training/rooms_random: 1
-  /env/mettagrid/navigation/training/open_random: 1
-  /env/mettagrid/navigation/training/varied_mix: 1
+  /env/mettagrid/navigation/training/cylinder_world: 1
+  /env/mettagrid/navigation/training/varied_terrain_sparse: 1
+  /env/mettagrid/navigation/training/varied_terrain_balanced: 1
+  /env/mettagrid/navigation/training/varied_terrain_maze: 1
+  /env/mettagrid/navigation/training/varied_terrain_dense: 1
+  /env/mettagrid/navigation/training/sparse: 1
 
   # Structured navigation patterns
   /env/mettagrid/navigation/training/raster_grid_multiroom: 1
   /env/mettagrid/navigation/training/spiral_altar_multiroom: 1
 
 # Focus on subset of tasks at once for efficient learning
-num_active_tasks: 5  # Focus on 5 out of 8 tasks at a time
+num_active_tasks: 5  # Focus on 5 out of 9 tasks at a time
 ema_timescale: 0.001
 progress_smoothing: 0.05
 rand_task_rate: 0.25  # 25% random exploration of all tasks

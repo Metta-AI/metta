@@ -207,6 +207,17 @@ game:
 
 ## Step 3: Create Curriculum Configurations
 
+### Available Navigation Training Configurations
+
+The following training configurations are available in `/env/mettagrid/navigation/training/`:
+- `terrain_from_numpy` - Navigation on terrain loaded from numpy arrays
+- `cylinder_world` - Cylindrical world navigation
+- `varied_terrain_sparse` - Sparse terrain with varied obstacles
+- `varied_terrain_balanced` - Balanced terrain configuration
+- `varied_terrain_maze` - Maze-like terrain navigation
+- `varied_terrain_dense` - Dense terrain with many obstacles
+- `sparse` - Sparse environment configuration
+
 ### Bucketed Curriculum for Exploration
 
 Use bucketed curriculum to explore parameter combinations:
@@ -343,11 +354,12 @@ _target_: metta.mettagrid.curriculum.learning_progress.LearningProgressCurriculu
 tasks:
   # Original navigation tasks
   /env/mettagrid/navigation/training/terrain_from_numpy: 1
-  /env/mettagrid/navigation/training/wfc_random: 1
-  /env/mettagrid/navigation/training/maze_random: 1
-  /env/mettagrid/navigation/training/rooms_random: 1
-  /env/mettagrid/navigation/training/open_random: 1
-  /env/mettagrid/navigation/training/varied_mix: 1
+  /env/mettagrid/navigation/training/cylinder_world: 1
+  /env/mettagrid/navigation/training/varied_terrain_sparse: 1
+  /env/mettagrid/navigation/training/varied_terrain_balanced: 1
+  /env/mettagrid/navigation/training/varied_terrain_maze: 1
+  /env/mettagrid/navigation/training/varied_terrain_dense: 1
+  /env/mettagrid/navigation/training/sparse: 1
 
   # Center altar tasks for structured learning
   /env/mettagrid/navigation/center_altar_3: 1
@@ -539,7 +551,7 @@ tasks:
   /env/mettagrid/navigation/center_altar_3: 1
   /env/mettagrid/navigation/center_altar_4: 1
   /env/mettagrid/navigation/center_altar_5: 1
-  /env/mettagrid/navigation/training/varied_mix: 1
+  /env/mettagrid/navigation/training/varied_terrain_balanced: 1
 
 performance_threshold: 0.8
 progression_mode: "perf"
@@ -752,6 +764,36 @@ class YourScene(Scene[YourSceneParams]):
 9. **Actions Format**: Use dict with enabled flags, not lists of action names
 10. **Multiroom Setup**: Use MultiRoom class for multi-agent environments
 11. **Scene Parameters**: Use objects dict and agents field in scene params
+
+## Recent Updates and Important Notes
+
+### Action Space Consistency
+When mixing different environment types in a curriculum, ensure all environments have consistent action spaces. This is particularly important for navigation tasks where some actions may be disabled:
+
+```yaml
+# All navigation environments should have matching action configurations
+actions:
+  attack:
+    enabled: false
+  swap:
+    enabled: false
+  change_color:
+    enabled: false
+  put_items:
+    enabled: false
+  get_items:
+    enabled: true  # Must be consistent across all tasks
+```
+
+### Available Navigation Scenes
+The following scenes are available for navigation tasks:
+- `grid_altars`: Places objects on a regular grid pattern
+- `spiral`: Places objects along a spiral path
+- Standard scenes: `random`, `maze`, `room_grid`, `bsp`, `auto`, `wfc`
+
+### Training vs Evaluation Configurations
+- **Training configs** (`/training/`): Used during agent training, ensure consistent action spaces
+- **Evaluation configs** (`/evals/`): Used for testing, may have different parameters
 
 ## Related Documentation
 
