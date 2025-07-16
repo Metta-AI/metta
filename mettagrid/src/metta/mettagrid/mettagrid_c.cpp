@@ -34,7 +34,8 @@
 namespace py = pybind11;
 
 MettaGrid::MettaGrid(const GameConfig& cfg, py::list map, unsigned int seed)
-    : max_steps(cfg.max_steps),
+    : _cfg(cfg),
+      max_steps(cfg.max_steps),
       episode_truncates(cfg.episode_truncates),
       obs_width(cfg.obs_width),
       obs_height(cfg.obs_height),
@@ -282,6 +283,62 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
       {ObservationFeature::LastAction, static_cast<ObservationType>(action)},
       {ObservationFeature::LastActionArg, static_cast<ObservationType>(action_arg)},
       {ObservationFeature::LastReward, reward_int}};
+
+  // Add game_rewards token if enabled
+  if (_cfg.global_obs.game_rewards) {
+    // Find inventory indices for ore_red, battery_red, laser, armor
+    int ore_idx = -1, battery_idx = -1, laser_idx = -1, armor_idx = -1;
+    for (size_t i = 0; i < inventory_item_names.size(); i++) {
+      if (inventory_item_names[i] == "ore_red") ore_idx = i;
+      else if (inventory_item_names[i] == "battery_red") battery_idx = i;
+      else if (inventory_item_names[i] == "laser") laser_idx = i;
+      else if (inventory_item_names[i] == "armor") armor_idx = i;
+    }
+
+    // Calculate total rewards across all agents for each resource
+    float total_ore_reward = 0, total_battery_reward = 0, total_laser_reward = 0, total_armor_reward = 0;
+    for (const auto& agent : _agents) {
+      if (ore_idx >= 0 && agent->resource_rewards.count(ore_idx) > 0 && agent->inventory.count(ore_idx) > 0) {
+        uint8_t amount = agent->inventory.at(ore_idx);
+        if (agent->resource_reward_max.count(ore_idx) > 0) {
+          amount = std::min(amount, agent->resource_reward_max.at(ore_idx));
+        }
+        total_ore_reward += agent->resource_rewards.at(ore_idx) * amount;
+      }
+      if (battery_idx >= 0 && agent->resource_rewards.count(battery_idx) > 0 && agent->inventory.count(battery_idx) > 0) {
+        uint8_t amount = agent->inventory.at(battery_idx);
+        if (agent->resource_reward_max.count(battery_idx) > 0) {
+          amount = std::min(amount, agent->resource_reward_max.at(battery_idx));
+        }
+        total_battery_reward += agent->resource_rewards.at(battery_idx) * amount;
+      }
+      if (laser_idx >= 0 && agent->resource_rewards.count(laser_idx) > 0 && agent->inventory.count(laser_idx) > 0) {
+        uint8_t amount = agent->inventory.at(laser_idx);
+        if (agent->resource_reward_max.count(laser_idx) > 0) {
+          amount = std::min(amount, agent->resource_reward_max.at(laser_idx));
+        }
+        total_laser_reward += agent->resource_rewards.at(laser_idx) * amount;
+      }
+      if (armor_idx >= 0 && agent->resource_rewards.count(armor_idx) > 0 && agent->inventory.count(armor_idx) > 0) {
+        uint8_t amount = agent->inventory.at(armor_idx);
+        if (agent->resource_reward_max.count(armor_idx) > 0) {
+          amount = std::min(amount, agent->resource_reward_max.at(armor_idx));
+        }
+        total_armor_reward += agent->resource_rewards.at(armor_idx) * amount;
+      }
+    }
+
+    // Pack rewards into a single byte (2 bits per resource type)
+    // We'll scale each reward to 0-3 range (2 bits)
+    const float max_reward_per_resource = 10.0f;  // Adjust this based on your game balance
+    uint8_t ore_bits = std::min(3u, static_cast<unsigned>(total_ore_reward / max_reward_per_resource * 3));
+    uint8_t battery_bits = std::min(3u, static_cast<unsigned>(total_battery_reward / max_reward_per_resource * 3));
+    uint8_t laser_bits = std::min(3u, static_cast<unsigned>(total_laser_reward / max_reward_per_resource * 3));
+    uint8_t armor_bits = std::min(3u, static_cast<unsigned>(total_armor_reward / max_reward_per_resource * 3));
+    
+    ObservationType game_rewards_byte = (ore_bits << 6) | (battery_bits << 4) | (laser_bits << 2) | armor_bits;
+    global_tokens.push_back({ObservationFeature::GameRewards, game_rewards_byte});
+  }
 
   // Global tokens are always at the center of the observation.
   uint8_t global_location =
@@ -913,6 +970,10 @@ PYBIND11_MODULE(mettagrid_c, m) {
            py::arg("number_of_glyphs"))
       .def_readonly("number_of_glyphs", &ChangeGlyphActionConfig::number_of_glyphs);
 
+  py::class_<GlobalObsConfig>(m, "GlobalObsConfig")
+      .def(py::init<>())
+      .def_readwrite("game_rewards", &GlobalObsConfig::game_rewards);
+
   py::class_<GameConfig>(m, "GameConfig")
       .def(py::init<int,
                     unsigned int,
@@ -922,7 +983,8 @@ PYBIND11_MODULE(mettagrid_c, m) {
                     const std::vector<std::string>&,
                     unsigned int,
                     const std::map<std::string, std::shared_ptr<ActionConfig>>&,
-                    const std::map<std::string, std::shared_ptr<GridObjectConfig>>&>(),
+                    const std::map<std::string, std::shared_ptr<GridObjectConfig>>&,
+                    const GlobalObsConfig&>(),
            py::arg("num_agents"),
            py::arg("max_steps"),
            py::arg("episode_truncates"),
@@ -931,14 +993,16 @@ PYBIND11_MODULE(mettagrid_c, m) {
            py::arg("inventory_item_names"),
            py::arg("num_observation_tokens"),
            py::arg("actions"),
-           py::arg("objects"))
+           py::arg("objects"),
+           py::arg("global_obs") = GlobalObsConfig())
       .def_readwrite("num_agents", &GameConfig::num_agents)
       .def_readwrite("max_steps", &GameConfig::max_steps)
       .def_readwrite("episode_truncates", &GameConfig::episode_truncates)
       .def_readwrite("obs_width", &GameConfig::obs_width)
       .def_readwrite("obs_height", &GameConfig::obs_height)
       .def_readwrite("inventory_item_names", &GameConfig::inventory_item_names)
-      .def_readwrite("num_observation_tokens", &GameConfig::num_observation_tokens);
+      .def_readwrite("num_observation_tokens", &GameConfig::num_observation_tokens)
+      .def_readwrite("global_obs", &GameConfig::global_obs);
   // We don't expose these since they're copied on read, and this means that mutations
   // to the dictionaries don't impact the underlying cpp objects. This is confusing!
   // This can be fixed, but until we do that, we're not exposing these.

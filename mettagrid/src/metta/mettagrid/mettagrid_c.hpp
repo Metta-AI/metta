@@ -41,6 +41,10 @@ struct ActionConfig;
 struct AttackActionConfig;
 struct ChangeGlyphActionConfig;
 
+struct GlobalObsConfig {
+  bool game_rewards = false;
+};
+
 namespace py = pybind11;
 
 struct GameConfig {
@@ -53,6 +57,7 @@ struct GameConfig {
   unsigned int num_observation_tokens;
   std::map<std::string, std::shared_ptr<ActionConfig>> actions;
   std::map<std::string, std::shared_ptr<GridObjectConfig>> objects;
+  GlobalObsConfig global_obs;
 };
 
 class METTAGRID_API MettaGrid {
@@ -101,6 +106,7 @@ public:
 
 private:
   // Member variables
+  GameConfig _cfg;
   std::map<unsigned int, float> _group_reward_pct;
   std::map<unsigned int, unsigned int> _group_sizes;
   std::unique_ptr<Grid> _grid;

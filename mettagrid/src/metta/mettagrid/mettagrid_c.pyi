@@ -100,6 +100,9 @@ class AttackActionConfig(ActionConfig):
 class ChangeGlyphActionConfig(ActionConfig):
     number_of_glyphs: int
 
+class GlobalObsConfig:
+    game_rewards: bool
+
 class GameConfig:
     num_agents: int
     max_steps: int
@@ -108,6 +111,7 @@ class GameConfig:
     obs_height: int
     inventory_item_names: list[str]
     num_observation_tokens: int
+    global_obs: GlobalObsConfig
 
 class MettaGrid:
     obs_width: int

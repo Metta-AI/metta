@@ -105,6 +105,12 @@ class PyWallConfig(BaseModelWithForbidExtra):
     swappable: bool = Field(default=False)
 
 
+class PyGlobalObsConfig(BaseModelWithForbidExtra):
+    """Python global observation configuration."""
+
+    game_rewards: bool = Field(default=False)
+
+
 class PyConverterConfig(BaseModelWithForbidExtra):
     """Python converter configuration."""
 
@@ -135,3 +141,4 @@ class PyGameConfig(BaseModelWithForbidExtra):
     groups: dict[str, PyGroupConfig] = Field(min_length=1)
     actions: PyActionsConfig
     objects: dict[str, PyConverterConfig | PyWallConfig]
+    global_obs: Optional[PyGlobalObsConfig] = Field(default_factory=PyGlobalObsConfig)

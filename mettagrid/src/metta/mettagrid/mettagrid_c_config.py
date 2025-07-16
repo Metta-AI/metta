@@ -7,6 +7,7 @@ from metta.mettagrid.mettagrid_c import AttackActionConfig as CppAttackActionCon
 from metta.mettagrid.mettagrid_c import ChangeGlyphActionConfig as CppChangeGlyphActionConfig
 from metta.mettagrid.mettagrid_c import ConverterConfig as CppConverterConfig
 from metta.mettagrid.mettagrid_c import GameConfig as CppGameConfig
+from metta.mettagrid.mettagrid_c import GlobalObsConfig as CppGlobalObsConfig
 from metta.mettagrid.mettagrid_c import WallConfig as CppWallConfig
 from metta.mettagrid.mettagrid_config import PyConverterConfig, PyGameConfig, PyWallConfig
 
@@ -118,5 +119,12 @@ def from_mettagrid_config(mettagrid_config_dict: dict[str, Any]) -> CppGameConfi
 
     game_cpp_params["actions"] = actions_cpp_params
     game_cpp_params["objects"] = objects_cpp_params
+
+    # Handle global_obs configuration
+    global_obs_dict = game_cpp_params["global_obs"]
+    global_obs_config = CppGlobalObsConfig()
+    if isinstance(global_obs_dict, dict) and "game_rewards" in global_obs_dict:
+        global_obs_config.game_rewards = global_obs_dict["game_rewards"]
+    game_cpp_params["global_obs"] = global_obs_config
 
     return CppGameConfig(**game_cpp_params)
