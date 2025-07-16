@@ -374,20 +374,19 @@ onEvent('keydown', 'body', (target: HTMLElement, e: Event) => {
     hideMenu()
     hideDropdown()
 
-    // Clear the search field and related state.
     const searchInput = document.getElementById('search-input') as HTMLInputElement | null
-    if (searchInput) {
+    if (searchInput && (searchInput.value.length > 0 || document.activeElement === searchInput)) {
+      // Clear the search field and related state.
       if (searchInput.value.length > 0) {
         searchInput.value = ''
         // Trigger the input handler registered in search.ts so internal state updates.
         searchInput.dispatchEvent(new Event('input', { bubbles: true }))
       }
+
       // Remove focus from the search input
       searchInput.blur()
-    }
-
-    // Close the currently visible panel, preferring the ones most likely to be on top.
-    if (state.showAgentPanel) {
+      // Otherwise, close the currently visible panel, preferring the ones most likely to be on top.
+    } else if (state.showAgentPanel) {
       state.showAgentPanel = false
       localStorage.setItem('showAgentPanel', state.showAgentPanel.toString())
       toggleOpacity(html.agentPanelToggle, state.showAgentPanel)
