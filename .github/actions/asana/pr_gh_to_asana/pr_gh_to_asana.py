@@ -10,17 +10,9 @@ import json
 import os
 import re
 import sys
+from pathlib import Path
 
 import requests
-
-from common.github_asana_mapping import GithubAsanaMapping
-
-# Add the repo root to sys.path so 'common' can be imported
-common_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "common"))
-if common_dir not in sys.path:
-    sys.path.insert(0, common_dir)
-print(f"added common_dir: {common_dir}")
-print(f"sys.path: {sys.path}")
 
 ASANA_GITHUB_ATTACHMENT_ACTION_URL = "https://github.integrations.asana.plus/custom/v1/actions/widget"
 
@@ -491,6 +483,22 @@ def get_pull_request_from_github(repo, pr_number, github_token):
 
     print(f"Pull request retrieved from GitHub: {json.dumps(d, indent=2)}")
     return d
+
+
+def setup_common_path():
+    common_path = Path(__file__).parent / "common"
+    if common_path.exists():
+        sys.path.insert(0, str(common_path))
+        return True
+    return False
+
+
+# Setup and import
+if setup_common_path():
+    from github_asana_mapping import GithubAsanaMapping
+else:
+    print("Could not find common directory")
+    sys.exit(1)
 
 
 if __name__ == "__main__":
