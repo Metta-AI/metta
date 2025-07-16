@@ -1,10 +1,20 @@
 # @package __global__
 
 defaults:
+  - /common
+  - /agent/fast
+  - /trainer/trainer
+  - /sim/navigation@evals  # Use navigation-only evaluation suite
   - _self_
+
+# Training configuration for navigation-focused learning progress curriculums
+cmd: train
+data_dir: ${oc.env:DATA_DIR,./train_dir}
+run_dir: ${data_dir}/${run}
 
 wandb:
   enabled: true
+
 
 run_id: 492
 run: ${oc.env:USER}.local.${run_id}
