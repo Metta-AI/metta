@@ -6,8 +6,8 @@ from functools import partial
 import IPython
 from traitlets.config import Config as IPythonConfig
 
-from metta.common.util.console_messages import header, info, success, warning
 from metta.common.util.fs import get_repo_root
+from metta.setup.utils import header, info, success, warning
 
 sys.path.insert(0, str(get_repo_root() / "tools"))
 from validate_config import load_and_print_config  # type: ignore

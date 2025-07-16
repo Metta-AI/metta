@@ -5,9 +5,9 @@ from pathlib import Path
 
 from typing_extensions import override
 
-from metta.common.util.console_messages import error, info, success, warning
 from metta.setup.components.base import SetupModule
 from metta.setup.registry import register_module
+from metta.setup.utils import error, info, success, warning
 
 
 @register_module

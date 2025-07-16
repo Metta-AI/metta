@@ -5,11 +5,10 @@ import subprocess
 import sys
 from pathlib import Path
 
-from metta.common.util.console_messages import error, header, info, success, warning
 from metta.setup.config import CURRENT_CONFIG_VERSION, SetupConfig, UserType
 from metta.setup.registry import get_all_modules, get_applicable_modules
 from metta.setup.symlink_setup import PathSetup
-from metta.setup.utils import import_all_modules_from_subpackage
+from metta.setup.utils import error, header, import_all_modules_from_subpackage, info, success, warning
 
 # Import all component modules to register them with the registry
 import_all_modules_from_subpackage("metta.setup", "components")

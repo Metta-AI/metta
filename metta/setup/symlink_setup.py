@@ -3,7 +3,7 @@ import subprocess
 from pathlib import Path
 from typing import Optional
 
-from metta.common.util.console_messages import error, info, success, warning
+from metta.setup.utils import error, info, success, warning
 
 
 class PathSetup:
