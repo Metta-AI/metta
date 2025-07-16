@@ -1,5 +1,3 @@
-import "server-only";
-
 import { drizzle } from "drizzle-orm/node-postgres";
 
 import * as authSchema from "./schema/auth";
