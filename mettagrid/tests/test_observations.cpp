@@ -84,7 +84,10 @@ class ObservationPatternParamTest : public ::testing::TestWithParam<std::pair<in
 TEST_P(ObservationPatternParamTest, MatchesReferenceOffsets) {
   int height = GetParam().first;
   int width = GetParam().second;
+
+#if defined(__clang__)
   SCOPED_TRACE("height=" + std::to_string(height) + ", width=" + std::to_string(width));
+#endif
 
   auto expected = compute_sorted_offsets(height, width);
   std::vector<Offset> actual;
