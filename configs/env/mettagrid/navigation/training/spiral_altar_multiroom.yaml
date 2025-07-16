@@ -1,0 +1,26 @@
+defaults:
+  - /env/mettagrid/navigation/training/defaults@
+  - _self_
+
+sampling: 1
+
+game:
+  map_builder:
+    room:
+      _target_: metta.map.mapgen.MapGen
+      width: ${sampling:80, 120, 100}
+      height: ${sampling:80, 120, 100}
+      border_width: 4
+
+      root:
+        type: metta.map.scenes.spiral.Spiral
+        params:
+          objects:
+            altar: ${sampling:4, 12, 8}  # Random 4-12 altars per room
+          agents: 1
+          spacing: ${sampling:12, 21, 16}  # Random spacing
+          start_radius: 0
+          radius_increment: ${sampling:2.0, 3.0, 2.5}  # Random spiral tightness
+          angle_increment: 0.3
+          randomize_position: ${sampling:0, 4, 2}  # Random position variation
+          place_at_center: true

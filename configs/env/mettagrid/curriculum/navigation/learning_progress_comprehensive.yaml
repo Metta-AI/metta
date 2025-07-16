@@ -1,0 +1,23 @@
+_target_: metta.mettagrid.curriculum.learning_progress.LearningProgressCurriculum
+
+tasks:
+  # Traditional navigation tasks (all use 4 agents in 4 rooms)
+  /env/mettagrid/navigation/training/terrain_from_numpy: 1
+  /env/mettagrid/navigation/training/wfc_random: 1
+  /env/mettagrid/navigation/training/maze_random: 1
+  /env/mettagrid/navigation/training/rooms_random: 1
+  /env/mettagrid/navigation/training/open_random: 1
+  /env/mettagrid/navigation/training/varied_mix: 1
+
+  # Raster grid tasks - two buckets for variety
+  /env/mettagrid/navigation/evals/raster_grid_multiroom_small: 1  # Small dense grids (3x3 to 5x5)
+  /env/mettagrid/navigation/evals/raster_grid_multiroom_large: 1  # Large sparse grids (6x6 to 10x10)
+
+  # Spiral altar task with random parameters (4 agents in 4 rooms)
+  /env/mettagrid/navigation/evals/spiral_altar_multiroom_random: 1
+
+# Focus on subset of tasks at once for efficient learning
+num_active_tasks: 5  # Focus on 5 out of 9 tasks at a time
+ema_timescale: 0.001
+progress_smoothing: 0.05
+rand_task_rate: 0.25  # 25% random exploration of all tasks

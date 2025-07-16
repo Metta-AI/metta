@@ -1,0 +1,17 @@
+_target_: metta.mettagrid.curriculum.random.RandomCurriculum
+
+tasks:
+  # Traditional navigation tasks (all use 4 agents in 4 rooms)
+  /env/mettagrid/navigation/training/terrain_from_numpy: 1.0
+  /env/mettagrid/navigation/training/wfc_random: 1.0
+  /env/mettagrid/navigation/training/maze_random: 1.0
+  /env/mettagrid/navigation/training/rooms_random: 1.0
+  /env/mettagrid/navigation/training/open_random: 1.0
+  /env/mettagrid/navigation/training/varied_mix: 1.0
+
+  # Raster grid tasks - two buckets for variety
+  /env/mettagrid/navigation/evals/raster_grid_multiroom_small: 1.0  # Small dense grids (3x3 to 5x5)
+  /env/mettagrid/navigation/evals/raster_grid_multiroom_large: 1.0  # Large sparse grids (6x6 to 10x10)
+
+  # Spiral altar task with random parameters (4 agents in 4 rooms)
+  /env/mettagrid/navigation/evals/spiral_altar_multiroom_random: 1.0
