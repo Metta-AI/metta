@@ -64,11 +64,13 @@ class Simulation:
         stats_client: StatsClient | None = None,
         stats_epoch_id: uuid.UUID | None = None,
         wandb_policy_name: str | None = None,
+        eval_task_id: uuid.UUID | None = None,
     ):
         self._name = name
         self._sim_suite_name = sim_suite_name
         self._config = config
         self._id = uuid.uuid4().hex[:12]
+        self._eval_task_id = eval_task_id
 
         self._wandb_policy_name: str | None = None
         self._wandb_uri: str | None = None
@@ -462,6 +464,7 @@ class Simulation:
                         simulation_suite="" if self._sim_suite_name is None else self._sim_suite_name,
                         replay_url=episode_row.get("replay_url"),
                         attributes=attributes,
+                        eval_task_id=self._eval_task_id,
                     )
                 except Exception as e:
                     logger.error(f"Failed to record episode {episode_id} remotely: {e}")
