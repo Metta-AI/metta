@@ -9,7 +9,7 @@ policy_uri: ???
 
 replay_job:
   sim:
-    env: nv/mettagrid/systematic_exploration_memory/evals/access_cross
+    env: /env/mettagrid/arena/advanced
   policy_uri: ${policy_uri}
   selector_type: top
   stats_dir: ${run_dir}/stats
