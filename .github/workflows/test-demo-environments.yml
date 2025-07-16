@@ -30,12 +30,6 @@ jobs:
     
     - name: Setup uv
       uses: ./.github/actions/setup-uv
-      with:
-        install-mode: "no-mettagrid"
-    
-    - name: Install mettagrid
-      run: |
-        uv pip install --no-build-isolation --no-deps -e ./mettagrid
     
     - name: Test ${{ matrix.demo }}
       run: |
