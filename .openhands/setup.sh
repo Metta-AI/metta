@@ -48,12 +48,6 @@ try:
 except ImportError as e:
     print(f'⚠️  Mettagrid module import issue: {e}')
 
-try:
-    import metta.rl.fast_gae
-    print('✅ C++ extensions (fast_gae) imported successfully')
-except ImportError as e:
-    print(f'⚠️  C++ extensions import issue: {e}')
-
 print('✅ Setup verification completed - Metta is ready to use!')
 " 2>&1; then
     echo ""
