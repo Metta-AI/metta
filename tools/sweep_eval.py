@@ -61,14 +61,15 @@ def main(cfg: DictConfig) -> int:
     with WandbContext(cfg.wandb, cfg) as wandb_run:
         policy_store = PolicyStore(cfg, wandb_run)
         try:
-            # First get the policy records from the run to find the artifact URI
-            policy_records = policy_store.policy_records("wandb://run/" + cfg.run)
-            if not policy_records:
-                raise ValueError(f"No policy records found for run {cfg.run}")
+            # Fetch the latest policy record from the run
+            policy_pr = policy_store.policy_record("wandb://run/" + cfg.run, selector_type="latest")
+            if not policy_pr:
+                raise ValueError(f"No policy record found for run {cfg.run}")
 
-            # Get the first policy record and load it directly using its wandb URI
+            # Load the policy record directly using its wandb URI
             # This will download the artifact and give us a local path
-            policy_pr = policy_store.load_from_uri(policy_records[0].uri)
+            policy_pr = policy_store.load_from_uri(policy_pr.uri)
+
         except Exception as e:
             logger.error(f"Error getting policy for run {cfg.run}: {e}")
             # Record failure in WandB directly since we don't have a Protein instance yet
@@ -82,6 +83,7 @@ def main(cfg: DictConfig) -> int:
             device=cfg.device,
             vectorization=cfg.vectorization,
         )
+
         # Start evaluation process
         sweep_stats = {}
         start_time = time.time()
