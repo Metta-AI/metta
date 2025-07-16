@@ -80,7 +80,9 @@ class EvalTaskOrchestrator:
             cmd.extend(["-e", f"{key}={value}"])
 
         # Mount the train_dir for policy access. This is relevant locally
-        cmd.extend(["-v", f"{os.path.abspath('./train_dir')}:/workspace/train_dir"])
+        # When running in Docker, TRAIN_DIR_HOST_PATH should be set to the host path
+        train_dir_path = os.environ.get("TRAIN_DIR_HOST_PATH", os.path.abspath("./train_dir"))
+        cmd.extend(["-v", f"{train_dir_path}:/workspace/train_dir"])
 
         cmd.extend([self._docker_image, "uv", "run", "tools/eval_task_runner.py"])
 

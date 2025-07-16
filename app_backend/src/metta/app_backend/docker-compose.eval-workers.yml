@@ -4,7 +4,8 @@ services:
   eval-worker:
     build:
       context: ../../../../
-      dockerfile: devops/docker/Dockerfile
+      dockerfile: app_backend/src/metta/app_backend/Dockerfile.eval-worker
+    platform: linux/amd64
     image: metta/eval-worker:latest
     # This service is just for building the image
     # Actual workers are spawned by the orchestrator
@@ -14,10 +15,12 @@ services:
     depends_on:
       - eval-worker
     image: metta/eval-worker:latest
+    platform: linux/amd64
     environment:
       - BACKEND_URL=${BACKEND_URL:-http://host.docker.internal:8000}
       - WORKER_IDLE_TIMEOUT=${WORKER_IDLE_TIMEOUT:-600}
       - PYTHONPATH=/workspace/metta
+      - TRAIN_DIR_HOST_PATH=/Users/nishadsingh/repos/metta2/train_dir
     volumes:
       # Mount Docker socket for container management
       - /var/run/docker.sock:/var/run/docker.sock
