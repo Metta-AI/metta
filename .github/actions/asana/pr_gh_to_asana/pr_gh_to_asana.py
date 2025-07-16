@@ -10,9 +10,9 @@ import json
 import os
 import re
 import sys
-from typing import Generator
 
 import requests
+from github_asana_mapping import GithubAsanaMapping
 
 ASANA_GITHUB_ATTACHMENT_ACTION_URL = "https://github.integrations.asana.plus/custom/v1/actions/widget"
 
@@ -34,14 +34,22 @@ def validate_asana_task_url(
     task_url: str, project_id: str, github_url: str, github_url_field_id: str, asana_token: str
 ) -> dict | None:
     """Validate that an Asana task URL exists, belongs to the specified project, and has the expected GitHub URL."""
+    print("[validate_asana_task_url] Called with:")
+    print(f"  task_url: {task_url}")
+    print(f"  project_id: {project_id}")
+    print(f"  github_url: {github_url}")
+    print(f"  github_url_field_id: {github_url_field_id}")
+    print(f"  asana_token: {'set' if asana_token else 'not set'}")
+
     # Extract task GID from URL
     # URL format: https://app.asana.com/0/123456789/123456789
     match = re.search(r"https://app\.asana\.com/\d+/\d+/(\d+)", task_url)
     if not match:
-        print(f"Invalid Asana task URL format: {task_url}")
+        print(f"[validate_asana_task_url] Invalid Asana task URL format: {task_url}")
         return None
 
     task_gid = match.group(1)
+    print(f"[validate_asana_task_url] Extracted task_gid: {task_gid}")
 
     # Fetch task details from Asana API
     url = f"https://app.asana.com/api/1.0/tasks/{task_gid}"
@@ -65,7 +73,6 @@ def validate_asana_task_url(
         # Check if task belongs to the specified project
         task_projects = [project["gid"] for project in task_data.get("projects", [])]
         if project_id not in task_projects:
-            print(f"Task {task_url} does not belong to project {project_id}")
             return None
 
         # Check if the GitHub URL custom field matches the expected GitHub URL
@@ -74,17 +81,17 @@ def validate_asana_task_url(
         for field in custom_fields:
             if field.get("gid") == github_url_field_id:
                 task_github_url = field.get("text_value")
+                print(f"Found github_url_field_id: {github_url_field_id}, value: {task_github_url}")
                 break
 
         if task_github_url != github_url:
             print(f"Task {task_url} has GitHub URL '{task_github_url}' but expected '{github_url}'")
             return None
 
-        print(f"Validated Asana task: {task_url}")
         return task_data
 
     except Exception as e:
-        print(f"Error validating Asana task {task_url}: {e}")
+        print(f"[validate_asana_task_url] Error validating Asana task {task_url}: {e}")
         return None
 
 
@@ -128,69 +135,6 @@ def search_asana_tasks(
 
     print("No tasks found with matching GitHub URL")
     return None
-
-
-def _get_task_custom_fields_from_project(
-    project_id: str,
-    asana_token: str,
-) -> Generator[dict[str, str], None, None]:
-    """Get the custom fields for all tasks in the given project."""
-    url = f"https://app.asana.com/api/1.0/projects/{project_id}/tasks"
-    headers = {
-        "Authorization": f"Bearer {asana_token}",
-        "Content-Type": "application/json",
-    }
-    params = {
-        "opt_fields": "custom_fields",
-        "limit": 100,
-    }
-    while True:
-        response = requests.get(url, headers=headers, params=params, timeout=30)
-        print(f"getting roster project details from asana: {url}")
-        print(json.dumps(response.json(), indent=2))
-        print("-----------")
-        if response.status_code != 200:
-            print(f"Asana API Error (_get_task_custom_fields_from_project): {response.status_code} - {response.text}")
-            sys.exit(1)
-        data = response.json()
-        tasks = data["data"]
-        for task in tasks:
-            yield task
-        if not data.get("next_page"):
-            break
-        params["offset"] = data["next_page"]["offset"]
-
-
-def get_asana_users_by_github_logins(
-    github_logins: set[str],
-    roster_project_id: str,
-    gh_login_field_id: str,
-    asana_email_field_id: str,
-    asana_token: str,
-) -> dict[str, str]:
-    """Get the Asana user IDs for the given GitHub logins."""
-    github_login_to_asana_email = {}
-    # Paginate through all tasks in the roster project, since we can't search for multiple github logins at once
-    for task in _get_task_custom_fields_from_project(roster_project_id, asana_token):
-        custom_fields = task.get("custom_fields") or {}
-        gh_login = None
-        asana_email = None
-        for field in custom_fields:
-            if field.get("gid") == gh_login_field_id:
-                gh_login = value.strip() if (value := field.get("text_value")) else None
-                if gh_login not in github_logins:
-                    # This isn't the user we're looking for.
-                    break
-            if field.get("gid") == asana_email_field_id:
-                asana_email = field.get("text_value")
-                if asana_email and asana_email.strip() == "mh.next@gmail.com, mhollander@stem.ai":
-                    asana_email = "mh.next@gmail.com"
-            if gh_login and asana_email:
-                github_login_to_asana_email[gh_login] = asana_email
-                break
-        if len(github_login_to_asana_email) == len(github_logins):
-            break
-    return github_login_to_asana_email
 
 
 def create_asana_task(
@@ -431,13 +375,13 @@ def ensure_asana_task(
     )
     print(f"Created new Asana task: {new_task_url}")
 
-    existing_task = find_and_validate_task(project_id, github_url, github_url_field_id, asana_token, workspace_id)
-    if existing_task:
-        print(f"Found existing Asana task via search: {existing_task['permalink_url']}")
-        return existing_task["permalink_url"]
-    else:
-        print(f"No existing task found after creation with GitHub URL: {github_url}")
-        return new_task_url
+    #    existing_task = find_and_validate_task(project_id, github_url, github_url_field_id, asana_token, workspace_id)
+    #    if existing_task:
+    #        print(f"Found existing Asana task via search: {existing_task['permalink_url']}")
+    #        return existing_task["permalink_url"]
+    #    else:
+    #        print(f"No existing task found after creation with GitHub URL: {github_url}")
+    #        return new_task_url
 
     return new_task_url
 
@@ -476,7 +420,7 @@ def ensure_github_url_in_asana_task(
         "pullRequestURL": github_url,
     }
     response = requests.post(ASANA_GITHUB_ATTACHMENT_ACTION_URL, json=payload, headers=headers, timeout=30)
-    if response.status_code == 200:
+    if response.status_code == 201:
         return response.json()
     else:
         print(f"Asana API Error (ensure_github_url_in_asana_task): {response.status_code} - {response.text}")
@@ -494,7 +438,7 @@ def get_pull_request_from_github(repo, pr_number, github_token):
         github_token (str): GitHub personal access token
 
     Returns:
-        dict: Pull request data
+        dict: Pull request data, including comments under the 'comments' key
     """
     url = f"https://api.github.com/repos/{repo}/pulls/{pr_number}"
 
@@ -508,74 +452,209 @@ def get_pull_request_from_github(repo, pr_number, github_token):
     response.raise_for_status()  # Raises an exception for bad status codes
 
     d = response.json()
-    print(f"Pull request retrieved from GitHub: {json.dumps(d, indent=2)}")
 
+    # Fetch PR comments (issue comments)
+    comments_url = f"https://api.github.com/repos/{repo}/issues/{pr_number}/comments"
+    comments_response = requests.get(comments_url, headers=headers)
+    if comments_response.status_code == 200:
+        d["retrieved_comments"] = comments_response.json()
+
+    else:
+        print(f"Failed to fetch PR comments: {comments_response.status_code} - {comments_response.text}")
+        d["retrieved_comments"] = []
+
+    # Fetch PR reviews
+    reviews_url = f"https://api.github.com/repos/{repo}/pulls/{pr_number}/reviews"
+    reviews_response = requests.get(reviews_url, headers=headers)
+    if reviews_response.status_code == 200:
+        d["retrieved_reviews"] = reviews_response.json()
+    else:
+        print(f"Failed to fetch PR reviews: {reviews_response.status_code} - {reviews_response.text}")
+        d["retrieved_reviews"] = []
+
+    # Fetch PR timeline
+    timeline_url = f"https://api.github.com/repos/{repo}/issues/{pr_number}/timeline"
+    timeline_response = requests.get(timeline_url, headers=headers)
+    if timeline_response.status_code == 200:
+        d["retrieved_timeline"] = timeline_response.json()
+    else:
+        print(f"Failed to fetch PR timeline: {timeline_response.status_code} - {timeline_response.text}")
+        d["retrieved_timeline"] = []
+
+    print(f"Pull request retrieved from GitHub: {json.dumps(d, indent=2)}")
     return d
 
 
 if __name__ == "__main__":
-    # Inputs from the Action
-    title = os.getenv("INPUT_TITLE")
-    description = os.getenv("INPUT_DESCRIPTION")
-    pr_state = os.getenv("INPUT_PR_STATE")
-    author = os.getenv("INPUT_AUTHOR")
-    assignees = os.getenv("INPUT_ASSIGNEES").split(",") if os.getenv("INPUT_ASSIGNEES") else []
-    reviewers = os.getenv("INPUT_REVIEWERS").split(",") if os.getenv("INPUT_REVIEWERS") else []
-    project_id = os.getenv("INPUT_PROJECT_ID")
-    workspace_id = os.getenv("INPUT_WORKSPACE_ID")
-    asana_token = os.getenv("INPUT_ASANA_TOKEN")
-    github_url = os.getenv("INPUT_GITHUB_URL")
-    github_url_field_id = os.getenv("INPUT_GITHUB_URL_FIELD_ID")
-    gh_login_field_id = os.getenv("INPUT_GH_LOGIN_FIELD_ID")
-    asana_email_field_id = os.getenv("INPUT_ASANA_EMAIL_FIELD_ID")
-    roster_project_id = os.getenv("INPUT_ROSTER_PROJECT_ID")
-    pr_author_field_id = os.getenv("INPUT_PR_AUTHOR_FIELD_ID")
-    asana_attachment_secret = os.getenv("INPUT_ASANA_ATTACHMENT_SECRET")
-    pr_number = os.getenv("INPUT_PR_NUMBER")
-    github_repo = os.getenv("INPUT_GITHUB_REPO")
-    github_token = os.getenv("INPUT_GITHUB_TOKEN")
+    import traceback
 
-    # just print this out for now
-    # touch
-    get_pull_request_from_github(github_repo, pr_number, github_token)
+    try:
+        # Inputs from the Action
+        project_id = os.getenv("INPUT_PROJECT_ID")
+        workspace_id = os.getenv("INPUT_WORKSPACE_ID")
+        asana_token = os.getenv("INPUT_ASANA_TOKEN")
+        github_url = os.getenv("INPUT_GITHUB_URL")
+        github_url_field_id = os.getenv("INPUT_GITHUB_URL_FIELD_ID")
+        gh_login_field_id = os.getenv("INPUT_GH_LOGIN_FIELD_ID")
+        asana_email_field_id = os.getenv("INPUT_ASANA_EMAIL_FIELD_ID")
+        roster_project_id = os.getenv("INPUT_ROSTER_PROJECT_ID")
+        pr_author_field_id = os.getenv("INPUT_PR_AUTHOR_FIELD_ID")
+        asana_attachment_secret = os.getenv("INPUT_ASANA_ATTACHMENT_SECRET")
+        pr_number = os.getenv("INPUT_PR_NUMBER")
+        github_repo = os.getenv("INPUT_GITHUB_REPO")
+        github_token = os.getenv("INPUT_GITHUB_TOKEN")
 
-    github_logins = set(assignees + reviewers + [author])
-    github_login_to_asana_email = get_asana_users_by_github_logins(
-        github_logins,
-        roster_project_id,
-        gh_login_field_id,
-        asana_email_field_id,
-        asana_token,
-    )
-    print(f"github_login_to_asana_email: {github_login_to_asana_email}")
+        required_vars = {
+            "INPUT_PROJECT_ID": project_id,
+            "INPUT_WORKSPACE_ID": workspace_id,
+            "INPUT_ASANA_TOKEN": asana_token,
+            "INPUT_GITHUB_URL": github_url,
+            "INPUT_GITHUB_URL_FIELD_ID": github_url_field_id,
+            "INPUT_GH_LOGIN_FIELD_ID": gh_login_field_id,
+            "INPUT_ASANA_EMAIL_FIELD_ID": asana_email_field_id,
+            "INPUT_ROSTER_PROJECT_ID": roster_project_id,
+            "INPUT_PR_AUTHOR_FIELD_ID": pr_author_field_id,
+            "INPUT_ASANA_ATTACHMENT_SECRET": asana_attachment_secret,
+            "INPUT_PR_NUMBER": pr_number,
+            "INPUT_GITHUB_REPO": github_repo,
+            "INPUT_GITHUB_TOKEN": github_token,
+        }
+        missing = [k for k, v in required_vars.items() if v is None]
+        if missing:
+            raise RuntimeError(f"Missing required environment variables: {', '.join(missing)}")
 
-    # github allows multiple assignees. Asana doesn't. So we'll just use the first one.
-    asana_assignee = github_login_to_asana_email.get(assignees[0]) if assignees else None
-    asana_collaborators = [
-        github_login_to_asana_email[login] for login in github_logins if login in github_login_to_asana_email
-    ]
+        # All required vars are present, cast to str to satisfy type checker
+        project_id = str(project_id)
+        workspace_id = str(workspace_id)
+        asana_token = str(asana_token)
+        github_url = str(github_url)
+        github_url_field_id = str(github_url_field_id)
+        gh_login_field_id = str(gh_login_field_id)
+        asana_email_field_id = str(asana_email_field_id)
+        roster_project_id = str(roster_project_id)
+        pr_author_field_id = str(pr_author_field_id)
+        asana_attachment_secret = str(asana_attachment_secret)
+        pr_number = str(pr_number)
+        github_repo = str(github_repo)
+        github_token = str(github_token)
 
-    # Get the author's Asana ID for the custom field
-    pr_author_asana = github_login_to_asana_email.get(author)
+        pr = get_pull_request_from_github(github_repo, pr_number, github_token)
+        description = pr.get("body", "") or ""
+        title = pr.get("title", "") or ""
+        author = (pr.get("user", "") or {}).get("login", "") or ""
+        assignees = [assignee["login"] for assignee in pr.get("assignees", [])] or []
 
-    task_completed = pr_state == "closed"
+        # designated assignee is not the author and also not random
+        assignee = next((a for a in sorted(assignees) if a != author), author)
 
-    # Ensure task exists and output URL
-    task_url = ensure_asana_task(
-        title,
-        description,
-        task_completed,
-        asana_assignee,
-        asana_collaborators,
-        project_id,
-        workspace_id,
-        github_url,
-        github_url_field_id,
-        asana_token,
-        pr_author_field_id,
-        pr_author_asana,
-        asana_attachment_secret,
-    )
+        reviewers = [
+            review["user"]["login"]
+            for review in pr.get("retrieved_reviews", [])
+            if review.get("user") and review["user"].get("login")
+        ]
+        commenters = [
+            review["user"]["login"]
+            for review in pr.get("retrieved_comments", [])
+            if review.get("user") and review["user"].get("login")
+        ]
 
-    with open(os.environ["GITHUB_OUTPUT"], "a") as f:
-        f.write(f"task_url={task_url}\n")
+        github_logins = set(assignees + reviewers + commenters + [author])
+        mapping = GithubAsanaMapping(
+            github_logins,
+            roster_project_id,
+            gh_login_field_id,
+            asana_email_field_id,
+            asana_token,
+        )
+        github_login_to_asana_email = mapping.github_login_to_asana_email
+
+        retrieved_reviews = pr.get("retrieved_reviews", [])
+        retrieved_timeline = pr.get("retrieved_timeline", [])
+        reviews = [
+            {
+                "type": "review",
+                "timestamp": r["submitted_at"],
+                "user": r["user"]["login"],
+                "state": r["state"],
+                "data": r,
+            }
+            for r in retrieved_reviews
+            if r.get("state") in ["APPROVED", "CHANGES_REQUESTED"]
+        ]
+        review_requested = [
+            {
+                "type": "review_requested",
+                "timestamp": e["created_at"],
+                "user": e["actor"]["login"],
+                "state": None,
+                "data": e,
+            }
+            for e in retrieved_timeline
+            if e.get("event") == "review_requested"
+        ]
+        last_event = max(reviews + review_requested, key=lambda x: x["timestamp"], default=None)
+
+        is_draft = pr.get("draft", False)
+        is_open = (pr.get("state", "") or "") == "open"
+        task_completed = not (is_open)
+
+        """
+        asana task assignment (asana owner) should be the PR author or PR assignee dep who is responsible at this time
+         - as a story, we say that the PR author is doing the coding, the PR assignee is doing the admin behind the PR
+         - we switch from author <=> assignee while the review process is ongoing
+         -   specifically we look at the last event
+         -      (an event is either a passing or failing review or a review_requested)
+         -    if there is no event, there has been no review, so the assignee has work to do and is the asana owner
+         -    if the last event is a review (whether passing or failing the PR), the PR author is the asana owner
+         -    if the last event is a review_request (meaning the author requested re-review), goes back to the assignee
+         - note that this is only for active PRs
+         -   if the PR is closed or merged (ie not open), or is a draft, the PR author is the asana owner
+         - simplifying this logic:
+         -   asana owner is designee when last_event is None or review_requested
+         - ideally we would want to incorporate mergeability
+         -   if the PR cannot be synced because of a merge issue with the PR destination this would go to the PR author.
+         -     however, this is not easy to implement because mergeability is computed async and there is no hook
+        """
+        asana_owner_is_assignee = not (last_event) or last_event["type"] == "review_requested"
+        asana_owner = assignee if asana_owner_is_assignee else author
+
+        # github allows multiple assignees. Asana doesn't. So we'll just use the first one.
+        asana_assignee = github_login_to_asana_email.get(assignees[0]) if assignees else None
+        asana_collaborators = [
+            github_login_to_asana_email[login] for login in github_logins if login in github_login_to_asana_email
+        ]
+
+        # Get the author's Asana ID for the custom field
+        pr_author_asana = github_login_to_asana_email.get(author)
+
+        # for now
+        print(f"assignees: {assignees}")
+        print(f"author: {author}")
+        print(f"reviewers: {reviewers}")
+        print(f"commenters: {commenters}")
+        print(f"github_logins: {github_logins}")
+        print(f"pr_author_asana: {pr_author_asana}")
+        print(f"asana_assignee: {asana_assignee}")
+
+        # Ensure task exists and output URL
+        task_url = ensure_asana_task(
+            title,
+            description,
+            task_completed,
+            asana_assignee,
+            asana_collaborators,
+            project_id,
+            workspace_id,
+            github_url,
+            github_url_field_id,
+            asana_token,
+            pr_author_field_id,
+            pr_author_asana,
+            asana_attachment_secret,
+        )
+
+        with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+            f.write(f"task_url={task_url}\n")
+    except Exception:
+        traceback.print_exc()
+        raise

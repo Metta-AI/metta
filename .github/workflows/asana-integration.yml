@@ -39,11 +39,7 @@ jobs:
         uses: ./.github/actions/asana/pr_gh_to_asana
         with:
           title: ${{ github.event.pull_request.title }}
-          description: ${{ github.event.pull_request.body }}
           pr_state: ${{ github.event.pull_request.state }}
-          author: ${{ github.event.pull_request.user.login }}
-          assignees: ${{ steps.extract-assignees-reviewers.outputs.assignees }}
-          reviewers: ${{ steps.extract-assignees-reviewers.outputs.reviewers }}
           project_id: ${{ vars.ASANA_PROJECT_GID }}
           workspace_id: ${{ vars.ASANA_WORKSPACE_GID }}
           asana_token: ${{ secrets.ASANA_API_KEY }}
