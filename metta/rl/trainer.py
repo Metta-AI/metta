@@ -93,7 +93,7 @@ class MettaTrainer:
         if trainer_cfg.checkpoint.checkpoint_dir:
             os.makedirs(trainer_cfg.checkpoint.checkpoint_dir, exist_ok=True)
 
-        self.sim_suite_config = sim_suite_config
+        self._sim_suite_config = sim_suite_config
         self._stats_client = stats_client
 
         if torch.distributed.is_initialized():
@@ -135,6 +135,14 @@ class MettaTrainer:
         curriculum_config = trainer_cfg.curriculum_or_env
         env_overrides = DictConfig(trainer_cfg.env_overrides)
         self._curriculum = curriculum_from_config_path(curriculum_config, env_overrides)
+
+        # Add training task to the suite
+        self._sim_suite_config.simulations["eval/training_task"] = SingleEnvSimulationConfig(
+            env="/env/mettagrid/mettagrid",  # won't be used, dynamic `env_cfg()` should override all of it
+            num_episodes=1,
+            env_overrides=self._curriculum.get_task().env_cfg(),
+        )
+
         self._make_vecenv()
 
         metta_grid_env: MettaGridEnv = self.vecenv.driver_env  # type: ignore
@@ -300,6 +308,11 @@ class MettaTrainer:
             for metric_name, step_metric in metric_overrides:
                 wandb_run.define_metric(metric_name, step_metric=step_metric)
 
+            # Log model parameters
+            num_params = sum(p.numel() for p in self.policy.parameters())
+            if wandb_run.summary:
+                wandb_run.summary["model/total_parameters"] = num_params
+
         if self._master:
             self._memory_monitor.add(self, name="MettaTrainer", track_attributes=True)
 
@@ -381,6 +394,10 @@ class MettaTrainer:
         self._maybe_save_policy(force=True)
         self._maybe_save_training_state(force=True)
         self._maybe_upload_policy_record_to_wandb(force=True)
+
+        if self._stats_epoch_start < self.epoch:
+            # If we have not just evaluated the latest policy, evaluate it
+            self._maybe_evaluate_policy(force=True)
 
     def _on_train_step(self):
         pass
@@ -549,10 +566,8 @@ class MettaTrainer:
         return self.epoch % interval == 0
 
     def _maybe_record_heartbeat(self, force=False):
-        if not self._should_run(10, force):
-            return
-
-        record_heartbeat()
+        if force or (self.epoch % 10 == 0):
+            record_heartbeat()
 
     def _maybe_save_training_state(self, force=False):
         """Save training state if on checkpoint interval"""
@@ -704,26 +719,10 @@ class MettaTrainer:
                 attributes={},
             ).id
 
-        # Create an extended simulation suite that includes the training task
-        extended_suite_config = SimulationSuiteConfig(
-            name=self.sim_suite_config.name,
-            simulations=dict(self.sim_suite_config.simulations),  # Copy existing simulations
-            env_overrides=self.sim_suite_config.env_overrides,
-            num_episodes=self.sim_suite_config.num_episodes,
-        )
-
-        # Add training task to the suite
-        training_task_config = SingleEnvSimulationConfig(
-            env="/env/mettagrid/mettagrid",  # won't be used, dynamic `env_cfg()` should override all of it
-            num_episodes=1,
-            env_overrides=self._curriculum.get_task().env_cfg(),
-        )
-        extended_suite_config.simulations["eval/training_task"] = training_task_config
-
         logger.info(f"Simulating policy: {self.latest_saved_policy_uri} with extended config including training task")
         evaluation_results = evaluate_policy(
             policy_record=self.latest_saved_policy_record,
-            simulation_suite=extended_suite_config,
+            simulation_suite=self._sim_suite_config,
             device=self.device,
             vectorization=self.cfg.vectorization,
             replay_dir=self.trainer_cfg.simulation.replay_dir,  # Pass replay_dir to enable replay generation
