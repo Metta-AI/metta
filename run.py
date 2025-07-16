@@ -617,7 +617,6 @@ while agent_step < trainer_config.total_timesteps:
             checkpoint = TrainerCheckpoint(
                 agent_step=agent_step,
                 epoch=epoch,
-                total_agent_step=agent_step * world_size,
                 optimizer_state_dict=optimizer.state_dict(),
                 stopwatch_state=timer.save_state(),
                 policy_path=latest_uri,
@@ -764,7 +763,6 @@ if is_master:
     checkpoint = TrainerCheckpoint(
         agent_step=agent_step,
         epoch=epoch,
-        total_agent_step=agent_step * world_size,
         optimizer_state_dict=optimizer.state_dict(),
         stopwatch_state=timer.save_state(),
         policy_path=latest_uri,

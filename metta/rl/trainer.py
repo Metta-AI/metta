@@ -830,9 +830,10 @@ def create_training_components(
 
     optimizer_type = trainer_cfg.optimizer.type
     opt_cls = torch.optim.Adam if optimizer_type == "adam" else ForeachMuon
-    # ForeachMuon might expect int for weight_decay, but Adam expects float
+    # ForeachMuon expects int for weight_decay, Adam expects float
     weight_decay = trainer_cfg.optimizer.weight_decay
-    if optimizer_type != "adam" and isinstance(weight_decay, float) and weight_decay == int(weight_decay):
+    if optimizer_type != "adam":
+        # Ensure weight_decay is int for ForeachMuon
         weight_decay = int(weight_decay)
 
     optimizer = opt_cls(
