@@ -677,10 +677,10 @@ function setPlaybackSpeed(speed: number) {
 // Initial resize.
 onResize()
 
-// Enable pinch-to-zoom.
+// Disable pinch-to-zoom.
 let meta = document.createElement('meta')
 meta.name = 'viewport'
-meta.content = 'width=device-width, initial-scale=1.0'
+meta.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no'
 document.head.appendChild(meta)
 
 html.modal.classList.add('hidden')
