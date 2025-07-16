@@ -376,10 +376,14 @@ onEvent('keydown', 'body', (target: HTMLElement, e: Event) => {
 
     // Clear the search field and related state.
     const searchInput = document.getElementById('search-input') as HTMLInputElement | null
-    if (searchInput && searchInput.value.length > 0) {
-      searchInput.value = ''
-      // Trigger the input handler registered in search.ts so internal state updates.
-      searchInput.dispatchEvent(new Event('input', { bubbles: true }))
+    if (searchInput) {
+      if (searchInput.value.length > 0) {
+        searchInput.value = ''
+        // Trigger the input handler registered in search.ts so internal state updates.
+        searchInput.dispatchEvent(new Event('input', { bubbles: true }))
+      }
+      // Remove focus from the search input
+      searchInput.blur()
     }
 
     // Close the currently visible panel, preferring the ones most likely to be on top.
