@@ -207,7 +207,8 @@ def ensure_initial_policy(
         loaded_policy_path: Path to already loaded policy (None if no checkpoint)
         device: Training device
     """
-    from metta.api.checkpoint import save_checkpoint
+    from metta.agent.metta_agent import DistributedMettaAgent
+    from metta.common.util.fs import wait_for_file
 
     # If we already loaded a policy, nothing to do
     if loaded_policy_path is not None:
@@ -224,17 +225,25 @@ def ensure_initial_policy(
     if torch.distributed.is_initialized():
         if is_master:
             # Master creates and saves initial policy
-            save_checkpoint(
-                epoch=0,
-                agent_step=0,
-                agent=agent,
-                optimizer=None,
-                policy_store=policy_store,
-                checkpoint_path=checkpoint_path,
-                checkpoint_interval=1,  # Force save
-                stats={},
-                force_save=True,
-            )
+            # Extract the actual policy module from distributed wrapper if needed
+            policy_to_save = agent
+            if isinstance(agent, DistributedMettaAgent):
+                policy_to_save = agent.module
+
+            # Create policy record directly
+            name = policy_store.make_model_name(0)
+            policy_record = policy_store.create_empty_policy_record(name)
+            policy_record.metadata = {
+                "agent_step": 0,
+                "epoch": 0,
+                "initial": True,
+            }
+            policy_record.policy = policy_to_save
+
+            # Save through policy store
+            saved_policy_record = policy_store.save(policy_record)
+            logger.info(f"Master saved initial policy to {saved_policy_record.uri}")
+
             # Master waits at barrier after saving
             torch.distributed.barrier()
         else:
@@ -243,8 +252,6 @@ def ensure_initial_policy(
 
             # Then load the policy master created
             default_policy_path = os.path.join(checkpoint_path, policy_store.make_model_name(0))
-            from metta.common.util.fs import wait_for_file
-
             if not wait_for_file(default_policy_path, timeout=300):
                 raise RuntimeError(f"Rank {rank}: Timeout waiting for policy at {default_policy_path}")
 
@@ -253,14 +260,16 @@ def ensure_initial_policy(
             agent.load_state_dict(policy_pr.policy.state_dict())  # type: ignore
     else:
         # Single GPU mode creates and saves initial policy
-        save_checkpoint(
-            epoch=0,
-            agent_step=0,
-            agent=agent,
-            optimizer=None,
-            policy_store=policy_store,
-            checkpoint_path=checkpoint_path,
-            checkpoint_interval=1,
-            stats={},
-            force_save=True,
-        )
+        # Create policy record directly
+        name = policy_store.make_model_name(0)
+        policy_record = policy_store.create_empty_policy_record(name)
+        policy_record.metadata = {
+            "agent_step": 0,
+            "epoch": 0,
+            "initial": True,
+        }
+        policy_record.policy = agent
+
+        # Save through policy store
+        saved_policy_record = policy_store.save(policy_record)
+        logger.info(f"Saved initial policy to {saved_policy_record.uri}")

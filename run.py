@@ -18,7 +18,6 @@ from metta.api import (
     create_replay_config,
     ensure_initial_policy,
     initialize_wandb,
-    load_checkpoint,
     save_experiment_config,
     setup_distributed_training,
     setup_run_directories,
@@ -255,8 +254,16 @@ policy_store = PolicyStore(
 
 # Load checkpoint or create initial policy with distributed coordination
 checkpoint_path = trainer_config.checkpoint.checkpoint_dir
-checkpoint = load_checkpoint(checkpoint_path, None, None, policy_store, device)
-agent_step, epoch, loaded_policy_path = checkpoint
+checkpoint = TrainerCheckpoint.load(dirs.run_dir)
+if checkpoint:
+    agent_step = checkpoint.agent_step
+    epoch = checkpoint.epoch
+    loaded_policy_path = checkpoint.policy_path
+    logger.info(f"Restored from checkpoint at {agent_step} steps")
+else:
+    agent_step = 0
+    epoch = 0
+    loaded_policy_path = None
 
 # Ensure all ranks have the same initial policy
 ensure_initial_policy(agent, policy_store, checkpoint_path, loaded_policy_path, device)
@@ -278,7 +285,12 @@ optimizer = Optimizer(
 )
 
 # Load optimizer state from checkpoint if it exists
-_, _, checkpoint_path_from_load = load_checkpoint(checkpoint_path, None, optimizer, policy_store, device)
+if checkpoint and checkpoint.optimizer_state_dict:
+    try:
+        optimizer.optimizer.load_state_dict(checkpoint.optimizer_state_dict)
+        logger.info("Successfully loaded optimizer state from checkpoint")
+    except ValueError:
+        logger.warning("Optimizer state dict doesn't match. Starting with fresh optimizer state.")
 
 # Create experience buffer
 experience = Experience(

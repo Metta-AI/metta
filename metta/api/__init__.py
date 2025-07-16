@@ -10,7 +10,6 @@ This API exposes the core training components from Metta, allowing users to:
 
 # Re-export all components for backward compatibility
 from metta.api.agent import Agent
-from metta.api.checkpoint import load_checkpoint, save_checkpoint
 from metta.api.directories import RunDirectories, save_experiment_config, setup_run_directories
 from metta.api.distributed import cleanup_distributed, setup_distributed_training
 from metta.api.environment import Environment, PreBuiltConfigCurriculum
@@ -26,22 +25,22 @@ __all__ = [
     "Agent",
     # Wrapper classes
     "Optimizer",
-    # Helper functions unique to api
+    # Helper functions unique to api.py
     "setup_run_directories",
     "save_experiment_config",
-    "save_checkpoint",
     "setup_distributed_training",
     "cleanup_distributed",
     "initialize_wandb",
     "cleanup_wandb",
-    "load_checkpoint",
-    "wrap_agent_distributed",
-    "ensure_initial_policy",
     # Helper classes
     "RunDirectories",
     "PreBuiltConfigCurriculum",
-    "TrainerState",
     # Evaluation/replay configuration
     "create_evaluation_config_suite",
     "create_replay_config",
+    # Training state management
+    "TrainerState",
+    # Re-exported from functions
+    "ensure_initial_policy",
+    "wrap_agent_distributed",
 ]
