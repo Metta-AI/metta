@@ -1,4 +1,12 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
+# /// script
+# requires-python = ">=3.11"
+# dependencies = [
+#     "gymnasium>=1.1.1",
+#     "numpy>=2.2.6",
+#     "omegaconf>=2.4.0.dev3",
+# ]
+# ///
 """
 Demo script for Gymnasium integration with MettaGrid.
 
@@ -6,19 +14,11 @@ This script demonstrates how to use the MettaGridGymEnv with Gymnasium's
 standard environment interface.
 """
 
-import os
-import sys
-
 import numpy as np
 from omegaconf import DictConfig
 
 from metta.mettagrid.curriculum.core import SingleTaskCurriculum
 from metta.mettagrid.gym_env import MettaGridGymEnv, SingleAgentMettaGridGymEnv
-
-# Add the src directory to the path to ensure imports work correctly
-script_dir = os.path.dirname(os.path.abspath(__file__))
-src_dir = os.path.abspath(os.path.join(script_dir, "..", "src"))
-sys.path.insert(0, src_dir)
 
 
 def create_simple_config():
@@ -31,7 +31,13 @@ def create_simple_config():
                 "obs_width": 7,
                 "obs_height": 7,
                 "num_observation_tokens": 50,
-                "inventory_item_names": ["ore_red", "ore_blue", "battery_red", "battery_blue", "heart"],
+                "inventory_item_names": [
+                    "ore_red",
+                    "ore_blue",
+                    "battery_red",
+                    "battery_blue",
+                    "heart",
+                ],
                 "groups": {"agent": {"id": 0, "sprite": 0}},
                 "agent": {
                     "default_resource_limit": 10,
@@ -103,7 +109,7 @@ def run_multi_agent_demo():
 
         obs, rewards, terminals, truncations, info = env.step(actions)
 
-        total_reward += rewards.sum()
+        total_reward += np.sum(rewards) if isinstance(rewards, np.ndarray) else rewards
         step += 1
 
         if step % 10 == 0:

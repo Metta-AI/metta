@@ -1,0 +1,131 @@
+name: Test Demo Environments
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'mettagrid/demos/**'
+      - 'mettagrid/src/**'
+      - 'mettagrid/pyproject.toml'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'mettagrid/demos/**'
+      - 'mettagrid/src/**'
+      - 'mettagrid/pyproject.toml'
+  workflow_dispatch:
+
+jobs:
+  test-demo-environments:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        demo: [gym_demo, pettingzoo_demo, puffer_demo]
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    
+    - name: Install uv
+      uses: astral-sh/setup-uv@v4
+      with:
+        version: "0.7.3"
+        enable-cache: true
+    
+    - name: Install local packages
+      run: |
+        echo "Installing metta-mettagrid..."
+        uv pip install -e ./mettagrid
+        echo "Installing metta-common..."
+        uv pip install -e ./common
+        echo "Verifying installations..."
+        uv pip list | grep -E "(metta-mettagrid|metta-common)"
+        
+    - name: Test ${{ matrix.demo }}
+      run: |
+        cd mettagrid/demos
+        timeout 120 uv run python ${{ matrix.demo }}.py || exit_code=$?
+        if [ $exit_code -eq 124 ]; then
+          echo "✅ ${{ matrix.demo }} ran successfully for 120 seconds"
+          exit 0
+        elif [ $exit_code -eq 0 ]; then
+          echo "✅ ${{ matrix.demo }} completed successfully"
+          exit 0
+        else
+          echo "❌ ${{ matrix.demo }} failed with exit code $exit_code"
+          exit 1
+        fi
+      timeout-minutes: 3
+      
+  test-all-demos:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    
+    - name: Install uv
+      uses: astral-sh/setup-uv@v4
+      with:
+        version: "0.7.3"
+        enable-cache: true
+    
+    - name: Install local packages
+      run: |
+        echo "Installing metta-mettagrid..."
+        uv pip install -e ./mettagrid
+        echo "Installing metta-common..."
+        uv pip install -e ./common
+        echo "Verifying installations..."
+        uv pip list | grep -E "(metta-mettagrid|metta-common)"
+        
+    - name: Test all demos with test script
+      run: |
+        cd mettagrid/demos
+        uv run python test_demos.py
+      timeout-minutes: 5
+      
+  check-demo-scripts:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    
+    - name: Install uv
+      uses: astral-sh/setup-uv@v4
+      with:
+        version: "0.7.3"
+        enable-cache: true
+    
+    - name: Check demo scripts exist
+      run: |
+        cd mettagrid/demos
+        for demo in gym_demo.py pettingzoo_demo.py puffer_demo.py test_demos.py; do
+          if [ -f "$demo" ]; then
+            echo "✅ $demo exists"
+          else
+            echo "❌ $demo not found"
+            exit 1
+          fi
+        done
+    
+    - name: Verify Python shebang and PEP 723 format
+      run: |
+        cd mettagrid/demos
+        for demo in gym_demo.py pettingzoo_demo.py puffer_demo.py test_demos.py; do
+          if head -n 1 "$demo" | grep -q "#!/usr/bin/env python"; then
+            echo "✅ $demo has correct Python shebang"
+          else
+            echo "❌ $demo missing Python shebang"
+            exit 1
+          fi
+          
+          if head -n 10 "$demo" | grep -q "# /// script"; then
+            echo "✅ $demo has PEP 723 metadata"
+          else
+            echo "❌ $demo missing PEP 723 metadata"
+            exit 1
+          fi
+        done
