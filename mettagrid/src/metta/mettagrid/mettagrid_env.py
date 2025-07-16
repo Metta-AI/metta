@@ -107,10 +107,10 @@ class MettaGridEnv(PufferEnv, GymEnv):
                 self._renderer = MiniscopeRenderer(self.object_type_names)
 
         # CHANGES MADE TO MAKE WINNER REWARD WORK
+        self.agent_rooms = []
         self.cumulative_rewards = np.zeros(self.num_agents)
         env_cfg = self._task.env_cfg()
-        self.sparse_flag = getattr(env_cfg, "sparse_reward_top_heart_winners_every_N_steps", False)
-        self.interval = getattr(env_cfg, "heart_winners_reward_interval_in_steps", None)
+        self.special_reward_mode = getattr(env_cfg, "special_reward_mode", False)
         # END CHANGES FOR WINNER REWARD
 
     def _make_episode_id(self):
@@ -160,6 +160,25 @@ class MettaGridEnv(PufferEnv, GymEnv):
                 logger.error(f"Error initializing C++ environment: {e}")
                 logger.error(f"Game config: {game_config_dict}")
                 raise e
+
+            # GREG CODE: CRUCIAL FOR ROOM NUMBERS TO WORK IS FOR THIS AGENT ORDERING TO BE SAME AS IN METTAGRID_C.CPP
+            agent_room_names = [
+                cell for row in level.grid for cell in row if isinstance(cell, str) and cell.startswith("agent.agent")
+            ]
+            # Extract agent numbers from agent names like "agent.agent.3"
+            self.agent_rooms = []
+            for name in agent_room_names:
+                parts = name.split(".")
+                if len(parts) == 3 and parts[0] == "agent" and parts[1] == "agent":
+                    try:
+                        self.agent_rooms.append(int(parts[2]))
+                    except ValueError:
+                        pass
+
+            # Remove numbers from agent names in the level grid, keeping only "agent.agent"
+            mask = np.char.startswith(level.grid.astype(str), "agent.agent.")
+            level.grid[mask] = "agent.agent"
+            # END GREG CODE
 
             self._c_env = MettaGrid(c_cfg, level.grid.tolist(), self._current_seed)
 
@@ -225,15 +244,33 @@ class MettaGridEnv(PufferEnv, GymEnv):
             self._steps += 1
 
         self.cumulative_rewards = self.cumulative_rewards + np.array(self.rewards)
+        # print("AGENTS", np.arange(self.num_agents))
+        # print("AGENT ROOMS", self.agent_rooms)
 
-        if self.sparse_flag:
+        # reward modes:
+        if self.special_reward_mode == "ffa":
+            self.rewards[:] = self.rewards
+        elif self.special_reward_mode == "best_on_map":
             max_reward = np.max(self.cumulative_rewards)
             reward_if_frontier_amt_of_hearts = np.where(self.cumulative_rewards == max(max_reward, 1), 1, 0) * np.array(
                 self.rewards
             )
             self.rewards[:] = reward_if_frontier_amt_of_hearts
-
-        # print(self._steps, self.rewards)
+        elif self.special_reward_mode == "best_in_room":
+            # For each room, find the max cumulative reward among agents in that room.
+            # Only agents whose cumulative reward is the max in their room get their reward; others get 0.
+            rewards = np.array(self.rewards)
+            agent_rooms = np.array(self.agent_rooms)
+            cumulative_rewards = np.array(self.cumulative_rewards)
+            new_rewards = np.zeros_like(rewards)
+            for room in np.unique(agent_rooms):
+                agent_indices = np.where(agent_rooms == room)[0]
+                room_cum_rewards = cumulative_rewards[agent_indices]
+                max_cum_reward = np.max(room_cum_rewards)
+                # Only agents with max cumulative reward in their room get their reward
+                is_best = room_cum_rewards == max(max_cum_reward, 1)
+                new_rewards[agent_indices] = rewards[agent_indices] * is_best
+            self.rewards[:] = new_rewards
 
         if self._replay_writer and self._episode_id:
             with self.timer("_replay_writer.log_step"):

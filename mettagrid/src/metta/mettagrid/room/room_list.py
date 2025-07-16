@@ -56,6 +56,13 @@ class RoomList(Room):
             room_height = rooms[i].shape[0]
             room_width = rooms[i].shape[1]
 
+            # Find all "agent.agent" in rooms[i] and replace with "agent.agent.i"
+            agent_label = f"agent.agent.{i}"
+            mask = rooms[i] == "agent.agent"
+            if np.any(mask):
+                rooms[i] = rooms[i].copy()  # avoid modifying original if shared
+                rooms[i][mask] = agent_label
+
             # Calculate starting position to center the room in its grid cell
             start_row = row * max_height + (max_height - room_height) // 2
             start_col = col * max_width + (max_width - room_width) // 2

@@ -4,7 +4,7 @@ defaults:
 
 sampling: 1
 game:
-  num_agents: 4
+  num_agents: 8
   max_steps: 1000
   actions:
     attack:
@@ -17,12 +17,12 @@ game:
       enabled: false
   map_builder:
     _target_: metta.mettagrid.room.multi_room.MultiRoom
-    num_rooms: ${..num_agents}
+    num_rooms: 4 #${..num_agents}
     border_width: 6
     room:
       _target_: metta.mettagrid.room.terrain_from_numpy.TerrainFromNumpy
       border_width: 3
-      agents: 1
+      agents: 2
       objects:
         altar: ${sampling:10, 50, 30}
   objects:
@@ -35,5 +35,4 @@ game:
       heart: 1.0
 
 
-sparse_reward_top_heart_winners_every_N_steps: true
-heart_winners_reward_interval_in_steps: 10
+special_reward_mode: "ffa"

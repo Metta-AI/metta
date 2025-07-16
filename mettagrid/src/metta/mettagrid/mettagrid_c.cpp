@@ -139,10 +139,78 @@ MettaGrid::MettaGrid(const GameConfig& cfg, py::list map, unsigned int seed)
   std::string grid_hash_data;                   // String to accumulate grid data for hashing
   grid_hash_data.reserve(height * width * 20);  // Pre-allocate for efficiency
 
+  // CUSTOM GREG CODE
+  // Loop through the map to count the number of distinct agent room numbers and the number of agents
+  std::set<int> agent_room_numbers;
+  int agent_count = 0;
   for (GridCoord r = 0; r < height; r++) {
     for (GridCoord c = 0; c < width; c++) {
       auto py_cell = map[r].cast<py::list>()[c].cast<py::str>();
       auto cell = py_cell.cast<std::string>();
+
+      // Check for agent cell and extract room number if present
+      if (cell.rfind("agent.agent", 0) == 0) { // starts with "agent.agent"
+        int room_number = -1;
+        size_t first_dot = cell.find('.');
+        if (first_dot != std::string::npos) {
+          size_t second_dot = cell.find('.', first_dot + 1);
+          if (second_dot != std::string::npos) {
+            // There are at least two periods
+            size_t last_dot = cell.rfind('.');
+            if (last_dot != std::string::npos && last_dot > 0 && last_dot + 1 < cell.size()) {
+              std::string maybe_room = cell.substr(last_dot + 1);
+              try {
+                room_number = std::stoi(maybe_room);
+              } catch (const std::exception&) {
+                // Not a number, ignore
+              }
+            }
+          }
+        }
+        agent_count++;
+        if (room_number != -1) {
+          agent_room_numbers.insert(room_number);
+        }
+      }
+    }
+  }
+  int num_distinct_agent_rooms = static_cast<int>(agent_room_numbers.size());
+  int agents_per_room = agent_count / num_distinct_agent_rooms;
+  int num_rooms = num_distinct_agent_rooms;
+
+  static std::vector<size_t> room_local_idx;
+  room_local_idx = std::vector<size_t>(num_rooms, 0);
+  //END CUSTOM GREG CODE
+
+  for (GridCoord r = 0; r < height; r++) {
+    for (GridCoord c = 0; c < width; c++) {
+      auto py_cell = map[r].cast<py::list>()[c].cast<py::str>();
+      auto cell = py_cell.cast<std::string>();
+
+      // CUSTOM GREG CODE TO GET ROOM NUMBER FROM LEVEL MAP
+      // level input has been modified to have room number for agents in the format agent.agent.4 for example
+      // this code removes it so that it goes back to old agent.agent functionality, and extracts room number
+      int room_number = -1;
+      size_t first_dot = cell.find('.');
+      if (first_dot != std::string::npos) {
+        size_t second_dot = cell.find('.', first_dot + 1);
+        if (second_dot != std::string::npos) {
+          // There are at least two periods
+          // Find the last period (could be the same as second_dot if only two)
+          size_t last_dot = cell.rfind('.');
+          if (last_dot != std::string::npos && last_dot > 0 && last_dot + 1 < cell.size()) {
+            std::string maybe_room = cell.substr(last_dot + 1);
+            try {
+              room_number = std::stoi(maybe_room);
+              cell = cell.substr(0, last_dot);  // cell now is e.g. "agent.agent"
+            } catch (const std::exception&) {
+              // If not a number, leave room_number as -1 and cell unchanged
+            }
+          }
+        }
+      }
+      //END CUSTOM GREG CODE
+
 
       // Add cell position and type to hash data
       grid_hash_data += std::to_string(r) + "," + std::to_string(c) + ":" + cell + ";";
@@ -182,10 +250,29 @@ MettaGrid::MettaGrid(const GameConfig& cfg, py::list map, unsigned int seed)
       if (agent_config) {
         Agent* agent = new Agent(r, c, *agent_config);
         _grid->add_object(agent);
-        if (_agents.size() > std::numeric_limits<decltype(agent->agent_id)>::max()) {
-          throw std::runtime_error("Too many agents for agent_id type");
+        // CUSTOM GREG CODE
+        if(room_number == -1 || num_rooms == -1 || agents_per_room == -1) {
+          // if agent.agent in level has no room number use old scheme, or if num_rooms or agents_per_room isn't in config
+          if (_agents.size() > std::numeric_limits<decltype(agent->agent_id)>::max()) {
+            throw std::runtime_error("Too many agents for agent_id type");
+          }
+          agent->agent_id = static_cast<decltype(agent->agent_id)>(_agents.size());
         }
-        agent->agent_id = static_cast<decltype(agent->agent_id)>(_agents.size());
+        else {
+          // Assign agent_id so that all agents from the first room are first, then all from the second, etc.
+          int agent_room_number = room_number; // room_number is set above if present, else -1
+          size_t agent_id = 0;
+          agent_id = agent_room_number * agents_per_room + room_local_idx[agent_room_number];
+          room_local_idx[agent_room_number]++;
+
+          if (agent_id > std::numeric_limits<decltype(agent->agent_id)>::max()) {
+            throw std::runtime_error("Too many agents for agent_id type");
+          }
+          agent->agent_id = static_cast<decltype(agent->agent_id)>(agent_id);
+        }
+
+
+        //END CUSTOM GREG CODE
         agent->stats.set_environment(this);
         add_agent(agent);
         _group_sizes[agent->group] += 1;
