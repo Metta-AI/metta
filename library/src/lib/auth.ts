@@ -1,10 +1,11 @@
 import "server-only";
 
+import { DrizzleAdapter } from "@auth/drizzle-adapter";
 import NextAuth, { NextAuthConfig, NextAuthResult, Session } from "next-auth";
 import { Provider } from "next-auth/providers";
-import { DrizzleAdapter } from "@auth/drizzle-adapter";
-import { db } from "./db";
 import { redirect } from "next/navigation";
+
+import { db } from "./db";
 
 function buildAuthConfig(): NextAuthConfig {
   const providers: Provider[] = [];
@@ -16,14 +17,13 @@ function buildAuthConfig(): NextAuthConfig {
       type: "email",
       name: "Log magic link to console (dev)",
       async sendVerificationRequest(params) {
-        const { identifier: to, provider, url, theme } = params;
-        const { host } = new URL(url);
+        const { url } = params;
         console.log({ url });
       },
     });
   }
 
-  // TODO: configure Google provider for production.
+  // TODO: configure Google provider for production deployment.
 
   const config: NextAuthConfig = {
     adapter: DrizzleAdapter(db),
@@ -42,6 +42,8 @@ function makeAuth(): NextAuthResult {
 }
 
 export const { handlers, signIn, signOut, auth } = makeAuth();
+
+// Helper functions.
 
 export type SignedInSession = Session & {
   user: NonNullable<Session["user"]> & {

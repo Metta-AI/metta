@@ -29,6 +29,7 @@ node_modules/
 .pnpm/
 .vite/
 dist/
+*.tsbuildinfo
 
 # Project-specific build outputs
 /mettagrid/dist/

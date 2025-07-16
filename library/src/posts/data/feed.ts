@@ -1,7 +1,8 @@
-import { db } from "@/lib/db";
-import { Paginated, findPaginated, makePaginated } from "@/lib/paginated";
-import { postsTable } from "@/lib/db/schema/post";
 import { desc } from "drizzle-orm";
+
+import { db } from "@/lib/db";
+import { postsTable } from "@/lib/db/schema/post";
+import { makePaginated, Paginated } from "@/lib/paginated";
 
 type FeedPostRow = typeof postsTable.$inferSelect;
 
@@ -12,7 +13,7 @@ export type FeedPostDTO = {
   updatedAt: Date;
 };
 
-function toDTO(dbModel: FeedPostRow): FeedPostDTO {
+export function toFeedPostDTO(dbModel: FeedPostRow): FeedPostDTO {
   return {
     id: dbModel.id,
     title: dbModel.title,
@@ -22,27 +23,26 @@ function toDTO(dbModel: FeedPostRow): FeedPostDTO {
 }
 
 export async function loadFeedPosts({
-  limit = 20,
+  limit = 5,
   cursor,
 }: {
   limit?: number;
-  cursor?: string;
+  cursor?: Date;
 } = {}): Promise<Paginated<FeedPostDTO>> {
   const rows = await db.query.postsTable.findMany({
-    where: (postsTable, { gt }) =>
-      cursor ? gt(postsTable.id, cursor) : undefined,
-    limit,
+    where: (postsTable, { lt }) =>
+      cursor ? lt(postsTable.createdAt, cursor) : undefined,
+    limit: limit + 1,
     orderBy: [desc(postsTable.createdAt)],
-    // ...findPaginated(cursor, limit),
   });
 
-  const models = rows.map(toDTO);
+  const posts = rows.map(toFeedPostDTO);
 
-  const nextCursor = models[models.length - 1]?.id;
+  const nextCursor = posts[posts.length - 1]?.createdAt;
   async function loadMore(limit: number) {
     "use server";
-    return loadPosts({ cursor: nextCursor, limit });
+    return loadFeedPosts({ cursor: nextCursor, limit });
   }
 
-  return makePaginated(models, limit, loadMore);
+  return makePaginated(posts, limit, loadMore);
 }

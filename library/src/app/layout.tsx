@@ -1,14 +1,15 @@
 import "./globals.css";
 
+import type { Metadata } from "next";
+import { SessionProvider } from "next-auth/react";
+import { redirect } from "next/navigation";
+import { NuqsAdapter } from "nuqs/adapters/next/app";
 import { FC, PropsWithChildren } from "react";
 
-import type { Metadata } from "next";
-import { NuqsAdapter } from "nuqs/adapters/next/app";
 import { PageLayout } from "@/components/ui/PageLayout";
-import { SessionProvider } from "next-auth/react";
-import { TopMenu } from "./TopMenu";
 import { auth } from "@/lib/auth";
-import { redirect } from "next/navigation";
+
+import { TopMenu } from "./TopMenu";
 
 export const metadata: Metadata = {
   title: "Softmax Library",
@@ -42,3 +43,5 @@ export default async function RootLayout({ children }: PropsWithChildren) {
     </html>
   );
 }
+
+export const dynamic = "force-dynamic";

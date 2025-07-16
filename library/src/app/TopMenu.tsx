@@ -1,8 +1,10 @@
-import { auth, signOut } from "@/lib/auth";
 import Link from "next/link";
-import { FC } from "react";
-import { SignOutButton } from "./SignOutButton";
 import { redirect } from "next/navigation";
+import { FC } from "react";
+
+import { auth } from "@/lib/auth";
+
+import { SignOutButton } from "./SignOutButton";
 
 const UserInfo: FC = async () => {
   const session = await auth();
