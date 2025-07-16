@@ -23,7 +23,7 @@ NUM_OBS_TOKENS = 100
 OBS_TOKEN_SIZE = 3
 
 
-def create_heart_reward_test_env(max_steps=50, num_agents=NUM_AGENTS):
+def create_heart_reward_test_env(max_steps=50, num_agents=NUM_AGENTS, max_reward=0):
     """Helper function to create a MettaGrid environment with heart collection for reward testing."""
 
     # Create a simple map with agent, altar, and walls
@@ -36,6 +36,7 @@ def create_heart_reward_test_env(max_steps=50, num_agents=NUM_AGENTS):
 
     game_config = {
         "max_steps": max_steps,
+        "max_reward": max_reward,
         "num_agents": num_agents,
         "obs_width": OBS_WIDTH,
         "obs_height": OBS_HEIGHT,
@@ -209,3 +210,32 @@ class TestRewards:
         print("✅ Multiple collections successful!")
         print(f"   Collection 1: reward={reward1}, episode_total={episode_rewards_1}")
         print(f"   Collection 2: reward={reward2}, episode_total={episode_rewards_2}")
+
+    def test_termination_on_max_reward(self):
+        """Test that episode terminates when max_reward is reached."""
+        env = create_heart_reward_test_env(max_steps=50, max_reward=1.0)
+
+        # Create buffers
+        observations = np.zeros((NUM_AGENTS, NUM_OBS_TOKENS, OBS_TOKEN_SIZE), dtype=dtype_observations)
+        terminals = np.zeros(NUM_AGENTS, dtype=dtype_terminals)
+        truncations = np.zeros(NUM_AGENTS, dtype=dtype_truncations)
+        rewards = np.zeros(NUM_AGENTS, dtype=dtype_rewards)
+
+        env.set_buffers(observations, terminals, truncations, rewards)
+        env.reset()
+
+        # Take steps to accumulate rewards
+        noop_action_idx = env.action_names().index("noop")
+        actions = np.full((NUM_AGENTS, 2), [noop_action_idx, 0], dtype=dtype_actions)
+
+        # First step - should not terminate yet
+        obs, step_rewards_1, terminals, truncations, info = env.step(actions)
+        assert not np.any(terminals), "Episode should not terminate after first step (below max_reward)"
+
+        # Collect heart and verify rewards
+        success, reward = collect_heart_from_altar(env)
+        assert success, "Heart collection should succeed"
+        assert reward >= 1.0, f"Heart collection should give positive reward, got {reward}"
+
+        assert np.all(terminals), "Episode should terminate after reaching max_reward"
+        assert not np.any(truncations), "Episode should not be truncated when max_reward is reached"
