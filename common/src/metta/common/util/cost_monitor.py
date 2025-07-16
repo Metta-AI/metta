@@ -9,6 +9,10 @@
 import json
 import logging
 import os
+import sys
+
+# Remove the current directory from sys.path to avoid circular import with local colorama.py
+sys.path = [p for p in sys.path if p not in ("", ".", os.path.dirname(__file__))]
 
 import requests
 import sky
