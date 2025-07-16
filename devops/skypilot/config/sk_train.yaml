@@ -62,6 +62,17 @@ run: |
     echo "[RUN] Latency script is missing!"
   fi
 
+  if [ -f common/src/metta/common/util/cost_monitor.py ]; then
+    echo "[RUN] Collecting instance cost..."
+    COST_EXPORT_CMD=$(python common/src/metta/common/util/cost_monitor.py 2>&1)
+    if [ -n "$COST_EXPORT_CMD" ]; then
+      eval $COST_EXPORT_CMD
+      echo "[RUN] METTA_HOURLY_COST set to: $METTA_HOURLY_COST"
+    fi
+  else
+    echo "[RUN] Cost monitor script is missing!"
+  fi
+
   export NUM_GPUS=$SKYPILOT_NUM_GPUS_PER_NODE
   export NUM_NODES=$SKYPILOT_NUM_NODES
   export MASTER_ADDR=$(echo "$SKYPILOT_NODE_IPS" | head -n1)

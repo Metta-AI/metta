@@ -96,6 +96,16 @@ class SystemMonitor:
         if self._is_container:
             self.logger.info("Running in container environment")
 
+        # Check for cost env var
+        hourly_cost_str = os.environ.get("METTA_HOURLY_COST")
+        if hourly_cost_str:
+            try:
+                total_hourly_cost = float(hourly_cost_str)
+                self._metric_collectors["cost/hourly_total"] = lambda: total_hourly_cost
+                self.logger.info(f"Cost monitoring enabled: ${total_hourly_cost:.4f}/hr (total for all nodes)")
+            except (ValueError, TypeError):
+                self.logger.warning(f"Could not parse METTA_HOURLY_COST: {hourly_cost_str}")
+
         # GPU metrics - check multiple ways for compatibility
         self._has_gpu = False
 
