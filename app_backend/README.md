@@ -37,7 +37,7 @@ To run locally without Docker:
 
 ```bash
 cd app_backend
-uv run python server.py
+DEBUG_USER_EMAIL=localdev@stem.ai uv run python server.py
 ```
 
 ## API Endpoints
