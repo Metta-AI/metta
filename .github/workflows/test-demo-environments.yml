@@ -16,76 +16,9 @@ on:
   workflow_dispatch:
 
 jobs:
-  test-demo-environments:
+  test-demos:
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        demo: [gym_demo, pettingzoo_demo, puffer_demo]
-    
-    steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-    
-    - name: Setup uv
-      uses: ./.github/actions/setup-uv
-      with:
-        install-mode: "no-mettagrid"
-    
-    - name: Install local packages
-      run: |
-        echo "Installing metta-mettagrid..."
-        uv pip install --no-build-isolation --no-deps -e ./mettagrid
-        echo "Installing metta-common..."
-        uv pip install --no-deps -e ./common
-        echo "Verifying installations..."
-        uv pip list | grep -E "(metta-mettagrid|metta-common)"
-        
-    - name: Test ${{ matrix.demo }}
-      run: |
-        cd mettagrid/demos
-        timeout 120 uv run python ${{ matrix.demo }}.py || exit_code=$?
-        if [ $exit_code -eq 124 ]; then
-          echo "✅ ${{ matrix.demo }} ran successfully for 120 seconds"
-          exit 0
-        elif [ $exit_code -eq 0 ]; then
-          echo "✅ ${{ matrix.demo }} completed successfully"
-          exit 0
-        else
-          echo "❌ ${{ matrix.demo }} failed with exit code $exit_code"
-          exit 1
-        fi
-      timeout-minutes: 3
-      
-  test-all-demos:
-    runs-on: ubuntu-latest
-    
-    steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-    
-    - name: Setup uv
-      uses: ./.github/actions/setup-uv
-      with:
-        install-mode: "no-mettagrid"
-    
-    - name: Install local packages
-      run: |
-        echo "Installing metta-mettagrid..."
-        uv pip install --no-build-isolation --no-deps -e ./mettagrid
-        echo "Installing metta-common..."
-        uv pip install --no-deps -e ./common
-        echo "Verifying installations..."
-        uv pip list | grep -E "(metta-mettagrid|metta-common)"
-        
-    - name: Test all demos with test script
-      run: |
-        cd mettagrid/demos
-        uv run python test_demos.py
-      timeout-minutes: 5
-      
-  check-demo-scripts:
-    runs-on: ubuntu-latest
+    timeout-minutes: 10
     
     steps:
     - name: Checkout repository
@@ -95,11 +28,27 @@ jobs:
       uses: astral-sh/setup-uv@v4
       with:
         version: "0.7.3"
-        enable-cache: true
+        enable-cache: false
     
-    - name: Check demo scripts exist
+    - name: Create virtual environment
+      run: |
+        uv venv
+        echo "VIRTUAL_ENV=$(pwd)/.venv" >> $GITHUB_ENV
+        echo "$(pwd)/.venv/bin" >> $GITHUB_PATH
+    
+    - name: Install dependencies
+      run: |
+        echo "Installing metta-mettagrid..."
+        uv pip install --no-build-isolation --no-deps -e ./mettagrid
+        echo "Installing metta-common..."
+        uv pip install --no-deps -e ./common
+        echo "Verifying installations..."
+        uv pip list | grep -E "(metta-mettagrid|metta-common)"
+    
+    - name: Check demo scripts format
       run: |
         cd mettagrid/demos
+        echo "Checking demo scripts exist and have correct format..."
         for demo in gym_demo.py pettingzoo_demo.py puffer_demo.py test_demos.py; do
           if [ -f "$demo" ]; then
             echo "✅ $demo exists"
@@ -107,12 +56,7 @@ jobs:
             echo "❌ $demo not found"
             exit 1
           fi
-        done
-    
-    - name: Verify Python shebang and PEP 723 format
-      run: |
-        cd mettagrid/demos
-        for demo in gym_demo.py pettingzoo_demo.py puffer_demo.py test_demos.py; do
+          
           if head -n 1 "$demo" | grep -q "#!/usr/bin/env python"; then
             echo "✅ $demo has correct Python shebang"
           else
@@ -127,3 +71,26 @@ jobs:
             exit 1
           fi
         done
+    
+    - name: Test individual demos
+      run: |
+        cd mettagrid/demos
+        echo "Testing individual demos..."
+        for demo in gym_demo.py pettingzoo_demo.py puffer_demo.py; do
+          echo "Testing $demo..."
+          timeout 120 uv run python $demo || exit_code=$?
+          if [ $exit_code -eq 124 ]; then
+            echo "✅ $demo ran successfully for 120 seconds"
+          elif [ $exit_code -eq 0 ]; then
+            echo "✅ $demo completed successfully"
+          else
+            echo "❌ $demo failed with exit code $exit_code"
+            exit 1
+          fi
+        done
+    
+    - name: Test with comprehensive test script
+      run: |
+        cd mettagrid/demos
+        echo "Running comprehensive test script..."
+        uv run python test_demos.py
