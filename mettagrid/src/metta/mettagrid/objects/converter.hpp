@@ -12,10 +12,6 @@
 #include "constants.hpp"
 #include "has_inventory.hpp"
 
-// Recipe inputs will be placed at offset 128 + InventoryFeatureOffset
-// This assumes we have fewer than 128 inventory items, which is reasonable
-const ObservationType RecipeFeatureOffset = 128 + ObservationFeature::ObservationFeatureCount;
-
 // #MettagridConfig
 struct ConverterConfig : public GridObjectConfig {
   ConverterConfig(TypeId type_id,
@@ -215,7 +211,7 @@ public:
     if (this->show_recipe_inputs) {
       for (const auto& [item, amount] : this->input_resources) {
         features.push_back(
-            {static_cast<ObservationType>(item + RecipeFeatureOffset), static_cast<ObservationType>(amount)});
+            {static_cast<ObservationType>(item + InventoryFeatureOffset), static_cast<ObservationType>(amount)});
       }
     }
     
