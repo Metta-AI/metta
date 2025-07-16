@@ -12,6 +12,10 @@
 #include "constants.hpp"
 #include "has_inventory.hpp"
 
+// Recipe inputs will be placed at offset 128 + InventoryFeatureOffset
+// This assumes we have fewer than 128 inventory items, which is reasonable
+const ObservationType RecipeFeatureOffset = 128 + ObservationFeature::ObservationFeatureCount;
+
 // #MettagridConfig
 struct ConverterConfig : public GridObjectConfig {
   ConverterConfig(TypeId type_id,
@@ -186,19 +190,19 @@ public:
 
   vector<PartialObservationToken> obs_features() const override {
     vector<PartialObservationToken> features;
-    
+
     // Calculate the capacity needed
     size_t capacity = 5 + this->inventory.size();
     if (this->show_recipe_inputs) {
       capacity += this->input_resources.size();
     }
     features.reserve(capacity);
-    
+
     features.push_back({ObservationFeature::TypeId, static_cast<ObservationType>(this->type_id)});
     features.push_back({ObservationFeature::Color, static_cast<ObservationType>(this->color)});
     features.push_back({ObservationFeature::ConvertingOrCoolingDown,
                         static_cast<ObservationType>(this->converting || this->cooling_down)});
-    
+
     // Add current inventory
     for (const auto& [item, amount] : this->inventory) {
       // inventory should only contain non-zero amounts
@@ -206,15 +210,15 @@ public:
       features.push_back(
           {static_cast<ObservationType>(item + InventoryFeatureOffset), static_cast<ObservationType>(amount)});
     }
-    
+
     // Add recipe inputs if configured to do so
     if (this->show_recipe_inputs) {
       for (const auto& [item, amount] : this->input_resources) {
         features.push_back(
-            {static_cast<ObservationType>(item + InventoryFeatureOffset), static_cast<ObservationType>(amount)});
+            {static_cast<ObservationType>(item + RecipeFeatureOffset), static_cast<ObservationType>(amount)});
       }
     }
-    
+
     return features;
   }
 };
