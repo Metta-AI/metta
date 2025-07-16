@@ -159,6 +159,8 @@ class TerrainFromNumpy(Room):
         # Check adjacent positions and use first valid one
         adjacent = [(y + 1, x), (y - 1, x), (y, x + 1), (y, x - 1)]
         agent_positions.extend(random.sample(adjacent, 1))
+        if len(agent_positions) < num_agents:
+            agent_positions.append(valid_positions[1])
 
         for pos, label in zip(agent_positions, agent_labels, strict=False):
             level[pos] = label
@@ -170,12 +172,9 @@ class TerrainFromNumpy(Room):
         valid_positions_set = set(valid_positions)
 
         for obj_name, count in self._objects.items():
-            if obj_name == "altar":
-                count = 1
-            else:
-                count = count - np.where(level == obj_name, 1, 0).sum()
-            # if count < 0:
-            #     continue
+            count = count - np.where(level == obj_name, 1, 0).sum()
+            if count < 0:
+                continue
             # Sample from remaining valid positions
             positions = random.sample(list(valid_positions_set), min(count, len(valid_positions_set)))
             for pos in positions:

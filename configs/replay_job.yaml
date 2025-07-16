@@ -9,7 +9,7 @@ policy_uri: ???
 
 replay_job:
   sim:
-    env: nv/mettagrid/navigation/training/terrain_from_numpy
+    env: env/mettagrid/navigation/training/varied_terrain_maze
   policy_uri: ${policy_uri}
   selector_type: top
   stats_dir: ${run_dir}/stats
