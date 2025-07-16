@@ -111,8 +111,34 @@ def main(cfg: DictConfig) -> int:
     if "LOCAL_RANK" in os.environ and cfg.device.startswith("cuda"):
         logger.info(f"Initializing distributed training with {os.environ['LOCAL_RANK']} {cfg.device}")
         local_rank = int(os.environ["LOCAL_RANK"])
+
+        # DEBUG: Log all relevant environment variables
+        env_vars = [
+            "LOCAL_RANK",
+            "RANK",
+            "WORLD_SIZE",
+            "MASTER_ADDR",
+            "MASTER_PORT",
+            "NODE_INDEX",
+            "NUM_GPUS",
+            "NUM_NODES",
+            "NCCL_SHM_DISABLE",
+        ]
+        for var in env_vars:
+            logger.info(f"ENV[{var}] = {os.environ.get(var, 'NOT_SET')}")
+
+        # DEBUG: Log CUDA state before device setting
+        logger.info(f"CUDA available: {torch.cuda.is_available()}")
+        if torch.cuda.is_available():
+            logger.info(f"CUDA device count: {torch.cuda.device_count()}")
+            logger.info(f"Current CUDA device: {torch.cuda.current_device()}")
+
+        # torch.cuda.set_device(local_rank)  # Test with this commented out
         cfg.device = f"{cfg.device}:{local_rank}"
+
+        logger.info("About to call dist.init_process_group(backend='nccl')...")
         dist.init_process_group(backend="nccl")
+        logger.info("dist.init_process_group() completed successfully")
 
     logger.info(f"Training {cfg.run} on {cfg.device}")
     if os.environ.get("RANK", "0") == "0":

@@ -34,17 +34,29 @@ def main(cfg: DictConfig | ListConfig) -> int:
     # Extract sweep base name from CLI sweep_run parameter (e.g., "simple_sweep")
     # Individual training runs will be "simple_sweep.r.0", etc.
 
+    start_time = time.time()
+    node_index = os.environ.get("NODE_INDEX", "0")
+    local_rank = os.environ.get("LOCAL_RANK", "0")
+
+    logger.info(f"[TIMING] sweep_init starting - Node {node_index}, Rank {local_rank} at {start_time}")
+
     cfg.wandb.name = cfg.sweep_run
 
-    is_master = os.environ.get("NODE_INDEX", "0") == "0"
+    is_master = node_index == "0"
+    logger.info(f"[TIMING] Node {node_index} - is_master: {is_master}")
 
     run_once(lambda: create_sweep(cfg, logger))
 
     if is_master:
+        logger.info(f"[TIMING] Master node starting create_run at {time.time() - start_time:.2f}s")
         create_run(cfg, logger)
+        logger.info(f"[TIMING] Master node finished create_run at {time.time() - start_time:.2f}s")
     else:
+        logger.info(f"[TIMING] Worker node starting wait_for_run at {time.time() - start_time:.2f}s")
         wait_for_run(cfg, cfg.dist_cfg_path, logger)
+        logger.info(f"[TIMING] Worker node finished wait_for_run at {time.time() - start_time:.2f}s")
 
+    logger.info(f"[TIMING] sweep_init completed - Node {node_index} at {time.time() - start_time:.2f}s")
     return 0
 
 
@@ -157,6 +169,9 @@ def create_run(cfg: DictConfig | ListConfig, logger: Logger) -> str:
             OmegaConf.save(train_cfg_overrides, save_path)
 
             os.makedirs(os.path.dirname(cfg.dist_cfg_path), exist_ok=True)
+            logger.info(f"[TIMING] Master about to write dist_cfg to {cfg.dist_cfg_path}")
+            write_start = time.time()
+
             OmegaConf.save(
                 {
                     "run": run_id,
@@ -164,6 +179,12 @@ def create_run(cfg: DictConfig | ListConfig, logger: Logger) -> str:
                 },
                 cfg.dist_cfg_path,
             )
+
+            write_duration = time.time() - write_start
+            logger.info(f"[TIMING] Master wrote dist_cfg in {write_duration:.3f}s - workers should now proceed")
+
+    logger.info("[TIMING] About to start wandb.agent() for run creation")
+    agent_start = time.time()
 
     wandb.agent(
         sweep_metadata.wandb_sweep_id,
@@ -173,6 +194,8 @@ def create_run(cfg: DictConfig | ListConfig, logger: Logger) -> str:
         count=1,
     )
 
+    agent_duration = time.time() - agent_start
+    logger.info(f"[TIMING] wandb.agent() completed in {agent_duration:.2f}s")
     logger.info(f"Run created: {run_id}")
     return run_id
 
@@ -193,19 +216,27 @@ def wait_for_run(cfg: DictConfig | ListConfig, path: str, logger: Logger) -> Non
     max_wait = cfg.sweep_wait_timeout_s  # seconds
     poll_interval = 5  # seconds
     waited = 0
+    wait_start = time.time()
+
+    logger.info(f"[TIMING] Worker starting to wait for dist_cfg at {path}, max_wait={max_wait}s")
 
     while waited < max_wait:
         if os.path.exists(path):
             try:
                 loaded_cfg = OmegaConf.load(path)
                 run_id = getattr(loaded_cfg, "run", None)
-            except Exception:  # pragma: no cover – corrupted file / partial write
+                logger.info(f"[TIMING] Loaded dist_cfg after {waited}s, run_id='{run_id}'")
+            except Exception as e:  # pragma: no cover – corrupted file / partial write
                 run_id = None
+                logger.info(f"[TIMING] Failed to load dist_cfg after {waited}s: {e}")
 
             if run_id not in (None, "null", "", "None"):
-                logger.info(f"Run read: {run_id}")
+                logger.info(f"[TIMING] Worker found valid run_id after {time.time() - wait_start:.2f}s: {run_id}")
                 return
+        else:
+            logger.info(f"[TIMING] dist_cfg file does not exist yet after {waited}s")
 
+        logger.info(f"[TIMING] Worker sleeping for {poll_interval}s (waited {waited}s total)")
         time.sleep(poll_interval)
         waited += poll_interval
 

@@ -49,6 +49,10 @@ fi
 # Training phase - use train_job config
 echo "[SWEEP:$sweep_run] Starting training phase..."
 
+# Enable NCCL debugging for sweep training
+export NCCL_DEBUG=INFO
+export NCCL_DEBUG_SUBSYS=ALL
+
 # Filter out run= and sweep_run= from args since we're setting run= explicitly
 filtered_args=$(echo "$args" | sed 's/\(^run=[^ ]*\|^sweep_run=[^ ]*\| run=[^ ]*\| sweep_run=[^ ]*\)//g' | sed 's/^ *//; s/ *$//')
 
