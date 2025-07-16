@@ -45,7 +45,8 @@ target_compile_options(mettagrid_warnings INTERFACE
     -Wnon-virtual-dtor
 
     # Logic and control flow
-    -Wshadow=compatible-local # gcc shadowing warnings are very aggressive by default
+    $<$<CXX_COMPILER_ID:GNU>:-Wshadow=compatible-local> # gcc shadowing warnings are very aggressive by default
+    $<$<CXX_COMPILER_ID:Clang,AppleClang>:-Wshadow>
     -Wfloat-equal
   >
 )
