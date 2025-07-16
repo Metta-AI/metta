@@ -61,7 +61,7 @@ def create_heart_reward_test_env(max_steps=50, num_agents=NUM_AGENTS):
                 "initial_resource_count": 5,  # Start with some hearts
                 "max_output": 50,
                 "conversion_ticks": 1,  # Faster conversion
-                "cooldown": 0,
+                "cooldown": 10,
             },
         },
         "agent": {
@@ -185,7 +185,7 @@ class TestRewards:
         episode_rewards_1 = env.get_episode_rewards()[0]
 
         # Wait and collect again
-        wait_for_heart_production(env, steps=3)
+        wait_for_heart_production(env, steps=10)
         success2, reward2 = collect_heart_from_altar(env)
         episode_rewards_2 = env.get_episode_rewards()[0]
 
