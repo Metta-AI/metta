@@ -14,8 +14,7 @@ fi
 
 # Enable NCCL debugging for sweep training
 export NCCL_DEBUG=INFO
-export NCCL_DEBUG_SUBSYS=ALL
-
+export NCCL_IB_DISABLE=1
 source ./devops/setup.env
 
 DIST_ID=${DIST_ID:-localhost}

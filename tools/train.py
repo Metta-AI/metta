@@ -133,7 +133,6 @@ def main(cfg: DictConfig) -> int:
             logger.info(f"CUDA device count: {torch.cuda.device_count()}")
             logger.info(f"Current CUDA device: {torch.cuda.current_device()}")
 
-        # torch.cuda.set_device(local_rank)  # Test with this commented out
         cfg.device = f"{cfg.device}:{local_rank}"
 
         logger.info("About to call dist.init_process_group(backend='nccl')...")
