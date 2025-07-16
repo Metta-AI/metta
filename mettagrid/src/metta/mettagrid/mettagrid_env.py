@@ -106,6 +106,13 @@ class MettaGridEnv(PufferEnv, GymEnv):
 
                 self._renderer = MiniscopeRenderer(self.object_type_names)
 
+        # CHANGES MADE TO MAKE WINNER REWARD WORK
+        self.cumulative_rewards = np.zeros(self.num_agents)
+        env_cfg = self._task.env_cfg()
+        self.sparse_flag = getattr(env_cfg, "sparse_reward_top_heart_winners_every_N_steps", False)
+        self.interval = getattr(env_cfg, "heart_winners_reward_interval_in_steps", None)
+        # END CHANGES FOR WINNER REWARD
+
     def _make_episode_id(self):
         return str(uuid.uuid4())
 
@@ -210,42 +217,20 @@ class MettaGridEnv(PufferEnv, GymEnv):
         # Note: We explicitly allow invalid actions to be used. The environment will
         # penalize the agent for attempting invalid actions as a side effect of ActionHandler::handle_action()
 
-        # count agent hearts before step
-        num_agents = self.num_agents
-        old_heart_counts = [0] * num_agents
-        for v in self._c_env.grid_objects().values():
-            if v.get("type") == 0:  # agent
-                agent_id = v.get("agent_id")
-                if agent_id is not None and 0 <= agent_id < num_agents:
-                    old_heart_counts[agent_id] = v.get("inv:heart", 0)
-
         with self.timer("_c_env.step"):
             self._c_env.step(actions)
             self._steps += 1
 
-        # Sparse heart winner reward logic
-        env_cfg = self._task.env_cfg()
-        sparse_flag = getattr(env_cfg, "sparse_reward_top_heart_winners_every_N_steps", False)
-        interval = getattr(env_cfg, "heart_winners_reward_interval_in_steps", None)
-        if sparse_flag and interval is not None:
-            self.rewards[:] = 0
+        self.cumulative_rewards = self.cumulative_rewards + np.array(self.rewards)
 
-            num_agents = self.num_agents
-            new_heart_counts = [0] * num_agents
-            for v in self._c_env.grid_objects().values():
-                if v.get("type") == 0:  # agent
-                    agent_id = v.get("agent_id")
-                    if agent_id is not None and 0 <= agent_id < num_agents:
-                        new_heart_counts[agent_id] = v.get("inv:heart", 0)
-            max_hearts = max(new_heart_counts)
-            if max_hearts >= 1:
-                for agent_id, count in enumerate(new_heart_counts):
-                    if old_heart_counts[agent_id] < count:
-                        self.rewards[agent_id] = 1
-                    # if count == max_hearts and old_heart_counts[agent_id] < max_hearts:
-                    #     self.rewards[agent_id] = 1
+        if self.sparse_flag:
+            max_reward = np.max(self.cumulative_rewards)
+            reward_if_frontier_amt_of_hearts = np.where(self.cumulative_rewards == max(max_reward, 1), 1, 0) * np.array(
+                self.rewards
+            )
+            self.rewards[:] = reward_if_frontier_amt_of_hearts
 
-                # print(f"Step {self._steps}: heart_counts={heart_counts}, rewards={self.rewards}")
+        print(self._steps, self.rewards)
 
         if self._replay_writer and self._episode_id:
             with self.timer("_replay_writer.log_step"):

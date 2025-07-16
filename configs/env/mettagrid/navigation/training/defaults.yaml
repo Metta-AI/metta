@@ -32,7 +32,7 @@ game:
 
   agent:
     rewards:
-      heart: 0.0
+      heart: 1.0
 
 
 sparse_reward_top_heart_winners_every_N_steps: true
