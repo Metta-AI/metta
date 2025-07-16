@@ -250,10 +250,9 @@ function App() {
         {/* Library routes (no dashboard header/nav) */}
         <Route path="/library" element={<Library repo={state.repo} currentUser={state.currentUser} />} />
         <Route path="/authors" element={<Library repo={state.repo} currentUser={state.currentUser} />} />
-        <Route path="/scholars" element={<Library repo={state.repo} currentUser={state.currentUser} />} />
         <Route path="/institutions" element={<Library repo={state.repo} currentUser={state.currentUser} />} />
-        <Route path="/profile" element={<Library repo={state.repo} currentUser={state.currentUser} />} />
-        <Route path="/collections" element={<Library repo={state.repo} currentUser={state.currentUser} />} />
+        <Route path="/me" element={<Library repo={state.repo} currentUser={state.currentUser} />} />
+        <Route path="/search" element={<Library repo={state.repo} currentUser={state.currentUser} />} />
         <Route path="/papers" element={<Library repo={state.repo} currentUser={state.currentUser} />} />
       </Routes>
     )

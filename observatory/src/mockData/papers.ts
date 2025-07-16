@@ -1,13 +1,11 @@
-import { mockUsers, User } from '../src/mockData/users';
-import { mockScholars, Scholar } from '../src/mockData/scholars';
-import { mockInstitutions, Institution } from '../src/mockData/institutions';
+import { User } from './users';
 
 export interface Paper {
     id: string;
     title: string;
     starred: boolean;
-    authors: { id: string; name: string }[];
-    institutions: { id: string; label: string }[];
+    authors: string[]; // Array of scholar IDs
+    institutions: string[]; // Array of institution IDs
     tags: string[];
     readBy: User[];
     queued: User[];
@@ -15,7 +13,7 @@ export interface Paper {
     stars: number;
 }
 
-// Generated from Asana migration on 2025-07-15T22:04:03.908Z
+// Generated from Asana migration on 2025-07-16T17:41:24.550Z
 export const mockPapers: Paper[] = [
   {
     "id": "paper-1",
@@ -63,7 +61,7 @@ export const mockPapers: Paper[] = [
   {
     "id": "paper-4",
     "title": "How Weight Resampling and Optimizers Shape the Dynamics of Continual Learning and Forgetting in Neural Networks",
-    "starred": false,
+    "starred": true,
     "authors": [],
     "institutions": [],
     "tags": [
@@ -78,13 +76,13 @@ export const mockPapers: Paper[] = [
   {
     "id": "paper-5",
     "title": "Entropy and Diversity: The Axiomatic Approach",
-    "starred": false,
+    "starred": true,
     "authors": [],
     "institutions": [],
     "tags": [
       "Evolution",
       "Exploration",
-      "Open Endedness"
+      "Open Enededness"
     ],
     "readBy": [],
     "queued": [],
@@ -94,7 +92,7 @@ export const mockPapers: Paper[] = [
   {
     "id": "paper-6",
     "title": "Associative conditioning in gene regulatory network models increases integrative causal emergence",
-    "starred": false,
+    "starred": true,
     "authors": [],
     "institutions": [],
     "tags": [
@@ -124,7 +122,7 @@ export const mockPapers: Paper[] = [
   },
   {
     "id": "paper-8",
-    "title": "Curriculum Learning for Reinforcement Learning Domains: A Framework and Survey",
+    "title": "Curriculum Learning for Reinforcement Learning Domains:\nA Framework and Survey",
     "starred": false,
     "authors": [],
     "institutions": [],
@@ -146,7 +144,7 @@ export const mockPapers: Paper[] = [
   {
     "id": "paper-9",
     "title": "Contrastive Representation Learning (Blog Post)",
-    "starred": false,
+    "starred": true,
     "authors": [],
     "institutions": [],
     "tags": [
@@ -301,7 +299,7 @@ export const mockPapers: Paper[] = [
   {
     "id": "paper-17",
     "title": "Unsupervised pre-training in Biological Neural Networks.",
-    "starred": false,
+    "starred": true,
     "authors": [],
     "institutions": [],
     "tags": [
@@ -521,7 +519,7 @@ export const mockPapers: Paper[] = [
   },
   {
     "id": "paper-29",
-    "title": "Hierarchical Active Inference: A Theory of Motivated Control",
+    "title": "Hierarchical Active Inference: A Theory of\nMotivated Control",
     "starred": false,
     "authors": [],
     "institutions": [],
@@ -686,7 +684,7 @@ export const mockPapers: Paper[] = [
   },
   {
     "id": "paper-37",
-    "title": "Harnessing the analog computing power of regulatory networks with the Regulatory Network Machine",
+    "title": "Harnessing the analog computing power of regulatory networks with the Regulatory\nNetwork Machine",
     "starred": false,
     "authors": [],
     "institutions": [],
@@ -750,8 +748,8 @@ export const mockPapers: Paper[] = [
   },
   {
     "id": "paper-41",
-    "title": "Is Independent Learning All You Need in the StarCraft Multi-Agent Challenge?",
-    "starred": false,
+    "title": "Is Independent Learning All You Need in the\nStarCraft Multi-Agent Challenge?",
+    "starred": true,
     "authors": [],
     "institutions": [],
     "tags": [
@@ -830,7 +828,25 @@ export const mockPapers: Paper[] = [
   },
   {
     "id": "paper-45",
-    "title": "Smaller, Weaker, Yet Better: Training LLM Reasoners via Compute-Optimal Sampling",
+    "title": "Training Language Models for Social Deduction with Multi-Agent Reinforcement Learning",
+    "starred": false,
+    "authors": [],
+    "institutions": [],
+    "tags": [
+      "Agency and alignment",
+      "Emergence",
+      "LLMs",
+      "Meta-Learning",
+      "RL"
+    ],
+    "readBy": [],
+    "queued": [],
+    "link": "https://www.alphaxiv.org/abs/2502.06060",
+    "stars": 0
+  },
+  {
+    "id": "paper-46",
+    "title": "Smaller, Weaker, Yet Better: Training LLM\nReasoners via Compute-Optimal Sampling",
     "starred": false,
     "authors": [],
     "institutions": [],
@@ -846,7 +862,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-46",
+    "id": "paper-47",
     "title": "Deep Reinforcement Learning with Spiking Q-learning",
     "starred": false,
     "authors": [],
@@ -862,7 +878,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-47",
+    "id": "paper-48",
     "title": "Hyperbolic discounting outperforms in MARL",
     "starred": false,
     "authors": [],
@@ -877,7 +893,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-48",
+    "id": "paper-49",
     "title": "Spline theory for smoothing deep neural manifolds",
     "starred": false,
     "authors": [],
@@ -892,7 +908,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-49",
+    "id": "paper-50",
     "title": "ICLR: In-Context Learning of Representations",
     "starred": false,
     "authors": [],
@@ -909,7 +925,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-50",
+    "id": "paper-51",
     "title": "Multi-agent Dealer Market",
     "starred": false,
     "authors": [],
@@ -924,7 +940,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-51",
+    "id": "paper-52",
     "title": "AutoGen: Enabling Next-Gen LLM Applications via Multi-Agent Conversation Framework - Microsoft 2023 - Outperforms ChatGPT+Code Interpreter!",
     "starred": false,
     "authors": [],
@@ -941,7 +957,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-52",
+    "id": "paper-53",
     "title": "Gauge Theories and Fiber Bundles: Definitions, Pictures, and Results",
     "starred": false,
     "authors": [],
@@ -955,7 +971,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-53",
+    "id": "paper-54",
     "title": "Density distribution in two Ising systems with particle exchange",
     "starred": false,
     "authors": [],
@@ -972,9 +988,9 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-54",
-    "title": "Grand canonical description of equilibrium and non-equilibrium systems using spin formalism",
-    "starred": false,
+    "id": "paper-55",
+    "title": "Grand canonical description of equilibrium and\nnon-equilibrium systems using spin formalism",
+    "starred": true,
     "authors": [],
     "institutions": [],
     "tags": [
@@ -989,7 +1005,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-55",
+    "id": "paper-56",
     "title": "Thermodynamics of evolution and the origin of life",
     "starred": false,
     "authors": [],
@@ -1013,7 +1029,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-56",
+    "id": "paper-57",
     "title": "Numerically “exact” approach to open quantum dynamics: The hierarchical equations of motion (HEOM)",
     "starred": false,
     "authors": [],
@@ -1030,7 +1046,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-57",
+    "id": "paper-58",
     "title": "Generative Agents: Interactive Simulacra of Human Behavior",
     "starred": false,
     "authors": [],
@@ -1044,7 +1060,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-58",
+    "id": "paper-59",
     "title": "PerceiverIO",
     "starred": false,
     "authors": [],
@@ -1078,7 +1094,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-59",
+    "id": "paper-60",
     "title": "Perceiver",
     "starred": false,
     "authors": [],
@@ -1099,7 +1115,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-60",
+    "id": "paper-61",
     "title": "Coordination Among Neural Modules Through a Shared Global Workspace",
     "starred": false,
     "authors": [],
@@ -1118,7 +1134,7 @@ export const mockPapers: Paper[] = [
     "stars": 3
   },
   {
-    "id": "paper-61",
+    "id": "paper-62",
     "title": "Learning Progress Driven Multi-Agent Curriculum",
     "starred": false,
     "authors": [],
@@ -1141,7 +1157,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-62",
+    "id": "paper-63",
     "title": "Continual Reinforcement Learning via Autoencoder-Driven Task and New Environment Recognition",
     "starred": false,
     "authors": [],
@@ -1162,8 +1178,8 @@ export const mockPapers: Paper[] = [
     "stars": 3
   },
   {
-    "id": "paper-63",
-    "title": "Mixture-of-Depths: Dynamically allocating compute in transformer-based language models",
+    "id": "paper-64",
+    "title": "Mixture-of-Depths: Dynamically allocating\ncompute in transformer-based language\nmodels",
     "starred": false,
     "authors": [],
     "institutions": [],
@@ -1181,9 +1197,9 @@ export const mockPapers: Paper[] = [
     "stars": 3
   },
   {
-    "id": "paper-64",
+    "id": "paper-65",
     "title": "Consistent Dropout for Policy Gradient Reinforcement Learning",
-    "starred": false,
+    "starred": true,
     "authors": [],
     "institutions": [],
     "tags": [
@@ -1204,7 +1220,7 @@ export const mockPapers: Paper[] = [
     "stars": 2
   },
   {
-    "id": "paper-65",
+    "id": "paper-66",
     "title": "An Investigation into Pre-Training Object-Centric Representations for Reinforcement Learning",
     "starred": false,
     "authors": [],
@@ -1226,9 +1242,9 @@ export const mockPapers: Paper[] = [
     "stars": 3
   },
   {
-    "id": "paper-66",
+    "id": "paper-67",
     "title": "In-Context Reinforcement Learning for Variable Action Spaces",
-    "starred": false,
+    "starred": true,
     "authors": [],
     "institutions": [],
     "tags": [],
@@ -1245,7 +1261,7 @@ export const mockPapers: Paper[] = [
     "stars": 3
   },
   {
-    "id": "paper-67",
+    "id": "paper-68",
     "title": "Multi-Object Representation Learning with Iterative Variational Inference",
     "starred": false,
     "authors": [],
@@ -1264,7 +1280,7 @@ export const mockPapers: Paper[] = [
     "stars": 2
   },
   {
-    "id": "paper-68",
+    "id": "paper-69",
     "title": "Object-Centric Learning with Slot Attention",
     "starred": false,
     "authors": [],
@@ -1283,7 +1299,7 @@ export const mockPapers: Paper[] = [
     "stars": 3
   },
   {
-    "id": "paper-69",
+    "id": "paper-70",
     "title": "Continuous Thought Machines",
     "starred": false,
     "authors": [],
@@ -1311,7 +1327,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-70",
+    "id": "paper-71",
     "title": "A Variational Synthesis of Evolutionary and Developmental Dynamics",
     "starred": false,
     "authors": [],
@@ -1327,8 +1343,8 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-71",
-    "title": "Emergence of Goal-Directed Behaviors via Active Inference with Self-Prior",
+    "id": "paper-72",
+    "title": "Emergence of Goal-Directed Behaviors\nvia Active Inference with Self-Prior",
     "starred": false,
     "authors": [],
     "institutions": [],
@@ -1348,7 +1364,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-72",
+    "id": "paper-73",
     "title": "Cross-environment Cooperation Enables Zero-shot Multi-agent Coordination",
     "starred": false,
     "authors": [],
@@ -1371,7 +1387,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-73",
+    "id": "paper-74",
     "title": "Evolution of Cooperation in LLM-Agent Societies: A Preliminary Study Using Different Punishment Strategies",
     "starred": false,
     "authors": [],
@@ -1388,9 +1404,9 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-74",
+    "id": "paper-75",
     "title": "From motor control to team play in simulated humanoid football",
-    "starred": false,
+    "starred": true,
     "authors": [],
     "institutions": [],
     "tags": [
@@ -1404,7 +1420,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-75",
+    "id": "paper-76",
     "title": "Human-level performance in 3D multiplayer games with population-based reinforcement learning",
     "starred": false,
     "authors": [],
@@ -1420,7 +1436,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-76",
+    "id": "paper-77",
     "title": "A Generalized Training Approach for Multiagent Learning",
     "starred": false,
     "authors": [],
@@ -1443,7 +1459,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-77",
+    "id": "paper-78",
     "title": "A Unified Game-Theoretic Approach to Multiagent Reinforcement Learning",
     "starred": false,
     "authors": [],
@@ -1459,7 +1475,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-78",
+    "id": "paper-79",
     "title": "Navigating the landscape of multiplayer games",
     "starred": false,
     "authors": [],
@@ -1477,9 +1493,9 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-79",
+    "id": "paper-80",
     "title": "Heterogeneous Social Value Orientation Leads to Meaningful Diversity in Sequential Social Dilemmas",
-    "starred": false,
+    "starred": true,
     "authors": [],
     "institutions": [],
     "tags": [
@@ -1493,7 +1509,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-80",
+    "id": "paper-81",
     "title": "Re-evaluating Evaluation",
     "starred": false,
     "authors": [],
@@ -1510,9 +1526,9 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-81",
+    "id": "paper-82",
     "title": "Real World Games Look Like Spinning Tops",
-    "starred": false,
+    "starred": true,
     "authors": [],
     "institutions": [],
     "tags": [
@@ -1527,7 +1543,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-82",
+    "id": "paper-83",
     "title": "α-Rank: Multi-Agent Evaluation by Evolution",
     "starred": false,
     "authors": [],
@@ -1545,7 +1561,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-83",
+    "id": "paper-84",
     "title": "Neural Replicator Dynamics",
     "starred": false,
     "authors": [],
@@ -1569,7 +1585,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-84",
+    "id": "paper-85",
     "title": "Differentiable Game Mechanics",
     "starred": false,
     "authors": [],
@@ -1584,7 +1600,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-85",
+    "id": "paper-86",
     "title": "Empirical Game Theoretic Analysis: A Survey",
     "starred": false,
     "authors": [],
@@ -1600,7 +1616,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-86",
+    "id": "paper-87",
     "title": "One-Minute Video Generation with Test-Time Training",
     "starred": false,
     "authors": [],
@@ -1612,9 +1628,9 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-87",
+    "id": "paper-88",
     "title": "A Goal-centric Outlook on Learning",
-    "starred": false,
+    "starred": true,
     "authors": [],
     "institutions": [],
     "tags": [
@@ -1633,7 +1649,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-88",
+    "id": "paper-89",
     "title": "BAMDP Shaping: A Unified Framework for Intrinsic Motivation and Reward Shaping",
     "starred": false,
     "authors": [],
@@ -1656,7 +1672,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-89",
+    "id": "paper-90",
     "title": "Plasticity Loss in Deep RL: A Survey",
     "starred": false,
     "authors": [],
@@ -1679,7 +1695,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-90",
+    "id": "paper-91",
     "title": "Parseval Regularization for Continual Reinforcement Learning",
     "starred": false,
     "authors": [],
@@ -1704,7 +1720,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-91",
+    "id": "paper-92",
     "title": "Representation Learning with Contrastive Predictive Coding",
     "starred": false,
     "authors": [],
@@ -1727,7 +1743,7 @@ export const mockPapers: Paper[] = [
     "stars": 3
   },
   {
-    "id": "paper-92",
+    "id": "paper-93",
     "title": "Robust Agents Learn Causal World Model",
     "starred": false,
     "authors": [],
@@ -1743,7 +1759,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-93",
+    "id": "paper-94",
     "title": "Decentralized Collective World Model for Emergent Communication and Coordination",
     "starred": false,
     "authors": [],
@@ -1760,7 +1776,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-94",
+    "id": "paper-95",
     "title": "Multi-Agent Actor-Critic for Mixed Cooperative-Competitive Environments",
     "starred": false,
     "authors": [],
@@ -1774,7 +1790,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-95",
+    "id": "paper-96",
     "title": "Fractal Generative Models",
     "starred": false,
     "authors": [],
@@ -1789,7 +1805,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-96",
+    "id": "paper-97",
     "title": "Inhibitory neurons for architecture search paper",
     "starred": false,
     "authors": [],
@@ -1805,7 +1821,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-97",
+    "id": "paper-98",
     "title": "Evolution Strategies as Scalable Alternative to Reinforcement Learning",
     "starred": false,
     "authors": [],
@@ -1827,9 +1843,9 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-98",
+    "id": "paper-99",
     "title": "Proximal Policy Optimization with Adaptive Exploration",
-    "starred": false,
+    "starred": true,
     "authors": [],
     "institutions": [],
     "tags": [
@@ -1849,7 +1865,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-99",
+    "id": "paper-100",
     "title": "Efficient Exploration via State Marginal Matching",
     "starred": false,
     "authors": [],
@@ -1864,7 +1880,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-100",
+    "id": "paper-101",
     "title": "Bayesian Predictive Coding",
     "starred": false,
     "authors": [],
@@ -1885,7 +1901,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-101",
+    "id": "paper-102",
     "title": "How To Scale Your (Transformer) Model",
     "starred": false,
     "authors": [],
@@ -1899,7 +1915,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-102",
+    "id": "paper-103",
     "title": "OvercookedV2: Rethinking Overcooked for Zero-Shot Coordination",
     "starred": false,
     "authors": [],
@@ -1926,7 +1942,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-103",
+    "id": "paper-104",
     "title": "Differentiable Logic Cellular Automata",
     "starred": false,
     "authors": [],
@@ -1940,7 +1956,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-104",
+    "id": "paper-105",
     "title": "An Enhanced Proximal Policy Optimization-Based Reinforcement Learning Method with Random Forest for Hyperparameter Optimization",
     "starred": false,
     "authors": [],
@@ -1965,7 +1981,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-105",
+    "id": "paper-106",
     "title": "A Self-Tuning Actor-Critic Algorithm",
     "starred": false,
     "authors": [],
@@ -1989,8 +2005,8 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-106",
-    "title": "Emergent Reciprocity and Team Formation from Randomized Uncertain Social Preferences",
+    "id": "paper-107",
+    "title": "Emergent Reciprocity and Team Formation from\nRandomized Uncertain Social Preferences",
     "starred": false,
     "authors": [],
     "institutions": [],
@@ -2017,7 +2033,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-107",
+    "id": "paper-108",
     "title": "Synthetic Returns for Long-Term Credit Assignment",
     "starred": false,
     "authors": [],
@@ -2039,7 +2055,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-108",
+    "id": "paper-109",
     "title": "Been There, Done That: Meta-Learning with Episodic Recall",
     "starred": false,
     "authors": [],
@@ -2055,7 +2071,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-109",
+    "id": "paper-110",
     "title": "Reinforcement Learning, Fast and Slow",
     "starred": false,
     "authors": [],
@@ -2086,9 +2102,9 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-110",
+    "id": "paper-111",
     "title": "Rapid Task-Solving in Novel Environments",
-    "starred": false,
+    "starred": true,
     "authors": [],
     "institutions": [],
     "tags": [
@@ -2115,7 +2131,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-111",
+    "id": "paper-112",
     "title": "Transformers without Normalization",
     "starred": false,
     "authors": [],
@@ -2129,7 +2145,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-112",
+    "id": "paper-113",
     "title": "nGPT: Normalized Transformer with Representation Learning on the Hypersphere",
     "starred": false,
     "authors": [],
@@ -2144,7 +2160,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-113",
+    "id": "paper-114",
     "title": "[Duplicate] RL Overview Book",
     "starred": false,
     "authors": [],
@@ -2158,7 +2174,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-114",
+    "id": "paper-115",
     "title": "Temporal Abstraction in Reinforcement Learning with the Successor Representation",
     "starred": false,
     "authors": [],
@@ -2172,7 +2188,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-115",
+    "id": "paper-116",
     "title": "[Duplicate] A Survey of In-Context Reinforcement Learning",
     "starred": false,
     "authors": [],
@@ -2186,7 +2202,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-116",
+    "id": "paper-117",
     "title": "Reinforcement Learning: An Overview",
     "starred": false,
     "authors": [],
@@ -2200,7 +2216,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-117",
+    "id": "paper-118",
     "title": "Causal Emergence 2.0: Quantifying emergent complexity",
     "starred": false,
     "authors": [],
@@ -2227,7 +2243,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-118",
+    "id": "paper-119",
     "title": "Towards Safe and Honest AI Agents with Neural Self-Other Overlap",
     "starred": false,
     "authors": [],
@@ -2255,7 +2271,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-119",
+    "id": "paper-120",
     "title": "Diversity is All You Need: Learning Skills without a Reward Function",
     "starred": false,
     "authors": [],
@@ -2286,8 +2302,8 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-120",
-    "title": "Discovering General Reinforcement Learning Algorithms with Adversarial Environment Design",
+    "id": "paper-121",
+    "title": "Discovering General Reinforcement Learning\nAlgorithms with Adversarial Environment Design",
     "starred": false,
     "authors": [],
     "institutions": [],
@@ -2307,7 +2323,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-121",
+    "id": "paper-122",
     "title": "Eidetic Learning: an Efficient and Provable Solution to Catastrophic Forgetting",
     "starred": false,
     "authors": [],
@@ -2328,7 +2344,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-122",
+    "id": "paper-123",
     "title": "Predicting Grokking",
     "starred": false,
     "authors": [],
@@ -2354,7 +2370,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-123",
+    "id": "paper-124",
     "title": "Finding General Equilibria in Many-Agent Economic Simulations using Deep Reinforcement Learning",
     "starred": false,
     "authors": [],
@@ -2370,7 +2386,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-124",
+    "id": "paper-125",
     "title": "Measuring Policy Distance for Multi-Agent Reinforcement Learning",
     "starred": false,
     "authors": [],
@@ -2399,7 +2415,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-125",
+    "id": "paper-126",
     "title": "Robust Autonomy Emerges from Self-Play",
     "starred": false,
     "authors": [],
@@ -2433,7 +2449,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-126",
+    "id": "paper-127",
     "title": "Reinforcement Learning for Long-Horizon Interactive LLM Agents",
     "starred": false,
     "authors": [],
@@ -2449,7 +2465,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-127",
+    "id": "paper-128",
     "title": "Griffin: Mixing Gated Linear Recurrences with Local Attention for Efficient Language Models",
     "starred": false,
     "authors": [],
@@ -2465,7 +2481,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-128",
+    "id": "paper-129",
     "title": "The Role of Fibration Symmetries in Geometric Deep Learning",
     "starred": false,
     "authors": [],
@@ -2481,7 +2497,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-129",
+    "id": "paper-130",
     "title": "Symmetry of Living Systems: Symmetry Fibrations and Synchronization in Biological Networks",
     "starred": false,
     "authors": [],
@@ -2517,7 +2533,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-130",
+    "id": "paper-131",
     "title": "Artificial Kuramoto Oscillatory Neurons",
     "starred": false,
     "authors": [],
@@ -2547,7 +2563,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-131",
+    "id": "paper-132",
     "title": "Muesli: Combining Improvements in Policy Optimization",
     "starred": false,
     "authors": [],
@@ -2575,7 +2591,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-132",
+    "id": "paper-133",
     "title": "Stabilizing Transformers for Reinforcement Learning",
     "starred": false,
     "authors": [],
@@ -2591,7 +2607,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-133",
+    "id": "paper-134",
     "title": "Random Latent Exploration for Deep Reinforcement Learning",
     "starred": false,
     "authors": [],
@@ -2613,7 +2629,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-134",
+    "id": "paper-135",
     "title": "Automating Curriculum Learning for Reinforcement Learning using a Skill-Based Bayesian Network",
     "starred": false,
     "authors": [],
@@ -2627,8 +2643,8 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-135",
-    "title": "Evaluation Mechanism of Collective Intelligence for Heterogeneous Agents Group",
+    "id": "paper-136",
+    "title": "Evaluation Mechanism of Collective Intelligence for\nHeterogeneous Agents Group",
     "starred": false,
     "authors": [],
     "institutions": [],
@@ -2641,7 +2657,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-136",
+    "id": "paper-137",
     "title": "Measuring collaborative emergent behaviour in multi-agent reinforcement learning",
     "starred": false,
     "authors": [],
@@ -2662,7 +2678,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-137",
+    "id": "paper-138",
     "title": "Boundaries Sequence",
     "starred": false,
     "authors": [],
@@ -2683,7 +2699,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-138",
+    "id": "paper-139",
     "title": "[Duplicate] Self-Other Overlap: A Neglected Approach to AI Alignment",
     "starred": false,
     "authors": [],
@@ -2711,7 +2727,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-139",
+    "id": "paper-140",
     "title": "Multi-agent cooperation through learning-aware policy gradients",
     "starred": false,
     "authors": [],
@@ -2739,7 +2755,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-140",
+    "id": "paper-141",
     "title": "Relational Norms for Human-AI Cooperation",
     "starred": false,
     "authors": [],
@@ -2753,7 +2769,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-141",
+    "id": "paper-142",
     "title": "Deep Hierarchical Planning from Pixels",
     "starred": false,
     "authors": [],
@@ -2782,7 +2798,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-142",
+    "id": "paper-143",
     "title": "A Survey of In-Context Reinforcement Learning",
     "starred": false,
     "authors": [],
@@ -2803,8 +2819,8 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-143",
-    "title": "Reevaluating Policy Gradient Methods for Imperfect-Information Games",
+    "id": "paper-144",
+    "title": "Reevaluating Policy Gradient Methods for Imperfect-Information\nGames",
     "starred": false,
     "authors": [],
     "institutions": [],
@@ -2830,7 +2846,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-144",
+    "id": "paper-145",
     "title": "Hyperbolic Brain Representations",
     "starred": false,
     "authors": [],
@@ -2853,7 +2869,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-145",
+    "id": "paper-146",
     "title": "Cultural Evolution of Cooperation among LLM Agents",
     "starred": false,
     "authors": [],
@@ -2867,7 +2883,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-146",
+    "id": "paper-147",
     "title": "Agency is frame-dependent",
     "starred": false,
     "authors": [],
@@ -2888,7 +2904,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-147",
+    "id": "paper-148",
     "title": "Scaling up Test-Time Compute with Latent Reasoning: A Recurrent Depth Approach",
     "starred": false,
     "authors": [],
@@ -2905,9 +2921,9 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-148",
+    "id": "paper-149",
     "title": "AMAGO-2: Breaking the Multi-Task Barrier in Meta-Reinforcement Learning with Transformers",
-    "starred": false,
+    "starred": true,
     "authors": [],
     "institutions": [],
     "tags": [
@@ -2920,7 +2936,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-149",
+    "id": "paper-150",
     "title": "Towards General-Purpose Model-Free Reinforcement Learning",
     "starred": false,
     "authors": [],
@@ -2935,7 +2951,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-150",
+    "id": "paper-151",
     "title": "Selective Sequence Modeling",
     "starred": false,
     "authors": [],
@@ -2947,8 +2963,8 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-151",
-    "title": "Decision Mamba: Reinforcement Learning via Hybrid Selective Sequence Modeling",
+    "id": "paper-152",
+    "title": "Decision Mamba: Reinforcement Learning via Hybrid\nSelective Sequence Modeling",
     "starred": false,
     "authors": [],
     "institutions": [],
@@ -2966,9 +2982,9 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-152",
+    "id": "paper-153",
     "title": "Mike Levin paper: Ingressing Minds: Causal Patterns Beyond Genetics and Environment in Natural, Synthetic, and Hybrid Embodiments",
-    "starred": false,
+    "starred": true,
     "authors": [],
     "institutions": [],
     "tags": [],
@@ -2978,7 +2994,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-153",
+    "id": "paper-154",
     "title": "Mastering the Game of Stratego with Model-Free Multiagent Reinforcement Learning",
     "starred": false,
     "authors": [],
@@ -3000,7 +3016,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-154",
+    "id": "paper-155",
     "title": "Learning to (Learn at Test Time): RNNs with Expressive Hidden States",
     "starred": false,
     "authors": [],
@@ -3031,7 +3047,7 @@ export const mockPapers: Paper[] = [
     "stars": 3
   },
   {
-    "id": "paper-155",
+    "id": "paper-156",
     "title": "Towards a theory of learning dynamics in deep state space models",
     "starred": false,
     "authors": [],
@@ -3053,7 +3069,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-156",
+    "id": "paper-157",
     "title": "Transformers are SSMs: Generalized Models and Efficient Algorithms Through Structured State Space Duality",
     "starred": false,
     "authors": [],
@@ -3084,7 +3100,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-157",
+    "id": "paper-158",
     "title": "Minimax-01 hybrid lightning attention",
     "starred": false,
     "authors": [],
@@ -3106,7 +3122,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-158",
+    "id": "paper-159",
     "title": "MiniMax-01: Scaling Foundation Models with Lightning Attention",
     "starred": false,
     "authors": [],
@@ -3129,7 +3145,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-159",
+    "id": "paper-160",
     "title": "Modern Sequence Models in Context of Multi-Agent Reinforcement Learning",
     "starred": false,
     "authors": [],
@@ -3160,7 +3176,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-160",
+    "id": "paper-161",
     "title": "Eagle and Finch: RWKV with Matrix-Valued States and Dynamic Recurrence",
     "starred": false,
     "authors": [],
@@ -3185,7 +3201,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-161",
+    "id": "paper-162",
     "title": "STaR: Bootstrapping Reasoning With Reasoning",
     "starred": false,
     "authors": [],
@@ -3214,7 +3230,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-162",
+    "id": "paper-163",
     "title": "The Factory Must Grow: Automation in Factorio",
     "starred": false,
     "authors": [],
@@ -3229,7 +3245,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-163",
+    "id": "paper-164",
     "title": "A free energy principle for generic quantum systems",
     "starred": false,
     "authors": [],
@@ -3258,7 +3274,7 @@ export const mockPapers: Paper[] = [
     "stars": 3
   },
   {
-    "id": "paper-164",
+    "id": "paper-165",
     "title": "A mosaic of Chu Spaces and Channel Theory",
     "starred": false,
     "authors": [],
@@ -3279,7 +3295,7 @@ export const mockPapers: Paper[] = [
     "stars": 1
   },
   {
-    "id": "paper-165",
+    "id": "paper-166",
     "title": "Maximum Entropy On-Policy Actor-Critic via Entropy Advantage Estimation",
     "starred": false,
     "authors": [],
@@ -3320,7 +3336,33 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-166",
+    "id": "paper-167",
+    "title": "Action and Perception as Divergence Minimization",
+    "starred": false,
+    "authors": [],
+    "institutions": [],
+    "tags": [
+      "Active Inference",
+      "Exploration",
+      "Optimization",
+      "RL",
+      "Skill Discovery",
+      "World Model"
+    ],
+    "readBy": [
+      {
+        "id": "daphne-demekas",
+        "name": "Daphne Demekas",
+        "avatar": "DD",
+        "email": "daphne-demekas@softmax.ai"
+      }
+    ],
+    "queued": [],
+    "link": "https://arxiv.org/abs/2009.01791",
+    "stars": 2
+  },
+  {
+    "id": "paper-168",
     "title": "DeepSeek: Pushing the Limits of Mathematical Reasoning in Open Language Models",
     "starred": false,
     "authors": [],
@@ -3332,7 +3374,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-167",
+    "id": "paper-169",
     "title": "DeepSeekMath: Pushing the Limits of Mathematical",
     "starred": false,
     "authors": [],
@@ -3355,9 +3397,9 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-168",
+    "id": "paper-170",
     "title": "Evolution and the Knightian Blindspot of Machine Learning",
-    "starred": false,
+    "starred": true,
     "authors": [],
     "institutions": [],
     "tags": [
@@ -3376,7 +3418,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-169",
+    "id": "paper-171",
     "title": "Implicit Under-Parameterization Inhibits Data-Efficient Deep Reinforcement Learning",
     "starred": false,
     "authors": [],
@@ -3397,9 +3439,9 @@ export const mockPapers: Paper[] = [
     "stars": 2
   },
   {
-    "id": "paper-170",
+    "id": "paper-172",
     "title": "The Fifth Corner of Four - Priest 2018",
-    "starred": false,
+    "starred": true,
     "authors": [],
     "institutions": [],
     "tags": [
@@ -3425,7 +3467,7 @@ export const mockPapers: Paper[] = [
     "stars": 3
   },
   {
-    "id": "paper-171",
+    "id": "paper-173",
     "title": "Madhyamaka, Ultimate Reality, and Ineffability",
     "starred": false,
     "authors": [],
@@ -3446,7 +3488,7 @@ export const mockPapers: Paper[] = [
     "stars": 2
   },
   {
-    "id": "paper-172",
+    "id": "paper-174",
     "title": "Metatheory and dialethiesm - Priest 2020",
     "starred": false,
     "authors": [],
@@ -3467,9 +3509,9 @@ export const mockPapers: Paper[] = [
     "stars": 2
   },
   {
-    "id": "paper-173",
+    "id": "paper-175",
     "title": "Transcending the Ultimate Duality - Priest 2023",
-    "starred": false,
+    "starred": true,
     "authors": [],
     "institutions": [],
     "tags": [
@@ -3488,7 +3530,7 @@ export const mockPapers: Paper[] = [
     "stars": 3
   },
   {
-    "id": "paper-174",
+    "id": "paper-176",
     "title": "Thoughts and thinkers: On the complementarity between objects and processes - Fields & Levin 2025",
     "starred": false,
     "authors": [],
@@ -3509,7 +3551,7 @@ export const mockPapers: Paper[] = [
     "stars": 3
   },
   {
-    "id": "paper-175",
+    "id": "paper-177",
     "title": "Science Generates Limit Paradoxes - Dietrich & Fields 2015",
     "starred": false,
     "authors": [],
@@ -3530,7 +3572,7 @@ export const mockPapers: Paper[] = [
     "stars": 3
   },
   {
-    "id": "paper-176",
+    "id": "paper-178",
     "title": "Nagarjuna and the Limits of Thought - Garfield & Priest 2003",
     "starred": false,
     "authors": [],
@@ -3551,7 +3593,7 @@ export const mockPapers: Paper[] = [
     "stars": 3
   },
   {
-    "id": "paper-177",
+    "id": "paper-179",
     "title": "Category Theory and the Ontology of Śūnyata",
     "starred": false,
     "authors": [],
@@ -3572,9 +3614,9 @@ export const mockPapers: Paper[] = [
     "stars": 2
   },
   {
-    "id": "paper-178",
+    "id": "paper-180",
     "title": "Heuristically Adaptive Diffusion-Model Evolutionary Strategy",
-    "starred": false,
+    "starred": true,
     "authors": [],
     "institutions": [],
     "tags": [
@@ -3586,8 +3628,8 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-179",
-    "title": "A Comprehensive Survey of Continual Learning: Theory, Method and Application",
+    "id": "paper-181",
+    "title": "A Comprehensive Survey of Continual Learning:\nTheory, Method and Application",
     "starred": false,
     "authors": [],
     "institutions": [],
@@ -3621,7 +3663,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-180",
+    "id": "paper-182",
     "title": "Summarizing societies: Agent abstraction in multi-agent reinforcement learning",
     "starred": false,
     "authors": [],
@@ -3635,7 +3677,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-181",
+    "id": "paper-183",
     "title": "On Bayesian Mechanics: A Physics of and by Beliefs",
     "starred": false,
     "authors": [],
@@ -3663,7 +3705,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-182",
+    "id": "paper-184",
     "title": "VIME: Variational Information Maximizing Exploration",
     "starred": false,
     "authors": [],
@@ -3685,7 +3727,7 @@ export const mockPapers: Paper[] = [
     "stars": 1
   },
   {
-    "id": "paper-183",
+    "id": "paper-185",
     "title": "Generative Teaching Networks",
     "starred": false,
     "authors": [],
@@ -3708,7 +3750,7 @@ export const mockPapers: Paper[] = [
     "stars": 1
   },
   {
-    "id": "paper-184",
+    "id": "paper-186",
     "title": "Loss of plasticity in deep continual learning",
     "starred": false,
     "authors": [],
@@ -3735,7 +3777,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-185",
+    "id": "paper-187",
     "title": "Maintaining Plasticity in Continual Learning via Regenerative Regularization",
     "starred": false,
     "authors": [],
@@ -3749,7 +3791,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-186",
+    "id": "paper-188",
     "title": "Deep RL with plasticity injection",
     "starred": false,
     "authors": [],
@@ -3770,7 +3812,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-187",
+    "id": "paper-189",
     "title": "Addressing Loss of Plasticity and Catastrophic Forgetting in Continual Learning",
     "starred": false,
     "authors": [],
@@ -3791,7 +3833,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-188",
+    "id": "paper-190",
     "title": "Weight Clipping for Deep Continual and Reinforcement Learning",
     "starred": false,
     "authors": [],
@@ -3812,7 +3854,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-189",
+    "id": "paper-191",
     "title": "Understanding Plasticity in Neural Networks",
     "starred": false,
     "authors": [],
@@ -3826,7 +3868,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-190",
+    "id": "paper-192",
     "title": "Titans: Learning to Memorize at Test Time",
     "starred": false,
     "authors": [],
@@ -3848,7 +3890,7 @@ export const mockPapers: Paper[] = [
     "stars": 3
   },
   {
-    "id": "paper-191",
+    "id": "paper-193",
     "title": "Techniques for training large neural networks",
     "starred": false,
     "authors": [],
@@ -3862,7 +3904,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-192",
+    "id": "paper-194",
     "title": "Legendre Memory Units: Continuous-Time Representation in Recurrent Neural Networks",
     "starred": false,
     "authors": [],
@@ -3876,7 +3918,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-193",
+    "id": "paper-195",
     "title": "Distributed Deep Reinforcement Learning: An Overview",
     "starred": false,
     "authors": [],
@@ -3897,7 +3939,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-194",
+    "id": "paper-196",
     "title": "Reinforcement Learning with Information-Theoretic Actuation",
     "starred": false,
     "authors": [],
@@ -3920,7 +3962,7 @@ export const mockPapers: Paper[] = [
     "stars": 1
   },
   {
-    "id": "paper-195",
+    "id": "paper-197",
     "title": "Human-level play in the game of Diplomacy by combining language models with strategic reasoning",
     "starred": false,
     "authors": [],
@@ -3934,7 +3976,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-196",
+    "id": "paper-198",
     "title": "RL2: Fast Reinforcement Learning via Slow Reinforcement Learning",
     "starred": false,
     "authors": [],
@@ -3975,7 +4017,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-197",
+    "id": "paper-199",
     "title": "Craftax: A Lightning-Fast Benchmark for Open-Ended Reinforcement Learning",
     "starred": false,
     "authors": [],
@@ -4000,7 +4042,7 @@ export const mockPapers: Paper[] = [
     "stars": 2
   },
   {
-    "id": "paper-198",
+    "id": "paper-200",
     "title": "Open-Ended Learning Leads to Generally Capable Agents (XLand)",
     "starred": false,
     "authors": [],
@@ -4022,7 +4064,7 @@ export const mockPapers: Paper[] = [
     "stars": 3
   },
   {
-    "id": "paper-199",
+    "id": "paper-201",
     "title": "AI-GAs: AI-generating algorithms, an alternate paradigm for producing general artificial intelligence",
     "starred": false,
     "authors": [],
@@ -4064,7 +4106,7 @@ export const mockPapers: Paper[] = [
     "stars": 3
   },
   {
-    "id": "paper-200",
+    "id": "paper-202",
     "title": "Quantum tensor product structures are observable-induced",
     "starred": false,
     "authors": [],
@@ -4076,7 +4118,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-201",
+    "id": "paper-203",
     "title": "Reinforcement Learning with Unsupervised Auxiliary Tasks",
     "starred": false,
     "authors": [],
@@ -4091,7 +4133,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-202",
+    "id": "paper-204",
     "title": "Mix&Match - Agent Curricula for Reinforcement Learning",
     "starred": false,
     "authors": [],
@@ -4107,7 +4149,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-203",
+    "id": "paper-205",
     "title": "Local minima in training of neural networks",
     "starred": false,
     "authors": [],
@@ -4121,9 +4163,9 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-204",
+    "id": "paper-206",
     "title": "Progress & Compress: A scalable framework for continual learning",
-    "starred": false,
+    "starred": true,
     "authors": [],
     "institutions": [],
     "tags": [
@@ -4142,9 +4184,9 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-205",
+    "id": "paper-207",
     "title": "Evolving intrinsic motivations for altruistic behavior",
-    "starred": false,
+    "starred": true,
     "authors": [],
     "institutions": [],
     "tags": [
@@ -4171,7 +4213,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-206",
+    "id": "paper-208",
     "title": "Distilling Policy Distillation",
     "starred": false,
     "authors": [],
@@ -4199,7 +4241,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-207",
+    "id": "paper-209",
     "title": "$α$-Rank: Multi-Agent Evaluation by Evolution",
     "starred": false,
     "authors": [],
@@ -4214,7 +4256,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-208",
+    "id": "paper-210",
     "title": "Smooth markets: A basic mechanism for organizing gradient-based learners",
     "starred": false,
     "authors": [],
@@ -4229,7 +4271,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-209",
+    "id": "paper-211",
     "title": "A Limited-Capacity Minimax Theorem for Non-Convex Games or: How I Learned to Stop Worrying about Mixed-Nash and Love Neural Nets",
     "starred": false,
     "authors": [],
@@ -4243,7 +4285,28 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-210",
+    "id": "paper-212",
+    "title": "Navigating the Landscape of Multiplayer Games",
+    "starred": false,
+    "authors": [],
+    "institutions": [],
+    "tags": [
+      "Multi-Agency"
+    ],
+    "readBy": [],
+    "queued": [
+      {
+        "id": "david-bloomin",
+        "name": "David Bloomin",
+        "avatar": "DB",
+        "email": "david-bloomin@softmax.ai"
+      }
+    ],
+    "link": "https://arxiv.org/abs/2005.01642",
+    "stars": 0
+  },
+  {
+    "id": "paper-213",
     "title": "Perception-Prediction-Reaction Agents for Deep Reinforcement Learning",
     "starred": false,
     "authors": [],
@@ -4264,7 +4327,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-211",
+    "id": "paper-214",
     "title": "Negotiating Team Formation Using Deep Reinforcement Learning",
     "starred": false,
     "authors": [],
@@ -4292,7 +4355,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-212",
+    "id": "paper-215",
     "title": "Pick Your Battles: Interaction Graphs as Population-Level Objectives for Strategic Diversity",
     "starred": false,
     "authors": [],
@@ -4306,7 +4369,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-213",
+    "id": "paper-216",
     "title": "On the Limitations of Elo: Real-World Games, are Transitive, not Additive",
     "starred": false,
     "authors": [],
@@ -4327,7 +4390,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-214",
+    "id": "paper-217",
     "title": "Unicorn: Continual Learning with a Universal, Off-policy Agent",
     "starred": false,
     "authors": [],
@@ -4342,7 +4405,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-215",
+    "id": "paper-218",
     "title": "Proximal Policy Gradient Arborescence for Quality Diversity Reinforcement Learning",
     "starred": false,
     "authors": [],
@@ -4359,7 +4422,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-216",
+    "id": "paper-219",
     "title": "OFENet: Can Increasing Input Dimensionality Improve Deep Reinforcement Learning?",
     "starred": false,
     "authors": [],
@@ -4380,9 +4443,9 @@ export const mockPapers: Paper[] = [
     "stars": 2
   },
   {
-    "id": "paper-217",
+    "id": "paper-220",
     "title": "Exploring Zero-Shot Emergent Communication in Embodied Multi-Agent Populations",
-    "starred": false,
+    "starred": true,
     "authors": [],
     "institutions": [],
     "tags": [
@@ -4401,7 +4464,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-218",
+    "id": "paper-221",
     "title": "Zero shot communication - three papers",
     "starred": false,
     "authors": [],
@@ -4415,7 +4478,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-219",
+    "id": "paper-222",
     "title": "Multi-Agent Cooperation and the Emergence of (Natural) Language",
     "starred": false,
     "authors": [],
@@ -4429,7 +4492,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-220",
+    "id": "paper-223",
     "title": "Autocurricula and the Emergence of Innovation from Social Interaction: A Manifesto for Multi-Agent Intelligence Research",
     "starred": false,
     "authors": [],
@@ -4450,7 +4513,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-221",
+    "id": "paper-224",
     "title": "A Review of Cooperation in Multi-agent Learning",
     "starred": false,
     "authors": [],
@@ -4477,8 +4540,8 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-222",
-    "title": "“Other-Play” for Zero-Shot Coordination Hengyuan",
+    "id": "paper-225",
+    "title": "“Other-Play” for Zero-Shot Coordination\nHengyuan",
     "starred": false,
     "authors": [],
     "institutions": [],
@@ -4491,7 +4554,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-223",
+    "id": "paper-226",
     "title": "Few-shot Language Coordination by Modeling Theory of Mind",
     "starred": false,
     "authors": [],
@@ -4505,7 +4568,28 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-224",
+    "id": "paper-227",
+    "title": "Multi-Agent Actor-Critic for Mixed Cooperative-Competitive Environments",
+    "starred": false,
+    "authors": [],
+    "institutions": [],
+    "tags": [
+      "Communication & Cooperation"
+    ],
+    "readBy": [],
+    "queued": [
+      {
+        "id": "daphne-demekas",
+        "name": "Daphne Demekas",
+        "avatar": "DD",
+        "email": "daphne-demekas@softmax.ai"
+      }
+    ],
+    "link": "https://arxiv.org/abs/1706.02275",
+    "stars": 0
+  },
+  {
+    "id": "paper-228",
     "title": "Maintaining cooperation in complex social dilemmas using deep reinforcement learning",
     "starred": false,
     "authors": [],
@@ -4519,7 +4603,34 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-225",
+    "id": "paper-229",
+    "title": "Autocurricula and the Emergence of Innovation from Social Interaction: A Manifesto for Multi-Agent Intelligence Research",
+    "starred": false,
+    "authors": [],
+    "institutions": [],
+    "tags": [
+      "Communication & Cooperation"
+    ],
+    "readBy": [],
+    "queued": [
+      {
+        "id": "david-bloomin",
+        "name": "David Bloomin",
+        "avatar": "DB",
+        "email": "david-bloomin@softmax.ai"
+      },
+      {
+        "id": "george-deane",
+        "name": "George Deane",
+        "avatar": "GD",
+        "email": "george-deane@softmax.ai"
+      }
+    ],
+    "link": "https://arxiv.org/abs/1903.00742",
+    "stars": 0
+  },
+  {
+    "id": "paper-230",
     "title": "Inequity aversion improves cooperation in intertemporal social dilemmas",
     "starred": false,
     "authors": [],
@@ -4533,7 +4644,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-226",
+    "id": "paper-231",
     "title": "Learning Reciprocity in Complex Sequential Social Dilemmas",
     "starred": false,
     "authors": [],
@@ -4547,7 +4658,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-227",
+    "id": "paper-232",
     "title": "Open-Endedness is Essential for Artificial Superhuman Intelligence",
     "starred": false,
     "authors": [],
@@ -4575,7 +4686,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-228",
+    "id": "paper-233",
     "title": "[Duplicate] Generally capable agents emerge from open-ended play (xland)",
     "starred": false,
     "authors": [],
@@ -4604,7 +4715,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-229",
+    "id": "paper-234",
     "title": "Competency in Navigating Arbitrary Spaces as an Invariant for Analyzing Cognition in Diverse Embodiments",
     "starred": false,
     "authors": [],
@@ -4627,7 +4738,7 @@ export const mockPapers: Paper[] = [
     "stars": 3
   },
   {
-    "id": "paper-230",
+    "id": "paper-235",
     "title": "OMNI: Open-endedness via Models of human Notions of Interestingness",
     "starred": false,
     "authors": [],
@@ -4652,7 +4763,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-231",
+    "id": "paper-236",
     "title": "OMNI-EPIC: Open-endedness via Models of human Notions of Interestingness with Environments Programmed in Code",
     "starred": false,
     "authors": [],
@@ -4684,7 +4795,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-232",
+    "id": "paper-237",
     "title": "Beyond the Matrix: Using Multi-Agent-Reinforcement Learning and Behavioral Experiments to Study Social-Ecological Systems",
     "starred": false,
     "authors": [],
@@ -4701,11 +4812,11 @@ export const mockPapers: Paper[] = [
       }
     ],
     "queued": [],
-    "link": "https://osf.io/preprints/osf/6fw42  https://docs.google.com/document/d/14Uo7uGaXoNvfJ4RwB5gcr5lzixhOadAjuv6BJxkGv8U/edit?tab=t.0",
+    "link": "https://osf.io/preprints/osf/6fw42\n\nhttps://docs.google.com/document/d/14Uo7uGaXoNvfJ4RwB5gcr5lzixhOadAjuv6BJxkGv8U/edit?tab=t.0",
     "stars": 0
   },
   {
-    "id": "paper-233",
+    "id": "paper-238",
     "title": "Mastering Diverse Domains through World Models (Dreamer V3)",
     "starred": false,
     "authors": [],
@@ -4734,7 +4845,7 @@ export const mockPapers: Paper[] = [
     "stars": 3
   },
   {
-    "id": "paper-234",
+    "id": "paper-239",
     "title": "Enhanced POET: Open-Ended Reinforcement Learning through Unbounded Invention of Learning Challenges and their Solutions",
     "starred": false,
     "authors": [],
@@ -4765,7 +4876,7 @@ export const mockPapers: Paper[] = [
     "stars": 3
   },
   {
-    "id": "paper-235",
+    "id": "paper-240",
     "title": "Exploration Unbound",
     "starred": false,
     "authors": [],
@@ -4786,7 +4897,7 @@ export const mockPapers: Paper[] = [
     "stars": 1
   },
   {
-    "id": "paper-236",
+    "id": "paper-241",
     "title": "RLeXplore: Accelerating Research in Intrinsically-Motivated Reinforcement Learning",
     "starred": false,
     "authors": [],
@@ -4814,9 +4925,9 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-237",
+    "id": "paper-242",
     "title": "Exploration via Elliptical Episodic Bonuses (E3B)",
-    "starred": false,
+    "starred": true,
     "authors": [],
     "institutions": [],
     "tags": [
@@ -4842,7 +4953,7 @@ export const mockPapers: Paper[] = [
     "stars": 2
   },
   {
-    "id": "paper-238",
+    "id": "paper-243",
     "title": "SAMBA Safe Model-Based & Active Reinforcement Learning",
     "starred": false,
     "authors": [],
@@ -4857,7 +4968,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-239",
+    "id": "paper-244",
     "title": "Decoupling Representation Learning from Reinforcement Learning",
     "starred": false,
     "authors": [],
@@ -4879,7 +4990,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-240",
+    "id": "paper-245",
     "title": "ELDEN Exploration via Local Dependencies",
     "starred": false,
     "authors": [],
@@ -4902,7 +5013,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-241",
+    "id": "paper-246",
     "title": "CAT-SAC Soft Actor-Critic with Curiosity-Aware Entropy Temperature",
     "starred": false,
     "authors": [],
@@ -4949,7 +5060,7 @@ export const mockPapers: Paper[] = [
     "stars": 2
   },
   {
-    "id": "paper-242",
+    "id": "paper-247",
     "title": "States as goal-directed concepts an epistemic approach to state-representation learning",
     "starred": false,
     "authors": [],
@@ -4971,7 +5082,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-243",
+    "id": "paper-248",
     "title": "Active Sensing with Predictive Coding and Uncertainty Minimization",
     "starred": false,
     "authors": [],
@@ -4999,9 +5110,9 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-244",
+    "id": "paper-249",
     "title": "Seeking entropy complex behavior from intrinsic motivation to occupy action-state path space",
-    "starred": false,
+    "starred": true,
     "authors": [],
     "institutions": [],
     "tags": [
@@ -5015,7 +5126,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-245",
+    "id": "paper-250",
     "title": "Empowerment, Free Energy Principle and Maximum Occupancy Principle Compared",
     "starred": false,
     "authors": [],
@@ -5038,7 +5149,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-246",
+    "id": "paper-251",
     "title": "General Intelligence Requires Rethinking Exploration",
     "starred": false,
     "authors": [],
@@ -5060,7 +5171,7 @@ export const mockPapers: Paper[] = [
     "stars": 2
   },
   {
-    "id": "paper-247",
+    "id": "paper-252",
     "title": "[Duplicate] The Diffusion Actor-Critic with Entropy Regulator (DACER)",
     "starred": false,
     "authors": [],
@@ -5081,7 +5192,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-248",
+    "id": "paper-253",
     "title": "Making the Thermodynamic Cost of Active Inference Explicit",
     "starred": false,
     "authors": [],
@@ -5109,7 +5220,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-249",
+    "id": "paper-254",
     "title": "The free-energy principle: a unified brain theory?",
     "starred": false,
     "authors": [],
@@ -5137,7 +5248,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-250",
+    "id": "paper-255",
     "title": "Beyond the matrix: Experimental approaches to studying cognitive agents in social-ecological systems",
     "starred": false,
     "authors": [],
@@ -5158,7 +5269,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-251",
+    "id": "paper-256",
     "title": "Automating the Search for Artificial Life with Foundation Models",
     "starred": false,
     "authors": [],
@@ -5191,7 +5302,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-252",
+    "id": "paper-257",
     "title": "Learning to Continually Learn (ANML)",
     "starred": false,
     "authors": [],
@@ -5233,7 +5344,7 @@ export const mockPapers: Paper[] = [
     "stars": 2
   },
   {
-    "id": "paper-253",
+    "id": "paper-258",
     "title": "Differentiable plasticity: training plastic neural networks with backpropagation",
     "starred": false,
     "authors": [],
@@ -5269,7 +5380,7 @@ export const mockPapers: Paper[] = [
     "stars": 3
   },
   {
-    "id": "paper-254",
+    "id": "paper-259",
     "title": "DeepSeek-V3 (highly efficient transformer training)",
     "starred": false,
     "authors": [],
@@ -5291,7 +5402,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-255",
+    "id": "paper-260",
     "title": "Hyperbolic VAE via Latent Gaussian Distributions",
     "starred": false,
     "authors": [],
@@ -5312,7 +5423,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-256",
+    "id": "paper-261",
     "title": "Hyperbolic Variational Graph Neural Network for Modeling Dynamic Graphs",
     "starred": false,
     "authors": [],
@@ -5334,8 +5445,8 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-257",
-    "title": "Unsupervised Hyperbolic Representation Learning via Message Passing Auto-Encoders",
+    "id": "paper-262",
+    "title": "Unsupervised Hyperbolic Representation Learning\nvia Message Passing Auto-Encoders",
     "starred": false,
     "authors": [],
     "institutions": [],
@@ -5356,7 +5467,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-258",
+    "id": "paper-263",
     "title": "Reinforcement Learning in Hyperbolic Spaces: Models and Experiments",
     "starred": false,
     "authors": [],
@@ -5379,7 +5490,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-259",
+    "id": "paper-264",
     "title": "Hyperbolic Deep Reinforcement Learning",
     "starred": false,
     "authors": [],
@@ -5402,7 +5513,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-260",
+    "id": "paper-265",
     "title": "Hyperbolic deep RL for continuous control",
     "starred": false,
     "authors": [],
@@ -5425,7 +5536,41 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-261",
+    "id": "paper-266",
+    "title": "Deep Hierarchical Planning from Pixels",
+    "starred": false,
+    "authors": [],
+    "institutions": [],
+    "tags": [
+      "RL"
+    ],
+    "readBy": [
+      {
+        "id": "david-bloomin",
+        "name": "David Bloomin",
+        "avatar": "DB",
+        "email": "david-bloomin@softmax.ai"
+      }
+    ],
+    "queued": [
+      {
+        "id": "daphne-demekas",
+        "name": "Daphne Demekas",
+        "avatar": "DD",
+        "email": "daphne-demekas@softmax.ai"
+      },
+      {
+        "id": "george-deane",
+        "name": "George Deane",
+        "avatar": "GD",
+        "email": "george-deane@softmax.ai"
+      }
+    ],
+    "link": "https://arxiv.org/abs/2206.04114",
+    "stars": 3
+  },
+  {
+    "id": "paper-267",
     "title": "Traces of Consciousness",
     "starred": false,
     "authors": [],
@@ -5454,7 +5599,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-262",
+    "id": "paper-268",
     "title": "Attention Schema in Neural Agents",
     "starred": false,
     "authors": [],
@@ -5483,7 +5628,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-263",
+    "id": "paper-269",
     "title": "Learning Attractor Dynamics for Generative Memory",
     "starred": false,
     "authors": [],
@@ -5497,7 +5642,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-264",
+    "id": "paper-270",
     "title": "Scaling Memory-Augmented Neural Networks with Sparse Reads and Writes",
     "starred": false,
     "authors": [],
@@ -5511,7 +5656,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-265",
+    "id": "paper-271",
     "title": "Associative Long Short-Term Memory",
     "starred": false,
     "authors": [],
@@ -5526,7 +5671,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-266",
+    "id": "paper-272",
     "title": "The Kanerva Machine A Generative Distributed Memory",
     "starred": false,
     "authors": [],
@@ -5547,7 +5692,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-267",
+    "id": "paper-273",
     "title": "Recurrent Reinforcement Learning with Memoroids",
     "starred": false,
     "authors": [],
@@ -5562,9 +5707,9 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-268",
+    "id": "paper-274",
     "title": "What Matters In On-Policy Reinforcement Learning? A Large-Scale Empirical Study",
-    "starred": false,
+    "starred": true,
     "authors": [],
     "institutions": [],
     "tags": [
@@ -5583,7 +5728,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-269",
+    "id": "paper-275",
     "title": "The 37 Implementation Details of Proximal Policy Optimization",
     "starred": false,
     "authors": [],
@@ -5611,7 +5756,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-270",
+    "id": "paper-276",
     "title": "Scaling laws for single-agent reinforcement learning",
     "starred": false,
     "authors": [],
@@ -5638,7 +5783,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-271",
+    "id": "paper-277",
     "title": "High-Dimensional Continuous Control Using Generalized Advantage Estimation",
     "starred": false,
     "authors": [],
@@ -5659,7 +5804,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-272",
+    "id": "paper-278",
     "title": "Proximal Policy Optimization Algorithms",
     "starred": false,
     "authors": [],
@@ -5680,7 +5825,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-273",
+    "id": "paper-279",
     "title": "AlphaStar: Grandmaster level in StarCraft II using multi-agent reinforcement learning",
     "starred": false,
     "authors": [],
@@ -5710,13 +5855,13 @@ export const mockPapers: Paper[] = [
         "email": "alex-smith@softmax.ai"
       }
     ],
-    "link": "https://deepmind.google/discover/blog/alphastar-grandmaster-level-in-starcraft-ii-using-multi-agent-reinforcement-learning/  https://www.seas.upenn.edu/~cis520/papers/RL_for_starcraft.pdf",
+    "link": "https://deepmind.google/discover/blog/alphastar-grandmaster-level-in-starcraft-ii-using-multi-agent-reinforcement-learning/\n\nhttps://www.seas.upenn.edu/~cis520/papers/RL_for_starcraft.pdf",
     "stars": 0
   },
   {
-    "id": "paper-274",
+    "id": "paper-280",
     "title": "Emergent tool use from multi-agent interaction",
-    "starred": false,
+    "starred": true,
     "authors": [],
     "institutions": [],
     "tags": [
@@ -5735,7 +5880,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-275",
+    "id": "paper-281",
     "title": "Capture the Flag: the emergence of complex cooperative agents",
     "starred": false,
     "authors": [],
@@ -5768,7 +5913,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-276",
+    "id": "paper-282",
     "title": "Compressive Transformers for Long-Range Sequence Modelling",
     "starred": false,
     "authors": [],
@@ -5790,7 +5935,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-277",
+    "id": "paper-283",
     "title": "Hybrid computing using a neural network with dynamic external memory",
     "starred": false,
     "authors": [],
@@ -5804,7 +5949,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-278",
+    "id": "paper-284",
     "title": "Scaling Instructable Agents Across Many Simulated Worlds (SIMA)",
     "starred": false,
     "authors": [],
@@ -5819,7 +5964,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-279",
+    "id": "paper-285",
     "title": "Latent Plan Transformer for Trajectory Abstraction Planning as Latent Space Inference",
     "starred": false,
     "authors": [],
@@ -5848,7 +5993,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-280",
+    "id": "paper-286",
     "title": "Dota 2 with Large Scale Deep Reinforcement Learning (DOTA)",
     "starred": false,
     "authors": [],
@@ -5889,7 +6034,7 @@ export const mockPapers: Paper[] = [
     "stars": 1
   },
   {
-    "id": "paper-281",
+    "id": "paper-287",
     "title": "Neural Network Surgery with Sets",
     "starred": false,
     "authors": [],
@@ -5910,7 +6055,22 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-282",
+    "id": "paper-288",
+    "title": "In-Context Reinforcement Learning for Variable Action Spaces",
+    "starred": true,
+    "authors": [],
+    "institutions": [],
+    "tags": [
+      "RL",
+      "Transformer"
+    ],
+    "readBy": [],
+    "queued": [],
+    "link": "https://arxiv.org/pdf/2312.13327",
+    "stars": 0
+  },
+  {
+    "id": "paper-289",
     "title": "Multi-Task Deep Reinforcement Learning with PopArt",
     "starred": false,
     "authors": [],
@@ -5926,7 +6086,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-283",
+    "id": "paper-290",
     "title": "Fixup Initialization  Residual Learning Without Normalization",
     "starred": false,
     "authors": [],
@@ -5947,7 +6107,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-284",
+    "id": "paper-291",
     "title": "An Investigation of Model-Free Planning",
     "starred": false,
     "authors": [],
@@ -5983,7 +6143,35 @@ export const mockPapers: Paper[] = [
     "stars": 3
   },
   {
-    "id": "paper-285",
+    "id": "paper-292",
+    "title": "Associative Long Short-Term Memory",
+    "starred": false,
+    "authors": [],
+    "institutions": [],
+    "tags": [
+      "Memory",
+      "RL"
+    ],
+    "readBy": [],
+    "queued": [
+      {
+        "id": "david-bloomin",
+        "name": "David Bloomin",
+        "avatar": "DB",
+        "email": "david-bloomin@softmax.ai"
+      },
+      {
+        "id": "daphne-demekas",
+        "name": "Daphne Demekas",
+        "avatar": "DD",
+        "email": "daphne-demekas@softmax.ai"
+      }
+    ],
+    "link": "https://proceedings.mlr.press/v48/danihelka16.pdf",
+    "stars": 0
+  },
+  {
+    "id": "paper-293",
     "title": "Thinker - Learning to Plan and Act",
     "starred": false,
     "authors": [],
@@ -6012,7 +6200,7 @@ export const mockPapers: Paper[] = [
     "stars": 3
   },
   {
-    "id": "paper-286",
+    "id": "paper-294",
     "title": "Extending World Models for Multi-Agent Reinforcement Learning in MALMÖ",
     "starred": false,
     "authors": [],
@@ -6033,7 +6221,7 @@ export const mockPapers: Paper[] = [
     "stars": 1
   },
   {
-    "id": "paper-287",
+    "id": "paper-295",
     "title": "Mastering Atari Games with Limited Data (EfficientZero)",
     "starred": false,
     "authors": [],
@@ -6064,11 +6252,11 @@ export const mockPapers: Paper[] = [
         "email": "alexandros-vardakostas@softmax.ai"
       }
     ],
-    "link": " https://github.com/YeWR/EfficientZero?tab=readme-ov-file",
+    "link": "\nhttps://github.com/YeWR/EfficientZero?tab=readme-ov-file",
     "stars": 2
   },
   {
-    "id": "paper-288",
+    "id": "paper-296",
     "title": "Bigger, Better, Faster - Human-level Atari with human-level efficiency",
     "starred": false,
     "authors": [],
@@ -6089,7 +6277,7 @@ export const mockPapers: Paper[] = [
     "stars": 2
   },
   {
-    "id": "paper-289",
+    "id": "paper-297",
     "title": "Causality Detection for Efficient Multi-Agent Reinforcement Learning",
     "starred": false,
     "authors": [],
@@ -6117,7 +6305,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-290",
+    "id": "paper-298",
     "title": "Adversarial Reinforcement Learning for Procedural Content Generation",
     "starred": false,
     "authors": [],
@@ -6140,9 +6328,9 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-291",
+    "id": "paper-299",
     "title": "Scaling Scaling Laws with Board Games",
-    "starred": false,
+    "starred": true,
     "authors": [],
     "institutions": [],
     "tags": [
@@ -6161,7 +6349,7 @@ export const mockPapers: Paper[] = [
     "stars": 1
   },
   {
-    "id": "paper-292",
+    "id": "paper-300",
     "title": "Were RNNs All We Needed?",
     "starred": false,
     "authors": [],
@@ -6188,7 +6376,7 @@ export const mockPapers: Paper[] = [
     "stars": 2
   },
   {
-    "id": "paper-293",
+    "id": "paper-301",
     "title": "Data-Efficient Reinforcement Learning with Self-Predictive Representations",
     "starred": false,
     "authors": [],
@@ -6210,7 +6398,7 @@ export const mockPapers: Paper[] = [
     "stars": 2
   },
   {
-    "id": "paper-294",
+    "id": "paper-302",
     "title": "AMAGO: Scalable In-Context Reinforcement Learning for Adaptive Agents",
     "starred": false,
     "authors": [],
@@ -6245,7 +6433,7 @@ export const mockPapers: Paper[] = [
     "stars": 3
   },
   {
-    "id": "paper-295",
+    "id": "paper-303",
     "title": "Human-Timescale Adaptation in an Open-Ended Task Space (ADA)",
     "starred": false,
     "authors": [],
@@ -6279,7 +6467,7 @@ export const mockPapers: Paper[] = [
     "stars": 3
   },
   {
-    "id": "paper-296",
+    "id": "paper-304",
     "title": "Transformer-XL: Attentive Language Models Beyond a Fixed-Length Context",
     "starred": false,
     "authors": [],
@@ -6301,7 +6489,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-297",
+    "id": "paper-305",
     "title": "Distilling Reinforcement Learning Algorithms for In-Context Model-Based Planning",
     "starred": false,
     "authors": [],
@@ -6316,7 +6504,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-298",
+    "id": "paper-306",
     "title": "Diversity Measures",
     "starred": false,
     "authors": [],
@@ -6331,7 +6519,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-299",
+    "id": "paper-307",
     "title": "Meta-Learning an Evolvable Developmental Encoding",
     "starred": false,
     "authors": [],
@@ -6346,7 +6534,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-300",
+    "id": "paper-308",
     "title": "Benefits of Assistance over Reward Learning",
     "starred": false,
     "authors": [],
@@ -6358,7 +6546,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-301",
+    "id": "paper-309",
     "title": "Learning Social Learning",
     "starred": false,
     "authors": [],
@@ -6370,7 +6558,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-302",
+    "id": "paper-310",
     "title": "Too Many Cooks: Bayesian Inference for Coordinating Multi-Agent Collaboration",
     "starred": false,
     "authors": [],
@@ -6389,9 +6577,9 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-303",
+    "id": "paper-311",
     "title": "Watch-And-Help: A Challenge for Social Perception and Human-AI Collaboration",
-    "starred": false,
+    "starred": true,
     "authors": [],
     "institutions": [],
     "tags": [],
@@ -6401,7 +6589,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-304",
+    "id": "paper-312",
     "title": "Quantifying Differences in Reward Functions",
     "starred": false,
     "authors": [],
@@ -6413,9 +6601,9 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-305",
+    "id": "paper-313",
     "title": "Faster Algorithms for Optimal Ex-Ante Coordinated Collusive Strategies in Extensive-Form Zero-Sum Games",
-    "starred": false,
+    "starred": true,
     "authors": [],
     "institutions": [],
     "tags": [],
@@ -6425,7 +6613,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-306",
+    "id": "paper-314",
     "title": "No-Regret Learning Dynamics for Extensive-Form Correlated Equilibrium",
     "starred": false,
     "authors": [],
@@ -6437,7 +6625,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-307",
+    "id": "paper-315",
     "title": "Multi-Agent Coordination through Signal Mediated Strategies",
     "starred": false,
     "authors": [],
@@ -6449,7 +6637,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-308",
+    "id": "paper-316",
     "title": "D3C: Reducing the Price of Anarchy in Multi-Agent Learning",
     "starred": false,
     "authors": [],
@@ -6461,7 +6649,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-309",
+    "id": "paper-317",
     "title": "Human-Agent Cooperation in Bridge Bidding",
     "starred": false,
     "authors": [],
@@ -6473,7 +6661,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-310",
+    "id": "paper-318",
     "title": "Newton Optimization on Helmholtz Decomposition for Continuous Games",
     "starred": false,
     "authors": [],
@@ -6485,7 +6673,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-311",
+    "id": "paper-319",
     "title": "Learning to Design Fair and Private Voting Rules",
     "starred": false,
     "authors": [],
@@ -6497,7 +6685,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-312",
+    "id": "paper-320",
     "title": "Competing AI: How Competition Feedback Affects Machine Learning",
     "starred": false,
     "authors": [],
@@ -6509,7 +6697,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-313",
+    "id": "paper-321",
     "title": "Interactive Inverse Reinforcement Learning for Cooperative Games",
     "starred": false,
     "authors": [],
@@ -6521,7 +6709,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-314",
+    "id": "paper-322",
     "title": "Learning to Solve Complex Tasks by Growing Knowledge Culturally Across Generations",
     "starred": false,
     "authors": [],
@@ -6533,7 +6721,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-315",
+    "id": "paper-323",
     "title": "On the Approximation of Cooperative Heterogeneous Multi-Agent Reinforcement Learning (MARL) Using Mean Field Control (MFC)",
     "starred": false,
     "authors": [],
@@ -6545,7 +6733,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-316",
+    "id": "paper-324",
     "title": "Public Information Representation for Adversarial Team Games",
     "starred": false,
     "authors": [],
@@ -6557,7 +6745,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-317",
+    "id": "paper-325",
     "title": "A Fine-Tuning Approach to Belief State Modeling",
     "starred": false,
     "authors": [],
@@ -6569,7 +6757,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-318",
+    "id": "paper-326",
     "title": "A Taxonomy of Strategic Human Interactions in Traffic Conflicts",
     "starred": false,
     "authors": [],
@@ -6581,9 +6769,9 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-319",
+    "id": "paper-327",
     "title": "Ambiguity Can Compensate for Semantic Differences in Human-AI Communication",
-    "starred": false,
+    "starred": true,
     "authors": [],
     "institutions": [],
     "tags": [],
@@ -6593,7 +6781,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-320",
+    "id": "paper-328",
     "title": "Automated Configuration and Usage of Strategy Portfolios for Bargaining",
     "starred": false,
     "authors": [],
@@ -6605,7 +6793,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-321",
+    "id": "paper-329",
     "title": "Bayesian Inference for Human-Robot Coordination in Parallel Play",
     "starred": false,
     "authors": [],
@@ -6617,7 +6805,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-322",
+    "id": "paper-330",
     "title": "Causal Multi-Agent Reinforcement Learning: Review and Open Problems",
     "starred": false,
     "authors": [],
@@ -6629,7 +6817,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-323",
+    "id": "paper-331",
     "title": "Coalitional Bargaining via Reinforcement Learning: An Application to Collaborative Vehicle Routing",
     "starred": false,
     "authors": [],
@@ -6641,9 +6829,9 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-324",
+    "id": "paper-332",
     "title": "Coordinated Reinforcement Learning for Optimizing Mobile Networks",
-    "starred": false,
+    "starred": true,
     "authors": [],
     "institutions": [],
     "tags": [],
@@ -6653,7 +6841,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-325",
+    "id": "paper-333",
     "title": "Disinformation, Stochastic Harm, and Costly Effort: A Principal-Agent Analysis of Regulating Social Media Platforms",
     "starred": false,
     "authors": [],
@@ -6665,7 +6853,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-326",
+    "id": "paper-334",
     "title": "Meta-Neural Cellular Automata",
     "starred": false,
     "authors": [],
@@ -6680,7 +6868,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-327",
+    "id": "paper-335",
     "title": "Towards Self-Assembling Artificial Neural Networks through Neural Developmental Programs",
     "starred": false,
     "authors": [],
@@ -6695,7 +6883,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-328",
+    "id": "paper-336",
     "title": "HyperNCA: Growing Developmental Networks with Neural Cellular Automata",
     "starred": false,
     "authors": [],
@@ -6709,7 +6897,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-329",
+    "id": "paper-337",
     "title": "[Duplicate] HyperNCA: Growing Developmental Networks with Neural Cellular Automata",
     "starred": false,
     "authors": [],
@@ -6724,7 +6912,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-330",
+    "id": "paper-338",
     "title": "Autoverse An Evolvable Game Language for Learning Robust Embodied Agents",
     "starred": false,
     "authors": [],
@@ -6738,7 +6926,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-331",
+    "id": "paper-339",
     "title": "Optimizing Automatic Differentiation with Deep Reinforcement Learning",
     "starred": false,
     "authors": [],
@@ -6760,7 +6948,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-332",
+    "id": "paper-340",
     "title": "Training Large Language Models to Reason in a Continuous Latent Space",
     "starred": false,
     "authors": [],
@@ -6775,7 +6963,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-333",
+    "id": "paper-341",
     "title": "CMA Evolutionary Strategy (CMA-ES)",
     "starred": false,
     "authors": [],
@@ -6789,9 +6977,9 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-334",
+    "id": "paper-342",
     "title": "Recurrent Independent Mechanisms",
-    "starred": false,
+    "starred": true,
     "authors": [],
     "institutions": [],
     "tags": [
@@ -6812,7 +7000,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-335",
+    "id": "paper-343",
     "title": "Federated Natural Policy Gradient and Actor Critic Methods for Multi-task Reinforcement Learning",
     "starred": false,
     "authors": [],
@@ -6833,9 +7021,9 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-336",
+    "id": "paper-344",
     "title": "Artificial Generational Intelligence Cultural Accumulation in Reinforcement Learning",
-    "starred": false,
+    "starred": true,
     "authors": [],
     "institutions": [],
     "tags": [
@@ -6854,7 +7042,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-337",
+    "id": "paper-345",
     "title": "Reciprocal Reward Influence Encourages Cooperation From Self-Interested Agents",
     "starred": false,
     "authors": [],
@@ -6875,7 +7063,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-338",
+    "id": "paper-346",
     "title": "Multi-Reward Best Policy Identification",
     "starred": false,
     "authors": [],
@@ -6897,7 +7085,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-339",
+    "id": "paper-347",
     "title": "Beyond Optimism Exploration With Partially Observable Rewards",
     "starred": false,
     "authors": [],
@@ -6912,7 +7100,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-340",
+    "id": "paper-348",
     "title": "Maximum Entropy Reinforcement Learning via Energy-Based Normalizing Flow",
     "starred": false,
     "authors": [],
@@ -6926,7 +7114,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-341",
+    "id": "paper-349",
     "title": "DynaMITE-RL A Dynamic Model for Improved Temporal Meta-Reinforcement Learning",
     "starred": false,
     "authors": [],
@@ -6941,7 +7129,21 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-342",
+    "id": "paper-350",
+    "title": "Scaling Instructable Agents Across Many Simulated Worlds (SIMA)",
+    "starred": false,
+    "authors": [],
+    "institutions": [],
+    "tags": [
+      "RL"
+    ],
+    "readBy": [],
+    "queued": [],
+    "link": "https://arxiv.org/abs/2404.10179",
+    "stars": 0
+  },
+  {
+    "id": "paper-351",
     "title": "In-context Reinforcement Learning with Algorithm Distillation",
     "starred": false,
     "authors": [],
@@ -6963,9 +7165,9 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-343",
+    "id": "paper-352",
     "title": "Replay Buffer with Local Forgetting for Adapting to Local Environment Changes in Deep Model-Based Reinforcement Learning",
-    "starred": false,
+    "starred": true,
     "authors": [],
     "institutions": [],
     "tags": [
@@ -6977,7 +7179,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-344",
+    "id": "paper-353",
     "title": "Non-Stationary Learning of Neural Networks with Automatic Soft Parameter Reset",
     "starred": false,
     "authors": [],
@@ -7000,7 +7202,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-345",
+    "id": "paper-354",
     "title": "No Representation, No Trust Connecting Representation, Collapse, and Trust Issues in PPO",
     "starred": false,
     "authors": [],
@@ -7014,9 +7216,30 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-346",
-    "title": "Exploring the Promise and Limits of Real-Time Recurrent Learning (RTRL)",
+    "id": "paper-355",
+    "title": "Recurrent Reinforcement Learning with Memoroids",
     "starred": false,
+    "authors": [],
+    "institutions": [],
+    "tags": [
+      "RL"
+    ],
+    "readBy": [
+      {
+        "id": "daphne-demekas",
+        "name": "Daphne Demekas",
+        "avatar": "DD",
+        "email": "daphne-demekas@softmax.ai"
+      }
+    ],
+    "queued": [],
+    "link": "https://arxiv.org/abs/2402.09900",
+    "stars": 0
+  },
+  {
+    "id": "paper-356",
+    "title": "Exploring the Promise and Limits of Real-Time Recurrent Learning (RTRL)",
+    "starred": true,
     "authors": [],
     "institutions": [],
     "tags": [
@@ -7030,7 +7253,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-347",
+    "id": "paper-357",
     "title": "Adam on Local Time Addressing Nonstationarity in RL with Relative Adam Timesteps",
     "starred": false,
     "authors": [],
@@ -7052,7 +7275,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-348",
+    "id": "paper-358",
     "title": "The Road Less Scheduled",
     "starred": false,
     "authors": [],
@@ -7071,7 +7294,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-349",
+    "id": "paper-359",
     "title": "Real-Time Recurrent Learning using Trace Units in Reinforcement Learning",
     "starred": false,
     "authors": [],
@@ -7099,7 +7322,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-350",
+    "id": "paper-360",
     "title": "Diffusion Actor-Critic with Entropy Regulator",
     "starred": false,
     "authors": [],
@@ -7120,9 +7343,9 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-351",
+    "id": "paper-361",
     "title": "Latent Plan Transformer for Trajectory Abstraction Planning as Latent Space Inference]]",
-    "starred": false,
+    "starred": true,
     "authors": [],
     "institutions": [],
     "tags": [
@@ -7141,7 +7364,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-352",
+    "id": "paper-362",
     "title": "Mitigating Partial Observability in Sequential Decision Processes via the Lambda Discrepancy",
     "starred": false,
     "authors": [],
@@ -7162,7 +7385,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-353",
+    "id": "paper-363",
     "title": "Disentangled Unsupervised Skill Discovery for Efficient Hierarchical Reinforcement Learning",
     "starred": false,
     "authors": [],
@@ -7177,7 +7400,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-354",
+    "id": "paper-364",
     "title": "No Regrets - Investigating and Improving Regret Approximations for Curriculum Discovery",
     "starred": false,
     "authors": [],
@@ -7191,7 +7414,21 @@ export const mockPapers: Paper[] = [
     "stars": 1
   },
   {
-    "id": "paper-355",
+    "id": "paper-365",
+    "title": "Hyperbolic Deep Reinforcement Learning",
+    "starred": false,
+    "authors": [],
+    "institutions": [],
+    "tags": [
+      "RL"
+    ],
+    "readBy": [],
+    "queued": [],
+    "link": "https://arxiv.org/abs/2210.01542",
+    "stars": 0
+  },
+  {
+    "id": "paper-366",
     "title": "Skill-aware Mutual Information Optimisation for Generalisation in Reinforcement Learning",
     "starred": false,
     "authors": [],
@@ -7205,9 +7442,9 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-356",
+    "id": "paper-367",
     "title": "General-Purpose In-Context Learning by Meta-Learning Transformers",
-    "starred": false,
+    "starred": true,
     "authors": [],
     "institutions": [],
     "tags": [
@@ -7228,9 +7465,9 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-357",
-    "title": "Disentangled Unsupervised Skill Discovery for Efficient Hierarchical Reinforcement Learning",
-    "starred": false,
+    "id": "paper-368",
+    "title": "Disentangled Unsupervised Skill Discovery for\nEfficient Hierarchical Reinforcement Learning",
+    "starred": true,
     "authors": [],
     "institutions": [],
     "tags": [
@@ -7242,9 +7479,9 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-358",
+    "id": "paper-369",
     "title": "[Duplicate] OMNI-EPIC: Open-endedness via Models of human Notions of Interestingness with Environments Programmed in Code",
-    "starred": false,
+    "starred": true,
     "authors": [],
     "institutions": [],
     "tags": [
@@ -7263,7 +7500,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-359",
+    "id": "paper-370",
     "title": "MAESTRO: Open-Ended Environment Design for Multi-Agent Reinforcement Learning",
     "starred": false,
     "authors": [],
@@ -7284,7 +7521,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-360",
+    "id": "paper-371",
     "title": "InfiniteKitchen: Cross-environment Cooperation for Zero-shot Multi-agent Coordination",
     "starred": false,
     "authors": [],
@@ -7305,8 +7542,8 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-361",
-    "title": "Remove that Square Root: A New Efficient Scale-Invariant Version of AdaGrad",
+    "id": "paper-372",
+    "title": "Remove that Square Root: A New Efficient\nScale-Invariant Version of AdaGrad",
     "starred": false,
     "authors": [],
     "institutions": [],
@@ -7324,9 +7561,9 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-362",
+    "id": "paper-373",
     "title": "Kickstarting Deep Reinforcement Learning",
-    "starred": false,
+    "starred": true,
     "authors": [],
     "institutions": [],
     "tags": [
@@ -7359,7 +7596,7 @@ export const mockPapers: Paper[] = [
     "stars": 3
   },
   {
-    "id": "paper-363",
+    "id": "paper-374",
     "title": "RWKV: Reinventing RNNs for the Transformer Era",
     "starred": false,
     "authors": [],
@@ -7375,7 +7612,7 @@ export const mockPapers: Paper[] = [
     "stars": 0
   },
   {
-    "id": "paper-364",
+    "id": "paper-375",
     "title": "Mamba: Linear-Time Sequence Modeling with Selective State Spaces",
     "starred": false,
     "authors": [],

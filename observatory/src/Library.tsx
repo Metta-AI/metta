@@ -60,15 +60,7 @@ const navItems = [
             </svg>
         )
     },
-    {
-        id: 'collections',
-        label: 'Collections',
-        icon: (
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-            </svg>
-        )
-    },
+
     {
         id: 'authors',
         label: 'Authors',
@@ -83,22 +75,14 @@ const navItems = [
         label: 'Institutions',
         icon: (
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                {/* Triangle roof */}
-                <polygon points="4,10 12,4 20,10" stroke="currentColor" strokeWidth="2" fill="none" />
-                {/* Circle window */}
-                <circle cx="12" cy="8.5" r="1" stroke="currentColor" strokeWidth="2" fill="none" />
-                {/* Columns */}
-                <rect x="7" y="11" width="1.5" height="5" stroke="currentColor" strokeWidth="2" fill="none" />
-                <rect x="11.25" y="11" width="1.5" height="5" stroke="currentColor" strokeWidth="2" fill="none" />
-                <rect x="15" y="11" width="1.5" height="5" stroke="currentColor" strokeWidth="2" fill="none" />
-                {/* Base */}
-                <rect x="5" y="17" width="14" height="2" stroke="currentColor" strokeWidth="2" fill="none" />
+                {/* Building with simplified design */}
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 4h1m-1 4h1m4-4h1m-1 4h1" />
             </svg>
         )
     },
     {
-        id: 'profile',
-        label: 'Profile',
+        id: 'me',
+        label: 'Me',
         icon: (
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
@@ -112,10 +96,9 @@ export function Library({ repo: _repo, currentUser }: Library2Props) {
     // Determine initial nav from path
     const getNavFromPath = (pathname: string) => {
         if (pathname.includes('/authors')) return 'authors';
-        if (pathname.includes('/collections')) return 'collections';
         if (pathname.includes('/institutions')) return 'institutions';
         if (pathname.includes('/papers')) return 'papers';
-        if (pathname.includes('/profile')) return 'profile';
+        if (pathname.includes('/me')) return 'me';
         if (pathname.includes('/search')) return 'search';
         return 'feed';
     };
@@ -343,9 +326,9 @@ export function Library({ repo: _repo, currentUser }: Library2Props) {
     const handleNavClick = (id: string) => {
         setActiveNav(id);
         switch (id) {
-                    case 'authors':
-            navigate('/authors');
-            break;
+            case 'authors':
+                navigate('/authors');
+                break;
             case 'institutions':
                 navigate('/institutions');
                 break;
@@ -355,14 +338,11 @@ export function Library({ repo: _repo, currentUser }: Library2Props) {
             case 'search':
                 navigate('/search');
                 break;
-            case 'collections':
-                navigate('/collections');
-                break;
             case 'papers':
                 navigate('/papers');
                 break;
-            case 'profile':
-                navigate('/profile');
+            case 'me':
+                navigate('/me');
                 break;
             default:
                 break;
@@ -440,11 +420,36 @@ export function Library({ repo: _repo, currentUser }: Library2Props) {
                     />
                 )
 
-            case 'profile':
+            case 'me':
                 return (
                     <ProfileView 
                         repo={_repo} 
                         currentUser={currentUser || "alice@example.com"} 
+                    />
+                )
+
+            case 'search':
+                // For now, redirect to feed view since no specific search view exists
+                return (
+                    <FeedView
+                        mathJaxLoaded={mathJaxLoaded}
+                        postsRef={postsRef}
+                        onPostsChange={() => {
+                            // Trigger MathJax re-rendering when posts change
+                            if (mathJaxLoaded && postsRef.current && window.MathJax?.typesetPromise) {
+                                setTimeout(() => {
+                                    const mathJax = window.MathJax;
+                                    const postsElement = postsRef.current;
+                                    if (mathJax?.typesetPromise && postsElement) {
+                                        mathJax.typesetPromise([postsElement]).then(() => {
+                                            console.log('MathJax re-rendered after post change');
+                                        }).catch(err => {
+                                            console.error('MathJax re-rendering error:', err);
+                                        });
+                                    }
+                                }, 500);
+                            }
+                        }}
                     />
                 )
 
@@ -479,39 +484,43 @@ export function Library({ repo: _repo, currentUser }: Library2Props) {
         <div className="min-h-screen bg-gray-50 font-inter">
             <div className="flex min-h-screen">
                 {/* Left Sidebar */}
-                <div className="w-64 bg-white border-r border-gray-200 fixed top-0 left-0 h-full flex flex-col z-10">
-                    <div className="px-4 mb-6 flex items-center gap-3">
-                        {/* Bookshelf Icon (from /library) */}
-                        <svg className="w-7 h-7 text-gray-400" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M3 18h18" />
-                            <rect x="3" y="8" width="3.6" height="10" />
-                            <rect x="6.6" y="6" width="3.6" height="12" />
-                            <rect x="10.2" y="9" width="3.6" height="9" />
-                            <rect x="13.8" y="7" width="3.6" height="11" />
-                            <rect x="17.4" y="5" width="3.6" height="13" />
-                        </svg>
-                        <h1 className="text-xl font-bold text-gray-900">Library</h1>
+                <div className="w-48 bg-white border-r border-gray-200 fixed top-0 left-0 h-full flex flex-col z-10">
+                    {/* Header Section */}
+                    <div className="px-6 py-6 border-b border-gray-100">
+                        <div className="flex items-center gap-3">
+                            {/* Bookshelf Icon */}
+                            <svg className="w-6 h-6 text-gray-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M3 18h18" />
+                                <rect x="3" y="8" width="3.6" height="10" />
+                                <rect x="6.6" y="6" width="3.6" height="12" />
+                                <rect x="10.2" y="9" width="3.6" height="9" />
+                                <rect x="13.8" y="7" width="3.6" height="11" />
+                                <rect x="17.4" y="5" width="3.6" height="13" />
+                            </svg>
+                            <h1 className="text-lg font-semibold text-gray-900">Library</h1>
+                        </div>
                     </div>
 
-                    <nav className="space-y-1">
+                    {/* Navigation Section */}
+                    <nav className="flex-1 px-3 py-4 space-y-1">
                         {navItems.map(item => (
                             <button
                                 key={item.id}
                                 onClick={() => handleNavClick(item.id)}
-                                className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors ${activeNav === item.id
-                                    ? 'bg-primary-50 text-primary-700 border-r-2 border-primary-500'
+                                className={`w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors rounded-lg mx-1 ${activeNav === item.id
+                                    ? 'bg-primary-50 text-primary-700 border border-primary-200'
                                     : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
                                     }`}
                             >
                                 {item.icon}
-                                <span className="font-medium">{item.label}</span>
+                                <span className="font-medium text-sm">{item.label}</span>
                             </button>
                         ))}
                     </nav>
                 </div>
 
                 {/* Main Content */}
-                <div className="flex-1 ml-64">
+                <div className="flex-1 ml-48 max-w-full overflow-hidden">
                     {renderContent()}
                 </div>
             </div>

@@ -44,13 +44,11 @@ interface ProfileViewProps {
  */
 export function ProfileView({ repo, currentUser }: ProfileViewProps) {
     return (
-        <div className="p-6">
-            <div className="max-w-6xl mx-auto">
-                <UserProfile 
-                    repo={repo} 
-                    currentUser={currentUser || "alice@example.com"} 
-                />
-            </div>
+        <div className="w-full h-full">
+            <UserProfile 
+                repo={repo} 
+                currentUser={currentUser || "alice@example.com"} 
+            />
         </div>
     );
 } 

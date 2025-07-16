@@ -204,43 +204,33 @@ The first term is the reconstruction loss, and the second is the KL divergence t
      */
     const renderPostComposer = () => (
         <div className="bg-white border-b border-gray-200 p-6">
-            <div className="flex gap-4">
-                {/* User avatar */}
-                <div className="w-10 h-10 bg-primary-500 text-white rounded-full flex items-center justify-center font-semibold text-sm flex-shrink-0">
-                    U
-                </div>
+            <div className="flex gap-3">
+                <textarea
+                    className="flex-1 min-h-[96px] max-h-32 border border-gray-200 rounded-lg px-4 py-3 resize-none focus:ring-2 focus:ring-primary-500 focus:border-transparent text-gray-900 placeholder-gray-400 text-sm leading-relaxed"
+                    placeholder={`Poast away....\nInclude arXiv URLs to automatically import papers\nLaTeX supported inline with $...$ or $$...$$`}
+                    value={composerText}
+                    onChange={(e) => setComposerText(e.target.value)}
+                    onKeyDown={(e) => {
+                        // Submit on Enter (without Shift for new line)
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                            e.preventDefault();
+                            handlePostSubmit();
+                        }
+                    }}
+                />
                 
-                {/* Post composition area */}
-                <div className="flex-1">
-                    <textarea
-                        className="w-full min-h-[80px] max-h-32 border-0 resize-none focus:ring-0 focus:outline-none text-gray-900 placeholder-gray-500"
-                        placeholder="Share your research insights… Include arXiv URLs to automatically import papers. LaTeX supported with $...$ or $$...$$"
-                        value={composerText}
-                        onChange={(e) => setComposerText(e.target.value)}
-                        onKeyDown={(e) => {
-                            // Submit on Enter (without Shift for new line)
-                            if (e.key === 'Enter' && !e.shiftKey) {
-                                e.preventDefault();
-                                handlePostSubmit();
-                            }
-                        }}
-                    />
-                    
-                    {/* Post button */}
-                    <div className="flex justify-end mt-3">
-                        <button
-                            className={`px-6 py-2 rounded-full font-medium transition-colors ${
-                                composerText.trim()
-                                    ? 'bg-primary-500 text-white hover:bg-primary-600'
-                                    : 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                            }`}
-                            disabled={!composerText.trim()}
-                            onClick={handlePostSubmit}
-                        >
-                            Post
-                        </button>
-                    </div>
-                </div>
+                {/* Post button */}
+                <button
+                    className={`px-6 py-2 rounded-lg font-medium text-sm transition-colors self-end ${
+                        composerText.trim()
+                            ? 'bg-primary-500 text-white hover:bg-primary-600'
+                            : 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                    }`}
+                    disabled={!composerText.trim()}
+                    onClick={handlePostSubmit}
+                >
+                    Post
+                </button>
             </div>
         </div>
     );

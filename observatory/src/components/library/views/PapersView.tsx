@@ -155,6 +155,8 @@ export function PapersView({
     onShowInstitutionOverlay
 }: PapersViewProps) {
     
+
+    
     // Validate required props
     if (!Array.isArray(papers)) {
         console.error('PapersView: papers prop must be an array');
@@ -783,28 +785,53 @@ export function PapersView({
 
     return (
         <div className="p-4">
-            <div className="w-full px-2">
+            <div className="w-full max-w-full overflow-hidden px-2">
                 {/* Filter and Sort Controls */}
-                <div className="mb-6 space-y-4">
+                <div className="mb-6 space-y-4 max-w-full">
                     {/* Search Input */}
-                    <div className="flex items-center gap-4">
-                        <div className="flex-1 max-w-md">
-                            <input
-                                type="text"
-                                value={searchQuery}
-                                onChange={(e) => {
-                                    const value = e.target.value;
-                                    // Validate input before calling callback
-                                    if (typeof value === 'string' && onSearchChange) {
-                                        onSearchChange(value);
-                                    }
-                                }}
-                                placeholder="Filter by title, authors, or tags..."
-                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                                ref={filterInputRef}
-                                maxLength={200} // Prevent extremely long search queries
-                            />
-                        </div>
+                    <div className="relative max-w-full">
+                        {/* Search Icon - positioned absolutely in the left side of the input */}
+                        <svg 
+                            className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" 
+                            fill="none" 
+                            stroke="currentColor" 
+                            viewBox="0 0 24 24"
+                            aria-hidden="true"
+                        >
+                            <circle cx="11" cy="11" r="8" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="m21 21-4.35-4.35" />
+                        </svg>
+                        
+                        {/* Search Input Field */}
+                        <input
+                            type="text"
+                            value={searchQuery}
+                            onChange={(e) => {
+                                const value = e.target.value;
+                                // Validate input before calling callback
+                                if (typeof value === 'string' && onSearchChange) {
+                                    onSearchChange(value);
+                                }
+                            }}
+                            placeholder="Filter..."
+                            className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                            ref={filterInputRef}
+                            maxLength={200} // Prevent extremely long search queries
+                        />
+                        
+                        {/* Clear Button - only show when there's content */}
+                        {searchQuery && (
+                            <button
+                                onClick={() => onSearchChange && onSearchChange('')}
+                                className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 hover:text-gray-600 transition-colors"
+                                aria-label="Clear search"
+                                type="button"
+                            >
+                                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        )}
                     </div>
 
                     {/* Starred Filter */}
@@ -816,7 +843,9 @@ export function PapersView({
                                 onChange={(e) => setShowOnlyStarred(e.target.checked)}
                                 className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
                             />
-                            <span className="text-sm text-gray-700">Show only starred</span>
+                            <span className="text-sm text-gray-700">
+                                Show only starred ({papers.filter(paper => paper.starred).length})
+                            </span>
                         </label>
                     </div>
                 </div>

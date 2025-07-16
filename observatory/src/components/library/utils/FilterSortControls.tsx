@@ -117,7 +117,7 @@ export function FilterSortControls({
     };
 
     return (
-        <div className="max-w-4xl mb-4 space-y-4">
+        <div className="w-full mb-4 space-y-4">
             {/* Search Input Section */}
             <div className="relative">
                 {/* Search Icon - positioned absolutely in the left side of the input */}
@@ -136,12 +136,26 @@ export function FilterSortControls({
                 <input
                     ref={filterInputRef}
                     type="text"
-                    placeholder={searchPlaceholder}
+                    placeholder="Filter..."
                     value={searchQuery}
                     onChange={(e) => onSearchChange(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                     aria-label="Search and filter items" // Accessibility label for screen readers
                 />
+                
+                {/* Clear Button - only show when there's content */}
+                {searchQuery && (
+                    <button
+                        onClick={() => onSearchChange('')}
+                        className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 hover:text-gray-600 transition-colors"
+                        aria-label="Clear search"
+                        type="button"
+                    >
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                )}
             </div>
             
             {/* Sort Controls Section */}
