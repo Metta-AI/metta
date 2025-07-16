@@ -17,7 +17,7 @@
 run=$USER.navigation.ffa_random_spawn_4rooms_of_2_run0.$(date +%m-%d) \
 trainer.curriculum=env/mettagrid/curriculum/navigation/prioritize_regressed \
 --gpus=1 \
---nodes=1 \
+--nodes=2 \
 --no-spot \
 +USER=greg \
 ++trainer.env_overrides.special_reward_mode=ffa \
@@ -26,10 +26,13 @@ trainer.curriculum=env/mettagrid/curriculum/navigation/prioritize_regressed \
 ++trainer.env_overrides.game.map_builder.num_rooms=4 \
 sim=navigation \
 "$@"
+
 ./devops/skypilot/launch.py train \
-run=$USER.navigation.normal_heart_reward_random_spawn_4rooms_of_2_run1.$(date +%m-%d) \
+run=$USER.navigation.ffa_random_spawn_4rooms_of_2_run1.$(date +%m-%d) \
 trainer.curriculum=env/mettagrid/curriculum/navigation/prioritize_regressed \
 --gpus=1 \
+--nodes=2 \
+--no-spot \
 +USER=greg \
 ++trainer.env_overrides.special_reward_mode=ffa \
 ++trainer.env_overrides.game.num_agents=8 \
@@ -37,10 +40,13 @@ trainer.curriculum=env/mettagrid/curriculum/navigation/prioritize_regressed \
 ++trainer.env_overrides.game.map_builder.num_rooms=4 \
 sim=navigation \
 "$@"
+
 ./devops/skypilot/launch.py train \
-run=$USER.navigation.normal_heart_reward_random_spawn_4rooms_of_2_run2.$(date +%m-%d) \
+run=$USER.navigation.ffa_random_spawn_4rooms_of_2_run2.$(date +%m-%d) \
 trainer.curriculum=env/mettagrid/curriculum/navigation/prioritize_regressed \
 --gpus=1 \
+--nodes=2 \
+--no-spot \
 +USER=greg \
 ++trainer.env_overrides.special_reward_mode=ffa \
 ++trainer.env_overrides.game.num_agents=8 \
@@ -48,10 +54,13 @@ trainer.curriculum=env/mettagrid/curriculum/navigation/prioritize_regressed \
 ++trainer.env_overrides.game.map_builder.num_rooms=4 \
 sim=navigation \
 "$@"
+
 ./devops/skypilot/launch.py train \
-run=$USER.navigation.normal_heart_reward_random_spawn_4rooms_of_2_run3.$(date +%m-%d) \
+run=$USER.navigation.ffa_random_spawn_4rooms_of_2_run3.$(date +%m-%d) \
 trainer.curriculum=env/mettagrid/curriculum/navigation/prioritize_regressed \
 --gpus=1 \
+--nodes=2 \
+--no-spot \
 +USER=greg \
 ++trainer.env_overrides.special_reward_mode=ffa \
 ++trainer.env_overrides.game.num_agents=8 \
@@ -59,10 +68,13 @@ trainer.curriculum=env/mettagrid/curriculum/navigation/prioritize_regressed \
 ++trainer.env_overrides.game.map_builder.num_rooms=4 \
 sim=navigation \
 "$@"
+
 ./devops/skypilot/launch.py train \
-run=$USER.navigation.normal_heart_reward_random_spawn_4rooms_of_2_run4.$(date +%m-%d) \
+run=$USER.navigation.ffa_random_spawn_4rooms_of_2_run4.$(date +%m-%d) \
 trainer.curriculum=env/mettagrid/curriculum/navigation/prioritize_regressed \
 --gpus=1 \
+--nodes=2 \
+--no-spot \
 +USER=greg \
 ++trainer.env_overrides.special_reward_mode=ffa \
 ++trainer.env_overrides.game.num_agents=8 \
