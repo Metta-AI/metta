@@ -161,6 +161,7 @@ class TerrainFromNumpy(Room):
         agent_positions.extend(random.sample(adjacent, 1))
         if len(agent_positions) < num_agents:
             agent_positions.append(valid_positions[1])
+        assert len(agent_positions) == num_agents, f"Expected {num_agents} agents, got {agent_positions}"
 
         for pos, label in zip(agent_positions, agent_labels, strict=False):
             level[pos] = label
