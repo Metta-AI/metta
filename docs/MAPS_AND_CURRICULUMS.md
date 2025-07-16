@@ -320,6 +320,28 @@ tasks:
   /env/mettagrid/navigation/evals/spiral_altar_random: 1.0
 ```
 
+### Simple Random Curriculum
+
+For basic exploration of different navigation patterns without complex adaptation:
+
+```yaml
+# configs/env/mettagrid/curriculum/navigation/random_raster_spiral.yaml
+_target_: metta.mettagrid.curriculum.random.RandomCurriculum
+
+tasks:
+  # Raster grid navigation pattern
+  /env/mettagrid/navigation/training/raster_grid_multiroom: 0.5
+
+  # Spiral navigation pattern
+  /env/mettagrid/navigation/training/spiral_altar_multiroom: 0.5
+```
+
+This curriculum:
+- Randomly selects between raster grid and spiral patterns with equal probability
+- Each selected task internally uses random parameter sampling
+- Provides diverse navigation challenges without curriculum complexity
+- Ideal for initial exploration or baseline comparisons
+
 ### Learning Progress Curriculum for Adaptation
 
 Create adaptive curriculum that focuses on challenging tasks:
@@ -734,6 +756,32 @@ tasks:
 
 ### Common Error Messages and Solutions
 
+**"MultiDiscrete([X Y]) MultiDiscrete([A B]) atn space mismatch"**
+- Problem: Different environments in curriculum have different action spaces
+- Solution: Ensure all environments have the same actions enabled/disabled
+- For navigation tasks, explicitly enable noop, move, rotate, and get_items
+- Check: All environments should have identical action configurations
+- Example fix:
+  ```yaml
+  actions:
+    noop:
+      enabled: true
+    move:
+      enabled: true
+    rotate:
+      enabled: true
+    attack:
+      enabled: false
+    swap:
+      enabled: false
+    change_color:
+      enabled: false
+    put_items:
+      enabled: false
+    get_items:
+      enabled: true
+  ```
+
 **"No module named 'metta.mettagrid.curriculum.bucketed'"**
 - Solution: Check import path and ensure module exists
 - Verify: `ls mettagrid/src/metta/mettagrid/curriculum/bucketed.py`
@@ -818,6 +866,12 @@ When mixing different environment types in a curriculum, ensure all environments
 ```yaml
 # All navigation environments should have matching action configurations
 actions:
+  noop:
+    enabled: true    # Required for basic agent behavior
+  move:
+    enabled: true    # Required for navigation
+  rotate:
+    enabled: true    # Required for navigation
   attack:
     enabled: false
   swap:
@@ -827,8 +881,10 @@ actions:
   put_items:
     enabled: false
   get_items:
-    enabled: true  # Must be consistent across all tasks
+    enabled: true    # Must be consistent across all tasks
 ```
+
+**Important**: When creating navigation training environments that don't use the `/env/mettagrid/navigation/training/defaults` config, you must explicitly enable `noop`, `move`, and `rotate` actions. These are enabled by default in the base mettagrid config, but if you only specify the disabled actions, the environment will have a different action space than other navigation environments, causing training failures on distributed systems.
 
 ### Available Navigation Scenes
 The following scenes are available for navigation tasks:
@@ -928,6 +984,11 @@ game:
 ./tools/train.py run=$USER.test_comprehensive_$(date +%Y%m%d_%H%M%S) \
   +hardware=macbook \
   trainer.curriculum=/env/mettagrid/curriculum/navigation/learning_progress_comprehensive_clean
+
+# Simple Random (Raster/Spiral Only)
+./tools/train.py run=$USER.test_random_raster_spiral_$(date +%Y%m%d_%H%M%S) \
+  +hardware=macbook \
+  trainer.curriculum=/env/mettagrid/curriculum/navigation/random_raster_spiral
 ```
 
 ### Testing and Validation
