@@ -33,20 +33,20 @@ inline void _wymum(uint64_t* A, uint64_t* B) {
   // Fast path for 64-bit platforms with 128-bit support
   __uint128_t r = *A;
   r *= *B;
-  *A = (uint64_t)r;
-  *B = (uint64_t)(r >> 64);
+  *A = static_cast<uint64_t>(r);
+  *B = static_cast<uint64_t>(r >> 64);
 #else
   // Portable fallback
   uint64_t ha = *A >> 32, hb = *B >> 32;
-  uint64_t la = (uint32_t)*A, lb = (uint32_t)*B;
+  uint64_t la = static_cast<uint32_t>(*A), lb = static_cast<uint32_t>(*B);
   uint64_t rh = ha * hb;
   uint64_t rm0 = ha * lb;
   uint64_t rm1 = hb * la;
   uint64_t rl = la * lb;
   uint64_t t = rl + (rm0 << 32);
-  auto c = (uint64_t)(t < rl);
+  auto c = static_cast<uint64_t>(t < rl);
   uint64_t lo = t + (rm1 << 32);
-  c += (uint64_t)(lo < t);
+  c += static_cast<uint64_t>(lo < t);
   uint64_t hi = rh + (rm0 >> 32) + (rm1 >> 32) + c;
   *A = lo;
   *B = hi;
@@ -73,12 +73,12 @@ inline uint64_t _wyr4(const uint8_t* p) {
 }
 
 inline uint64_t _wyr3(const uint8_t* p, size_t k) {
-  return (((uint64_t)p[0]) << 16) | (((uint64_t)p[k >> 1]) << 8) | p[k - 1];
+  return ((static_cast<uint64_t>(p[0])) << 16) | ((static_cast<uint64_t>(p[k >> 1])) << 8) | p[k - 1];
 }
 
 // Main hash function
 inline uint64_t hash(const void* key, size_t len, uint64_t seed = 0) {
-  const uint8_t* p = (const uint8_t*)key;
+  const uint8_t* p = static_cast<const uint8_t*>(key);
   seed ^= _wymix(seed ^ _wyp[0], _wyp[1]);
   uint64_t a, b;
 
