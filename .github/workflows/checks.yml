@@ -211,7 +211,7 @@ jobs:
         if: steps.mettagrid_build_check.outputs.build_success == 'true'
         run: |
           cd mettagrid
-          ctest --test-dir build-debug -L test
+          ctest --test-dir build-debug -L test -V
 
   smoke-test:
     name: "Smoke Tests"
