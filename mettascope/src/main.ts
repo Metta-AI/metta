@@ -363,8 +363,7 @@ onEvent('keydown', 'body', (target: HTMLElement, e: Event) => {
 
   // Prevent keyboard events if we are focused on a text field, except for the Escape key
   if (
-    (document.activeElement instanceof HTMLInputElement ||
-      document.activeElement instanceof HTMLTextAreaElement) &&
+    (document.activeElement instanceof HTMLInputElement || document.activeElement instanceof HTMLTextAreaElement) &&
     event.key !== 'Escape'
   ) {
     return
@@ -390,9 +389,6 @@ onEvent('keydown', 'body', (target: HTMLElement, e: Event) => {
     } else if (state.showInfo) {
       state.showInfo = false
       toggleOpacity(html.infoToggle, state.showInfo)
-    } else if (state.showMiniMap) {
-      state.showMiniMap = false
-      toggleOpacity(html.minimapToggle, state.showMiniMap)
     } else if (state.showTraces) {
       state.showTraces = false
       toggleOpacity(html.tracesToggle, state.showTraces)
