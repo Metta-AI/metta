@@ -11,7 +11,7 @@ import torch
 import torch.distributed
 import wandb
 from heavyball import ForeachMuon
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 from pydantic import ValidationError
 
 from metta.agent.metta_agent import DistributedMettaAgent, make_policy
@@ -933,7 +933,8 @@ class MettaTrainer:
 
         # TODO: relax someday when we support other observation shapes
         try:
-            game_cfg = PyPolicyGameConfig(**env_cfg.game.dict())
+            game_cfg_dict = OmegaConf.to_container(env_cfg.game, resolve=True)
+            game_cfg = PyPolicyGameConfig(**game_cfg_dict)
         except ValidationError as e:
             raise ValueError(f"env_cfg.game is not compatible with agent requirements: {e}") from e
 
