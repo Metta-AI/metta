@@ -7,7 +7,15 @@ import { drawTrace } from './traces.js'
 import { drawMiniMap } from './minimap.js'
 import { processActions, initActionButtons } from './actions.js'
 import { initAgentTable, updateAgentTable } from './agentpanel.js'
-import { localStorageSetNumber, onEvent, initHighDpiMode, find, toggleOpacity } from './htmlutils.js'
+import {
+  localStorageSetNumber,
+  onEvent,
+  initHighDpiMode,
+  find,
+  toggleOpacity,
+  hideMenu,
+  hideDropdown,
+} from './htmlutils.js'
 import { updateReadout, hideHoverPanel } from './hoverpanels.js'
 import { initObjectMenu } from './objmenu.js'
 import { drawTimeline, initTimeline, updateTimeline, onScrubberChange, onTraceMinimapChange } from './timeline.js'
@@ -353,14 +361,51 @@ export function updateSelection(object: any, setFollow = false) {
 onEvent('keydown', 'body', (target: HTMLElement, e: Event) => {
   let event = e as KeyboardEvent
 
-  // Prevent keyboard events if we are focused on an text field.
-  if (document.activeElement instanceof HTMLInputElement || document.activeElement instanceof HTMLTextAreaElement) {
+  // Prevent keyboard events if we are focused on a text field, except for the Escape key
+  if (
+    (document.activeElement instanceof HTMLInputElement ||
+      document.activeElement instanceof HTMLTextAreaElement) &&
+    event.key !== 'Escape'
+  ) {
     return
   }
 
   if (event.key == 'Escape') {
+    // Close any open context or dropdown menus.
+    hideMenu()
+    hideDropdown()
+
+    // Clear the search field and related state.
+    const searchInput = document.getElementById('search-input') as HTMLInputElement | null
+    if (searchInput && searchInput.value.length > 0) {
+      searchInput.value = ''
+      // Trigger the input handler registered in search.ts so internal state updates.
+      searchInput.dispatchEvent(new Event('input', { bubbles: true }))
+    }
+
+    // Close the currently visible panel, preferring the ones most likely to be on top.
+    if (state.showAgentPanel) {
+      state.showAgentPanel = false
+      toggleOpacity(html.agentPanelToggle, state.showAgentPanel)
+    } else if (state.showInfo) {
+      state.showInfo = false
+      toggleOpacity(html.infoToggle, state.showInfo)
+    } else if (state.showMiniMap) {
+      state.showMiniMap = false
+      toggleOpacity(html.minimapToggle, state.showMiniMap)
+    } else if (state.showTraces) {
+      state.showTraces = false
+      toggleOpacity(html.tracesToggle, state.showTraces)
+      onResize()
+    } else if (state.showActionButtons) {
+      state.showActionButtons = false
+      toggleOpacity(html.controlsToggle, state.showActionButtons)
+    }
+
     updateSelection(null)
     setFollowSelection(false)
+    requestFrame()
+    return
   }
   // '[' and ']' scrub forward and backward.
   if (event.key == '[') {
