@@ -2,7 +2,7 @@ defaults:
   - common
   - agent: fast
   - trainer: trainer
-  - sim: arena
+  - sim: navigation
   - wandb: metta_research
   - _self_
 
@@ -13,6 +13,6 @@ train_job:
   evals: ${sim}
 
 trainer:
-  curriculum: /env/mettagrid/arena/basic_easy_shaped
+  curriculum: /env/mettagrid/curriculum/navigation/systematic_exploration
 
 cmd: train
