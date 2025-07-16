@@ -16,6 +16,8 @@ game:
       enabled: false
     put_items:
       enabled: false
+    get_items:
+      enabled: true  # Must match training environments
 
   agent:
     rewards:
