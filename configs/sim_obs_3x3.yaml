@@ -1,0 +1,15 @@
+defaults:
+  - sim_job
+  - override sim: obs_3x3  # Reference the sim config you created above
+  - _self_
+
+run: testing_changing_observations
+policy_uri: "wandb://metta-research/metta/model/yudhister.testing_changing_observations:v11"
+
+sim_job:
+  policy_uris:
+    - ${policy_uri}
+
+  stats_db_uri: "file://./results/obs_3x3_eval.db"
+  stats_dir: "./results/obs_3x3_stats"
+  replay_dir: "./results/obs_3x3_replays"

@@ -1,0 +1,2455 @@
+_wandb:
+    value:
+        cli_version: 0.20.1
+        code_path: code/tools/train.py
+        m:
+            - "1": env_agent/ore_red.gained.last_step
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": metric/agent_step
+              "6":
+                - 3
+              "7": []
+            - "1": trainer_memory/MettaTrainer.optimizer
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": metric/epoch
+              "6":
+                - 3
+              "7": []
+            - "1": env_agent/ore_red.get.rate
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_timing_cumulative/frac/thread_idle
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_task_reward/sample(0)/rewards.mean
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.attack_nearest.failed.updates
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/ore_red.get.activity_rate
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/ore_red.put.first_step
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": parameters/generation
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.swap.success.rate
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_game/tokens_free_space.rate
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_game/tokens_written.min
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_game/tokens_written.first_step
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/ore_red.gained.min
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_game/objects.block.min
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.swap.success.last_step
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": trainer_memory/MettaTrainer.trainer_cfg
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_timing_per_epoch/active_frac/_replay_writer
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_timing_cumulative/active_frac/_c_env.get_episode_stats
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_timing_per_epoch/msec/_c_env.step
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_game/tokens_dropped.last_step
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_game/tokens_dropped.updates
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.move.success.avg
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_game/tokens_dropped
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_game/tokens_dropped.min
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.noop.success.last_step
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_timing_per_epoch/active_frac/step
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/ore_red.lost.updates
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": metric/total_time
+              "6":
+                - 3
+              "7": []
+            - "1": parameters/epoch_steps
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_game/objects.block.avg
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_game/objects.mine_red
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.change_color.success.updates
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.rotate.success.last_step
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/battery_red.gained.min
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.rotate.success.max
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.swap.block.avg
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.move.success
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_game/objects.block.max
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": trainer_memory/MettaTrainer.torch_profiler
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": overview/sps
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": trainer_memory/MettaTrainer._curriculum
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_game/objects.wall.first_step
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_game/objects.block.first_step
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.change_color.success.max
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": monitor/process_memory_mb
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": timing_per_epoch/frac/_rollout
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_timing_per_epoch/active_frac/_initialize_c_env.make_c_env
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.get_output.success.updates
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/ore_red.get
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_attributes/map_h
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.swap.block.first_step
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/ore_red.lost.last_step
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.swap.failed.avg
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.attack_nearest.failed.first_step
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_attributes/completion_time
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_task_timing/sample(0)/init_time_msec
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_game/objects.generator_red.max
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/battery_red.gained.first_step
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": trainer_memory/MettaTrainer.wandb_run
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": losses/policy_loss
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/ore_red.gained.avg
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.attack.failed.last_step
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.swap.block
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.swap.success.min
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_timing_per_epoch/active_frac/_initialize_c_env
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.move.failed.avg
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.swap.success.updates
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_game/objects.altar.rate
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": trainer_memory/MettaTrainer.policy_store
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_game/objects.wall.min
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_timing_per_epoch/msec/_c_env.get_episode_stats
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": timing_cumulative/sps
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": timing_per_epoch/frac/_train
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_game/tokens_free_space
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.noop.success.min
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_timing_per_epoch/msec/_replay_writer
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_game/objects.wall.last_step
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": parameters/latest_saved_policy_epoch
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_game/objects.mine_red.min
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.put_recipe_items.success.min
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": experience/ratio
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.swap.failed
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_game/objects.generator_red.avg
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_attributes/initial_grid_hash
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_game/objects.generator_red
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_timing_per_epoch/msec/_initialize_c_env
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.swap.failed.min
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.swap.failed.activity_rate
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_game/tokens_written.updates
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/ore_red.put.rate
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": monitor/process_cpu_percent
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": timing_per_epoch/frac/_process_stats
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.noop.success.updates
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/ore_red.get.avg
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_timing_cumulative/active_frac/_c_env.step
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.noop.success.activity_rate
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.get_output.failed
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.put_recipe_items.success.first_step
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": experience/actions_std
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.failure_penalty.first_step
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.put_recipe_items.failed.rate
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.swap.success.first_step
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_game/objects.block
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.noop.success.first_step
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_timing_cumulative/active_frac/_initialize_c_env.make_c_env
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/battery_red.get.max
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": timing_cumulative/frac/_train
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": losses/current_logprobs
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": trainer_memory/MettaTrainer._memory_monitor
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.put_recipe_items.failed
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_game/objects.generator_red.first_step
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": parameters/learning_rate
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": timing_cumulative/frac/_rollout.env
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.change_color.success.avg
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_timing_per_epoch/active_frac/reset
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.put_recipe_items.success
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/battery_red.gained.last_step
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": trainer_memory/MettaTrainer.timer
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": monitor/memory_available_mb
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": overview/reward
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_timing_per_epoch/msec/_initialize_c_env.make_c_env
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.move.success.last_step
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_game/objects.mine_red.updates
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_map_reward/Random
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/battery_red.get.last_step
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_game/objects.altar.max
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.get_output.failed.first_step
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_game/objects.block.rate
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_timing_cumulative/active_frac/_stats_writer
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/ore_red.get.last_step
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_timing_cumulative/active_frac/_initialize_c_env
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.attack_nearest.failed.max
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_game/objects.altar.min
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.swap.failed.max
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.put_recipe_items.success.max
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": experience/values
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": trainer_memory/MettaTrainer._stats_client
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_game/objects.altar.first_step
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_timing_per_epoch/msec/_initialize_c_env.build_map
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": experience/actions_mean
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": timing_per_epoch/sps
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_game/tokens_free_space.avg
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_game/objects.altar
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_game/tokens_free_space.updates
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.attack.failed.max
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.get_output.success.avg
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": monitor/memory_used_mb
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_game/tokens_free_space.first_step
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_game/tokens_written.max
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": monitor/cpu_percent
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": timing_per_epoch/frac/_rollout.env
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": experience/logprobs
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.attack_nearest.failed.last_step
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_game/objects.generator_red.updates
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_game/tokens_dropped.first_step
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_game/tokens_dropped.rate
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": trainer_memory/MettaTrainer._system_monitor
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.rotate.success.first_step
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/ore_red.get.max
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_timing_per_epoch/frac/thread_idle
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.move.failed.last_step
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.move.failed.first_step
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.swap.success
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_game/tokens_dropped.avg
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.move.success.min
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_game/tokens_written.avg
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.attack_nearest.failed.rate
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.attack.failed.rate
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.swap.success.max
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_game/objects.generator_red.last_step
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/ore_red.put
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.get_output.success.max
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.rotate.success
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.get_output.success.min
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.attack_nearest.failed
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.move.success.activity_rate
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.put_recipe_items.failed.activity_rate
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.rotate.success.rate
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.attack_nearest.failed.avg
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": timing_per_epoch/msec/_rollout.env
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_game/objects.generator_red.rate
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.swap.block.min
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.move.failed.rate
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/ore_red.put.updates
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": trainer_memory/MettaTrainer.cfg
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/ore_red.gained
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_game/tokens_free_space.max
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.change_color.success.activity_rate
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/ore_red.gained.max
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.get_output.success.last_step
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.attack.failed.avg
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": experience/dones
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/ore_red.gained.updates
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.get_output.failed.max
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.put_recipe_items.failed.last_step
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/ore_red.lost
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.put_recipe_items.success.rate
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.swap.success.activity_rate
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_game/objects.wall.updates
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_game/tokens_written
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.swap.failed.updates
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.rotate.success.updates
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.failure_penalty.activity_rate
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_map_reward/small
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": losses/value_loss
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_game/objects.generator_red.min
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.rotate.success.activity_rate
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": monitor/memory_percent
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": losses/entropy
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.change_color.success.last_step
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.move.success.first_step
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.get_output.success
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.failure_penalty
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.swap.success.avg
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.put_recipe_items.failed.updates
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": monitor/process_threads
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": monitor/gpu_count
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/ore_red.gained.activity_rate
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_game/objects.altar.updates
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/ore_red.get.updates
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_game/objects.wall
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_timing_per_epoch/active_frac/_initialize_c_env.build_map
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_timing_per_epoch/active_frac/_stats_writer
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": losses/approx_kl
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.move.success.updates
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_game/objects.mine_red.avg
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.get_output.success.activity_rate
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.rotate.success.min
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/battery_red.get.avg
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/ore_red.lost.rate
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/battery_red.gained.avg
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_timing_cumulative/active_frac/_replay_writer
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_game/tokens_written.activity_rate
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_timing_cumulative/active_frac/_initialize_c_env.build_map
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.attack.failed.updates
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_game/objects.block.updates
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_game/objects.mine_red.last_step
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.swap.block.updates
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": timing_per_epoch/msec/_rollout
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": monitor/memory_total_mb
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_timing_cumulative/active_frac/reset
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.change_color.success.first_step
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.attack.failed.first_step
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/battery_red.get.rate
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.put_recipe_items.success.last_step
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": overview/reward_vs_total_time
+              "5": 31
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.move.failed.activity_rate
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_timing_per_epoch/active_frac/_c_env.step
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.rotate.success.avg
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.swap.block.activity_rate
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": trainer_memory/MettaTrainer.latest_saved_policy_record
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_game/objects.block.last_step
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.move.failed
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_timing_cumulative/active_frac/step
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_timing_per_epoch/active_frac/process_episode_stats
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/ore_red.lost.max
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/ore_red.put.min
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/battery_red.gained.rate
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.put_recipe_items.failed.min
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_attributes/seed
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.move.failed.updates
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.noop.success.max
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.move.success.rate
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.get_output.failed.rate
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.get_output.failed.min
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": experience/truncateds
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": monitor/cpu_count
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": timing_cumulative/frac/_rollout
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/ore_red.gained.rate
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.change_color.success.min
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.attack.failed
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.attack_nearest.failed.min
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.move.failed.max
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": trainer_memory/MettaTrainer
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_attributes/map_w
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.attack_nearest.failed.activity_rate
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_attributes/max_steps
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/ore_red.lost.avg
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/battery_red.gained.max
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/battery_red.gained
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.failure_penalty.updates
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.get_output.success.rate
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_game/tokens_free_space.activity_rate
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_game/tokens_written.last_step
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_timing_per_epoch/msec/process_episode_stats
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.failure_penalty.max
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_timing_per_epoch/msec/step
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/ore_red.put.max
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": monitor/cpu_count_physical
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_game/objects.altar.last_step
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_attributes/steps
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.get_output.failed.activity_rate
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": metric/train_time
+              "6":
+                - 3
+              "7": []
+            - "1": trainer_memory/MettaTrainer.initial_policy_record
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": trainer_memory/MettaTrainer.sim_suite_config
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": experience/ep_lengths
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_game/tokens_free_space.min
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.noop.success.rate
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_game/objects.wall.avg
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_game/objects.mine_red.rate
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": trainer_memory/MettaTrainer.experience
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.swap.failed.last_step
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.swap.block.rate
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_game/tokens_dropped.activity_rate
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/battery_red.gained.updates
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.get_output.success.first_step
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_attributes/resets
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.noop.success
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": losses/explained_variance
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.failure_penalty.rate
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.swap.failed.first_step
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_timing_per_epoch/msec/reset
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_timing_cumulative/active_frac/process_episode_stats
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/ore_red.gained.first_step
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_game/objects.altar.avg
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.get_output.failed.last_step
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.move.failed.min
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_timing_per_epoch/active_frac/_c_env.get_episode_stats
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.swap.block.last_step
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/battery_red.get.min
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": trainer_memory/MettaTrainer.policy
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": experience/rewards
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/ore_red.get.first_step
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": trainer_memory/MettaTrainer.kickstarter
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.change_color.success.rate
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.attack.failed.activity_rate
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.put_recipe_items.failed.avg
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.failure_penalty.min
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.noop.success.avg
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.move.success.max
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/ore_red.put.avg
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": monitor/gpu_available
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.change_color.success
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/battery_red.get.updates
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.put_recipe_items.success.updates
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": losses/clipfrac
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_game/objects.wall.max
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.attack.failed.min
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": timing_per_epoch/msec/_train
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.swap.block.max
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_game/tokens_written.rate
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_game/objects.wall.rate
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/battery_red.get.first_step
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/ore_red.put.last_step
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": monitor/cpu_count_logical
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_timing_per_epoch/msec/_stats_writer
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_game/tokens_dropped.max
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/battery_red.get
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.put_recipe_items.success.avg
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": parameters/num_minibatches
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_game/objects.mine_red.max
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.put_recipe_items.failed.max
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/ore_red.lost.first_step
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": trainer_memory/MettaTrainer.vecenv
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": losses/importance
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/ore_red.get.min
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.swap.failed.rate
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_game/tokens_free_space.last_step
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.put_recipe_items.failed.first_step
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/ore_red.lost.min
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": timing_cumulative/frac/_process_stats
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": timing_per_epoch/msec/_process_stats
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.get_output.failed.avg
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_game/objects.mine_red.first_step
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.failure_penalty.last_step
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.failure_penalty.avg
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+            - "1": env_agent/action.get_output.failed.updates
+              "5": 2
+              "6":
+                - 1
+                - 3
+              "7": []
+        python_version: 3.11.7
+        t:
+            "1":
+                - 1
+                - 50
+                - 105
+            "2":
+                - 1
+                - 50
+                - 105
+            "3":
+                - 2
+                - 3
+                - 5
+                - 7
+                - 13
+                - 14
+                - 15
+                - 16
+                - 55
+                - 61
+            "4": 3.11.7
+            "5": 0.20.1
+            "12": 0.20.1
+            "13": darwin-arm64
+agent:
+    value:
+        _target_: metta.agent.metta_agent.MettaAgent
+        analyze_weights_interval: 300
+        clip_range: 0
+        components:
+            _action_:
+                _target_: metta.agent.lib.actor.MettaActorSingleHead
+                sources:
+                    - name: actor_1
+                    - name: _action_embeds_
+            _action_embeds_:
+                _target_: metta.agent.lib.action.ActionEmbedding
+                nn_params:
+                    embedding_dim: 16
+                    num_embeddings: 100
+                sources: null
+            _core_:
+                _target_: metta.agent.lib.lstm.LSTM
+                nn_params:
+                    num_layers: 2
+                output_size: 128
+                sources:
+                    - name: encoded_obs
+            _obs_:
+                _target_: metta.agent.lib.obs_token_to_box_shaper.ObsTokenToBoxShaper
+                sources: null
+            _value_:
+                _target_: metta.agent.lib.nn_layer_library.Linear
+                nn_params:
+                    out_features: 1
+                nonlinearity: null
+                sources:
+                    - name: critic_1
+            actor_1:
+                _target_: metta.agent.lib.nn_layer_library.Linear
+                nn_params:
+                    out_features: 512
+                sources:
+                    - name: _core_
+            cnn1:
+                _target_: metta.agent.lib.nn_layer_library.Conv2d
+                nn_params:
+                    kernel_size: 5
+                    out_channels: 64
+                    stride: 3
+                sources:
+                    - name: obs_normalizer
+            cnn2:
+                _target_: metta.agent.lib.nn_layer_library.Conv2d
+                nn_params:
+                    kernel_size: 3
+                    out_channels: 64
+                    stride: 1
+                sources:
+                    - name: cnn1
+            critic_1:
+                _target_: metta.agent.lib.nn_layer_library.Linear
+                effective_rank: true
+                nn_params:
+                    out_features: 1024
+                nonlinearity: nn.Tanh
+                sources:
+                    - name: _core_
+            encoded_obs:
+                _target_: metta.agent.lib.nn_layer_library.Linear
+                nn_params:
+                    out_features: 128
+                sources:
+                    - name: fc1
+            fc1:
+                _target_: metta.agent.lib.nn_layer_library.Linear
+                nn_params:
+                    out_features: 128
+                sources:
+                    - name: obs_flattener
+            obs_flattener:
+                _target_: metta.agent.lib.nn_layer_library.Flatten
+                sources:
+                    - name: cnn2
+            obs_normalizer:
+                _target_: metta.agent.lib.observation_normalizer.ObservationNormalizer
+                sources:
+                    - name: _obs_
+        l2_init_weight_update_interval: 0
+        observations:
+            obs_key: grid_obs
+cmd:
+    value: train
+data_dir:
+    value: ${oc.env:DATA_DIR,./train_dir}
+device:
+    value: cpu
+dist_cfg_path:
+    value: null
+policy_uri:
+    value: file://${run_dir}/checkpoints
+run:
+    value: testing
+run_dir:
+    value: tmp
+seed:
+    value: 1
+sim:
+    value:
+        max_time_s: 60
+        name: arena
+        num_episodes: 1
+        simulations:
+            arena/advanced:
+                env: /env/mettagrid/arena/advanced
+            arena/basic:
+                env: /env/mettagrid/arena/basic
+            arena/combat:
+                env: /env/mettagrid/arena/combat
+            arena/tag:
+                env: /env/mettagrid/arena/tag
+stats_server_uri:
+    value: https://api.observatory.softmax-research.net
+torch_deterministic:
+    value: true
+train_job:
+    value:
+        evals: ${sim}
+        map_preview_uri: s3://softmax-public/training_runs/${run}/map_preview.json.z
+trainer:
+    value:
+        _target_: metta.rl.trainer.MettaTrainer
+        async_factor: 2
+        batch_size: 1024
+        bptt_horizon: 8
+        checkpoint:
+            checkpoint_dir: ${run_dir}/checkpoints
+            checkpoint_interval: 10
+            wandb_checkpoint_interval: 50
+        compile: false
+        compile_mode: reduce-overhead
+        cpu_offload: false
+        curriculum: /env/mettagrid/arena/basic_easy_shaped
+        forward_pass_minibatch_target_size: 2
+        grad_mean_variance_interval: 0
+        initial_policy:
+            metric: epoch
+            range: 1
+            type: top
+            uri: null
+        kickstart:
+            action_loss_coef: 1
+            additional_teachers: null
+            anneal_ratio: 0.65
+            kickstart_steps: 1000000000
+            teacher_uri: null
+            value_loss_coef: 1
+        lr_scheduler:
+            anneal_lr: false
+            enabled: false
+            schedule_type: null
+            warmup_steps: null
+        minibatch_size: 1024
+        num_workers: ???
+        optimizer:
+            beta1: 0.9
+            beta2: 0.999
+            eps: 1e-12
+            learning_rate: 0.000457
+            type: adam
+            weight_decay: 0
+        ppo:
+            clip_coef: 0.1
+            clip_vloss: true
+            ent_coef: 0.0021
+            gae_lambda: 0.916
+            gamma: 0.977
+            l2_init_loss_coef: 0
+            l2_reg_loss_coef: 0
+            max_grad_norm: 0.5
+            norm_adv: true
+            target_kl: null
+            vf_clip_coef: 0.1
+            vf_coef: 0.44
+        prioritized_experience_replay:
+            prio_alpha: 0
+            prio_beta0: 0.6
+        profiler:
+            interval_epochs: 10000
+            profile_dir: s3://softmax-public/torch_traces/${run}
+        require_contiguous_env_ids: false
+        scale_batches_by_world_size: false
+        simulation:
+            evaluate_interval: 200
+            replay_dir: s3://softmax-public/replays/${run}
+            replay_interval: 50
+        total_timesteps: 10000000000
+        update_epochs: 1
+        verbose: true
+        vtrace:
+            vtrace_c_clip: 1
+            vtrace_rho_clip: 1
+        zero_copy: true
+vectorization:
+    value: serial
+wandb:
+    value:
+        data_dir: ${run_dir}
+        enabled: true
+        entity: metta-research
+        group: ${run}
+        job_type: ${cmd}
+        name: ${run}
+        notes: ""
+        project: metta
+        run_id: ${run}
+        tags: []

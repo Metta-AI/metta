@@ -26,6 +26,9 @@ class ObsTokenToBoxShaper(LayerBase):
         self._out_tensor_shape = [self.num_layers, self.out_width, self.out_height]
 
     def _forward(self, td: TensorDict):
+        # print(f"obs_width: {self.out_width}")
+        # print(f"obs_height: {self.out_height}")
+
         token_observations = td["x"]
 
         B = token_observations.shape[0]

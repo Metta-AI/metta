@@ -1,0 +1,22 @@
+defaults:
+  - /env/mettagrid/navigation/evals/defaults@
+  - _self_
+
+game:
+  max_steps: 300
+  obs_width: 3
+  obs_height: 3
+
+  num_agents: 1
+  map_builder:
+    _target_: metta.map.mapgen.MapGen
+    width: 100
+    height: 100
+    border_width: 3
+
+    root:
+      type: metta.map.scenes.mean_distance.MeanDistance
+      params:
+        mean_distance: ${sampling:20,30,30}
+        objects:
+          altar: 0
