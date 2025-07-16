@@ -12,19 +12,18 @@ from metta.mettagrid.curriculum.core import Curriculum
 from metta.mettagrid.curriculum.sampling import SampledTaskCurriculum
 from metta.mettagrid.curriculum.util import config_from_path
 
-from .prioritize_regressed import PrioritizeRegressedCurriculum
+from .learning_progress import LearningProgressCurriculum
 
 logger = logging.getLogger(__name__)
 
 
-class BucketedCurriculum(PrioritizeRegressedCurriculum):
+class BucketedCurriculum(LearningProgressCurriculum):
     def __init__(
         self,
         env_cfg_template: str,
         buckets: Dict[str, Dict[str, Any]],
         env_overrides: Optional[DictConfig] = None,
         default_bins: int = 1,
-        moving_avg_decay_rate: float = 0.01,
     ):
         expanded_buckets = _expand_buckets(buckets, default_bins)
 
