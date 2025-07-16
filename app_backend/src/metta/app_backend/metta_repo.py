@@ -247,6 +247,19 @@ MIGRATIONS = [
             """CREATE INDEX idx_episodes_eval_task_id ON episodes(eval_task_id)""",
         ],
     ),
+    SqlMigration(
+        version=13,
+        description="Add episode_tags table",
+        sql_statements=[
+            """CREATE TABLE episode_tags (
+                episode_id UUID NOT NULL REFERENCES episodes(id),
+                tag TEXT NOT NULL,
+                PRIMARY KEY (episode_id, tag)
+            )""",
+            """CREATE INDEX idx_episode_tags_episode_id ON episode_tags(episode_id)""",
+            """CREATE INDEX idx_episode_tags_tag ON episode_tags(tag)""",
+        ],
+    ),
 ]
 
 
@@ -385,6 +398,7 @@ class MettaRepo:
         replay_url: str | None,
         attributes: Dict[str, Any],
         eval_task_id: uuid.UUID | None = None,
+        tags: list[str] | None = None,
     ) -> uuid.UUID:
         async with self.connect() as con:
             # Parse eval_category and env_name from eval_name
@@ -453,6 +467,19 @@ class MettaRepo:
                   """,
                     rows,
                 )
+
+            # Add tags if provided
+            if tags:
+                tag_rows = [(episode_id, tag) for tag in tags]
+                async with con.cursor() as cursor:
+                    await cursor.executemany(
+                        """
+                        INSERT INTO episode_tags (episode_id, tag)
+                        VALUES (%s, %s)
+                        ON CONFLICT (episode_id, tag) DO NOTHING
+                        """,
+                        tag_rows,
+                    )
 
             return episode_id
 
@@ -938,3 +965,78 @@ class MettaRepo:
                     updated[task_id] = status
 
         return updated
+
+    async def add_episode_tags(self, episode_ids: List[uuid.UUID], tag: str) -> int:
+        """Add a tag to multiple episodes by UUID. Returns number of episodes tagged."""
+        if not episode_ids:
+            return 0
+
+        async with self.connect() as con:
+            # Use INSERT ... ON CONFLICT DO NOTHING to avoid duplicate key errors
+            rows_affected = 0
+            for episode_id in episode_ids:
+                result = await con.execute(
+                    """
+                    INSERT INTO episode_tags (episode_id, tag)
+                    VALUES (%s, %s)
+                    ON CONFLICT (episode_id, tag) DO NOTHING
+                    """,
+                    (episode_id, tag),
+                )
+                rows_affected += result.rowcount
+            return rows_affected
+
+    async def remove_episode_tags(self, episode_ids: List[uuid.UUID], tag: str) -> int:
+        """Remove a tag from multiple episodes by UUID. Returns number of episodes untagged."""
+        if not episode_ids:
+            return 0
+
+        async with self.connect() as con:
+            result = await con.execute(
+                """
+                DELETE FROM episode_tags
+                WHERE episode_id = ANY(%s) AND tag = %s
+                """,
+                (episode_ids, tag),
+            )
+            return result.rowcount
+
+    async def get_episode_tags(self, episode_ids: List[uuid.UUID]) -> Dict[str, List[str]]:
+        """Get all tags for the given episode UUIDs."""
+        if not episode_ids:
+            return {}
+
+        async with self.connect() as con:
+            result = await con.execute(
+                """
+                SELECT episode_id, tag
+                FROM episode_tags
+                WHERE episode_id = ANY(%s)
+                ORDER BY episode_id, tag
+                """,
+                (episode_ids,),
+            )
+            rows = await result.fetchall()
+
+            # Group tags by episode UUID (converted to string for JSON serialization)
+            tags_by_episode = {}
+            for episode_uuid, tag in rows:
+                episode_key = str(episode_uuid)
+                if episode_key not in tags_by_episode:
+                    tags_by_episode[episode_key] = []
+                tags_by_episode[episode_key].append(tag)
+
+            return tags_by_episode
+
+    async def get_all_episode_tags(self) -> List[str]:
+        """Get all distinct tags that exist in the system."""
+        async with self.connect() as con:
+            result = await con.execute(
+                """
+                SELECT DISTINCT tag
+                FROM episode_tags
+                ORDER BY tag
+                """
+            )
+            rows = await result.fetchall()
+            return [row[0] for row in rows]
