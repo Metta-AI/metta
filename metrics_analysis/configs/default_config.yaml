@@ -1,0 +1,114 @@
+# Default configuration for Metta Metrics Analysis
+
+wandb:
+  entity: "metta-research"
+  project: "metta"
+  cache_dir: "~/.metta/wandb_cache"
+  use_cache: true
+
+# Metric groups for common analysis patterns
+metrics:
+  # Core training metrics
+  training_core:
+    - "trainer/loss"
+    - "trainer/policy_loss"
+    - "trainer/value_loss"
+    - "trainer/entropy"
+    - "trainer/learning_rate"
+
+  # Extended training statistics
+  training_stats:
+    - "trainer/explained_variance"
+    - "trainer/kl_divergence"
+    - "trainer/clip_fraction"
+    - "trainer/approx_kl"
+
+  # Agent behavior metrics
+  agent_behavior:
+    - "env_agent/reward_mean"
+    - "env_agent/episode_length_mean"
+    - "env_agent/actions_taken/*"
+
+  # Evaluation metrics by task type
+  eval_navigation:
+    - "eval_navigation/success_rate"
+    - "eval_navigation/path_efficiency"
+    - "eval_navigation/steps_mean"
+    - "eval_navigation/reward_mean"
+
+  eval_memory:
+    - "eval_memory/success_rate"
+    - "eval_memory/reward_mean"
+    - "eval_memory/steps_mean"
+
+  # System performance metrics
+  system_metrics:
+    - "monitor/gpu_utilization"
+    - "monitor/gpu_memory_used_gb"
+    - "monitor/cpu_percent"
+    - "timing_per_epoch/total_s"
+
+# Statistical analysis parameters
+analysis:
+  # IQM parameters
+  iqm_trim_percentage: 0.25
+
+  # Bootstrap parameters
+  bootstrap_samples: 10000
+  confidence_level: 0.95
+
+  # Performance profile parameters
+  profile_thresholds_min: 0.0
+  profile_thresholds_max: 2.0
+  profile_thresholds_steps: 201
+
+  # Statistical test defaults
+  default_test: "wilcoxon"
+  multiple_comparison_correction: "bonferroni"
+
+# Data processing defaults
+processing:
+  # Minimum steps for a run to be considered complete
+  min_steps_complete: 1000
+
+  # Interpolation method for missing data
+  interpolation_method: "linear"
+  interpolation_limit: 5
+
+  # Normalization defaults
+  normalization_method: "minmax"
+  normalize_per_run: false
+
+# Visualization settings
+visualization:
+  style: "seaborn"
+  color_palette: "Set2"
+  figure_size: [10, 6]
+  dpi: 100
+
+  # Plot-specific settings
+  confidence_interval_alpha: 0.2
+  line_width: 2
+  marker_size: 8
+
+# Example optimal scores for different tasks
+# (Replace with actual values for your tasks)
+optimal_scores:
+  navigation_easy: 100.0
+  navigation_medium: 95.0
+  navigation_hard: 85.0
+  memory_sequence_4: 100.0
+  memory_sequence_8: 100.0
+  combat_basic: 50.0
+
+# Export settings
+export:
+  # Default export formats
+  formats: ["csv", "parquet"]
+
+  # CSV export options
+  csv_float_format: "%.6f"
+  csv_index: false
+
+  # Parquet compression
+  parquet_compression: "snappy"
