@@ -18,7 +18,7 @@ run=$USER.navigation.frontier_heart_reward_only_2_per_room.$(date +%m-%d) \
 trainer.curriculum=env/mettagrid/curriculum/navigation/prioritize_regressed \
 --gpus=1 \
 +USER=greg \
-+trainer.env_overrides.game.num_agents=8 \
-+trainer.env_overrides.game.map_builder.room.agents=2 \
+++trainer.env_overrides.game.num_agents=8 \
+++trainer.env_overrides.game.map_builder.room.agents=2 \
 sim=navigation \
 "$@"
