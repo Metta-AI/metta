@@ -324,6 +324,23 @@ export function Library({ repo: _repo, currentUser }: Library2Props) {
 
     // Sidebar navigation handler
     const handleNavClick = (id: string) => {
+        // Clear search queries when navigating to a different view
+        if (id !== activeNav) {
+            // Clear the shared search query (used by authors and institutions views)
+            if (id !== 'authors' && id !== 'institutions') {
+                setSearchQuery('');
+            }
+            // Clear the papers search query when navigating away from papers
+            if (id !== 'papers') {
+                setPapersSearchQuery('');
+            }
+            // Clear the shared search query when navigating between authors and institutions
+            if ((id === 'authors' && activeNav === 'institutions') || 
+                (id === 'institutions' && activeNav === 'authors')) {
+                setSearchQuery('');
+            }
+        }
+        
         setActiveNav(id);
         switch (id) {
             case 'authors':
