@@ -13,12 +13,23 @@
 # sim=navigation \
 # "$@"
 
+# ./devops/skypilot/launch.py train \
+# run=$USER.navigation.frontier_heart_reward_only_2_per_room_run0.$(date +%m-%d) \
+# trainer.curriculum=env/mettagrid/curriculum/navigation/prioritize_regressed \
+# --gpus=1 \
+# --nodes=1 \
+# --no-spot \
+# +USER=greg \
+# ++trainer.env_overrides.sparse_reward_top_heart_winners_every_N_steps=true \
+# ++trainer.env_overrides.game.num_agents=8 \
+# ++trainer.env_overrides.game.map_builder.room.agents=2 \
+# ++trainer.env_overrides.game.map_builder.num_rooms=4 \
+# sim=navigation \
+# "$@"
 ./devops/skypilot/launch.py train \
-run=$USER.navigation.frontier_heart_reward_only_2_per_room_run0.$(date +%m-%d) \
+run=$USER.navigation.frontier_heart_reward_only_2_per_room_run1.$(date +%m-%d) \
 trainer.curriculum=env/mettagrid/curriculum/navigation/prioritize_regressed \
 --gpus=1 \
---nodes=1 \
---no-spot \
 +USER=greg \
 ++trainer.env_overrides.sparse_reward_top_heart_winners_every_N_steps=true \
 ++trainer.env_overrides.game.num_agents=8 \
@@ -26,47 +37,36 @@ trainer.curriculum=env/mettagrid/curriculum/navigation/prioritize_regressed \
 ++trainer.env_overrides.game.map_builder.num_rooms=4 \
 sim=navigation \
 "$@"
-# ./devops/skypilot/launch.py train \
-# run=$USER.navigation.frontier_heart_reward_only_2_per_room_run1.$(date +%m-%d) \
-# trainer.curriculum=env/mettagrid/curriculum/navigation/prioritize_regressed \
-# --gpus=1 \
-# +USER=greg \
-# ++trainer.env_overrides.sparse_reward_top_heart_winners_every_N_steps=true \
-# ++trainer.env_overrides.game.num_agents=8 \
-# ++trainer.env_overrides.game.map_builder.room.agents=2 \
-# ++trainer.env_overrides.game.map_builder.num_rooms=4 \
-# sim=navigation \
-# "$@"
-# ./devops/skypilot/launch.py train \
-# run=$USER.navigation.frontier_heart_reward_only_2_per_room_run2.$(date +%m-%d) \
-# trainer.curriculum=env/mettagrid/curriculum/navigation/prioritize_regressed \
-# --gpus=1 \
-# +USER=greg \
-# ++trainer.env_overrides.sparse_reward_top_heart_winners_every_N_steps=true \
-# ++trainer.env_overrides.game.num_agents=8 \
-# ++trainer.env_overrides.game.map_builder.room.agents=2 \
-# ++trainer.env_overrides.game.map_builder.num_rooms=4 \
-# sim=navigation \
-# "$@"
-# ./devops/skypilot/launch.py train \
-# run=$USER.navigation.frontier_heart_reward_only_2_per_room_run3.$(date +%m-%d) \
-# trainer.curriculum=env/mettagrid/curriculum/navigation/prioritize_regressed \
-# --gpus=1 \
-# +USER=greg \
-# ++trainer.env_overrides.sparse_reward_top_heart_winners_every_N_steps=true \
-# ++trainer.env_overrides.game.num_agents=8 \
-# ++trainer.env_overrides.game.map_builder.room.agents=2 \
-# ++trainer.env_overrides.game.map_builder.num_rooms=4 \
-# sim=navigation \
-# "$@"
-# ./devops/skypilot/launch.py train \
-# run=$USER.navigation.frontier_heart_reward_only_2_per_room_run4.$(date +%m-%d) \
-# trainer.curriculum=env/mettagrid/curriculum/navigation/prioritize_regressed \
-# --gpus=1 \
-# +USER=greg \
-# ++trainer.env_overrides.sparse_reward_top_heart_winners_every_N_steps=true \
-# ++trainer.env_overrides.game.num_agents=8 \
-# ++trainer.env_overrides.game.map_builder.room.agents=2 \
-# ++trainer.env_overrides.game.map_builder.num_rooms=4 \
-# sim=navigation \
-# "$@"
+./devops/skypilot/launch.py train \
+run=$USER.navigation.frontier_heart_reward_only_2_per_room_run2.$(date +%m-%d) \
+trainer.curriculum=env/mettagrid/curriculum/navigation/prioritize_regressed \
+--gpus=1 \
++USER=greg \
+++trainer.env_overrides.sparse_reward_top_heart_winners_every_N_steps=true \
+++trainer.env_overrides.game.num_agents=8 \
+++trainer.env_overrides.game.map_builder.room.agents=2 \
+++trainer.env_overrides.game.map_builder.num_rooms=4 \
+sim=navigation \
+"$@"
+./devops/skypilot/launch.py train \
+run=$USER.navigation.frontier_heart_reward_only_2_per_room_run3.$(date +%m-%d) \
+trainer.curriculum=env/mettagrid/curriculum/navigation/prioritize_regressed \
+--gpus=1 \
++USER=greg \
+++trainer.env_overrides.sparse_reward_top_heart_winners_every_N_steps=true \
+++trainer.env_overrides.game.num_agents=8 \
+++trainer.env_overrides.game.map_builder.room.agents=2 \
+++trainer.env_overrides.game.map_builder.num_rooms=4 \
+sim=navigation \
+"$@"
+./devops/skypilot/launch.py train \
+run=$USER.navigation.frontier_heart_reward_only_2_per_room_run4.$(date +%m-%d) \
+trainer.curriculum=env/mettagrid/curriculum/navigation/prioritize_regressed \
+--gpus=1 \
++USER=greg \
+++trainer.env_overrides.sparse_reward_top_heart_winners_every_N_steps=true \
+++trainer.env_overrides.game.num_agents=8 \
+++trainer.env_overrides.game.map_builder.room.agents=2 \
+++trainer.env_overrides.game.map_builder.num_rooms=4 \
+sim=navigation \
+"$@"

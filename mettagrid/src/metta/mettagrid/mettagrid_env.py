@@ -165,6 +165,9 @@ class MettaGridEnv(PufferEnv, GymEnv):
 
         self._grid_env = self._c_env
 
+        # print("PRINTING LEVEL")
+        # breakpoint()
+
     @override  # pufferlib.PufferEnv.reset
     @with_instance_timer("reset")
     def reset(self, seed: int | None = None) -> tuple[np.ndarray, dict]:
