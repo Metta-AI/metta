@@ -112,7 +112,8 @@ export class PanelInfo {
 
       // Handle panning during pinch - smooth and responsive
       const centerDelta = center.sub(ui.lastPinchCenter)
-      if (centerDelta.length() > 0.5) { // Very low threshold for smooth panning
+      if (centerDelta.length() > 0.5) {
+        // Very low threshold for smooth panning
         const lastCenterPoint = this.transformOuter(ui.lastPinchCenter)
         const newCenterPoint = this.transformOuter(center)
         if (lastCenterPoint != null && newCenterPoint != null) {

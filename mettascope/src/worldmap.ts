@@ -723,7 +723,14 @@ export function drawMap(panel: PanelInfo) {
 
     if (ui.mouseDoubleClick) {
       // Toggle followSelection on double-click.
-      console.info('Map double click - following selection', ui.mouseTargets, 'isPinching:', ui.isPinching, 'touches:', ui.touches.length)
+      console.info(
+        'Map double click - following selection',
+        ui.mouseTargets,
+        'isPinching:',
+        ui.isPinching,
+        'touches:',
+        ui.touches.length
+      )
       setFollowSelection(true)
       panel.zoomLevel = Common.DEFAULT_ZOOM_LEVEL
       ui.tracePanel.zoomLevel = Common.DEFAULT_TRACE_ZOOM_LEVEL
