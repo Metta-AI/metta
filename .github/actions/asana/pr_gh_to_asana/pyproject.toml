@@ -1,0 +1,7 @@
+[project]
+name = "pr-gh-to-asana"
+version = "0.1.0"
+dependencies = ["requests", "json", "os", "re", "sys"]
+
+[tool.uv.sources]
+common = { path = "../common" }

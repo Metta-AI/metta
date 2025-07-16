@@ -12,7 +12,8 @@ import re
 import sys
 
 import requests
-from github_asana_mapping import GithubAsanaMapping
+
+from common.github_asana_mapping import GithubAsanaMapping
 
 ASANA_GITHUB_ATTACHMENT_ACTION_URL = "https://github.integrations.asana.plus/custom/v1/actions/widget"
 
@@ -634,6 +635,7 @@ if __name__ == "__main__":
         print(f"commenters: {commenters}")
         print(f"github_logins: {github_logins}")
         print(f"pr_author_asana: {pr_author_asana}")
+        print(f"asana_assignee: {asana_assignee}")
 
         # Ensure task exists and output URL
         task_url = ensure_asana_task(
