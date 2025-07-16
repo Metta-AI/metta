@@ -126,7 +126,7 @@ class WallFollowTerrain(Room):
             ]
             if not frontier:
                 break
-            cells.add(self._rng.choice(frontier))
+            cells.add(frontier[self._rng.integers(len(frontier))])
 
         # add outward‑facing spikes on ≈25 % of perimeter neighbours
         perimeter = [
@@ -141,7 +141,7 @@ class WallFollowTerrain(Room):
                 size=max(1, len(perimeter) // 4),
                 replace=False,
             )
-            cells.update(spikes)
+            cells.update(tuple(spike) for spike in spikes)
 
         # convert set → tight ndarray pattern
         rs, cs = zip(*cells, strict=False)

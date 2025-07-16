@@ -1,0 +1,24 @@
+defaults:
+  - /env/mettagrid/systematic_exploration/training/defaults@
+  - _self_
+
+sampling: 1
+
+game:
+  map_builder:
+    _target_: metta.mettagrid.room.systematic_exploration.wallfollow_sparse.WallFollowSparseTerrain
+
+    # Arena size
+    width: 120
+    height: 120
+    agents: ${..num_agents}
+    seed: ${int:${uniform:0,100000}}
+
+    # Task objects
+    objects:
+      altar: 25          # same nominal count as other tasks
+
+  objects:
+    altar:
+      cooldown: 255
+      initial_resource_count: 1
