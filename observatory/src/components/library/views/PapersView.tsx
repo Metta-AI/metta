@@ -2,17 +2,15 @@
  * PapersView Component
  * 
  * Displays a comprehensive table of papers with sorting, filtering, and interactive features.
- * This component handles the papers view of the library, showing papers in a table format
- * with various metadata and user interactions.
+ * This component uses native table semantics with sticky positioning for frozen columns,
+ * providing robust cross-browser compatibility and proper accessibility.
  * 
- * The papers table includes:
- * - Paper titles with star/favorite functionality
- * - Author links to scholar profiles (clickable for overlays)
- * - Institution links to institution profiles (clickable for overlays)
- * - Research tags for categorization (clickable to filter)
- * - User avatars showing who has read or queued the paper
- * - External links to paper sources
- * - Star ratings and counts
+ * Implementation Details:
+ * - Native <table> wrapped in scroll container with overflow: auto
+ * - <colgroup> with <col> elements for column width management
+ * - position: sticky for frozen header row and first column
+ * - Absolutely positioned resize handles on each column
+ * - Semantic table structure maintained for accessibility
  * 
  * Features:
  * - Sortable columns (all columns are clickable to sort)
@@ -20,8 +18,10 @@
  * - Clickable tags that apply search filters
  * - Clickable authors and institutions that show overlays
  * - User hover cards showing user details
- * - Responsive table design with horizontal scrolling
+ * - Frozen title column with horizontal scrolling for other columns
+ * - All columns individually resizable with proper handles
  * - Links to related scholars and institutions
+ * - Hover tooltips for long titles
  * 
  * Usage Example:
  * ```tsx
@@ -34,8 +34,27 @@
  * ```
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import { UserHoverCard } from '../cards/UserHoverCard';
+import { PaperOverlay } from '../cards/PaperOverlay';
+
+/**
+ * Utility function to validate if a string is a valid URL
+ * @param url - The URL string to validate
+ * @returns boolean indicating if the URL is valid
+ */
+const isValidUrl = (url: string): boolean => {
+    if (!url || typeof url !== 'string') {
+        return false;
+    }
+    
+    try {
+        const urlObj = new URL(url);
+        return urlObj.protocol === 'http:' || urlObj.protocol === 'https:';
+    } catch {
+        return false;
+    }
+};
 
 /**
  * Defines the structure of a paper object
@@ -104,10 +123,25 @@ interface PapersViewProps {
 }
 
 /**
+ * Column configuration for the table
+ */
+interface ColumnConfig {
+    key: string;
+    label: string;
+    width: number;
+    minWidth: number;
+    maxWidth: number;
+    sortable: boolean;
+    sticky?: boolean; // For frozen column
+    renderHeader: (sortIndicator: React.ReactNode) => React.ReactNode;
+    renderCell: (paper: Paper) => React.ReactNode;
+}
+
+/**
  * PapersView Component
  * 
- * Renders a comprehensive table of papers with sorting, user interactions, and metadata display.
- * The component manages its own sorting state and user hover interactions.
+ * Renders a comprehensive table of papers using native table semantics
+ * with sticky positioning for frozen columns and proper accessibility.
  */
 export function PapersView({
     papers,
@@ -163,6 +197,120 @@ export function PapersView({
      * State for loading indicator during filtering/sorting operations
      */
     const [isLoading, setIsLoading] = useState(false);
+
+    /**
+     * State for column widths (all resizable)
+     * Title column: 400px (frozen)
+     * Other columns: reasonable defaults
+     */
+    const [columnWidths, setColumnWidths] = useState({
+        title: 400,
+        tags: 300,
+        readBy: 120,
+        link: 80,
+        queued: 120,
+        stars: 80
+    });
+
+    /**
+     * Drag state for column resizing
+     */
+    const [isDragging, setIsDragging] = useState(false);
+    const isDraggingRef = useRef(false);
+    const dragStartX = useRef(0);
+    const dragStartWidth = useRef(0);
+    const [mouseX, setMouseX] = useState(0);
+    const draggedColumnRef = useRef<string | null>(null);
+    const tableRef = useRef<HTMLTableElement>(null);
+
+    /**
+     * State for hover tooltip
+     */
+    const [hoveredTitle, setHoveredTitle] = useState<{ text: string, position: { x: number, y: number } } | null>(null);
+
+    /**
+     * State for paper overlay
+     */
+    const [selectedPaper, setSelectedPaper] = useState<Paper | null>(null);
+
+    /**
+     * Handle mouse down on any column resize handle
+     */
+    const handleMouseDown = useCallback((e: React.MouseEvent, columnName: string) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragging(true);
+        isDraggingRef.current = true;
+        draggedColumnRef.current = columnName;
+        dragStartX.current = e.clientX;
+        dragStartWidth.current = columnWidths[columnName as keyof typeof columnWidths];
+        
+        // Add global mouse event listeners
+        document.addEventListener('mousemove', handleMouseMove);
+        document.addEventListener('mouseup', handleMouseUp);
+    }, [columnWidths]);
+
+    /**
+     * Handle mouse move during column resize
+     */
+    const handleMouseMove = useCallback((e: MouseEvent) => {
+        if (!isDraggingRef.current || !draggedColumnRef.current) {
+            return;
+        }
+        
+        const deltaX = e.clientX - dragStartX.current;
+        const newWidth = Math.max(100, Math.min(800, dragStartWidth.current + deltaX));
+        
+        setColumnWidths(prev => ({
+            ...prev,
+            [draggedColumnRef.current!]: newWidth
+        }));
+        setMouseX(e.clientX);
+    }, []);
+
+    /**
+     * Handle mouse up to end column resize
+     */
+    const handleMouseUp = useCallback(() => {
+        setIsDragging(false);
+        isDraggingRef.current = false;
+        draggedColumnRef.current = null;
+        document.removeEventListener('mousemove', handleMouseMove);
+        document.removeEventListener('mouseup', handleMouseUp);
+    }, [handleMouseMove]);
+
+    /**
+     * Cleanup event listeners on unmount
+     */
+    useEffect(() => {
+        return () => {
+            document.removeEventListener('mousemove', handleMouseMove);
+            document.removeEventListener('mouseup', handleMouseUp);
+        };
+    }, []); // Empty dependency array since we only need cleanup on unmount
+
+    /**
+     * Handle title hover for tooltip
+     */
+    const handleTitleHover = useCallback((e: React.MouseEvent, title: string) => {
+        const element = e.currentTarget as HTMLElement;
+        const rect = element.getBoundingClientRect();
+        
+        // Only show tooltip if text is truncated
+        if (element.scrollWidth > element.clientWidth) {
+            setHoveredTitle({
+                text: title,
+                position: { x: rect.left + rect.width / 2, y: rect.bottom + 5 }
+            });
+        }
+    }, []);
+
+    /**
+     * Handle title leave to hide tooltip
+     */
+    const handleTitleLeave = useCallback(() => {
+        setHoveredTitle(null);
+    }, []);
 
     /**
      * Filter and sort papers based on current filters and search query
@@ -249,72 +397,61 @@ export function PapersView({
                     bValue = Array.isArray(b.queued) ? b.queued.length : 0;
                     break;
                 case 'stars':
-                    aValue = a.stars;
-                    bValue = b.stars;
+                    // Sort by star count
+                    aValue = a.stars || 0;
+                    bValue = b.stars || 0;
                     break;
                 default:
-                    return 0;
+                    aValue = a.title.toLowerCase();
+                    bValue = b.title.toLowerCase();
             }
             
-            if (aValue < bValue) return papersSort.dir === 'asc' ? -1 : 1;
-            if (aValue > bValue) return papersSort.dir === 'asc' ? 1 : -1;
+            // Handle string comparison
+            if (typeof aValue === 'string' && typeof bValue === 'string') {
+                return papersSort.dir === 'asc' 
+                    ? aValue.localeCompare(bValue)
+                    : bValue.localeCompare(aValue);
+            }
+            
+            // Handle number comparison
+            if (typeof aValue === 'number' && typeof bValue === 'number') {
+                return papersSort.dir === 'asc' ? aValue - bValue : bValue - aValue;
+            }
+            
             return 0;
         });
-    }, [papers, scholars, institutions, searchQuery, showOnlyStarred, papersSort]);
+    }, [papers, searchQuery, showOnlyStarred, papersSort, scholars, institutions]);
 
     /**
-     * Handles sorting when a column header is clicked
-     * 
-     * When a user clicks a sortable column header:
-     * - If it's the same column, we toggle the sort direction
-     * - If it's a different column, we switch to that column and set ascending order
-     * 
-     * @param col - The column name to sort by (e.g., 'title', 'authors', 'stars')
+     * Handle column sorting
      */
     const handleSort = (col: string) => {
-        setPapersSort(prev => {
-            // If clicking the same column, toggle direction
-            if (prev.col === col) {
-                return { col, dir: prev.dir === 'asc' ? 'desc' : 'asc' };
-            }
-            // If clicking a different column, switch to it with ascending order
-            return { col, dir: 'asc' };
-        });
+        setPapersSort(prev => ({
+            col,
+            dir: prev.col === col && prev.dir === 'asc' ? 'desc' : 'asc'
+        }));
     };
 
     /**
-     * Handles mouse enter events on user avatars
-     * Shows a hover card with user details at the calculated position
-     * 
-     * @param e - The mouse event from the avatar element
-     * @param user - The user object to display in the hover card
+     * Handle user hover for hover cards
      */
     const handleUserHover = (e: React.MouseEvent<HTMLElement>, user: any) => {
         const rect = e.currentTarget.getBoundingClientRect();
         setHoveredUser({
             user,
-            position: {
-                x: rect.right + 8, // Position hover card to the right of the avatar
-                y: rect.top // Align with the top of the avatar
-            }
+            position: { x: rect.left, y: rect.bottom + 5 }
         });
     };
 
     /**
-     * Handles mouse leave events on user avatars
-     * Hides the hover card when mouse leaves the avatar
+     * Handle user leave to hide hover cards
      */
     const handleUserLeave = () => {
         setHoveredUser(null);
     };
 
     /**
-     * Handles clicking on a tag to apply it as a search filter
-     * 
-     * When a user clicks on a tag, it writes the tag text into the search box
-     * and applies the filter to show papers with that tag
-     * 
-     * @param tag - The tag text to apply as a search filter
+     * Handle tag click to apply search filter
      */
     const handleTagClick = (tag: string) => {
         if (!tag || typeof tag !== 'string') {
@@ -322,18 +459,19 @@ export function PapersView({
             return;
         }
         
+        const trimmedTag = tag.trim();
+        if (!trimmedTag) {
+            console.warn('Empty tag provided to handleTagClick');
+            return;
+        }
+        
         if (onSearchChange) {
-            onSearchChange(tag);
+            onSearchChange(trimmedTag);
         }
     };
 
     /**
-     * Handles clicking on an author to show their overlay
-     * 
-     * When a user clicks on an author name, it shows the scholar overlay
-     * instead of navigating to a URL
-     * 
-     * @param authorId - The ID of the author to show in the overlay
+     * Handle author click to show scholar overlay
      */
     const handleAuthorClick = (authorId: string) => {
         if (!authorId || typeof authorId !== 'string') {
@@ -347,12 +485,7 @@ export function PapersView({
     };
 
     /**
-     * Handles clicking on an institution to show its overlay
-     * 
-     * When a user clicks on an institution name, it shows the institution overlay
-     * instead of navigating to a URL
-     * 
-     * @param institutionId - The ID of the institution to show in the overlay
+     * Handle institution click to show institution overlay
      */
     const handleInstitutionClick = (institutionId: string) => {
         if (!institutionId || typeof institutionId !== 'string') {
@@ -366,12 +499,39 @@ export function PapersView({
     };
 
     /**
-     * Renders a user avatar with hover functionality
-     * 
-     * @param user - The user object to display
-     * @param bgColor - Background color class for the avatar
-     * @param textColor - Text color class for the avatar
-     * @returns JSX element for the user avatar
+     * Handle paper title click to show paper overlay
+     */
+    const handlePaperClick = (paper: Paper) => {
+        if (!paper || typeof paper !== 'object' || !paper.id) {
+            console.warn('Invalid paper object provided to handlePaperClick:', paper);
+            return;
+        }
+        
+        setSelectedPaper(paper);
+    };
+
+    /**
+     * Handle paper overlay close
+     */
+    const handlePaperOverlayClose = () => {
+        setSelectedPaper(null);
+    };
+
+    /**
+     * Handle toggle queue status
+     */
+    const handleToggleQueue = (paperId: string) => {
+        if (!paperId || typeof paperId !== 'string') {
+            console.warn('Invalid paperId provided to handleToggleQueue:', paperId);
+            return;
+        }
+        
+        // TODO: Implement queue toggle functionality
+        console.log('Toggle queue for paper:', paperId);
+    };
+
+    /**
+     * Render user avatar with hover functionality
      */
     const renderUserAvatar = (user: any, bgColor: string, textColor: string) => {
         // Defensive programming: validate user object
@@ -383,67 +543,247 @@ export function PapersView({
         const userName = user.name || 'Unknown User';
         const userId = user.id || 'unknown';
         
+        // Safely generate initials
+        const initials = typeof userName === 'string' 
+            ? userName.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)
+            : '??';
+        
         return (
-            <span
+            <div
                 key={userId}
-                className={`inline-flex items-center justify-center w-6 h-6 rounded-full ${bgColor} ${textColor} text-xs font-bold border-2 border-white cursor-pointer`}
-                title={userName}
+                className={`w-6 h-6 rounded-full ${bgColor} ${textColor} text-xs font-medium flex items-center justify-center cursor-pointer border border-white hover:scale-110 transition-transform`}
                 onMouseEnter={(e) => handleUserHover(e, user)}
                 onMouseLeave={handleUserLeave}
+                title={userName}
             >
-                {user.avatar}
-            </span>
+                {user.avatar || initials}
+            </div>
         );
     };
 
     /**
-     * Renders a sort indicator for table headers
-     * 
-     * @param columnName - The name of the column to check for sort indicator
-     * @returns JSX element for the sort indicator
+     * Render sort indicator for column headers
      */
     const renderSortIndicator = (columnName: string) => (
-        <span className="ml-1 align-middle">
-            {papersSort.col === columnName ? (papersSort.dir === 'asc' ? '▲' : '▼') : ''}
+        <span className="ml-1">
+            {papersSort.col === columnName ? (
+                papersSort.dir === 'asc' ? '↑' : '↓'
+            ) : (
+                <span className="text-gray-400">↕</span>
+            )}
         </span>
     );
 
     /**
-     * Highlights matching text in a string based on the current search query
-     * 
-     * This function splits the text by the search query and wraps matching parts
-     * in a yellow background highlight span
-     * 
-     * @param text - The text to highlight
-     * @param query - The search query to highlight
-     * @returns JSX element with highlighted text
+     * Highlight search query in text
      */
     const highlightText = (text: string, query: string) => {
-        if (!query.trim() || !text) {
+        if (!text || typeof text !== 'string') {
             return text;
         }
         
-        const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        const regex = new RegExp(`(${escapedQuery})`, 'gi');
-        const parts = text.split(regex);
+        if (!query || typeof query !== 'string' || !query.trim()) {
+            return text;
+        }
         
-        return parts.map((part, index) => {
-            // Check if this part matches the query (case-insensitive)
-            if (part.toLowerCase() === query.toLowerCase()) {
-                return (
-                    <span key={index} className="bg-yellow-200 px-0.5 rounded">
-                        {part}
-                    </span>
-                );
-            }
-            return part;
-        });
+        try {
+            const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const parts = text.split(new RegExp(`(${escapedQuery})`, 'gi'));
+            return parts.map((part, index) => {
+                // Check if this part matches the query (case-insensitive)
+                if (part.toLowerCase() === query.toLowerCase()) {
+                    return (
+                        <span key={index} className="bg-yellow-200 px-0.5 rounded">
+                            {part}
+                        </span>
+                    );
+                }
+                return part;
+            });
+        } catch (error) {
+            console.warn('Error highlighting text:', error);
+            return text;
+        }
     };
 
-    return (
-        <div className="p-6">
-            <div className="max-w-6xl mx-auto">
+    /**
+     * Column configurations for the table
+     */
+    const columnConfigs: ColumnConfig[] = useMemo(() => [
+        {
+            key: 'title',
+            label: 'Title',
+            width: columnWidths.title,
+            minWidth: 200,
+            maxWidth: 800,
+            sortable: true,
+            sticky: true, // Frozen column
+            renderHeader: (sortIndicator) => (
+                <div className="flex items-center justify-between">
+                    <span>Title</span>
+                    {sortIndicator}
+                </div>
+            ),
+            renderCell: (paper) => (
+                <div className="flex items-center gap-2">
+                    <button 
+                        onClick={() => onToggleStar(paper.id)} 
+                        className="focus:outline-none hover:scale-110 transition-transform flex-shrink-0"
+                        aria-label={paper.starred ? 'Remove from favorites' : 'Add to favorites'}
+                    >
+                        {paper.starred ? (
+                            <svg className="w-4 h-4 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
+                                <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.286 3.967a1 1 0 00.95.69h4.175c.969 0 1.371 1.24.588 1.81l-3.38 2.455a1 1 0 00-.364 1.118l1.287 3.966c.3.922-.755 1.688-1.54 1.118l-3.38-2.454a1 1 0 00-1.175 0l-3.38 2.454c-.784.57-1.838-.196-1.54-1.118l1.287-3.966a1 1 0 00-.364-1.118L2.05 9.394c-.783-.57-.38-1.81.588-1.81h4.175a1 1 0 00.95-.69l1.286-3.967z"/>
+                            </svg>
+                        ) : (
+                            <svg className="w-4 h-4 text-gray-300 hover:text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 20 20">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 15l-5.878 3.09 1.122-6.545L.488 6.91l6.564-.955L10 0l2.948 5.955 6.564.955-4.756 4.635 1.122 6.545z"/>
+                            </svg>
+                        )}
+                    </button>
+                    <button
+                        className="truncate block text-left hover:text-primary-600 transition-colors"
+                        onMouseEnter={(e) => handleTitleHover(e, paper.title)}
+                        onMouseLeave={handleTitleLeave}
+                        onClick={() => handlePaperClick(paper)}
+                        title={paper.title}
+                    >
+                        {highlightText(paper.title, searchQuery)}
+                    </button>
+                </div>
+            )
+        },
+        {
+            key: 'tags',
+            label: 'Tags',
+            width: columnWidths.tags,
+            minWidth: 100,
+            maxWidth: 300,
+            sortable: true,
+            renderHeader: (sortIndicator) => (
+                <div className="flex items-center justify-between">
+                    <span>Tags</span>
+                    {sortIndicator}
+                </div>
+            ),
+            renderCell: (paper) => (
+                <div className="whitespace-nowrap">
+                    {paper.tags.map((tag, idx) => (
+                        <button
+                            key={idx}
+                            onClick={() => handleTagClick(tag)}
+                            className="inline-block bg-gray-100 text-gray-700 text-xs rounded-full px-2 py-0.5 mr-1 mb-0.5 hover:bg-gray-200 hover:text-gray-800 transition-colors cursor-pointer"
+                            title={`Click to filter by "${tag}"`}
+                        >
+                            {highlightText(tag, searchQuery)}
+                        </button>
+                    ))}
+                </div>
+            )
+        },
+        {
+            key: 'readBy',
+            label: 'Read by',
+            width: columnWidths.readBy,
+            minWidth: 100,
+            maxWidth: 200,
+            sortable: true,
+            renderHeader: (sortIndicator) => (
+                <div className="flex items-center justify-between">
+                    <span>Read by</span>
+                    {sortIndicator}
+                </div>
+            ),
+            renderCell: (paper) => (
+                <div className="flex -space-x-2">
+                    {Array.isArray(paper.readBy) && paper.readBy.length > 0 ? 
+                        paper.readBy.map((user: any) => 
+                            renderUserAvatar(user, 'bg-primary-200', 'text-primary-800')
+                        ) : null
+                    }
+                </div>
+            )
+        },
+        {
+            key: 'link',
+            label: 'Link',
+            width: columnWidths.link,
+            minWidth: 60,
+            maxWidth: 100,
+            sortable: false,
+            renderHeader: () => <span>Link</span>,
+            renderCell: (paper) => (
+                paper.link && isValidUrl(paper.link) ? (
+                    <a 
+                        href={paper.link} 
+                        target="_blank" 
+                        rel="noopener noreferrer" 
+                        className="text-primary-500 hover:text-primary-600"
+                        aria-label="Open paper in new tab"
+                    >
+                        <svg className="w-4 h-4 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 3h7v7m0 0L10 21l-7-7 11-11z"/>
+                        </svg>
+                    </a>
+                ) : null
+            )
+        },
+        {
+            key: 'queued',
+            label: 'Queued',
+            width: columnWidths.queued,
+            minWidth: 100,
+            maxWidth: 200,
+            sortable: true,
+            renderHeader: (sortIndicator) => (
+                <div className="flex items-center justify-between">
+                    <span>Queued</span>
+                    {sortIndicator}
+                </div>
+            ),
+            renderCell: (paper) => (
+                <div className="flex -space-x-2">
+                    {Array.isArray(paper.queued) && paper.queued.length > 0 ? 
+                        paper.queued.map((user: any) => 
+                            renderUserAvatar(user, 'bg-primary-100', 'text-primary-700')
+                        ) : null
+                    }
+                </div>
+            )
+        },
+        {
+            key: 'stars',
+            label: 'Stars',
+            width: columnWidths.stars,
+            minWidth: 60,
+            maxWidth: 100,
+            sortable: true,
+            renderHeader: (sortIndicator) => (
+                <div className="flex items-center justify-between">
+                    <span>Stars</span>
+                    {sortIndicator}
+                </div>
+            ),
+            renderCell: (paper) => (
+                <div className="text-center">
+                    {paper.stars > 0 ? (
+                        <div className="relative inline-flex items-center justify-center">
+                            <svg className="w-8 h-8 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
+                                <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.286 3.967a1 1 0 00.95.69h4.175c.969 0 1.371 1.24.588 1.81l-3.38 2.455a1 1 0 00-.364 1.118l1.287 3.966c.3.922-.755 1.688-1.54 1.118l-3.38-2.454a1 1 0 00-1.175 0l-3.38 2.454c-.784.57-1.838-.196-1.54-1.118l1.287-3.966a1 1 0 00-.364-1.118L2.05 9.394c-.783-.57-.38-1.81.588-1.81h4.175a1 1 0 00.95-.69l1.286-3.967z"/>
+                            </svg>
+                            <span className="absolute text-sm font-medium text-black">
+                                {paper.stars}
+                            </span>
+                        </div>
+                    ) : null}
+                </div>
+            )
+        }
+    ], [columnWidths, papersSort, searchQuery, scholars, institutions, onToggleStar, handleTitleHover, handleTitleLeave, handleAuthorClick, handleInstitutionClick, handleTagClick, renderUserAvatar, highlightText]);
 
+    return (
+        <div className="p-4">
+            <div className="w-full px-2">
                 {/* Filter and Sort Controls */}
                 <div className="mb-6 space-y-4">
                     {/* Search Input */}
@@ -479,11 +819,10 @@ export function PapersView({
                             <span className="text-sm text-gray-700">Show only starred</span>
                         </label>
                     </div>
-
                 </div>
                 
-                {/* Papers Table */}
-                <div className="overflow-x-auto relative">
+                {/* Papers Table Container */}
+                <div className="relative">
                     {/* Loading indicator */}
                     {isLoading && (
                         <div className="absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center z-20">
@@ -498,215 +837,144 @@ export function PapersView({
                             position={hoveredUser.position} 
                         />
                     )}
+
+                    {/* Title Tooltip - positioned absolutely based on mouse position */}
+                    {hoveredTitle && (
+                        <div 
+                            className="absolute z-30 bg-gray-900 text-white text-sm px-3 py-2 rounded-lg shadow-lg max-w-md break-words"
+                            style={{
+                                left: hoveredTitle.position.x,
+                                top: hoveredTitle.position.y,
+                                transform: 'translateX(-50%)'
+                            }}
+                        >
+                            {hoveredTitle.text}
+                        </div>
+                    )}
+
+                    {/* Width indicator during drag */}
+                    {isDragging && draggedColumnRef.current && (
+                        <div 
+                            className="fixed z-50 bg-blue-500 text-white text-xs px-2 py-1 rounded pointer-events-none"
+                            style={{
+                                left: mouseX,
+                                top: 10
+                            }}
+                        >
+                            {columnWidths[draggedColumnRef.current as keyof typeof columnWidths]}px
+                        </div>
+                    )}
+
+                    {/* Paper Overlay */}
+                    {selectedPaper && (
+                        <PaperOverlay
+                            paper={selectedPaper}
+                            scholars={scholars}
+                            institutions={institutions}
+                            onToggleStar={onToggleStar}
+                            onToggleQueue={handleToggleQueue}
+                            onShowAuthorOverlay={onShowScholarOverlay || (() => {})}
+                            onShowInstitutionOverlay={onShowInstitutionOverlay || (() => {})}
+                            onClose={handlePaperOverlayClose}
+                        />
+                    )}
                     
-                    {/* Main Table */}
-                    <table className="min-w-full bg-white border border-gray-200 rounded-lg text-sm">
-                        <thead>
-                            <tr className="bg-gray-50">
-                                {/* Title Column - sortable, sticky left */}
-                                <th 
-                                    className="px-4 py-2 text-left cursor-pointer hover:bg-gray-100 transition-colors sticky left-0 z-10 bg-white border-r border-gray-200" 
-                                    onClick={() => handleSort('title')}
-                                >
-                                    Title
-                                    {renderSortIndicator('title')}
-                                </th>
-                                
-                                {/* Authors Column - sortable */}
-                                <th 
-                                    className="px-4 py-2 text-left cursor-pointer hover:bg-gray-100 transition-colors" 
-                                    onClick={() => handleSort('authors')}
-                                >
-                                    Authors
-                                    {renderSortIndicator('authors')}
-                                </th>
-                                
-                                {/* Institutions Column - sortable */}
-                                <th 
-                                    className="px-4 py-2 text-left cursor-pointer hover:bg-gray-100 transition-colors" 
-                                    onClick={() => handleSort('institutions')}
-                                >
-                                    Institutions
-                                    {renderSortIndicator('institutions')}
-                                </th>
-                                
-                                {/* Tags Column - sortable */}
-                                <th 
-                                    className="px-4 py-2 text-left cursor-pointer hover:bg-gray-100 transition-colors" 
-                                    onClick={() => handleSort('tags')}
-                                >
-                                    Tags
-                                    {renderSortIndicator('tags')}
-                                </th>
-                                
-                                {/* Read by Column - sortable */}
-                                <th 
-                                    className="px-4 py-2 text-left cursor-pointer hover:bg-gray-100 transition-colors" 
-                                    onClick={() => handleSort('readBy')}
-                                >
-                                    Read by
-                                    {renderSortIndicator('readBy')}
-                                </th>
-                                
-                                {/* Link Column - not sortable */}
-                                <th className="px-4 py-2 text-left">Link</th>
-                                
-                                {/* Queued Column - sortable */}
-                                <th 
-                                    className="px-4 py-2 text-left cursor-pointer hover:bg-gray-100 transition-colors" 
-                                    onClick={() => handleSort('queued')}
-                                >
-                                    Queued
-                                    {renderSortIndicator('queued')}
-                                </th>
-                                
-                                {/* Stars Column - sortable */}
-                                <th 
-                                    className="px-4 py-2 text-left cursor-pointer hover:bg-gray-100 transition-colors" 
-                                    onClick={() => handleSort('stars')}
-                                >
-                                    Stars
-                                    {renderSortIndicator('stars')}
-                                </th>
-                            </tr>
-                        </thead>
-                        
-                        <tbody>
-                            {filteredAndSortedPapers.map(paper => {
-                                // Validate paper object before rendering
-                                if (!paper || typeof paper !== 'object' || !paper.id) {
-                                    console.warn('Invalid paper object found:', paper);
-                                    return null;
-                                }
-                                
-                                return (
-                                <tr key={paper.id} className="border-t border-gray-100 hover:bg-gray-50">
-                                    {/* Title Cell - sticky left with star button */}
-                                    <td className="px-4 py-2 whitespace-nowrap flex items-center gap-2 sticky left-0 z-10 bg-white border-r border-gray-200">
-                                        <button 
-                                            onClick={() => onToggleStar(paper.id)} 
-                                            className="focus:outline-none hover:scale-110 transition-transform"
-                                            aria-label={paper.starred ? 'Remove from favorites' : 'Add to favorites'}
+                    {/* Scroll Container with Table */}
+                    <div className="overflow-auto border border-gray-200 rounded-lg">
+                        <table 
+                            ref={tableRef}
+                            className="w-full bg-white text-sm"
+                            style={{ tableLayout: 'fixed' }}
+                        >
+                            {/* Column Group for Width Management */}
+                            <colgroup>
+                                {columnConfigs.map((config) => (
+                                    <col 
+                                        key={config.key}
+                                        style={{ width: `${config.width}px` }}
+                                    />
+                                ))}
+                            </colgroup>
+                            
+                            {/* Table Header */}
+                            <thead>
+                                <tr className="bg-gray-50">
+                                    {columnConfigs.map((config) => (
+                                        <th 
+                                            key={config.key}
+                                            className={`px-4 py-2 text-left relative ${
+                                                config.sticky 
+                                                    ? 'sticky left-0 z-10 bg-gray-50' 
+                                                    : ''
+                                            } ${
+                                                config.sortable 
+                                                    ? 'cursor-pointer hover:bg-gray-100 transition-colors' 
+                                                    : ''
+                                            }`}
+                                            style={{
+                                                position: config.sticky ? 'sticky' : 'static',
+                                                left: config.sticky ? 0 : 'auto',
+                                                top: 0,
+                                                zIndex: config.sticky ? 10 : 'auto'
+                                            }}
+                                            onClick={() => {
+                                                if (config.sortable && !isDragging) {
+                                                    handleSort(config.key);
+                                                }
+                                            }}
                                         >
-                                            {paper.starred ? (
-                                                <svg className="w-4 h-4 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
-                                                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.286 3.967a1 1 0 00.95.69h4.175c.969 0 1.371 1.24.588 1.81l-3.38 2.455a1 1 0 00-.364 1.118l1.287 3.966c.3.922-.755 1.688-1.54 1.118l-3.38-2.454a1 1 0 00-1.175 0l-3.38 2.454c-.784.57-1.838-.196-1.54-1.118l1.287-3.966a1 1 0 00-.364-1.118L2.05 9.394c-.783-.57-.38-1.81.588-1.81h4.175a1 1 0 00.95-.69l1.286-3.967z"/>
-                                                </svg>
-                                            ) : (
-                                                <svg className="w-4 h-4 text-gray-300 hover:text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 20 20">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 15l-5.878 3.09 1.122-6.545L.488 6.91l6.564-.955L10 0l2.948 5.955 6.564.955-4.756 4.635 1.122 6.545z"/>
-                                                </svg>
-                                            )}
-                                        </button>
-                                        <span>{highlightText(paper.title, searchQuery)}</span>
-                                    </td>
-                                    
-                                    {/* Authors Cell - clickable links to scholar overlays */}
-                                    <td className="px-4 py-2 whitespace-nowrap">
-                                        {paper.authors.map((authorId: string, idx: number) => {
-                                            const author = scholars.find(s => s.id === authorId);
-                                            if (!author) {
-                                                console.warn(`Scholar with ID "${authorId}" not found for paper "${paper.title}"`);
-                                                return (
-                                                    <span key={`unknown-${authorId}-${idx}`} className="text-gray-400 italic mr-1">
-                                                        Unknown Author{idx < paper.authors.length - 1 ? ',' : ''}
-                                                    </span>
-                                                );
-                                            }
-                                            return (
-                                                <button
-                                                    key={author.id}
-                                                    onClick={() => handleAuthorClick(author.id)}
-                                                    className="text-primary-600 hover:text-primary-700 hover:underline mr-1 cursor-pointer bg-transparent border-none p-0 font-inherit"
-                                                >
-                                                    {highlightText(author.name, searchQuery)}{idx < paper.authors.length - 1 ? ',' : ''}
-                                                </button>
-                                            );
-                                        })}
-                                    </td>
-                                    
-                                    {/* Institutions Cell - clickable links to institution overlays */}
-                                    <td className="px-4 py-2 whitespace-nowrap">
-                                        {paper.institutions.map((affId: string, idx: number) => {
-                                            const aff = institutions.find(a => a.id === affId);
-                                            if (!aff) {
-                                                console.warn(`Institution with ID "${affId}" not found for paper "${paper.title}"`);
-                                                return (
-                                                    <span key={`unknown-${affId}-${idx}`} className="text-gray-400 italic mr-1">
-                                                        Unknown Institution{idx < paper.institutions.length - 1 ? ',' : ''}
-                                                    </span>
-                                                );
-                                            }
-                                            return (
-                                                <button
-                                                    key={aff.id}
-                                                    onClick={() => handleInstitutionClick(aff.id)}
-                                                    className="text-primary-600 hover:text-primary-700 hover:underline mr-1 cursor-pointer bg-transparent border-none p-0 font-inherit"
-                                                >
-                                                    {highlightText(aff.label, searchQuery)}{idx < paper.institutions.length - 1 ? ',' : ''}
-                                                </button>
-                                            );
-                                        })}
-                                    </td>
-                                    
-                                    {/* Tags Cell - clickable research area tags */}
-                                    <td className="px-4 py-2 whitespace-nowrap">
-                                        {paper.tags.map((tag, idx) => (
-                                            <button
-                                                key={idx}
-                                                onClick={() => handleTagClick(tag)}
-                                                className="inline-block bg-gray-100 text-gray-700 text-xs rounded-full px-2 py-0.5 mr-1 mb-0.5 hover:bg-gray-200 hover:text-gray-800 transition-colors cursor-pointer"
-                                                title={`Click to filter by "${tag}"`}
-                                            >
-                                                {highlightText(tag, searchQuery)}
-                                            </button>
-                                        ))}
-                                    </td>
-                                    
-                                    {/* Read By Cell - user avatars with hover cards */}
-                                    <td className="px-4 py-2 whitespace-nowrap">
-                                        <div className="flex -space-x-2">
-                                            {Array.isArray(paper.readBy) && paper.readBy.length > 0 ? 
-                                                paper.readBy.map((user: any) => 
-                                                    renderUserAvatar(user, 'bg-primary-200', 'text-primary-800')
-                                                ) : null
-                                            }
-                                        </div>
-                                    </td>
-                                    
-                                    {/* Link Cell - external paper link */}
-                                    <td className="px-4 py-2 whitespace-nowrap">
-                                        <a 
-                                            href={paper.link} 
-                                            target="_blank" 
-                                            rel="noopener noreferrer" 
-                                            className="text-primary-500 hover:text-primary-600"
-                                            aria-label="Open paper in new tab"
-                                        >
-                                            <svg className="w-4 h-4 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 3h7v7m0 0L10 21l-7-7 11-11z"/>
-                                            </svg>
-                                        </a>
-                                    </td>
-                                    
-                                    {/* Queued Cell - user avatars for queued papers */}
-                                    <td className="px-4 py-2 whitespace-nowrap">
-                                        <div className="flex -space-x-2">
-                                            {Array.isArray(paper.queued) && paper.queued.length > 0 ? 
-                                                paper.queued.map((user: any) => 
-                                                    renderUserAvatar(user, 'bg-primary-100', 'text-primary-700')
-                                                ) : null
-                                            }
-                                        </div>
-                                    </td>
-                                    
-                                    {/* Stars Cell - star count */}
-                                    <td className="px-4 py-2 whitespace-nowrap text-center">{paper.stars}</td>
+                                            <div className="flex items-center justify-between">
+                                                {config.renderHeader(renderSortIndicator(config.key))}
+                                            </div>
+                                            {/* Resize handle */}
+                                            <div
+                                                className="absolute right-0 top-0 bottom-0 w-2 cursor-col-resize hover:bg-blue-400 transition-colors z-20"
+                                                onMouseDown={(e) => handleMouseDown(e, config.key)}
+                                                title="Drag to resize column"
+                                                style={{ 
+                                                    cursor: 'col-resize',
+                                                    userSelect: 'none'
+                                                }}
+                                            />
+                                        </th>
+                                    ))}
                                 </tr>
-                            );
-                            })}
-                        </tbody>
-                    </table>
+                            </thead>
+                            
+                            {/* Table Body */}
+                            <tbody>
+                                {filteredAndSortedPapers.map(paper => {
+                                    // Validate paper object before rendering
+                                    if (!paper || typeof paper !== 'object' || !paper.id) {
+                                        console.warn('Invalid paper object found:', paper);
+                                        return null;
+                                    }
+                                    
+                                    return (
+                                        <tr key={paper.id} className="border-t border-gray-100 hover:bg-gray-50">
+                                            {columnConfigs.map((config) => (
+                                                <td 
+                                                    key={config.key}
+                                                    className={`px-4 py-2 ${
+                                                        config.sticky 
+                                                            ? 'sticky left-0 z-10 bg-white' 
+                                                            : ''
+                                                    }`}
+                                                    style={{
+                                                        position: config.sticky ? 'sticky' : 'static',
+                                                        left: config.sticky ? 0 : 'auto',
+                                                        zIndex: config.sticky ? 10 : 'auto'
+                                                    }}
+                                                >
+                                                    {config.renderCell(paper)}
+                                                </td>
+                                            ))}
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>
