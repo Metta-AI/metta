@@ -1,41 +1,33 @@
 version: '3.8'
-
 services:
   eval-worker:
     build:
       context: ../../../../
-      dockerfile: app_backend/src/metta/app_backend/Dockerfile.eval-worker
-    platform: linux/amd64
+      dockerfile: devops/docker/Dockerfile
+      platforms:
+        - "linux/amd64"  # Force build for x86_64
+    platform: linux/amd64  # Force runtime platform
     image: metta/eval-worker:latest
-    # This service is just for building the image
-    # Actual workers are spawned by the orchestrator
     command: echo "Image built successfully"
 
   eval-worker-orchestrator:
     depends_on:
       - eval-worker
     image: metta/eval-worker:latest
-    platform: linux/amd64
+    platform: linux/amd64  # Force runtime platform
     environment:
       - BACKEND_URL=${BACKEND_URL:-http://host.docker.internal:8000}
       - WORKER_IDLE_TIMEOUT=${WORKER_IDLE_TIMEOUT:-600}
       - PYTHONPATH=/workspace/metta
       - TRAIN_DIR_HOST_PATH=/Users/nishadsingh/repos/metta2/train_dir
     volumes:
-      # Mount Docker socket for container management
       - /var/run/docker.sock:/var/run/docker.sock
-      # Mount train_dir for policy access
       - ../../../../train_dir:/workspace/train_dir
-      # Mount the code for development (optional, image already has code)
-      # - ../../../../:/workspace/metta
     command: [ "uv", "run", "python", "-m", "metta.app_backend.eval_task_orchestrator" ]
-    network_mode: "host" # Use host network to access backend on localhost
+    network_mode: "host"
     restart: unless-stopped
     logging:
       driver: "json-file"
       options:
         max-size: "10m"
         max-file: "3"
-
-volumes:
-  postgres_data:
