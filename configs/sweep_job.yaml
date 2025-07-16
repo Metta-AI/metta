@@ -4,7 +4,7 @@ defaults:
   - agent: fast
   - sim: sweep_eval
   - trainer: trainer
-  - sweep: quick
+  - sweep: full
   - _self_
 
 cmd: sweep
