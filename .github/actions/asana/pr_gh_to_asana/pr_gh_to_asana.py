@@ -16,9 +16,11 @@ import requests
 from common.github_asana_mapping import GithubAsanaMapping
 
 # Add the repo root to sys.path so 'common' can be imported
-repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "common"))
-if repo_root not in sys.path:
-    sys.path.insert(0, repo_root)
+common_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "common"))
+if common_dir not in sys.path:
+    sys.path.insert(0, common_dir)
+print(f"added common_dir: {common_dir}")
+print(f"sys.path: {sys.path}")
 
 ASANA_GITHUB_ATTACHMENT_ACTION_URL = "https://github.integrations.asana.plus/custom/v1/actions/widget"
 
