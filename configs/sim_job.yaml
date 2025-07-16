@@ -4,8 +4,8 @@ defaults:
   - sim: all
   - _self_
 
-run: testing_changing_observations
-policy_uri: "wandb://metta-research/metta/model/yudhister.testing_changing_observations:v11"
+run: null # Auto-generated if not provided
+policy_uri: ???
 
 sim_job:
   policy_uris:

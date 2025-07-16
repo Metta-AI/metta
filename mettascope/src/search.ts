@@ -55,11 +55,14 @@ function updateSearchDropdown() {
 }
 
 /** Update the search query and the search parts. */
-onEvent('input', "#search-input", () => {
+onEvent('input', '#search-input', () => {
   let target = find('#search-input') as HTMLInputElement
   search.query = target.value
   search.active = search.query.length > 0
-  search.parts = search.query.toLowerCase().split(' ').filter(part => part.length > 0)
+  search.parts = search.query
+    .toLowerCase()
+    .split(' ')
+    .filter((part) => part.length > 0)
   console.info('searchQuery:', search.query)
   updateSearchDropdown()
   requestFrame()

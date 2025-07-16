@@ -25,7 +25,7 @@ resources:
   image_id: docker:metta:latest
   job_recovery:
     strategy: EAGER_NEXT_REGION
-    max_restarts_on_errors: 1000
+    max_restarts_on_errors: 20
 
 setup: |
   set -e
