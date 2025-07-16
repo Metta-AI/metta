@@ -89,7 +89,7 @@ GameConfig CreateBenchmarkConfig(size_t num_agents) {
   global_obs_config.resource_rewards = true;
 
   return GameConfig(
-      num_agents, 10000, false, 11, 11, inventory_item_names, 100, global_obs_config, actions_cfg, objects_cfg);
+      num_agents, 10000, 0, false, 11, 11, inventory_item_names, 100, global_obs_config, actions_cfg, objects_cfg);
 }
 
 py::list CreateDefaultMap(size_t num_agents_per_team = 2) {
@@ -239,9 +239,7 @@ int main(int argc, char** argv) {
 
   // Register benchmarks after Python is initialized
   // Use Threads(1) to ensure single-threaded execution for Python GIL safety
-  ::benchmark::RegisterBenchmark("BM_MettaGridStep", BM_MettaGridStep)
-      ->Unit(benchmark::kMillisecond)
-      ->Threads(1);
+  ::benchmark::RegisterBenchmark("BM_MettaGridStep", BM_MettaGridStep)->Unit(benchmark::kMillisecond)->Threads(1);
 
   // Run benchmarks
   ::benchmark::RunSpecifiedBenchmarks();
