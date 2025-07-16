@@ -66,6 +66,7 @@ from metta.rl.trainer_config import (
     VTraceConfig,
 )
 from metta.sim.simulation import Simulation
+from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
 from metta.sim.simulation_suite import SimulationSuite
 
 # Set up logging
@@ -73,7 +74,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(levelna
 logger = logging.getLogger(__name__)
 
 # Define run name in a single place
-RUN_NAME = "bullm_functional_runpy_v1"
+RUN_NAME = "bullm_arena_functional_runpy_v1"
 
 # Set up directories and distributed training
 dirs = setup_run_directories()
@@ -81,7 +82,7 @@ device, is_master, world_size, rank = setup_distributed_training("cuda" if torch
 
 # Configuration using individual component configs
 # Note: batch_size must be >= total_agents * bptt_horizon
-# With navigation curriculum: 4 agents per env * many envs = ~2048 total agents
+# With arena curriculum: 4 agents per env * many envs = ~2048 total agents
 # Required batch_size >= 2048 * 64 (bptt_horizon) = 131072
 
 # Core training parameters
@@ -89,7 +90,7 @@ num_workers = 4
 total_timesteps = 10_000_000
 batch_size = 524288 if torch.cuda.is_available() else 131072  # 512k for GPU, 128k for CPU
 minibatch_size = 16384 if torch.cuda.is_available() else 4096  # 16k for GPU, 4k for CPU
-curriculum = "/env/mettagrid/curriculum/navigation/bucketed"
+curriculum = "/env/mettagrid/curriculum/arena/learning_progress"
 bptt_horizon = 64
 update_epochs = 1
 forward_pass_minibatch_target_size = 4096 if torch.cuda.is_available() else 2048
@@ -108,8 +109,8 @@ ppo_config = PPOConfig(
 )
 
 optimizer_config = OptimizerConfig(
-    type="adam",
-    learning_rate=3e-4,
+    type="muon",
+    learning_rate=4.5e-3,  # Arena-specific learning rate
 )
 
 checkpoint_config = CheckpointConfig(
@@ -119,7 +120,7 @@ checkpoint_config = CheckpointConfig(
 )
 
 simulation_config = SimulationConfig(
-    evaluate_interval=300,
+    evaluate_interval=50,  # Arena-specific evaluation interval
     replay_dir=dirs.replay_dir,
 )
 
@@ -167,8 +168,8 @@ if torch.distributed.is_initialized() and trainer_config.scale_batches_by_world_
 save_experiment_config(dirs, device, trainer_config)
 
 # Calculate batch sizes like trainer.py does
-# We need to know num_agents first, so let's assume 4 for navigation curriculum
-num_agents = 4  # Default for navigation tasks
+# We need to know num_agents first, so let's assume 4 for arena curriculum
+num_agents = 4  # Default for arena tasks
 target_batch_size, batch_size, num_envs = calculate_batch_sizes(
     forward_pass_minibatch_target_size=trainer_config.forward_pass_minibatch_target_size,
     num_agents=num_agents,
@@ -178,7 +179,7 @@ target_batch_size, batch_size, num_envs = calculate_batch_sizes(
 
 # Create environment
 env = Environment(
-    curriculum_path="/env/mettagrid/curriculum/navigation/bucketed",
+    curriculum_path="/env/mettagrid/curriculum/arena/learning_progress",
     num_agents=num_agents,
     width=32,
     height=32,
@@ -197,8 +198,65 @@ metta_grid_env = env.driver_env  # type: ignore - vecenv attribute
 agent = Agent(env, device=str(device))
 hidden_size, num_lstm_layers = get_lstm_config(agent)
 
-# Evaluation configuration
-evaluation_config = create_evaluation_config_suite()
+# Evaluation configuration for arena training
+# Create arena-specific evaluation configs
+base_arena_config = {
+    "sampling": 0,  # Disable sampling for evaluation
+    "num_agents": 4,
+    "width": 32,
+    "height": 32,
+}
+
+# Create evaluation configs for different arena tasks
+arena_simulations = {}
+
+# Basic arena evaluation
+arena_simulations["arena/basic"] = {
+    "env": "/env/mettagrid/arena/basic",
+    "num_episodes": 5,
+    "max_time_s": 30,
+    "env_overrides": {
+        "_pre_built_env_config": DictConfig(base_arena_config.copy()),
+    },
+}
+
+# Combat arena evaluation
+arena_simulations["arena/combat"] = {
+    "env": "/env/mettagrid/arena/combat",
+    "num_episodes": 5,
+    "max_time_s": 30,
+    "env_overrides": {
+        "_pre_built_env_config": DictConfig(base_arena_config.copy()),
+    },
+}
+
+# Advanced arena evaluation
+arena_simulations["arena/advanced"] = {
+    "env": "/env/mettagrid/arena/advanced",
+    "num_episodes": 5,
+    "max_time_s": 30,
+    "env_overrides": {
+        "_pre_built_env_config": DictConfig(base_arena_config.copy()),
+    },
+}
+
+# Tag arena evaluation
+arena_simulations["arena/tag"] = {
+    "env": "/env/mettagrid/arena/tag",
+    "num_episodes": 5,
+    "max_time_s": 30,
+    "env_overrides": {
+        "_pre_built_env_config": DictConfig(base_arena_config.copy()),
+    },
+}
+
+# Create arena evaluation suite config
+evaluation_config = SimulationSuiteConfig(
+    name="arena_evaluation",
+    simulations=arena_simulations,
+    num_episodes=10,  # Will be overridden by individual configs
+    env_overrides={},  # Suite-level overrides
+)
 
 # Initialize wandb if master
 # This uses the helper from api.py that handles all the wandb config setup
@@ -702,8 +760,23 @@ while agent_step < trainer_config.total_timesteps:
         if is_master and latest_saved_policy_record:
             logger.info(f"Generating replay at epoch {epoch}")
 
-            # Generate replay on the bucketed curriculum environment
-            replay_sim_config = create_replay_config("varied_terrain/balanced_medium")
+            # Generate replay on the arena environment
+            # Create arena replay config
+            arena_replay_config = {
+                "env": "/env/mettagrid/arena/basic",
+                "num_episodes": 1,
+                "max_time_s": 60,
+                "env_overrides": {
+                    "_pre_built_env_config": DictConfig({
+                        "sampling": 0,  # Disable sampling for replay
+                        "num_agents": 4,
+                        "width": 32,
+                        "height": 32,
+                    }),
+                },
+            }
+            
+            replay_sim_config = SingleEnvSimulationConfig(**arena_replay_config)
 
             replay_simulator = Simulation(
                 name=f"replay_{epoch}",
@@ -799,4 +872,4 @@ cleanup_distributed()
 
 # Clean up wandb if initialized
 if is_master:
-    cleanup_wandb(wandb_ctx) 
+    cleanup_wandb(wandb_ctx)

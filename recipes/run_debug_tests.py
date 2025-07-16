@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 
 import sys
-import numpy as np
 import tempfile
-import os
+
+import numpy as np
 from omegaconf import OmegaConf
+
 
 def test_learning_progress_algorithm():
     """Test the learning progress algorithm for issues"""
@@ -21,16 +22,16 @@ def test_learning_progress_algorithm():
             num_active_tasks=16,
             rand_task_rate=0.25,
             sample_threshold=10,
-            memory=25
+            memory=25,
         )
         print("✓ BidirectionalLearningProgress loads successfully")
 
         # Test with various scenarios
         scenarios = [
-            ('Random scores', lambda: np.random.random()),
-            ('Improving scores', lambda: min(1.0, np.random.random() * 0.5 + 0.5)),
-            ('Degrading scores', lambda: max(0.0, np.random.random() * 0.5)),
-            ('Stable scores', lambda: 0.5 + np.random.normal(0, 0.1)),
+            ("Random scores", lambda: np.random.random()),
+            ("Improving scores", lambda: min(1.0, np.random.random() * 0.5 + 0.5)),
+            ("Degrading scores", lambda: max(0.0, np.random.random() * 0.5)),
+            ("Stable scores", lambda: 0.5 + np.random.normal(0, 0.1)),
         ]
 
         for scenario_name, score_fn in scenarios:
@@ -44,29 +45,31 @@ def test_learning_progress_algorithm():
                 num_active_tasks=16,
                 rand_task_rate=0.25,
                 sample_threshold=10,
-                memory=25
+                memory=25,
             )
 
             # Collect data
             for i in range(50):
                 for task_id in range(12):
                     score = score_fn()
-                    lp.collect_data({f'tasks/{task_id}': [score]})
+                    lp.collect_data({f"tasks/{task_id}": [score]})
 
                 if i % 10 == 0:
                     try:
                         task_dist, sample_levels = lp.calculate_dist()
                         stats = lp.add_stats()
-                        print(f"  Step {i}: num_active={stats.get('lp/num_active_tasks', 0)}, "
-                              f"mean_prob={stats.get('lp/mean_sample_prob', 0):.3f}, "
-                              f"success_rate={stats.get('lp/task_success_rate', 0):.3f}")
+                        print(
+                            f"  Step {i}: num_active={stats.get('lp/num_active_tasks', 0)}, "
+                            f"mean_prob={stats.get('lp/mean_sample_prob', 0):.3f}, "
+                            f"success_rate={stats.get('lp/task_success_rate', 0):.3f}"
+                        )
 
                         # Check for issues
-                        if np.isnan(stats.get('lp/task_success_rate', 0)):
+                        if np.isnan(stats.get("lp/task_success_rate", 0)):
                             print(f"  ⚠️  Warning: NaN success rate in {scenario_name}")
-                        if stats.get('lp/num_active_tasks', 0) == 0:
+                        if stats.get("lp/num_active_tasks", 0) == 0:
                             print(f"  ⚠️  Warning: No active tasks in {scenario_name}")
-                        if stats.get('lp/mean_sample_prob', 0) == 0:
+                        if stats.get("lp/mean_sample_prob", 0) == 0:
                             print(f"  ⚠️  Warning: Zero sample probability in {scenario_name}")
 
                     except Exception as e:
@@ -82,15 +85,16 @@ def test_learning_progress_algorithm():
     except Exception as e:
         print(f"✗ Learning progress algorithm test failed: {e}")
         import traceback
+
         traceback.print_exc()
         return False
+
 
 def test_checkpoint_system():
     """Test the checkpoint system"""
     print("\nTest 2: Checkpoint System")
 
     try:
-        import torch
         from metta.rl.trainer_checkpoint import TrainerCheckpoint
 
         # Create a test checkpoint
@@ -99,9 +103,9 @@ def test_checkpoint_system():
                 agent_step=1000,
                 epoch=10,
                 total_agent_step=1000,
-                optimizer_state_dict={'test': 'state'},
-                policy_path='/test/policy/path',
-                stopwatch_state={'test': 'timer'}
+                optimizer_state_dict={"test": "state"},
+                policy_path="/test/policy/path",
+                stopwatch_state={"test": "timer"},
             )
 
             checkpoint.save(temp_dir)
@@ -122,8 +126,10 @@ def test_checkpoint_system():
     except Exception as e:
         print(f"✗ Checkpoint system test failed: {e}")
         import traceback
+
         traceback.print_exc()
         return False
+
 
 def test_configuration_loading():
     """Test configuration loading"""
@@ -131,15 +137,15 @@ def test_configuration_loading():
 
     try:
         # Test learning progress experiment config
-        cfg = OmegaConf.load('configs/user/learning_progress_experiment.yaml')
+        OmegaConf.load("configs/user/learning_progress_experiment.yaml")
         print("✓ Learning progress experiment config loads")
 
         # Test random curriculum config
-        cfg = OmegaConf.load('configs/user/random_curriculum_experiment.yaml')
+        OmegaConf.load("configs/user/random_curriculum_experiment.yaml")
         print("✓ Random curriculum config loads")
 
         # Test basic arena config
-        cfg = OmegaConf.load('configs/user/basic_arena_experiment.yaml')
+        OmegaConf.load("configs/user/basic_arena_experiment.yaml")
         print("✓ Basic arena config loads")
 
         return True
@@ -147,8 +153,10 @@ def test_configuration_loading():
     except Exception as e:
         print(f"✗ Configuration loading failed: {e}")
         import traceback
+
         traceback.print_exc()
         return False
+
 
 def test_memory_usage():
     """Test memory usage"""
@@ -172,6 +180,7 @@ def test_memory_usage():
     except Exception as e:
         print(f"✗ Memory usage test failed: {e}")
         return False
+
 
 def main():
     """Run all tests"""
@@ -215,6 +224,7 @@ def main():
     print("3. Consider adjusting hyperparameters or adding NaN checks")
 
     return len(failed_tests) == 0
+
 
 if __name__ == "__main__":
     success = main()
