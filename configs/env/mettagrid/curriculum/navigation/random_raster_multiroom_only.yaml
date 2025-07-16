@@ -1,5 +1,7 @@
 _target_: metta.mettagrid.curriculum.random.RandomCurriculum
 
 tasks:
-  # Single bucket - 4 rooms with randomly sampled raster grid parameters each episode
-  /env/mettagrid/navigation/evals/raster_grid_multiroom_random: 1.0
+  # Small dense grids (3x3 to 5x5, mostly filled)
+  /env/mettagrid/navigation/evals/raster_grid_multiroom_small: 1.0
+  # Large sparse grids (6x6 to 10x10, partially filled)
+  /env/mettagrid/navigation/evals/raster_grid_multiroom_large: 1.0
