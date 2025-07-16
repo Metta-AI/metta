@@ -123,8 +123,195 @@ class MettaTrainer:
         # Initialize performance threshold tracker
         self._init_performance_threshold_tracker()
 
+        # Initialize curriculum and environment
+        curriculum_config = self.trainer_cfg.curriculum_or_env
+        env_overrides = DictConfig(self.trainer_cfg.env_overrides)
+        self._curriculum = curriculum_from_config_path(curriculum_config, env_overrides)
+
+        # Add training task to the suite
+        self._sim_suite_config.simulations["eval/training_task"] = SingleEnvSimulationConfig(
+            env="/env/mettagrid/mettagrid",  # won't be used, dynamic `env_cfg()` should override all of it
+            num_episodes=1,
+            env_overrides=self._curriculum.get_task().env_cfg(),
+        )
+
+        self._make_vecenv()
+
+        metta_grid_env: MettaGridEnv = self.vecenv.driver_env  # type: ignore
+        assert isinstance(metta_grid_env, MettaGridEnv), (
+            f"vecenv.driver_env type {type(metta_grid_env).__name__} is not MettaGridEnv"
+        )
+
+        self.agent_step: int = 0
+        self.epoch: int = 0
+
+        checkpoint = TrainerCheckpoint.load(self.cfg.run_dir)
+        if checkpoint:
+            logger.info(f"Restoring from checkpoint at {checkpoint.agent_step} steps")
+            self.agent_step = checkpoint.agent_step
+            self.epoch = checkpoint.epoch
+            if checkpoint.stopwatch_state is not None:
+                logger.info("Restoring timer state from checkpoint")
+                self.timer.load_state(checkpoint.stopwatch_state, resume_running=True)
+
+        # Load or create policy with distributed coordination
+        policy_record = self._load_policy(checkpoint, self.policy_store)
+
+        if policy_record is not None:
+            logging.info(f"Rank {self._rank}: LOADED {policy_record.uri}")
+            self.latest_saved_policy_record = policy_record
+
+            # Get the policy from the record
+            self.policy = policy_record.policy
+
+            # Restore original_feature_mapping from metadata if available
+            if (
+                hasattr(self.policy, "restore_original_feature_mapping")
+                and "original_feature_mapping" in policy_record.metadata
+            ):
+                self.policy.restore_original_feature_mapping(policy_record.metadata["original_feature_mapping"])
+                logger.info(f"Rank {self._rank}: Restored original_feature_mapping")
+
+            # Initialize the policy to the environment
+            self._initialize_policy_to_environment(self.policy, self.vecenv.driver_env, self.device)
+
+            self.initial_policy_record = policy_record
+
+        else:
+            logger.info(f"Rank {self._rank}: No existing policy found, creating new one")
+            # In distributed mode, handle policy creation/loading differently
+            if torch.distributed.is_initialized() and not self._master:
+                # Non-master ranks wait for master to create and save the policy
+                default_policy_path = os.path.join(
+                    self.trainer_cfg.checkpoint.checkpoint_dir, self.policy_store.make_model_name(0)
+                )
+                logger.info(f"Rank {self._rank}: Waiting for master to create policy at {default_policy_path}")
+
+                # Synchronize with master before attempting to load
+                torch.distributed.barrier()
+
+                def log_progress(elapsed: float, status: str) -> None:
+                    if status == "waiting" and int(elapsed) % 10 == 0 and elapsed > 0:
+                        logger.info(f"Rank {self._rank}: Still waiting for policy file... ({elapsed:.0f}s elapsed)")
+                    elif status == "found":
+                        logger.info(f"Rank {self._rank}: Policy file found, waiting for write to complete...")
+                    elif status == "stable":
+                        logger.info(f"Rank {self._rank}: Policy file stable after {elapsed:.1f}s")
+
+                if not wait_for_file(default_policy_path, timeout=300, progress_callback=log_progress):
+                    raise RuntimeError(f"Rank {self._rank}: Timeout waiting for policy at {default_policy_path}")
+
+                try:
+                    policy_record = self.policy_store.policy_record(default_policy_path)
+                except Exception as e:
+                    raise RuntimeError(
+                        f"Rank {self._rank}: Failed to load policy from {default_policy_path}: {e}"
+                    ) from e
+
+                self.initial_policy_record = policy_record
+                self.latest_saved_policy_record = policy_record
+                self.policy = policy_record.policy
+
+                self._initialize_policy_to_environment(self.policy, self.vecenv.driver_env, self.device)
+            else:
+                # Master creates and saves new policy
+                policy_record = self._create_and_save_policy_record(self.policy_store, self.vecenv.driver_env)
+                self.initial_policy_record = policy_record
+                self.latest_saved_policy_record = policy_record
+                self.policy = policy_record.policy
+
+                self._initialize_policy_to_environment(self.policy, self.vecenv.driver_env, self.device)
+
+                # Synchronize with non-master ranks after saving
+                if torch.distributed.is_initialized():
+                    logger.info("Master rank: Policy saved, synchronizing with other ranks")
+                    torch.distributed.barrier()
+
+        logging.info(f"Rank {self._rank}: USING {self.initial_policy_record.uri}")
+
+        if self._master:
+            logger.info(f"MettaTrainer loaded: {self.policy}")
+
+        if self.trainer_cfg.compile:
+            logger.info("Compiling policy")
+            self.policy = torch.compile(self.policy, mode=self.trainer_cfg.compile_mode)
+
+        self.kickstarter = Kickstarter(
+            self.trainer_cfg.kickstart,
+            self.device,
+            self.policy_store,
+            self.vecenv.driver_env,
+        )
+
+        if torch.distributed.is_initialized():
+            logger.info(f"Initializing DistributedDataParallel on device {self.device}")
+            self.policy = DistributedMettaAgent(self.policy, self.device)
+            # Ensure all ranks have initialized DDP before proceeding
+            torch.distributed.barrier()
+
+        self._make_experience_buffer()
+
+        self._stats_epoch_start = self.epoch
+        self._stats_epoch_id: UUID | None = None
+        self._stats_run_id: UUID | None = None
+
+        # Optimizer
+        optimizer_type = self.trainer_cfg.optimizer.type
+        assert optimizer_type in ("adam", "muon"), f"Optimizer type must be 'adam' or 'muon', got {optimizer_type}"
+        opt_cls = torch.optim.Adam if optimizer_type == "adam" else ForeachMuon
+        self.optimizer = opt_cls(
+            self.policy.parameters(),
+            lr=self.trainer_cfg.optimizer.learning_rate,
+            betas=(self.trainer_cfg.optimizer.beta1, self.trainer_cfg.optimizer.beta2),
+            eps=self.trainer_cfg.optimizer.eps,
+            weight_decay=self.trainer_cfg.optimizer.weight_decay,
+        )
+
+        # Validate that policy matches environment
+        validate_policy_environment_match(self.policy, self.vecenv.driver_env)
+
+        self.lr_scheduler = None
+        if self.trainer_cfg.lr_scheduler.enabled:
+            self.lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+                self.optimizer, T_max=self.trainer_cfg.total_timesteps // self.trainer_cfg.batch_size
+            )
+
+        if checkpoint and checkpoint.optimizer_state_dict:
+            try:
+                self.optimizer.load_state_dict(checkpoint.optimizer_state_dict)
+                logger.info("Successfully loaded optimizer state from checkpoint")
+            except ValueError:
+                logger.warning("Optimizer state dict doesn't match. Starting with fresh optimizer state.")
+
+        if self.wandb_run and self._master:
+            # Define metrics (wandb x-axis values)
+            metrics = ["agent_step", "epoch", "total_time", "train_time"]
+            for metric in metrics:
+                self.wandb_run.define_metric(f"metric/{metric}")
+
+            # set the default x-axis to be step count
+            self.wandb_run.define_metric("*", step_metric="metric/agent_step")
+
+            # set up plots that do not use steps as the x-axis
+            metric_overrides = [
+                ("overview/reward_vs_total_time", "metric/total_time"),
+            ]
+
+            for metric_name, step_metric in metric_overrides:
+                self.wandb_run.define_metric(metric_name, step_metric=step_metric)
+
+            # Log model parameters
+            num_params = sum(p.numel() for p in self.policy.parameters())
+            if self.wandb_run.summary:
+                self.wandb_run.summary["model/total_parameters"] = num_params
+
+        if self._master:
+            self._memory_monitor.add(self, name="MettaTrainer", track_attributes=True)
+
         self.timer = Stopwatch(logger)
         self.timer.start()
+
+        logger.info(f"MettaTrainer initialization complete on device: {self.device}")
 
     def _init_performance_threshold_tracker(self):
         """Initialize performance threshold tracker based on environment."""
@@ -188,192 +375,6 @@ class MettaTrainer:
                     common_metrics.add(key)
 
         return common_metrics
-
-        curriculum_config = self.trainer_cfg.curriculum_or_env
-        env_overrides = DictConfig(self.trainer_cfg.env_overrides)
-        self._curriculum = curriculum_from_config_path(curriculum_config, env_overrides)
-
-        # Add training task to the suite
-        self._sim_suite_config.simulations["eval/training_task"] = SingleEnvSimulationConfig(
-            env="/env/mettagrid/mettagrid",  # won't be used, dynamic `env_cfg()` should override all of it
-            num_episodes=1,
-            env_overrides=self._curriculum.get_task().env_cfg(),
-        )
-
-        self._make_vecenv()
-
-        metta_grid_env: MettaGridEnv = self.vecenv.driver_env  # type: ignore
-        assert isinstance(metta_grid_env, MettaGridEnv), (
-            f"vecenv.driver_env type {type(metta_grid_env).__name__} is not MettaGridEnv"
-        )
-
-        self.agent_step: int = 0
-        self.epoch: int = 0
-
-        checkpoint = TrainerCheckpoint.load(self.cfg.run_dir)
-        if checkpoint:
-            logger.info(f"Restoring from checkpoint at {checkpoint.agent_step} steps")
-            self.agent_step = checkpoint.agent_step
-            self.epoch = checkpoint.epoch
-            if checkpoint.stopwatch_state is not None:
-                logger.info("Restoring timer state from checkpoint")
-                self.timer.load_state(checkpoint.stopwatch_state, resume_running=True)
-
-        # Load or create policy with distributed coordination
-        policy_record = self._load_policy(checkpoint, self.policy_store)
-
-        if policy_record is not None:
-            logging.info(f"Rank {self._rank}: LOADED {policy_record.uri}")
-            self.latest_saved_policy_record = policy_record
-
-            # Get the policy from the record
-            self.policy = policy_record.policy
-
-            # Restore original_feature_mapping from metadata if available
-            if (
-                hasattr(self.policy, "restore_original_feature_mapping")
-                and "original_feature_mapping" in policy_record.metadata
-            ):
-                self.policy.restore_original_feature_mapping(policy_record.metadata["original_feature_mapping"])
-                logger.info(f"Rank {self._rank}: Restored original_feature_mapping")
-
-            # Initialize the policy to the environment
-            self._initialize_policy_to_environment(self.policy, metta_grid_env, self.device)
-
-            self.initial_policy_record = policy_record
-
-        else:
-            logger.info(f"Rank {self._rank}: No existing policy found, creating new one")
-            # In distributed mode, handle policy creation/loading differently
-            if torch.distributed.is_initialized() and not self._master:
-                # Non-master ranks wait for master to create and save the policy
-                default_policy_path = os.path.join(
-                    self.trainer_cfg.checkpoint.checkpoint_dir, self.policy_store.make_model_name(0)
-                )
-                logger.info(f"Rank {self._rank}: Waiting for master to create policy at {default_policy_path}")
-
-                # Synchronize with master before attempting to load
-                torch.distributed.barrier()
-
-                def log_progress(elapsed: float, status: str) -> None:
-                    if status == "waiting" and int(elapsed) % 10 == 0 and elapsed > 0:
-                        logger.info(f"Rank {self._rank}: Still waiting for policy file... ({elapsed:.0f}s elapsed)")
-                    elif status == "found":
-                        logger.info(f"Rank {self._rank}: Policy file found, waiting for write to complete...")
-                    elif status == "stable":
-                        logger.info(f"Rank {self._rank}: Policy file stable after {elapsed:.1f}s")
-
-                if not wait_for_file(default_policy_path, timeout=300, progress_callback=log_progress):
-                    raise RuntimeError(f"Rank {self._rank}: Timeout waiting for policy at {default_policy_path}")
-
-                try:
-                    policy_record = self.policy_store.policy_record(default_policy_path)
-                except Exception as e:
-                    raise RuntimeError(
-                        f"Rank {self._rank}: Failed to load policy from {default_policy_path}: {e}"
-                    ) from e
-
-                self.initial_policy_record = policy_record
-                self.latest_saved_policy_record = policy_record
-                self.policy = policy_record.policy
-
-                self._initialize_policy_to_environment(self.policy, metta_grid_env, self.device)
-            else:
-                # Master creates and saves new policy
-                policy_record = self._create_and_save_policy_record(self.policy_store, metta_grid_env)
-                self.initial_policy_record = policy_record
-                self.latest_saved_policy_record = policy_record
-                self.policy = policy_record.policy
-
-                self._initialize_policy_to_environment(self.policy, metta_grid_env, self.device)
-
-                # Synchronize with non-master ranks after saving
-                if torch.distributed.is_initialized():
-                    logger.info("Master rank: Policy saved, synchronizing with other ranks")
-                    torch.distributed.barrier()
-
-        logging.info(f"Rank {self._rank}: USING {self.initial_policy_record.uri}")
-
-        if self._master:
-            logger.info(f"MettaTrainer loaded: {self.policy}")
-
-        if self.trainer_cfg.compile:
-            logger.info("Compiling policy")
-            self.policy = torch.compile(self.policy, mode=self.trainer_cfg.compile_mode)
-
-        self.kickstarter = Kickstarter(
-            self.trainer_cfg.kickstart,
-            self.device,
-            self.policy_store,
-            metta_grid_env,
-        )
-
-        if torch.distributed.is_initialized():
-            logger.info(f"Initializing DistributedDataParallel on device {self.device}")
-            self.policy = DistributedMettaAgent(self.policy, self.device)
-            # Ensure all ranks have initialized DDP before proceeding
-            torch.distributed.barrier()
-
-        self._make_experience_buffer()
-
-        self._stats_epoch_start = self.epoch
-        self._stats_epoch_id: UUID | None = None
-        self._stats_run_id: UUID | None = None
-
-        # Optimizer
-        optimizer_type = self.trainer_cfg.optimizer.type
-        assert optimizer_type in ("adam", "muon"), f"Optimizer type must be 'adam' or 'muon', got {optimizer_type}"
-        opt_cls = torch.optim.Adam if optimizer_type == "adam" else ForeachMuon
-        self.optimizer = opt_cls(
-            self.policy.parameters(),
-            lr=self.trainer_cfg.optimizer.learning_rate,
-            betas=(self.trainer_cfg.optimizer.beta1, self.trainer_cfg.optimizer.beta2),
-            eps=self.trainer_cfg.optimizer.eps,
-            weight_decay=self.trainer_cfg.optimizer.weight_decay,
-        )
-
-        # Validate that policy matches environment
-        validate_policy_environment_match(self.policy, metta_grid_env)
-
-        self.lr_scheduler = None
-        if self.trainer_cfg.lr_scheduler.enabled:
-            self.lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-                self.optimizer, T_max=self.trainer_cfg.total_timesteps // self.trainer_cfg.batch_size
-            )
-
-        if checkpoint and checkpoint.optimizer_state_dict:
-            try:
-                self.optimizer.load_state_dict(checkpoint.optimizer_state_dict)
-                logger.info("Successfully loaded optimizer state from checkpoint")
-            except ValueError:
-                logger.warning("Optimizer state dict doesn't match. Starting with fresh optimizer state.")
-
-        if self.wandb_run and self._master:
-            # Define metrics (wandb x-axis values)
-            metrics = ["agent_step", "epoch", "total_time", "train_time"]
-            for metric in metrics:
-                self.wandb_run.define_metric(f"metric/{metric}")
-
-            # set the default x-axis to be step count
-            self.wandb_run.define_metric("*", step_metric="metric/agent_step")
-
-            # set up plots that do not use steps as the x-axis
-            metric_overrides = [
-                ("overview/reward_vs_total_time", "metric/total_time"),
-            ]
-
-            for metric_name, step_metric in metric_overrides:
-                self.wandb_run.define_metric(metric_name, step_metric=step_metric)
-
-            # Log model parameters
-            num_params = sum(p.numel() for p in self.policy.parameters())
-            if wandb_run.summary:
-                wandb_run.summary["model/total_parameters"] = num_params
-
-        if self._master:
-            self._memory_monitor.add(self, name="MettaTrainer", track_attributes=True)
-
-        logger.info(f"MettaTrainer initialization complete on device: {self.device}")
 
     def train(self) -> None:
         logger.info("Starting training")

@@ -1,39 +1,44 @@
 # @package __global__
-
-# User config for running progressive curriculum on navigation tasks
+# Bullm's arena training with performance threshold tracking
+# This config replicates the arena_with_performance_tracking.sh recipe
 
 defaults:
-  - /common
-  - /agent/fast
-  - /trainer/trainer
-  - /sim/all@evals  # Use navigation-only evaluation suite
   - _self_
 
-# Basic run configuration
-run: bullm_progressive_nav
-cmd: train
-
-data_dir: ${oc.env:DATA_DIR,./train_dir}
-run_dir: ${data_dir}/${run}
-
+# Training configuration matching the recipe
 trainer:
-  curriculum: /env/mettagrid/curriculum/navigation/progressive
-  num_workers: 4
+  curriculum: /env/mettagrid/arena/basic_easy_shaped
   simulation:
-    evaluate_interval: 100
-  checkpoint:
-    wandb_checkpoint_interval: 100
-  total_timesteps: 1_000_000_000  # Shorter run for testing
+    evaluate_interval: 50
+  total_timesteps: 10_000_000
+  num_workers: 4  # Reasonable default for single GPU training
 
-# Add any other user-specific overrides below
-
+# WandB configuration
 wandb:
-  enabled: true
-  project: metta
-  entity: metta-research
-  group: ${run}
-  name: ${run}
-  run_id: ${run}
-  data_dir: ${run_dir}
-  job_type: ${cmd}
-  tags: ["msb_nav_ProgressiveLearning_comparison"]
+  project: arena_performance_tracking
+  tags: [arena, performance_thresholds]
+
+# Run configuration
+run_id: 1
+run: ${oc.env:USER}.local.${run_id}
+trained_policy_uri: ${run_dir}/checkpoints
+
+# Performance threshold tracking will be automatically enabled
+# based on the arena environment detection in the trainer
+
+# Optional: Override environment settings if needed
+# env_overrides:
+#   game:
+#     max_steps: 1000
+
+# Evaluation configuration
+eval:
+  policy_uri: ${..policy_uri}
+  npc_policy_uri: ${..npc_policy_uri}
+  env: /env/mettagrid/arena/basic_easy_shaped
+  num_episodes: 10
+  max_time_s: 120
+
+# Policy configuration
+policy_uri: null
+npc_policy_uri: null
