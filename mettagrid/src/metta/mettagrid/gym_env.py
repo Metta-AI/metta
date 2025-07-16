@@ -209,7 +209,7 @@ class MettaGridGymEnv(MettaGridEnv, GymEnv):
             return single_space
         else:
             # Multi-agent space - return array of spaces
-            return spaces.Dict({f"agent_{i}": single_space for i in range(self._core_env.num_agents)})
+            return spaces.Tuple([single_space for _ in range(self._core_env.num_agents)])
 
     @property
     @override
