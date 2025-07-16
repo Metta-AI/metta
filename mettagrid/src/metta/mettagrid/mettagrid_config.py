@@ -125,8 +125,10 @@ class PyGameConfig(BaseModelWithForbidExtra):
     num_agents: int = Field(ge=1)
     # max_steps = zero means "no limit"
     max_steps: int = Field(ge=0)
-    obs_width: Literal[1, 3, 5, 7, 9, 11, 13, 15]
-
+    # default is that we terminate / use "done" vs truncation
+    episode_truncates: bool = Field(default=False)
+    obs_width: int = Literal[11]
+    obs_height: int = Literal[11]
     num_observation_tokens: int = Field(ge=1)
     agent: PyAgentConfig
     # Every agent must be in a group, so we need at least one group
