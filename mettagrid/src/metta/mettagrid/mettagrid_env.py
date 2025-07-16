@@ -230,7 +230,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
             )
             self.rewards[:] = reward_if_frontier_amt_of_hearts
 
-        print(self._steps, self.rewards)
+        # print(self._steps, self.rewards)
 
         if self._replay_writer and self._episode_id:
             with self.timer("_replay_writer.log_step"):
