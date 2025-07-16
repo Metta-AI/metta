@@ -7,8 +7,6 @@ from typing import Any, Optional
 
 import torch
 
-from metta.eval.eval_request_config import EvalRewardSummary
-
 logger = logging.getLogger(__name__)
 
 
@@ -46,9 +44,8 @@ def save_policy_with_metadata(
     policy_store: Any,
     epoch: int,
     agent_step: int,
-    evals: EvalRewardSummary,
+    evals: Any,  # EvalRewardSummary
     timer: Any,
-    vecenv: Any,
     initial_policy_record: Optional[Any],
     run_name: str,
     is_master: bool = True,
@@ -64,23 +61,35 @@ def save_policy_with_metadata(
     logger.info(f"Saving policy at epoch {epoch}")
 
     # Extract the actual policy module from distributed wrapper if needed
-    from torch.nn.parallel import DistributedDataParallel
-
     from metta.agent.metta_agent import DistributedMettaAgent
 
     policy_to_save = policy
     if isinstance(policy, DistributedMettaAgent):
         policy_to_save = policy.module
-    elif isinstance(policy, DistributedDataParallel):
-        policy_to_save = policy.module
 
     # Build metadata
     name = policy_store.make_model_name(epoch)
-    # Get curriculum task distribution from vecenv
-    task_probs = vecenv.driver_env.curriculum.get_task_probs() if hasattr(vecenv, "driver_env") else {}
 
     # Extract average reward from evals
-    avg_reward = evals.avg_category_score if evals else 0.0
+    # Handle both EvalRewardSummary object and dict
+    avg_reward = 0.0
+    evals_dict = {}
+    if evals:
+        if hasattr(evals, "avg_category_score"):
+            # It's an EvalRewardSummary object
+            avg_reward = evals.avg_category_score if evals.avg_category_score is not None else 0.0
+            evals_dict = {
+                "category_scores": evals.category_scores,
+                "simulation_scores": {f"{cat}/{sim}": score for (cat, sim), score in evals.simulation_scores.items()},
+                "avg_category_score": evals.avg_category_score,
+                "avg_simulation_score": evals.avg_simulation_score,
+            }
+        else:
+            # It's a dict
+            avg_reward = sum(v for k, v in evals.items() if k.endswith("/score")) / max(
+                1, len([k for k in evals.keys() if k.endswith("/score")])
+            )
+            evals_dict = evals
 
     metadata = {
         "epoch": epoch,
@@ -90,16 +99,7 @@ def save_policy_with_metadata(
         "run": run_name,
         "initial_pr": initial_policy_record.uri if initial_policy_record else None,
         "generation": initial_policy_record.metadata.get("generation", 0) + 1 if initial_policy_record else 0,
-        "curriculum_task_probs": task_probs,
-        # Convert EvalRewardSummary to dict for metadata storage
-        "evals": {
-            "category_scores": evals.category_scores,
-            "simulation_scores": {f"{cat}/{sim}": score for (cat, sim), score in evals.simulation_scores.items()},
-            "avg_category_score": evals.avg_category_score,
-            "avg_simulation_score": evals.avg_simulation_score,
-        }
-        if evals
-        else {},
+        "evals": evals_dict,
         "avg_reward": avg_reward,
     }
 

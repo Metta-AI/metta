@@ -1,7 +1,7 @@
 import logging
 import os
 from collections import defaultdict
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Optional, Tuple
 
 import numpy as np
 import torch
@@ -23,6 +23,7 @@ from metta.rl.functions import (
     calculate_prioritized_sampling_params,
     cleanup_old_policies,
     compute_advantage,
+    compute_gradient_stats,
     generate_replay,
     get_lstm_config,
     get_observation,
@@ -32,6 +33,7 @@ from metta.rl.functions import (
     run_policy_inference,
     save_policy_with_metadata,
     setup_distributed_vars,
+    should_run,
     validate_policy_environment_match,
 )
 from metta.rl.kickstarter import Kickstarter
@@ -56,51 +58,6 @@ torch.set_float32_matmul_precision("high")
 rank = int(os.environ.get("RANK", 0))
 local_rank = int(os.environ.get("LOCAL_RANK", 0))
 logger = logging.getLogger(f"trainer-{rank}-{local_rank}")
-
-
-def _should_run(
-    epoch: int,
-    interval: int,
-    is_master: bool = True,
-    force: bool = False,
-) -> bool:
-    """Check if a periodic task should run based on interval and master status."""
-    if not is_master or not interval:
-        return False
-
-    if force:
-        return True
-
-    return epoch % interval == 0
-
-
-def _maybe_compute_grad_stats(policy: torch.nn.Module) -> Dict[str, float]:
-    """Compute gradient statistics for the policy.
-
-    Returns:
-        Dictionary with 'grad/mean', 'grad/variance', and 'grad/norm' keys
-    """
-    all_gradients = []
-    for param in policy.parameters():
-        if param.grad is not None:
-            all_gradients.append(param.grad.view(-1))
-
-    if not all_gradients:
-        return {}
-
-    all_gradients_tensor = torch.cat(all_gradients).to(torch.float32)
-
-    grad_mean = all_gradients_tensor.mean()
-    grad_variance = all_gradients_tensor.var()
-    grad_norm = all_gradients_tensor.norm(2)
-
-    grad_stats = {
-        "grad/mean": grad_mean.item(),
-        "grad/variance": grad_variance.item(),
-        "grad/norm": grad_norm.item(),
-    }
-
-    return grad_stats
 
 
 def _maybe_save_training_state(
@@ -332,7 +289,6 @@ def _maybe_save_policy(
         agent_step=state.agent_step,
         evals=state.evals,
         timer=timer,
-        vecenv=vecenv,
         initial_policy_record=state.initial_policy_record,
         run_name=run_name,
         is_master=is_master,
@@ -414,31 +370,6 @@ def _maybe_evaluate_policy(
 
     logger.info("Simulation complete")
     return evaluation_results.scores
-
-
-def _maybe_generate_replay(
-    policy_record: Any,
-    trainer_cfg: Any,
-    policy_store: Any,
-    epoch: int,
-    device: torch.device,
-    vectorization: str,
-    wandb_run: Optional[Any] = None,
-) -> None:
-    """Generate replay."""
-    # Get curriculum from trainer config
-    curriculum = curriculum_from_config_path(trainer_cfg.curriculum_or_env, DictConfig(trainer_cfg.env_overrides))
-
-    generate_replay(
-        policy_record=policy_record,
-        policy_store=policy_store,
-        curriculum=curriculum,
-        epoch=epoch,
-        device=device,
-        vectorization=vectorization,
-        replay_dir=trainer_cfg.simulation.replay_dir,
-        wandb_run=wandb_run,
-    )
 
 
 def _check_abort(wandb_run: Optional[Any], trainer_cfg: Any, agent_step: int) -> bool:
@@ -618,7 +549,7 @@ def train(
         )
 
         # Periodic tasks
-        if _should_run(state.epoch, 10, is_master):
+        if should_run(state.epoch, 10, is_master):
             record_heartbeat()
 
         # Update L2 weights if configured
@@ -631,7 +562,7 @@ def train(
             )
 
         # Save policy
-        if _should_run(state.epoch, trainer_cfg.checkpoint.checkpoint_interval):
+        if should_run(state.epoch, trainer_cfg.checkpoint.checkpoint_interval):
             saved_record = _maybe_save_policy(
                 policy, policy_store, state, timer, vecenv, cfg.run, is_master, trainer_cfg
             )
@@ -639,7 +570,7 @@ def train(
                 state.latest_saved_policy_record = saved_record
 
         # Save training state
-        if _should_run(state.epoch, trainer_cfg.checkpoint.checkpoint_interval):
+        if should_run(state.epoch, trainer_cfg.checkpoint.checkpoint_interval):
             _maybe_save_training_state(
                 checkpoint_dir=cfg.run_dir,
                 agent_step=state.agent_step,
@@ -654,11 +585,11 @@ def train(
             )
 
         # Upload to wandb
-        if _should_run(state.epoch, trainer_cfg.checkpoint.wandb_checkpoint_interval, is_master):
+        if should_run(state.epoch, trainer_cfg.checkpoint.wandb_checkpoint_interval, is_master):
             wandb_policy_name = _upload_policy_to_wandb(wandb_run, policy_store, state.latest_saved_policy_record)
 
         # Evaluate policy
-        if _should_run(state.epoch, trainer_cfg.simulation.evaluate_interval, is_master):
+        if should_run(state.epoch, trainer_cfg.simulation.evaluate_interval, is_master):
             if state.latest_saved_policy_record:
                 # Create stats epoch if needed
                 if stats_client is not None and state.stats_run_id is not None:
@@ -686,22 +617,28 @@ def train(
                 state.stats_epoch_start = state.epoch + 1
 
         # Generate replay
-        if _should_run(state.epoch, trainer_cfg.simulation.evaluate_interval, is_master):
+        if should_run(state.epoch, trainer_cfg.simulation.evaluate_interval, is_master):
             if state.latest_saved_policy_record:
-                _maybe_generate_replay(
-                    state.latest_saved_policy_record,
-                    trainer_cfg,
-                    policy_store,
-                    state.epoch,
-                    device,
-                    cfg.vectorization,
-                    wandb_run,
+                # Get curriculum from trainer config
+                curriculum = curriculum_from_config_path(
+                    trainer_cfg.curriculum_or_env, DictConfig(trainer_cfg.env_overrides)
+                )
+
+                generate_replay(
+                    policy_record=state.latest_saved_policy_record,
+                    policy_store=policy_store,
+                    curriculum=curriculum,
+                    epoch=state.epoch,
+                    device=device,
+                    vectorization=cfg.vectorization,
+                    replay_dir=trainer_cfg.simulation.replay_dir,
+                    wandb_run=wandb_run,
                 )
 
         # Compute gradient stats
-        if _should_run(state.epoch, trainer_cfg.grad_mean_variance_interval, is_master):
+        if should_run(state.epoch, trainer_cfg.grad_mean_variance_interval, is_master):
             with timer("grad_stats"):
-                state.grad_stats = _maybe_compute_grad_stats(policy)
+                state.grad_stats = compute_gradient_stats(policy)
 
         # Check for abort
         if _check_abort(wandb_run, trainer_cfg, state.agent_step):
@@ -755,7 +692,6 @@ def create_training_components(
     from metta.agent.metta_agent import DistributedMettaAgent
     from metta.common.profiling.memory_monitor import MemoryMonitor
     from metta.common.profiling.stopwatch import Stopwatch
-    from metta.mettagrid.curriculum.util import curriculum_from_config_path
     from metta.mettagrid.mettagrid_env import MettaGridEnv
     from metta.rl.experience import Experience
 
@@ -821,7 +757,7 @@ def create_training_components(
     seed = cfg.get("seed", np.random.randint(0, 1000000))
     vecenv.async_reset(seed + rank)
 
-    metta_grid_env: MettaGridEnv = vecenv.driver_env
+    metta_grid_env: MettaGridEnv = vecenv.driver_env  # type: ignore[attr-defined]
 
     # Initialize state
     state = TrainerState()
@@ -875,13 +811,13 @@ def create_training_components(
     # Create experience buffer
     hidden_size, num_lstm_layers = get_lstm_config(policy)
     experience = Experience(
-        total_agents=vecenv.num_agents,
+        total_agents=vecenv.num_agents,  # type: ignore[attr-defined]
         batch_size=trainer_cfg.batch_size,  # Already scaled if needed
         bptt_horizon=trainer_cfg.bptt_horizon,
         minibatch_size=trainer_cfg.minibatch_size,
         max_minibatch_size=trainer_cfg.minibatch_size,
-        obs_space=vecenv.single_observation_space,
-        atn_space=vecenv.single_action_space,
+        obs_space=vecenv.single_observation_space,  # type: ignore[attr-defined]
+        atn_space=vecenv.single_action_space,  # type: ignore[attr-defined]
         device=device,
         hidden_size=hidden_size,
         cpu_offload=trainer_cfg.cpu_offload,
@@ -894,12 +830,17 @@ def create_training_components(
 
     optimizer_type = trainer_cfg.optimizer.type
     opt_cls = torch.optim.Adam if optimizer_type == "adam" else ForeachMuon
+    # ForeachMuon might expect int for weight_decay, but Adam expects float
+    weight_decay = trainer_cfg.optimizer.weight_decay
+    if optimizer_type != "adam" and isinstance(weight_decay, float) and weight_decay == int(weight_decay):
+        weight_decay = int(weight_decay)
+
     optimizer = opt_cls(
         policy.parameters(),
         lr=trainer_cfg.optimizer.learning_rate,
         betas=(trainer_cfg.optimizer.beta1, trainer_cfg.optimizer.beta2),
         eps=trainer_cfg.optimizer.eps,
-        weight_decay=trainer_cfg.optimizer.weight_decay,
+        weight_decay=weight_decay,
     )
 
     if checkpoint and checkpoint.optimizer_state_dict:
