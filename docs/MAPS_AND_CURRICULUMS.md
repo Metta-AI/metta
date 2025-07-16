@@ -422,7 +422,52 @@ game:
 
 ## Step 5: Common Issues and Solutions
 
-### Issue 1: "CurriculBucketedum" Class Not Found
+### Issue 1: MapGenParams Validation Errors
+
+**Problem**: `agents` and `objects` parameters at wrong configuration level
+```
+ValidationError: 2 validation errors for MapGenParams
+agents
+  Extra inputs are not permitted [type=extra_forbidden, input_value=1, input_type=int]
+objects
+  Extra inputs are not permitted [type=extra_forbidden, input_value={'altar': 29}, input_type=dict]
+```
+
+**Solution**: When using `MapGen` as the room builder in MultiRoom configs, ensure `agents` and `objects` are only in the scene params, not at the room level:
+
+```yaml
+# WRONG - inheriting from defaults that put agents/objects at room level
+defaults:
+  - /env/mettagrid/navigation/training/defaults@
+
+game:
+  map_builder:
+    room:
+      _target_: metta.map.mapgen.MapGen
+      agents: 1  # ERROR: MapGen doesn't accept these
+      objects:   # ERROR: MapGen doesn't accept these
+        altar: 10
+
+# CORRECT - skip problematic defaults or override completely
+defaults:
+  - /env/mettagrid/mettagrid@  # Use base config instead
+
+game:
+  map_builder:
+    _target_: metta.mettagrid.room.multi_room.MultiRoom
+    room:
+      _target_: metta.map.mapgen.MapGen
+      width: 60
+      height: 60
+      root:
+        type: metta.map.scenes.your_scene.YourScene
+        params:
+          agents: 1  # CORRECT: Scene params accept these
+          objects:
+            altar: 10
+```
+
+### Issue 2: "CurriculBucketedum" Class Not Found
 
 **Problem**: Typo in curriculum class name
 **Solution**: Use exact class name from implementation
@@ -795,6 +840,69 @@ The following scenes are available for navigation tasks:
 - **Training configs** (`/training/`): Used during agent training, ensure consistent action spaces
 - **Evaluation configs** (`/evals/`): Used for testing, may have different parameters
 
+### Complete Training Configuration Example
+
+Here's a complete example of a navigation training configuration using custom scenes:
+
+```yaml
+# configs/env/mettagrid/navigation/training/custom_scene_multiroom.yaml
+defaults:
+  - /env/mettagrid/mettagrid@  # Base mettagrid config
+  - _self_
+
+sampling: 1  # Enable parameter sampling
+
+game:
+  num_agents: 4
+  max_steps: 1000
+
+  # Action configuration - must be consistent across all tasks
+  actions:
+    attack:
+      enabled: false
+    swap:
+      enabled: false
+    change_color:
+      enabled: false
+    put_items:
+      enabled: false
+    get_items:
+      enabled: true
+
+  # MultiRoom configuration
+  map_builder:
+    _target_: metta.mettagrid.room.multi_room.MultiRoom
+    num_rooms: ${..num_agents}
+    border_width: 6
+
+    # Room configuration using MapGen
+    room:
+      _target_: metta.map.mapgen.MapGen
+      width: ${sampling:50, 70, 60}
+      height: ${sampling:50, 70, 60}
+      border_width: 4
+
+      # Scene configuration
+      root:
+        type: metta.map.scenes.grid_altars.GridAltars
+        params:
+          objects:
+            altar: ${sampling:9, 64, 25}
+          agents: 1  # One agent per room
+          grid_rows: ${sampling:3, 8, 5}
+          grid_cols: ${sampling:3, 8, 5}
+          margin: ${sampling:4, 8, 6}
+          min_spacing: ${sampling:3, 5, 4}
+          randomize_position: 0
+          place_agent_center: true
+
+  # Object configuration
+  objects:
+    altar:
+      cooldown: 1000
+      initial_resource_count: 1
+```
+
 ## Related Documentation
 
 - [Curriculum System README](../mettagrid/src/metta/mettagrid/curriculum/README.md) - Complete curriculum implementation details
@@ -803,24 +911,56 @@ The following scenes are available for navigation tasks:
 
 ## Quick Reference Commands
 
-```bash
-# Create new curriculum
-python train.py trainer.curriculum=/path/to/curriculum
+### Training Commands
 
-# Test configuration
+```bash
+# Raster + Traditional Navigation
+./tools/train.py run=$USER.test_raster_standard_$(date +%Y%m%d_%H%M%S) \
+  +hardware=macbook \
+  trainer.curriculum=/env/mettagrid/curriculum/navigation/learning_progress_raster_standard
+
+# Spiral + Traditional Navigation
+./tools/train.py run=$USER.test_spiral_traditional_$(date +%Y%m%d_%H%M%S) \
+  +hardware=macbook \
+  trainer.curriculum=/env/mettagrid/curriculum/navigation/learning_progress_spiral_traditional
+
+# Comprehensive (All Types)
+./tools/train.py run=$USER.test_comprehensive_$(date +%Y%m%d_%H%M%S) \
+  +hardware=macbook \
+  trainer.curriculum=/env/mettagrid/curriculum/navigation/learning_progress_comprehensive_clean
+```
+
+### Testing and Validation
+
+```bash
+# Test configuration (check for errors)
 python train.py --cfg job trainer.curriculum=/path/to/curriculum
 
+# Quick test with minimal training
+./tools/train.py run=test_curriculum \
+  trainer.curriculum=/path/to/curriculum \
+  trainer.total_timesteps=1000 \
+  trainer.num_workers=1 \
+  wandb=off
+
 # Override parameters
-python train.py trainer.curriculum=/path/to/curriculum \
+./tools/train.py run=test \
+  trainer.curriculum=/path/to/curriculum \
   game.num_agents=8 \
   game.max_steps=1000
+```
 
-# Generate map preview
-python -m tools.map.gen configs/env/path/to/config.yaml
+### Map Generation and Preview
 
-# Validate environment
-python -m tools.train run=test trainer.curriculum=/path/to/curriculum \
-  trainer.total_timesteps=100 wandb=off
+```bash
+# Generate and view a single map
+./tools/map/gen.py configs/env/mettagrid/navigation/training/raster_grid_multiroom.yaml
+
+# Generate multiple maps
+./tools/map/gen.py --count=10 configs/env/mettagrid/navigation/training/spiral_altar_multiroom.yaml
+
+# Save maps to S3
+./tools/map/gen.py --output-uri=s3://bucket/maps/ configs/env/path/to/config.yaml
 ```
 
 This guide provides a complete workflow for implementing navigation curriculum systems based on practical experience with center altar placement configurations and adaptive learning strategies.
