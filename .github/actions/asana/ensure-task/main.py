@@ -487,6 +487,65 @@ if __name__ == "__main__":
     pr_author_field_id = os.getenv("INPUT_PR_AUTHOR_FIELD_ID")
     asana_attachment_secret = os.getenv("INPUT_ASANA_ATTACHMENT_SECRET")
 
+    # Debug: Print environment variables (but mask sensitive data)
+    print("=== DEBUG: Environment Variables ===")
+    print(f"title: {title}")
+    print(f"pr_state: {pr_state}")
+    print(f"author: {author}")
+    print(f"assignees: {assignees}")
+    print(f"reviewers: {reviewers}")
+    print(f"project_id: {project_id}")
+    print(f"workspace_id: {workspace_id}")
+    print(f"asana_token: {'SET' if asana_token else 'MISSING'}")
+    print(f"github_url: {github_url}")
+    print(f"github_url_field_id: {github_url_field_id}")
+    print(f"roster_project_id: {roster_project_id}")
+    print(f"gh_login_field_id: {gh_login_field_id}")
+    print(f"asana_email_field_id: {asana_email_field_id}")
+    print(f"pr_author_field_id: {pr_author_field_id}")
+    print(f"asana_attachment_secret: {'SET' if asana_attachment_secret else 'MISSING'}")
+    print("=====================================")
+
+    # Validate required environment variables
+    required_vars = [
+        ("INPUT_ASANA_TOKEN", asana_token),
+        ("INPUT_WORKSPACE_ID", workspace_id),
+        ("INPUT_PROJECT_ID", project_id),
+        ("INPUT_GITHUB_URL_FIELD_ID", github_url_field_id),
+        ("INPUT_ROSTER_PROJECT_ID", roster_project_id),
+    ]
+
+    missing_vars = []
+    for var_name, var_value in required_vars:
+        if not var_value:
+            missing_vars.append(var_name)
+
+    if missing_vars:
+        print(f"ERROR: Missing required environment variables: {', '.join(missing_vars)}")
+        sys.exit(1)
+
+    # Test Asana token validity first
+    print("=== DEBUG: Testing Asana Token ===")
+    test_url = "https://app.asana.com/api/1.0/users/me"
+    test_headers = {
+        "Authorization": f"Bearer {asana_token}",
+        "Content-Type": "application/json",
+    }
+
+    try:
+        test_response = requests.get(test_url, headers=test_headers, timeout=30)
+        print(f"Token test response status: {test_response.status_code}")
+        if test_response.status_code == 200:
+            user_data = test_response.json()
+            print(f"Token valid - User: {user_data['data']['name']} ({user_data['data']['email']})")
+        else:
+            print(f"Token test failed: {test_response.status_code} - {test_response.text}")
+            sys.exit(1)
+    except Exception as e:
+        print(f"Token test error: {e}")
+        sys.exit(1)
+    print("=================================")
+
     github_logins = set(assignees + reviewers + [author])
     github_login_to_asana_email = get_asana_users_by_github_logins(
         github_logins,
