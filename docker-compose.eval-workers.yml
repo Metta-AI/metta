@@ -1,0 +1,56 @@
+version: '3.8'
+
+services:
+  app-backend:
+    build:
+      context: .
+      dockerfile: app_backend/Dockerfile
+    container_name: metta-app-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - STATS_DB_URI=${STATS_DB_URI:-postgres://postgres:password@postgres:5432/metta_stats}
+      - HOST=0.0.0.0
+      - PORT=8000
+      - DEBUG_USER_EMAIL=${DEBUG_USER_EMAIL}
+    depends_on:
+      - postgres
+    networks:
+      - metta-network
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: metta-postgres
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=metta_stats
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - metta-network
+    restart: unless-stopped
+
+  # Add eval workers here when ready
+  # eval-worker:
+  #   build:
+  #     context: .
+  #     dockerfile: path/to/eval-worker/Dockerfile
+  #   environment:
+  #     - APP_BACKEND_URL=http://app-backend:8000
+  #   depends_on:
+  #     - app-backend
+  #   networks:
+  #     - metta-network
+  #   deploy:
+  #     replicas: 3
+
+volumes:
+  postgres_data:
+
+networks:
+  metta-network:
+    driver: bridge
