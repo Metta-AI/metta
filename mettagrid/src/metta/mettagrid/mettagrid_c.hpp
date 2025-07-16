@@ -141,13 +141,14 @@ private:
   void _compute_observation(GridCoord observer_r,
                             GridCoord observer_c,
                             ObservationCoord obs_width,
+                            ObservationCoord obs_height,
                             size_t agent_idx,
                             ActionType action,
                             ActionArg action_arg);
   void _compute_observations(py::array_t<ActionType, py::array::c_style> actions);
   void _step(py::array_t<ActionType, py::array::c_style> actions);
-  void _handle_invalid_action(size_t agent_idx, const std::string& stat, ActionType type, ActionArg arg);
 
+  void _handle_invalid_action(size_t agent_idx, const std::string& stat, ActionType type, ActionArg arg);
   AgentConfig _create_agent_config(const py::dict& agent_group_cfg_py);
   ConverterConfig _create_converter_config(const py::dict& converter_cfg_py);
   WallConfig _create_wall_config(const py::dict& wall_cfg_py);

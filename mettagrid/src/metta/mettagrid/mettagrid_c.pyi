@@ -105,11 +105,13 @@ class GameConfig:
     max_steps: int
     episode_truncates: bool
     obs_width: int
+    obs_height: int
     inventory_item_names: list[str]
     num_observation_tokens: int
 
 class MettaGrid:
     obs_width: int
+    obs_height: int
     max_steps: int
     current_step: int
     map_width: int
