@@ -30,7 +30,7 @@ lint:
 
 test: build lint
 	@echo "Running C++ tests..."
-	ctest --test-dir build-debug -L benchmark -V --rerun-failed --output-on-failure
+	ctest --test-dir build-debug -V --output-on-failure
 
 clean:
 	@echo "Cleaning extra venv..."
