@@ -134,7 +134,6 @@ class TerrainFromNumpy(Room):
             uri = self._file
 
         level = safe_load(f"{map_dir}/{uri}")
-        level = level[:60, :60]
         height, width = level.shape
         self.set_size_labels(width, height)
 
@@ -151,6 +150,7 @@ class TerrainFromNumpy(Room):
         num_agents = len(agent_labels)
 
         valid_positions = self.get_valid_positions(level)
+        print(f"num agents: {num_agents}")
         random.shuffle(valid_positions)
 
         # 5. Place agents in first slice
@@ -169,6 +169,7 @@ class TerrainFromNumpy(Room):
 
         for pos, label in zip(agent_positions, agent_labels, strict=False):
             level[pos] = label
+        print(f"agent positions: {agent_positions}")
 
         # Convert to set for O(1) removal operations
         valid_positions_set = set(valid_positions[num_agents:])
