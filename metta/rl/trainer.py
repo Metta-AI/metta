@@ -252,6 +252,13 @@ class MettaTrainer:
         )
 
         if torch.distributed.is_initialized():
+            # For sweep training, ensure all ranks have loaded their policies before DDP init
+            # This prevents timeouts when nodes start at different times
+            if hasattr(self.cfg, "dist_cfg_path") and self.cfg.dist_cfg_path is not None:
+                logger.info("Synchronizing all ranks before DDP initialization (sweep mode)...")
+                torch.distributed.barrier()
+                logger.info("All ranks synchronized, proceeding with DDP initialization")
+
             logger.info(f"Initializing DistributedDataParallel on device {self.device}")
             self.policy = DistributedMettaAgent(self.policy, self.device)
             # Ensure all ranks have initialized DDP before proceeding

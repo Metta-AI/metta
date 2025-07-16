@@ -2,6 +2,7 @@
 
 # NumPy 2.0 compatibility for WandB - must be imported before wandb
 import numpy as np  # noqa: E402
+import yaml
 
 if not hasattr(np, "byte"):
     np.byte = np.int8
@@ -56,7 +57,7 @@ def main(cfg: DictConfig | ListConfig) -> int:
         wait_for_run(cfg, cfg.dist_cfg_path, logger)
         logger.info(f"[TIMING] Worker node finished wait_for_run at {time.time() - start_time:.2f}s")
 
-    logger.info(f"[TIMING] sweep_init completed - Node {node_index} at {time.time() - start_time:.2f}s")
+        logger.info(f"[TIMING] sweep_init completed - Node {node_index} at {time.time() - start_time:.2f}s")
     return 0
 
 
@@ -214,7 +215,7 @@ def wait_for_run(cfg: DictConfig | ListConfig, path: str, logger: Logger) -> Non
     """
 
     max_wait = cfg.sweep_wait_timeout_s  # seconds
-    poll_interval = 5  # seconds
+    poll_interval = 1  # Reduced from 5 seconds for faster synchronization
     waited = 0
     wait_start = time.time()
 
@@ -223,20 +224,27 @@ def wait_for_run(cfg: DictConfig | ListConfig, path: str, logger: Logger) -> Non
     while waited < max_wait:
         if os.path.exists(path):
             try:
-                loaded_cfg = OmegaConf.load(path)
+                # Force cache bypass by opening file directly
+
+                with open(path, "r") as f:
+                    loaded_cfg = OmegaConf.create(yaml.safe_load(f))
                 run_id = getattr(loaded_cfg, "run", None)
-                logger.info(f"[TIMING] Loaded dist_cfg after {waited}s, run_id='{run_id}'")
+                if waited % 5 == 0:  # Only log every 5 seconds to reduce noise
+                    logger.info(f"[TIMING] Loaded dist_cfg after {waited}s, run_id='{run_id}'")
             except Exception as e:  # pragma: no cover – corrupted file / partial write
                 run_id = None
-                logger.info(f"[TIMING] Failed to load dist_cfg after {waited}s: {e}")
+                if waited % 5 == 0:
+                    logger.info(f"[TIMING] Failed to load dist_cfg after {waited}s: {e}")
 
             if run_id not in (None, "null", "", "None"):
                 logger.info(f"[TIMING] Worker found valid run_id after {time.time() - wait_start:.2f}s: {run_id}")
                 return
         else:
-            logger.info(f"[TIMING] dist_cfg file does not exist yet after {waited}s")
+            if waited % 5 == 0:
+                logger.info(f"[TIMING] dist_cfg file does not exist yet after {waited}s")
 
-        logger.info(f"[TIMING] Worker sleeping for {poll_interval}s (waited {waited}s total)")
+        if waited % 5 == 0:  # Only log every 5 seconds to reduce noise
+            logger.info(f"[TIMING] Worker sleeping (waited {waited}s total)")
         time.sleep(poll_interval)
         waited += poll_interval
 
