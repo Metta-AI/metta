@@ -12,8 +12,7 @@ if [ -z "$sweep_run" ]; then
   exit 1
 fi
 
-# Extract hardware argument if present
-hardware_arg=$(echo "$args" | grep -o '+hardware=[^ ]*' || true)
+
 
 source ./devops/setup.env
 
@@ -49,12 +48,11 @@ fi
 
 # Training phase - use train_job config
 echo "[SWEEP:$sweep_run] Starting training phase..."
-# Include hardware argument if it was provided
-if [ -n "$hardware_arg" ]; then
-  cmd="./devops/train.sh run=$run_id dist_cfg_path=$DIST_CFG_PATH data_dir=$DATA_DIR/sweep/$sweep_run/runs $hardware_arg"
-else
-  cmd="./devops/train.sh run=$run_id dist_cfg_path=$DIST_CFG_PATH data_dir=$DATA_DIR/sweep/$sweep_run/runs"
-fi
+
+# Filter out run= and sweep_run= from args since we're setting run= explicitly
+filtered_args=$(echo "$args" | sed 's/\(^run=[^ ]*\|^sweep_run=[^ ]*\| run=[^ ]*\| sweep_run=[^ ]*\)//g' | sed 's/^ *//; s/ *$//')
+
+cmd="./devops/train.sh run=$run_id dist_cfg_path=$DIST_CFG_PATH data_dir=$DATA_DIR/sweep/$sweep_run/runs $filtered_args"
 echo "[SWEEP:$sweep_run] Running: $cmd"
 if ! $cmd; then
   echo "[ERROR] Training failed for sweep: $sweep_run"
