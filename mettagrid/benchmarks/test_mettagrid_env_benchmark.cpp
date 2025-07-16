@@ -83,7 +83,8 @@ GameConfig CreateBenchmarkConfig(int num_agents) {
   global_obs_config.last_action = true;
   global_obs_config.last_reward = true;
 
-  return GameConfig(num_agents, 10000, false, 11, 11, inventory_item_names, 100, global_obs_config, actions_cfg, objects_cfg);
+  return GameConfig(
+      num_agents, 10000, 0, false, 11, 11, inventory_item_names, 100, global_obs_config, actions_cfg, objects_cfg);
 }
 
 py::list CreateDefaultMap(int num_agents_per_team = 2) {
