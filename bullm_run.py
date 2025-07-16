@@ -113,7 +113,7 @@ optimizer_config = OptimizerConfig(
 
 checkpoint_config = CheckpointConfig(
     checkpoint_dir=dirs.checkpoint_dir,
-    checkpoint_interval=300,
+    checkpoint_interval=50,
     wandb_checkpoint_interval=0,
 )
 
