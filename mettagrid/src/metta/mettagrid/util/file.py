@@ -37,8 +37,8 @@ WANDB_ENTITY: str = os.getenv("WANDB_ENTITY", "metta-research")
 def exists(path: str) -> bool:
     """
     Return *True* if *path* points to an existing local file, S3 object,
-    or W&B artifact **version** (latest if omitted).  Network errors are
-    propagated so callers can decide how to handle them.
+    W&B artifact **version** (latest if omitted), or W&B run file.
+    Network errors are propagated so callers can decide how to handle them.
     """
     # ---------- S3 ---------- #
     if path.startswith("s3://"):
@@ -53,6 +53,20 @@ def exists(path: str) -> bool:
 
     # ---------- W&B ---------- #
     if path.startswith("wandb://"):
+        # Check if this is a run file path
+        run_file_parts = parse_wandb_run_file_uri(path)
+        if run_file_parts:
+            entity, project, run_id, file_path = run_file_parts
+            api = wandb.Api()
+            try:
+                run = api.run(f"{entity}/{project}/{run_id}")
+                # Check if file exists in run
+                files = [f.name for f in run.files()]
+                return file_path in files
+            except Exception:
+                return False
+
+        # Otherwise treat as artifact
         uri = WandbURI.parse(path)
         api = wandb.Api()
         try:
@@ -128,7 +142,7 @@ def write_file(path: str, local_file: str, *, content_type: str = "application/o
 
 def read(path: str) -> bytes:
     """
-    Read bytes from local path, S3 object, or W&B artifact.
+    Read bytes from local path, S3 object, W&B artifact, or W&B run file.
     """
     logger = logging.getLogger(__name__)
 
@@ -145,6 +159,23 @@ def read(path: str) -> bytes:
 
     # ---------- W&B ---------- #
     if path.startswith("wandb://"):
+        # Check if this is a run file path
+        run_file_parts = parse_wandb_run_file_uri(path)
+        if run_file_parts:
+            entity, project, run_id, file_path = run_file_parts
+            api = wandb.Api()
+            run = api.run(f"{entity}/{project}/{run_id}")
+
+            with tempfile.TemporaryDirectory(prefix="wandb_run_dl_") as tmp:
+                file_handle = run.file(file_path).download(root=tmp, replace=True)
+                file_handle.seek(0)
+                data = file_handle.read()
+                if isinstance(data, str):
+                    data = data.encode()
+                logger.info("Read %d B from wandb run file: %s", len(data), path)
+                return data
+
+        # Otherwise treat as artifact
         uri = WandbURI.parse(path)
         api = wandb.Api()
         artifact = api.artifact(uri.qname())
@@ -221,6 +252,30 @@ def is_public_uri(url: str | None) -> bool:
 # --------------------------------------------------------------------------- #
 #  W&B URI handling                                                            #
 # --------------------------------------------------------------------------- #
+
+
+def parse_wandb_run_file_uri(uri: str) -> tuple[str, str, str, str] | None:
+    """
+    Parse a wandb run file URI.
+
+    Returns:
+        tuple of (entity, project, run_id, file_path) if valid run file URI, None otherwise
+    """
+    if not uri.startswith("wandb://"):
+        return None
+
+    if "/files/" not in uri:
+        return None
+
+    parts = uri[len("wandb://") :].split("/")
+    if len(parts) >= 5 and parts[3] == "files":
+        entity = parts[0]
+        project = parts[1]
+        run_id = parts[2]
+        file_path = "/".join(parts[4:])
+        return entity, project, run_id, file_path
+
+    return None
 
 
 @dataclass(frozen=True, slots=True)
