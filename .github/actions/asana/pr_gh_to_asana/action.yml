@@ -5,21 +5,9 @@ inputs:
   title:
     description: "The title of the pull request."
     required: true
-  description:
-    description: "The body/description of the pull request."
-    required: true
   pr_state:
     description: "The state of the pull request."
     required: true
-  author:
-    description: "The GitHub login of the PR author."
-    required: false
-  assignees:
-    description: "Comma-separated list of GitHub logins of PR assignees."
-    required: false
-  reviewers:
-    description: "Comma-separated list of GitHub logins of PR reviewers."
-    required: false
   project_id:
     description: "The Asana project ID where the task will be created."
     required: true
@@ -81,11 +69,7 @@ runs:
       shell: bash
       env:
         INPUT_TITLE: ${{ inputs.title }}
-        INPUT_DESCRIPTION: ${{ inputs.description }}
         INPUT_PR_STATE: ${{ inputs.pr_state }}
-        INPUT_AUTHOR: ${{ inputs.author }}
-        INPUT_ASSIGNEES: ${{ inputs.assignees }}
-        INPUT_REVIEWERS: ${{ inputs.reviewers }}
         INPUT_PROJECT_ID: ${{ inputs.project_id }}
         INPUT_WORKSPACE_ID: ${{ inputs.workspace_id }}
         INPUT_ASANA_TOKEN: ${{ inputs.asana_token }}
