@@ -41,11 +41,11 @@ clean:
 
 install:
 	@echo "Installing package in editable mode..."
-	UV_PROJECT_ENVIRONMENT=../.venv uv sync --inexact
+	UV_PROJECT_ENVIRONMENT=../.venv uv sync --inexact --active
 
 pytest: install
 	@echo "Running Python tests..."
-	UV_PROJECT_ENVIRONMENT=../.venv uv run pytest
+	UV_PROJECT_ENVIRONMENT=../.venv uv run --active pytest
 
 tidy: build
 	@echo "Running clang-tidy..."
