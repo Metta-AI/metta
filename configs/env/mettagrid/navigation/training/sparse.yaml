@@ -3,7 +3,7 @@ defaults:
   - _self_
 
 game:
-  num_agents: 4
+  num_agents: 1
   actions:
     attack:
       enabled: false
@@ -13,6 +13,7 @@ game:
       enabled: false
     put_items:
       enabled: false
+  max_reward: ${sampling:1, 10, 5}
   agent:
     default_resource_limit: 5
   map_builder:
@@ -25,7 +26,7 @@ game:
       params:
         agents: 1
         objects:
-          altar: ???
+          altar: ${game.max_reward}
   objects:
     altar:
       initial_resource_count: 1
