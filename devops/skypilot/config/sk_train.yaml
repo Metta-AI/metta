@@ -64,10 +64,13 @@ run: |
 
   if [ -f common/src/metta/common/util/cost_monitor.py ]; then
     echo "[RUN] Collecting instance cost..."
-    COST_EXPORT_CMD=$(python common/src/metta/common/util/cost_monitor.py 2>&1)
-    if [ -n "$COST_EXPORT_CMD" ]; then
-      eval $COST_EXPORT_CMD
-      echo "[RUN] METTA_HOURLY_COST set to: $METTA_HOURLY_COST"
+    if COST_EXPORT_CMD=$(python common/src/metta/common/util/cost_monitor.py); then
+      if [ -n "$COST_EXPORT_CMD" ]; then
+        eval "$COST_EXPORT_CMD"
+        echo "[RUN] METTA_HOURLY_COST set to: $METTA_HOURLY_COST"
+      fi
+    else
+      echo "[RUN] Cost monitor script failed to run."
     fi
   else
     echo "[RUN] Cost monitor script is missing!"
