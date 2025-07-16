@@ -190,7 +190,7 @@ def wait_for_run(cfg: DictConfig | ListConfig, path: str, logger: Logger) -> Non
     ``wandb.agent`` but still finite so a misconfigured sweep fails loudly.
     """
 
-    max_wait = int(os.environ.get("SWEEP_WAIT_RUN_TIMEOUT", "600"))  # seconds
+    max_wait = cfg.sweep_wait_timeout_s  # seconds
     poll_interval = 5  # seconds
     waited = 0
 
