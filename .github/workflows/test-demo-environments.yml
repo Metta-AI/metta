@@ -18,7 +18,11 @@ on:
 jobs:
   test-demo-environments:
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 3
+    strategy:
+      fail-fast: false
+      matrix:
+        demo: [gym_demo, pettingzoo_demo, puffer_demo]
     
     steps:
     - name: Checkout repository
@@ -33,45 +37,18 @@ jobs:
       run: |
         uv pip install --no-build-isolation --no-deps -e ./mettagrid
     
-    - name: Test gym
+    - name: Test ${{ matrix.demo }}
       run: |
         cd mettagrid/demos
-        echo "Testing gym_demo..."
-        timeout 120 uv run python gym_demo.py || exit_code=$?
+        echo "Testing ${{ matrix.demo }}..."
+        timeout 30 uv run python ${{ matrix.demo }}.py
+        exit_code=$?
         if [ $exit_code -eq 124 ]; then
-          echo "✅ gym_demo ran successfully for 120 seconds"
+          echo "✅ ${{ matrix.demo }} ran successfully for 30 seconds"
         elif [ $exit_code -eq 0 ]; then
-          echo "✅ gym_demo completed successfully"
+          echo "✅ ${{ matrix.demo }} completed successfully"
         else
-          echo "❌ gym_demo failed with exit code $exit_code"
-          exit 1
-        fi
-    
-    - name: Test pettingzoo
-      run: |
-        cd mettagrid/demos
-        echo "Testing pettingzoo_demo..."
-        timeout 120 uv run python pettingzoo_demo.py || exit_code=$?
-        if [ $exit_code -eq 124 ]; then
-          echo "✅ pettingzoo_demo ran successfully for 120 seconds"
-        elif [ $exit_code -eq 0 ]; then
-          echo "✅ pettingzoo_demo completed successfully"
-        else
-          echo "❌ pettingzoo_demo failed with exit code $exit_code"
-          exit 1
-        fi
-    
-    - name: Test puffer
-      run: |
-        cd mettagrid/demos
-        echo "Testing puffer_demo..."
-        timeout 120 uv run python puffer_demo.py || exit_code=$?
-        if [ $exit_code -eq 124 ]; then
-          echo "✅ puffer_demo ran successfully for 120 seconds"
-        elif [ $exit_code -eq 0 ]; then
-          echo "✅ puffer_demo completed successfully"
-        else
-          echo "❌ puffer_demo failed with exit code $exit_code"
+          echo "❌ ${{ matrix.demo }} failed with exit code $exit_code"
           exit 1
         fi
     
