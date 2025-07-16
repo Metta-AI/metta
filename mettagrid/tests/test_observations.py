@@ -881,10 +881,8 @@ class TestEdgeObservations:
         for x in range(5, 7):
             for y in range(7):
                 tokens = helper.find_tokens_at_location(obs[0], x, y)
-                if x == 3 and y == 3:
-                    continue
                 for i, token in enumerate(tokens):
                     if i >= 4:
-                        assert np.array_equal(token, [255, 255, 255]), f"Expected empty token at obs ({x},{y})"
+                        assert np.array_equal(token, EnvConfig.EMPTY_TOKEN), f"Expected empty token at obs ({x},{y})"
 
         print("\nSUCCESS: Watched altar move through field of view and verified edge behavior")
