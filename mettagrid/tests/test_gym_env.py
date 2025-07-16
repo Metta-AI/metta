@@ -1,27 +1,19 @@
-#!/usr/bin/env python
-# /// script
-# requires-python = ">=3.11"
-# dependencies = [
-#     "gymnasium>=1.1.1",
-#     "numpy>=2.2.6",
-#     "omegaconf>=2.4.0.dev3",
-# ]
-# ///
 """
-Demo script for Gymnasium integration with MettaGrid.
+Tests for Gymnasium integration with MettaGrid.
 
-This script demonstrates how to use the MettaGridGymEnv with Gymnasium's
-standard environment interface.
+This module tests the MettaGridGymEnv with Gymnasium's standard environment interface.
 """
 
 import numpy as np
+import pytest
 from omegaconf import DictConfig
 
 from metta.mettagrid.curriculum.core import SingleTaskCurriculum
 from metta.mettagrid.gym_env import MettaGridGymEnv, SingleAgentMettaGridGymEnv
 
 
-def create_simple_config():
+@pytest.fixture
+def simple_config():
     """Create a simple navigation configuration."""
     return DictConfig(
         {
@@ -72,17 +64,12 @@ def create_simple_config():
     )
 
 
-def run_multi_agent_demo():
-    """Run multi-agent Gymnasium demo."""
-    print("Multi-Agent Gymnasium Demo")
-    print("-" * 30)
-
+def test_multi_agent_gym_env(simple_config):
+    """Test multi-agent Gymnasium environment."""
     # Create config and curriculum
-    config = create_simple_config()
-    curriculum = SingleTaskCurriculum("gym_multi_demo", config)
+    curriculum = SingleTaskCurriculum("gym_multi_test", simple_config)
 
     # Create environment
-    print("Creating multi-agent Gymnasium environment...")
     env = MettaGridGymEnv(
         curriculum=curriculum,
         render_mode=None,
@@ -90,101 +77,94 @@ def run_multi_agent_demo():
         single_agent=False,
     )
 
-    print(f"Number of agents: {env.num_agents}")
-    print(f"Observation space: {env.observation_space}")
-    print(f"Action space: {env.action_space}")
-    print(f"Max steps: {env.max_steps}")
+    # Test environment properties
+    assert env.num_agents == 2
+    assert env.observation_space is not None
+    assert env.action_space is not None
+    assert env.max_steps == 100
 
-    # Run episode
-    print("\nRunning episode...")
+    # Test reset
     obs, info = env.reset(seed=42)
-    print(f"Initial obs shape: {obs.shape}")
+    assert obs.shape == (2, 50, 3)
+    assert isinstance(info, dict)
 
-    total_reward = 0
-    step = 0
-
-    while not env.done and step < 50:
-        # Random actions
+    # Test a few steps
+    for _ in range(5):
         actions = np.random.randint(0, 2, size=(env.num_agents, 2), dtype=np.int32)
-
         obs, rewards, terminals, truncations, info = env.step(actions)
 
-        total_reward += np.sum(rewards) if isinstance(rewards, np.ndarray) else rewards
-        step += 1
-
-        if step % 10 == 0:
-            print(f"Step {step}: Total reward = {total_reward:.2f}")
-
-    print("\nEpisode completed!")
-    print(f"Total steps: {step}")
-    print(f"Total reward: {total_reward:.2f}")
-    print(f"Done: {env.done}")
+        assert obs.shape == (2, 50, 3)
+        assert isinstance(rewards, np.ndarray) or isinstance(rewards, (int, float))
+        assert isinstance(terminals, np.ndarray)
+        assert isinstance(truncations, np.ndarray)
+        assert isinstance(info, dict)
 
     env.close()
 
 
-def run_single_agent_demo():
-    """Run single-agent Gymnasium demo."""
-    print("\nSingle-Agent Gymnasium Demo")
-    print("-" * 30)
-
-    # Create config and curriculum for single agent
-    config = create_simple_config()
-    config.game.num_agents = 1
-    config.game.map_builder.agents = 1
-    curriculum = SingleTaskCurriculum("gym_single_demo", config)
+def test_single_agent_gym_env(simple_config):
+    """Test single-agent Gymnasium environment."""
+    # Modify config for single agent
+    simple_config.game.num_agents = 1
+    simple_config.game.map_builder.agents = 1
+    curriculum = SingleTaskCurriculum("gym_single_test", simple_config)
 
     # Create environment
-    print("Creating single-agent Gymnasium environment...")
     env = SingleAgentMettaGridGymEnv(
         curriculum=curriculum,
         render_mode=None,
         is_training=False,
     )
 
-    print(f"Number of agents: {env.num_agents}")
-    print(f"Observation space: {env.observation_space}")
-    print(f"Action space: {env.action_space}")
-    print(f"Max steps: {env.max_steps}")
+    # Test environment properties
+    assert env.num_agents == 1
+    assert env.observation_space is not None
+    assert env.action_space is not None
+    assert env.max_steps == 100
 
-    # Run episode
-    print("\nRunning episode...")
+    # Test reset
     obs, info = env.reset(seed=42)
-    print(f"Initial obs shape: {obs.shape}")
+    assert obs.shape == (50, 3)
+    assert isinstance(info, dict)
 
-    total_reward = 0.0
-    step = 0
-
-    while not env.done and step < 50:
-        # Random action
+    # Test a few steps
+    for _ in range(5):
         action = np.random.randint(0, 2, size=2, dtype=np.int32)
-
         obs, reward, terminated, truncated, info = env.step(action)
 
-        total_reward += reward
-        step += 1
-
-        if step % 10 == 0:
-            print(f"Step {step}: Total reward = {total_reward:.2f}")
-
-    print("\nEpisode completed!")
-    print(f"Total steps: {step}")
-    print(f"Total reward: {total_reward:.2f}")
-    print(f"Done: {env.done}")
+        assert obs.shape == (50, 3)
+        assert isinstance(reward, (int, float))
+        assert isinstance(terminated, bool)
+        assert isinstance(truncated, bool)
+        assert isinstance(info, dict)
 
     env.close()
 
 
-def main():
-    """Run Gymnasium demos."""
-    print("Gymnasium MettaGrid Demo")
-    print("=" * 40)
+def test_gym_env_episode_termination(simple_config):
+    """Test that environment terminates properly."""
+    curriculum = SingleTaskCurriculum("gym_termination_test", simple_config)
+    env = MettaGridGymEnv(
+        curriculum=curriculum,
+        render_mode=None,
+        is_training=False,
+        single_agent=False,
+    )
 
-    run_multi_agent_demo()
-    run_single_agent_demo()
+    env.reset(seed=42)
 
-    print("\nDemo completed successfully!")
+    # Run until termination or max steps
+    step_count = 0
+    max_test_steps = 150  # More than max_steps to test termination
 
+    while step_count < max_test_steps and not env.done:
+        actions = np.random.randint(0, 2, size=(env.num_agents, 2), dtype=np.int32)
+        env.step(actions)
+        step_count += 1
 
-if __name__ == "__main__":
-    main()
+        # Check that we don't exceed max_steps
+        if step_count >= env.max_steps:
+            assert env.done
+            break
+
+    env.close()

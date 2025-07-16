@@ -72,9 +72,13 @@ class MettaGridPettingZooEnv(MettaGridEnv, ParallelEnv):
         # Create initial core environment for property access
         self._core_env = self._create_core_env(0)
 
-        # PettingZoo attributes - will be set after first reset
+        # PettingZoo attributes
         self.agents: List[str] = []
         self.possible_agents: List[str] = []
+
+        # populate possible_agents immediately (PettingZoo spec)
+        num_agents = self._core_env.num_agents
+        self.possible_agents = [f"agent_{i}" for i in range(num_agents)]
 
         # Buffers for environment data
         self._observations: Optional[np.ndarray] = None
