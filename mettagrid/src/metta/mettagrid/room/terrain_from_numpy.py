@@ -148,25 +148,18 @@ class TerrainFromNumpy(Room):
         else:
             raise TypeError("Unsupported _agents type")
         num_agents = len(agent_labels)
+        assert num_agents == 2
 
         valid_positions = self.get_valid_positions(level)
 
         # 5. Place agents in first slice
         # Take first position and its neighbor for agents
-        agent_positions = [valid_positions[0]]
-        y, x = valid_positions[0]
+        agent_positions = [valid_positions[0], valid_positions[1]]
 
-        # Check adjacent positions and use first valid one
-        adjacent = [(y + 1, x), (y - 1, x), (y, x + 1), (y, x - 1)]
-        agent_positions.extend(random.sample(adjacent, 1))
-        if len(agent_positions) < num_agents:
-            agent_positions.append(valid_positions[1])
-        assert len(agent_positions) == num_agents, f"Expected {num_agents} agents, got {agent_positions}"
-
-        for pos, label in zip(agent_positions, agent_labels, strict=False):
+        for pos, label in zip(agent_positions, agent_labels, strict=True):
             level[pos] = label
 
-        valid_positions = valid_positions[num_agents:]
+        valid_positions = valid_positions.copy()[num_agents:]
         random.shuffle(valid_positions)
 
         # Convert to set for O(1) removal operations
