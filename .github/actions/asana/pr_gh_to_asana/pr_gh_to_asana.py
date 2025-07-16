@@ -12,8 +12,7 @@ import re
 import sys
 
 import requests
-
-from .github_asana_mapping import GithubAsanaMapping
+from github_asana_mapping import GithubAsanaMapping
 
 ASANA_GITHUB_ATTACHMENT_ACTION_URL = "https://github.integrations.asana.plus/custom/v1/actions/widget"
 
