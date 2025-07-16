@@ -10,9 +10,9 @@ import json
 import os
 import re
 import sys
-from pathlib import Path
 
 import requests
+from github_asana_mapping import GithubAsanaMapping
 
 ASANA_GITHUB_ATTACHMENT_ACTION_URL = "https://github.integrations.asana.plus/custom/v1/actions/widget"
 
@@ -483,22 +483,6 @@ def get_pull_request_from_github(repo, pr_number, github_token):
 
     print(f"Pull request retrieved from GitHub: {json.dumps(d, indent=2)}")
     return d
-
-
-def setup_common_path():
-    common_path = Path(__file__).parent / "common"
-    if common_path.exists():
-        sys.path.insert(0, str(common_path))
-        return True
-    return False
-
-
-# Setup and import
-if setup_common_path():
-    from github_asana_mapping import GithubAsanaMapping
-else:
-    print("Could not find common directory")
-    sys.exit(1)
 
 
 if __name__ == "__main__":

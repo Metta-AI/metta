@@ -46,5 +46,5 @@ if __name__ == "__main__":
     text = os.getenv("INPUT_COMMENT")
     asana_token = os.getenv("INPUT_ASANA_TOKEN")
 
-    comment_text = f"{author}\n{state}\n{text}"
+    comment_text = f"{author} reviewed task: {state}\n{text}"
     add_comment_to_asana_task(task_url, comment_text, asana_token)
