@@ -37,6 +37,7 @@ MettaGrid::MettaGrid(const GameConfig& cfg, py::list map, unsigned int seed)
     : max_steps(cfg.max_steps),
       episode_truncates(cfg.episode_truncates),
       obs_width(cfg.obs_width),
+      obs_height(cfg.obs_height),
       inventory_item_names(cfg.inventory_item_names),
       _num_observation_tokens(cfg.num_observation_tokens) {
   _seed = seed;
@@ -48,10 +49,11 @@ MettaGrid::MettaGrid(const GameConfig& cfg, py::list map, unsigned int seed)
 
   current_step = 0;
 
-  bool observation_size_is_packable = obs_width <= PackedCoordinate::MAX_PACKABLE_COORD + 1;
+  bool observation_size_is_packable =
+      obs_width <= PackedCoordinate::MAX_PACKABLE_COORD + 1 && obs_height <= PackedCoordinate::MAX_PACKABLE_COORD + 1;
   if (!observation_size_is_packable) {
-    throw std::runtime_error("Observation window size (" + std::to_string(obs_width) +
-                             ") exceeds maximum packable size");
+    throw std::runtime_error("Observation window size (" + std::to_string(obs_width) + "x" +
+                             std::to_string(obs_height) + ") exceeds maximum packable size");
   }
 
   GridCoord height = static_cast<GridCoord>(py::len(map));

@@ -127,11 +127,16 @@ class PyGameConfig(BaseModelWithForbidExtra):
     max_steps: int = Field(ge=0)
     # default is that we terminate / use "done" vs truncation
     episode_truncates: bool = Field(default=False)
-    obs_width: int = Literal[11]
-    obs_height: int = Literal[11]
+    obs_width: int = Field(ge=1)
+    obs_height: int = Field(ge=1)
     num_observation_tokens: int = Field(ge=1)
     agent: PyAgentConfig
     # Every agent must be in a group, so we need at least one group
     groups: dict[str, PyGroupConfig] = Field(min_length=1)
     actions: PyActionsConfig
     objects: dict[str, PyConverterConfig | PyWallConfig]
+
+
+class PyPolicyGameConfig(PyGameConfig):
+    obs_width: Literal[11]
+    obs_height: Literal[11]

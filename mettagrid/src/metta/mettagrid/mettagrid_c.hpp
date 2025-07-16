@@ -48,6 +48,7 @@ struct GameConfig {
   unsigned int max_steps;
   bool episode_truncates;
   ObservationCoord obs_width;
+  ObservationCoord obs_height;
   std::vector<std::string> inventory_item_names;
   unsigned int num_observation_tokens;
   std::map<std::string, std::shared_ptr<ActionConfig>> actions;
@@ -60,6 +61,7 @@ public:
   ~MettaGrid();
 
   ObservationCoord obs_width;
+  ObservationCoord obs_height;
 
   unsigned int current_step;
   unsigned int max_steps;
@@ -144,7 +146,6 @@ private:
                             ActionArg action_arg);
   void _compute_observations(py::array_t<ActionType, py::array::c_style> actions);
   void _step(py::array_t<ActionType, py::array::c_style> actions);
-
   void _handle_invalid_action(size_t agent_idx, const std::string& stat, ActionType type, ActionArg arg);
 
   AgentConfig _create_agent_config(const py::dict& agent_group_cfg_py);

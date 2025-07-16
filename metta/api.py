@@ -339,6 +339,7 @@ def _get_default_env_config(num_agents: int = 4, width: int = 32, height: int = 
             "max_steps": 1000,
             "num_agents": num_agents,
             "obs_width": 11,
+            "obs_height": 11,
             "num_observation_tokens": 200,
             "inventory_item_names": [
                 "ore_red",
@@ -762,7 +763,7 @@ class Agent:
         agent = MettaAgent(
             obs_space=obs_space,
             obs_width=metta_grid_env.obs_width,
-            obs_height=metta_grid_env.obs_width,
+            obs_height=metta_grid_env.obs_height,
             action_space=metta_grid_env.single_action_space,
             feature_normalizations=metta_grid_env.feature_normalizations,
             global_features=metta_grid_env.global_features,

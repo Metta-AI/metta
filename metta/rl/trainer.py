@@ -12,6 +12,7 @@ import torch.distributed
 import wandb
 from heavyball import ForeachMuon
 from omegaconf import DictConfig
+from pydantic import ValidationError
 
 from metta.agent.metta_agent import DistributedMettaAgent, make_policy
 from metta.agent.policy_metadata import PolicyMetadata
@@ -27,6 +28,7 @@ from metta.common.wandb.wandb_context import WandbRun
 from metta.eval.eval_request_config import EvalRewardSummary
 from metta.eval.eval_service import evaluate_policy
 from metta.mettagrid.curriculum.util import curriculum_from_config_path
+from metta.mettagrid.mettagrid_config import PyPolicyGameConfig
 from metta.mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
 from metta.rl.experience import Experience
 from metta.rl.functions import (
@@ -926,8 +928,16 @@ class MettaTrainer:
     def _make_vecenv(self):
         """Create a vectorized environment."""
         trainer_cfg = self.trainer_cfg
+        task = self._curriculum.get_task()
+        env_cfg = task.env_cfg()
 
-        num_agents = self._curriculum.get_task().env_cfg().game.num_agents
+        # TODO: relax someday when we support other observation shapes
+        try:
+            game_cfg = PyPolicyGameConfig(**env_cfg.game.dict())
+        except ValidationError as e:
+            raise ValueError(f"env_cfg.game is not compatible with agent requirements: {e}") from e
+
+        num_agents = game_cfg.num_agents
 
         # Calculate batch sizes using helper function
         self.target_batch_size, self.batch_size, num_envs = calculate_batch_sizes(

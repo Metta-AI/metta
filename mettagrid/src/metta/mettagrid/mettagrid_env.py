@@ -393,6 +393,10 @@ class MettaGridEnv(PufferEnv, GymEnv):
         return self._c_env.obs_width
 
     @property
+    def obs_height(self):
+        return self._c_env.obs_height
+
+    @property
     def action_names(self) -> list[str]:
         return self._c_env.action_names()
 

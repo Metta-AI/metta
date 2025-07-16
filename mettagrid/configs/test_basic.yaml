@@ -32,6 +32,7 @@ game:
 
   num_agents: 5
   obs_width: 11
+  obs_height: 11
   max_steps: 5000
 
   groups:
