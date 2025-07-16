@@ -308,6 +308,11 @@ class MettaTrainer:
             for metric_name, step_metric in metric_overrides:
                 wandb_run.define_metric(metric_name, step_metric=step_metric)
 
+            # Log model parameters
+            num_params = sum(p.numel() for p in self.policy.parameters())
+            if wandb_run.summary:
+                wandb_run.summary["model/total_parameters"] = num_params
+
         if self._master:
             self._memory_monitor.add(self, name="MettaTrainer", track_attributes=True)
 
