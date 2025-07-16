@@ -119,4 +119,17 @@ def from_mettagrid_config(mettagrid_config_dict: dict[str, Any]) -> CppGameConfi
     game_cpp_params["actions"] = actions_cpp_params
     game_cpp_params["objects"] = objects_cpp_params
 
+    # Handle global_obs configuration if present
+    # Note: This requires C++ GameConfig to support these fields
+    if game_config.global_obs is not None:
+        global_obs_config = game_config.global_obs
+        game_cpp_params["include_episode_completion_pct"] = global_obs_config.episode_completion_pct
+        game_cpp_params["include_last_action"] = global_obs_config.last_action
+        game_cpp_params["include_last_reward"] = global_obs_config.last_reward
+    else:
+        # Default values when global_obs is not specified
+        game_cpp_params["include_episode_completion_pct"] = True
+        game_cpp_params["include_last_action"] = True
+        game_cpp_params["include_last_reward"] = True
+
     return CppGameConfig(**game_cpp_params)
