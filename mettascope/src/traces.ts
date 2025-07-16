@@ -16,13 +16,7 @@ export function drawTrace(panel: PanelInfo) {
   if (ui.mouseTargets.includes('#trace-panel')) {
     if (ui.mouseDoubleClick) {
       // Toggle followSelection on double-click.
-      console.info(
-        'Trace double click - following selection',
-        'isPinching:',
-        ui.isPinching,
-        'touches:',
-        ui.touches.length
-      )
+      console.info('Trace double click - following selection')
       setFollowSelection(true)
       panel.zoomLevel = Common.DEFAULT_TRACE_ZOOM_LEVEL
       ui.mapPanel.zoomLevel = Common.DEFAULT_ZOOM_LEVEL
