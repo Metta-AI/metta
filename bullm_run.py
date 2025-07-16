@@ -72,7 +72,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(levelna
 logger = logging.getLogger(__name__)
 
 # Define run name in a single place
-RUN_NAME = "bullm_arena_functional_runpy_v1"
+RUN_NAME = "bullm_arena_functional_runpy_v2"
 
 # Set up directories and distributed training
 dirs = setup_run_directories()
@@ -85,7 +85,7 @@ device, is_master, world_size, rank = setup_distributed_training("cuda" if torch
 
 # Core training parameters
 num_workers = 4
-total_timesteps = 10_000_000
+total_timesteps = 100_000_000_000  # Increased from 10M to 100M timesteps (10x longer)
 batch_size = 524288 if torch.cuda.is_available() else 131072  # 512k for GPU, 128k for CPU
 minibatch_size = 16384 if torch.cuda.is_available() else 4096  # 16k for GPU, 4k for CPU
 curriculum = "/env/mettagrid/curriculum/arena/learning_progress"
@@ -211,7 +211,7 @@ arena_simulations = {}
 # Basic arena evaluation
 arena_simulations["arena/basic"] = {
     "env": "/env/mettagrid/arena/basic",
-    "num_episodes": 5,
+    "num_episodes": 10,  # Increased for longer training
     "max_time_s": 30,
     "env_overrides": {
         "_pre_built_env_config": DictConfig(base_arena_config.copy()),
@@ -221,7 +221,7 @@ arena_simulations["arena/basic"] = {
 # Combat arena evaluation
 arena_simulations["arena/combat"] = {
     "env": "/env/mettagrid/arena/combat",
-    "num_episodes": 5,
+    "num_episodes": 10,  # Increased for longer training
     "max_time_s": 30,
     "env_overrides": {
         "_pre_built_env_config": DictConfig(base_arena_config.copy()),
@@ -231,7 +231,7 @@ arena_simulations["arena/combat"] = {
 # Advanced arena evaluation
 arena_simulations["arena/advanced"] = {
     "env": "/env/mettagrid/arena/advanced",
-    "num_episodes": 5,
+    "num_episodes": 10,  # Increased for longer training
     "max_time_s": 30,
     "env_overrides": {
         "_pre_built_env_config": DictConfig(base_arena_config.copy()),
@@ -241,7 +241,7 @@ arena_simulations["arena/advanced"] = {
 # Tag arena evaluation
 arena_simulations["arena/tag"] = {
     "env": "/env/mettagrid/arena/tag",
-    "num_episodes": 5,
+    "num_episodes": 10,  # Increased for longer training
     "max_time_s": 30,
     "env_overrides": {
         "_pre_built_env_config": DictConfig(base_arena_config.copy()),
@@ -252,7 +252,7 @@ arena_simulations["arena/tag"] = {
 evaluation_config = SimulationSuiteConfig(
     name="arena_evaluation",
     simulations=arena_simulations,
-    num_episodes=10,  # Will be overridden by individual configs
+    num_episodes=20,  # Increased for longer training (will be overridden by individual configs)
     env_overrides={},  # Suite-level overrides
 )
 
