@@ -45,32 +45,33 @@ ipython_config.InteractiveShellApp.exec_lines = [
 ]
 
 
-try:
-    personal_dir = str(REPO_ROOT / "personal")
-    if personal_dir not in sys.path:
-        sys.path.insert(0, personal_dir)
+personal_dir = REPO_ROOT / "personal"
+personal_startup_script = personal_dir / "shell_startup.py"
+if personal_startup_script.exists():
+    try:
+        if str(personal_dir) not in sys.path:
+            sys.path.insert(0, str(personal_dir))
+        spec = importlib.util.spec_from_file_location("personal.shell_startup", personal_startup_script)
+        if spec and spec.loader:
+            shell_startup = importlib.util.module_from_spec(spec)
+            # Inject our current globals into the module's namespace
+            current_globals = globals().copy()
+            current_globals.update(locals())
+            for key, value in current_globals.items():
+                if key not in ["__name__", "__file__", "__cached__"]:
+                    setattr(shell_startup, key, value)
 
-    spec = importlib.util.spec_from_file_location("personal.shell_startup", REPO_ROOT / "personal" / "shell_startup.py")
-    if spec and spec.loader:
-        shell_startup = importlib.util.module_from_spec(spec)
-        # Inject our current globals into the module's namespace
-        current_globals = globals().copy()
-        current_globals.update(locals())
-        for key, value in current_globals.items():
-            if key not in ["__name__", "__file__", "__cached__"]:
-                setattr(shell_startup, key, value)
+            # Now execute the module with our globals available
+            spec.loader.exec_module(shell_startup)
+            # Import names from shell_startup into our namespace
+            for name in dir(shell_startup):
+                locals()[name] = getattr(shell_startup, name)
 
-        # Now execute the module with our globals available
-        spec.loader.exec_module(shell_startup)
-        # Import names from shell_startup into our namespace
-        for name in dir(shell_startup):
-            locals()[name] = getattr(shell_startup, name)
-
-    success("Personal shell startup loaded successfully")
-except ImportError:
+        success("Personal shell startup loaded successfully")
+    except Exception as e:
+        warning(f"Error loading personal shell startup: {e}")
+else:
     info("You can add custom shell startup code (e.g. importing functions you often use) to personal/shell_startup.py")
-except Exception as e:
-    warning(f"Error loading personal shell startup: {e}")
 
 # Starts an ipython shell with access to the variables in this local scope (the imports)
 IPython.start_ipython(user_ns=locals(), config=ipython_config)
