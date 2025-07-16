@@ -46,6 +46,7 @@ namespace py = pybind11;
 struct GameConfig {
   unsigned int num_agents;
   unsigned int max_steps;
+  bool episode_truncates;
   ObservationCoord obs_width;
   ObservationCoord obs_height;
   std::vector<std::string> inventory_item_names;
@@ -64,6 +65,7 @@ public:
 
   unsigned int current_step;
   unsigned int max_steps;
+  bool episode_truncates;
 
   std::vector<std::string> inventory_item_names;
   std::vector<std::string> object_type_names;

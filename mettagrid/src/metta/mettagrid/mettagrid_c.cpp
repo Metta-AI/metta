@@ -37,6 +37,7 @@ MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int see
     : obs_width(cfg.obs_width),
       obs_height(cfg.obs_height),
       max_steps(cfg.max_steps),
+      episode_truncates(cfg.episode_truncates),
       inventory_item_names(cfg.inventory_item_names),
       _num_observation_tokens(cfg.num_observation_tokens) {
   _seed = seed;
@@ -420,9 +421,15 @@ void MettaGrid::_step(py::array_t<ActionType, py::array::c_style> actions) {
 
   // Check for truncation
   if (max_steps > 0 && current_step >= max_steps) {
-    std::fill(static_cast<bool*>(_truncations.request().ptr),
-              static_cast<bool*>(_truncations.request().ptr) + _truncations.size(),
-              1);
+    if (episode_truncates) {
+      std::fill(static_cast<bool*>(_truncations.request().ptr),
+                static_cast<bool*>(_truncations.request().ptr) + _truncations.size(),
+                1);
+    } else {
+      std::fill(static_cast<bool*>(_terminals.request().ptr),
+                static_cast<bool*>(_terminals.request().ptr) + _terminals.size(),
+                1);
+    }
   }
 }
 
@@ -912,6 +919,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
   py::class_<GameConfig>(m, "GameConfig")
       .def(py::init<unsigned int,
                     unsigned int,
+                    bool,
                     unsigned short,
                     unsigned short,
                     const std::vector<std::string>&,
@@ -920,6 +928,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
                     const std::map<std::string, std::shared_ptr<GridObjectConfig>>&>(),
            py::arg("num_agents"),
            py::arg("max_steps"),
+           py::arg("episode_truncates"),
            py::arg("obs_width"),
            py::arg("obs_height"),
            py::arg("inventory_item_names"),
@@ -928,6 +937,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
            py::arg("objects"))
       .def_readwrite("num_agents", &GameConfig::num_agents)
       .def_readwrite("max_steps", &GameConfig::max_steps)
+      .def_readwrite("episode_truncates", &GameConfig::episode_truncates)
       .def_readwrite("obs_width", &GameConfig::obs_width)
       .def_readwrite("obs_height", &GameConfig::obs_height)
       .def_readwrite("inventory_item_names", &GameConfig::inventory_item_names)
