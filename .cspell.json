@@ -232,6 +232,7 @@
   "ignorePaths": [
     "node_modules",
     "venv",
-    ".git"
+    ".git",
+    "*.map"
   ]
 }

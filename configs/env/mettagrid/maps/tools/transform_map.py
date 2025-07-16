@@ -12,15 +12,21 @@ import argparse
 import sys
 from pathlib import Path
 
-from metta.map.utils.ascii_grid import (
-    load_map_file,
-    mirror_lines_horizontal,
-    mirror_lines_vertical,
-    rotate_lines_90,
-    rotate_lines_180,
-    rotate_lines_270,
-    validate_map_file,
-)
+try:
+    from metta.map.utils.ascii_grid import (
+        load_map_file,
+        mirror_lines_horizontal,
+        mirror_lines_vertical,
+        rotate_lines_90,
+        rotate_lines_180,
+        rotate_lines_270,
+        validate_map_file,
+    )
+except ModuleNotFoundError as e:
+    print("\n❌ Could not import `metta`. Make sure your virtual environment is activated.")
+    print("   Try running:\n\n       source .venv/bin/activate\n")
+    print("Full error:", e)
+    sys.exit(1)
 
 
 def generate_output_filename(input_path: Path, rotate: int, mirror: str | None) -> Path:

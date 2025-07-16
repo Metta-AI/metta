@@ -1,7 +1,7 @@
 # @package __global__
 
 defaults:
-  - override /agent: fast_5x5
+  - override /agent: fast
   - override /sim: communication
   - _self_
 
