@@ -89,11 +89,11 @@ export class PanelInfo {
       const center = touch1.add(touch2).mul(0.5)
       const distance = touch1.sub(touch2).length()
 
-      // Only process zoom if we have a valid previous distance and sufficient change
-      if (ui.lastPinchDistance > 20 && Math.abs(distance - ui.lastPinchDistance) > 5) {
-        // Calculate zoom delta (similar to scroll wheel) - make it less sensitive
+      // Process zoom smoothly with minimal threshold for fluid movement
+      if (ui.lastPinchDistance > 20 && Math.abs(distance - ui.lastPinchDistance) > 1) {
+        // Calculate zoom delta (similar to scroll wheel) - smooth and responsive
         const zoomRatio = distance / ui.lastPinchDistance
-        const scrollEquivalent = (zoomRatio - 1.0) * 500 // Convert to scroll-like delta
+        const scrollEquivalent = (zoomRatio - 1.0) * 400 // Convert to scroll-like delta
 
         // Use the exact same logic as mouse wheel zoom
         const oldCenterPoint = this.transformOuter(center)
@@ -103,14 +103,16 @@ export class PanelInfo {
         if (oldCenterPoint != null && newCenterPoint != null) {
           this.panPos = this.panPos.add(newCenterPoint.sub(oldCenterPoint))
         }
+      }
 
-        // Update stored values only after successful zoom
+      // Always update distance for smooth continuous zooming
+      if (distance > 20) {
         ui.lastPinchDistance = distance
       }
 
-      // Handle panning during pinch - update center every frame for smooth panning
+      // Handle panning during pinch - smooth and responsive
       const centerDelta = center.sub(ui.lastPinchCenter)
-      if (centerDelta.length() > 2) { // Minimum movement threshold
+      if (centerDelta.length() > 0.5) { // Very low threshold for smooth panning
         const lastCenterPoint = this.transformOuter(ui.lastPinchCenter)
         const newCenterPoint = this.transformOuter(center)
         if (lastCenterPoint != null && newCenterPoint != null) {
