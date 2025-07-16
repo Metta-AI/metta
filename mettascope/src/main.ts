@@ -385,23 +385,25 @@ onEvent('keydown', 'body', (target: HTMLElement, e: Event) => {
     // Close the currently visible panel, preferring the ones most likely to be on top.
     if (state.showAgentPanel) {
       state.showAgentPanel = false
+      localStorage.setItem('showAgentPanel', state.showAgentPanel.toString())
       toggleOpacity(html.agentPanelToggle, state.showAgentPanel)
     } else if (state.showInfo) {
       state.showInfo = false
+      localStorage.setItem('showInfo', state.showInfo.toString())
       toggleOpacity(html.infoToggle, state.showInfo)
     } else if (state.showTraces) {
       state.showTraces = false
+      localStorage.setItem('showTraces', state.showTraces.toString())
       toggleOpacity(html.tracesToggle, state.showTraces)
       onResize()
     } else if (state.showActionButtons) {
       state.showActionButtons = false
+      localStorage.setItem('showActionButtons', state.showActionButtons.toString())
       toggleOpacity(html.controlsToggle, state.showActionButtons)
     }
 
     updateSelection(null)
     setFollowSelection(false)
-    requestFrame()
-    return
   }
   // '[' and ']' scrub forward and backward.
   if (event.key == '[') {
