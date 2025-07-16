@@ -486,129 +486,173 @@ def get_pull_request_from_github(repo, pr_number, github_token):
 
 
 if __name__ == "__main__":
-    # Inputs from the Action
-    project_id = os.getenv("INPUT_PROJECT_ID")
-    workspace_id = os.getenv("INPUT_WORKSPACE_ID")
-    asana_token = os.getenv("INPUT_ASANA_TOKEN")
-    github_url = os.getenv("INPUT_GITHUB_URL")
-    github_url_field_id = os.getenv("INPUT_GITHUB_URL_FIELD_ID")
-    gh_login_field_id = os.getenv("INPUT_GH_LOGIN_FIELD_ID")
-    asana_email_field_id = os.getenv("INPUT_ASANA_EMAIL_FIELD_ID")
-    roster_project_id = os.getenv("INPUT_ROSTER_PROJECT_ID")
-    pr_author_field_id = os.getenv("INPUT_PR_AUTHOR_FIELD_ID")
-    asana_attachment_secret = os.getenv("INPUT_ASANA_ATTACHMENT_SECRET")
-    pr_number = os.getenv("INPUT_PR_NUMBER")
-    github_repo = os.getenv("INPUT_GITHUB_REPO")
-    github_token = os.getenv("INPUT_GITHUB_TOKEN")
+    import traceback
 
-    # todo validate that the above are not None
+    try:
+        # Inputs from the Action
+        project_id = os.getenv("INPUT_PROJECT_ID")
+        workspace_id = os.getenv("INPUT_WORKSPACE_ID")
+        asana_token = os.getenv("INPUT_ASANA_TOKEN")
+        github_url = os.getenv("INPUT_GITHUB_URL")
+        github_url_field_id = os.getenv("INPUT_GITHUB_URL_FIELD_ID")
+        gh_login_field_id = os.getenv("INPUT_GH_LOGIN_FIELD_ID")
+        asana_email_field_id = os.getenv("INPUT_ASANA_EMAIL_FIELD_ID")
+        roster_project_id = os.getenv("INPUT_ROSTER_PROJECT_ID")
+        pr_author_field_id = os.getenv("INPUT_PR_AUTHOR_FIELD_ID")
+        asana_attachment_secret = os.getenv("INPUT_ASANA_ATTACHMENT_SECRET")
+        pr_number = os.getenv("INPUT_PR_NUMBER")
+        github_repo = os.getenv("INPUT_GITHUB_REPO")
+        github_token = os.getenv("INPUT_GITHUB_TOKEN")
 
-    pr = get_pull_request_from_github(github_repo, pr_number, github_token)
-    description = pr.get("body", "") or ""
-    title = pr.get("title", "") or ""
-    author = (pr.get("user", "") or {}).get("login", "") or ""
-    assignees = [assignee["login"] for assignee in pr.get("assignees", [])] or []
-
-    # designated assignee is not the author and also not random
-    assignee = next((a for a in sorted(assignees) if a != author), author)
-
-    reviewers = [
-        review["user"]["login"]
-        for review in pr.json().get("retrieved_reviews", [])
-        if review.get("user") and review["user"].get("login")
-    ]
-    commenters = [
-        review["user"]["login"]
-        for review in pr.json().get("retrieved_comments", [])
-        if review.get("user") and review["user"].get("login")
-    ]
-
-    github_logins = set(assignees + reviewers + commenters + [author])
-    mapping = GithubAsanaMapping(
-        github_logins,
-        roster_project_id,
-        gh_login_field_id,
-        asana_email_field_id,
-        asana_token,
-    )
-    github_login_to_asana_email = mapping.github_login_to_asana_email
-
-    retrieved_reviews = pr.get("retrieved_reviews", [])
-    retrieved_timeline = pr.get("retrieved_timeline", [])
-    reviews = [
-        {"type": "review", "timestamp": r["submitted_at"], "user": r["user"]["login"], "state": r["state"], "data": r}
-        for r in retrieved_reviews
-        if r.get("state") in ["APPROVED", "CHANGES_REQUESTED"]
-    ]
-    review_requested = [
-        {
-            "type": "review_requested",
-            "timestamp": e["created_at"],
-            "user": e["actor"]["login"],
-            "state": None,
-            "data": e,
+        required_vars = {
+            "INPUT_PROJECT_ID": project_id,
+            "INPUT_WORKSPACE_ID": workspace_id,
+            "INPUT_ASANA_TOKEN": asana_token,
+            "INPUT_GITHUB_URL": github_url,
+            "INPUT_GITHUB_URL_FIELD_ID": github_url_field_id,
+            "INPUT_GH_LOGIN_FIELD_ID": gh_login_field_id,
+            "INPUT_ASANA_EMAIL_FIELD_ID": asana_email_field_id,
+            "INPUT_ROSTER_PROJECT_ID": roster_project_id,
+            "INPUT_PR_AUTHOR_FIELD_ID": pr_author_field_id,
+            "INPUT_ASANA_ATTACHMENT_SECRET": asana_attachment_secret,
+            "INPUT_PR_NUMBER": pr_number,
+            "INPUT_GITHUB_REPO": github_repo,
+            "INPUT_GITHUB_TOKEN": github_token,
         }
-        for e in retrieved_timeline
-        if e.get("event") == "review_requested"
-    ]
-    last_event = max(reviews + review_requested, key=lambda x: x["timestamp"], default=None)
+        missing = [k for k, v in required_vars.items() if v is None]
+        if missing:
+            raise RuntimeError(f"Missing required environment variables: {', '.join(missing)}")
 
-    is_draft = pr.get("draft", False)
-    is_open = (pr.get("state", "") or "") == "open"
-    task_completed = not (is_open)
+        # All required vars are present, cast to str to satisfy type checker
+        project_id = str(project_id)
+        workspace_id = str(workspace_id)
+        asana_token = str(asana_token)
+        github_url = str(github_url)
+        github_url_field_id = str(github_url_field_id)
+        gh_login_field_id = str(gh_login_field_id)
+        asana_email_field_id = str(asana_email_field_id)
+        roster_project_id = str(roster_project_id)
+        pr_author_field_id = str(pr_author_field_id)
+        asana_attachment_secret = str(asana_attachment_secret)
+        pr_number = str(pr_number)
+        github_repo = str(github_repo)
+        github_token = str(github_token)
 
-    """
-    asana task assignment (asana owner) should be the PR author or PR assignee dep. on who is responsible at this time
-     - as a story, we assume that the PR author is doing the coding and the PR assignee is doing the admin behind the PR
-     - we switch from author <=> assignee while the review process is ongoing
-     -   specifically we look at the last event, (an event is either a passing or failing review or a review_requested)
-     -    if there is no event, there has been no review, so the assignee has work to do and is the asana owner
-     -    if the last event is a review (whether passing or failing the PR), the PR author is the asana owner
-     -    if the last event is a review_request (meaning the author requested a re-review), it goes back to the assignee
-     - note that this is only for active PRs
-     -   if the PR is closed or merged (ie not open), or is a draft, the PR author is the asana owner
-     - simplifying this logic:
-     -   asana owner is designee when last_event is None or review_requested
-     - ideally we would want to incorporate mergeability
-     -   if the PR cannot be synced because of a merge issue with the PR destination this would go to the PR author.
-     -     however, this is not easy to implement because mergeability is computed async and there is no hook
-    """
-    asana_owner_is_assignee = not (last_event) or last_event["type"] == "review_requested"
-    asana_owner = assignee if asana_owner_is_assignee else author
+        pr = get_pull_request_from_github(github_repo, pr_number, github_token)
+        description = pr.get("body", "") or ""
+        title = pr.get("title", "") or ""
+        author = (pr.get("user", "") or {}).get("login", "") or ""
+        assignees = [assignee["login"] for assignee in pr.get("assignees", [])] or []
 
-    # github allows multiple assignees. Asana doesn't. So we'll just use the first one.
-    asana_assignee = github_login_to_asana_email.get(assignees[0]) if assignees else None
-    asana_collaborators = [
-        github_login_to_asana_email[login] for login in github_logins if login in github_login_to_asana_email
-    ]
+        # designated assignee is not the author and also not random
+        assignee = next((a for a in sorted(assignees) if a != author), author)
 
-    # Get the author's Asana ID for the custom field
-    pr_author_asana = github_login_to_asana_email.get(author)
+        reviewers = [
+            review["user"]["login"]
+            for review in pr.json().get("retrieved_reviews", [])
+            if review.get("user") and review["user"].get("login")
+        ]
+        commenters = [
+            review["user"]["login"]
+            for review in pr.json().get("retrieved_comments", [])
+            if review.get("user") and review["user"].get("login")
+        ]
 
-    # for now
-    print(f"assignees: {assignees}")
-    print(f"author: {author}")
-    print(f"reviewers: {reviewers}")
-    print(f"commenters: {commenters}")
-    print(f"github_logins: {github_logins}")
-    print(f"pr_author_asana: {pr_author_asana}")
+        github_logins = set(assignees + reviewers + commenters + [author])
+        mapping = GithubAsanaMapping(
+            github_logins,
+            roster_project_id,
+            gh_login_field_id,
+            asana_email_field_id,
+            asana_token,
+        )
+        github_login_to_asana_email = mapping.github_login_to_asana_email
 
-    # Ensure task exists and output URL
-    task_url = ensure_asana_task(
-        title,
-        description,
-        task_completed,
-        asana_assignee,
-        asana_collaborators,
-        project_id,
-        workspace_id,
-        github_url,
-        github_url_field_id,
-        asana_token,
-        pr_author_field_id,
-        pr_author_asana,
-        asana_attachment_secret,
-    )
+        retrieved_reviews = pr.get("retrieved_reviews", [])
+        retrieved_timeline = pr.get("retrieved_timeline", [])
+        reviews = [
+            {
+                "type": "review",
+                "timestamp": r["submitted_at"],
+                "user": r["user"]["login"],
+                "state": r["state"],
+                "data": r,
+            }
+            for r in retrieved_reviews
+            if r.get("state") in ["APPROVED", "CHANGES_REQUESTED"]
+        ]
+        review_requested = [
+            {
+                "type": "review_requested",
+                "timestamp": e["created_at"],
+                "user": e["actor"]["login"],
+                "state": None,
+                "data": e,
+            }
+            for e in retrieved_timeline
+            if e.get("event") == "review_requested"
+        ]
+        last_event = max(reviews + review_requested, key=lambda x: x["timestamp"], default=None)
 
-    with open(os.environ["GITHUB_OUTPUT"], "a") as f:
-        f.write(f"task_url={task_url}\n")
+        is_draft = pr.get("draft", False)
+        is_open = (pr.get("state", "") or "") == "open"
+        task_completed = not (is_open)
+
+        """
+        asana task assignment (asana owner) should be the PR author or PR assignee dep who is responsible at this time
+         - as a story, we say that the PR author is doing the coding, the PR assignee is doing the admin behind the PR
+         - we switch from author <=> assignee while the review process is ongoing
+         -   specifically we look at the last event
+         -      (an event is either a passing or failing review or a review_requested)
+         -    if there is no event, there has been no review, so the assignee has work to do and is the asana owner
+         -    if the last event is a review (whether passing or failing the PR), the PR author is the asana owner
+         -    if the last event is a review_request (meaning the author requested re-review), goes back to the assignee
+         - note that this is only for active PRs
+         -   if the PR is closed or merged (ie not open), or is a draft, the PR author is the asana owner
+         - simplifying this logic:
+         -   asana owner is designee when last_event is None or review_requested
+         - ideally we would want to incorporate mergeability
+         -   if the PR cannot be synced because of a merge issue with the PR destination this would go to the PR author.
+         -     however, this is not easy to implement because mergeability is computed async and there is no hook
+        """
+        asana_owner_is_assignee = not (last_event) or last_event["type"] == "review_requested"
+        asana_owner = assignee if asana_owner_is_assignee else author
+
+        # github allows multiple assignees. Asana doesn't. So we'll just use the first one.
+        asana_assignee = github_login_to_asana_email.get(assignees[0]) if assignees else None
+        asana_collaborators = [
+            github_login_to_asana_email[login] for login in github_logins if login in github_login_to_asana_email
+        ]
+
+        # Get the author's Asana ID for the custom field
+        pr_author_asana = github_login_to_asana_email.get(author)
+
+        # for now
+        print(f"assignees: {assignees}")
+        print(f"author: {author}")
+        print(f"reviewers: {reviewers}")
+        print(f"commenters: {commenters}")
+        print(f"github_logins: {github_logins}")
+        print(f"pr_author_asana: {pr_author_asana}")
+
+        # Ensure task exists and output URL
+        task_url = ensure_asana_task(
+            title,
+            description,
+            task_completed,
+            asana_assignee,
+            asana_collaborators,
+            project_id,
+            workspace_id,
+            github_url,
+            github_url_field_id,
+            asana_token,
+            pr_author_field_id,
+            pr_author_asana,
+            asana_attachment_secret,
+        )
+
+        with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+            f.write(f"task_url={task_url}\n")
+    except Exception:
+        traceback.print_exc()
