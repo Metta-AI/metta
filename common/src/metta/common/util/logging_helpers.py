@@ -67,7 +67,7 @@ def get_log_level(provided_level: str | None = None) -> str:
     return "INFO"
 
 
-def setup_mettagrid_logger(name: str, level: str | None = None) -> logging.Logger:
+def setup_mettagrid_logger(level: str | None = None) -> None:
     # Get the appropriate log level based on priority
     log_level = get_log_level(level)
 
@@ -88,5 +88,3 @@ def setup_mettagrid_logger(name: str, level: str | None = None) -> logging.Logge
     # set env COLUMNS if we are in a batch job
     if os.environ.get("AWS_BATCH_JOB_ID") or os.environ.get("SKYPILOT_TASK_ID"):
         os.environ["COLUMNS"] = "200"
-
-    return logging.getLogger(name)

@@ -30,7 +30,7 @@ def make_env_func(
     # we are not calling into our configs hierarchy here so we need to manually register the custom resolvers
     register_resolvers()
 
-    setup_mettagrid_logger("vecenv")
+    setup_mettagrid_logger()
     if run_dir:
         setup_file_logging(run_dir)
 

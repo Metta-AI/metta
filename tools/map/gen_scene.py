@@ -7,6 +7,7 @@ from typing import cast, get_args
 
 from omegaconf import DictConfig, OmegaConf
 
+from metta.common.util.logging_helpers import setup_mettagrid_logger
 from metta.common.util.resolvers import register_resolvers
 from metta.map.utils.show import ShowMode, show_map
 from metta.map.utils.storable_map import StorableMap
@@ -15,12 +16,9 @@ from metta.map.utils.storable_map import StorableMap
 signal.signal(signal.SIGINT, lambda sig, frame: os._exit(0))
 
 logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO)
 
 
 def make_map(cfg_path: str, width: int, height: int, overrides: DictConfig | None = None):
-    register_resolvers()
-
     cfg: DictConfig = cast(DictConfig, OmegaConf.merge(OmegaConf.load(cfg_path), overrides))
 
     if not OmegaConf.is_dict(cfg):
@@ -41,6 +39,9 @@ def make_map(cfg_path: str, width: int, height: int, overrides: DictConfig | Non
 
 
 def main():
+    register_resolvers()
+    setup_mettagrid_logger()
+
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--show-mode", choices=get_args(ShowMode), default="mettascope", help="Show the map in the specified mode"

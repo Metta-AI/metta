@@ -1,6 +1,7 @@
 # Deals with full and partial replays.
 
 import json
+import logging
 import time
 
 import hydra
@@ -8,16 +9,18 @@ import hydra
 from metta.agent.mocks import MockPolicyRecord
 from metta.agent.policy_store import PolicyStore
 from metta.common.util.logging_helpers import setup_mettagrid_logger
-from metta.common.util.runtime_configuration import setup_mettagrid_environment
 from metta.common.wandb.wandb_context import WandbContext
 from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SingleEnvSimulationConfig
+from metta.util.metta_script import setup_mettagrid_environment
+
+logger = logging.getLogger("replay")
 
 
 def create_simulation(cfg):
     setup_mettagrid_environment(cfg)
 
-    logger = setup_mettagrid_logger("replay")
+    setup_mettagrid_logger()
     logger.info(f"Replaying {cfg.run}")
 
     with WandbContext(cfg.wandb, cfg) as wandb_run:
