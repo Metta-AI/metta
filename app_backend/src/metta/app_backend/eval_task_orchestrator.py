@@ -10,7 +10,9 @@ This script:
 """
 
 import asyncio
+import logging
 import os
+import time
 from datetime import datetime, timezone
 
 from metta.app_backend.container_managers.base import AbstractContainerManager
@@ -46,9 +48,18 @@ class EvalTaskOrchestrator:
         # Use provided container manager or create one based on environment
         self._container_manager = container_manager or create_container_manager()
 
-    def cleanup_container(self, container_id: str) -> None:
-        """Remove a container."""
-        self._container_manager.cleanup_container(container_id)
+        self._recently_spawned: dict[str, float] = {}
+
+    def _was_recently_spawned(self, git_hash: str) -> bool:
+        current_time = time.time()
+        expired = [gh for gh, spawn_time in self._recently_spawned.items() if current_time - spawn_time > 60]
+        for gh in expired:
+            del self._recently_spawned[gh]
+        return git_hash in self._recently_spawned
+
+    def _mark_as_spawned(self, git_hash: str) -> None:
+        """Mark a git hash as recently spawned."""
+        self._recently_spawned[git_hash] = time.time()
 
     async def discover_alive_workers(self) -> list[WorkerInfo]:
         """Discover all alive workers."""
@@ -119,13 +130,20 @@ class EvalTaskOrchestrator:
                 await self._task_client.update_task_status(update_request)
             # Case 4: There is no assigned worker, or the assigned worker is dead and it should be revived
             else:
+                # Check if we recently spawned a worker for this git hash. This is to prevent duplicate spawns.
+                # It takes some time for for new docker containers to show up in `discover_alive_workers`
+                if self._was_recently_spawned(task.git_hash):
+                    continue
+
+                # Spawn new worker and track it
+                self._mark_as_spawned(task.git_hash)
                 new_worker = self._container_manager.start_worker_container(
                     git_hash=task.git_hash, backend_url=self._backend_url, docker_image=self._docker_image
                 )
                 if await self._attempt_claim_task(task, new_worker):
                     workers[task.git_hash] = new_worker
                 else:
-                    self._logger.error(f"Failed to claim task {task.id} for worker {new_worker.container_name}")
+                    self._logger.warning(f"Failed to claim task {task.id} for worker {new_worker.container_name}")
                     # new_worker will be cleaned up next cycle
 
     async def cleanup_idle_workers(self, workers: dict[str, WorkerInfo]) -> None:
@@ -144,7 +162,7 @@ class EvalTaskOrchestrator:
                             self._logger.info(
                                 f"Cleaning up idle worker {worker.container_name} - no tasks for {task_age:.0f}s"
                             )
-                            self.cleanup_container(worker.container_id)
+                            self._container_manager.cleanup_container(worker.container_id)
                             worker.alive = False
                 except Exception as e:
                     self._logger.error(f"Failed to check idle status for worker {worker.container_name}: {e}")
@@ -162,7 +180,7 @@ class EvalTaskOrchestrator:
             remaining_workers[git_hash] = sorted_workers[0]
             to_remove.extend(sorted_workers[1:])
         for worker in to_remove:
-            self.cleanup_container(worker.container_id)
+            self._container_manager.cleanup_container(worker.container_id)
         if to_remove:
             self._logger.info(f"Removed {len(to_remove)} duplicate workers")
         return remaining_workers
@@ -217,10 +235,6 @@ dead: {len(grouped[(False, False)])}"""
 
 async def main() -> None:
     setup_mettagrid_logger("eval_worker_orchestrator")
-
-    # Suppress httpx INFO logs
-    import logging
-
     logging.getLogger("httpx").setLevel(logging.WARNING)
 
     backend_url = os.environ.get("BACKEND_URL", "http://localhost:8000")

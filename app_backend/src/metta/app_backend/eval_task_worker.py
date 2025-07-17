@@ -23,6 +23,7 @@ from metta.app_backend.routes.eval_task_routes import (
     TaskStatusUpdate,
     TaskUpdateRequest,
 )
+from metta.common.util.logging_helpers import setup_mettagrid_logger
 
 logger = logging.getLogger(__name__)
 
@@ -187,6 +188,8 @@ class EvalTaskWorker:
                     except Exception as e:
                         self._logger.error(f"Task failed: {e}", exc_info=True)
                         await self._update_task_status(task.id, "error", str(e))
+                else:
+                    self._logger.info("No tasks claimed")
 
                 elapsed_time = (datetime.now() - loop_start_time).total_seconds()
                 await asyncio.sleep(max(0, self._poll_interval - elapsed_time))
@@ -200,11 +203,8 @@ class EvalTaskWorker:
 
 
 async def main() -> None:
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-        handlers=[logging.StreamHandler(sys.stdout)],
-    )
+    setup_mettagrid_logger("eval_worker_worker")
+    logging.getLogger("httpx").setLevel(logging.WARNING)
 
     backend_url = os.environ["BACKEND_URL"]
     git_hash = os.environ["GIT_HASH"]
