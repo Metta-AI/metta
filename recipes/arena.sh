@@ -1,7 +1,7 @@
 
 ./devops/skypilot/launch.py train \
---gpus=4 \
---nodes=8 \
+--gpus=1 \
+--nodes=1 \
 --no-spot \
 run=$USER.recipes.arena.8x4.$(date +%m-%d) \
 trainer.curriculum=/env/mettagrid/curriculum/arena/learning_progress \

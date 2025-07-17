@@ -1,0 +1,20 @@
+# Performance threshold configuration for arena environment
+# Tracks when smoothed heart.gained reaches specified values
+
+environment_type: "arena"
+
+thresholds:
+  - name: "heart_gained_2"
+    metric: "env_agent/heart.gained"
+    target_value: 2.0
+    smoothing_factor: 0.1
+
+  - name: "heart_gained_5"
+    metric: "env_agent/heart.gained"
+    target_value: 5.0
+    smoothing_factor: 0.1
+
+# AWS instance configuration for cost calculation
+aws:
+  instance_type: "g5.4xlarge"  # Default instance type
+  use_spot: false  # Assume on-demand pricing unless specified

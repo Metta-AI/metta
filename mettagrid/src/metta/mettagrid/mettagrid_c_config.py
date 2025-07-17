@@ -117,4 +117,16 @@ def from_mettagrid_config(mettagrid_config_dict: dict[str, Any]) -> CppGameConfi
     game_cpp_params["actions"] = actions_cpp_params
     game_cpp_params["objects"] = objects_cpp_params
 
-    return CppGameConfig(**game_cpp_params)
+    # Patch: filter out any keys not accepted by CppGameConfig
+    allowed_keys = [
+        "num_agents",
+        "max_steps",
+        "obs_width",
+        "obs_height",
+        "inventory_item_names",
+        "num_observation_tokens",
+        "actions",
+        "objects",
+    ]
+    filtered_game_cpp_params = {k: v for k, v in game_cpp_params.items() if k in allowed_keys}
+    return CppGameConfig(**filtered_game_cpp_params)
