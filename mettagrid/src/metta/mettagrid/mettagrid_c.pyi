@@ -78,6 +78,7 @@ class ConverterConfig(GridObjectConfig):
         cooldown: int,
         initial_resource_count: int = 0,
         color: int = 0,
+        show_recipe_inputs: bool = False,
     ): ...
     type_id: int
     type_name: str
@@ -88,6 +89,7 @@ class ConverterConfig(GridObjectConfig):
     cooldown: int
     initial_resource_count: int
     color: int
+    show_recipe_inputs: bool
 
 class ActionConfig:
     enabled: bool
