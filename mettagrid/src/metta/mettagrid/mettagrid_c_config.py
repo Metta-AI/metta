@@ -97,7 +97,6 @@ def from_mettagrid_config(mettagrid_config_dict: dict[str, Any]) -> CppGameConfi
         episode_completion_pct=global_obs_config.episode_completion_pct,
         last_action=global_obs_config.last_action,
         last_reward=global_obs_config.last_reward,
-        game_rewards=global_obs_config.game_rewards,
     )
     game_cpp_params["global_obs"] = global_obs_cpp
 
