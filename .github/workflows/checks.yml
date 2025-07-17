@@ -197,7 +197,7 @@ jobs:
 
       - name: Run Pytest on core tests
         run: |
-          pytest -n ${{ env.PYTEST_WORKERS }} --cov --cov-branch --cov-report=xml --benchmark-skip --maxfail=1 --disable-warnings  --durations=10 -q
+          pytest -n ${{ env.PYTEST_WORKERS }} --cov --cov-branch --cov-report=xml --benchmark-skip --maxfail=1 --disable-warnings  --durations=10 -v
 
       - name: Run Pytest on subpackage tests
         env:
