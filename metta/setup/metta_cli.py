@@ -276,6 +276,36 @@ class MettaCLI:
         except subprocess.CalledProcessError as e:
             sys.exit(e.returncode)
 
+    def cmd_docs(self, args) -> None:
+        """Handle documentation commands with MkDocs."""
+        if args.docs_command == "serve":
+            info("Starting documentation server at http://localhost:8000")
+            info("Press Ctrl+C to stop")
+            cmd = ["uv", "run", "mkdocs", "serve"]
+            if args.port:
+                cmd.extend(["--dev-addr", f"localhost:{args.port}"])
+        elif args.docs_command == "build":
+            info("Building documentation site...")
+            cmd = ["uv", "run", "mkdocs", "build"]
+            if args.clean:
+                cmd.append("--clean")
+        elif args.docs_command == "deploy":
+            info("Deploying documentation to GitHub Pages...")
+            cmd = ["uv", "run", "mkdocs", "gh-deploy"]
+            if args.force:
+                cmd.append("--force")
+        else:
+            args.docs_parser.print_help()
+            return
+
+        try:
+            subprocess.run(cmd, cwd=self.repo_root, check=True)
+            if args.docs_command == "build":
+                success("Documentation built in ./site/")
+        except subprocess.CalledProcessError as e:
+            error(f"Documentation command failed: {e}")
+            sys.exit(e.returncode)
+
     def cmd_status(self, _args) -> None:
         """Show status of all components."""
         modules = get_all_modules(self.config)
@@ -420,6 +450,10 @@ Examples:
 
   metta tool train run=test            # Run train.py tool with arguments
   metta tool sim policy_uri=...        # Run sim.py tool with arguments
+
+  metta docs serve                     # Serve documentation locally with live reload
+  metta docs build                     # Build static documentation site
+  metta docs deploy                    # Deploy documentation to GitHub Pages
             """,
         )
 
@@ -480,6 +514,23 @@ Examples:
         # Shell command
         subparsers.add_parser("shell", help="Start an IPython shell with Metta imports")
 
+        # Docs command
+        docs_parser = subparsers.add_parser("docs", help="Manage documentation with MkDocs")
+        docs_subparsers = docs_parser.add_subparsers(dest="docs_command", help="Documentation commands")
+
+        # Docs subcommands
+        serve_parser = docs_subparsers.add_parser("serve", help="Serve documentation locally with live reload")
+        serve_parser.add_argument("--port", type=int, default=8000, help="Port to serve on (default: 8000)")
+
+        build_parser = docs_subparsers.add_parser("build", help="Build static documentation site")
+        build_parser.add_argument("--clean", action="store_true", help="Clean build directory first")
+
+        deploy_parser = docs_subparsers.add_parser("deploy", help="Deploy documentation to GitHub Pages")
+        deploy_parser.add_argument("--force", action="store_true", help="Force deployment")
+
+        # Store docs_parser for help display
+        docs_parser.set_defaults(docs_parser=docs_parser)
+
         # Local command
         local_parser = subparsers.add_parser("local", help="Local development commands")
         local_subparsers = local_parser.add_subparsers(dest="local_command", help="Available local commands")
@@ -536,6 +587,8 @@ Examples:
             self.cmd_lint(args)
         elif args.command == "shell":
             self.cmd_shell()
+        elif args.command == "docs":
+            self.cmd_docs(args)
         elif args.command == "local":
             self.cmd_local(args)
         else:

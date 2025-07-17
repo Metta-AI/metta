@@ -1,0 +1,67 @@
+site_name: Metta AI
+site_description: A reinforcement learning codebase for multi-agent cooperation
+repo_url: https://github.com/Metta-AI/metta
+repo_name: Metta-AI/metta
+
+theme:
+  name: material
+  features:
+    - navigation.instant
+    - navigation.sections
+    - navigation.expand
+    - search.suggest
+    - search.highlight
+    - toc.integrate
+    - content.code.copy
+
+plugins:
+  - search
+  - autorefs
+  - gen-files:
+      scripts:
+        - scripts/gen_docs_nav.py
+
+markdown_extensions:
+  - toc:
+      permalink: true
+      toc_depth: 3
+  - pymdownx.highlight
+  - pymdownx.superfences
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - admonition
+
+nav:
+  - Home: README.md
+  - Getting Started:
+      - Quick Guide: docs/quick-guide.md
+      - Installation: README.md#installation
+      - First Steps: README.md#usage
+  - Documentation:
+      - API Reference: docs/api.md
+      - Map Generation: docs/mapgen.md
+      - Configuration: configs/README.md
+  - Components:
+      - Agent Module: agent/README.md
+      - Common Utilities: common/README.md
+      - MettagGrid Environment: mettagrid/README.md
+      - Mettascope Viewer: mettascope/README.md
+  - Development:
+      - Overview: docs/development/README.md
+      - AI Guidelines: docs/development/agents.md
+      - Claude Guide: docs/development/claude.md
+  - Workflows:
+      - Overview: docs/workflows/README.md
+      - PR Summary: docs/workflows/pr-summary.md
+      - Claude Review: docs/workflows/claude-review-system.md
+      - Claude Assistant: docs/workflows/claude-assistant.md
+  - Metrics: docs/wandb/metrics/README.md
+  - Research: docs/roadmap.md
+  - Testing: tests/README.md
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/Metta-AI/metta
+    - icon: fontawesome/brands/discord
+      link: https://discord.gg/mQzrgwqmwy
