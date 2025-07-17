@@ -94,6 +94,10 @@ class EvalTaskOrchestrator:
             self._logger.info("No assignable tasks found")
             return
         self._logger.info(f"{len(assignable)} assignable tasks")
+
+        # Track which git hashes we've already spawned workers for in this cycle
+        spawned_git_hashes = set()
+
         for task in assignable:
             if not task.git_hash:
                 continue
@@ -119,6 +123,12 @@ class EvalTaskOrchestrator:
                 await self._task_client.update_task_status(update_request)
             # Case 4: There is no assigned worker, or the assigned worker is dead and it should be revived
             else:
+                # Only spawn one worker per git hash per cycle to avoid duplicates
+                if task.git_hash in spawned_git_hashes:
+                    self._logger.debug(f"Already spawned worker for git hash {task.git_hash} in this cycle, skipping")
+                    continue
+
+                spawned_git_hashes.add(task.git_hash)
                 new_worker = self._container_manager.start_worker_container(
                     git_hash=task.git_hash, backend_url=self._backend_url, docker_image=self._docker_image
                 )

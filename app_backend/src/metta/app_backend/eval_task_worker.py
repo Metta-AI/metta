@@ -53,26 +53,48 @@ class EvalTaskWorker:
 
         self._logger.info(f"Setting up versioned checkout at {self._versioned_path}")
 
-        # Create directory
-        os.makedirs(self._versioned_path, exist_ok=True)
+        # Create parent directory
+        os.makedirs(os.path.dirname(self._versioned_path), exist_ok=True)
 
-        # Copy repository
+        # Clone repository directly at the specific commit
+        # Using --depth 1 for faster clone of just the needed commit
         result = subprocess.run(
-            ["cp", "-r", "/workspace/metta/.", self._versioned_path],
+            [
+                "git",
+                "clone",
+                "--branch",
+                self._git_hash,
+                "--depth",
+                "1",
+                "https://github.com/Metta-AI/metta.git",
+                self._versioned_path,
+            ],
             capture_output=True,
             text=True,
         )
-        if result.returncode != 0:
-            raise RuntimeError(f"Failed to copy repository: {result.stderr}")
 
-        result = subprocess.run(
-            ["git", "checkout", self._git_hash],
-            cwd=self._versioned_path,
-            capture_output=True,
-            text=True,
-        )
+        # If cloning by hash failed (not a branch/tag), do a full clone and checkout
         if result.returncode != 0:
-            raise RuntimeError(f"Failed to checkout git hash {self._git_hash}: {result.stderr}")
+            self._logger.info(f"Direct clone of hash failed, trying full clone: {result.stderr}")
+
+            # Clone the repository
+            result = subprocess.run(
+                ["git", "clone", "https://github.com/Metta-AI/metta.git", self._versioned_path],
+                capture_output=True,
+                text=True,
+            )
+            if result.returncode != 0:
+                raise RuntimeError(f"Failed to clone repository: {result.stderr}")
+
+            # Checkout the specific commit
+            result = subprocess.run(
+                ["git", "checkout", self._git_hash],
+                cwd=self._versioned_path,
+                capture_output=True,
+                text=True,
+            )
+            if result.returncode != 0:
+                raise RuntimeError(f"Failed to checkout git hash {self._git_hash}: {result.stderr}")
 
         self._logger.info(f"Successfully set up versioned checkout at {self._versioned_path}")
 
@@ -178,9 +200,17 @@ class EvalTaskWorker:
 
 
 async def main() -> None:
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        handlers=[logging.StreamHandler(sys.stdout)],
+    )
+
     backend_url = os.environ["BACKEND_URL"]
     git_hash = os.environ["GIT_HASH"]
     assignee = os.environ["WORKER_ASSIGNEE"]
+
+    logger.info(f"Starting worker with backend_url={backend_url}, git_hash={git_hash}, assignee={assignee}")
 
     async with EvalTaskWorker(backend_url, git_hash, assignee) as worker:
         await worker.run()

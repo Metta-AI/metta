@@ -77,6 +77,7 @@ class EvalTaskClient:
                 logger.error(f"HTTP error for {method} {url}: {e}")
                 # Don't retry on HTTP errors (4xx, 5xx)
                 raise
+        raise RuntimeError(f"Failed to make request to {self._http_client.base_url}{url}")
 
     async def create_task(self, request: TaskCreateRequest) -> TaskResponse:
         return await self._make_request(TaskResponse, "POST", "/tasks", json=request.model_dump(mode="json"))
