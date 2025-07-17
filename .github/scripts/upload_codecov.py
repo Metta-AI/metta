@@ -5,153 +5,104 @@
 # ///
 
 """
-Upload coverage reports to Codecov using their API directly.
-This avoids downloading the CLI tool.
+Upload coverage reports to Codecov using the official uploader CLI,
+automatically downloading the binary if necessary.
+
+Each coverage file is uploaded separately with the appropriate flag.
 """
 
-import gzip
-import json
 import os
+import platform
 import subprocess
 import sys
 from pathlib import Path
-from urllib.error import HTTPError
-from urllib.request import Request, urlopen
+from urllib.request import urlretrieve
+
+# Configuration
+CODECOV_BIN = Path(".github/scripts/codecov")
+CODECOV_URL_BASE = "https://uploader.codecov.io/latest"
+DEFAULT_SUBPACKAGES = ["app_backend", "agent", "mettagrid", "common"]
 
 
-def get_git_info() -> dict[str, str]:
-    """Get current git commit and branch information."""
+def get_platform_binary_path() -> tuple[Path, str]:
+    """Determine binary path and download URL for this platform."""
+    system = platform.system().lower()
+    arch = platform.machine().lower()
+    if arch in ("x86_64", "amd64"):
+        arch = "x86_64"
+    elif arch in ("arm64", "aarch64"):
+        arch = "arm64"
+    else:
+        raise RuntimeError(f"Unsupported architecture: {arch}")
 
-    def run_git(cmd: list[str]) -> str:
-        result = subprocess.run(["git"] + cmd, capture_output=True, text=True)
-        return result.stdout.strip() if result.returncode == 0 else ""
+    ext = ".exe" if system == "windows" else ""
+    binary_name = f"codecov{ext}"
+    binary_path = CODECOV_BIN / binary_name
+    download_url = f"{CODECOV_URL_BASE}/{system}/{arch}/codecov{ext}"
 
-    return {
-        "commit": run_git(["rev-parse", "HEAD"]),
-        "branch": run_git(["rev-parse", "--abbrev-ref", "HEAD"]),
-        "slug": os.environ.get("CODECOV_SLUG") or os.environ.get("GITHUB_REPOSITORY", ""),
-    }
-
-
-def create_upload_request(token: str, git_info: dict[str, str]) -> dict[str, str]:
-    """Create an upload request with Codecov to get upload URL."""
-    url = "https://api.codecov.io/upload/v4"
-
-    data = {
-        "commit": git_info["commit"],
-        "branch": git_info["branch"],
-        "slug": git_info["slug"],
-        "token": token,
-    }
-
-    req = Request(
-        url,
-        data=json.dumps(data).encode(),
-        headers={
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-        },
-    )
-
-    try:
-        with urlopen(req) as response:
-            return json.loads(response.read())
-    except HTTPError as e:
-        print(f"❌ Failed to create upload request: {e}")
-        print(f"Response: {e.read().decode()}")
-        raise
+    return binary_path, download_url
 
 
-def upload_coverage_file(upload_url: str, file_path: Path, flag: str, name: str) -> bool:
-    """Upload a coverage file to the provided URL."""
-    if not file_path.exists():
-        print(f"⚠️  Skipping {name} - coverage file not found: {file_path}")
-        return False
+def ensure_codecov_binary() -> Path:
+    """Download the Codecov uploader binary if not already present."""
+    CODECOV_BIN.mkdir(parents=True, exist_ok=True)
+    binary_path, download_url = get_platform_binary_path()
 
-    print(f"📤 Uploading {name} coverage from {file_path}...")
+    if not binary_path.exists():
+        print(f"⬇️  Downloading Codecov uploader from {download_url}")
+        urlretrieve(download_url, binary_path)
+        binary_path.chmod(0o755)
+    else:
+        print(f"✅ Codecov uploader already exists at {binary_path}")
 
-    # Read and compress the coverage file
-    with open(file_path, "rb") as f:
-        coverage_data = f.read()
+    return binary_path
 
-    compressed_data = gzip.compress(coverage_data)
 
-    # Prepare the upload
-    headers = {
-        "Content-Type": "text/plain",
-        "Content-Encoding": "gzip",
-        "x-amz-meta-flag": flag,
-        "x-amz-meta-name": name,
-    }
+def run_codecov(binary: Path, token: str, coverage_files: list[tuple[Path, str]]):
+    """Upload each coverage file with the correct flag."""
+    for path, flag in coverage_files:
+        if not path.exists():
+            print(f"⚠️  Skipping missing coverage file: {path}")
+            continue
 
-    req = Request(upload_url, data=compressed_data, headers=headers, method="PUT")
+        args = [
+            str(binary),
+            "-t",
+            token,
+            "--disable",
+            "search",
+            "-f",
+            str(path),
+            "-F",
+            flag,
+            "--name",
+            flag,
+        ]
 
-    try:
-        with urlopen(req) as response:
-            if response.status == 200:
-                print(f"✅ Successfully uploaded {name} coverage")
-                return True
-            else:
-                print(f"❌ Failed to upload {name} coverage: HTTP {response.status}")
-                return False
-    except Exception as e:
-        print(f"❌ Error uploading {name} coverage: {e}")
-        return False
+        print(f"📤 Uploading {path} with flag '{flag}'...")
+        try:
+            subprocess.run(args, check=True)
+        except subprocess.CalledProcessError as e:
+            print(f"❌ Upload failed for {path}: {e}")
+            sys.exit(1)
 
 
 def main():
-    """Main function to upload all coverage reports."""
-    # Get configuration
-
-    token = os.environ.get("CODECOV_TOKEN")
-    if not token and len(sys.argv) > 1:
-        token = sys.argv[1]
-
+    token = os.environ.get("CODECOV_TOKEN") or (sys.argv[1] if len(sys.argv) > 1 else None)
     if not token:
-        print("❌ Error: CODECOV_TOKEN is required but missing.")
+        print("❌ Error: CODECOV_TOKEN is required (pass via env or argv)")
         sys.exit(1)
 
-    print(f"✅ Using CODECOV_TOKEN from {'env' if 'CODECOV_TOKEN' in os.environ else 'argv'}")
+    subpackages = os.environ.get("SUBPACKAGES", " ".join(DEFAULT_SUBPACKAGES)).split()
+    coverage_files = [(Path("coverage.xml"), "core")] + [(Path(f"{pkg}/coverage.xml"), pkg) for pkg in subpackages]
 
-    subpackages = os.environ.get("SUBPACKAGES", "app_backend agent mettagrid common").split()
-
-    if not token:
-        print("❌ Error: CODECOV_TOKEN is required")
-        sys.exit(1)
-
-    print("🔍 Codecov Upload Configuration:")
-    print(f"   Subpackages: {', '.join(subpackages)}")
+    print("🔍 Codecov Upload Plan:")
+    for path, flag in coverage_files:
+        print(f"  - {path} → flag: {flag}")
     print()
 
-    # Get git information
-    git_info = get_git_info()
-    print(f"📍 Git info: {git_info['slug']} @ {git_info['commit'][:8]}")
-    print()
-
-    # Create upload request
-    try:
-        upload_info = create_upload_request(token, git_info)
-        upload_url = upload_info["url"]
-    except Exception as e:
-        print(f"❌ Failed to get upload URL: {e}")
-        sys.exit(1)
-
-    # Prepare all coverage files
-    coverage_files = [(Path("./coverage.xml"), "core", "core")]
-    for package in subpackages:
-        coverage_files.append((Path(f"./{package}/coverage.xml"), package, package))
-
-    # Upload each file
-    success_count = 0
-    for file_path, flag, name in coverage_files:
-        if upload_coverage_file(upload_url, file_path, flag, name):
-            success_count += 1
-
-    print()
-    print(f"📊 Coverage upload summary: {success_count}/{len(coverage_files)} files uploaded")
-
-    if success_count == 0:
-        sys.exit(1)
+    binary_path = ensure_codecov_binary()
+    run_codecov(binary_path, token, coverage_files)
 
 
 if __name__ == "__main__":
