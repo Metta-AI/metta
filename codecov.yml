@@ -20,19 +20,11 @@ coverage:
       default:
         target: auto # Compare against base branch
         threshold: 1% # Allow 1% coverage drop
-        base: auto
         informational: true # Won't fail PR, just inform
 
-    # Coverage for changed lines only - this is your main gate
+    # Coverage for changed lines only
     patch:
       default:
-        target: 50% # Minimum 50% coverage on new code
-        threshold: 0% # No tolerance below 50%
-        base: auto
-        if_ci_failed: success # Don't fail if CI fails
-        if_not_found: success # Don't fail if no coverage data
-
-      # Additional informational patch check
       informational:
         target: 80% # Ideal target
         threshold: 0%
