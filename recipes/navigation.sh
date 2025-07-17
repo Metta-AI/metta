@@ -17,7 +17,7 @@
 run=$USER.navigation.ffa_random_spawn_4rooms_of_1_run0.$(date +%m-%d) \
 trainer.curriculum=env/mettagrid/curriculum/navigation/prioritize_regressed \
 --gpus=1 \
---nodes=2 \
+--nodes=1 \
 --no-spot \
 +USER=greg \
 ++trainer.env_overrides.special_reward_mode=ffa \
@@ -31,7 +31,7 @@ sim=navigation \
 run=$USER.navigation.ffa_random_spawn_4rooms_of_1_run1.$(date +%m-%d) \
 trainer.curriculum=env/mettagrid/curriculum/navigation/prioritize_regressed \
 --gpus=1 \
---nodes=2 \
+--nodes=1 \
 --no-spot \
 +USER=greg \
 ++trainer.env_overrides.special_reward_mode=ffa \
@@ -45,7 +45,7 @@ sim=navigation \
 run=$USER.navigation.ffa_random_spawn_4rooms_of_1_run2.$(date +%m-%d) \
 trainer.curriculum=env/mettagrid/curriculum/navigation/prioritize_regressed \
 --gpus=1 \
---nodes=2 \
+--nodes=1 \
 --no-spot \
 +USER=greg \
 ++trainer.env_overrides.special_reward_mode=ffa \
@@ -59,7 +59,7 @@ sim=navigation \
 run=$USER.navigation.ffa_random_spawn_4rooms_of_1_run3.$(date +%m-%d) \
 trainer.curriculum=env/mettagrid/curriculum/navigation/prioritize_regressed \
 --gpus=1 \
---nodes=2 \
+--nodes=1 \
 --no-spot \
 +USER=greg \
 ++trainer.env_overrides.special_reward_mode=ffa \
@@ -73,7 +73,7 @@ sim=navigation \
 run=$USER.navigation.ffa_random_spawn_4rooms_of_1_run4.$(date +%m-%d) \
 trainer.curriculum=env/mettagrid/curriculum/navigation/prioritize_regressed \
 --gpus=1 \
---nodes=2 \
+--nodes=1 \
 --no-spot \
 +USER=greg \
 ++trainer.env_overrides.special_reward_mode=ffa \
