@@ -89,6 +89,8 @@ def from_mettagrid_config(mettagrid_config_dict: dict[str, Any]) -> CppGameConfi
     game_cpp_params = game_config.model_dump(exclude_none=True)
     del game_cpp_params["agent"]
     del game_cpp_params["groups"]
+    if "global_obs" in game_cpp_params:
+        del game_cpp_params["global_obs"]  # Not supported by C++ GameConfig
 
     actions_cpp_params = {}
     for action_name, action_config in game_cpp_params["actions"].items():
@@ -116,5 +118,7 @@ def from_mettagrid_config(mettagrid_config_dict: dict[str, Any]) -> CppGameConfi
 
     game_cpp_params["actions"] = actions_cpp_params
     game_cpp_params["objects"] = objects_cpp_params
+    # Note: global_observations configuration is handled internally by the C++ code
+    # and is not configurable through GameConfig
 
     return CppGameConfig(**game_cpp_params)
