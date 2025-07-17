@@ -56,6 +56,7 @@ PYTHONPATH=$PYTHONPATH:. uv run torchrun \
   --node-rank=$NODE_INDEX \
   tools/train.py \
   trainer.num_workers=null \
+  trainer.curriculum_server.host=$MASTER_ADDR \
   wandb.enabled=true \
   $args
 EXIT_CODE=$?

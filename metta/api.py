@@ -318,11 +318,6 @@ class PreBuiltConfigCurriculum(Curriculum):
         """Return a task with the pre-built config."""
         return Task(f"prebuilt({self._env_name})", self, self._cfg_template)
 
-    def get_task_probs(self) -> Dict[str, float]:
-        """Return the current task probability for logging purposes."""
-        task_name = f"prebuilt({self._env_name})"
-        return {task_name: 1.0}
-
 
 def _get_default_env_config(num_agents: int = 4, width: int = 32, height: int = 32) -> Dict[str, Any]:
     """Get default environment configuration for navigation training."""

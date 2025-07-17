@@ -4,11 +4,11 @@
 import time
 
 import pytest
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import OmegaConf
 
 from metta.mettagrid.curriculum.core import Curriculum, Task
-from metta.rl.curriculum_client import CurriculumClient
-from metta.rl.curriculum_server import CurriculumServer
+from metta.rl.curriculum.curriculum_client import CurriculumClient
+from metta.rl.curriculum.curriculum_server import CurriculumServer
 
 
 class TrackedCurriculum(Curriculum):
@@ -88,9 +88,11 @@ def test_curriculum_stats_collection():
         assert client.get_curriculum_stats() == {}
 
         # Server-side curriculum should have tracked the gets
-        assert curriculum.task_count == 5  # Only fetched one batch of 5
+        # With background prefetching, may fetch multiple batches
+        assert curriculum.task_count >= 5  # At least one batch of 5
 
     finally:
+        client.stop()
         server.stop()
 
 
@@ -118,14 +120,17 @@ def test_multiple_clients():
                 task = client.get_task()
                 all_tasks.append(task.name)
 
-        # Each client fetches a batch of 2 tasks and reuses them randomly
-        # So we expect 3 clients * 1 batch each = 3 * 2 = 6 tasks total
-        assert curriculum.task_count == 6
+        # With background prefetching, clients may fetch multiple batches
+        # So we expect at least 3 clients * 1 batch each = 3 * 2 = 6 tasks
+        assert curriculum.task_count >= 6
 
         # But we should have gotten 12 task selections (4 per client)
         assert len(all_tasks) == 12
 
     finally:
+        # Clean up clients
+        for client in clients:
+            client.stop()
         server.stop()
 
 
@@ -221,20 +226,26 @@ def test_server_shutdown():
     server.stop()
     time.sleep(0.5)
 
-    # Clear the client's cache to force a fetch
-    client._task_batch = []
+    # Clear the client's queue to force a fetch
+    while not client._task_queue.empty():
+        try:
+            client._task_queue.get_nowait()
+        except:
+            break
 
-    # Now client should fail immediately when trying to get a task
+    # Now client should fail when trying to get a task
     with pytest.raises(RuntimeError) as exc_info:
         client.get_task()
 
-    assert "Failed to fetch tasks" in str(exc_info.value)
+    assert "Failed to fetch tasks" in str(exc_info.value) or "Failed to get task from queue" in str(exc_info.value)
+
+    # Clean up
+    client.stop()
 
 
 if __name__ == "__main__":
     test_curriculum_stats_collection()
     test_multiple_clients()
-    test_env_cfg_by_bucket()
     test_learning_progress_curriculum()
     test_server_shutdown()
     print("All integration tests passed!")

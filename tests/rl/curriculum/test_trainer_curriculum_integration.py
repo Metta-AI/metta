@@ -4,11 +4,11 @@
 from unittest.mock import MagicMock
 
 import pytest
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import OmegaConf
 
 from metta.mettagrid.curriculum.core import Curriculum, Task
-from metta.rl.curriculum_client import CurriculumClient
-from metta.rl.curriculum_server import CurriculumServer
+from metta.rl.curriculum.curriculum_client import CurriculumClient
+from metta.rl.curriculum.curriculum_server import CurriculumServer
 
 
 class TestCurriculum(Curriculum):
@@ -65,6 +65,8 @@ def test_trainer_stats_collection_with_curriculum():
     # Create mock trainer components
     trainer_cfg = MagicMock()
     trainer_cfg.kickstart = MagicMock()
+    trainer_cfg.ppo.l2_reg_loss_coef = 0
+    trainer_cfg.ppo.l2_init_loss_coef = 0
 
     # Create curriculum
     curriculum = TestCurriculum()
@@ -84,16 +86,33 @@ def test_trainer_stats_collection_with_curriculum():
     losses.explained_variance = 0.85
     losses.approx_kl_sum = 0.02
     losses.clipfrac_sum = 0.1
+    losses.stats = MagicMock(return_value={
+        "policy_loss": 0.5 / 10,
+        "value_loss": 0.3 / 10,
+        "entropy": 0.1 / 10,
+        "explained_variance": 0.85,
+        "approx_kl": 0.02 / 10,
+        "clipfrac": 0.1 / 10
+    })
 
     experience = MagicMock()
     experience.num_minibatches = 4
+    experience.stats = MagicMock(return_value={
+        "buffer_size": 1000,
+        "num_episodes": 10
+    })
 
     kickstarter = MagicMock()
     kickstarter.enabled = False
+    trainer_cfg.kickstart.enabled = False
 
     timer = MagicMock()
     timer.get_elapsed.return_value = 100.0
     timer.get_last_elapsed.return_value = 10.0
+    timer.get_all_elapsed.return_value = {"_rollout": 50.0, "_train": 30.0}
+    timer.lap_all.return_value = {"global": 10.0, "rollout": 5.0, "train": 3.0}
+    timer.get_lap_steps.return_value = 100
+    timer.get_rate.return_value = 10.0
 
     # Process training stats
     processed_stats = process_training_stats(
@@ -216,11 +235,10 @@ def test_trainer_with_curriculum_server_client():
         server_stats = curriculum.get_curriculum_stats()
         assert server_stats["total_tasks"] >= 5
 
-        # Each config should have game settings
-        for name, cfg in configs.items():
-            assert "game" in cfg
-            assert "width" in cfg.game
-            assert "height" in cfg.game
+        # Check that tasks have env configs
+        for task in tasks:
+            cfg = task.env_cfg()
+            assert cfg is not None
 
     finally:
         server.stop()

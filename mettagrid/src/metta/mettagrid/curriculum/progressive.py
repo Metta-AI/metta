@@ -139,8 +139,9 @@ class ProgressiveMultiTaskCurriculum(RandomCurriculum):
 
     def get_curriculum_stats(self) -> Dict[str, float]:
         """Return curriculum statistics for logging purposes."""
-        stats = {
+        stats = super().get_curriculum_stats()
+        stats.update({
             "smoothed_performance": self._smoothed_performance,
             "progress": self._progress,
-        }
+        })
         return stats
