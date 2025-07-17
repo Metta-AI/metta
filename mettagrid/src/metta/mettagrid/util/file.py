@@ -21,6 +21,7 @@ import boto3
 import wandb
 from botocore.exceptions import ClientError, NoCredentialsError
 from wandb.errors import CommError
+from wandb.sdk.wandb_run import Run
 
 # --------------------------------------------------------------------------- #
 #  Globals                                                                     #
@@ -36,8 +37,8 @@ WANDB_ENTITY: str = os.getenv("WANDB_ENTITY", "metta-research")
 def exists(path: str) -> bool:
     """
     Return *True* if *path* points to an existing local file, S3 object,
-    or W&B artifact **version** (latest if omitted).  Network errors are
-    propagated so callers can decide how to handle them.
+    W&B artifact **version** (latest if omitted), or W&B run file.
+    Network errors are propagated so callers can decide how to handle them.
     """
     # ---------- S3 ---------- #
     if path.startswith("s3://"):
@@ -52,6 +53,20 @@ def exists(path: str) -> bool:
 
     # ---------- W&B ---------- #
     if path.startswith("wandb://"):
+        # Check if this is a run file path
+        run_file_parts = parse_wandb_run_file_uri(path)
+        if run_file_parts:
+            entity, project, run_id, file_path = run_file_parts
+            api = wandb.Api()
+            try:
+                run = api.run(f"{entity}/{project}/{run_id}")
+                # Check if file exists in run
+                files = [f.name for f in run.files()]
+                return file_path in files
+            except Exception:
+                return False
+
+        # Otherwise treat as artifact
         uri = WandbURI.parse(path)
         api = wandb.Api()
         try:
@@ -66,7 +81,7 @@ def exists(path: str) -> bool:
 
 def write_data(path: str, data: Union[str, bytes], *, content_type: str = "application/octet-stream") -> None:
     """
-    Write in-memory bytes/str to *local*, *s3://* or *wandb://* destinations.
+    Write in-memory bytes/str to *local*, *s3://* or *wandb://* (as an artifact) destinations.
     """
     logger = logging.getLogger(__name__)
 
@@ -127,7 +142,7 @@ def write_file(path: str, local_file: str, *, content_type: str = "application/o
 
 def read(path: str) -> bytes:
     """
-    Read bytes from local path, S3 object, or W&B artifact.
+    Read bytes from local path, S3 object, W&B artifact, or W&B run file.
     """
     logger = logging.getLogger(__name__)
 
@@ -144,6 +159,23 @@ def read(path: str) -> bytes:
 
     # ---------- W&B ---------- #
     if path.startswith("wandb://"):
+        # Check if this is a run file path
+        run_file_parts = parse_wandb_run_file_uri(path)
+        if run_file_parts:
+            entity, project, run_id, file_path = run_file_parts
+            api = wandb.Api()
+            run = api.run(f"{entity}/{project}/{run_id}")
+
+            with tempfile.TemporaryDirectory(prefix="wandb_run_dl_") as tmp:
+                file_handle = run.file(file_path).download(root=tmp, replace=True)
+                file_handle.seek(0)
+                data = file_handle.read()
+                if isinstance(data, str):
+                    data = data.encode()
+                logger.info("Read %d B from wandb run file: %s", len(data), path)
+                return data
+
+        # Otherwise treat as artifact
         uri = WandbURI.parse(path)
         api = wandb.Api()
         artifact = api.artifact(uri.qname())
@@ -222,6 +254,30 @@ def is_public_uri(url: str | None) -> bool:
 # --------------------------------------------------------------------------- #
 
 
+def parse_wandb_run_file_uri(uri: str) -> tuple[str, str, str, str] | None:
+    """
+    Parse a wandb run file URI.
+
+    Returns:
+        tuple of (entity, project, run_id, file_path) if valid run file URI, None otherwise
+    """
+    if not uri.startswith("wandb://"):
+        return None
+
+    if "/files/" not in uri:
+        return None
+
+    parts = uri[len("wandb://") :].split("/")
+    if len(parts) >= 5 and parts[3] == "files":
+        entity = parts[0]
+        project = parts[1]
+        run_id = parts[2]
+        file_path = "/".join(parts[4:])
+        return entity, project, run_id, file_path
+
+    return None
+
+
 @dataclass(frozen=True, slots=True)
 class WandbURI:
     """Parsed representation of a W&B artifact URI."""
@@ -266,6 +322,9 @@ class WandbURI:
 
 
 def upload_bytes_to_wandb(uri: WandbURI, blob: bytes, name: str) -> None:
+    """
+    Upload bytes to W&B as an artifact.
+    """
     with tempfile.NamedTemporaryFile(delete=False) as fh:
         fh.write(blob)
         tmpname = fh.name
@@ -363,3 +422,26 @@ def upload_file_to_wandb(uri, local_file: str, name: str) -> None:
     except Exception as e:
         logger.error(f"Failed to upload file to wandb: {e}")
         raise
+
+
+def upload_data_as_wandb_file(data: Union[str, bytes], filename: str, run: Run) -> None:
+    """
+    Upload data to the current wandb run as a file (not artifact).
+
+    Args:
+        data: Data to upload - str or bytes
+        filename: Name for the file (e.g., "config.json", "data.txt")
+        run: wandb run to use
+    """
+    logger = logging.getLogger(__name__)
+
+    # Write to the wandb run directory directly
+    run_dir = run.dir
+    file_path = os.path.join(run_dir, filename)
+
+    mode = "w" if isinstance(data, str) else "wb"
+    with open(file_path, mode) as f:
+        f.write(data)
+
+    wandb.save(file_path, base_path=run_dir, policy="now")
+    logger.info(f"Uploaded {filename} to wandb run directory")
