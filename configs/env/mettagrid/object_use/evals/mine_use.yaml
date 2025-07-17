@@ -12,5 +12,7 @@ game:
     rewards:
       ore_red: 1
   map_builder:
-    objects:
-      mine_red: 1
+    root:
+      params:
+        objects:
+          mine_red: 1

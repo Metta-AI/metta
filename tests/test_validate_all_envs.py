@@ -4,10 +4,10 @@ import pytest
 from botocore.exceptions import NoCredentialsError, ProfileNotFound
 from omegaconf import OmegaConf
 
-import metta.mettagrid.mettagrid_c_config
 from metta.common.util.mettagrid_cfgs import MettagridCfgFileMetadata
 from metta.common.util.resolvers import register_resolvers
-from metta.map.utils.storable_map import map_builder_cfg_to_storable_map
+from metta.map.utils.storable_map import StorableMap
+from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
 
 register_resolvers()
 
@@ -19,17 +19,18 @@ def map_or_env_configs() -> list[MettagridCfgFileMetadata]:
     # If this test is failing and you have configs that are too hard to fix
     # properly, you can add them to this list.
     exclude_patterns = [
-        "multiagent/experiments",
-        "multiagent/multiagent",
-        "mettagrid.yaml",
+        # uses a class that doesn't exist
+        "multiagent/experiments/cylinder_world.yaml",
         # usually incomplete
-        "defaults",
+        "defaults.yaml",
         # partials
+        "mettagrid.yaml",
         "game/agent",
         "game/groups",
         "game/objects",
         "game/reward_sharing",
         # have unset params
+        "multiagent/experiments/varied_terrain.yaml",
         "game/map_builder/load.yaml",
         "game/map_builder/load_random.yaml",
     ]
@@ -42,16 +43,16 @@ def map_or_env_configs() -> list[MettagridCfgFileMetadata]:
 
 @pytest.mark.parametrize("cfg_metadata", map_or_env_configs(), ids=[cfg.path for cfg in map_or_env_configs()])
 class TestValidateAllEnvs:
-    def test_map(self, cfg_metadata):
+    def test_map(self, cfg_metadata: MettagridCfgFileMetadata):
         try:
             map_cfg = cfg_metadata.get_cfg().get_map_cfg()
-            map_builder_cfg_to_storable_map(map_cfg)
+            StorableMap.from_cfg(map_cfg)
         except (NoCredentialsError, ProfileNotFound) as e:
             pytest.skip(f"Skipping {cfg_metadata.path} because it requires AWS credentials: {e}")
         except Exception as e:
             pytest.fail(f"Failed to validate map config {cfg_metadata.path}: {e}")
 
-    def test_mettagrid_config(self, cfg_metadata):
+    def test_mettagrid_config(self, cfg_metadata: MettagridCfgFileMetadata):
         if cfg_metadata.kind != "env":
             return
 
@@ -64,4 +65,4 @@ class TestValidateAllEnvs:
         # uncomment for debugging
         print(OmegaConf.to_yaml(OmegaConf.create(game_config_dict)))
 
-        metta.mettagrid.mettagrid_c_config.from_mettagrid_config(cast(dict[str, Any], game_config_dict))
+        from_mettagrid_config(cast(dict[str, Any], game_config_dict))

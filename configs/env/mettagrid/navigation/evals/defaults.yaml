@@ -14,5 +14,5 @@ game:
       initial_resource_count: 1
 
   map_builder:
-    _target_: metta.mettagrid.room.ascii.Ascii
+    _target_: metta.map.mapgen_ascii.MapGenAscii
     border_width: 1

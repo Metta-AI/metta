@@ -33,7 +33,7 @@
         "battery_blue_max": 5,
         "battery_green_max": 5,
         "heart": 1,
-        "heart_max": 1000
+        "heart_max": null
       }
     },
     "groups": {
@@ -262,6 +262,10 @@
       },
       "change_color": {
         "enabled": true
+      },
+      "change_glyph": {
+        "enabled": true,
+        "number_of_glyphs": 4
       }
     },
     "map_builder": {

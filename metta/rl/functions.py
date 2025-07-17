@@ -18,7 +18,7 @@ from torch import Tensor
 
 from metta.agent.policy_state import PolicyState
 from metta.agent.util.debug import assert_shape
-from metta.mettagrid.mettagrid_env import dtype_actions
+from metta.eval.eval_request_config import EvalRewardSummary
 from metta.mettagrid.util.dict_utils import unroll_nested_dict
 from metta.rl import mps
 from metta.rl.experience import Experience
@@ -27,23 +27,18 @@ from metta.rl.losses import Losses
 logger = logging.getLogger(__name__)
 
 
-def perform_rollout_step(
-    policy: torch.nn.Module,
+def get_observation(
     vecenv: Any,
-    experience: Experience,
     device: torch.device,
-    timer: Optional[Any] = None,
-) -> Tuple[int, list]:
-    """Performs a single step of the rollout, interacting with the environment.
+    timer: Any,
+) -> Tuple[Tensor, Tensor, Tensor, Tensor, list, slice, Tensor, int]:
+    """Get observations and other data from the vectorized environment and convert to tensors.
 
     Returns:
-        Tuple of (num_steps, info_list)
+        Tuple of (observations, rewards, dones, truncations, info, training_env_id, mask, num_steps)
     """
     # Receive environment data
-    if timer:
-        with timer("_rollout.env"):
-            o, r, d, t, info, env_id, mask = vecenv.recv()
-    else:
+    with timer("_rollout.env"):
         o, r, d, t, info, env_id, mask = vecenv.recv()
 
     training_env_id = slice(env_id[0], env_id[-1] + 1)
@@ -57,14 +52,29 @@ def perform_rollout_step(
     d = torch.as_tensor(d).to(device, non_blocking=True)
     t = torch.as_tensor(t).to(device, non_blocking=True)
 
+    return o, r, d, t, info, training_env_id, mask, num_steps
+
+
+def run_policy_inference(
+    policy: torch.nn.Module,
+    observations: Tensor,
+    experience: Experience,
+    training_env_id_start: int,
+    device: torch.device,
+) -> Tuple[Tensor, Tensor, Tensor, Optional[Dict[str, Tensor]]]:
+    """Run the policy to get actions and value estimates.
+
+    Returns:
+        Tuple of (actions, selected_action_log_probs, values, lstm_state_to_store)
+    """
     with torch.no_grad():
         state = PolicyState()
-        lstm_h, lstm_c = experience.get_lstm_state(training_env_id.start)
+        lstm_h, lstm_c = experience.get_lstm_state(training_env_id_start)
         if lstm_h is not None:
             state.lstm_h = lstm_h
             state.lstm_c = lstm_c
 
-        actions, selected_action_log_probs, _, value, _ = policy(o, state)
+        actions, selected_action_log_probs, _, value, _ = policy(observations, state)
 
         if __debug__:
             assert_shape(selected_action_log_probs, ("BT",), "selected_action_log_probs")
@@ -77,29 +87,7 @@ def perform_rollout_step(
         if str(device).startswith("cuda"):
             torch.cuda.synchronize()
 
-    value = value.flatten()
-
-    experience.store(
-        obs=o,
-        actions=actions,
-        logprobs=selected_action_log_probs,
-        rewards=r,
-        dones=d,
-        truncations=t,
-        values=value,
-        env_id=training_env_id,
-        mask=mask,
-        lstm_state=lstm_state_to_store,
-    )
-
-    # Send actions back to environment
-    if timer:
-        with timer("_rollout.env"):
-            vecenv.send(actions.cpu().numpy().astype(dtype_actions))
-    else:
-        vecenv.send(actions.cpu().numpy().astype(dtype_actions))
-
-    return num_steps, info
+    return actions, selected_action_log_probs, value.flatten(), lstm_state_to_store
 
 
 def compute_ppo_losses(
@@ -565,3 +553,201 @@ def maybe_update_l2_weights(
         if isinstance(l2_interval, int) and l2_interval > 0:
             if hasattr(agent, "update_l2_init_weight_copy"):
                 agent.update_l2_init_weight_copy()
+
+
+def process_training_stats(
+    raw_stats: Dict[str, Any],
+    losses: Any,
+    experience: Any,
+    trainer_config: Any,
+    kickstarter: Any,
+) -> Dict[str, Any]:
+    """Process training statistics into a clean format.
+
+    Args:
+        raw_stats: Raw statistics dictionary (possibly with lists of values)
+        losses: Losses object with stats() method
+        experience: Experience object with stats() method
+        trainer_config: Training configuration
+        kickstarter: Kickstarter object
+
+    Returns:
+        Dictionary with processed statistics including:
+        - mean_stats: Raw stats converted to means
+        - losses_stats: Loss statistics
+        - experience_stats: Experience buffer statistics
+        - environment_stats: Environment-specific stats
+        - overview: High-level metrics like average reward
+    """
+    # Convert lists to means
+    mean_stats = {}
+    for k, v in raw_stats.items():
+        try:
+            mean_stats[k] = np.mean(v)
+        except (TypeError, ValueError):
+            mean_stats[k] = v
+
+    # Get loss and experience statistics
+    losses_stats = losses.stats() if hasattr(losses, "stats") else {}
+    experience_stats = experience.stats() if hasattr(experience, "stats") else {}
+
+    # Remove unused losses
+    if trainer_config.ppo.l2_reg_loss_coef == 0:
+        losses_stats.pop("l2_reg_loss", None)
+    if trainer_config.ppo.l2_init_loss_coef == 0:
+        losses_stats.pop("l2_init_loss", None)
+    if not kickstarter.enabled:
+        losses_stats.pop("ks_action_loss", None)
+        losses_stats.pop("ks_value_loss", None)
+
+    # Calculate environment statistics
+    environment_stats = {
+        f"env_{k.split('/')[0]}/{'/'.join(k.split('/')[1:])}": v for k, v in mean_stats.items() if "/" in k
+    }
+
+    # Calculate overview statistics
+    overview = {}
+
+    # Calculate average reward from environment stats
+    task_reward_values = [v for k, v in environment_stats.items() if k.startswith("env_task_reward")]
+    if task_reward_values:
+        mean_reward = sum(task_reward_values) / len(task_reward_values)
+        overview["reward"] = mean_reward
+
+    return {
+        "mean_stats": mean_stats,
+        "losses_stats": losses_stats,
+        "experience_stats": experience_stats,
+        "environment_stats": environment_stats,
+        "overview": overview,
+    }
+
+
+def compute_timing_stats(
+    timer: Any,
+    agent_step: int,
+) -> Dict[str, Any]:
+    """Compute timing statistics from a Stopwatch timer.
+
+    Args:
+        timer: Stopwatch instance
+        agent_step: Current agent step count
+
+    Returns:
+        Dictionary with timing statistics including:
+        - lap_times: Per-operation lap times
+        - epoch_steps: Steps in this epoch
+        - epoch_steps_per_second: Steps per second (epoch)
+        - steps_per_second: Overall steps per second
+        - timing_stats: Formatted timing statistics for logging
+    """
+    elapsed_times = timer.get_all_elapsed()
+    wall_time = timer.get_elapsed()
+    train_time = elapsed_times.get("_rollout", 0) + elapsed_times.get("_train", 0)
+
+    lap_times = timer.lap_all(agent_step, exclude_global=False)
+    wall_time_for_lap = lap_times.pop("global", 0)
+
+    epoch_steps = timer.get_lap_steps()
+    if epoch_steps is None:
+        epoch_steps = 0
+
+    epoch_steps_per_second = epoch_steps / wall_time_for_lap if wall_time_for_lap > 0 else 0
+    steps_per_second = timer.get_rate(agent_step) if wall_time > 0 else 0
+
+    timing_stats = {
+        **{
+            f"timing_per_epoch/frac/{op}": lap_elapsed / wall_time_for_lap if wall_time_for_lap > 0 else 0
+            for op, lap_elapsed in lap_times.items()
+        },
+        **{
+            f"timing_per_epoch/msec/{op}": lap_elapsed * 1000 if wall_time_for_lap > 0 else 0
+            for op, lap_elapsed in lap_times.items()
+        },
+        "timing_per_epoch/sps": epoch_steps_per_second,
+        **{
+            f"timing_cumulative/frac/{op}": elapsed / wall_time if wall_time > 0 else 0
+            for op, elapsed in elapsed_times.items()
+        },
+        "timing_cumulative/sps": steps_per_second,
+    }
+
+    return {
+        "lap_times": lap_times,
+        "elapsed_times": elapsed_times,
+        "wall_time": wall_time,
+        "train_time": train_time,
+        "wall_time_for_lap": wall_time_for_lap,
+        "epoch_steps": epoch_steps,
+        "epoch_steps_per_second": epoch_steps_per_second,
+        "steps_per_second": steps_per_second,
+        "timing_stats": timing_stats,
+    }
+
+
+def build_wandb_stats(
+    processed_stats: Dict[str, Any],
+    timing_info: Dict[str, Any],
+    weight_stats: Dict[str, Any],
+    grad_stats: Dict[str, Any],
+    system_stats: Dict[str, Any],
+    memory_stats: Dict[str, Any],
+    parameters: Dict[str, Any],
+    evals: EvalRewardSummary,
+    agent_step: int,
+    epoch: int,
+) -> Dict[str, Any]:
+    """Build complete statistics dictionary for wandb logging.
+
+    Args:
+        processed_stats: Output from process_training_stats
+        timing_info: Output from compute_timing_stats
+        weight_stats: Weight analysis statistics
+        grad_stats: Gradient statistics
+        system_stats: System monitor statistics
+        memory_stats: Memory monitor statistics
+        parameters: Training parameters
+        evals: Evaluation scores
+        agent_step: Current agent step
+        epoch: Current epoch
+
+    Returns:
+        Complete dictionary ready for wandb logging
+    """
+    # Build overview with sps and rewards
+    overview = {
+        "sps": timing_info["epoch_steps_per_second"],
+        **processed_stats["overview"],
+    }
+
+    # Add evaluation scores to overview
+    for category, score in evals.category_scores.items():
+        overview[f"{category}_score"] = score
+
+    # Also add reward_vs_total_time if we have reward
+    if "reward" in overview:
+        overview["reward_vs_total_time"] = overview["reward"]
+
+    # X-axis values for wandb
+    metric_stats = {
+        "metric/agent_step": agent_step,
+        "metric/epoch": epoch,
+        "metric/total_time": timing_info["wall_time"],
+        "metric/train_time": timing_info["train_time"],
+    }
+
+    # Combine all stats
+    return {
+        **{f"overview/{k}": v for k, v in overview.items()},
+        **{f"losses/{k}": v for k, v in processed_stats["losses_stats"].items()},
+        **{f"experience/{k}": v for k, v in processed_stats["experience_stats"].items()},
+        **{f"parameters/{k}": v for k, v in parameters.items()},
+        **{f"eval_{k}": v for k, v in evals.to_wandb_metrics_format().items()},
+        **system_stats,  # Already has monitor/ prefix from SystemMonitor.stats()
+        **{f"trainer_memory/{k}": v for k, v in memory_stats.items()},
+        **processed_stats["environment_stats"],
+        **weight_stats,
+        **timing_info["timing_stats"],
+        **metric_stats,
+        **grad_stats,
+    }

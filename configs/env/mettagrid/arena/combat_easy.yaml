@@ -1,4 +1,4 @@
 defaults:
   - combat
-  - /env/mettagrid/game/objects/combat_easy@game.objects:
+  - /env/mettagrid/game/objects/combat_easy@game.objects
   - _self_

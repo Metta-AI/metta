@@ -5,7 +5,7 @@
 #include <string>
 #include <vector>
 
-#include "../grid_object.hpp"
+#include "types.hpp"
 
 enum EventType {
   FinishConverting = 0,
@@ -13,11 +13,11 @@ enum EventType {
   EventTypeCount
 };
 
-enum GridLayer {
-  Agent_Layer = 0,
-  Object_Layer = 1,
-  GridLayerCount
-};
+namespace GridLayer {
+constexpr ObservationType AgentLayer = 0;
+constexpr ObservationType ObjectLayer = 1;
+constexpr ObservationType GridLayerCount = 2;
+};  // namespace GridLayer
 
 // We want empty tokens to be 0xff, since 0s are very natural numbers to have in the observations, and we want
 // empty to be obviously different.
@@ -29,30 +29,29 @@ const uint8_t EmptyTokenByte = 0xff;
 // per-policy basis.
 //
 // NOTE: We use a namespace here to avoid naming collisions:
-// - 'TypeId' conflicts with the typedef uint8_t TypeId in grid_object.hpp
+// - 'TypeId' conflicts with grid_object.hpp::TypeId
 // - 'Orientation' conflicts with the enum class Orientation defined above
 // The namespace allows us to use these descriptive names without conflicts.
 namespace ObservationFeature {
-enum ObservationFeatureEnum : uint8_t {
-  TypeId = 0,
-  Group = 1,
-  Hp = 2,
-  Frozen = 3,
-  Orientation = 4,
-  Color = 5,
-  ConvertingOrCoolingDown = 6,
-  Swappable = 7,
-  EpisodeCompletionPct = 8,
-  LastAction = 9,
-  LastActionArg = 10,
-  LastReward = 11,
-  ObservationFeatureCount
-};
+constexpr ObservationType TypeId = 0;
+constexpr ObservationType Group = 1;
+constexpr ObservationType Hp = 2;
+constexpr ObservationType Frozen = 3;
+constexpr ObservationType Orientation = 4;
+constexpr ObservationType Color = 5;
+constexpr ObservationType ConvertingOrCoolingDown = 6;
+constexpr ObservationType Swappable = 7;
+constexpr ObservationType EpisodeCompletionPct = 8;
+constexpr ObservationType LastAction = 9;
+constexpr ObservationType LastActionArg = 10;
+constexpr ObservationType LastReward = 11;
+constexpr ObservationType Glyph = 12;
+constexpr ObservationType ObservationFeatureCount = 13;
 }  // namespace ObservationFeature
 
-const uint8_t InventoryFeatureOffset = ObservationFeature::ObservationFeatureCount;
+const ObservationType InventoryFeatureOffset = ObservationFeature::ObservationFeatureCount;
 
-const std::map<uint8_t, std::string> FeatureNames = {
+const std::map<ObservationType, std::string> FeatureNames = {
     {ObservationFeature::TypeId, "type_id"},
     {ObservationFeature::Group, "agent:group"},
     {ObservationFeature::Hp, "hp"},
@@ -64,13 +63,14 @@ const std::map<uint8_t, std::string> FeatureNames = {
     {ObservationFeature::EpisodeCompletionPct, "episode_completion_pct"},
     {ObservationFeature::LastAction, "last_action"},
     {ObservationFeature::LastActionArg, "last_action_arg"},
-    {ObservationFeature::LastReward, "last_reward"}};
+    {ObservationFeature::LastReward, "last_reward"},
+    {ObservationFeature::Glyph, "agent:glyph"}};
 
 // ##ObservationNormalization
 // These are approximate maximum values for each feature. Ideally they would be defined closer to their source,
 // but here we are. If you add / remove a feature, you should add / remove the corresponding normalization.
 // These should move to configuration "soon". E.g., by 2025-06-10.
-const std::map<uint8_t, float> FeatureNormalizations = {
+const std::map<ObservationType, float> FeatureNormalizations = {
     {ObservationFeature::LastAction, 10.0},
     {ObservationFeature::LastActionArg, 10.0},
     {ObservationFeature::EpisodeCompletionPct, 255.0},
@@ -83,6 +83,7 @@ const std::map<uint8_t, float> FeatureNormalizations = {
     {ObservationFeature::Color, 255.0},
     {ObservationFeature::ConvertingOrCoolingDown, 1.0},
     {ObservationFeature::Swappable, 1.0},
+    {ObservationFeature::Glyph, 255.0},
 };
 
 const float DEFAULT_INVENTORY_NORMALIZATION = 100.0;

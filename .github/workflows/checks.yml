@@ -130,6 +130,8 @@ jobs:
 
       - name: Setup uv
         uses: ./.github/actions/setup-uv
+        with:
+          install-mode: "linting"
 
       - name: Run Ruff linter
         run: |
@@ -142,6 +144,7 @@ jobs:
       - name: Install C++ linter
         run: |
           sudo apt-get install -y clang-format
+
       - name: Run cpplint
         run: ./mettagrid/tests/cpplint.sh
 
@@ -152,17 +155,49 @@ jobs:
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
       (needs.setup-checks.outputs.run_test == 'true')
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Setup uv
         uses: ./.github/actions/setup-uv
+        with:
+          install-mode: "no-mettagrid"
+
+      - name: Build MettaGrid C++
+        id: mettagrid_build_check
+        run: |
+          .github/scripts/check_mettagrid_build.py
+
+      - name: Check MettaGrid build warnings
+        if: always()
+        run: |
+          errors=${{ steps.mettagrid_build_check.outputs.total_errors }}
+          warnings=${{ steps.mettagrid_build_check.outputs.total_warnings }}
+          max_warnings=${{ vars.MAX_ALLOWED_METTAGRID_WARNINGS || 1000 }}
+
+          echo "Build Summary: $errors errors, $warnings warnings"
+          echo "Maximum allowed warnings: $max_warnings"
+
+          if [ "$errors" -gt 0 ]; then
+            echo "❌ MettaGrid has build errors!"
+            exit 1
+          elif [ "$warnings" -gt "$max_warnings" ]; then
+            echo "⚠️ Too many warnings in MettaGrid build ($warnings > $max_warnings)"
+            exit 1
+          else
+            echo "✅ MettaGrid build quality check passed"
+          fi
+
+      - name: Install metta-mettagrid package
+        if: steps.mettagrid_build_check.outputs.build_success == 'true'
+        run: |
+          uv pip install --no-build-isolation --no-deps -e ./mettagrid
 
       - name: Run Pytest on core tests
         run: |
-          pytest -n ${{ env.PYTEST_WORKERS }} --benchmark-skip --maxfail=1 --disable-warnings -q
+          pytest -n ${{ env.PYTEST_WORKERS }} --cov --cov-branch --cov-report=xml --benchmark-skip --maxfail=1 --disable-warnings -q
 
       - name: Run Pytest on subpackage tests
         env:
@@ -170,16 +205,38 @@ jobs:
         run: |
           for package in $SUBPACKAGES; do
             echo "Running tests for $package..."
-            (cd "$package" && pytest -n ${{ env.PYTEST_WORKERS }} --benchmark-skip --maxfail=1 --disable-warnings -q) || exit 1
+            (cd "$package" && pytest -n ${{ env.PYTEST_WORKERS }} --cov --cov-branch --cov-report=xml --benchmark-skip --maxfail=1 --disable-warnings -v) || exit 1
           done
 
-      - name: Run MettaGrid C++ tests
+      - name: Upload coverage to Codecov
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+          SUBPACKAGES: "app_backend agent mettagrid common"
         run: |
-          source .venv/bin/activate
+          chmod +x .github/scripts/upload_codecov.py
+          .github/scripts/upload_codecov.py
+
+      - name: Install lcov
+        if: steps.mettagrid_build_check.outputs.build_success == 'true'
+        run: |
+          sudo apt-get install -y lcov
+
+      - name: Run MettaGrid C++ coverage
+        if: steps.mettagrid_build_check.outputs.build_success == 'true'
+        run: |
           cd mettagrid
-          cmake --preset debug
-          cmake --build build-debug
-          ctest --test-dir build-debug -L test
+          make coverage
+
+      - name: Upload MettaGrid C++ coverage to Codecov
+        if: steps.mettagrid_build_check.outputs.build_success == 'true'
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./mettagrid/build-coverage/coverage.info
+          flags: mettagrid_cpp
+          name: mettagrid-cpp-coverage
+          fail_ci_if_error: false
+          verbose: true
 
   smoke-test:
     name: "Smoke Tests"

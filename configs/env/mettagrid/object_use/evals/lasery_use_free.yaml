@@ -13,5 +13,7 @@ game:
     rewards:
       laser: 1
   map_builder:
-    objects:
-      lasery: 1
+    root:
+      params:
+        objects:
+          lasery: 1

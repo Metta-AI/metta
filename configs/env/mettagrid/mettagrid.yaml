@@ -49,4 +49,7 @@ game:
     swap:
       enabled: true
     change_color:
-      enabled: true
+      enabled: false
+    change_glyph:
+      enabled: false
+      number_of_glyphs: 4

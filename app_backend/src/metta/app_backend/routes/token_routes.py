@@ -39,7 +39,7 @@ def create_token_router(metta_repo: MettaRepo) -> APIRouter:
     async def create_token(token_data: TokenCreate, user_email: UserEmail) -> TokenResponse:
         """Create a new machine token for the authenticated user."""
         try:
-            token = metta_repo.create_machine_token(user_email, token_data.name)
+            token = await metta_repo.create_machine_token(user_email, token_data.name)
             return TokenResponse(token=token)
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to create token: {str(e)}") from e
@@ -56,7 +56,7 @@ def create_token_router(metta_repo: MettaRepo) -> APIRouter:
                 raise HTTPException(status_code=400, detail="Invalid callback URL")
 
             # Create the machine token
-            token = metta_repo.create_machine_token(user_email, name="CLI Token")
+            token = await metta_repo.create_machine_token(user_email, name="CLI Token")
 
             # Build the redirect URL with token parameter
             from urllib.parse import urlencode
@@ -72,7 +72,7 @@ def create_token_router(metta_repo: MettaRepo) -> APIRouter:
     async def list_tokens(user_email: UserEmail) -> TokenListResponse:
         """List all machine tokens for the authenticated user."""
         try:
-            token_dicts = metta_repo.list_machine_tokens(user_email)
+            token_dicts = await metta_repo.list_machine_tokens(user_email)
             tokens = [
                 TokenInfo(
                     id=token_dict["id"],
@@ -92,7 +92,7 @@ def create_token_router(metta_repo: MettaRepo) -> APIRouter:
     async def delete_token(token_id: str, user_email: UserEmail) -> dict[str, str]:
         """Delete a machine token for the authenticated user."""
         try:
-            success = metta_repo.delete_machine_token(user_email, token_id)
+            success = await metta_repo.delete_machine_token(user_email, token_id)
             if not success:
                 raise HTTPException(status_code=404, detail="Token not found")
             return {"message": "Token deleted successfully"}

@@ -1,4 +1,5 @@
-This is a copy of [upstream chart](https://github.com/skypilot-org/skypilot/tree/master/charts/skypilot) with patches for:
+This is a copy of [upstream chart](https://github.com/skypilot-org/skypilot/tree/master/charts/skypilot) with patches
+for:
 
 1. `--host 0.0.0.0` bug
 2. `cert-manager` support

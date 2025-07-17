@@ -11,12 +11,16 @@ game:
     rewards:
       heart: 1
   map_builder:
-    _target_: metta.mettagrid.room.mean_distance.MeanDistance
+    _target_: metta.map.mapgen.MapGen
     width: 11
     height: 11
-    mean_distance: 6
     border_width: 3
-    agents: 1
+
+    root:
+      type: metta.map.scenes.mean_distance.MeanDistance
+      params:
+        mean_distance: 6
+        objects: {} # will be filled by specific eval configs
 
   objects:
     altar:

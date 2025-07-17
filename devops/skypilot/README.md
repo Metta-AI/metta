@@ -7,9 +7,11 @@ This script provides a convenient way to launch training jobs on AWS using SkyPi
 - AWS credentials configured with `softmax` profile
 - SkyPilot CLI installed and configured. This results in a ~/.sky/config.yaml
 
-If you have successfully run  `./devops/skypilot/install.sh` or the appropriate setup_machine script for your operating system, these should be handled.
+If you have successfully run `./devops/skypilot/install.sh` or the appropriate setup_machine script for your operating
+system, these should be handled.
 
-You can run this command to confirm your connectivity to the Softmax skypilot server, its health, and if you are authenticated.
+You can run this command to confirm your connectivity to the Softmax skypilot server, its health, and if you are
+authenticated.
 
 ```bash
 sky api info
@@ -40,7 +42,8 @@ Note that launching jobs requires a repo with pushed commits (unless using `--sk
 
 There's a [web dashboard](https://skypilot-api.softmax-research.net/) that displays the status of all clusters and jobs.
 
-You will be prompted for username/password credentials. These can be extracted from your Skypilot config with this command:
+You will be prompted for username/password credentials. These can be extracted from your Skypilot config with this
+command:
 
 ```bash
 grep -o 'https://[^:]*:[^@]*@' ~/.sky/config.yaml | sed 's|https://||; s|@||' | sed 's|:| |' | while read username password; do
@@ -194,16 +197,18 @@ Jobs can have the following statuses:
 
 ## Shell Aliases
 
-To streamline your workflow, we provide a script to set shell aliases for common SkyPilot operations. It also sets `AWS_PROFILE=softmax` automatically.
+To streamline your workflow, we provide a script to set shell aliases for common SkyPilot operations. It also sets
+`AWS_PROFILE=softmax` automatically.
 
 To add these aliases temporarily:
+
 ```bash
 source ./devops/skypilot/setup_shell.sh
 ```
 
 To add them permanently, add the source command to your shell profile:
 
-```bash
+````bash
 # For bash users:
 echo "source /path/to/your/project/devops/skypilot/setup_shell.sh" >> ~/.bashrc
 
@@ -238,8 +243,7 @@ echo "source /path/to/your/project/devops/skypilot/setup_shell.sh" >> ~/.config/
 - `lt run=<NAME>` - Quick launch training jobs
   ```bash
   lt run=my_experiment_001  # Equivalent to: ./devops/skypilot/launch.py train run=my_experiment_001
-  ```
-
+````
 
 ## Sandboxes
 
@@ -325,7 +329,8 @@ sky jobs queue -a
 
 2. **Set appropriate timeouts**: Always use `---max-runtime-hours` to prevent runaway costs
 
-3. **Use confirmation for important jobs**: Add `--confirm` to review the job details including GPU allocation, spot instance usage, and all command arguments
+3. **Use confirmation for important jobs**: Add `--confirm` to review the job details including GPU allocation, spot
+   instance usage, and all command arguments
 
 4. **Monitor actively**: Check job status regularly, especially for long-running jobs
 

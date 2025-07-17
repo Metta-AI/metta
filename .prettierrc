@@ -36,6 +36,15 @@
         "printWidth": 100,
         "singleQuote": true
       }
+    },
+    {
+      "files": ["*.md"],
+      "options": {
+        "parser": "markdown",
+        "printWidth": 120,
+        "proseWrap": "always",
+        "tabWidth": 2
+      }
     }
   ]
 }

@@ -32,7 +32,6 @@ class CoreSetup(SetupModule):
         print("\nVerifying all local dependencies are importable...")
         deps_to_check = [
             "pufferlib",
-            "metta.rl.fast_gae",
             "metta.mettagrid.mettagrid_env",
             "metta.mettagrid.mettagrid_c",
         ]
@@ -40,13 +39,12 @@ class CoreSetup(SetupModule):
         all_good = True
         for dep in deps_to_check:
             try:
-                result = subprocess.run(
+                subprocess.run(
                     ["uv", "run", "python", "-c", f"import {dep}; print('Found {dep} at', {dep}.__file__)"],
                     capture_output=True,
                     text=True,
                     check=True,
                 )
-                print(result.stdout.strip())
             except subprocess.CalledProcessError:
                 error(f"Failed to import {dep}")
                 all_good = False

@@ -94,16 +94,24 @@ class EvalStatsDB(SimulationStatsDB):
         filter_condition: str | None = None,
     ) -> int:
         """Internal helper: number of agent‑episode pairs (possible samples)."""
+        # Only count episodes that actually have metrics recorded
+        # This prevents counting "ghost" episodes that were requested but never completed
         q = f"""
         SELECT COUNT(*) AS cnt
-          FROM policy_simulation_agent_samples
-         WHERE policy_key     = '{policy_key}'
-           AND policy_version = {policy_version}
+          FROM policy_simulation_agent_samples ps
+         WHERE ps.policy_key     = '{policy_key}'
+           AND ps.policy_version = {policy_version}
+           -- Only count samples that have at least one metric recorded
+           AND EXISTS (
+               SELECT 1 FROM agent_metrics am
+               WHERE am.episode_id = ps.episode_id
+                 AND am.agent_id = ps.agent_id
+           )
         """
         if filter_condition:
             q += f" AND {filter_condition}"
         res = self.query(q)
-        return int(res["cnt"][0]) if not res.empty else 0
+        return int(res["cnt"].iloc[0]) if not res.empty else 0
 
     # Public alias (referenced by downstream code/tests)
     def potential_samples_for_metric(
@@ -132,7 +140,7 @@ class EvalStatsDB(SimulationStatsDB):
         if filter_condition:
             q += f" AND {filter_condition}"
         res = self.query(q)
-        return int(res["cnt"][0]) if not res.empty else 0
+        return int(res["cnt"].iloc[0]) if not res.empty else 0
 
     def _normalized_value(
         self,
@@ -225,7 +233,7 @@ class EvalStatsDB(SimulationStatsDB):
             q += f" AND sim_name  = '{sim_name}'"
         if sim_env:
             q += f" AND sim_env   = '{sim_env}'"
-        return int(self.query(q)["cnt"][0])
+        return int(self.query(q)["cnt"].iloc[0])
 
     def simulation_scores(self, policy_record: PolicyRecord, metric: str) -> Dict[tuple[str, str, str], float]:
         """Return { (suite,name,env) : normalized mean(metric) }."""
@@ -294,4 +302,6 @@ class EvalStatsDB(SimulationStatsDB):
         return self.query(sql)
 
     def key_and_version(self, pr: PolicyRecord) -> tuple[str, int]:
+        if pr.uri is None:
+            raise ValueError("PolicyRecord must have a URI to be used in EvalStatsDB queries.")
         return pr.uri, pr.metadata.epoch

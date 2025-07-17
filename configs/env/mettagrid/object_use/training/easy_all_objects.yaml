@@ -20,31 +20,28 @@ game:
       armor: 0.1
       blueprint: 0.1
       heart: 1
-      heart_max: 1000
   map_builder:
-    _target_: metta.mettagrid.room.multi_room.MultiRoom
-    num_rooms: ${..num_agents}
+    _target_: metta.map.mapgen.MapGen
+    instances: ${..num_agents}
+    width: 30
+    height: 30
 
-    border_width: 6
+    root:
+      type: metta.map.scenes.random.Random
+      params:
+        agents: 1
+        objects:
+          mine_red: 2
+          generator_red: 3
+          altar: 1
+          armory: 1
+          lasery: 1
+          lab: 1
+          factory: 1
+          temple: 1
 
-    room:
-      _target_: metta.mettagrid.room.random.Random
-      width: 30
-      height: 30
-      border_width: 3
-      agents: 1
-      objects:
-        mine_red: 2
-        generator_red: 3
-        altar: 1
-        armory: 1
-        lasery: 1
-        lab: 1
-        factory: 1
-        temple: 1
-
-        block: 3
-        wall: 3
+          block: 3
+          wall: 3
 
   objects:
     altar:

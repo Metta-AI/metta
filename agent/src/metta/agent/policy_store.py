@@ -29,7 +29,7 @@ from metta.agent.policy_metadata import PolicyMetadata
 from metta.agent.policy_record import PolicyRecord
 from metta.common.wandb.wandb_context import WandbRun
 from metta.rl.policy import load_pytorch_policy
-from metta.rl.trainer_config import TrainerConfig, parse_trainer_config
+from metta.rl.trainer_config import TrainerConfig, create_trainer_config
 
 logger = logging.getLogger("policy_store")
 
@@ -201,7 +201,7 @@ class PolicyStore:
         if "trainer" not in self._cfg:
             raise AttributeError("New policies can't be created by a PolicyStore with no 'cfg.trainer' attribute.")
 
-        trainer_cfg: TrainerConfig = parse_trainer_config(self._cfg)
+        trainer_cfg: TrainerConfig = create_trainer_config(self._cfg)
 
         path = override_path if override_path is not None else os.path.join(trainer_cfg.checkpoint.checkpoint_dir, name)
         metadata = PolicyMetadata()

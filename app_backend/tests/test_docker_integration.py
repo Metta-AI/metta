@@ -74,7 +74,7 @@ class TestDockerIntegration:
                 self.logger.info("Found existing network, removing it")
                 existing_network.remove()
                 self.logger.info("Successfully removed existing network")
-            except docker.errors.NotFound:
+            except docker.errors.NotFound:  # type: ignore[reportAttributeAccessIssue]
                 self.logger.info("No existing network found, proceeding with creation")
             except Exception as e:
                 self.logger.warning(f"Failed to remove existing network: {e}")
@@ -84,10 +84,10 @@ class TestDockerIntegration:
 
             # Connect postgres container to the network
             self.logger.info("Connecting PostgreSQL container to network")
-            network.connect(postgres_container._container)
+            network.connect(postgres_container._container)  # type: ignore[reportArgumentType]
 
             # Use the postgres container name as hostname for internal communication
-            db_host = postgres_container._container.name
+            db_host = postgres_container._container.name  # type: ignore[reportOptionalMemberAccess]
             db_uri = f"postgresql://test_user:test_password@{db_host}:5432/test_db"
             self.logger.info(f"Database URI: {db_uri}")
 
@@ -152,7 +152,7 @@ class TestDockerIntegration:
                 self.logger.info("Disconnecting containers from Docker network")
                 # Disconnect the postgres container from the network
                 try:
-                    network.disconnect(postgres_container._container)
+                    network.disconnect(postgres_container._container)  # type: ignore[reportArgumentType]
                     self.logger.info("Disconnected PostgreSQL container from network")
                 except Exception as disconnect_error:
                     self.logger.warning(f"Failed to disconnect PostgreSQL container: {disconnect_error}")

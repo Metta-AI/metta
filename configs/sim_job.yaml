@@ -4,7 +4,7 @@ defaults:
   - sim: all
   - _self_
 
-run: ???
+run: null # Auto-generated if not provided
 policy_uri: ???
 
 sim_job:

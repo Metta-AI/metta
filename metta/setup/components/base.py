@@ -6,6 +6,8 @@ from metta.setup.config import SetupConfig
 
 
 class SetupModule(ABC):
+    install_once: bool = False
+
     def __init__(self, config: SetupConfig):
         self.config: SetupConfig = config
         self.repo_root: Path = Path(__file__).parent.parent.parent.parent

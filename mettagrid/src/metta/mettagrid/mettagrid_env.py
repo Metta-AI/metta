@@ -9,13 +9,13 @@ from typing import Any, Dict, Optional, cast
 import numpy as np
 from gymnasium import Env as GymEnv
 from gymnasium import spaces
-from hydra.utils import instantiate
 from omegaconf import OmegaConf
 from pufferlib import PufferEnv
 from pydantic import validate_call
 from typing_extensions import override
 
 from metta.common.profiling.stopwatch import Stopwatch, with_instance_timer
+from metta.common.util.instantiate import instantiate
 from metta.mettagrid.curriculum.core import Curriculum
 from metta.mettagrid.level_builder import Level
 from metta.mettagrid.mettagrid_c import MettaGrid
@@ -86,7 +86,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
         self._replay_writer = replay_writer
         self._episode_id: str | None = None
         self._reset_at = datetime.datetime.now()
-        self._current_seed = 0
+        self._current_seed: int = 0  # must be unsigned
 
         self.labels: list[str] = self._task.env_cfg().get("labels", [])
         self._should_reset = False
@@ -118,7 +118,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
         if level is None:
             map_builder_config = task.env_cfg().game.map_builder
             with self.timer("_initialize_c_env.build_map"):
-                map_builder = instantiate(map_builder_config, _recursive_=True, _convert_="all")
+                map_builder = instantiate(map_builder_config, _recursive_=True)
                 level = map_builder.build()
 
         # Validate the level
@@ -146,7 +146,15 @@ class MettaGridEnv(PufferEnv, GymEnv):
         # Convert string array to list of strings for C++ compatibility
         # TODO: push the not-numpy-array higher up the stack, and consider pushing not-a-sparse-list lower.
         with self.timer("_initialize_c_env.make_c_env"):
-            self._c_env = MettaGrid(from_mettagrid_config(game_config_dict), level.grid.tolist(), self._current_seed)
+            c_cfg = None
+            try:
+                c_cfg = from_mettagrid_config(game_config_dict)
+            except Exception as e:
+                logger.error(f"Error initializing C++ environment: {e}")
+                logger.error(f"Game config: {game_config_dict}")
+                raise e
+
+            self._c_env = MettaGrid(c_cfg, level.grid.tolist(), self._current_seed)
 
         self._grid_env = self._c_env
 

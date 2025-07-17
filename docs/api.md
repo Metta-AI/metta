@@ -156,7 +156,8 @@ The `metta.api` module exports:
 
 **Training**: `perform_rollout_step`, `process_minibatch_update`, `accumulate_rollout_stats`, `compute_advantage`
 
-**Distributed**: `setup_device_and_distributed`, `setup_distributed_vars`, `wrap_agent_distributed`, `cleanup_distributed`
+**Distributed**: `setup_device_and_distributed`, `setup_distributed_vars`, `wrap_agent_distributed`,
+`cleanup_distributed`
 
 **Checkpointing**: `save_checkpoint`, `load_checkpoint`
 
@@ -164,4 +165,5 @@ The `metta.api` module exports:
 
 **Components**: `Experience`, `Kickstarter`, `Losses`, `Stopwatch`
 
-**Utilities**: `setup_run_directories`, `save_experiment_config`, `create_evaluation_config_suite`, `create_replay_config`
+**Utilities**: `setup_run_directories`, `save_experiment_config`, `create_evaluation_config_suite`,
+`create_replay_config`

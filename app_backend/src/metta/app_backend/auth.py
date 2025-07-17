@@ -11,7 +11,7 @@ def user_from_header(request: Request) -> str | None:
     return config.debug_user_email or request.headers.get("X-Auth-Request-Email")
 
 
-def user_from_header_or_token(request: Request, metta_repo: MettaRepo) -> str | None:
+async def user_from_header_or_token(request: Request, metta_repo: MettaRepo) -> str | None:
     user_email = user_from_header(request)
     if user_email:
         return user_email
@@ -20,15 +20,15 @@ def user_from_header_or_token(request: Request, metta_repo: MettaRepo) -> str | 
     if not token:
         return None
 
-    user_id = metta_repo.validate_machine_token(token)
+    user_id = await metta_repo.validate_machine_token(token)
     if not user_id:
         return None
 
     return user_id
 
 
-def user_from_header_or_token_or_raise(request: Request, metta_repo: MettaRepo) -> str:
-    user_id = user_from_header_or_token(request, metta_repo)
+async def user_from_header_or_token_or_raise(request: Request, metta_repo: MettaRepo) -> str:
+    user_id = await user_from_header_or_token(request, metta_repo)
     if not user_id:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -47,8 +47,8 @@ def user_from_email_or_raise(request: Request) -> str:
 def create_user_or_token_dependency(metta_repo: MettaRepo) -> Callable[[Request], str]:
     """Create a dependency function that validates either user email or machine token."""
 
-    def get_user_or_token_user(request: Request) -> str:
-        return user_from_header_or_token_or_raise(request, metta_repo)
+    async def get_user_or_token_user(request: Request) -> str:
+        return await user_from_header_or_token_or_raise(request, metta_repo)
 
     return get_user_or_token_user
 

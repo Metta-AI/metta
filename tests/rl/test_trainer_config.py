@@ -1,12 +1,13 @@
 import math
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 from hydra import compose, initialize_config_dir
 from omegaconf import DictConfig
 from pydantic import ValidationError
 
-from metta.rl.trainer_config import OptimizerConfig, parse_trainer_config
+from metta.rl.trainer_config import OptimizerConfig, create_trainer_config
 
 valid_optimizer_config = {
     "type": "adam",
@@ -89,9 +90,23 @@ valid_trainer_config = {
     },
     "simulation": {
         "evaluate_interval": 300,
-        "replay_interval": 300,
     },
 }
+
+
+@patch("metta.common.util.script_decorators.setup_mettagrid_environment", return_value=None)
+@patch("metta.common.util.script_decorators.torch.cuda.is_available", return_value=True)
+@patch("metta.common.util.script_decorators.is_multiprocessing_available", return_value=True)
+def process_cfg_like_metta_script_main(cfg: DictConfig, *_mocks) -> DictConfig:
+    from metta.common.util.script_decorators import metta_script
+
+    # Use the metta_script decorator, which validates/modifies the config
+    # Mock out setup_mettagrid_environment; not necessary for testing trainer config parsing
+    @metta_script
+    def _process_config(cfg: DictConfig) -> DictConfig:
+        return cfg
+
+    return _process_config(cfg)
 
 
 def make_cfg(trainer_cfg: dict) -> DictConfig:
@@ -100,13 +115,17 @@ def make_cfg(trainer_cfg: dict) -> DictConfig:
             "run_dir": "/tmp/test_run",
             "run": "test_run",
             "trainer": trainer_cfg,
+            # Include these values to avoid needing to run the metta_script decorator
+            # here to populate them with detected values
+            "vectorization": "serial",
+            "device": "cpu",
         }
     )
 
 
 class TestTypedConfigs:
     def test_basic_typed_config_parsing(self):
-        trainer_config = parse_trainer_config(make_cfg(valid_trainer_config))
+        trainer_config = create_trainer_config(make_cfg(valid_trainer_config))
         assert trainer_config.optimizer.type == "adam"
         assert trainer_config.optimizer.learning_rate == 0.001
         assert trainer_config.bptt_horizon == 32
@@ -149,7 +168,7 @@ class TestTypedConfigs:
         }
 
         # Should not raise - defaults will be used
-        trainer_config = parse_trainer_config(make_cfg(incomplete_config))
+        trainer_config = create_trainer_config(make_cfg(incomplete_config))
 
         # Check that defaults were applied
         assert trainer_config.optimizer.beta1 == 0.9
@@ -168,7 +187,6 @@ class TestTypedConfigs:
         test_config_dict = {
             **valid_trainer_config,
             "env_overrides": {
-                "desync_episodes": True,
                 "max_steps": 1000,
                 "num_agents": 4,
             },
@@ -182,12 +200,11 @@ class TestTypedConfigs:
             },
         }
 
-        validated_config = parse_trainer_config(make_cfg(test_config_dict))
+        validated_config = create_trainer_config(make_cfg(test_config_dict))
 
         # Test that env_overrides can be converted to DictConfig
         env_overrides_dict = DictConfig(validated_config.env_overrides)
         assert isinstance(env_overrides_dict, DictConfig)
-        assert env_overrides_dict.desync_episodes is True
         assert env_overrides_dict.max_steps == 1000
         assert env_overrides_dict.num_agents == 4
 
@@ -195,7 +212,6 @@ class TestTypedConfigs:
         config_dict = validated_config.model_dump(by_alias=True)
         assert config_dict["_target_"] == "metta.rl.trainer.MettaTrainer"
         assert config_dict["batch_size"] == 1024
-        assert config_dict["env_overrides"]["desync_episodes"] is True
         assert config_dict["env_overrides"]["max_steps"] == 1000
 
     def test_runtime_path_overrides(self):
@@ -204,11 +220,63 @@ class TestTypedConfigs:
         config_with_paths["checkpoint"]["checkpoint_dir"] = "/custom/checkpoint/path"
         config_with_paths["simulation"]["replay_dir"] = "s3://custom-bucket/replays"
 
-        trainer_config = parse_trainer_config(make_cfg(config_with_paths))
+        trainer_config = create_trainer_config(make_cfg(config_with_paths))
 
         # Should use the provided paths, not the runtime defaults
         assert trainer_config.checkpoint.checkpoint_dir == "/custom/checkpoint/path"
         assert trainer_config.simulation.replay_dir == "s3://custom-bucket/replays"
+
+    def test_interval_validation_checks(self):
+        """Test that interval validation checks work correctly."""
+        # Test 1: evaluate_interval < checkpoint_interval should fail
+        config_with_bad_intervals = valid_trainer_config.copy()
+        config_with_bad_intervals["simulation"]["evaluate_interval"] = 30
+        config_with_bad_intervals["checkpoint"]["checkpoint_interval"] = 60
+
+        with pytest.raises(ValueError) as err:
+            create_trainer_config(make_cfg(config_with_bad_intervals))
+        assert "evaluate_interval must be at least as large as checkpoint_interval" in str(err.value)
+
+        # Test 2: evaluate_interval < wandb_checkpoint_interval should fail
+        config_with_bad_intervals = valid_trainer_config.copy()
+        config_with_bad_intervals["simulation"]["evaluate_interval"] = 60
+        config_with_bad_intervals["checkpoint"]["checkpoint_interval"] = 30  # Lower than evaluate_interval
+        config_with_bad_intervals["checkpoint"]["wandb_checkpoint_interval"] = 90  # Higher than evaluate_interval
+
+        with pytest.raises(ValueError) as err:
+            create_trainer_config(make_cfg(config_with_bad_intervals))
+        assert "evaluate_interval must be at least as large as wandb_checkpoint_interval" in str(err.value)
+
+        # Test 3: wandb_checkpoint_interval < checkpoint_interval should fail
+        config_with_bad_intervals = valid_trainer_config.copy()
+        config_with_bad_intervals["checkpoint"]["checkpoint_interval"] = 60
+        config_with_bad_intervals["checkpoint"]["wandb_checkpoint_interval"] = 30
+
+        with pytest.raises(ValueError) as err:
+            create_trainer_config(make_cfg(config_with_bad_intervals))
+        assert "wandb_checkpoint_interval must be at least as large as checkpoint_interval" in str(err.value)
+
+        # Test 4: Valid configuration where evaluate_interval >= both checkpoint intervals
+        config_with_good_intervals = valid_trainer_config.copy()
+        config_with_good_intervals["checkpoint"]["checkpoint_interval"] = 60
+        config_with_good_intervals["checkpoint"]["wandb_checkpoint_interval"] = 120
+        config_with_good_intervals["simulation"]["evaluate_interval"] = 120
+
+        # This should not raise
+        trainer_config = create_trainer_config(make_cfg(config_with_good_intervals))
+        assert trainer_config.simulation.evaluate_interval == 120
+        assert trainer_config.checkpoint.checkpoint_interval == 60
+        assert trainer_config.checkpoint.wandb_checkpoint_interval == 120
+
+        # Test 5: evaluate_interval = 0 (disabled) should always pass
+        config_with_disabled_eval = valid_trainer_config.copy()
+        config_with_disabled_eval["simulation"]["evaluate_interval"] = 0
+        config_with_disabled_eval["checkpoint"]["checkpoint_interval"] = 60
+        config_with_disabled_eval["checkpoint"]["wandb_checkpoint_interval"] = 300
+
+        # This should not raise
+        trainer_config = create_trainer_config(make_cfg(config_with_disabled_eval))
+        assert trainer_config.simulation.evaluate_interval == 0
 
 
 configs_dir = str(Path(__file__).parent.parent.parent / "configs" / "trainer")
@@ -223,10 +291,12 @@ def load_config_with_hydra(trainer_name: str, overrides: list[str] | None = None
     ]
 
     with initialize_config_dir(config_dir=configs_dir, version_base=None):
-        return compose(
+        cfg = compose(
             config_name="train_job",
             overrides=default_overrides + (overrides or []),
         )
+
+        return process_cfg_like_metta_script_main(cfg)
 
 
 class TestRealTypedConfigs:
@@ -235,10 +305,9 @@ class TestRealTypedConfigs:
 
         for config_name in config_files:
             try:
-                # some of the configs don't have num_workers specified because train.sh provides it
                 cfg = load_config_with_hydra(config_name, overrides=["trainer.num_workers=1"])
 
-                validated_config = parse_trainer_config(cfg)
+                validated_config = create_trainer_config(cfg)
 
                 # Verify some basic fields and  constraints
                 assert validated_config.batch_size > 0
@@ -285,8 +354,7 @@ class TestRealTypedConfigs:
                 # For hardware/user configs, apply them as overrides
                 overrides_list = [override, "trainer.num_workers=1"]
                 cfg = load_config_with_hydra("trainer", overrides=overrides_list)
-
-                _ = parse_trainer_config(cfg)
+                create_trainer_config(cfg)
 
             except Exception as e:
                 print(f"Error loading {config_type} config {config_name}: {e}")

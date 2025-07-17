@@ -1,6 +1,5 @@
 _target_: metta.rl.trainer.MettaTrainer
-
-num_workers: ???
+num_workers: null  # determined by train.py if not specified
 
 curriculum: ???
 env_overrides: {}
@@ -19,7 +18,6 @@ checkpoint:
 
 simulation:
   evaluate_interval: 200
-  replay_interval: 50
   replay_dir: s3://softmax-public/replays/${run}
 
 grad_mean_variance_interval: 0 # 0 to disable

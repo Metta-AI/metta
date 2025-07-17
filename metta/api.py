@@ -150,6 +150,102 @@ def cleanup_distributed():
         torch.distributed.destroy_process_group()
 
 
+def initialize_wandb(
+    run_name: str,
+    run_dir: str,
+    enabled: bool = True,
+    project: Optional[str] = None,
+    entity: Optional[str] = None,
+    config: Optional[Dict[str, Any]] = None,
+    job_type: str = "train",
+    tags: Optional[List[str]] = None,
+    notes: Optional[str] = None,
+) -> Tuple[Optional[Any], Optional[Any]]:  # Returns (wandb_run, wandb_ctx)
+    """Initialize Weights & Biases logging with proper configuration.
+
+    This helper function creates the wandb configuration in the format expected
+    by WandbContext, handling both Hydra and non-Hydra use cases. It generates
+    the same configuration structure that the Hydra pipeline creates via
+    configs/wandb/*.yaml files.
+
+    Args:
+        run_name: Name of the run (used for group, name, and run_id)
+        run_dir: Directory where run data is stored
+        enabled: Whether wandb logging is enabled
+        project: W&B project name (defaults to env var or "metta")
+        entity: W&B entity name (defaults to env var or "metta-research")
+        config: Optional configuration dict to log
+        job_type: Type of job (e.g., "train", "eval")
+        tags: Optional list of tags
+        notes: Optional notes for the run
+
+    Returns:
+        Tuple of (wandb_run, wandb_ctx):
+        - wandb_run: The W&B run object if initialized, None otherwise
+        - wandb_ctx: The WandbContext object for cleanup
+
+    Example:
+        >>> wandb_run, wandb_ctx = initialize_wandb(
+        ...     run_name=dirs.run_name,
+        ...     run_dir=dirs.run_dir,
+        ...     enabled=not os.environ.get("WANDB_DISABLED"),
+        ...     config={"trainer": trainer_config.model_dump()}
+        ... )
+
+    Note:
+        This function is compatible with the Hydra pipeline used in tools/train.py.
+        It creates the same wandb configuration structure that would be loaded from
+        configs/wandb/metta_research.yaml or configs/wandb/off.yaml.
+    """
+    from metta.common.wandb.wandb_context import WandbContext
+
+    # Build wandb config
+    if enabled:
+        wandb_config = {
+            "enabled": True,
+            "project": project or os.environ.get("WANDB_PROJECT", "metta"),
+            "entity": entity or os.environ.get("WANDB_ENTITY", "metta-research"),
+            "group": run_name,
+            "name": run_name,
+            "run_id": run_name,
+            "data_dir": run_dir,
+            "job_type": job_type,
+            "tags": tags or [],
+            "notes": notes or "",
+        }
+    else:
+        wandb_config = {"enabled": False}
+
+    # Build global config for WandbContext
+    # This mimics what Hydra would provide
+    global_config = {
+        "run": run_name,
+        "run_dir": run_dir,
+        "cmd": job_type,
+        "wandb": wandb_config,
+    }
+
+    # Add any user-provided config
+    if config:
+        global_config.update(config)
+
+    # Initialize wandb context
+    wandb_ctx = WandbContext(DictConfig(wandb_config), DictConfig(global_config))
+    wandb_run = wandb_ctx.__enter__()
+
+    return wandb_run, wandb_ctx
+
+
+def cleanup_wandb(wandb_ctx: Optional[Any]) -> None:
+    """Clean up wandb context if it exists.
+
+    Args:
+        wandb_ctx: The WandbContext object returned by initialize_wandb
+    """
+    if wandb_ctx is not None:
+        wandb_ctx.__exit__(None, None, None)
+
+
 # ============================================================================
 # Configuration Management
 # ============================================================================
@@ -227,6 +323,9 @@ class PreBuiltConfigCurriculum(Curriculum):
         task_name = f"prebuilt({self._env_name})"
         return {task_name: 1.0}
 
+    def get_env_cfg_by_bucket(self) -> dict[str, DictConfig]:
+        return {self._env_name: self._cfg_template}
+
 
 def _get_default_env_config(num_agents: int = 4, width: int = 32, height: int = 32) -> Dict[str, Any]:
     """Get default environment configuration for navigation training."""
@@ -270,7 +369,6 @@ def _get_default_env_config(num_agents: int = 4, width: int = 32, height: int = 
                     "heart": 1,
                     "ore_red_max": 10,
                     "battery_red_max": 10,
-                    "heart_max": 1000,
                 },
             },
             "actions": {
@@ -281,7 +379,8 @@ def _get_default_env_config(num_agents: int = 4, width: int = 32, height: int = 
                 "get_items": {"enabled": True},
                 "attack": {"enabled": True, "consumed_resources": {"laser": 1}, "defense_resources": {"armor": 1}},
                 "swap": {"enabled": True},
-                "change_color": {"enabled": True},
+                "change_color": {"enabled": False},
+                "change_glyph": {"enabled": False, "number_of_glyphs": 4},
             },
             "objects": {
                 "mine_red": {
@@ -334,90 +433,92 @@ def _get_default_env_config(num_agents: int = 4, width: int = 32, height: int = 
     }
 
 
-def _get_default_agent_config(device: str = "cuda") -> Dict[str, Any]:
+def _get_default_agent_config(device: str = "cuda") -> DictConfig:
     """Get default agent configuration based on fast.yaml architecture."""
-    return {
-        "device": device,
-        "agent": {
-            "clip_range": 0,
-            "analyze_weights_interval": 300,
-            "l2_init_weight_update_interval": 0,
-            "observations": {"obs_key": "grid_obs"},
-            "components": {
-                "_obs_": {
-                    "_target_": "metta.agent.lib.obs_token_to_box_shaper.ObsTokenToBoxShaper",
-                    "sources": None,
-                },
-                "obs_normalizer": {
-                    "_target_": "metta.agent.lib.observation_normalizer.ObservationNormalizer",
-                    "sources": [{"name": "_obs_"}],
-                },
-                "cnn1": {
-                    "_target_": "metta.agent.lib.nn_layer_library.Conv2d",
-                    "sources": [{"name": "obs_normalizer"}],
-                    "nn_params": {
-                        "out_channels": 32,
-                        "kernel_size": 3,
-                        "stride": 1,
-                        "padding": 1,
+    return DictConfig(
+        {
+            "device": device,
+            "agent": {
+                "clip_range": 0,
+                "analyze_weights_interval": 300,
+                "l2_init_weight_update_interval": 0,
+                "observations": {"obs_key": "grid_obs"},
+                "components": {
+                    "_obs_": {
+                        "_target_": "metta.agent.lib.obs_token_to_box_shaper.ObsTokenToBoxShaper",
+                        "sources": None,
                     },
-                },
-                "cnn2": {
-                    "_target_": "metta.agent.lib.nn_layer_library.Conv2d",
-                    "sources": [{"name": "cnn1"}],
-                    "nn_params": {
-                        "out_channels": 64,
-                        "kernel_size": 3,
-                        "stride": 1,
-                        "padding": 1,
+                    "obs_normalizer": {
+                        "_target_": "metta.agent.lib.observation_normalizer.ObservationNormalizer",
+                        "sources": [{"name": "_obs_"}],
                     },
-                },
-                "obs_flattener": {
-                    "_target_": "metta.agent.lib.nn_layer_library.Flatten",
-                    "sources": [{"name": "cnn2"}],
-                },
-                "encoded_obs": {
-                    "_target_": "metta.agent.lib.nn_layer_library.Linear",
-                    "sources": [{"name": "obs_flattener"}],
-                    "nn_params": {"out_features": 512},
-                },
-                "_core_": {
-                    "_target_": "metta.agent.lib.lstm.LSTM",
-                    "sources": [{"name": "encoded_obs"}],
-                    "output_size": 512,
-                    "nn_params": {
-                        "num_layers": 1,
+                    "cnn1": {
+                        "_target_": "metta.agent.lib.nn_layer_library.Conv2d",
+                        "sources": [{"name": "obs_normalizer"}],
+                        "nn_params": {
+                            "out_channels": 32,
+                            "kernel_size": 3,
+                            "stride": 1,
+                            "padding": 1,
+                        },
                     },
-                },
-                "_value_": {
-                    "_target_": "metta.agent.lib.nn_layer_library.Linear",
-                    "sources": [{"name": "_core_"}],
-                    "nn_params": {"out_features": 1},
-                    "nonlinearity": None,
-                },
-                "actor_1": {
-                    "_target_": "metta.agent.lib.nn_layer_library.Linear",
-                    "sources": [{"name": "_core_"}],
-                    "nn_params": {"out_features": 512},
-                },
-                "_action_embeds_": {
-                    "_target_": "metta.agent.lib.action.ActionEmbedding",
-                    "sources": None,
-                    "nn_params": {
-                        "num_embeddings": 100,
-                        "embedding_dim": 16,
+                    "cnn2": {
+                        "_target_": "metta.agent.lib.nn_layer_library.Conv2d",
+                        "sources": [{"name": "cnn1"}],
+                        "nn_params": {
+                            "out_channels": 64,
+                            "kernel_size": 3,
+                            "stride": 1,
+                            "padding": 1,
+                        },
                     },
-                },
-                "_action_": {
-                    "_target_": "metta.agent.lib.actor.MettaActorSingleHead",
-                    "sources": [
-                        {"name": "actor_1"},
-                        {"name": "_action_embeds_"},
-                    ],
+                    "obs_flattener": {
+                        "_target_": "metta.agent.lib.nn_layer_library.Flatten",
+                        "sources": [{"name": "cnn2"}],
+                    },
+                    "encoded_obs": {
+                        "_target_": "metta.agent.lib.nn_layer_library.Linear",
+                        "sources": [{"name": "obs_flattener"}],
+                        "nn_params": {"out_features": 512},
+                    },
+                    "_core_": {
+                        "_target_": "metta.agent.lib.lstm.LSTM",
+                        "sources": [{"name": "encoded_obs"}],
+                        "output_size": 512,
+                        "nn_params": {
+                            "num_layers": 1,
+                        },
+                    },
+                    "_value_": {
+                        "_target_": "metta.agent.lib.nn_layer_library.Linear",
+                        "sources": [{"name": "_core_"}],
+                        "nn_params": {"out_features": 1},
+                        "nonlinearity": None,
+                    },
+                    "actor_1": {
+                        "_target_": "metta.agent.lib.nn_layer_library.Linear",
+                        "sources": [{"name": "_core_"}],
+                        "nn_params": {"out_features": 512},
+                    },
+                    "_action_embeds_": {
+                        "_target_": "metta.agent.lib.action.ActionEmbedding",
+                        "sources": None,
+                        "nn_params": {
+                            "num_embeddings": 100,
+                            "embedding_dim": 16,
+                        },
+                    },
+                    "_action_": {
+                        "_target_": "metta.agent.lib.actor.MettaActorSingleHead",
+                        "sources": [
+                            {"name": "actor_1"},
+                            {"name": "_action_embeds_"},
+                        ],
+                    },
                 },
             },
-        },
-    }
+        }
+    )
 
 
 class NavigationBucketedCurriculum(Curriculum):
@@ -428,6 +529,9 @@ class NavigationBucketedCurriculum(Curriculum):
         self.terrain_dirs = terrain_dirs
         self.altar_range = altar_range
         self.current_idx = 0
+
+    def get_env_cfg_by_bucket(self) -> dict[str, DictConfig]:
+        return {self._env_name: self._cfg_template}
 
     def get_task(self) -> "Task":
         import random
@@ -828,7 +932,6 @@ def save_checkpoint(
     trainer_checkpoint = TrainerCheckpoint(
         agent_step=agent_step,
         epoch=epoch,
-        total_agent_step=agent_step,
         optimizer_state_dict=optimizer_state_dict,
         policy_path=saved_policy_record.uri if hasattr(saved_policy_record, "uri") else None,
         stopwatch_state=None,
@@ -1183,6 +1286,8 @@ __all__ = [
     "save_checkpoint",
     "setup_distributed_training",
     "cleanup_distributed",
+    "initialize_wandb",
+    "cleanup_wandb",
     "load_checkpoint",
     "wrap_agent_distributed",
     "ensure_initial_policy",

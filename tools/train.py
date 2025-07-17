@@ -1,4 +1,5 @@
 #!/usr/bin/env -S uv run
+import multiprocessing
 import os
 import sys
 from logging import Logger
@@ -17,7 +18,10 @@ from metta.common.util.script_decorators import get_metta_logger, metta_script
 from metta.common.util.stats_client_cfg import get_stats_client
 from metta.common.wandb.wandb_context import WandbContext, WandbRun
 from metta.sim.simulation_config import SimulationSuiteConfig
-from tools.sweep_config_utils import load_train_job_config_with_overrides
+from tools.sweep_config_utils import (
+    load_train_job_config_with_overrides,
+    validate_train_job_config,
+)
 
 
 # TODO: populate this more
@@ -27,15 +31,43 @@ class TrainJob(Config):
     map_preview_uri: str | None = None
 
 
-def train(cfg: ListConfig | DictConfig, wandb_run: WandbRun | None, logger: Logger):
+def _calculate_default_num_workers(is_serial: bool) -> int:
+    if is_serial:
+        return 1
+
+    cpu_count = multiprocessing.cpu_count() or 1
+
+    if torch.cuda.is_available() and torch.distributed.is_initialized():
+        num_gpus = torch.cuda.device_count()
+    else:
+        num_gpus = 1
+
+    ideal_workers = (cpu_count // 2) // num_gpus
+
+    # Round down to nearest power of 2
+    num_workers = 1
+    while num_workers * 2 <= ideal_workers:
+        num_workers *= 2
+
+    return max(1, num_workers)
+
+
+def train(cfg: DictConfig | ListConfig, wandb_run: WandbRun | None, logger: Logger):
     cfg = load_train_job_config_with_overrides(cfg)
+
+    # Validation must be done after merging
+    # otherwise trainer's default num_workers: null will be override the values
+    # set by _calculate_default_num_workers, and the validation will fail
+    if not cfg.trainer.num_workers:
+        cfg.trainer.num_workers = _calculate_default_num_workers(cfg.vectorization == "serial")
+    cfg = validate_train_job_config(cfg)
+
+    logger.info("Trainer config after overrides:\n%s", OmegaConf.to_yaml(cfg.trainer, resolve=True))
 
     if os.environ.get("RANK", "0") == "0":
         with open(os.path.join(cfg.run_dir, "config.yaml"), "w") as f:
             OmegaConf.save(cfg, f)
-
     train_job = TrainJob(cfg.train_job)
-
     if torch.distributed.is_initialized():
         world_size = torch.distributed.get_world_size()
         if cfg.trainer.scale_batches_by_world_size:
@@ -44,8 +76,10 @@ def train(cfg: ListConfig | DictConfig, wandb_run: WandbRun | None, logger: Logg
             )
             cfg.trainer.batch_size = cfg.trainer.batch_size // world_size
 
-    policy_store = PolicyStore(cfg, wandb_run)
+    policy_store = PolicyStore(cfg, wandb_run)  # type: ignore[reportArgumentType]
     stats_client: StatsClient | None = get_stats_client(cfg, logger)
+    if stats_client is not None:
+        stats_client.validate_authenticated()
 
     # Instantiate the trainer directly with the typed config
     trainer = hydra.utils.instantiate(
@@ -67,7 +101,6 @@ def main(cfg: DictConfig) -> int:
     record_heartbeat()
 
     logger = get_metta_logger()
-    logger.info(f"Train job config: {OmegaConf.to_yaml(cfg, resolve=True)}")
 
     logger.info(
         f"Training {cfg.run} on "
@@ -83,6 +116,7 @@ def main(cfg: DictConfig) -> int:
 
     logger.info(f"Training {cfg.run} on {cfg.device}")
     if os.environ.get("RANK", "0") == "0":
+        logger.info(f"Train job config: {OmegaConf.to_yaml(cfg, resolve=True)}")
         with WandbContext(cfg.wandb, cfg) as wandb_run:
             train(cfg, wandb_run, logger)
     else:

@@ -110,7 +110,7 @@ def test_labels_different_type_children():
                 where=AreaWhere(tags=["room"]),
             ),
             ChildrenAction(
-                scene={"type": "metta.map.scenes.maze.MazeKruskal"},
+                scene={"type": "metta.map.scenes.maze.Maze"},
                 where=AreaWhere(tags=["room"]),
             ),
         ],

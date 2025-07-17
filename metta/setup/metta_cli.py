@@ -5,7 +5,8 @@ import subprocess
 import sys
 from pathlib import Path
 
-from metta.setup.config import CURRENT_CONFIG_VERSION, PROFILE_DEFINITIONS, SetupConfig, UserType
+from metta.setup.config import CURRENT_CONFIG_VERSION, SetupConfig, UserType
+from metta.setup.local_commands import LocalCommands
 from metta.setup.registry import get_all_modules, get_applicable_modules
 from metta.setup.symlink_setup import PathSetup
 from metta.setup.utils import error, header, import_all_modules_from_subpackage, info, success, warning
@@ -19,6 +20,7 @@ class MettaCLI:
         self.repo_root: Path = Path(__file__).parent.parent.parent
         self.config: SetupConfig = SetupConfig()
         self.path_setup: PathSetup = PathSetup(self.repo_root)
+        self.local_commands: LocalCommands = LocalCommands(self.repo_root)
 
     def setup_wizard(self) -> None:
         header("Welcome to Metta!\n\n")
@@ -84,14 +86,17 @@ class MettaCLI:
         self.config.setup_custom_profile(user_type)
 
         info("\nCustomize components:")
-        # Get all available components from the base profile
-        base_components = PROFILE_DEFINITIONS.get(user_type, {}).get("components", {})
-        for comp in base_components:
-            current = self.config.is_component_enabled(comp)
-            prompt = f"Enable {comp}? (y/n, current: {'y' if current else 'n'}): "
+        # Get all registered components
+        all_modules = get_all_modules(self.config)
+        # Sort by name for consistent ordering
+        all_modules.sort(key=lambda m: m.name)
+
+        for module in all_modules:
+            current = self.config.is_component_enabled(module.name)
+            prompt = f"Enable {module.name}? (y/n, current: {'y' if current else 'n'}): "
             choice = input(prompt).strip().lower()
             if choice in ["y", "n"]:
-                self.config.set(f"components.{comp}.enabled", choice == "y")
+                self.config.set(f"components.{module.name}.enabled", choice == "y")
 
         success("\nCustom configuration saved.")
         info("\nRun 'metta install' to set up your environment.")
@@ -155,7 +160,7 @@ class MettaCLI:
         for module in modules:
             info(f"[{module.name}] {module.description}")
 
-            if module.check_installed() and not args.force:
+            if module.install_once and module.check_installed() and not args.force:
                 info("  -> Already installed, skipping (use --force to reinstall)\n")
                 continue
 
@@ -196,6 +201,80 @@ class MettaCLI:
 
     def cmd_symlink_setup(self, args) -> None:
         self.path_setup.setup_path(force=args.force)
+
+    def cmd_pytest(self, args) -> None:
+        cmd = ["pytest"] + args
+        try:
+            subprocess.run(cmd, cwd=self.repo_root, check=True)
+        except subprocess.CalledProcessError as e:
+            sys.exit(e.returncode)
+
+    def cmd_shell(self) -> None:
+        subprocess.run(["uv", "run", "metta/setup/shell.py"], cwd=self.repo_root, check=True)
+
+    def cmd_local(self, args) -> None:
+        """Handle local development commands."""
+        if hasattr(args, "local_command") and args.local_command:
+            if args.local_command == "build-docker-img":
+                self.local_commands.build_docker_img(args)
+            else:
+                error(f"Unknown local command: {args.local_command}")
+                sys.exit(1)
+        else:
+            # Show help for local subcommand
+            args.local_parser.print_help()
+
+    def cmd_lint(self, args) -> None:
+        files = []
+        if args.staged:
+            result = subprocess.run(
+                ["git", "diff", "--cached", "--name-only", "--diff-filter=ACM"],
+                cwd=self.repo_root,
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            files = [f for f in result.stdout.strip().split("\n") if f.endswith(".py") and f]
+            if not files:
+                return
+
+        check_cmd = ["uv", "run", "ruff", "check"]
+        format_cmd = ["uv", "run", "ruff", "format"]
+        cmds = [check_cmd, format_cmd]
+
+        # ruff check: warns
+        # ruff format check: warns
+        # ruff check --fix: auto-fixes
+        # ruff format: auto-fixes
+        if args.fix:
+            check_cmd.append("--fix")
+        else:
+            format_cmd.append("--check")
+
+        if files:
+            for cmd in cmds:
+                cmd.extend(files)
+
+        for cmd in cmds:
+            try:
+                info(f"Running: {' '.join(cmd)}")
+                subprocess.run(cmd, cwd=self.repo_root, check=True)
+            except subprocess.CalledProcessError as e:
+                sys.exit(e.returncode)
+
+    def cmd_tool(self, tool_name: str, args: list[str]) -> None:
+        tool_path = self.repo_root / "tools" / f"{tool_name}.py"
+        if not tool_path.exists():
+            error(f"Tool '{tool_name}' not found at {tool_path}")
+            sys.exit(1)
+
+        cmd = [str(tool_path)] + args
+        try:
+            # Prefixing with `uv run` should not be necessary
+            # because PATH is inherited and tools have uv shebangs
+            subprocess.run(cmd, cwd=self.repo_root, check=True)
+        except subprocess.CalledProcessError as e:
+            sys.exit(e.returncode)
 
     def cmd_status(self, _args) -> None:
         """Show status of all components."""
@@ -335,6 +414,12 @@ Examples:
   metta status                         # Show component status
   metta clean                          # Clean build artifacts
   metta symlink-setup                  # Set up symlink to make metta command globally available
+
+  metta test ...                       # Run python unit tests
+  metta test-changed ...               # Run python unit tests affected by changes
+
+  metta tool train run=test            # Run train.py tool with arguments
+  metta tool sim policy_uri=...        # Run sim.py tool with arguments
             """,
         )
 
@@ -375,7 +460,42 @@ Examples:
         )
         symlink_parser.add_argument("--force", action="store_true", help="Replace existing metta command if it exists")
 
-        args = parser.parse_args()
+        # Test commands
+        subparsers.add_parser("test", help="Run python unit tests")
+        subparsers.add_parser("test-changed", help="Run python unit tests affected by changes")
+
+        # Lint command
+        lint_parser = subparsers.add_parser("lint", help="Run linting and formatting")
+        lint_parser.add_argument(
+            "--fix",
+            action="store_true",
+            help="Apply fixes automatically. If not specified, just checks for issues.",
+        )
+        lint_parser.add_argument("--staged", action="store_true", help="Only lint staged files")
+
+        # Tool command
+        tool_parser = subparsers.add_parser("tool", help="Run a tool from the tools/ directory")
+        tool_parser.add_argument("tool_name", help="Name of the tool to run (e.g., 'train', 'sim', 'analyze')")
+
+        # Shell command
+        subparsers.add_parser("shell", help="Start an IPython shell with Metta imports")
+
+        # Local command
+        local_parser = subparsers.add_parser("local", help="Local development commands")
+        local_subparsers = local_parser.add_subparsers(dest="local_command", help="Available local commands")
+
+        # Local subcommands
+        local_subparsers.add_parser("build-docker-img", help="Build local development Docker image")
+
+        # Store local_parser for help display
+        local_parser.set_defaults(local_parser=local_parser)
+
+        # Use parse_known_args to handle unknown arguments for test commands
+        args, unknown_args = parser.parse_known_args()
+
+        if args.command not in ["test", "test-changed", "tool"]:
+            if unknown_args:
+                parser.error(f"unrecognized arguments: {' '.join(unknown_args)}")
 
         # Auto-run configure if no config exists and no command given
         if not args.command and not self.config.config_path.exists():
@@ -383,7 +503,9 @@ Examples:
             self.setup_wizard()
             return
 
-        if args.command != "configure":
+        # Check if configuration is required for this command
+        # Allow configure, symlink-setup, and local to run without config
+        if args.command not in ["configure", "symlink-setup", "local"]:
             if not self.config.config_path.exists():
                 error("No configuration found. Please run 'metta configure' first.")
                 sys.exit(1)
@@ -404,6 +526,18 @@ Examples:
             self.cmd_clean(args)
         elif args.command == "symlink-setup":
             self.cmd_symlink_setup(args)
+        elif args.command == "test":
+            self.cmd_pytest(unknown_args)
+        elif args.command == "test-changed":
+            self.cmd_pytest(unknown_args + ["--testmon"])
+        elif args.command == "tool":
+            self.cmd_tool(args.tool_name, unknown_args)
+        elif args.command == "lint":
+            self.cmd_lint(args)
+        elif args.command == "shell":
+            self.cmd_shell()
+        elif args.command == "local":
+            self.cmd_local(args)
         else:
             parser.print_help()
 

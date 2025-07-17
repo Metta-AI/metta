@@ -11,12 +11,17 @@ import sys
 
 import hydra
 from hydra.core.global_hydra import GlobalHydra
-from omegaconf import OmegaConf
+from omegaconf import DictConfig, ListConfig, OmegaConf
 
 from metta.common.util.config import config_from_path
 
 
-def load_and_print_config(config_path: str) -> None:
+def load_and_print_config(
+    config_path: str,
+    overrides: list[str] | None = None,
+    exit_on_failure: bool = True,
+    print_cfg: bool = True,
+) -> DictConfig | ListConfig | None:
     """
     Load a Hydra configuration and print it as YAML.
 
@@ -36,12 +41,12 @@ def load_and_print_config(config_path: str) -> None:
             try:
                 # Use the existing utility that handles path extraction and complex compositions
                 cfg = config_from_path(config_path)
-
-                # Print without resolving to avoid interpolation issues
-                yaml_output = OmegaConf.to_yaml(cfg, resolve=False)
-                print("# Note: Loaded using config_from_path utility, interpolations not resolved")
-                print(yaml_output)
-                return
+                if print_cfg:
+                    # Print without resolving to avoid interpolation issues
+                    yaml_output = OmegaConf.to_yaml(cfg, resolve=False)
+                    print("# Note: Loaded using config_from_path utility, interpolations not resolved")
+                    print(yaml_output)
+                return cfg
 
             except Exception as e:
                 # Fall back to the regular hydra compose method
@@ -51,7 +56,8 @@ def load_and_print_config(config_path: str) -> None:
     with hydra.initialize(config_path="../configs", version_base=None):
         try:
             # Provide basic overrides to handle missing required values
-            overrides = []
+            if overrides is None:
+                overrides = []
 
             # Add run override for configs that need it (like trainer)
             if "trainer" in config_path or any(x in config_path for x in ["sim_job", "train_job"]):
@@ -70,12 +76,14 @@ def load_and_print_config(config_path: str) -> None:
                 resolve = False
                 yaml_output = OmegaConf.to_yaml(cfg, resolve=resolve)
                 print(f"# Note: Some interpolations could not be resolved for '{config_path}'")
-
-            print(yaml_output)
+            if print_cfg:
+                print(yaml_output)
+            return cfg
 
         except Exception as e:
             print(f"Error loading config '{config_path}': {e}", file=sys.stderr)
-            sys.exit(1)
+            if exit_on_failure:
+                sys.exit(1)
 
 
 def main():

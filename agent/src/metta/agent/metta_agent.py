@@ -2,10 +2,9 @@ import logging
 from typing import TYPE_CHECKING, Optional, Union
 
 import gymnasium as gym
-import hydra
 import numpy as np
 import torch
-from omegaconf import DictConfig, ListConfig, OmegaConf
+from omegaconf import DictConfig, OmegaConf
 from torch import nn
 from torch.nn.parallel import DistributedDataParallel
 
@@ -13,7 +12,7 @@ from metta.agent.policy_state import PolicyState
 from metta.agent.util.debug import assert_shape
 from metta.agent.util.distribution_utils import evaluate_actions, sample_actions
 from metta.agent.util.safe_get import safe_get_from_obs_space
-from metta.common.util.omegaconf import convert_to_dict
+from metta.common.util.instantiate import instantiate
 
 if TYPE_CHECKING:
     from metta.mettagrid.mettagrid_env import MettaGridEnv
@@ -21,7 +20,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger("metta_agent")
 
 
-def make_policy(env: "MettaGridEnv", cfg: ListConfig | DictConfig) -> "MettaAgent":
+def make_policy(env: "MettaGridEnv", cfg: DictConfig) -> "MettaAgent":
     obs_space = gym.spaces.Dict(
         {
             "grid_obs": env.single_observation_space,
@@ -29,18 +28,19 @@ def make_policy(env: "MettaGridEnv", cfg: ListConfig | DictConfig) -> "MettaAgen
         }
     )
 
-    # Here's where we create MettaAgent. We're including the term MettaAgent here for better
-    # searchability. Otherwise you might only find yaml files.
-    return hydra.utils.instantiate(
-        cfg.agent,
+    # Convert agent config to dict for unpacking as kwargs
+    agent_cfg = OmegaConf.to_container(cfg.agent, resolve=True)
+
+    # Create MettaAgent directly without Hydra
+    return MettaAgent(
         obs_space=obs_space,
         obs_width=env.obs_width,
         obs_height=env.obs_height,
         action_space=env.single_action_space,
         feature_normalizations=env.feature_normalizations,
         global_features=env.global_features,
-        device=cfg.device,
-        _recursive_=False,
+        device=cfg.device,  # cfg.device is required
+        **agent_cfg,
     )
 
 
@@ -115,16 +115,19 @@ class MettaAgent(nn.Module):
         logging.info(f"agent_attributes: {self.agent_attributes}")
 
         self.components = nn.ModuleDict()
-        component_cfgs = convert_to_dict(cfg.components)
+        # Keep component configs as DictConfig to support both dict and attribute access
+        component_cfgs = cfg.components
 
         # First pass: instantiate all configured components
         for component_key in component_cfgs:
             # Convert key to string to ensure compatibility
             component_name = str(component_key)
-            component_cfgs[component_key]["name"] = component_name
-            logger.info(f"calling hydra instantiate from MettaAgent __init__ for {component_name}")
-            component = hydra.utils.instantiate(component_cfgs[component_key], **self.agent_attributes)
-            self.components[component_name] = component
+
+            # Convert to dict and merge attributes for instantiation
+            comp_dict = dict(component_cfgs[component_key], **self.agent_attributes, name=component_name)
+
+            # Instantiate component
+            self.components[component_name] = instantiate(comp_dict)
 
         component = self.components["_value_"]
         self._setup_components(component)

@@ -16,6 +16,6 @@ game:
     lasery:
       initial_resource_count: 20
   map_builder:
-    _target_: metta.mettagrid.room.ascii.Ascii
+    _target_: metta.map.mapgen_ascii.MapGenAscii
     border_width: 1
     uri: "configs/env/mettagrid/maps/object_use/shoot_out.map"

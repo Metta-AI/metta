@@ -13,7 +13,7 @@ using std::map;
 using std::priority_queue;
 using std::unique_ptr;
 
-typedef int EventArg;
+using EventArg = int;
 
 struct Event {
   unsigned int timestamp;

@@ -9,6 +9,7 @@
 #include "objects/constants.hpp"
 #include "objects/converter.hpp"
 #include "objects/wall.hpp"
+#include "types.hpp"
 
 // Test-specific inventory item type constants
 namespace TestItems {
@@ -19,6 +20,13 @@ constexpr uint8_t HEART = 3;
 constexpr uint8_t CONVERTER = 4;
 }  // namespace TestItems
 
+namespace TestRewards {
+constexpr float ORE = 0.125f;
+constexpr float LASER = 0.0f;
+constexpr float ARMOR = 0.0f;
+constexpr float HEART = 1.0f;
+}  // namespace TestRewards
+
 // Pure C++ tests without any Python/pybind dependencies - we will test those with pytest
 class MettaGridCppTest : public ::testing::Test {
 protected:
@@ -27,8 +35,8 @@ protected:
   void TearDown() override {}
 
   // Helper function to create test resource_limits map
-  std::map<uint8_t, uint8_t> create_test_resource_limits() {
-    std::map<uint8_t, uint8_t> resource_limits;
+  std::map<uint8_t, InventoryQuantity> create_test_resource_limits() {
+    std::map<uint8_t, InventoryQuantity> resource_limits;
     resource_limits[TestItems::ORE] = 50;
     resource_limits[TestItems::LASER] = 50;
     resource_limits[TestItems::ARMOR] = 50;
@@ -37,22 +45,21 @@ protected:
   }
 
   // Helper function to create test rewards map
-  std::map<uint8_t, float> create_test_rewards() {
-    std::map<uint8_t, float> rewards;
-    rewards[TestItems::ORE] = 0.125f;
-    rewards[TestItems::LASER] = 0.0f;
-    rewards[TestItems::ARMOR] = 0.0f;
-    rewards[TestItems::HEART] = 1.0f;
+  std::map<uint8_t, RewardType> create_test_rewards() {
+    std::map<uint8_t, RewardType> rewards;
+    rewards[TestItems::ORE] = TestRewards::ORE;
+    rewards[TestItems::LASER] = TestRewards::LASER;
+    rewards[TestItems::ARMOR] = TestRewards::ARMOR;
+    rewards[TestItems::HEART] = TestRewards::HEART;
     return rewards;
   }
 
   // Helper function to create test resource_reward_max map
-  std::map<uint8_t, float> create_test_resource_reward_max() {
-    std::map<uint8_t, float> resource_reward_max;
-    resource_reward_max[TestItems::ORE] = 10.0f;
-    resource_reward_max[TestItems::LASER] = 10.0f;
-    resource_reward_max[TestItems::ARMOR] = 10.0f;
-    resource_reward_max[TestItems::HEART] = 10.0f;
+  std::map<uint8_t, InventoryQuantity> create_test_resource_reward_max() {
+    std::map<uint8_t, InventoryQuantity> resource_reward_max;
+    resource_reward_max[TestItems::ORE] = 10;
+    resource_reward_max[TestItems::LASER] = 10;
+    resource_reward_max[TestItems::ARMOR] = 10;
     return resource_reward_max;
   }
 
@@ -113,10 +120,37 @@ TEST_F(MettaGridCppTest, AgentInventoryUpdate) {
   EXPECT_EQ(agent->inventory[TestItems::ORE], 50);
 }
 
+TEST_F(MettaGridCppTest, AgentInventoryUpdate_Rewards) {
+  AgentConfig agent_cfg = create_test_agent_config();
+  std::unique_ptr<Agent> agent(new Agent(0, 0, agent_cfg));
+
+  float dummy_reward = 0.0f;
+  agent->init(&dummy_reward);
+
+  int delta = agent->update_inventory(TestItems::ORE, 5);
+  EXPECT_EQ(delta, 5);
+  EXPECT_FLOAT_EQ(agent->current_resource_reward, TestRewards::ORE * 5);
+
+  delta = agent->update_inventory(TestItems::ORE, 20);
+  EXPECT_EQ(delta, 20);
+  // The reward limit for ore is 10, so the reward should be capped at 10
+  EXPECT_FLOAT_EQ(agent->current_resource_reward, TestRewards::ORE * 10);
+
+  delta = agent->update_inventory(TestItems::HEART, 40);
+  EXPECT_EQ(delta, 40);
+  // Hearts have no reward limit, so the reward should be 40
+  EXPECT_FLOAT_EQ(agent->current_resource_reward, TestRewards::ORE * 10 + TestRewards::HEART * 40);
+
+  // if we remove inventory, the current_resource_reward goes down.
+  delta = agent->update_inventory(TestItems::HEART, -20);
+  EXPECT_EQ(delta, -20);
+  EXPECT_FLOAT_EQ(agent->current_resource_reward, TestRewards::ORE * 10 + TestRewards::HEART * 20);
+}
+
 // ==================== Grid Tests ====================
 
 TEST_F(MettaGridCppTest, GridCreation) {
-  Grid grid(10, 5);
+  Grid grid(5, 10);  // row/height, col/width
 
   EXPECT_EQ(grid.width, 10);
   EXPECT_EQ(grid.height, 5);
@@ -140,7 +174,7 @@ TEST_F(MettaGridCppTest, GridObjectManagement) {
   EXPECT_EQ(retrieved_agent, agent);
 
   // Verify it's at the expected location
-  auto agent_at_location = grid.object_at(GridLocation(2, 3, GridLayer::Agent_Layer));
+  auto agent_at_location = grid.object_at(GridLocation(2, 3, GridLayer::AgentLayer));
   EXPECT_EQ(agent_at_location, agent);
 }
 
@@ -180,7 +214,7 @@ TEST_F(MettaGridCppTest, AttackAction) {
   EXPECT_EQ(attacker->orientation, Orientation::Up);
 
   // Create attack action handler
-  AttackActionConfig attack_cfg(true, {{TestItems::LASER, 1}}, {{TestItems::LASER, 1}}, {{TestItems::ARMOR, 3}});
+  AttackActionConfig attack_cfg({{TestItems::LASER, 1}}, {{TestItems::LASER, 1}}, {{TestItems::ARMOR, 3}});
   Attack attack(attack_cfg);
   attack.init(&grid);
 
@@ -241,7 +275,7 @@ TEST_F(MettaGridCppTest, PutRecipeItems) {
   agent->update_inventory(TestItems::HEART, 1);
 
   // Create put_recipe_items action handler
-  ActionConfig put_cfg(true, {}, {});
+  ActionConfig put_cfg({}, {});
   PutRecipeItems put(put_cfg);
   put.init(&grid);
 
@@ -290,7 +324,7 @@ TEST_F(MettaGridCppTest, GetOutput) {
   agent->update_inventory(TestItems::ORE, 1);
 
   // Create get_output action handler
-  ActionConfig get_cfg(true, {}, {});
+  ActionConfig get_cfg({}, {});
   GetOutput get(get_cfg);
   get.init(&grid);
 

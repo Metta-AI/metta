@@ -22,7 +22,9 @@ game:
       initial_resource_count: 0
 
   map_builder:
-    objects:
-      lasery: 1
-      generator_red: 1
-      mine_red: 1
+    root:
+      params:
+        objects:
+          lasery: 1
+          generator_red: 1
+          mine_red: 1
