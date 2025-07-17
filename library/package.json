@@ -3,12 +3,14 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev -p 3001 --turbo",
+    "dev": "next dev -p 3001",
     "start": "next start",
     "build": "next build",
     "lint": "pnpm lint:prettier",
     "lint:prettier": "prettier --check .",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "import-papers": "tsx scripts/import-papers.ts",
+    "verify-papers": "tsx scripts/verify-papers.ts"
   },
   "dependencies": {
     "@auth/drizzle-adapter": "^1.10.0",
@@ -31,6 +33,7 @@
     "@auth/core": "^0.40.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
+    "@types/pg": "^8.15.4",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "drizzle-kit": "^0.31.4",
