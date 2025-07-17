@@ -684,24 +684,35 @@ if __name__ == "__main__":
                 "type": "review",
                 "timestamp": r["submitted_at"],
                 "user": r["user"]["login"],
-                "text": r["body"],
-                "action": r["state"],
+                "text": ": " + r["body"],
+                "action": r["state"].lower(),
             }
             for r in retrieved_reviews
-            if r.get("state") in ["APPROVED", "CHANGES_REQUESTED", "COMMENTED"]  # include commented for now for testing
+            if r.get("state") in ["APPROVED", "CHANGES_REQUESTED"]
         ]
         review_requested = [
             {
                 "type": "review_requested",
                 "timestamp": e["created_at"],
                 "user": e["actor"]["login"],
-                "action": "RE-REQUESTED",
-                "text": "",
+                "action": "re-requested",
+                "text": f" review from {e['requested_reviewer']['login']}",
             }
             for e in retrieved_timeline
             if e.get("event") == "review_requested"
         ]
         events = sorted(reviews + review_requested, key=lambda x: x["timestamp"])
+
+        seen_review_users = set()
+        filtered_events = []
+        for event in events:
+            if event["type"] == "review":
+                seen_review_users.add(event["user"])
+                filtered_events.append(event)
+            elif event["type"] == "review_requested" and event["user"] in seen_review_users:
+                filtered_events.append(event)
+        events = filtered_events
+
         last_event = events[-1] if events else None
 
         is_draft = pr.get("draft", False)

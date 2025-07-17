@@ -63,12 +63,3 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           task_url: ${{ steps.ensure-asana-task.outputs.task_url }}
 
-      - name: Sync PR Review (GH To Asana)
-        if: github.event_name == 'pull_request_review_disabled'
-        uses: ./.github/actions/asana/pr_review_gh_to_asana
-        with:
-          task_url: ${{ steps.ensure-asana-task.outputs.task_url }}
-          state: ${{ github.event.review.state }}
-          author: ${{ github.event.review.user.login }}
-          comment: ${{ github.event.review.body }}
-          asana_token: ${{ secrets.ASANA_API_KEY }}
