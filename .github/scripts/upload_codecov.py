@@ -9,6 +9,7 @@ Upload coverage reports to Codecov using the official uploader CLI,
 automatically downloading the binary if necessary.
 
 Each coverage file is uploaded separately with the appropriate flag.
+Only supports macOS and Linux.
 """
 
 import os
@@ -25,21 +26,18 @@ DEFAULT_SUBPACKAGES = ["app_backend", "agent", "mettagrid", "common"]
 
 
 def get_platform_binary_path() -> tuple[Path, str]:
-    """Determine binary path and download URL for this platform."""
+    """Get the appropriate Codecov binary path and download URL (macOS and Linux only)."""
     system = platform.system().lower()
-    arch = platform.machine().lower()
-    if arch in ("x86_64", "amd64"):
-        arch = "x86_64"
-    elif arch in ("arm64", "aarch64"):
-        arch = "arm64"
+    if system == "darwin":
+        platform_name = "macos"
+    elif system == "linux":
+        platform_name = "linux"
     else:
-        raise RuntimeError(f"Unsupported architecture: {arch}")
+        raise RuntimeError(f"Unsupported platform: {system}")
 
-    ext = ".exe" if system == "windows" else ""
-    binary_name = f"codecov{ext}"
+    binary_name = "codecov"
     binary_path = CODECOV_BIN / binary_name
-    download_url = f"{CODECOV_URL_BASE}/{system}/{arch}/codecov{ext}"
-
+    download_url = f"{CODECOV_URL_BASE}/{platform_name}/{binary_name}"
     return binary_path, download_url
 
 
