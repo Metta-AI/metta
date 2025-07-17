@@ -28,7 +28,6 @@ def make_env_func(
 ):
     # we are not calling into our configs hierarchy here so we need to manually register the custom resolvers
     register_resolvers()
-
     init_logging(run_dir=run_dir)
 
     # Create the environment instance

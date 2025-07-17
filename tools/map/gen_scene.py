@@ -1,19 +1,13 @@
 #!/usr/bin/env -S uv run
 import argparse
 import logging
-import os
-import signal
 from typing import cast, get_args
 
 from omegaconf import DictConfig, OmegaConf
 
-from metta.common.util.resolvers import register_resolvers
 from metta.map.utils.show import ShowMode, show_map
 from metta.map.utils.storable_map import StorableMap
-from metta.util.init.logging import init_logging
-
-# Aggressively exit on ctrl+c
-signal.signal(signal.SIGINT, lambda sig, frame: os._exit(0))
+from metta.util.metta_script import hydraless_metta_script
 
 logger = logging.getLogger(__name__)
 
@@ -39,9 +33,6 @@ def make_map(cfg_path: str, width: int, height: int, overrides: DictConfig | Non
 
 
 def main():
-    register_resolvers()
-    init_logging()
-
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--show-mode", choices=get_args(ShowMode), default="mettascope", help="Show the map in the specified mode"
@@ -63,5 +54,4 @@ def main():
     show_map(storable_map, show_mode)
 
 
-if __name__ == "__main__":
-    main()
+hydraless_metta_script(main)

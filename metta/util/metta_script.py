@@ -13,6 +13,7 @@ import hydra
 from omegaconf import DictConfig, ListConfig
 
 from metta.common.util.fs import get_repo_root
+from metta.common.util.resolvers import register_resolvers
 from metta.util.init.logging import init_logging
 from metta.util.init.mettagrid_environment import init_mettagrid_environment
 
@@ -103,3 +104,19 @@ def metta_script(main: Callable[[DictConfig], int | None], config_name: str) -> 
     )
 
     configured_main()
+
+
+def hydraless_metta_script(main: Callable[[], int | None]) -> None:
+    """
+    Wrapper for Metta scripts that does not use Hydra.
+    """
+    init_logging()
+    register_resolvers()
+
+    # Exit on ctrl+c
+    signal.signal(signal.SIGINT, lambda sig, frame: os._exit(0))
+
+    # Call the original function
+    result = main()
+    if result is not None:
+        sys.exit(result)
