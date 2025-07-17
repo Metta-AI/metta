@@ -25,7 +25,6 @@ class TaskCreateRequest(BaseModel):
 class TaskClaimRequest(BaseModel):
     tasks: list[uuid.UUID]
     assignee: str
-    # TODO: support upserting this like we do `details` in TaskStatusUpdate
     details: dict[str, Any] | None = None
 
 
@@ -140,6 +139,7 @@ def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
         claimed_ids = await stats_repo.claim_tasks(
             task_ids=request.tasks,
             assignee=request.assignee,
+            details=request.details,
         )
         return TaskClaimResponse(claimed=claimed_ids)
 

@@ -889,22 +889,37 @@ class MettaRepo:
         self,
         task_ids: list[uuid.UUID],
         assignee: str,
+        details: dict[str, Any] | None = None,
     ) -> list[uuid.UUID]:
         if not task_ids:
             return []
 
         async with self.connect() as con:
-            result = await con.execute(
-                """
-                UPDATE eval_tasks
-                SET assignee = %s, assigned_at = NOW()
-                WHERE id = ANY(%s)
-                  AND status = 'unprocessed'
-                  AND (assignee IS NULL OR assigned_at < NOW() - INTERVAL '%s minutes')
-                RETURNING id
-                """,
-                (assignee, task_ids, EVAL_TASK_MAX_ASSIGNMENT_AGE_MINUTES),
-            )
+            if details:
+                result = await con.execute(
+                    """
+                    UPDATE eval_tasks
+                    SET assignee = %s, assigned_at = NOW(),
+                        attributes = COALESCE(attributes, '{}'::jsonb) || %s::jsonb
+                    WHERE id = ANY(%s)
+                      AND status = 'unprocessed'
+                      AND (assignee IS NULL OR assigned_at < NOW() - INTERVAL '%s minutes')
+                    RETURNING id
+                    """,
+                    (assignee, json.dumps(details), task_ids, EVAL_TASK_MAX_ASSIGNMENT_AGE_MINUTES),
+                )
+            else:
+                result = await con.execute(
+                    """
+                    UPDATE eval_tasks
+                    SET assignee = %s, assigned_at = NOW()
+                    WHERE id = ANY(%s)
+                      AND status = 'unprocessed'
+                      AND (assignee IS NULL OR assigned_at < NOW() - INTERVAL '%s minutes')
+                    RETURNING id
+                    """,
+                    (assignee, task_ids, EVAL_TASK_MAX_ASSIGNMENT_AGE_MINUTES),
+                )
             rows = await result.fetchall()
             return [row[0] for row in rows]
 
