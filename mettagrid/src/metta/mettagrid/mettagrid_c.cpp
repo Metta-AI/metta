@@ -340,7 +340,7 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
 
   // Add inventory rewards for this agent
   if (_global_obs_config.resource_rewards && !_resource_rewards.empty()) {
-    global_tokens.push_back({ObservationFeature::InventoryRewards, _resource_rewards[agent_idx]});
+    global_tokens.push_back({ObservationFeature::ResourceRewards, _resource_rewards[agent_idx]});
   }
 
   // Global tokens are always at the center of the observation.

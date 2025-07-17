@@ -23,12 +23,7 @@ class MockCurriculum(Curriculum):
     def get_task(self) -> Task:
         self.task_count += 1
         task_id = f"task_{self.task_count}"
-        env_cfg = OmegaConf.create({
-            "game": {
-                "num_agents": 1,
-                "max_steps": 100
-            }
-        })
+        env_cfg = OmegaConf.create({"game": {"num_agents": 1, "max_steps": 100}})
         return Task(task_id, self, env_cfg)
 
     def complete_task(self, id: str, score: float):
@@ -61,17 +56,14 @@ def test_curriculum_server_client():
     time.sleep(1)
 
     # Create client
-    client = CurriculumClient(
-        server_url="http://localhost:8888",
-        batch_size=5
-    )
+    client = CurriculumClient(server_url="http://localhost:8888", batch_size=5)
 
     # Test getting tasks
     print("\nTesting get_task()...")
     tasks = []
     for i in range(10):
         task = client.get_task()
-        print(f"  Task {i}: {task.name}")
+        print(f"  Task {i}: {task.name()}")
         tasks.append(task)
 
     # Test completing tasks
@@ -83,36 +75,35 @@ def test_curriculum_server_client():
 
     # Test getting stats
     print("\nTesting get stats...")
-    task_probs = client.get_task_probs()
-    print(f"  Task probabilities: {task_probs}")
-
-    completion_rates = client.get_completion_rates()
-    print(f"  Completion rates: {completion_rates}")
-
     curriculum_stats = client.get_curriculum_stats()
-    print(f"  Curriculum stats: {curriculum_stats}")
+    print("  Curriculum stats (should be empty from client):", curriculum_stats)
 
-    print("\nTest completed successfully!")
+    # Server's curriculum should have the real stats
+    print("\nServer curriculum stats:")
+    print("  Total tasks created:", curriculum.task_count)
+    print("  Completed tasks:", curriculum.completed_tasks_list)
+
+    # Clean up
+    client.stop()
+    server.stop()
+    print("\nTest completed!")
 
 
-def test_batch_prefetching():
+def test_batch_prefetching(free_port):
     """Test that client properly prefetches batches."""
     print("\n\nTesting batch prefetching...")
 
     # Use mock curriculum
     curriculum = MockCurriculum()
 
-    server = CurriculumServer(curriculum, port=8889)
+    server = CurriculumServer(curriculum, port=free_port)
     server.start(background=True)
     time.sleep(1)
 
     # Create client with small batch size
-    client = CurriculumClient(
-        server_url="http://localhost:8889",
-        batch_size=3
-    )
+    client = CurriculumClient(server_url=f"http://localhost:{free_port}", batch_size=3)
 
-        # Initial queue should have 3 tasks (fetched by background thread)
+    # Initial queue should have 3 tasks (fetched by background thread)
     time.sleep(0.5)  # Give time for initial fetch
     initial_size = client._task_queue.qsize()
     print(f"Initial queue size: {initial_size}")

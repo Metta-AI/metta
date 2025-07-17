@@ -7,7 +7,7 @@ from logging import Logger
 import hydra
 import torch
 import torch.distributed as dist
-from omegaconf import DictConfig, ListConfig, OmegaConf
+from omegaconf import DictConfig, OmegaConf
 from torch.distributed.elastic.multiprocessing.errors import record
 
 from metta.agent.policy_store import PolicyStore
@@ -16,7 +16,7 @@ from metta.common.util.config import Config
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.stats_client_cfg import get_stats_client
 from metta.common.wandb.wandb_context import WandbContext, WandbRun
-from metta.rl.curriculum.curriculum import Curriculum
+from metta.mettagrid.curriculum.core import Curriculum
 from metta.rl.curriculum.curriculum_client import CurriculumClient
 from metta.rl.curriculum.curriculum_server import CurriculumServer
 from metta.rl.trainer import MettaTrainer
@@ -59,8 +59,6 @@ def _calculate_default_num_workers(is_serial: bool) -> int:
 
 
 def train(cfg: DictConfig, wandb_run: WandbRun | None, logger: Logger, curriculum: Curriculum):
-
-
     if torch.distributed.is_initialized():
         world_size = torch.distributed.get_world_size()
         if cfg.trainer.scale_batches_by_world_size:
@@ -82,7 +80,7 @@ def train(cfg: DictConfig, wandb_run: WandbRun | None, logger: Logger, curriculu
         wandb_run=wandb_run,
         policy_store=policy_store,
         sim_suite_config=train_job.evals,
-        stats_client=stats_client
+        stats_client=stats_client,
     )
 
     try:

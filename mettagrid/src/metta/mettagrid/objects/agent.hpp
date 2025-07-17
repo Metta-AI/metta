@@ -101,16 +101,11 @@ public:
   }
 
   InventoryDelta update_inventory(InventoryItem item, InventoryDelta attempted_delta) {
-    // Get the initial amount (0 if item doesn't exist)
-    InventoryQuantity initial_amount = 0;
-    auto inv_it = this->inventory.find(item);
-    if (inv_it != this->inventory.end()) {
-      initial_amount = inv_it->second;
-    }
+    InventoryQuantity initial_amount = this->inventory[item];
 
-    // Calculate the new amount with clamping
-    InventoryQuantity new_amount = static_cast<InventoryQuantity>(std::clamp(
-        static_cast<int>(initial_amount + attempted_delta), 0, static_cast<int>(this->resource_limits[item])));
+    InventoryQuantity new_amount = static_cast<InventoryQuantity>(
+        std::max(0, std::min(static_cast<int>(initial_amount + attempted_delta),
+                             static_cast<int>(this->resource_limits[item]))));
 
     InventoryDelta delta = new_amount - initial_amount;
 
