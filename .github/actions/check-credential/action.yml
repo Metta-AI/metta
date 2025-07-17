@@ -1,0 +1,33 @@
+name: "Check Credential Availability"
+description: "Check if a credential/secret is available and provide appropriate fallback"
+inputs:
+  secret_value:
+    description: "The secret value to check"
+    required: true
+  service_name:
+    description: "Name of the service (for logging)"
+    required: true
+outputs:
+  available:
+    description: "Whether the credential is available"
+    value: ${{ steps.check.outputs.available }}
+  value_or_default:
+    description: "The credential value or a default placeholder"
+    value: ${{ steps.check.outputs.value_or_default }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Check credential availability
+      id: check
+      shell: bash
+      run: |
+        if [ -n "${{ inputs.secret_value }}" ] && [ "${{ inputs.secret_value }}" != "" ]; then
+          echo "available=true" >> $GITHUB_OUTPUT
+          echo "value_or_default=${{ inputs.secret_value }}" >> $GITHUB_OUTPUT
+          echo "::notice::${{ inputs.service_name }} credentials available"
+        else
+          echo "available=false" >> $GITHUB_OUTPUT
+          echo "value_or_default=placeholder_not_used" >> $GITHUB_OUTPUT
+          echo "::notice::${{ inputs.service_name }} credentials not available - using placeholder"
+        fi

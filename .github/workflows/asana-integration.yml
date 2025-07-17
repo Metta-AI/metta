@@ -19,8 +19,16 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Check Asana availability
+        id: asana_check
+        uses: ./.github/actions/check-credential
+        with:
+          secret_value: ${{ secrets.ASANA_API_KEY }}
+          service_name: "Asana"
+
       - name: Extract Assignees and Reviewers
         id: extract-assignees-reviewers
+        if: steps.asana_check.outputs.available == 'true'
         run: |
           assignees=$(echo '${{ toJSON(github.event.pull_request.assignees) }}' | jq -r '.[].login' | tr '\n' ',' | sed 's/,$//')
           reviewers=$(echo '${{ toJSON(github.event.pull_request.requested_reviewers) }}' | jq -r '.[].login' | tr '\n' ',' | sed 's/,$//')
@@ -29,6 +37,7 @@ jobs:
 
       - name: Ensure Asana Task
         id: ensure-asana-task
+        if: steps.asana_check.outputs.available == 'true'
         uses: ./.github/actions/asana/ensure-task
         with:
           title: ${{ github.event.pull_request.title }}
@@ -49,6 +58,7 @@ jobs:
           asana_attachment_secret: ${{ secrets.ASANA_ATTACHMENT_SECRET }}
 
       - name: Update PR Description
+        if: steps.asana_check.outputs.available == 'true'
         uses: ./.github/actions/asana/update-pr-description
         with:
           pr_number: ${{ github.event.pull_request.number }}
