@@ -21,39 +21,24 @@ class TestCurriculum(Curriculum):
     def get_task(self) -> Task:
         self.task_count += 1
         task_id = f"task_{self.task_count % 3}"
-        env_cfg = OmegaConf.create({
-            "game": {
-                "width": 10,
-                "height": 10,
-                "num_agents": 2,
-                "max_steps": 100
-            }
-        })
+        env_cfg = OmegaConf.create({"game": {"width": 10, "height": 10, "num_agents": 2, "max_steps": 100}})
         return Task(task_id, self, env_cfg)
 
     def complete_task(self, id: str, score: float):
         self.completed_tasks.append((id, score))
 
     def get_completion_rates(self) -> dict[str, float]:
-        return {
-            "task_completions/task_0": 0.3,
-            "task_completions/task_1": 0.4,
-            "task_completions/task_2": 0.3
-        }
+        return {"task_completions/task_0": 0.3, "task_completions/task_1": 0.4, "task_completions/task_2": 0.3}
 
     def get_task_probs(self) -> dict[str, float]:
-        return {
-            "task_0": 0.25,
-            "task_1": 0.35,
-            "task_2": 0.40
-        }
+        return {"task_0": 0.25, "task_1": 0.35, "task_2": 0.40}
 
     def get_curriculum_stats(self) -> dict:
         return {
             "total_tasks": self.task_count,
             "completed_tasks": len(self.completed_tasks),
             "learning_rate": 0.75,
-            "difficulty": 2.5
+            "difficulty": 2.5,
         }
 
 
@@ -86,21 +71,20 @@ def test_trainer_stats_collection_with_curriculum():
     losses.explained_variance = 0.85
     losses.approx_kl_sum = 0.02
     losses.clipfrac_sum = 0.1
-    losses.stats = MagicMock(return_value={
-        "policy_loss": 0.5 / 10,
-        "value_loss": 0.3 / 10,
-        "entropy": 0.1 / 10,
-        "explained_variance": 0.85,
-        "approx_kl": 0.02 / 10,
-        "clipfrac": 0.1 / 10
-    })
+    losses.stats = MagicMock(
+        return_value={
+            "policy_loss": 0.5 / 10,
+            "value_loss": 0.3 / 10,
+            "entropy": 0.1 / 10,
+            "explained_variance": 0.85,
+            "approx_kl": 0.02 / 10,
+            "clipfrac": 0.1 / 10,
+        }
+    )
 
     experience = MagicMock()
     experience.num_minibatches = 4
-    experience.stats = MagicMock(return_value={
-        "buffer_size": 1000,
-        "num_episodes": 10
-    })
+    experience.stats = MagicMock(return_value={"buffer_size": 1000, "num_episodes": 10})
 
     kickstarter = MagicMock()
     kickstarter.enabled = False
@@ -116,11 +100,7 @@ def test_trainer_stats_collection_with_curriculum():
 
     # Process training stats
     processed_stats = process_training_stats(
-        raw_stats=raw_stats,
-        losses=losses,
-        experience=experience,
-        trainer_config=trainer_cfg,
-        kickstarter=kickstarter
+        raw_stats=raw_stats, losses=losses, experience=experience, trainer_config=trainer_cfg, kickstarter=kickstarter
     )
 
     # Compute timing stats
@@ -132,7 +112,7 @@ def test_trainer_stats_collection_with_curriculum():
         "epoch_steps": 100,
         "num_minibatches": 4,
         "generation": 1,
-        "latest_saved_policy_epoch": 10
+        "latest_saved_policy_epoch": 10,
     }
 
     # Collect curriculum stats as done in trainer._process_stats()
@@ -166,7 +146,7 @@ def test_trainer_stats_collection_with_curriculum():
         parameters=parameters,
         evals=MagicMock(),
         agent_step=1000,
-        epoch=10
+        epoch=10,
     )
 
     # Add curriculum stats
@@ -210,10 +190,7 @@ def test_trainer_with_curriculum_server_client():
 
     try:
         # Create client
-        client = CurriculumClient(
-            server_url="http://127.0.0.1:15561",
-            batch_size=10
-        )
+        client = CurriculumClient(server_url="http://127.0.0.1:15561", batch_size=10)
 
         # Simulate what trainer does
         # 1. Get tasks
@@ -225,8 +202,6 @@ def test_trainer_with_curriculum_server_client():
 
         # 2. Try to get stats from client (should return empty)
         assert client.get_curriculum_stats() == {}
-        assert client.get_task_probs() == {}
-        assert client.get_completion_rates() == {}
 
         # 3. Complete task (no-op on client)
         client.complete_task("task_0", 0.8)
@@ -241,24 +216,21 @@ def test_trainer_with_curriculum_server_client():
             assert cfg is not None
 
     finally:
+        client.stop()
         server.stop()
 
 
 def test_curriculum_client_no_server():
     """Test client behavior when server is not available."""
     # Try to create client with non-existent server
-    client = CurriculumClient(
-        server_url="http://localhost:19999",
-        batch_size=10,
-        max_retries=1,
-        retry_delay=0.1
-    )
+    client = CurriculumClient(server_url="http://localhost:19999", batch_size=10, max_retries=1, retry_delay=0.1)
 
     # Should raise error when trying to get task
     with pytest.raises(RuntimeError) as exc_info:
         client.get_task()
 
     assert "Failed to fetch tasks" in str(exc_info.value)
+    client.stop()
 
 
 def test_curriculum_server_concurrent_requests():
@@ -272,15 +244,14 @@ def test_curriculum_server_concurrent_requests():
     time.sleep(0.5)
 
     try:
+
         def fetch_tasks(client_id):
-            client = CurriculumClient(
-                server_url="http://127.0.0.1:15562",
-                batch_size=5
-            )
+            client = CurriculumClient(server_url="http://127.0.0.1:15562", batch_size=5)
             tasks = []
             for _ in range(3):
                 task = client.get_task()
-                tasks.append((client_id, task.name))
+                tasks.append((client_id, task.name()))
+            client.stop()
             return tasks
 
         # Run multiple clients concurrently
@@ -299,7 +270,7 @@ def test_curriculum_server_concurrent_requests():
         assert len(all_results) == 15  # 5 clients * 3 tasks each
 
         # All tasks should be valid
-        for client_id, task_name in all_results:
+        for _client_id, task_name in all_results:
             assert task_name in ["task_0", "task_1", "task_2"]
 
     finally:

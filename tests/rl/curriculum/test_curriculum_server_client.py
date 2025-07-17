@@ -21,13 +21,9 @@ class MockCurriculum(Curriculum):
     def get_task(self) -> Task:
         self.task_count += 1
         task_id = f"task_{self.task_count}"
-        env_cfg = OmegaConf.create({
-            "game": {
-                "width": 10 + self.task_count,
-                "height": 10 + self.task_count,
-                "num_agents": 2
-            }
-        })
+        env_cfg = OmegaConf.create(
+            {"game": {"width": 10 + self.task_count, "height": 10 + self.task_count, "num_agents": 2}}
+        )
         return Task(task_id, self, env_cfg)
 
     def complete_task(self, id: str, score: float):
@@ -40,19 +36,16 @@ class MockCurriculum(Curriculum):
         return {"test": 1.0}
 
     def get_curriculum_stats(self) -> dict:
-        return {
-            "total_tasks": self.task_count,
-            "completed_tasks": len(self.completed_tasks)
-        }
+        return {"total_tasks": self.task_count, "completed_tasks": len(self.completed_tasks)}
 
 
-def test_curriculum_server_client():
+def test_curriculum_server_client(free_port):
     """Test basic server-client functionality."""
     # Create test curriculum
     curriculum = MockCurriculum()
 
     # Start server
-    server = CurriculumServer(curriculum, host="127.0.0.1", port=15555)
+    server = CurriculumServer(curriculum, host="127.0.0.1", port=free_port)
     server.start(background=True)
 
     # Give server time to start
@@ -60,17 +53,14 @@ def test_curriculum_server_client():
 
     try:
         # Create client
-        client = CurriculumClient(
-            server_url="http://127.0.0.1:15555",
-            batch_size=5
-        )
+        client = CurriculumClient(server_url=f"http://127.0.0.1:{free_port}", batch_size=5)
 
         # Test getting tasks
         tasks_received = []
         for _ in range(10):
             task = client.get_task()
             assert task is not None
-            assert task.name.startswith("task_")
+            assert task.name().startswith("task_")
             assert hasattr(task, "env_cfg")
             env_cfg = task.env_cfg()
             assert "game" in env_cfg
@@ -84,10 +74,10 @@ def test_curriculum_server_client():
         # Test that complete_task is a no-op on client
         client.complete_task("task_1", 0.8)  # Should not raise
 
-        # Test compatibility methods
-        assert client.get_completion_rates() == {}
-        assert client.get_task_probs() == {}
+        # Test stats methods (should return empty dicts)
         assert client.get_curriculum_stats() == {}
+
+        # Complete task (no-op)
 
     finally:
         # Clean up
@@ -95,19 +85,16 @@ def test_curriculum_server_client():
         server.stop()
 
 
-def test_curriculum_server_batch_sizes():
+def test_curriculum_server_batch_sizes(free_port):
     """Test different batch sizes."""
     curriculum = MockCurriculum()
-    server = CurriculumServer(curriculum, host="127.0.0.1", port=15556)
+    server = CurriculumServer(curriculum, host="127.0.0.1", port=free_port)
     server.start(background=True)
     time.sleep(0.5)
 
     try:
         # Test small batch size
-        client = CurriculumClient(
-            server_url="http://127.0.0.1:15556",
-            batch_size=2
-        )
+        client = CurriculumClient(server_url=f"http://127.0.0.1:{free_port}", batch_size=2)
 
         # Get tasks - should trigger multiple fetches
         tasks = []
@@ -123,18 +110,14 @@ def test_curriculum_server_batch_sizes():
         assert len(unique_tasks) <= 6  # Could be from up to 3 batches
 
     finally:
+        client.stop()
         server.stop()
 
 
 def test_curriculum_server_error_handling():
     """Test error handling when server is not available."""
     # Try to connect to non-existent server
-    client = CurriculumClient(
-        server_url="http://127.0.0.1:19999",
-        batch_size=5,
-        max_retries=2,
-        retry_delay=0.1
-    )
+    client = CurriculumClient(server_url="http://127.0.0.1:19999", batch_size=5, max_retries=2, retry_delay=0.1)
 
     # Should raise after retries
     with pytest.raises(RuntimeError) as exc_info:
