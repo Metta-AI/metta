@@ -5,8 +5,8 @@ from typing import Any, Dict
 from flask import Flask, jsonify, request
 from omegaconf import DictConfig, OmegaConf
 
+from metta.mettagrid.curriculum.core import Curriculum, Task
 from metta.mettagrid.curriculum.util import curriculum_from_config_path
-from metta.rl.curriculum.curriculum import Curriculum, Task
 
 logger = logging.getLogger(__name__)
 
@@ -39,36 +39,27 @@ class CurriculumServer(Curriculum):
             with self._lock:
                 for _ in range(batch_size):
                     try:
-                        task = self._curriculum.get_task()
+                        task = self.get_task()
                         # Convert the task's env_cfg to a serializable format
                         env_cfg = OmegaConf.to_container(task.env_cfg(), resolve=True)
                         # Get task name - it's a method in the Task class
                         task_name = task.name() if hasattr(task, "name") else "unknown"
-                        tasks.append({
-                            "name": task_name,
-                            "env_cfg": env_cfg
-                        })
+                        tasks.append({"name": task_name, "env_cfg": env_cfg})
                     except Exception as e:
                         # If curriculum can't provide more tasks, break and return what we have
                         logger.warning(f"Curriculum stopped providing tasks: {e}")
                         break
 
-            return jsonify({
-                "tasks": tasks,
-                "status": "ok"
-            })
+            return jsonify({"tasks": tasks, "status": "ok"})
         except Exception as e:
             logger.error(f"Error getting tasks: {e}")
-            return jsonify({
-                "error": str(e),
-                "status": "error"
-            }), 500
+            return jsonify({"error": str(e), "status": "error"}), 500
 
     def _complete_task(self) -> Dict[str, Any]:
         """Complete a task."""
         id = request.args.get("id")
         score = request.args.get("score")
-        self._curriculum.complete_task(id, score)
+        self.complete_task(id, score)
         return jsonify({"status": "ok"})
 
     def _health(self) -> Dict[str, str]:
@@ -81,10 +72,7 @@ class CurriculumServer(Curriculum):
             from werkzeug.serving import make_server
 
             self._server = make_server(self._host, self._port, self._app, threaded=True)
-            self._server_thread = threading.Thread(
-                target=self._server.serve_forever,
-                daemon=True
-            )
+            self._server_thread = threading.Thread(target=self._server.serve_forever, daemon=True)
             self._server_thread.start()
             logger.info(f"Curriculum server started at http://{self._host}:{self._port}")
         else:
@@ -102,28 +90,26 @@ class CurriculumServer(Curriculum):
     @staticmethod
     def create(trainer_cfg: DictConfig) -> "CurriculumServer":
         # Create curriculum from config
-        curriculum_config = trainer_cfg.trainer.get("curriculum")
+        curriculum_config = trainer_cfg.get("curriculum")
         if not curriculum_config:
             raise ValueError("Curriculum must be set in trainer config")
-        env_overrides = DictConfig(trainer_cfg.trainer.get("env_overrides", {}))
+        env_overrides = DictConfig(trainer_cfg.get("env_overrides", {}))
         curriculum = curriculum_from_config_path(curriculum_config, env_overrides)
 
-        server = CurriculumServer(
-            curriculum=curriculum,
-            host="localhost",
-            port=trainer_cfg.curriculum_server.port
-        )
+        server = CurriculumServer(curriculum=curriculum, host="localhost", port=trainer_cfg.curriculum_server.port)
         server.start(background=True)
         logger.info(f"Started curriculum server on port {server._port}")
         return server
 
     # Implement the Curriculum interface
     def get_task(self) -> Task:
-        return self._curriculum.get_task()
+        task = self._curriculum.get_task()
+        logger.info(f"Assigning task: {task.name()}")
+        return task
 
     def complete_task(self, id: str, score: float):
+        logger.info(f"Completing task: {id} with score: {score}")
         self._curriculum.complete_task(id, score)
 
     def get_curriculum_stats(self) -> Dict[str, float]:
         return self._curriculum.get_curriculum_stats()
-

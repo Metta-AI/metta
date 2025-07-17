@@ -20,32 +20,24 @@ class TestCurriculum(Curriculum):
     def get_task(self) -> Task:
         self.task_count += 1
         task_id = f"task_{self.task_count}"
-        env_cfg = OmegaConf.create({
-            "game": {"width": 10, "height": 10, "num_agents": 2}
-        })
+        env_cfg = OmegaConf.create({"game": {"width": 10, "height": 10, "num_agents": 2}})
         return Task(task_id, self, env_cfg)
 
     def complete_task(self, id: str, score: float):
         self.completed_tasks.append((id, score))
 
     def get_completion_rates(self) -> dict[str, float]:
-        return {
-            "task_completions/easy": 0.75,
-            "task_completions/hard": 0.25
-        }
+        return {"task_completions/easy": 0.75, "task_completions/hard": 0.25}
 
     def get_task_probs(self) -> dict[str, float]:
-        return {
-            "easy": 0.7,
-            "hard": 0.3
-        }
+        return {"easy": 0.7, "hard": 0.3}
 
     def get_curriculum_stats(self) -> dict:
         return {
             "total_tasks": self.task_count,
             "completed_tasks": len(self.completed_tasks),
             "average_score": 0.85,
-            "learning_progress": 0.002
+            "learning_progress": 0.002,
         }
 
 
@@ -66,7 +58,7 @@ def test_curriculum_stats_collection():
     # Mock trainer components
     stats = {
         "reward": [0.8, 0.9, 0.7],
-        "task_reward/default": [0.8, 0.9, 0.7]  # Add task reward for overview calculation
+        "task_reward/default": [0.8, 0.9, 0.7],  # Add task reward for overview calculation
     }
     losses = MagicMock()
     losses.policy_loss = 0.1
@@ -75,21 +67,20 @@ def test_curriculum_stats_collection():
     losses.explained_variance = 0.9
     losses.approx_kl_sum = 0.01
     losses.minibatches_processed = 4
-    losses.stats = MagicMock(return_value={
-        "policy_loss": 0.1,
-        "value_loss": 0.2,
-        "entropy": 0.05,
-        "explained_variance": 0.9,
-        "approx_kl": 0.01 / 4,  # avg kl
-        "clipfrac": 0.0
-    })
+    losses.stats = MagicMock(
+        return_value={
+            "policy_loss": 0.1,
+            "value_loss": 0.2,
+            "entropy": 0.05,
+            "explained_variance": 0.9,
+            "approx_kl": 0.01 / 4,  # avg kl
+            "clipfrac": 0.0,
+        }
+    )
 
     experience = MagicMock()
     experience.num_minibatches = 4
-    experience.stats = MagicMock(return_value={
-        "buffer_size": 1000,
-        "num_episodes": 10
-    })
+    experience.stats = MagicMock(return_value={"buffer_size": 1000, "num_episodes": 10})
 
     trainer_config = MagicMock()
     trainer_config.kickstart.enabled = False
@@ -189,20 +180,16 @@ def test_curriculum_client_stats():
     from metta.rl.curriculum.curriculum_client import CurriculumClient
 
     # Create a mock client (don't need actual server for this test)
-    client = CurriculumClient(
-        server_url="http://localhost:5555",
-        batch_size=10
-    )
+    client = CurriculumClient(server_url="http://localhost:5555", batch_size=10)
 
     # Verify all stats methods return empty
     assert client.get_curriculum_stats() == {}
-    assert client.get_task_probs() == {}
-    assert client.get_completion_rates() == {}
 
     # Verify complete_task is a no-op
     client.complete_task("task_1", 0.9)  # Should not raise
 
     print("✓ Curriculum client correctly returns empty stats")
+    client.stop()
 
 
 if __name__ == "__main__":

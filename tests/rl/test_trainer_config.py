@@ -77,6 +77,11 @@ valid_trainer_config = {
         "kickstart_steps": 1_000_000_000,
         "additional_teachers": None,
     },
+    "curriculum_server": {
+        "host": "localhost",
+        "port": 5555,
+        "batch_size": 100,
+    },
     "initial_policy": {
         "uri": None,
         "type": "top",
