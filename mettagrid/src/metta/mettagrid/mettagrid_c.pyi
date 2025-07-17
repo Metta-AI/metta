@@ -1,15 +1,15 @@
-from typing import Dict, List, Optional, Tuple, TypeAlias, TypedDict
+from typing import Optional, Tuple, TypeAlias, TypedDict
 
 import gymnasium as gym
 import numpy as np
 
 # Type alias for clarity
-StatsDict: TypeAlias = Dict[str, float]
+StatsDict: TypeAlias = dict[str, float]
 
 class EpisodeStats(TypedDict):
     game: StatsDict
-    agent: List[StatsDict]
-    converter: List[StatsDict]
+    agent: list[StatsDict]
+    converter: list[StatsDict]
 
 class PackedCoordinate:
     """Packed coordinate encoding utilities."""
@@ -46,6 +46,69 @@ class PackedCoordinate:
         """Check if packed value represents empty location."""
         ...
 
+class GridObjectConfig: ...
+
+class WallConfig(GridObjectConfig):
+    def __init__(self, type_id: int, type_name: str, swappable: bool = False): ...
+    type_id: int
+    type_name: str
+    swappable: bool
+
+class AgentConfig(GridObjectConfig):
+    type_id: int
+    type_name: str
+    group_id: int
+    group_name: str
+    freeze_duration: int
+    action_failure_penalty: float
+    resource_limits: dict[int, int]
+    resource_rewards: dict[int, float]
+    resource_reward_max: dict[int, float]
+    group_reward_pct: float
+
+class ConverterConfig(GridObjectConfig):
+    def __init__(
+        self,
+        type_id: int,
+        type_name: str,
+        input_resources: dict[int, int],
+        output_resources: dict[int, int],
+        max_output: int,
+        conversion_ticks: int,
+        cooldown: int,
+        initial_resource_count: int = 0,
+        color: int = 0,
+    ): ...
+    type_id: int
+    type_name: str
+    input_resources: dict[int, int]
+    output_resources: dict[int, int]
+    max_output: int
+    conversion_ticks: int
+    cooldown: int
+    initial_resource_count: int
+    color: int
+
+class ActionConfig:
+    enabled: bool
+    required_resources: dict[int, int]
+    consumed_resources: dict[int, int]
+
+class AttackActionConfig(ActionConfig):
+    defense_resources: dict[int, int]
+
+class ChangeGlyphActionConfig(ActionConfig):
+    number_of_glyphs: int
+
+class GameConfig:
+    num_agents: int
+    max_steps: int
+    episode_truncates: bool
+    obs_width: int
+    obs_height: int
+    inventory_item_names: list[str]
+    num_observation_tokens: int
+
 class MettaGrid:
     obs_width: int
     obs_height: int
@@ -58,19 +121,19 @@ class MettaGrid:
     observation_space: gym.spaces.Box
     initial_grid_hash: int
 
-    def __init__(self, env_cfg: dict, map: list, seed: int) -> None: ...
+    def __init__(self, env_cfg: GameConfig, map: list, seed: int) -> None: ...
     def reset(self) -> Tuple[np.ndarray, dict]: ...
     def step(self, actions: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, dict]: ...
     def set_buffers(
         self, observations: np.ndarray, terminals: np.ndarray, truncations: np.ndarray, rewards: np.ndarray
     ) -> None: ...
-    def grid_objects(self) -> Dict[int, dict]: ...
-    def action_names(self) -> List[str]: ...
+    def grid_objects(self) -> dict[int, dict]: ...
+    def action_names(self) -> list[str]: ...
     def get_episode_rewards(self) -> np.ndarray: ...
     def get_episode_stats(self) -> EpisodeStats: ...
-    def action_success(self) -> List[bool]: ...
-    def max_action_args(self) -> List[int]: ...
-    def object_type_names(self) -> List[str]: ...
-    def inventory_item_names(self) -> List[str]: ...
+    def action_success(self) -> list[bool]: ...
+    def max_action_args(self) -> list[int]: ...
+    def object_type_names(self) -> list[str]: ...
+    def inventory_item_names(self) -> list[str]: ...
     def get_agent_groups(self) -> np.ndarray: ...
-    def feature_normalizations(self) -> Dict[int, float]: ...
+    def feature_normalizations(self) -> dict[int, float]: ...

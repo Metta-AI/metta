@@ -274,3 +274,6 @@ game:
       enabled: true
     change_color:
       enabled: true
+    change_glyph:
+      enabled: true
+      number_of_glyphs: 4

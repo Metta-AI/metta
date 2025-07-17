@@ -90,29 +90,3 @@ def test_save_train_job_override_config():
         loaded = OmegaConf.load(save_path)
         assert loaded.trainer.gamma == 0.95
         assert loaded.trainer.batch_size == 256
-
-
-def test_apply_carbs_suggestion():
-    """Test applying CARBS suggestions to a config."""
-    from tools.sweep_config_utils import apply_carbs_suggestion
-
-    # Create a base config
-    config = OmegaConf.create({"trainer": {"gamma": 0.99, "batch_size": 512, "optimizer": {"learning_rate": 0.001}}})
-
-    # Create a CARBS suggestion
-    suggestion = OmegaConf.create(
-        {
-            "trainer.gamma": 0.95,
-            "trainer.batch_size": 256,
-            "trainer.optimizer.learning_rate": 0.0005,
-            "suggestion_uuid": "test-uuid-123",  # Should be ignored
-        }
-    )
-
-    # Apply suggestion
-    apply_carbs_suggestion(config, suggestion)
-
-    # Check that values were updated
-    assert config.trainer.gamma == 0.95
-    assert config.trainer.batch_size == 256
-    assert config.trainer.optimizer.learning_rate == 0.0005

@@ -11,7 +11,7 @@ class ProductionHandler : public EventHandler {
 public:
   explicit ProductionHandler(EventManager* event_manager) : EventHandler(event_manager) {}
 
-  void handle_event(GridObjectId obj_id, EventArg arg) override {
+  void handle_event(GridObjectId obj_id, EventArg /*arg*/) override {
     Converter* converter = static_cast<Converter*>(this->event_manager->grid->object(obj_id));
     if (!converter) {
       return;
@@ -27,7 +27,7 @@ class CoolDownHandler : public EventHandler {
 public:
   explicit CoolDownHandler(EventManager* event_manager) : EventHandler(event_manager) {}
 
-  void handle_event(GridObjectId obj_id, EventArg arg) override {
+  void handle_event(GridObjectId obj_id, EventArg /*arg*/) override {
     Converter* converter = static_cast<Converter*>(this->event_manager->grid->object(obj_id));
     if (!converter) {
       return;

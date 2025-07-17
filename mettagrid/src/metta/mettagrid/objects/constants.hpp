@@ -5,7 +5,6 @@
 #include <string>
 #include <vector>
 
-#include "../grid_object.hpp"
 #include "types.hpp"
 
 enum EventType {
@@ -14,11 +13,11 @@ enum EventType {
   EventTypeCount
 };
 
-enum GridLayer {
-  Agent_Layer = 0,
-  Object_Layer = 1,
-  GridLayerCount
-};
+namespace GridLayer {
+constexpr ObservationType AgentLayer = 0;
+constexpr ObservationType ObjectLayer = 1;
+constexpr ObservationType GridLayerCount = 2;
+};  // namespace GridLayer
 
 // We want empty tokens to be 0xff, since 0s are very natural numbers to have in the observations, and we want
 // empty to be obviously different.
@@ -46,7 +45,8 @@ constexpr ObservationType EpisodeCompletionPct = 8;
 constexpr ObservationType LastAction = 9;
 constexpr ObservationType LastActionArg = 10;
 constexpr ObservationType LastReward = 11;
-constexpr ObservationType ObservationFeatureCount = 12;
+constexpr ObservationType Glyph = 12;
+constexpr ObservationType ObservationFeatureCount = 13;
 }  // namespace ObservationFeature
 
 const ObservationType InventoryFeatureOffset = ObservationFeature::ObservationFeatureCount;
@@ -63,7 +63,8 @@ const std::map<ObservationType, std::string> FeatureNames = {
     {ObservationFeature::EpisodeCompletionPct, "episode_completion_pct"},
     {ObservationFeature::LastAction, "last_action"},
     {ObservationFeature::LastActionArg, "last_action_arg"},
-    {ObservationFeature::LastReward, "last_reward"}};
+    {ObservationFeature::LastReward, "last_reward"},
+    {ObservationFeature::Glyph, "agent:glyph"}};
 
 // ##ObservationNormalization
 // These are approximate maximum values for each feature. Ideally they would be defined closer to their source,
@@ -82,6 +83,7 @@ const std::map<ObservationType, float> FeatureNormalizations = {
     {ObservationFeature::Color, 255.0},
     {ObservationFeature::ConvertingOrCoolingDown, 1.0},
     {ObservationFeature::Swappable, 1.0},
+    {ObservationFeature::Glyph, 255.0},
 };
 
 const float DEFAULT_INVENTORY_NORMALIZATION = 100.0;

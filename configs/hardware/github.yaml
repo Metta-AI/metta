@@ -19,7 +19,6 @@ trainer:
     wandb_checkpoint_interval: 0
   simulation:
     evaluate_interval: 1
-    replay_interval: 1
     replay_dir: ${run_dir}/replays/
   bptt_horizon: 8
   total_timesteps: 2

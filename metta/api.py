@@ -376,7 +376,8 @@ def _get_default_env_config(num_agents: int = 4, width: int = 32, height: int = 
                 "get_items": {"enabled": True},
                 "attack": {"enabled": True, "consumed_resources": {"laser": 1}, "defense_resources": {"armor": 1}},
                 "swap": {"enabled": True},
-                "change_color": {"enabled": True},
+                "change_color": {"enabled": False},
+                "change_glyph": {"enabled": False, "number_of_glyphs": 4},
             },
             "objects": {
                 "mine_red": {

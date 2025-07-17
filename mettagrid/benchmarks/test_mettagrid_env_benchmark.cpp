@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "actions/attack.hpp"
+#include "actions/change_glyph.hpp"
 #include "mettagrid_c.hpp"
 #include "objects/agent.hpp"
 #include "objects/wall.hpp"
@@ -37,6 +38,9 @@ GameConfig CreateBenchmarkConfig(int num_agents) {
                                            std::map<InventoryItem, InventoryQuantity>(),
                                            std::map<InventoryItem, InventoryQuantity>());
 
+  std::shared_ptr<ChangeGlyphActionConfig> change_glyph_cfg = std::make_shared<ChangeGlyphActionConfig>(
+      std::map<InventoryItem, InventoryQuantity>(), std::map<InventoryItem, InventoryQuantity>(), 4);
+
   std::map<std::string, std::shared_ptr<ActionConfig>> actions_cfg;
 
   actions_cfg["noop"] = action_cfg;
@@ -47,6 +51,7 @@ GameConfig CreateBenchmarkConfig(int num_agents) {
   actions_cfg["put_items"] = action_cfg;
   actions_cfg["get_items"] = action_cfg;
   actions_cfg["change_color"] = action_cfg;
+  actions_cfg["change_glyph"] = change_glyph_cfg;
 
   std::map<std::string, std::shared_ptr<GridObjectConfig>> objects_cfg;
 
@@ -72,7 +77,7 @@ GameConfig CreateBenchmarkConfig(int num_agents) {
                                                              std::map<InventoryItem, InventoryQuantity>(),
                                                              0.0f);
 
-  return GameConfig(num_agents, 10000, 11, 11, inventory_item_names, 100, actions_cfg, objects_cfg);
+  return GameConfig(num_agents, 10000, false, 11, 11, inventory_item_names, 100, actions_cfg, objects_cfg);
 }
 
 py::list CreateDefaultMap(int num_agents_per_team = 2) {

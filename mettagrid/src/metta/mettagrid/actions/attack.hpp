@@ -1,6 +1,7 @@
 #ifndef ACTIONS_ATTACK_HPP_
 #define ACTIONS_ATTACK_HPP_
 
+#include <map>
 #include <string>
 #include <vector>
 
@@ -8,9 +9,11 @@
 #include "grid_object.hpp"
 #include "objects/agent.hpp"
 #include "objects/constants.hpp"
-#include "objects/metta_object.hpp"
 #include "types.hpp"
 
+// Attack takes an argument 0-8, which is the index of the target agent to attack.
+// Target agents are those found in a 3x3 grid in front of the agent, indexed in scan order.
+// If the argument (agent index to attack) > num_agents, the last agent is attacked.
 struct AttackActionConfig : public ActionConfig {
   std::map<InventoryItem, InventoryQuantity> defense_resources;
 
@@ -28,126 +31,144 @@ public:
   }
 
   unsigned char max_arg() const override {
-    return 9;
+    return 8;
   }
 
 protected:
   std::map<InventoryItem, InventoryQuantity> _defense_resources;
 
   bool _handle_action(Agent* actor, ActionArg arg) override {
-    if (arg > 9 || arg < 1) {
-      return false;
-    }
+    Agent* last_agent = nullptr;
+    short num_skipped = 0;
 
     // Attack positions form a 3x3 grid in front of the agent
-    // Visual representation (agent facing up):
-    //   7  8  9    (3 cells forward)
-    //   4  5  6    (2 cells forward)
-    //   1  2  3    (1 cell forward)
-    //      A       (Agent position)
-    static constexpr std::pair<short, short> ATTACK_POSITIONS[9] = {
-        {1, -1},  // arg 1: 1 forward, 1 left
-        {1, 0},   // arg 2: 1 forward, straight ahead
-        {1, 1},   // arg 3: 1 forward, 1 right
-        {2, -1},  // arg 4: 2 forward, 1 left
-        {2, 0},   // arg 5: 2 forward, straight ahead
-        {2, 1},   // arg 6: 2 forward, 1 right
-        {3, -1},  // arg 7: 3 forward, 1 left
-        {3, 0},   // arg 8: 3 forward, straight ahead
-        {3, 1},   // arg 9: 3 forward, 1 right
-    };
+    // Visual representation of attack order (agent facing up):
+    // 7 6 8  (3 cells forward)
+    // 4 3 5  (2 cells forward)
+    // 1 0 2  (1 cell forward)
+    //   A    (Agent position)
 
-    auto [distance, offset] = ATTACK_POSITIONS[arg - 1];
-    GridLocation target_loc = _grid->relative_location(actor->location, actor->orientation, distance, offset);
+    // Column offsets to check: center, left, right
+    static constexpr int COL_OFFSETS[3] = {0, -1, 1};
 
-    return _handle_target(actor, target_loc);
-  }
+    // Scan the 9 squares in front of the agent (3x3 grid)
+    for (int distance = 1; distance <= 3; distance++) {
+      for (int offset : COL_OFFSETS) {
+        GridLocation target_loc = _grid->relative_location(actor->location, actor->orientation, distance, offset);
+        target_loc.layer = GridLayer::AgentLayer;
 
-  bool _handle_target(Agent* actor, GridLocation target_loc) {
-    target_loc.layer = GridLayer::Agent_Layer;
-    Agent* agent_target = static_cast<Agent*>(_grid->object_at(target_loc));
-
-    bool was_frozen = false;
-    if (agent_target) {
-      // Track attack targets
-      actor->stats.incr("action." + _action_name + "." + agent_target->type_name);
-      actor->stats.incr("action." + _action_name + "." + agent_target->type_name + "." + actor->group_name);
-      actor->stats.incr("action." + _action_name + "." + agent_target->type_name + "." + actor->group_name + "." +
-                        agent_target->group_name);
-
-      if (agent_target->group_name == actor->group_name) {
-        actor->stats.incr("attack.own_team." + actor->group_name);
-      } else {
-        actor->stats.incr("attack.other_team." + actor->group_name);
-      }
-
-      was_frozen = agent_target->frozen > 0;
-
-      bool blocked = _defense_resources.size() > 0;
-      for (const auto& [item, amount] : _defense_resources) {
-        if (agent_target->inventory[item] < amount) {
-          blocked = false;
-          break;
+        Agent* target_agent = static_cast<Agent*>(_grid->object_at(target_loc));  // we looked in AgentLayer
+        if (target_agent) {
+          last_agent = target_agent;
+          if (num_skipped == arg) {
+            return _handle_target(*actor, *target_agent);
+          }
+          num_skipped++;
         }
       }
-
-      if (blocked) {
-        // Consume the defense resources
-        for (const auto& [item, amount] : _defense_resources) {
-          InventoryDelta used_amount =
-              std::abs(agent_target->update_inventory(item, -static_cast<InventoryDelta>(amount)));
-          assert(used_amount == static_cast<InventoryDelta>(amount));
-        }
-
-        actor->stats.incr("attack.blocked." + agent_target->group_name);
-        actor->stats.incr("attack.blocked." + agent_target->group_name + "." + actor->group_name);
-        return true;
-      } else {
-        agent_target->frozen = agent_target->freeze_duration;
-
-        if (!was_frozen) {
-          // Actor (attacker) stats
-          actor->stats.incr("attack.win." + actor->group_name);
-          actor->stats.incr("attack.win." + actor->group_name + "." + agent_target->group_name);
-
-          // Target (victim) stats - these should be on agent_target, not actor
-          agent_target->stats.incr("attack.loss." + agent_target->group_name);
-          agent_target->stats.incr("attack.loss." + agent_target->group_name + "." + actor->group_name);
-
-          if (agent_target->group_name == actor->group_name) {
-            actor->stats.incr("attack.win.own_team." + actor->group_name);
-            agent_target->stats.incr("attack.loss.from_own_team." + agent_target->group_name);
-          } else {
-            actor->stats.incr("attack.win.other_team." + actor->group_name);
-            agent_target->stats.incr("attack.loss.from_other_team." + agent_target->group_name);
-          }
-
-          // Collect all items to steal first, then apply changes, since the changes
-          // can delete keys from the agent's inventory.
-          std::vector<std::pair<InventoryItem, InventoryQuantity>> resources_to_steal;
-          for (const auto& [item, amount] : agent_target->inventory) {
-            resources_to_steal.emplace_back(item, amount);
-          }
-
-          // Now apply the stealing
-          for (const auto& [item, amount] : resources_to_steal) {
-            InventoryDelta stolen = actor->update_inventory(item, static_cast<InventoryDelta>(amount));
-
-            agent_target->update_inventory(item, -stolen);
-            if (stolen > 0) {
-              actor->stats.add(actor->stats.inventory_item_name(item) + ".stolen." + actor->group_name, stolen);
-              // Also track what was stolen from the victim's perspective
-              agent_target->stats.add(
-                  agent_target->stats.inventory_item_name(item) + ".stolen_from." + agent_target->group_name, stolen);
-            }
-          }
-        }
-
-        return true;
-      }
+    }
+    // If we got here, it means we skipped over all the targets. Attack the last one.
+    if (last_agent) {
+      return _handle_target(*actor, *last_agent);
     }
 
     return false;
+  }
+
+  bool _handle_target(Agent& actor, Agent& target) {
+    bool was_already_frozen = target.frozen > 0;
+
+    // Check if target can defend
+    if (!_defense_resources.empty()) {
+      bool target_can_defend = _check_defense_capability(target);
+
+      if (target_can_defend) {
+        _consume_defense_resources(target);
+        _log_blocked_attack(actor, target);
+        return true;
+      }
+    }
+
+    // Attack succeeds
+    target.frozen = target.freeze_duration;
+
+    if (!was_already_frozen) {
+      _steal_resources(actor, target);
+      _log_successful_attack(actor, target);
+    } else {
+      // Track wasted attacks on already-frozen targets
+      const std::string& actor_group = actor.group_name;
+      actor.stats.incr(_action_prefix(actor_group) + "wasted_on_frozen");
+    }
+    return true;
+  }
+
+private:
+  bool _check_defense_capability(const Agent& target) const {
+    for (const auto& [item, amount] : _defense_resources) {
+      auto it = target.inventory.find(item);
+      if (it == target.inventory.end() || it->second < amount) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  void _consume_defense_resources(Agent& target) {
+    for (const auto& [item, amount] : _defense_resources) {
+      InventoryDelta used = std::abs(target.update_inventory(item, -static_cast<InventoryDelta>(amount)));
+      assert(used == static_cast<InventoryDelta>(amount));
+    }
+  }
+
+  void _steal_resources(Agent& actor, Agent& target) {
+    // Create snapshot to avoid iterator invalidation
+    std::vector<std::pair<InventoryItem, InventoryQuantity>> snapshot;
+    for (const auto& [item, amount] : target.inventory) {
+      snapshot.emplace_back(item, amount);
+    }
+
+    // Transfer resources
+    for (const auto& [item, amount] : snapshot) {
+      InventoryDelta stolen = actor.update_inventory(item, static_cast<InventoryDelta>(amount));
+      target.update_inventory(item, -stolen);
+
+      if (stolen > 0) {
+        _log_resource_theft(actor, target, item, stolen);
+      }
+    }
+  }
+
+  std::string _action_prefix(const std::string& group) const {
+    return "action." + _action_name + "." + group + ".";
+  }
+
+  void _log_blocked_attack(Agent& actor, const Agent& target) const {
+    const std::string& actor_group = actor.group_name;
+    const std::string& target_group = target.group_name;
+
+    actor.stats.incr(_action_prefix(actor_group) + "blocked_by." + target_group);
+  }
+
+  void _log_successful_attack(Agent& actor, Agent& target) const {
+    const std::string& actor_group = actor.group_name;
+    const std::string& target_group = target.group_name;
+    bool same_team = (actor_group == target_group);
+
+    if (same_team) {
+      actor.stats.incr(_action_prefix(actor_group) + "friendly_fire");
+    } else {
+      actor.stats.incr(_action_prefix(actor_group) + "hit." + target_group);
+      target.stats.incr(_action_prefix(target_group) + "hit_by." + actor_group);
+    }
+  }
+
+  void _log_resource_theft(Agent& actor, Agent& target, InventoryItem item, InventoryDelta amount) const {
+    const std::string& actor_group = actor.group_name;
+    const std::string& target_group = target.group_name;
+    const std::string item_name = actor.stats.inventory_item_name(item);
+
+    actor.stats.add(_action_prefix(actor_group) + "steals." + item_name + ".from." + target_group, amount);
   }
 };
 

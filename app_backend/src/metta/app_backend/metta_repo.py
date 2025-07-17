@@ -1,9 +1,11 @@
 import hashlib
+import json
 import secrets
 import uuid
 from contextlib import asynccontextmanager
+from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Tuple
+from typing import Any
 
 from psycopg import Connection
 from psycopg.types.json import Jsonb
@@ -11,6 +13,16 @@ from psycopg_pool import AsyncConnectionPool
 
 from metta.app_backend.query_logger import execute_single_row_query_and_log
 from metta.app_backend.schema_manager import SqlMigration, run_migrations
+
+# Constants
+EVAL_TASK_MAX_ASSIGNMENT_AGE_MINUTES = 60
+
+
+@dataclass
+class TaskStatusUpdate:
+    status: str
+    details: dict[str, Any] | None = None
+
 
 # This is a list of migrations that will be applied to the eval database.
 # Do not change existing migrations, only add new ones.
@@ -198,8 +210,41 @@ MIGRATIONS = [
             """CREATE INDEX IF NOT EXISTS idx_episode_agent_metrics_metric_eiid_value
                 ON episode_agent_metrics(metric, episode_internal_id)
                 INCLUDE (value)""",
+            """CREATE INDEX IF NOT EXISTS idx_episode_agent_metrics_episode_internal_id
+                ON episode_agent_metrics(episode_internal_id)""",
             """DROP INDEX idx_episode_agent_metrics_metric_episode_value""",
             """ALTER TABLE episode_agent_metrics DROP COLUMN episode_id""",
+        ],
+    ),
+    SqlMigration(
+        version=11,
+        description="Add eval_tasks table",
+        sql_statements=[
+            """CREATE TABLE eval_tasks (
+                id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                policy_id UUID NOT NULL REFERENCES policies(id),
+                sim_suite TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'unprocessed',
+                assigned_at TIMESTAMP,
+                assignee TEXT,
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                attributes JSONB
+            )""",
+            """CREATE INDEX idx_eval_tasks_status_assigned ON eval_tasks(status, assigned_at)""",
+            """CREATE INDEX idx_eval_tasks_assignee ON eval_tasks(assignee)""",
+            """CREATE INDEX idx_eval_tasks_policy_id ON eval_tasks(policy_id)""",
+            """CREATE INDEX idx_eval_tasks_sim_suite ON eval_tasks(sim_suite)""",
+            """CREATE INDEX idx_eval_tasks_unprocessed_assigned
+               ON eval_tasks(assigned_at)
+               WHERE status = 'unprocessed'""",
+        ],
+    ),
+    SqlMigration(
+        version=12,
+        description="Add eval_task_id to episodes table",
+        sql_statements=[
+            """ALTER TABLE episodes ADD COLUMN eval_task_id UUID REFERENCES eval_tasks(id)""",
+            """CREATE INDEX idx_episodes_eval_task_id ON episodes(eval_task_id)""",
         ],
     ),
 ]
@@ -239,7 +284,25 @@ class MettaRepo:
 
     # All methods are async - no sync versions
 
-    async def get_policy_ids(self, policy_names: List[str]) -> Dict[str, uuid.UUID]:
+    async def get_policy_by_id(self, policy_id: uuid.UUID) -> dict[str, Any] | None:
+        async with self.connect() as con:
+            res = await con.execute(
+                """
+                SELECT id, name
+                FROM policies
+                WHERE id = %s
+                """,
+                (policy_id,),
+            )
+            row = await res.fetchone()
+            if row is None:
+                return None
+            return {
+                "id": str(row[0]),
+                "name": row[1],
+            }
+
+    async def get_policy_ids(self, policy_names: list[str]) -> dict[str, uuid.UUID]:
         if not policy_names:
             return {}
 
@@ -257,10 +320,10 @@ class MettaRepo:
         self,
         name: str,
         user_id: str,
-        attributes: Dict[str, str],
+        attributes: dict[str, str],
         url: str | None,
         description: str | None,
-        tags: List[str] | None,
+        tags: list[str] | None,
     ) -> uuid.UUID:
         status = "running"
         async with self.connect() as con:
@@ -293,7 +356,7 @@ class MettaRepo:
         run_id: uuid.UUID,
         start_training_epoch: int,
         end_training_epoch: int,
-        attributes: Dict[str, str],
+        attributes: dict[str, str],
     ) -> uuid.UUID:
         async with self.connect() as con:
             result = await con.execute(
@@ -331,14 +394,15 @@ class MettaRepo:
 
     async def record_episode(
         self,
-        agent_policies: Dict[int, uuid.UUID],
-        agent_metrics: Dict[int, Dict[str, float]],
+        agent_policies: dict[int, uuid.UUID],
+        agent_metrics: dict[int, dict[str, float]],
         primary_policy_id: uuid.UUID,
         stats_epoch: uuid.UUID | None,
         eval_name: str | None,
         simulation_suite: str | None,
         replay_url: str | None,
-        attributes: Dict[str, Any],
+        attributes: dict[str, Any],
+        eval_task_id: uuid.UUID | None = None,
     ) -> uuid.UUID:
         async with self.connect() as con:
             # Parse eval_category and env_name from eval_name
@@ -356,9 +420,10 @@ class MettaRepo:
                     env_name,
                     primary_policy_id,
                     stats_epoch,
-                    attributes
+                    attributes,
+                    eval_task_id
                 ) VALUES (
-                    %s, %s, %s, %s, %s, %s, %s, %s
+                    %s, %s, %s, %s, %s, %s, %s, %s, %s
                 ) RETURNING id, internal_id
                 """,
                 (
@@ -370,6 +435,7 @@ class MettaRepo:
                     primary_policy_id,
                     stats_epoch,
                     Jsonb(attributes),
+                    eval_task_id,
                 ),
             )
             row = await result.fetchone()
@@ -392,7 +458,7 @@ class MettaRepo:
                 )
 
             # Insert agent metrics in bulk
-            rows: List[Tuple[int, int, str, float]] = []
+            rows: list[tuple[int, int, str, float]] = []
             for agent_id, metrics in agent_metrics.items():
                 for metric_name, value in metrics.items():
                     rows.append((episode_internal_id, agent_id, metric_name, value))
@@ -408,18 +474,18 @@ class MettaRepo:
 
             return episode_id
 
-    async def get_suites(self) -> List[str]:
+    async def get_suites(self) -> list[str]:
         async with self.connect() as con:
             result = await con.execute("""
                 SELECT DISTINCT eval_category
                 FROM episodes
-                WHERE eval_category IS NOT NULL
+                WHERE eval_category IS NOT NULL AND env_name IS NOT NULL
                 ORDER BY eval_category
             """)
             rows = await result.fetchall()
             return [row[0] for row in rows]
 
-    async def get_metrics(self, suite: str) -> List[str]:
+    async def get_metrics(self, suite: str) -> list[str]:
         """Get all available metrics for a given suite."""
         async with self.connect() as con:
             result = await con.execute(
@@ -435,7 +501,7 @@ class MettaRepo:
             rows = await result.fetchall()
             return [row[0] for row in rows]
 
-    async def get_group_ids(self, suite: str) -> List[str]:
+    async def get_group_ids(self, suite: str) -> list[str]:
         """Get all available group IDs for a given suite."""
         async with self.connect() as con:
             result = await con.execute(
@@ -450,7 +516,7 @@ class MettaRepo:
             rows = await result.fetchall()
             return [row[0] for row in rows]
 
-    async def get_training_runs(self) -> List[Dict[str, Any]]:
+    async def get_training_runs(self) -> list[dict[str, Any]]:
         """Get all training runs."""
         async with self.connect() as con:
             result = await con.execute(
@@ -476,7 +542,7 @@ class MettaRepo:
                 for row in rows
             ]
 
-    async def get_training_run(self, run_id: str) -> Dict[str, Any] | None:
+    async def get_training_run(self, run_id: str) -> dict[str, Any] | None:
         """Get a specific training run by ID."""
         try:
             run_uuid = uuid.UUID(run_id)
@@ -529,7 +595,7 @@ class MettaRepo:
 
         return token
 
-    async def list_machine_tokens(self, user_id: str) -> List[Dict[str, Any]]:
+    async def list_machine_tokens(self, user_id: str) -> list[dict[str, Any]]:
         """List all machine tokens for a user."""
         async with self.connect() as con:
             result = await con.execute(
@@ -598,7 +664,7 @@ class MettaRepo:
         name: str,
         description: str | None,
         dashboard_type: str,
-        dashboard_state: Dict[str, Any],
+        dashboard_state: dict[str, Any],
     ) -> uuid.UUID:
         """Create a new saved dashboard (no upsert, always insert)."""
         async with self.connect() as con:
@@ -616,7 +682,7 @@ class MettaRepo:
                 raise RuntimeError("Failed to create saved dashboard")
             return row[0]
 
-    async def list_saved_dashboards(self) -> List[Dict[str, Any]]:
+    async def list_saved_dashboards(self) -> list[dict[str, Any]]:
         """List all saved dashboards."""
         async with self.connect() as con:
             result = await con.execute(
@@ -641,7 +707,7 @@ class MettaRepo:
                 for row in rows
             ]
 
-    async def get_saved_dashboard(self, dashboard_id: str) -> Dict[str, Any] | None:
+    async def get_saved_dashboard(self, dashboard_id: str) -> dict[str, Any] | None:
         """Get a specific saved dashboard by ID."""
         try:
             dashboard_uuid = uuid.UUID(dashboard_id)
@@ -697,7 +763,7 @@ class MettaRepo:
         name: str,
         description: str | None,
         dashboard_type: str,
-        dashboard_state: Dict[str, Any],
+        dashboard_state: dict[str, Any],
     ) -> bool:
         """Update an existing saved dashboard."""
         try:
@@ -734,7 +800,7 @@ class MettaRepo:
             )
             return result.rowcount > 0
 
-    async def update_training_run_tags(self, user_id: str, run_id: str, tags: List[str]) -> bool:
+    async def update_training_run_tags(self, user_id: str, run_id: str, tags: list[str]) -> bool:
         """Update the tags of a training run."""
         try:
             run_uuid = uuid.UUID(run_id)
@@ -751,3 +817,190 @@ class MettaRepo:
                 (tags, run_uuid, user_id),
             )
             return result.rowcount > 0
+
+    async def create_eval_task(
+        self,
+        policy_id: uuid.UUID,
+        sim_suite: str,
+        attributes: dict[str, Any],
+    ) -> dict[str, Any]:
+        async with self.connect() as con:
+            result = await con.execute(
+                """
+                INSERT INTO eval_tasks (policy_id, sim_suite, attributes)
+                VALUES (%s, %s, %s)
+                RETURNING id, policy_id, sim_suite, status, assigned_at,
+                         assignee, created_at, attributes
+                """,
+                (policy_id, sim_suite, Jsonb(attributes)),
+            )
+            row = await result.fetchone()
+            if row is None:
+                raise RuntimeError("Failed to create eval task")
+            return {
+                "id": row[0],
+                "policy_id": row[1],
+                "sim_suite": row[2],
+                "status": row[3],
+                "assigned_at": row[4],
+                "assignee": row[5],
+                "created_at": row[6],
+                "attributes": row[7],
+            }
+
+    async def get_available_tasks(self, limit: int = 200) -> list[dict[str, Any]]:
+        async with self.connect() as con:
+            result = await con.execute(
+                """
+                SELECT id, policy_id, sim_suite, status, assigned_at,
+                       assignee, created_at, attributes
+                FROM eval_tasks
+                WHERE status = 'unprocessed'
+                  AND (assignee IS NULL OR assigned_at < NOW() - INTERVAL '%s minutes')
+                ORDER BY created_at ASC
+                LIMIT %s
+                """,
+                (EVAL_TASK_MAX_ASSIGNMENT_AGE_MINUTES, limit),
+            )
+            rows = await result.fetchall()
+            return [
+                {
+                    "id": row[0],
+                    "policy_id": row[1],
+                    "sim_suite": row[2],
+                    "status": row[3],
+                    "assigned_at": row[4],
+                    "assignee": row[5],
+                    "created_at": row[6],
+                    "attributes": row[7],
+                }
+                for row in rows
+            ]
+
+    async def claim_tasks(
+        self,
+        task_ids: list[uuid.UUID],
+        assignee: str,
+    ) -> list[uuid.UUID]:
+        if not task_ids:
+            return []
+
+        async with self.connect() as con:
+            result = await con.execute(
+                """
+                UPDATE eval_tasks
+                SET assignee = %s, assigned_at = NOW()
+                WHERE id = ANY(%s)
+                  AND status = 'unprocessed'
+                  AND (assignee IS NULL OR assigned_at < NOW() - INTERVAL '%s minutes')
+                RETURNING id
+                """,
+                (assignee, task_ids, EVAL_TASK_MAX_ASSIGNMENT_AGE_MINUTES),
+            )
+            rows = await result.fetchall()
+            return [row[0] for row in rows]
+
+    async def get_claimed_tasks(self, assignee: str | None = None) -> list[dict[str, Any]]:
+        async with self.connect() as con:
+            if assignee is None:
+                result = await con.execute(
+                    """
+                    SELECT id, policy_id, sim_suite, status, assigned_at,
+                           assignee, created_at, attributes
+                    FROM eval_tasks
+                    WHERE assignee IS NOT NULL
+                      AND assigned_at >= NOW() - INTERVAL '%s minutes'
+                    ORDER BY created_at ASC
+                    """,
+                    (EVAL_TASK_MAX_ASSIGNMENT_AGE_MINUTES,),
+                )
+            else:
+                result = await con.execute(
+                    """
+                    SELECT id, policy_id, sim_suite, status, assigned_at,
+                           assignee, created_at, attributes
+                    FROM eval_tasks
+                    WHERE assignee = %s
+                      AND assigned_at >= NOW() - INTERVAL '%s minutes'
+                    ORDER BY created_at ASC
+                    """,
+                    (assignee, EVAL_TASK_MAX_ASSIGNMENT_AGE_MINUTES),
+                )
+            rows = await result.fetchall()
+            return [
+                {
+                    "id": row[0],
+                    "policy_id": row[1],
+                    "sim_suite": row[2],
+                    "status": row[3],
+                    "assigned_at": row[4],
+                    "assignee": row[5],
+                    "created_at": row[6],
+                    "attributes": row[7],
+                }
+                for row in rows
+            ]
+
+    async def get_task_by_id(self, task_id: uuid.UUID) -> dict[str, Any] | None:
+        async with self.connect() as con:
+            result = await con.execute(
+                """
+                SELECT id, policy_id, sim_suite, status, assigned_at,
+                       assignee, created_at, attributes
+                FROM eval_tasks
+                WHERE id = %s
+                """,
+                (task_id,),
+            )
+            row = await result.fetchone()
+            if row is None:
+                return None
+            return {
+                "id": row[0],
+                "policy_id": row[1],
+                "sim_suite": row[2],
+                "status": row[3],
+                "assigned_at": row[4],
+                "assignee": row[5],
+                "created_at": row[6],
+                "attributes": row[7],
+            }
+
+    async def update_task_statuses(
+        self,
+        assignee: str,
+        task_updates: dict[uuid.UUID, TaskStatusUpdate],
+    ) -> dict[uuid.UUID, str]:
+        if not task_updates:
+            return {}
+
+        updated = {}
+        async with self.connect() as con:
+            for task_id, update in task_updates.items():
+                status = update.status
+                details = update.details
+                if details:
+                    result = await con.execute(
+                        """
+                        UPDATE eval_tasks
+                        SET status = %s,
+                            attributes = COALESCE(attributes, '{}'::jsonb) || %s::jsonb
+                        WHERE id = %s AND assignee = %s
+                        RETURNING id
+                        """,
+                        (status, json.dumps(details), task_id, assignee),
+                    )
+                else:
+                    result = await con.execute(
+                        """
+                        UPDATE eval_tasks
+                        SET status = %s
+                        WHERE id = %s AND assignee = %s
+                        RETURNING id
+                        """,
+                        (status, task_id, assignee),
+                    )
+                if result.rowcount > 0:
+                    updated[task_id] = status
+
+        return updated

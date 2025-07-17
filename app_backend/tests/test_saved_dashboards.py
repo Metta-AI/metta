@@ -1,62 +1,14 @@
 import uuid
 
 import pytest
-import pytest_asyncio
-from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from testcontainers.postgres import PostgresContainer
 
 from metta.app_backend.metta_repo import MettaRepo
-from metta.app_backend.server import create_app
+from tests.base_async_test import BaseAsyncTest
 
 
-class TestSavedDashboards:
+class TestSavedDashboards(BaseAsyncTest):
     """Tests for the saved dashboard functionality."""
-
-    @pytest.fixture(scope="class")
-    def postgres_container(self):
-        """Create a PostgreSQL container for testing."""
-        try:
-            container = PostgresContainer(
-                image="postgres:17",
-                username="test_user",
-                password="test_password",
-                dbname="test_db",
-                driver=None,
-            )
-            container.start()
-            yield container
-            container.stop()
-        except Exception as e:
-            pytest.skip(f"Failed to start PostgreSQL container: {e}")
-
-    @pytest.fixture(scope="class")
-    def db_uri(self, postgres_container: PostgresContainer) -> str:
-        """Get the database URI for the test container."""
-        return postgres_container.get_connection_url()
-
-    @pytest_asyncio.fixture(scope="function")
-    async def metta_repo(self, db_uri: str) -> MettaRepo:
-        """Create a MettaRepo instance with the test database."""
-        repo = MettaRepo(db_uri)
-        yield repo
-        # Ensure pool is closed gracefully
-        if repo._pool is not None:
-            try:
-                await repo._pool.close()
-            except RuntimeError:
-                # Event loop might be closed, ignore
-                pass
-
-    @pytest.fixture(scope="function")
-    def test_app(self, metta_repo: MettaRepo) -> FastAPI:
-        """Create a test FastAPI app with dependency injection."""
-        return create_app(metta_repo)
-
-    @pytest.fixture(scope="function")
-    def test_client(self, test_app: FastAPI) -> TestClient:
-        """Create a test client."""
-        return TestClient(test_app)
 
     @pytest.fixture(scope="class")
     def user_id(self) -> str:
@@ -64,7 +16,7 @@ class TestSavedDashboards:
         return "test_user@example.com"
 
     @pytest.mark.asyncio
-    async def test_create_saved_dashboard(self, metta_repo: MettaRepo, user_id: str) -> None:
+    async def test_create_saved_dashboard(self, stats_repo: MettaRepo, user_id: str) -> None:
         """Test creating a saved dashboard."""
         dashboard_state = {
             "suite": "navigation",
@@ -73,7 +25,7 @@ class TestSavedDashboards:
             "num_policies_to_show": 20,
         }
 
-        dashboard_id = await metta_repo.create_saved_dashboard(
+        dashboard_id = await stats_repo.create_saved_dashboard(
             user_id=user_id,
             name="Test Dashboard",
             description="A test dashboard",
@@ -84,7 +36,7 @@ class TestSavedDashboards:
         assert isinstance(dashboard_id, uuid.UUID)
 
         # Verify the dashboard was created
-        dashboard = await metta_repo.get_saved_dashboard(str(dashboard_id))
+        dashboard = await stats_repo.get_saved_dashboard(str(dashboard_id))
         assert dashboard is not None
         assert dashboard["name"] == "Test Dashboard"
         assert dashboard["description"] == "A test dashboard"
@@ -92,7 +44,7 @@ class TestSavedDashboards:
         assert dashboard["dashboard_state"] == dashboard_state
 
     @pytest.mark.asyncio
-    async def test_list_saved_dashboards(self, metta_repo: MettaRepo, user_id: str) -> None:
+    async def test_list_saved_dashboards(self, stats_repo: MettaRepo, user_id: str) -> None:
         """Test listing saved dashboards."""
         dashboard_state = {
             "suite": "object_use",
@@ -102,7 +54,7 @@ class TestSavedDashboards:
         }
 
         # Create a test dashboard
-        await metta_repo.create_saved_dashboard(
+        await stats_repo.create_saved_dashboard(
             user_id=user_id,
             name="Test Dashboard 2",
             description="Another test dashboard",
@@ -111,7 +63,7 @@ class TestSavedDashboards:
         )
 
         # List dashboards
-        dashboards = await metta_repo.list_saved_dashboards()
+        dashboards = await stats_repo.list_saved_dashboards()
         assert len(dashboards) >= 2
 
         # Find our test dashboard
@@ -122,7 +74,7 @@ class TestSavedDashboards:
         assert test_dashboard["dashboard_state"] == dashboard_state
 
     @pytest.mark.asyncio
-    async def test_delete_saved_dashboard(self, metta_repo: MettaRepo, user_id: str) -> None:
+    async def test_delete_saved_dashboard(self, stats_repo: MettaRepo, user_id: str) -> None:
         """Test deleting a saved dashboard."""
         dashboard_state = {
             "suite": "navigation",
@@ -132,7 +84,7 @@ class TestSavedDashboards:
         }
 
         # Create a test dashboard
-        dashboard_id = await metta_repo.create_saved_dashboard(
+        dashboard_id = await stats_repo.create_saved_dashboard(
             user_id=user_id,
             name="Test Dashboard to Delete",
             description="This will be deleted",
@@ -141,19 +93,19 @@ class TestSavedDashboards:
         )
 
         # Verify it exists
-        dashboard = await metta_repo.get_saved_dashboard(str(dashboard_id))
+        dashboard = await stats_repo.get_saved_dashboard(str(dashboard_id))
         assert dashboard is not None
 
         # Delete it
-        success = await metta_repo.delete_saved_dashboard(user_id, str(dashboard_id))
+        success = await stats_repo.delete_saved_dashboard(user_id, str(dashboard_id))
         assert success is True
 
         # Verify it's gone
-        dashboard = await metta_repo.get_saved_dashboard(str(dashboard_id))
+        dashboard = await stats_repo.get_saved_dashboard(str(dashboard_id))
         assert dashboard is None
 
     @pytest.mark.asyncio
-    async def test_update_saved_dashboard(self, metta_repo: MettaRepo, user_id: str) -> None:
+    async def test_update_saved_dashboard(self, stats_repo: MettaRepo, user_id: str) -> None:
         """Test updating a saved dashboard by creating with the same name."""
         initial_state = {
             "suite": "navigation",
@@ -170,7 +122,7 @@ class TestSavedDashboards:
         }
 
         # Create initial dashboard
-        dashboard_id1 = await metta_repo.create_saved_dashboard(
+        dashboard_id1 = await stats_repo.create_saved_dashboard(
             user_id=user_id,
             name="Update Test Dashboard",
             description="Initial description",
@@ -179,7 +131,7 @@ class TestSavedDashboards:
         )
 
         # Update by creating with same name
-        dashboard_id2 = await metta_repo.create_saved_dashboard(
+        dashboard_id2 = await stats_repo.create_saved_dashboard(
             user_id=user_id,
             name="Update Test Dashboard",
             description="Updated description",
@@ -191,7 +143,7 @@ class TestSavedDashboards:
         assert dashboard_id1 != dashboard_id2
 
         # Verify the new dashboard
-        dashboard = await metta_repo.get_saved_dashboard(str(dashboard_id2))
+        dashboard = await stats_repo.get_saved_dashboard(str(dashboard_id2))
         assert dashboard is not None
         assert dashboard["description"] == "Updated description"
         assert dashboard["dashboard_state"] == updated_state

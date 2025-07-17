@@ -9,7 +9,6 @@
 #include "../grid_object.hpp"
 #include "../stats_tracker.hpp"
 #include "constants.hpp"
-#include "metta_object.hpp"
 #include "types.hpp"
 
 // #MettagridConfig
@@ -25,17 +24,16 @@ struct AgentConfig : public GridObjectConfig {
               const std::map<InventoryItem, InventoryQuantity>& resource_reward_max,
               float group_reward_pct)
       : GridObjectConfig(type_id, type_name),
-        group_name(group_name),
         group_id(group_id),
+        group_name(group_name),
         freeze_duration(freeze_duration),
         action_failure_penalty(action_failure_penalty),
         resource_limits(resource_limits),
         resource_rewards(resource_rewards),
         resource_reward_max(resource_reward_max),
         group_reward_pct(group_reward_pct) {}
-
-  std::string group_name;
   unsigned char group_id;
+  std::string group_name;
   short freeze_duration;
   float action_failure_penalty;
   std::map<InventoryItem, InventoryQuantity> resource_limits;
@@ -44,7 +42,7 @@ struct AgentConfig : public GridObjectConfig {
   float group_reward_pct;
 };
 
-class Agent : public MettaObject {
+class Agent : public GridObject {
 public:
   unsigned char group;
   short frozen;
@@ -59,38 +57,43 @@ public:
   float action_failure_penalty;
   std::string group_name;
   ObservationType color;
-  unsigned char agent_id;
+  ObservationType glyph;
+  unsigned char agent_id;  // index into MettaGrid._agents (vector<Agent*>)
   StatsTracker stats;
   float current_resource_reward;
   float* reward;
 
   Agent(GridCoord r, GridCoord c, const AgentConfig& config)
-      : freeze_duration(config.freeze_duration),
-        action_failure_penalty(config.action_failure_penalty),
-        resource_limits(config.resource_limits),
+      : group(config.group_id),
+        frozen(0),
+        freeze_duration(config.freeze_duration),
+        orientation(Orientation::Up),
+        resource_limits(config.resource_limits),  // inventory
         resource_rewards(config.resource_rewards),
         resource_reward_max(config.resource_reward_max),
-        group(config.group_id),
+        action_failure_penalty(config.action_failure_penalty),
         group_name(config.group_name),
         color(0),
+        glyph(0),
+        agent_id(0),
+        // stats - default constructed
         current_resource_reward(0),
-        frozen(0),
-        orientation(Orientation::Up),
         reward(nullptr) {
-    GridObject::init(config.type_id, config.type_name, GridLocation(r, c, GridLayer::Agent_Layer));
+    GridObject::init(config.type_id, config.type_name, GridLocation(r, c, GridLayer::AgentLayer));
   }
 
-  void init(float* reward) {
-    this->reward = reward;
+  void init(float* reward_ptr) {
+    this->reward = reward_ptr;
   }
 
   InventoryDelta update_inventory(InventoryItem item, InventoryDelta attempted_delta) {
     InventoryQuantity initial_amount = this->inventory[item];
 
-    InventoryQuantity new_amount = std::clamp(
-        static_cast<int>(initial_amount + attempted_delta), 0, static_cast<int>(this->resource_limits[item]));
+    InventoryQuantity new_amount = static_cast<InventoryQuantity>(std::clamp(
+        static_cast<int>(initial_amount + attempted_delta), 0, static_cast<int>(this->resource_limits[item])));
 
     InventoryDelta delta = new_amount - initial_amount;
+
     if (new_amount > 0) {
       this->inventory[item] = new_amount;
     } else {
@@ -131,24 +134,30 @@ public:
     this->current_resource_reward = new_reward;
   }
 
-  virtual bool swappable() const override {
+  bool swappable() const override {
     return this->frozen;
   }
 
-  virtual std::vector<PartialObservationToken> obs_features() const override {
+  std::vector<PartialObservationToken> obs_features() const override {
+    const int num_tokens = this->inventory.size() + 5 + (glyph > 0 ? 1 : 0);
+
     std::vector<PartialObservationToken> features;
-    features.reserve(5 + this->inventory.size());
+    features.reserve(num_tokens);
+
     features.push_back({ObservationFeature::TypeId, static_cast<ObservationType>(type_id)});
     features.push_back({ObservationFeature::Group, static_cast<ObservationType>(group)});
     features.push_back({ObservationFeature::Frozen, static_cast<ObservationType>(frozen != 0 ? 1 : 0)});
     features.push_back({ObservationFeature::Orientation, static_cast<ObservationType>(orientation)});
     features.push_back({ObservationFeature::Color, static_cast<ObservationType>(color)});
+    if (glyph != 0) features.push_back({ObservationFeature::Glyph, static_cast<ObservationType>(glyph)});
+
     for (const auto& [item, amount] : this->inventory) {
       // inventory should only contain non-zero amounts
       assert(amount > 0);
       ObservationType item_observation_feature = InventoryFeatureOffset + item;
       features.push_back({item_observation_feature, static_cast<ObservationType>(amount)});
     }
+
     return features;
   }
 

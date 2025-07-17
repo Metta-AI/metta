@@ -150,7 +150,7 @@ TEST_F(MettaGridCppTest, AgentInventoryUpdate_Rewards) {
 // ==================== Grid Tests ====================
 
 TEST_F(MettaGridCppTest, GridCreation) {
-  Grid grid(10, 5);
+  Grid grid(5, 10);  // row/height, col/width
 
   EXPECT_EQ(grid.width, 10);
   EXPECT_EQ(grid.height, 5);
@@ -174,7 +174,7 @@ TEST_F(MettaGridCppTest, GridObjectManagement) {
   EXPECT_EQ(retrieved_agent, agent);
 
   // Verify it's at the expected location
-  auto agent_at_location = grid.object_at(GridLocation(2, 3, GridLayer::Agent_Layer));
+  auto agent_at_location = grid.object_at(GridLocation(2, 3, GridLayer::AgentLayer));
   EXPECT_EQ(agent_at_location, agent);
 }
 

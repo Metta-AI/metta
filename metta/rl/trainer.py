@@ -3,7 +3,7 @@ import os
 import traceback
 from collections import defaultdict
 from pathlib import Path
-from typing import Any, Set
+from typing import Any
 from uuid import UUID
 
 import numpy as np
@@ -24,7 +24,8 @@ from metta.common.util.fs import wait_for_file
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.system_monitor import SystemMonitor
 from metta.common.wandb.wandb_context import WandbRun
-from metta.eval.eval_stats_db import EvalStatsDB
+from metta.eval.eval_request_config import EvalRewardSummary
+from metta.eval.eval_service import evaluate_policy
 from metta.mettagrid.curriculum.util import curriculum_from_config_path
 from metta.mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
 from metta.rl.experience import Experience
@@ -51,9 +52,7 @@ from metta.rl.torch_profiler import TorchProfiler
 from metta.rl.trainer_checkpoint import TrainerCheckpoint
 from metta.rl.trainer_config import create_trainer_config
 from metta.rl.vecenv import make_vecenv
-from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
-from metta.sim.simulation_suite import SimulationSuite
 
 try:
     from pufferlib import _C  # noqa: F401 - Required for torch.ops.pufferlib
@@ -91,39 +90,10 @@ class MettaTrainer:
         self.cfg = cfg
         self.trainer_cfg = trainer_cfg = create_trainer_config(cfg)
 
-        # it doesn't make sense to evaluate more often than we checkpoint since we need a saved policy to evaluate
-        if (
-            trainer_cfg.simulation.evaluate_interval != 0
-            and trainer_cfg.simulation.evaluate_interval < trainer_cfg.checkpoint.checkpoint_interval
-        ):
-            raise ValueError(
-                f"evaluate_interval must be at least as large as checkpoint_interval "
-                f"({trainer_cfg.simulation.evaluate_interval} < {trainer_cfg.checkpoint.checkpoint_interval})"
-            )
-        if (
-            trainer_cfg.simulation.evaluate_interval != 0
-            and trainer_cfg.simulation.evaluate_interval < trainer_cfg.checkpoint.wandb_checkpoint_interval
-        ):
-            raise ValueError(
-                f"evaluate_interval must be at least as large as wandb_checkpoint_interval "
-                f"({trainer_cfg.simulation.evaluate_interval} < {trainer_cfg.checkpoint.wandb_checkpoint_interval})"
-            )
-        # Validate that we save policies locally at least as often as we upload to wandb
-        if (
-            trainer_cfg.checkpoint.wandb_checkpoint_interval != 0
-            and trainer_cfg.checkpoint.checkpoint_interval != 0
-            and trainer_cfg.checkpoint.wandb_checkpoint_interval < trainer_cfg.checkpoint.checkpoint_interval
-        ):
-            raise ValueError(
-                f"wandb_checkpoint_interval must be at least as large as checkpoint_interval "
-                f"to ensure policies exist locally before uploading to wandb "
-                f"({trainer_cfg.checkpoint.wandb_checkpoint_interval} < {trainer_cfg.checkpoint.checkpoint_interval})"
-            )
-
         if trainer_cfg.checkpoint.checkpoint_dir:
             os.makedirs(trainer_cfg.checkpoint.checkpoint_dir, exist_ok=True)
 
-        self.sim_suite_config = sim_suite_config
+        self._sim_suite_config = sim_suite_config
         self._stats_client = stats_client
 
         if torch.distributed.is_initialized():
@@ -148,7 +118,7 @@ class MettaTrainer:
         self.grad_stats = {}
         self.wandb_run = wandb_run
         self.policy_store = policy_store
-        self.evals: dict[str, float] = {}
+        self.evals = EvalRewardSummary()
 
         self.timer = Stopwatch(logger)
         self.timer.start()
@@ -165,6 +135,14 @@ class MettaTrainer:
         curriculum_config = trainer_cfg.curriculum_or_env
         env_overrides = DictConfig(trainer_cfg.env_overrides)
         self._curriculum = curriculum_from_config_path(curriculum_config, env_overrides)
+
+        # Add training task to the suite
+        self._sim_suite_config.simulations["eval/training_task"] = SingleEnvSimulationConfig(
+            env="/env/mettagrid/mettagrid",  # won't be used, dynamic `env_cfg()` should override all of it
+            num_episodes=1,
+            env_overrides=self._curriculum.get_task().env_cfg(),
+        )
+
         self._make_vecenv()
 
         metta_grid_env: MettaGridEnv = self.vecenv.driver_env  # type: ignore
@@ -330,6 +308,11 @@ class MettaTrainer:
             for metric_name, step_metric in metric_overrides:
                 wandb_run.define_metric(metric_name, step_metric=step_metric)
 
+            # Log model parameters
+            num_params = sum(p.numel() for p in self.policy.parameters())
+            if wandb_run.summary:
+                wandb_run.summary["model/total_parameters"] = num_params
+
         if self._master:
             self._memory_monitor.add(self, name="MettaTrainer", track_attributes=True)
 
@@ -386,7 +369,7 @@ class MettaTrainer:
 
             logger.info(
                 f"Epoch {self.epoch}, Agent step {self.agent_step}/{trainer_cfg.total_timesteps} "
-                f"{steps_per_sec:.0f} steps/sec "
+                f"{steps_per_sec * self._world_size:.0f} steps/sec "
                 f"({train_pct:.0f}% train / {rollout_pct:.0f}% rollout / {stats_pct:.0f}% stats)"
             )
 
@@ -396,7 +379,6 @@ class MettaTrainer:
             self._maybe_save_training_state()
             wandb_policy_name = self._maybe_upload_policy_record_to_wandb()
             self._maybe_evaluate_policy(wandb_policy_name)
-            self._maybe_generate_replay()
             self._maybe_compute_grad_stats()
 
             self._on_train_step()
@@ -412,6 +394,10 @@ class MettaTrainer:
         self._maybe_save_policy(force=True)
         self._maybe_save_training_state(force=True)
         self._maybe_upload_policy_record_to_wandb(force=True)
+
+        if self._stats_epoch_start < self.epoch:
+            # If we have not just evaluated the latest policy, evaluate it
+            self._maybe_evaluate_policy(force=True)
 
     def _on_train_step(self):
         pass
@@ -580,10 +566,8 @@ class MettaTrainer:
         return self.epoch % interval == 0
 
     def _maybe_record_heartbeat(self, force=False):
-        if not self._should_run(10, force):
-            return
-
-        record_heartbeat()
+        if force or (self.epoch % 10 == 0):
+            record_heartbeat()
 
     def _maybe_save_training_state(self, force=False):
         """Save training state if on checkpoint interval"""
@@ -641,7 +625,7 @@ class MettaTrainer:
 
         training_time = self.timer.get_elapsed("_rollout") + self.timer.get_elapsed("_train")
 
-        category_scores_map = {key.split("/")[0]: value for key, value in self.evals.items() if key.endswith("/score")}
+        category_scores_map = self.evals.category_scores.copy()
         category_score_values = [v for k, v in category_scores_map.items()]
         overall_score = sum(category_score_values) / len(category_score_values) if category_score_values else 0
 
@@ -735,79 +719,90 @@ class MettaTrainer:
                 attributes={},
             ).id
 
-        logger.info(f"Simulating policy: {self.latest_saved_policy_uri} with config: {self.sim_suite_config}")
-        sim = SimulationSuite(
-            config=self.sim_suite_config,
-            policy_pr=self.latest_saved_policy_record,
-            policy_store=self.policy_store,
+        logger.info(f"Simulating policy: {self.latest_saved_policy_uri} with extended config including training task")
+        evaluation_results = evaluate_policy(
+            policy_record=self.latest_saved_policy_record,
+            simulation_suite=self._sim_suite_config,
             device=self.device,
             vectorization=self.cfg.vectorization,
-            stats_dir="/tmp/stats",
-            stats_client=self._stats_client,
+            replay_dir=self.trainer_cfg.simulation.replay_dir,  # Pass replay_dir to enable replay generation
             stats_epoch_id=self._stats_epoch_id,
             wandb_policy_name=wandb_policy_name,
-        )
-        result = sim.simulate()
-        stats_db = EvalStatsDB.from_sim_stats_db(result.stats_db)
-        logger.info("Simulation complete")
-
-        # Build evaluation metrics
-        self.evals = {}  # used for wandb
-        categories: Set[str] = set()
-        for sim_name in self.sim_suite_config.simulations.keys():
-            categories.add(sim_name.split("/")[0])
-
-        for category in categories:
-            score = stats_db.get_average_metric_by_filter(
-                "reward", self.latest_saved_policy_record, f"sim_name LIKE '%{category}%'"
-            )
-            logger.info(f"{category} score: {score}")
-            record_heartbeat()
-            if score is None:
-                continue
-            self.evals[f"{category}/score"] = score
-
-        # Get detailed per-simulation scores
-        all_scores = stats_db.simulation_scores(self.latest_saved_policy_record, "reward")
-        for (_, sim_name, _), score in all_scores.items():
-            category = sim_name.split("/")[0]
-            sim_short_name = sim_name.split("/")[-1]
-            self.evals[f"{category}/{sim_short_name}"] = score
-
-    def _maybe_generate_replay(self, force=False):
-        """Generate replay if on replay interval"""
-        if self._should_run(self.trainer_cfg.simulation.replay_interval, force):
-            self._generate_and_upload_replay()
-
-    @with_instance_timer("_generate_and_upload_replay", log_level=logging.INFO)
-    def _generate_and_upload_replay(self):
-        replay_sim_config = SingleEnvSimulationConfig(
-            env="/env/mettagrid/mettagrid",  # won't be used, dynamic `env_cfg()` should override all of it
-            num_episodes=1,
-            env_overrides=self._curriculum.get_task().env_cfg(),
-        )
-
-        replay_simulator = Simulation(
-            name=f"replay_{self.epoch}",
-            config=replay_sim_config,
-            policy_pr=self.latest_saved_policy_record,
             policy_store=self.policy_store,
-            device=self.device,
-            vectorization=self.cfg.vectorization,
-            replay_dir=self.trainer_cfg.simulation.replay_dir,
+            stats_client=self._stats_client,
+            logger=logger,
         )
-        results = replay_simulator.simulate()
+        logger.info("Simulation complete")
+        self.evals = evaluation_results.scores
 
-        if self.wandb_run is not None:
-            key, version = results.stats_db.key_and_version(self.latest_saved_policy_record)
-            replay_urls = results.stats_db.get_replay_urls(key, version)
-            if len(replay_urls) > 0:
-                replay_url = replay_urls[0]
-                player_url = "https://metta-ai.github.io/metta/?replayUrl=" + replay_url
-                link_summary = {
-                    "replays/link": wandb.Html(f'<a href="{player_url}">MetaScope Replay (Epoch {self.epoch})</a>')
-                }
-                self.wandb_run.log(link_summary)
+        # Get target metric (for logging) from sweep config
+        # and write top-level score for policy selection.
+        # In sweep_eval, we use the "score" entry in the policy metadata to select the best policy
+        target_metric = getattr(self.cfg, "sweep", {}).get("metric", "reward")  # fallback to reward
+        category_scores = list(self.evals.category_scores.values())
+        if category_scores and self.latest_saved_policy_record:
+            self.latest_saved_policy_record.metadata["score"] = float(np.mean(category_scores))
+            logger.info(
+                f"Set policy metadata score to "
+                f"{self.latest_saved_policy_record.metadata['score']} using {target_metric} metric"
+            )
+
+        # Generate and upload replay HTML if we have wandb
+        if self.wandb_run is not None and evaluation_results.replay_urls:
+            self._upload_replay_html(evaluation_results.replay_urls)
+
+    def _upload_replay_html(self, replay_urls: dict[str, list[str]]):
+        """Upload replay HTML to wandb"""
+        # Create unified HTML with all replay links on a single line
+        if replay_urls:
+            # Group replays by base name
+            replay_groups = {}
+
+            for sim_name, urls in sorted(replay_urls.items()):
+                if "training_task" in sim_name:
+                    # Training replays
+                    if "training" not in replay_groups:
+                        replay_groups["training"] = []
+                    replay_groups["training"].extend(urls)
+                else:
+                    # Evaluation replays - clean up the display name
+                    display_name = sim_name.replace("eval/", "")
+                    if display_name not in replay_groups:
+                        replay_groups[display_name] = []
+                    replay_groups[display_name].extend(urls)
+
+            # Build HTML with episode numbers
+            links = []
+            for name, urls in replay_groups.items():
+                if len(urls) == 1:
+                    # Single episode - just show the name
+                    player_url = "https://metta-ai.github.io/metta/?replayUrl=" + urls[0]
+                    links.append(f'<a href="{player_url}" target="_blank">{name}</a>')
+                else:
+                    # Multiple episodes - show with numbers
+                    episode_links = []
+                    for i, url in enumerate(urls, 1):
+                        player_url = "https://metta-ai.github.io/metta/?replayUrl=" + url
+                        episode_links.append(f'<a href="{player_url}" target="_blank">{i}</a>')
+                    links.append(f"{name} [{' '.join(episode_links)}]")
+
+            # Join all links with " | " separator and add epoch prefix
+            html_content = f"epoch {self.epoch}: " + " | ".join(links)
+        else:
+            html_content = f"epoch {self.epoch}: No replays available."
+
+        # Log the unified HTML with step parameter for wandb's epoch slider
+        link_summary = {"replays/all_links": wandb.Html(html_content)}
+        self.wandb_run.log(link_summary, step=self.agent_step)
+
+        # Also log individual link for backward compatibility
+        if "eval/training_task" in replay_urls and replay_urls["eval/training_task"]:
+            training_url = replay_urls["eval/training_task"][0]  # Use first URL for backward compatibility
+            player_url = "https://metta-ai.github.io/metta/?replayUrl=" + training_url
+            link_summary = {
+                "replays/link": wandb.Html(f'<a href="{player_url}">MetaScope Replay (Epoch {self.epoch})</a>')
+            }
+            self.wandb_run.log(link_summary, step=self.agent_step)
 
     @with_instance_timer("_process_stats")
     def _process_stats(self):

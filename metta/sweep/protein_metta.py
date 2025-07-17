@@ -16,16 +16,24 @@ class MettaProtein(WandbProtein):
         cfg: DictConfig,
         wandb_run=None,
     ):
-        parameters_dict = OmegaConf.to_container(cfg.parameters, resolve=True)
+        # Convert parameters to container
+        parameters = OmegaConf.to_container(cfg.parameters, resolve=True)
 
+        # Create sweep_config with parameters and required fields
+        sweep_config = {
+            **parameters,
+            "method": cfg.get("method", "bayes"),
+            "metric": cfg.get("metric", "eval/mean_score"),
+            "goal": cfg.get("goal", "maximize"),
+        }
+
+        # Convert protein config to container
+        protein_cfg = OmegaConf.to_container(cfg.protein, resolve=True)
+
+        # Initialize Protein with sweep_config as first arg and protein config as kwargs
         protein = Protein(
-            parameters_dict,
-            cfg.protein.max_suggestion_cost,
-            cfg.protein.resample_frequency,
-            cfg.protein.num_random_samples,
-            cfg.protein.global_search_scale,
-            cfg.protein.random_suggestions,
-            cfg.protein.suggestions_per_pareto,
+            sweep_config,
+            **protein_cfg,
         )
 
         # Initialize WandbProtein with the created Protein instance

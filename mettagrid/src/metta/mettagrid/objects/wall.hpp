@@ -6,7 +6,6 @@
 
 #include "../grid_object.hpp"
 #include "constants.hpp"
-#include "metta_object.hpp"
 
 // #MettagridConfig
 struct WallConfig : public GridObjectConfig {
@@ -16,16 +15,16 @@ struct WallConfig : public GridObjectConfig {
   bool swappable;
 };
 
-class Wall : public MettaObject {
+class Wall : public GridObject {
 public:
   bool _swappable;
 
   Wall(GridCoord r, GridCoord c, const WallConfig& cfg) {
-    GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c, GridLayer::Object_Layer));
+    GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c, GridLayer::ObjectLayer));
     this->_swappable = cfg.swappable;
   }
 
-  virtual vector<PartialObservationToken> obs_features() const override {
+  vector<PartialObservationToken> obs_features() const override {
     vector<PartialObservationToken> features;
     features.reserve(2);
     features.push_back({ObservationFeature::TypeId, static_cast<ObservationType>(this->type_id)});
@@ -38,7 +37,7 @@ public:
     return features;
   }
 
-  virtual bool swappable() const override {
+  bool swappable() const override {
     return this->_swappable;
   }
 };
