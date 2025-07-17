@@ -85,9 +85,7 @@ TEST_P(ObservationPatternParamTest, MatchesReferenceOffsets) {
   int height = GetParam().first;
   int width = GetParam().second;
 
-#if defined(__clang__)
   SCOPED_TRACE("height=" + std::to_string(height) + ", width=" + std::to_string(width));
-#endif
 
   auto expected = compute_sorted_offsets(height, width);
   std::vector<Offset> actual;
@@ -100,10 +98,12 @@ TEST_P(ObservationPatternParamTest, MatchesReferenceOffsets) {
 
 INSTANTIATE_TEST_SUITE_P(PackedCoordinate,
                          ObservationPatternParamTest,
-                         ::testing::Values(std::make_pair(3, 9),  // wide
-                                           std::make_pair(7, 3),  // tall
-                                           std::make_pair(5, 5),  // square
-                                           std::make_pair(1, 1),  // degenerate
-                                           std::make_pair(1, 5),  // row only
-                                           std::make_pair(5, 1))  // column only
-);
+                         ::testing::Values(std::make_pair(3, 9),
+                                           std::make_pair(7, 3),
+                                           std::make_pair(5, 5),
+                                           std::make_pair(1, 1),
+                                           std::make_pair(1, 5),
+                                           std::make_pair(5, 1)),
+                         [](const ::testing::TestParamInfo<std::pair<int, int>>& info) {
+                           return "H" + std::to_string(info.param.first) + "_W" + std::to_string(info.param.second);
+                         });
