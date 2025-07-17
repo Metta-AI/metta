@@ -92,6 +92,14 @@ class PyActionsConfig(BaseModelWithForbidExtra):
     change_glyph: Optional[PyChangeGlyphActionConfig] = None
 
 
+class PyGlobalObsConfig(BaseModelWithForbidExtra):
+    """Global observation configuration."""
+
+    episode_completion_pct: bool = Field(default=True)
+    last_action: bool = Field(default=True)  # Controls both last_action and last_action_arg
+    last_reward: bool = Field(default=True)
+
+
 class PyWallConfig(BaseModelWithForbidExtra):
     """Python wall/block configuration."""
 
@@ -128,4 +136,5 @@ class PyGameConfig(BaseModelWithForbidExtra):
     # Every agent must be in a group, so we need at least one group
     groups: dict[str, PyGroupConfig] = Field(min_length=1)
     actions: PyActionsConfig
+    global_obs: Optional[PyGlobalObsConfig] = Field(default=None)
     objects: dict[str, PyConverterConfig | PyWallConfig]
