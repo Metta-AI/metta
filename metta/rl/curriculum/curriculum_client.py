@@ -10,14 +10,14 @@ import logging
 import queue
 import threading
 import time
-from typing import Any, Dict
 
 import requests
 from omegaconf import DictConfig, OmegaConf
 
-from metta.rl.curriculum.curriculum import Curriculum, Task
+from metta.mettagrid.curriculum.core import Curriculum, Task
 
 logger = logging.getLogger(__name__)
+
 
 class CurriculumClient(Curriculum):
     """Client that fetches curriculum tasks from the server with background prefetching."""
@@ -30,7 +30,7 @@ class CurriculumClient(Curriculum):
         retry_delay: float = 1.0,
         max_retries: int = 5,
         prefetch_threshold: float = 0.5,
-        queue_size: int = 1000
+        queue_size: int = 1000,
     ):
         """
         Initialize the curriculum client.
@@ -61,10 +61,7 @@ class CurriculumClient(Curriculum):
 
     def _start_prefetch_thread(self):
         """Start the background prefetch thread."""
-        self._prefetch_thread = threading.Thread(
-            target=self._prefetch_worker,
-            daemon=True
-        )
+        self._prefetch_thread = threading.Thread(target=self._prefetch_worker, daemon=True)
         self._prefetch_thread.start()
 
     def _prefetch_worker(self):
@@ -77,15 +74,17 @@ class CurriculumClient(Curriculum):
 
                 if queue_size < threshold:
                     with self._prefetch_lock:
-                        # Double-check after acquiring lock
-                        if self._task_queue.qsize() < threshold:
+                        # Double-check after acquiring lock and stop flag
+                        if self._task_queue.qsize() < threshold and not self._stop_prefetch.is_set():
                             self._fetch_tasks()
 
                 # Small sleep to avoid busy waiting
                 time.sleep(0.1)
 
             except Exception as e:
-                logger.error(f"Error in prefetch worker: {e}")
+                # Only log error if we're not stopping
+                if not self._stop_prefetch.is_set():
+                    logger.error(f"Error in prefetch worker: {e}")
                 time.sleep(1)  # Back off on error
 
     def get_task(self) -> Task:
@@ -99,8 +98,8 @@ class CurriculumClient(Curriculum):
         try:
             # Get task from queue with timeout
             return self._task_queue.get(timeout=5.0)
-        except queue.Empty:
-            raise RuntimeError("Failed to get task from queue - server may be down")
+        except queue.Empty as e:
+            raise RuntimeError("Failed to get task from queue - server may be down") from e
 
     def _fetch_tasks(self) -> None:
         """Fetch a batch of tasks from the server and add to queue."""
@@ -109,11 +108,7 @@ class CurriculumClient(Curriculum):
 
         for attempt in range(self.max_retries):
             try:
-                response = self._session.get(
-                    url,
-                    params=params,
-                    timeout=self.timeout
-                )
+                response = self._session.get(url, params=params, timeout=self.timeout)
                 response.raise_for_status()
 
                 data = response.json()
@@ -130,10 +125,7 @@ class CurriculumClient(Curriculum):
                 # Add tasks to queue
                 tasks_added = 0
                 for task_data in data["tasks"]:
-                    task = Task(
-                        name=task_data["name"],
-                        env_cfg=OmegaConf.create(task_data["env_cfg"])
-                    )
+                    task = Task(task_data["name"], self, OmegaConf.create(task_data["env_cfg"]))
                     try:
                         self._task_queue.put_nowait(task)
                         tasks_added += 1
@@ -150,11 +142,18 @@ class CurriculumClient(Curriculum):
                         raise RuntimeError("Queue is full and cannot add new tasks")
 
             except requests.exceptions.RequestException as e:
+                # Check if we're stopping before logging/retrying
+                if self._stop_prefetch.is_set():
+                    return
                 logger.warning(f"Failed to fetch tasks (attempt {attempt + 1}/{self.max_retries}): {e}")
                 if attempt < self.max_retries - 1:
                     time.sleep(self.retry_delay)
                 else:
                     raise RuntimeError(f"Failed to fetch tasks after {self.max_retries} attempts") from e
+
+    def get_curriculum_stats(self) -> dict:
+        """Return empty stats - all stats are managed by the server."""
+        return {}
 
     def stop(self):
         """Stop the background prefetch thread."""
@@ -167,6 +166,6 @@ class CurriculumClient(Curriculum):
     @staticmethod
     def create(trainer_cfg: DictConfig) -> "CurriculumClient":
         return CurriculumClient(
-            server_url=f"http://{trainer_cfg.trainer.curriculum_server.host}:{trainer_cfg.trainer.curriculum_server.port}",
-            batch_size=trainer_cfg.trainer.curriculum_server.batch_size,
+            server_url=f"http://{trainer_cfg.curriculum_server.host}:{trainer_cfg.curriculum_server.port}",
+            batch_size=trainer_cfg.curriculum_server.batch_size,
         )

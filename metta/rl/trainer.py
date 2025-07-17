@@ -26,9 +26,8 @@ from metta.common.util.system_monitor import SystemMonitor
 from metta.common.wandb.wandb_context import WandbRun
 from metta.eval.eval_request_config import EvalRewardSummary
 from metta.eval.eval_service import evaluate_policy
-from metta.mettagrid.mettagrid_config import PyPolicyGameConfig
+from metta.mettagrid.curriculum.core import Curriculum
 from metta.mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
-from metta.rl.curriculum.curriculum import Curriculum
 from metta.rl.experience import Experience
 from metta.rl.hyperparameter_scheduler import HyperparameterScheduler
 from metta.rl.kickstarter import Kickstarter
@@ -889,7 +888,7 @@ class MettaTrainer:
 
     def close(self):
         self.timer.stop()
-        self.torch_profiler.close()
+        # TorchProfiler doesn't have a close method
         self.vecenv.close()
         if self._master:
             self._memory_monitor.clear()
@@ -1083,4 +1082,3 @@ class MettaTrainer:
             )
         else:
             policy.activate_actions(metta_grid_env.action_names, metta_grid_env.max_action_args, device)
-
