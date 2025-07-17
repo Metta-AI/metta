@@ -40,7 +40,12 @@ MettaGrid::MettaGrid(const GameConfig& cfg, py::list map, unsigned int seed)
       obs_height(cfg.obs_height),
       inventory_item_names(cfg.inventory_item_names),
       _num_observation_tokens(cfg.num_observation_tokens),
-      _global_obs_config(cfg.global_obs) {
+<<<<<<< HEAD
+      _global_obs_config(cfg.global_obs),
+=======
+      _game_rewards_obs(cfg.global_obs_game_rewards),
+>>>>>>> 943b738 (refactor: rename _global_obs_game_rewards to _game_rewards_obs and extract helper method)
+      _packed_game_rewards(0) {
   _seed = seed;
   _rng = std::mt19937(seed);
 
@@ -202,6 +207,59 @@ MettaGrid::MettaGrid(const GameConfig& cfg, py::list map, unsigned int seed)
   // Use wyhash for deterministic, high-performance grid fingerprinting across platforms
   initial_grid_hash = wyhash::hash_string(grid_hash_data);
 
+  // Compute packed game rewards if enabled
+<<<<<<< HEAD
+  if (_global_obs_config.game_rewards && !_agents.empty()) {
+    // Extract rewards for ore, battery, laser, armor
+    // We need to find the inventory item indices for these resources
+    int ore_idx = -1, battery_idx = -1, laser_idx = -1, armor_idx = -1;
+    
+    // Find ore (any ore type)
+    for (size_t i = 0; i < inventory_item_names.size(); i++) {
+      if (inventory_item_names[i].find("ore") != std::string::npos && ore_idx == -1) {
+        ore_idx = i;
+      } else if (inventory_item_names[i].find("battery") != std::string::npos && battery_idx == -1) {
+        battery_idx = i;
+      } else if (inventory_item_names[i] == "laser") {
+        laser_idx = i;
+      } else if (inventory_item_names[i] == "armor") {
+        armor_idx = i;
+      }
+    }
+    
+    // Get the first agent's resource rewards as representative
+    auto& first_agent = _agents[0];
+    
+    // Pack rewards into byte: 2 bits each for ore, battery, laser, armor
+    // Values are quantized to 0-3 range
+    uint8_t packed = 0;
+    
+    auto quantize_reward = [](float reward) -> uint8_t {
+      if (reward <= 0) return 0;
+      if (reward <= 0.5f) return 1;
+      if (reward <= 1.0f) return 2;
+      return 3;
+    };
+    
+    if (ore_idx >= 0 && first_agent->resource_rewards.count(ore_idx)) {
+      packed |= (quantize_reward(first_agent->resource_rewards[ore_idx]) & 0x3) << 6;
+    }
+    if (battery_idx >= 0 && first_agent->resource_rewards.count(battery_idx)) {
+      packed |= (quantize_reward(first_agent->resource_rewards[battery_idx]) & 0x3) << 4;
+    }
+    if (laser_idx >= 0 && first_agent->resource_rewards.count(laser_idx)) {
+      packed |= (quantize_reward(first_agent->resource_rewards[laser_idx]) & 0x3) << 2;
+    }
+    if (armor_idx >= 0 && first_agent->resource_rewards.count(armor_idx)) {
+      packed |= (quantize_reward(first_agent->resource_rewards[armor_idx]) & 0x3);
+    }
+    
+    _packed_game_rewards = packed;
+  }
+=======
+  _compute_game_rewards();
+>>>>>>> 943b738 (refactor: rename _global_obs_game_rewards to _game_rewards_obs and extract helper method)
+
   // Initialize buffers. The buffers are likely to be re-set by the user anyways,
   // so nothing above should depend on them before this point.
   std::vector<ssize_t> shape;
@@ -240,6 +298,58 @@ void MettaGrid::init_action_handlers() {
 void MettaGrid::add_agent(Agent* agent) {
   agent->init(&_rewards.mutable_unchecked<1>()(_agents.size()));
   _agents.push_back(agent);
+}
+
+void MettaGrid::_compute_game_rewards() {
+  if (!_game_rewards_obs) {
+    return;
+  }
+
+  // Extract rewards for ore, battery, laser, armor
+  // We need to find the inventory item indices for these resources
+  int ore_idx = -1, battery_idx = -1, laser_idx = -1, armor_idx = -1;
+
+  // Find ore (any ore type)
+  for (size_t i = 0; i < inventory_item_names.size(); i++) {
+    if (inventory_item_names[i].find("ore") != std::string::npos && ore_idx == -1) {
+      ore_idx = i;
+    } else if (inventory_item_names[i].find("battery") != std::string::npos && battery_idx == -1) {
+      battery_idx = i;
+    } else if (inventory_item_names[i] == "laser") {
+      laser_idx = i;
+    } else if (inventory_item_names[i] == "armor") {
+      armor_idx = i;
+    }
+  }
+
+  // Get the first agent's resource rewards as representative
+  auto& first_agent = _agents[0];
+
+  // Pack rewards into byte: 2 bits each for ore, battery, laser, armor
+  // Values are quantized to 0-3 range
+  uint8_t packed = 0;
+
+  auto quantize_reward = [](float reward) -> uint8_t {
+    if (reward <= 0) return 0;
+    if (reward <= 0.5f) return 1;
+    if (reward <= 1.0f) return 2;
+    return 3;
+  };
+
+  if (ore_idx >= 0 && first_agent->resource_rewards.count(ore_idx)) {
+    packed |= (quantize_reward(first_agent->resource_rewards[ore_idx]) & 0x3) << 6;
+  }
+  if (battery_idx >= 0 && first_agent->resource_rewards.count(battery_idx)) {
+    packed |= (quantize_reward(first_agent->resource_rewards[battery_idx]) & 0x3) << 4;
+  }
+  if (laser_idx >= 0 && first_agent->resource_rewards.count(laser_idx)) {
+    packed |= (quantize_reward(first_agent->resource_rewards[laser_idx]) & 0x3) << 2;
+  }
+  if (armor_idx >= 0 && first_agent->resource_rewards.count(armor_idx)) {
+    packed |= (quantize_reward(first_agent->resource_rewards[armor_idx]) & 0x3);
+  }
+
+  _packed_game_rewards = packed;
 }
 
 void MettaGrid::_compute_observation(GridCoord observer_row,
@@ -290,6 +400,15 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
   if (_global_obs_config.last_reward) {
     ObservationType reward_int = static_cast<ObservationType>(std::round(rewards_view(agent_idx) * 100.0f));
     global_tokens.push_back({ObservationFeature::LastReward, reward_int});
+  }
+
+  // Add game rewards token if enabled
+<<<<<<< HEAD
+  if (_global_obs_config.game_rewards) {
+=======
+  if (_game_rewards_obs) {
+>>>>>>> 943b738 (refactor: rename _global_obs_game_rewards to _game_rewards_obs and extract helper method)
+    global_tokens.push_back({ObservationFeature::GameRewards, _packed_game_rewards});
   }
 
   // Global tokens are always at the center of the observation.
@@ -933,7 +1052,8 @@ PYBIND11_MODULE(mettagrid_c, m) {
            py::arg("last_reward") = true)
       .def_readwrite("episode_completion_pct", &GlobalObsConfig::episode_completion_pct)
       .def_readwrite("last_action", &GlobalObsConfig::last_action)
-      .def_readwrite("last_reward", &GlobalObsConfig::last_reward);
+      .def_readwrite("last_reward", &GlobalObsConfig::last_reward)
+      .def_readwrite("game_rewards", &GlobalObsConfig::game_rewards);
 
   py::class_<GameConfig>(m, "GameConfig")
       .def(py::init<int,
@@ -945,7 +1065,8 @@ PYBIND11_MODULE(mettagrid_c, m) {
                     unsigned int,
                     const GlobalObsConfig&,
                     const std::map<std::string, std::shared_ptr<ActionConfig>>&,
-                    const std::map<std::string, std::shared_ptr<GridObjectConfig>>&>(),
+                    const std::map<std::string, std::shared_ptr<GridObjectConfig>>&,
+                    bool>(),
            py::arg("num_agents"),
            py::arg("max_steps"),
            py::arg("episode_truncates"),
@@ -955,7 +1076,8 @@ PYBIND11_MODULE(mettagrid_c, m) {
            py::arg("num_observation_tokens"),
            py::arg("global_obs"),
            py::arg("actions"),
-           py::arg("objects"))
+           py::arg("objects"),
+           py::arg("global_obs_game_rewards") = false)
       .def_readwrite("num_agents", &GameConfig::num_agents)
       .def_readwrite("max_steps", &GameConfig::max_steps)
       .def_readwrite("episode_truncates", &GameConfig::episode_truncates)
