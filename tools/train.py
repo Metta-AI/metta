@@ -84,41 +84,49 @@ def train(cfg: DictConfig | ListConfig, wandb_run: WandbRun | None, logger: Logg
     if stats_client is not None:
         stats_client.validate_authenticated()
 
-    # Create curriculum
-    curriculum_config = cfg.trainer.curriculum_or_env
-    env_overrides = DictConfig(cfg.trainer.env_overrides)
-    base_curriculum = curriculum_from_config_path(curriculum_config, env_overrides)
+    # Create curriculum from config
+    curriculum_config = cfg.trainer.get("curriculum") or cfg.trainer.get("env")
+    if not curriculum_config:
+        raise ValueError("Either curriculum or env must be set in trainer config")
+    env_overrides = DictConfig(cfg.trainer.get("env_overrides", {}))
+    curriculum = curriculum_from_config_path(curriculum_config, env_overrides)
     
-    # Set up curriculum server and client if needed
+    # Create curriculum server and client if configured and in distributed training
     curriculum_server = None
-    curriculum_to_use = base_curriculum
-    
     if torch.distributed.is_initialized() and cfg.trainer.get("curriculum_server", {}).get("enabled", False):
-        is_master = torch.distributed.get_rank() == 0
-        curriculum_server_port = cfg.trainer.get("curriculum_server", {}).get("port", 5555)
+        is_master = os.environ.get("RANK", "0") == "0"
         
         if is_master:
-            # Master runs the server and uses the real curriculum
+            # Master process runs the curriculum server
+            curriculum_server_port = cfg.trainer.get("curriculum_server", {}).get("port", 5555)
             curriculum_server = CurriculumServer(
-                base_curriculum, 
+                curriculum, 
                 host="0.0.0.0", 
                 port=curriculum_server_port
             )
             curriculum_server.start(background=True)
             logger.info(f"Started curriculum server on port {curriculum_server_port}")
-            # Master still uses the actual curriculum to log stats
-            curriculum_to_use = base_curriculum
+            
+            # Create client for local use
+            curriculum_client = CurriculumClient(
+                server_url=f"http://localhost:{curriculum_server_port}",
+                batch_size=cfg.trainer.get("curriculum_server", {}).get("batch_size", 100),
+            )
+            # Replace the curriculum with the client
+            curriculum = curriculum_client
         else:
-            # Non-master ranks use curriculum client
+            # Non-master ranks connect to master's server
             master_addr = os.environ.get("MASTER_ADDR", "localhost")
+            curriculum_server_port = cfg.trainer.get("curriculum_server", {}).get("port", 5555)
             curriculum_client = CurriculumClient(
                 server_url=f"http://{master_addr}:{curriculum_server_port}",
                 batch_size=cfg.trainer.get("curriculum_server", {}).get("batch_size", 100),
             )
             logger.info(f"Created curriculum client connecting to http://{master_addr}:{curriculum_server_port}")
-            curriculum_to_use = curriculum_client
+            # Replace the curriculum with the client
+            curriculum = curriculum_client
 
-    # Instantiate the trainer with the curriculum
+    # Instantiate the trainer directly with the typed config
     trainer = hydra.utils.instantiate(
         cfg.trainer,
         cfg,
@@ -126,7 +134,7 @@ def train(cfg: DictConfig | ListConfig, wandb_run: WandbRun | None, logger: Logg
         policy_store=policy_store,
         sim_suite_config=train_job.evals,
         stats_client=stats_client,
-        curriculum=curriculum_to_use,
+        curriculum=curriculum,  # Pass curriculum to trainer
     )
     
     try:
