@@ -67,6 +67,7 @@ MettaGrid::MettaGrid(const GameConfig& cfg, py::list map, unsigned int seed)
   _event_manager = std::make_unique<EventManager>();
   _stats = std::make_unique<StatsTracker>();
   _stats->set_environment(this);
+  _stats->set_track_exploration(cfg.track_exploration, num_agents);
 
   _event_manager->init(_grid.get());
   _event_manager->event_handlers.insert(
@@ -307,6 +308,10 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
         int c = static_cast<int>(observer_col) + c_offset;
         // c could still be outside of our bounds.
         if (c < c_start || c >= c_end) continue;
+
+        // Track this pixel for exploration
+        uint16_t pixel_coord = (static_cast<uint16_t>(r) << 8) | static_cast<uint16_t>(c);
+        _stats->track_pixel(agent_idx, pixel_coord);
 
         for (unsigned int layer = 0; layer < GridLayer::GridLayerCount; layer++) {
           GridLocation object_loc(r, c, layer);
@@ -656,8 +661,20 @@ py::dict MettaGrid::get_episode_stats() {
   stats["game"] = py::cast(_stats->to_dict());
 
   py::list agent_stats;
-  for (const auto& agent : _agents) {
-    agent_stats.append(py::cast(agent->stats.to_dict()));
+  for (size_t i = 0; i < _agents.size(); i++) {
+    auto& agent = _agents[i];
+    // Only use the agent's own stats dict, do not add exploration_rate unless tracking is enabled
+    py::dict agent_stat = py::cast(agent->stats.to_dict());
+    if (_stats->_track_exploration) {
+      float exploration_rate = _stats->get_exploration_rate(i);
+      agent_stat["exploration_rate"] = exploration_rate;
+    } else {
+      // Remove exploration_rate if present (should not be, but for safety)
+      if (agent_stat.contains("exploration_rate")) {
+        agent_stat.attr("pop")("exploration_rate");
+      }
+    }
+    agent_stats.append(agent_stat);
   }
   stats["agent"] = agent_stats;
 
@@ -922,7 +939,8 @@ PYBIND11_MODULE(mettagrid_c, m) {
                     const std::vector<std::string>&,
                     unsigned int,
                     const std::map<std::string, std::shared_ptr<ActionConfig>>&,
-                    const std::map<std::string, std::shared_ptr<GridObjectConfig>>&>(),
+                    const std::map<std::string, std::shared_ptr<GridObjectConfig>>&,
+                    bool>(),
            py::arg("num_agents"),
            py::arg("max_steps"),
            py::arg("episode_truncates"),
@@ -931,14 +949,16 @@ PYBIND11_MODULE(mettagrid_c, m) {
            py::arg("inventory_item_names"),
            py::arg("num_observation_tokens"),
            py::arg("actions"),
-           py::arg("objects"))
+           py::arg("objects"),
+           py::arg("track_exploration") = false)
       .def_readwrite("num_agents", &GameConfig::num_agents)
       .def_readwrite("max_steps", &GameConfig::max_steps)
       .def_readwrite("episode_truncates", &GameConfig::episode_truncates)
       .def_readwrite("obs_width", &GameConfig::obs_width)
       .def_readwrite("obs_height", &GameConfig::obs_height)
       .def_readwrite("inventory_item_names", &GameConfig::inventory_item_names)
-      .def_readwrite("num_observation_tokens", &GameConfig::num_observation_tokens);
+      .def_readwrite("num_observation_tokens", &GameConfig::num_observation_tokens)
+      .def_readwrite("track_exploration", &GameConfig::track_exploration);
   // We don't expose these since they're copied on read, and this means that mutations
   // to the dictionaries don't impact the underlying cpp objects. This is confusing!
   // This can be fixed, but until we do that, we're not exposing these.

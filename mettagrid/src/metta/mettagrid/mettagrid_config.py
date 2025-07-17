@@ -129,3 +129,4 @@ class PyGameConfig(BaseModelWithForbidExtra):
     groups: dict[str, PyGroupConfig] = Field(min_length=1)
     actions: PyActionsConfig
     objects: dict[str, PyConverterConfig | PyWallConfig]
+    track_exploration: bool = Field(default=False)

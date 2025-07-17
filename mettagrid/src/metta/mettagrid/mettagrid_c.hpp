@@ -53,6 +53,7 @@ struct GameConfig {
   unsigned int num_observation_tokens;
   std::map<std::string, std::shared_ptr<ActionConfig>> actions;
   std::map<std::string, std::shared_ptr<GridObjectConfig>> objects;
+  bool track_exploration;
 };
 
 class METTAGRID_API MettaGrid {

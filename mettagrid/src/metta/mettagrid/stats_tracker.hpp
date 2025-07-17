@@ -5,6 +5,8 @@
 #include <stdexcept>
 #include <string>
 #include <variant>
+#include <unordered_set>
+#include <vector>
 
 // Forward declaration
 class MettaGrid;
@@ -20,6 +22,10 @@ private:
   std::map<std::string, float> _max_value;
   std::map<std::string, unsigned int> _update_count;
   MettaGrid* _env;
+
+  // Exploration tracking
+  std::vector<std::unordered_set<uint16_t>> _agent_explored_pixels;
+  bool _track_exploration;
 
   // Track timing for any update
   void track_timing(const std::string& key) {
@@ -56,10 +62,42 @@ private:
 public:
   inline static const std::string NO_ENV_INVENTORY_ITEM_NAME = "[unknown -- stats tracker not initialized]";
 
-  StatsTracker() : _env(nullptr) {}
+  StatsTracker() : _env(nullptr), _track_exploration(false) {}
 
   void set_environment(MettaGrid* env) {
     _env = env;
+  }
+
+  void set_track_exploration(bool track, size_t num_agents) {
+    _track_exploration = track;
+    if (track) {
+      _agent_explored_pixels.resize(num_agents);
+    } else {
+      _agent_explored_pixels.clear();
+    }
+  }
+
+  void track_pixel(size_t agent_idx, uint16_t pixel_coord) {
+    if (_track_exploration && agent_idx < _agent_explored_pixels.size()) {
+      _agent_explored_pixels[agent_idx].insert(pixel_coord);
+    }
+  }
+
+  float get_exploration_rate(size_t agent_idx) const {
+    if (!_track_exploration || agent_idx >= _agent_explored_pixels.size()) {
+      return 0.0f;
+    }
+
+    unsigned int steps = get_current_step();
+    if (steps == 0) return 0.0f;
+
+    return static_cast<float>(_agent_explored_pixels[agent_idx].size()) / steps;
+  }
+
+  void reset_exploration() {
+    for (auto& agent_pixels : _agent_explored_pixels) {
+      agent_pixels.clear();
+    }
   }
 
   const std::string& inventory_item_name(InventoryItem item) const;
@@ -146,6 +184,7 @@ public:
     _min_value.clear();
     _max_value.clear();
     _update_count.clear();
+    reset_exploration();
   }
 };
 
