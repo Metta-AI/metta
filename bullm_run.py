@@ -21,6 +21,7 @@ from metta.api import (
     setup_run_directories,
     wrap_agent_distributed,
 )
+from metta.api.directories import RunDirectories
 from metta.common.profiling.memory_monitor import MemoryMonitor
 from metta.common.profiling.stopwatch import Stopwatch
 from metta.common.util.heartbeat import record_heartbeat
@@ -72,10 +73,24 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(levelna
 logger = logging.getLogger(__name__)
 
 # Define run name in a single place
-RUN_NAME = "bullm_arena_functional_runpy_v3_stable"
+RUN_NAME = os.environ.get("RUN_NAME", "bullm_arena_functional_runpy_v3_stable")
 
 # Set up directories and distributed training
-dirs = setup_run_directories()
+# Use RUN_DIR environment variable if available, otherwise use default setup
+run_dir_env = os.environ.get("RUN_DIR")
+if run_dir_env:
+    # Use the provided run directory
+    dirs = RunDirectories(
+        run_dir=run_dir_env,
+        checkpoint_dir=os.path.join(run_dir_env, "checkpoints"),
+        replay_dir=os.path.join(run_dir_env, "replays"),
+        stats_dir=os.path.join(run_dir_env, "stats"),
+        run_name=RUN_NAME,
+    )
+else:
+    # Use default directory setup
+    dirs = setup_run_directories()
+
 device, is_master, world_size, rank = setup_distributed_training("cuda" if torch.cuda.is_available() else "cpu")
 
 # Configuration using individual component configs

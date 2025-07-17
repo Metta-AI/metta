@@ -51,15 +51,15 @@ def run_functional_training(run_name: str, run_dir: str, group: str) -> Tuple[su
     with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as tmp_file:
         with open("bullm_run.py", "r") as f:
             content = f.read()
-        # Patch run name
-        content = content.replace('RUN_NAME = "bullm_arena_functional_runpy_v3_stable"', f'RUN_NAME = "{run_name}"')
         tmp_file.write(content)
         tmp_file_path = tmp_file.name
     try:
-        # Set environment variables for W&B project and group
+        # Set environment variables for W&B project and group, and run name
         env = os.environ.copy()
         env["WANDB_PROJECT"] = "comparision_trainer"
         env["WANDB_GROUP"] = group
+        env["RUN_NAME"] = run_name
+        env["RUN_DIR"] = run_dir
 
         cmd = [sys.executable, tmp_file_path]
         process = subprocess.Popen(
