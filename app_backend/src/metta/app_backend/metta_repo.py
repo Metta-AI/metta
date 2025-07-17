@@ -952,9 +952,10 @@ class MettaRepo:
         async with self.connect() as con:
             result = await con.execute(
                 """
-                SELECT id, policy_id, sim_suite, status, assigned_at,
-                       assignee, created_at, attributes
-                FROM eval_tasks
+                SELECT et.id, et.policy_id, et.sim_suite, et.status, et.assigned_at,
+                       et.assignee, et.created_at, et.attributes, p.name
+                FROM eval_tasks et
+                JOIN policies p ON et.policy_id = p.id
                 WHERE id = %s
                 """,
                 (task_id,),
@@ -971,6 +972,7 @@ class MettaRepo:
                 "assignee": row[5],
                 "created_at": row[6],
                 "attributes": row[7],
+                "policy_name": row[8],
             }
 
     async def update_task_statuses(

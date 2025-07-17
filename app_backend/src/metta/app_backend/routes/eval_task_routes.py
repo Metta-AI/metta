@@ -52,6 +52,7 @@ class TaskResponse(BaseModel):
     assignee: str | None = None
     created_at: datetime
     attributes: dict[str, Any]
+    policy_name: str | None = None
 
     def _attribute_property(self, key: str) -> Any | None:
         return self.attributes.get(key)
@@ -84,6 +85,7 @@ class TaskResponse(BaseModel):
             assignee=task["assignee"],
             created_at=created_at,
             attributes=task["attributes"] or {},
+            policy_name=task.get("policy_name"),
         )
 
 

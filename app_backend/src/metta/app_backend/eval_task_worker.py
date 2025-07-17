@@ -19,6 +19,7 @@ from datetime import datetime
 
 from metta.app_backend.eval_task_client import EvalTaskClient
 from metta.app_backend.routes.eval_task_routes import (
+    TaskResponse,
     TaskStatus,
     TaskStatusUpdate,
     TaskUpdateRequest,
@@ -43,6 +44,8 @@ class EvalWorker:
         await self._client.close()
 
     def _checkout_git_hash(self) -> None:
+        # TODO: need to check out at the start. Should send two commands to the docker image: one to checkout,
+        # and the second to do this .run(). All .run() should do is confirm it's on the right git hash
         self._logger.info(f"Checking out git hash: {self._git_hash}")
         result = subprocess.run(
             ["git", "checkout", self._git_hash],
@@ -53,26 +56,23 @@ class EvalWorker:
             raise RuntimeError(f"Failed to checkout git hash {self._git_hash}: {result.stderr}")
         self._logger.info(f"Successfully checked out git hash: {self._git_hash}")
 
-    def _run_sim_task(
+    async def _run_sim_task(
         self,
-        policy_id: str,
+        task_id: uuid.UUID,
         sim_suite: str,
-        eval_task_id: str,
         env_overrides: dict,
     ) -> None:
-        if policy_id.startswith("wandb://") or policy_id.startswith("file://"):
-            policy_uri = policy_id
-        else:
-            policy_uri = f"wandb://metta-research/metta/{policy_id}:latest"
-
+        detailed_task = await self._client.get_task_by_id(str(task_id))
+        policy_name = detailed_task.policy_name
+        if not policy_name:
+            raise RuntimeError(f"Policy name not found for task {task_id}")
         cmd = [
             "uv",
             "run",
             "tools/sim.py",
-            f"policy_uri={policy_uri}",
+            f"policy_uri={policy_name}",
             f"sim={sim_suite}",
-            f"eval_task_id={eval_task_id}",
-            f"run=eval_task_{eval_task_id[:8]}",
+            f"eval_task_id={str(task_id)}",
         ]
 
         for key, value in env_overrides.items():
@@ -86,14 +86,6 @@ class EvalWorker:
             raise RuntimeError(f"sim.py failed with exit code {result.returncode}:\n{result.stderr}")
 
         self._logger.info("Simulation completed successfully")
-
-    async def _get_claimed_tasks(self) -> list:
-        try:
-            response = await self._client.get_claimed_tasks(assignee=self._assignee)
-            return response.tasks
-        except Exception as e:
-            self._logger.warning(f"Failed to get claimed tasks: {e}")
-            return []
 
     async def _update_task_status(
         self,
@@ -121,6 +113,8 @@ class EvalWorker:
         self._logger.info(f"Backend URL: {self._backend_url}")
         self._logger.info(f"Assignee: {self._assignee}")
 
+        # TODO: need to check out at the start. Should send two commands to the docker image: one to checkout,
+        # and the second to do this .run(). All .run() should do is confirm it's on the right git hash
         try:
             self._checkout_git_hash()
         except Exception as e:
@@ -130,17 +124,16 @@ class EvalWorker:
         while True:
             loop_start_time = datetime.now()
             try:
-                claimed_tasks = await self._get_claimed_tasks()
+                claimed_tasks = await self._client.get_claimed_tasks(assignee=self._assignee)
 
-                if claimed_tasks:
-                    task = claimed_tasks[0]
+                if claimed_tasks.tasks:
+                    task: TaskResponse = min(claimed_tasks.tasks, key=lambda x: x.assigned_at or datetime.min)
                     self._logger.info(f"Processing task {task.id}")
 
                     try:
-                        self._run_sim_task(
-                            str(task.policy_id),
+                        await self._run_sim_task(
+                            task.id,
                             task.sim_suite,
-                            str(task.id),
                             task.attributes.get("env_overrides", {}),
                         )
 
