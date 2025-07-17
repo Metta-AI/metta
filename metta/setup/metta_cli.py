@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 
 from metta.setup.config import CURRENT_CONFIG_VERSION, SetupConfig, UserType
+from metta.setup.local_commands import LocalCommands
 from metta.setup.registry import get_all_modules, get_applicable_modules
 from metta.setup.symlink_setup import PathSetup
 from metta.setup.utils import error, header, import_all_modules_from_subpackage, info, success, warning
@@ -19,6 +20,7 @@ class MettaCLI:
         self.repo_root: Path = Path(__file__).parent.parent.parent
         self.config: SetupConfig = SetupConfig()
         self.path_setup: PathSetup = PathSetup(self.repo_root)
+        self.local_commands: LocalCommands = LocalCommands(self.repo_root)
 
     def setup_wizard(self) -> None:
         header("Welcome to Metta!\n\n")
@@ -209,6 +211,18 @@ class MettaCLI:
 
     def cmd_shell(self) -> None:
         subprocess.run(["uv", "run", "metta/setup/shell.py"], cwd=self.repo_root, check=True)
+
+    def cmd_local(self, args) -> None:
+        """Handle local development commands."""
+        if hasattr(args, "local_command") and args.local_command:
+            if args.local_command == "build-docker-img":
+                self.local_commands.build_docker_img(args)
+            else:
+                error(f"Unknown local command: {args.local_command}")
+                sys.exit(1)
+        else:
+            # Show help for local subcommand
+            args.local_parser.print_help()
 
     def cmd_lint(self, args) -> None:
         files = []
@@ -466,6 +480,16 @@ Examples:
         # Shell command
         subparsers.add_parser("shell", help="Start an IPython shell with Metta imports")
 
+        # Local command
+        local_parser = subparsers.add_parser("local", help="Local development commands")
+        local_subparsers = local_parser.add_subparsers(dest="local_command", help="Available local commands")
+
+        # Local subcommands
+        local_subparsers.add_parser("build-docker-img", help="Build local development Docker image")
+
+        # Store local_parser for help display
+        local_parser.set_defaults(local_parser=local_parser)
+
         # Use parse_known_args to handle unknown arguments for test commands
         args, unknown_args = parser.parse_known_args()
 
@@ -480,8 +504,8 @@ Examples:
             return
 
         # Check if configuration is required for this command
-        # Allow configure and symlink-setup to run without config
-        if args.command not in ["configure", "symlink-setup"]:
+        # Allow configure, symlink-setup, and local to run without config
+        if args.command not in ["configure", "symlink-setup", "local"]:
             if not self.config.config_path.exists():
                 error("No configuration found. Please run 'metta configure' first.")
                 sys.exit(1)
@@ -512,6 +536,8 @@ Examples:
             self.cmd_lint(args)
         elif args.command == "shell":
             self.cmd_shell()
+        elif args.command == "local":
+            self.cmd_local(args)
         else:
             parser.print_help()
 
