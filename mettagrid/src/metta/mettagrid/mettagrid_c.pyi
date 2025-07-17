@@ -108,10 +108,12 @@ class GlobalObsConfig:
         episode_completion_pct: bool = True,
         last_action: bool = True,
         last_reward: bool = True,
+        game_rewards: bool = False,
     ): ...
     episode_completion_pct: bool
     last_action: bool
     last_reward: bool
+    game_rewards: bool
 
 class GameConfig:
     def __init__(
