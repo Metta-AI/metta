@@ -46,16 +46,19 @@ def create_stats_reward_test_env(max_steps=50, num_agents=NUM_AGENTS):
             "attack": {"enabled": True, "consumed_resources": {"laser": 1}, "defense_resources": {"armor": 1}},
         },
         "groups": {
-            "red": {"id": 0, "props": {
-                "rewards": {
-                    "inventory": {},  # No inventory rewards
-                    "stats": {
-                        "action.move.success": 0.1,  # 0.1 reward per successful move
-                        "action.attack.success": 1.0,  # 1.0 reward per successful attack
-                        "action.attack.success_max": 5.0,  # Max 5.0 total reward from attacks
-                    },
-                }
-            }},
+            "red": {
+                "id": 0,
+                "props": {
+                    "rewards": {
+                        "inventory": {},  # No inventory rewards
+                        "stats": {
+                            "action.move.success": 0.1,  # 0.1 reward per successful move
+                            "action.attack.success": 1.0,  # 1.0 reward per successful attack
+                            "action.attack.success_max": 5.0,  # Max 5.0 total reward from attacks
+                        },
+                    }
+                },
+            },
             "blue": {"id": 1, "props": {}},
         },
         "objects": {
@@ -87,10 +90,10 @@ class TestStatsRewards:
 
         # Agent should get 0.1 reward per successful move
         actions = np.array([[move_idx, 0]], dtype=np.int32)  # Move forward
-        
+
         # Execute move
         obs, rewards, terminals, truncations, info = env.step(actions)
-        
+
         # Check that we got the movement reward
         assert rewards[0] == pytest.approx(0.1), f"Expected 0.1 reward for move, got {rewards[0]}"
 
@@ -107,21 +110,21 @@ class TestStatsRewards:
         # Do several moves to accumulate move rewards
         total_reward = 0.0
         successful_moves = 0
-        
+
         # Move down
         env.step(np.array([[rotate_idx, 1]], dtype=np.int32))  # Face down
         _, rewards, _, _, _ = env.step(np.array([[move_idx, 0]], dtype=np.int32))
         if rewards[0] > 0:
             successful_moves += 1
             total_reward += rewards[0]
-        
+
         # Move right
         env.step(np.array([[rotate_idx, 2]], dtype=np.int32))  # Face right
         _, rewards, _, _, _ = env.step(np.array([[move_idx, 0]], dtype=np.int32))
         if rewards[0] > 0:
             successful_moves += 1
             total_reward += rewards[0]
-        
+
         # Move left
         env.step(np.array([[rotate_idx, 3]], dtype=np.int32))  # Face left
         _, rewards, _, _, _ = env.step(np.array([[move_idx, 0]], dtype=np.int32))
@@ -133,7 +136,9 @@ class TestStatsRewards:
         assert successful_moves >= 2, f"Expected at least 2 successful moves, got {successful_moves}"
         # Each successful move gives 0.1 reward
         expected_reward = successful_moves * 0.1
-        assert total_reward == pytest.approx(expected_reward), f"Expected {expected_reward} total reward from {successful_moves} moves, got {total_reward}"
+        assert total_reward == pytest.approx(expected_reward), (
+            f"Expected {expected_reward} total reward from {successful_moves} moves, got {total_reward}"
+        )
 
 
 if __name__ == "__main__":

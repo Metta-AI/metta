@@ -154,11 +154,11 @@ public:
 
     float new_stat_reward = 0;
     auto stat_dict = this->stats.to_dict();
-    
+
     for (const auto& [stat_name, reward_per_unit] : this->stat_rewards) {
       if (stat_dict.count(stat_name) > 0) {
         float stat_value = stat_dict[stat_name];
-        
+
         // Apply max limit if configured
         if (this->stat_reward_max.count(stat_name) > 0) {
           float max_reward = this->stat_reward_max[stat_name];
@@ -167,11 +167,11 @@ public:
             stat_value = max_reward / reward_per_unit;
           }
         }
-        
+
         new_stat_reward += reward_per_unit * stat_value;
       }
     }
-    
+
     // Update the agent's reward with the difference
     float reward_delta = new_stat_reward - this->current_stat_reward;
     if (reward_delta != 0) {
