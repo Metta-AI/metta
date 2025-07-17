@@ -66,6 +66,8 @@ def run_policy_inference(
     Returns:
         Tuple of (actions, selected_action_log_probs, values, lstm_state_to_store)
     """
+
+    # av this LSTM stuff should be a method on the policy. the policy would have to know that it's in rollout mode
     with torch.no_grad():
         state = PolicyState()
         lstm_h, lstm_c = experience.get_lstm_state(training_env_id_start)
@@ -73,7 +75,10 @@ def run_policy_inference(
             state.lstm_h = lstm_h
             state.lstm_c = lstm_c
 
+        # av instead of passing state, we should pass a td of the tensors the policy wants stored in the experience
+        # buffer.
         actions, selected_action_log_probs, _, value, _ = policy(observations, state)
+        # av policy should return a td of the tensors it wants stored in the experience buffer.
 
         if __debug__:
             assert_shape(selected_action_log_probs, ("BT",), "selected_action_log_probs")
@@ -86,7 +91,8 @@ def run_policy_inference(
         if str(device).startswith("cuda"):
             torch.cuda.synchronize()
 
-    return actions, selected_action_log_probs, value.flatten(), lstm_state_to_store
+    return actions, selected_action_log_probs, value.flatten(), lstm_state_to_store # av here we can return the td
+# of tensors the policy wants stored in the experience buffer.
 
 
 def compute_ppo_losses(
@@ -153,6 +159,7 @@ def process_minibatch_update(
     new_logprobs = new_logprobs.reshape(minibatch["logprobs"].shape)
     logratio = new_logprobs - minibatch["logprobs"]
     importance_sampling_ratio = logratio.exp()
+    # av ideally this would call a generic update method using something like "ratio" as the key
     experience.update_ratio(minibatch["indices"], importance_sampling_ratio)
 
     # Re-compute advantages with new ratios (V-trace)

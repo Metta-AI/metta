@@ -67,6 +67,10 @@ class Experience:
         obs_dtype = torch.float32 if obs_space.dtype == np.float32 else torch.uint8
         pin = str(self.device).startswith("cuda") and cpu_offload
 
+        # av move preallocation to a method. it should preallocate the usual stuff for RL plus accept a dict
+        # of tensors to preallocate, delivered to it by the policy.
+        # There should also be a method to update just the policy tensors that change (leaving the RL tensors alone)
+        # for speed
         # Create segmented tensor storage
         self.obs = torch.zeros(
             self.segments,
@@ -94,6 +98,7 @@ class Experience:
         self.ep_indices = torch.arange(total_agents, device=self.device, dtype=torch.int32) % self.segments
         self.free_idx = total_agents % self.segments
 
+        # av move to the agent to create and pass into the preallocate function
         # LSTM state management
         self.lstm_h: Dict[int, Tensor] = {}
         self.lstm_c: Dict[int, Tensor] = {}
@@ -104,6 +109,7 @@ class Experience:
         if agents_per_batch is None:
             agents_per_batch = total_agents
 
+        # av move to the agent to create and pass into the preallocate function
         # Create LSTM states for each batch
         for i in range(0, total_agents, agents_per_batch):
             batch_size = min(agents_per_batch, total_agents - i)
@@ -159,7 +165,7 @@ class Experience:
         values: Tensor,
         env_id: slice,
         mask: Tensor,
-        lstm_state: Optional[Dict[str, Tensor]] = None,
+        lstm_state: Optional[Dict[str, Tensor]] = None, # av swap with **dict
     ) -> int:
         """Store a batch of experience."""
         assert isinstance(env_id, slice), (
@@ -170,6 +176,8 @@ class Experience:
         episode_length = self.ep_lengths[env_id.start].item()
         indices = self.ep_indices[env_id]
 
+        # av perhaps we should change these tensors to be a tensordict with the keys being the names of the tensors
+        # somehow we'd also need to be able to key or index to the batch slice too
         # Store data in segmented tensors
         batch_slice = (indices, episode_length)
         self.obs[batch_slice] = obs
@@ -179,6 +187,7 @@ class Experience:
         self.dones[batch_slice] = dones.float()
         self.truncateds[batch_slice] = truncations.float()
         self.values[batch_slice] = values
+        # av add the policy tensors here, figure out how to asign a good name
 
         # Update episode tracking
         self.ep_lengths[env_id] += 1
@@ -203,12 +212,15 @@ class Experience:
         self.free_idx = (self.free_idx + num_full) % self.segments
         self.full_rows += num_full
 
+    # this'll be complicated: need to have a more abstract method to give the policy its tensors back and let it run
+    # this logic.
     def get_lstm_state(self, env_id_start: int) -> tuple[Optional[Tensor], Optional[Tensor]]:
         """Get LSTM state as tensors."""
         if env_id_start not in self.lstm_h:
             return None, None
         return self.lstm_h[env_id_start], self.lstm_c[env_id_start]
 
+    # av add a generic method to allow the policy to selectively update tensors and with the right env_id
     def set_lstm_state(self, env_id_start: int, lstm_h: Tensor, lstm_c: Tensor) -> None:
         """Set LSTM state."""
         if env_id_start in self.lstm_h:
@@ -248,6 +260,7 @@ class Experience:
         if self.cpu_offload:
             mb_obs = mb_obs.to(self.device, non_blocking=True)
 
+        # av add policy tensors here. Maybe this should take a td from a stacked tensor dict
         return {
             "obs": mb_obs,
             "actions": self.actions[idx],
@@ -262,6 +275,7 @@ class Experience:
             "ratio": self.ratio[idx],
         }
 
+    # if we have a tensordict, we can just do this with the keys and not have specific functions for each tensor
     def update_values(self, indices: Tensor, new_values: Tensor) -> None:
         """Update value estimates for given indices."""
         self.values[indices] = new_values.detach()
