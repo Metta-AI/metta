@@ -1,5 +1,4 @@
 import copy
-from typing import Any
 
 from metta.mettagrid.mettagrid_c import ActionConfig as CppActionConfig
 from metta.mettagrid.mettagrid_c import AgentConfig as CppAgentConfig
@@ -12,7 +11,7 @@ from metta.mettagrid.mettagrid_c import WallConfig as CppWallConfig
 from metta.mettagrid.mettagrid_config import PyConverterConfig, PyGameConfig, PyWallConfig
 
 
-def from_mettagrid_config(mettagrid_config_dict: dict[str, Any]) -> CppGameConfig:
+def convert_to_cpp_game_config(mettagrid_config_dict: dict):
     """Convert a PyGameConfig to a CppGameConfig."""
 
     game_config = PyGameConfig(**mettagrid_config_dict)
@@ -34,6 +33,41 @@ def from_mettagrid_config(mettagrid_config_dict: dict[str, Any]) -> CppGameConfi
         for key, value in group_config.props.model_dump(exclude_unset=True).items():
             agent_group_props[key] = value
 
+        # Extract inventory rewards - handle both old and new format for backward compatibility
+        inventory_rewards = {}
+        inventory_reward_max = {}
+
+        rewards_config = agent_group_props.get("rewards", {})
+        if rewards_config:
+            # Check if we have the new format with 'inventory' key
+            if "inventory" in rewards_config:
+                inventory_rewards_dict = rewards_config.get("inventory", {})
+            else:
+                # Old format - assume all rewards are inventory rewards
+                inventory_rewards_dict = rewards_config
+
+            # Process inventory rewards
+            for k, v in inventory_rewards_dict.items():
+                if v is not None and not k.endswith("_max"):
+                    if k in resource_name_to_id:
+                        inventory_rewards[resource_name_to_id[k]] = v
+                elif k.endswith("_max") and v is not None:
+                    item_name = k[:-4]
+                    if item_name in resource_name_to_id:
+                        inventory_reward_max[resource_name_to_id[item_name]] = v
+
+        # Process stats rewards
+        stat_rewards = {}
+        stat_reward_max = {}
+        stats_rewards_dict = rewards_config.get("stats", {}) if rewards_config else {}
+
+        for k, v in stats_rewards_dict.items():
+            if v is not None and not k.endswith("_max"):
+                stat_rewards[k] = v
+            elif k.endswith("_max") and v is not None:
+                stat_name = k[:-4]
+                stat_reward_max[stat_name] = v
+
         agent_cpp_params = {
             "freeze_duration": agent_group_props["freeze_duration"],
             "group_id": group_config.id,
@@ -43,16 +77,10 @@ def from_mettagrid_config(mettagrid_config_dict: dict[str, Any]) -> CppGameConfi
                 resource_id: agent_group_props["resource_limits"].get(resource_name, default_resource_limit)
                 for resource_id, resource_name in enumerate(resource_names)
             },
-            "resource_rewards": {
-                resource_name_to_id[k]: v
-                for k, v in agent_group_props["rewards"].items()
-                if v is not None and not k.endswith("_max")
-            },
-            "resource_reward_max": {
-                resource_name_to_id[k[:-4]]: v
-                for k, v in agent_group_props["rewards"].items()
-                if k.endswith("_max") and v is not None
-            },
+            "resource_rewards": inventory_rewards,
+            "resource_reward_max": inventory_reward_max,
+            "stat_rewards": stat_rewards,
+            "stat_reward_max": stat_reward_max,
             "group_reward_pct": group_config.group_reward_pct,
             "type_id": 0,
             "type_name": "agent",
@@ -130,3 +158,7 @@ def from_mettagrid_config(mettagrid_config_dict: dict[str, Any]) -> CppGameConfi
     # Note: global_observations configuration is handled through the global_obs parameter
 
     return CppGameConfig(**game_cpp_params)
+
+
+# Alias for backward compatibility
+from_mettagrid_config = convert_to_cpp_game_config

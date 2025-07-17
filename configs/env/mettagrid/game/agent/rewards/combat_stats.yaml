@@ -1,0 +1,42 @@
+# Combat-focused rewards combining inventory and stats tracking
+# This configuration rewards both resource collection and combat performance
+
+inventory:
+  # Standard resource rewards
+  heart: 1
+  heart_max: null
+  
+  # Combat resources
+  laser: 0.2
+  laser_max: 5
+  armor: 0.2
+  armor_max: 5
+  
+  # Resources for crafting combat items
+  ore_red: 0.05
+  ore_red_max: 10
+  battery_red: 0.1
+  battery_red_max: 10
+
+stats:
+  # Combat success metrics
+  action.attack.success: 0.5  # Reward successful attacks
+  action.attack.success_max: 20
+  
+  # Defense metrics
+  action.attack.agent.blocked_by.agent: 0.3  # Reward for blocking attacks
+  
+  # Resource efficiency
+  laser.gained: 0.1  # Additional reward for crafting lasers
+  armor.gained: 0.1  # Additional reward for crafting armor
+  
+  # Penalize friendly fire
+  action.attack.agent.friendly_fire: -1.0
+  
+  # Movement and positioning
+  action.move.success: 0.001  # Small reward for exploration
+  action.rotate.success: 0.0005  # Even smaller for rotation
+  
+  # Resource gathering efficiency
+  action.get_output.success: 0.05
+  action.put_recipe_items.success: 0.05
