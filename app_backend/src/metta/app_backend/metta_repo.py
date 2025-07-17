@@ -966,7 +966,7 @@ class MettaRepo:
 
         return updated
 
-    async def add_episode_tags(self, episode_ids: List[uuid.UUID], tag: str) -> int:
+    async def add_episode_tags(self, episode_ids: list[uuid.UUID], tag: str) -> int:
         """Add a tag to multiple episodes by UUID. Returns number of episodes tagged."""
         if not episode_ids:
             return 0
@@ -986,7 +986,7 @@ class MettaRepo:
                 rows_affected += result.rowcount
             return rows_affected
 
-    async def remove_episode_tags(self, episode_ids: List[uuid.UUID], tag: str) -> int:
+    async def remove_episode_tags(self, episode_ids: list[uuid.UUID], tag: str) -> int:
         """Remove a tag from multiple episodes by UUID. Returns number of episodes untagged."""
         if not episode_ids:
             return 0
@@ -1001,7 +1001,7 @@ class MettaRepo:
             )
             return result.rowcount
 
-    async def get_episode_tags(self, episode_ids: List[uuid.UUID]) -> Dict[str, List[str]]:
+    async def get_episode_tags(self, episode_ids: list[uuid.UUID]) -> dict[str, list[str]]:
         """Get all tags for the given episode UUIDs."""
         if not episode_ids:
             return {}
@@ -1028,7 +1028,7 @@ class MettaRepo:
 
             return tags_by_episode
 
-    async def get_all_episode_tags(self) -> List[str]:
+    async def get_all_episode_tags(self) -> list[str]:
         """Get all distinct tags that exist in the system."""
         async with self.connect() as con:
             result = await con.execute(
