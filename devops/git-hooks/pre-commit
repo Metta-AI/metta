@@ -10,5 +10,10 @@ source "$REPO_ROOT/devops/tools/common.sh"
 
 ensure_uv_setup
 
-# Delegate to metta
-uv run metta run githooks pre-commit
+
+if ! uv run metta run githooks pre-commit; then
+    exit 1
+fi
+
+# No output on success - GitHub Desktop works better with silent success
+exit 0
