@@ -1,4 +1,3 @@
-import json
 import logging
 import os
 import traceback
@@ -31,7 +30,6 @@ from metta.eval.eval_service import evaluate_policy
 from metta.mettagrid.curriculum.util import curriculum_from_config_path
 from metta.mettagrid.mettagrid_config import PyPolicyGameConfig
 from metta.mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
-from metta.mettagrid.util.file import upload_data_as_wandb_file
 from metta.rl.experience import Experience
 from metta.rl.functions import (
     accumulate_rollout_stats,
@@ -240,6 +238,7 @@ class MettaTrainer:
                     torch.distributed.barrier()
 
         logging.info(f"Rank {self._rank}: USING {self.initial_policy_record.uri}")
+
         if self._master:
             logger.info(f"MettaTrainer loaded: {self.policy}")
 
@@ -260,7 +259,6 @@ class MettaTrainer:
             # Ensure all ranks have initialized DDP before proceeding
             torch.distributed.barrier()
 
-        self._maybe_upload_env_configs()
         self._make_experience_buffer()
 
         self._stats_epoch_start = self.epoch
@@ -739,6 +737,18 @@ class MettaTrainer:
         logger.info("Simulation complete")
         self.evals = evaluation_results.scores
 
+        # Get target metric (for logging) from sweep config
+        # and write top-level score for policy selection.
+        # In sweep_eval, we use the "score" entry in the policy metadata to select the best policy
+        target_metric = getattr(self.cfg, "sweep", {}).get("metric", "reward")  # fallback to reward
+        category_scores = list(self.evals.category_scores.values())
+        if category_scores and self.latest_saved_policy_record:
+            self.latest_saved_policy_record.metadata["score"] = float(np.mean(category_scores))
+            logger.info(
+                f"Set policy metadata score to "
+                f"{self.latest_saved_policy_record.metadata['score']} using {target_metric} metric"
+            )
+
         # Generate and upload replay HTML if we have wandb
         if self.wandb_run is not None and evaluation_results.replay_urls:
             self._upload_replay_html(evaluation_results.replay_urls)
@@ -795,17 +805,6 @@ class MettaTrainer:
                 "replays/link": wandb.Html(f'<a href="{player_url}">MetaScope Replay (Epoch {self.epoch})</a>')
             }
             self.wandb_run.log(link_summary, step=self.agent_step)
-
-    def _maybe_upload_env_configs(self):
-        if not self._master or not self.wandb_run:
-            return
-        try:
-            env_configs = {
-                k: OmegaConf.to_container(v, resolve=True) for k, v in self._curriculum.get_env_cfg_by_bucket().items()
-            }
-            upload_data_as_wandb_file(json.dumps(env_configs, indent=2), "env_configs.json", self.wandb_run)
-        except Exception as e:
-            logger.warning(f"Failed to upload env configs to wandb: {e}")
 
     @with_instance_timer("_process_stats")
     def _process_stats(self):
