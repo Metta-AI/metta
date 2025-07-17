@@ -64,7 +64,7 @@ jobs:
           task_url: ${{ steps.ensure-asana-task.outputs.task_url }}
 
       - name: Sync PR Review (GH To Asana)
-        if: github.event_name == 'pull_request_review'
+        if: github.event_name == 'pull_request_review_disabled'
         uses: ./.github/actions/asana/pr_review_gh_to_asana
         with:
           task_url: ${{ steps.ensure-asana-task.outputs.task_url }}
