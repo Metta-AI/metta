@@ -61,6 +61,7 @@ struct GameConfig {
   GlobalObsConfig global_obs;
   std::map<std::string, std::shared_ptr<ActionConfig>> actions;
   std::map<std::string, std::shared_ptr<GridObjectConfig>> objects;
+  bool track_exploration;
 };
 
 class METTAGRID_API MettaGrid {

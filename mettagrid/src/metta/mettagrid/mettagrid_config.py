@@ -193,6 +193,7 @@ class PyGameConfig(BaseModelWithForbidExtra):
     actions: PyActionsConfig
     global_obs: PyGlobalObsConfig = Field(default_factory=PyGlobalObsConfig)
     objects: dict[str, PyConverterConfig | PyWallConfig]
+    track_exploration: bool = Field(default=False)
 
 
 class PyPolicyGameConfig(PyGameConfig):
