@@ -5,7 +5,7 @@ import time
 from functools import wraps
 from typing import Any, Callable
 
-from fastapi import Request, Response
+from fastapi import HTTPException, Request, Response
 
 # Logger for route performance
 route_logger = logging.getLogger("route_performance")
@@ -13,6 +13,26 @@ route_logger.setLevel(logging.INFO)
 
 # Threshold for slow route warnings (2 seconds)
 SLOW_ROUTE_THRESHOLD_SECONDS = 2.0
+
+
+def timed_http_handler(func):
+    """
+    Exception handling wrapper for timed_route.
+    """
+    timed_func = timed_route(func.__name__)(func)
+
+    @wraps(func)
+    async def wrapper(*args, **kwargs):
+        try:
+            return await timed_func(*args, **kwargs)
+        except HTTPException:
+            raise
+        except Exception as e:
+            operation = func.__name__.replace("_", " ")
+            route_logger.error(f"Failed to {operation}", exc_info=True)
+            raise HTTPException(status_code=500, detail=f"Failed to {operation}: {str(e)}") from e
+
+    return wrapper
 
 
 def timed_route(route_name: str = ""):
