@@ -61,8 +61,6 @@ private:
 
     // Check if we've reached max_conversions
     if (this->max_conversions >= 0 && this->conversions_completed >= this->max_conversions) {
-      this->cooldown = -1;  // Set to permanent stop
-      this->cooling_down = true;
       stats.incr("conversions.permanent_stop"); // if you don't do it this way, and here, mine produce an extra ore
       return;
     }
@@ -134,11 +132,11 @@ public:
         max_conversions(cfg.max_conversions),
         conversion_ticks(cfg.conversion_ticks),
         cooldown(cfg.cooldown),
-        color(cfg.color) {
+        color(cfg.color),
+        conversions_completed(0){
     GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c, GridLayer::ObjectLayer));
     this->converting = false;
     this->cooling_down = false;
-    this->conversions_completed = 0;
 
     // Initialize inventory with initial_resource_count for all output types
     for (const auto& [item, _] : this->output_resources) {
@@ -153,10 +151,8 @@ public:
 
   void finish_converting() {
     this->converting = false;
-    if (this->max_conversions != -1) {
-
-      stats.incr("conversions.completed");
-    }
+    this->conversions_completed++;
+    stats.incr("conversions.completed");
 
     // Add output to inventory
     for (const auto& [item, amount] : this->output_resources) {
@@ -177,11 +173,6 @@ public:
 
   void finish_cooldown() {
     this->cooling_down = false;
-    // Only update stats if there was actually a conversion
-    if (this->max_conversions != 0) {
-      this->conversions_completed++;
-      stats.incr("conversions.completed");
-    }
     stats.incr("cooldown.completed");
     this->maybe_start_converting();
   }

@@ -6,7 +6,7 @@ mine_red:
   max_output: 5
   max_conversions: -1
   conversion_ticks: 1
-  cooldown: 2
+  cooldown: 50
   initial_resource_count: 0
 
 mine_blue:
@@ -17,7 +17,7 @@ mine_blue:
   max_output: 5
   max_conversions: -1
   conversion_ticks: 1
-  cooldown: 2
+  cooldown: 50
   initial_resource_count: 0
 
 mine_green:
@@ -28,5 +28,5 @@ mine_green:
   max_output: 5
   max_conversions: -1
   conversion_ticks: 1
-  cooldown: 2
+  cooldown: 50
   initial_resource_count: 0
