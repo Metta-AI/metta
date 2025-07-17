@@ -57,15 +57,20 @@ def find_checkpoint_artifacts(
 
 
 def run_navigation_evaluation_gpu(
-    artifact_name: str, run_name: str, epoch: int, device: str = "cuda", timeout: int = 3600
+    artifact_name: str,
+    run_name: str,
+    epoch: int,
+    device: str = "cuda",
+    timeout: int = 3600,
+    sim_type: str = "navigation",
 ) -> Optional[Dict[str, Any]]:
     """
-    Run navigation evaluation on a specific checkpoint using GPU.
+    Run evaluation on a specific checkpoint using GPU.
 
     Returns:
         Dictionary of evaluation results, or None if failed
     """
-    print(f"  🚀 Running navigation evaluation on checkpoint: epoch {epoch} (GPU: {device})")
+    print(f"  🚀 Running {sim_type} evaluation on checkpoint: epoch {epoch} (GPU: {device})")
 
     # Create a unique eval run name
     eval_run_name = f"{run_name}_historical_eval_epoch_{epoch}"
@@ -73,12 +78,22 @@ def run_navigation_evaluation_gpu(
     # Use the wandb artifact URI directly (format: wandb://entity/project/type/name:version)
     artifact_uri = f"wandb://metta-research/metta/model/{artifact_name}"
 
+    # Use appropriate database URI based on sim_type
+    if sim_type == "nav_sequence":
+        db_uri = "wandb://stats/nav_sequence_db"
+    elif sim_type == "memory":
+        db_uri = "wandb://stats/memory_db"
+    elif sim_type == "object_use":
+        db_uri = "wandb://stats/objectuse_db"
+    else:
+        db_uri = "wandb://stats/navigation_db"
+
     cmd = [
         "./tools/sim.py",
-        "sim=navigation",
+        f"sim={sim_type}",
         f"run={eval_run_name}",
         f"policy_uri={artifact_uri}",
-        "sim_job.stats_db_uri=wandb://stats/navigation_db",
+        f"sim_job.stats_db_uri={db_uri}",
         f"device={device}",
     ]
 
@@ -180,6 +195,7 @@ def run_evaluations_parallel(
     devices: List[str],
     max_workers: int = None,
     timeout: int = 3600,
+    sim_type: str = "navigation",
 ) -> Tuple[int, int, List[Dict[str, Any]]]:
     """
     Run evaluations in parallel across multiple GPUs.
@@ -207,7 +223,9 @@ def run_evaluations_parallel(
             device = devices[device_cycle % len(devices)]
             device_cycle += 1
 
-            future = executor.submit(run_navigation_evaluation_gpu, artifact_name, run_name, epoch, device, timeout)
+            future = executor.submit(
+                run_navigation_evaluation_gpu, artifact_name, run_name, epoch, device, timeout, sim_type
+            )
             future_to_info[future] = (artifact_name, epoch, agent_step, device, i + 1)
 
         # Process completed jobs
@@ -243,6 +261,7 @@ def main():
         "--device", help="Specific device to use (e.g. cuda:0). If not specified, uses all available GPUs"
     )
     parser.add_argument("--batch_size", type=int, default=0, help="Process checkpoints in batches (0 = all at once)")
+    parser.add_argument("--sim", default="navigation", help="Simulation type (navigation, nav_sequence, memory, etc.)")
 
     args = parser.parse_args()
 
@@ -272,7 +291,9 @@ def main():
         if epoch % args.eval_interval == 0:
             eval_artifacts.append((artifact_name, epoch, agent_step))
 
-    print(f"📊 Will evaluate {len(eval_artifacts)} checkpoints (every {args.eval_interval} epochs)")
+    print(
+        f"📊 Will evaluate {len(eval_artifacts)} checkpoints (every {args.eval_interval} epochs) using {args.sim} eval"
+    )
 
     if args.dry_run:
         print("\n🔍 DRY RUN - Would evaluate these checkpoints:")
@@ -306,7 +327,7 @@ def main():
             print(f"\n🎯 Processing batch {batch_num}/{total_batches} ({len(batch)} checkpoints)")
 
             successful, failed, results = run_evaluations_parallel(
-                batch, args.run_name, devices, args.max_workers, args.timeout
+                batch, args.run_name, devices, args.max_workers, args.timeout, args.sim
             )
 
             # Log results for this batch
@@ -328,7 +349,7 @@ def main():
     else:
         # Process all at once
         successful, failed, results = run_evaluations_parallel(
-            eval_artifacts, args.run_name, devices, args.max_workers, args.timeout
+            eval_artifacts, args.run_name, devices, args.max_workers, args.timeout, args.sim
         )
 
         # Log all results
