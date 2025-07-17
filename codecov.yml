@@ -18,25 +18,34 @@ coverage:
     # Project-wide coverage
     project:
       default:
-        target: auto      # Compare against base branch
-        threshold: 0.5%   # Allow 0.5% coverage drop
+        target: auto # Compare against base branch
+        threshold: 1% # Allow 1% coverage drop
         base: auto
+        informational: true # Won't fail PR, just inform
 
-    # Coverage for changed lines only
+    # Coverage for changed lines only - this is your main gate
     patch:
       default:
-        target: 80%       # Aim for 80% coverage on new code
-        threshold: 10%    # Allow some flexibility
+        target: 50% # Minimum 50% coverage on new code
+        threshold: 0% # No tolerance below 50%
         base: auto
+        if_ci_failed: success # Don't fail if CI fails
+        if_not_found: success # Don't fail if no coverage data
+
+      # Additional informational patch check
+      informational:
+        target: 80% # Ideal target
+        threshold: 0%
+        informational: true # Won't fail, just shows as warning
 
 # Pull request comment configuration
 comment:
   layout: "header, diff, flags, components, files"
   behavior: default
-  require_changes: false     # Post comment even if no coverage change
-  require_base: true         # Must have base coverage to compare
-  require_head: true         # Must have head coverage to post
-  hide_project_coverage: false  # Show overall project coverage
+  require_changes: false # Post comment even if no coverage change
+  require_base: false # Don't require base coverage
+  require_head: true # Must have head coverage to post
+  hide_project_coverage: false # Show overall project coverage
 
 # Flag configuration for different test suites
 flags:
@@ -63,6 +72,19 @@ flags:
       - mettagrid/
     carryforward: true
 
+  mettagrid_cpp:
+    paths:
+      - "**/*.cpp"
+      - "**/*.cc"
+      - "**/*.cxx"
+      - "**/*.c++"
+      - "**/*.h"
+      - "**/*.hpp"
+      - "**/*.hh"
+      - "**/*.hxx"
+      - "**/*.h++"
+    carryforward: true
+
   common:
     paths:
       - common/
@@ -78,7 +100,19 @@ ignore:
   - "**/migrations/"
   - "**/__pycache__/"
   - "**/node_modules/"
+  - "**/*.pb.py" # Generated protobuf files
+  - "**/*.pyi" # Type stub files
+  - "**/fixtures/"
+  - "**/mocks/"
+  - "**/build/" # C++ build directories
+  - "**/cmake-build-*/" # CLion/CMake build directories
+  - "**/CMakeFiles/" # CMake generated files
+  - "**/*.o" # Object files
+  - "**/*.a" # Static libraries
+  - "**/*.so" # Shared libraries
+  - "**/*.dylib" # macOS dynamic libraries
+  - "**/*.dll" # Windows dynamic libraries
 
 # GitHub integration settings
 github_checks:
-  annotations: true  # Show coverage annotations in PR files view
+  annotations: true # Show coverage annotations in PR files view

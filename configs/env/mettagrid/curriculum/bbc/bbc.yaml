@@ -2,28 +2,8 @@
 
 _target_: metta.mettagrid.curriculum.learning_progress.LearningProgressCurriculum
 
-env_overrides:
-  game:
-    actions:
-      attack: { consumed_resources: { blueprint: 1 } }
-      change_color: { enabled: false }
-      swap: { enabled: false }
-
-    map_builder:
-      instances: 24
-      instance_border_width: 6
-      root:
-        params:
-          agents: 1
-          objects:
-            mine_red: 3
-            generator_red: 3
-            altar: 3
-
 tasks:
-  /env/mettagrid/curriculum/bbc/agent_1.basic: 1
-  /env/mettagrid/curriculum/bbc/agent_1.altar: 1
-  /env/mettagrid/curriculum/bbc/agent_1.laser: 1
-  /env/mettagrid/curriculum/bbc/agent_1.armor: 1
-  /env/mettagrid/curriculum/bbc/agent_1.combat: 1
-  /env/mettagrid/curriculum/bbc/agent_1.tag: 1
+  /env/mettagrid/curriculum/bbc/agents/1: 1
+  /env/mettagrid/curriculum/bbc/agents/2: 1
+  /env/mettagrid/curriculum/bbc/agents/3: 1
+  /env/mettagrid/curriculum/bbc/agents/24: 1

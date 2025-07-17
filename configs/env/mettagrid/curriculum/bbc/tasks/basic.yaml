@@ -6,9 +6,9 @@ env_cfg_template: /env/mettagrid/arena/combat
 
 buckets:
   game.agent.rewards.ore_red: { values: [0, 1] }
+  game.agent.rewards.battery_red: { values: [0, 1] }
 
   game.objects.generator_red.input_resources.ore_red: { values: [0, 1, 2] }
-  game.agent.rewards.battery_red: { values: [0, 1] }
 
   # game.agent.rewards.battery_red: { values: [0, 1] }
   # game.objects.altar.input_resources.ore_red: { values: [0, 1, 2] }
