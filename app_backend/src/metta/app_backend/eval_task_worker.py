@@ -13,7 +13,6 @@ import logging
 import os
 import subprocess
 import sys
-import traceback
 import uuid
 from datetime import datetime
 
@@ -164,10 +163,8 @@ class EvalTaskWorker:
                         await self._update_task_status(task.id, "done")
 
                     except Exception as e:
-                        error_msg = f"{type(e).__name__}: {str(e)}\n{traceback.format_exc()}"
-                        self._logger.error(f"Task failed: {error_msg}")
-
-                        await self._update_task_status(task.id, "error", error_msg)
+                        self._logger.error(f"Task failed: {e}", exc_info=True)
+                        await self._update_task_status(task.id, "error", str(e))
 
                 elapsed_time = (datetime.now() - loop_start_time).total_seconds()
                 await asyncio.sleep(max(0, self._poll_interval - elapsed_time))
