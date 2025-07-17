@@ -44,7 +44,7 @@ runs:
             echo "Installing build dependencies..."
             uv pip install scikit-build-core
             echo "Installing test dependencies..."
-            uv pip install pytest pytest-cov
+            uv pip install pytest pytest-cov gcovr
             ;;
           "linting")
             # Just install linting tools
