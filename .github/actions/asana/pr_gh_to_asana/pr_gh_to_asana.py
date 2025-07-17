@@ -744,7 +744,7 @@ if __name__ == "__main__":
         asana_owner = assignee if asana_owner_is_assignee else author
 
         # github allows multiple assignees. Asana doesn't. So we'll just use the first one.
-        asana_assignee = github_login_to_asana_email.get(assignees[0]) if assignees else None
+        asana_assignee = github_login_to_asana_email.get(asana_owner) if assignees else None
         asana_collaborators = [
             github_login_to_asana_email[login] for login in github_logins if login in github_login_to_asana_email
         ]
