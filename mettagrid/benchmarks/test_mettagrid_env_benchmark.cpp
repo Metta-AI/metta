@@ -77,7 +77,13 @@ GameConfig CreateBenchmarkConfig(int num_agents) {
                                                              std::map<InventoryItem, InventoryQuantity>(),
                                                              0.0f);
 
-  return GameConfig(num_agents, 10000, false, 11, 11, inventory_item_names, 100, actions_cfg, objects_cfg);
+  // Create default global observation config (all enabled)
+  GlobalObsConfig global_obs_config;
+  global_obs_config.episode_completion_pct = true;
+  global_obs_config.last_action = true;
+  global_obs_config.last_reward = true;
+
+  return GameConfig(num_agents, 10000, false, 11, 11, inventory_item_names, 100, global_obs_config, actions_cfg, objects_cfg);
 }
 
 py::list CreateDefaultMap(int num_agents_per_team = 2) {
