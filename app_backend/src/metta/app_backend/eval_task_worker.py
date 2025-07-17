@@ -44,17 +44,13 @@ class EvalTaskWorker:
         await self._client.close()
 
     def _setup_versioned_checkout(self) -> None:
-        """Set up the versioned checkout for running sim.py."""
         self._versioned_path = f"/tmp/metta-versioned/{self._git_hash}"
-
-        # Check if already exists
         if os.path.exists(self._versioned_path):
             self._logger.info(f"Versioned checkout already exists at {self._versioned_path}")
             return
 
         self._logger.info(f"Setting up versioned checkout at {self._versioned_path}")
 
-        # Create parent directory
         os.makedirs(os.path.dirname(self._versioned_path), exist_ok=True)
 
         # Clone repository directly at the specific commit
@@ -74,28 +70,9 @@ class EvalTaskWorker:
             text=True,
         )
 
-        # If cloning by hash failed (not a branch/tag), do a full clone and checkout
         if result.returncode != 0:
-            self._logger.info(f"Direct clone of hash failed, trying full clone: {result.stderr}")
-
-            # Clone the repository
-            result = subprocess.run(
-                ["git", "clone", "https://github.com/Metta-AI/metta.git", self._versioned_path],
-                capture_output=True,
-                text=True,
-            )
-            if result.returncode != 0:
-                raise RuntimeError(f"Failed to clone repository: {result.stderr}")
-
-            # Checkout the specific commit
-            result = subprocess.run(
-                ["git", "checkout", self._git_hash],
-                cwd=self._versioned_path,
-                capture_output=True,
-                text=True,
-            )
-            if result.returncode != 0:
-                raise RuntimeError(f"Failed to checkout git hash {self._git_hash}: {result.stderr}")
+            logger.error(f"Failed to checkout git hash {self._git_hash}: {result.stderr}", exc_info=True)
+            sys.exit(1)
 
         self._logger.info(f"Successfully set up versioned checkout at {self._versioned_path}")
 
@@ -158,12 +135,7 @@ class EvalTaskWorker:
         self._logger.info(f"Backend URL: {self._backend_url}")
         self._logger.info(f"Assignee: {self._assignee}")
 
-        # Set up versioned checkout for sim.py
-        try:
-            self._setup_versioned_checkout()
-        except Exception as e:
-            self._logger.error(f"Failed to set up versioned checkout: {e}")
-            sys.exit(1)
+        self._setup_versioned_checkout()
 
         self._logger.info(f"Worker running from main branch, sim.py will use git hash {self._git_hash}")
 
@@ -182,8 +154,9 @@ class EvalTaskWorker:
                             task.sim_suite,
                             task.attributes.get("env_overrides", {}),
                         )
-
+                        self._logger.info(f"Task {task.id} completed successfully")
                         await self._update_task_status(task.id, "done")
+                        self._logger.info(f"Task {task.id} updated to done")
 
                     except Exception as e:
                         self._logger.error(f"Task failed: {e}", exc_info=True)
