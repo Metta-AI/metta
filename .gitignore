@@ -23,6 +23,9 @@ cython_debug/
 *.so
 build/
 build_debug/
+build-release/
+build-debug/
+build-coverage/
 
 # Node.js / Frontend
 node_modules/
