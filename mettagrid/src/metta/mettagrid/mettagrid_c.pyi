@@ -108,6 +108,7 @@ class GameConfig:
     obs_height: int
     inventory_item_names: list[str]
     num_observation_tokens: int
+    recipe_input_obs: bool
 
 class MettaGrid:
     obs_width: int

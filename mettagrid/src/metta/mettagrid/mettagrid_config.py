@@ -124,6 +124,7 @@ class PyGameConfig(BaseModelWithForbidExtra):
     obs_width: int = Field(ge=1)
     obs_height: int = Field(ge=1)
     num_observation_tokens: int = Field(ge=1)
+    recipe_input_obs: bool = Field(default=False)  # Show recipe inputs in converter observations
     agent: PyAgentConfig
     # Every agent must be in a group, so we need at least one group
     groups: dict[str, PyGroupConfig] = Field(min_length=1)

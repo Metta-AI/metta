@@ -51,6 +51,10 @@ constexpr ObservationType ObservationFeatureCount = 13;
 
 const ObservationType InventoryFeatureOffset = ObservationFeature::ObservationFeatureCount;
 
+// Recipe input features will be encoded as InventoryFeatureOffset + MAX_INVENTORY_ITEMS + item_id
+// We'll assume max 100 inventory item types which should be more than enough
+const ObservationType RecipeInputFeatureOffset = InventoryFeatureOffset + 100;
+
 const std::map<ObservationType, std::string> FeatureNames = {
     {ObservationFeature::TypeId, "type_id"},
     {ObservationFeature::Group, "agent:group"},

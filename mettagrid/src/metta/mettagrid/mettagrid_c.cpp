@@ -39,7 +39,8 @@ MettaGrid::MettaGrid(const GameConfig& cfg, py::list map, unsigned int seed)
       obs_width(cfg.obs_width),
       obs_height(cfg.obs_height),
       inventory_item_names(cfg.inventory_item_names),
-      _num_observation_tokens(cfg.num_observation_tokens) {
+      _num_observation_tokens(cfg.num_observation_tokens),
+      recipe_input_obs(cfg.recipe_input_obs) {
   _seed = seed;
   _rng = std::mt19937(seed);
 
@@ -61,7 +62,7 @@ MettaGrid::MettaGrid(const GameConfig& cfg, py::list map, unsigned int seed)
   GridCoord width = static_cast<GridCoord>(py::len(map[0]));
 
   _grid = std::make_unique<Grid>(height, width);
-  _obs_encoder = std::make_unique<ObservationEncoder>(inventory_item_names);
+  _obs_encoder = std::make_unique<ObservationEncoder>(inventory_item_names, recipe_input_obs);
   _feature_normalizations = _obs_encoder->feature_normalizations();
 
   _event_manager = std::make_unique<EventManager>();
@@ -175,6 +176,7 @@ MettaGrid::MettaGrid(const GameConfig& cfg, py::list map, unsigned int seed)
         _grid->add_object(converter);
         _stats->incr("objects." + cell);
         converter->set_event_manager(_event_manager.get());
+        converter->set_recipe_input_obs(recipe_input_obs);
         converter->stats.set_environment(this);
         continue;
       }
@@ -921,6 +923,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
                     unsigned short,
                     const std::vector<std::string>&,
                     unsigned int,
+                    bool,
                     const std::map<std::string, std::shared_ptr<ActionConfig>>&,
                     const std::map<std::string, std::shared_ptr<GridObjectConfig>>&>(),
            py::arg("num_agents"),
@@ -930,6 +933,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
            py::arg("obs_height"),
            py::arg("inventory_item_names"),
            py::arg("num_observation_tokens"),
+           py::arg("recipe_input_obs"),
            py::arg("actions"),
            py::arg("objects"))
       .def_readwrite("num_agents", &GameConfig::num_agents)
@@ -938,7 +942,8 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def_readwrite("obs_width", &GameConfig::obs_width)
       .def_readwrite("obs_height", &GameConfig::obs_height)
       .def_readwrite("inventory_item_names", &GameConfig::inventory_item_names)
-      .def_readwrite("num_observation_tokens", &GameConfig::num_observation_tokens);
+      .def_readwrite("num_observation_tokens", &GameConfig::num_observation_tokens)
+      .def_readwrite("recipe_input_obs", &GameConfig::recipe_input_obs);
   // We don't expose these since they're copied on read, and this means that mutations
   // to the dictionaries don't impact the underlying cpp objects. This is confusing!
   // This can be fixed, but until we do that, we're not exposing these.

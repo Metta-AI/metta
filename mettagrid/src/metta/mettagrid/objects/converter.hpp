@@ -112,6 +112,7 @@ public:
   unsigned char color;
   EventManager* event_manager;
   StatsTracker stats;
+  bool recipe_input_obs;           // Whether to show recipe inputs in observations
 
   Converter(GridCoord r, GridCoord c, const ConverterConfig& cfg)
       : input_resources(cfg.input_resources),
@@ -119,7 +120,8 @@ public:
         max_output(cfg.max_output),
         conversion_ticks(cfg.conversion_ticks),
         cooldown(cfg.cooldown),
-        color(cfg.color) {
+        color(cfg.color),
+        recipe_input_obs(false) {
     GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c, GridLayer::ObjectLayer));
     this->converting = false;
     this->cooling_down = false;
@@ -133,6 +135,10 @@ public:
   void set_event_manager(EventManager* event_manager) {
     this->event_manager = event_manager;
     this->maybe_start_converting();
+  }
+
+  void set_recipe_input_obs(bool show_recipe) {
+    this->recipe_input_obs = show_recipe;
   }
 
   void finish_converting() {
@@ -181,17 +187,33 @@ public:
 
   vector<PartialObservationToken> obs_features() const override {
     vector<PartialObservationToken> features;
-    features.reserve(5 + this->inventory.size());
+    size_t reserve_size = 5 + this->inventory.size();
+    if (this->recipe_input_obs) {
+      reserve_size += this->input_resources.size();
+    }
+    features.reserve(reserve_size);
+    
     features.push_back({ObservationFeature::TypeId, static_cast<ObservationType>(this->type_id)});
     features.push_back({ObservationFeature::Color, static_cast<ObservationType>(this->color)});
     features.push_back({ObservationFeature::ConvertingOrCoolingDown,
                         static_cast<ObservationType>(this->converting || this->cooling_down)});
+    
+    // Add current inventory
     for (const auto& [item, amount] : this->inventory) {
       // inventory should only contain non-zero amounts
       assert(amount > 0);
       features.push_back(
           {static_cast<ObservationType>(item + InventoryFeatureOffset), static_cast<ObservationType>(amount)});
     }
+    
+    // Add recipe inputs if enabled
+    if (this->recipe_input_obs) {
+      for (const auto& [item, amount] : this->input_resources) {
+        features.push_back(
+            {static_cast<ObservationType>(item + RecipeInputFeatureOffset), static_cast<ObservationType>(amount)});
+      }
+    }
+    
     return features;
   }
 };

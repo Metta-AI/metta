@@ -77,7 +77,7 @@ GameConfig CreateBenchmarkConfig(int num_agents) {
                                                              std::map<InventoryItem, InventoryQuantity>(),
                                                              0.0f);
 
-  return GameConfig(num_agents, 10000, false, 11, 11, inventory_item_names, 100, actions_cfg, objects_cfg);
+  return GameConfig(num_agents, 10000, false, 11, 11, inventory_item_names, 100, false, actions_cfg, objects_cfg);
 }
 
 py::list CreateDefaultMap(int num_agents_per_team = 2) {

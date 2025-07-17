@@ -14,7 +14,7 @@
 
 class ObservationEncoder {
 public:
-  explicit ObservationEncoder(const std::vector<std::string>& inventory_item_names) {
+  explicit ObservationEncoder(const std::vector<std::string>& inventory_item_names, bool recipe_input_obs) {
     _feature_normalizations = FeatureNormalizations;
     _feature_names = FeatureNames;
     assert(_feature_names.size() == InventoryFeatureOffset);
@@ -22,6 +22,14 @@ public:
     for (int i = 0; i < static_cast<int>(inventory_item_names.size()); i++) {
       _feature_normalizations.insert({InventoryFeatureOffset + i, DEFAULT_INVENTORY_NORMALIZATION});
       _feature_names.insert({InventoryFeatureOffset + i, "inv:" + inventory_item_names[i]});
+    }
+    
+    // Add recipe input features if enabled
+    if (recipe_input_obs) {
+      for (int i = 0; i < static_cast<int>(inventory_item_names.size()); i++) {
+        _feature_normalizations.insert({RecipeInputFeatureOffset + i, DEFAULT_INVENTORY_NORMALIZATION});
+        _feature_names.insert({RecipeInputFeatureOffset + i, "recipe:" + inventory_item_names[i]});
+      }
     }
   }
 

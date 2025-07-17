@@ -51,6 +51,7 @@ struct GameConfig {
   ObservationCoord obs_height;
   std::vector<std::string> inventory_item_names;
   unsigned int num_observation_tokens;
+  bool recipe_input_obs;
   std::map<std::string, std::shared_ptr<ActionConfig>> actions;
   std::map<std::string, std::shared_ptr<GridObjectConfig>> objects;
 };
@@ -66,6 +67,7 @@ public:
   unsigned int current_step;
   unsigned int max_steps;
   bool episode_truncates;
+  bool recipe_input_obs;
 
   std::vector<std::string> inventory_item_names;
   std::vector<std::string> object_type_names;
