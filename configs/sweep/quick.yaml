@@ -19,3 +19,8 @@ parameters:
         max: 0.001
         mean: 0.0005
         scale: 0.5
+
+    batch_size:      {distribution: uniform_pow2, min: 16,   max: 128,  mean: 64,  scale: auto}
+    minibatch_size:  {distribution: uniform_pow2, min: 1,    max: 32,   mean: 8,   scale: auto}
+    bptt_horizon:    {distribution: uniform_pow2, min: 1,    max: 32,   mean: 8,   scale: auto}
+    total_timesteps: {distribution: int_uniform,  min: 1000, max: 1000, mean: 1000, scale: auto}
