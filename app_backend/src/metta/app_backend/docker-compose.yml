@@ -1,25 +1,12 @@
-version: '3.8'
 services:
-  eval-worker:
-    build:
-      context: ../../../../
-      dockerfile: devops/docker/Dockerfile
-      platforms:
-        - "linux/amd64"  # Force build for x86_64
-    platform: linux/amd64  # Force runtime platform
-    image: metta/eval-worker:latest
-    command: echo "Image built successfully"
-
   eval-worker-orchestrator:
-    depends_on:
-      - eval-worker
-    image: metta/eval-worker:latest
-    platform: linux/amd64  # Force runtime platform
+    image: metta-local:latest  # Note you can build this at devops/docker/build-local.sh
     environment:
       - BACKEND_URL=${BACKEND_URL:-http://host.docker.internal:8000}
       - WORKER_IDLE_TIMEOUT=${WORKER_IDLE_TIMEOUT:-600}
       - PYTHONPATH=/workspace/metta
       - TRAIN_DIR_HOST_PATH=/Users/nishadsingh/repos/metta2/train_dir
+      - DOCKER_IMAGE=metta-local:latest
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ../../../../train_dir:/workspace/train_dir

@@ -205,6 +205,8 @@ class EvalTaskOrchestrator:
                 response = await self._task_client.get_available_tasks(limit=10)
                 tasks_by_git_hash = group_by(response.tasks, lambda task: task.attributes["git_hash"])
 
+                # TODO: need to check who has what jobs remotely for cold start problem
+
                 # 1. Claim tasks for workers that don't have a task
                 for git_hash, git_tasks in tasks_by_git_hash.items():
                     worker = await self.get_or_create_worker(git_hash)
@@ -262,7 +264,7 @@ async def main() -> None:
     setup_mettagrid_logger("eval_worker_orchestrator")
 
     backend_url = os.environ.get("BACKEND_URL", "http://localhost:8000")
-    docker_image = "metta/eval-worker:latest"
+    docker_image = os.environ.get("DOCKER_IMAGE", "metta/eval-worker:latest")
     poll_interval = 5.0
     worker_idle_timeout = float(os.environ.get("WORKER_IDLE_TIMEOUT", "600"))
 
