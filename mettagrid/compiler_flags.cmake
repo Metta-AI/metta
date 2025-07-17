@@ -5,6 +5,10 @@ add_library(mettagrid_warnings INTERFACE)
 add_library(mettagrid_sanitizers INTERFACE)
 add_library(mettagrid_debug_flags INTERFACE)
 add_library(mettagrid_base_flags INTERFACE)
+add_library(mettagrid_coverage INTERFACE)
+
+# Coverage option
+option(ENABLE_COVERAGE "Enable coverage reporting" OFF)
 
 # ========================= BASE FLAGS =========================
 target_compile_options(mettagrid_base_flags INTERFACE
@@ -15,6 +19,35 @@ target_compile_options(mettagrid_base_flags INTERFACE
 target_compile_definitions(mettagrid_base_flags INTERFACE
   "NPY_NO_DEPRECATED_API=NPY_1_7_API_VERSION"
 )
+
+set_target_properties(mettagrid_base_flags PROPERTIES
+  INTERFACE_POSITION_INDEPENDENT_CODE ON
+)
+
+# ========================= COVERAGE FLAGS =========================
+if(ENABLE_COVERAGE)
+  target_compile_options(mettagrid_coverage INTERFACE
+    $<$<CXX_COMPILER_ID:GNU,Clang,AppleClang>:
+      --coverage
+      -fprofile-arcs
+      -ftest-coverage
+    >
+  )
+
+  target_link_options(mettagrid_coverage INTERFACE
+    $<$<CXX_COMPILER_ID:GNU,Clang,AppleClang>:
+      --coverage
+    >
+  )
+
+  # Disable optimization for accurate coverage
+  target_compile_options(mettagrid_coverage INTERFACE
+    $<$<CXX_COMPILER_ID:GNU,Clang,AppleClang>:
+      -O0
+      -fno-inline
+    >
+  )
+endif()
 
 # ========================= WARNING FLAGS =========================
 # Core warnings (Wall and Wextra cover a lot)
@@ -150,14 +183,29 @@ target_link_libraries(mettagrid_all_flags INTERFACE
   mettagrid_sanitizers
 )
 
+# Add coverage to all flags when enabled
+if(ENABLE_COVERAGE)
+  target_link_libraries(mettagrid_all_flags INTERFACE
+    mettagrid_coverage
+  )
+endif()
+
 # ========================= HELPER FUNCTION =========================
 # Function to apply flags to a target
 function(mettagrid_apply_flags target)
-  cmake_parse_arguments(ARG "SANITIZERS" "" "" ${ARGN})
+  cmake_parse_arguments(ARG "SANITIZERS;STRICT;COVERAGE" "" "" ${ARGN})
 
   target_link_libraries(${target} PRIVATE mettagrid_common_flags)
 
   if(ARG_SANITIZERS)
     target_link_libraries(${target} PRIVATE mettagrid_sanitizers)
+  endif()
+
+  if(ARG_STRICT)
+    target_link_libraries(${target} PRIVATE mettagrid_strict_warnings)
+  endif()
+
+  if(ARG_COVERAGE OR ENABLE_COVERAGE)
+    target_link_libraries(${target} PRIVATE mettagrid_coverage)
   endif()
 endfunction()
