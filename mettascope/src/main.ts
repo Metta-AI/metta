@@ -265,11 +265,7 @@ onEvent('pointerdown', '.draggable', (target: HTMLElement, e: Event) => {
 onEvent('wheel', 'body', (target: HTMLElement, e: Event) => {
   let event = e as WheelEvent
   ui.scrollDelta = event.deltaY
-  // Only prevent default for mouse wheel, not touch pinch gestures
-  if (event.ctrlKey) {
-    // This is likely a pinch gesture on trackpad, allow it through
-    return
-  }
+  // Prevent scaling the web page
   event.preventDefault()
   requestFrame()
 })
