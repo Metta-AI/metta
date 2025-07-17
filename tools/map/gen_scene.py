@@ -7,10 +7,10 @@ from typing import cast, get_args
 
 from omegaconf import DictConfig, OmegaConf
 
-from metta.common.util.logging_helpers import setup_mettagrid_logger
 from metta.common.util.resolvers import register_resolvers
 from metta.map.utils.show import ShowMode, show_map
 from metta.map.utils.storable_map import StorableMap
+from metta.util.init.logging import init_logging
 
 # Aggressively exit on ctrl+c
 signal.signal(signal.SIGINT, lambda sig, frame: os._exit(0))
@@ -40,7 +40,7 @@ def make_map(cfg_path: str, width: int, height: int, overrides: DictConfig | Non
 
 def main():
     register_resolvers()
-    setup_mettagrid_logger()
+    init_logging()
 
     parser = argparse.ArgumentParser()
     parser.add_argument(

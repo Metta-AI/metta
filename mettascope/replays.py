@@ -8,19 +8,19 @@ import hydra
 
 from metta.agent.mocks import MockPolicyRecord
 from metta.agent.policy_store import PolicyStore
-from metta.common.util.logging_helpers import setup_mettagrid_logger
 from metta.common.wandb.wandb_context import WandbContext
 from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SingleEnvSimulationConfig
-from metta.util.metta_script import setup_mettagrid_environment
+from metta.util.init.logging import init_logging
+from metta.util.init.mettagrid_environment import init_mettagrid_environment
 
 logger = logging.getLogger("replay")
 
 
 def create_simulation(cfg):
-    setup_mettagrid_environment(cfg)
+    init_mettagrid_environment(cfg)
 
-    setup_mettagrid_logger()
+    init_logging()
     logger.info(f"Replaying {cfg.run}")
 
     with WandbContext(cfg.wandb, cfg) as wandb_run:

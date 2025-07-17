@@ -22,6 +22,8 @@ from metta.sim.simulation_suite import SimulationSuite
 from metta.sweep.protein_metta import MettaProtein
 from metta.util.metta_script import metta_script
 
+logger = logging.getLogger(__name__)
+
 
 def log_file(run_dir, name, data, wandb_run):
     path = os.path.join(run_dir, name)
@@ -40,8 +42,6 @@ def load_file(run_dir, name):
 
 
 def main(cfg: DictConfig) -> int:
-    logger = logging.getLogger("tools.sweep_eval")
-
     simulation_suite_cfg = SimulationSuiteConfig(**OmegaConf.to_container(cfg.sim, resolve=True))  # type: ignore[arg-type]
 
     results_path = os.path.join(cfg.run_dir, "sweep_eval_results.yaml")

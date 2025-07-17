@@ -24,7 +24,7 @@ from metta.sweep.protein_metta import MettaProtein
 from metta.sweep.wandb_utils import create_wandb_sweep, generate_run_id_for_sweep, sweep_id_from_name
 from metta.util.metta_script import metta_script
 
-logger = logging.getLogger("tools.sweep_init")
+logger = logging.getLogger(__name__)
 
 
 def main(cfg: DictConfig) -> int:
