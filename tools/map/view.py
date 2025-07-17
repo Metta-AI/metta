@@ -3,20 +3,16 @@ import argparse
 import logging
 from typing import get_args
 
-from metta.common.util.resolvers import register_resolvers
 from metta.map.load_random import get_random_map_uri
 from metta.map.utils.show import ShowMode, show_map
 from metta.map.utils.storable_map import StorableMap
-from metta.util.init.logging import init_logging
+from metta.util.metta_script import hydraless_metta_script
 from tools.map.gen import uri_is_file
 
 logger = logging.getLogger(__name__)
 
 
 def main():
-    register_resolvers()
-    init_logging()
-
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--show-mode", choices=get_args(ShowMode), help="Show the map in the specified mode", default="mettascope"
@@ -39,5 +35,4 @@ def main():
     show_map(storable_map, args.show_mode)
 
 
-if __name__ == "__main__":
-    main()
+hydraless_metta_script(main)
