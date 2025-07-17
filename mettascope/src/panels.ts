@@ -74,6 +74,17 @@ export class PanelInfo {
       return false
     }
 
+    // apply zoom at a focal point
+    const applyZoom = (focalPoint: Vec2f, zoomDelta: number) => {
+      const oldPoint = this.transformOuter(focalPoint)
+      this.zoomLevel = this.zoomLevel + zoomDelta / Common.SCROLL_ZOOM_FACTOR
+      this.zoomLevel = Math.max(Math.min(this.zoomLevel, Common.MAX_ZOOM_LEVEL), Common.MIN_ZOOM_LEVEL)
+      const newPoint = this.transformOuter(focalPoint)
+      if (oldPoint != null && newPoint != null) {
+        this.panPos = this.panPos.add(newPoint.sub(oldPoint))
+      }
+    }
+
     if (ui.mouseClick) {
       this.isPanning = true
     }
@@ -95,14 +106,7 @@ export class PanelInfo {
         const zoomRatio = distance / ui.lastPinchDistance
         const scrollEquivalent = (zoomRatio - 1.0) * 400 // Convert to scroll-like delta
 
-        // Use the exact same logic as mouse wheel zoom
-        const oldCenterPoint = this.transformOuter(center)
-        this.zoomLevel = this.zoomLevel + scrollEquivalent / Common.SCROLL_ZOOM_FACTOR
-        this.zoomLevel = Math.max(Math.min(this.zoomLevel, Common.MAX_ZOOM_LEVEL), Common.MIN_ZOOM_LEVEL)
-        const newCenterPoint = this.transformOuter(center)
-        if (oldCenterPoint != null && newCenterPoint != null) {
-          this.panPos = this.panPos.add(newCenterPoint.sub(oldCenterPoint))
-        }
+        applyZoom(center, scrollEquivalent)
       }
 
       // Always update distance for smooth continuous zooming
@@ -110,7 +114,7 @@ export class PanelInfo {
         ui.lastPinchDistance = distance
       }
 
-      // Handle panning during pinch - smooth and responsive
+      // Allow panning the camera while pinching
       const centerDelta = center.sub(ui.lastPinchCenter)
       if (centerDelta.length() > 0.5) {
         // Very low threshold for smooth panning
@@ -135,13 +139,7 @@ export class PanelInfo {
     }
 
     if (ui.scrollDelta !== 0) {
-      const oldMousePoint = this.transformOuter(ui.mousePos)
-      this.zoomLevel = this.zoomLevel + ui.scrollDelta / Common.SCROLL_ZOOM_FACTOR
-      this.zoomLevel = Math.max(Math.min(this.zoomLevel, Common.MAX_ZOOM_LEVEL), Common.MIN_ZOOM_LEVEL)
-      const newMousePoint = this.transformOuter(ui.mousePos)
-      if (oldMousePoint != null && newMousePoint != null) {
-        this.panPos = this.panPos.add(newMousePoint.sub(oldMousePoint))
-      }
+      applyZoom(ui.mousePos, ui.scrollDelta)
       ui.scrollDelta = 0
       return true
     }
