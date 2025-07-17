@@ -144,6 +144,7 @@ jobs:
       - name: Install C++ linter
         run: |
           sudo apt-get install -y clang-format
+
       - name: Run cpplint
         run: ./mettagrid/tests/cpplint.sh
 
@@ -215,11 +216,22 @@ jobs:
           chmod +x .github/scripts/upload_codecov.py
           .github/scripts/upload_codecov.py
 
-      - name: Run MettaGrid C++ tests
+      - name: Run MettaGrid C++ coverage
         if: steps.mettagrid_build_check.outputs.build_success == 'true'
         run: |
           cd mettagrid
-          ctest --test-dir build-debug -L test -V
+          make coverage
+
+      - name: Upload MettaGrid C++ coverage to Codecov
+        if: steps.mettagrid_build_check.outputs.build_success == 'true'
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./mettagrid/build-coverage/coverage.info
+          flags: mettagrid_cpp
+          name: mettagrid-cpp-coverage
+          fail_ci_if_error: false
+          verbose: true
 
   smoke-test:
     name: "Smoke Tests"

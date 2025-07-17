@@ -1,16 +1,17 @@
-.PHONY: help build lint test clean install pytest tidy
+.PHONY: help build lint test clean install pytest tidy coverage
 
 # Default target
 help:
 	@echo "Available targets:"
-	@echo "  build      - Build project for tests"
-	@echo "  build-prod - Build project for production"
-	@echo "  lint       - Run cpplint on all C++ source files"
-	@echo "  tidy       - Run clang-tidy static analysis"
-	@echo "  test       - Build and run all C++ tests"
-	@echo "  pytest     - Install package and run all Python tests"
-	@echo "  clean      - Clean all build artifacts"
-	@echo "  install    - Install package in editable mode"
+	@echo "  build          - Build project for tests"
+	@echo "  build-prod     - Build project for production"
+	@echo "  lint           - Run cpplint on all C++ source files"
+	@echo "  tidy           - Run clang-tidy static analysis"
+	@echo "  test           - Build and run all C++ tests"
+	@echo "  pytest         - Install package and run all Python tests"
+	@echo "  coverage       - Generate C++ coverage report"
+	@echo "  clean          - Clean all build artifacts"
+	@echo "  install        - Install package in editable mode"
 
 # Build project with tests
 build:
@@ -32,12 +33,18 @@ test: build lint
 	@echo "Running C++ tests..."
 	ctest --test-dir build-debug -V --output-on-failure
 
+coverage:
+	@echo "Generating C++ coverage..."
+	@bash ./generate-coverage.sh
+
 clean:
 	@echo "Cleaning extra venv..."
 	@rm -rf .venv
 	@rm -f uv.lock
 	@echo "Cleaning build artifacts..."
-	rm -rf build-debug build-release build
+	rm -rf build-debug build-release build build-coverage
+	@echo "Cleaning coverage files..."
+	rm -f coverage.info *.gcda *.gcno *.profraw *.profdata
 
 install:
 	@echo "Installing package in editable mode..."
