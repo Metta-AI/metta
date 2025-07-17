@@ -207,11 +207,14 @@ jobs:
             (cd "$package" && pytest -n ${{ env.PYTEST_WORKERS }} --cov --cov-branch --cov-report=xml --benchmark-skip --maxfail=1 --disable-warnings -v) || exit 1
           done
 
-      - name: Upload coverage reports to Codecov
-        uses: codecov/codecov-action@v5
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          slug: Metta-AI/metta
+      - name: Upload coverage to Codecov
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+          CODECOV_SLUG: Metta-AI/metta
+          SUBPACKAGES: "app_backend agent mettagrid common"
+        run: |
+          chmod +x .github/scripts/upload_codecov.py
+          .github/scripts/upload_codecov.py
 
       - name: Run MettaGrid C++ tests
         if: steps.mettagrid_build_check.outputs.build_success == 'true'
