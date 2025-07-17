@@ -1,0 +1,19 @@
+defaults:
+  - sim_suite
+  - _self_
+
+name: navigation
+
+simulations:
+  navigation/emptyspace_withinsight:
+    env: env/mettagrid/navigation/evals/emptyspace_withinsight
+  navigation/emptyspace_outofsight:
+    env: env/mettagrid/navigation/evals/emptyspace_outofsight
+  navigation/emptyspace_sparse:
+    env: env/mettagrid/navigation/evals/emptyspace_sparse
+  navigation/emptyspace_sparse_medium:
+    env: env/mettagrid/navigation/evals/emptyspace_sparse_medium
+  navigation/small_obs_sparse:
+    env: env/mettagrid/navigation/training/small_obs_sparse
+
+

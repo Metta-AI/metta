@@ -128,6 +128,8 @@ class MettaGridEnv(PufferEnv, GymEnv):
         )
 
         game_config_dict = OmegaConf.to_container(task.env_cfg().game)
+        # print(f"obs_width: {game_config_dict['obs_width']}")
+        # print(f"obs_height: {game_config_dict['obs_height']}")
         # map_builder probably shouldn't be in the game config. For now we deal with this by removing it, so we can
         # have GameConfig validate strictly. I'm less sure about diversity_bonus, but it's not used in the C++ code.
         if "map_builder" in game_config_dict:

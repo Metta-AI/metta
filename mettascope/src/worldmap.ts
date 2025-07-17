@@ -527,6 +527,8 @@ function drawVisibility() {
     function updateVisibilityMap(gridObject: any) {
       const x = getAttr(gridObject, 'c')
       const y = getAttr(gridObject, 'r')
+      // what is agent:vision_size doing here?
+      console.log('agent:vision_size =', getAttr(gridObject, 'agent:vision_size'))
       var visionSize = Math.floor(getAttr(gridObject, 'agent:vision_size', state.step, Common.DEFAULT_VISION_SIZE) / 2)
       for (let dx = -visionSize; dx <= visionSize; dx++) {
         for (let dy = -visionSize; dy <= visionSize; dy++) {
