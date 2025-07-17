@@ -109,7 +109,7 @@ class EvalTaskWorker:
         if result.returncode != 0:
             raise RuntimeError(f"sim.py failed with exit code {result.returncode}:\n{result.stderr}")
 
-        self._logger.info("Simulation completed successfully")
+        self._logger.info(f"Simulation completed successfully: {result.stdout}")
 
     async def _update_task_status(
         self,
