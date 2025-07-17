@@ -61,7 +61,6 @@ struct GameConfig {
   GlobalObsConfig global_obs;
   std::map<std::string, std::shared_ptr<ActionConfig>> actions;
   std::map<std::string, std::shared_ptr<GridObjectConfig>> objects;
-  bool global_obs_game_rewards;
 };
 
 class METTAGRID_API MettaGrid {
@@ -146,10 +145,7 @@ private:
   std::mt19937 _rng;
   unsigned int _seed;
 
-<<<<<<< HEAD
-=======
   bool _game_rewards_obs;
->>>>>>> 943b738 (refactor: rename _global_obs_game_rewards to _game_rewards_obs and extract helper method)
   ObservationType _packed_game_rewards;
 
   void init_action_handlers();
