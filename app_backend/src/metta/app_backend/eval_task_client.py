@@ -12,6 +12,7 @@ from metta.app_backend.routes.eval_task_routes import (
     TaskUpdateRequest,
     TaskUpdateResponse,
 )
+from metta.common.util.collections import remove_none_values
 from metta.common.util.stats_client_cfg import get_machine_token
 
 T = TypeVar("T", bound=BaseModel)
@@ -20,9 +21,7 @@ T = TypeVar("T", bound=BaseModel)
 class EvalTaskClient:
     def __init__(self, backend_url: str) -> None:
         self._http_client = httpx.AsyncClient(base_url=backend_url, timeout=30.0)
-        if not (token := get_machine_token(backend_url)):
-            raise ValueError("Machine token is not set")
-        self._machine_token = token
+        self._machine_token = get_machine_token(backend_url)
 
     async def __aenter__(self):
         return self
@@ -34,7 +33,8 @@ class EvalTaskClient:
         await self._http_client.aclose()
 
     async def _make_request(self, response_type: Type[T], method: str, url: str, **kwargs) -> T:
-        response = await self._http_client.request(method, url, headers={"X-Auth-Token": self._machine_token}, **kwargs)
+        headers = remove_none_values({"X-Auth-Token": self._machine_token})
+        response = await self._http_client.request(method, url, headers=headers, **kwargs)
         response.raise_for_status()
         return response_type.model_validate(response.json())
 
@@ -58,3 +58,6 @@ class EvalTaskClient:
         return await self._make_request(
             TaskUpdateResponse, "POST", "/tasks/claimed/update", json=request.model_dump(mode="json")
         )
+
+    async def get_latest_assigned_task_for_git_hash(self, git_hash: str) -> TaskResponse:
+        return await self._make_request(TaskResponse, "GET", "/tasks/latest", params={"git_hash": git_hash})

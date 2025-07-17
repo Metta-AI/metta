@@ -9,6 +9,7 @@ Runs eval tasks inside a Docker container.
 """
 
 import asyncio
+import logging
 import os
 import subprocess
 import sys
@@ -22,7 +23,8 @@ from metta.app_backend.routes.eval_task_routes import (
     TaskStatusUpdate,
     TaskUpdateRequest,
 )
-from metta.common.util.script_decorators import get_metta_logger
+
+logger = logging.getLogger(__name__)
 
 
 class EvalWorker:
@@ -31,7 +33,7 @@ class EvalWorker:
         self._git_hash = git_hash
         self._assignee = assignee
         self._client = EvalTaskClient(backend_url)
-        self._logger = get_metta_logger()
+        self._logger = logger
         self._poll_interval = 5.0
 
     async def __aenter__(self):

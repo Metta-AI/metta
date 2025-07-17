@@ -247,6 +247,13 @@ MIGRATIONS = [
             """CREATE INDEX idx_episodes_eval_task_id ON episodes(eval_task_id)""",
         ],
     ),
+    SqlMigration(
+        version=13,
+        description="Add index on eval_tasks git_hash attribute",
+        sql_statements=[
+            """CREATE INDEX idx_eval_tasks_git_hash_assigned ON eval_tasks((attributes ->> 'git_hash'), assigned_at)""",
+        ],
+    ),
 ]
 
 
@@ -1004,3 +1011,31 @@ class MettaRepo:
                     updated[task_id] = status
 
         return updated
+
+    async def get_latest_assigned_task_for_git_hash(self, git_hash: str) -> dict[str, Any] | None:
+        async with self.connect() as con:
+            result = await con.execute(
+                """
+                SELECT id, policy_id, sim_suite, status, assigned_at,
+                       assignee, created_at, attributes
+                FROM eval_tasks
+                WHERE attributes->>'git_hash' = %s
+                  AND assigned_at IS NOT NULL
+                ORDER BY assigned_at DESC
+                LIMIT 1
+                """,
+                (git_hash,),
+            )
+            row = await result.fetchone()
+            if row is None:
+                return None
+            return {
+                "id": row[0],
+                "policy_id": row[1],
+                "sim_suite": row[2],
+                "status": row[3],
+                "assigned_at": row[4],
+                "assignee": row[5],
+                "created_at": row[6],
+                "attributes": row[7],
+            }

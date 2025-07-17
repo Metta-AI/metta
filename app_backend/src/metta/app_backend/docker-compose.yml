@@ -1,20 +1,15 @@
 services:
-  eval-worker-orchestrator:
-    image: metta-local:latest  # Note you can build this at devops/docker/build-local.sh
+  orchestrator:
+    image: metta-local:latest # Note you can build this with `metta local build-docker-img`
     environment:
       - BACKEND_URL=${BACKEND_URL:-http://host.docker.internal:8000}
-      - WORKER_IDLE_TIMEOUT=${WORKER_IDLE_TIMEOUT:-600}
-      - PYTHONPATH=/workspace/metta
-      - TRAIN_DIR_HOST_PATH=/Users/nishadsingh/repos/metta2/train_dir
-      - DOCKER_IMAGE=metta-local:latest
+      - POLL_INTERVAL=${POLL_INTERVAL:-20}
     volumes:
+      - ../../../:/workspace/metta/app_backend
       - /var/run/docker.sock:/var/run/docker.sock
       - ../../../../train_dir:/workspace/train_dir
     command: [ "uv", "run", "python", "-m", "metta.app_backend.eval_task_orchestrator" ]
     network_mode: "host"
     restart: unless-stopped
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
+    # Run as root to access Docker socket - in production, use a proper docker group
+    user: root

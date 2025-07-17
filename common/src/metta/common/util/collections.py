@@ -10,3 +10,7 @@ def group_by(collection: list[T], key_fn: Callable[[T], K]) -> defaultdict[K, li
     for item in collection:
         grouped[key_fn(item)].append(item)
     return grouped
+
+
+def remove_none_values(d: dict[K, T | None]) -> dict[K, T]:
+    return {k: v for k, v in d.items() if v is not None}

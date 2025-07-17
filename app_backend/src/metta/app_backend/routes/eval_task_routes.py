@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Literal, TypeVar
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -25,6 +25,8 @@ class TaskCreateRequest(BaseModel):
 class TaskClaimRequest(BaseModel):
     tasks: list[uuid.UUID]
     assignee: str
+    # TODO: support upserting this like we do `details` in TaskStatusUpdate
+    details: dict[str, Any] | None = None
 
 
 class TaskClaimResponse(BaseModel):
@@ -51,16 +53,36 @@ class TaskResponse(BaseModel):
     created_at: datetime
     attributes: dict[str, Any]
 
+    def _attribute_property(self, key: str) -> Any | None:
+        return self.attributes.get(key)
+
+    @property
+    def git_hash(self) -> str | None:
+        return self._attribute_property("git_hash")
+
+    @property
+    def workers_spawned(self) -> int:
+        return self._attribute_property("workers_spawned") or 0
+
     @classmethod
     def from_db(cls, task: dict[str, Any]) -> "TaskResponse":
+        # Convert timezone-naive datetime objects to timezone-aware UTC
+        assigned_at = task["assigned_at"]
+        if assigned_at is not None:
+            assigned_at = assigned_at.replace(tzinfo=timezone.utc)
+
+        created_at = task["created_at"]
+        if created_at is not None:
+            created_at = created_at.replace(tzinfo=timezone.utc)
+
         return cls(
             id=task["id"],
             policy_id=task["policy_id"],
             sim_suite=task["sim_suite"],
             status=task["status"],
-            assigned_at=task["assigned_at"],
+            assigned_at=assigned_at,
             assignee=task["assignee"],
-            created_at=task["created_at"],
+            created_at=created_at,
             attributes=task["attributes"] or {},
         )
 
@@ -94,6 +116,12 @@ def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
             attributes=attributes,
         )
         return TaskResponse.from_db(task)
+
+    @router.get("/latest", response_model=TaskResponse)
+    @timed_http_handler
+    async def get_latest_assigned_task_for_git_hash(git_hash: str) -> TaskResponse | None:
+        task = await stats_repo.get_latest_assigned_task_for_git_hash(git_hash=git_hash)
+        return TaskResponse.from_db(task) if task else None
 
     @router.get("/available", response_model=TasksResponse)
     @timed_http_handler

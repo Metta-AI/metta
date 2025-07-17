@@ -429,7 +429,7 @@ Examples:
         configure_parser = subparsers.add_parser("configure", help="Configure Metta for your environment")
         configure_parser.add_argument(
             "--profile",
-            choices=[ut.value for ut in UserType if ut != UserType.SOFTMAX_DOCKER],
+            choices=[ut.value for ut in UserType],
             help="Set user profile (external, cloud, or softmax)",
         )
 
