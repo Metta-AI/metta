@@ -19,6 +19,9 @@ htmlcov/
 cython_debug/
 .venv/
 
+# CMake FetchContent cache
+.deps/
+
 # Build artifacts
 *.so
 build/

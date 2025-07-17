@@ -50,29 +50,32 @@ if [ -n "$GCDA_FILES" ]; then
 
     echo -e "${GREEN}Using lcov for coverage...${NC}"
 
-    # Capture coverage data
+    # Capture coverage data with inline config to suppress warnings
     lcov --capture \
          --directory ${BUILD_DIR} \
          --output-file ${BUILD_DIR}/${COVERAGE_FILE} \
          --rc branch_coverage=1 \
-         --ignore-errors inconsistent,format,unsupported \
+         --ignore-errors inconsistent,inconsistent,format,format,unused,unused,unsupported \
          --quiet
+         # somehow, these doubled flags are correct syntax!
 
     # Remove unwanted files from coverage
-    # Exclude external dependencies and test files
+    # Exclude external dependencies, test files, and system headers
     lcov --remove ${BUILD_DIR}/${COVERAGE_FILE} \
+         '*/usr/*' \
+         '/Applications/*' \
+         '*/site-packages/*' \
          '*/include/*' \
-         '*/.venv/*' \
          '*/tests/*.cpp' \
          '*/benchmarks/*.cpp' \
          --output-file ${BUILD_DIR}/${COVERAGE_FILE} \
          --rc branch_coverage=1 \
-         --ignore-errors empty,unused,inconsistent,format \
+         --ignore-errors empty,unused,unused,inconsistent,format,format \
          --quiet
 
     # Display summary
     echo -e "${GREEN}Coverage summary:${NC}"
-    lcov --list ${BUILD_DIR}/${COVERAGE_FILE}
+    lcov --list ${BUILD_DIR}/${COVERAGE_FILE} 2>/dev/null
 
 elif [ -n "$PROFRAW_FILES" ]; then
     # LLVM/Clang format detected
@@ -88,7 +91,7 @@ elif [ -n "$PROFRAW_FILES" ]; then
 
     echo -e "${GREEN}Using llvm-cov for coverage...${NC}"
 
-    # Find all test executables - looking for test_* pattern (your naming convention)
+    # Find all test executables
     TEST_EXECUTABLES=$(find ${BUILD_DIR} -name "test_*" -type f -perm +111 2>/dev/null)
 
     # If no test executables found with permission check, try without
@@ -112,20 +115,24 @@ elif [ -n "$PROFRAW_FILES" ]; then
 
     if [ -z "$PROFRAW_FILES" ]; then
         echo -e "${RED}Error: No .profraw files found. Make sure tests were run with coverage enabled.${NC}"
-        echo -e "${YELLOW}Looking for any coverage data files...${NC}"
-        find ${BUILD_DIR} -name "*.gcda" -o -name "*.gcno" -o -name "*.profraw" -o -name "*.profdata" 2>/dev/null | head -10
         exit 1
     fi
 
     # Merge all profraw files
     llvm-profdata merge -sparse ${PROFRAW_FILES} -o ${BUILD_DIR}/coverage.profdata
 
-    # Generate lcov format
+    # Generate lcov format with better filtering
     llvm-cov export ${TEST_EXECUTABLES} \
         -instr-profile=${BUILD_DIR}/coverage.profdata \
         -format=lcov \
-        -ignore-filename-regex='(tests|benchmarks|googletest|benchmark)' \
+        -ignore-filename-regex='(tests|benchmarks|googletest|googlebenchmark|/usr/|/Applications/)' \
         > ${BUILD_DIR}/${COVERAGE_FILE}
+
+    # Display summary
+    echo -e "${GREEN}Coverage summary:${NC}"
+    llvm-cov report ${TEST_EXECUTABLES} \
+        -instr-profile=${BUILD_DIR}/coverage.profdata \
+        -ignore-filename-regex='(tests|benchmarks|googletest|googlebenchmark|/usr/|/Applications/)'
 
 else
     echo -e "${RED}Error: No coverage data found!${NC}"
@@ -154,3 +161,7 @@ fi
 echo -e "${GREEN}Coverage generation complete!${NC}"
 echo -e "Coverage report: ${BUILD_DIR}/${COVERAGE_FILE}"
 echo -e "File size: $(ls -lh ${BUILD_DIR}/${COVERAGE_FILE} | awk '{print $5}')"
+echo -e "\n${YELLOW}Upload to Codecov with:${NC}"
+echo -e "  codecov -f ${BUILD_DIR}/${COVERAGE_FILE}"
+echo -e "  # or"
+echo -e "  bash <(curl -s https://codecov.io/bash) -f ${BUILD_DIR}/${COVERAGE_FILE}"
