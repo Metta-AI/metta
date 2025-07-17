@@ -176,7 +176,6 @@ MettaGrid::MettaGrid(const GameConfig& cfg, py::list map, unsigned int seed)
         _grid->add_object(converter);
         _stats->incr("objects." + cell);
         converter->set_event_manager(_event_manager.get());
-        converter->set_recipe_input_obs(recipe_input_obs);
         converter->stats.set_environment(this);
         continue;
       }
@@ -749,6 +748,11 @@ unsigned int StatsTracker::get_current_step() const {
 const std::string& StatsTracker::inventory_item_name(InventoryItem item) const {
   if (!_env) return StatsTracker::NO_ENV_INVENTORY_ITEM_NAME;
   return _env->inventory_item_names[item];
+}
+
+bool StatsTracker::should_show_recipe_inputs() const {
+  if (!_env) return false;
+  return static_cast<MettaGrid*>(_env)->recipe_input_obs;
 }
 
 // Pybind11 module definition

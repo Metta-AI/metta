@@ -112,7 +112,6 @@ public:
   unsigned char color;
   EventManager* event_manager;
   StatsTracker stats;
-  bool recipe_input_obs;           // Whether to show recipe inputs in observations
 
   Converter(GridCoord r, GridCoord c, const ConverterConfig& cfg)
       : input_resources(cfg.input_resources),
@@ -120,8 +119,7 @@ public:
         max_output(cfg.max_output),
         conversion_ticks(cfg.conversion_ticks),
         cooldown(cfg.cooldown),
-        color(cfg.color),
-        recipe_input_obs(false) {
+        color(cfg.color) {
     GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c, GridLayer::ObjectLayer));
     this->converting = false;
     this->cooling_down = false;
@@ -135,10 +133,6 @@ public:
   void set_event_manager(EventManager* event_manager) {
     this->event_manager = event_manager;
     this->maybe_start_converting();
-  }
-
-  void set_recipe_input_obs(bool show_recipe) {
-    this->recipe_input_obs = show_recipe;
   }
 
   void finish_converting() {
@@ -188,7 +182,7 @@ public:
   vector<PartialObservationToken> obs_features() const override {
     vector<PartialObservationToken> features;
     size_t reserve_size = 5 + this->inventory.size();
-    if (this->recipe_input_obs) {
+    if (this->stats.should_show_recipe_inputs()) {
       reserve_size += this->input_resources.size();
     }
     features.reserve(reserve_size);
@@ -206,8 +200,8 @@ public:
           {static_cast<ObservationType>(item + InventoryFeatureOffset), static_cast<ObservationType>(amount)});
     }
     
-    // Add recipe inputs if enabled
-    if (this->recipe_input_obs) {
+    // Add recipe inputs if enabled globally
+    if (this->stats.should_show_recipe_inputs()) {
       for (const auto& [item, amount] : this->input_resources) {
         features.push_back(
             {static_cast<ObservationType>(item + RecipeInputFeatureOffset), static_cast<ObservationType>(amount)});

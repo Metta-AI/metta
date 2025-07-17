@@ -64,6 +64,9 @@ public:
 
   const std::string& inventory_item_name(InventoryItem item) const;
 
+  // Check if recipe inputs should be included in observations
+  bool should_show_recipe_inputs() const;
+
   void add(const std::string& key, float amount) {
     _stats[key] += amount;
     track_timing(key);
