@@ -19,14 +19,6 @@ class Curriculum:
         """Return a list of completed task identifiers."""
         return []
 
-    def get_completion_rates(self):
-        """Return a dictionary of completion rates for each task."""
-        return {}
-
-    def get_task_probs(self) -> dict[str, float]:
-        """Return the current task probabilities for logging purposes."""
-        return {}
-
     def get_curriculum_stats(self) -> dict:
         """Return curriculum statistics for logging purposes (default: empty)."""
         return {}

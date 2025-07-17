@@ -1,5 +1,5 @@
 _target_: metta.rl.trainer.MettaTrainer
-num_workers: null  # determined by train.py if not specified
+num_workers: null # determined by train.py if not specified
 
 curriculum: ???
 env_overrides: {}
@@ -131,6 +131,6 @@ kickstart:
     #    value_loss_coef: 1
 
 curriculum_server:
-  enabled: true
-  port: 5555  # Port for the curriculum server
-  batch_size: 100  # Number of tasks to fetch in each batch
+  host: localhost
+  port: 5555 # Port for the curriculum server
+  batch_size: 100 # Number of tasks to fetch in each batch
