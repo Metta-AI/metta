@@ -10,12 +10,5 @@ source "$REPO_ROOT/devops/tools/common.sh"
 
 ensure_uv_setup
 
-# Run metta lint on staged files only
-if ! uv run metta lint --staged; then
-    echo "❌ Linting failed. Please fix the issues before committing."
-    echo "Consider running `metta lint --fix` to fix some issues automatically."
-    exit 1
-fi
-
-# No output on success - GitHub Desktop works better with silent success
-exit 0
+# Delegate to metta
+exec uv run metta run githooks pre-commit
