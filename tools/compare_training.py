@@ -80,7 +80,7 @@ def run_hydra_training(run_name: str, run_dir: str, group: str) -> subprocess.Po
     env["WANDB_GROUP"] = group
     cmd = [
         sys.executable,
-        "metta/tools/train.py",
+        "tools/train.py",
         "--config-name",
         "user/compare_training",
         f"run={run_name}",

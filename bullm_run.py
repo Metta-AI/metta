@@ -87,6 +87,13 @@ if run_dir_env:
         stats_dir=os.path.join(run_dir_env, "stats"),
         run_name=RUN_NAME,
     )
+    # Create directories if they don't exist
+    os.makedirs(dirs.run_dir, exist_ok=True)
+    os.makedirs(dirs.checkpoint_dir, exist_ok=True)
+    os.makedirs(dirs.replay_dir, exist_ok=True)
+    os.makedirs(dirs.stats_dir, exist_ok=True)
+    logger.info(f"Run directory: {dirs.run_dir}")
+    logger.info(f"Run name: {dirs.run_name}")
 else:
     # Use default directory setup
     dirs = setup_run_directories()
