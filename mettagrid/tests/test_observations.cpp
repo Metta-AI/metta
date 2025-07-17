@@ -94,14 +94,14 @@ TEST_P(ObservationPatternParamTest, MatchesReferenceOffsets) {
   EXPECT_EQ(actual, expected);
 }
 
-INSTANTIATE_TEST_SUITE_P(PackedCoordinate,
-                         ObservationPatternParamTest,
-                         ::testing::Values(std::make_pair(3, 9),
-                                           std::make_pair(7, 3),
-                                           std::make_pair(5, 5),
-                                           std::make_pair(1, 1),
-                                           std::make_pair(1, 5),
-                                           std::make_pair(5, 1)),
-                         [](const ::testing::TestParamInfo<std::pair<int, int>>& info) {
-                           return "H" + std::to_string(info.param.first) + "_W" + std::to_string(info.param.second);
-                         });
+INSTANTIATE_TEST_CASE_P(PackedCoordinate,
+                        ObservationPatternParamTest,
+                        ::testing::Values(std::make_pair(3, 9),
+                                          std::make_pair(7, 3),
+                                          std::make_pair(5, 5),
+                                          std::make_pair(1, 1),
+                                          std::make_pair(1, 5),
+                                          std::make_pair(5, 1)),
+                        [](const ::testing::TestParamInfo<std::pair<int, int>>& info) {
+                          return "H" + std::to_string(info.param.first) + "_W" + std::to_string(info.param.second);
+                        });
