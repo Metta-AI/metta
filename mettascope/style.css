@@ -155,3 +155,126 @@ html {
 input::placeholder {
   opacity: 0.25;
 }
+
+/* Mobile responsive design for footer */
+@media (max-width: 900px) {
+  #footer {
+    height: auto;
+    padding: 8px 0;
+  }
+
+  #footer .left {
+    position: relative;
+    left: 8px;
+    top: 0;
+    transform: none;
+    width: 100%;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    gap: 3px;
+    margin-bottom: 8px;
+  }
+
+  #footer .center {
+    position: relative;
+    left: 8px;
+    top: 0;
+    transform: none;
+    width: 100%;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    gap: 3px;
+    margin-bottom: 8px;
+  }
+
+  #footer .right {
+    position: relative;
+    right: auto;
+    left: 8px;
+    top: 0;
+    transform: none;
+    width: 100%;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    gap: 3px;
+    overflow: visible;
+  }
+
+  /* Make all footer buttons smaller on mobile */
+  #footer .hover-icon {
+    width: 28px !important;
+    height: 28px !important;
+  }
+
+  /* Smaller speed controls */
+  .center #speed2.hover-icon,
+  .center #speed3.hover-icon,
+  .center #speed4.hover-icon,
+  .center #speed5.hover-icon {
+    width: 14px !important;
+  }
+
+  /* Adjust timeline panel to account for taller footer */
+  #timeline-panel {
+    bottom: auto;
+    top: auto;
+    height: 48px;
+  }
+
+  /* Adjust other panels */
+  #trace-panel {
+    bottom: auto;
+    top: auto;
+    height: 48px;
+  }
+
+  #worldmap-panel {
+    bottom: auto;
+    top: 64px;
+  }
+
+  #info-panel {
+    bottom: auto;
+    top: auto;
+    width: 100%;
+    height: 200px;
+    right: 0;
+  }
+
+  #action-buttons {
+    bottom: auto;
+    top: auto;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 90%;
+    height: auto;
+  }
+}
+
+@media (max-width: 480px) {
+
+  /* Even smaller buttons for very small screens */
+  #footer .hover-icon {
+    width: 24px !important;
+    height: 24px !important;
+  }
+
+  .center #speed2.hover-icon,
+  .center #speed3.hover-icon,
+  .center #speed4.hover-icon,
+  .center #speed5.hover-icon {
+    width: 12px !important;
+  }
+
+  /* More compact spacing */
+  #footer .left,
+  #footer .center,
+  #footer .right {
+    gap: 2px;
+    margin-bottom: 6px;
+  }
+
+  #footer {
+    padding: 6px 0;
+  }
+}
