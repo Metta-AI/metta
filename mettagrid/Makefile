@@ -35,7 +35,7 @@ test: build lint
 
 coverage:
 	@echo "Generating C++ coverage..."
-	@bash ./generate-coverage.sh
+	@./generate_coverage.py
 
 clean:
 	@echo "Cleaning extra venv..."
