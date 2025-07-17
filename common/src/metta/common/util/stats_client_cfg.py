@@ -38,6 +38,8 @@ def get_machine_token(stats_server_uri: str | None = None) -> str | None:
                 token = f.read().strip()
         else:
             return None
+    else:
+        return None
 
     if not token or token.lower() == "none":
         return None
