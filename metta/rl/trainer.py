@@ -27,7 +27,6 @@ from metta.common.util.system_monitor import SystemMonitor
 from metta.common.wandb.wandb_context import WandbRun
 from metta.eval.eval_request_config import EvalRewardSummary
 from metta.eval.eval_service import evaluate_policy
-from metta.mettagrid.curriculum.util import curriculum_from_config_path
 from metta.mettagrid.mettagrid_config import PyPolicyGameConfig
 from metta.mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
 from metta.rl.experience import Experience
@@ -88,6 +87,7 @@ class MettaTrainer:
         policy_store: PolicyStore,
         sim_suite_config: SimulationSuiteConfig,
         stats_client: StatsClient | None,
+        curriculum: Any,  # Accept curriculum as parameter
         **kwargs: Any,
     ):
         logger.info(f"run_dir = {cfg.run_dir}")
@@ -146,9 +146,8 @@ class MettaTrainer:
                 external_timer=self.timer,  # Pass trainer's timer for persistent elapsed time
             )
 
-        curriculum_config = trainer_cfg.curriculum_or_env
-        env_overrides = DictConfig(trainer_cfg.env_overrides)
-        self._curriculum = curriculum_from_config_path(curriculum_config, env_overrides)
+        # Use the curriculum passed as parameter
+        self._curriculum = curriculum
 
         # Add training task to the suite
         self._sim_suite_config.simulations["eval/training_task"] = SingleEnvSimulationConfig(
@@ -1081,20 +1080,3 @@ class MettaTrainer:
         else:
             policy.activate_actions(metta_grid_env.action_names, metta_grid_env.max_action_args, device)
 
-
-class AbortingTrainer(MettaTrainer):
-    def __init__(self, *args: Any, **kwargs: Any):
-        super().__init__(*args, **kwargs)
-
-    def _on_train_step(self):
-        if self.wandb_run is None:
-            return
-
-        if "abort" not in wandb.Api().run(self.wandb_run.path).tags:
-            return
-
-        logger.info("Abort tag detected. Stopping the run.")
-        self.trainer_cfg.total_timesteps = int(self.agent_step)
-        self.wandb_run.config.update(
-            {"trainer.total_timesteps": self.trainer_cfg.total_timesteps}, allow_val_change=True
-        )
