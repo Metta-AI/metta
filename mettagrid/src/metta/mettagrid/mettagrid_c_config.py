@@ -39,12 +39,7 @@ def convert_to_cpp_game_config(mettagrid_config_dict: dict):
 
         rewards_config = agent_group_props.get("rewards", {})
         if rewards_config:
-            # Check if we have the new format with 'inventory' key
-            if "inventory" in rewards_config:
-                inventory_rewards_dict = rewards_config.get("inventory", {})
-            else:
-                # Old format - assume all rewards are inventory rewards
-                inventory_rewards_dict = rewards_config
+            inventory_rewards_dict = rewards_config.get("inventory", {})
 
             # Process inventory rewards
             for k, v in inventory_rewards_dict.items():

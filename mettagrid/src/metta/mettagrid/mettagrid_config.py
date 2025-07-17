@@ -34,13 +34,14 @@ class PyInventoryRewards(BaseModelWithForbidExtra):
 
 class PyStatsRewards(BaseModelWithForbidExtra):
     """Agent stats-based reward configuration.
-    
+
     Maps stat names to reward values. Stats are tracked by the StatsTracker
     and can include things like 'action.attack.agent', 'inventory.armor.gained', etc.
     Each entry can have:
     - stat_name: reward_per_unit
     - stat_name_max: maximum cumulative reward for this stat
     """
+
     class Config:
         extra = "allow"  # Allow any stat names to be added dynamically
 
