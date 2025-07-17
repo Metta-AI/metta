@@ -6,12 +6,12 @@ import time
 from unittest.mock import MagicMock, patch
 
 import pytest
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import OmegaConf
 
 from metta.mettagrid.curriculum.core import Curriculum, Task
 from metta.mettagrid.curriculum.random import RandomCurriculum
-from metta.rl.curriculum_client import CurriculumClient
-from metta.rl.curriculum_server import CurriculumServer
+from metta.rl.curriculum.curriculum_client import CurriculumClient
+from metta.rl.curriculum.curriculum_server import CurriculumServer
 
 
 class StatefulCurriculum(Curriculum):
@@ -170,11 +170,17 @@ def test_server_restart():
     server.stop()
     time.sleep(0.5)
 
-    # Client should fail to get new tasks after exhausting batch
-    client._task_batch = []  # Force to fetch new batch
+    # Clear the client's queue to force a fetch
+    while not client._task_queue.empty():
+        try:
+            client._task_queue.get_nowait()
+        except:
+            break
+
+    # Client should fail to get new tasks
     with pytest.raises(RuntimeError) as exc_info:
         client.get_task()
-    assert "Failed to fetch tasks" in str(exc_info.value)
+    assert "Failed to fetch tasks" in str(exc_info.value) or "Failed to get task from queue" in str(exc_info.value)
 
     # Restart server
     server = CurriculumServer(curriculum, host="127.0.0.1", port=15559)
@@ -186,6 +192,7 @@ def test_server_restart():
         task2 = client.get_task()
         assert task2 is not None
     finally:
+        client.stop()
         server.stop()
 
 
@@ -282,8 +289,12 @@ def test_empty_batch_handling():
         task2 = client.get_task()
         assert task2.name in ["task_1", "task_2"]
 
-        # Empty the batch to force refetch
-        client._task_batch = []
+        # Empty the queue to force refetch
+        while not client._task_queue.empty():
+            try:
+                client._task_queue.get_nowait()
+            except:
+                break
 
         # Now server will return empty batch, client should handle gracefully
         # The server should return an empty list instead of erroring
@@ -292,6 +303,7 @@ def test_empty_batch_handling():
         assert "Server returned empty task batch" in str(exc_info.value)
 
     finally:
+        client.stop()
         server.stop()
 
 

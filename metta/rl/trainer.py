@@ -3,7 +3,6 @@ import os
 import traceback
 from collections import defaultdict
 from pathlib import Path
-from typing import Any
 from uuid import UUID
 
 import numpy as np
@@ -29,6 +28,7 @@ from metta.eval.eval_request_config import EvalRewardSummary
 from metta.eval.eval_service import evaluate_policy
 from metta.mettagrid.mettagrid_config import PyPolicyGameConfig
 from metta.mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
+from metta.rl.curriculum.curriculum import Curriculum
 from metta.rl.experience import Experience
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses
@@ -83,11 +83,11 @@ class MettaTrainer:
     def __init__(
         self,
         cfg: DictConfig,
+        curriculum: Curriculum,
         wandb_run: WandbRun | None = None,
         policy_store: PolicyStore | None = None,
         sim_suite_config: SimulationSuiteConfig | None = None,
         stats_client: StatsClient | None = None,
-        curriculum=None,  # Accept curriculum as parameter
     ):
         super().__init__()
         logger.info(f"run_dir = {cfg.run_dir}")
@@ -146,9 +146,6 @@ class MettaTrainer:
                 external_timer=self.timer,  # Pass trainer's timer for persistent elapsed time
             )
 
-        # Use the curriculum passed in
-        if curriculum is None:
-            raise ValueError("curriculum must be provided to trainer")
         self._curriculum = curriculum
 
         # Add training task to the suite
@@ -860,6 +857,8 @@ class MettaTrainer:
 
         # Add hyperparameter values
 
+        curriculum_stats = self._curriculum.get_curriculum_stats()
+
         # Build complete stats dictionary for wandb
         all_stats = build_wandb_stats(
             processed_stats=processed_stats,
@@ -873,9 +872,9 @@ class MettaTrainer:
             evals=self.evals,
             agent_step=self.agent_step,
             epoch=self.epoch,
+            **curriculum_stats,
         )
 
-        # Log to wandb
         self.wandb_run.log(
             all_stats,
             # WandB can automatically increment step on each call to log, but we force the value here

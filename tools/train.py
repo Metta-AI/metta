@@ -17,9 +17,10 @@ from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.script_decorators import get_metta_logger, metta_script
 from metta.common.util.stats_client_cfg import get_stats_client
 from metta.common.wandb.wandb_context import WandbContext, WandbRun
-from metta.mettagrid.curriculum.util import curriculum_from_config_path
-from metta.rl.curriculum_client import CurriculumClient
-from metta.rl.curriculum_server import CurriculumServer
+from metta.rl.curriculum.curriculum import Curriculum
+from metta.rl.curriculum.curriculum_client import CurriculumClient
+from metta.rl.curriculum.curriculum_server import CurriculumServer
+from metta.rl.trainer import MettaTrainer
 from metta.sim.simulation_config import SimulationSuiteConfig
 from tools.sweep_config_utils import (
     load_train_job_config_with_overrides,
@@ -55,22 +56,9 @@ def _calculate_default_num_workers(is_serial: bool) -> int:
     return max(1, num_workers)
 
 
-def train(cfg: DictConfig | ListConfig, wandb_run: WandbRun | None, logger: Logger):
-    cfg = load_train_job_config_with_overrides(cfg)
+def train(cfg: DictConfig, wandb_run: WandbRun | None, logger: Logger, curriculum: Curriculum):
 
-    # Validation must be done after merging
-    # otherwise trainer's default num_workers: null will be override the values
-    # set by _calculate_default_num_workers, and the validation will fail
-    if not cfg.trainer.num_workers:
-        cfg.trainer.num_workers = _calculate_default_num_workers(cfg.vectorization == "serial")
-    cfg = validate_train_job_config(cfg)
 
-    logger.info("Trainer config after overrides:\n%s", OmegaConf.to_yaml(cfg.trainer, resolve=True))
-
-    if os.environ.get("RANK", "0") == "0":
-        with open(os.path.join(cfg.run_dir, "config.yaml"), "w") as f:
-            OmegaConf.save(cfg, f)
-    train_job = TrainJob(cfg.train_job)
     if torch.distributed.is_initialized():
         world_size = torch.distributed.get_world_size()
         if cfg.trainer.scale_batches_by_world_size:
@@ -84,66 +72,21 @@ def train(cfg: DictConfig | ListConfig, wandb_run: WandbRun | None, logger: Logg
     if stats_client is not None:
         stats_client.validate_authenticated()
 
-    # Create curriculum from config
-    curriculum_config = cfg.trainer.get("curriculum") or cfg.trainer.get("env")
-    if not curriculum_config:
-        raise ValueError("Either curriculum or env must be set in trainer config")
-    env_overrides = DictConfig(cfg.trainer.get("env_overrides", {}))
-    curriculum = curriculum_from_config_path(curriculum_config, env_overrides)
-    
-    # Create curriculum server and client if configured and in distributed training
-    curriculum_server = None
-    if torch.distributed.is_initialized() and cfg.trainer.get("curriculum_server", {}).get("enabled", False):
-        is_master = os.environ.get("RANK", "0") == "0"
-        
-        if is_master:
-            # Master process runs the curriculum server
-            curriculum_server_port = cfg.trainer.get("curriculum_server", {}).get("port", 5555)
-            curriculum_server = CurriculumServer(
-                curriculum, 
-                host="0.0.0.0", 
-                port=curriculum_server_port
-            )
-            curriculum_server.start(background=True)
-            logger.info(f"Started curriculum server on port {curriculum_server_port}")
-            
-            # Create client for local use
-            curriculum_client = CurriculumClient(
-                server_url=f"http://localhost:{curriculum_server_port}",
-                batch_size=cfg.trainer.get("curriculum_server", {}).get("batch_size", 100),
-            )
-            # Replace the curriculum with the client
-            curriculum = curriculum_client
-        else:
-            # Non-master ranks connect to master's server
-            master_addr = os.environ.get("MASTER_ADDR", "localhost")
-            curriculum_server_port = cfg.trainer.get("curriculum_server", {}).get("port", 5555)
-            curriculum_client = CurriculumClient(
-                server_url=f"http://{master_addr}:{curriculum_server_port}",
-                batch_size=cfg.trainer.get("curriculum_server", {}).get("batch_size", 100),
-            )
-            logger.info(f"Created curriculum client connecting to http://{master_addr}:{curriculum_server_port}")
-            # Replace the curriculum with the client
-            curriculum = curriculum_client
+    train_job = TrainJob(cfg.train_job)
 
-    # Instantiate the trainer directly with the typed config
-    trainer = hydra.utils.instantiate(
-        cfg.trainer,
+    trainer = MettaTrainer(
         cfg,
+        curriculum,
         wandb_run=wandb_run,
         policy_store=policy_store,
         sim_suite_config=train_job.evals,
-        stats_client=stats_client,
-        curriculum=curriculum,  # Pass curriculum to trainer
+        stats_client=stats_client
     )
-    
+
     try:
         trainer.train()
     finally:
         trainer.close()
-        if curriculum_server is not None:
-            logger.info("Shutting down curriculum server")
-            curriculum_server.stop()
 
 
 @hydra.main(config_path="../configs", config_name="train_job", version_base=None)
@@ -160,6 +103,16 @@ def main(cfg: DictConfig) -> int:
         + f"{os.environ.get('LOCAL_RANK', '0')} ({cfg.device})"
     )
 
+    cfg = load_train_job_config_with_overrides(cfg)
+
+    # Validation must be done after merging
+    # otherwise trainer's default num_workers: null will be override the values
+    # set by _calculate_default_num_workers, and the validation will fail
+    if not cfg.trainer.num_workers:
+        cfg.trainer.num_workers = _calculate_default_num_workers(cfg.vectorization == "serial")
+
+    cfg = validate_train_job_config(cfg)
+
     if "LOCAL_RANK" in os.environ and cfg.device.startswith("cuda"):
         logger.info(f"Initializing distributed training with {os.environ['LOCAL_RANK']} {cfg.device}")
         local_rank = int(os.environ["LOCAL_RANK"])
@@ -167,14 +120,23 @@ def main(cfg: DictConfig) -> int:
         dist.init_process_group(backend="nccl")
 
     logger.info(f"Training {cfg.run} on {cfg.device}")
+
     if os.environ.get("RANK", "0") == "0":
         logger.info(f"Train job config: {OmegaConf.to_yaml(cfg, resolve=True)}")
+
+        with open(os.path.join(cfg.run_dir, "config.yaml"), "w") as f:
+            OmegaConf.save(cfg, f)
+
+        curriculum = CurriculumServer.create(cfg.trainer)
+
         with WandbContext(cfg.wandb, cfg) as wandb_run:
-            train(cfg, wandb_run, logger)
+            train(cfg, wandb_run, logger, curriculum)
     else:
-        train(cfg, None, logger)
+        curriculum = CurriculumClient.create(cfg.trainer)
+        train(cfg, None, logger, curriculum)
 
     if dist.is_initialized():
+        curriculum.stop()
         dist.destroy_process_group()
 
     return 0

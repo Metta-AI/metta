@@ -2,42 +2,25 @@
 HTTP client for fetching curriculum tasks from a remote server.
 
 This client implements the Curriculum interface but fetches tasks from
-a remote curriculum server. It includes batching to reduce network overhead.
+a remote curriculum server. It includes batching and background prefetching
+to reduce network overhead.
 """
 
 import logging
-import random
+import queue
+import threading
 import time
-from typing import Any, Dict, List
+from typing import Any, Dict
 
 import requests
 from omegaconf import DictConfig, OmegaConf
 
+from metta.rl.curriculum.curriculum import Curriculum, Task
+
 logger = logging.getLogger(__name__)
 
-
-class CurriculumTask:
-    """A task returned by the curriculum."""
-
-    def __init__(self, name: str, env_cfg_dict: Dict[str, Any]):
-        self.name = name
-        self._env_cfg_dict = env_cfg_dict
-        self._env_cfg = None
-        self.id = name  # For compatibility
-
-    def env_cfg(self) -> DictConfig:
-        """Get the environment configuration as a DictConfig."""
-        if self._env_cfg is None:
-            self._env_cfg = OmegaConf.create(self._env_cfg_dict)
-        return self._env_cfg
-
-    def complete(self, score: float):
-        """No-op for client - server handles all curriculum logic."""
-        pass
-
-
-class CurriculumClient:
-    """Client that fetches curriculum tasks from the server."""
+class CurriculumClient(Curriculum):
+    """Client that fetches curriculum tasks from the server with background prefetching."""
 
     def __init__(
         self,
@@ -45,7 +28,9 @@ class CurriculumClient:
         batch_size: int = 100,
         timeout: float = 30.0,
         retry_delay: float = 1.0,
-        max_retries: int = 5
+        max_retries: int = 5,
+        prefetch_threshold: float = 0.5,
+        queue_size: int = 1000
     ):
         """
         Initialize the curriculum client.
@@ -56,29 +41,69 @@ class CurriculumClient:
             timeout: Request timeout in seconds
             retry_delay: Delay between retries in seconds
             max_retries: Maximum number of retries for failed requests
+            prefetch_threshold: Fraction of batch_size - prefetch when queue drops below this
+            queue_size: Maximum size of the task queue
         """
         self.server_url = server_url.rstrip("/")
         self.batch_size = batch_size
         self.timeout = timeout
         self.retry_delay = retry_delay
         self.max_retries = max_retries
-        self._task_batch: List[CurriculumTask] = []
+        self.prefetch_threshold = prefetch_threshold
+        self._task_queue = queue.Queue(maxsize=queue_size)
         self._session = requests.Session()
+        self._stop_prefetch = threading.Event()
+        self._prefetch_lock = threading.Lock()
+        self._prefetch_thread = None
 
-    def get_task(self) -> CurriculumTask:
-        """Get a single task, fetching more from the server if needed."""
-        # If batch is empty, fetch more tasks
-        if not self._task_batch:
-            self._fetch_tasks()
+        # Start background prefetch thread
+        self._start_prefetch_thread()
 
-        # Randomly select a task from the batch
-        if self._task_batch:
-            return random.choice(self._task_batch)
-        else:
-            raise RuntimeError("Failed to fetch tasks from curriculum server")
+    def _start_prefetch_thread(self):
+        """Start the background prefetch thread."""
+        self._prefetch_thread = threading.Thread(
+            target=self._prefetch_worker,
+            daemon=True
+        )
+        self._prefetch_thread.start()
+
+    def _prefetch_worker(self):
+        """Background worker that monitors queue and fetches tasks when needed."""
+        while not self._stop_prefetch.is_set():
+            try:
+                # Check if we need to fetch more tasks
+                queue_size = self._task_queue.qsize()
+                threshold = int(self.batch_size * self.prefetch_threshold)
+
+                if queue_size < threshold:
+                    with self._prefetch_lock:
+                        # Double-check after acquiring lock
+                        if self._task_queue.qsize() < threshold:
+                            self._fetch_tasks()
+
+                # Small sleep to avoid busy waiting
+                time.sleep(0.1)
+
+            except Exception as e:
+                logger.error(f"Error in prefetch worker: {e}")
+                time.sleep(1)  # Back off on error
+
+    def get_task(self) -> Task:
+        """Get a single task from the queue."""
+        # If queue is empty, fetch synchronously
+        if self._task_queue.empty():
+            with self._prefetch_lock:
+                if self._task_queue.empty():
+                    self._fetch_tasks()
+
+        try:
+            # Get task from queue with timeout
+            return self._task_queue.get(timeout=5.0)
+        except queue.Empty:
+            raise RuntimeError("Failed to get task from queue - server may be down")
 
     def _fetch_tasks(self) -> None:
-        """Fetch a batch of tasks from the server."""
+        """Fetch a batch of tasks from the server and add to queue."""
         url = f"{self.server_url}/tasks"
         params = {"batch_size": self.batch_size}
 
@@ -95,23 +120,34 @@ class CurriculumClient:
                 if data.get("status") != "ok":
                     raise RuntimeError(f"Server returned error: {data.get('error', 'Unknown error')}")
 
-                # Replace the batch with new tasks
-                self._task_batch = []
-                for task_data in data["tasks"]:
-                    task = CurriculumTask(
-                        name=task_data["name"],
-                        env_cfg_dict=task_data["env_cfg"]
-                    )
-                    self._task_batch.append(task)
+                # Check if server returned any tasks
+                if not data["tasks"]:
+                    logger.warning("Server returned empty task batch")
+                    if attempt == self.max_retries - 1:
+                        raise RuntimeError("Server returned empty task batch")
+                    continue
 
-                if self._task_batch:
-                    logger.debug(f"Fetched {len(data['tasks'])} tasks from curriculum server")
+                # Add tasks to queue
+                tasks_added = 0
+                for task_data in data["tasks"]:
+                    task = Task(
+                        name=task_data["name"],
+                        env_cfg=OmegaConf.create(task_data["env_cfg"])
+                    )
+                    try:
+                        self._task_queue.put_nowait(task)
+                        tasks_added += 1
+                    except queue.Full:
+                        # Queue is full, stop adding
+                        break
+
+                if tasks_added > 0:
+                    logger.debug(f"Added {tasks_added} tasks to queue (fetched {len(data['tasks'])})")
                     return
                 else:
-                    logger.warning("Server returned no tasks")
+                    logger.warning("Could not add any tasks to queue - queue is full")
                     if attempt == self.max_retries - 1:
-                        # On last attempt, raise a more specific error for empty batch
-                        raise RuntimeError("Server returned empty task batch")
+                        raise RuntimeError("Queue is full and cannot add new tasks")
 
             except requests.exceptions.RequestException as e:
                 logger.warning(f"Failed to fetch tasks (attempt {attempt + 1}/{self.max_retries}): {e}")
@@ -120,23 +156,17 @@ class CurriculumClient:
                 else:
                     raise RuntimeError(f"Failed to fetch tasks after {self.max_retries} attempts") from e
 
-    def complete_task(self, id: str, score: float):
-        """No-op for client - server handles all curriculum logic."""
-        pass
-
-    def get_completion_rates(self) -> Dict[str, float]:
-        """No-op for client - server handles all stats."""
-        return {}
-
-    def get_task_probs(self) -> Dict[str, float]:
-        """No-op for client - server handles all stats."""
-        return {}
-
-    def get_curriculum_stats(self) -> Dict[str, Any]:
-        """No-op for client - server handles all stats."""
-        return {}
-
-    def __del__(self):
-        """Close the session when the client is destroyed."""
+    def stop(self):
+        """Stop the background prefetch thread."""
+        self._stop_prefetch.set()
+        if self._prefetch_thread:
+            self._prefetch_thread.join(timeout=2.0)
         if hasattr(self, "_session"):
             self._session.close()
+
+    @staticmethod
+    def create(trainer_cfg: DictConfig) -> "CurriculumClient":
+        return CurriculumClient(
+            server_url=f"http://{trainer_cfg.trainer.curriculum_server.host}:{trainer_cfg.trainer.curriculum_server.port}",
+            batch_size=trainer_cfg.trainer.curriculum_server.batch_size,
+        )

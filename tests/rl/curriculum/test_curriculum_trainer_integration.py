@@ -4,12 +4,12 @@
 import time
 from unittest.mock import patch
 
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import OmegaConf
 
 from metta.mettagrid.curriculum.bucketed import BucketedCurriculum
 from metta.mettagrid.curriculum.core import Curriculum, Task
-from metta.rl.curriculum_client import CurriculumClient
-from metta.rl.curriculum_server import CurriculumServer
+from metta.rl.curriculum.curriculum_client import CurriculumClient
+from metta.rl.curriculum.curriculum_server import CurriculumServer
 
 
 class SimpleCurriculum(Curriculum):
@@ -138,14 +138,15 @@ def test_curriculum_server_with_complex_curriculum():
         # Check that we get varied tasks
         task_names = [t.name for t in tasks]
         unique_names = set(task_names)
-        assert len(unique_names) <= 5  # Should be at most batch_size unique tasks
+        assert len(unique_names) >= 1  # Should have at least some tasks
 
     finally:
+        client.stop()
         server.stop()
 
 
 def test_curriculum_client_batch_exhaustion():
-    """Test that client fetches new batch when current batch is exhausted."""
+    """Test that client fetches new batches with background prefetching."""
     # Use a curriculum that generates unique tasks
     curriculum = SimpleCurriculum()
     server = CurriculumServer(curriculum, host="127.0.0.1", port=15559)
@@ -153,11 +154,15 @@ def test_curriculum_client_batch_exhaustion():
     time.sleep(0.5)
 
     try:
-        # Small batch size to test exhaustion
+        # Small batch size to test prefetching
         client = CurriculumClient(
             server_url="http://127.0.0.1:15559",
-            batch_size=3
+            batch_size=3,
+            prefetch_threshold=0.5  # Prefetch when queue drops to 1.5 tasks
         )
+
+        # Give time for initial fetch
+        time.sleep(0.5)
 
         # Get many tasks - this should trigger multiple fetches
         all_tasks = []
@@ -165,9 +170,7 @@ def test_curriculum_client_batch_exhaustion():
             task = client.get_task()
             all_tasks.append(task.name)
 
-        # We should see tasks from multiple batches
-        # With batch size 3 and 30 requests, we expect tasks from ~10 batches
-        # Since we randomly select from batch, we might see repeated tasks
+        # We should see tasks from multiple batches due to background prefetching
         unique_tasks = set(all_tasks)
 
         # The curriculum generates sequential tasks, so with multiple fetches
@@ -175,7 +178,11 @@ def test_curriculum_client_batch_exhaustion():
         max_task_num = max(int(name.split('_')[1]) for name in unique_tasks)
         assert max_task_num > 3, f"Expected tasks beyond first batch, got max task_{max_task_num}"
 
+        # We should see mostly unique tasks since we're fetching new batches
+        assert len(unique_tasks) >= 10, f"Expected at least 10 unique tasks, got {len(unique_tasks)}"
+
     finally:
+        client.stop()
         server.stop()
 
 
