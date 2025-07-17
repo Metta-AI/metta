@@ -1,0 +1,37 @@
+# Example configuration showing how to enable game_rewards global observation
+# This adds a packed representation of resource rewards to agent observations
+
+defaults:
+  - /env/mettagrid/arena/basic@
+  - _self_
+
+game:
+  # Enable game_rewards global observation
+  global_obs:
+    game_rewards: true
+  
+  # The game_rewards observation packs rewards for these resources:
+  # - ore (any ore type)
+  # - battery (any battery type) 
+  # - laser
+  # - armor
+  #
+  # Each reward is quantized to 2 bits:
+  # - 0: reward <= 0
+  # - 1: 0 < reward <= 0.5
+  # - 2: 0.5 < reward <= 1.0
+  # - 3: reward > 1.0
+  #
+  # The packed byte format is:
+  # Bits 7-6: ore reward
+  # Bits 5-4: battery reward  
+  # Bits 3-2: laser reward
+  # Bits 1-0: armor reward
+  
+  # Example reward configuration
+  agent:
+    rewards:
+      ore_red: 1.0      # Will be quantized to 2
+      battery_blue: 0.3 # Will be quantized to 1
+      laser: 0.8        # Will be quantized to 2
+      armor: 1.5        # Will be quantized to 3

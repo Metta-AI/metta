@@ -97,6 +97,7 @@ def from_mettagrid_config(mettagrid_config_dict: dict[str, Any]) -> CppGameConfi
         episode_completion_pct=global_obs_config.episode_completion_pct,
         last_action=global_obs_config.last_action,
         last_reward=global_obs_config.last_reward,
+        game_rewards=global_obs_config.game_rewards,
     )
     game_cpp_params["global_obs"] = global_obs_cpp
 
@@ -126,7 +127,6 @@ def from_mettagrid_config(mettagrid_config_dict: dict[str, Any]) -> CppGameConfi
 
     game_cpp_params["actions"] = actions_cpp_params
     game_cpp_params["objects"] = objects_cpp_params
-    # Note: global_observations configuration is handled internally by the C++ code
-    # and is not configurable through GameConfig
+    # Note: global_observations configuration is handled through the global_obs parameter
 
     return CppGameConfig(**game_cpp_params)

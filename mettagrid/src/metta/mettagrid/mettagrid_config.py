@@ -53,6 +53,12 @@ class PyGroupConfig(BaseModelWithForbidExtra):
     props: PyAgentConfig = Field(default_factory=PyAgentConfig)
 
 
+class PyGlobalObsConfig(BaseModelWithForbidExtra):
+    """Python global observation configuration."""
+
+    game_rewards: bool = Field(default=False)
+
+
 class PyActionConfig(BaseModelWithForbidExtra):
     """Python action configuration."""
 
@@ -138,3 +144,4 @@ class PyGameConfig(BaseModelWithForbidExtra):
     actions: PyActionsConfig
     global_obs: PyGlobalObsConfig = Field(default_factory=PyGlobalObsConfig)
     objects: dict[str, PyConverterConfig | PyWallConfig]
+    global_obs: Optional[PyGlobalObsConfig] = Field(default_factory=PyGlobalObsConfig)
