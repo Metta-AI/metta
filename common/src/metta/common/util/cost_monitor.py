@@ -14,10 +14,10 @@ import sys
 # Remove the current directory from sys.path to avoid circular import with local colorama.py
 sys.path = [p for p in sys.path if p not in ("", ".", os.path.dirname(__file__))]
 
-import requests
-import sky
+import requests  # noqa: E402
+import sky  # noqa: E402
 
-logging.basicConfig(level=logging.INFO, format="[%(name)s] %(message)s")
+logging.basicConfig(level=logging.INFO, format="[%(name)s] %(message)s", stream=sys.stderr)
 logger = logging.getLogger(__name__)
 
 
