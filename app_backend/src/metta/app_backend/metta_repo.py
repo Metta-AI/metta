@@ -247,6 +247,25 @@ MIGRATIONS = [
             """CREATE INDEX idx_episodes_eval_task_id ON episodes(eval_task_id)""",
         ],
     ),
+    SqlMigration(
+        version=13,
+        description="Add sweeps table for sweep coordination",
+        sql_statements=[
+            """CREATE TABLE sweeps (
+                id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                name TEXT NOT NULL UNIQUE,
+                project TEXT NOT NULL,
+                entity TEXT NOT NULL,
+                wandb_sweep_id TEXT NOT NULL,
+                state TEXT NOT NULL DEFAULT 'running',
+                run_counter INTEGER NOT NULL DEFAULT 0,
+                user_id TEXT NOT NULL,
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )""",
+            """CREATE INDEX idx_sweeps_name ON sweeps(name)""",
+        ],
+    ),
 ]
 
 
@@ -1004,3 +1023,67 @@ class MettaRepo:
                     updated[task_id] = status
 
         return updated
+
+    # Sweep coordination methods
+
+    async def create_sweep(self, name: str, project: str, entity: str, wandb_sweep_id: str, user_id: str) -> str:
+        """Create a new sweep."""
+        async with self.connect() as con:
+            result = await con.execute(
+                """
+                INSERT INTO sweeps (name, project, entity, wandb_sweep_id, user_id)
+                VALUES (%s, %s, %s, %s, %s)
+                RETURNING id
+                """,
+                (name, project, entity, wandb_sweep_id, user_id),
+            )
+            row = await result.fetchone()
+            if row is None:
+                raise ValueError("Failed to create sweep")
+            return str(row[0])
+
+    async def get_sweep_by_name(self, name: str) -> dict[str, Any] | None:
+        """Get sweep by name."""
+        async with self.connect() as con:
+            result = await con.execute(
+                """
+                SELECT id, name, project, entity, wandb_sweep_id, state, run_counter,
+                       user_id, created_at, updated_at
+                FROM sweeps
+                WHERE name = %s
+                """,
+                (name,),
+            )
+            row = await result.fetchone()
+            if row is None:
+                return None
+            return {
+                "id": str(row[0]),
+                "name": row[1],
+                "project": row[2],
+                "entity": row[3],
+                "wandb_sweep_id": row[4],
+                "state": row[5],
+                "run_counter": row[6],
+                "user_id": row[7],
+                "created_at": row[8],
+                "updated_at": row[9],
+            }
+
+    async def get_next_sweep_run_counter(self, sweep_id: str) -> int:
+        """Atomically increment and return the next run counter for a sweep."""
+        async with self.connect() as con:
+            result = await con.execute(
+                """
+                UPDATE sweeps
+                SET run_counter = run_counter + 1,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = %s
+                RETURNING run_counter
+                """,
+                (uuid.UUID(sweep_id),),
+            )
+            row = await result.fetchone()
+            if row is None:
+                raise ValueError(f"Sweep {sweep_id} not found")
+            return row[0]
