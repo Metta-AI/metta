@@ -16,7 +16,6 @@ import subprocess
 import sys
 from pathlib import Path
 from typing import List, Optional
-from urllib import parse
 
 # Add common package to path
 script_path = Path(__file__).resolve()
@@ -47,17 +46,8 @@ def run_command(cmd: List[str], cwd: Optional[Path] = None, check: bool = True) 
             print(red(e.stderr), file=sys.stderr)
         if check:
             raise
-        return e
-
-
-def find_files(directory: Path, pattern: str) -> List[Path]:
-    """Find files matching pattern in directory"""
-    return list(directory.rglob(pattern))
-
-
-def get_cpu_count() -> int:
-    """Get number of CPUs for parallel builds"""
-    return os.cpu_count() or 4
+        # Return a CompletedProcess object instead of the exception
+        return subprocess.CompletedProcess(args=e.cmd, returncode=e.returncode, stdout=e.stdout, stderr=e.stderr)
 
 
 def check_command_exists(cmd: str) -> bool:
@@ -76,7 +66,7 @@ def ensure_gcovr() -> bool:
     return False
 
 
-def setup_and_build():
+def setup_and_build() -> bool:
     """Setup build directory and build project"""
     print(bold(green("🚀 Starting C++ coverage generation...")))
 
@@ -86,16 +76,23 @@ def setup_and_build():
         shutil.rmtree(BUILD_DIR)
 
     # Run cmake with coverage preset
-    run_command(["cmake", "--preset", "coverage"])
+    result = run_command(["cmake", "--preset", "coverage"], check=False)
+    if result.returncode != 0:
+        print(red("✗ Failed to configure project"))
+        return False
 
     # Build the project
     print(cyan("🔨 Building project with coverage..."))
-    cpu_count = get_cpu_count()
-    run_command(["cmake", "--build", str(BUILD_DIR), f"-j{cpu_count}"])
+    cpu_count = os.cpu_count() or 4
+    result = run_command(["cmake", "--build", str(BUILD_DIR), "-j", str(cpu_count)], check=False)
+    if result.returncode != 0:
+        print(red("✗ Failed to build project"))
+        return False
 
-    # Run tests
+    # Run tests (don't fail if tests fail - we still want coverage)
     print(cyan("🧪 Running tests..."))
     run_command(["ctest", "--output-on-failure"], cwd=BUILD_DIR, check=False)
+    return True
 
 
 def process_coverage() -> bool:
@@ -105,8 +102,8 @@ def process_coverage() -> bool:
     # Detect which coverage format we have
     print(cyan("🔍 Detecting coverage format..."))
 
-    gcda_files = find_files(BUILD_DIR, "*.gcda")
-    profraw_files = find_files(BUILD_DIR, "*.profraw")
+    gcda_files = list(BUILD_DIR.rglob("*.gcda"))
+    profraw_files = list(BUILD_DIR.rglob("*.profraw"))
 
     if gcda_files:
         print(green(f"✓ Found GCC coverage data ({len(gcda_files)} .gcda files)"))
@@ -139,15 +136,7 @@ def process_coverage() -> bool:
     ]
 
     # Generate LCOV format for codecov
-    cmd = [
-        "gcovr",
-        "--root",
-        ".",
-        "--lcov",
-        str(coverage_path),
-        "--print-summary",
-    ] + excludes
-
+    cmd = ["gcovr", "--root", ".", "--lcov", str(coverage_path), "--print-summary"] + excludes
     result = run_command(cmd, check=False)
 
     if result.returncode != 0:
@@ -168,7 +157,6 @@ def process_coverage() -> bool:
         "--html-title",
         "Code Coverage Report",
     ] + excludes
-
     run_command(cmd, check=False)
 
     return True
@@ -193,11 +181,8 @@ def verify_and_display_results() -> bool:
 
     html_report = BUILD_DIR / "coverage-html" / "index.html"
     if html_report.exists():
-        # Get absolute path and format as file:// URL for clickable link
-        html_path = html_report.resolve()
-        # Properly encode the path for URL format
-        encoded_path = parse.quote(str(html_path), safe="/")
-        html_url = f"file://{encoded_path}"
+        # Simple file URL for Unix-like systems
+        html_url = f"file://{html_report.resolve()}"
         print(f"🌐 HTML report: {cyan(html_url)}")
 
     print(yellow("\n📤 Upload to Codecov with:"))
@@ -216,11 +201,15 @@ def main():
 
     try:
         # Check for gcovr
-        if not ensure_gcovr():
+        if not shutil.which("gcovr"):
+            print(red("Error: gcovr is not installed"))
+            print(yellow("Install with: pip install gcovr"))
+            print(yellow("Or run this script with: uv run generate_coverage.py"))
             return 1
 
         # Build and run tests
-        setup_and_build()
+        if not setup_and_build():
+            return 1
 
         # Process coverage
         if not process_coverage():
