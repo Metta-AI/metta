@@ -16,6 +16,25 @@ class DockerContainerManager(AbstractContainerManager):
         container_name = f"eval-worker-{git_hash}-{suffix}"
         worker_assignee = f"worker-{git_hash[:8]}-{socket.gethostname()}-{os.getpid()}"
 
+        # Docker Desktop (on macOS/Windows) provides host.docker.internal
+        # On native Linux Docker, we need to check if we're in Docker Desktop or not
+        # We can detect this by checking if host.docker.internal resolves
+
+        docker_desktop = False
+        try:
+            host_ip = socket.gethostbyname("host.docker.internal")
+            docker_desktop = True
+            self._logger.info(f"Docker Desktop detected - host.docker.internal resolves to {host_ip}")
+        except socket.gaierror:
+            self._logger.info("Native Docker detected - host.docker.internal not available")
+
+        # If we're on native Linux Docker and using host.docker.internal, replace with localhost
+        if "host.docker.internal" in backend_url and not docker_desktop:
+            backend_url = backend_url.replace("host.docker.internal", "localhost")
+            self._logger.info("Replaced host.docker.internal with localhost for native Linux Docker")
+        elif "host.docker.internal" in backend_url and docker_desktop:
+            self._logger.info(f"Keeping host.docker.internal for Docker Desktop - backend_url: {backend_url}")
+
         env_vars = {
             "BACKEND_URL": backend_url,
             "GIT_HASH": git_hash,
@@ -30,6 +49,11 @@ class DockerContainerManager(AbstractContainerManager):
             "--name",
             container_name,
         ]
+
+        # Only use host network mode on native Linux Docker
+        # Docker Desktop doesn't properly support host networking
+        if not docker_desktop:
+            cmd.extend(["--network", "host"])
 
         # Add environment variables
         for key, value in env_vars.items():

@@ -11,7 +11,6 @@ This script:
 
 import asyncio
 import os
-import textwrap
 from datetime import datetime, timezone
 
 from metta.app_backend.container_managers.base import AbstractContainerManager
@@ -46,12 +45,6 @@ class EvalTaskOrchestrator:
 
         # Use provided container manager or create one based on environment
         self._container_manager = container_manager or create_container_manager()
-
-    def start_worker_container(self, git_hash: str) -> WorkerInfo:
-        """Start a worker container for a specific git hash."""
-        return self._container_manager.start_worker_container(
-            git_hash=git_hash, backend_url=self._backend_url, docker_image=self._docker_image
-        )
 
     def cleanup_container(self, container_id: str) -> None:
         """Remove a container."""
@@ -100,7 +93,7 @@ class EvalTaskOrchestrator:
         if not assignable:
             self._logger.info("No assignable tasks found")
             return
-        self._logger.info(f"Assigning {len(assignable)} tasks...")
+        self._logger.info(f"{len(assignable)} assignable tasks")
         for task in assignable:
             if not task.git_hash:
                 continue
@@ -111,10 +104,7 @@ class EvalTaskOrchestrator:
                 await self._attempt_claim_task(task, existing_worker)
             # Case 2: There is an alive worker that has an assignment. Skip
             elif existing_worker and existing_worker.alive and existing_worker.task:
-                self._logger.debug(
-                    f"Task {task.id} for git hash {task.git_hash} can't be assigned - "
-                    f"worker {existing_worker.container_name} is busy with task {existing_worker.task.id}"
-                )
+                self._logger.info(f"Task {task.id} needs to wait")
             # Case 3: There is an assigned worker but it isn't alive, and the task has been retried too many times
             elif existing_worker and task.workers_spawned > 3:
                 assert not existing_worker.alive
@@ -129,12 +119,14 @@ class EvalTaskOrchestrator:
                 await self._task_client.update_task_status(update_request)
             # Case 4: There is no assigned worker, or the assigned worker is dead and it should be revived
             else:
-                new_worker = self.start_worker_container(task.git_hash)
+                new_worker = self._container_manager.start_worker_container(
+                    git_hash=task.git_hash, backend_url=self._backend_url, docker_image=self._docker_image
+                )
                 if await self._attempt_claim_task(task, new_worker):
                     workers[task.git_hash] = new_worker
                 else:
+                    self._logger.error(f"Failed to claim task {task.id} for worker {new_worker.container_name}")
                     # new_worker will be cleaned up next cycle
-                    pass
 
     async def cleanup_idle_workers(self, workers: dict[str, WorkerInfo]) -> None:
         for git_hash, worker in workers.items():
@@ -185,7 +177,7 @@ class EvalTaskOrchestrator:
         # Update assignments from backend
         await self.update_worker_assignments(workers)
 
-        self._logger.info(f"Current state: {list(workers.values())}")
+        self._logger.info(f"{list(workers.values())} workers loaded")
 
         # Process unassigned tasks and handle dead workers
         await self.process_unassigned_tasks(workers)
@@ -198,15 +190,13 @@ class EvalTaskOrchestrator:
 
     def report_status(self, workers: dict[str, WorkerInfo]) -> None:
         grouped = group_by(list(workers.values()), key_fn=lambda w: (w.alive, w.task is not None))
-        self._logger.debug(
-            textwrap.dedent(
-                f"""Workers:
-                total: {len(workers)}
-                alive: {len(grouped[(True, False)])}
-                assigned: {len(grouped[(True, True)])}
-                idle: {len(grouped[(False, True)])}
-                dead: {len(grouped[(False, False)])}"""
-            )
+        self._logger.info(
+            f"""Workers:
+total: {len(workers)}
+alive: {len(grouped[(True, False)])}
+assigned: {len(grouped[(True, True)])}
+idle: {len(grouped[(False, True)])}
+dead: {len(grouped[(False, False)])}"""
         )
 
     async def run(self) -> None:
