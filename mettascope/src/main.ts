@@ -12,6 +12,7 @@ import { updateReadout, hideHoverPanel } from './hoverpanels.js'
 import { initObjectMenu } from './objmenu.js'
 import { drawTimeline, initTimeline, updateTimeline, onScrubberChange, onTraceMinimapChange } from './timeline.js'
 import { initDemoMode, startDemoMode, stopDemoMode, doDemoMode } from './demomode.js'
+import './titles.js'
 
 /** A flag to prevent multiple calls to requestAnimationFrame. */
 let frameRequested = false
