@@ -91,7 +91,7 @@ class EvalTaskOrchestrator:
         cmd = [
             "docker",
             "run",
-            # "--rm",  # Remove container when it exits
+            "--rm",  # Remove container when it exits
             "-d",  # Run in detached mode
             "--name",
             container_name,
@@ -101,6 +101,7 @@ class EvalTaskOrchestrator:
         for key, value in env_vars.items():
             cmd.extend(["-e", f"{key}={value}"])
 
+        # Worker will set up its own versioned checkout
         cmd.extend([self._docker_image, "uv", "run", "python", "-m", "metta.app_backend.eval_task_worker"])
 
         self._logger.info(f"Starting worker container for git hash {git_hash}")

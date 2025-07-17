@@ -43,18 +43,40 @@ class EvalTaskWorker:
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         await self._client.close()
 
-    def _checkout_git_hash(self) -> None:
-        # TODO: need to check out at the start. Should send two commands to the docker image: one to checkout,
-        # and the second to do this .run(). All .run() should do is confirm it's on the right git hash
-        self._logger.info(f"Checking out git hash: {self._git_hash}")
+    def _setup_versioned_checkout(self) -> None:
+        """Set up the versioned checkout for running sim.py."""
+        self._versioned_path = f"/tmp/metta-versioned/{self._git_hash}"
+
+        # Check if already exists
+        if os.path.exists(self._versioned_path):
+            self._logger.info(f"Versioned checkout already exists at {self._versioned_path}")
+            return
+
+        self._logger.info(f"Setting up versioned checkout at {self._versioned_path}")
+
+        # Create directory
+        os.makedirs(self._versioned_path, exist_ok=True)
+
+        # Copy repository
+        result = subprocess.run(
+            ["cp", "-r", "/workspace/metta/.", self._versioned_path],
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            raise RuntimeError(f"Failed to copy repository: {result.stderr}")
+
+        # Checkout specific git hash
         result = subprocess.run(
             ["git", "checkout", self._git_hash],
+            cwd=self._versioned_path,
             capture_output=True,
             text=True,
         )
         if result.returncode != 0:
             raise RuntimeError(f"Failed to checkout git hash {self._git_hash}: {result.stderr}")
-        self._logger.info(f"Successfully checked out git hash: {self._git_hash}")
+
+        self._logger.info(f"Successfully set up versioned checkout at {self._versioned_path}")
 
     async def _run_sim_task(
         self,
@@ -68,6 +90,8 @@ class EvalTaskWorker:
             raise RuntimeError(f"Policy name not found for task {task_id}")
         cmd = [
             "uv",
+            "--project",
+            self._versioned_path,
             "run",
             "tools/sim.py",
             f"policy_uri=wandb://run/{policy_name}",
@@ -113,13 +137,14 @@ class EvalTaskWorker:
         self._logger.info(f"Backend URL: {self._backend_url}")
         self._logger.info(f"Assignee: {self._assignee}")
 
-        # TODO: need to check out at the start. Should send two commands to the docker image: one to checkout,
-        # and the second to do this .run(). All .run() should do is confirm it's on the right git hash
+        # Set up versioned checkout for sim.py
         try:
-            self._checkout_git_hash()
+            self._setup_versioned_checkout()
         except Exception as e:
-            self._logger.error(f"Failed to checkout git hash: {e}")
+            self._logger.error(f"Failed to set up versioned checkout: {e}")
             sys.exit(1)
+
+        self._logger.info(f"Worker running from main branch, sim.py will use git hash {self._git_hash}")
 
         while True:
             loop_start_time = datetime.now()

@@ -957,7 +957,7 @@ class MettaRepo:
                        et.assignee, et.created_at, et.attributes, p.name
                 FROM eval_tasks et
                 JOIN policies p ON et.policy_id = p.id
-                WHERE id = %s
+                WHERE et.id = %s
                 """,
                 (task_id,),
             )
