@@ -89,9 +89,15 @@ def convert_to_cpp_game_config(mettagrid_config_dict: dict):
             cpp_converter_config = CppConverterConfig(
                 type_id=object_config.type_id,
                 type_name=object_type,
-                input_resources={resource_name_to_id[k]: v for k, v in object_config.input_resources.items() if v > 0},
+                input_resources={
+                    resource_name_to_id[k]: v
+                    for k, v in object_config.input_resources.items()
+                    if v > 0 and k in resource_name_to_id
+                },
                 output_resources={
-                    resource_name_to_id[k]: v for k, v in object_config.output_resources.items() if v > 0
+                    resource_name_to_id[k]: v
+                    for k, v in object_config.output_resources.items()
+                    if v > 0 and k in resource_name_to_id
                 },
                 max_output=object_config.max_output,
                 conversion_ticks=object_config.conversion_ticks,
@@ -130,16 +136,23 @@ def convert_to_cpp_game_config(mettagrid_config_dict: dict):
             continue
 
         action_cpp_params = {
-            "consumed_resources": {resource_name_to_id[k]: v for k, v in action_config["consumed_resources"].items()},
+            "consumed_resources": {
+                resource_name_to_id[k]: v
+                for k, v in action_config["consumed_resources"].items()
+                if k in resource_name_to_id
+            },
             "required_resources": {
                 resource_name_to_id[k]: v
                 for k, v in (action_config.get("required_resources") or action_config["consumed_resources"]).items()
+                if k in resource_name_to_id
             },
         }
 
         if action_name == "attack":
             action_cpp_params["defense_resources"] = {
-                resource_name_to_id[k]: v for k, v in action_config["defense_resources"].items()
+                resource_name_to_id[k]: v
+                for k, v in action_config["defense_resources"].items()
+                if k in resource_name_to_id
             }
             actions_cpp_params[action_name] = CppAttackActionConfig(**action_cpp_params)
         elif action_name == "change_glyph":

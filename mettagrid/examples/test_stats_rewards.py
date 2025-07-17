@@ -102,13 +102,7 @@ def main():
     action_names = env.action_names()
     move_idx = action_names.index("move")
     attack_idx = action_names.index("attack") if "attack" in action_names else None
-    get_idx = (
-        action_names.index("get_output")
-        if "get_output" in action_names
-        else action_names.index("get_items")
-        if "get_items" in action_names
-        else None
-    )
+    get_idx = action_names.index("get_items") if "get_items" in action_names else None
 
     # Run a few steps to demonstrate rewards
     total_rewards = np.zeros(env.num_agents)

@@ -878,9 +878,9 @@ PYBIND11_MODULE(mettagrid_c, m) {
                     float,
                     const std::map<InventoryItem, InventoryQuantity>&,
                     const std::map<InventoryItem, RewardType>&,
-                    const std::map<InventoryItem, InventoryQuantity>&,
+                    const std::map<InventoryItem, RewardType>&,
                     const std::map<std::string, RewardType>&,
-                    const std::map<std::string, float>&,
+                    const std::map<std::string, RewardType>&,
                     float>(),
            py::arg("type_id"),
            py::arg("type_name") = "agent",
@@ -890,9 +890,9 @@ PYBIND11_MODULE(mettagrid_c, m) {
            py::arg("action_failure_penalty") = 0,
            py::arg("resource_limits") = std::map<InventoryItem, InventoryQuantity>(),
            py::arg("resource_rewards") = std::map<InventoryItem, RewardType>(),
-           py::arg("resource_reward_max") = std::map<InventoryItem, InventoryQuantity>(),
+           py::arg("resource_reward_max") = std::map<InventoryItem, RewardType>(),
            py::arg("stat_rewards") = std::map<std::string, RewardType>(),
-           py::arg("stat_reward_max") = std::map<std::string, float>(),
+           py::arg("stat_reward_max") = std::map<std::string, RewardType>(),
            py::arg("group_reward_pct") = 0)
       .def_readwrite("type_id", &AgentConfig::type_id)
       .def_readwrite("type_name", &AgentConfig::type_name)
