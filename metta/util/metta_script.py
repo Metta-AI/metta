@@ -110,6 +110,12 @@ def hydraless_metta_script(main: Callable[[], int | None]) -> None:
     """
     Wrapper for Metta scripts that does not use Hydra.
     """
+    # If not running as a script, there's nothing to do.
+    caller_frame: FrameType = inspect.stack()[1].frame
+    caller_globals = caller_frame.f_globals
+    if caller_globals.get("__name__") != "__main__":
+        return
+
     init_logging()
     register_resolvers()
 
