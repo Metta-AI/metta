@@ -1,0 +1,58 @@
+defaults:
+  - common
+  - agent: fast
+  - trainer: trainer
+  - sim: arena
+  - wandb: comparision_trainer
+  - _self_
+
+seed: 1
+
+train_job:
+  map_preview_uri: s3://softmax-public/training_runs/${run}/map_preview.json.z
+  evals: ${sim}
+
+trainer:
+  # Core training parameters matching bullm_run.py
+  curriculum: /env/mettagrid/curriculum/arena/learning_progress
+  total_timesteps: 50_000_000  # Reduced to 50M timesteps for stability
+  
+  # Optimizer matching bullm_run.py
+  optimizer:
+    type: muon
+    learning_rate: 0.002  # Reduced learning rate for stability (2.0e-3)
+  
+  # PPO parameters matching bullm_run.py
+  ppo:
+    clip_coef: 0.1
+    ent_coef: 0.01
+    gamma: 0.99
+    gae_lambda: 0.95
+    max_grad_norm: 0.5  # Add gradient clipping for stability
+  
+  # Checkpoint and evaluation intervals matching bullm_run.py
+  checkpoint:
+    checkpoint_interval: 50
+    wandb_checkpoint_interval: 0
+  
+  simulation:
+    evaluate_interval: 50  # Arena-specific evaluation interval
+  
+  # Other parameters matching bullm_run.py
+  batch_size: 524288
+  minibatch_size: 16384
+  bptt_horizon: 64
+  update_epochs: 1
+  forward_pass_minibatch_target_size: 4096
+  async_factor: 2
+  grad_mean_variance_interval: 150
+  scale_batches_by_world_size: false
+  cpu_offload: false
+  zero_copy: true
+
+cmd: train
+
+wandb:
+  project: comparision_trainer
+  entity: metta-research
+  enabled: true 
