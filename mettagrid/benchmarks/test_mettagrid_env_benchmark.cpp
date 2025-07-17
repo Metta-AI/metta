@@ -175,6 +175,9 @@ std::vector<py::array_t<int>> PreGenerateActionSequence(MettaGrid* env, int num_
 
 // Matching Python test_step_performance_no_reset
 static void BM_MettaGridStep(benchmark::State& state) {  // NOLINT(runtime/references)
+  // Ensure we have the GIL for all Python operations
+  py::gil_scoped_acquire acquire;
+
   // Setup with default 4 agents (matching Python benchmark config)
   int num_agents = 4;
   auto cfg = CreateBenchmarkConfig(num_agents);
@@ -219,14 +222,21 @@ static void BM_MettaGridStep(benchmark::State& state) {  // NOLINT(runtime/refer
   state.counters["agent_rate"] = benchmark::Counter(state.iterations() * num_agents, benchmark::Counter::kIsRate);
 }
 
-// Register benchmarks to match Python tests
-BENCHMARK(BM_MettaGridStep)->Unit(benchmark::kMillisecond);
-
 // Custom main that properly initializes Python
 int main(int argc, char** argv) {
+  // Initialize Python interpreter first, before any benchmark registration
   py::scoped_interpreter guard{};
 
+  // Initialize benchmark framework
   ::benchmark::Initialize(&argc, argv);
+
+  // Register benchmarks after Python is initialized
+  // Use Threads(1) to ensure single-threaded execution for Python GIL safety
+  ::benchmark::RegisterBenchmark("BM_MettaGridStep", BM_MettaGridStep)
+      ->Unit(benchmark::kMillisecond)
+      ->Threads(1);
+
+  // Run benchmarks
   ::benchmark::RunSpecifiedBenchmarks();
   ::benchmark::Shutdown();
 
