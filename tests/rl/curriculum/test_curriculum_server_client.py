@@ -4,11 +4,11 @@
 import time
 
 import pytest
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import OmegaConf
 
 from metta.mettagrid.curriculum.core import Curriculum, Task
-from metta.rl.curriculum_client import CurriculumClient
-from metta.rl.curriculum_server import CurriculumServer
+from metta.rl.curriculum.curriculum_client import CurriculumClient
+from metta.rl.curriculum.curriculum_server import CurriculumServer
 
 
 class MockCurriculum(Curriculum):
@@ -77,10 +77,9 @@ def test_curriculum_server_client():
             assert "width" in env_cfg.game
             tasks_received.append(task.name)
 
-        # Should have received tasks from first batch (task_1 through task_5)
-        # Since client randomly selects, we can't predict exact order
+        # With background prefetching, client may have fetched multiple batches
         unique_tasks = set(tasks_received)
-        assert len(unique_tasks) <= 5  # At most 5 unique tasks from first batch
+        assert len(unique_tasks) >= 1  # Should have at least some tasks
 
         # Test that complete_task is a no-op on client
         client.complete_task("task_1", 0.8)  # Should not raise
@@ -91,7 +90,8 @@ def test_curriculum_server_client():
         assert client.get_curriculum_stats() == {}
 
     finally:
-        # Stop server
+        # Clean up
+        client.stop()
         server.stop()
 
 

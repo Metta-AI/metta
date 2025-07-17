@@ -32,21 +32,20 @@ class MultiTaskCurriculum(Curriculum):
     def completed_tasks(self) -> List[str]:
         return self._completed_tasks
 
-    def get_completion_rates(self):
-        completion_rates = {f"task_completions/{task_id}": 0.0 for task_id in self._curricula}
+    def get_curriculum_stats(self) -> dict:
+        stats = {f"task_completions/{task_id}": 0.0 for task_id in self._curricula}
         completed_tasks = self.completed_tasks()
         num_completed_tasks = len(completed_tasks)
         if num_completed_tasks != 0:
             for task in completed_tasks:
-                completion_rates[f"task_completions/{task}"] += 1
-            completion_rates = {k: v / num_completed_tasks for k, v in completion_rates.items()}
-        return completion_rates
+                stats[f"task_completions/{task}"] += 1
+            stats = {k: v / num_completed_tasks for k, v in stats.items()}
 
-    def get_task_probs(self) -> dict[str, float]:
-        """Return the current task probabilities for logging purposes."""
-        total = sum(self._task_weights.values())
-        if total == 0:
+        weights_total = sum(self._task_weights.values())
+        if weights_total == 0:
             # Avoid division by zero, assign uniform probability
             n = len(self._task_weights)
-            return {k: 1.0 / n for k in self._task_weights}
-        return {k: v / total for k, v in self._task_weights.items()}
+            stats.update({f"task_prob/{k}": 1.0 / n for k in self._task_weights})
+        else:
+            stats.update({f"task_prob/{k}": v / weights_total for k, v in self._task_weights.items()})
+        return stats
