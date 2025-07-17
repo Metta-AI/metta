@@ -178,6 +178,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
             # Remove numbers from agent names in the level grid, keeping only "agent.agent"
             mask = np.char.startswith(level.grid.astype(str), "agent.agent.")
             level.grid[mask] = "agent.agent"
+            # breakpoint()
             # END GREG CODE
 
             self._c_env = MettaGrid(c_cfg, level.grid.tolist(), self._current_seed)
