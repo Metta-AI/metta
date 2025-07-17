@@ -31,17 +31,3 @@ class RandomCurriculum(MultiTaskCurriculum):
 
     def _curriculum_from_id(self, cfg_path: str) -> Curriculum:
         return curriculum_from_config_path(cfg_path, self.env_overrides)
-
-    def get_env_cfg_by_bucket(self) -> dict[str, DictConfig]:
-        configs = {}
-        for task_id, curriculum in self._curricula.items():
-            # Get configs from child curriculums without creating tasks
-            child_configs = curriculum.get_env_cfg_by_bucket()
-            # Use task_id as key if child returns a single config
-            if len(child_configs) == 1:
-                configs[task_id] = list(child_configs.values())[0]
-            else:
-                # Prefix multiple configs with task_id
-                for sub_id, cfg in child_configs.items():
-                    configs[f"{task_id}/{sub_id}"] = cfg
-        return configs
