@@ -45,7 +45,7 @@ def run_functional_training(run_name: str, run_dir: str, group: str) -> Tuple[su
     import tempfile
 
     with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as tmp_file:
-        with open("metta/bullm_run.py", "r") as f:
+        with open("bullm_run.py", "r") as f:
             content = f.read()
         # Patch run name
         content = content.replace('RUN_NAME = "bullm_arena_functional_runpy_v3_stable"', f'RUN_NAME = "{run_name}"')
