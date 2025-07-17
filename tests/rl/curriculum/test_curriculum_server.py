@@ -34,9 +34,6 @@ class MockCurriculum(Curriculum):
     def complete_task(self, id: str, score: float):
         self.completed_tasks_list.append((id, score))
 
-    def get_env_cfg_by_bucket(self) -> dict[str, DictConfig]:
-        return {"mock_task": OmegaConf.create({"game": {"num_agents": 1}})}
-
     def get_task_probs(self) -> dict[str, float]:
         return {"mock_task": 1.0}
 
@@ -94,9 +91,6 @@ def test_curriculum_server_client():
 
     curriculum_stats = client.get_curriculum_stats()
     print(f"  Curriculum stats: {curriculum_stats}")
-
-    env_configs = client.get_env_cfg_by_bucket()
-    print(f"  Number of env configs: {len(env_configs)}")
 
     print("\nTest completed successfully!")
 
