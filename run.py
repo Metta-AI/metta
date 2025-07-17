@@ -4,6 +4,7 @@ import os
 import time
 from collections import defaultdict
 
+import numpy as np
 import torch
 from heavyball import ForeachMuon
 from omegaconf import DictConfig, OmegaConf
@@ -66,6 +67,7 @@ from metta.rl.trainer_config import (
     VTraceConfig,
 )
 from metta.sim.simulation_suite import SimulationSuite
+from metta.sim.simulation_suite_config import SimulationSuiteConfig, SingleEnvSimulationConfig
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(levelname)s: %(message)s")
@@ -336,6 +338,13 @@ agent = wrap_agent_distributed(agent, device)
 # Ensure all ranks have wrapped their agents before proceeding
 if torch.distributed.is_initialized():
     torch.distributed.barrier()
+
+# Log model parameters to wandb
+if is_master and wandb_run:
+    num_params = sum(p.numel() for p in agent.parameters())  # type: ignore
+    if wandb_run.summary:
+        wandb_run.summary["model/total_parameters"] = num_params
+    logger.info(f"Model has {num_params:,} parameters")
 
 # Create experience buffer
 experience = Experience(
@@ -692,9 +701,25 @@ while agent_step < trainer_config.total_timesteps:
     ):
         logger.info(f"Evaluating policy at epoch {epoch}")
 
+        # Create extended evaluation config with training task
+        extended_eval_config = SimulationSuiteConfig(
+            name=evaluation_config.name,
+            simulations=dict(evaluation_config.simulations),
+            env_overrides=evaluation_config.env_overrides,
+            num_episodes=evaluation_config.num_episodes,
+        )
+
+        # Add training task to the suite
+        training_task_config = SingleEnvSimulationConfig(
+            env="/env/mettagrid/mettagrid",
+            num_episodes=1,
+            env_overrides=curriculum.get_task().env_cfg(),
+        )
+        extended_eval_config.simulations["eval/training_task"] = training_task_config
+
         # Run evaluation suite
         sim_suite = SimulationSuite(
-            config=evaluation_config,
+            config=extended_eval_config,
             policy_pr=latest_saved_policy_record,
             policy_store=policy_store,
             device=device,
@@ -712,7 +737,7 @@ while agent_step < trainer_config.total_timesteps:
         # Build evaluation metrics
         category_scores: dict[str, float] = {}
         categories = set()
-        for sim_name in evaluation_config.simulations.keys():
+        for sim_name in extended_eval_config.simulations.keys():
             categories.add(sim_name.split("/")[0])
 
         for category in categories:
@@ -736,6 +761,13 @@ while agent_step < trainer_config.total_timesteps:
             category_scores=category_scores,
             simulation_scores=per_sim_scores,
         )
+
+        # Set policy metadata score for sweep_eval.py
+        category_score_values = list(category_scores.values())
+        if category_score_values and latest_saved_policy_record:
+            latest_saved_policy_record.metadata["score"] = float(np.mean(category_score_values))
+            logger.info(f"Set policy metadata score to {latest_saved_policy_record.metadata['score']}")
+
         stats_db.close()
 
         # Replay generation (master only)

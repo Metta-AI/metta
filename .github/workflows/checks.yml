@@ -144,6 +144,7 @@ jobs:
       - name: Install C++ linter
         run: |
           sudo apt-get install -y clang-format
+
       - name: Run cpplint
         run: ./mettagrid/tests/cpplint.sh
 
@@ -196,7 +197,7 @@ jobs:
 
       - name: Run Pytest on core tests
         run: |
-          pytest -n ${{ env.PYTEST_WORKERS }} --benchmark-skip --maxfail=1 --disable-warnings -q
+          pytest -n ${{ env.PYTEST_WORKERS }} --cov --cov-branch --cov-report=xml --benchmark-skip --maxfail=1 --disable-warnings -q
 
       - name: Run Pytest on subpackage tests
         env:
@@ -204,14 +205,38 @@ jobs:
         run: |
           for package in $SUBPACKAGES; do
             echo "Running tests for $package..."
-            (cd "$package" && pytest -n ${{ env.PYTEST_WORKERS }} --benchmark-skip --maxfail=1 --disable-warnings -v) || exit 1
+            (cd "$package" && pytest -n ${{ env.PYTEST_WORKERS }} --cov --cov-branch --cov-report=xml --benchmark-skip --maxfail=1 --disable-warnings -v) || exit 1
           done
 
-      - name: Run MettaGrid C++ tests
+      - name: Upload coverage to Codecov
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+          SUBPACKAGES: "app_backend agent mettagrid common"
+        run: |
+          chmod +x .github/scripts/upload_codecov.py
+          .github/scripts/upload_codecov.py
+
+      - name: Install lcov
+        if: steps.mettagrid_build_check.outputs.build_success == 'true'
+        run: |
+          sudo apt-get install -y lcov
+
+      - name: Run MettaGrid C++ coverage
         if: steps.mettagrid_build_check.outputs.build_success == 'true'
         run: |
           cd mettagrid
-          ctest --test-dir build-debug -L test
+          make coverage
+
+      - name: Upload MettaGrid C++ coverage to Codecov
+        if: steps.mettagrid_build_check.outputs.build_success == 'true'
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./mettagrid/build-coverage/coverage.info
+          flags: mettagrid_cpp
+          name: mettagrid-cpp-coverage
+          fail_ci_if_error: false
+          verbose: true
 
   smoke-test:
     name: "Smoke Tests"

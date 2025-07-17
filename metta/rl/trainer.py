@@ -156,11 +156,11 @@ def _rollout(
             lstm_state=lstm_state_to_store,
         )
 
-        # Send actions to environment
+        # Send actions back to environment
         with timer("_rollout.env"):
             vecenv.send(actions.cpu().numpy().astype(dtype_actions))
 
-        # Collect info
+        # Collect info for batch processing
         if info:
             raw_infos.extend(info)
 
@@ -349,6 +349,8 @@ def _maybe_evaluate_policy(
     replay_dir: str,
     wandb_policy_name: Optional[str],
     policy_store: Any,
+    cfg: Any,
+    wandb_run: Optional[Any],
     logger: Any,
 ) -> EvalRewardSummary:
     """Evaluate policy using the new eval service."""
@@ -385,7 +387,83 @@ def _maybe_evaluate_policy(
     )
 
     logger.info("Simulation complete")
+
+    # Set policy metadata score for sweep_eval.py
+    target_metric = getattr(cfg, "sweep", {}).get("metric", "reward")  # fallback to reward
+    category_scores = list(evaluation_results.scores.category_scores.values())
+    if category_scores and policy_record:
+        policy_record.metadata["score"] = float(np.mean(category_scores))
+        logger.info(f"Set policy metadata score to {policy_record.metadata['score']} using {target_metric} metric")
+
+    # Upload replay HTML if we have wandb
+    if wandb_run is not None and evaluation_results.replay_urls:
+        _upload_replay_html(
+            replay_urls=evaluation_results.replay_urls,
+            epoch=state.epoch,
+            agent_step=state.agent_step,
+            wandb_run=wandb_run,
+        )
+
     return evaluation_results.scores
+
+
+def _upload_replay_html(
+    replay_urls: Dict[str, list[str]],
+    epoch: int,
+    agent_step: int,
+    wandb_run: Any,
+) -> None:
+    """Upload replay HTML to wandb with unified view of all replay links."""
+    import wandb
+
+    # Create unified HTML with all replay links on a single line
+    if replay_urls:
+        # Group replays by base name
+        replay_groups = {}
+
+        for sim_name, urls in sorted(replay_urls.items()):
+            if "training_task" in sim_name:
+                # Training replays
+                if "training" not in replay_groups:
+                    replay_groups["training"] = []
+                replay_groups["training"].extend(urls)
+            else:
+                # Evaluation replays - clean up the display name
+                display_name = sim_name.replace("eval/", "")
+                if display_name not in replay_groups:
+                    replay_groups[display_name] = []
+                replay_groups[display_name].extend(urls)
+
+        # Build HTML with episode numbers
+        links = []
+        for name, urls in replay_groups.items():
+            if len(urls) == 1:
+                # Single episode - just show the name
+                player_url = "https://metta-ai.github.io/metta/?replayUrl=" + urls[0]
+                links.append(f'<a href="{player_url}" target="_blank">{name}</a>')
+            else:
+                # Multiple episodes - show with numbers
+                episode_links = []
+                for i, url in enumerate(urls, 1):
+                    player_url = "https://metta-ai.github.io/metta/?replayUrl=" + url
+                    episode_links.append(f'<a href="{player_url}" target="_blank">{i}</a>')
+                links.append(f"{name} [{' '.join(episode_links)}]")
+
+        # Join all links with " | " separator and add epoch prefix
+        html_content = f"epoch {epoch}: " + " | ".join(links)
+    else:
+        html_content = f"epoch {epoch}: No replays available."
+
+    # Log the unified HTML with step parameter for wandb's epoch slider
+    link_summary = {"replays/all_links": wandb.Html(html_content)}
+    wandb_run.log(link_summary, step=agent_step)
+
+    # Also log individual link for backward compatibility
+    if "eval/training_task" in replay_urls and replay_urls["eval/training_task"]:
+        training_url = replay_urls["eval/training_task"][0]  # Use first URL for backward compatibility
+        player_url = "https://metta-ai.github.io/metta/?replayUrl=" + training_url
+        link_summary = {"replays/link": wandb.Html(f'<a href="{player_url}">MetaScope Replay (Epoch {epoch})</a>')}
+        wandb_run.log(link_summary, step=agent_step)
 
 
 def _check_abort(wandb_run: Optional[Any], trainer_cfg: Any, agent_step: int) -> bool:
@@ -627,6 +705,8 @@ def train(
                     trainer_cfg.simulation.replay_dir,
                     wandb_policy_name,
                     policy_store,
+                    cfg,
+                    wandb_run,
                     logger,
                 )
                 state.evals = eval_scores
@@ -886,6 +966,11 @@ def create_training_components(
             wandb_run.define_metric(f"metric/{metric}")
         wandb_run.define_metric("*", step_metric="metric/agent_step")
         wandb_run.define_metric("overview/reward_vs_total_time", step_metric="metric/total_time")
+
+        # Log model parameters
+        num_params = sum(p.numel() for p in policy.parameters())
+        if wandb_run.summary:
+            wandb_run.summary["model/total_parameters"] = num_params
 
     # Add memory monitor tracking
     if is_master and memory_monitor:

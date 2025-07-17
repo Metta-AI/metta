@@ -26,14 +26,20 @@ def get_machine_token(stats_server_uri: str | None = None) -> str | None:
             token = tokens[stats_server_uri].strip()
         else:
             return None
-    else:
-        # Fall back to legacy token file
+    elif stats_server_uri is None or stats_server_uri in (
+        "https://observatory.softmax-research.net/api",
+        "https://api.observatory.softmax-research.net",
+    ):
+        # Fall back to legacy token file, which is assumed to contain production
+        # server tokens if it exists
         legacy_file = Path.home() / ".metta" / "observatory_token"
         if legacy_file.exists():
             with open(legacy_file) as f:
                 token = f.read().strip()
         else:
             return None
+    else:
+        return None
 
     if not token or token.lower() == "none":
         return None

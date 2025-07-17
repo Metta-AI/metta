@@ -14,13 +14,21 @@
 **/__pycache__/
 .coverage
 .coverage.*
+coverage.xml
+htmlcov/
 cython_debug/
 .venv/
+
+# CMake FetchContent cache
+.deps/
 
 # Build artifacts
 *.so
 build/
 build_debug/
+build-release/
+build-debug/
+build-coverage/
 
 # Node.js / Frontend
 node_modules/
