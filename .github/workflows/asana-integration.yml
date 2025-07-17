@@ -7,7 +7,7 @@ on:
     # labeled, unlabeled, synchronize, converted_to_draft, locked, unlocked, enqueued, dequeued, milestoned, demilestoned, review_request_removed, auto_merge_enabled, auto_merge_enabled
     # descriptions of these events: https://frontside.com/blog/2020-05-26-github-actions-pull_request/
     # pull request review approved seems to be here: https://stackoverflow.com/questions/77646883/how-to-check-if-pull-request-is-approved
-    types: [opened, closed, reopened, edited, assigned, unassigned, review_requested, ready_for_review]
+    types: [opened, closed, reopened, edited, assigned, unassigned, review_requested, ready_for_review, synchronize]
   pull_request_review:
     types: [submitted, edited, dismissed]
 
