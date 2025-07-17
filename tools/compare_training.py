@@ -14,6 +14,7 @@ import logging
 import os
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
 from typing import List, Tuple
@@ -23,8 +24,12 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # from omegaconf import OmegaConf  # Not used in this script
 
-# Set up logging
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(levelname)s: %(message)s")
+# Set up logging with a more specific format to avoid conflicts
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [COMPARE] %(levelname)s: %(message)s",
+    force=True,  # Force reconfiguration to avoid conflicts
+)
 logger = logging.getLogger(__name__)
 
 try:
@@ -85,9 +90,9 @@ def run_hydra_training(run_name: str, run_dir: str, group: str) -> subprocess.Po
     return process
 
 
-def monitor_process(process: subprocess.Popen, name: str) -> Tuple[int, str, str]:
-    """Monitor a training process and return exit code and output"""
-    logger.info(f"Monitoring {name} training process...")
+def monitor_single_process(process: subprocess.Popen, name: str, output_buffer):
+    """Monitor a single training process and store output in buffer"""
+    logger.info(f"Starting monitor for {name} training process...")
 
     stdout_lines = []
     stderr_lines = []
@@ -97,15 +102,17 @@ def monitor_process(process: subprocess.Popen, name: str) -> Tuple[int, str, str
         if process.stdout:
             stdout_line = process.stdout.readline()
             if stdout_line:
-                stdout_lines.append(stdout_line.strip())
-                logger.info(f"[{name}] {stdout_line.strip()}")
+                line = stdout_line.strip()
+                stdout_lines.append(line)
+                logger.info(f"[{name}] {line}")
 
         # Read stderr
         if process.stderr:
             stderr_line = process.stderr.readline()
             if stderr_line:
-                stderr_lines.append(stderr_line.strip())
-                logger.warning(f"[{name}] {stderr_line.strip()}")
+                line = stderr_line.strip()
+                stderr_lines.append(line)
+                logger.warning(f"[{name}] {line}")
 
         # Check if process has finished
         if process.poll() is not None:
@@ -120,16 +127,50 @@ def monitor_process(process: subprocess.Popen, name: str) -> Tuple[int, str, str
     if remaining_stderr:
         stderr_lines.extend(remaining_stderr.strip().split("\n"))
 
-    exit_code = process.returncode
-    stdout_output = "\n".join(stdout_lines)
-    stderr_output = "\n".join(stderr_lines)
+    # Store results in buffer
+    output_buffer[f"{name}_stdout"] = stdout_lines
+    output_buffer[f"{name}_stderr"] = stderr_lines
+    output_buffer[f"{name}_exit_code"] = process.returncode
 
-    if exit_code == 0:
+    if process.returncode == 0:
         logger.info(f"{name} training completed successfully")
     else:
-        logger.error(f"{name} training failed with exit code {exit_code}")
+        logger.error(f"{name} training failed with exit code {process.returncode}")
 
-    return exit_code, stdout_output, stderr_output
+
+def monitor_processes_parallel(
+    functional_process: subprocess.Popen, hydra_process: subprocess.Popen
+) -> Tuple[int, str, str, int, str, str]:
+    """Monitor both training processes in parallel"""
+    logger.info("Starting parallel monitoring of both training processes...")
+
+    # Shared buffer for storing output
+    output_buffer = {}
+
+    # Create threads for monitoring each process
+    functional_thread = threading.Thread(
+        target=monitor_single_process, args=(functional_process, "Functional", output_buffer)
+    )
+    hydra_thread = threading.Thread(target=monitor_single_process, args=(hydra_process, "Hydra", output_buffer))
+
+    # Start both monitoring threads
+    functional_thread.start()
+    hydra_thread.start()
+
+    # Wait for both threads to complete
+    functional_thread.join()
+    hydra_thread.join()
+
+    # Extract results
+    functional_exit_code = output_buffer.get("Functional_exit_code", -1)
+    functional_stdout = "\n".join(output_buffer.get("Functional_stdout", []))
+    functional_stderr = "\n".join(output_buffer.get("Functional_stderr", []))
+
+    hydra_exit_code = output_buffer.get("Hydra_exit_code", -1)
+    hydra_stdout = "\n".join(output_buffer.get("Hydra_stdout", []))
+    hydra_stderr = "\n".join(output_buffer.get("Hydra_stderr", []))
+
+    return functional_exit_code, functional_stdout, functional_stderr, hydra_exit_code, hydra_stdout, hydra_stderr
 
 
 def fetch_wandb_metrics(
@@ -141,7 +182,7 @@ def fetch_wandb_metrics(
         return None
 
     try:
-        api = wandb.Api()
+        api = wandb.Api()  # type: ignore
         runs = api.runs(f"{entity}/{project}", filters={"group": group, "name": run_name})
         if not runs:
             logger.warning(f"No W&B run found for {run_name} in group {group}")
@@ -190,14 +231,17 @@ def run_comparison_pair(pair_id: int, base_run_name: str, hourly_rate: float = D
         functional_process, tmp_file_path = run_functional_training(functional_run_name, functional_run_dir, group)
         hydra_process = run_hydra_training(hydra_run_name, hydra_run_dir, group)
         logger.info("Both training processes started. Monitoring...")
-        results["functional_exit_code"], results["functional_stdout"], results["functional_stderr"] = monitor_process(
-            functional_process, "Functional"
-        )
+        results_tuple = monitor_processes_parallel(functional_process, hydra_process)
+        (
+            results["functional_exit_code"],
+            results["functional_stdout"],
+            results["functional_stderr"],
+            results["hydra_exit_code"],
+            results["hydra_stdout"],
+            results["hydra_stderr"],
+        ) = results_tuple
         if tmp_file_path and os.path.exists(tmp_file_path):
             os.unlink(tmp_file_path)
-        results["hydra_exit_code"], results["hydra_stdout"], results["hydra_stderr"] = monitor_process(
-            hydra_process, "Hydra"
-        )
         # Fetch W&B metrics
         results["functional_wandb"] = fetch_wandb_metrics(functional_run_name, group)
         results["hydra_wandb"] = fetch_wandb_metrics(hydra_run_name, group)
