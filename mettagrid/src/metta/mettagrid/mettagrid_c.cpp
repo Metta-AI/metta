@@ -866,7 +866,8 @@ PYBIND11_MODULE(mettagrid_c, m) {
                     unsigned short,
                     unsigned short,
                     unsigned char,
-                    ObservationType>(),
+                    ObservationType,
+                    bool>(),
            py::arg("type_id"),
            py::arg("type_name"),
            py::arg("input_resources"),
@@ -875,7 +876,8 @@ PYBIND11_MODULE(mettagrid_c, m) {
            py::arg("conversion_ticks"),
            py::arg("cooldown"),
            py::arg("initial_resource_count") = 0,
-           py::arg("color") = 0)
+           py::arg("color") = 0,
+           py::arg("show_recipe_inputs") = false)
       .def_readwrite("type_id", &ConverterConfig::type_id)
       .def_readwrite("type_name", &ConverterConfig::type_name)
       .def_readwrite("input_resources", &ConverterConfig::input_resources)
@@ -884,7 +886,8 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def_readwrite("conversion_ticks", &ConverterConfig::conversion_ticks)
       .def_readwrite("cooldown", &ConverterConfig::cooldown)
       .def_readwrite("initial_resource_count", &ConverterConfig::initial_resource_count)
-      .def_readwrite("color", &ConverterConfig::color);
+      .def_readwrite("color", &ConverterConfig::color)
+      .def_readwrite("show_recipe_inputs", &ConverterConfig::show_recipe_inputs);
 
   py::class_<ActionConfig, std::shared_ptr<ActionConfig>>(m, "ActionConfig")
       .def(py::init<const std::map<InventoryItem, InventoryQuantity>&,
