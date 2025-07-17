@@ -14,11 +14,11 @@ from metta.rl.curriculum_server import CurriculumServer
 
 class SimpleCurriculum(Curriculum):
     """Simple curriculum for testing."""
-    
+
     def __init__(self):
         self.task_count = 0
         self.completed_count = 0
-        
+
     def get_task(self) -> Task:
         self.task_count += 1
         task_id = f"task_{self.task_count}"
@@ -34,23 +34,16 @@ class SimpleCurriculum(Curriculum):
             }
         })
         return Task(task_id, self, env_cfg)
-    
+
     def complete_task(self, id: str, score: float):
         self.completed_count += 1
-        
-    def get_env_cfg_by_bucket(self) -> dict[str, DictConfig]:
-        return {
-            "simple": OmegaConf.create({
-                "game": {"width": 10, "height": 10}
-            })
-        }
-    
+
     def get_completion_rates(self) -> dict[str, float]:
         return {"task_completions/simple": 0.5}
-    
+
     def get_task_probs(self) -> dict[str, float]:
         return {"simple": 1.0}
-    
+
     def get_curriculum_stats(self) -> dict:
         return {
             "total_tasks": self.task_count,
@@ -65,39 +58,32 @@ def test_curriculum_client_trainer_methods():
     server = CurriculumServer(curriculum, host="127.0.0.1", port=15557)
     server.start(background=True)
     time.sleep(0.5)
-    
+
     try:
         # Create client
         client = CurriculumClient(
             server_url="http://127.0.0.1:15557",
             batch_size=10
         )
-        
+
         # Test get_task
         task1 = client.get_task()
         assert task1 is not None
         assert hasattr(task1, 'env_cfg')
         assert hasattr(task1, 'complete')
-        
+
         # Test multiple get_task calls
         tasks = [client.get_task() for _ in range(20)]
         assert all(t is not None for t in tasks)
-        
+
         # Test complete_task (should be no-op)
         client.complete_task("task_1", 0.9)  # Should not raise
-        
-        # Test get_env_cfg_by_bucket
-        configs = client.get_env_cfg_by_bucket()
-        assert isinstance(configs, dict)
-        assert len(configs) > 0
-        for name, cfg in configs.items():
-            assert isinstance(cfg, DictConfig)
-        
+
         # Test stats methods (should return empty)
         assert client.get_completion_rates() == {}
         assert client.get_task_probs() == {}
         assert client.get_curriculum_stats() == {}
-        
+
     finally:
         server.stop()
 
@@ -110,7 +96,7 @@ def test_curriculum_server_with_complex_curriculum():
         "game.width": {"range": [5, 15], "bins": 3},
         "game.height": {"range": [5, 15], "bins": 3}
     }
-    
+
     # Mock the config loading
     with patch('metta.mettagrid.curriculum.bucketed.config_from_path') as mock_config:
         mock_config.return_value = OmegaConf.create({
@@ -121,23 +107,23 @@ def test_curriculum_server_with_complex_curriculum():
                 "max_steps": 100
             }
         })
-        
+
         curriculum = BucketedCurriculum(
             env_cfg_template=env_cfg_template,
             buckets=buckets,
             env_overrides=None
         )
-    
+
     server = CurriculumServer(curriculum, host="127.0.0.1", port=15558)
     server.start(background=True)
     time.sleep(0.5)
-    
+
     try:
         client = CurriculumClient(
             server_url="http://127.0.0.1:15558",
             batch_size=5
         )
-        
+
         # Get several tasks
         tasks = []
         for _ in range(10):
@@ -148,12 +134,12 @@ def test_curriculum_server_with_complex_curriculum():
             assert "width" in env_cfg.game
             assert "height" in env_cfg.game
             tasks.append(task)
-        
+
         # Check that we get varied tasks
         task_names = [t.name for t in tasks]
         unique_names = set(task_names)
         assert len(unique_names) <= 5  # Should be at most batch_size unique tasks
-        
+
     finally:
         server.stop()
 
@@ -165,30 +151,30 @@ def test_curriculum_client_batch_exhaustion():
     server = CurriculumServer(curriculum, host="127.0.0.1", port=15559)
     server.start(background=True)
     time.sleep(0.5)
-    
+
     try:
         # Small batch size to test exhaustion
         client = CurriculumClient(
             server_url="http://127.0.0.1:15559",
             batch_size=3
         )
-        
+
         # Get many tasks - this should trigger multiple fetches
         all_tasks = []
         for i in range(30):
             task = client.get_task()
             all_tasks.append(task.name)
-        
+
         # We should see tasks from multiple batches
         # With batch size 3 and 30 requests, we expect tasks from ~10 batches
         # Since we randomly select from batch, we might see repeated tasks
         unique_tasks = set(all_tasks)
-        
+
         # The curriculum generates sequential tasks, so with multiple fetches
         # we should see more than just the first 3 tasks
         max_task_num = max(int(name.split('_')[1]) for name in unique_tasks)
         assert max_task_num > 3, f"Expected tasks beyond first batch, got max task_{max_task_num}"
-        
+
     finally:
         server.stop()
 
@@ -196,31 +182,31 @@ def test_curriculum_client_batch_exhaustion():
 def test_curriculum_client_concurrent_access():
     """Test that multiple clients can access the server concurrently."""
     import threading
-    
+
     curriculum = SimpleCurriculum()
     server = CurriculumServer(curriculum, host="127.0.0.1", port=15560)
     server.start(background=True)
     time.sleep(0.5)
-    
+
     results = []
     errors = []
-    
+
     def client_worker(client_id):
         try:
             client = CurriculumClient(
                 server_url="http://127.0.0.1:15560",
                 batch_size=5
             )
-            
+
             tasks = []
             for _ in range(10):
                 task = client.get_task()
                 tasks.append((client_id, task.name))
-            
+
             results.extend(tasks)
         except Exception as e:
             errors.append((client_id, str(e)))
-    
+
     try:
         # Create multiple client threads
         threads = []
@@ -228,19 +214,19 @@ def test_curriculum_client_concurrent_access():
             t = threading.Thread(target=client_worker, args=(i,))
             threads.append(t)
             t.start()
-        
+
         # Wait for all threads to complete
         for t in threads:
             t.join()
-        
+
         # Check results
         assert len(errors) == 0, f"Errors occurred: {errors}"
         assert len(results) == 50  # 5 clients * 10 tasks each
-        
+
         # Verify all clients got valid tasks
         for client_id, task_name in results:
             assert task_name.startswith("task_")
-        
+
     finally:
         server.stop()
 
@@ -251,29 +237,29 @@ def test_trainer_stats_collection():
     server = CurriculumServer(curriculum, host="127.0.0.1", port=15561)
     server.start(background=True)
     time.sleep(0.5)
-    
+
     try:
         # Simulate trainer behavior
         client = CurriculumClient(
             server_url="http://127.0.0.1:15561",
             batch_size=10
         )
-        
+
         # Get some tasks (simulating rollouts)
         for _ in range(5):
             task = client.get_task()
             # In real trainer, this would happen after episode completion
             task.complete(0.8)
-        
+
         # Stats should be available from server's curriculum
         # But client methods return empty (as designed)
         assert client.get_curriculum_stats() == {}
         assert client.get_completion_rates() == {}
         assert client.get_task_probs() == {}
-        
+
         # Server's curriculum should have the stats
         assert curriculum.get_curriculum_stats()["total_tasks"] > 0
-        
+
     finally:
         server.stop()
 
