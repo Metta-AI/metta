@@ -64,7 +64,10 @@ def test_curriculum_stats_collection():
     curriculum.complete_task("task_2", 0.9)
 
     # Mock trainer components
-    stats = {"reward": [0.8, 0.9, 0.7]}
+    stats = {
+        "reward": [0.8, 0.9, 0.7],
+        "task_reward/default": [0.8, 0.9, 0.7]  # Add task reward for overview calculation
+    }
     losses = MagicMock()
     losses.policy_loss = 0.1
     losses.value_loss = 0.2
@@ -72,12 +75,26 @@ def test_curriculum_stats_collection():
     losses.explained_variance = 0.9
     losses.approx_kl_sum = 0.01
     losses.minibatches_processed = 4
+    losses.stats = MagicMock(return_value={
+        "policy_loss": 0.1,
+        "value_loss": 0.2,
+        "entropy": 0.05,
+        "explained_variance": 0.9,
+        "approx_kl": 0.01 / 4,  # avg kl
+        "clipfrac": 0.0
+    })
 
     experience = MagicMock()
     experience.num_minibatches = 4
+    experience.stats = MagicMock(return_value={
+        "buffer_size": 1000,
+        "num_episodes": 10
+    })
 
     trainer_config = MagicMock()
     trainer_config.kickstart.enabled = False
+    trainer_config.ppo.l2_reg_loss_coef = 0
+    trainer_config.ppo.l2_init_loss_coef = 0
 
     kickstarter = MagicMock()
     kickstarter.enabled = False
@@ -133,6 +150,10 @@ def test_curriculum_stats_collection():
     timer = MagicMock()
     timer.get_elapsed = MagicMock(return_value=100.0)
     timer.get_last_elapsed = MagicMock(return_value=1.0)
+    timer.get_all_elapsed = MagicMock(return_value={"_rollout": 50.0, "_train": 30.0})
+    timer.lap_all = MagicMock(return_value={"global": 10.0, "rollout": 5.0, "train": 3.0})
+    timer.get_lap_steps = MagicMock(return_value=100)
+    timer.get_rate = MagicMock(return_value=10.0)
 
     timing_info = compute_timing_stats(timer=timer, agent_step=1000)
 
@@ -165,7 +186,7 @@ def test_curriculum_stats_collection():
 
 def test_curriculum_client_stats():
     """Test that curriculum client returns empty stats (server handles all state)."""
-    from metta.rl.curriculum_client import CurriculumClient
+    from metta.rl.curriculum.curriculum_client import CurriculumClient
 
     # Create a mock client (don't need actual server for this test)
     client = CurriculumClient(
