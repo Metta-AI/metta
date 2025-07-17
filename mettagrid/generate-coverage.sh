@@ -51,13 +51,13 @@ if [ -n "$GCDA_FILES" ]; then
     echo -e "${GREEN}Using lcov for coverage...${NC}"
 
     # Capture coverage data with inline config to suppress warnings
+    # doubled flags are correct syntax
     lcov --capture \
          --directory ${BUILD_DIR} \
          --output-file ${BUILD_DIR}/${COVERAGE_FILE} \
          --rc branch_coverage=1 \
-         --ignore-errors inconsistent,inconsistent,format,format,unused,unused,unsupported \
+         --ignore-errors inconsistent,inconsistent,format,format,unused,unused,unsupported,mismatch,mismatch \
          --quiet
-         # somehow, these doubled flags are correct syntax!
 
     # Remove unwanted files from coverage
     # Exclude external dependencies, test files, and system headers
@@ -68,9 +68,11 @@ if [ -n "$GCDA_FILES" ]; then
          '*/include/*' \
          '*/tests/*.cpp' \
          '*/benchmarks/*.cpp' \
+         '*/pybind11/*' \
+         '*/.venv/*' \
          --output-file ${BUILD_DIR}/${COVERAGE_FILE} \
          --rc branch_coverage=1 \
-         --ignore-errors empty,unused,unused,inconsistent,format,format \
+         --ignore-errors empty,inconsistent,unused,unused,format,format,mismatch,mismatch \
          --quiet
 
     # Display summary
