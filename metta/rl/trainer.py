@@ -75,13 +75,13 @@ class MettaTrainer:
     def __init__(
         self,
         cfg: DictConfig,
-        wandb_run: WandbRun | None,
-        policy_store: PolicyStore,
-        sim_suite_config: SimulationSuiteConfig,
-        stats_client: StatsClient | None,
-        curriculum: Any,  # Accept curriculum as parameter
-        **kwargs: Any,
+        wandb_run: WandbRun | None = None,
+        policy_store: PolicyStore | None = None,
+        sim_suite_config: SimulationSuiteConfig | None = None,
+        stats_client: StatsClient | None = None,
+        curriculum=None,  # Accept curriculum as parameter
     ):
+        super().__init__()
         logger.info(f"run_dir = {cfg.run_dir}")
         checkpoints_dir = Path(cfg.run_dir) / "checkpoints"
         if checkpoints_dir.exists():
@@ -135,7 +135,9 @@ class MettaTrainer:
                 external_timer=self.timer,  # Pass trainer's timer for persistent elapsed time
             )
 
-        # Use the curriculum passed as parameter
+        # Use the curriculum passed in
+        if curriculum is None:
+            raise ValueError("curriculum must be provided to trainer")
         self._curriculum = curriculum
 
         # Add training task to the suite
@@ -898,6 +900,8 @@ class MettaTrainer:
         self.grad_stats.clear()
 
     def close(self):
+        self.timer.stop()
+        self.torch_profiler.close()
         self.vecenv.close()
         if self._master:
             self._memory_monitor.clear()

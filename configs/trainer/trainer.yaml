@@ -98,3 +98,8 @@ kickstart:
     #  - teacher_uri: wandb://run/mettabox_cogeval_defaults_lowent_initialized0005:v95
     #    action_loss_coef: 1
     #    value_loss_coef: 1
+
+curriculum_server:
+  enabled: true
+  port: 5555  # Port for the curriculum server
+  batch_size: 100  # Number of tasks to fetch in each batch

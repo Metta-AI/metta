@@ -123,9 +123,8 @@ class CurriculumServerConfig(BaseModelWithForbidExtra):
     # Client configuration
     server_url: str | None = None  # URL of remote server when running as client
     batch_size: int = Field(default=100, gt=0)  # Number of tasks to fetch per batch
-    prefetch_threshold: float = Field(default=0.5, ge=0, le=1.0)  # Fetch new batch when queue falls below this
-    max_retries: int = Field(default=3, gt=0)  # Max retries for failed requests
-    timeout: float = Field(default=10.0, gt=0)  # Request timeout in seconds
+    max_retries: int = Field(default=5, gt=0)  # Max retries for failed requests
+    timeout: float = Field(default=30.0, gt=0)  # Request timeout in seconds
     
     @model_validator(mode="after")
     def validate_fields(self) -> "CurriculumServerConfig":
