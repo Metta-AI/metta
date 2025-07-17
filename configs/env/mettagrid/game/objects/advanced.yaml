@@ -6,6 +6,7 @@ lab:
   output_resources:
     blueprint: 1
   max_output: 5
+  max_conversions: -1
   conversion_ticks: 1
   cooldown: 5
   initial_resource_count: 0
@@ -20,6 +21,7 @@ factory:
     armor: 5
     laser: 5
   max_output: 5
+  max_conversions: -1
   conversion_ticks: 1
   cooldown: 5
   initial_resource_count: 0
@@ -32,6 +34,7 @@ temple:
   output_resources:
     heart: 5
   max_output: 5
+  max_conversions: -1
   conversion_ticks: 1
   cooldown: 5
   initial_resource_count: 0

@@ -5,6 +5,7 @@ armory:
   output_resources:
     armor: 1
   max_output: 5
+  max_conversions: -1
   conversion_ticks: 1
   cooldown: 10
   initial_resource_count: 0
@@ -17,6 +18,7 @@ lasery:
   output_resources:
     laser: 1
   max_output: 5
+  max_conversions: -1
   conversion_ticks: 1
   cooldown: 10
   initial_resource_count: 0

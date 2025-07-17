@@ -19,6 +19,7 @@ struct ConverterConfig : public GridObjectConfig {
                   const std::map<InventoryItem, InventoryQuantity>& input_resources,
                   const std::map<InventoryItem, InventoryQuantity>& output_resources,
                   short max_output,
+                  short max_conversions,
                   unsigned short conversion_ticks,
                   unsigned short cooldown,
                   InventoryQuantity initial_resource_count,
@@ -27,6 +28,7 @@ struct ConverterConfig : public GridObjectConfig {
         input_resources(input_resources),
         output_resources(output_resources),
         max_output(max_output),
+        max_conversions(max_conversions),
         conversion_ticks(conversion_ticks),
         cooldown(cooldown),
         initial_resource_count(initial_resource_count),
@@ -35,6 +37,7 @@ struct ConverterConfig : public GridObjectConfig {
   std::map<InventoryItem, InventoryQuantity> input_resources;
   std::map<InventoryItem, InventoryQuantity> output_resources;
   short max_output;
+  short max_conversions;
   unsigned short conversion_ticks;
   unsigned short cooldown;
   InventoryQuantity initial_resource_count;
@@ -55,6 +58,15 @@ private:
     if (this->converting || this->cooling_down) {
       return;
     }
+
+    // Check if we've reached max_conversions
+    if (this->max_conversions >= 0 && this->conversions_completed >= this->max_conversions) {
+      this->cooldown = -1;  // Set to permanent stop
+      this->cooling_down = true;
+      stats.incr("conversions.permanent_stop"); // if you don't do it this way, and here, mine produce an extra ore
+      return;
+    }
+
     // Check if the converter is already at max output.
     unsigned short total_output = 0;
     for (const auto& [item, amount] : this->inventory) {
@@ -105,6 +117,7 @@ public:
   // is to make Mines (etc) have a maximum output.
   // -1 means no limit
   short max_output;
+  short max_conversions;            // Maximum number of conversions allowed
   unsigned short conversion_ticks;  // Time to produce output
   unsigned short cooldown;          // Time to wait after producing before starting again
   bool converting;                  // Currently in production phase
@@ -112,17 +125,20 @@ public:
   unsigned char color;
   EventManager* event_manager;
   StatsTracker stats;
+  unsigned short conversions_completed;  // Number of conversions completed
 
   Converter(GridCoord r, GridCoord c, const ConverterConfig& cfg)
       : input_resources(cfg.input_resources),
         output_resources(cfg.output_resources),
         max_output(cfg.max_output),
+        max_conversions(cfg.max_conversions),
         conversion_ticks(cfg.conversion_ticks),
         cooldown(cfg.cooldown),
         color(cfg.color) {
     GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c, GridLayer::ObjectLayer));
     this->converting = false;
     this->cooling_down = false;
+    this->conversions_completed = 0;
 
     // Initialize inventory with initial_resource_count for all output types
     for (const auto& [item, _] : this->output_resources) {
@@ -137,7 +153,10 @@ public:
 
   void finish_converting() {
     this->converting = false;
-    stats.incr("conversions.completed");
+    if (this->max_conversions != -1) {
+
+      stats.incr("conversions.completed");
+    }
 
     // Add output to inventory
     for (const auto& [item, amount] : this->output_resources) {
@@ -153,15 +172,16 @@ public:
     } else if (this->cooldown == 0) {
       // No cooldown, try to start converting again immediately
       this->maybe_start_converting();
-    } else if (this->cooldown < 0) {
-      // Negative cooldown means never convert again
-      this->cooling_down = true;
-      stats.incr("conversions.permanent_stop");
     }
   }
 
   void finish_cooldown() {
     this->cooling_down = false;
+    // Only update stats if there was actually a conversion
+    if (this->max_conversions != 0) {
+      this->conversions_completed++;
+      stats.incr("conversions.completed");
+    }
     stats.incr("cooldown.completed");
     this->maybe_start_converting();
   }
