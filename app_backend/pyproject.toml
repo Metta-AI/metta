@@ -6,11 +6,41 @@ build-backend = "setuptools.build_meta"
 name = "metta-app-backend"
 version = "0.1.0"
 description = "Metta AI App Backend Server"
+authors = [{ name = "David Bloomin", email = "daveey@gmail.com" }]
 requires-python = "==3.11.7"
 license = "MIT"
+readme = "README.md"
+urls = { Homepage = "https://daveey.github.io", Repository = "https://github.com/Metta-AI/metta" }
+
 dependencies = [
   "fastapi>=0.115.5",
   "uvicorn[standard]>=0.34.2",
-  "psycopg[binary]>=3.2.9",
+  "psycopg[binary,pool]>=3.2.9",
   "pydantic>=2.11.5",
+  "pytest-asyncio>=1.0.0",
 ]
+
+[dependency-groups]
+dev = [
+  "pyright>=1.1.401",
+  "pytest>=8.3.3",
+  "pytest-benchmark>=5.1.0",
+  "pytest-cov>=6.1.1",
+  "pytest-xdist>=3.8.0",
+  "ruff>=0.11.13",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["metta.app_backend"]
+
+[tool.setuptools.package-data]
+"metta" = ["__init__.py"]
+"metta.app_backend" = ["py.typed"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[tool.coverage.run]
+source = ["metta.app_backend"]

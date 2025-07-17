@@ -10,15 +10,33 @@
 #include "objects/agent.hpp"
 #include "objects/constants.hpp"
 #include "types.hpp"
+struct ActionConfig {
+  std::map<InventoryItem, InventoryQuantity> required_resources;
+  std::map<InventoryItem, InventoryQuantity> consumed_resources;
 
-typedef std::map<std::string, int> ActionConfig;
+  ActionConfig(const std::map<InventoryItem, InventoryQuantity>& required_resources,
+               const std::map<InventoryItem, InventoryQuantity>& consumed_resources)
+      : required_resources(required_resources), consumed_resources(consumed_resources) {}
+
+  virtual ~ActionConfig() {}
+};
 
 class ActionHandler {
 public:
   unsigned char priority;
   Grid* _grid;
 
-  ActionHandler(const ActionConfig& cfg, const std::string& action_name) : priority(0), _action_name(action_name) {}
+  ActionHandler(const ActionConfig& cfg, const std::string& action_name)
+      : priority(0),
+        _action_name(action_name),
+        _required_resources(cfg.required_resources),
+        _consumed_resources(cfg.consumed_resources) {
+    for (const auto& [item, amount] : _required_resources) {
+      if (amount < _consumed_resources[item]) {
+        throw std::runtime_error("Required resources must be greater than or equal to consumed resources");
+      }
+    }
+  }
 
   virtual ~ActionHandler() {}
 
@@ -30,26 +48,43 @@ public:
     Agent* actor = static_cast<Agent*>(_grid->object(actor_object_id));
 
     // Handle frozen status
-    if (actor->frozen > 0) {
+    if (actor->frozen != 0) {
       actor->stats.incr("status.frozen.ticks");
       actor->stats.incr("status.frozen.ticks." + actor->group_name);
-      actor->frozen -= 1;
+      if (actor->frozen > 0) {
+        actor->frozen -= 1;
+      }
       return false;
     }
 
+    bool has_needed_resources = true;
+    for (const auto& [item, amount] : _required_resources) {
+      if (actor->inventory[item] < amount) {
+        has_needed_resources = false;
+        break;
+      }
+    }
+
     // Execute the action
-    bool result = _handle_action(actor, arg);
+    bool success = has_needed_resources && _handle_action(actor, arg);
 
     // Track success/failure
-    if (result) {
+    if (success) {
       actor->stats.incr("action." + _action_name + ".success");
+      for (const auto& [item, amount] : _consumed_resources) {
+        InventoryDelta delta = actor->update_inventory(item, -static_cast<InventoryDelta>(amount));
+        // We consume resources after the action succeeds, but in the future
+        // we might have an action that uses the resource. This check will
+        // catch that.
+        assert(delta == -amount);
+      }
     } else {
       actor->stats.incr("action." + _action_name + ".failed");
       actor->stats.incr("action.failure_penalty");
       *actor->reward -= actor->action_failure_penalty;
     }
 
-    return result;
+    return success;
   }
 
   virtual unsigned char max_arg() const {
@@ -64,6 +99,8 @@ protected:
   virtual bool _handle_action(Agent* actor, ActionArg arg) = 0;
 
   std::string _action_name;
+  std::map<InventoryItem, InventoryQuantity> _required_resources;
+  std::map<InventoryItem, InventoryQuantity> _consumed_resources;
 };
 
 #endif  // ACTION_HANDLER_HPP_

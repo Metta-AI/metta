@@ -41,7 +41,6 @@ export class PanelInfo {
       .mul(Mat3f.translate(rect.x + rect.width / 2, rect.y + rect.height / 2))
       .mul(Mat3f.scale(this.zoomLevel, this.zoomLevel))
       .mul(Mat3f.translate(this.panPos.x(), this.panPos.y()))
-
   }
 
   /** Transforms a point from the outer coordinate system to the panel's inner coordinate system. */

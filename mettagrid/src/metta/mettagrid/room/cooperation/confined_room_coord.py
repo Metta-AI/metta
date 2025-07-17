@@ -24,7 +24,7 @@ class ConfinedRoomCoord(Room):
         num_mines: int = 1,
         num_generators: int = 1,
         num_altars: int = 1,
-        agents: Union[int, DictConfig] = 1,
+        agents: Union[int, dict, DictConfig] = 1,
         # Pure wall padding around the room (floor + object border)
         border_width: int = 0,
         seed: Optional[int] = None,
@@ -47,14 +47,14 @@ class ConfinedRoomCoord(Room):
         if isinstance(agents, int):
             if agents < 0:
                 raise ValueError("Number of agents cannot be negative.")
-        elif isinstance(agents, DictConfig):
+        elif isinstance(agents, (dict, DictConfig)):
             for agent_name, count_val in agents.items():
                 if not isinstance(count_val, int) or count_val < 0:
                     raise ValueError(
                         f"Agent count for '{str(agent_name)}' must be a non-negative integer, got {count_val}"
                     )
         else:
-            raise TypeError(f"Agents parameter must be an int or a DictConfig, got {type(agents)}")
+            raise TypeError(f"Agents parameter must be an int, dict, or DictConfig, got {type(agents)}")
         self._agents_spec = agents
 
         # Calculate room dimensions:
@@ -151,7 +151,7 @@ class ConfinedRoomCoord(Room):
 
         # 3. Place game objects (mines, generators, altars) on the non-corner functional border
         objects_to_place = (
-            [("mine", self._num_mines)] + [("generator", self._num_generators)] + [("altar", self._num_altars)]
+            [("mine_red", self._num_mines)] + [("generator_red", self._num_generators)] + [("altar", self._num_altars)]
         )
 
         temp_available_non_corner_fb_cells = list(functional_border_cells)  # Copy for modification
@@ -211,7 +211,7 @@ class ConfinedRoomCoord(Room):
             count = self._agents_spec
             # Agent type defaults to "agent.agent" if an integer is provided
             agent_symbols_to_place = ["agent.agent"] * count
-        elif isinstance(self._agents_spec, DictConfig):
+        elif isinstance(self._agents_spec, (dict, DictConfig)):
             for name, count_val in self._agents_spec.items():
                 # Ensure name is treated as a string for processing
                 s_name = str(name)

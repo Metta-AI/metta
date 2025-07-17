@@ -1,51 +1,77 @@
+# Environment and IDE
 .envrc
-*.egg-info
-*.pyc
-*.so
-**/__pycache__
-**/.DS_Store
-.coverage
 .env
-.task
 .vscode/PythonImportHelper-v2-Completion.json
-/checkpoints/
-/mettagrid/dist
-/mettascope/dist
-/mettascope/node_modules
-/mettagrid/multirun
-cython_debug
-outputs
-replays
-stats.profile
-train_dir
-metta-research
-gpu_names_cache.json
-stderr.log
-sweep_id
-personal/
-/wandb
-/deps/*
-terrain_maps_nohearts*
-.idea
+.idea/
+.task
+
+# OS-specific
+**/.DS_Store
+
+# Python
+*.pyc
+*.egg-info
+**/__pycache__/
+.coverage
 .coverage.*
+coverage.xml
+htmlcov/
+cython_debug/
+.venv/
+
+# CMake FetchContent cache
+.deps/
+
+# Build artifacts
+*.so
 build/
 build_debug/
-.venv
+build-release/
+build-debug/
+build-coverage/
+
+# Node.js / Frontend
+node_modules/
+.next/
+.pnpm/
+.vite/
+dist/
+
+# Project-specific build outputs
+/mettagrid/dist/
+/mettascope/dist/
+/observatory/dist/
+
+# Project directories
+/checkpoints/
+/wandb/
+/deps/*
+outputs/
+replays/
+train_dir/
+personal/
+/mettagrid/multirun/
+
+# Test and benchmark
+test_data/
 **/*benchmark_results.json
-**/requirements_to_remove.txt
-test_data
-**/mettagrid_debug.log
+.testmondata*
+
+# Logs and profiling
+*.log
+stats.profile
 cpplint_output*
 
-observatory/node_modules/
-observatory/.vite/
-observatory/dist/
-
-wandb
-
-/devops/charts/**/charts
-
+# Configuration
+**/requirements_to_remove.txt
+/devops/charts/**/charts/
 .claude/settings.local.json
 
-# can be created by skypilot
-/Miniconda3-Linux.sh
+# External tools
+/Miniconda3-Linux.sh  # created by skypilot
+
+# Legacy / Research
+metta-research/
+terrain_maps_nohearts*
+gpu_names_cache.json
+sweep_id

@@ -1,5 +1,12 @@
 defaults:
   - mettagrid
+  - game/objects:
+      - basic
+      - mines
+      - generators
+      - combat
+      - advanced
+
   - _self_
 
 game:

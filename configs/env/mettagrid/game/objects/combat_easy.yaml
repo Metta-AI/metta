@@ -1,0 +1,12 @@
+defaults:
+  - combat
+  - _self_
+
+armory:
+  input_resources:
+    ore_red: 1
+
+lasery:
+  input_resources:
+    ore_red: 1
+    battery_red: 0

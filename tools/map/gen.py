@@ -13,7 +13,7 @@ from omegaconf import DictConfig, OmegaConf
 from metta.common.util.config import config_from_path
 from metta.common.util.resolvers import register_resolvers
 from metta.map.utils.show import ShowMode, show_map
-from metta.map.utils.storable_map import map_builder_cfg_to_storable_map
+from metta.map.utils.storable_map import StorableMap
 
 # Aggressively exit on ctrl+c
 signal.signal(signal.SIGINT, lambda sig, frame: os._exit(0))
@@ -46,7 +46,7 @@ def make_map(cfg_path: str, overrides: DictConfig | None = None):
         # features, but it has a decent chance of working.
         cfg = cfg.game.map_builder
 
-    return map_builder_cfg_to_storable_map(cfg)
+    return StorableMap.from_cfg(cfg)
 
 
 # Based on heuristics, see https://github.com/Metta-AI/mettagrid/pull/108#discussion_r2054699842

@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 
 from metta.map.scenes.room_grid import RoomGrid
-from metta.map.types import AreaQuery
+from metta.map.types import AreaQuery, AreaWhere, ChildrenAction
 from tests.map.scenes.utils import assert_grid, render_scene
 
 
@@ -82,3 +82,37 @@ def test_benchmark_room_grid(benchmark, benchmark_size):
 
     areas = benchmark(create_grid)
     assert len(areas) == benchmark_size[0] * benchmark_size[1]
+
+
+def test_labels_same_type_children():
+    scene = render_scene(
+        RoomGrid,
+        params={"rows": 2, "columns": 3},
+        shape=(10, 10),
+        children=[
+            ChildrenAction(
+                scene={"type": "metta.map.scenes.random.Random", "params": {"agents": 10}},
+                where=AreaWhere(tags=["room"]),
+            )
+        ],
+    )
+    assert scene.get_labels() == ["Random"]
+
+
+def test_labels_different_type_children():
+    scene = render_scene(
+        RoomGrid,
+        params={"rows": 2, "columns": 2},
+        shape=(10, 10),
+        children=[
+            ChildrenAction(
+                scene={"type": "metta.map.scenes.random.Random", "params": {"agents": 1}},
+                where=AreaWhere(tags=["room"]),
+            ),
+            ChildrenAction(
+                scene={"type": "metta.map.scenes.maze.Maze"},
+                where=AreaWhere(tags=["room"]),
+            ),
+        ],
+    )
+    assert scene.get_labels() == []

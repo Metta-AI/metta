@@ -5,8 +5,8 @@ from metta.map.scene import Scene
 
 
 class RandomParams(Config):
-    objects: dict = {}
-    agents: int | dict = 0
+    objects: dict[str, int] = {}
+    agents: int | dict[str, int] = 0
     too_many_is_ok: bool = True
 
 

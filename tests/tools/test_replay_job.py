@@ -26,21 +26,21 @@ def test_config_defaults(build_config):
     cfg = build_config(["run=test"])
     assert cfg.selector_type == "top"
     assert cfg.policy_uri.endswith("test/checkpoints")
-    assert cfg.sim.env == "/env/mettagrid/simple"
+    assert cfg.sim.env == "/env/mettagrid/arena/advanced"
 
 
 def test_config_overrides(build_config):
     cfg = build_config(
         [
             "run=test",
-            "sim.env=/env/mettagrid/teams",
-            "+sim.env_overrides.game.num_agents=36",
             "policy_uri=test_policy",
-            "sim.num_episodes=10",
+            "replay_job.sim.env=/env/mettagrid/arena/advanced",
+            "+replay_job.sim.env_overrides.game.num_agents=36",
+            "replay_job.sim.num_episodes=10",
         ]
     )
     print(cfg)
     assert cfg.policy_uri == "test_policy"
-    assert cfg.sim.env == "/env/mettagrid/teams"
+    assert cfg.sim.env == "/env/mettagrid/arena/advanced"
     assert cfg.sim.num_episodes == 10
     assert cfg.sim.env_overrides["game"]["num_agents"] == 36

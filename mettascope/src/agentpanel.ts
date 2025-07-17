@@ -12,7 +12,7 @@ import {
   localStorageGetObject,
 } from './htmlutils.js'
 import { state, setFollowSelection, html } from './common.js'
-import { getAttr } from './replay.js'
+import { getAttr, propertyName, propertyIcon } from './replay.js'
 import { updateSelection } from './main.js'
 
 enum SortDirection {
@@ -39,7 +39,7 @@ class ColumnDefinition {
   }
 
   generateName() {
-    let name = capitalize(this.field.replace('inv:', '').replace('agent:', '').replace('.', ' ').replace('_', ' '))
+    let name = propertyName(this.field)
     if (this.isFinal) {
       name = 'Final: ' + name
     }
@@ -47,11 +47,7 @@ class ColumnDefinition {
   }
 
   generateIcon() {
-    if (this.field.startsWith('inv:') || this.field.startsWith('agent:inv:')) {
-      return 'data/atlas/resources/' + this.field.replace('inv:', '').replace('agent:', '') + '.png'
-    } else {
-      return 'data/ui/table/' + this.field.replace('agent:', '') + '.png'
-    }
+    return propertyIcon(this.field)
   }
 
   // Unlike name, a tool tip has exact field.
@@ -85,17 +81,6 @@ var columns = [
 ]
 var mainSort: ColumnDefinition = columns[1]
 var typeaheadValue = ''
-
-/**
- * Capitalize the first letter of every word in a string.
- * Example: "hello world" -> "Hello World"
- */
-function capitalize(str: string) {
-  return str
-    .split(' ')
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(' ')
-}
 
 /** Swaps the element 1 position to the right. */
 function swapRight(list: any[], element: any) {
@@ -141,7 +126,10 @@ export function initAgentTable() {
 }
 
 /** Given an element, get the field and isFinal information thats up the DOM tree. */
-function getFieldInfo(target: HTMLElement): { columnField: string; columnIsFinal: boolean } {
+function getFieldInfo(target: HTMLElement): {
+  columnField: string
+  columnIsFinal: boolean
+} {
   let columnField = findAttr(target, 'data-column-field')
   let columnIsFinal = findAttr(target, 'data-column-is-final') == 'true'
   return { columnField, columnIsFinal }
@@ -436,6 +424,9 @@ export function updateAgentTable() {
           value = getAttr(agent, columnDef.field, state.replay.max_steps - 1)
         } else {
           value = getAttr(agent, columnDef.field)
+        }
+        if (value == null) {
+          value = 0
         }
         let valueStr = value.toString()
         if (valueStr.includes('.')) {

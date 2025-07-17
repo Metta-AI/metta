@@ -3,7 +3,7 @@ description: "Sets up and launches a SkyPilot job with necessary configurations.
 
 inputs:
   trainer_env:
-    description: "Training environment configuration (e.g., env/mettagrid/simple)"
+    description: "Training environment configuration (e.g., env/mettagrid/arena/advanced)"
     required: true
   timeout_hours:
     description: "Job timeout in hours"
@@ -32,10 +32,8 @@ inputs:
 runs:
   using: "composite"
   steps:
-    - name: Setup Python and uv
+    - name: Setup uv
       uses: ./.github/actions/setup-uv
-      with:
-        include-dev: true
 
     - name: Determine Git Ref
       id: determine_git_ref
@@ -85,7 +83,7 @@ runs:
         chmod +x ./devops/skypilot/launch.py
 
         LAUNCH_ARGS=(
-          "--timeout-hours=${{ inputs.timeout_hours }}"
+          "--max-runtime-hours=${{ inputs.timeout_hours }}"
         )
 
         if [ -n "${{ inputs.num_gpus }}" ]; then

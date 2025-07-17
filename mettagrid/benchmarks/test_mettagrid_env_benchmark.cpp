@@ -7,7 +7,11 @@
 #include <random>
 #include <vector>
 
+#include "actions/attack.hpp"
+#include "actions/change_glyph.hpp"
 #include "mettagrid_c.hpp"
+#include "objects/agent.hpp"
+#include "objects/wall.hpp"
 
 namespace py = pybind11;
 
@@ -23,89 +27,57 @@ namespace py = pybind11;
 // We'll know we've succeeded when this file has zero references to pybind11!
 
 // Helper functions for creating configuration and map
-py::dict CreateBenchmarkConfig(int num_agents) {
-  py::dict game_cfg;
+GameConfig CreateBenchmarkConfig(int num_agents) {
+  std::vector<std::string> inventory_item_names = {"ore", "heart"};
 
-  // Basic game configuration
-  game_cfg["num_agents"] = num_agents;
-  game_cfg["max_steps"] = 10000;
-  game_cfg["obs_width"] = 11;
-  game_cfg["obs_height"] = 11;
-  game_cfg["num_observation_tokens"] = 100;
+  std::shared_ptr<ActionConfig> action_cfg = std::make_shared<ActionConfig>(
+      std::map<InventoryItem, InventoryQuantity>(), std::map<InventoryItem, InventoryQuantity>());
 
-  // Inventory item names configuration
-  py::list inventory_item_names;
-  inventory_item_names.append("ore");
-  inventory_item_names.append("heart");
-  game_cfg["inventory_item_names"] = inventory_item_names;
+  std::shared_ptr<AttackActionConfig> attack_cfg =
+      std::make_shared<AttackActionConfig>(std::map<InventoryItem, InventoryQuantity>(),
+                                           std::map<InventoryItem, InventoryQuantity>(),
+                                           std::map<InventoryItem, InventoryQuantity>());
 
-  // Actions configuration
-  py::dict actions_cfg;
-  py::dict noop_cfg, move_cfg, rotate_cfg, attack_cfg, swap_cfg, put_cfg, get_cfg, change_color_cfg;
+  std::shared_ptr<ChangeGlyphActionConfig> change_glyph_cfg = std::make_shared<ChangeGlyphActionConfig>(
+      std::map<InventoryItem, InventoryQuantity>(), std::map<InventoryItem, InventoryQuantity>(), 4);
 
-  noop_cfg["enabled"] = true;
-  move_cfg["enabled"] = true;
-  rotate_cfg["enabled"] = true;
-  attack_cfg["enabled"] = true;
-  attack_cfg["attack_resources"] = py::dict();
-  attack_cfg["defense_resources"] = py::dict();
-  swap_cfg["enabled"] = true;
-  put_cfg["enabled"] = true;
-  get_cfg["enabled"] = true;
-  change_color_cfg["enabled"] = true;
+  std::map<std::string, std::shared_ptr<ActionConfig>> actions_cfg;
 
-  actions_cfg["noop"] = noop_cfg;
-  actions_cfg["move"] = move_cfg;
-  actions_cfg["rotate"] = rotate_cfg;
+  actions_cfg["noop"] = action_cfg;
+  actions_cfg["move"] = action_cfg;
+  actions_cfg["rotate"] = action_cfg;
   actions_cfg["attack"] = attack_cfg;
-  actions_cfg["swap"] = swap_cfg;
-  actions_cfg["put_items"] = put_cfg;
-  actions_cfg["get_items"] = get_cfg;
-  actions_cfg["change_color"] = change_color_cfg;
+  actions_cfg["swap"] = action_cfg;
+  actions_cfg["put_items"] = action_cfg;
+  actions_cfg["get_items"] = action_cfg;
+  actions_cfg["change_color"] = action_cfg;
+  actions_cfg["change_glyph"] = change_glyph_cfg;
 
-  game_cfg["actions"] = actions_cfg;
+  std::map<std::string, std::shared_ptr<GridObjectConfig>> objects_cfg;
 
-  // Groups configuration
-  py::dict agent_group1, agent_group2;
+  objects_cfg["wall"] = std::make_shared<WallConfig>(1, "wall", false);
+  objects_cfg["agent.team1"] = std::make_shared<AgentConfig>(0,
+                                                             "agent",
+                                                             0,
+                                                             "team1",
+                                                             0,
+                                                             0.0f,
+                                                             std::map<InventoryItem, InventoryQuantity>(),
+                                                             std::map<InventoryItem, RewardType>(),
+                                                             std::map<InventoryItem, InventoryQuantity>(),
+                                                             0.0f);
+  objects_cfg["agent.team2"] = std::make_shared<AgentConfig>(0,
+                                                             "agent",
+                                                             1,
+                                                             "team2",
+                                                             0,
+                                                             0.0f,
+                                                             std::map<InventoryItem, InventoryQuantity>(),
+                                                             std::map<InventoryItem, RewardType>(),
+                                                             std::map<InventoryItem, InventoryQuantity>(),
+                                                             0.0f);
 
-  agent_group1["freeze_duration"] = 0;
-  agent_group1["action_failure_penalty"] = 0;
-  agent_group1["max_items_per_type"] = py::dict();
-  agent_group1["resource_rewards"] = py::dict();
-  agent_group1["resource_reward_max"] = py::dict();
-  agent_group1["group_name"] = "team1";
-  agent_group1["group_id"] = 0;
-  agent_group1["group_reward_pct"] = 0.0f;
-  agent_group1["type_id"] = 0;
-  agent_group1["type_name"] = "agent";
-  agent_group1["object_type"] = "agent";
-
-  agent_group2["freeze_duration"] = 0;
-  agent_group2["action_failure_penalty"] = 0;
-  agent_group2["max_items_per_type"] = py::dict();
-  agent_group2["resource_rewards"] = py::dict();
-  agent_group2["resource_reward_max"] = py::dict();
-  agent_group2["group_name"] = "team2";
-  agent_group2["group_id"] = 1;
-  agent_group2["group_reward_pct"] = 0.0f;
-  agent_group2["type_id"] = 0;
-  agent_group2["type_name"] = "agent";
-  agent_group2["object_type"] = "agent";
-
-  // Objects configuration
-  py::dict objects_cfg;
-  py::dict wall_cfg;
-
-  objects_cfg["wall"] = wall_cfg;
-  objects_cfg["wall"]["type_id"] = 1;
-  objects_cfg["wall"]["type_name"] = "wall";
-  objects_cfg["wall"]["object_type"] = "wall";
-  objects_cfg["agent.team1"] = agent_group1;
-  objects_cfg["agent.team2"] = agent_group2;
-
-  game_cfg["objects"] = objects_cfg;
-
-  return game_cfg;
+  return GameConfig(num_agents, 10000, false, 11, 11, inventory_item_names, 100, actions_cfg, objects_cfg);
 }
 
 py::list CreateDefaultMap(int num_agents_per_team = 2) {

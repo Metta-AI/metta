@@ -1,3 +1,3 @@
-This stack is used to create a shared EFS volume for the metta project.
+This stack is used to configure Tailscale for the metta project.
 
-The volume is exposed to our tailscale network through a proxy EC2 instance.
+It's called "shared-efs" for legacy reasons.

@@ -2,7 +2,9 @@
 
 ## Overview
 
-The Claude Assistant is an AI-powered GitHub bot that responds to mentions in comments and can automatically create pull requests based on natural language instructions. It leverages Anthropic's Claude AI to understand requests, analyze code, and implement changes.
+The Claude Assistant is an AI-powered GitHub bot that responds to mentions in comments and can automatically create pull
+requests based on natural language instructions. It leverages Anthropic's Claude AI to understand requests, analyze
+code, and implement changes.
 
 ## Architecture
 
@@ -36,11 +38,13 @@ The Claude Assistant is an AI-powered GitHub bot that responds to mentions in co
 Responds to general questions, provides code analysis, and offers suggestions.
 
 **Triggers**:
+
 - Any comment containing `@claude` (without `open-pr`)
 - Works on issues and pull requests
 - Responds to PR review comments
 
 **Capabilities**:
+
 - Code review and analysis
 - Explanations and documentation
 - Architecture suggestions
@@ -48,6 +52,7 @@ Responds to general questions, provides code analysis, and offers suggestions.
 - Running linters (ruff for Python)
 
 **Available Tools**:
+
 - `Bash`: Git commands, Python scripts, linters
 - `View`: Read file contents
 - `GlobTool`: Find files by pattern
@@ -58,10 +63,12 @@ Responds to general questions, provides code analysis, and offers suggestions.
 Automatically implements requested changes and creates a pull request.
 
 **Triggers**:
+
 - Comments containing `@claude open-pr`
 - Works on both issues and existing PRs
 
 **Capabilities**:
+
 - Implements code changes based on natural language
 - Creates feature branches automatically
 - Commits changes with descriptive messages
@@ -69,10 +76,12 @@ Automatically implements requested changes and creates a pull request.
 - Targets appropriate branches (not always main)
 
 **Smart Branch Targeting**:
+
 - **From Issue**: Creates PR targeting the default branch (usually main)
 - **From PR**: Creates PR targeting the PR's feature branch (iterative development)
 
 **Available Tools**:
+
 - All comment mode tools plus:
 - `Edit`: Modify existing files
 - `Replace`: Replace code sections
@@ -106,6 +115,7 @@ Claude will analyze the context and provide explanations.
 
 ```markdown
 @claude open-pr Refactor the authentication module to:
+
 1. Use async/await instead of callbacks
 2. Add proper error handling for network failures
 3. Include retry logic with exponential backoff
@@ -115,8 +125,10 @@ Claude will analyze the context and provide explanations.
 ### Iterative Development on PR
 
 When commenting on an existing PR:
+
 ```markdown
 @claude open-pr Based on the review feedback, please:
+
 - Extract the validation logic into a separate function
 - Add unit tests for the edge cases mentioned
 - Update the docstrings
@@ -136,17 +148,17 @@ GITHUB_TOKEN       # Usually provided automatically
 ### Environment Variables
 
 ```yaml
-CLAUDE_MODEL: "claude-sonnet-4-20250514"  # Model version
+CLAUDE_MODEL: 'claude-sonnet-4-20250514' # Model version
 ```
 
 ### Permissions Required
 
 ```yaml
 permissions:
-  contents: write      # For creating branches and commits
+  contents: write # For creating branches and commits
   pull-requests: write # For creating PRs and comments
-  issues: write        # For commenting on issues
-  id-token: write      # For authentication
+  issues: write # For commenting on issues
+  id-token: write # For authentication
 ```
 
 ## Workflow Details
@@ -154,6 +166,7 @@ permissions:
 ### 1. Detection Phase
 
 The workflow detects the type of request:
+
 - Searches for `@claude open-pr` to determine PR creation mode
 - Falls back to comment mode for general `@claude` mentions
 
@@ -192,18 +205,21 @@ Example: `claude/auto-123-2024-01-15T10-30-45`
 🤖 **Automated PR created by Claude**
 
 **Original request:**
+
 > [User's @claude open-pr comment]
 
-**Context:** This PR addresses the request from [issue/PR #X]
-**Target:** This PR will merge into `branch-name` (not main)
+**Context:** This PR addresses the request from [issue/PR #X] **Target:** This PR will merge into `branch-name` (not
+main)
 
 **Changes made:**
+
 - X commit(s) with: [commit message]
 
 **Branch flow:** `claude/auto-X-timestamp` → `target-branch`
 
 ---
-*This PR was automatically created by Claude Code Assistant.*
+
+_This PR was automatically created by Claude Code Assistant._
 ```
 
 ## Error Handling
@@ -211,10 +227,12 @@ Example: `claude/auto-123-2024-01-15T10-30-45`
 ### Common Issues and Solutions
 
 1. **No commits created**
+
    - Claude may have failed to use the commit tool
    - Solution: Ensure request is clear and specific
 
 2. **Branch push failed**
+
    - Permissions or conflict issues
    - Solution: Check GitHub token permissions
 
@@ -225,6 +243,7 @@ Example: `claude/auto-123-2024-01-15T10-30-45`
 ### Debug Information
 
 The workflow provides extensive debugging:
+
 - Git state before and after Claude runs
 - Branch information and commit counts
 - Success/failure messages with context
@@ -232,21 +251,24 @@ The workflow provides extensive debugging:
 ### Failure Comments
 
 When PR creation fails, Claude posts a diagnostic comment:
+
 ```markdown
 ⚠️ **Unable to create PR**
 
 **Reason:** No changes were committed
 
 **Debug info:**
+
 - Expected branch: `claude/auto-123-...`
 - Target branch: `main`
 - Has commits: false
 - Claude execution: success
 
 **Possible solutions:**
+
 - Try a simpler, more specific request
 - Check if the changes conflict with existing code
-- Ensure Claude used mcp__github_file_ops__commit_files
+- Ensure Claude used mcp**github_file_ops**commit_files
 ```
 
 ## Best Practices
@@ -254,12 +276,14 @@ When PR creation fails, Claude posts a diagnostic comment:
 ### 1. Writing Requests
 
 **DO:**
+
 - Be specific about what changes you want
 - Break complex requests into numbered steps
 - Mention specific files when possible
 - Provide context about the goal
 
 **DON'T:**
+
 - Make vague requests like "improve this code"
 - Ask for massive refactors in one go
 - Request changes to protected files
@@ -296,6 +320,7 @@ When PR creation fails, Claude posts a diagnostic comment:
 ### Custom Instructions
 
 The workflow accepts custom instructions through the `CLAUDE.md` file:
+
 - Coding standards
 - Project-specific patterns
 - Forbidden practices
@@ -304,6 +329,7 @@ The workflow accepts custom instructions through the `CLAUDE.md` file:
 ### Tool Restrictions
 
 For security, certain bash commands are limited:
+
 - Network operations restricted
 - No system modifications
 - Read-only access to most areas

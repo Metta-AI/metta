@@ -1,48 +1,62 @@
+# Trainer configuration
 _target_: metta.rl.trainer.MettaTrainer
-
-num_workers: ???
-
+num_workers: 256
+env:
 curriculum: /env/mettagrid/curriculum/simple
 env_overrides: {}
-
 initial_policy:
-  uri: null
+  uri:
   type: top
   range: 1
   metric: epoch
   filters: {}
 
 checkpoint:
-  checkpoint_dir: ${run_dir}/checkpoints
   checkpoint_interval: 60
   wandb_checkpoint_interval: 300
+  checkpoint_dir: ${run_dir}/checkpoints
 
 simulation:
   evaluate_interval: 300
-  replay_interval: ${trainer.simulation.evaluate_interval}
   replay_dir: s3://softmax-public/replays/${run}
 
-grad_mean_variance_interval: 0 # 0 to disable
-
-
 total_timesteps: 50_000_000_000
+batch_size: 524288
+minibatch_size: 16384
+bptt_horizon: 64
+update_epochs: 1
+cpu_offload: false
+compile: false
+scale_batches_by_world_size: false
+forward_pass_minibatch_target_size: 4096
+async_factor: 2
+zero_copy: true
+require_contiguous_env_ids: false
+verbose: true
+grad_mean_variance_interval: 0
 
-
+# Optimizer configuration
 optimizer:
   type: adam
+  learning_rate: 0.0004573146765703167
   beta1: 0.9
   beta2: 0.999
   eps: 1e-12
-  learning_rate: 0.0004573146765703167
   weight_decay: 0
 
+# Learning rate scheduler
 lr_scheduler:
   enabled: false
   anneal_lr: false
-  warmup_steps: null
-  schedule_type: null
+  warmup_steps:
+  schedule_type:
 
+# PPO hyperparameters
 ppo:
+  clip_coef: 0.1
+  ent_coef: 0.0021
+  gae_lambda: 0.916
+  gamma: 0.977
   max_grad_norm: 0.5
   vf_clip_coef: 0.1
   vf_coef: 0.44
@@ -51,40 +65,18 @@ ppo:
   norm_adv: true
   clip_vloss: true
   target_kl: null
-  clip_coef: 0.2
-  ent_coef: 0.01
-
 
 # Prioritized experience replay parameters
 prioritized_experience_replay:
-  prio_alpha: 0.0  # Default to uniform sampling (0.0 = uniform, >0 = prioritized)
-  prio_beta0: 0.6  # Initial importance sampling correction
+  prio_alpha: 0.0
+  prio_beta0: 0.6
 
-
-
-# V-trace clipping parameters (for off-policy corrections)
+# V-trace parameters
 vtrace:
-  vtrace_rho_clip: 1.0  # Default: on-policy (no off-policy correction)
-  vtrace_c_clip: 1.0    # Default: on-policy bootstrapping
+  vtrace_rho_clip: 1.0
+  vtrace_c_clip: 1.0
 
-zero_copy: true
-require_contiguous_env_ids: false
-verbose: true
-
-batch_size: 524288
-minibatch_size: 16384
-bptt_horizon: 64
-update_epochs: 1
-
-cpu_offload: false
-compile: false
-compile_mode: reduce-overhead
-profiler_interval_epochs: 10000
-
-forward_pass_minibatch_target_size: 4096
-async_factor: 2
-scale_batches_by_world_size: false
-
+# Hyperparameter scheduler configuration
 hyperparameter_scheduler:
   learning_rate_schedule:
     _target_: metta.rl.hyperparameter_scheduler.CosineSchedule
@@ -115,17 +107,16 @@ hyperparameter_scheduler:
     _target_: metta.rl.hyperparameter_scheduler.ConstantSchedule
     initial_value: ${...ppo.l2_init_loss_coef}
 
+# Torch profiler
+profiler:
+  interval_epochs: 10000
+  profile_dir: ${run_dir}/torch_traces
 
+# Kickstart configuration
 kickstart:
-  teacher_uri: null
+  teacher_uri:
   action_loss_coef: 1
   value_loss_coef: 1
-  anneal_ratio: 0.65 # ratio of kickstart_steps to anneal to 0 coef
+  anneal_ratio: 0.65
   kickstart_steps: 1_000_000_000
   additional_teachers:
-    # - teacher_uri: wandb://run/m_alexv_ks_dr_lam_001:v22
-    #   action_loss_coef: 0.5
-    #   value_loss_coef: 0.6
-    #  - teacher_uri: wandb://run/mettabox_cogeval_defaults_lowent_initialized0005:v95
-    #    action_loss_coef: 1
-    #    value_loss_coef: 1

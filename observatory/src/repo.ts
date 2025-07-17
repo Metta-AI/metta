@@ -71,10 +71,20 @@ export type TrainingRun = {
   finished_at: string | null
   status: string
   url: string | null
+  description: string | null
+  tags: string[]
 }
 
 export type TrainingRunListResponse = {
   training_runs: TrainingRun[]
+}
+
+export type TrainingRunDescriptionUpdate = {
+  description: string
+}
+
+export type TrainingRunTagsUpdate = {
+  tags: string[]
 }
 
 export type TableInfo = {
@@ -113,12 +123,12 @@ export type SQLQueryResponse = {
 export interface Repo {
   getSuites(): Promise<string[]>
   getMetrics(suite: string): Promise<string[]>
+  getAllMetrics(): Promise<string[]>
   getGroupIds(suite: string): Promise<string[]>
 
   getHeatmapData(
     metric: string,
     suite: string,
-    groupMetric: GroupHeatmapMetric,
     policySelector?: PolicySelector
   ): Promise<HeatmapData>
 
@@ -145,11 +155,12 @@ export interface Repo {
   // Training run methods
   getTrainingRuns(): Promise<TrainingRunListResponse>
   getTrainingRun(runId: string): Promise<TrainingRun>
+  updateTrainingRunDescription(runId: string, description: string): Promise<TrainingRun>
+  updateTrainingRunTags(runId: string, tags: string[]): Promise<TrainingRun>
   getTrainingRunHeatmapData(
     runId: string,
     metric: string,
     suite: string,
-    groupMetric: GroupHeatmapMetric
   ): Promise<HeatmapData>
 }
 
@@ -209,6 +220,10 @@ export class ServerRepo implements Repo {
     return this.apiCall<string[]>(`/dashboard/suites/${encodeURIComponent(suite)}/metrics`)
   }
 
+  async getAllMetrics(): Promise<string[]> {
+    return this.apiCall<string[]>('/dashboard/metrics')
+  }
+
   async getGroupIds(suite: string): Promise<string[]> {
     return this.apiCall<string[]>(`/dashboard/suites/${encodeURIComponent(suite)}/group-ids`)
   }
@@ -216,13 +231,12 @@ export class ServerRepo implements Repo {
   async getHeatmapData(
     metric: string,
     suite: string,
-    groupMetric: GroupHeatmapMetric,
     policySelector: PolicySelector = 'latest'
   ): Promise<HeatmapData> {
     // Use POST endpoint for GroupDiff
     const apiData = await this.apiCallWithBody<HeatmapData>(
       `/dashboard/suites/${encodeURIComponent(suite)}/metrics/${encodeURIComponent(metric)}/heatmap`,
-      { group_metric: groupMetric, policy_selector: policySelector }
+      { policy_selector: policySelector }
     )
     return apiData
   }
@@ -288,16 +302,23 @@ export class ServerRepo implements Repo {
     return this.apiCall<TrainingRun>(`/dashboard/training-runs/${encodeURIComponent(runId)}`)
   }
 
+  async updateTrainingRunDescription(runId: string, description: string): Promise<TrainingRun> {
+    return this.apiCallWithBodyPut<TrainingRun>(`/dashboard/training-runs/${encodeURIComponent(runId)}/description`, {
+      description,
+    })
+  }
+
+  async updateTrainingRunTags(runId: string, tags: string[]): Promise<TrainingRun> {
+    return this.apiCallWithBodyPut<TrainingRun>(`/dashboard/training-runs/${encodeURIComponent(runId)}/tags`, { tags })
+  }
+
   async getTrainingRunHeatmapData(
     runId: string,
     metric: string,
     suite: string,
-    groupMetric: GroupHeatmapMetric
   ): Promise<HeatmapData> {
-    return this.apiCallWithBody<HeatmapData>(
+    return this.apiCall<HeatmapData>(
       `/dashboard/training-runs/${encodeURIComponent(runId)}/suites/${encodeURIComponent(suite)}/metrics/${encodeURIComponent(metric)}/heatmap`,
-      { group_metric: groupMetric }
     )
   }
 }
-

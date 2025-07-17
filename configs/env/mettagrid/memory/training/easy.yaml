@@ -9,12 +9,16 @@ game:
     rewards:
       heart: 0.333
   map_builder:
-    _target_: metta.mettagrid.room.multi_room.MultiRoom
-    num_rooms: 2
-    room:
-      _target_: metta.mettagrid.room.ascii.Ascii
-      border_width: 1
-      uri: "configs/env/mettagrid/maps/memory_training/easy.map"
+    _target_: metta.map.mapgen.MapGen
+
+    border_width: 1
+    instances: 2
+    instance_border_width: 1
+
+    root:
+      type: metta.map.scenes.ascii.Ascii
+      params:
+        uri: "configs/env/mettagrid/maps/memory_training/easy.map"
 
   objects:
     altar:

@@ -19,9 +19,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install jq
-        run: sudo apt-get update && sudo apt-get install -y jq
-
       - name: Extract Assignees and Reviewers
         id: extract-assignees-reviewers
         run: |
@@ -48,6 +45,8 @@ jobs:
           roster_project_id: ${{ vars.ASANA_ROSTER_PROJECT_GID }}
           gh_login_field_id: ${{ vars.ASANA_GH_LOGIN_FIELD_GID }}
           asana_email_field_id: ${{ vars.ASANA_EMAIL_FIELD_GID }}
+          pr_author_field_id: ${{ vars.ASANA_PR_AUTHOR_FIELD_GID }}
+          asana_attachment_secret: ${{ secrets.ASANA_ATTACHMENT_SECRET }}
 
       - name: Update PR Description
         uses: ./.github/actions/asana/update-pr-description

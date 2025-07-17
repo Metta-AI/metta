@@ -12,19 +12,18 @@ from metta.mettagrid.curriculum.core import Curriculum
 from metta.mettagrid.curriculum.sampling import SampledTaskCurriculum
 from metta.mettagrid.curriculum.util import config_from_path
 
-from .low_reward import LowRewardCurriculum
+from .learning_progress import LearningProgressCurriculum
 
 logger = logging.getLogger(__name__)
 
 
-class BucketedCurriculum(LowRewardCurriculum):
+class BucketedCurriculum(LearningProgressCurriculum):
     def __init__(
         self,
         env_cfg_template: str,
         buckets: Dict[str, Dict[str, Any]],
         env_overrides: Optional[DictConfig] = None,
         default_bins: int = 1,
-        moving_avg_decay_rate: float = 0.01,
     ):
         expanded_buckets = _expand_buckets(buckets, default_bins)
 
@@ -39,7 +38,7 @@ class BucketedCurriculum(LowRewardCurriculum):
                 curriculum_id, env_cfg_template, expanded_buckets.keys(), parameter_values
             )
         tasks = {t: 1.0 for t in self._id_to_curriculum.keys()}
-        super().__init__(tasks=tasks, env_overrides=env_overrides, moving_avg_decay_rate=moving_avg_decay_rate)
+        super().__init__(tasks=tasks, env_overrides=env_overrides)
 
     def _curriculum_from_id(self, id: str) -> Curriculum:
         return self._id_to_curriculum[id]
@@ -50,6 +49,10 @@ def get_id(parameters, values):
     for k, v in zip(parameters, values, strict=False):
         if isinstance(v, dict):
             v = v.get("range", "values")
+        if isinstance(v, tuple):
+            v = tuple(round(x, 3) if isinstance(x, float) else x for x in v)
+        elif isinstance(v, float):
+            v = round(v, 3)
         curriculum_id += f"{'.'.join(k.split('.')[-3:])}={v};"
     return curriculum_id
 

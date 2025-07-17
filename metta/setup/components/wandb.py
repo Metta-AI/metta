@@ -2,13 +2,14 @@ import os
 import subprocess
 
 from metta.setup.components.base import SetupModule
-from metta.setup.config import UserType
 from metta.setup.registry import register_module
 from metta.setup.utils import info, success, warning
 
 
 @register_module
 class WandbSetup(SetupModule):
+    install_once = True
+
     @property
     def description(self) -> str:
         return "Weights & Biases experiment tracking"
@@ -34,7 +35,7 @@ class WandbSetup(SetupModule):
             success("W&B already configured")
             return
 
-        if self.config.user_type == UserType.SOFTMAX:
+        if self.config.user_type.is_softmax:
             info("""
                 Your Weights & Biases access should have been provisioned.
                 If you don't have access, contact your team lead.

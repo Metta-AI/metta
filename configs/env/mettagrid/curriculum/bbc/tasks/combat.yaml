@@ -1,0 +1,12 @@
+# BBC Learning Progress Curriculum
+
+_target_: metta.mettagrid.curriculum.bucketed.BucketedCurriculum
+
+env_cfg_template: /env/mettagrid/arena/combat
+env_overrides:
+  game:
+    actions: { attack: { consumed_resources: { blueprint: 0 } } }
+    agent: { rewards: { heart: 1 } }
+
+buckets:
+  game.objects.altar.initial_resource_count: { values: [0, 1] }

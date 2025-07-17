@@ -4,7 +4,8 @@ import Plot from 'react-plotly.js'
 import { TrainingRun, HeatmapData, Repo } from './repo'
 import { MapViewer } from './MapViewer'
 import { SuiteTabs } from './SuiteTabs'
-import { GroupSelector, parseGroupMetric } from './GroupSelector'
+import { TagEditor } from './TagEditor'
+import { DescriptionEditor } from './DescriptionEditor'
 
 const TRAINING_RUN_DETAIL_CSS = `
 .training-run-detail-container {
@@ -150,6 +151,32 @@ const TRAINING_RUN_DETAIL_CSS = `
 .error-container {
   color: #c62828;
 }
+
+.training-run-description-section {
+  margin-top: 15px;
+  padding-top: 15px;
+  border-top: 1px solid #eee;
+}
+
+.training-run-description-section-header {
+  margin-bottom: 10px;
+  font-size: 16px;
+  font-weight: 600;
+  color: #333;
+}
+
+.training-run-tags-section {
+  margin-top: 15px;
+  padding-top: 15px;
+  border-top: 1px solid #eee;
+}
+
+.training-run-tags-section-header {
+  margin-bottom: 10px;
+  font-size: 16px;
+  font-weight: 600;
+  color: #333;
+}
 `
 
 interface TrainingRunDetailProps {
@@ -173,7 +200,6 @@ export function TrainingRunDetail({ repo }: TrainingRunDetailProps) {
   // UI state
   const [selectedMetric, setSelectedMetric] = useState<string>('reward')
   const [selectedSuite, setSelectedSuite] = useState<string>('navigation')
-  const [selectedGroupMetric, setSelectedGroupMetric] = useState<string>('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [isViewLocked, setIsViewLocked] = useState(false)
@@ -185,7 +211,8 @@ export function TrainingRunDetail({ repo }: TrainingRunDetailProps) {
     policyUri: string
     evalName: string
   } | null>(null)
-
+  const [saving, setSaving] = useState(false)
+  const [currentUser, setCurrentUser] = useState<string | null>(null)
 
   // Load training run and initial data
   useEffect(() => {
@@ -194,14 +221,16 @@ export function TrainingRunDetail({ repo }: TrainingRunDetailProps) {
 
       try {
         setLoading(true)
-        const [runData, suitesData] = await Promise.all([
+        const [runData, suitesData, userResponse] = await Promise.all([
           repo.getTrainingRun(runId),
           repo.getSuites(),
+          repo.whoami().catch(() => ({ user_email: '' })),
         ])
 
         setTrainingRun(runData)
         setSuites(suitesData)
         setSelectedSuite(suitesData[0])
+        setCurrentUser(userResponse.user_email)
         setError(null)
       } catch (err: any) {
         setError(`Failed to load training run: ${err.message}`)
@@ -219,7 +248,7 @@ export function TrainingRunDetail({ repo }: TrainingRunDetailProps) {
       if (!selectedSuite) return
 
       try {
-        const metricsData = await repo.getMetrics(selectedSuite)
+        const metricsData = await repo.getAllMetrics()
         setMetrics(metricsData)
       } catch (err: any) {
         setError(`Failed to load suite data: ${err.message}`)
@@ -239,7 +268,6 @@ export function TrainingRunDetail({ repo }: TrainingRunDetailProps) {
           runId,
           selectedMetric,
           selectedSuite,
-          parseGroupMetric(selectedGroupMetric)
         )
         setHeatmapData(heatmapData)
       } catch (err: any) {
@@ -248,7 +276,7 @@ export function TrainingRunDetail({ repo }: TrainingRunDetailProps) {
     }
 
     loadHeatmapData()
-  }, [runId, selectedSuite, selectedMetric, selectedGroupMetric, repo])
+  }, [runId, selectedSuite, selectedMetric, repo])
 
   const setSelectedCellIfNotLocked = (cell: {
     policyUri: string
@@ -294,6 +322,34 @@ export function TrainingRunDetail({ repo }: TrainingRunDetailProps) {
     return new Date(dateString).toLocaleString()
   }
 
+  const canEditRun = (run: TrainingRun) => {
+    return Boolean(currentUser && run.user_id === currentUser)
+  }
+
+  const handleDescriptionChange = async (newDescription: string) => {
+    if (!runId) return
+
+    setSaving(true)
+    try {
+      const updatedRun = await repo.updateTrainingRunDescription(runId, newDescription)
+      setTrainingRun(updatedRun)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleTagsChange = async (newTags: string[]) => {
+    if (!runId || !trainingRun) return
+
+    setSaving(true)
+    try {
+      const updatedRun = await repo.updateTrainingRunTags(runId, newTags)
+      setTrainingRun(updatedRun)
+    } finally {
+      setSaving(false)
+    }
+  }
+
   // Create the modified heatmap with policies on X-axis and evals on Y-axis
   const renderHeatmap = () => {
     if (!heatmapData) return null
@@ -301,21 +357,26 @@ export function TrainingRunDetail({ repo }: TrainingRunDetailProps) {
     const policies = Object.keys(heatmapData.cells)
     const evalNames = heatmapData.evalNames
 
-    // Sort policies by their names (which should contain epoch info)
-    const sortedPolicies = policies.sort((a, b) => a.localeCompare(b))
+    // Sort policies by version number
+    const policyVersionToPolicy = new Map<string, string>()
+    policies.forEach((policy) => {
+      policyVersionToPolicy.set(policy.split(':v')[1], policy)
+    })
+    const sortedPolicyVersions = [...policyVersionToPolicy.keys()].sort((a, b) => parseInt(a) - parseInt(b))
 
     const shortNameToEvalName = new Map<string, string>()
     evalNames.forEach((evalName) => {
       shortNameToEvalName.set(getShortName(evalName), evalName)
     })
-    const sortedShortNames = [...shortNameToEvalName.keys()].sort((a, b) => a.localeCompare(b))
+    const sortedShortNames = [...shortNameToEvalName.keys()].sort((a, b) => b.localeCompare(a))
 
-    const xLabels = sortedPolicies
+    const xLabels = sortedPolicyVersions
     const yLabels = sortedShortNames
 
     const z = yLabels.map((shortName) =>
-      xLabels.map((policy) => {
+      xLabels.map((policyVersion) => {
         const evalName = shortNameToEvalName.get(shortName)!
+        const policy = policyVersionToPolicy.get(policyVersion)!
         const cell = heatmapData.cells[policy]?.[evalName]
         return cell ? cell.value : 0
       })
@@ -438,9 +499,7 @@ export function TrainingRunDetail({ repo }: TrainingRunDetailProps) {
           <div className="training-run-meta">
             <div className="training-run-meta-item">
               <span>Status:</span>
-              <span className={`training-run-status ${getStatusClass(trainingRun.status)}`}>
-                {trainingRun.status}
-              </span>
+              <span className={`training-run-status ${getStatusClass(trainingRun.status)}`}>{trainingRun.status}</span>
             </div>
             <div className="training-run-meta-item">
               <span>Created:</span>
@@ -457,13 +516,38 @@ export function TrainingRunDetail({ repo }: TrainingRunDetailProps) {
               <span>{trainingRun.user_id}</span>
             </div>
           </div>
+
+          <div className="training-run-description-section">
+            <div className="training-run-description-section-header">
+              <strong>Description:</strong>
+            </div>
+            <DescriptionEditor
+              description={trainingRun.description}
+              canEdit={canEditRun(trainingRun)}
+              onDescriptionChange={handleDescriptionChange}
+              onError={setError}
+              disabled={saving}
+              compact={false}
+              placeholder="Enter a description for this training run..."
+            />
+          </div>
+
+          <div className="training-run-tags-section">
+            <div className="training-run-tags-section-header">
+              <strong>Tags:</strong>
+            </div>
+            <TagEditor
+              tags={trainingRun.tags}
+              canEdit={canEditRun(trainingRun)}
+              onTagsChange={handleTagsChange}
+              onError={setError}
+              disabled={saving}
+              compact={false}
+            />
+          </div>
         </div>
 
-        <SuiteTabs
-          suites={suites}
-          selectedSuite={selectedSuite}
-          onSuiteChange={setSelectedSuite}
-        />
+        <SuiteTabs suites={suites} selectedSuite={selectedSuite} onSuiteChange={setSelectedSuite} />
 
         {heatmapData && renderHeatmap()}
 
@@ -483,15 +567,6 @@ export function TrainingRunDetail({ repo }: TrainingRunDetailProps) {
                   </option>
                 ))}
               </select>
-            </div>
-            <div className="control-row">
-              <div className="control-label">Group Metric</div>
-              <GroupSelector
-                repo={repo}
-                selectedSuite={selectedSuite}
-                selectedGroupMetric={selectedGroupMetric}
-                onGroupMetricChange={setSelectedGroupMetric}
-              />
             </div>
           </div>
         </div>

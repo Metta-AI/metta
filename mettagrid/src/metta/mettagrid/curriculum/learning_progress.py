@@ -23,7 +23,7 @@ class LearningProgressCurriculum(RandomCurriculum):
     def __init__(
         self,
         tasks: Dict[str, float],
-        env_overrides: DictConfig,
+        env_overrides: DictConfig | None = None,
         ema_timescale: float = 0.001,
         progress_smoothing: float = 0.05,
         num_active_tasks: int = 16,
@@ -53,7 +53,7 @@ class LearningProgressCurriculum(RandomCurriculum):
         success_rate = max(0.0, min(1.0, score))
 
         # Get task index for learning progress tracking
-        task_idx = list(self._curriculums.keys()).index(id)
+        task_idx = list(self._curricula.keys()).index(id)
 
         # Collect data for learning progress
         self._lp_tracker.collect_data({f"tasks/{task_idx}": [success_rate]})
@@ -62,7 +62,7 @@ class LearningProgressCurriculum(RandomCurriculum):
         lp_weights, _ = self._lp_tracker.calculate_dist()
 
         # Update weights based on learning progress
-        for i, task_id in enumerate(self._curriculums.keys()):
+        for i, task_id in enumerate(self._curricula.keys()):
             if i < len(lp_weights):
                 self._task_weights[task_id] = lp_weights[i]
 
@@ -136,7 +136,12 @@ class BidirectionalLearningProgress:
 
     def _update(self):
         """Update learning progress tracking with current task success rates."""
-        task_success_rates = np.array([np.mean(self._outcomes[i]) for i in range(self._num_tasks)])
+        task_success_rates = np.array(
+            [
+                np.mean(self._outcomes[i]) if len(self._outcomes[i]) > 0 else DEFAULT_SUCCESS_RATE
+                for i in range(self._num_tasks)
+            ]
+        )
         # Handle NaN values in task success rates (empty lists)
         task_success_rates = np.nan_to_num(task_success_rates, nan=DEFAULT_SUCCESS_RATE)
 
@@ -243,7 +248,10 @@ class BidirectionalLearningProgress:
         self._task_dist = task_dist.astype(np.float32)
         self._stale_dist = False
 
-        out_vec = [np.mean(self._outcomes[i]) for i in range(self._num_tasks)]
+        out_vec = [
+            np.mean(self._outcomes[i]) if len(self._outcomes[i]) > 0 else DEFAULT_SUCCESS_RATE
+            for i in range(self._num_tasks)
+        ]
         out_vec = [DEFAULT_SUCCESS_RATE if np.isnan(x) else x for x in out_vec]  # Handle NaN in outcomes
         self._num_nans.append(sum(np.isnan(out_vec)))
         self._task_success_rate = np.array(out_vec)

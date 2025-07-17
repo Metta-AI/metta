@@ -88,7 +88,8 @@ def test_get_policy_eval_metrics(test_db):
     policy_eval = policy_evals[0]
 
     # Check policy eval fields
-    assert policy_eval.policy_uri == "test_policy:v1"
+    assert policy_eval.policy_key == "test_policy"
+    assert policy_eval.policy_version == 1
     assert policy_eval.eval_name == "test_sim"
     assert policy_eval.suite == "test_suite"
     assert policy_eval.replay_url is not None

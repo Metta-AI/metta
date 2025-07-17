@@ -22,14 +22,15 @@ class InlineAscii(Scene[InlineAsciiParams]):
 
     def render(self):
         params = self.params
-        if self.width < self.ascii_grid.shape[1] + params.column or self.height < self.ascii_grid.shape[0] + params.row:
+        ascii_height, ascii_width = self.ascii_grid.shape
+        if self.width < ascii_width + params.column or self.height < ascii_height + params.row:
             raise ValueError(
-                f"Grid size {self.ascii_grid.shape} is too large for scene size {self.width}x{self.height} at "
-                f"{params.column},{params.row}"
+                f"ASCII grid size {ascii_width}x{ascii_height} is too large"
+                f" for scene size {self.width}x{self.height} at "
+                f"({params.column},{params.row})"
             )
 
-        grid_height, grid_width = self.ascii_grid.shape
         self.grid[
-            params.row : params.row + grid_height,
-            params.column : params.column + grid_width,
+            params.row : params.row + ascii_height,
+            params.column : params.column + ascii_width,
         ] = self.ascii_grid

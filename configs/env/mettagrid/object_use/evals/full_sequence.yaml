@@ -7,20 +7,22 @@ game:
   agent:
     rewards:
       heart: 1
-      ore.red: 0
-      battery.red: 0
+      ore_red: 0
+      battery_red: 0
   objects:
     generator_red:
-      initial_items: 0
+      initial_resource_count: 0
       cooldown: 1
     altar:
-      initial_items: 0
+      initial_resource_count: 0
       cooldown: 255
     mine_red:
       cooldown: 1
 
   map_builder:
-    objects:
-      altar: 1
-      generator_red: 1
-      mine_red: 1
+    root:
+      params:
+        objects:
+          altar: 1
+          generator_red: 1
+          mine_red: 1

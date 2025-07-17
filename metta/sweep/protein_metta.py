@@ -1,8 +1,8 @@
 import logging
 
-from omegaconf import DictConfig, ListConfig, OmegaConf
+from omegaconf import DictConfig, OmegaConf
 
-from metta.util.numpy.clean_numpy_types import clean_numpy_types
+from metta.common.util.numpy_helpers import clean_numpy_types
 
 from .protein import Protein
 from .protein_wandb import WandbProtein
@@ -13,19 +13,27 @@ logger = logging.getLogger("metta_protein")
 class MettaProtein(WandbProtein):
     def __init__(
         self,
-        cfg: DictConfig | ListConfig,
+        cfg: DictConfig,
         wandb_run=None,
     ):
-        parameters_dict = OmegaConf.to_container(cfg.parameters, resolve=True)
+        # Convert parameters to container
+        parameters = OmegaConf.to_container(cfg.parameters, resolve=True)
 
+        # Create sweep_config with parameters and required fields
+        sweep_config = {
+            **parameters,
+            "method": cfg.get("method", "bayes"),
+            "metric": cfg.get("metric", "eval/mean_score"),
+            "goal": cfg.get("goal", "maximize"),
+        }
+
+        # Convert protein config to container
+        protein_cfg = OmegaConf.to_container(cfg.protein, resolve=True)
+
+        # Initialize Protein with sweep_config as first arg and protein config as kwargs
         protein = Protein(
-            parameters_dict,
-            cfg.protein.max_suggestion_cost,
-            cfg.protein.resample_frequency,
-            cfg.protein.num_random_samples,
-            cfg.protein.global_search_scale,
-            cfg.protein.random_suggestions,
-            cfg.protein.suggestions_per_pareto,
+            sweep_config,
+            **protein_cfg,
         )
 
         # Initialize WandbProtein with the created Protein instance

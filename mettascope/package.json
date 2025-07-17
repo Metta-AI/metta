@@ -9,12 +9,14 @@
     "format": "biome format --write .",
     "check": "biome check .",
     "check:fix": "biome check --write .",
-    "ci": "biome ci ."
+    "ci": "biome ci .",
+    "test": "playwright test tests/*.test.ts"
   },
-  "dependencies": {},
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",
+    "@playwright/test": "^1.53.2",
     "@webgpu/types": "^0.1.38",
+    "playwright": "^1.53.2",
     "typescript": "^5.2.2"
   }
 }

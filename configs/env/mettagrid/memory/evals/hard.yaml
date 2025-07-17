@@ -9,8 +9,7 @@ game:
     rewards:
       heart: 0.333
   map_builder:
-    _target_: metta.mettagrid.room.ascii.Ascii
     uri: "configs/env/mettagrid/maps/memory/hard.map"
   objects:
     altar:
-      initial_items: 1
+      initial_resource_count: 1

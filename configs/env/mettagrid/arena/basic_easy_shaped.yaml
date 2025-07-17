@@ -1,0 +1,8 @@
+# Simple map with mines / generators / altar
+# But with converters that are easier to use.
+# And shaped rewards.
+
+defaults:
+  - basic_easy
+  - /env/mettagrid/game/agent/rewards/shaped@game.agent.rewards
+  - _self_

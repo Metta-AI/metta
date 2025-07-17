@@ -1,5 +1,8 @@
 defaults:
   - /env/mettagrid/mettagrid@
+  - /env/mettagrid/game/objects/mines@game.objects
+  - /env/mettagrid/game/objects/generators@game.objects
+
   - _self_
 
 num_agents: 1
@@ -9,31 +12,36 @@ game:
   agent:
     rewards:
       heart: 1
-      ore.red: 0
-      battery.red: 0
+      ore_red: 0
+      battery_red: 0
   map_builder:
-    _target_: metta.mettagrid.room.ascii.Ascii
+    _target_: metta.map.mapgen_ascii.MapGenAscii
     border_width: 3
   objects:
     altar:
-      input_battery.red: 1
-      output_heart: 1
+      input_resources:
+        battery_red: 1
+      output_resources:
+        heart: 1
       max_output: 1
       conversion_ticks: 1
       cooldown: 255
-      initial_items: 0
+      initial_resource_count: 0
     mine_red:
-      output_ore.red: 1
+      output_resources:
+        ore_red: 1
       color: 0
       max_output: 1
       conversion_ticks: 1
       cooldown: 10
-      initial_items: 1
+      initial_resource_count: 1
     generator_red:
-      input_ore.red: 1
-      output_battery.red: 1
+      input_resources:
+        ore_red: 1
+      output_resources:
+        battery_red: 1
       color: 0
       max_output: 1
       conversion_ticks: 1
       cooldown: 10
-      initial_items: 0
+      initial_resource_count: 0

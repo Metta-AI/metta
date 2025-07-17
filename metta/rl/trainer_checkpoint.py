@@ -1,11 +1,11 @@
 import logging
-import os
-import tempfile
 import warnings
 from pathlib import Path
 from typing import Any, Optional
 
 import torch
+
+from metta.common.util.fs import atomic_write
 
 logger = logging.getLogger("TrainerCheckpoint")
 
@@ -15,7 +15,6 @@ class TrainerCheckpoint:
         self,
         agent_step: int = 0,
         epoch: int = 0,
-        total_agent_step: Optional[int] = None,
         optimizer_state_dict: Optional[dict[str, Any]] = None,
         policy_path: Optional[str] = None,
         stopwatch_state: Optional[dict[str, Any]] = None,
@@ -23,7 +22,6 @@ class TrainerCheckpoint:
     ):
         self.agent_step = agent_step
         self.epoch = epoch
-        self.total_agent_step = total_agent_step or agent_step
         self.optimizer_state_dict = optimizer_state_dict
         self.policy_path = policy_path
         self.stopwatch_state = stopwatch_state
@@ -34,28 +32,13 @@ class TrainerCheckpoint:
             "optimizer_state_dict": self.optimizer_state_dict,
             "agent_step": self.agent_step,
             "epoch": self.epoch,
-            "total_agent_step": self.total_agent_step,
             "policy_path": self.policy_path,
             "stopwatch_state": self.stopwatch_state,
             **self.extra_args,
         }
 
         checkpoint_path = Path(run_dir) / filename
-
-        # Write to a temporary file first to avoid leaving a partially written checkpoint
-        # if the program crashes or is interrupted. We then atomically replace the final
-        # state file using os.replace(), which ensures that either the old file remains,
-        # or the new file is fully written — never a corrupted intermediate.
-        with tempfile.NamedTemporaryFile(dir=run_dir, delete=False, suffix=".pt") as tmp_file:
-            torch.save(state, tmp_file.name)
-            tmp_path = tmp_file.name
-
-        try:
-            os.replace(tmp_path, checkpoint_path)
-        except Exception:
-            # Clean up temp file if replace fails to avoid cluttering disk
-            os.unlink(tmp_path)
-            raise
+        atomic_write(lambda path: torch.save(state, path), checkpoint_path, suffix=".pt")
 
         logger.info(f"[TrainerCheckpoint] Saved trainer state to {checkpoint_path}")
 
@@ -73,7 +56,6 @@ class TrainerCheckpoint:
             required_keys = {
                 "agent_step",
                 "epoch",
-                "total_agent_step",
                 "optimizer_state_dict",
                 "policy_path",
             }

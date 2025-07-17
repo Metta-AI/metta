@@ -22,7 +22,7 @@ def show_map(storable_map: StorableMap, mode: ShowMode | None):
     if mode == "mettascope":
         num_agents = np.count_nonzero(np.char.startswith(storable_map.grid, "agent"))
 
-        env_cfg = OmegaConf.load("./configs/env/mettagrid/mettagrid.yaml")
+        env_cfg = OmegaConf.load("./configs/env/mettagrid/full.yaml")
         env_cfg.game.num_agents = int(num_agents)
         OmegaConf.resolve(env_cfg)
         assert isinstance(env_cfg, DictConfig)

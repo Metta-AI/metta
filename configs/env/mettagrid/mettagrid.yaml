@@ -1,5 +1,13 @@
+defaults:
+  - game/agent: agent
+  - game/agent/rewards: hearts
+  - game/groups: solo
+  - game/objects:
+      - basic
+  - _self_
+
 sampling: 0
-replay_level_prob: 0.2
+
 game:
   num_agents: ???
   obs_width: 11
@@ -8,214 +16,18 @@ game:
   max_steps: 1000
 
   # We could figure this out implicitly, but being explicit reduces the risk of people accidentally configuring
-  # inventory they didn't intend (e.g., "ore" instead of "ore.red").
+  # inventory they didn't intend (e.g., "ore" instead of "ore_red").
   inventory_item_names:
-    - ore.red
-    - ore.blue
-    - ore.green
-    - battery.red
-    - battery.blue
-    - battery.green
+    - ore_red
+    - ore_blue
+    - ore_green
+    - battery_red
+    - battery_blue
+    - battery_green
     - heart
     - armor
     - laser
     - blueprint
-
-  diversity_bonus:
-    enabled: false
-    similarity_coef: 0.5 # Coefficient for within-group similarity
-    diversity_coef: 0.5 # Coefficient for between-group diversity
-
-  agent:
-    default_item_max: 50
-    # the agent should be able to pick up as many hearts as they want, even if
-    # "normal" item limits are lower
-    heart_max: 255
-    freeze_duration: 10
-    rewards:
-      # action_failure_penalty: 0.00001
-      action_failure_penalty: 0
-
-      ore.red: 0.005
-      ore.blue: 0.005
-      ore.green: 0.005
-      ore.red_max: 4
-      ore.blue_max: 4
-      ore.green_max: 4
-      battery.red: 0.01
-      battery.blue: 0.01
-      battery.green: 0.01
-      battery.red_max: 5
-      battery.blue_max: 5
-      battery.green_max: 5
-      heart: 1
-      heart_max: 1000
-
-  groups:
-    agent:
-      id: 0
-      sprite: 0
-      props: {}
-
-    team_1:
-      id: 1
-      sprite: 1
-      group_reward_pct: 0.5
-      props: {}
-
-    team_2:
-      id: 2
-      sprite: 4
-      group_reward_pct: 0.5
-      props: {}
-
-    team_3:
-      id: 3
-      sprite: 8
-      group_reward_pct: 0.5
-      props: {}
-
-    team_4:
-      id: 4
-      sprite: 1
-      group_reward_pct: 0.5
-      props: {}
-
-    prey:
-      id: 5
-      sprite: 12
-      props: {}
-
-    predator:
-      id: 6
-      sprite: 6
-      props: {}
-
-  objects:
-    altar:
-      type_id: 8
-      input_battery.red: 3
-      output_heart: 1
-      max_output: 5
-      conversion_ticks: 1
-      cooldown: 10
-      initial_items: 1
-
-    mine_red:
-      type_id: 2
-      output_ore.red: 1
-      color: 0
-      max_output: 5
-      conversion_ticks: 1
-      cooldown: 50
-      initial_items: 1
-
-    mine_blue:
-      type_id: 3
-      color: 1
-      output_ore.blue: 1
-      max_output: 5
-      conversion_ticks: 1
-      cooldown: 50
-      initial_items: 1
-
-    mine_green:
-      type_id: 4
-      output_ore.green: 1
-      color: 2
-      max_output: 5
-      conversion_ticks: 1
-      cooldown: 50
-      initial_items: 1
-
-    generator_red:
-      type_id: 5
-      input_ore.red: 1
-      output_battery.red: 1
-      color: 0
-      max_output: 5
-      conversion_ticks: 1
-      cooldown: 25
-      initial_items: 1
-
-    generator_blue:
-      type_id: 6
-      input_ore.blue: 1
-      output_battery.blue: 1
-      color: 1
-      max_output: 5
-      conversion_ticks: 1
-      cooldown: 25
-      initial_items: 1
-
-    generator_green:
-      type_id: 7
-      input_ore.green: 1
-      output_battery.green: 1
-      color: 2
-      max_output: 5
-      conversion_ticks: 1
-      cooldown: 25
-      initial_items: 1
-
-    armory:
-      type_id: 9
-      input_ore.red: 3
-      output_armor: 1
-      max_output: 5
-      conversion_ticks: 1
-      cooldown: 10
-      initial_items: 1
-
-    lasery:
-      type_id: 10
-      input_ore.red: 1
-      input_battery.red: 2
-      output_laser: 1
-      max_output: 5
-      conversion_ticks: 1
-      cooldown: 10
-      initial_items: 1
-
-    lab:
-      type_id: 11
-      input_ore.red: 3
-      input_battery.red: 3
-      output_blueprint: 1
-      max_output: 5
-      conversion_ticks: 1
-      cooldown: 5
-      initial_items: 1
-
-    factory:
-      type_id: 12
-      input_blueprint: 1
-      input_ore.red: 5
-      input_battery.red: 5
-      output_armor: 5
-      output_laser: 5
-      max_output: 5
-      conversion_ticks: 1
-      cooldown: 5
-      initial_items: 1
-
-    temple:
-      type_id: 13
-      input_heart: 1
-      input_blueprint: 1
-      output_heart: 5
-      max_output: 5
-      conversion_ticks: 1
-      cooldown: 5
-      initial_items: 1
-
-    wall:
-      type_id: 1
-      swappable: false
-
-    block:
-      type_id: 1
-      swappable: true
 
   actions:
     noop:
@@ -230,22 +42,14 @@ game:
       enabled: true
     attack:
       enabled: true
-      attack_resources:
+      consumed_resources:
         laser: 1
       defense_resources:
         armor: 1
     swap:
       enabled: true
     change_color:
-      enabled: true
-
-  reward_sharing:
-    groups:
-      team_1:
-        team_1: 0.5
-      team_2:
-        team_2: 0.5
-      team_3:
-        team_3: 0.5
-      team_4:
-        team_4: 0.5
+      enabled: false
+    change_glyph:
+      enabled: false
+      number_of_glyphs: 4

@@ -92,6 +92,14 @@ hoverPanel.addEventListener('mousedown', (e: MouseEvent) => {
 /** Updates the hover panel's visibility, position, and DOM tree. */
 export function updateHoverPanel(object: any) {
   if (object !== null && object !== undefined) {
+    // Is there a popup open for this object?
+    // Then don't show a new one.
+    for (let panel of ui.hoverPanels) {
+      if (panel.object === object) {
+        return
+      }
+    }
+
     let typeName = state.replay.object_types[getAttr(object, 'type')]
     if (typeName == 'wall') {
       // Don't show hover panel for walls.
@@ -170,30 +178,56 @@ function updateDom(htmlPanel: HTMLElement, object: any) {
   let displayedResources = 0
   if (objectConfig != null) {
     recipeArea.classList.remove('hidden')
-    // Configs have input_{resource} and output_{resource}.
-    for (let key in objectConfig) {
-      if (key.startsWith('input_')) {
-        let resource = key.replace('input_', '')
-        let amount = objectConfig[key]
+
+    // If config has input_resources or output_resources use that,
+    // otherwise use input_{resource} and output_{resource}.
+    if (objectConfig.hasOwnProperty('input_resources') || objectConfig.hasOwnProperty('output_resources')) {
+      // input_resources is a object like {heart: 1, blueprint: 1}
+      for (let resource in objectConfig.input_resources) {
         let item = itemTemplate.cloneNode(true) as HTMLElement
-        item.querySelector('.amount')!.textContent = amount
+        item.querySelector('.amount')!.textContent = objectConfig.input_resources[resource]
         item.querySelector('.icon')!.setAttribute('src', 'data/atlas/resources/' + resource + '.png')
         recipe.appendChild(item)
         displayedResources++
       }
-    }
-    // Add the arrow.
-    recipe.appendChild(recipeArrow.cloneNode(true))
-    // Add the output.
-    for (let key in objectConfig) {
-      if (key.startsWith('output_')) {
-        let resource = key.replace('output_', '')
-        let amount = objectConfig[key]
-        let item = itemTemplate.cloneNode(true) as HTMLElement
-        item.querySelector('.amount')!.textContent = amount
-        item.querySelector('.icon')!.setAttribute('src', 'data/atlas/resources/' + resource + '.png')
-        recipe.appendChild(item)
-        displayedResources++
+      // Add the arrow.
+      recipe.appendChild(recipeArrow.cloneNode(true))
+      // Add the output.
+      if (objectConfig.hasOwnProperty('output_resources')) {
+        for (let resource in objectConfig.output_resources) {
+          let item = itemTemplate.cloneNode(true) as HTMLElement
+          item.querySelector('.amount')!.textContent = objectConfig.output_resources[resource]
+          item.querySelector('.icon')!.setAttribute('src', 'data/atlas/resources/' + resource + '.png')
+          recipe.appendChild(item)
+          displayedResources++
+        }
+      }
+    } else {
+      // Configs have input_{resource} and output_{resource}.
+      for (let key in objectConfig) {
+        if (key.startsWith('input_')) {
+          let resource = key.replace('input_', '')
+          let amount = objectConfig[key]
+          let item = itemTemplate.cloneNode(true) as HTMLElement
+          item.querySelector('.amount')!.textContent = amount
+          item.querySelector('.icon')!.setAttribute('src', 'data/atlas/resources/' + resource + '.png')
+          recipe.appendChild(item)
+          displayedResources++
+        }
+      }
+      // Add the arrow.
+      recipe.appendChild(recipeArrow.cloneNode(true))
+      // Add the output.
+      for (let key in objectConfig) {
+        if (key.startsWith('output_')) {
+          let resource = key.replace('output_', '')
+          let amount = objectConfig[key]
+          let item = itemTemplate.cloneNode(true) as HTMLElement
+          item.querySelector('.amount')!.textContent = amount
+          item.querySelector('.icon')!.setAttribute('src', 'data/atlas/resources/' + resource + '.png')
+          recipe.appendChild(item)
+          displayedResources++
+        }
       }
     }
   }

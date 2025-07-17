@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 
 from metta.mettagrid.mettagrid_c import MettaGrid
-from metta.mettagrid.mettagrid_c_config import cpp_config_dict
+from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
 from metta.mettagrid.mettagrid_env import (
     dtype_observations,
     dtype_rewards,
@@ -36,15 +36,22 @@ def base_config():
             "move": {"enabled": True},
             "rotate": {"enabled": True},
             "get_items": {"enabled": True},  # maps to get_output
-            "attack": {"enabled": True, "attack_resources": {"laser": 1}, "defense_resources": {"armor": 1}},
+            "attack": {"enabled": True, "consumed_resources": {"laser": 1}, "defense_resources": {"armor": 1}},
             "put_items": {"enabled": True},  # maps to get_recipe_items
             "swap": {"enabled": True},
             "change_color": {"enabled": True},
+            "change_glyph": {"enabled": True, "number_of_glyphs": 4},
         },
         "groups": {"red": {"id": 0, "props": {}}},
         "objects": {
             "wall": {"type_id": 1},
-            "altar": {"type_id": 8, "max_output": -1, "conversion_ticks": 1, "cooldown": 10, "initial_items": 0},
+            "altar": {
+                "type_id": 8,
+                "max_output": -1,
+                "conversion_ticks": 1,
+                "cooldown": 10,
+                "initial_resource_count": 0,
+            },
         },
         "agent": {"rewards": {}},
     }
@@ -93,9 +100,7 @@ def configured_env(base_config):
         if config_overrides:
             game_config.update(config_overrides)
 
-        print(cpp_config_dict(game_config))
-
-        env = MettaGrid(cpp_config_dict(game_config), game_map, 42)
+        env = MettaGrid(from_mettagrid_config(game_config), game_map, 42)
 
         # Set up buffers
         observations = np.zeros((1, NUM_OBS_TOKENS, OBS_TOKEN_SIZE), dtype=dtype_observations)

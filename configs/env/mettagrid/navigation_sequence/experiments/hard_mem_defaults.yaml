@@ -5,6 +5,8 @@
 
 defaults:
   - /env/mettagrid/mettagrid@
+  - /env/mettagrid/game/objects/mines@game.objects
+  - /env/mettagrid/game/objects/generators@game.objects
   - _self_
 
 sampling: 1
@@ -12,15 +14,15 @@ labels:
   - memory
 game:
   num_agents: 4
+  max_steps: 2000
   agent:
-    ore.red_max: ${sampling:1,10,5}
-    battery.red_max: ${sampling:1,10,5}
+    resource_limits:
+      ore_red: ${sampling:1,10,5}
+      battery_red: ${sampling:1,10,5}
     rewards:
-      action_failure_penalty: 0
-      ore.red: ${sampling:0.005,0.05, 0.01}
-      battery.red: ${sampling:0.01,0.1, 0.1}
+      ore_red: ${sampling:0.005,0.05, 0.01}
+      battery_red: ${sampling:0.01,0.1, 0.1}
       heart: 1
-      heart_max: 1000
   map_builder:
     _target_: metta.mettagrid.room.multi_room.MultiRoom
     num_rooms: ${..num_agents}
@@ -37,11 +39,12 @@ game:
 
   objects:
     altar:
-      input_battery.red: 1
-      initial_items: ${choose:0,0,0,1}
+      input_resources:
+        battery_red: 1
+      initial_resource_count: ${choose:0,0,0,1}
       cooldown: ${sampling:1, 20, 10}
     generator_red:
-      initial_items: ${choose:0,0,0,1}
+      initial_resource_count: ${choose:0,0,0,1}
       cooldown: ${sampling:30, 70, 40}
     mine_red:
       cooldown: ${sampling:15, 50, 10}

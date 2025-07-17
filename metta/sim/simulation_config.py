@@ -51,8 +51,17 @@ class SimulationSuiteConfig(SimulationConfig):
         merged: Dict[str, dict] = {}
 
         for name, sim_cfg in raw_sims.items():
-            # propagate suite values into each child
-            merged[name] = {**explicitly_provided, **sim_cfg}
+            # Handle both dict and SingleEnvSimulationConfig instances
+            if isinstance(sim_cfg, dict):
+                # Raw dict - merge with suite defaults
+                merged[name] = {**explicitly_provided, **sim_cfg}
+            elif isinstance(sim_cfg, SingleEnvSimulationConfig):
+                # Already instantiated - convert to dict and merge
+                sim_dict = sim_cfg.model_dump()
+                merged[name] = {**explicitly_provided, **sim_dict}
+            else:
+                # Pass through as-is and let Pydantic handle validation
+                merged[name] = sim_cfg
 
         values["simulations"] = merged
         return values

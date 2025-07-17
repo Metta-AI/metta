@@ -22,13 +22,12 @@ fi
 uv sync
 
 # Lint and format
-ruff format
-ruff check
+uv run metta lint --fix
 
 # Run tests for Metta
-uv run pytest
+uv run metta test
 # Run tests for MettaGrid
-uv run pytest mettagrid/tests
+uv run metta test mettagrid/tests
 
 # Submit the PR
 gt submit

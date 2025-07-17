@@ -1,0 +1,25 @@
+defaults:
+  - sim_suite
+  - _self_
+
+name: arena
+
+simulations:
+  arena/basic:
+    env: /env/mettagrid/arena/basic
+  arena/combat:
+    env: /env/mettagrid/arena/combat
+  arena/advanced:
+    env: /env/mettagrid/arena/advanced
+  arena/tag:
+    env: /env/mettagrid/arena/tag
+  arena/advanced_poor:
+    env: /env/mettagrid/arena/advanced_poor
+  # arena/combat_npc:
+  #   env: /env/mettagrid/arena/combat
+  #   npc_policy_uri: wandb://run/daveey.lp.16x4.ue2
+  #   policy_agents_pct: 0.5
+  # arena/advanced_npc:
+  #   env: /env/mettagrid/arena/advanced
+  #   npc_policy_uri: wandb://run/daveey.lp.16x4.ue2
+  #   policy_agents_pct: 0.5

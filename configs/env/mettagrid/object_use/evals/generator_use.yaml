@@ -6,17 +6,19 @@ game:
   max_steps: 100
   objects:
     generator_red:
-      initial_items: 0
+      initial_resource_count: 0
       cooldown: 255
     mine_red:
       cooldown: 255
   agent:
     rewards:
-      battery.red: 1
-      ore.red: 0
-      ore.blue: 0
-      ore.green: 0
+      battery_red: 1
+      ore_red: 0
+      ore_blue: 0
+      ore_green: 0
   map_builder:
-    objects:
-      generator_red: 1
-      mine_red: 1
+    root:
+      params:
+        objects:
+          generator_red: 1
+          mine_red: 1
