@@ -64,10 +64,19 @@ components:
     nn_params:
       out_features: 128
 
+  # Optional environment context layer - can be disabled by setting env_context.enabled: false
+  env_context:
+    _target_: metta.agent.lib.env_context.EnvContextLayer
+    sources:
+      - name: encoded_obs
+    hidden_size: 128
+    amplitude: 1.0
+    enabled: true
+
   _core_:
     _target_: metta.agent.lib.lstm.LSTM
     sources:
-      - name: encoded_obs
+      - name: env_context
     output_size: 128
     nn_params:
       num_layers: 2

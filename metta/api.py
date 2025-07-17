@@ -518,6 +518,24 @@ def _get_default_agent_config(device: str = "cuda") -> DictConfig:
     )
 
 
+def _get_agent_config_with_env_context(device: str = "cuda") -> DictConfig:
+    """Get agent configuration with environment context layer enabled."""
+    base_config = _get_default_agent_config(device)
+
+    # Add environment context layer between encoded_obs and _core_
+    base_config.agent.components["env_context"] = {
+        "_target_": "metta.agent.lib.env_context.EnvContextLayer",
+        "sources": [{"name": "encoded_obs"}],
+        "hidden_size": 512,
+        "amplitude": 1.0,
+    }
+
+    # Update _core_ to use env_context as input
+    base_config.agent.components["_core_"].sources = [{"name": "env_context"}]
+
+    return base_config
+
+
 class NavigationBucketedCurriculum(Curriculum):
     """Navigation curriculum that cycles through different terrain types without using Hydra."""
 
@@ -774,6 +792,9 @@ class Agent:
         # Initialize to environment
         features = metta_grid_env.get_observation_features()
         agent.initialize_to_environment(features, metta_grid_env.action_names, metta_grid_env.max_action_args, device)
+
+        # Set environment reference for components that need it (e.g., EnvContextLayer)
+        agent.set_environment(metta_grid_env)
 
         return agent
 

@@ -194,6 +194,12 @@ class MettaAgent(nn.Module):
         self._initialize_observations(features, device, self.training)
         self.activate_actions(action_names, action_max_params, device)
 
+    def set_environment(self, env):
+        """Set environment reference for components that need it (e.g., EnvContextLayer)."""
+        for component in self.components.values():
+            if hasattr(component, "set_environment"):
+                component.set_environment(env)
+
     def _initialize_observations(self, features: dict[str, dict], device, is_training: bool):
         """Initialize observation features by storing the feature mapping."""
         self.active_features = features
