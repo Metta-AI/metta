@@ -1,6 +1,6 @@
 #!/usr/bin/env -S uv run
 """
-Orchestrates Docker containers to process eval tasks, one container per git hash.
+Orchestrates containers to process eval tasks, one container per git hash.
 
 This script:
 1. Maintains one worker container per unique git hash
@@ -11,16 +11,12 @@ This script:
 
 import asyncio
 import os
-import random
-import socket
-import string
-import subprocess
 import textwrap
 from datetime import datetime, timezone
-from typing import Optional
 
-from pydantic import BaseModel
-
+from metta.app_backend.container_managers.base import AbstractContainerManager
+from metta.app_backend.container_managers.factory import create_container_manager
+from metta.app_backend.container_managers.models import WorkerInfo
 from metta.app_backend.eval_task_client import EvalTaskClient
 from metta.app_backend.routes.eval_task_routes import (
     TaskClaimRequest,
@@ -32,25 +28,6 @@ from metta.common.util.collections import group_by
 from metta.common.util.script_decorators import setup_mettagrid_logger
 
 
-class WorkerInfo(BaseModel):
-    """Complete worker state information."""
-
-    git_hash: str
-    container_id: str
-    container_name: str
-    alive: bool
-    task: Optional[TaskResponse] = None
-
-    def __str__(self) -> str:
-        return (
-            f"WorkerInfo(hash={self.git_hash[:8]}, id={self.container_id[:3]}, "
-            f"name={self.container_name[:10]}, alive={self.alive}, task={str(self.task.id)[:8] if self.task else None})"
-        )
-
-    def __repr__(self) -> str:
-        return self.__str__()
-
-
 class EvalTaskOrchestrator:
     def __init__(
         self,
@@ -58,6 +35,7 @@ class EvalTaskOrchestrator:
         docker_image: str = "metta/eval-worker:latest",
         poll_interval: float = 5.0,
         worker_idle_timeout: float = 600.0,
+        container_manager: AbstractContainerManager | None = None,
     ):
         self._backend_url = backend_url
         self._docker_image = docker_image
@@ -66,117 +44,22 @@ class EvalTaskOrchestrator:
         self._logger = setup_mettagrid_logger("eval_worker_orchestrator")
         self._task_client = EvalTaskClient(backend_url)
 
-    def generate_container_suffix(self) -> str:
-        """Generate a unique suffix for container names."""
-        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
-        random_suffix = "".join(random.choices(string.ascii_lowercase + string.digits, k=6))
-        return f"{timestamp}-{random_suffix}"
+        # Use provided container manager or create one based on environment
+        self._container_manager = container_manager or create_container_manager()
 
     def start_worker_container(self, git_hash: str) -> WorkerInfo:
-        """Start a Docker container for a specific git hash.
-
-        Returns:
-            (container_id, container_name)
-        """
-        suffix = self.generate_container_suffix()
-        container_name = f"eval-worker-{git_hash}-{suffix}"
-        worker_assignee = f"worker-{git_hash[:8]}-{socket.gethostname()}-{os.getpid()}"
-
-        env_vars = {
-            "BACKEND_URL": self._backend_url,
-            "GIT_HASH": git_hash,
-            "WORKER_ASSIGNEE": worker_assignee,
-        }
-
-        cmd = [
-            "docker",
-            "run",
-            "--rm",  # Remove container when it exits
-            "-d",  # Run in detached mode
-            "--name",
-            container_name,
-        ]
-
-        # Add environment variables
-        for key, value in env_vars.items():
-            cmd.extend(["-e", f"{key}={value}"])
-
-        # Worker will set up its own versioned checkout
-        cmd.extend([self._docker_image, "uv", "run", "python", "-m", "metta.app_backend.eval_task_worker"])
-
-        self._logger.info(f"Starting worker container for git hash {git_hash}")
-
-        try:
-            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-            container_id = result.stdout.strip()
-            self._logger.info(f"Started worker container {container_name} ({container_id[:12]})")
-            return WorkerInfo(
-                git_hash=git_hash,
-                container_id=container_id,
-                container_name=container_name,
-                alive=True,
-                task=None,
-            )
-        except subprocess.CalledProcessError as e:
-            self._logger.error(f"Failed to start worker container: {e.stderr}")
-            raise
+        """Start a worker container for a specific git hash."""
+        return self._container_manager.start_worker_container(
+            git_hash=git_hash, backend_url=self._backend_url, docker_image=self._docker_image
+        )
 
     def cleanup_container(self, container_id: str) -> None:
         """Remove a container."""
-        try:
-            subprocess.run(
-                ["docker", "rm", "-f", container_id],
-                capture_output=True,
-                check=False,
-            )
-        except Exception as e:
-            self._logger.warning(f"Failed to cleanup container {container_id}: {e}")
-        else:
-            self._logger.info(f"Cleaned up container {container_id}")
+        self._container_manager.cleanup_container(container_id)
 
     async def discover_alive_workers(self) -> list[WorkerInfo]:
-        try:
-            result = subprocess.run(
-                [
-                    "docker",
-                    "ps",
-                    "--filter",
-                    "name=eval-worker-",
-                    "--format",
-                    "{{.ID}}\t{{.Names}}",
-                ],
-                capture_output=True,
-                text=True,
-                check=True,
-            )
-
-            workers = []
-            if result.stdout.strip():
-                for line in result.stdout.strip().split("\n"):
-                    parts = line.split("\t")
-                    if len(parts) == 2:
-                        container_id, container_name = parts
-                        # Extract git hash from name (format: eval-worker-{git_hash}-{suffix})
-                        if container_name.startswith("eval-worker-"):
-                            name_parts = container_name.split("-", 3)
-                            if len(name_parts) >= 3:
-                                git_hash = name_parts[2]
-                                workers.append(
-                                    WorkerInfo(
-                                        git_hash=git_hash,
-                                        container_id=container_id,
-                                        container_name=container_name,
-                                        alive=True,
-                                        task=None,
-                                    )
-                                )
-
-            if workers:
-                self._logger.info(f"Discovered {len(workers)} alive workers")
-            return workers
-        except subprocess.CalledProcessError as e:
-            self._logger.error(f"Failed to discover workers: {e}")
-            return []
+        """Discover all alive workers."""
+        return await self._container_manager.discover_alive_workers()
 
     async def update_worker_assignments(self, workers: dict[str, WorkerInfo]) -> None:
         """
@@ -356,11 +239,15 @@ async def main() -> None:
     poll_interval = float(os.environ.get("POLL_INTERVAL", "5"))
     worker_idle_timeout = float(os.environ.get("WORKER_IDLE_TIMEOUT", "600"))
 
+    # Create the appropriate container manager based on environment
+    container_manager = create_container_manager()
+
     orchestrator = EvalTaskOrchestrator(
         backend_url=backend_url,
         docker_image=docker_image,
         poll_interval=poll_interval,
         worker_idle_timeout=worker_idle_timeout,
+        container_manager=container_manager,
     )
 
     try:
