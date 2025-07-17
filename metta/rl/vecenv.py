@@ -5,13 +5,12 @@ import pufferlib
 import pufferlib.vector
 from pydantic import validate_call
 
-from metta.common.util.logging_helpers import setup_mettagrid_logger
 from metta.common.util.resolvers import register_resolvers
 from metta.mettagrid.curriculum.core import Curriculum
 from metta.mettagrid.mettagrid_env import MettaGridEnv
 from metta.mettagrid.replay_writer import ReplayWriter
 from metta.mettagrid.stats_writer import StatsWriter
-from metta.util.metta_script import setup_file_logging
+from metta.util.init.logging import init_logging
 
 logger = logging.getLogger("vecenv")
 
@@ -30,9 +29,7 @@ def make_env_func(
     # we are not calling into our configs hierarchy here so we need to manually register the custom resolvers
     register_resolvers()
 
-    setup_mettagrid_logger()
-    if run_dir:
-        setup_file_logging(run_dir)
+    init_logging(run_dir=run_dir)
 
     # Create the environment instance
     env = MettaGridEnv(

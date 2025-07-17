@@ -6,10 +6,10 @@ import logging
 import hydra
 from omegaconf import DictConfig, OmegaConf
 
-from metta.common.util.logging_helpers import setup_mettagrid_logger
 from metta.eval.dashboard_data import DashboardConfig, write_dashboard_data
 from metta.mettagrid.util.file import http_url
-from metta.util.metta_script import setup_mettagrid_environment
+from metta.util.init.logging import init_logging
+from metta.util.init.mettagrid_environment import init_mettagrid_environment
 
 DASHBOARD_URL = "https://metta-ai.github.io/metta/observatory/"
 
@@ -19,8 +19,8 @@ logger = logging.getLogger("dashboard")
 
 @hydra.main(version_base=None, config_path="../configs", config_name="dashboard_job")
 def main(cfg: DictConfig) -> None:
-    setup_mettagrid_environment(cfg)
-    setup_mettagrid_logger()
+    init_mettagrid_environment(cfg)
+    init_logging()
 
     logger.info(f"Dashboard job config:\n{OmegaConf.to_yaml(cfg, resolve=True)}")
     logger.info("Generating dashboard")

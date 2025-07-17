@@ -23,6 +23,8 @@ from tools.sweep_config_utils import (
     validate_train_job_config,
 )
 
+logger = logging.getLogger(__name__)
+
 
 # TODO: populate this more
 class TrainJob(Config):
@@ -97,8 +99,6 @@ def train(cfg: DictConfig | ListConfig, wandb_run: WandbRun | None, logger: Logg
 @record
 def main(cfg: DictConfig) -> int:
     record_heartbeat()
-
-    logger = logging.getLogger("tools.train")
 
     logger.info(
         f"Training {cfg.run} on "
