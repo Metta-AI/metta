@@ -33,11 +33,17 @@ def extract_asana_urls_from_description(description: str) -> list[str]:
 
 
 def extract_asana_gid_from_url(task_url: str) -> str:
-    """Extract the Asana task GID from a task URL, or raise an exception if not found."""
-    match = re.search(r"https://app\.asana\.com/\d+/\d+/(\d+)", task_url)
+    # Try Format 1: https://app.asana.com/0/project_id/task_id
+    match = re.search(r"https://app\.asana\.com/\d+/\d+/(\d+)(?:/|$)", task_url)
     if match:
         return match.group(1)
-    raise ValueError(f"Invalid Asana task URL format: {task_url}")
+
+    # Try Format 2: https://app.asana.com/1/workspace_id/project/project_id/task/task_id
+    match = re.search(r"https://app\.asana\.com/\d+/\d+/project/\d+/task/(\d+)(?:/|$)", task_url)
+    if match:
+        return match.group(1)
+
+    raise Exception(f"Could not extract task ID from URL: {task_url}")
 
 
 def validate_asana_task_url(
