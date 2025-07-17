@@ -1,9 +1,9 @@
 defaults:
-  - common
-  - agent: fast
-  - trainer: trainer
-  - sim: arena
-  - wandb: comparision_trainer
+  - /common
+  - /agent/fast
+  - /trainer/trainer
+  - /sim/arena
+  - /wandb/comparision_trainer
   - _self_
 
 seed: 1
@@ -15,7 +15,7 @@ train_job:
 trainer:
   # Core training parameters matching bullm_run.py
   curriculum: /env/mettagrid/curriculum/arena/learning_progress
-  total_timesteps: 50_000_000  # Reduced to 50M timesteps for stability
+  total_timesteps: 200_000_000  # Increased to 200M timesteps for longer comparison
   
   # Optimizer matching bullm_run.py
   optimizer:
@@ -50,9 +50,4 @@ trainer:
   cpu_offload: false
   zero_copy: true
 
-cmd: train
-
-wandb:
-  project: comparision_trainer
-  entity: metta-research
-  enabled: true 
+cmd: train 

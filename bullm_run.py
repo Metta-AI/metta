@@ -85,7 +85,7 @@ device, is_master, world_size, rank = setup_distributed_training("cuda" if torch
 
 # Core training parameters
 num_workers = 4
-total_timesteps = 50_000_000  # Reduced to 50M timesteps for stability
+total_timesteps = 200_000_000  # Increased to 200M timesteps for longer comparison
 batch_size = 524288 if torch.cuda.is_available() else 131072  # 512k for GPU, 128k for CPU
 minibatch_size = 16384 if torch.cuda.is_available() else 4096  # 16k for GPU, 4k for CPU
 curriculum = "/env/mettagrid/curriculum/arena/learning_progress"

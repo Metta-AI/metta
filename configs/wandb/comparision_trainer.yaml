@@ -1,0 +1,4 @@
+# W&B configuration for comparison trainer project
+project: comparision_trainer
+entity: metta-research
+enabled: true 
