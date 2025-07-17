@@ -1,4 +1,4 @@
-from metta.mettagrid.mettagrid_c import AgentConfig, GameConfig, MettaGrid
+from metta.mettagrid.mettagrid_c import AgentConfig, GameConfig, GlobalObsConfig, MettaGrid
 
 
 class TestGlobalObservations:
@@ -11,25 +11,33 @@ class TestGlobalObservations:
 
         # Create agent configs with different reward values
         agent_config = AgentConfig(
-            type_id=1,
-            type_name="agent",
-            group_id=0,
-            group_name="test_group",
-            freeze_duration=0,
-            action_failure_penalty=0.0,
-            resource_limits={i: 100 for i in range(len(inventory_items))},
-            resource_rewards={
+            1,  # type_id
+            "agent",  # type_name
+            0,  # group_id
+            "test_group",  # group_name
+            0,  # freeze_duration
+            0.0,  # action_failure_penalty
+            {i: 100 for i in range(len(inventory_items))},  # resource_limits
+            {
                 0: 0.25,  # ore: low reward (should quantize to 1)
                 1: 0.75,  # battery: medium reward (should quantize to 2)
                 2: 1.5,  # laser: high reward (should quantize to 3)
                 3: 0.0,  # armor: no reward (should quantize to 0)
                 4: 2.0,  # other_item: not included in packed rewards
-            },
-            resource_reward_max={i: 100 for i in range(len(inventory_items))},
-            group_reward_pct=0.0,
+            },  # resource_rewards
+            {i: 100 for i in range(len(inventory_items))},  # resource_reward_max
+            0.0,  # group_reward_pct
         )
 
-        # Create game config with global_obs_game_rewards enabled
+        # Create global obs config with game_rewards enabled
+        global_obs_config = GlobalObsConfig(
+            episode_completion_pct=True,
+            last_action=True,
+            last_reward=True,
+            game_rewards=True,
+        )
+
+        # Create game config with game_rewards enabled in global_obs
         game_config = GameConfig(
             num_agents=1,
             max_steps=100,
@@ -38,9 +46,9 @@ class TestGlobalObservations:
             obs_height=5,
             inventory_item_names=inventory_items,
             num_observation_tokens=50,
+            global_obs=global_obs_config,
             actions={},
             objects={"agent.test_group": agent_config},
-            global_obs_game_rewards=True,
         )
 
         # Create simple map
@@ -52,58 +60,60 @@ class TestGlobalObservations:
         # Reset environment
         observations, _ = env.reset()
 
-        # Find the game_rewards token in observations
-        # Global tokens are placed at the center of observation (2, 2) for 5x5 window
-        # We need to look for feature_id = 13 (GameRewards)
-        game_rewards_token = None
+        # Check observations shape (1 agent, 50 tokens, 3 values per token)
+        assert observations.shape == (1, 50, 3), f"Unexpected shape: {observations.shape}"
 
-        for token_idx in range(observations.shape[1]):
-            feature_id = observations[0, token_idx, 1]  # feature_id is at index 1
-            if feature_id == 13:  # ObservationFeature::GameRewards
-                game_rewards_token = observations[0, token_idx, :]
+        # Extract observation tokens for the first agent
+        agent_obs = observations[0]
+
+        # Find game rewards token
+        # Feature ID 13 is GameRewards, should be at center (2,2) in 5x5 obs
+        game_rewards_token = None
+        for token in agent_obs:
+            if token[0] != 0xFF and token[1] == 13:  # Feature ID 13 is GameRewards
+                game_rewards_token = token
                 break
 
-        assert game_rewards_token is not None, "Game rewards token not found in observations"
+        assert game_rewards_token is not None, "Game rewards token not found in observation"
 
-        # Extract the packed value
-        packed_value = game_rewards_token[2]  # value is at index 2
+        # Expected packed value:
+        # ore (0.25) -> 1 (bits 7-6: 01)
+        # battery (0.75) -> 2 (bits 5-4: 10)
+        # laser (1.5) -> 3 (bits 3-2: 11)
+        # armor (0.0) -> 0 (bits 1-0: 00)
+        # Binary: 01 10 11 00 = 0x6C = 108
+        expected_packed = (1 << 6) | (2 << 4) | (3 << 2) | 0
+        assert expected_packed == 108, f"Expected packed calculation wrong: {expected_packed}"
 
-        # Unpack and verify
-        # Expected packing: ore(1) << 6 | battery(2) << 4 | laser(3) << 2 | armor(0)
-        # = 01 10 11 00 = 0x6C = 108
-        expected_ore = 1
-        expected_battery = 2
-        expected_laser = 3
-        expected_armor = 0
-
-        extracted_ore = (packed_value >> 6) & 0x3
-        extracted_battery = (packed_value >> 4) & 0x3
-        extracted_laser = (packed_value >> 2) & 0x3
-        extracted_armor = packed_value & 0x3
-
-        assert extracted_ore == expected_ore, f"Expected ore={expected_ore}, got {extracted_ore}"
-        assert extracted_battery == expected_battery, f"Expected battery={expected_battery}, got {extracted_battery}"
-        assert extracted_laser == expected_laser, f"Expected laser={expected_laser}, got {extracted_laser}"
-        assert extracted_armor == expected_armor, f"Expected armor={expected_armor}, got {extracted_armor}"
+        assert game_rewards_token[2] == expected_packed, (
+            f"Incorrect packed game rewards value. Expected: {expected_packed}, Got: {game_rewards_token[2]}"
+        )
 
     def test_game_rewards_disabled(self):
-        """Test that game_rewards token is not included when disabled."""
+        """Test that game_rewards observation is not included when disabled."""
         inventory_items = ["ore", "battery", "laser", "armor"]
 
         agent_config = AgentConfig(
-            type_id=1,
-            type_name="agent",
-            group_id=0,
-            group_name="test_group",
-            freeze_duration=0,
-            action_failure_penalty=0.0,
-            resource_limits={i: 100 for i in range(len(inventory_items))},
-            resource_rewards={i: 1.0 for i in range(len(inventory_items))},
-            resource_reward_max={i: 100 for i in range(len(inventory_items))},
-            group_reward_pct=0.0,
+            1,  # type_id
+            "agent",  # type_name
+            0,  # group_id
+            "test_group",  # group_name
+            0,  # freeze_duration
+            0.0,  # action_failure_penalty
+            {i: 100 for i in range(len(inventory_items))},  # resource_limits
+            {0: 1.0, 1: 1.0, 2: 1.0, 3: 1.0},  # resource_rewards
+            {i: 100 for i in range(len(inventory_items))},  # resource_reward_max
+            0.0,  # group_reward_pct
         )
 
-        # Create game config with global_obs_game_rewards disabled
+        # Create global obs config with game_rewards disabled
+        global_obs_config = GlobalObsConfig(
+            episode_completion_pct=True,
+            last_action=True,
+            last_reward=True,
+            game_rewards=False,
+        )
+
         game_config = GameConfig(
             num_agents=1,
             max_steps=100,
@@ -112,45 +122,49 @@ class TestGlobalObservations:
             obs_height=5,
             inventory_item_names=inventory_items,
             num_observation_tokens=50,
+            global_obs=global_obs_config,
             actions={},
             objects={"agent.test_group": agent_config},
-            global_obs_game_rewards=False,  # Disabled
         )
 
         game_map = [["agent.test_group"]]
         env = MettaGrid(game_config, game_map, 42)
+
         observations, _ = env.reset()
+        agent_obs = observations[0]
 
-        # Check that game_rewards token is NOT present
-        game_rewards_found = False
-        for token_idx in range(observations.shape[1]):
-            feature_id = observations[0, token_idx, 1]
-            if feature_id == 13:  # ObservationFeature::GameRewards
-                game_rewards_found = True
-                break
-
-        assert not game_rewards_found, "Game rewards token found when it should be disabled"
+        # Verify no game rewards token present
+        for token in agent_obs:
+            if token[0] != 0xFF:  # Not empty
+                assert token[1] != 13, "Game rewards token found when disabled"
 
     def test_game_rewards_with_missing_resources(self):
-        """Test game_rewards packing when some resources are missing."""
-        # Only include some of the expected resources
-        inventory_items = ["battery", "armor", "gold"]  # Missing ore and laser
+        """Test game rewards with missing resource types."""
+        # Only include ore and laser, missing battery and armor
+        inventory_items = ["ore_red", "laser", "other_item"]
 
         agent_config = AgentConfig(
-            type_id=1,
-            type_name="agent",
-            group_id=0,
-            group_name="test_group",
-            freeze_duration=0,
-            action_failure_penalty=0.0,
-            resource_limits={i: 100 for i in range(len(inventory_items))},
-            resource_rewards={
-                0: 0.5,  # battery
-                1: 1.0,  # armor
-                2: 2.0,  # gold (not included in packed rewards)
-            },
-            resource_reward_max={i: 100 for i in range(len(inventory_items))},
-            group_reward_pct=0.0,
+            1,  # type_id
+            "agent",  # type_name
+            0,  # group_id
+            "test_group",  # group_name
+            0,  # freeze_duration
+            0.0,  # action_failure_penalty
+            {i: 100 for i in range(len(inventory_items))},  # resource_limits
+            {
+                0: 2.0,  # ore_red: high reward (should quantize to 3)
+                1: 0.3,  # laser: low reward (should quantize to 1)
+            },  # resource_rewards
+            {i: 100 for i in range(len(inventory_items))},  # resource_reward_max
+            0.0,  # group_reward_pct
+        )
+
+        # Create global obs config with game_rewards enabled
+        global_obs_config = GlobalObsConfig(
+            episode_completion_pct=True,
+            last_action=True,
+            last_reward=True,
+            game_rewards=True,
         )
 
         game_config = GameConfig(
@@ -161,94 +175,99 @@ class TestGlobalObservations:
             obs_height=5,
             inventory_item_names=inventory_items,
             num_observation_tokens=50,
+            global_obs=global_obs_config,
             actions={},
             objects={"agent.test_group": agent_config},
-            global_obs_game_rewards=True,
         )
 
         game_map = [["agent.test_group"]]
         env = MettaGrid(game_config, game_map, 42)
-        observations, _ = env.reset()
 
-        # Find game_rewards token
-        game_rewards_value = None
-        for token_idx in range(observations.shape[1]):
-            if observations[0, token_idx, 1] == 13:  # GameRewards
-                game_rewards_value = observations[0, token_idx, 2]
+        observations, _ = env.reset()
+        agent_obs = observations[0]
+
+        # Find game rewards token
+        game_rewards_token = None
+        for token in agent_obs:
+            if token[0] != 0xFF and token[1] == 13:
+                game_rewards_token = token
                 break
 
-        assert game_rewards_value is not None
+        assert game_rewards_token is not None
 
-        # With missing ore and laser, expected packing:
-        # ore(0) << 6 | battery(1) << 4 | laser(0) << 2 | armor(2)
-        # = 00 01 00 10 = 0x12 = 18
-        extracted_ore = (game_rewards_value >> 6) & 0x3
-        extracted_battery = (game_rewards_value >> 4) & 0x3
-        extracted_laser = (game_rewards_value >> 2) & 0x3
-        extracted_armor = game_rewards_value & 0x3
-
-        assert extracted_ore == 0, "Missing ore should be 0"
-        assert extracted_battery == 1, f"Battery should be 1, got {extracted_battery}"
-        assert extracted_laser == 0, "Missing laser should be 0"
-        assert extracted_armor == 2, f"Armor should be 2, got {extracted_armor}"
+        # Expected packed value:
+        # ore (2.0) -> 3 (bits 7-6: 11)
+        # battery (missing) -> 0 (bits 5-4: 00)
+        # laser (0.3) -> 1 (bits 3-2: 01)
+        # armor (missing) -> 0 (bits 1-0: 00)
+        # Binary: 11 00 01 00 = 0xC4 = 196
+        expected_packed = (3 << 6) | (0 << 4) | (1 << 2) | 0
+        assert game_rewards_token[2] == expected_packed
 
     def test_game_rewards_quantization(self):
-        """Test the quantization of reward values into 2-bit values."""
+        """Test the quantization of reward values."""
         inventory_items = ["ore", "battery", "laser", "armor"]
 
-        # Test different reward values to verify quantization
-        test_cases = [
-            (0.0, 0),  # No reward -> 0
-            (0.25, 1),  # Low reward -> 1
-            (0.5, 1),  # Still low -> 1
-            (0.75, 2),  # Medium reward -> 2
-            (1.0, 2),  # Still medium -> 2
-            (1.5, 3),  # High reward -> 3
-            (10.0, 3),  # Very high -> 3 (capped)
-        ]
+        # Test edge cases of quantization
+        agent_config = AgentConfig(
+            1,  # type_id
+            "agent",  # type_name
+            0,  # group_id
+            "test_group",  # group_name
+            0,  # freeze_duration
+            0.0,  # action_failure_penalty
+            {i: 100 for i in range(len(inventory_items))},  # resource_limits
+            {
+                0: 0.0,  # ore: exactly 0 -> 0
+                1: 0.5,  # battery: exactly 0.5 -> 1
+                2: 1.0,  # laser: exactly 1.0 -> 2
+                3: 10.0,  # armor: very high -> 3
+            },  # resource_rewards
+            {i: 100 for i in range(len(inventory_items))},  # resource_reward_max
+            0.0,  # group_reward_pct
+        )
 
-        for ore_reward, expected_quantized in test_cases:
-            agent_config = AgentConfig(
-                type_id=1,
-                type_name="agent",
-                group_id=0,
-                group_name="test_group",
-                freeze_duration=0,
-                action_failure_penalty=0.0,
-                resource_limits={i: 100 for i in range(len(inventory_items))},
-                resource_rewards={
-                    0: ore_reward,  # Test various ore reward values
-                    1: 0.0,
-                    2: 0.0,
-                    3: 0.0,
-                },
-                resource_reward_max={i: 100 for i in range(len(inventory_items))},
-                group_reward_pct=0.0,
-            )
+        # Create global obs config with game_rewards enabled
+        global_obs_config = GlobalObsConfig(
+            episode_completion_pct=True,
+            last_action=True,
+            last_reward=True,
+            game_rewards=True,
+        )
 
-            game_config = GameConfig(
-                num_agents=1,
-                max_steps=100,
-                episode_truncates=False,
-                obs_width=5,
-                obs_height=5,
-                inventory_item_names=inventory_items,
-                num_observation_tokens=50,
-                actions={},
-                objects={"agent.test_group": agent_config},
-                global_obs_game_rewards=True,
-            )
+        game_config = GameConfig(
+            num_agents=1,
+            max_steps=100,
+            episode_truncates=False,
+            obs_width=5,
+            obs_height=5,
+            inventory_item_names=inventory_items,
+            num_observation_tokens=50,
+            global_obs=global_obs_config,
+            actions={},
+            objects={"agent.test_group": agent_config},
+        )
 
-            game_map = [["agent.test_group"]]
-            env = MettaGrid(game_config, game_map, 42)
-            observations, _ = env.reset()
+        game_map = [["agent.test_group"]]
+        env = MettaGrid(game_config, game_map, 42)
 
-            # Find and check game_rewards value
-            for token_idx in range(observations.shape[1]):
-                if observations[0, token_idx, 1] == 13:  # GameRewards
-                    packed_value = observations[0, token_idx, 2]
-                    extracted_ore = (packed_value >> 6) & 0x3
-                    assert extracted_ore == expected_quantized, (
-                        f"Reward {ore_reward} should quantize to {expected_quantized}, got {extracted_ore}"
-                    )
-                    break
+        observations, _ = env.reset()
+        agent_obs = observations[0]
+
+        # Find game rewards token
+        game_rewards_token = None
+        for token in agent_obs:
+            if token[0] != 0xFF and token[1] == 13:
+                game_rewards_token = token
+                break
+
+        assert game_rewards_token is not None
+
+        # Expected packed value:
+        # ore (0.0) -> 0 (bits 7-6: 00)
+        # battery (0.5) -> 1 (bits 5-4: 01)
+        # laser (1.0) -> 2 (bits 3-2: 10)
+        # armor (10.0) -> 3 (bits 1-0: 11)
+        # Binary: 00 01 10 11 = 0x1B = 27
+        expected_packed = (0 << 6) | (1 << 4) | (2 << 2) | 3
+        assert game_rewards_token[2] == expected_packed
