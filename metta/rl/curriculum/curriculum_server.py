@@ -49,7 +49,7 @@ class CurriculumServer(Curriculum):
             with self._lock:
                 for _ in range(batch_size):
                     try:
-                        task = self._curriculum.get_task()
+                        task = self.get_task()
                         # Convert the task's env_cfg to a serializable format
                         env_cfg = OmegaConf.to_container(task.env_cfg(), resolve=True)
                         # Generate a numeric task ID

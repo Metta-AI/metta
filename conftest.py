@@ -1,9 +1,14 @@
+import logging
 import sys
 from pathlib import Path
 
 import pytest
 
 print(f"\n===== applying conftest from {Path(__file__)} =====")
+
+# Suppress expected connection failure warnings and errors during tests
+logging.getLogger("metta.rl.curriculum.curriculum_client").setLevel(logging.CRITICAL)
+logging.getLogger("metta.rl.curriculum.curriculum_server").setLevel(logging.CRITICAL)
 
 # Add dependencies to sys.path if not already present
 base_dir = Path(__file__).resolve().parent

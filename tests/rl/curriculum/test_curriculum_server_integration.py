@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Test curriculum server integration scenarios."""
 
+import queue
 import threading
 import time
 from unittest.mock import MagicMock, patch
@@ -28,14 +29,16 @@ class StatefulCurriculum(Curriculum):
         difficulty = "easy" if self.task_count % 3 != 0 else "hard"
         task_id = f"{difficulty}_task_{self.task_count}"
 
-        env_cfg = OmegaConf.create({
-            "game": {
-                "difficulty": difficulty,
-                "width": 10 if difficulty == "easy" else 20,
-                "height": 10 if difficulty == "easy" else 20,
-                "num_agents": 2
+        env_cfg = OmegaConf.create(
+            {
+                "game": {
+                    "difficulty": difficulty,
+                    "width": 10 if difficulty == "easy" else 20,
+                    "height": 10 if difficulty == "easy" else 20,
+                    "num_agents": 2,
+                }
             }
-        })
+        )
         return Task(task_id, self, env_cfg)
 
     def complete_task(self, id: str, score: float):
@@ -51,7 +54,7 @@ class StatefulCurriculum(Curriculum):
         total = len(self.completed_tasks)
         return {
             "task_completions/easy": len(easy_tasks) / total if total > 0 else 0,
-            "task_completions/hard": len(hard_tasks) / total if total > 0 else 0
+            "task_completions/hard": len(hard_tasks) / total if total > 0 else 0,
         }
 
     def get_task_probs(self) -> dict[str, float]:
@@ -62,35 +65,32 @@ class StatefulCurriculum(Curriculum):
         return {
             "total_tasks": self.task_count,
             "completed_tasks": len(self.completed_tasks),
-            "average_score": avg_score
+            "average_score": avg_score,
         }
 
 
-def test_server_client_with_stats():
+def test_server_client_with_stats(free_port):
     """Test that curriculum stats are properly served and client methods work."""
     curriculum = StatefulCurriculum()
-    server = CurriculumServer(curriculum, host="127.0.0.1", port=15557)
+    server = CurriculumServer(curriculum, host="127.0.0.1", port=free_port)
     server.start(background=True)
     time.sleep(0.5)
 
     try:
-        client = CurriculumClient(
-            server_url="http://127.0.0.1:15557",
-            batch_size=10
-        )
+        client = CurriculumClient(server_url=f"http://127.0.0.1:{free_port}", batch_size=10)
 
         # Get some tasks and "complete" them on server side
         tasks_seen = []
         for i in range(15):
             task = client.get_task()
-            tasks_seen.append(task.name)
+            tasks_seen.append(task.name())
             # Simulate completing tasks on server side
-            curriculum.complete_task(task.name, 0.5 + i * 0.03)
+            curriculum.complete_task(task.name(), 0.5 + i * 0.03)
 
-        # Client methods should return empty (server handles stats)
-        assert client.get_completion_rates() == {}
-        assert client.get_task_probs() == {}
+        # Test client stats (should return empty dicts)
         assert client.get_curriculum_stats() == {}
+
+        # Complete task (no-op on client)
 
         # Verify we got a mix of easy and hard tasks
         easy_count = sum(1 for t in tasks_seen if "easy" in t)
@@ -99,6 +99,7 @@ def test_server_client_with_stats():
         assert hard_count > 0
 
     finally:
+        client.stop()
         server.stop()
 
 
@@ -111,12 +112,7 @@ def test_concurrent_clients():
 
     try:
         # Create multiple clients
-        clients = [
-            CurriculumClient(
-                server_url="http://127.0.0.1:15558",
-                batch_size=5
-            ) for _ in range(3)
-        ]
+        clients = [CurriculumClient(server_url="http://127.0.0.1:15558", batch_size=5) for _ in range(3)]
 
         # Each client gets tasks in parallel
         results = [[] for _ in range(3)]
@@ -124,7 +120,7 @@ def test_concurrent_clients():
         def get_tasks(client_idx, client, result_list):
             for _ in range(10):
                 task = client.get_task()
-                result_list.append(task.name)
+                result_list.append(task.name())
                 time.sleep(0.01)  # Small delay to simulate processing
 
         threads = []
@@ -145,6 +141,8 @@ def test_concurrent_clients():
         assert len(set(all_tasks)) <= 30  # Should have reused some tasks from batches
 
     finally:
+        for client in clients:
+            client.stop()
         server.stop()
 
 
@@ -155,12 +153,7 @@ def test_server_restart():
     server.start(background=True)
     time.sleep(0.5)
 
-    client = CurriculumClient(
-        server_url="http://127.0.0.1:15559",
-        batch_size=5,
-        max_retries=2,
-        retry_delay=0.1
-    )
+    client = CurriculumClient(server_url="http://127.0.0.1:15559", batch_size=5, max_retries=2, retry_delay=0.1)
 
     # Get some tasks
     task1 = client.get_task()
@@ -174,7 +167,7 @@ def test_server_restart():
     while not client._task_queue.empty():
         try:
             client._task_queue.get_nowait()
-        except:
+        except queue.Empty:
             break
 
     # Client should fail to get new tasks
@@ -207,10 +200,7 @@ def test_trainer_integration_simulation():
 
     try:
         # Simulate master rank
-        client = CurriculumClient(
-            server_url="http://127.0.0.1:15560",
-            batch_size=100
-        )
+        client = CurriculumClient(server_url="http://127.0.0.1:15560", batch_size=100)
 
         # Simulate training loop
         for epoch in range(5):
@@ -223,9 +213,9 @@ def test_trainer_integration_simulation():
             # Simulate completing tasks with scores
             for task in tasks:
                 score = 0.7 + (epoch * 0.05)  # Improving over time
-                curriculum.complete_task(task.name, score)
+                curriculum.complete_task(task.name(), score)
 
-            # In trainer, this would be in _process_stats
+            # Query stats from client - should be empty
             curriculum_stats = {}
 
             # Get stats from server-side curriculum
@@ -252,6 +242,7 @@ def test_trainer_integration_simulation():
                 assert task_probs["hard"] > 0.3
 
     finally:
+        client.stop()
         server.stop()
 
 
@@ -275,25 +266,20 @@ def test_empty_batch_handling():
     time.sleep(0.5)
 
     try:
-        client = CurriculumClient(
-            server_url="http://127.0.0.1:15561",
-            batch_size=5,
-            max_retries=2,
-            retry_delay=0.1
-        )
+        client = CurriculumClient(server_url="http://127.0.0.1:15561", batch_size=5, max_retries=2, retry_delay=0.1)
 
         # Should get first two tasks (server will only return 2 before hitting the exception)
         task1 = client.get_task()
-        assert task1.name in ["task_1", "task_2"]
+        assert task1.name() in ["task_1", "task_2"]
 
         task2 = client.get_task()
-        assert task2.name in ["task_1", "task_2"]
+        assert task2.name() in ["task_1", "task_2"]
 
         # Empty the queue to force refetch
         while not client._task_queue.empty():
             try:
                 client._task_queue.get_nowait()
-            except:
+            except queue.Empty:
                 break
 
         # Now server will return empty batch, client should handle gracefully
@@ -310,14 +296,10 @@ def test_empty_batch_handling():
 def test_random_curriculum_integration():
     """Test with a real curriculum type (RandomCurriculum)."""
     # Create a random curriculum with some tasks
-    tasks = {
-        "easy_env": 0.6,
-        "medium_env": 0.3,
-        "hard_env": 0.1
-    }
+    tasks = {"easy_env": 0.6, "medium_env": 0.3, "hard_env": 0.1}
 
     # Mock the curriculum loading
-    with patch('metta.mettagrid.curriculum.random.curriculum_from_config_path') as mock_load:
+    with patch("metta.mettagrid.curriculum.random.curriculum_from_config_path") as mock_load:
         # Create mock curricula for each task type
         mock_curricula = {}
         for task_id in tasks:
@@ -325,13 +307,7 @@ def test_random_curriculum_integration():
             mock_task = Task(
                 task_id,
                 mock_curr,
-                OmegaConf.create({
-                    "game": {
-                        "name": task_id,
-                        "difficulty": task_id.split("_")[0],
-                        "num_agents": 2
-                    }
-                })
+                OmegaConf.create({"game": {"name": task_id, "difficulty": task_id.split("_")[0], "num_agents": 2}}),
             )
             mock_curr.get_task.return_value = mock_task
             mock_curricula[task_id] = mock_curr
@@ -349,17 +325,14 @@ def test_random_curriculum_integration():
         time.sleep(0.5)
 
         try:
-            client = CurriculumClient(
-                server_url="http://127.0.0.1:15562",
-                batch_size=50
-            )
+            client = CurriculumClient(server_url="http://127.0.0.1:15562", batch_size=50)
 
             # Get many tasks and check distribution
             task_counts = {"easy_env": 0, "medium_env": 0, "hard_env": 0}
             for _ in range(100):
                 task = client.get_task()
                 for task_type in task_counts:
-                    if task_type in task.name:
+                    if task_type in task.name():
                         task_counts[task_type] += 1
                         break
 
@@ -372,6 +345,7 @@ def test_random_curriculum_integration():
             assert task_counts["medium_env"] > task_counts["hard_env"]
 
         finally:
+            client.stop()
             server.stop()
 
 

@@ -45,8 +45,6 @@ class LearningProgressCurriculum(RandomCurriculum):
             memory=memory,
         )
 
-        logger.info(f"LearningProgressCurriculum initialized with {search_space_size} tasks")
-
     def complete_task(self, id: str, score: float):
         """Complete a task and update learning progress tracking."""
         # Convert score to success rate (assuming score is between 0 and 1)
