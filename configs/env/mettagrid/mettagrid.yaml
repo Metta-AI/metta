@@ -20,7 +20,7 @@ game:
     episode_completion_pct: true
     last_action: true # Controls both last_action and last_action_arg tokens
     last_reward: true
-    game_rewards: false
+    resource_rewards: false
 
   # We could figure this out implicitly, but being explicit reduces the risk of people accidentally configuring
   # inventory they didn't intend (e.g., "ore" instead of "ore_red").

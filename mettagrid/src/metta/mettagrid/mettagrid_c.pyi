@@ -55,19 +55,6 @@ class WallConfig(GridObjectConfig):
     swappable: bool
 
 class AgentConfig(GridObjectConfig):
-    def __init__(
-        self,
-        type_id: int,
-        type_name: str = "agent",
-        group_id: int = 0,
-        group_name: str = "",
-        freeze_duration: int = 0,
-        action_failure_penalty: float = 0,
-        resource_limits: dict[int, int] = {},
-        resource_rewards: dict[int, float] = {},
-        resource_reward_max: dict[int, int] = {},
-        group_reward_pct: float = 0,
-    ): ...
     type_id: int
     type_name: str
     group_id: int
@@ -80,19 +67,6 @@ class AgentConfig(GridObjectConfig):
     group_reward_pct: float
 
 class ConverterConfig(GridObjectConfig):
-    def __init__(
-        self,
-        type_id: int,
-        type_name: str,
-        input_resources: dict[int, int],
-        output_resources: dict[int, int],
-        max_output: int,
-        conversion_ticks: int,
-        cooldown: int,
-        initial_resource_count: int = 0,
-        color: int = 0,
-        show_recipe_inputs: bool = False,
-    ): ...
     type_id: int
     type_name: str
     input_resources: dict[int, int]

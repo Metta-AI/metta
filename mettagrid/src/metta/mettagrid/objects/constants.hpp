@@ -66,7 +66,7 @@ const std::map<ObservationType, std::string> FeatureNames = {
     {ObservationFeature::LastActionArg, "last_action_arg"},
     {ObservationFeature::LastReward, "last_reward"},
     {ObservationFeature::Glyph, "agent:glyph"},
-    {ObservationFeature::InventoryRewards, "inventory_rewards"}};
+    {ObservationFeature::InventoryRewards, "resource_rewards"}};
 
 // ##ObservationNormalization
 // These are approximate maximum values for each feature. Ideally they would be defined closer to their source,
