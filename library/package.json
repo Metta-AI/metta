@@ -1,0 +1,42 @@
+{
+  "name": "softmax-library",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 3001 --turbo",
+    "start": "next start",
+    "build": "next build",
+    "lint": "pnpm lint:prettier",
+    "lint:prettier": "prettier --check .",
+    "format": "prettier --write ."
+  },
+  "dependencies": {
+    "@auth/drizzle-adapter": "^1.10.0",
+    "clsx": "^2.1.1",
+    "dotenv": "^17.2.0",
+    "drizzle-orm": "^0.44.2",
+    "next": "15.3.1",
+    "next-auth": "5.0.0-beta.29",
+    "next-safe-action": "^8.0.8",
+    "nuqs": "^2.4.1",
+    "pg": "^8.16.3",
+    "prettier": "^3.6.2",
+    "prettier-plugin-tailwindcss": "^0.6.14",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "zod": "^3.25.67",
+    "zod-form-data": "^3.0.0"
+  },
+  "devDependencies": {
+    "@auth/core": "^0.40.0",
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "drizzle-kit": "^0.31.4",
+    "tailwindcss": "^4",
+    "tsx": "^4.19.3",
+    "typescript": "^5"
+  },
+  "packageManager": "pnpm@10.8.0+sha512.0e82714d1b5b43c74610193cb20734897c1d00de89d0e18420aebc5977fa13d780a9cb05734624e81ebd81cc876cd464794850641c48b9544326b5622ca29971"
+}

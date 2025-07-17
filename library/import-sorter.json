@@ -1,0 +1,7 @@
+{
+  "autoFormat": "onSave",
+  "quoteMark": "double",
+  "wrappingStyle": "prettier",
+  "excludeGlob": ["**/__generated__/**"],
+  "groupRules": [{ "flags": "scripts" }, {}, "^#", "^@/", "^\\."]
+}
