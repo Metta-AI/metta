@@ -142,6 +142,62 @@ class TestEvalTaskRoutes:
         assert task_id not in available_ids
 
     @pytest.mark.asyncio
+    async def test_get_claimed_tasks_without_assignee(
+        self, eval_task_client: EvalTaskClient, test_policy_id: uuid.UUID
+    ):
+        """Test getting all claimed tasks without specifying an assignee."""
+        # Create and claim tasks for multiple workers
+        task_ids_by_worker = {}
+        workers = ["worker_alpha", "worker_beta", "worker_gamma"]
+
+        for worker in workers:
+            task_ids = []
+            for i in range(2):
+                request = TaskCreateRequest(
+                    policy_id=test_policy_id,
+                    git_hash=f"test_all_claimed_{worker}_{i}",
+                    sim_suite="navigation",
+                )
+                task_response = await eval_task_client.create_task(request)
+                task_ids.append(task_response.id)
+
+            # Claim tasks for this worker
+            claim_request = TaskClaimRequest(
+                tasks=task_ids,
+                assignee=worker,
+            )
+            claim_response = await eval_task_client.claim_tasks(claim_request)
+            assert len(claim_response.claimed) == 2
+            task_ids_by_worker[worker] = task_ids
+
+        # Get all claimed tasks (no assignee filter)
+        all_claimed_response = await eval_task_client.get_claimed_tasks()
+        all_claimed_ids = [task.id for task in all_claimed_response.tasks]
+
+        # Verify we got tasks from all workers
+        for task_ids in task_ids_by_worker.values():
+            for task_id in task_ids:
+                assert task_id in all_claimed_ids
+
+        # Verify we have at least 6 tasks (2 per worker × 3 workers)
+        assert len(all_claimed_response.tasks) >= 6
+
+        # Now test with specific assignee filter
+        specific_claimed_response = await eval_task_client.get_claimed_tasks(assignee="worker_beta")
+        specific_claimed_ids = [task.id for task in specific_claimed_response.tasks]
+
+        # Should only have worker_beta's tasks
+        assert len(specific_claimed_ids) >= 2
+        for task_id in task_ids_by_worker["worker_beta"]:
+            assert task_id in specific_claimed_ids
+
+        # Should not have other workers' tasks
+        for task_id in task_ids_by_worker["worker_alpha"]:
+            assert task_id not in specific_claimed_ids
+        for task_id in task_ids_by_worker["worker_gamma"]:
+            assert task_id not in specific_claimed_ids
+
+    @pytest.mark.asyncio
     async def test_task_assignment_expiry(self, eval_task_client: EvalTaskClient, test_policy_id: uuid.UUID):
         """Test that assigned tasks become available again after expiry."""
         # Create a task

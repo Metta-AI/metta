@@ -47,8 +47,9 @@ class EvalTaskClient:
     async def claim_tasks(self, request: TaskClaimRequest) -> TaskClaimResponse:
         return await self._make_request(TaskClaimResponse, "POST", "/tasks/claim", json=request.model_dump(mode="json"))
 
-    async def get_claimed_tasks(self, assignee: str) -> TasksResponse:
-        return await self._make_request(TasksResponse, "GET", "/tasks/claimed", params={"assignee": assignee})
+    async def get_claimed_tasks(self, assignee: str | None = None) -> TasksResponse:
+        params = {"assignee": assignee} if assignee is not None else {}
+        return await self._make_request(TasksResponse, "GET", "/tasks/claimed", params=params)
 
     async def get_task_by_id(self, task_id: str) -> TaskResponse:
         return await self._make_request(TaskResponse, "GET", f"/tasks/{task_id}")

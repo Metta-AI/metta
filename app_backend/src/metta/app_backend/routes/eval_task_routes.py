@@ -115,7 +115,7 @@ def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
 
     @router.get("/claimed")
     @timed_http_handler
-    async def get_claimed_tasks(assignee: str = Query(...)) -> TasksResponse:
+    async def get_claimed_tasks(assignee: str | None = Query(None)) -> TasksResponse:
         tasks = await stats_repo.get_claimed_tasks(assignee=assignee)
         task_responses = [TaskResponse.from_db(task) for task in tasks]
         return TasksResponse(tasks=task_responses)

@@ -900,19 +900,32 @@ class MettaRepo:
             rows = await result.fetchall()
             return [row[0] for row in rows]
 
-    async def get_claimed_tasks(self, assignee: str) -> list[dict[str, Any]]:
+    async def get_claimed_tasks(self, assignee: str | None = None) -> list[dict[str, Any]]:
         async with self.connect() as con:
-            result = await con.execute(
-                """
-                SELECT id, policy_id, sim_suite, status, assigned_at,
-                       assignee, created_at, attributes
-                FROM eval_tasks
-                WHERE assignee = %s
-                  AND assigned_at >= NOW() - INTERVAL '%s minutes'
-                ORDER BY created_at ASC
-                """,
-                (assignee, EVAL_TASK_MAX_ASSIGNMENT_AGE_MINUTES),
-            )
+            if assignee is None:
+                result = await con.execute(
+                    """
+                    SELECT id, policy_id, sim_suite, status, assigned_at,
+                           assignee, created_at, attributes
+                    FROM eval_tasks
+                    WHERE assignee IS NOT NULL
+                      AND assigned_at >= NOW() - INTERVAL '%s minutes'
+                    ORDER BY created_at ASC
+                    """,
+                    (EVAL_TASK_MAX_ASSIGNMENT_AGE_MINUTES,),
+                )
+            else:
+                result = await con.execute(
+                    """
+                    SELECT id, policy_id, sim_suite, status, assigned_at,
+                           assignee, created_at, attributes
+                    FROM eval_tasks
+                    WHERE assignee = %s
+                      AND assigned_at >= NOW() - INTERVAL '%s minutes'
+                    ORDER BY created_at ASC
+                    """,
+                    (assignee, EVAL_TASK_MAX_ASSIGNMENT_AGE_MINUTES),
+                )
             rows = await result.fetchall()
             return [
                 {
