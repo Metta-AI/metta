@@ -72,7 +72,7 @@ def metta_script(main: Callable[[DictConfig], int | None], config_name: str) -> 
 
         logger.info(f"Starting {main.__name__} from {script_path} with run_dir: {run_dir or 'not set'}")
 
-        # Set up the full mettagrid environment (includes device validation)
+        # Initialize the full mettagrid environment (includes device validation)
         init_mettagrid_environment(cfg)
 
         logger.info("Environment setup completed")
