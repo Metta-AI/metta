@@ -58,6 +58,15 @@ private:
     if (this->converting || this->cooling_down) {
       return;
     }
+
+    // Check if we've reached max_conversions
+    if (this->max_conversions >= 0 && this->conversions_completed >= this->max_conversions) {
+      this->cooldown = -1;  // Set to permanent stop
+      this->cooling_down = true;
+      stats.incr("conversions.permanent_stop"); // if you don't do it this way, and here, mine produce an extra ore
+      return;
+    }
+
     // Check if the converter is already at max output.
     unsigned short total_output = 0;
     for (const auto& [item, amount] : this->inventory) {
@@ -144,18 +153,15 @@ public:
 
   void finish_converting() {
     this->converting = false;
-    this->conversions_completed++;
-    stats.incr("conversions.completed");
+    if (this->max_conversions != -1) {
+
+      stats.incr("conversions.completed");
+    }
 
     // Add output to inventory
     for (const auto& [item, amount] : this->output_resources) {
       HasInventory::update_inventory(item, static_cast<InventoryDelta>(amount));
       stats.add(stats.inventory_item_name(item) + ".produced", amount);
-    }
-
-    // Check if we've reached max_conversions
-    if (this->max_conversions >= 0 && this->conversions_completed >= this->max_conversions) {
-      this->cooldown = -1;  // Set to permanent stop
     }
 
     if (this->cooldown > 0) {
@@ -166,15 +172,16 @@ public:
     } else if (this->cooldown == 0) {
       // No cooldown, try to start converting again immediately
       this->maybe_start_converting();
-    } else if (this->cooldown < 0) {
-      // Negative cooldown means never convert again
-      this->cooling_down = true;
-      stats.incr("conversions.permanent_stop");
     }
   }
 
   void finish_cooldown() {
     this->cooling_down = false;
+    // Only update stats if there was actually a conversion
+    if (this->max_conversions != 0) {
+      this->conversions_completed++;
+      stats.incr("conversions.completed");
+    }
     stats.incr("cooldown.completed");
     this->maybe_start_converting();
   }

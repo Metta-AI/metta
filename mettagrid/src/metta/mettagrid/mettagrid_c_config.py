@@ -70,6 +70,7 @@ def from_mettagrid_config(mettagrid_config_dict: dict[str, Any]) -> CppGameConfi
                     resource_name_to_id[k]: v for k, v in object_config.output_resources.items() if v > 0
                 },
                 max_output=object_config.max_output,
+                max_conversions=object_config.max_conversions,
                 conversion_ticks=object_config.conversion_ticks,
                 cooldown=object_config.cooldown,
                 initial_resource_count=object_config.initial_resource_count,

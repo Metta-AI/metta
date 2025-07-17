@@ -134,6 +134,7 @@
 			"fstream": "cpp",
 			"future": "cpp",
 			"__config": "cpp"
-		}
+		},
+		"makefile.configureOnOpen": false
 	}
 }

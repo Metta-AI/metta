@@ -863,15 +863,17 @@ PYBIND11_MODULE(mettagrid_c, m) {
                     const std::map<InventoryItem, InventoryQuantity>&,
                     const std::map<InventoryItem, InventoryQuantity>&,
                     short,
+                    short,  // max_conversions
                     unsigned short,
                     unsigned short,
-                    unsigned char,
+                    InventoryQuantity,
                     ObservationType>(),
            py::arg("type_id"),
            py::arg("type_name"),
            py::arg("input_resources"),
            py::arg("output_resources"),
            py::arg("max_output"),
+           py::arg("max_conversions"),
            py::arg("conversion_ticks"),
            py::arg("cooldown"),
            py::arg("initial_resource_count") = 0,
@@ -881,6 +883,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def_readwrite("input_resources", &ConverterConfig::input_resources)
       .def_readwrite("output_resources", &ConverterConfig::output_resources)
       .def_readwrite("max_output", &ConverterConfig::max_output)
+      .def_readwrite("max_conversions", &ConverterConfig::max_conversions)
       .def_readwrite("conversion_ticks", &ConverterConfig::conversion_ticks)
       .def_readwrite("cooldown", &ConverterConfig::cooldown)
       .def_readwrite("initial_resource_count", &ConverterConfig::initial_resource_count)

@@ -1,10 +1,10 @@
 # @package __global__
 
-# This file is private property of Lisa Soros.
-# DO NOT MODIFY.
+run: testing_2025_07_15_test0_frx
+trainer:
+  env: /env/mettagrid/arena/advanced
 
-#run: andre_local_2025_06_18_a
-policy_uri: null
+#policy_uri: null
 
 # replay_job:
 #   sim:
