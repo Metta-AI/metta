@@ -216,6 +216,11 @@ jobs:
           chmod +x .github/scripts/upload_codecov.py
           .github/scripts/upload_codecov.py
 
+      - name: Install lcov
+        if: steps.mettagrid_build_check.outputs.build_success == 'true'
+        run: |
+          sudo apt-get install -y lcov
+
       - name: Run MettaGrid C++ coverage
         if: steps.mettagrid_build_check.outputs.build_success == 'true'
         run: |
