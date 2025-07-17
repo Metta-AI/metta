@@ -32,6 +32,14 @@ def extract_asana_urls_from_description(description: str) -> list[str]:
     return urls
 
 
+def extract_asana_gid_from_url(task_url: str) -> str:
+    """Extract the Asana task GID from a task URL, or raise an exception if not found."""
+    match = re.search(r"https://app\.asana\.com/\d+/\d+/(\d+)", task_url)
+    if match:
+        return match.group(1)
+    raise ValueError(f"Invalid Asana task URL format: {task_url}")
+
+
 def validate_asana_task_url(
     task_url: str, project_id: str, github_url: str, github_url_field_id: str, asana_token: str
 ) -> dict | None:
@@ -44,13 +52,11 @@ def validate_asana_task_url(
     print(f"  asana_token: {'set' if asana_token else 'not set'}")
 
     # Extract task GID from URL
-    # URL format: https://app.asana.com/0/123456789/123456789
-    match = re.search(r"https://app\.asana\.com/\d+/\d+/(\d+)", task_url)
-    if not match:
+    task_gid = extract_asana_gid_from_url(task_url)
+    if not task_gid:
         print(f"[validate_asana_task_url] Invalid Asana task URL format: {task_url}")
         return None
 
-    task_gid = match.group(1)
     print(f"[validate_asana_task_url] Extracted task_gid: {task_gid}")
 
     # Fetch task details from Asana API
@@ -682,7 +688,7 @@ if __name__ == "__main__":
             pr_author_asana,
             asana_attachment_secret,
         )
-        comments = get_asana_task_comments(asana_token, task_url)
+        comments = get_asana_task_comments(asana_token, extract_asana_gid_from_url(task_url))
         print(f"comments: {comments}")
 
         with open(os.environ["GITHUB_OUTPUT"], "a") as f:
