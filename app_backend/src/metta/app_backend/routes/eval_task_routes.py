@@ -98,7 +98,7 @@ def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
     @router.get("/available", response_model=TasksResponse)
     @timed_http_handler
     async def get_available_tasks(
-        limit: int = Query(default=200, ge=1, le=1000), user: str = user_or_token
+        limit: int = Query(default=200, ge=1, le=1000),
     ) -> TasksResponse:
         tasks = await stats_repo.get_available_tasks(limit=limit)
         task_responses = [TaskResponse.from_db(task) for task in tasks]
@@ -106,7 +106,7 @@ def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
 
     @router.post("/claim")
     @timed_http_handler
-    async def claim_tasks(request: TaskClaimRequest, user: str = user_or_token) -> TaskClaimResponse:
+    async def claim_tasks(request: TaskClaimRequest) -> TaskClaimResponse:
         claimed_ids = await stats_repo.claim_tasks(
             task_ids=request.tasks,
             assignee=request.assignee,
@@ -115,14 +115,14 @@ def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
 
     @router.get("/claimed")
     @timed_http_handler
-    async def get_claimed_tasks(assignee: str = Query(...), user: str = user_or_token) -> TasksResponse:
+    async def get_claimed_tasks(assignee: str = Query(...)) -> TasksResponse:
         tasks = await stats_repo.get_claimed_tasks(assignee=assignee)
         task_responses = [TaskResponse.from_db(task) for task in tasks]
         return TasksResponse(tasks=task_responses)
 
     @router.get("/{task_id}", response_model=TaskResponse)
     @timed_http_handler
-    async def get_task_by_id(task_id: uuid.UUID, user: str = user_or_token) -> TaskResponse:
+    async def get_task_by_id(task_id: uuid.UUID) -> TaskResponse:
         task = await stats_repo.get_task_by_id(task_id=task_id)
 
         if not task:
@@ -132,7 +132,7 @@ def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
 
     @router.post("/claimed/update")
     @timed_http_handler
-    async def update_task_statuses(request: TaskUpdateRequest, user: str = user_or_token) -> TaskUpdateResponse:
+    async def update_task_statuses(request: TaskUpdateRequest) -> TaskUpdateResponse:
         task_updates = {
             task_id: RepoTaskStatusUpdate(status=status_update.status, details=status_update.details)
             for task_id, status_update in request.statuses.items()
