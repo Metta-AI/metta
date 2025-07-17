@@ -102,7 +102,31 @@ class AttackActionConfig(ActionConfig):
 class ChangeGlyphActionConfig(ActionConfig):
     number_of_glyphs: int
 
+class GlobalObsConfig:
+    def __init__(
+        self,
+        episode_completion_pct: bool = True,
+        last_action: bool = True,
+        last_reward: bool = True,
+    ): ...
+    episode_completion_pct: bool
+    last_action: bool
+    last_reward: bool
+
 class GameConfig:
+    def __init__(
+        self,
+        num_agents: int,
+        max_steps: int,
+        episode_truncates: bool,
+        obs_width: int,
+        obs_height: int,
+        inventory_item_names: list[str],
+        num_observation_tokens: int,
+        global_obs: GlobalObsConfig,
+        actions: dict[str, ActionConfig],
+        objects: dict[str, GridObjectConfig],
+    ): ...
     num_agents: int
     max_steps: int
     episode_truncates: bool
@@ -110,6 +134,7 @@ class GameConfig:
     obs_height: int
     inventory_item_names: list[str]
     num_observation_tokens: int
+    global_obs: GlobalObsConfig
 
 class MettaGrid:
     obs_width: int
