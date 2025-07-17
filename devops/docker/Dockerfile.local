@@ -35,7 +35,7 @@ RUN curl -LsSf https://astral.sh/uv/install.sh | sh
 ENV PATH="/home/linuxbrew/.local/bin:${PATH}"
 
 # Now run install.sh - it should find uv
-RUN bash install.sh || true
+RUN bash install.sh
 
 # Default command
 CMD ["/bin/bash"]
