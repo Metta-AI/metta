@@ -26,14 +26,14 @@ game:
   # -------------------------------------------------------------------------
   map_builder:
     _target_: metta.mettagrid.room.systematic_exploration.wallfollow_terrain.WallFollowTerrain
-    width: 60
-    height: 60
+    width: ${int:${uniform:50,80}}
+    height: ${int:${uniform:50,80}}
     agents: ${..num_agents}
     seed: ${int:${uniform:0,100000}}
 
     # Objects that the task cares about (optional).
     objects:
-      altar: 25
+      altar: ${int:${uniform:15,35}}
 
   # -------------------------------------------------------------------------
   # Object (item) specs

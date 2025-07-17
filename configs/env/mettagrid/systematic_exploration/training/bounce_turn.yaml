@@ -8,8 +8,8 @@ game:
   map_builder:
     _target_: metta.mettagrid.room.systematic_exploration.bounce_turn.BounceTurnTerrain
 
-    width: 110
-    height: 110
+    width: ${int:${uniform:80,120}}
+    height: ${int:${uniform:80,120}}
     agents: ${..num_agents}
     seed: ${int:${uniform:0,100000}}
 
@@ -25,7 +25,7 @@ game:
     occupancy_threshold: 0.60      # stop adding obstacles once 60 % occupied
 
     objects:
-      altar: 25
+      altar: ${int:${uniform:20,40}}
 
   objects:
     altar:

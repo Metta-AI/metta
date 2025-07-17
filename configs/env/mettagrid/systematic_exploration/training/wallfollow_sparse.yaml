@@ -9,14 +9,14 @@ game:
     _target_: metta.mettagrid.room.systematic_exploration.wallfollow_sparse.WallFollowSparseTerrain
 
     # Arena size
-    width: 120
-    height: 120
+    width: ${int:${uniform:100,140}}
+    height: ${int:${uniform:100,140}}
     agents: ${..num_agents}
     seed: ${int:${uniform:0,100000}}
 
     # Task objects
     objects:
-      altar: 25          # same nominal count as other tasks
+      altar: ${int:${uniform:20,40}}          # sampled count for variability
 
   objects:
     altar:

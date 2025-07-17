@@ -7,8 +7,8 @@ sampling: 1
 game:
   map_builder:
     _target_: metta.mettagrid.room.systematic_exploration.direction_based_sparse.DirectionBasedTerrain
-    width: 110
-    height: 110
+    width: ${int:${uniform:80,120}}
+    height: ${int:${uniform:80,120}}
     agents: ${..num_agents}
     seed: ${int:${uniform:0,100000}}
 
@@ -21,4 +21,4 @@ game:
     bay_width_range:   [5, 10]
 
     objects:
-      altar: 25
+      altar: ${int:${uniform:20,40}}

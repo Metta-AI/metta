@@ -8,8 +8,8 @@ game:
   map_builder:
     _target_: metta.mettagrid.room.systematic_exploration.random_walk.RandomWalkTerrain
     # Oversized arena → long cover times
-    width: 120
-    height: 120
+    width: ${int:${uniform:100,140}}
+    height: ${int:${uniform:100,140}}
     agents: ${..num_agents}
 
     # Deep cul‑de‑sacs, few overall walls
@@ -19,7 +19,7 @@ game:
 
     # Optional task items
     objects:
-      altar: 25
+      altar: ${int:${uniform:20,40}}
 
   # -------------------------------------------------------------------------
   # Object (item) specs

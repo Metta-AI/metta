@@ -7,8 +7,8 @@ sampling: 1
 game:
   # Slightly larger arena and denser jagged islands for tougher coverage.
   map_builder:
-    width: 80               # override default 60×60
-    height: 80
+    width: ${int:${uniform:60,100}}
+    height: ${int:${uniform:60,100}}
     island_count: [50, 90]   # YAML → python tuple → rng integers
     island_size:  [8, 40]
     occupancy_threshold: 0.60

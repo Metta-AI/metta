@@ -9,8 +9,8 @@ game:
     _target_: metta.mettagrid.room.systematic_exploration.direction_based.DirectionBasedTerrain
 
     # Arena size
-    width: 110
-    height: 110
+    width: ${int:${uniform:80,120}}
+    height: ${int:${uniform:80,120}}
     agents: ${..num_agents}
     seed: ${int:${uniform:0,100000}}
 
@@ -22,7 +22,7 @@ game:
 
     # Task objects (optional)
     objects:
-      altar: 25        # explicit integer
+      altar: ${int:${uniform:20,40}}
 
   # ---------------------------------------------------------------------
   # Object specs

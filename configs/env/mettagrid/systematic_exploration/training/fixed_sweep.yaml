@@ -9,8 +9,8 @@ game:
     _target_: metta.mettagrid.room.systematic_exploration.fixed_sweep.FixedSweepTerrain
 
     # Arena size
-    width: 120
-    height: 100
+    width: ${int:${uniform:100,140}}
+    height: ${int:${uniform:80,120}}
     agents: ${..num_agents}
     seed: ${int:${uniform:0,100000}}
 
@@ -27,7 +27,7 @@ game:
 
     # Optional task items
     objects:
-      altar: 25
+      altar: ${int:${uniform:20,40}}
 
   objects:
     altar:
