@@ -15,26 +15,25 @@ import os
 import subprocess
 import sys
 from pathlib import Path
-from typing import Dict, List
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
 
-def get_git_info() -> Dict[str, str]:
+def get_git_info() -> dict[str, str]:
     """Get current git commit and branch information."""
 
-    def run_git(cmd: List[str]) -> str:
+    def run_git(cmd: list[str]) -> str:
         result = subprocess.run(["git"] + cmd, capture_output=True, text=True)
         return result.stdout.strip() if result.returncode == 0 else ""
 
     return {
         "commit": run_git(["rev-parse", "HEAD"]),
         "branch": run_git(["rev-parse", "--abbrev-ref", "HEAD"]),
-        "slug": os.environ.get("GITHUB_REPOSITORY", ""),
+        "slug": os.environ.get("CODECOV_SLUG") or os.environ.get("GITHUB_REPOSITORY", ""),
     }
 
 
-def create_upload_request(token: str, git_info: Dict[str, str]) -> Dict[str, str]:
+def create_upload_request(token: str, git_info: dict[str, str]) -> dict[str, str]:
     """Create an upload request with Codecov to get upload URL."""
     url = "https://api.codecov.io/upload/v4"
 
@@ -103,7 +102,17 @@ def upload_coverage_file(upload_url: str, file_path: Path, flag: str, name: str)
 def main():
     """Main function to upload all coverage reports."""
     # Get configuration
-    token = os.environ.get("CODECOV_TOKEN", sys.argv[1] if len(sys.argv) > 1 else "")
+
+    token = os.environ.get("CODECOV_TOKEN")
+    if not token and len(sys.argv) > 1:
+        token = sys.argv[1]
+
+    if not token:
+        print("❌ Error: CODECOV_TOKEN is required but missing.")
+        sys.exit(1)
+
+    print(f"✅ Using CODECOV_TOKEN from {'env' if 'CODECOV_TOKEN' in os.environ else 'argv'}")
+
     subpackages = os.environ.get("SUBPACKAGES", "app_backend agent mettagrid common").split()
 
     if not token:
