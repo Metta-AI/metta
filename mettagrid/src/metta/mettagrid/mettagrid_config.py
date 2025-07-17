@@ -136,5 +136,5 @@ class PyGameConfig(BaseModelWithForbidExtra):
     # Every agent must be in a group, so we need at least one group
     groups: dict[str, PyGroupConfig] = Field(min_length=1)
     actions: PyActionsConfig
-    global_obs: Optional[PyGlobalObsConfig] = Field(default=None)
+    global_obs: PyGlobalObsConfig = Field(default_factory=PyGlobalObsConfig)
     objects: dict[str, PyConverterConfig | PyWallConfig]
