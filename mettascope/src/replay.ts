@@ -356,6 +356,7 @@ export function initWebSocket(wsUrl: string) {
       loadReplayJson(wsUrl, data.replay)
       Common.closeModal()
       html.actionButtons.classList.remove('hidden')
+      state.isReplay = true
     } else if (data.type === 'replay_step') {
       loadReplayStep(data.replay_step)
     } else if (data.type === 'message') {

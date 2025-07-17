@@ -67,13 +67,8 @@ hoverPanel.addEventListener('mousedown', (e: MouseEvent) => {
   // Show the actions buttons (memory, etc.) if the object is an agent
   // and if the websocket is connected.
   let actions = findIn(panel.div, '.actions')
-  if (state.ws != null && panel.object.hasOwnProperty('agent_id')) {
-    if (state.replay != null) {
-      // Replay doesn't support actions
-      actions.classList.add('hidden')
-    } else {
-      actions.classList.remove('hidden')
-    }
+  if (state.ws != null && panel.object.hasOwnProperty('agent_id') && !state.isReplay) {
+    actions.classList.remove('hidden')
   } else {
     actions.classList.add('hidden')
   }
