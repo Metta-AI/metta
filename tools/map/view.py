@@ -3,6 +3,7 @@ import argparse
 import logging
 from typing import get_args
 
+from metta.common.util.logging_helpers import setup_mettagrid_logger
 from metta.common.util.resolvers import register_resolvers
 from metta.map.load_random import get_random_map_uri
 from metta.map.utils.show import ShowMode, show_map
@@ -10,18 +11,18 @@ from metta.map.utils.storable_map import StorableMap
 from tools.map.gen import uri_is_file
 
 logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO)
 
 
 def main():
+    register_resolvers()
+    setup_mettagrid_logger()
+
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--show-mode", choices=get_args(ShowMode), help="Show the map in the specified mode", default="mettascope"
     )
     parser.add_argument("uri", type=str, help="URI of the map to view")
     args = parser.parse_args()
-
-    register_resolvers()
 
     uri = args.uri
 

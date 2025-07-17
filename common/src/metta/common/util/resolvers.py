@@ -1,4 +1,5 @@
 import datetime
+import logging
 import random
 from typing import Any, Dict, TypeVar, Union
 
@@ -270,7 +271,8 @@ class ResolverRegistrar(Callback):
     """Class for registering custom OmegaConf resolvers."""
 
     def __init__(self):
-        self.logger = setup_mettagrid_logger("ResolverRegistrar")
+        setup_mettagrid_logger()
+        self.logger = logging.getLogger("ResolverRegistrar")
         self.resolver_count = 0
         """Prepare for registration but don't register yet."""
 

@@ -1,3 +1,4 @@
+import logging
 import socket
 from dataclasses import dataclass
 
@@ -8,7 +9,8 @@ from omegaconf import OmegaConf
 from metta.common.util.logging_helpers import setup_mettagrid_logger
 from metta.common.wandb.wandb_context import WandbConfigOff, WandbConfigOn, WandbContext
 
-logger = setup_mettagrid_logger("Test")
+setup_mettagrid_logger()
+logger = logging.getLogger("Test")
 
 
 @pytest.fixture(autouse=True)

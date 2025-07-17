@@ -6,15 +6,18 @@ Usage:
     ./tools/stats_duckdb_cli.py ++eval_db_uri=wandb://stats/my_stats_db
 """
 
+import logging
 import subprocess
 
 import hydra
 from omegaconf import DictConfig
 
 from metta.common.util.logging_helpers import setup_mettagrid_logger
-from metta.common.util.runtime_configuration import setup_mettagrid_environment
 from metta.eval.eval_stats_db import EvalStatsDB
 from metta.mettagrid.util.file import local_copy
+from metta.util.metta_script import setup_mettagrid_environment
+
+logger = logging.getLogger("stats_duckdb_cli")
 
 
 def launch_duckdb_cli(file_path):
@@ -47,7 +50,7 @@ def main(cfg: DictConfig) -> int:
     Main function to download a stats file and launch duckdb against it.
     """
     setup_mettagrid_environment(cfg)
-    logger = setup_mettagrid_logger("stats_duckdb_cli")
+    setup_mettagrid_logger()
     # Check if eval_db_uri is configured
     if not hasattr(cfg, "eval_db_uri") or not cfg.eval_db_uri:
         logger.error("Error: eval_db_uri is not configured")

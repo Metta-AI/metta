@@ -8,6 +8,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from typing_extensions import TypedDict
 
+from metta.common.util.logging_helpers import setup_mettagrid_logger
 from metta.common.util.mettagrid_cfgs import (
     CfgKind,
     MettagridCfgFile,
@@ -26,6 +27,7 @@ class ErrorResult(TypedDict):
 
 
 def make_app():
+    setup_mettagrid_logger()
     register_resolvers()
     app = FastAPI()
 
