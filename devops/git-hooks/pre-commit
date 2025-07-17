@@ -11,4 +11,4 @@ source "$REPO_ROOT/devops/tools/common.sh"
 ensure_uv_setup
 
 # Delegate to metta
-exec uv run metta run githooks pre-commit
+uv run metta run githooks pre-commit
