@@ -75,8 +75,8 @@ def get_cost_info():
 
 def main():
     """
-    Calculates the total hourly cost for the cluster and prints an export
-    command for the parent shell to evaluate.
+    Calculates the total hourly cost for the cluster and sets METTA_HOURLY_COST
+    environment variable by appending to the shell's environment.
     """
     cost_info = get_cost_info()
     if cost_info:
@@ -84,8 +84,13 @@ def main():
         num_nodes = int(os.environ.get("NUM_NODES", 1))
         total_hourly_cost = instance_hourly_cost * num_nodes
 
-        # Print export command to stdout for the parent shell to evaluate
-        print(f"export METTA_HOURLY_COST={total_hourly_cost}")
+        # Set the environment variable for the current session
+        os.environ["METTA_HOURLY_COST"] = str(total_hourly_cost)
+
+        # Also append to bashrc to persist for child processes
+        bashrc_path = os.path.expanduser("~/.bashrc")
+        with open(bashrc_path, "a") as f:
+            f.write(f"\nexport METTA_HOURLY_COST={total_hourly_cost}\n")
 
         # Log details to stderr for visibility in SkyPilot logs
         logger.info(f"Instance Type: {cost_info['instance_type']}")
@@ -95,6 +100,7 @@ def main():
             f"Total Hourly Cost for {num_nodes} node(s): ${total_hourly_cost:.4f} "
             f"(${instance_hourly_cost:.4f}/hr per instance)"
         )
+        logger.info(f"Set METTA_HOURLY_COST={total_hourly_cost}")
     else:
         logger.warning("Could not determine hourly cost. METTA_HOURLY_COST will not be set.")
 
