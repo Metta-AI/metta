@@ -7,6 +7,11 @@ logger = logging.getLogger(__name__)
 
 
 class Curriculum:
+    def get_env_cfg_by_bucket(self) -> dict[str, DictConfig]:
+        # Gives a dictionary of bucket names to their fully specified configs
+        # If there is no bucket, then task name is the bucket name
+        raise NotImplementedError("Subclasses must implement this method")
+
     def get_task(self) -> "Task":
         raise NotImplementedError("Subclasses must implement this method")
 
@@ -76,3 +81,6 @@ class SingleTaskCurriculum(Curriculum):
 
     def get_task(self) -> Task:
         return Task(self._task_id, self, self._task_cfg)
+
+    def get_env_cfg_by_bucket(self) -> dict[str, DictConfig]:
+        return {self._task_id: self._task_cfg}
