@@ -3,3 +3,16 @@
 body {
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Primary color classes for the sidebar */
+.bg-primary-50 {
+  background-color: #eff6ff;
+}
+
+.text-primary-700 {
+  color: #1d4ed8;
+}
+
+.border-primary-200 {
+  border-color: #bfdbfe;
+}
