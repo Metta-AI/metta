@@ -14,6 +14,8 @@
 **/__pycache__/
 .coverage
 .coverage.*
+coverage.xml
+htmlcov/
 cython_debug/
 .venv/
 
