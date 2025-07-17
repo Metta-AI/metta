@@ -21,8 +21,9 @@ def test_navigation_exploration_tracking():
             game_config = env_overrides["game"]
 
             if "track_exploration" in game_config:
-                assert game_config["track_exploration"], \
+                assert game_config["track_exploration"], (
                     f"Exploration tracking should be enabled for navigation evaluation: {sim_name}"
+                )
                 print(f"✅ Exploration tracking enabled for {sim_name}")
             else:
                 print(f"⚠️  track_exploration not set in {sim_name} config (may be set via override)")
