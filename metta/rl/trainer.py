@@ -1,7 +1,8 @@
 import logging
 import os
 from collections import defaultdict
-from typing import Any, Optional, Tuple
+from dataclasses import dataclass, field
+from typing import Any, Dict, Optional, Tuple
 
 import numpy as np
 import torch
@@ -9,7 +10,6 @@ import torch.distributed
 import wandb
 from omegaconf import DictConfig
 
-from metta.api import TrainerState
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.system_monitor import SystemMonitor
 from metta.eval.eval_request_config import EvalRewardSummary
@@ -27,6 +27,7 @@ from metta.rl.functions import (
     generate_replay,
     get_lstm_config,
     get_observation,
+    maybe_load_checkpoint,
     maybe_update_l2_weights,
     process_minibatch_update,
     process_stats,
@@ -60,6 +61,23 @@ local_rank = int(os.environ.get("LOCAL_RANK", 0))
 logger = logging.getLogger(f"trainer-{rank}-{local_rank}")
 
 
+@dataclass
+class TrainerState:
+    """Mutable state for training that gets passed between functions."""
+
+    agent_step: int = 0
+    epoch: int = 0
+    stats: Dict[str, Any] = field(default_factory=dict)
+    grad_stats: Dict[str, float] = field(default_factory=dict)
+    evals: Any = field(default_factory=dict)  # Will be EvalRewardSummary
+    latest_saved_policy_record: Optional[Any] = None
+    initial_policy_record: Optional[Any] = None
+    # Stats tracking
+    stats_epoch_start: int = 0
+    stats_epoch_id: Optional[Any] = None
+    stats_run_id: Optional[Any] = None
+
+
 def _maybe_save_training_state(
     checkpoint_dir: str,
     agent_step: int,
@@ -78,8 +96,6 @@ def _maybe_save_training_state(
         if torch.distributed.is_initialized():
             torch.distributed.barrier()
         return
-
-    from metta.rl.trainer_checkpoint import TrainerCheckpoint
 
     extra_args = {}
     if kickstarter.enabled and kickstarter.teacher_uri is not None:
@@ -765,19 +781,24 @@ def create_training_components(
     state.stats = defaultdict(list)  # Initialize stats dict
     state.grad_stats = {}  # Initialize grad stats
 
-    # Load checkpoint if exists
-    checkpoint = TrainerCheckpoint.load(cfg.run_dir)
-    if checkpoint:
-        state.agent_step = checkpoint.agent_step
-        state.epoch = checkpoint.epoch
-        logger.info(f"Restored from checkpoint at {state.agent_step} steps")
-        if checkpoint.stopwatch_state is not None:
-            timer.load_state(checkpoint.stopwatch_state, resume_running=True)
-
-    # Load or create policy
-    policy_record = _load_or_create_policy(
-        checkpoint, policy_store, trainer_cfg, metta_grid_env, cfg, device, is_master, rank
+    # Load checkpoint and policy
+    checkpoint, policy_record, agent_step, epoch = maybe_load_checkpoint(
+        run_dir=cfg.run_dir,
+        policy_store=policy_store,
+        trainer_cfg=trainer_cfg,
+        metta_grid_env=metta_grid_env,
+        cfg=cfg,
+        device=device,
+        is_master=is_master,
+        rank=rank,
     )
+
+    state.agent_step = agent_step
+    state.epoch = epoch
+
+    # Restore timer state if checkpoint exists
+    if checkpoint and checkpoint.stopwatch_state is not None:
+        timer.load_state(checkpoint.stopwatch_state, resume_running=True)
 
     state.initial_policy_record = policy_record
     state.latest_saved_policy_record = policy_record
@@ -841,7 +862,7 @@ def create_training_components(
         lr=trainer_cfg.optimizer.learning_rate,
         betas=(trainer_cfg.optimizer.beta1, trainer_cfg.optimizer.beta2),
         eps=trainer_cfg.optimizer.eps,
-        weight_decay=weight_decay,
+        weight_decay=weight_decay,  # type: ignore - ForeachMuon type annotation issue
     )
 
     if checkpoint and checkpoint.optimizer_state_dict:
@@ -891,96 +912,3 @@ def create_training_components(
         state,
         curriculum,
     )
-
-
-def _load_or_create_policy(
-    checkpoint: Optional[Any],
-    policy_store: Any,
-    trainer_cfg: Any,
-    metta_grid_env: Any,
-    cfg: Any,
-    device: torch.device,
-    is_master: bool,
-    rank: int,
-) -> Any:
-    """Load existing policy or create new one with distributed coordination."""
-    from metta.agent.metta_agent import make_policy
-    from metta.common.util.fs import wait_for_file
-
-    # Try to load from checkpoint or config
-    if checkpoint and checkpoint.policy_path:
-        logger.info(f"Loading policy from checkpoint: {checkpoint.policy_path}")
-        policy_record = policy_store.policy_record(checkpoint.policy_path)
-
-        # Restore original_feature_mapping from metadata if available
-        if (
-            hasattr(policy_record.policy, "restore_original_feature_mapping")
-            and "original_feature_mapping" in policy_record.metadata
-        ):
-            policy_record.policy.restore_original_feature_mapping(policy_record.metadata["original_feature_mapping"])
-            logger.info("Restored original_feature_mapping from checkpoint")
-
-        return policy_record
-
-    if trainer_cfg.initial_policy and trainer_cfg.initial_policy.uri:
-        logger.info(f"Loading initial policy URI: {trainer_cfg.initial_policy.uri}")
-        policy_record = policy_store.policy_record(trainer_cfg.initial_policy.uri)
-
-        # Restore original_feature_mapping from metadata if available
-        if (
-            hasattr(policy_record.policy, "restore_original_feature_mapping")
-            and "original_feature_mapping" in policy_record.metadata
-        ):
-            policy_record.policy.restore_original_feature_mapping(policy_record.metadata["original_feature_mapping"])
-            logger.info("Restored original_feature_mapping from initial policy")
-
-        return policy_record
-
-    # Check for existing policy at default path
-    default_path = os.path.join(trainer_cfg.checkpoint.checkpoint_dir, policy_store.make_model_name(0))
-    if os.path.exists(default_path):
-        logger.info(f"Loading policy from default path: {default_path}")
-        policy_record = policy_store.policy_record(default_path)
-
-        # Restore original_feature_mapping from metadata if available
-        if (
-            hasattr(policy_record.policy, "restore_original_feature_mapping")
-            and "original_feature_mapping" in policy_record.metadata
-        ):
-            policy_record.policy.restore_original_feature_mapping(policy_record.metadata["original_feature_mapping"])
-            logger.info("Restored original_feature_mapping from default path")
-
-        return policy_record
-
-    # Create new policy
-    if torch.distributed.is_initialized() and not is_master:
-        # Non-master waits for master to create
-        logger.info(f"Rank {rank}: Waiting for master to create policy at {default_path}")
-        torch.distributed.barrier()
-
-        if not wait_for_file(default_path, timeout=300):
-            raise RuntimeError(f"Rank {rank}: Timeout waiting for policy at {default_path}")
-
-        policy_record = policy_store.policy_record(default_path)
-
-        # Restore original_feature_mapping from metadata if available
-        if (
-            hasattr(policy_record.policy, "restore_original_feature_mapping")
-            and "original_feature_mapping" in policy_record.metadata
-        ):
-            policy_record.policy.restore_original_feature_mapping(policy_record.metadata["original_feature_mapping"])
-            logger.info(f"Rank {rank}: Restored original_feature_mapping")
-
-        return policy_record
-    else:
-        # Master creates new policy
-        name = policy_store.make_model_name(0)
-        pr = policy_store.create_empty_policy_record(name)
-        pr.policy = make_policy(metta_grid_env, cfg)
-        saved_pr = policy_store.save(pr)
-        logger.info(f"Created and saved new policy to {saved_pr.uri}")
-
-        if torch.distributed.is_initialized():
-            torch.distributed.barrier()
-
-        return saved_pr

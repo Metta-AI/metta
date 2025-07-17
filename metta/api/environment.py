@@ -1,11 +1,12 @@
 """Environment factory and helpers for Metta."""
 
 import logging
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Optional
 
 from omegaconf import DictConfig, OmegaConf
 
 from metta.mettagrid.curriculum.core import Curriculum, SingleTaskCurriculum, Task
+from metta.mettagrid.curriculum.util import curriculum_from_config_path
 from metta.rl.vecenv import make_vecenv
 
 logger = logging.getLogger(__name__)
@@ -30,6 +31,45 @@ class PreBuiltConfigCurriculum(Curriculum):
         """Return the current task probability for logging purposes."""
         task_name = f"prebuilt({self._env_name})"
         return {task_name: 1.0}
+
+
+class NavigationBucketedCurriculum(Curriculum):
+    """Navigation curriculum that cycles through different terrain types without using Hydra."""
+
+    def __init__(self, base_config: Dict[str, Any], terrain_dirs: list[str], altar_range: tuple[int, int]):
+        self.base_config = DictConfig(base_config)
+        self.terrain_dirs = terrain_dirs
+        self.altar_range = altar_range
+        self.current_idx = 0
+
+    def get_task(self) -> Task:
+        import random
+
+        # Select a random terrain
+        terrain_dir = random.choice(self.terrain_dirs)
+
+        # Select a random altar count
+        altar_count = random.randint(self.altar_range[0], self.altar_range[1])
+
+        # Create task config
+        task_config = OmegaConf.create(self.base_config)
+        OmegaConf.set_struct(task_config, False)
+
+        # Update the terrain directory
+        task_config.game.map_builder.room.dir = terrain_dir
+
+        # Update the altar count
+        task_config.game.map_builder.room.objects.altar = altar_count
+
+        # Create task name
+        task_name = f"terrain={terrain_dir};altar={altar_count}"
+
+        return Task(task_name, self, task_config)
+
+    def get_task_probs(self) -> Dict[str, float]:
+        """Return uniform probabilities for all terrain types."""
+        prob = 1.0 / len(self.terrain_dirs)
+        return {terrain: prob for terrain in self.terrain_dirs}
 
 
 def _get_default_env_config(num_agents: int = 4, width: int = 32, height: int = 32) -> Dict[str, Any]:
@@ -137,47 +177,6 @@ def _get_default_env_config(num_agents: int = 4, width: int = 32, height: int = 
     }
 
 
-class NavigationBucketedCurriculum(Curriculum):
-    """Navigation curriculum that cycles through different terrain types without using Hydra."""
-
-    def __init__(self, base_config: Dict[str, Any], terrain_dirs: List[str], altar_range: Tuple[int, int]):
-        self.base_config = DictConfig(base_config)
-        self.terrain_dirs = terrain_dirs
-        self.altar_range = altar_range
-        self.current_idx = 0
-
-    def get_task(self) -> "Task":
-        import random
-
-        from metta.mettagrid.curriculum.core import Task
-
-        # Select a random terrain
-        terrain_dir = random.choice(self.terrain_dirs)
-
-        # Select a random altar count
-        altar_count = random.randint(self.altar_range[0], self.altar_range[1])
-
-        # Create task config
-        task_config = OmegaConf.create(self.base_config)
-        OmegaConf.set_struct(task_config, False)
-
-        # Update the terrain directory
-        task_config.game.map_builder.room.dir = terrain_dir
-
-        # Update the altar count
-        task_config.game.map_builder.room.objects.altar = altar_count
-
-        # Create task name
-        task_name = f"terrain={terrain_dir};altar={altar_count}"
-
-        return Task(task_name, self, task_config)
-
-    def get_task_probs(self) -> dict[str, float]:
-        """Return uniform probabilities for all terrain types."""
-        prob = 1.0 / len(self.terrain_dirs)
-        return {terrain: prob for terrain in self.terrain_dirs}
-
-
 class Environment:
     """Factory for creating MettaGrid environments with a clean API.
 
@@ -282,26 +281,25 @@ class Environment:
             ]
 
             # Create navigation training template config
-            template_config = _get_default_env_config(
+            template_config = env_config or _get_default_env_config(
                 num_agents=num_agents or 4, width=width or 32, height=height or 32
             )
-
-            # Ensure sampling is disabled for evaluation
-            template_config["sampling"] = 0
 
             # Create the custom navigation curriculum
             curriculum = NavigationBucketedCurriculum(
                 base_config=template_config,
                 terrain_dirs=terrain_dirs,
-                altar_range=(10, 50),
+                altar_range=(2, 18),  # Based on bucketed.yaml config
             )
         elif curriculum_path:
-            # For other curriculum paths, try to create a simple single-task curriculum
-            # by using the path as a task name with the provided config
-            task_config = DictConfig(env_config)
-            curriculum = SingleTaskCurriculum(curriculum_path, task_config)
+            # Use the existing curriculum loading system
+            env_overrides = DictConfig({})
+            if env_config and curriculum_path.startswith("/env/mettagrid/curriculum/"):
+                # Apply env_config as overrides for curriculum
+                env_overrides = DictConfig(env_config)
+            curriculum = curriculum_from_config_path(curriculum_path, env_overrides)
         else:
-            # Create a single task curriculum with the provided config
+            # Create a single task curriculum with the provided or default config
             task_config = DictConfig(env_config)
             curriculum_name = "custom_env"
             curriculum = SingleTaskCurriculum(curriculum_name, task_config)

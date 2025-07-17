@@ -11,7 +11,7 @@ from metta.rl.functions.advantage import (
 )
 from metta.rl.functions.policy_management import (
     cleanup_old_policies,
-    ensure_initial_policy,
+    maybe_load_checkpoint,
     save_policy_with_metadata,
     validate_policy_environment_match,
     wrap_agent_distributed,
@@ -49,6 +49,7 @@ __all__ = [
     # Policy management
     "cleanup_old_policies",
     "ensure_initial_policy",
+    "maybe_load_checkpoint",
     "save_policy_with_metadata",
     "validate_policy_environment_match",
     "wrap_agent_distributed",

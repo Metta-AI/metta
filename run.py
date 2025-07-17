@@ -5,24 +5,19 @@ import time
 from collections import defaultdict
 
 import torch
+from heavyball import ForeachMuon
 from omegaconf import DictConfig, OmegaConf
 
 from metta.agent.policy_store import PolicyStore
 from metta.api import (
     Agent,
     Environment,
-    Optimizer,
-    cleanup_distributed,
-    cleanup_wandb,
     create_evaluation_config_suite,
-    create_replay_config,
-    ensure_initial_policy,
-    initialize_wandb,
     save_experiment_config,
-    setup_distributed_training,
     setup_run_directories,
     wrap_agent_distributed,
 )
+from metta.api.agent import _get_default_agent_config
 from metta.common.profiling.memory_monitor import MemoryMonitor
 from metta.common.profiling.stopwatch import Stopwatch
 from metta.common.util.heartbeat import record_heartbeat
@@ -30,6 +25,7 @@ from metta.common.util.system_monitor import SystemMonitor
 from metta.eval.eval_request_config import EvalRewardSummary
 from metta.eval.eval_stats_db import EvalStatsDB
 from metta.mettagrid import mettagrid_c  # noqa: F401
+from metta.mettagrid.curriculum.util import curriculum_from_config_path
 from metta.mettagrid.mettagrid_env import dtype_actions
 from metta.rl.experience import Experience
 from metta.rl.functions import (
@@ -41,15 +37,19 @@ from metta.rl.functions import (
     compute_advantage,
     compute_gradient_stats,
     compute_timing_stats,
+    generate_replay,
     get_lstm_config,
     get_observation,
+    maybe_load_checkpoint,
     maybe_update_l2_weights,
     process_minibatch_update,
     process_stats,
     process_training_stats,
     run_policy_inference,
     save_policy_with_metadata,
+    setup_distributed_vars,
     should_run,
+    validate_policy_environment_match,
 )
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.kickstarter_config import KickstartConfig
@@ -65,7 +65,6 @@ from metta.rl.trainer_config import (
     TrainerConfig,
     VTraceConfig,
 )
-from metta.sim.simulation import Simulation
 from metta.sim.simulation_suite import SimulationSuite
 
 # Set up logging
@@ -73,9 +72,24 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(levelna
 logger = logging.getLogger(__name__)
 
 
-# Set up directories and distributed training
+# Set up directories
 dirs = setup_run_directories()
-device, is_master, world_size, rank = setup_distributed_training("cuda" if torch.cuda.is_available() else "cpu")
+
+# Set up distributed training like tools/train.py
+base_device = "cuda" if torch.cuda.is_available() else "cpu"
+if "LOCAL_RANK" in os.environ:
+    local_rank = int(os.environ["LOCAL_RANK"])
+    if base_device.startswith("cuda"):
+        device = torch.device(f"{base_device}:{local_rank}")
+        torch.distributed.init_process_group(backend="nccl")
+    else:
+        device = torch.device(base_device)
+        torch.distributed.init_process_group(backend="gloo")
+else:
+    device = torch.device(base_device)
+
+# Get distributed vars
+is_master, world_size, rank = setup_distributed_vars()
 
 # Configuration using individual component configs
 # Note: batch_size must be >= total_agents * bptt_horizon
@@ -214,12 +228,25 @@ if is_master:
         "train_job": {"evals": evaluation_config.model_dump() if hasattr(evaluation_config, "model_dump") else {}},
     }
 
-    wandb_run, wandb_ctx = initialize_wandb(
-        run_name=dirs.run_name,
-        run_dir=dirs.run_dir,
-        enabled=os.environ.get("WANDB_DISABLED", "").lower() != "true",
-        config=full_config,
-    )
+    # Create wandb config like tools/train.py
+    wandb_config = {
+        "enabled": os.environ.get("WANDB_DISABLED", "").lower() != "true",
+        "project": os.environ.get("WANDB_PROJECT", "metta"),
+        "entity": os.environ.get("WANDB_ENTITY", "metta-research"),
+        "group": dirs.run_name,
+        "name": dirs.run_name,
+        "run_id": dirs.run_name,
+        "data_dir": dirs.run_dir,
+        "job_type": "train",
+        "tags": [],
+        "notes": "",
+    }
+
+    # Use WandbContext directly like tools/train.py
+    from metta.common.wandb.wandb_context import WandbContext
+
+    wandb_ctx = WandbContext(DictConfig(wandb_config), DictConfig(full_config))
+    wandb_run = wandb_ctx.__enter__()
 
 # Create policy store with config structure matching what Hydra provides
 policy_store_config = {
@@ -252,45 +279,63 @@ policy_store = PolicyStore(
     wandb_run=wandb_run,
 )
 
-# Load checkpoint or create initial policy with distributed coordination
-checkpoint_path = trainer_config.checkpoint.checkpoint_dir
-checkpoint = TrainerCheckpoint.load(dirs.run_dir)
-if checkpoint:
-    agent_step = checkpoint.agent_step
-    epoch = checkpoint.epoch
-    loaded_policy_path = checkpoint.policy_path
-    logger.info(f"Restored from checkpoint at {agent_step} steps")
-else:
-    agent_step = 0
-    epoch = 0
-    loaded_policy_path = None
+# Load checkpoint and policy with unified function
+checkpoint, policy_record, agent_step, epoch = maybe_load_checkpoint(
+    run_dir=dirs.run_dir,
+    policy_store=policy_store,
+    trainer_cfg=trainer_config,
+    metta_grid_env=metta_grid_env,  # type: ignore
+    cfg=DictConfig(
+        {
+            "device": str(device),
+            "run": dirs.run_name,
+            "run_dir": dirs.run_dir,
+            "agent": _get_default_agent_config(str(device))["agent"],
+        }
+    ),
+    device=device,
+    is_master=is_master,
+    rank=rank,
+)
 
-# Ensure all ranks have the same initial policy
-ensure_initial_policy(agent, policy_store, checkpoint_path, loaded_policy_path, device)
+# Extract policy from record and apply to agent
+# agent is actually a MettaAgent from the Agent factory
+agent.load_state_dict(policy_record.policy.state_dict())  # type: ignore
+
+# Validate that policy matches environment
+validate_policy_environment_match(agent, metta_grid_env)  # type: ignore
+
+# Create optimizer like trainer.py does
+
+optimizer_type = trainer_config.optimizer.type
+opt_cls = torch.optim.Adam if optimizer_type == "adam" else ForeachMuon
+# ForeachMuon expects int for weight_decay, Adam expects float
+weight_decay = trainer_config.optimizer.weight_decay
+if optimizer_type != "adam":
+    # Ensure weight_decay is int for ForeachMuon
+    weight_decay = int(weight_decay)
+
+optimizer = opt_cls(
+    agent.parameters(),  # type: ignore - agent is MettaAgent from factory
+    lr=trainer_config.optimizer.learning_rate,
+    betas=(trainer_config.optimizer.beta1, trainer_config.optimizer.beta2),
+    eps=trainer_config.optimizer.eps,
+    weight_decay=weight_decay,  # type: ignore - ForeachMuon type annotation issue
+)
+
+if checkpoint and checkpoint.optimizer_state_dict:
+    try:
+        optimizer.load_state_dict(checkpoint.optimizer_state_dict)
+        logger.info("Successfully loaded optimizer state from checkpoint")
+    except ValueError:
+        logger.warning("Optimizer state dict doesn't match. Starting with fresh optimizer state.")
+
+# Wrap agent for distributed training
 agent = wrap_agent_distributed(agent, device)
 
 # Ensure all ranks have wrapped their agents before proceeding
 if torch.distributed.is_initialized():
     torch.distributed.barrier()
-
-# Create optimizer
-optimizer = Optimizer(
-    optimizer_type=trainer_config.optimizer.type,
-    policy=agent,
-    learning_rate=trainer_config.optimizer.learning_rate,
-    betas=(trainer_config.optimizer.beta1, trainer_config.optimizer.beta2),
-    eps=trainer_config.optimizer.eps,
-    weight_decay=trainer_config.optimizer.weight_decay,
-    max_grad_norm=trainer_config.ppo.max_grad_norm,
-)
-
-# Load optimizer state from checkpoint if it exists
-if checkpoint and checkpoint.optimizer_state_dict:
-    try:
-        optimizer.optimizer.load_state_dict(checkpoint.optimizer_state_dict)
-        logger.info("Successfully loaded optimizer state from checkpoint")
-    except ValueError:
-        logger.warning("Optimizer state dict doesn't match. Starting with fresh optimizer state.")
 
 # Create experience buffer
 experience = Experience(
@@ -327,7 +372,7 @@ timer.start()
 lr_scheduler = None
 if getattr(trainer_config, "lr_scheduler", None) and trainer_config.lr_scheduler.enabled:
     lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-        optimizer.optimizer, T_max=trainer_config.total_timesteps // trainer_config.batch_size
+        optimizer, T_max=trainer_config.total_timesteps // trainer_config.batch_size
     )
 
 # Memory and System Monitoring (master only)
@@ -346,21 +391,8 @@ if is_master:
     )
 
 # Track policy records for consistency with trainer.py
-initial_policy_record = None
-latest_saved_policy_record = None
-
-# Create initial policy record if we have a loaded policy
-if loaded_policy_path:
-    initial_policy_record = policy_store.policy_record(loaded_policy_path)
-    latest_saved_policy_record = initial_policy_record
-
-# If no initial policy record yet (i.e., new policy was created), create it now
-if initial_policy_record is None:
-    # The policy was just saved by ensure_initial_policy at epoch 0
-    initial_policy_path = os.path.join(checkpoint_path, policy_store.make_model_name(0))
-    if os.path.exists(initial_policy_path):
-        initial_policy_record = policy_store.policy_record(initial_policy_path)
-        latest_saved_policy_record = initial_policy_record
+initial_policy_record = policy_record
+latest_saved_policy_record = policy_record
 
 # Training loop
 logger.info(f"Starting training on {device}")
@@ -473,7 +505,21 @@ while agent_step < trainer_config.total_timesteps:
                 device=device,
             )
 
-            optimizer.step(loss, epoch, experience.accumulate_minibatches)
+            # Optimizer step like trainer.py
+            optimizer.zero_grad()
+            loss.backward()
+
+            if (minibatch_idx + 1) % experience.accumulate_minibatches == 0:
+                torch.nn.utils.clip_grad_norm_(agent.parameters(), trainer_config.ppo.max_grad_norm)
+                optimizer.step()
+
+                # Optional weight clipping
+                if hasattr(agent, "clip_weights"):
+                    agent.clip_weights()
+
+                if str(device).startswith("cuda"):
+                    torch.cuda.synchronize()
+
             minibatch_idx += 1
         epoch += 1
 
@@ -518,11 +564,7 @@ while agent_step < trainer_config.total_timesteps:
     # Build complete stats for wandb
     if is_master:
         # Get current learning rate
-        current_lr = trainer_config.optimizer.learning_rate
-        if hasattr(optimizer, "param_groups"):
-            current_lr = optimizer.param_groups[0]["lr"]
-        elif hasattr(optimizer, "optimizer"):
-            current_lr = optimizer.optimizer.param_groups[0]["lr"]
+        current_lr = optimizer.param_groups[0]["lr"]
 
         # Build parameters dictionary
         parameters = {
@@ -617,7 +659,7 @@ while agent_step < trainer_config.total_timesteps:
 
                 # Clean up old policies periodically
                 if epoch % 10 == 0:
-                    cleanup_old_policies(checkpoint_path, keep_last_n=5)
+                    cleanup_old_policies(trainer_config.checkpoint.checkpoint_dir, keep_last_n=5)
 
         # Save training state (master only)
         if is_master:
@@ -700,29 +742,22 @@ while agent_step < trainer_config.total_timesteps:
         if is_master and latest_saved_policy_record:
             logger.info(f"Generating replay at epoch {epoch}")
 
-            # Generate replay on the bucketed curriculum environment
-            replay_sim_config = create_replay_config("varied_terrain/balanced_medium")
+            # Get curriculum from config
+            curriculum = curriculum_from_config_path(
+                trainer_config.curriculum_or_env, DictConfig(trainer_config.env_overrides)
+            )
 
-            replay_simulator = Simulation(
-                name=f"replay_{epoch}",
-                config=replay_sim_config,
-                policy_pr=latest_saved_policy_record,
+            # Generate replay using the same function as trainer.py
+            generate_replay(
+                policy_record=latest_saved_policy_record,
                 policy_store=policy_store,
+                curriculum=curriculum,
+                epoch=epoch,
                 device=device,
                 vectorization="serial",
                 replay_dir=dirs.replay_dir,
+                wandb_run=wandb_run,
             )
-
-            results = replay_simulator.simulate()
-
-            # Get replay URLs from the database
-            replay_urls = results.stats_db.get_replay_urls()
-            if replay_urls:
-                replay_url = replay_urls[0]
-                player_url = f"https://metta-ai.github.io/metta/?replayUrl={replay_url}"
-                logger.info(f"Replay available at: {player_url}")
-
-            results.stats_db.close()
 
 # Training complete
 total_elapsed = time.time() - epoch_start_time
@@ -793,8 +828,9 @@ env.close()  # type: ignore
 logger.info(f"\nTraining run complete! Run saved to: {dirs.run_dir}")
 
 # Clean up distributed training if initialized
-cleanup_distributed()
+if torch.distributed.is_initialized():
+    torch.distributed.destroy_process_group()
 
 # Clean up wandb if initialized
-if is_master:
-    cleanup_wandb(wandb_ctx)
+if is_master and wandb_ctx:
+    wandb_ctx.__exit__(None, None, None)
