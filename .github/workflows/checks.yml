@@ -209,12 +209,17 @@ jobs:
           done
 
       - name: Upload coverage to Codecov
+        if: ${{ secrets.CODECOV_TOKEN != '' }}
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
           SUBPACKAGES: "app_backend agent mettagrid common"
         run: |
           chmod +x .github/scripts/upload_codecov.py
           .github/scripts/upload_codecov.py
+
+      - name: Skip Codecov notification
+        if: ${{ secrets.CODECOV_TOKEN == '' }}
+        run: echo "::notice::Skipping Codecov upload - CODECOV_TOKEN not available"
 
       - name: Install lcov
         if: steps.mettagrid_build_check.outputs.build_success == 'true'
@@ -228,7 +233,7 @@ jobs:
           make coverage
 
       - name: Upload MettaGrid C++ coverage to Codecov
-        if: steps.mettagrid_build_check.outputs.build_success == 'true'
+        if: steps.mettagrid_build_check.outputs.build_success == 'true' && secrets.CODECOV_TOKEN != ''
         uses: codecov/codecov-action@v4
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
