@@ -44,7 +44,7 @@ def load_file(run_dir, name):
 def main(cfg: DictConfig) -> int:
     logger = get_metta_logger()
 
-    simulation_suite_cfg = SimulationSuiteConfig(**cfg.sim)
+    simulation_suite_cfg = SimulationSuiteConfig(**OmegaConf.to_container(cfg.sim, resolve=True))  # type: ignore[arg-type]
 
     results_path = os.path.join(cfg.run_dir, "sweep_eval_results.yaml")
     start_time = time.time()
