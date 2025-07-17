@@ -722,6 +722,22 @@ class MettaTrainer:
                 attributes={},
             ).id
 
+        # Create an extended simulation suite that includes the training task
+        extended_suite_config = SimulationSuiteConfig(
+            name=self.sim_suite_config.name,
+            simulations=dict(self.sim_suite_config.simulations),  # Copy existing simulations
+            env_overrides=self.sim_suite_config.env_overrides,
+            num_episodes=self.sim_suite_config.num_episodes,
+        )
+        logger.info(f"Extended suite config: {extended_suite_config}")
+
+        # Add training task to the suite
+        training_task_config = SingleEnvSimulationConfig(
+            env="/env/mettagrid/mettagrid",  # won't be used, dynamic `env_cfg()` should override all of it
+            num_episodes=1,
+            env_overrides=self._curriculum.get_task().env_cfg(),
+        )
+        extended_suite_config.simulations["eval/training_task"] = training_task_config
         logger.info(f"Simulating policy: {self.latest_saved_policy_uri} with extended config including training task")
         evaluation_results = evaluate_policy(
             policy_record=self.latest_saved_policy_record,

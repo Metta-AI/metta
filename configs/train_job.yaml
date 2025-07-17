@@ -2,7 +2,7 @@ defaults:
   - common
   - agent: fast
   - trainer: trainer
-  - sim: arena
+  - sim: navigation
   - wandb: metta_research
   - _self_
 
