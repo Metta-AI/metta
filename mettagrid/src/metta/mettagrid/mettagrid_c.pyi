@@ -55,6 +55,19 @@ class WallConfig(GridObjectConfig):
     swappable: bool
 
 class AgentConfig(GridObjectConfig):
+    def __init__(
+        self,
+        type_id: int,
+        type_name: str = "agent",
+        group_id: int = 0,
+        group_name: str = "",
+        freeze_duration: int = 0,
+        action_failure_penalty: float = 0,
+        resource_limits: dict[int, int] = {},
+        resource_rewards: dict[int, float] = {},
+        resource_reward_max: dict[int, int] = {},
+        group_reward_pct: float = 0,
+    ): ...
     type_id: int
     type_name: str
     group_id: int
@@ -108,12 +121,10 @@ class GlobalObsConfig:
         episode_completion_pct: bool = True,
         last_action: bool = True,
         last_reward: bool = True,
-        game_rewards: bool = False,
     ): ...
     episode_completion_pct: bool
     last_action: bool
     last_reward: bool
-    game_rewards: bool
 
 class GameConfig:
     def __init__(

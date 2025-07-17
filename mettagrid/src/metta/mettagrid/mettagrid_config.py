@@ -98,7 +98,6 @@ class PyGlobalObsConfig(BaseModelWithForbidExtra):
     episode_completion_pct: bool = Field(default=True)
     last_action: bool = Field(default=True)  # Controls both last_action and last_action_arg
     last_reward: bool = Field(default=True)
-    game_rewards: bool = Field(default=False)
 
 
 class PyWallConfig(BaseModelWithForbidExtra):

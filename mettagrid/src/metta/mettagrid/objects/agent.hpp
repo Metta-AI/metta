@@ -73,7 +73,7 @@ public:
         resource_reward_max(config.resource_reward_max),
         action_failure_penalty(config.action_failure_penalty),
         group_name(config.group_name),
-        color(0),
+                color(0),
         glyph(0),
         agent_id(0),
         // stats - default constructed
