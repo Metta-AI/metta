@@ -695,6 +695,7 @@ if __name__ == "__main__":
                 "type": "review_requested",
                 "timestamp": e["created_at"],
                 "user": e["actor"]["login"],
+                "requested_reviewer": e["requested_reviewer"]["login"],
                 "action": "re-requested",
                 "text": f" review from {e['requested_reviewer']['login']}",
             }
@@ -709,7 +710,7 @@ if __name__ == "__main__":
             if event["type"] == "review":
                 seen_review_users.add(event["user"])
                 filtered_events.append(event)
-            elif event["type"] == "review_requested" and event["user"] in seen_review_users:
+            elif event["type"] == "review_requested" and event["requested_reviewer"] in seen_review_users:
                 filtered_events.append(event)
         events = filtered_events
 
@@ -737,6 +738,7 @@ if __name__ == "__main__":
          -     however, this is not easy to implement because mergeability is computed async and there is no hook
         """
         print(f"event stream: {events}")
+        print(f"last event: {last_event}")
 
         asana_owner_is_assignee = not (last_event) or last_event["type"] == "review_requested"
         asana_owner = assignee if asana_owner_is_assignee else author
@@ -757,6 +759,7 @@ if __name__ == "__main__":
         print(f"commenters: {commenters}")
         print(f"github_logins: {github_logins}")
         print(f"pr_author_asana: {pr_author_asana}")
+        print(f"asana_owner_is_assignee: {asana_owner_is_assignee}")
         print(f"asana_assignee: {asana_assignee}")
 
         # Ensure task exists and output URL
