@@ -13,7 +13,6 @@ import torch.distributed
 import wandb
 from heavyball import ForeachMuon
 from omegaconf import DictConfig, OmegaConf
-from omegaconf.omegaconf import OmegaConf
 from pydantic import ValidationError
 
 from metta.agent.metta_agent import DistributedMettaAgent, make_policy
