@@ -736,6 +736,8 @@ if __name__ == "__main__":
          -   if the PR cannot be synced because of a merge issue with the PR destination this would go to the PR author.
          -     however, this is not easy to implement because mergeability is computed async and there is no hook
         """
+        print(f"event stream: {events}")
+
         asana_owner_is_assignee = not (last_event) or last_event["type"] == "review_requested"
         asana_owner = assignee if asana_owner_is_assignee else author
 
@@ -788,7 +790,8 @@ if __name__ == "__main__":
             [f"At {item['timestamp']}, user {item['user']} {item['action']}: {item['text']}" for item in events]
         )
         print(events_str)
-        synchronize_comments_in_asana(asana_token, task_url, sync_comments, events_str)
+        if events_str:
+            synchronize_comments_in_asana(asana_token, task_url, sync_comments, events_str)
 
         print(f"comments: {comments}")
 
