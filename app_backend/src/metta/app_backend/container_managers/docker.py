@@ -25,7 +25,7 @@ class DockerContainerManager(AbstractContainerManager):
         cmd = [
             "docker",
             "run",
-            "--rm",  # Remove container when it exits
+            # "--rm",  # Remove container when it exits
             "-d",  # Run in detached mode
             "--name",
             container_name,
@@ -37,8 +37,6 @@ class DockerContainerManager(AbstractContainerManager):
 
         # Worker will set up its own versioned checkout
         cmd.extend([docker_image, "uv", "run", "python", "-m", "metta.app_backend.eval_task_worker"])
-
-        self._logger.info(f"Starting worker container for git hash {git_hash}")
 
         try:
             result = subprocess.run(cmd, capture_output=True, text=True, check=True)

@@ -210,7 +210,6 @@ class EvalTaskOrchestrator:
         )
 
     async def run(self) -> None:
-        self._logger.info("Starting stateless eval task orchestrator")
         self._logger.info(f"Backend URL: {self._backend_url}")
         self._logger.info(f"Worker idle timeout: {self._worker_idle_timeout}s")
 

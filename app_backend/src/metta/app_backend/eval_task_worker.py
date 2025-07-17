@@ -66,15 +66,22 @@ class EvalTaskWorker:
         if result.returncode != 0:
             raise RuntimeError(f"Failed to copy repository: {result.stderr}")
 
-        # Checkout specific git hash
-        result = subprocess.run(
+        # Reset any local changes and checkout specific git hash
+        checkout_commands = [
+            ["git", "reset", "--hard"],  # Reset any local changes
+            ["git", "clean", "-fd"],  # Remove untracked files
             ["git", "checkout", self._git_hash],
-            cwd=self._versioned_path,
-            capture_output=True,
-            text=True,
-        )
-        if result.returncode != 0:
-            raise RuntimeError(f"Failed to checkout git hash {self._git_hash}: {result.stderr}")
+        ]
+
+        for cmd in checkout_commands:
+            result = subprocess.run(
+                cmd,
+                cwd=self._versioned_path,
+                capture_output=True,
+                text=True,
+            )
+            if result.returncode != 0:
+                raise RuntimeError(f"Failed to run {' '.join(cmd)}: {result.stderr}")
 
         self._logger.info(f"Successfully set up versioned checkout at {self._versioned_path}")
 
