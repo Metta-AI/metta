@@ -1,0 +1,41 @@
+FROM homebrew/brew:latest
+
+# Set non-interactive frontend
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install only the minimal system dependencies we need (cmake, ninja for building)
+# We stay as the default linuxbrew user - no user switching!
+RUN brew install cmake ninja
+
+# Set working directory
+WORKDIR /workspace
+
+# Copy the entire repository
+COPY --chown=linuxbrew:linuxbrew . /workspace/metta
+
+# Copy .metta directory if it exists in the build context
+RUN if [ -d /workspace/metta/.metta ]; then \
+        cp -r /workspace/metta/.metta /home/linuxbrew/ && \
+        chown -R linuxbrew:linuxbrew /home/linuxbrew/.metta; \
+    fi
+
+# Set working directory
+WORKDIR /workspace/metta
+
+# Clean up git config for anonymous access
+RUN git config --remove-section http."https://github.com/" || true && \
+    git remote remove origin && \
+    git remote add origin https://github.com/Metta-AI/metta.git && \
+    git fetch
+
+# Install uv directly
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Add uv to PATH
+ENV PATH="/home/linuxbrew/.local/bin:${PATH}"
+
+# Now run install.sh - it should find uv
+RUN bash install.sh || true
+
+# Default command
+CMD ["/bin/bash"]
