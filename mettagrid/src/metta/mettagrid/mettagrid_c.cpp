@@ -203,7 +203,7 @@ MettaGrid::MettaGrid(const GameConfig& cfg, py::list map, unsigned int seed)
   initial_grid_hash = wyhash::hash_string(grid_hash_data);
 
   // Compute inventory rewards for each agent (1 bit per item, up to 8 items)
-  _inventory_rewards.resize(_agents.size(), 0);
+  _resource_rewards.resize(_agents.size(), 0);
   for (size_t agent_idx = 0; agent_idx < _agents.size(); agent_idx++) {
     auto& agent = _agents[agent_idx];
     uint8_t packed = 0;
@@ -220,7 +220,7 @@ MettaGrid::MettaGrid(const GameConfig& cfg, py::list map, unsigned int seed)
       }
     }
 
-    _inventory_rewards[agent_idx] = packed;
+    _resource_rewards[agent_idx] = packed;
   }
 
   // Initialize buffers. The buffers are likely to be re-set by the user anyways,
@@ -316,8 +316,8 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
   }
 
   // Add inventory rewards for this agent
-  if (!_inventory_rewards.empty() && agent_idx < _inventory_rewards.size()) {
-    global_tokens.push_back({ObservationFeature::InventoryRewards, _inventory_rewards[agent_idx]});
+  if (!_resource_rewards.empty() && agent_idx < _resource_rewards.size()) {
+    global_tokens.push_back({ObservationFeature::InventoryRewards, _resource_rewards[agent_idx]});
   }
 
   // Global tokens are always at the center of the observation.
