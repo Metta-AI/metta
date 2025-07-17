@@ -25,16 +25,13 @@ class ProgressiveCurriculum(SamplingCurriculum):
         cfg.game.map.width = self._width
         cfg.game.map.height = self._height
         OmegaConf.resolve(cfg)
-        return Task(self._name, self, cfg)
+        return Task(f"sample({self._cfg_template.sampling})", self, cfg)
 
     def complete_task(self, id: str, score: float):
         if score > 0.5:
             self._width = min(self._width * 2, 100)
             self._height = min(self._height * 2, 100)
         super().complete_task(id, score)
-
-    def get_env_cfg_by_bucket(self) -> dict[str, DictConfig]:
-        return {self._name: self._cfg_template}
 
 
 class ProgressiveMultiTaskCurriculum(RandomCurriculum):
