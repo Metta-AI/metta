@@ -60,20 +60,6 @@ def init_mettagrid_environment(cfg: DictConfig) -> None:
     cfg : DictConfig
         Configuration containing torch_deterministic flag and other runtime settings
     """
-    OmegaConf.set_struct(cfg, False)
-
-    if cfg.device == "cuda" and not torch.cuda.is_available():
-        logger.warning("CUDA is not available. Overriding device to 'cpu'.")
-        cfg.device = "cpu"
-
-    if cfg.vectorization == "multiprocessing" and not is_multiprocessing_available():
-        logger.warning(
-            "Vectorization 'multiprocessing' was requested but multiprocessing is not "
-            "available in this environment. Overriding to 'serial'."
-        )
-        cfg.vectorization = "serial"
-
-    OmegaConf.set_struct(cfg, True)
 
     # Validate device configuration
     device = cfg.get("device", "cpu")
@@ -82,10 +68,8 @@ def init_mettagrid_environment(cfg: DictConfig) -> None:
     if device.startswith("cuda"):
         try:
             if not torch.cuda.is_available():
-                raise RuntimeError(
-                    f"Device '{device}' was requested but CUDA is not available. "
-                    "Please either install CUDA/PyTorch with GPU support or set device: cpu in your config."
-                )
+                logger.warning("CUDA is not available. Overriding device to 'cpu'.")
+                cfg.device = "cpu"
 
             # If device is cuda:X, check that the specific device exists
             if ":" in device:
@@ -110,6 +94,17 @@ def init_mettagrid_environment(cfg: DictConfig) -> None:
         raise ValueError(
             f"Invalid device '{device}'. Device must be 'cpu' or start with 'cuda' (e.g., 'cuda', 'cuda:0')."
         )
+
+    OmegaConf.set_struct(cfg, False)
+    cfg.device = device
+    OmegaConf.set_struct(cfg, True)
+
+    if cfg.vectorization == "multiprocessing" and not is_multiprocessing_available():
+        logger.warning(
+            "Vectorization 'multiprocessing' was requested but multiprocessing is not "
+            "available in this environment. Overriding to 'serial'."
+        )
+        cfg.vectorization = "serial"
 
     # Set CUDA launch blocking for better error messages in development
     os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
