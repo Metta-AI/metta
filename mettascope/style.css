@@ -156,7 +156,7 @@ input::placeholder {
   opacity: 0.25;
 }
 
-/* Mobile responsive design for footer */
+/* moderately sized tablet or phone screens */
 @media (max-width: 900px) {
   #footer {
     height: auto;
@@ -249,9 +249,20 @@ input::placeholder {
     width: 90%;
     height: auto;
   }
+
+  /* Make search input responsive */
+  #header input#search-input {
+    width: 150px !important;
+  }
+
+  #header #search-icon {
+    right: 215px !important;
+  }
 }
 
+/* very small phone sized screens */
 @media (max-width: 480px) {
+
 
   /* Even smaller buttons for very small screens */
   #footer .hover-icon {
@@ -276,5 +287,19 @@ input::placeholder {
 
   #footer {
     padding: 6px 0;
+  }
+
+  /* Even smaller search input for very small screens */
+  #header input#search-input {
+    width: 70px !important;
+  }
+
+  #header #search-icon {
+    right: 135px !important;
+  }
+
+  /* Hide placeholder text on very small screens, it gets cut off */
+  #header input#search-input::placeholder {
+    opacity: 0 !important;
   }
 }
