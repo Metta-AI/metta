@@ -10,6 +10,7 @@ trainer.curriculum=env/mettagrid/curriculum/navigation/prioritize_regressed \
 ++trainer.env_overrides.game.map_builder.room.agents=2 \
 ++trainer.env_overrides.game.map_builder.num_rooms=4 \
 sim=navigation \
+seed=0 \
 +USER=greg \
 "$@"
 # ++trainer.env_overrides.game.num_agents=16 \
