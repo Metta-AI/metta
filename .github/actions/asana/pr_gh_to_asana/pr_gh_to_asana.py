@@ -20,7 +20,7 @@ ASANA_GITHUB_ATTACHMENT_ACTION_URL = "https://github.integrations.asana.plus/cus
 
 
 def extract_asana_urls_from_description(description: str) -> list[str]:
-    """Extract Asana task URLs from the description text."""
+    """Extract Asana task URLs fromm the description text."""
     if not description:
         return []
 
