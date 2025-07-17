@@ -1,0 +1,14 @@
+defaults:
+  - /env/mettagrid/systematic_exploration/eval/defaults@
+  - _self_
+
+sampling: 1
+
+game:
+  # Slightly larger arena and denser jagged islands for tougher coverage.
+  map_builder:
+    width: 40
+    height: 40
+    island_count: [50, 90]   # YAML → python tuple → rng integers
+    island_size:  [8, 40]
+    occupancy_threshold: 0.60

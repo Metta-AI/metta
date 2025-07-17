@@ -1,0 +1,24 @@
+defaults:
+  - /env/mettagrid/systematic_exploration/eval/defaults@
+  - _self_
+
+sampling: 1
+
+game:
+  map_builder:
+    _target_: metta.mettagrid.room.systematic_exploration.direction_based_sparse.DirectionBasedTerrain
+    width: 40
+    height: 40
+    agents: ${..num_agents}
+    seed: ${int:${uniform:0,100000}}
+
+    # NEW — explicit but optional
+    orientation: auto        # "auto" → 50 % horizontal, 50 % vertical
+
+    hole_count_range:  [3, 7]
+    bay_count_range:   [25, 45]
+    bay_depth_range:   [10, 30]
+    bay_width_range:   [5, 10]
+
+    objects:
+      altar: 15
