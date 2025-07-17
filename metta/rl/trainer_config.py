@@ -113,6 +113,28 @@ class PPOConfig(BaseModelWithForbidExtra):
     target_kl: float | None = None
 
 
+class CurriculumServerConfig(BaseModelWithForbidExtra):
+    # Whether to use curriculum server (disabled by default for backward compatibility)
+    enabled: bool = False
+    # Server host when running as server
+    host: str = "0.0.0.0"
+    # Server port when running as server
+    port: int = 8080
+    # Client configuration
+    server_url: str | None = None  # URL of remote server when running as client
+    batch_size: int = Field(default=100, gt=0)  # Number of tasks to fetch per batch
+    prefetch_threshold: float = Field(default=0.5, ge=0, le=1.0)  # Fetch new batch when queue falls below this
+    max_retries: int = Field(default=3, gt=0)  # Max retries for failed requests
+    timeout: float = Field(default=10.0, gt=0)  # Request timeout in seconds
+    
+    @model_validator(mode="after")
+    def validate_fields(self) -> "CurriculumServerConfig":
+        if self.enabled and self.server_url is None:
+            # If enabled but no server_url, we're running as the server
+            pass
+        return self
+
+
 class TorchProfilerConfig(BaseModelWithForbidExtra):
     interval_epochs: int = Field(default=10000, ge=0)  # 0 to disable
     # Upload location: None disables uploads, supports s3:// or local paths
@@ -198,6 +220,7 @@ class TrainerConfig(BaseModelWithForbidExtra):
     # Default curriculum: Simple environment for initial experiments
     curriculum: str | None = "/env/mettagrid/curriculum/simple"
     env_overrides: dict[str, Any] = Field(default_factory=dict)
+    curriculum_server: CurriculumServerConfig = Field(default_factory=CurriculumServerConfig)
     initial_policy: InitialPolicyConfig = Field(default_factory=InitialPolicyConfig)
 
     # Checkpoint configuration
