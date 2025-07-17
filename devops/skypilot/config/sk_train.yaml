@@ -62,7 +62,14 @@ run: |
     echo "[RUN] Latency script is missing!"
   fi
 
-  if [ -f common/src/metta/common/util/cost_monitor.py ]; then
+  export NUM_GPUS=$SKYPILOT_NUM_GPUS_PER_NODE
+  export NUM_NODES=$SKYPILOT_NUM_NODES
+  export MASTER_ADDR=$(echo "$SKYPILOT_NODE_IPS" | head -n1)
+  export MASTER_PORT=8008
+  export NODE_INDEX=$SKYPILOT_NODE_RANK
+  export NCCL_SHM_DISABLE=1
+
+    if [ -f common/src/metta/common/util/cost_monitor.py ]; then
     echo "[RUN] Collecting instance cost..."
     if python common/src/metta/common/util/cost_monitor.py; then
       source ~/.bashrc
@@ -73,13 +80,6 @@ run: |
   else
     echo "[RUN] Cost monitor script is missing!"
   fi
-
-  export NUM_GPUS=$SKYPILOT_NUM_GPUS_PER_NODE
-  export NUM_NODES=$SKYPILOT_NUM_NODES
-  export MASTER_ADDR=$(echo "$SKYPILOT_NODE_IPS" | head -n1)
-  export MASTER_PORT=8008
-  export NODE_INDEX=$SKYPILOT_NODE_RANK
-  export NCCL_SHM_DISABLE=1
 
   echo "[RUN] Running training script..."
   ./devops/$METTA_CMD.sh \
