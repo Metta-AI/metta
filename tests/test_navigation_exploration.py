@@ -51,7 +51,7 @@ def test_exploration_rates_in_eval_results():
     eval_summary = EvalRewardSummary(
         category_scores={"navigation": 0.85},
         simulation_scores={("navigation", "basic"): 0.82, ("navigation", "complex"): 0.88},
-        exploration_rates={("navigation", "basic"): 0.15, ("navigation", "complex"): 0.12}
+        exploration_rates={("navigation", "basic"): 0.15, ("navigation", "complex"): 0.12},
     )
 
     # Test that exploration rates are accessible
