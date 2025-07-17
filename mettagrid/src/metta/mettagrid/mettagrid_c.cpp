@@ -316,8 +316,8 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
   }
 
   // Add inventory rewards for this agent
-  if (!_resource_rewards.empty() && agent_idx < _resource_rewards.size()) {
-    global_tokens.push_back({ObservationFeature::InventoryRewards, _resource_rewards[agent_idx]});
+  if (_global_obs_config.resource_rewards && !_resource_rewards.empty()) {
+    global_tokens.push_back({ObservationFeature::ResourceRewards, _resource_rewards[agent_idx]});
   }
 
   // Global tokens are always at the center of the observation.
@@ -956,13 +956,15 @@ PYBIND11_MODULE(mettagrid_c, m) {
 
   py::class_<GlobalObsConfig>(m, "GlobalObsConfig")
       .def(py::init<>())
-      .def(py::init<bool, bool, bool>(),
+      .def(py::init<bool, bool, bool, bool>(),
            py::arg("episode_completion_pct") = true,
            py::arg("last_action") = true,
-           py::arg("last_reward") = true)
+           py::arg("last_reward") = true,
+           py::arg("resource_rewards") = false)
       .def_readwrite("episode_completion_pct", &GlobalObsConfig::episode_completion_pct)
       .def_readwrite("last_action", &GlobalObsConfig::last_action)
-      .def_readwrite("last_reward", &GlobalObsConfig::last_reward);
+      .def_readwrite("last_reward", &GlobalObsConfig::last_reward)
+      .def_readwrite("resource_rewards", &GlobalObsConfig::resource_rewards);
 
   py::class_<GameConfig>(m, "GameConfig")
       .def(py::init<int,

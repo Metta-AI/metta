@@ -13,7 +13,7 @@ The inventory rewards are automatically included as a global observation for eac
 ### How It Works
 
 A special global observation token is added to each agent's observation with:
-- **Feature ID**: 13 (`ObservationFeature::InventoryRewards`)
+- **Feature ID**: 13 (`ObservationFeature::ResourceRewards`)
 - **Location**: Center of the observation window
 - **Value**: Packed representation of inventory rewards
 

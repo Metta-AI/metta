@@ -35,7 +35,7 @@ class TestGlobalRewardObservations:
         )
 
         # Create global obs config - uses defaults
-        global_obs_config = GlobalObsConfig()
+        global_obs_config = GlobalObsConfig(resource_rewards=True)
 
         # Create game config
         game_config = GameConfig(
@@ -67,10 +67,10 @@ class TestGlobalRewardObservations:
         agent_obs = observations[0]
 
         # Find inventory rewards token
-        # Feature ID 13 is InventoryRewards, should be at center as global token
+        # Feature ID 13 is ResourceRewards, should be at center as global token
         resource_rewards_token = None
         for token in agent_obs:
-            if token[0] != 0xFF and token[1] == 13:  # Feature ID 13 is InventoryRewards
+            if token[0] != 0xFF and token[1] == 13:  # Feature ID 13 is ResourceRewards
                 resource_rewards_token = token
                 break
 
@@ -111,7 +111,7 @@ class TestGlobalRewardObservations:
         )
 
         # Create global obs config - uses defaults
-        global_obs_config = GlobalObsConfig()
+        global_obs_config = GlobalObsConfig(resource_rewards=True)
 
         game_config = GameConfig(
             num_agents=2,  # Two agents to test multi-agent case
@@ -141,7 +141,7 @@ class TestGlobalRewardObservations:
 
             resource_rewards_found_at_center = False
             for token in agent_obs:
-                if token[0] == center_packed and token[1] == 13:  # Feature ID 13 is InventoryRewards
+                if token[0] == center_packed and token[1] == 13:  # Feature ID 13 is ResourceRewards
                     resource_rewards_found_at_center = True
                     # All 4 items have rewards, so packed value should be 0b11110000 = 240
                     assert token[2] == 0b11110000, f"Wrong packed value for agent {agent_idx}: {token[2]}"
@@ -172,7 +172,7 @@ class TestGlobalRewardObservations:
         )
 
         # Create global obs config - uses defaults
-        global_obs_config = GlobalObsConfig()
+        global_obs_config = GlobalObsConfig(resource_rewards=True)
 
         game_config = GameConfig(
             num_agents=1,
@@ -239,7 +239,7 @@ class TestGlobalRewardObservations:
         )
 
         # Create global obs config - uses defaults
-        global_obs_config = GlobalObsConfig()
+        global_obs_config = GlobalObsConfig(resource_rewards=True)
 
         game_config = GameConfig(
             num_agents=1,

@@ -47,6 +47,7 @@ struct GlobalObsConfig {
   bool episode_completion_pct = true;
   bool last_action = true;  // Controls both last_action and last_action_arg
   bool last_reward = true;
+  bool resource_rewards = false;  // Controls whether resource rewards are included in observations
 };
 
 struct GameConfig {
