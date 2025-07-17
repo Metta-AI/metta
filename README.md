@@ -1,10 +1,21 @@
 # Metta AI
 
+
 <p align="center">
-  <a href="https://deepwiki.com/Metta-AI/metta">
-    <img src="https://deepwiki.com/badge.svg" alt="Ask DeepWiki">
+  <a href="https://codecov.io/gh/Metta-AI/metta">
+    <img src="https://codecov.io/gh/Metta-AI/metta/graph/badge.svg" alt="codecov">
+  </a>
+  <a href="https://github.com/Metta-AI/metta/actions/workflows/checks.yml">
+    <img src="https://github.com/Metta-AI/metta/actions/workflows/checks.yml/badge.svg" alt="Tests">
+  </a>
+  <a href="https://discord.gg/mQzrgwqmwy">
+    <img src="https://img.shields.io/discord/1309708848730345493?logo=discord&logoColor=white&label=Discord" alt="Discord">
+  </a>
+  <a href="LICENSE">
+    <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License">
   </a>
 </p>
+
 
 A reinforcement learning codebase focusing on the emergence of cooperation and alignment in multi-agent AI systems.
 

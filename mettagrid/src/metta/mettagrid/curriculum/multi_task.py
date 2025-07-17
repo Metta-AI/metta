@@ -1,6 +1,8 @@
 import logging
 from typing import Dict, List
 
+from omegaconf import DictConfig
+
 from metta.mettagrid.curriculum.core import Curriculum
 
 logger = logging.getLogger(__name__)
@@ -52,3 +54,17 @@ class MultiTaskCurriculum(Curriculum):
             n = len(self._task_weights)
             return {k: 1.0 / n for k in self._task_weights}
         return {k: v / total for k, v in self._task_weights.items()}
+
+    def get_env_cfg_by_bucket(self) -> dict[str, DictConfig]:
+        configs = {}
+        for task_id, curriculum in self._curricula.items():
+            # Get configs from child curriculums without creating tasks
+            child_configs = curriculum.get_env_cfg_by_bucket()
+            # Use task_id as key if child returns a single config
+            if len(child_configs) == 1:
+                configs[task_id] = list(child_configs.values())[0]
+            else:
+                # Prefix multiple configs with task_id
+                for sub_id, cfg in child_configs.items():
+                    configs[f"{task_id}/{sub_id}"] = cfg
+        return configs

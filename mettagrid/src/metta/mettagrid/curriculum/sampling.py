@@ -17,15 +17,21 @@ class SamplingCurriculum(Curriculum):
     def __init__(self, env_cfg_template: str, env_overrides: Optional[DictConfig] = None):
         self._cfg_template = config_from_path(env_cfg_template, env_overrides)
 
+    @property
+    def _name(self) -> str:
+        return f"sample({self._cfg_template.sampling})"
+
     def get_task(self) -> Task:
         cfg = OmegaConf.create(copy.deepcopy(self._cfg_template))
         OmegaConf.resolve(cfg)
-        return Task(f"sample({self._cfg_template.sampling})", self, cfg)
+        return Task(self._name, self, cfg)
 
     def get_task_probs(self) -> dict[str, float]:
         """Return the current task probability for logging purposes."""
-        task_name = f"sample({self._cfg_template.sampling})"
-        return {task_name: 1.0}
+        return {self._name: 1.0}
+
+    def get_env_cfg_by_bucket(self) -> dict[str, DictConfig]:
+        return {self._name: self._cfg_template}
 
 
 class SampledTaskCurriculum(Curriculum):
@@ -50,6 +56,9 @@ class SampledTaskCurriculum(Curriculum):
         for k, v in override.items():
             OmegaConf.update(cfg, k, _sample(v), merge=False)
         return Task(self._task_id, self, cfg)
+
+    def get_env_cfg_by_bucket(self) -> dict[str, DictConfig]:
+        return {self._task_id: self._task_cfg_template}
 
 
 def _sample(choice: Any) -> Any:
