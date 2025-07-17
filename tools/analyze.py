@@ -3,23 +3,17 @@
 
 import logging
 
-import hydra
 from omegaconf import DictConfig, OmegaConf
 
 from metta.agent.policy_store import PolicyStore
 from metta.eval.analysis import analyze
 from metta.eval.analysis_config import AnalysisConfig
-from metta.util.init.logging import init_logging
-from metta.util.init.mettagrid_environment import init_mettagrid_environment
+from metta.util.metta_script import metta_script
 
 logger = logging.getLogger("analyze")
 
 
-@hydra.main(version_base=None, config_path="../configs", config_name="analyze_job")
 def main(cfg: DictConfig) -> None:
-    init_mettagrid_environment(cfg)
-    init_logging()
-
     logger.info(f"Analyze job config:\n{OmegaConf.to_yaml(cfg, resolve=True)}")
 
     config = AnalysisConfig(cfg.analysis)
@@ -31,5 +25,4 @@ def main(cfg: DictConfig) -> None:
     analyze(policy_pr, config)
 
 
-if __name__ == "__main__":
-    main()
+metta_script(main, "analyze_job")
