@@ -249,9 +249,10 @@ MIGRATIONS = [
     ),
     SqlMigration(
         version=13,
-        description="Add index on eval_tasks git_hash attribute",
+        description="Add index on eval_tasks git_hash, assigned_at. And another on assigned_at",
         sql_statements=[
             """CREATE INDEX idx_eval_tasks_git_hash_assigned ON eval_tasks((attributes ->> 'git_hash'), assigned_at)""",
+            """CREATE INDEX idx_eval_tasks_assigned_at ON eval_tasks(assigned_at)""",
         ],
     ),
 ]
