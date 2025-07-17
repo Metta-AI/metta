@@ -34,15 +34,20 @@ class CurriculumServer:
             tasks = []
             with self._lock:
                 for _ in range(batch_size):
-                    task = self.curriculum.get_task()
-                    # Convert the task's env_cfg to a serializable format
-                    env_cfg = OmegaConf.to_container(task.env_cfg(), resolve=True)
-                    # Get task name - it's a method in the Task class
-                    task_name = task.name() if hasattr(task, "name") else "unknown"
-                    tasks.append({
-                        "name": task_name,
-                        "env_cfg": env_cfg
-                    })
+                    try:
+                        task = self.curriculum.get_task()
+                        # Convert the task's env_cfg to a serializable format
+                        env_cfg = OmegaConf.to_container(task.env_cfg(), resolve=True)
+                        # Get task name - it's a method in the Task class
+                        task_name = task.name() if hasattr(task, "name") else "unknown"
+                        tasks.append({
+                            "name": task_name,
+                            "env_cfg": env_cfg
+                        })
+                    except Exception as e:
+                        # If curriculum can't provide more tasks, break and return what we have
+                        logger.warning(f"Curriculum stopped providing tasks: {e}")
+                        break
             
             return jsonify({
                 "tasks": tasks,

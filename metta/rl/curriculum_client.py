@@ -1,3 +1,10 @@
+"""
+HTTP client for fetching curriculum tasks from a remote server.
+
+This client implements the Curriculum interface but fetches tasks from
+a remote curriculum server. It includes batching to reduce network overhead.
+"""
+
 import logging
 import random
 import time
@@ -102,6 +109,9 @@ class CurriculumClient:
                     return
                 else:
                     logger.warning("Server returned no tasks")
+                    if attempt == self.max_retries - 1:
+                        # On last attempt, raise a more specific error for empty batch
+                        raise RuntimeError("Server returned empty task batch")
                     
             except requests.exceptions.RequestException as e:
                 logger.warning(f"Failed to fetch tasks (attempt {attempt + 1}/{self.max_retries}): {e}")
