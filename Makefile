@@ -23,7 +23,7 @@ dev:
 
 test:
 	@echo "Running python tests with coverage"
-	uv run  --active metta test --cov=metta --cov-report=term-missing
+	uv run  --active metta test --cov=metta --cov-report=term-missing --durations=10
 
 install:
 	@echo "Installing package in editable mode..."
