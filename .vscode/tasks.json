@@ -12,7 +12,7 @@
     },
     {
       "type": "shell",
-      "command": "./mettagrid//install-debug.sh",
+      "command": "./mettagrid/install-debug.sh",
       "label": "install-debug",
       "group": "build",
       "problemMatcher": ["$gcc"],
