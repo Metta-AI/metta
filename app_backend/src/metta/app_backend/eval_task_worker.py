@@ -28,7 +28,7 @@ from metta.app_backend.routes.eval_task_routes import (
 logger = logging.getLogger(__name__)
 
 
-class EvalWorker:
+class EvalTaskWorker:
     def __init__(self, backend_url: str, git_hash: str, assignee: str):
         self._backend_url = backend_url
         self._git_hash = git_hash
@@ -70,7 +70,7 @@ class EvalWorker:
             "uv",
             "run",
             "tools/sim.py",
-            f"policy_uri={policy_name}",
+            f"policy_uri=wandb://run/{policy_name}",
             f"sim={sim_suite}",
             f"eval_task_id={str(task_id)}",
         ]
@@ -161,7 +161,7 @@ async def main() -> None:
     git_hash = os.environ["GIT_HASH"]
     assignee = os.environ["WORKER_ASSIGNEE"]
 
-    async with EvalWorker(backend_url, git_hash, assignee) as worker:
+    async with EvalTaskWorker(backend_url, git_hash, assignee) as worker:
         await worker.run()
 
 
