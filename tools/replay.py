@@ -4,13 +4,12 @@
 import platform
 from urllib.parse import quote
 
-import hydra
 from omegaconf import OmegaConf
 
 import mettascope.server as server
 from metta.agent.policy_store import PolicyStore
 from metta.common.util.config import Config
-from metta.common.util.script_decorators import get_metta_logger, metta_script
+from metta.common.util.script_decorators import get_metta_logger, hydra_main, metta_script
 from metta.common.wandb.wandb_context import WandbContext
 from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SingleEnvSimulationConfig
@@ -27,7 +26,7 @@ class ReplayJob(Config):
     open_browser_on_start: bool
 
 
-@hydra.main(version_base=None, config_path="../configs", config_name="replay_job")
+@hydra_main(version_base=None, config_path="../configs", config_name="replay_job")
 @metta_script
 def main(cfg):
     logger = get_metta_logger()

@@ -3,9 +3,11 @@
 import functools
 import logging
 import multiprocessing
+import sys
 from contextvars import ContextVar
 from typing import Callable, TypeVar
 
+import hydra
 import torch
 from omegaconf import DictConfig, OmegaConf
 
@@ -103,3 +105,31 @@ def is_multiprocessing_available() -> bool:
         return True
     except Exception:
         return False
+
+
+def hydra_main(version_base=None, config_path=None, config_name=None):
+    """
+    A wrapper for @hydra.main that adds --explain functionality.
+
+    When --explain is passed as an argument, it prints the fully resolved
+    configuration and exits without running the main function.
+    """
+
+    hydra_decorator = hydra.main(version_base=version_base, config_path=config_path, config_name=config_name)
+
+    def decorator(func: Callable[..., T]) -> Callable[..., T]:
+        if "--explain" not in sys.argv:
+            return hydra_decorator(func)
+
+        sys.argv.remove("--explain")
+
+        @functools.wraps(func)
+        def _explain_fn(cfg: DictConfig) -> T:
+            print(f"Fully expanded configuration for {config_name}:")
+            print("-" * 80)
+            print(OmegaConf.to_yaml(cfg, resolve=True))
+            sys.exit(0)
+
+        return hydra_decorator(_explain_fn)
+
+    return decorator
