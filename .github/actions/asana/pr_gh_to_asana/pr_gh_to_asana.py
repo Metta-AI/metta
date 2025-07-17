@@ -552,6 +552,7 @@ def synchronize_comments_in_asana(asana_token: str, task_url: str, sync_comments
     headers = {"Authorization": f"Bearer {asana_token}", "Content-Type": "application/json"}
 
     comment_body = f"GitHub Review Timeline:\n{events_str}" if events_str.strip() else ""
+    print(f"new comment body: {comment_body}")
 
     if not sync_comments:
         # No comments, add new
@@ -687,7 +688,7 @@ if __name__ == "__main__":
                 "action": r["state"],
             }
             for r in retrieved_reviews
-            if r.get("state") in ["APPROVED", "CHANGES_REQUESTED"]
+            if r.get("state") in ["APPROVED", "CHANGES_REQUESTED", "COMMENTED"]  # include commented for now for testing
         ]
         review_requested = [
             {
