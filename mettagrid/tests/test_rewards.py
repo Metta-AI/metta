@@ -66,7 +66,11 @@ def create_heart_reward_test_env(max_steps=50, num_agents=NUM_AGENTS):
         },
         "agent": {
             "default_resource_limit": 10,
-            "rewards": {"heart": 1.0},  # This gives 1.0 reward per heart collected
+            "rewards": {
+                "inventory": {
+                    "heart": 1.0  # This gives 1.0 reward per heart collected
+                }
+            },
         },
     }
 

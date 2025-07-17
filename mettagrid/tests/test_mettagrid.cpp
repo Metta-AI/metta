@@ -73,6 +73,8 @@ protected:
                        create_test_resource_limits(),      // resource_limits
                        create_test_rewards(),              // resource_rewards
                        create_test_resource_reward_max(),  // resource_reward_max
+                       {},                                 // stat_rewards
+                       {},                                 // stat_reward_max
                        0.0f);                              // group_reward_pct
   }
 };

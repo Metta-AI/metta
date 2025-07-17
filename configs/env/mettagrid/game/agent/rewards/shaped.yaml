@@ -1,17 +1,18 @@
-ore_red: 0.1
-ore_red_max: 1
+inventory:
+  ore_red: 0.1
+  ore_red_max: 1
 
-battery_red: 0.8
-battery_red_max: 1
+  battery_red: 0.8
+  battery_red_max: 1
 
-laser: 0.5
-laser_max: 1
+  laser: 0.5
+  laser_max: 1
 
-armor: 0.5
-armor_max: 1
+  armor: 0.5
+  armor_max: 1
 
-blueprint: 0.5
-blueprint_max: 1
+  blueprint: 0.5
+  blueprint_max: 1
 
-heart: 1
-heart_max: null
+  heart: 1
+  heart_max: null

@@ -30,10 +30,9 @@ def create_game_config():
                 "inventory_item_names": ["ore_red", "ore_blue", "battery_red", "battery_blue", "heart"],
                 "groups": {"agent": {"id": 0, "sprite": 0}},
                 "agent": {
-                    "default_resource_limit": 20,
-                    "resource_limits": {"heart": 255},
-                    "freeze_duration": 10,
-                    "rewards": {"heart": 5.0, "ore_red": 0.1, "battery_red": 0.2},
+                    "default_resource_limit": 50,
+                    "freeze_duration": 5,
+                    "rewards": {"inventory": {"heart": 5.0, "ore_red": 0.1, "battery_red": 0.2}},
                     "action_failure_penalty": 0.1,
                 },
                 "actions": {

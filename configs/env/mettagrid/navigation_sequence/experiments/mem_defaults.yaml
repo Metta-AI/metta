@@ -20,9 +20,10 @@ game:
       ore_red: ${sampling:5,20,15}
       battery_red: ${sampling:5,20,15}
     rewards:
-      ore_red: ${sampling:0.005,0.05, 0.01}
-      battery_red: ${sampling:0.01,0.1, 0.1}
-      heart: 1
+      inventory:
+        ore_red: ${sampling:0.005,0.05, 0.01}
+        battery_red: ${sampling:0.01,0.1, 0.1}
+        heart: 1
   map_builder:
     _target_: metta.mettagrid.room.multi_room.MultiRoom
     num_rooms: ${..num_agents}

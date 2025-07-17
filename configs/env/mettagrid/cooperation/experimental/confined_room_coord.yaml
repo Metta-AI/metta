@@ -16,11 +16,12 @@ game:
     resource_limits:
       heart: 255
     rewards:
-      ore_red: 0.005
-      ore_blue: 0.005
-      ore_green: 0.005
-      battery_red: 0.01
-      heart: 1
+      inventory:
+        ore_red: 0.005
+        ore_blue: 0.005
+        ore_green: 0.005
+        battery_red: 0.01
+        heart: 1
 
   map_builder:
     _target_: metta.mettagrid.room.room_list.RoomList

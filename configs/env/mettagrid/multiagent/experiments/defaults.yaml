@@ -10,12 +10,13 @@ game:
   num_agents: 32
   agent:
     rewards:
-      ore_red: ${sampling:0.005,0.1, 0.01}
-      ore_red_max: 3
-      battery_red: ${sampling:0.01,0.5, 0.1}
-      battery_red_max: 5
-      heart: 1
-      heart_max: null
+      inventory:
+        ore_red: ${sampling:0.005,0.1, 0.01}
+        ore_red_max: 3
+        battery_red: ${sampling:0.01,0.5, 0.1}
+        battery_red_max: 5
+        heart: 1
+        heart_max: null
   map_builder:
     _target_: ???
     width: ${sampling:50,100,90}
