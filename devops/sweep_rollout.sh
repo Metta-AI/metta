@@ -28,7 +28,9 @@ echo "[INFO] Starting sweep rollout: $sweep_name"
 # TODO: Still not sure we need the DIST_CFG_PATH here.
 # TODO: Use SWEEP_DATA_DIR
 echo "[SWEEP:$sweep_name] Preparing next run..."
-cmd="tools/sweep_create_run.py dist_cfg_path=$DIST_CFG_PATH $args"
+# Replace sweep_name= with +sweep_name= in args for Hydra struct mode
+args_with_plus=$(echo "$args" | sed 's/sweep_name=/+sweep_name=/')
+cmd="tools/sweep_prepare_run.py +dist_cfg_path=$DIST_CFG_PATH $args_with_plus"
 echo "[SWEEP:$sweep_name] Running: $cmd"
 if ! $cmd; then
   echo "[ERROR] Sweep initialization failed: $sweep_name"
