@@ -20,15 +20,18 @@ def advantage(
     importance_sampling_ratio = importance_sampling_ratio.contiguous().to(device)
 
     T, B = rewards.shape
+
     advantages = torch.zeros_like(values, device=device)
 
     rho = torch.clamp(importance_sampling_ratio, max=vtrace_rho_clip)
     c = torch.clamp(importance_sampling_ratio, max=vtrace_c_clip)
 
     nextnonterminal = 1.0 - dones[1:]
+
     delta = rho[:-1] * (rewards[1:] + gamma * values[1:] * nextnonterminal - values[:-1])
 
     gamma_lambda = gamma * gae_lambda
+
     lastpufferlam = torch.zeros(B, device=device)
 
     for t in range(T - 2, -1, -1):

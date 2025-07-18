@@ -10,14 +10,10 @@ from heavyball import ForeachMuon
 from omegaconf import DictConfig, OmegaConf
 
 from metta.agent.policy_store import PolicyStore
-from metta.api import (
-    Environment,
-    create_evaluation_config_suite,
-    create_or_load_agent,
-    save_experiment_config,
-    setup_run_directories,
-    wrap_agent_distributed,
-)
+from metta.api.agent import create_or_load_agent
+from metta.api.directories import save_experiment_config, setup_run_directories
+from metta.api.environment import Environment
+from metta.api.evaluation import create_evaluation_config_suite
 from metta.common.profiling.memory_monitor import MemoryMonitor
 from metta.common.profiling.stopwatch import Stopwatch
 from metta.common.util.heartbeat import record_heartbeat
@@ -49,6 +45,7 @@ from metta.rl.functions import (
     setup_distributed_vars,
     should_run,
     validate_policy_environment_match,
+    wrap_agent_distributed,
 )
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.kickstarter_config import KickstartConfig
