@@ -14,7 +14,7 @@ export default async function MePage() {
     // Get current user session
     const session = await auth();
     
-    if (!session?.user) {
+    if (!session?.user?.id) {
         redirect("/api/auth/signin");
     }
 
@@ -27,7 +27,12 @@ export default async function MePage() {
 
     return (
         <MeView 
-            user={session.user}
+            user={{
+                id: session.user.id,
+                name: session.user.name ?? null,
+                email: session.user.email ?? null,
+                image: session.user.image ?? null,
+            }}
             starredPapers={starredPapers}
             queuedPapers={queuedPapers}
             allPapers={papers}

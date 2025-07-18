@@ -11,6 +11,8 @@ import { postsTable } from "@/lib/db/schema/post";
 
 const inputSchema = zfd.formData({
   title: zfd.text(z.string().min(1).max(255)),
+  content: zfd.text(z.string().optional()),
+  postType: zfd.text(z.enum(['user-post', 'paper-post', 'pure-paper']).optional()),
 });
 
 export const createPostAction = actionClient
@@ -18,10 +20,12 @@ export const createPostAction = actionClient
   .action(async ({ parsedInput: input }) => {
     const session = await getSessionOrRedirect();
 
-    const post = await db.insert(postsTable).values({
+    const [post] = await db.insert(postsTable).values({
       title: input.title,
+      content: input.content || null,
+      postType: input.postType || 'user-post',
       authorId: session.user.id,
-    });
+    }).returning({ id: postsTable.id });
 
     revalidatePath("/");
 
