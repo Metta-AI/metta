@@ -134,6 +134,7 @@ class MettaTrainer:
                 history_size=100,  # Keep last 100 samples
                 logger=logger,
                 auto_start=True,  # Start monitoring immediately
+                external_timer=self.timer,  # Pass trainer's timer for persistent elapsed time
             )
 
         curriculum_config = trainer_cfg.curriculum_or_env

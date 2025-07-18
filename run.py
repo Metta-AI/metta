@@ -282,6 +282,7 @@ if is_master:
         history_size=100,
         logger=logger,
         auto_start=True,
+        external_timer=timer,  # Pass timer for persistent elapsed time across restarts
     )
 
 # Training loop
