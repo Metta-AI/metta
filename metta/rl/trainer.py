@@ -506,7 +506,6 @@ class MettaTrainer:
         )
 
         # Optimizing the policy and value network
-        _total_minibatches = experience.num_minibatches * trainer_cfg.update_epochs
         minibatch_idx = 0
 
         for _epoch in range(trainer_cfg.update_epochs):
@@ -515,8 +514,6 @@ class MettaTrainer:
                     advantages=advantages,
                     prio_alpha=prio_cfg.prio_alpha,
                     prio_beta=anneal_beta,
-                    minibatch_idx=minibatch_idx,
-                    total_minibatches=_total_minibatches,
                 )
 
                 # Use the helper function to process minibatch update

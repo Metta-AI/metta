@@ -152,8 +152,6 @@ class Experience:
         advantages: Tensor,
         prio_alpha: float,
         prio_beta: float,
-        minibatch_idx: int,
-        total_minibatches: int,
     ) -> TensorDict:
         """Sample a prioritized minibatch."""
         # Prioritized sampling based on advantage magnitude
