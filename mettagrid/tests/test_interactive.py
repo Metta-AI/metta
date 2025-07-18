@@ -214,8 +214,8 @@ def test_pettingzoo_env():
 
     print("Environment created!")
     print(f"- Max agents: {env.max_num_agents}")
-    print(f"- Observation space: {env.observation_space}")
-    print(f"- Action space: {env.action_space}")
+    print(f"- Observation space: {env.observation_space(env.possible_agents[0])}")
+    print(f"- Action space: {env.action_space(env.possible_agents[0])}")
     print(f"- Max steps: {env.max_steps}")
 
     # Run a quick episode
@@ -227,7 +227,7 @@ def test_pettingzoo_env():
         # Random actions for all active agents
         actions = {}
         for agent in env.agents:
-            actions[agent] = np.random.randint(0, min(3, env.action_space.nvec.max()), size=2, dtype=np.int32)
+            actions[agent] = np.random.randint(0, min(3, env.action_space(agent).nvec.max()), size=2, dtype=np.int32)
 
         observations, rewards, _, _, _ = env.step(actions)
 
