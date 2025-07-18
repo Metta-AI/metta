@@ -545,6 +545,28 @@ class MettaGridEnv(ABC):
         """Global features for compatibility."""
         return []
 
+    # Backward compatibility properties
+    @property
+    def _c_env(self):
+        """Backward compatibility alias for _core_env."""
+        if self._core_env is None:
+            return None
+
+        # Create a compatibility wrapper that mimics the old interface
+        class CompatibilityWrapper:
+            def __init__(self, core_env):
+                self._core_env = core_env
+
+            def max_action_args(self):
+                """Method version of max_action_args for backward compatibility."""
+                return self._core_env.max_action_args
+
+            def __getattr__(self, name):
+                # Delegate all other attributes to the core environment
+                return getattr(self._core_env, name)
+
+        return CompatibilityWrapper(self._core_env)
+
     def get_observation_features(self) -> Dict[str, Dict]:
         """Get observation features for policy initialization."""
         if self._core_env is None:
