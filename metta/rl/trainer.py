@@ -46,6 +46,7 @@ from metta.rl.functions import (
     run_policy_inference,
     validate_policy_environment_match,
 )
+from metta.rl.hyperparameter_scheduler import HyperparameterScheduler
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses
 from metta.rl.torch_profiler import TorchProfiler
@@ -53,8 +54,6 @@ from metta.rl.trainer_checkpoint import TrainerCheckpoint
 from metta.rl.trainer_config import create_trainer_config
 from metta.rl.vecenv import make_vecenv
 from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
-
-from .hyperparameter_scheduler import HyperparameterScheduler
 
 try:
     from pufferlib import _C  # noqa: F401 - Required for torch.ops.pufferlib
