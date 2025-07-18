@@ -48,9 +48,9 @@ class MettaGridEnv:
     Dynamic environment adapter that selects the appropriate adapter class at runtime.
 
     The adapter is selected based on the METTAGRID_ADAPTER environment variable:
-    - "core" (default): Returns MettaGridCore - the direct C++ implementation
-    - "puffer": Returns MettaGridPufferEnv for PufferLib compatibility
+    - "puffer" (default): Returns MettaGridPufferEnv for PufferLib compatibility
     - "pettingzoo": Returns MettaGridPettingZooEnv for PettingZoo compatibility
+    - "core": Returns MettaGridCore - the direct C++ implementation
 
     Note: MettaGridGymEnv is available as a standalone class for Gymnasium research
     but is not part of the configurable system since it's not training-compatible.
@@ -58,7 +58,7 @@ class MettaGridEnv:
 
     def __new__(cls, *args, **kwargs):
         """Create instance of the selected adapter class."""
-        adapter_name = os.environ.get("METTAGRID_ADAPTER", "core").lower()
+        adapter_name = os.environ.get("METTAGRID_ADAPTER", "puffer").lower()
 
         if adapter_name not in _ADAPTER_MAP:
             raise ValueError(f"Unknown adapter '{adapter_name}'. Available adapters: {list(_ADAPTER_MAP.keys())}")
