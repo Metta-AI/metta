@@ -1,6 +1,6 @@
 import pytest
 
-from metta.rl.functions import calculate_l2_init_coef
+from metta.rl.functions import calculate_l2_init_coef, calculate_l2_init_coef_new
 
 
 class TestCalculateL2InitCoef:
@@ -85,3 +85,101 @@ class TestCalculateL2InitCoef:
             l2_init_anneal_ratio=0.0,
         )
         assert coef == 0.0
+
+
+class TestCalculateL2InitCoefNew:
+    """Test L2-init coefficient annealing function with new configuration system."""
+
+    def test_no_annealing_when_config_none(self):
+        """Test that no annealing occurs when annealing_config is None."""
+        coef = calculate_l2_init_coef_new(
+            agent_step=1000,
+            l2_init_loss_coef=0.5,
+            annealing_config=None,
+        )
+        assert coef == 0.5  # Should return original coefficient
+
+    def test_no_annealing_when_l2_init_none(self):
+        """Test that no annealing occurs when l2_init schedule is None."""
+
+        # Mock annealing config with None l2_init
+        class MockAnnealingConfig:
+            l2_init = None
+
+        coef = calculate_l2_init_coef_new(
+            agent_step=1000,
+            l2_init_loss_coef=0.5,
+            annealing_config=MockAnnealingConfig(),
+        )
+        assert coef == 0.5  # Should return original coefficient
+
+    def test_before_annealing_start(self):
+        """Test coefficient before annealing starts."""
+
+        # Mock annealing config
+        class MockL2InitSchedule:
+            start_coef = 0.8
+            end_coef = 0.1
+            start_step = 1000
+            end_step = 5000
+
+        class MockAnnealingConfig:
+            l2_init = MockL2InitSchedule()
+
+        coef = calculate_l2_init_coef_new(
+            agent_step=500,  # Before start_step
+            l2_init_loss_coef=0.5,  # This should be ignored
+            annealing_config=MockAnnealingConfig(),
+        )
+        assert coef == 0.8  # Should return start_coef
+
+    def test_after_annealing_end(self):
+        """Test coefficient after annealing ends."""
+
+        # Mock annealing config
+        class MockL2InitSchedule:
+            start_coef = 0.8
+            end_coef = 0.1
+            start_step = 1000
+            end_step = 5000
+
+        class MockAnnealingConfig:
+            l2_init = MockL2InitSchedule()
+
+        coef = calculate_l2_init_coef_new(
+            agent_step=6000,  # After end_step
+            l2_init_loss_coef=0.5,  # This should be ignored
+            annealing_config=MockAnnealingConfig(),
+        )
+        assert coef == 0.1  # Should return end_coef
+
+    def test_linear_interpolation_during_annealing(self):
+        """Test linear interpolation during annealing phase."""
+
+        # Mock annealing config
+        class MockL2InitSchedule:
+            start_coef = 0.8
+            end_coef = 0.2
+            start_step = 1000
+            end_step = 5000
+
+        class MockAnnealingConfig:
+            l2_init = MockL2InitSchedule()
+
+        # Test at halfway point
+        coef = calculate_l2_init_coef_new(
+            agent_step=3000,  # Halfway between 1000 and 5000
+            l2_init_loss_coef=0.5,  # This should be ignored
+            annealing_config=MockAnnealingConfig(),
+        )
+        expected = 0.8 + 0.5 * (0.2 - 0.8)  # 0.8 + 0.5 * (-0.6) = 0.5
+        assert coef == pytest.approx(expected, abs=1e-6)
+
+        # Test at 75% through annealing
+        coef = calculate_l2_init_coef_new(
+            agent_step=4000,  # 75% between 1000 and 5000
+            l2_init_loss_coef=0.5,  # This should be ignored
+            annealing_config=MockAnnealingConfig(),
+        )
+        expected = 0.8 + 0.75 * (0.2 - 0.8)  # 0.8 + 0.75 * (-0.6) = 0.35
+        assert coef == pytest.approx(expected, abs=1e-6)

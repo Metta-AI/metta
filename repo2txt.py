@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-import os
-import sys
 import argparse
+import os
 import subprocess
+import sys
 
 
 def get_git_repo_files(repo_path: str) -> list[str]:
@@ -14,9 +14,7 @@ def get_git_repo_files(repo_path: str) -> list[str]:
         # Ensure repo_path is an absolute path
         abs_repo_path = os.path.abspath(repo_path)
         if not os.path.isdir(os.path.join(abs_repo_path, ".git")):
-            print(
-                f"Error: '{abs_repo_path}' does not appear to be a git repository root."
-            )
+            print(f"Error: '{abs_repo_path}' does not appear to be a git repository root.")
             sys.exit(1)
 
         result = subprocess.run(
@@ -34,9 +32,7 @@ def get_git_repo_files(repo_path: str) -> list[str]:
         print(f"Stderr: {e.stderr}")
         sys.exit(1)
     except FileNotFoundError:
-        print(
-            "Error: 'git' command not found. Please ensure git is installed and in your PATH."
-        )
+        print("Error: 'git' command not found. Please ensure git is installed and in your PATH.")
         sys.exit(1)
     except Exception as e:
         print(f"An unexpected error occurred while listing git files: {e}")
@@ -70,9 +66,7 @@ def main():
         # __file__ is not defined (e.g., interactive interpreter)
         # Fallback to current working directory for script_dir.
         script_dir = os.getcwd()
-        print(
-            f"Warning: Could not determine script directory, using CWD '{script_dir}' for output."
-        )
+        print(f"Warning: Could not determine script directory, using CWD '{script_dir}' for output.")
 
     # Name the output file after the target repository directory
     target_dir_name = os.path.basename(repo_path)
@@ -86,9 +80,7 @@ def main():
     included_files_count = 0
 
     with open(output_filename, "w", encoding="utf-8") as outfile:
-        outfile.write(
-            f"--- CONTEXT FOR REPOSITORY: {os.path.basename(repo_path)} ---\n"
-        )
+        outfile.write(f"--- CONTEXT FOR REPOSITORY: {os.path.basename(repo_path)} ---\n")
         outfile.write(f"--- BASE PATH: {repo_path} ---\n\n")
 
         for rel_path in relative_file_paths:
@@ -96,17 +88,13 @@ def main():
 
             try:
                 # 1. Try to read as UTF-8. If this fails, it's likely binary or an incompatible encoding.
-                with open(
-                    full_file_path, "r", encoding="utf-8", errors="strict"
-                ) as infile:
+                with open(full_file_path, "r", encoding="utf-8", errors="strict") as infile:
                     file_content_str = infile.read()
 
                 # 2. Check for NULL bytes in the decoded string.
                 #    Presence of NULL bytes is a strong indicator of a binary file.
                 if "\x00" in file_content_str:
-                    skipped_files.append(
-                        (rel_path, "Contains NULL bytes (likely binary)")
-                    )
+                    skipped_files.append((rel_path, "Contains NULL bytes (likely binary)"))
                     continue
 
                 # 3. Filter by line count
@@ -143,9 +131,7 @@ def main():
                 )
                 continue
             except FileNotFoundError:
-                skipped_files.append(
-                    (rel_path, "File not found (possibly removed after ls-files)")
-                )
+                skipped_files.append((rel_path, "File not found (possibly removed after ls-files)"))
                 continue
             except IsADirectoryError:
                 skipped_files.append(
@@ -159,15 +145,11 @@ def main():
                 skipped_files.append((rel_path, f"IOError reading file: {e}"))
                 continue
             except Exception as e:
-                skipped_files.append(
-                    (rel_path, f"Unexpected error processing file: {e}")
-                )
+                skipped_files.append((rel_path, f"Unexpected error processing file: {e}"))
                 continue
 
     print("\n--- Processing Complete ---")
-    print(
-        f"Successfully concatenated {included_files_count} files into '{output_filename}'."
-    )
+    print(f"Successfully concatenated {included_files_count} files into '{output_filename}'.")
 
     if skipped_files:
         print("\n--- Skipped Files ---")

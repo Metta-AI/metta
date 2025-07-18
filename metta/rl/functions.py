@@ -185,11 +185,10 @@ def process_minibatch_update(
     l2_init_loss = torch.tensor(0.0, device=device, dtype=torch.float32)
     if trainer_cfg.ppo.l2_init_loss_coef > 0:
         # Calculate annealed L2-init coefficient
-        annealed_l2_init_coef = calculate_l2_init_coef(
+        annealed_l2_init_coef = calculate_l2_init_coef_new(
             agent_step=agent_step,
             l2_init_loss_coef=trainer_cfg.ppo.l2_init_loss_coef,
-            l2_init_anneal_steps=trainer_cfg.ppo.l2_init_anneal_steps,
-            l2_init_anneal_ratio=trainer_cfg.ppo.l2_init_anneal_ratio,
+            annealing_config=trainer_cfg.ppo.annealing,
         )
         l2_init_loss = annealed_l2_init_coef * policy.l2_init_loss().to(device)
 
@@ -392,6 +391,65 @@ def calculate_prioritized_sampling_params(
     total_epochs = max(1, total_timesteps // batch_size)
     anneal_beta = prio_beta0 + (1 - prio_beta0) * prio_alpha * epoch / total_epochs
     return anneal_beta
+
+
+def calculate_l2_init_coef_new(
+    agent_step: int,
+    l2_init_loss_coef: float,
+    annealing_config: Optional[Any] = None,
+) -> float:
+    """Calculate annealed L2-init coefficient using the new annealing configuration system.
+
+    This function implements a linear annealing schedule that transitions smoothly between
+    a start coefficient and end coefficient over a specified range of training steps.
+
+    Unlike the old system which used a complex two-phase approach (constant then ramp-down),
+    this new system provides direct control over:
+    - Start coefficient: The initial regularization strength
+    - End coefficient: The final regularization strength
+    - Start step: When to begin annealing
+    - End step: When to finish annealing
+
+    The annealing follows this schedule:
+    1. Before start_step: Returns start_coef
+    2. Between start_step and end_step: Linear interpolation from start_coef to end_coef
+    3. After end_step: Returns end_coef
+
+    Configuration example:
+        ppo:
+          l2_init_loss_coef: 0.1  # Base coefficient (fallback if no annealing)
+          annealing:
+            l2_init:
+              start_coef: 0.1      # Start with strong regularization
+              end_coef: 0.001      # End with minimal regularization
+              start_step: 1000000  # Start annealing at 1M steps
+              end_step: 10000000   # Finish annealing at 10M steps
+
+    Args:
+        agent_step: Current training step
+        l2_init_loss_coef: Base L2-init loss coefficient (used as fallback if no annealing)
+        annealing_config: Optional annealing configuration with l2_init schedule
+
+    Returns:
+        Annealed L2-init coefficient for the current step
+    """
+    if annealing_config is None or annealing_config.l2_init is None:
+        # No annealing configured, return original coefficient
+        return l2_init_loss_coef
+
+    l2_init_schedule = annealing_config.l2_init
+
+    # If we're before the annealing starts
+    if agent_step < l2_init_schedule.start_step:
+        return l2_init_schedule.start_coef
+
+    # If we're after the annealing ends
+    if agent_step >= l2_init_schedule.end_step:
+        return l2_init_schedule.end_coef
+
+    # Linear interpolation between start and end
+    progress = (agent_step - l2_init_schedule.start_step) / (l2_init_schedule.end_step - l2_init_schedule.start_step)
+    return l2_init_schedule.start_coef + progress * (l2_init_schedule.end_coef - l2_init_schedule.start_coef)
 
 
 def calculate_l2_init_coef(

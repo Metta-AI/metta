@@ -1,7 +1,7 @@
-from typing import Any, ClassVar, Literal
+from typing import Any, ClassVar, Literal, Optional
 
 from omegaconf import DictConfig, OmegaConf
-from pydantic import ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from metta.common.util.typed_config import BaseModelWithForbidExtra
 from metta.rl.kickstarter_config import KickstartConfig
@@ -81,6 +81,17 @@ class SimulationConfig(BaseModelWithForbidExtra):
         return self
 
 
+class AnnealingScheduleConfig(BaseModel):
+    start_coef: float
+    end_coef: float
+    start_step: int
+    end_step: int
+
+
+class AnnealingConfig(BaseModel):
+    l2_init: Optional[AnnealingScheduleConfig] = None
+
+
 class PPOConfig(BaseModelWithForbidExtra):
     # PPO hyperparameters
     # Clip coefficient: 0.1 is conservative, common range 0.1-0.3 from PPO paper (Schulman et al., 2017)
@@ -104,10 +115,7 @@ class PPOConfig(BaseModelWithForbidExtra):
     l2_reg_loss_coef: float = Field(default=0, ge=0)
     l2_init_loss_coef: float = Field(default=0, ge=0)
 
-    # L2-init annealing parameters
-    # Anneal L2-init coefficient over training to gradually reduce catastrophic forgetting prevention
-    l2_init_anneal_steps: int = Field(default=0, ge=0)  # 0 = no annealing
-    l2_init_anneal_ratio: float = Field(default=0.2, ge=0, le=1.0)  # fraction of anneal_steps for linear ramp-down
+    annealing: Optional[AnnealingConfig] = None
 
     # Normalization and clipping
     # Advantage normalization: Standard PPO practice for stability
