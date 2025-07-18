@@ -49,6 +49,7 @@ class TestGlobalRewardObservations:
             global_obs=global_obs_config,
             actions={},
             objects={"agent.test_group": agent_config},
+            track_movement_metrics=False,
         )
 
         # Create simple map
@@ -124,6 +125,7 @@ class TestGlobalRewardObservations:
             global_obs=global_obs_config,
             actions={},
             objects={"agent.test_group": agent_config},
+            track_movement_metrics=False,
         )
 
         game_map = [["agent.test_group", "agent.test_group"]]  # Two agents
@@ -185,6 +187,7 @@ class TestGlobalRewardObservations:
             global_obs=global_obs_config,
             actions={},
             objects={"agent.test_group": agent_config},
+            track_movement_metrics=False,
         )
 
         game_map = [["agent.test_group"]]
@@ -252,6 +255,7 @@ class TestGlobalRewardObservations:
             global_obs=global_obs_config,
             actions={},
             objects={"agent.test_group": agent_config},
+            track_movement_metrics=False,
         )
 
         game_map = [["agent.test_group"]]
