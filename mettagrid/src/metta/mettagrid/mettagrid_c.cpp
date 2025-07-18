@@ -203,6 +203,27 @@ MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int see
   // Use wyhash for deterministic, high-performance grid fingerprinting across platforms
   initial_grid_hash = wyhash::hash_string(grid_hash_data);
 
+  // Compute inventory rewards for each agent (1 bit per item, up to 8 items)
+  _resource_rewards.resize(_agents.size(), 0);
+  for (size_t agent_idx = 0; agent_idx < _agents.size(); agent_idx++) {
+    auto& agent = _agents[agent_idx];
+    uint8_t packed = 0;
+
+    // Process up to 8 items (or all available items if fewer)
+    size_t num_items = std::min(inventory_item_names.size(), size_t(8));
+
+    for (size_t i = 0; i < num_items; i++) {
+      // Check if this item has a reward configured
+      if (agent->resource_rewards.count(i) && agent->resource_rewards[i] > 0) {
+        // Set bit at position (7 - i) to 1
+        // Item 0 goes to bit 7, item 1 to bit 6, etc.
+        packed |= (1 << (7 - i));
+      }
+    }
+
+    _resource_rewards[agent_idx] = packed;
+  }
+
   // Initialize buffers. The buffers are likely to be re-set by the user anyways,
   // so nothing above should depend on them before this point.
   std::vector<ssize_t> shape;
@@ -242,6 +263,8 @@ void MettaGrid::add_agent(Agent* agent) {
   agent->init(&_rewards.mutable_unchecked<1>()(_agents.size()));
   _agents.push_back(agent);
 }
+
+
 
 void MettaGrid::_compute_observation(GridCoord observer_row,
                                      GridCoord observer_col,
@@ -296,6 +319,12 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
     global_tokens.push_back({ObservationFeature::LastReward, reward_int});
   }
 
+  // Add inventory rewards for this agent
+  if (_global_obs_config.resource_rewards && !_resource_rewards.empty()) {
+    global_tokens.push_back({ObservationFeature::ResourceRewards, _resource_rewards[agent_idx]});
+  }
+
+  // Global tokens are always at the center of the observation.
   uint8_t global_location =
       PackedCoordinate::pack(static_cast<uint8_t>(obs_height_radius), static_cast<uint8_t>(obs_width_radius));
 
@@ -928,13 +957,15 @@ PYBIND11_MODULE(mettagrid_c, m) {
 
   py::class_<GlobalObsConfig>(m, "GlobalObsConfig")
       .def(py::init<>())
-      .def(py::init<bool, bool, bool>(),
+      .def(py::init<bool, bool, bool, bool>(),
            py::arg("episode_completion_pct") = true,
            py::arg("last_action") = true,
-           py::arg("last_reward") = true)
+           py::arg("last_reward") = true,
+           py::arg("resource_rewards") = false)
       .def_readwrite("episode_completion_pct", &GlobalObsConfig::episode_completion_pct)
       .def_readwrite("last_action", &GlobalObsConfig::last_action)
-      .def_readwrite("last_reward", &GlobalObsConfig::last_reward);
+      .def_readwrite("last_reward", &GlobalObsConfig::last_reward)
+      .def_readwrite("resource_rewards", &GlobalObsConfig::resource_rewards);
 
   py::class_<GameConfig>(m, "GameConfig")
       .def(py::init<unsigned int,
