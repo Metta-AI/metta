@@ -283,7 +283,7 @@ policy_store = PolicyStore(
 )
 
 # Create or load agent with a single function call
-agent, policy_record, checkpoint, agent_step, epoch = create_or_load_agent(
+agent, policy_record, agent_step, epoch, checkpoint = create_or_load_agent(
     env=env,
     run_dir=dirs.run_dir,
     policy_store=policy_store,
@@ -294,7 +294,6 @@ agent, policy_record, checkpoint, agent_step, epoch = create_or_load_agent(
 )
 
 # Get LSTM config from the agent
-
 hidden_size, num_lstm_layers = get_lstm_config(agent)
 
 # Validate that policy matches environment

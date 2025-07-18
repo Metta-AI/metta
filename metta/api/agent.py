@@ -175,7 +175,7 @@ def create_or_load_agent(
     device: str | torch.device = "cuda",
     is_master: bool = True,
     rank: int = 0,
-) -> tuple[MettaAgent, Any, Any, int, int]:  # Returns (agent, policy_record, checkpoint, agent_step, epoch)
+) -> tuple[MettaAgent, Any, int, int, Any]:  # Returns (agent, policy_record, agent_step, epoch, checkpoint)
     """Create a new agent or load from checkpoint/initial policy.
 
     This helper function encapsulates the full logic for agent creation/loading,
@@ -191,7 +191,7 @@ def create_or_load_agent(
         rank: Process rank for distributed training
 
     Returns:
-        Tuple of (agent, policy_record, agent_step, epoch)
+        Tuple of (agent, policy_record, agent_step, epoch, checkpoint)
     """
     from metta.rl.functions import maybe_load_checkpoint
 
@@ -213,7 +213,7 @@ def create_or_load_agent(
                 "agent": _get_default_agent_config(str(device))["agent"],
             }
         ),
-        device=torch.device(device) if isinstance(device, str) else device,
+        device=device,
         is_master=is_master,
         rank=rank,
     )
@@ -231,4 +231,4 @@ def create_or_load_agent(
         agent = Agent(env, device=str(device))
         logger.info("Created new agent")
 
-    return agent, policy_record, checkpoint, agent_step, epoch
+    return agent, policy_record, agent_step, epoch, checkpoint
