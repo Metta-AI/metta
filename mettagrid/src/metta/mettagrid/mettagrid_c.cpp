@@ -39,7 +39,8 @@ MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int see
       max_steps(cfg.max_steps),
       episode_truncates(cfg.episode_truncates),
       inventory_item_names(cfg.inventory_item_names),
-      _num_observation_tokens(cfg.num_observation_tokens) {
+      _num_observation_tokens(cfg.num_observation_tokens),
+      _global_obs_config(cfg.global_obs) {
   _seed = seed;
   _rng = std::mt19937(seed);
 
@@ -271,19 +272,27 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
   ObservationToken* agent_obs_ptr = reinterpret_cast<ObservationToken*>(observation_view.mutable_data(agent_idx, 0, 0));
   ObservationTokens agent_obs_tokens(agent_obs_ptr, observation_view.shape(1) - tokens_written);
 
-  ObservationType episode_completion_pct = 0;
-  if (max_steps > 0) {
-    episode_completion_pct = static_cast<ObservationType>(
-        std::round((static_cast<float>(current_step) / max_steps) * std::numeric_limits<ObservationType>::max()));
+  // Build global tokens based on configuration
+  std::vector<PartialObservationToken> global_tokens;
+
+  if (_global_obs_config.episode_completion_pct) {
+    ObservationType episode_completion_pct = 0;
+    if (max_steps > 0) {
+      episode_completion_pct = static_cast<ObservationType>(
+          std::round((static_cast<float>(current_step) / max_steps) * std::numeric_limits<ObservationType>::max()));
+    }
+    global_tokens.push_back({ObservationFeature::EpisodeCompletionPct, episode_completion_pct});
   }
 
-  ObservationType reward_int = static_cast<ObservationType>(std::round(rewards_view(agent_idx) * 100.0f));
+  if (_global_obs_config.last_action) {
+    global_tokens.push_back({ObservationFeature::LastAction, static_cast<ObservationType>(action)});
+    global_tokens.push_back({ObservationFeature::LastActionArg, static_cast<ObservationType>(action_arg)});
+  }
 
-  std::vector<PartialObservationToken> global_tokens = {
-      {ObservationFeature::EpisodeCompletionPct, episode_completion_pct},
-      {ObservationFeature::LastAction, static_cast<ObservationType>(action)},
-      {ObservationFeature::LastActionArg, static_cast<ObservationType>(action_arg)},
-      {ObservationFeature::LastReward, reward_int}};
+  if (_global_obs_config.last_reward) {
+    ObservationType reward_int = static_cast<ObservationType>(std::round(rewards_view(agent_idx) * 100.0f));
+    global_tokens.push_back({ObservationFeature::LastReward, reward_int});
+  }
 
   // Global tokens are always at the center of the observation.
   uint8_t global_location =
@@ -919,6 +928,16 @@ PYBIND11_MODULE(mettagrid_c, m) {
            py::arg("number_of_glyphs"))
       .def_readonly("number_of_glyphs", &ChangeGlyphActionConfig::number_of_glyphs);
 
+  py::class_<GlobalObsConfig>(m, "GlobalObsConfig")
+      .def(py::init<>())
+      .def(py::init<bool, bool, bool>(),
+           py::arg("episode_completion_pct") = true,
+           py::arg("last_action") = true,
+           py::arg("last_reward") = true)
+      .def_readwrite("episode_completion_pct", &GlobalObsConfig::episode_completion_pct)
+      .def_readwrite("last_action", &GlobalObsConfig::last_action)
+      .def_readwrite("last_reward", &GlobalObsConfig::last_reward);
+
   py::class_<GameConfig>(m, "GameConfig")
       .def(py::init<unsigned int,
                     unsigned int,
@@ -927,6 +946,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
                     unsigned short,
                     const std::vector<std::string>&,
                     unsigned int,
+                    const GlobalObsConfig&,
                     const std::map<std::string, std::shared_ptr<ActionConfig>>&,
                     const std::map<std::string, std::shared_ptr<GridObjectConfig>>&>(),
            py::arg("num_agents"),
@@ -936,6 +956,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
            py::arg("obs_height"),
            py::arg("inventory_item_names"),
            py::arg("num_observation_tokens"),
+           py::arg("global_obs"),
            py::arg("actions"),
            py::arg("objects"))
       .def_readwrite("num_agents", &GameConfig::num_agents)
@@ -944,7 +965,8 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def_readwrite("obs_width", &GameConfig::obs_width)
       .def_readwrite("obs_height", &GameConfig::obs_height)
       .def_readwrite("inventory_item_names", &GameConfig::inventory_item_names)
-      .def_readwrite("num_observation_tokens", &GameConfig::num_observation_tokens);
+      .def_readwrite("num_observation_tokens", &GameConfig::num_observation_tokens)
+      .def_readwrite("global_obs", &GameConfig::global_obs);
   // We don't expose these since they're copied on read, and this means that mutations
   // to the dictionaries don't impact the underlying cpp objects. This is confusing!
   // This can be fixed, but until we do that, we're not exposing these.
