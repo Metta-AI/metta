@@ -20,29 +20,11 @@ def _parse_filter_query(filter_query: str) -> str:
 
     This is a simple implementation that handles common cases.
     """
-    if not filter_query.strip():
-        return "1=1"
-
-    # Simple mapping of filter fields to SQL columns
-    field_mapping = {
-        "policy_name": "p.name",
-        "policy_description": "p.description",
-        "training_run_name": "tr.name",
-        "training_run_status": "tr.status",
-        "training_run_user_id": "tr.user_id",
-        "created_at": "e.created_at",
-        "eval_name": "e.eval_name",
-        "eval_category": "e.eval_category",
-        "env_name": "e.env_name",
-        "simulation_suite": "e.simulation_suite",
-    }
-
-    # Basic parsing - replace field names with SQL column names
-    sql_clause = filter_query
-    for field, sql_column in field_mapping.items():
-        sql_clause = sql_clause.replace(field, sql_column)
-
-    return sql_clause
+    stripped = filter_query.strip()
+    if stripped:
+        return f"WHERE {stripped}"
+    else:
+        return "WHERE 1=1"
 
 
 # Request/Response Models for Episode Tagging
@@ -119,16 +101,12 @@ def create_episode_router(stats_repo: MettaRepo) -> APIRouter:
                 where_clause = ""
                 query_params = []
 
-                if filter_query.strip():
-                    where_clause = f"WHERE {_parse_filter_query(filter_query)}"
+                where_clause = _parse_filter_query(filter_query)
 
                 # Count total episodes
                 count_query = f"""
                     SELECT COUNT(*)
-                    FROM episodes e
-                    LEFT JOIN policies p ON e.primary_policy_id = p.id
-                    LEFT JOIN epochs ep ON p.epoch_id = ep.id
-                    LEFT JOIN training_runs tr ON ep.run_id = tr.id
+                    FROM wide_episodes
                     {where_clause}
                 """
 
@@ -139,19 +117,16 @@ def create_episode_router(stats_repo: MettaRepo) -> APIRouter:
                 offset = (page - 1) * page_size
                 total_pages = (total_count + page_size - 1) // page_size
 
-                # Main query with joins
+                # Main query using wide_episodes view
                 episodes_query = f"""
                     SELECT
-                        e.id, e.created_at, e.primary_policy_id,
-                        e.eval_category, e.env_name, e.attributes,
-                        p.name as policy_name,
-                        tr.id as training_run_id, tr.name as training_run_name, tr.user_id as training_run_user_id
-                    FROM episodes e
-                    LEFT JOIN policies p ON e.primary_policy_id = p.id
-                    LEFT JOIN epochs ep ON p.epoch_id = ep.id
-                    LEFT JOIN training_runs tr ON ep.run_id = tr.id
+                        id, created_at, primary_policy_id,
+                        eval_category, env_name, attributes,
+                        policy_name,
+                        training_run_id, training_run_name, training_run_user_id
+                    FROM wide_episodes
                     {where_clause}
-                    ORDER BY e.created_at DESC
+                    ORDER BY created_at DESC
                     LIMIT %s OFFSET %s
                 """
 
@@ -263,11 +238,8 @@ def create_episode_router(stats_repo: MettaRepo) -> APIRouter:
 
                 # Get all episode IDs that match the filter
                 ids_query = f"""
-                    SELECT e.id
-                    FROM episodes e
-                    LEFT JOIN policies p ON e.primary_policy_id = p.id
-                    LEFT JOIN epochs ep ON p.epoch_id = ep.id
-                    LEFT JOIN training_runs tr ON ep.run_id = tr.id
+                    SELECT id
+                    FROM wide_episodes
                     {where_clause}
                 """
 
@@ -301,11 +273,8 @@ def create_episode_router(stats_repo: MettaRepo) -> APIRouter:
 
                 # Get all episode IDs that match the filter
                 ids_query = f"""
-                    SELECT e.id
-                    FROM episodes e
-                    LEFT JOIN policies p ON e.primary_policy_id = p.id
-                    LEFT JOIN epochs ep ON p.epoch_id = ep.id
-                    LEFT JOIN training_runs tr ON ep.run_id = tr.id
+                    SELECT id
+                    FROM wide_episodes
                     {where_clause}
                 """
 

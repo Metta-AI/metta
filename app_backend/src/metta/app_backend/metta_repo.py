@@ -260,6 +260,42 @@ MIGRATIONS = [
             """CREATE INDEX idx_episode_tags_tag ON episode_tags(tag)""",
         ],
     ),
+    SqlMigration(
+        version=14,
+        description="Add wide_episodes view for simplified episode filtering",
+        sql_statements=[
+            """CREATE VIEW wide_episodes AS
+            SELECT
+                e.id,
+                e.created_at,
+                e.primary_policy_id,
+                e.stats_epoch,
+                e.replay_url,
+                e.eval_name,
+                e.simulation_suite,
+                e.eval_category,
+                e.env_name,
+                e.attributes,
+                e.eval_task_id,
+                p.name as policy_name,
+                p.description as policy_description,
+                p.url as policy_url,
+                ep.start_training_epoch as epoch_start_training_epoch,
+                ep.end_training_epoch as epoch_end_training_epoch,
+                tr.id as training_run_id,
+                tr.name as training_run_name,
+                tr.user_id as training_run_user_id,
+                tr.status as training_run_status,
+                tr.url as training_run_url,
+                tr.description as training_run_description,
+                tr.tags as training_run_tags
+            FROM episodes e
+            LEFT JOIN policies p ON e.primary_policy_id = p.id
+            LEFT JOIN epochs ep ON p.epoch_id = ep.id
+            LEFT JOIN training_runs tr ON ep.run_id = tr.id
+            """,
+        ],
+    ),
 ]
 
 
