@@ -210,7 +210,7 @@ class MettaCLI:
         cleanup_script = self.repo_root / "devops" / "tools" / "cleanup_repo.py"
         if cleanup_script.exists():
             try:
-                subprocess.run([sys.executable, str(cleanup_script)], check=True)
+                subprocess.run([sys.executable, str(cleanup_script), str(self.repo_root)], check=True)
             except subprocess.CalledProcessError as e:
                 warning(f"  Cleanup script failed: {e}")
 
