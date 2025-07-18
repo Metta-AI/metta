@@ -156,6 +156,16 @@ private:
   int _rotate_action_index;  // Index of the rotate action in _action_handlers
   bool _track_movement_metrics;
 
+  // OPTIMIZATION: Integer counters for movement metrics
+  struct MovementCounters {
+    uint32_t facing_up = 0;
+    uint32_t facing_down = 0;
+    uint32_t facing_left = 0;
+    uint32_t facing_right = 0;
+    uint32_t sequential_rotations_sum = 0;
+  };
+  std::vector<MovementCounters> _movement_counters;
+
   void init_action_handlers();
   void add_agent(Agent* agent);
   void _compute_observation(GridCoord observer_r,

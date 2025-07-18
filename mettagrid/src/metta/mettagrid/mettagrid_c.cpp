@@ -208,6 +208,7 @@ MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int see
   _previous_orientations.resize(_agents.size());
   _sequential_rotations.resize(_agents.size(), 0);
   _last_action_was_rotation.resize(_agents.size(), false);
+  _movement_counters.resize(_agents.size());
   for (size_t i = 0; i < _agents.size(); ++i) {
     _previous_orientations[i] = _agents[i]->orientation;
   }
@@ -476,22 +477,28 @@ void MettaGrid::_step(py::array_t<ActionType, py::array::c_style> actions) {
       } else {
         // Record sequence if ending
         if (was_rotating && _sequential_rotations[agent_idx] > 0) {
-          agent->stats.add("movement/sequential_rotations", _sequential_rotations[agent_idx]);
+          _movement_counters[agent_idx].sequential_rotations_sum += _sequential_rotations[agent_idx];
         }
         _last_action_was_rotation[agent_idx] = false;
         _sequential_rotations[agent_idx] = 0;
       }
 
-      // OPTIMIZATION 3: Direct array indexing for orientation
-      // Instead of switch statement, use orientation as index
-      static const char* orientation_keys[4] = {
-        "movement/facing/up",
-        "movement/facing/down",
-        "movement/facing/left",
-        "movement/facing/right"
-      };
-
-      agent->stats.incr(orientation_keys[static_cast<int>(agent->orientation)]);
+      // OPTIMIZATION: Use integer counters instead of string stats
+      auto& counter = _movement_counters[agent_idx];
+      switch (agent->orientation) {
+        case Orientation::Up:
+          counter.facing_up++;
+          break;
+        case Orientation::Down:
+          counter.facing_down++;
+          break;
+        case Orientation::Left:
+          counter.facing_left++;
+          break;
+        case Orientation::Right:
+          counter.facing_right++;
+          break;
+      }
     }
   }
 
@@ -544,7 +551,7 @@ py::tuple MettaGrid::reset() {
   std::fill(
       static_cast<float*>(_rewards.request().ptr), static_cast<float*>(_rewards.request().ptr) + _rewards.size(), 0.0f);
 
-  // Clear observations
+    // Clear observations
   auto obs_ptr = static_cast<uint8_t*>(_observations.request().ptr);
   auto obs_size = _observations.size();
   std::fill(obs_ptr, obs_ptr + obs_size, EmptyTokenByte);
@@ -754,6 +761,28 @@ py::dict MettaGrid::get_episode_stats() {
   //   "converter": list[dict[str, float]]  // Per-converter statistics
   // }
   // All stat values are guaranteed to be floats from StatsTracker::to_dict()
+
+  // OPTIMIZATION: Flush movement counters to stats before converting to dict
+  if (_track_movement_metrics) {
+    for (size_t i = 0; i < _agents.size(); ++i) {
+      auto& agent = _agents[i];
+      auto& counter = _movement_counters[i];
+
+      // Set direction counters
+      if (counter.facing_up > 0) agent->stats.set("movement/facing/up", counter.facing_up);
+      if (counter.facing_down > 0) agent->stats.set("movement/facing/down", counter.facing_down);
+      if (counter.facing_left > 0) agent->stats.set("movement/facing/left", counter.facing_left);
+      if (counter.facing_right > 0) agent->stats.set("movement/facing/right", counter.facing_right);
+
+      // Set sequential rotations
+      if (counter.sequential_rotations_sum > 0) {
+        agent->stats.set("movement/sequential_rotations", counter.sequential_rotations_sum);
+      }
+
+      // Reset counters for next episode
+      counter = MovementCounters();
+    }
+  }
 
   py::dict stats;
   stats["game"] = py::cast(_stats->to_dict());
