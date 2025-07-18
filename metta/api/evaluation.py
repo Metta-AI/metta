@@ -6,8 +6,9 @@ from typing import Any, Dict, Optional
 import torch
 from omegaconf import DictConfig
 
-from metta.api.environment import _get_default_env_config
 from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
+
+from .environment import _get_default_env_config
 
 logger = logging.getLogger(__name__)
 

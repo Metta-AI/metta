@@ -15,7 +15,7 @@ from metta.agent.metta_agent import MettaAgent
 from metta.mettagrid.mettagrid_env import MettaGridEnv
 
 if TYPE_CHECKING:
-    from metta.api.environment import Environment
+    from .environment import Environment
 
 logger = logging.getLogger(__name__)
 
