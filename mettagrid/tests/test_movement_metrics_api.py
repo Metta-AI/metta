@@ -19,7 +19,7 @@ def test_movement_metrics_api():
     """
 
     print("Testing movement metrics via API...")
-    print("This test verifies API integration of movement metrics (movement/facing/* and movement/sequential_rotations)")
+    print("This test verifies API integration of movement metric (movement/facing/* and movement/sequential_rotations)")
 
     # Test without movement metrics (default)
     print("\n1. Testing without movement metrics (default)...")
