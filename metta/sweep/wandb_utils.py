@@ -1,6 +1,7 @@
 import logging
 import os
 import time
+from typing import Any, List
 
 import wandb
 
@@ -136,3 +137,21 @@ def generate_run_id_for_sweep(sweep_id: str, sweep_names_dir: str) -> str:
         id = max(used_ids) + 1
 
     return f"{sweep.name}.r.{id}"
+
+
+def get_sweep_runs(sweep_id: str, entity: str, project: str) -> List[Any]:
+    """Get all runs from a sweep sorted by score."""
+    api = wandb.Api()
+    sweep = api.sweep(f"{entity}/{project}/{sweep_id}")
+
+    # Get all runs and filter for successful ones
+    runs = []
+    for run in sweep.runs:
+        if run.summary.get("protein.state") == "success":
+            score = run.summary.get("score", run.summary.get("protein.objective", 0))
+            if score is not None and score > 0:  # Filter out failed runs
+                runs.append(run)
+
+    # Sort by score (descending for reward metric)
+    runs.sort(key=lambda r: r.summary.get("score", r.summary.get("protein.objective", 0)), reverse=True)
+    return runs
