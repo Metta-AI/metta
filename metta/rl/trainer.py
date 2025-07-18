@@ -848,14 +848,6 @@ class MettaTrainer:
                     processed_stats["overview"][v] = self.stats[k]
 
         # Add hyperparameter values
-        hyperparameters = {
-            "learning_rate": self.optimizer.param_groups[0]["lr"],
-            "ppo_clip_coef": self.trainer_cfg.ppo.clip_coef,
-            "ppo_vf_clip_coef": self.trainer_cfg.ppo.vf_clip_coef,
-            "ppo_ent_coef": self.trainer_cfg.ppo.ent_coef,
-            "ppo_l2_reg_loss_coef": self.trainer_cfg.ppo.l2_reg_loss_coef,
-            "ppo_l2_init_loss_coef": self.trainer_cfg.ppo.l2_init_loss_coef,
-        }
 
         # Build complete stats dictionary for wandb
         all_stats = build_wandb_stats(
@@ -866,7 +858,7 @@ class MettaTrainer:
             system_stats=self._system_monitor.stats() if hasattr(self, "_system_monitor") else {},
             memory_stats=self._memory_monitor.stats() if hasattr(self, "_memory_monitor") else {},
             parameters=parameters,
-            hyperparameters=hyperparameters,
+            hyperparameters=self.hyperparameters,
             evals=self.evals,
             agent_step=self.agent_step,
             epoch=self.epoch,
@@ -890,6 +882,17 @@ class MettaTrainer:
         if self._master:
             self._memory_monitor.clear()
             self._system_monitor.stop()
+
+    @property
+    def hyperparameters(self):
+        return {
+            "learning_rate": self.optimizer.param_groups[0]["lr"],
+            "ppo_clip_coef": self.trainer_cfg.ppo.clip_coef,
+            "ppo_vf_clip_coef": self.trainer_cfg.ppo.vf_clip_coef,
+            "ppo_ent_coef": self.trainer_cfg.ppo.ent_coef,
+            "ppo_l2_reg_loss_coef": self.trainer_cfg.ppo.l2_reg_loss_coef,
+            "ppo_l2_init_loss_coef": self.trainer_cfg.ppo.l2_init_loss_coef,
+        }
 
     @property
     def latest_saved_policy_uri(self) -> str | None:
