@@ -552,12 +552,9 @@ def format_github_review_body_for_asana(review_body, github_user, review_state, 
     emoji = {"APPROVED": "✅", "CHANGES_REQUESTED": "❌", "COMMENTED": "💬"}.get(review_state, "📝")
 
     # Format header with review ID
-    header = f"<strong>{emoji} Review from {github_user} (Review #{review_id})</strong><br/>"
-    header += f"<em>Status: {review_state.replace('_', ' ').title()} | {github_timestamp}</em><br/><br/>"
-
-    header = f"<strong>Review from {github_user} ({review_id})</strong>"
-    header += f"\nStatus: {review_state.replace('_', ' ').title()} | {github_timestamp}"
-
+    header = (
+        f"<strong>Review from {github_user} (ID {review_id})</strong>: {emoji}{review_state.replace('_', ' ').title()}"
+    )
     # Convert basic markdown in body
     formatted_body = convert_basic_markdown(review_body) if review_body else "(No comment)"
     # formatted_body = review_body if review_body else "(No comment)"
@@ -582,7 +579,7 @@ def extract_github_review_id(asana_comment_text):
 
     # Look for pattern: "Review #123456789" or "(Review #123456789)"
     # This matches the format we created in format_github_review_body_for_asana
-    pattern = r"Review #(\d+)"
+    pattern = r"(ID \d+)"
 
     match = re.search(pattern, asana_comment_text)
 
