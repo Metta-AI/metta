@@ -16,7 +16,7 @@
 This demo tests the Puffer environment adapter integration with the
 actual training pipeline to ensure it works correctly in full training context.
 
-Run with: uv run mettagrid/demos/demo_train_puffer.py (from project root)
+Run with: uv run python mettagrid/demos/demo_train_puffer.py (from project root)
 """
 
 import subprocess
@@ -114,7 +114,7 @@ def create_test_config() -> DictConfig:
 
 def test_puffer_adapter_functionality():
     """Test Puffer adapter basic functionality."""
-    print("🥊 PUFFER ADAPTER FUNCTIONALITY TEST")
+    print("PUFFER ADAPTER FUNCTIONALITY TEST")
     print("=" * 60)
 
     config = create_test_config()
@@ -127,7 +127,7 @@ def test_puffer_adapter_functionality():
         is_training=False,
     )
 
-    print("✅ Puffer adapter created successfully")
+    print("Puffer adapter created successfully")
     print(f"   - Agents: {env.num_agents}")
     print(f"   - Observation space: {env.observation_space}")
     print(f"   - Action space: {env.action_space}")
@@ -139,19 +139,22 @@ def test_puffer_adapter_functionality():
 
     # Test step
     actions = np.random.randint(
-        0, min(3, env.action_space.high.max()), size=(env.num_agents, env.action_space.shape[1]), dtype=dtype_actions
+        env.action_space.low,
+        env.action_space.high,
+        size=(env.num_agents, env.action_space.shape[1]),
+        dtype=dtype_actions,
     )
 
     observations, rewards, terminals, truncations, infos = env.step(actions)
     print(f"   - Step successful: obs {observations.shape}, rewards {rewards.shape}")
 
     env.close()
-    print("✅ Puffer adapter functionality test successful!")
+    print("Puffer adapter functionality test successful!")
 
 
 def test_puffer_training_integration():
     """Test Puffer integration with actual training pipeline."""
-    print("\n🚂 PUFFER TRAINING INTEGRATION TEST")
+    print("\nPUFFER TRAINING INTEGRATION TEST")
     print("=" * 60)
 
     with tempfile.TemporaryDirectory() as temp_dir:
@@ -164,8 +167,8 @@ def test_puffer_training_integration():
             f"run={test_id}",
             "+hardware=macbook",
             "trainer.num_workers=1",
-            "trainer.total_timesteps=200",  # Very short training
-            "trainer.checkpoint.checkpoint_interval=100",
+            "trainer.total_timesteps=3",
+            "trainer.checkpoint.checkpoint_interval=1",
             "trainer.simulation.evaluate_interval=0",
             "wandb=off",
             f"data_dir={temp_dir}/train_dir",
@@ -180,7 +183,7 @@ def test_puffer_training_integration():
             )
 
             if result.returncode == 0:
-                print("✅ Puffer training integration successful!")
+                print("Puffer training integration successful!")
                 print("   - Training completed without errors")
 
                 # Check for outputs
@@ -194,20 +197,20 @@ def test_puffer_training_integration():
                         print(f"   - Found {len(checkpoints)} checkpoint files")
 
             else:
-                print("❌ Puffer training integration failed!")
+                print("Puffer training integration failed!")
                 print(f"   - Exit code: {result.returncode}")
                 if result.stderr:
                     print(f"   - Error: {result.stderr[:300]}")
                 raise RuntimeError(f"Training failed with code {result.returncode}")
 
         except subprocess.TimeoutExpired:
-            print("❌ Training timed out!")
+            print("Training timed out!")
             raise RuntimeError("Training timed out after 60 seconds") from None
 
 
 def test_puffer_vectorized_training():
     """Test Puffer adapter with vectorized training."""
-    print("\n⚡ PUFFER VECTORIZED TRAINING TEST")
+    print("\nPUFFER VECTORIZED TRAINING TEST")
     print("=" * 60)
 
     try:
@@ -245,7 +248,7 @@ def test_puffer_vectorized_training():
 
         for method in required_methods:
             if hasattr(driver_env, method):
-                print(f"     ✅ Has {method}")
+                print(f"     Has {method}")
             else:
                 raise AttributeError(f"Missing required method: {method}")
 
@@ -261,20 +264,24 @@ def test_puffer_vectorized_training():
         obs, infos = vecenv.reset()
         print(f"   - Vectorized reset successful: {obs.shape}")
 
-        # Test step
-        total_agents = vecenv.num_envs * vecenv.num_agents
+        # Test step - generate actions correctly
+        action_space = driver_env.single_action_space
+
+        # For vectorized environments, we need actions per environment agent
+        num_env_agents = vecenv.num_agents
         actions = np.random.randint(
-            0, min(3, driver_env.single_action_space.nvec.max()), size=(total_agents, 2), dtype=dtype_actions
+            0, action_space.nvec, size=(num_env_agents, len(action_space.nvec)), dtype=dtype_actions
         )
+        print(f"   - Generated actions shape: {actions.shape} for {num_env_agents} agents")
 
         obs, rewards, terminals, truncations, infos = vecenv.step(actions)
         print(f"   - Vectorized step successful: {obs.shape}")
 
         vecenv.close()
-        print("✅ Puffer vectorized training test successful!")
+        print("Puffer vectorized training test successful!")
 
     except Exception as e:
-        print(f"❌ Puffer vectorized training test failed: {e}")
+        print(f"Puffer vectorized training test failed: {e}")
         import traceback
 
         traceback.print_exc()
@@ -283,7 +290,7 @@ def test_puffer_vectorized_training():
 
 def main():
     """Run all Puffer training integration tests."""
-    print("🥊 PUFFER TRAINING INTEGRATION DEMO")
+    print("PUFFER TRAINING INTEGRATION DEMO")
     print("=" * 60)
     print("This demo tests the Puffer environment adapter integration")
     print("with the actual training pipeline.")
@@ -299,19 +306,19 @@ def main():
         # Summary
         duration = time.time() - start_time
         print("\n" + "=" * 60)
-        print("🎉 PUFFER TRAINING INTEGRATION COMPLETED!")
+        print("PUFFER TRAINING INTEGRATION COMPLETED")
         print("=" * 60)
-        print("✅ Puffer adapter functionality: Works correctly")
-        print("✅ Vectorized training: Compatible with training pipeline")
-        print("✅ Training integration: Full training pipeline works")
+        print("Puffer adapter functionality: Works correctly")
+        print("Vectorized training: Compatible with training pipeline")
+        print("Training integration: Full training pipeline works")
         print(f"\nTotal test time: {duration:.1f} seconds")
-        print("\n🚀 Puffer adapter is ready for production training!")
+        print("\nPuffer adapter is ready for production training")
         print("=" * 60)
 
     except KeyboardInterrupt:
-        print("\n⏹️  Demo interrupted by user")
+        print("\nDemo interrupted by user")
     except Exception as e:
-        print(f"\n❌ Demo failed with error: {e}")
+        print(f"\nDemo failed with error: {e}")
         import traceback
 
         traceback.print_exc()

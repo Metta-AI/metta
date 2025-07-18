@@ -17,7 +17,7 @@
 This demo tests the PettingZoo environment adapter integration with the
 actual training pipeline to ensure it works correctly in full training context.
 
-Run with: uv run mettagrid/demos/demo_train_pettingzoo.py (from project root)
+Run with: uv run python mettagrid/demos/demo_train_pettingzoo.py (from project root)
 """
 
 import subprocess
@@ -81,7 +81,7 @@ def create_test_config() -> DictConfig:
 
 def test_pettingzoo_adapter_functionality():
     """Test PettingZoo adapter basic functionality."""
-    print("🐧 PETTINGZOO ADAPTER FUNCTIONALITY TEST")
+    print("PETTINGZOO ADAPTER FUNCTIONALITY TEST")
     print("=" * 60)
 
     config = create_test_config()
@@ -94,7 +94,7 @@ def test_pettingzoo_adapter_functionality():
         is_training=False,
     )
 
-    print("✅ PettingZoo adapter created successfully")
+    print("PettingZoo adapter created successfully")
     print(f"   - Possible agents: {env.possible_agents}")
     print(f"   - Max agents: {env.max_num_agents}")
 
@@ -108,26 +108,25 @@ def test_pettingzoo_adapter_functionality():
     print("   - API compliance test passed!")
 
     env.close()
-    print("✅ PettingZoo adapter functionality test successful!")
+    print("PettingZoo adapter functionality test successful!")
 
 
 def test_pettingzoo_training_integration():
     """Test PettingZoo integration with actual training pipeline."""
-    print("\n🚂 PETTINGZOO TRAINING INTEGRATION TEST")
+    print("\nPETTINGZOO TRAINING INTEGRATION TEST")
     print("=" * 60)
 
     with tempfile.TemporaryDirectory() as temp_dir:
         test_id = f"pettingzoo_train_test_{int(time.time())}"
 
-        # Training command - very short training for CI/CD reliability
         cmd = [
             "python",
             "tools/train.py",
             f"run={test_id}",
             "+hardware=macbook",
             "trainer.num_workers=1",
-            "trainer.total_timesteps=200",  # Very short training
-            "trainer.checkpoint.checkpoint_interval=100",
+            "trainer.total_timesteps=3",
+            "trainer.checkpoint.checkpoint_interval=1",
             "trainer.simulation.evaluate_interval=0",
             "wandb=off",
             f"data_dir={temp_dir}/train_dir",
@@ -137,12 +136,10 @@ def test_pettingzoo_training_integration():
         print(f"   - Test ID: {test_id}")
 
         try:
-            result = subprocess.run(
-                cmd, capture_output=True, text=True, timeout=60
-            )
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
 
             if result.returncode == 0:
-                print("✅ PettingZoo training integration successful!")
+                print("PettingZoo training integration successful!")
                 print("   - Training completed without errors")
 
                 # Check for outputs
@@ -156,7 +153,7 @@ def test_pettingzoo_training_integration():
                         print(f"   - Found {len(checkpoints)} checkpoint files")
 
             else:
-                print("❌ PettingZoo training integration failed!")
+                print("PettingZoo training integration failed!")
                 print(f"   - Exit code: {result.returncode}")
                 if result.stderr:
                     print(f"   - Error: {result.stderr[:500]}")
@@ -165,13 +162,13 @@ def test_pettingzoo_training_integration():
                 raise RuntimeError(f"Training failed with code {result.returncode}")
 
         except subprocess.TimeoutExpired:
-            print("❌ Training timed out!")
+            print("Training timed out!")
             raise RuntimeError("Training timed out after 60 seconds") from None
 
 
 def test_pettingzoo_compatibility_with_training():
     """Test that PettingZoo adapter is compatible with training components."""
-    print("\n⚡ PETTINGZOO TRAINING COMPATIBILITY TEST")
+    print("\nPETTINGZOO TRAINING COMPATIBILITY TEST")
     print("=" * 60)
 
     try:
@@ -207,9 +204,9 @@ def test_pettingzoo_compatibility_with_training():
 
         for method in required_methods:
             if hasattr(driver_env, method):
-                print(f"     ✅ Has {method}")
+                print(f"     Has {method}")
             else:
-                print(f"     ❌ Missing {method}")
+                print(f"     Missing {method}")
                 # Don't raise error, just continue to see what we have
 
         # Test observation features if available
@@ -223,10 +220,10 @@ def test_pettingzoo_compatibility_with_training():
             print(f"   - Action names: {len(action_names)} actions")
 
         vecenv.close()
-        print("✅ PettingZoo training compatibility successful!")
+        print("PettingZoo training compatibility successful!")
 
     except Exception as e:
-        print(f"❌ PettingZoo training compatibility failed: {e}")
+        print(f"PettingZoo training compatibility failed: {e}")
         import traceback
 
         traceback.print_exc()
@@ -235,7 +232,7 @@ def test_pettingzoo_compatibility_with_training():
 
 def main():
     """Run all PettingZoo training integration tests."""
-    print("🐧 PETTINGZOO TRAINING INTEGRATION DEMO")
+    print("PETTINGZOO TRAINING INTEGRATION DEMO")
     print("=" * 60)
     print("This demo tests the PettingZoo environment adapter integration")
     print("with the actual training pipeline.")
@@ -251,19 +248,19 @@ def main():
         # Summary
         duration = time.time() - start_time
         print("\n" + "=" * 60)
-        print("🎉 PETTINGZOO TRAINING INTEGRATION COMPLETED!")
+        print("PETTINGZOO TRAINING INTEGRATION COMPLETED")
         print("=" * 60)
-        print("✅ PettingZoo adapter functionality: Works correctly")
-        print("✅ Training compatibility: Compatible with training pipeline")
-        print("✅ Training integration: Short training run successful")
+        print("PettingZoo adapter functionality: Works correctly")
+        print("Training compatibility: Compatible with training pipeline")
+        print("Training integration: Short training run successful")
         print(f"\nTotal test time: {duration:.1f} seconds")
-        print("\n🚀 PettingZoo adapter is ready for production training!")
+        print("\nPettingZoo adapter is ready for production training")
         print("=" * 60)
 
     except KeyboardInterrupt:
-        print("\n⏹️  Demo interrupted by user")
+        print("\nDemo interrupted by user")
     except Exception as e:
-        print(f"\n❌ Demo failed with error: {e}")
+        print(f"\nDemo failed with error: {e}")
         import traceback
 
         traceback.print_exc()

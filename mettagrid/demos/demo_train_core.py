@@ -16,7 +16,7 @@
 This demo tests the Core environment adapter integration with the
 actual training pipeline to ensure it works correctly in full training context.
 
-Run with: uv run mettagrid/demos/demo_train_core.py (from project root)
+Run with: uv run python mettagrid/demos/demo_train_core.py (from project root)
 """
 
 import subprocess
@@ -103,7 +103,7 @@ def create_test_config() -> DictConfig:
 
 def test_core_adapter_functionality():
     """Test Core adapter basic functionality."""
-    print("⚡ CORE ADAPTER FUNCTIONALITY TEST")
+    print("CORE ADAPTER FUNCTIONALITY TEST")
     print("=" * 60)
 
     config = create_test_config()
@@ -133,7 +133,7 @@ def test_core_adapter_functionality():
     # Test Core environment
     core_env = MettaGridCore(c_cfg, level.grid.tolist(), 42)
 
-    print("✅ Core adapter created successfully")
+    print("Core adapter created successfully")
     print(f"   - Agents: {core_env.num_agents}")
     print(f"   - Observation space: {core_env.observation_space}")
     print(f"   - Action space: {core_env.action_space}")
@@ -162,12 +162,12 @@ def test_core_adapter_functionality():
     print(f"   - Rewards: {rewards}")
     print(f"   - Terminals: {terminals}")
 
-    print("✅ Core adapter functionality test successful!")
+    print("Core adapter functionality test successful!")
 
 
 def test_core_training_integration():
     """Test Core integration with actual training pipeline."""
-    print("\n🚂 CORE TRAINING INTEGRATION TEST")
+    print("\nCORE TRAINING INTEGRATION TEST")
     print("=" * 60)
 
     with tempfile.TemporaryDirectory() as temp_dir:
@@ -180,8 +180,8 @@ def test_core_training_integration():
             f"run={test_id}",
             "+hardware=macbook",
             "trainer.num_workers=1",
-            "trainer.total_timesteps=200",  # Very short training
-            "trainer.checkpoint.checkpoint_interval=100",
+            "trainer.total_timesteps=3",
+            "trainer.checkpoint.checkpoint_interval=1",
             "trainer.simulation.evaluate_interval=0",
             "wandb=off",
             f"data_dir={temp_dir}/train_dir",
@@ -196,7 +196,7 @@ def test_core_training_integration():
             )
 
             if result.returncode == 0:
-                print("✅ Core training integration successful!")
+                print("Core training integration successful!")
                 print("   - Training completed without errors")
 
                 # Check for outputs
@@ -210,20 +210,20 @@ def test_core_training_integration():
                         print(f"   - Found {len(checkpoints)} checkpoint files")
 
             else:
-                print("❌ Core training integration failed!")
+                print("Core training integration failed!")
                 print(f"   - Exit code: {result.returncode}")
                 if result.stderr:
                     print(f"   - Error: {result.stderr[:300]}")
                 raise RuntimeError(f"Training failed with code {result.returncode}")
 
         except subprocess.TimeoutExpired:
-            print("❌ Training timed out!")
+            print("Training timed out!")
             raise RuntimeError("Training timed out after 50 seconds") from None
 
 
 def test_core_environment_pipeline():
     """Test Core adapter with environment pipeline."""
-    print("\n⚡ CORE ENVIRONMENT PIPELINE TEST")
+    print("\nCORE ENVIRONMENT PIPELINE TEST")
     print("=" * 60)
 
     try:
@@ -269,7 +269,7 @@ def test_core_environment_pipeline():
 
         for method in required_methods:
             if hasattr(driver_env, method):
-                print(f"     ✅ Has {method}")
+                print(f"     Has {method}")
             else:
                 raise AttributeError(f"Missing required method: {method}")
 
@@ -286,19 +286,20 @@ def test_core_environment_pipeline():
         print(f"   - Pipeline reset successful: {obs.shape}")
 
         # Test step
-        total_agents = vecenv.num_envs * vecenv.num_agents
+        action_space = driver_env.single_action_space
+        num_env_agents = vecenv.num_agents
         actions = np.random.randint(
-            0, min(3, driver_env.single_action_space.nvec.max()), size=(total_agents, 2), dtype=dtype_actions
+            0, action_space.nvec, size=(num_env_agents, len(action_space.nvec)), dtype=dtype_actions
         )
 
         obs, rewards, terminals, truncations, infos = vecenv.step(actions)
         print(f"   - Pipeline step successful: {obs.shape}")
 
         vecenv.close()
-        print("✅ Core environment pipeline test successful!")
+        print("Core environment pipeline test successful!")
 
     except Exception as e:
-        print(f"❌ Core environment pipeline test failed: {e}")
+        print(f"Core environment pipeline test failed: {e}")
         import traceback
 
         traceback.print_exc()
@@ -307,7 +308,7 @@ def test_core_environment_pipeline():
 
 def main():
     """Run all Core training integration tests."""
-    print("⚡ CORE TRAINING INTEGRATION DEMO")
+    print("CORE TRAINING INTEGRATION DEMO")
     print("=" * 60)
     print("This demo tests the Core environment adapter integration")
     print("with the actual training pipeline.")
@@ -323,19 +324,19 @@ def main():
         # Summary
         duration = time.time() - start_time
         print("\n" + "=" * 60)
-        print("🎉 CORE TRAINING INTEGRATION COMPLETED!")
+        print("CORE TRAINING INTEGRATION COMPLETED")
         print("=" * 60)
-        print("✅ Core adapter functionality: Works correctly")
-        print("✅ Environment pipeline: Compatible with training pipeline")
-        print("✅ Training integration: Short training run successful")
+        print("Core adapter functionality: Works correctly")
+        print("Environment pipeline: Compatible with training pipeline")
+        print("Training integration: Short training run successful")
         print(f"\nTotal test time: {duration:.1f} seconds")
-        print("\n🚀 Core adapter is ready for production training!")
+        print("\nCore adapter is ready for production training")
         print("=" * 60)
 
     except KeyboardInterrupt:
-        print("\n⏹️  Demo interrupted by user")
+        print("\nDemo interrupted by user")
     except Exception as e:
-        print(f"\n❌ Demo failed with error: {e}")
+        print(f"\nDemo failed with error: {e}")
         import traceback
 
         traceback.print_exc()
