@@ -1,10 +1,10 @@
 """
-Integration tests for EksPodManager using kind (Kubernetes in Docker).
+Integration tests for K8sPodManager using kind (Kubernetes in Docker).
 
 This test suite:
 1. Spins up a local Kubernetes cluster using kind
 2. Deploys a test backend service
-3. Tests the EksPodManager implementation
+3. Tests the K8sPodManager implementation
 4. Cleans up all resources
 """
 
@@ -20,11 +20,11 @@ from typing import Any, Dict, List
 import pytest
 import yaml
 
-from metta.app_backend.container_managers.eks import EksPodManager
+from metta.app_backend.container_managers.k8s import K8sPodManager
 
 
-class TestEksPodManagerIntegration:
-    """Integration tests for EksPodManager using kind."""
+class TestK8sPodManagerIntegration:
+    """Integration tests for K8sPodManager using kind."""
 
     @classmethod
     def setup_class(cls):
@@ -171,11 +171,13 @@ class TestEksPodManagerIntegration:
         return f"http://mock-backend.{test_namespace}.svc.cluster.local"
 
     @pytest.fixture
-    def eks_pod_manager(self, kind_cluster, test_namespace):
-        """Create EksPodManager instance for testing."""
-        # Set WANDB_API_KEY for testing (required by EksPodManager)
+    def k8s_pod_manager(self, kind_cluster, test_namespace):
+        """Create K8sPodManager instance for testing."""
+        # Set WANDB_API_KEY for testing (required by K8sPodManager)
         os.environ["WANDB_API_KEY"] = "test-api-key"
-        return EksPodManager(namespace=test_namespace, kubeconfig=kind_cluster)
+        from metta.app_backend.container_managers.k8s import K8sPodManager
+
+        return K8sPodManager(namespace=test_namespace, kubeconfig=kind_cluster)
 
     # Helper methods
 
@@ -204,13 +206,13 @@ class TestEksPodManagerIntegration:
 
     @pytest.mark.asyncio
     async def test_start_worker_pod(
-        self, eks_pod_manager, kind_cluster, test_namespace, mock_backend_deployment, mock_worker_image_in_kind
+        self, k8s_pod_manager, kind_cluster, test_namespace, mock_backend_deployment, mock_worker_image_in_kind
     ):
         """Test starting a worker pod."""
         git_hash = "test-hash-1"
 
         # Start worker
-        worker_info = eks_pod_manager.start_worker_container(
+        worker_info = k8s_pod_manager.start_worker_container(
             git_hash=git_hash, backend_url=mock_backend_deployment, docker_image=mock_worker_image_in_kind
         )
 
@@ -227,7 +229,7 @@ class TestEksPodManagerIntegration:
 
     @pytest.mark.asyncio
     async def test_discover_alive_workers(
-        self, eks_pod_manager, kind_cluster, test_namespace, mock_backend_deployment, mock_worker_image_in_kind
+        self, k8s_pod_manager, kind_cluster, test_namespace, mock_backend_deployment, mock_worker_image_in_kind
     ):
         """Test discovering alive workers."""
         # Start multiple workers
@@ -235,7 +237,7 @@ class TestEksPodManagerIntegration:
         started_workers = []
 
         for git_hash in git_hashes:
-            worker = eks_pod_manager.start_worker_container(
+            worker = k8s_pod_manager.start_worker_container(
                 git_hash=git_hash, backend_url=mock_backend_deployment, docker_image=mock_worker_image_in_kind
             )
             started_workers.append(worker)
@@ -245,7 +247,7 @@ class TestEksPodManagerIntegration:
             self.wait_for_pod_phase(kind_cluster, test_namespace, worker.container_name, "Running")
 
         # Discover workers
-        discovered = await eks_pod_manager.discover_alive_workers()
+        discovered = await k8s_pod_manager.discover_alive_workers()
 
         # Filter to only the workers we started in this test
         discovered_in_test = [w for w in discovered if w.git_hash in git_hashes]
@@ -256,11 +258,11 @@ class TestEksPodManagerIntegration:
 
     @pytest.mark.asyncio
     async def test_cleanup_pod(
-        self, eks_pod_manager, kind_cluster, test_namespace, mock_backend_deployment, mock_worker_image_in_kind
+        self, k8s_pod_manager, kind_cluster, test_namespace, mock_backend_deployment, mock_worker_image_in_kind
     ):
         """Test cleaning up a pod."""
         # Start a worker
-        worker = eks_pod_manager.start_worker_container(
+        worker = k8s_pod_manager.start_worker_container(
             git_hash="cleanup-test", backend_url=mock_backend_deployment, docker_image=mock_worker_image_in_kind
         )
 
@@ -270,7 +272,7 @@ class TestEksPodManagerIntegration:
         assert worker.container_name in pod_names_before
 
         # Clean up by container ID (UID)
-        eks_pod_manager.cleanup_container(worker.container_id)
+        k8s_pod_manager.cleanup_container(worker.container_id)
 
         # Wait a bit for deletion
         time.sleep(2)
@@ -282,16 +284,16 @@ class TestEksPodManagerIntegration:
 
     @pytest.mark.asyncio
     async def test_cleanup_by_name(
-        self, eks_pod_manager, kind_cluster, test_namespace, mock_backend_deployment, mock_worker_image_in_kind
+        self, k8s_pod_manager, kind_cluster, test_namespace, mock_backend_deployment, mock_worker_image_in_kind
     ):
         """Test cleaning up a pod by name."""
         # Start a worker
-        worker = eks_pod_manager.start_worker_container(
+        worker = k8s_pod_manager.start_worker_container(
             git_hash="cleanup-name-test", backend_url=mock_backend_deployment, docker_image=mock_worker_image_in_kind
         )
 
         # Clean up by name
-        eks_pod_manager.cleanup_container(worker.container_name)
+        k8s_pod_manager.cleanup_container(worker.container_name)
 
         # Wait and verify
         time.sleep(2)
@@ -310,8 +312,8 @@ class TestEksPodManagerIntegration:
 
         try:
             # Create managers for each namespace
-            manager1 = EksPodManager(namespace=test_namespace, kubeconfig=kind_cluster)
-            manager2 = EksPodManager(namespace=other_namespace, kubeconfig=kind_cluster)
+            manager1 = K8sPodManager(namespace=test_namespace, kubeconfig=kind_cluster)
+            manager2 = K8sPodManager(namespace=other_namespace, kubeconfig=kind_cluster)
 
             # Start workers in each namespace
             manager1.start_worker_container(
@@ -338,10 +340,10 @@ class TestEksPodManagerIntegration:
                 ["kubectl", "--kubeconfig", kind_cluster, "delete", "namespace", other_namespace], check=False
             )
 
-    def test_error_handling(self, eks_pod_manager, kind_cluster, test_namespace):
+    def test_error_handling(self, k8s_pod_manager, kind_cluster, test_namespace):
         """Test error handling for invalid operations."""
         # Try to start worker with invalid image - it will create the pod but fail to start
-        worker = eks_pod_manager.start_worker_container(
+        worker = k8s_pod_manager.start_worker_container(
             git_hash="error-test", backend_url="http://backend", docker_image="invalid-image:does-not-exist"
         )
 
@@ -363,7 +365,7 @@ class TestEksPodManagerIntegration:
             ]
 
         # Cleanup the error pod
-        eks_pod_manager.cleanup_container(worker.container_id)
+        k8s_pod_manager.cleanup_container(worker.container_id)
 
         # Cleanup non-existent pod should not raise
-        eks_pod_manager.cleanup_container("non-existent-pod-id")
+        k8s_pod_manager.cleanup_container("non-existent-pod-id")

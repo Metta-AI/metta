@@ -7,7 +7,7 @@ from metta.app_backend.container_managers.base import AbstractContainerManager
 from metta.app_backend.container_managers.models import WorkerInfo
 
 
-class EksPodManager(AbstractContainerManager):
+class K8sPodManager(AbstractContainerManager):
     def __init__(self, namespace: str | None = None, kubeconfig: str | None = None, wandb_api_key: str | None = None):
         self._logger = logging.getLogger(__name__)
         self._namespace = namespace or os.environ.get("KUBERNETES_NAMESPACE", "observatory")

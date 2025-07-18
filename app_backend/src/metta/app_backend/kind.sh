@@ -1,5 +1,5 @@
 #!/bin/bash
-# Simple Kind setup for EKS testing - just runs orchestrator
+# Simple Kind setup for Kubernetes testing - just runs orchestrator
 
 set -e
 
@@ -79,7 +79,7 @@ EOF
         kubectl run orchestrator \
             --image=metta-local:latest \
             --image-pull-policy=Never \
-            --env="CONTAINER_RUNTIME=kind" \
+            --env="CONTAINER_RUNTIME=k8s" \
             --env="KUBERNETES_NAMESPACE=default" \
             --env="DOCKER_IMAGE=metta-local:latest" \
             --env="WANDB_API_KEY=${WANDB_API_KEY}" \
@@ -93,7 +93,7 @@ EOF
         echo ""
         echo "To view orchestrator logs: kubectl logs orchestrator -f"
         echo "To view pods: kubectl get pods -w"
-        echo "To stop: ./kind-up-simple.sh down"
+        echo "To stop: ./kind.sh down"
         ;;
 
     "down")
@@ -110,9 +110,8 @@ EOF
         kind delete cluster --name ${CLUSTER_NAME}
         echo "Cluster deleted"
         ;;
-
     *)
-        echo "Usage: ./kind-up.sh {build|up|down|clean}"
+        echo "Usage: ./kind.sh {build|up|down|clean}"
         exit 1
         ;;
 esac
