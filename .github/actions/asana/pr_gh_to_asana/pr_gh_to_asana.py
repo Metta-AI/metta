@@ -780,6 +780,7 @@ def synchronize_comments_in_asana_as_multiple_blocks(
                     print(f"Added new Asana comment for review {review_id}")
                 except requests.exceptions.RequestException as e:
                     print(f"Error adding Asana comment for review {review_id}: {e}")
+                    print(payload)
             else:
                 print(f"[s] Skipped adding comment for review {review_id} due to ordering constraint")
 
