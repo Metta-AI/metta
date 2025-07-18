@@ -78,4 +78,3 @@ terrain_maps_nohearts*
 gpu_names_cache.json
 sweep_id
 # Temporary symlink for metta.api imports
-metta/api
