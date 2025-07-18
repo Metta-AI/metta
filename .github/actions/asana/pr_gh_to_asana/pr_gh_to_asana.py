@@ -803,6 +803,7 @@ if __name__ == "__main__":
         workspace_id = getenv_or_bust("INPUT_WORKSPACE_ID")
         asana_token = getenv_or_bust("INPUT_ASANA_TOKEN")
         github_url = getenv_or_bust("INPUT_GITHUB_URL")
+        github_url_field_id = getenv_or_bust("INPUT_GITHUB_URL_FIELD_ID")
         gh_login_field_id = getenv_or_bust("INPUT_GH_LOGIN_FIELD_ID")
         asana_email_field_id = getenv_or_bust("INPUT_ASANA_EMAIL_FIELD_ID")
         roster_project_id = getenv_or_bust("INPUT_ROSTER_PROJECT_ID")
