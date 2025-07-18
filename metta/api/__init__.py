@@ -9,7 +9,7 @@ This API exposes the core training components from Metta, allowing users to:
 """
 
 # Re-export all components for backward compatibility
-from metta.api.agent import Agent
+from metta.api.agent import Agent, create_or_load_agent
 from metta.api.directories import RunDirectories, save_experiment_config, setup_run_directories
 from metta.api.environment import Environment, NavigationBucketedCurriculum, PreBuiltConfigCurriculum
 from metta.api.evaluation import create_evaluation_config_suite, create_replay_config
@@ -22,6 +22,7 @@ __all__ = [
     # Helper functions unique to api.py
     "setup_run_directories",
     "save_experiment_config",
+    "create_or_load_agent",
     # Helper classes
     "RunDirectories",
     "NavigationBucketedCurriculum",

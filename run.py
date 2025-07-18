@@ -11,14 +11,13 @@ from omegaconf import DictConfig, OmegaConf
 
 from metta.agent.policy_store import PolicyStore
 from metta.api import (
-    Agent,
     Environment,
     create_evaluation_config_suite,
+    create_or_load_agent,
     save_experiment_config,
     setup_run_directories,
     wrap_agent_distributed,
 )
-from metta.api.agent import _get_default_agent_config
 from metta.common.profiling.memory_monitor import MemoryMonitor
 from metta.common.profiling.stopwatch import Stopwatch
 from metta.common.util.heartbeat import record_heartbeat
@@ -41,7 +40,6 @@ from metta.rl.functions import (
     generate_replay,
     get_lstm_config,
     get_observation,
-    maybe_load_checkpoint,
     maybe_update_l2_weights,
     process_minibatch_update,
     process_stats,
@@ -58,6 +56,7 @@ from metta.rl.losses import Losses
 from metta.rl.trainer_checkpoint import TrainerCheckpoint
 from metta.rl.trainer_config import (
     CheckpointConfig,
+    InitialPolicyConfig,
     OptimizerConfig,
     PPOConfig,
     PrioritizedExperienceReplayConfig,
@@ -147,6 +146,10 @@ prioritized_replay_config = PrioritizedExperienceReplayConfig()
 vtrace_config = VTraceConfig()
 kickstart_config = KickstartConfig()
 
+# Check for initial policy URI from environment variable
+initial_policy_uri = os.environ.get("INITIAL_POLICY_URI", None)
+initial_policy_config = InitialPolicyConfig(uri=initial_policy_uri)
+
 # Create a trainer config for compatibility with functions that expect it
 # This is just for backward compatibility - we use the individual configs directly
 trainer_config = TrainerConfig(
@@ -171,6 +174,7 @@ trainer_config = TrainerConfig(
     prioritized_experience_replay=prioritized_replay_config,
     vtrace=vtrace_config,
     kickstart=kickstart_config,
+    initial_policy=initial_policy_config,
 )
 
 # Adjust batch sizes for distributed training
@@ -207,10 +211,7 @@ env = Environment(
 )
 metta_grid_env = env.driver_env  # type: ignore - vecenv attribute
 
-# Create agent
-agent = Agent(env, device=str(device))
-hidden_size, num_lstm_layers = get_lstm_config(agent)
-
+# Agent will be created later after checking for checkpoint
 # Evaluation configuration
 evaluation_config = create_evaluation_config_suite()
 
@@ -281,31 +282,26 @@ policy_store = PolicyStore(
     wandb_run=wandb_run,
 )
 
-# Load checkpoint and policy with unified function
-checkpoint, policy_record, agent_step, epoch = maybe_load_checkpoint(
+# Create or load agent with a single function call
+agent, policy_record, checkpoint, agent_step, epoch = create_or_load_agent(
+    env=env,
     run_dir=dirs.run_dir,
     policy_store=policy_store,
-    trainer_cfg=trainer_config,
-    metta_grid_env=metta_grid_env,  # type: ignore
-    cfg=DictConfig(
-        {
-            "device": str(device),
-            "run": dirs.run_name,
-            "run_dir": dirs.run_dir,
-            "agent": _get_default_agent_config(str(device))["agent"],
-        }
-    ),
+    trainer_config=trainer_config,
     device=device,
     is_master=is_master,
     rank=rank,
 )
 
-# Extract policy from record and apply to agent
-# agent is actually a MettaAgent from the Agent factory
-agent.load_state_dict(policy_record.policy.state_dict())  # type: ignore
+# Get LSTM config from the agent
+
+hidden_size, num_lstm_layers = get_lstm_config(agent)
 
 # Validate that policy matches environment
 validate_policy_environment_match(agent, metta_grid_env)  # type: ignore
+
+# Store initial policy record for later use
+initial_policy_record = policy_record
 
 # Create optimizer like trainer.py does
 

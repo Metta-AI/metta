@@ -1,14 +1,21 @@
-"""Agent factory for Metta."""
+"""Agent factory for creating Metta agents with a clean API."""
+
+from __future__ import annotations
 
 import logging
-from typing import Any, Optional
+import os
+from typing import TYPE_CHECKING, Any, Optional
 
 import gymnasium as gym
 import numpy as np
+import torch
 from omegaconf import DictConfig
 
 from metta.agent.metta_agent import MettaAgent
 from metta.mettagrid.mettagrid_env import MettaGridEnv
+
+if TYPE_CHECKING:
+    from metta.api.environment import Environment
 
 logger = logging.getLogger(__name__)
 
@@ -102,21 +109,18 @@ def _get_default_agent_config(device: str = "cuda") -> DictConfig:
 
 
 class Agent:
-    """Factory for creating Metta agents with a clean API.
-
-    This handles agent creation and initialization without Hydra.
-    """
+    """Factory class for creating Metta agents without Hydra dependencies."""
 
     def __new__(
         cls,
-        env: Any,  # vecenv wrapper
+        env: "Environment",
         config: Optional[DictConfig] = None,
         device: str = "cuda",
-    ) -> Any:  # Returns MettaAgent or DistributedMettaAgent
-        """Create a Metta agent.
+    ) -> MettaAgent:
+        """Create a new MettaAgent instance.
 
         Args:
-            env: Vectorized environment (from Environment factory)
+            env: Environment to create agent for (must have a MettaGridEnv driver)
             config: Optional DictConfig with agent configuration. If not provided, uses a default configuration.
             device: Device to use
 
@@ -161,3 +165,70 @@ class Agent:
         agent.initialize_to_environment(features, metta_grid_env.action_names, metta_grid_env.max_action_args, device)
 
         return agent
+
+
+def create_or_load_agent(
+    env: "Environment",
+    run_dir: str,
+    policy_store: Any,  # PolicyStore
+    trainer_config: Any,  # TrainerConfig
+    device: str | torch.device = "cuda",
+    is_master: bool = True,
+    rank: int = 0,
+) -> tuple[MettaAgent, Any, Any, int, int]:  # Returns (agent, policy_record, checkpoint, agent_step, epoch)
+    """Create a new agent or load from checkpoint/initial policy.
+
+    This helper function encapsulates the full logic for agent creation/loading,
+    including checkpoint handling, following the same pattern as trainer.py.
+
+    Args:
+        env: Environment (must have MettaGridEnv driver)
+        run_dir: Run directory containing checkpoints
+        policy_store: PolicyStore for loading saved policies
+        trainer_config: TrainerConfig with checkpoint/initial_policy settings
+        device: Device to use
+        is_master: Whether this is the master process
+        rank: Process rank for distributed training
+
+    Returns:
+        Tuple of (agent, policy_record, agent_step, epoch)
+    """
+    from metta.rl.functions import maybe_load_checkpoint
+
+    # Get the MettaGridEnv
+    metta_grid_env = env.driver_env
+    assert isinstance(metta_grid_env, MettaGridEnv)
+
+    # Load checkpoint and policy
+    checkpoint, policy_record, agent_step, epoch = maybe_load_checkpoint(
+        run_dir=run_dir,
+        policy_store=policy_store,
+        trainer_cfg=trainer_config,
+        metta_grid_env=metta_grid_env,
+        cfg=DictConfig(
+            {
+                "device": str(device),
+                "run": os.path.basename(run_dir),
+                "run_dir": run_dir,
+                "agent": _get_default_agent_config(str(device))["agent"],
+            }
+        ),
+        device=torch.device(device) if isinstance(device, str) else device,
+        is_master=is_master,
+        rank=rank,
+    )
+
+    if policy_record is not None:
+        # Use loaded policy
+        agent = policy_record.policy
+        logger.info(f"Loaded agent from {policy_record.uri}")
+
+        # Initialize to environment (handles feature remapping)
+        features = metta_grid_env.get_observation_features()
+        agent.initialize_to_environment(features, metta_grid_env.action_names, metta_grid_env.max_action_args, device)
+    else:
+        # Create new agent
+        agent = Agent(env, device=str(device))
+        logger.info("Created new agent")
+
+    return agent, policy_record, checkpoint, agent_step, epoch

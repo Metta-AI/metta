@@ -55,10 +55,29 @@ class ActionEmbedding(nn_layer_library.Embedding):
                 embedding_index = len(self._reserved_action_embeds) + 1  # generate index for this string
                 self._reserved_action_embeds[action_name] = embedding_index  # update this component's known embeddings
 
-        self.active_indices = torch.tensor(
+        # Create new tensor with active indices
+        new_indices = torch.tensor(
             [self._reserved_action_embeds[action_name] for action_name in action_names], device=device, dtype=torch.long
         )
+
+        # Re-register the buffer to allow shape changes after loading from state dict
+        self.register_buffer("active_indices", new_indices)
         self.num_actions = len(self.active_indices)
+
+    def state_dict(self, *args, **kwargs):
+        """Override state_dict to include the action embedding mappings."""
+        state = super().state_dict(*args, **kwargs)
+        # Store the action name to index mapping
+        state["_reserved_action_embeds"] = self._reserved_action_embeds
+        return state
+
+    def load_state_dict(self, state_dict, strict=True):
+        """Override load_state_dict to restore the action embedding mappings."""
+        # Extract and restore the action name to index mapping
+        if "_reserved_action_embeds" in state_dict:
+            self._reserved_action_embeds = state_dict.pop("_reserved_action_embeds")
+        # Load the rest of the state
+        super().load_state_dict(state_dict, strict=strict)
 
     def _forward(self, td: TensorDict):
         B_TT = td["_BxTT_"]
