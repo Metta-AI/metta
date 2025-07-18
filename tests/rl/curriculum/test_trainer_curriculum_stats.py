@@ -32,7 +32,7 @@ class TestCurriculum(Curriculum):
     def get_task_probs(self) -> dict[str, float]:
         return {"easy": 0.7, "hard": 0.3}
 
-    def get_curriculum_stats(self) -> dict:
+    def stats(self) -> dict:
         return {
             "total_tasks": self.task_count,
             "completed_tasks": len(self.completed_tasks),
@@ -103,8 +103,8 @@ def test_curriculum_stats_collection():
     curriculum_stats = {}
 
     # Get curriculum stats
-    if hasattr(curriculum, "get_curriculum_stats"):
-        raw_curriculum_stats = curriculum.get_curriculum_stats()
+    if hasattr(curriculum, "stats"):
+        raw_curriculum_stats = curriculum.stats()
         for key, value in raw_curriculum_stats.items():
             curriculum_stats[f"curriculum/{key}"] = value
 
@@ -180,10 +180,10 @@ def test_curriculum_client_stats():
     from metta.rl.curriculum.curriculum_client import CurriculumClient
 
     # Create a mock client (don't need actual server for this test)
-    client = CurriculumClient(server_url="http://localhost:5555", batch_size=10)
+    client = CurriculumClient(server_url="http://localhost:12346", batch_size=10)
 
     # Verify all stats methods return empty
-    assert client.get_curriculum_stats() == {}
+    assert client.stats() == {}
 
     # Verify complete_task is a no-op
     client.complete_task("task_1", 0.9)  # Should not raise

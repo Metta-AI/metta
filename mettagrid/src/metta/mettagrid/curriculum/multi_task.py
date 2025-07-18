@@ -1,5 +1,5 @@
 import logging
-from typing import Dict, List
+from typing import Dict
 
 from metta.mettagrid.curriculum.core import Curriculum
 
@@ -10,6 +10,7 @@ class MultiTaskCurriculum(Curriculum):
     """Base class for curricula with multiple tasks."""
 
     def __init__(self, curricula: Dict[str, Curriculum], completion_moving_avg_window: int = 500):
+        super().__init__()
         self._curricula = curricula
         num_agents = None
         for task_id, curriculum in self._curricula.items():
@@ -29,12 +30,10 @@ class MultiTaskCurriculum(Curriculum):
         self._completed_tasks.append(id)
         super().complete_task(id, score)
 
-    def completed_tasks(self) -> List[str]:
-        return self._completed_tasks
-
-    def get_curriculum_stats(self) -> dict:
-        stats = {f"task_completions/{task_id}": 0.0 for task_id in self._curricula}
-        completed_tasks = self.completed_tasks()
+    def stats(self) -> dict:
+        stats = super().stats()
+        stats.update({f"task_completions/{task_id}": 0.0 for task_id in self._curricula})
+        completed_tasks = self._completed_tasks
         num_completed_tasks = len(completed_tasks)
         if num_completed_tasks != 0:
             for task in completed_tasks:

@@ -35,7 +35,7 @@ class MockCurriculum(Curriculum):
     def get_task_probs(self) -> dict[str, float]:
         return {"test": 1.0}
 
-    def get_curriculum_stats(self) -> dict:
+    def stats(self) -> dict:
         return {"total_tasks": self.task_count, "completed_tasks": len(self.completed_tasks)}
 
 
@@ -75,7 +75,7 @@ def test_curriculum_server_client(free_port):
         client.complete_task("task_1", 0.8)  # Should not raise
 
         # Test stats methods (should return empty dicts)
-        assert client.get_curriculum_stats() == {}
+        assert client.stats() == {}
 
         # Complete task (no-op)
 
