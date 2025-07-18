@@ -716,7 +716,7 @@ def synchronize_comments_in_asana_as_multiple_blocks(
             if existing_comment["text"] != formatted_comment:
                 story_id = existing_comment["id"]
                 url = f"https://app.asana.com/api/1.0/stories/{story_id}"
-                payload = {"data": {"text": formatted_comment}}
+                payload = {"data": {"html_text": formatted_comment}}
                 try:
                     response = requests.put(url, headers=headers, json=payload)
                     if response.status_code == 200:
