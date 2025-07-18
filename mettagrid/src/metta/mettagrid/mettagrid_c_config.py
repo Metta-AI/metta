@@ -88,26 +88,7 @@ def from_mettagrid_config(mettagrid_config_dict: dict[str, Any]) -> CppGameConfi
         else:
             raise ValueError(f"Unknown object type: {object_type}")
 
-    print("Actions after PyGameConfig creation:")
-    for action_name in [
-        "noop",
-        "move",
-        "rotate",
-        "put_items",
-        "get_items",
-        "attack",
-        "swap",
-        "change_color",
-        "change_glyph",
-    ]:
-        action = getattr(game_config.actions, action_name)
-        print(f"  {action_name}: {action}")
-
     game_cpp_params = game_config.model_dump(exclude_none=True)
-
-    # Debug: Check what's in game_cpp_params
-    print("\nActions in game_cpp_params:")
-    print(game_cpp_params.get("actions", {}))
 
     del game_cpp_params["agent"]
     del game_cpp_params["groups"]
