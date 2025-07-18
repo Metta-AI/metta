@@ -50,7 +50,7 @@ struct GlobalObsConfig {
 };
 
 struct GameConfig {
-  unsigned int num_agents;
+  size_t num_agents;
   unsigned int max_steps;
   bool episode_truncates;
   ObservationCoord obs_width;
