@@ -69,5 +69,57 @@ def test_exploration_rates_in_eval_results():
     assert wandb_metrics["navigation/complex_exploration"] == 0.12
 
 
+def test_enhanced_exploration_rate_logging():
+    """Test that exploration rates are properly logged with enhanced visibility."""
+    import logging
+    from unittest.mock import Mock, patch
+
+    from metta.agent.policy_record import PolicyRecord
+    from metta.eval.eval_service import extract_scores
+    from metta.eval.eval_stats_db import EvalStatsDB
+    from metta.sim.simulation_config import SimulationSuiteConfig
+
+    # Create mock objects
+    mock_policy_record = Mock(spec=PolicyRecord)
+    mock_policy_record.key = "test_policy"
+    mock_policy_record.version = 1
+
+    mock_simulation_suite = Mock(spec=SimulationSuiteConfig)
+    mock_simulation_suite.simulations = {
+        "navigation/terrain_small": Mock(),
+        "navigation/terrain_medium": Mock(),
+        "memory/sequence_short": Mock(),
+    }
+
+    mock_stats_db = Mock(spec=EvalStatsDB)
+    # Mock the simulation_scores method to return exploration rates
+    mock_stats_db.simulation_scores.return_value = {
+        ("test_policy", "navigation/terrain_small", 1): 0.15,
+        ("test_policy", "navigation/terrain_medium", 1): 0.12,
+        ("test_policy", "memory/sequence_short", 1): 0.18,
+    }
+    mock_stats_db.get_average_metric_by_filter.return_value = 0.85
+
+    mock_logger = Mock(spec=logging.Logger)
+
+    # Test the extract_scores function
+    with patch("metta.eval.eval_service.EvalStatsDB") as mock_eval_stats_db:
+        mock_eval_stats_db.from_sim_stats_db.return_value = mock_stats_db
+
+        result = extract_scores(mock_policy_record, mock_simulation_suite, mock_stats_db, mock_logger)
+
+    # Verify that exploration rates are extracted and logged
+    assert result.exploration_rates[("navigation", "terrain_small")] == 0.15
+    assert result.exploration_rates[("navigation", "terrain_medium")] == 0.12
+    assert result.exploration_rates[("memory", "sequence_short")] == 0.18
+
+    # Verify that logging was called with exploration rate information
+    log_calls = [call[0][0] for call in mock_logger.info.call_args_list]
+    exploration_logs = [
+        log for log in log_calls if "Exploration Rates by Environment" in log or "Exploration Rate Summary" in log
+    ]
+    assert len(exploration_logs) > 0, "Should have logged exploration rate information"
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
