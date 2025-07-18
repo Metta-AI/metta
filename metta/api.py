@@ -23,9 +23,7 @@ from metta.agent.metta_agent import MettaAgent
 from metta.common.util.fs import wait_for_file
 from metta.mettagrid.curriculum.core import Curriculum, SingleTaskCurriculum, Task
 from metta.mettagrid.mettagrid_env import MettaGridEnv
-from metta.rl.functions import (
-    cleanup_old_policies,
-)
+from metta.rl.functions import cleanup_old_policies
 from metta.rl.trainer_config import (
     TrainerConfig,
 )
