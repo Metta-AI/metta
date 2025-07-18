@@ -72,6 +72,7 @@ class SimulationSuite:
                     stats_epoch_id=self._stats_epoch_id,
                     wandb_policy_name=self._wandb_policy_name,
                     eval_task_id=self._eval_task_id,
+                    episode_tags=self._config.episode_tags,
                 )
                 logger.info("=== Simulation '%s' ===", name)
                 sim_result = sim.simulate()
