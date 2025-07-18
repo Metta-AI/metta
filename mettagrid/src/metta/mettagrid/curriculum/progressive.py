@@ -137,13 +137,10 @@ class ProgressiveMultiTaskCurriculum(RandomCurriculum):
         self._update_progressive_weights()
         super().complete_task(id, score)
 
-    def get_curriculum_stats(self) -> Dict[str, float]:
+    def stats(self) -> Dict[str, float]:
         """Return curriculum statistics for logging purposes."""
-        stats = super().get_curriculum_stats()
-        stats.update(
-            {
-                "smoothed_performance": self._smoothed_performance,
-                "progress": self._progress,
-            }
-        )
-        return stats
+        return {
+            **super().stats(),
+            "smoothed_performance": self._smoothed_performance,
+            "progress": self._progress,
+        }

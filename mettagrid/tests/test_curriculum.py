@@ -456,8 +456,8 @@ def run_curriculum_simulation(
         )
 
     curriculum_stats = {}
-    if hasattr(curriculum, "get_curriculum_stats"):
-        curriculum_stats = curriculum.get_curriculum_stats()
+    if hasattr(curriculum, "stats"):
+        curriculum_stats = curriculum.stats()
 
     return {
         "task_counts": task_counts,

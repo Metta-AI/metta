@@ -16,17 +16,17 @@ logger = logging.getLogger(__name__)
 class SamplingCurriculum(Curriculum):
     def __init__(self, env_cfg_template: str, env_overrides: Optional[DictConfig] = None):
         self._cfg_template = config_from_path(env_cfg_template, env_overrides)
-        self._num_completed_tasks = 0
+        super().__init__()
 
     def get_task(self) -> Task:
         cfg = OmegaConf.create(copy.deepcopy(self._cfg_template))
         OmegaConf.resolve(cfg)
         return Task("sample", self, cfg)
 
-    def get_curriculum_stats(self) -> dict:
+    def stats(self) -> dict:
         return {
+            **super().stats(),
             "task_prob/sample": 1.0,
-            "task_completions/sample": self._num_completed_tasks,
         }
 
 
@@ -39,6 +39,7 @@ class SampledTaskCurriculum(Curriculum):
         task_cfg_template: OmegaConf.DictConfig,
         sampling_parameters: Dict[str, Dict[str, Any]],
     ):
+        super().__init__()
         self._task_id = task_id
         self._task_cfg_template = task_cfg_template
         self._sampling_parameters = sampling_parameters

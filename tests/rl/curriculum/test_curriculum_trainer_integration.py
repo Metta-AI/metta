@@ -36,7 +36,7 @@ class SimpleCurriculum(Curriculum):
     def get_task_probs(self) -> dict[str, float]:
         return {"simple": 1.0}
 
-    def get_curriculum_stats(self) -> dict:
+    def stats(self) -> dict:
         return {"total_tasks": self.task_count, "completed_tasks": self.completed_count}
 
 
@@ -66,7 +66,7 @@ def test_curriculum_client_trainer_methods():
         client.complete_task("task_1", 0.9)  # Should not raise
 
         # Test stats methods (should return empty)
-        assert client.get_curriculum_stats() == {}
+        assert client.stats() == {}
 
     finally:
         client.stop()
@@ -227,10 +227,10 @@ def test_trainer_stats_collection():
 
         # Stats should be available from server's curriculum
         # But client methods return empty (as designed)
-        assert client.get_curriculum_stats() == {}
+        assert client.stats() == {}
 
         # Server's curriculum should have the stats
-        assert curriculum.get_curriculum_stats()["total_tasks"] > 0
+        assert curriculum.stats()["total_tasks"] > 0
 
     finally:
         client.stop()

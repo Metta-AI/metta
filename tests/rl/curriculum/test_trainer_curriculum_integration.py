@@ -33,7 +33,7 @@ class TestCurriculum(Curriculum):
     def get_task_probs(self) -> dict[str, float]:
         return {"task_0": 0.25, "task_1": 0.35, "task_2": 0.40}
 
-    def get_curriculum_stats(self) -> dict:
+    def stats(self) -> dict:
         return {
             "total_tasks": self.task_count,
             "completed_tasks": len(self.completed_tasks),
@@ -119,8 +119,8 @@ def test_trainer_stats_collection_with_curriculum():
     curriculum_stats = {}
 
     # Get curriculum stats
-    if hasattr(curriculum, "get_curriculum_stats"):
-        raw_curriculum_stats = curriculum.get_curriculum_stats()
+    if hasattr(curriculum, "stats"):
+        raw_curriculum_stats = curriculum.stats()
         for key, value in raw_curriculum_stats.items():
             curriculum_stats[f"curriculum/{key}"] = value
 
@@ -201,13 +201,13 @@ def test_trainer_with_curriculum_server_client():
             tasks.append(task)
 
         # 2. Try to get stats from client (should return empty)
-        assert client.get_curriculum_stats() == {}
+        assert client.stats() == {}
 
         # 3. Complete task (no-op on client)
         client.complete_task("task_0", 0.8)
 
         # 4. Server curriculum should still have its stats
-        server_stats = curriculum.get_curriculum_stats()
+        server_stats = curriculum.stats()
         assert server_stats["total_tasks"] >= 5
 
         # Check that tasks have env configs

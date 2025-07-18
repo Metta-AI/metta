@@ -42,7 +42,7 @@ class TrackedCurriculum(Curriculum):
     def get_task_probs(self) -> dict[str, float]:
         return self.task_probs
 
-    def get_curriculum_stats(self) -> dict:
+    def stats(self) -> dict:
         return self.curriculum_stats
 
 
@@ -52,7 +52,7 @@ def test_curriculum_stats_collection():
     curriculum = TrackedCurriculum()
 
     # Test local curriculum stats
-    assert curriculum.get_curriculum_stats()["test_stat"] == 42
+    assert curriculum.stats()["test_stat"] == 42
     assert curriculum.get_task_probs()["task_1"] == 0.6
     assert curriculum.get_completion_rates()["task_completions/task_1"] == 0.5
 
@@ -66,7 +66,7 @@ def test_curriculum_stats_collection():
         client = CurriculumClient(server_url="http://127.0.0.1:15557", batch_size=5)
 
         # Client should return empty stats (all handled by server)
-        assert client.get_curriculum_stats() == {}
+        assert client.stats() == {}
 
         # Get some tasks
         tasks = []
@@ -77,7 +77,7 @@ def test_curriculum_stats_collection():
             task.complete(0.9)
 
         # Client stats should still be empty
-        assert client.get_curriculum_stats() == {}
+        assert client.stats() == {}
 
         # Server-side curriculum should have tracked the gets
         # With background prefetching, may fetch multiple batches
@@ -149,7 +149,7 @@ def test_learning_progress_curriculum():
             if id in self.task_weights:
                 self.task_weights[id] *= 0.8
 
-        def get_curriculum_stats(self) -> dict:
+        def stats(self) -> dict:
             return {
                 "total_tasks": self.task_count,
                 "completed_tasks": len(self.completed),
@@ -183,7 +183,7 @@ def test_learning_progress_curriculum():
         lp_curriculum.complete_task("task_2", 0.5)
 
         # Get stats from server
-        stats = lp_curriculum.get_curriculum_stats()
+        stats = lp_curriculum.stats()
         assert "total_tasks" in stats
         assert stats["completed_tasks"] == 2
         assert stats["avg_score"] == 0.7  # (0.9 + 0.5) / 2

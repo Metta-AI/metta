@@ -23,7 +23,7 @@ During distributed training, multiple worker nodes need to sample tasks from the
 │  ┌───────────┐  │        HTTP GET /tasks
 │  │Curriculum │  │      ┌──────────────────┐
 │  │  Server   │◄─┼──────┤ Worker Node 1    │
-│  │ (Port 5555)  │      │ ┌──────────────┐ │
+│  │ (Port 12346)  │      │ ┌──────────────┐ │
 │  └───────────┘  │      │ │  Curriculum  │ │
 │        ▲        │      │ │   Client     │ │
 │        │        │      │ └──────────────┘ │
@@ -50,12 +50,12 @@ if torch.distributed.is_initialized() and cfg.trainer.get("curriculum_server", {
     if is_master:
         # Master process runs the curriculum server
         curriculum_server = CurriculumServer(
-            curriculum, 
-            host="0.0.0.0", 
+            curriculum,
+            host="0.0.0.0",
             port=curriculum_server_port
         )
         curriculum_server.start(background=True)
-        
+
         # Create client for local use
         curriculum_client = CurriculumClient(
             server_url=f"http://localhost:{curriculum_server_port}",
@@ -106,7 +106,7 @@ defaults:
 
 curriculum_server:
   enabled: true
-  port: 5555        # Server port (default: 5555)
+  port: 12346        # Server port (default: 12346)
   batch_size: 100   # Tasks per batch (default: 100)
 ```
 
@@ -159,5 +159,10 @@ The trainer collects curriculum statistics in `_process_stats()`:
 ## Troubleshooting
 
 1. **Connection Errors**: Ensure `MASTER_ADDR` environment variable is set correctly
-2. **Port Conflicts**: Change the port in config if 5555 is already in use
+2. **Port Conflicts**: Change the port in config if 12346 is already in use
 3. **Slow Performance**: Increase `batch_size` to reduce network overhead
+4. **Docker/AWS Networking**:
+   - The server binds to `0.0.0.0` by default for Docker compatibility
+   - Set `MASTER_ADDR` to the actual IP address or hostname of the master container
+   - Ensure security groups allow traffic on the curriculum server port
+   - For AWS ECS/EKS, use service discovery or internal DNS names

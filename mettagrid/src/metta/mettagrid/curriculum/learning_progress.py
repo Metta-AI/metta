@@ -73,7 +73,10 @@ class LearningProgressCurriculum(RandomCurriculum):
 
     def stats(self) -> Dict[str, float]:
         """Get learning progress statistics for logging."""
-        return self._lp_tracker.add_stats()
+        return {
+            **super().stats(),
+            **self._lp_tracker.stats(),
+        }
 
 
 class BidirectionalLearningProgress:
@@ -118,19 +121,19 @@ class BidirectionalLearningProgress:
         self._task_dist = None
         self._stale_dist = True
 
-    def add_stats(self) -> Dict[str, float]:
+    def stats(self) -> Dict[str, float]:
         """Return learning progress statistics for logging."""
-        stats = {}
-        stats["lp/num_active_tasks"] = len(self._sample_levels)
-        stats["lp/mean_sample_prob"] = np.mean(self._task_dist)
-        stats["lp/num_zeros_lp_dist"] = np.sum(self._task_dist == 0)
-        stats["lp/task_1_success_rate"] = self._task_success_rate[0]
-        stats[f"lp/task_{self._num_tasks // 2}_success_rate"] = self._task_success_rate[self._num_tasks // 2]
-        stats["lp/last_task_success_rate"] = self._task_success_rate[-1]
-        stats["lp/task_success_rate"] = np.mean(self._task_success_rate)
-        stats["lp/mean_evals_per_task"] = self._mean_samples_per_eval[-1]
-        stats["lp/num_nan_tasks"] = self._num_nans[-1]
-        return stats
+        return {
+            "lp/num_active_tasks": len(self._sample_levels),
+            "lp/mean_sample_prob": np.mean(self._task_dist),
+            "lp/num_zeros_lp_dist": np.sum(self._task_dist == 0),
+            "lp/task_1_success_rate": self._task_success_rate[0],
+            f"lp/task_{self._num_tasks // 2}_success_rate": self._task_success_rate[self._num_tasks // 2],
+            "lp/last_task_success_rate": self._task_success_rate[-1],
+            "lp/task_success_rate": np.mean(self._task_success_rate),
+            "lp/mean_evals_per_task": self._mean_samples_per_eval[-1],
+            "lp/num_nan_tasks": self._num_nans[-1],
+        }
 
     def _update(self):
         """Update learning progress tracking with current task success rates."""

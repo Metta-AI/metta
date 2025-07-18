@@ -37,7 +37,7 @@ class MockCurriculum(Curriculum):
             return {"mock_task": 0.0}
         return {"mock_task": len(self.completed_tasks_list) / self.task_count}
 
-    def get_curriculum_stats(self) -> dict:
+    def stats(self) -> dict:
         return {"total_tasks": self.task_count, "completed": len(self.completed_tasks_list)}
 
 
@@ -75,7 +75,7 @@ def test_curriculum_server_client():
 
     # Test getting stats
     print("\nTesting get stats...")
-    curriculum_stats = client.get_curriculum_stats()
+    curriculum_stats = client.stats()
     print("  Curriculum stats (should be empty from client):", curriculum_stats)
 
     # Server's curriculum should have the real stats

@@ -36,7 +36,7 @@ class CurriculumClient(Curriculum):
         Initialize the curriculum client.
 
         Args:
-            server_url: URL of the curriculum server (e.g., "http://localhost:5555")
+            server_url: URL of the curriculum server (e.g., "http://localhost:12346")
             batch_size: Number of tasks to fetch in each request
             timeout: Request timeout in seconds
             retry_delay: Delay between retries in seconds
@@ -60,8 +60,8 @@ class CurriculumClient(Curriculum):
         self._start_prefetch_thread()
 
     def _wait_for_server(self):
-        """Wait for the server to be ready. Timeout after 10 seconds."""
-        for _ in range(10):
+        """Wait for the server to be ready. Timeout after 300 seconds."""
+        for _ in range(300):
             try:
                 response = self._session.get(f"{self.server_url}/health", timeout=5.0)
                 response.raise_for_status()
@@ -138,7 +138,7 @@ class CurriculumClient(Curriculum):
                 # Add tasks to queue
                 tasks_added = 0
                 for task_data in data["tasks"]:
-                    task = Task(task_data["name"], self, OmegaConf.create(task_data["env_cfg"]))
+                    task = Task(task_data["id"], self, OmegaConf.create(task_data["env_cfg"]))
                     try:
                         self._task_queue.put_nowait(task)
                         tasks_added += 1
@@ -164,9 +164,11 @@ class CurriculumClient(Curriculum):
                 else:
                     raise RuntimeError(f"Failed to fetch tasks after {self.max_retries} attempts") from e
 
-    def get_curriculum_stats(self) -> dict:
-        """Return empty stats - all stats are managed by the server."""
-        return {}
+    def complete_task(self, id: str, score: float):
+        try:
+            self._session.post(f"{self.server_url}/complete", json={"id": id, "score": float(score)})
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Server error when completing task {id}: {e}")
 
     def stop(self):
         """Stop the background prefetch thread."""

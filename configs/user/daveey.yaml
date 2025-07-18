@@ -6,10 +6,12 @@ defaults:
   # - /env/mettagrid/game/agent/rewards/shaped@replay_job.sim.env_overrides.game.agent.rewards
   - _self_
 
+stats_server_uri: null
 trainer:
   # env: /env/mettagrid/multienv_mettagrid
   curriculum: /env/mettagrid/curriculum/bbc/bbc
-
+  simulation:
+    evaluate_interval: 1000
   env_overrides:
     game:
       max_steps: 13

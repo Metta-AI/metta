@@ -17,7 +17,6 @@ from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.stats_client_cfg import get_stats_client
 from metta.common.wandb.wandb_context import WandbContext, WandbRun
 from metta.mettagrid.curriculum.core import Curriculum
-from metta.rl.curriculum.curriculum_client import CurriculumClient
 from metta.rl.curriculum.curriculum_server import CurriculumServer
 from metta.rl.trainer import MettaTrainer
 from metta.sim.simulation_config import SimulationSuiteConfig
@@ -58,7 +57,7 @@ def _calculate_default_num_workers(is_serial: bool) -> int:
     return max(1, num_workers)
 
 
-def train(cfg: DictConfig, wandb_run: WandbRun | None, logger: Logger, curriculum: Curriculum):
+def train(cfg: DictConfig, wandb_run: WandbRun | None, logger: Logger, curriculum: Curriculum | None):
     if torch.distributed.is_initialized():
         world_size = torch.distributed.get_world_size()
         if cfg.trainer.scale_batches_by_world_size:
@@ -117,22 +116,23 @@ def main(cfg: DictConfig) -> int:
 
     logger.info(f"Training {cfg.run} on {cfg.device}")
 
+    curriculum_server = None
     if os.environ.get("RANK", "0") == "0":
         logger.info(f"Train job config: {OmegaConf.to_yaml(cfg, resolve=True)}")
 
         with open(os.path.join(cfg.run_dir, "config.yaml"), "w") as f:
             OmegaConf.save(cfg, f)
 
-        curriculum = CurriculumServer.create(cfg.trainer)
+        curriculum_server = CurriculumServer.create(cfg.trainer)
 
         with WandbContext(cfg.wandb, cfg) as wandb_run:
-            train(cfg, wandb_run, logger, curriculum)
+            train(cfg, wandb_run, logger, curriculum_server)
     else:
-        curriculum = CurriculumClient.create(cfg.trainer)
-        train(cfg, None, logger, curriculum)
+        train(cfg, None, logger, None)
 
     if dist.is_initialized():
-        curriculum.stop()
+        if curriculum_server is not None:
+            curriculum_server.stop()
         dist.destroy_process_group()
 
     return 0
