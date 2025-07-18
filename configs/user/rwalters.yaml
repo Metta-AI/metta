@@ -19,14 +19,14 @@ trainer:
   forward_pass_minibatch_target_size: ${if:${eq:..device4,cpu},512,4096}
   async_factor: ${if:${eq:..device4,cpu},1,2}
   checkpoint:
-    checkpoint_interval: 100
+    checkpoint_interval: 20
     wandb_checkpoint_interval: ${.checkpoint_interval}
   bptt_horizon: 8
 
   curriculum: /env/mettagrid/curriculum/communication
 
   simulation:
-    evaluate_interval: 1000
+    evaluate_interval: 100
 
 env_overrides:
   game:
