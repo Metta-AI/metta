@@ -1,6 +1,6 @@
-from typing import Any, Optional
+from typing import Optional
 
-from pydantic import Field, RootModel
+from pydantic import Field
 
 from metta.common.util.typed_config import BaseModelWithForbidExtra
 
@@ -35,17 +35,11 @@ class PyAgentRewards(BaseModelWithForbidExtra):
 class PyAgentConfig(BaseModelWithForbidExtra):
     """Python agent configuration."""
 
-    default_resource_limit: Optional[int] = Field(default=None, ge=0)
+    default_resource_limit: Optional[int] = Field(default=0, ge=0)
     resource_limits: Optional[dict[str, int]] = Field(default_factory=dict)
-    freeze_duration: Optional[int] = Field(default=None, ge=-1)
-    rewards: Optional[PyAgentRewards] = Field(default=None)
-    action_failure_penalty: Optional[float] = Field(default=None, ge=0)
-
-
-class PyGroupProps(RootModel[dict[str, Any]]):
-    """Python group properties configuration."""
-
-    pass
+    freeze_duration: Optional[int] = Field(default=0, ge=-1)
+    rewards: Optional[PyAgentRewards] = Field(default_factory=PyAgentRewards)
+    action_failure_penalty: Optional[float] = Field(default=0, ge=0)
 
 
 class PyGroupConfig(BaseModelWithForbidExtra):
@@ -55,8 +49,8 @@ class PyGroupConfig(BaseModelWithForbidExtra):
     sprite: Optional[int] = Field(default=None)
     # group_reward_pct values outside of [0.0,1.0] are probably mistakes, and are probably
     # unstable. If you want to use values outside this range, please update this comment!
-    group_reward_pct: Optional[float] = Field(default=None, ge=0, le=1)
-    props: Optional[PyGroupProps] = Field(default=None)
+    group_reward_pct: float = Field(default=0, ge=0, le=1)
+    props: PyAgentConfig = Field(default_factory=PyAgentConfig)
 
 
 class PyActionConfig(BaseModelWithForbidExtra):
@@ -98,6 +92,19 @@ class PyActionsConfig(BaseModelWithForbidExtra):
     change_glyph: Optional[PyChangeGlyphActionConfig] = None
 
 
+class PyGlobalObsConfig(BaseModelWithForbidExtra):
+    """Global observation configuration."""
+
+    episode_completion_pct: bool = Field(default=True)
+
+    # Controls both last_action and last_action_arg
+    last_action: bool = Field(default=True)
+    last_reward: bool = Field(default=True)
+
+    # Controls whether resource rewards are included in observations
+    resource_rewards: bool = Field(default=False)
+
+
 class PyWallConfig(BaseModelWithForbidExtra):
     """Python wall/block configuration."""
 
@@ -134,4 +141,5 @@ class PyGameConfig(BaseModelWithForbidExtra):
     # Every agent must be in a group, so we need at least one group
     groups: dict[str, PyGroupConfig] = Field(min_length=1)
     actions: PyActionsConfig
+    global_obs: PyGlobalObsConfig = Field(default_factory=PyGlobalObsConfig)
     objects: dict[str, PyConverterConfig | PyWallConfig]

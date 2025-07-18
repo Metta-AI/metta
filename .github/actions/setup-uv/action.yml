@@ -43,6 +43,8 @@ runs:
             # Also install mettagrid's build dependencies
             echo "Installing build dependencies..."
             uv pip install scikit-build-core
+            echo "Installing test dependencies..."
+            uv pip install pytest pytest-cov gcovr
             ;;
           "linting")
             # Just install linting tools
