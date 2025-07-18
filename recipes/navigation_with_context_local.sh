@@ -7,7 +7,7 @@
 python ./tools/train.py \
 trainer.curriculum=env/mettagrid/curriculum/navigation/prioritize_regressed \
 +trainer.env_overrides.game.num_agents=4 \
-override sim: navigation \
+sim=navigation \
 agent.components.env_context.enabled=true \
 run=$USER.navigation.low_reward.with_context.local.$(date +%m-%d) \
 "$@"
