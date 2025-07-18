@@ -9,7 +9,7 @@ game:
   num_agents: ??
   obs_width: 11
   obs_height: 11
-  num_observation_tokens: 40
+  num_observation_tokens: 200
   max_steps: 100
 
   # We could figure this out implicitly, but being explicit reduces the risk of people accidentally configuring

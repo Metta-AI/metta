@@ -137,7 +137,7 @@ class PyGameConfig(BaseModelWithForbidExtra):
     episode_truncates: bool = Field(default=False)
     obs_width: Literal[3, 5, 7, 9, 11, 13, 15]
     obs_height: Literal[3, 5, 7, 9, 11, 13, 15]
-    num_observation_tokens: int = Field(ge=1)
+    num_observation_tokens: Literal[200]
     agent: PyAgentConfig
     # Every agent must be in a group, so we need at least one group
     groups: dict[str, PyGroupConfig] = Field(min_length=1)
