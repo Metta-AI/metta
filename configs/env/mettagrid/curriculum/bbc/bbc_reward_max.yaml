@@ -1,11 +1,12 @@
-# BBC Learning Progress Curriculum
+# BBC Learning Progress Curriculum with Max Reward Aggregation
+# This configuration prioritizes tasks where agents show improvement in ANY reward type
 
 _target_: metta.mettagrid.curriculum.learning_progress.LearningProgressCurriculum
 
-# Enable reward observation tracking
+# Enable reward observation tracking with max aggregation
 use_reward_observations: true
 reward_types: ["ore_red", "battery_red", "heart", "laser", "armor", "blueprint"]
-reward_aggregation: "mean"  # How to aggregate learning progress across reward types
+reward_aggregation: "max"  # Prioritize tasks with improvement in any reward type
 
 # Learning progress parameters
 ema_timescale: 0.001

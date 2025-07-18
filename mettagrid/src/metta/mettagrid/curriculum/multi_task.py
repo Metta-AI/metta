@@ -1,5 +1,5 @@
 import logging
-from typing import Dict, List
+from typing import Dict, List, Union
 
 from metta.mettagrid.curriculum.core import Curriculum
 
@@ -25,7 +25,7 @@ class MultiTaskCurriculum(Curriculum):
         for task_id in self._curricula:
             logger.info(f"Curriculum Task: {task_id}")
 
-    def complete_task(self, id: str, score: float):
+    def complete_task(self, id: str, score: Union[float, Dict[str, float]]):
         if len(self._completed_tasks) > self._completion_moving_avg_window:
             self._completed_tasks.pop(0)
         self._completed_tasks.append(id)

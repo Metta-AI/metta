@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import copy
 import logging
-from typing import Dict, Optional
+from typing import Dict, Optional, Union
 
 import numpy as np
 from omegaconf import DictConfig, OmegaConf
@@ -27,7 +27,15 @@ class ProgressiveCurriculum(SamplingCurriculum):
         OmegaConf.resolve(cfg)
         return Task(f"sample({self._cfg_template.sampling})", self, cfg)
 
-    def complete_task(self, id: str, score: float):
+    def complete_task(self, id: str, score: Union[float, Dict[str, float]]):
+        # Convert dict score to float if needed
+        if isinstance(score, dict):
+            # Use total score if available, otherwise average
+            if "total" in score:
+                score = score["total"]
+            else:
+                score = np.mean(list(score.values())) if score else 0.0
+        
         if score > 0.5:
             self._width = min(self._width * 2, 100)
             self._height = min(self._height * 2, 100)
@@ -130,7 +138,15 @@ class ProgressiveMultiTaskCurriculum(RandomCurriculum):
             f"weights: {[(k, f'{v:.3f}') for k, v in self._task_weights.items()]}"
         )
 
-    def complete_task(self, id: str, score: float):
+    def complete_task(self, id: str, score: Union[float, Dict[str, float]]):
+        # Convert dict score to float if needed
+        if isinstance(score, dict):
+            # Use total score if available, otherwise average
+            if "total" in score:
+                score = score["total"]
+            else:
+                score = np.mean(list(score.values()))
+        
         # Assume score is between 0 and 1
         self._update_smoothed_performance(score)
         self._advance_progression()

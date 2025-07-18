@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 import random
-from typing import Dict
+from typing import Dict, Union
 
 from omegaconf import DictConfig, OmegaConf
 

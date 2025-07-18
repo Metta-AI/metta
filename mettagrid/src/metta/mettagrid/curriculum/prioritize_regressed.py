@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Dict
+from typing import Dict, Union
 
 from omegaconf import DictConfig
 
@@ -26,7 +26,15 @@ class PrioritizeRegressedCurriculum(RandomCurriculum):
         self._reward_maxes = {task_id: 0.0 for task_id in tasks.keys()}
         self._moving_avg_decay_rate = moving_avg_decay_rate  # Smoothing factor for moving average
 
-    def complete_task(self, id: str, score: float):
+    def complete_task(self, id: str, score: Union[float, Dict[str, float]]):
+        # Convert dict score to float if needed
+        if isinstance(score, dict):
+            # Use total score if available, otherwise average
+            if "total" in score:
+                score = score["total"]
+            else:
+                score = sum(score.values()) / len(score) if score else 0.0
+        
         # Update moving average for the completed task
         old_average = self._reward_averages[id]
         self._reward_averages[id] = (1 - self._moving_avg_decay_rate) * self._reward_averages[

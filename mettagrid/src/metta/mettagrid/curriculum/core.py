@@ -1,5 +1,5 @@
 import logging
-from typing import List, Optional
+from typing import List, Optional, Union, Dict
 
 from omegaconf import DictConfig
 
@@ -10,7 +10,13 @@ class Curriculum:
     def get_task(self) -> "Task":
         raise NotImplementedError("Subclasses must implement this method")
 
-    def complete_task(self, id: str, score: float):
+    def complete_task(self, id: str, score: Union[float, Dict[str, float]]):
+        """Complete a task with either a single score or detailed reward observations.
+        
+        Args:
+            id: Task identifier
+            score: Either a float (backward compatibility) or dict of reward observations
+        """
         # logger.info(f"Task completed: {id} -> {score:.5f}")
         pass
 
@@ -39,7 +45,8 @@ class Task:
         self._env_cfg = env_cfg
         self._name = self._id
 
-    def complete(self, score: float):
+    def complete(self, score: Union[float, Dict[str, float]]):
+        """Complete the task with either a single score or detailed reward observations."""
         assert not self._is_complete, "Task is already complete"
         for curriculum, id in self._curricula:
             curriculum.complete_task(id, score)

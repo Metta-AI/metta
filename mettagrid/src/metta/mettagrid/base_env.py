@@ -329,8 +329,35 @@ class MettaGridEnv(ABC):
             if self._stats_writer and self._episode_id:
                 self._write_episode_stats(stats, episode_rewards, replay_url)
 
-        # Update curriculum
-        self._task.complete(episode_rewards_mean)
+        # Update curriculum with detailed reward observations
+        if hasattr(self._curriculum, '_use_reward_observations') and self._curriculum._use_reward_observations:
+            # Extract reward observations from agent stats
+            reward_observations = {}
+            
+            # Get aggregated reward components from agent stats
+            for agent_stats in stats["agent"]:
+                for stat_name, value in agent_stats.items():
+                    # Look for resource-related stats (e.g., "ore_red.gained", "battery_red.gained", etc.)
+                    if ".gained" in stat_name:
+                        resource_name = stat_name.replace(".gained", "")
+                        if resource_name not in reward_observations:
+                            reward_observations[resource_name] = 0
+                        reward_observations[resource_name] += value
+            
+            # Normalize by number of agents
+            for key in reward_observations:
+                reward_observations[key] = reward_observations[key] / self._core_env.num_agents
+            
+            # Also include the total episode reward
+            reward_observations["total"] = episode_rewards_mean
+            
+            # Log the reward observations for debugging
+            logger.debug(f"Task {self._task.id()} completed with reward observations: {reward_observations}")
+            
+            self._task.complete(reward_observations)
+        else:
+            # Backward compatibility: pass mean reward as before
+            self._task.complete(episode_rewards_mean)
 
         # Add curriculum task probabilities
         infos["curriculum_task_probs"] = self._curriculum.get_task_probs()

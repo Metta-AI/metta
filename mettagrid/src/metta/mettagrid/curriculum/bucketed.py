@@ -24,6 +24,17 @@ class BucketedCurriculum(LearningProgressCurriculum):
         buckets: Dict[str, Dict[str, Any]],
         env_overrides: Optional[DictConfig] = None,
         default_bins: int = 1,
+        # Learning progress parameters
+        ema_timescale: float = 0.001,
+        progress_smoothing: float = 0.05,
+        num_active_tasks: int = 16,
+        rand_task_rate: float = 0.25,
+        sample_threshold: int = 10,
+        memory: int = 25,
+        # Reward observation parameters
+        use_reward_observations: bool = True,
+        reward_types: Optional[List[str]] = None,
+        reward_aggregation: str = "mean",
     ):
         expanded_buckets = _expand_buckets(buckets, default_bins)
 
@@ -38,7 +49,21 @@ class BucketedCurriculum(LearningProgressCurriculum):
                 curriculum_id, env_cfg_template, expanded_buckets.keys(), parameter_values
             )
         tasks = {t: 1.0 for t in self._id_to_curriculum.keys()}
-        super().__init__(tasks=tasks, env_overrides=env_overrides)
+        
+        # Pass all learning progress and reward observation parameters to parent
+        super().__init__(
+            tasks=tasks,
+            env_overrides=env_overrides,
+            ema_timescale=ema_timescale,
+            progress_smoothing=progress_smoothing,
+            num_active_tasks=num_active_tasks,
+            rand_task_rate=rand_task_rate,
+            sample_threshold=sample_threshold,
+            memory=memory,
+            use_reward_observations=use_reward_observations,
+            reward_types=reward_types,
+            reward_aggregation=reward_aggregation,
+        )
 
     def _curriculum_from_id(self, id: str) -> Curriculum:
         return self._id_to_curriculum[id]

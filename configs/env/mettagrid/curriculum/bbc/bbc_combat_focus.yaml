@@ -1,11 +1,12 @@
-# BBC Learning Progress Curriculum
+# BBC Learning Progress Curriculum - Combat Focus
+# This configuration tracks only combat-related rewards to focus training on combat skills
 
 _target_: metta.mettagrid.curriculum.learning_progress.LearningProgressCurriculum
 
-# Enable reward observation tracking
+# Track only combat-related rewards
 use_reward_observations: true
-reward_types: ["ore_red", "battery_red", "heart", "laser", "armor", "blueprint"]
-reward_aggregation: "mean"  # How to aggregate learning progress across reward types
+reward_types: ["heart", "laser", "armor"]  # Only combat rewards
+reward_aggregation: "mean"  # Balance progress across all combat skills
 
 # Learning progress parameters
 ema_timescale: 0.001

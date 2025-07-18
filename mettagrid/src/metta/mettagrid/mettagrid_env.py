@@ -231,7 +231,37 @@ class MettaGridEnv(PufferEnv, GymEnv):
 
             self.process_episode_stats(infos)
             self._should_reset = True
-            self._task.complete(self._c_env.get_episode_rewards().mean())
+            
+            # Update curriculum with detailed reward observations
+            if hasattr(self._curriculum, '_use_reward_observations') and self._curriculum._use_reward_observations:
+                # Extract reward observations from episode stats
+                stats = self._c_env.get_episode_stats()
+                reward_observations = {}
+                
+                # Get aggregated reward components from agent stats
+                for agent_stats in stats["agent"]:
+                    for stat_name, value in agent_stats.items():
+                        # Look for resource-related stats (e.g., "ore_red.gained", "battery_red.gained", etc.)
+                        if ".gained" in stat_name:
+                            resource_name = stat_name.replace(".gained", "")
+                            if resource_name not in reward_observations:
+                                reward_observations[resource_name] = 0
+                            reward_observations[resource_name] += value
+                
+                # Normalize by number of agents
+                for key in reward_observations:
+                    reward_observations[key] = reward_observations[key] / self._c_env.num_agents
+                
+                # Also include the total episode reward
+                reward_observations["total"] = self._c_env.get_episode_rewards().mean()
+                
+                # Log the reward observations for debugging
+                logger.debug(f"Task {self._task.id()} completed with reward observations: {reward_observations}")
+                
+                self._task.complete(reward_observations)
+            else:
+                # Backward compatibility: pass mean reward as before
+                self._task.complete(self._c_env.get_episode_rewards().mean())
 
             # Add curriculum task probabilities to infos for distributed logging
             infos["curriculum_task_probs"] = self._curriculum.get_task_probs()

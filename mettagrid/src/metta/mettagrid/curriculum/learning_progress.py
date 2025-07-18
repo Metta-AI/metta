@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Dict, Tuple
+from typing import Dict, Tuple, Union
 
 import numpy as np
 from gymnasium.spaces import Discrete
@@ -30,6 +30,10 @@ class LearningProgressCurriculum(RandomCurriculum):
         rand_task_rate: float = 0.25,
         sample_threshold: int = 10,
         memory: int = 25,
+        # New parameters for reward observations
+        use_reward_observations: bool = True,
+        reward_types: list[str] | None = None,
+        reward_aggregation: str = "mean",  # "mean", "max", "sum"
     ):
         super().__init__(tasks, env_overrides)
 
@@ -45,26 +49,57 @@ class LearningProgressCurriculum(RandomCurriculum):
             memory=memory,
         )
 
+        # New attributes for reward observation tracking
+        self._use_reward_observations = use_reward_observations
+        self._reward_types = reward_types or ["ore_red", "battery_red", "heart", "laser", "armor", "blueprint"]
+        self._reward_aggregation = reward_aggregation
+        
+        # Track learning progress per reward type
+        if self._use_reward_observations:
+            self._lp_trackers_per_reward = {
+                reward_type: BidirectionalLearningProgress(
+                    search_space=search_space_size,
+                    ema_timescale=ema_timescale,
+                    progress_smoothing=progress_smoothing,
+                    num_active_tasks=num_active_tasks,
+                    rand_task_rate=rand_task_rate,
+                    sample_threshold=sample_threshold,
+                    memory=memory,
+                )
+                for reward_type in self._reward_types
+            }
+
         logger.info(f"LearningProgressCurriculum initialized with {search_space_size} tasks")
+        if self._use_reward_observations:
+            logger.info(f"Tracking reward observations for: {self._reward_types}")
 
-    def complete_task(self, id: str, score: float):
+    def complete_task(self, id: str, score: Union[float, Dict[str, float]]):
         """Complete a task and update learning progress tracking."""
-        # Convert score to success rate (assuming score is between 0 and 1)
-        success_rate = max(0.0, min(1.0, score))
-
         # Get task index for learning progress tracking
         task_idx = list(self._curricula.keys()).index(id)
-
-        # Collect data for learning progress
-        self._lp_tracker.collect_data({f"tasks/{task_idx}": [success_rate]})
-
-        # Update task weights based on learning progress
-        lp_weights, _ = self._lp_tracker.calculate_dist()
-
-        # Update weights based on learning progress
-        for i, task_id in enumerate(self._curricula.keys()):
-            if i < len(lp_weights):
-                self._task_weights[task_id] = lp_weights[i]
+        
+        if isinstance(score, dict) and self._use_reward_observations:
+            # Handle detailed reward observations
+            self._update_with_reward_observations(task_idx, score)
+        else:
+            # Handle single score (backward compatibility)
+            if isinstance(score, dict):
+                # If dict provided but not using observations, aggregate
+                score = np.mean(list(score.values()))
+            
+            # Convert score to success rate (assuming score is between 0 and 1)
+            success_rate = max(0.0, min(1.0, score))
+            
+            # Collect data for learning progress
+            self._lp_tracker.collect_data({f"tasks/{task_idx}": [success_rate]})
+            
+            # Update task weights based on learning progress
+            lp_weights, _ = self._lp_tracker.calculate_dist()
+            
+            # Update weights based on learning progress
+            for i, task_id in enumerate(self._curricula.keys()):
+                if i < len(lp_weights):
+                    self._task_weights[task_id] = lp_weights[i]
 
         # Normalize weights
         total_weight = sum(self._task_weights.values())
@@ -73,9 +108,52 @@ class LearningProgressCurriculum(RandomCurriculum):
 
         super().complete_task(id, score)
 
+    def _update_with_reward_observations(self, task_idx: int, reward_obs: Dict[str, float]):
+        """Update learning progress using detailed reward observations."""
+        # Collect data for each reward type
+        for reward_type in self._reward_types:
+            if reward_type in reward_obs:
+                # Normalize reward to [0, 1] range if needed
+                reward_value = max(0.0, min(1.0, reward_obs[reward_type]))
+                self._lp_trackers_per_reward[reward_type].collect_data({f"tasks/{task_idx}": [reward_value]})
+        
+        # Calculate aggregated weights across all reward types
+        aggregated_weights = np.zeros(len(self._curricula))
+        
+        for reward_type, lp_tracker in self._lp_trackers_per_reward.items():
+            lp_weights, _ = lp_tracker.calculate_dist()
+            
+            if self._reward_aggregation == "mean":
+                aggregated_weights += lp_weights / len(self._lp_trackers_per_reward)
+            elif self._reward_aggregation == "max":
+                aggregated_weights = np.maximum(aggregated_weights, lp_weights)
+            elif self._reward_aggregation == "sum":
+                aggregated_weights += lp_weights
+        
+        # Update task weights
+        for i, task_id in enumerate(self._curricula.keys()):
+            if i < len(aggregated_weights):
+                self._task_weights[task_id] = aggregated_weights[i]
+
     def stats(self) -> Dict[str, float]:
         """Get learning progress statistics for logging."""
-        return self._lp_tracker.add_stats()
+        stats = {}
+        
+        if self._use_reward_observations:
+            # Aggregate stats from all reward type trackers
+            for reward_type, lp_tracker in self._lp_trackers_per_reward.items():
+                reward_stats = lp_tracker.add_stats()
+                for key, value in reward_stats.items():
+                    stats[f"{key}/{reward_type}"] = value
+        else:
+            # Use main tracker stats
+            stats = self._lp_tracker.add_stats()
+            
+        return stats
+    
+    def get_curriculum_stats(self) -> Dict[str, float]:
+        """Return curriculum statistics for logging purposes."""
+        return self.stats()
 
 
 class BidirectionalLearningProgress:
