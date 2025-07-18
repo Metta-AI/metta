@@ -4,7 +4,7 @@
 
 agent_cluster_type=no_clustering
 num_rooms=4
-num_agents_per_room=4
+num_agents_per_room=2
 for seed in 0; do
   ./devops/skypilot/launch.py train \
     run=$USER.navigation.ffa_MASSIVE_${agent_cluster_type}_${num_rooms}rooms_of_${num_agents_per_room}_seed${seed}.$(date +%m-%d) \
