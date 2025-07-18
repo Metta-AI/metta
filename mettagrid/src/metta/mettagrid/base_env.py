@@ -551,6 +551,7 @@ class MettaGridEnv(ABC):
             raise RuntimeError("Environment not initialized")
         return self._core_env.get_observation_features()
 
+    @property
     def grid_objects(self) -> Dict[int, Dict[str, Any]]:
         """Get grid objects information."""
         if self._core_env is None:

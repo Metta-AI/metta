@@ -139,6 +139,51 @@ layout of the gridworld, the placement of objects, and various properties of the
 - Cooldown between uses (varies by building)
 - Can be damaged and destroyed by attacks
 
+## Environment Architecture
+
+MettaGrid features a modular environment architecture that supports multiple RL frameworks:
+
+### Environment Adapters
+
+- **`MettaGridEnv`** - Main environment class (backward compatible with PufferLib)
+- **`MettaGridPufferEnv`** - PufferLib adapter for vectorized training
+- **`MettaGridGymEnv`** - Gymnasium adapter for single/multi-agent RL
+- **`MettaGridPettingZooEnv`** - PettingZoo adapter for multi-agent RL
+- **`MettaGridCore`** - Low-level stateless wrapper around C++ environment
+
+### Key Features
+
+- **Backward Compatible**: Existing code continues to work without changes
+- **Framework Agnostic**: Choose the best RL framework for your needs
+- **Vectorized Training**: Efficient parallel environment execution
+- **Stats Collection**: Comprehensive episode statistics recording
+- **Replay Recording**: Full episode replay functionality
+
+### Training Integration Demos
+
+Test each environment adapter with actual training pipeline:
+
+```bash
+# Test PettingZoo adapter with training
+python -m mettagrid.demos.demo_train_pettingzoo
+
+# Test Puffer adapter with training  
+python -m mettagrid.demos.demo_train_puffer
+
+# Test Gym adapter with training
+python -m mettagrid.demos.demo_train_gym
+
+# Test Core adapter with training
+python -m mettagrid.demos.demo_train_core
+```
+
+These demos verify that each environment adapter works correctly with the full training pipeline, including:
+
+- Environment creation and configuration
+- Training compatibility and vectorization
+- Full training runs with checkpoint creation
+- API compliance and interface validation
+
 ## Building and testing
 
 For local development, refer to the top-level [README.md](../README.md) in this repository.
