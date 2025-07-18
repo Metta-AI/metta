@@ -1,0 +1,84 @@
+name: "Detect PR Context"
+description: "Detect if running on external PR and configure environment accordingly"
+inputs:
+  has_secrets:
+    description: "Whether secrets are available (pass ${{ secrets.CODECOV_TOKEN != '' }})"
+    required: false
+    default: "false"
+outputs:
+  is_external:
+    description: "Whether this is an external PR (fork or no secrets)"
+    value: ${{ steps.detect.outputs.is_external }}
+  context_message:
+    description: "Human-readable description of the context"
+    value: ${{ steps.detect.outputs.context_message }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Detect PR context and configure
+      id: detect
+      shell: bash
+      env:
+        HAS_SECRETS: ${{ inputs.has_secrets }}
+      run: |
+        # Detect if this is an external PR (fork or no secrets access)
+        IS_FORK="${{ github.event.pull_request.head.repo.fork }}"
+        IS_DEPENDABOT="${{ github.actor == 'dependabot[bot]' }}"
+
+        if [[ "$IS_FORK" == "true" ]] || [[ "$IS_DEPENDABOT" == "true" ]] || [[ "$HAS_SECRETS" == "false" ]]; then
+          echo "is_external=true" >> $GITHUB_OUTPUT
+
+          # Determine the specific reason
+          if [[ "$IS_FORK" == "true" ]]; then
+            REASON="fork PR"
+          elif [[ "$IS_DEPENDABOT" == "true" ]]; then
+            REASON="Dependabot PR"
+          else
+            REASON="external PR (no secrets)"
+          fi
+
+          echo "context_message=🔓 Running on $REASON - external services disabled" >> $GITHUB_OUTPUT
+
+          # Set environment variables for external PR mode
+          echo "EXTERNAL_PR_MODE=true" >> $GITHUB_ENV
+          echo "WANDB_MODE=offline" >> $GITHUB_ENV
+          echo "CODECOV_TOKEN=skip" >> $GITHUB_ENV
+          echo "ASANA_API_KEY=skip" >> $GITHUB_ENV
+          echo "WANDB_DISABLED=true" >> $GITHUB_ENV
+
+          # Log what we're doing for transparency
+          echo "::group::External PR Configuration"
+          echo "Setting EXTERNAL_PR_MODE=true"
+          echo "Setting WANDB_MODE=offline"
+          echo "Setting service placeholders to 'skip'"
+          echo "::endgroup::"
+
+        else
+          echo "is_external=false" >> $GITHUB_OUTPUT
+          echo "context_message=🔒 Running on internal PR - all services enabled" >> $GITHUB_OUTPUT
+          echo "EXTERNAL_PR_MODE=false" >> $GITHUB_ENV
+        fi
+
+    - name: Display context
+      shell: bash
+      run: |
+        echo "::notice::${{ steps.detect.outputs.context_message }}"
+        echo ""
+        MESSAGE="${{ steps.detect.outputs.context_message }}"
+        MESSAGE_LEN=${#MESSAGE}
+        BORDER_LEN=$((MESSAGE_LEN + 4))
+
+        # Create top border
+        printf "╔"
+        printf '═%.0s' $(seq 1 $BORDER_LEN)
+        printf "╗\n"
+
+        # Print message with padding
+        printf "║  %s  ║\n" "$MESSAGE"
+
+        # Create bottom border
+        printf "╚"
+        printf '═%.0s' $(seq 1 $BORDER_LEN)
+        printf "╝\n"
+        echo ""

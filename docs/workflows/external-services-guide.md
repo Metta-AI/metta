@@ -2,71 +2,69 @@
 
 This guide explains how to handle external service credentials (Wandb, Codecov, Asana, etc.) in a way that allows workflows to run successfully even when credentials aren't available (e.g., on forks or external PRs).
 
+## Quick Start
+
+Add this single step after checkout to automatically handle external PRs:
+
+```yaml
+- name: Detect PR context
+  uses: ./.github/actions/detect-pr-context
+  with:
+    has_secrets: ${{ secrets.CODECOV_TOKEN != '' }}
+```
+
+This will:
+- ✅ Detect if running on a fork, Dependabot PR, or external PR
+- ✅ Display a clear banner showing the context
+- ✅ Set `EXTERNAL_PR_MODE` environment variable
+- ✅ Configure service placeholders automatically
+
 ## General Principles
 
 1. **Never fail due to missing optional credentials** - External services should enhance CI, not block it
-2. **Provide clear feedback** - Use GitHub notices to indicate when services are skipped
-3. **Be consistent** - Use the same patterns across all workflows
+2. **Provide clear feedback** - Display banners showing what mode CI is running in
+3. **Be consistent** - Use the same `EXTERNAL_PR_MODE` pattern everywhere
 
-## Patterns for Different Services
+## Usage Patterns
 
-### 1. Services with Config Flags (Preferred)
-For services that support being disabled via configuration:
-
-```yaml
-# Example: Wandb
-- name: Run tests
-  run: uv run tools/train.py wandb=off
-```
-
-### 2. Conditional Steps
-For services that require credentials to run:
+### 1. Skip External Services on External PRs
 
 ```yaml
-# Example: Codecov
-- name: Upload coverage
-  if: ${{ secrets.CODECOV_TOKEN != '' }}
+- name: Upload to Codecov
+  if: env.EXTERNAL_PR_MODE != 'true'
   env:
     CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
   run: ./upload_codecov.py
-
-- name: Skip notification
-  if: ${{ secrets.CODECOV_TOKEN == '' }}
-  run: echo "::notice::Skipping Codecov - credentials not available"
 ```
 
-### 3. Placeholder Values
-For services that just need a value to be set:
+### 2. Use Config Flags Based on Context
 
 ```yaml
-# Example: Some APIs
-- name: Run with API
-  env:
-    API_KEY: ${{ secrets.API_KEY || 'placeholder_not_used' }}
-  run: ./script_that_checks_api_key.py
-```
-
-### 4. Using the Check Credential Action
-For a consistent approach across workflows:
-
-```yaml
-- name: Check Wandb availability
-  id: wandb_check
-  uses: ./.github/actions/check-credential
-  with:
-    secret_value: ${{ secrets.WANDB_API_KEY }}
-    service_name: "Wandb"
-
-- name: Run training
-  env:
-    WANDB_API_KEY: ${{ steps.wandb_check.outputs.value_or_default }}
+- name: Run tests
   run: |
-    if [ "${{ steps.wandb_check.outputs.available }}" = "true" ]; then
-      uv run tools/train.py
-    else
+    if [ "$EXTERNAL_PR_MODE" = "true" ]; then
       uv run tools/train.py wandb=off
+    else
+      uv run tools/train.py
     fi
 ```
+
+### 3. Automatic Environment Variables
+
+When `EXTERNAL_PR_MODE=true`, these are automatically set:
+- `WANDB_MODE=offline` - Wandb runs in offline mode
+- `CODECOV_TOKEN=skip` - Codecov skips upload
+- `ASANA_API_KEY=skip` - Asana integration skipped
+
+## What You'll See
+
+On external PRs, you'll see banners like:
+- `🔓 Running on fork PR - external services disabled`
+- `🔓 Running on Dependabot PR - external services disabled`
+- `🔓 Running on external PR (no secrets) - external services disabled`
+
+On internal PRs with secrets:
+- `🔒 Running on internal PR - all services enabled`
 
 ## Adding a New External Service
 
