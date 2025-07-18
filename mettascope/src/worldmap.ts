@@ -11,9 +11,7 @@ import { search, searchMatch } from './search.js'
 
 /**
  * Clamps the map panel's pan position so that the world map always remains at
- * least partially visible within the panel, regardless of the current zoom
- * level. This prevents the user from panning the camera so far that the entire
- * map disappears from the viewport.
+ * least partially visible within the panel. 
  */
 function clampMapPan(panel: PanelInfo) {
   if (state.replay === null) {
@@ -36,26 +34,21 @@ function clampMapPan(panel: PanelInfo) {
   let cx = -panel.panPos.x()
   let cy = -panel.panPos.y()
 
-  const mapCenterX = (mapMinX + mapMaxX) / 2
-  const mapCenterY = (mapMinY + mapMaxY) / 2
+  const mapWidth = mapMaxX - mapMinX
+  const mapHeight = mapMaxY - mapMinY
 
-  // Clamp horizontally.
-  if (mapMaxX - mapMinX <= viewHalfWidth * 2) {
-    cx = mapCenterX
-  } else {
-    const minCenterX = mapMinX + viewHalfWidth
-    const maxCenterX = mapMaxX - viewHalfWidth
-    cx = Math.max(minCenterX, Math.min(cx, maxCenterX))
-  }
+  // Minimum fraction of the map that must remain visible (25%)
+  const minVisibleFraction = 0.25
 
-  // Clamp vertically.
-  if (mapMaxY - mapMinY <= viewHalfHeight * 2) {
-    cy = mapCenterY
-  } else {
-    const minCenterY = mapMinY + viewHalfHeight
-    const maxCenterY = mapMaxY - viewHalfHeight
-    cy = Math.max(minCenterY, Math.min(cy, maxCenterY))
-  }
+  // Clamp horizontally - always allow panning, just ensure some visibility
+  const minCenterX = mapMinX + minVisibleFraction * mapWidth - viewHalfWidth
+  const maxCenterX = mapMaxX - minVisibleFraction * mapWidth + viewHalfWidth
+  cx = Math.max(minCenterX, Math.min(cx, maxCenterX))
+
+  // Clamp vertically - always allow panning, just ensure some visibility  
+  const minCenterY = mapMinY + minVisibleFraction * mapHeight - viewHalfHeight
+  const maxCenterY = mapMaxY - minVisibleFraction * mapHeight + viewHalfHeight
+  cy = Math.max(minCenterY, Math.min(cy, maxCenterY))
 
   panel.panPos = new Vec2f(-cx, -cy)
 }
