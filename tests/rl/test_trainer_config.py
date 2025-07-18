@@ -224,6 +224,7 @@ class TestTypedConfigs:
                 "kickstart_steps": 1_000_000_000,
                 "additional_teachers": [],
             },
+            "hyperparameter_scheduler": {},
         }
 
         validated_config = create_trainer_config(make_cfg(test_config_dict))
