@@ -51,7 +51,7 @@ struct GlobalObsConfig {
 };
 
 struct GameConfig {
-  int num_agents;
+  size_t num_agents;
   unsigned int max_steps;
   bool episode_truncates;
   ObservationCoord obs_width;
@@ -113,6 +113,8 @@ private:
   std::vector<ObservationType> _resource_rewards;  // Packed inventory rewards for each agent
   std::map<unsigned int, float> _group_reward_pct;
   std::map<unsigned int, unsigned int> _group_sizes;
+  std::vector<RewardType> _group_rewards;
+
   std::unique_ptr<Grid> _grid;
   std::unique_ptr<EventManager> _event_manager;
 
