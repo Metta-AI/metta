@@ -4,6 +4,7 @@ from __future__ import annotations
 
 # Additional backward compatibility types
 import os
+
 import numpy as np
 
 # Import all the new adapters for easy access

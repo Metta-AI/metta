@@ -148,7 +148,7 @@ class MettaTrainer:
 
         metta_grid_env = self.vecenv.driver_env  # type: ignore
         # Check if driver_env is one of our valid MettaGrid adapters
-        from metta.mettagrid import MettaGridPufferEnv, MettaGridGymEnv, MettaGridPettingZooEnv, MettaGridCore
+        from metta.mettagrid import MettaGridCore, MettaGridGymEnv, MettaGridPettingZooEnv, MettaGridPufferEnv
 
         valid_adapters = (MettaGridPufferEnv, MettaGridGymEnv, MettaGridPettingZooEnv, MettaGridCore)
         assert isinstance(metta_grid_env, valid_adapters), (
@@ -627,7 +627,7 @@ class MettaTrainer:
 
         metta_grid_env = self.vecenv.driver_env  # type: ignore
         # Check if driver_env is one of our valid MettaGrid adapters
-        from metta.mettagrid import MettaGridPufferEnv, MettaGridGymEnv, MettaGridPettingZooEnv, MettaGridCore
+        from metta.mettagrid import MettaGridCore, MettaGridGymEnv, MettaGridPettingZooEnv, MettaGridPufferEnv
 
         valid_adapters = (MettaGridPufferEnv, MettaGridGymEnv, MettaGridPettingZooEnv, MettaGridCore)
         assert isinstance(metta_grid_env, valid_adapters), "vecenv.driver_env must be a valid MettaGrid adapter"

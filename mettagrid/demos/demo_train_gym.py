@@ -19,11 +19,7 @@ actual training pipeline to ensure it works correctly in full training context.
 Run with: uv run python mettagrid/demos/demo_train_gym.py (from project root)
 """
 
-import os
-import subprocess
-import tempfile
 import time
-from pathlib import Path
 
 import numpy as np
 from omegaconf import DictConfig
