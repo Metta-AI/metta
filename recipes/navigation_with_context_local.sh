@@ -6,7 +6,6 @@
 
 python ./tools/train.py \
 --config-name user/bullm \
-agent=fast \
 trainer.curriculum=env/mettagrid/curriculum/navigation/prioritize_regressed \
 trainer.env_overrides.game.num_agents=4 \
 sim=navigation \
