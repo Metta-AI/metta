@@ -15,8 +15,8 @@ logger = logging.getLogger(__name__)
 
 
 class ProgressiveCurriculum(SamplingCurriculum):
-    def __init__(self, env_cfg_template: str, env_overrides: Optional[DictConfig] = None):
-        super().__init__(env_cfg_template, env_overrides)
+    def __init__(self, env_cfg_template_path: str, env_overrides: Optional[DictConfig] = None):
+        super().__init__(env_cfg_template_path, env_overrides)
         self._width = 10
         self._height = 10
 

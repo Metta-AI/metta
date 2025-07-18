@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 class BucketedCurriculum(LearningProgressCurriculum):
     def __init__(
         self,
-        env_cfg_template: str,
+        env_cfg_template_path: str,
         buckets: Dict[str, Dict[str, Any]],
         env_overrides: Optional[DictConfig] = None,
         default_bins: int = 1,
@@ -28,7 +28,7 @@ class BucketedCurriculum(LearningProgressCurriculum):
         expanded_buckets = _expand_buckets(buckets, default_bins)
 
         self._id_to_curriculum = {}
-        base_cfg = config_from_path(env_cfg_template, env_overrides)
+        base_cfg = config_from_path(env_cfg_template_path, env_overrides)
         env_cfg_template = copy_omegaconf_config(base_cfg)
 
         logger.info("Generating bucketed tasks")
