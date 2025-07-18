@@ -98,7 +98,6 @@ def create_episode_router(stats_repo: MettaRepo) -> APIRouter:
         try:
             async with stats_repo.connect() as con:
                 # Build the WHERE clause from the filter query
-                where_clause = ""
                 query_params = []
 
                 where_clause = _parse_filter_query(filter_query)
@@ -227,11 +226,9 @@ def create_episode_router(stats_repo: MettaRepo) -> APIRouter:
         try:
             async with stats_repo.connect() as con:
                 # Build the WHERE clause from the filter query
-                where_clause = ""
                 query_params = []
 
-                if request.filter_query.strip():
-                    where_clause = f"WHERE {_parse_filter_query(request.filter_query)}"
+                where_clause = _parse_filter_query(request.filter_query)
 
                 # Get all episode IDs that match the filter
                 ids_query = f"""
@@ -262,11 +259,9 @@ def create_episode_router(stats_repo: MettaRepo) -> APIRouter:
         try:
             async with stats_repo.connect() as con:
                 # Build the WHERE clause from the filter query
-                where_clause = ""
                 query_params = []
 
-                if request.filter_query.strip():
-                    where_clause = f"WHERE {_parse_filter_query(request.filter_query)}"
+                where_clause = _parse_filter_query(request.filter_query)
 
                 # Get all episode IDs that match the filter
                 ids_query = f"""
