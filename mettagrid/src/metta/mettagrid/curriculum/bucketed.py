@@ -29,13 +29,15 @@ class BucketedCurriculum(LearningProgressCurriculum):
 
         self._id_to_curriculum = {}
         base_cfg = config_from_path(env_cfg_template_path, env_overrides)
+        # We copy to reset the config's root.
         env_cfg_template = copy_omegaconf_config(base_cfg)
 
         logger.info("Generating bucketed tasks")
         for parameter_values in tqdm(product(*expanded_buckets.values())):
             curriculum_id = get_id(expanded_buckets.keys(), parameter_values)
+            sampling_parameters = {k: v for k, v in zip(expanded_buckets.keys(), parameter_values, strict=True)}
             self._id_to_curriculum[curriculum_id] = SampledTaskCurriculum(
-                curriculum_id, env_cfg_template, expanded_buckets.keys(), parameter_values
+                curriculum_id, env_cfg_template, sampling_parameters
             )
         tasks = {t: 1.0 for t in self._id_to_curriculum.keys()}
         super().__init__(tasks=tasks, env_overrides=env_overrides)
