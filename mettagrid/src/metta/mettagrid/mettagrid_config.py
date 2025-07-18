@@ -57,7 +57,7 @@ class PyGroupConfig(BaseModelWithForbidExtra):
 class PyActionConfig(BaseModelWithForbidExtra):
     """Python action configuration."""
 
-    enabled: bool
+    enabled: bool = Field(default=False)
     # required_resources defaults to consumed_resources. Otherwise, should be a superset of consumed_resources.
     required_resources: Optional[dict[str, int]] = Field(default=None)
     consumed_resources: Optional[dict[str, int]] = Field(default_factory=dict)
@@ -79,18 +79,18 @@ class PyActionsConfig(BaseModelWithForbidExtra):
     """
     Actions configuration.
 
-    Omitted actions are disabled by default.
+    Actions will use disabled configuration if not explicitly provided.
     """
 
-    noop: Optional[PyActionConfig] = None
-    move: Optional[PyActionConfig] = None
-    rotate: Optional[PyActionConfig] = None
-    put_items: Optional[PyActionConfig] = None
-    get_items: Optional[PyActionConfig] = None
-    attack: Optional[PyAttackActionConfig] = None
-    swap: Optional[PyActionConfig] = None
-    change_color: Optional[PyActionConfig] = None
-    change_glyph: Optional[PyChangeGlyphActionConfig] = None
+    noop: PyActionConfig = Field(default_factory=lambda: PyActionConfig(enabled=False))
+    move: PyActionConfig = Field(default_factory=lambda: PyActionConfig(enabled=False))
+    rotate: PyActionConfig = Field(default_factory=lambda: PyActionConfig(enabled=False))
+    put_items: PyActionConfig = Field(default_factory=lambda: PyActionConfig(enabled=False))
+    get_items: PyActionConfig = Field(default_factory=lambda: PyActionConfig(enabled=False))
+    attack: PyAttackActionConfig = Field(default_factory=lambda: PyAttackActionConfig(enabled=False))
+    swap: PyActionConfig = Field(default_factory=lambda: PyActionConfig(enabled=False))
+    change_color: PyActionConfig = Field(default_factory=lambda: PyActionConfig(enabled=False))
+    change_glyph: PyChangeGlyphActionConfig = Field(default_factory=lambda: PyChangeGlyphActionConfig(enabled=False))
 
 
 class PyGlobalObsConfig(BaseModelWithForbidExtra):
@@ -137,7 +137,7 @@ class PyGameConfig(BaseModelWithForbidExtra):
     episode_truncates: bool = Field(default=False)
     obs_width: Literal[3, 5, 7, 9, 11, 13, 15]
     obs_height: Literal[3, 5, 7, 9, 11, 13, 15]
-    num_observation_tokens: Literal[200]
+    num_observation_tokens: int = Field(ge=1)
     agent: PyAgentConfig
     # Every agent must be in a group, so we need at least one group
     groups: dict[str, PyGroupConfig] = Field(min_length=1)
@@ -149,3 +149,4 @@ class PyGameConfig(BaseModelWithForbidExtra):
 class PyPolicyGameConfig(PyGameConfig):
     obs_width: Literal[11]
     obs_height: Literal[11]
+    num_observation_tokens: Literal[200]
