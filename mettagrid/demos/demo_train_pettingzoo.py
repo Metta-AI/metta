@@ -20,6 +20,7 @@ actual training pipeline to ensure it works correctly in full training context.
 Run with: uv run python mettagrid/demos/demo_train_pettingzoo.py (from project root)
 """
 
+import os
 import subprocess
 import tempfile
 import time
@@ -136,7 +137,13 @@ def test_pettingzoo_training_integration():
         print(f"   - Test ID: {test_id}")
 
         try:
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=60,
+                cwd=os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")),
+            )
 
             if result.returncode == 0:
                 print("PettingZoo training integration successful!")

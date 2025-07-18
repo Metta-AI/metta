@@ -19,6 +19,7 @@ actual training pipeline to ensure it works correctly in full training context.
 Run with: uv run python mettagrid/demos/demo_train_puffer.py (from project root)
 """
 
+import os
 import subprocess
 import tempfile
 import time
@@ -179,7 +180,11 @@ def test_puffer_training_integration():
 
         try:
             result = subprocess.run(
-                cmd, capture_output=True, text=True, timeout=60, cwd="/Users/teodorionita-radu/Desktop/softmax/metta"
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=60,
+                cwd=os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")),
             )
 
             if result.returncode == 0:
