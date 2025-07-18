@@ -56,6 +56,14 @@ class CurriculumClient(Curriculum):
         self._prefetch_lock = threading.Lock()
         self._prefetch_thread = None
 
+        # Test connection
+        try:
+            response = self._session.get(f"{self.server_url}/health", timeout=5.0)
+            response.raise_for_status()
+            logger.info(f"CurriculumClient connected to: {self.server_url}")
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Failed to connect to curriculum server: {e}")
+
         # Start background prefetch thread
         self._start_prefetch_thread()
 
@@ -166,7 +174,7 @@ class CurriculumClient(Curriculum):
     @staticmethod
     def create(trainer_cfg: DictConfig) -> "CurriculumClient":
         url = f"http://{trainer_cfg.curriculum_server.host}:{trainer_cfg.curriculum_server.port}"
-        logger.info(f"CurriculumClient created: {url}")
+        logger.info(f"CurriculumClient connecting to: {url}")
         return CurriculumClient(
             server_url=url,
             batch_size=trainer_cfg.curriculum_server.batch_size,
