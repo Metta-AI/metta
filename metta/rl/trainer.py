@@ -647,9 +647,17 @@ def train(
         rollout_pct = (rollout_time / total_time) * 100
         stats_pct = (stats_time / total_time) * 100
 
+        # Format total timesteps with scientific notation for large numbers
+        total_timesteps = trainer_cfg.total_timesteps
+        if total_timesteps >= 1e9:
+            total_steps_str = f"{total_timesteps:.0e}"
+        else:
+            total_steps_str = f"{total_timesteps:,}"
+
         logger.info(
-            f"Epoch {state.epoch} - "
-            f"{steps_per_sec * world_size:.0f} steps/sec "
+            f"Epoch {state.epoch}, "
+            f"{steps_per_sec * world_size:.0f} steps/sec, "
+            f"Agent step {state.agent_step}/{total_steps_str} "
             f"({train_pct:.0f}% train / {rollout_pct:.0f}% rollout / {stats_pct:.0f}% stats)"
         )
 
