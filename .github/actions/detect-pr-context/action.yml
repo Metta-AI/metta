@@ -2,7 +2,7 @@ name: "Detect PR Context"
 description: "Detect if running on external PR and configure environment accordingly"
 inputs:
   has_secrets:
-    description: "Whether secrets are available (pass ${{ secrets.CODECOV_TOKEN != '' }})"
+    description: "Whether secrets are available - pass secrets.CODECOV_TOKEN != '' from workflow"
     required: false
     default: "false"
 outputs:
