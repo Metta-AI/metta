@@ -747,7 +747,7 @@ class Agent:
         metta_grid_env = env.driver_env
         # Check if driver_env is one of our valid MettaGrid adapters
         from metta.mettagrid import MettaGridCore, MettaGridGymEnv, MettaGridPettingZooEnv, MettaGridPufferEnv
-        
+
         valid_adapters = (MettaGridPufferEnv, MettaGridGymEnv, MettaGridPettingZooEnv, MettaGridCore)
         assert isinstance(metta_grid_env, valid_adapters), f"Expected MettaGrid adapter, got {type(metta_grid_env)}"
 

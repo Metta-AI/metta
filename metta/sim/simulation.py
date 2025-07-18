@@ -161,7 +161,7 @@ class Simulation:
         metta_grid_env: MettaGridEnv = self._vecenv.driver_env  # type: ignore
         # Check if driver_env is one of our valid MettaGrid adapters
         from metta.mettagrid import MettaGridCore, MettaGridGymEnv, MettaGridPettingZooEnv, MettaGridPufferEnv
-        
+
         valid_adapters = (MettaGridPufferEnv, MettaGridGymEnv, MettaGridPettingZooEnv, MettaGridCore)
         assert isinstance(metta_grid_env, valid_adapters), f"Expected MettaGrid adapter, got {type(metta_grid_env)}"
 
