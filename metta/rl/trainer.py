@@ -130,6 +130,7 @@ class MettaTrainer:
                 history_size=100,  # Keep last 100 samples
                 logger=logger,
                 auto_start=True,  # Start monitoring immediately
+                external_timer=self.timer,  # Pass trainer's timer for persistent elapsed time
             )
 
         curriculum_config = trainer_cfg.curriculum_or_env
@@ -734,6 +735,18 @@ class MettaTrainer:
         )
         logger.info("Simulation complete")
         self.evals = evaluation_results.scores
+
+        # Get target metric (for logging) from sweep config
+        # and write top-level score for policy selection.
+        # In sweep_eval, we use the "score" entry in the policy metadata to select the best policy
+        target_metric = getattr(self.cfg, "sweep", {}).get("metric", "reward")  # fallback to reward
+        category_scores = list(self.evals.category_scores.values())
+        if category_scores and self.latest_saved_policy_record:
+            self.latest_saved_policy_record.metadata["score"] = float(np.mean(category_scores))
+            logger.info(
+                f"Set policy metadata score to "
+                f"{self.latest_saved_policy_record.metadata['score']} using {target_metric} metric"
+            )
 
         # Generate and upload replay HTML if we have wandb
         if self.wandb_run is not None and evaluation_results.replay_urls:

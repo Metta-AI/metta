@@ -1,4 +1,4 @@
 {
-  "install": "curl -LsSf https://astral.sh/uv/install.sh | sh && ./devops/setup_dev.sh",
+  "install": "curl -LsSf https://astral.sh/uv/install.sh | sh && metta configure --profile=external && metta install",
   "start": "source .venv/bin/activate"
 }
