@@ -192,7 +192,7 @@ def test_core_training_integration():
 
         try:
             result = subprocess.run(
-                cmd, capture_output=True, text=True, timeout=50, cwd="/Users/teodorionita-radu/Desktop/softmax/metta"
+                cmd, capture_output=True, text=True, timeout=50, cwd=os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
             )
 
             if result.returncode == 0:
