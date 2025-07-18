@@ -56,28 +56,18 @@ class CurriculumClient(Curriculum):
         self._prefetch_lock = threading.Lock()
         self._prefetch_thread = None
 
-        # Test connection
-        try:
-            response = self._session.get(f"{self.server_url}/health", timeout=5.0)
-            response.raise_for_status()
-            logger.info(f"CurriculumClient connected to: {self.server_url}")
-        except requests.exceptions.RequestException as e:
-            logger.error(f"Failed to connect to curriculum server: {e}")
-            raise e
-
-        # Start background prefetch thread
+        self._wait_for_server()
         self._start_prefetch_thread()
 
     def _wait_for_server(self):
         """Wait for the server to be ready. Timeout after 10 seconds."""
-        start_time = time.time()
-        while not self._stop_prefetch.is_set() and time.time() - start_time < 10.0:
+        for _ in range(10):
             try:
                 response = self._session.get(f"{self.server_url}/health", timeout=5.0)
                 response.raise_for_status()
                 logger.info(f"CurriculumClient connected to: {self.server_url}")
                 return
-            except requests.exceptions.RequestException as e:
+            except Exception as e:
                 logger.warning(f"Server not ready yet: {e}")
                 time.sleep(1)
         logger.error(f"Failed to connect to curriculum server: {self.server_url}")
