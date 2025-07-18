@@ -9,7 +9,7 @@ source ./devops/setup.env
 
 # Start heartbeat monitor if available
 HEARTBEAT_FILE=${HEARTBEAT_FILE:-$WANDB_DIR/heartbeat.txt}
-HEARTBEAT_TIMEOUT=${HEARTBEAT_TIMEOUT:-600} # Read from env or default to 600
+HEARTBEAT_TIMEOUT=0 #${HEARTBEAT_TIMEOUT:-600} # Read from env or default to 600
 
 if [ "$HEARTBEAT_TIMEOUT" -ne 0 ]; then
   echo "[INFO] Starting heartbeat monitor with timeout ${HEARTBEAT_TIMEOUT}s for file $HEARTBEAT_FILE"
