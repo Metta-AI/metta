@@ -47,6 +47,7 @@ struct GlobalObsConfig {
   bool episode_completion_pct = true;
   bool last_action = true;  // Controls both last_action and last_action_arg
   bool last_reward = true;
+  bool resource_rewards = false;  // Controls whether resource rewards are included in observations
 };
 
 struct GameConfig {
@@ -109,6 +110,7 @@ public:
 private:
   // Member variables
   GlobalObsConfig _global_obs_config;
+  std::vector<ObservationType> _resource_rewards;  // Packed inventory rewards for each agent
   std::map<unsigned int, float> _group_reward_pct;
   std::map<unsigned int, unsigned int> _group_sizes;
   std::unique_ptr<Grid> _grid;

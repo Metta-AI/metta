@@ -77,11 +77,12 @@ GameConfig CreateBenchmarkConfig(int num_agents) {
                                                              std::map<InventoryItem, InventoryQuantity>(),
                                                              0.0f);
 
-  // Create default global observation config (all enabled)
+  // Create default global observation config
   GlobalObsConfig global_obs_config;
   global_obs_config.episode_completion_pct = true;
   global_obs_config.last_action = true;
   global_obs_config.last_reward = true;
+  global_obs_config.resource_rewards = true;
 
   return GameConfig(num_agents, 10000, false, 11, 11, inventory_item_names, 100, global_obs_config, actions_cfg, objects_cfg);
 }
@@ -175,6 +176,9 @@ std::vector<py::array_t<int>> PreGenerateActionSequence(MettaGrid* env, int num_
 
 // Matching Python test_step_performance_no_reset
 static void BM_MettaGridStep(benchmark::State& state) {  // NOLINT(runtime/references)
+  // Ensure we have the GIL for all Python operations
+  py::gil_scoped_acquire acquire;
+
   // Setup with default 4 agents (matching Python benchmark config)
   int num_agents = 4;
   auto cfg = CreateBenchmarkConfig(num_agents);
@@ -219,14 +223,21 @@ static void BM_MettaGridStep(benchmark::State& state) {  // NOLINT(runtime/refer
   state.counters["agent_rate"] = benchmark::Counter(state.iterations() * num_agents, benchmark::Counter::kIsRate);
 }
 
-// Register benchmarks to match Python tests
-BENCHMARK(BM_MettaGridStep)->Unit(benchmark::kMillisecond);
-
 // Custom main that properly initializes Python
 int main(int argc, char** argv) {
+  // Initialize Python interpreter first, before any benchmark registration
   py::scoped_interpreter guard{};
 
+  // Initialize benchmark framework
   ::benchmark::Initialize(&argc, argv);
+
+  // Register benchmarks after Python is initialized
+  // Use Threads(1) to ensure single-threaded execution for Python GIL safety
+  ::benchmark::RegisterBenchmark("BM_MettaGridStep", BM_MettaGridStep)
+      ->Unit(benchmark::kMillisecond)
+      ->Threads(1);
+
+  // Run benchmarks
   ::benchmark::RunSpecifiedBenchmarks();
   ::benchmark::Shutdown();
 

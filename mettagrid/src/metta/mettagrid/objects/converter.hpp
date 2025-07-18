@@ -124,10 +124,11 @@ public:
         conversion_ticks(cfg.conversion_ticks),
         cooldown(cfg.cooldown),
         color(cfg.color),
-        show_recipe_inputs(cfg.show_recipe_inputs) {
+        show_recipe_inputs(cfg.show_recipe_inputs),
+        event_manager(nullptr),
+        converting(false),
+        cooling_down(false) {
     GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c, GridLayer::ObjectLayer));
-    this->converting = false;
-    this->cooling_down = false;
 
     // Initialize inventory with initial_resource_count for all output types
     for (const auto& [item, _] : this->output_resources) {
@@ -188,7 +189,8 @@ public:
     vector<PartialObservationToken> features;
 
     // Calculate the capacity needed
-    size_t capacity = 5 + this->inventory.size();
+    // We push 3 fixed features + inventory items + (optionally) recipe inputs
+    size_t capacity = 3 + this->inventory.size();
     if (this->show_recipe_inputs) {
       capacity += this->input_resources.size();
     }
