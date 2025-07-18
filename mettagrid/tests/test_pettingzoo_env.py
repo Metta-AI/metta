@@ -7,6 +7,7 @@ This module tests the MettaGridPettingZooEnv with PettingZoo's ParallelEnv inter
 import numpy as np
 import pytest
 from omegaconf import DictConfig
+from pettingzoo.test import parallel_api_test
 
 from metta.mettagrid.curriculum.core import SingleTaskCurriculum
 from metta.mettagrid.pettingzoo_env import MettaGridPettingZooEnv
@@ -199,13 +200,15 @@ def test_pettingzoo_env_spaces(simple_config):
 
     # Test space methods
     for agent in env.possible_agents:
-        obs_space = env.observation_space_for_agent(agent)
-        action_space = env.action_space_for_agent(agent)
+        obs_space = env.observation_space(agent)
+        action_space = env.action_space(agent)
 
         assert obs_space is not None
         assert action_space is not None
-        assert obs_space == env.observation_space
-        assert action_space == env.action_space
+
+        # Test that same space objects are returned (PettingZoo requirement)
+        assert env.observation_space(agent) is obs_space
+        assert env.action_space(agent) is action_space
 
     env.close()
 
@@ -229,5 +232,137 @@ def test_pettingzoo_env_state(simple_config):
     assert isinstance(state, np.ndarray)
     assert state_space is not None
     assert state.shape == state_space.shape
+
+    env.close()
+
+
+def test_pettingzoo_api_compliance(simple_config):
+    """Test official PettingZoo API compliance."""
+    curriculum = SingleTaskCurriculum("pettingzoo_compliance_test", simple_config)
+    env = MettaGridPettingZooEnv(
+        curriculum=curriculum,
+        render_mode=None,
+        is_training=False,
+    )
+
+    # Run the official PettingZoo parallel API compliance test
+    parallel_api_test(env, num_cycles=3)
+
+    env.close()
+
+
+def test_pettingzoo_episode_lifecycle(simple_config):
+    """Test the complete episode lifecycle with PettingZoo API."""
+    curriculum = SingleTaskCurriculum("pettingzoo_lifecycle_test", simple_config)
+    env = MettaGridPettingZooEnv(
+        curriculum=curriculum,
+        render_mode=None,
+        is_training=False,
+    )
+
+    # Reset environment
+    observations, infos = env.reset(seed=42)
+
+    # Check reset return format
+    assert isinstance(observations, dict)
+    assert isinstance(infos, dict)
+    assert len(observations) == len(env.agents)
+    assert len(infos) == len(env.agents)
+
+    # Test that all agents are initially active
+    assert len(env.agents) == 3
+    assert env.agents == env.possible_agents
+
+    # Run a few steps
+    for _step in range(5):
+        # Generate random actions for all active agents
+        actions = {}
+        for agent in env.agents:
+            action_space = env.action_space(agent)
+            actions[agent] = action_space.sample()
+
+        # Step environment
+        observations, rewards, terminations, truncations, infos = env.step(actions)
+
+        # Check step return format
+        assert isinstance(observations, dict)
+        assert isinstance(rewards, dict)
+        assert isinstance(terminations, dict)
+        assert isinstance(truncations, dict)
+        assert isinstance(infos, dict)
+
+        # Check that all active agents are represented
+        for agent in env.agents:
+            assert agent in observations
+            assert agent in rewards
+            assert agent in terminations
+            assert agent in truncations
+            assert agent in infos
+
+        # Check data types
+        for agent in env.agents:
+            assert isinstance(rewards[agent], (int, float))
+            assert isinstance(terminations[agent], bool)
+            assert isinstance(truncations[agent], bool)
+            assert isinstance(infos[agent], dict)
+
+        # If all agents are done, break
+        if not env.agents:
+            break
+
+    env.close()
+
+
+def test_pettingzoo_action_observation_spaces(simple_config):
+    """Test that action and observation spaces are properly configured."""
+    curriculum = SingleTaskCurriculum("pettingzoo_spaces_validation_test", simple_config)
+    env = MettaGridPettingZooEnv(
+        curriculum=curriculum,
+        render_mode=None,
+        is_training=False,
+    )
+
+    # Reset to ensure environment is initialized
+    env.reset(seed=42)
+
+    # Test that all agents have the same spaces (homogeneous agents)
+    reference_obs_space = env.observation_space(env.possible_agents[0])
+    reference_action_space = env.action_space(env.possible_agents[0])
+
+    for agent in env.possible_agents:
+        obs_space = env.observation_space(agent)
+        action_space = env.action_space(agent)
+
+        # In our implementation, all agents have the same spaces
+        assert obs_space.shape == reference_obs_space.shape
+        assert action_space.nvec.tolist() == reference_action_space.nvec.tolist()
+
+        # Test that spaces can generate valid samples
+        obs_sample = obs_space.sample()
+        action_sample = action_space.sample()
+
+        assert obs_space.contains(obs_sample)
+        assert action_space.contains(action_sample)
+
+    env.close()
+
+
+def test_pettingzoo_render_functionality(simple_config):
+    """Test that rendering works with PettingZoo interface."""
+    curriculum = SingleTaskCurriculum("pettingzoo_render_test", simple_config)
+    env = MettaGridPettingZooEnv(
+        curriculum=curriculum,
+        render_mode="human",
+        is_training=False,
+    )
+
+    # Reset environment
+    env.reset(seed=42)
+
+    # Test render method
+    render_result = env.render()
+
+    # Should return string representation or None
+    assert render_result is None or isinstance(render_result, str)
 
     env.close()
