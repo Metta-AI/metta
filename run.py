@@ -4,28 +4,16 @@ import os
 import time
 from collections import defaultdict
 
+import numpy as np
 import torch
+from heavyball import ForeachMuon
 from omegaconf import DictConfig, OmegaConf
 
 from metta.agent.policy_store import PolicyStore
-from metta.api import (
-    Agent,
-    Environment,
-    Optimizer,
-    calculate_anneal_beta,
-    cleanup_distributed,
-    cleanup_wandb,
-    create_evaluation_config_suite,
-    create_replay_config,
-    ensure_initial_policy,
-    initialize_wandb,
-    load_checkpoint,
-    save_checkpoint,
-    save_experiment_config,
-    setup_distributed_training,
-    setup_run_directories,
-    wrap_agent_distributed,
-)
+from metta.api.agent import create_or_load_agent
+from metta.api.directories import save_experiment_config, setup_run_directories
+from metta.api.environment import Environment
+from metta.api.evaluation import create_evaluation_config_suite
 from metta.common.profiling.memory_monitor import MemoryMonitor
 from metta.common.profiling.stopwatch import Stopwatch
 from metta.common.util.heartbeat import record_heartbeat
@@ -33,80 +21,144 @@ from metta.common.util.system_monitor import SystemMonitor
 from metta.eval.eval_request_config import EvalRewardSummary
 from metta.eval.eval_stats_db import EvalStatsDB
 from metta.mettagrid import mettagrid_c  # noqa: F401
+from metta.mettagrid.curriculum.util import curriculum_from_config_path
 from metta.mettagrid.mettagrid_env import dtype_actions
 from metta.rl.experience import Experience
 from metta.rl.functions import (
     accumulate_rollout_stats,
-    build_wandb_stats,
     calculate_batch_sizes,
     calculate_explained_variance,
+    calculate_prioritized_sampling_params,
+    cleanup_old_policies,
     compute_advantage,
+    compute_gradient_stats,
     compute_timing_stats,
+    generate_replay,
     get_lstm_config,
     get_observation,
     maybe_update_l2_weights,
     process_minibatch_update,
+    process_stats,
     process_training_stats,
     run_policy_inference,
-    should_run_on_interval,
+    save_policy_with_metadata,
+    setup_device_and_distributed,
+    should_run,
+    validate_policy_environment_match,
+    wrap_agent_distributed,
 )
 from metta.rl.kickstarter import Kickstarter
+from metta.rl.kickstarter_config import KickstartConfig
 from metta.rl.losses import Losses
+from metta.rl.trainer_checkpoint import TrainerCheckpoint
 from metta.rl.trainer_config import (
     CheckpointConfig,
+    InitialPolicyConfig,
     OptimizerConfig,
     PPOConfig,
+    PrioritizedExperienceReplayConfig,
     SimulationConfig,
     TorchProfilerConfig,
     TrainerConfig,
+    VTraceConfig,
 )
-from metta.sim.simulation import Simulation
+from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
 from metta.sim.simulation_suite import SimulationSuite
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
 
-# Set up directories and distributed training
-dirs = setup_run_directories()
-device, is_master, world_size, rank = setup_distributed_training("cuda" if torch.cuda.is_available() else "cpu")
 
-# Configuration
+# Set up directories
+dirs = setup_run_directories()
+
+# Set up device and distributed training
+device, is_master, world_size, rank = setup_device_and_distributed("cuda" if torch.cuda.is_available() else "cpu")
+
+# Configuration using individual component configs
 # Note: batch_size must be >= total_agents * bptt_horizon
 # With navigation curriculum: 4 agents per env * many envs = ~2048 total agents
 # Required batch_size >= 2048 * 64 (bptt_horizon) = 131072
+
+# Core training parameters
+num_workers = 4
+total_timesteps = 10_000_000
+batch_size = 524288 if torch.cuda.is_available() else 131072  # 512k for GPU, 128k for CPU
+minibatch_size = 16384 if torch.cuda.is_available() else 4096  # 16k for GPU, 4k for CPU
+curriculum = "/env/mettagrid/curriculum/navigation/bucketed"
+bptt_horizon = 64
+update_epochs = 1
+forward_pass_minibatch_target_size = 4096 if torch.cuda.is_available() else 2048
+async_factor = 2
+grad_mean_variance_interval = 150
+scale_batches_by_world_size = False
+cpu_offload = False
+zero_copy = True
+
+# Individual component configs with explicit values
+ppo_config = PPOConfig(
+    clip_coef=0.1,
+    ent_coef=0.01,
+    gamma=0.99,
+    gae_lambda=0.95,
+)
+
+optimizer_config = OptimizerConfig(
+    type="adam",
+    learning_rate=3e-4,
+)
+
+checkpoint_config = CheckpointConfig(
+    checkpoint_dir=dirs.checkpoint_dir,
+    checkpoint_interval=300,
+    wandb_checkpoint_interval=0,
+)
+
+simulation_config = SimulationConfig(
+    evaluate_interval=300,
+    replay_dir=dirs.replay_dir,
+)
+
+profiler_config = TorchProfilerConfig(
+    interval_epochs=0,  # Disabled by default
+    profile_dir=os.path.join(dirs.run_dir, "torch_traces"),
+)
+
+# Use defaults for these
+prioritized_replay_config = PrioritizedExperienceReplayConfig()
+vtrace_config = VTraceConfig()
+kickstart_config = KickstartConfig()
+
+# Check for initial policy URI from environment variable
+initial_policy_uri = os.environ.get("INITIAL_POLICY_URI", None)
+initial_policy_config = InitialPolicyConfig(uri=initial_policy_uri)
+
+# Create a trainer config for compatibility with functions that expect it
+# This is just for backward compatibility - we use the individual configs directly
 trainer_config = TrainerConfig(
-    num_workers=4,
-    total_timesteps=10_000_000,
-    batch_size=524288 if torch.cuda.is_available() else 131072,  # 512k for GPU, 128k for CPU (minimum for navigation)
-    minibatch_size=16384 if torch.cuda.is_available() else 4096,  # 16k for GPU, 4k for CPU
-    curriculum="/env/mettagrid/curriculum/navigation/bucketed",
-    ppo=PPOConfig(
-        clip_coef=0.1,
-        ent_coef=0.01,
-        gamma=0.99,
-        gae_lambda=0.95,
-    ),
-    optimizer=OptimizerConfig(
-        type="adam",
-        learning_rate=3e-4,
-    ),
-    checkpoint=CheckpointConfig(
-        checkpoint_dir=dirs.checkpoint_dir,
-        checkpoint_interval=300,
-        wandb_checkpoint_interval=0,
-    ),
-    simulation=SimulationConfig(
-        evaluate_interval=300,
-        replay_dir=dirs.replay_dir,
-    ),
-    profiler=TorchProfilerConfig(
-        interval_epochs=0,  # Disabled by default
-        profile_dir=os.path.join(dirs.run_dir, "torch_traces"),
-    ),
-    grad_mean_variance_interval=150,
-    forward_pass_minibatch_target_size=4096 if torch.cuda.is_available() else 2048,  # Adjust for CPU
-    async_factor=2,  # Add this to match trainer.yaml
+    num_workers=num_workers,
+    total_timesteps=total_timesteps,
+    batch_size=batch_size,
+    minibatch_size=minibatch_size,
+    curriculum=curriculum,
+    bptt_horizon=bptt_horizon,
+    update_epochs=update_epochs,
+    forward_pass_minibatch_target_size=forward_pass_minibatch_target_size,
+    async_factor=async_factor,
+    grad_mean_variance_interval=grad_mean_variance_interval,
+    scale_batches_by_world_size=scale_batches_by_world_size,
+    cpu_offload=cpu_offload,
+    zero_copy=zero_copy,
+    ppo=ppo_config,
+    optimizer=optimizer_config,
+    checkpoint=checkpoint_config,
+    simulation=simulation_config,
+    profiler=profiler_config,
+    prioritized_experience_replay=prioritized_replay_config,
+    vtrace=vtrace_config,
+    kickstart=kickstart_config,
+    initial_policy=initial_policy_config,
 )
 
 # Adjust batch sizes for distributed training
@@ -143,10 +195,10 @@ env = Environment(
 )
 metta_grid_env = env.driver_env  # type: ignore - vecenv attribute
 
-# Create agent
-agent = Agent(env, device=str(device))
-hidden_size, num_lstm_layers = get_lstm_config(agent)
+# Create curriculum object once for reuse
+curriculum_obj = curriculum_from_config_path(trainer_config.curriculum_or_env, DictConfig(trainer_config.env_overrides))
 
+# Agent will be created later after checking for checkpoint
 # Evaluation configuration
 evaluation_config = create_evaluation_config_suite()
 
@@ -166,12 +218,25 @@ if is_master:
         "train_job": {"evals": evaluation_config.model_dump() if hasattr(evaluation_config, "model_dump") else {}},
     }
 
-    wandb_run, wandb_ctx = initialize_wandb(
-        run_name=dirs.run_name,
-        run_dir=dirs.run_dir,
-        enabled=os.environ.get("WANDB_DISABLED", "").lower() != "true",
-        config=full_config,
-    )
+    # Create wandb config like tools/train.py
+    wandb_config = {
+        "enabled": os.environ.get("WANDB_DISABLED", "").lower() != "true",
+        "project": os.environ.get("WANDB_PROJECT", "metta"),
+        "entity": os.environ.get("WANDB_ENTITY", "metta-research"),
+        "group": dirs.run_name,
+        "name": dirs.run_name,
+        "run_id": dirs.run_name,
+        "data_dir": dirs.run_dir,
+        "job_type": "train",
+        "tags": [],
+        "notes": "",
+    }
+
+    # Use WandbContext directly like tools/train.py
+    from metta.common.wandb.wandb_context import WandbContext
+
+    wandb_ctx = WandbContext(DictConfig(wandb_config), DictConfig(full_config))
+    wandb_run = wandb_ctx.__enter__()
 
 # Create policy store with config structure matching what Hydra provides
 policy_store_config = {
@@ -204,32 +269,64 @@ policy_store = PolicyStore(
     wandb_run=wandb_run,
 )
 
-# Load checkpoint or create initial policy with distributed coordination
-checkpoint_path = trainer_config.checkpoint.checkpoint_dir
-checkpoint = load_checkpoint(checkpoint_path, None, None, policy_store, device)
-agent_step, epoch, loaded_policy_path = checkpoint
+# Create or load agent with a single function call
+agent, policy_record, agent_step, epoch, checkpoint = create_or_load_agent(
+    env=env,
+    run_dir=dirs.run_dir,
+    policy_store=policy_store,
+    trainer_config=trainer_config,
+    device=device,
+    is_master=is_master,
+    rank=rank,
+)
 
-# Ensure all ranks have the same initial policy
-ensure_initial_policy(agent, policy_store, checkpoint_path, loaded_policy_path, device)
+# Get LSTM config from the agent
+hidden_size, num_lstm_layers = get_lstm_config(agent)
+
+# Validate that policy matches environment
+validate_policy_environment_match(agent, metta_grid_env)  # type: ignore
+
+# Store initial policy record for later use
+initial_policy_record = policy_record
+
+# Create optimizer like trainer.py does
+
+optimizer_type = trainer_config.optimizer.type
+opt_cls = torch.optim.Adam if optimizer_type == "adam" else ForeachMuon
+# ForeachMuon expects int for weight_decay, Adam expects float
+weight_decay = trainer_config.optimizer.weight_decay
+if optimizer_type != "adam":
+    # Ensure weight_decay is int for ForeachMuon
+    weight_decay = int(weight_decay)
+
+optimizer = opt_cls(
+    agent.parameters(),  # type: ignore - agent is MettaAgent from factory
+    lr=trainer_config.optimizer.learning_rate,
+    betas=(trainer_config.optimizer.beta1, trainer_config.optimizer.beta2),
+    eps=trainer_config.optimizer.eps,
+    weight_decay=weight_decay,  # type: ignore - ForeachMuon type annotation issue
+)
+
+if checkpoint and checkpoint.optimizer_state_dict:
+    try:
+        optimizer.load_state_dict(checkpoint.optimizer_state_dict)
+        logger.info("Successfully loaded optimizer state from checkpoint")
+    except ValueError:
+        logger.warning("Optimizer state dict doesn't match. Starting with fresh optimizer state.")
+
+# Wrap agent for distributed training
 agent = wrap_agent_distributed(agent, device)
 
 # Ensure all ranks have wrapped their agents before proceeding
 if torch.distributed.is_initialized():
     torch.distributed.barrier()
 
-# Create optimizer
-optimizer = Optimizer(
-    optimizer_type=trainer_config.optimizer.type,
-    policy=agent,
-    learning_rate=trainer_config.optimizer.learning_rate,
-    betas=(trainer_config.optimizer.beta1, trainer_config.optimizer.beta2),
-    eps=trainer_config.optimizer.eps,
-    weight_decay=trainer_config.optimizer.weight_decay,
-    max_grad_norm=trainer_config.ppo.max_grad_norm,
-)
-
-# Load optimizer state from checkpoint if it exists
-_, _, checkpoint_path_from_load = load_checkpoint(checkpoint_path, None, optimizer, policy_store, device)
+# Log model parameters to wandb
+if is_master and wandb_run:
+    num_params = sum(p.numel() for p in agent.parameters())  # type: ignore
+    if wandb_run.summary:
+        wandb_run.summary["model/total_parameters"] = num_params
+    logger.info(f"Model has {num_params:,} parameters")
 
 # Create experience buffer
 experience = Experience(
@@ -266,7 +363,7 @@ timer.start()
 lr_scheduler = None
 if getattr(trainer_config, "lr_scheduler", None) and trainer_config.lr_scheduler.enabled:
     lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-        optimizer.optimizer, T_max=trainer_config.total_timesteps // trainer_config.batch_size
+        optimizer, T_max=trainer_config.total_timesteps // trainer_config.batch_size
     )
 
 # Memory and System Monitoring (master only)
@@ -285,15 +382,18 @@ if is_master:
         external_timer=timer,  # Pass timer for persistent elapsed time across restarts
     )
 
+# Track policy records for consistency with trainer.py
+initial_policy_record = policy_record
+latest_saved_policy_record = policy_record
+
 # Training loop
-saved_policy_path = None
 logger.info(f"Starting training on {device}")
 evaluation_scores = {}
 epoch_start_time = time.time()
 steps_at_epoch_start = agent_step
 stats = defaultdict(list)  # Use defaultdict like trainer.py
-initial_policy_record = None  # Track initial policy
-current_policy_generation = 0  # Track policy generation
+grad_stats = {}
+current_policy_generation = initial_policy_record.metadata.get("generation", 0) + 1 if initial_policy_record else 0
 
 while agent_step < trainer_config.total_timesteps:
     steps_before = agent_step
@@ -345,13 +445,12 @@ while agent_step < trainer_config.total_timesteps:
     experience.reset_importance_sampling_ratios()
 
     # Calculate prioritized replay parameters
-    prio_cfg = trainer_config.prioritized_experience_replay
-    anneal_beta = calculate_anneal_beta(
+    anneal_beta = calculate_prioritized_sampling_params(
         epoch=epoch,
         total_timesteps=trainer_config.total_timesteps,
         batch_size=trainer_config.batch_size,
-        prio_alpha=prio_cfg.prio_alpha,
-        prio_beta0=prio_cfg.prio_beta0,
+        prio_alpha=trainer_config.prioritized_experience_replay.prio_alpha,
+        prio_beta0=trainer_config.prioritized_experience_replay.prio_beta0,
     )
 
     advantages = torch.zeros(experience.values.shape, device=device)
@@ -379,7 +478,7 @@ while agent_step < trainer_config.total_timesteps:
             # Sample minibatch
             minibatch = experience.sample_minibatch(
                 advantages=advantages,
-                prio_alpha=prio_cfg.prio_alpha,
+                prio_alpha=trainer_config.prioritized_experience_replay.prio_alpha,
                 prio_beta=anneal_beta,
                 minibatch_idx=minibatch_idx,
                 total_minibatches=total_minibatches,
@@ -398,7 +497,21 @@ while agent_step < trainer_config.total_timesteps:
                 device=device,
             )
 
-            optimizer.step(loss, epoch, experience.accumulate_minibatches)
+            # Optimizer step like trainer.py
+            optimizer.zero_grad()
+            loss.backward()
+
+            if (minibatch_idx + 1) % experience.accumulate_minibatches == 0:
+                torch.nn.utils.clip_grad_norm_(agent.parameters(), trainer_config.ppo.max_grad_norm)
+                optimizer.step()
+
+                # Optional weight clipping
+                if hasattr(agent, "clip_weights"):
+                    agent.clip_weights()
+
+                if str(device).startswith("cuda"):
+                    torch.cuda.synchronize()
+
             minibatch_idx += 1
         epoch += 1
 
@@ -443,11 +556,7 @@ while agent_step < trainer_config.total_timesteps:
     # Build complete stats for wandb
     if is_master:
         # Get current learning rate
-        current_lr = trainer_config.optimizer.learning_rate
-        if hasattr(optimizer, "param_groups"):
-            current_lr = optimizer.param_groups[0]["lr"]
-        elif hasattr(optimizer, "optimizer"):
-            current_lr = optimizer.optimizer.param_groups[0]["lr"]
+        current_lr = optimizer.param_groups[0]["lr"]
 
         # Build parameters dictionary
         parameters = {
@@ -461,46 +570,31 @@ while agent_step < trainer_config.total_timesteps:
         system_stats = system_monitor.stats() if system_monitor else {}
         memory_stats = memory_monitor.stats() if memory_monitor else {}
 
-        # Build complete stats dictionary
-        all_stats = build_wandb_stats(
-            processed_stats=processed_stats,
-            timing_info=timing_info,
-            weight_stats={},  # Weight stats not computed in run.py
-            grad_stats={},  # Grad stats not computed in run.py
-            system_stats=system_stats,
-            memory_stats=memory_stats,
-            parameters=parameters,
+        # Process and log stats using the shared function
+        process_stats(
+            stats=stats,
+            losses=losses,
             evals=evaluation_scores.get(epoch, EvalRewardSummary()),
+            grad_stats=grad_stats,
+            experience=experience,
+            policy=agent,
+            timer=timer,
+            trainer_cfg=trainer_config,
             agent_step=agent_step,
             epoch=epoch,
+            world_size=world_size,
+            wandb_run=wandb_run,
+            memory_monitor=memory_monitor if is_master else None,
+            system_monitor=system_monitor if is_master else None,
+            latest_saved_policy_record=latest_saved_policy_record,
+            initial_policy_record=initial_policy_record,
+            optimizer=optimizer,
+            kickstarter=kickstarter,
         )
-
-        # Log to wandb if available
-        if wandb_run:
-            wandb_run.log(all_stats, step=agent_step)
-
-        # Also log key metrics to console
-        losses_stats = processed_stats["losses_stats"]
-        log_parts = []
-
-        if losses_stats:
-            log_parts.append(
-                f"Loss[P:{losses_stats.get('policy_loss', 0):.3f} "
-                f"V:{losses_stats.get('value_loss', 0):.3f} "
-                f"E:{losses_stats.get('entropy', 0):.3f} "
-                f"EV:{losses_stats.get('explained_variance', 0):.2f}]"
-            )
-
-        if "reward" in processed_stats["overview"]:
-            log_parts.append(f"Reward:{processed_stats['overview']['reward']:.2f}")
-
-        log_parts.append(f"LR:{current_lr:.1e}")
-
-        if log_parts:
-            logger.info(" | ".join(log_parts))
 
     # Clear stats for next iteration
     stats.clear()
+    grad_stats.clear()
 
     stats_time = time.time() - stats_start
 
@@ -520,7 +614,7 @@ while agent_step < trainer_config.total_timesteps:
     )
 
     # Record heartbeat periodically (master only)
-    if should_run_on_interval(epoch, 10, is_master):
+    if should_run(epoch, 10, is_master):
         record_heartbeat()
 
     # Update L2 weights if configured
@@ -532,19 +626,51 @@ while agent_step < trainer_config.total_timesteps:
             is_master=is_master,
         )
 
+    # Compute gradient statistics (master only)
+    if should_run(epoch, trainer_config.grad_mean_variance_interval, is_master):
+        grad_stats = compute_gradient_stats(agent)
+
     # Save checkpoint periodically
-    if should_run_on_interval(epoch, trainer_config.checkpoint.checkpoint_interval, True):  # All ranks participate
-        saved_policy_path = save_checkpoint(
-            epoch=epoch,
-            agent_step=agent_step,
-            agent=agent,
-            optimizer=optimizer,
-            policy_store=policy_store,
-            checkpoint_path=checkpoint_path,
-            checkpoint_interval=trainer_config.checkpoint.checkpoint_interval,
-            stats=processed_stats["mean_stats"],
-            force_save=False,
-        )
+    if should_run(epoch, trainer_config.checkpoint.checkpoint_interval, True):  # All ranks participate
+        # Save policy with metadata (master only)
+        if is_master:
+            saved_record = save_policy_with_metadata(
+                policy=agent,
+                policy_store=policy_store,
+                epoch=epoch,
+                agent_step=agent_step,
+                evals=evaluation_scores.get(epoch, {}),
+                timer=timer,
+                initial_policy_record=initial_policy_record,
+                run_name=dirs.run_name,
+                is_master=is_master,
+            )
+
+            if saved_record:
+                latest_saved_policy_record = saved_record
+
+                # Clean up old policies periodically
+                if epoch % 10 == 0:
+                    cleanup_old_policies(trainer_config.checkpoint.checkpoint_dir, keep_last_n=5)
+
+        # Save training state (master only)
+        if is_master:
+            extra_args = {}
+            if kickstarter.enabled and kickstarter.teacher_uri is not None:
+                extra_args["teacher_pr_uri"] = kickstarter.teacher_uri
+
+            latest_uri = latest_saved_policy_record.uri if latest_saved_policy_record else None
+            checkpoint = TrainerCheckpoint(
+                agent_step=agent_step,
+                epoch=epoch,
+                optimizer_state_dict=optimizer.state_dict(),
+                stopwatch_state=timer.save_state(),
+                policy_path=latest_uri,
+                extra_args=extra_args,
+            )
+            checkpoint.save(dirs.run_dir)
+            logger.info(f"Saved training state at epoch {epoch}")
+
         # Ensure all ranks synchronize after checkpoint saving
         if torch.distributed.is_initialized():
             torch.distributed.barrier()
@@ -554,14 +680,31 @@ while agent_step < trainer_config.total_timesteps:
         is_master
         and trainer_config.simulation.evaluate_interval > 0
         and epoch % trainer_config.simulation.evaluate_interval == 0
-        and saved_policy_path
+        and latest_saved_policy_record
     ):
         logger.info(f"Evaluating policy at epoch {epoch}")
 
+        # Create extended evaluation config with training task
+        extended_eval_config = SimulationSuiteConfig(
+            name=evaluation_config.name,
+            simulations=dict(evaluation_config.simulations),
+            env_overrides=evaluation_config.env_overrides,
+            num_episodes=evaluation_config.num_episodes,
+        )
+
+        # Add training task to the suite
+        # Get curriculum object from config
+        training_task_config = SingleEnvSimulationConfig(
+            env="/env/mettagrid/mettagrid",
+            num_episodes=1,
+            env_overrides=curriculum_obj.get_task().env_cfg(),
+        )
+        extended_eval_config.simulations["eval/training_task"] = training_task_config
+
         # Run evaluation suite
         sim_suite = SimulationSuite(
-            config=evaluation_config,
-            policy_pr=saved_policy_path,
+            config=extended_eval_config,
+            policy_pr=latest_saved_policy_record,
             policy_store=policy_store,
             device=device,
             vectorization="serial",
@@ -578,11 +721,13 @@ while agent_step < trainer_config.total_timesteps:
         # Build evaluation metrics
         category_scores: dict[str, float] = {}
         categories = set()
-        for sim_name in evaluation_config.simulations.keys():
+        for sim_name in extended_eval_config.simulations.keys():
             categories.add(sim_name.split("/")[0])
 
         for category in categories:
-            score = stats_db.get_average_metric_by_filter("reward", saved_policy_path, f"sim_name LIKE '%{category}%'")
+            score = stats_db.get_average_metric_by_filter(
+                "reward", latest_saved_policy_record, f"sim_name LIKE '%{category}%'"
+            )
             logger.info(f"{category} score: {score}")
             record_heartbeat()
             if score is not None:
@@ -590,7 +735,7 @@ while agent_step < trainer_config.total_timesteps:
 
         # Get detailed per-simulation scores
         per_sim_scores: dict[tuple[str, str], float] = {}
-        all_scores = stats_db.simulation_scores(saved_policy_path, "reward")
+        all_scores = stats_db.simulation_scores(latest_saved_policy_record, "reward")
         for (_, sim_name, _), score in all_scores.items():
             category = sim_name.split("/")[0]
             sim_short_name = sim_name.split("/")[-1]
@@ -600,35 +745,30 @@ while agent_step < trainer_config.total_timesteps:
             category_scores=category_scores,
             simulation_scores=per_sim_scores,
         )
+
+        # Set policy metadata score for sweep_eval.py
+        category_score_values = list(category_scores.values())
+        if category_score_values and latest_saved_policy_record:
+            latest_saved_policy_record.metadata["score"] = float(np.mean(category_score_values))
+            logger.info(f"Set policy metadata score to {latest_saved_policy_record.metadata['score']}")
+
         stats_db.close()
 
         # Replay generation (master only)
-        if is_master and saved_policy_path:
+        if is_master and latest_saved_policy_record:
             logger.info(f"Generating replay at epoch {epoch}")
 
-            # Generate replay on the bucketed curriculum environment
-            replay_sim_config = create_replay_config("varied_terrain/balanced_medium")
-
-            replay_simulator = Simulation(
-                name=f"replay_{epoch}",
-                config=replay_sim_config,
-                policy_pr=saved_policy_path,
+            # Generate replay using the same function as trainer.py
+            generate_replay(
+                policy_record=latest_saved_policy_record,
                 policy_store=policy_store,
+                curriculum=curriculum_obj,
+                epoch=epoch,
                 device=device,
                 vectorization="serial",
                 replay_dir=dirs.replay_dir,
+                wandb_run=wandb_run,
             )
-
-            results = replay_simulator.simulate()
-
-            # Get replay URLs from the database
-            replay_urls = results.stats_db.get_replay_urls()
-            if replay_urls:
-                replay_url = replay_urls[0]
-                player_url = f"https://metta-ai.github.io/metta/?replayUrl={replay_url}"
-                logger.info(f"Replay available at: {player_url}")
-
-            results.stats_db.close()
 
 # Training complete
 total_elapsed = time.time() - epoch_start_time
@@ -652,17 +792,42 @@ if is_master:
         memory_monitor.clear()
 
 # Save final checkpoint
-saved_policy_path = save_checkpoint(
-    epoch=epoch,
-    agent_step=agent_step,
-    agent=agent,
-    optimizer=optimizer,
-    policy_store=policy_store,
-    checkpoint_path=checkpoint_path,
-    checkpoint_interval=trainer_config.checkpoint.checkpoint_interval,
-    stats={},  # Empty dict since processed_stats is out of scope
-    force_save=True,
-)
+# Save policy with metadata (master only)
+if is_master:
+    saved_record = save_policy_with_metadata(
+        policy=agent,
+        policy_store=policy_store,
+        epoch=epoch,
+        agent_step=agent_step,
+        evals=evaluation_scores.get(epoch, {}),
+        timer=timer,
+        initial_policy_record=initial_policy_record,
+        run_name=dirs.run_name,
+        is_master=is_master,
+    )
+
+    if saved_record:
+        latest_saved_policy_record = saved_record
+
+# Save training state (master only)
+if is_master:
+    from metta.rl.trainer_checkpoint import TrainerCheckpoint
+
+    extra_args = {}
+    if kickstarter.enabled and kickstarter.teacher_uri is not None:
+        extra_args["teacher_pr_uri"] = kickstarter.teacher_uri
+
+    latest_uri = latest_saved_policy_record.uri if latest_saved_policy_record else None
+    checkpoint = TrainerCheckpoint(
+        agent_step=agent_step,
+        epoch=epoch,
+        optimizer_state_dict=optimizer.state_dict(),
+        stopwatch_state=timer.save_state(),
+        policy_path=latest_uri,
+        extra_args=extra_args,
+    )
+    checkpoint.save(dirs.run_dir)
+    logger.info("Saved final training state")
 
 # Ensure all ranks synchronize after final checkpoint
 if torch.distributed.is_initialized():
@@ -674,8 +839,9 @@ env.close()  # type: ignore
 logger.info(f"\nTraining run complete! Run saved to: {dirs.run_dir}")
 
 # Clean up distributed training if initialized
-cleanup_distributed()
+if torch.distributed.is_initialized():
+    torch.distributed.destroy_process_group()
 
 # Clean up wandb if initialized
-if is_master:
-    cleanup_wandb(wandb_ctx)
+if is_master and wandb_ctx:
+    wandb_ctx.__exit__(None, None, None)
