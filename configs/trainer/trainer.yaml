@@ -58,7 +58,7 @@ ppo:
       start_coef: 1      # Start with strong regularization
       end_coef: 0.01      # End with minimal regularization
       start_step: 1000000  # Start annealing at 1M steps
-      end_step: 10000000   # Finish annealing at 10M steps
+      end_step: 10000000000   # Finish annealing at 10B steps
 
   norm_adv: true
   clip_vloss: true
