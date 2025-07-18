@@ -66,8 +66,8 @@ from metta.rl.trainer_config import (
     TrainerConfig,
     VTraceConfig,
 )
+from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
 from metta.sim.simulation_suite import SimulationSuite
-from metta.sim.simulation_suite_config import SimulationSuiteConfig, SingleEnvSimulationConfig
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(levelname)s: %(message)s")
