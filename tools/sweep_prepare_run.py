@@ -16,6 +16,7 @@ import hydra
 import wandb
 from omegaconf import DictConfig, ListConfig, OmegaConf
 
+from metta.common.util.lock import run_once
 from metta.common.util.logging_helpers import setup_mettagrid_logger
 from metta.common.util.numpy_helpers import clean_numpy_types
 from metta.common.util.retry import retry_on_exception
@@ -24,7 +25,7 @@ from metta.common.wandb.wandb_context import WandbContext
 from metta.sweep.protein_metta import MettaProtein
 from metta.sweep.wandb_utils import generate_run_id_for_sweep
 
-logger = setup_mettagrid_logger("sweep_init")
+logger = setup_mettagrid_logger("sweep_prepare_run")
 
 
 @hydra.main(config_path="../configs", config_name="sweep_job", version_base=None)
@@ -40,7 +41,7 @@ def setup_next_run(cfg: DictConfig | ListConfig, logger: Logger) -> str:
     Returns the run ID.
     """
     # Load sweep metadata
-    sweep_metadata = OmegaConf.load(os.path.join(cfg.sweep_dir, "config.yaml"))
+    sweep_metadata = OmegaConf.load(os.path.join(cfg.sweep_dir, "metadata.yaml"))
 
     # Generate a new run ID for the sweep, e.g. "simple_sweep.r.0"
     # TODO: Use sweep_id instead of sweep_path, currently very confusing.
