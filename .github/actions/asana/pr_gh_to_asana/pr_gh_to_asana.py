@@ -558,7 +558,7 @@ def format_github_review_body_for_asana(review_body, github_user, review_state, 
     # Convert basic markdown in body
     formatted_body = convert_basic_markdown(review_body) if review_body else "(No comment)"
 
-    return "<body>" + header + formatted_body + "<body>"
+    return "<body>" + header + formatted_body + "</body>"
 
 
 def extract_github_review_id(asana_comment_text):
