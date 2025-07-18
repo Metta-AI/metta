@@ -7,7 +7,8 @@
 python ./tools/train.py \
 --config-name user/bullm \
 trainer.curriculum=env/mettagrid/curriculum/navigation/prioritize_regressed \
-trainer.env_overrides.game.num_agents=4 \
++trainer.env_overrides.game.num_agents=4 \
++sim=/sim/navigation \
 agent.components.env_context.enabled=true \
 run=$USER.navigation.low_reward.with_context.local.$(date +%m-%d) \
 "$@"
