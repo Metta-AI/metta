@@ -27,7 +27,7 @@ namespace py = pybind11;
 // We'll know we've succeeded when this file has zero references to pybind11!
 
 // Helper functions for creating configuration and map
-GameConfig CreateBenchmarkConfig(int num_agents) {
+GameConfig CreateBenchmarkConfig(size_t num_agents) {
   std::vector<std::string> inventory_item_names = {"ore", "heart"};
 
   std::shared_ptr<ActionConfig> action_cfg = std::make_shared<ActionConfig>(
@@ -84,10 +84,11 @@ GameConfig CreateBenchmarkConfig(int num_agents) {
   global_obs_config.last_reward = true;
   global_obs_config.resource_rewards = true;
 
-  return GameConfig(num_agents, 10000, false, 11, 11, inventory_item_names, 100, global_obs_config, actions_cfg, objects_cfg);
+  return GameConfig(
+      num_agents, 10000, false, 11, 11, inventory_item_names, 100, global_obs_config, actions_cfg, objects_cfg);
 }
 
-py::list CreateDefaultMap(int num_agents_per_team = 2) {
+py::list CreateDefaultMap(size_t num_agents_per_team = 2) {
   py::list map;
   const int width = 32;
   const int height = 32;
@@ -106,11 +107,11 @@ py::list CreateDefaultMap(int num_agents_per_team = 2) {
   }
 
   // Place agents symmetrically
-  int agents_placed = 0;
-  std::vector<std::pair<int, int>> positions = {{8, 8},   {8, 24},  {24, 8},  {24, 24}, {16, 8},  {16, 24}, {8, 16},
-                                                {24, 16}, {12, 12}, {12, 20}, {20, 12}, {20, 20}, {16, 16}, {16, 12},
-                                                {16, 20}, {12, 16}, {20, 16}, {10, 10}, {10, 22}, {22, 10}, {22, 22},
-                                                {14, 14}, {14, 18}, {18, 14}, {18, 18}};
+  size_t agents_placed = 0;
+  std::vector<std::pair<size_t, size_t>> positions = {
+      {8, 8},   {8, 24},  {24, 8},  {24, 24}, {16, 8},  {16, 24}, {8, 16},  {24, 16}, {12, 12},
+      {12, 20}, {20, 12}, {20, 20}, {16, 16}, {16, 12}, {16, 20}, {12, 16}, {20, 16}, {10, 10},
+      {10, 22}, {22, 10}, {22, 22}, {14, 14}, {14, 18}, {18, 14}, {18, 18}};
 
   for (size_t i = 0; i < positions.size() && agents_placed < num_agents_per_team * 2; ++i) {
     auto [r, c] = positions[i];
@@ -124,10 +125,10 @@ py::list CreateDefaultMap(int num_agents_per_team = 2) {
 }
 
 // Utility function to generate valid random actions
-py::array_t<int> GenerateValidRandomActions(MettaGrid* env, int num_agents, std::mt19937* gen) {
+py::array_t<int> GenerateValidRandomActions(MettaGrid* env, size_t num_agents, std::mt19937* gen) {
   // Get the maximum argument values for each action type
   py::list max_args = env->max_action_args();
-  int num_actions = py::len(env->action_names());
+  size_t num_actions = py::len(env->action_names());
 
   // Create actions array
   std::vector<py::ssize_t> shape = {static_cast<py::ssize_t>(num_agents), 2};
@@ -135,14 +136,14 @@ py::array_t<int> GenerateValidRandomActions(MettaGrid* env, int num_agents, std:
   auto actions_ptr = static_cast<int*>(actions.request().ptr);
 
   // Initialize distributions
-  std::uniform_int_distribution<> action_dist(0, num_actions - 1);
+  std::uniform_int_distribution<> action_dist(0, static_cast<int>(num_actions) - 1);
 
-  for (int i = 0; i < num_agents; ++i) {
+  for (size_t i = 0; i < num_agents; ++i) {
     // Choose random action type
     int action_type = action_dist(*gen);
 
     // Get max allowed argument for this action type
-    int max_arg = py::cast<int>(max_args[action_type]);
+    int max_arg = py::cast<int>(max_args[static_cast<size_t>(action_type)]);
 
     // Choose random valid argument (0 to max_arg inclusive)
     int action_arg = 0;
@@ -160,14 +161,14 @@ py::array_t<int> GenerateValidRandomActions(MettaGrid* env, int num_agents, std:
 }
 
 // Pre-generate a sequence of actions for the benchmark
-std::vector<py::array_t<int>> PreGenerateActionSequence(MettaGrid* env, int num_agents, int sequence_length) {
+std::vector<py::array_t<int>> PreGenerateActionSequence(MettaGrid* env, size_t num_agents, size_t sequence_length) {
   std::vector<py::array_t<int>> action_sequence;
-  action_sequence.reserve(sequence_length);
+  action_sequence.reserve(static_cast<size_t>(sequence_length));
 
   // Use a deterministic seed for reproducible benchmarks
   std::mt19937 gen(42);
 
-  for (int i = 0; i < sequence_length; ++i) {
+  for (size_t i = 0; i < sequence_length; ++i) {
     action_sequence.push_back(GenerateValidRandomActions(env, num_agents, &gen));
   }
 
@@ -180,7 +181,7 @@ static void BM_MettaGridStep(benchmark::State& state) {  // NOLINT(runtime/refer
   py::gil_scoped_acquire acquire;
 
   // Setup with default 4 agents (matching Python benchmark config)
-  int num_agents = 4;
+  size_t num_agents = 4;
   auto cfg = CreateBenchmarkConfig(num_agents);
   auto map = CreateDefaultMap(2);
 
@@ -219,8 +220,9 @@ static void BM_MettaGridStep(benchmark::State& state) {  // NOLINT(runtime/refer
   }
 
   // Report steps/second as custom counters
-  state.counters["env_rate"] = benchmark::Counter(state.iterations(), benchmark::Counter::kIsRate);
-  state.counters["agent_rate"] = benchmark::Counter(state.iterations() * num_agents, benchmark::Counter::kIsRate);
+  state.counters["env_rate"] = benchmark::Counter(static_cast<double>(state.iterations()), benchmark::Counter::kIsRate);
+  state.counters["agent_rate"] = benchmark::Counter(
+      static_cast<double>(state.iterations()) * static_cast<double>(num_agents), benchmark::Counter::kIsRate);
 }
 
 // Custom main that properly initializes Python
