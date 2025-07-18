@@ -197,7 +197,7 @@ jobs:
 
       - name: Run Pytest on core tests
         run: |
-          pytest -n ${{ env.PYTEST_WORKERS }} --cov --cov-branch --cov-report=xml --benchmark-skip --maxfail=1 --disable-warnings -q
+          pytest -n ${{ env.PYTEST_WORKERS }} --cov --cov-branch --cov-report=xml --benchmark-skip --maxfail=1 --disable-warnings  --durations=10 -v
 
       - name: Run Pytest on subpackage tests
         env:
@@ -205,7 +205,7 @@ jobs:
         run: |
           for package in $SUBPACKAGES; do
             echo "Running tests for $package..."
-            (cd "$package" && pytest -n ${{ env.PYTEST_WORKERS }} --cov --cov-branch --cov-report=xml --benchmark-skip --maxfail=1 --disable-warnings -v) || exit 1
+            (cd "$package" && pytest -n ${{ env.PYTEST_WORKERS }} --cov --cov-branch --cov-report=xml --benchmark-skip --maxfail=1 --disable-warnings  --durations=10 -v) || exit 1
           done
 
       - name: Upload coverage to Codecov
@@ -215,11 +215,6 @@ jobs:
         run: |
           chmod +x .github/scripts/upload_codecov.py
           .github/scripts/upload_codecov.py
-
-      - name: Install lcov
-        if: steps.mettagrid_build_check.outputs.build_success == 'true'
-        run: |
-          sudo apt-get install -y lcov
 
       - name: Run MettaGrid C++ coverage
         if: steps.mettagrid_build_check.outputs.build_success == 'true'
