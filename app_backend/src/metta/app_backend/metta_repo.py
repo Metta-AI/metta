@@ -1087,7 +1087,6 @@ class MettaRepo:
 
         return updated
 
-<<<<<<< HEAD
     async def add_episode_tags(self, episode_ids: list[uuid.UUID], tag: str) -> int:
         """Add a tag to multiple episodes by UUID. Returns number of episodes tagged."""
         if not episode_ids:
@@ -1162,10 +1161,10 @@ class MettaRepo:
             )
             rows = await result.fetchall()
             return [row[0] for row in rows]
-=======
+
     # Sweep coordination methods
 
-    async def create_sweep(self, name: str, project: str, entity: str, wandb_sweep_id: str, user_id: str) -> str:
+    async def create_sweep(self, name: str, project: str, entity: str, wandb_sweep_id: str, user_id: str) -> uuid.UUID:
         """Create a new sweep."""
         async with self.connect() as con:
             result = await con.execute(
@@ -1179,7 +1178,7 @@ class MettaRepo:
             row = await result.fetchone()
             if row is None:
                 raise ValueError("Failed to create sweep")
-            return str(row[0])
+            return row[0]
 
     async def get_sweep_by_name(self, name: str) -> dict[str, Any] | None:
         """Get sweep by name."""
@@ -1209,7 +1208,7 @@ class MettaRepo:
                 "updated_at": row[9],
             }
 
-    async def get_next_sweep_run_counter(self, sweep_id: str) -> int:
+    async def get_next_sweep_run_counter(self, sweep_id: uuid.UUID) -> int:
         """Atomically increment and return the next run counter for a sweep."""
         async with self.connect() as con:
             result = await con.execute(
@@ -1220,10 +1219,9 @@ class MettaRepo:
                 WHERE id = %s
                 RETURNING run_counter
                 """,
-                (uuid.UUID(sweep_id),),
+                (sweep_id,),
             )
             row = await result.fetchone()
             if row is None:
                 raise ValueError(f"Sweep {sweep_id} not found")
             return row[0]
->>>>>>> 27a329c48 (feat(sweep): Add API support for sweep run id synchronization across workers)

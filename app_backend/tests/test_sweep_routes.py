@@ -26,7 +26,8 @@ def test_client(mock_metta_repo):
 def test_create_sweep_creates_new(test_client, mock_metta_repo, auth_headers):
     """Test creating a new sweep."""
     mock_metta_repo.get_sweep_by_name.return_value = None
-    mock_metta_repo.create_sweep.return_value = "sweep_123"
+    test_sweep_id = uuid.uuid4()
+    mock_metta_repo.create_sweep.return_value = test_sweep_id
 
     response = test_client.post(
         "/sweeps/test_sweep/create_sweep",
@@ -39,11 +40,9 @@ def test_create_sweep_creates_new(test_client, mock_metta_repo, auth_headers):
     )
 
     assert response.status_code == 200
-    data = response.json()
-    assert data["created"] is True
-    assert data["sweep_id"] == "sweep_123"
+    assert response.json() == {"created": True, "sweep_id": str(test_sweep_id)}
 
-    # Verify the repo was called correctly
+    # Verify repo methods were called correctly
     mock_metta_repo.get_sweep_by_name.assert_called_once_with("test_sweep")
     mock_metta_repo.create_sweep.assert_called_once_with(
         name="test_sweep",
@@ -56,8 +55,9 @@ def test_create_sweep_creates_new(test_client, mock_metta_repo, auth_headers):
 
 def test_create_sweep_returns_existing(test_client, mock_metta_repo, auth_headers):
     """Test returning existing sweep info (idempotent)."""
+    existing_sweep_id = uuid.uuid4()
     existing_sweep = {
-        "id": "existing_sweep_123",
+        "id": str(existing_sweep_id),  # Convert to string since the route expects string
         "name": "test_sweep",
         "project": "test_project",
         "entity": "test_entity",
@@ -76,9 +76,7 @@ def test_create_sweep_returns_existing(test_client, mock_metta_repo, auth_header
     )
 
     assert response.status_code == 200
-    data = response.json()
-    assert data["created"] is False
-    assert data["sweep_id"] == "existing_sweep_123"
+    assert response.json() == {"created": False, "sweep_id": str(existing_sweep_id)}
 
     # Verify only get was called, not create
     mock_metta_repo.get_sweep_by_name.assert_called_once_with("test_sweep")
@@ -86,9 +84,10 @@ def test_create_sweep_returns_existing(test_client, mock_metta_repo, auth_header
 
 
 def test_create_sweep_with_machine_token(test_client, mock_metta_repo):
-    """Test creating a sweep with machine token authentication."""
+    """Test creating sweep with machine token authentication."""
     mock_metta_repo.get_sweep_by_name.return_value = None
-    mock_metta_repo.create_sweep.return_value = "sweep_123"
+    test_sweep_id = uuid.uuid4()
+    mock_metta_repo.create_sweep.return_value = test_sweep_id
 
     response = test_client.post(
         "/sweeps/test_sweep/create_sweep",
@@ -101,9 +100,7 @@ def test_create_sweep_with_machine_token(test_client, mock_metta_repo):
     )
 
     assert response.status_code == 200
-    data = response.json()
-    assert data["created"] is True
-    assert data["sweep_id"] == "sweep_123"
+    assert response.json() == {"created": True, "sweep_id": str(test_sweep_id)}
 
 
 def test_get_sweep_exists(test_client, mock_metta_repo, auth_headers):
@@ -151,7 +148,7 @@ def test_get_next_run_id(test_client, mock_metta_repo, auth_headers):
 
     # Verify the repo was called correctly
     mock_metta_repo.get_sweep_by_name.assert_called_once_with("test_sweep")
-    mock_metta_repo.get_next_sweep_run_counter.assert_called_once_with(sweep_id)
+    mock_metta_repo.get_next_sweep_run_counter.assert_called_once_with(uuid.UUID(sweep_id))
 
 
 def test_get_next_run_id_sweep_not_found(test_client, mock_metta_repo, auth_headers):

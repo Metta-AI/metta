@@ -1,5 +1,7 @@
 """Sweep coordination routes for managing distributed training sweeps."""
 
+import uuid
+
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
@@ -17,7 +19,7 @@ class SweepCreateRequest(BaseModel):
 
 class SweepCreateResponse(BaseModel):
     created: bool
-    sweep_id: str
+    sweep_id: uuid.UUID
 
 
 class SweepInfo(BaseModel):
@@ -46,7 +48,7 @@ def create_sweep_router(metta_repo: MettaRepo) -> APIRouter:
         existing_sweep = await metta_repo.get_sweep_by_name(sweep_name)
 
         if existing_sweep:
-            return SweepCreateResponse(created=False, sweep_id=existing_sweep["id"])
+            return SweepCreateResponse(created=False, sweep_id=uuid.UUID(existing_sweep["id"]))
 
         # Create new sweep
         sweep_id = await metta_repo.create_sweep(
@@ -80,7 +82,7 @@ def create_sweep_router(metta_repo: MettaRepo) -> APIRouter:
             raise HTTPException(status_code=404, detail=f"Sweep '{sweep_name}' not found")
 
         # Atomically increment and get next run counter
-        next_counter = await metta_repo.get_next_sweep_run_counter(sweep["id"])
+        next_counter = await metta_repo.get_next_sweep_run_counter(uuid.UUID(sweep["id"]))
 
         # Format run ID as "sweep_name.r.counter"
         run_id = f"{sweep_name}.r.{next_counter}"
