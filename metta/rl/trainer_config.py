@@ -104,6 +104,11 @@ class PPOConfig(BaseModelWithForbidExtra):
     l2_reg_loss_coef: float = Field(default=0, ge=0)
     l2_init_loss_coef: float = Field(default=0, ge=0)
 
+    # L2-init annealing parameters
+    # Anneal L2-init coefficient over training to gradually reduce catastrophic forgetting prevention
+    l2_init_anneal_steps: int = Field(default=0, ge=0)  # 0 = no annealing
+    l2_init_anneal_ratio: float = Field(default=0.2, ge=0, le=1.0)  # fraction of anneal_steps for linear ramp-down
+
     # Normalization and clipping
     # Advantage normalization: Standard PPO practice for stability
     norm_adv: bool = True

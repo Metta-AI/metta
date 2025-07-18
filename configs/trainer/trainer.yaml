@@ -51,6 +51,11 @@ ppo:
   vf_coef: 0.44
   l2_reg_loss_coef: 0
   l2_init_loss_coef: 0
+
+  # L2-init annealing parameters
+  l2_init_anneal_steps: 0  # Set to >0 to enable annealing (e.g., 1_000_000_000 for 1B steps)
+  l2_init_anneal_ratio: 0.2  # Last 20% of anneal steps for linear ramp-down
+
   norm_adv: true
   clip_vloss: true
   target_kl: null

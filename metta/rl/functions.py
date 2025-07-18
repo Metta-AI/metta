@@ -181,10 +181,17 @@ def process_minibatch_update(
     # Kickstarter losses
     ks_action_loss, ks_value_loss = kickstarter.loss(agent_step, full_logprobs, newvalue, obs, teacher_lstm_state=[])
 
-    # L2 init loss
+    # L2 init loss with annealing
     l2_init_loss = torch.tensor(0.0, device=device, dtype=torch.float32)
     if trainer_cfg.ppo.l2_init_loss_coef > 0:
-        l2_init_loss = trainer_cfg.ppo.l2_init_loss_coef * policy.l2_init_loss().to(device)
+        # Calculate annealed L2-init coefficient
+        annealed_l2_init_coef = calculate_l2_init_coef(
+            agent_step=agent_step,
+            l2_init_loss_coef=trainer_cfg.ppo.l2_init_loss_coef,
+            l2_init_anneal_steps=trainer_cfg.ppo.l2_init_anneal_steps,
+            l2_init_anneal_ratio=trainer_cfg.ppo.l2_init_anneal_ratio,
+        )
+        l2_init_loss = annealed_l2_init_coef * policy.l2_init_loss().to(device)
 
     # Total loss
     loss = (
@@ -385,6 +392,44 @@ def calculate_prioritized_sampling_params(
     total_epochs = max(1, total_timesteps // batch_size)
     anneal_beta = prio_beta0 + (1 - prio_beta0) * prio_alpha * epoch / total_epochs
     return anneal_beta
+
+
+def calculate_l2_init_coef(
+    agent_step: int,
+    l2_init_loss_coef: float,
+    l2_init_anneal_steps: int,
+    l2_init_anneal_ratio: float,
+) -> float:
+    """Calculate annealed L2-init coefficient using linear annealing.
+
+    Similar to kickstarter annealing: coefficient stays at full value for most of the
+    annealing period, then linearly decreases to 0 over the final portion.
+
+    Args:
+        agent_step: Current training step
+        l2_init_loss_coef: Base L2-init loss coefficient
+        l2_init_anneal_steps: Total steps over which to anneal (0 = no annealing)
+        l2_init_anneal_ratio: Fraction of anneal_steps for linear ramp-down
+
+    Returns:
+        Annealed L2-init coefficient
+    """
+    if l2_init_anneal_steps == 0 or agent_step >= l2_init_anneal_steps:
+        # No annealing configured or past annealing period
+        return 0.0 if l2_init_anneal_steps > 0 and agent_step >= l2_init_anneal_steps else l2_init_loss_coef
+
+    if l2_init_anneal_ratio > 0:
+        anneal_duration = l2_init_anneal_steps * l2_init_anneal_ratio
+        ramp_down_start_step = l2_init_anneal_steps - anneal_duration
+
+        if agent_step > ramp_down_start_step:
+            # In the ramp-down phase
+            progress = (agent_step - ramp_down_start_step) / anneal_duration
+            anneal_factor = 1.0 - progress
+            return l2_init_loss_coef * anneal_factor
+
+    # Before ramp-down or no annealing ratio
+    return l2_init_loss_coef
 
 
 def accumulate_rollout_stats(
