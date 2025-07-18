@@ -742,6 +742,14 @@ class MettaTrainer:
         logger.info("Simulation complete")
         self.evals = evaluation_results.scores
 
+        # Log exploration rates summary if available
+        if self.evals.exploration_rates:
+            logger.info("=== Evaluation Exploration Rates Summary ===")
+            for (category, env), rate in sorted(self.evals.exploration_rates.items()):
+                logger.info(f"  {category}/{env}: {rate:.4f}")
+            logger.info(f"Average exploration rate: {self.evals.avg_exploration_rate:.4f}")
+            logger.info("=============================================")
+
         # Get target metric (for logging) from sweep config
         # and write top-level score for policy selection.
         # In sweep_eval, we use the "score" entry in the policy metadata to select the best policy

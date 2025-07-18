@@ -109,11 +109,24 @@ def extract_scores(
     per_sim_exploration_rates: dict[tuple[str, str], float] = {}
     try:
         all_exploration_rates = stats_db.simulation_scores(policy_record, "exploration_rate")
+
+        # Log exploration rates prominently for each environment
+        logger.info("=== Exploration Rates by Environment ===")
         for (_, sim_name, _), rate in all_exploration_rates.items():
             category = sim_name.split("/")[0]
             sim_short_name = sim_name.split("/")[-1]
             per_sim_exploration_rates[(category, sim_short_name)] = rate
-            logger.info(f"{category}/{sim_short_name} exploration rate: {rate}")
+            logger.info(f"  {category}/{sim_short_name}: {rate:.4f}")
+
+        # Log summary statistics
+        if per_sim_exploration_rates:
+            rates = list(per_sim_exploration_rates.values())
+            avg_rate = sum(rates) / len(rates)
+            min_rate = min(rates)
+            max_rate = max(rates)
+            logger.info(f"Exploration Rate Summary: avg={avg_rate:.4f}, min={min_rate:.4f}, max={max_rate:.4f}")
+        logger.info("=========================================")
+
     except Exception as e:
         logger.warning(f"Could not extract exploration rates: {e}")
         # Exploration rates may not be available if tracking is disabled
