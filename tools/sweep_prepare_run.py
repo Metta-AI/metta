@@ -20,7 +20,6 @@ from metta.common.util.lock import run_once
 from metta.common.util.logging_helpers import setup_mettagrid_logger
 from metta.common.util.numpy_helpers import clean_numpy_types
 from metta.common.util.retry import retry_on_exception
-from metta.common.util.script_decorators import metta_script
 from metta.common.wandb.wandb_context import WandbContext
 from metta.sweep.protein_metta import MettaProtein
 from metta.sweep.wandb_utils import generate_run_id_for_sweep
@@ -29,7 +28,6 @@ logger = setup_mettagrid_logger("sweep_prepare_run")
 
 
 @hydra.main(config_path="../configs", config_name="sweep_job", version_base=None)
-@metta_script
 def main(cfg: DictConfig | ListConfig) -> int:
     run_once(lambda: setup_next_run(cfg, logger))
     return 0
@@ -57,11 +55,6 @@ def setup_next_run(cfg: DictConfig | ListConfig, logger: Logger) -> str:
 
     # Set Wandb config values explicitly so they contain concrete strings
     # rather than unresolved interpolations when validated by Pydantic.
-    # TODO: Check if this is actually necessary.
-    # TODO: Why isn't setting group name here sufficient?
-    cfg.wandb.group = cfg.sweep_name
-    cfg.wandb.name = run_id
-    cfg.wandb.run_id = run_id  # Required by WandbConfigOn schema
 
     def init_run():
         with WandbContext(cfg.wandb, cfg) as wandb_run:
@@ -116,7 +109,6 @@ def setup_next_run(cfg: DictConfig | ListConfig, logger: Logger) -> str:
                     "run_dir": run_dir,
                     "seed": run_seed,
                     "sweep_name": cfg.sweep_name,  # Needed by sweep_eval.py
-                    "device": cfg.device,  # Ensure device is at top level <-- probably messing with the cuda config?
                     "wandb": {
                         "group": cfg.sweep_name,  # Group all runs under the sweep name
                         "name": run_id,  # Individual run name
