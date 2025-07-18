@@ -726,7 +726,7 @@ def synchronize_comments_in_asana_as_multiple_blocks(
                 print(f"[s] Updating existing comment for review {review_id}")
                 story_id = existing_comment["id"]
                 url = f"https://app.asana.com/api/1.0/stories/{story_id}"
-                payload = {"data": {"html_text": formatted_comment}}
+                payload = {"data": {"html_text": formatted_comment}, "type": "comment"}
                 try:
                     response = requests.put(url, headers=headers, json=payload)
                     if response.status_code == 200:
@@ -773,7 +773,7 @@ def synchronize_comments_in_asana_as_multiple_blocks(
                 print(f"[s] Adding new comment for review {review_id}")
                 # Create new comment
                 url = f"{api_url}/stories"
-                payload = {"data": {"html_text": formatted_comment}}
+                payload = {"data": {"html_text": formatted_comment}, "type": "comment"}
                 try:
                     response = requests.post(url, headers=headers, json=payload)
                     response.raise_for_status()
