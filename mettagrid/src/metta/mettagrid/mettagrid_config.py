@@ -132,7 +132,10 @@ class PyGameConfig(BaseModelWithForbidExtra):
     num_agents: int = Field(ge=1)
     # max_steps = zero means "no limit"
     max_steps: int = Field(ge=0)
-    # default is that we terminate / use "done" vs truncation
+    # If this is non-zero, terminate after the total reward reaches this value.
+    # This is intended as "all the reward on the map has been collected".
+    max_reward: float = Field(default=0, ge=0)
+    # If true, truncate when max_steps is reached. Otherwise, terminate.
     episode_truncates: bool = Field(default=False)
     obs_width: int = Field(ge=1)
     obs_height: int = Field(ge=1)
