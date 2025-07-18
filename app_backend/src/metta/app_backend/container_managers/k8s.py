@@ -137,8 +137,6 @@ class K8sPodManager(AbstractContainerManager):
                             git_hash=git_hash,
                             container_id=pod_uid,
                             container_name=pod_name,
-                            alive=True,
-                            task=None,
                         )
                     )
 
