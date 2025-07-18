@@ -14,7 +14,7 @@
 # "$@"
 agent_cluster_type=positions_in_same_area
 num_rooms=4
-num_agents_per_room=2
+num_agents_per_room=4
 for seed in 0 1 2 3 4; do
   ./devops/skypilot/launch.py train \
     run=$USER.navigation.ffa_${agent_cluster_type}_${num_rooms}rooms_of_${num_agents_per_room}_seed${seed}.$(date +%m-%d) \
