@@ -88,26 +88,21 @@ class TestAdvantage:
         )
 
     def test_mps_advantage_cpu_fallback(self, advantage_test_data):
-        """Test that MPS advantage works correctly on CPU"""
+        """Test that MPS implementation works correctly on CPU"""
         # Get test data
         data = advantage_test_data
 
-        # Create advantages tensor
-        advantages = torch.zeros_like(data["values"])
-
-        # Compute advantage on CPU (should use MPS implementation when device is 'mps')
-        cpu_device = torch.device("cpu")
-        advantages_result = compute_advantage(
-            values=data["values"].clone(),
-            rewards=data["rewards"].clone(),
-            dones=data["dones"].clone(),
-            importance_sampling_ratio=data["importance_sampling_ratio"].clone(),
-            advantages=advantages,
-            gamma=data["gamma"],
-            gae_lambda=data["gae_lambda"],
+        # Test the MPS implementation directly on CPU
+        advantages_result = mps.advantage(
+            values=data["values"],
+            rewards=data["rewards"],
+            dones=data["dones"],
+            importance_sampling_ratio=data["importance_sampling_ratio"],
             vtrace_rho_clip=data["vtrace_rho_clip"],
             vtrace_c_clip=data["vtrace_c_clip"],
-            device=cpu_device,
+            gamma=data["gamma"],
+            gae_lambda=data["gae_lambda"],
+            device=torch.device("cpu"),
         )
 
         # Basic sanity checks
@@ -124,20 +119,17 @@ class TestAdvantage:
         data["vtrace_rho_clip"] = 1.5
         data["vtrace_c_clip"] = 1.2
 
-        advantages = torch.zeros_like(data["values"])
-
-        # Compute with MPS implementation
-        advantages_result = compute_advantage(
+        # Compute with MPS implementation directly on CPU
+        advantages_result = mps.advantage(
             values=data["values"].clone(),
             rewards=data["rewards"].clone(),
             dones=data["dones"].clone(),
             importance_sampling_ratio=data["importance_sampling_ratio"].clone(),
-            advantages=advantages,
-            gamma=data["gamma"],
-            gae_lambda=data["gae_lambda"],
             vtrace_rho_clip=data["vtrace_rho_clip"],
             vtrace_c_clip=data["vtrace_c_clip"],
-            device=torch.device("mps"),
+            gamma=data["gamma"],
+            gae_lambda=data["gae_lambda"],
+            device=torch.device("cpu"),
         )
 
         # Verify the result is reasonable
@@ -155,20 +147,18 @@ class TestAdvantage:
         rewards = torch.randn(T, B)
         dones = torch.bernoulli(torch.full((T, B), 0.05))
         importance_sampling_ratio = torch.ones(T, B)
-        advantages = torch.zeros_like(values)
 
-        # Compute advantage
-        advantages_result = compute_advantage(
+        # Compute advantage using MPS implementation directly on CPU
+        advantages_result = mps.advantage(
             values=values,
             rewards=rewards,
             dones=dones,
             importance_sampling_ratio=importance_sampling_ratio,
-            advantages=advantages,
-            gamma=0.99,
-            gae_lambda=0.95,
             vtrace_rho_clip=1.0,
             vtrace_c_clip=1.0,
-            device=torch.device("mps"),
+            gamma=0.99,
+            gae_lambda=0.95,
+            device=torch.device("cpu"),
         )
 
         # Verify shape and validity
@@ -238,3 +228,39 @@ class TestAdvantage:
         assert torch.allclose(simple_advantages[3], torch.tensor([0.0]), atol=1e-5), (
             f"Expected 0.0, got {simple_advantages[3]}"
         )
+
+    @pytest.mark.skipif(not torch.backends.mps.is_available(), reason="MPS not available")
+    def test_mps_device_support(self, advantage_test_data):
+        """Test that the MPS implementation works on actual MPS device when available"""
+        data = advantage_test_data
+
+        # Test on MPS device
+        mps_device = torch.device("mps")
+        advantages_mps = mps.advantage(
+            values=data["values"],
+            rewards=data["rewards"],
+            dones=data["dones"],
+            importance_sampling_ratio=data["importance_sampling_ratio"],
+            vtrace_rho_clip=data["vtrace_rho_clip"],
+            vtrace_c_clip=data["vtrace_c_clip"],
+            gamma=data["gamma"],
+            gae_lambda=data["gae_lambda"],
+            device=mps_device,
+        )
+
+        # Also compute on CPU for comparison
+        advantages_cpu = mps.advantage(
+            values=data["values"],
+            rewards=data["rewards"],
+            dones=data["dones"],
+            importance_sampling_ratio=data["importance_sampling_ratio"],
+            vtrace_rho_clip=data["vtrace_rho_clip"],
+            vtrace_c_clip=data["vtrace_c_clip"],
+            gamma=data["gamma"],
+            gae_lambda=data["gae_lambda"],
+            device=torch.device("cpu"),
+        )
+
+        # Results should match
+        assert torch.allclose(advantages_mps.cpu(), advantages_cpu, atol=1e-5, rtol=1e-5)
+        assert advantages_mps.device.type == "mps"
