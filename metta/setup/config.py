@@ -11,6 +11,7 @@ class UserType(Enum):
     CLOUD = "cloud"
     SOFTMAX = "softmax"
     SOFTMAX_DOCKER = "softmax-docker"
+    CUSTOM = "custom"
 
     @property
     def is_softmax(self) -> bool:
@@ -22,6 +23,7 @@ class UserType(Enum):
             UserType.CLOUD: "User with own cloud account",
             UserType.SOFTMAX: "Softmax employee",
             UserType.SOFTMAX_DOCKER: "Softmax (Docker)",
+            UserType.CUSTOM: "Custom configuration",
         }
         return descriptions.get(self, self.value)
 
