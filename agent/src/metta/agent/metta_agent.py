@@ -156,8 +156,8 @@ class MettaAgent(nn.Module):
             {
                 "obs": torch.zeros(*self.agent_attributes["obs_shape"], dtype=torch.uint8),
                 "rewards": torch.zeros((), dtype=torch.float32),
-                "dones": torch.zeros((), dtype=torch.bool),
-                "truncateds": torch.zeros((), dtype=torch.bool),
+                "dones": torch.zeros((), dtype=torch.float32),
+                "truncateds": torch.zeros((), dtype=torch.float32),
                 "actions": torch.zeros(self.agent_attributes["action_space"].shape, dtype=torch.int32),
                 "logprobs": torch.zeros((), dtype=torch.float32),
                 "values": torch.zeros((), dtype=torch.float32),
@@ -475,21 +475,20 @@ class MettaAgent(nn.Module):
         if __debug__:
             assert_shape(logits, ("BT", "A"), "logits")
 
-        # After the forward passes, internal_data["state"] holds the *new* recurrent state.
-        new_state = internal_data["state"]
+        # new_state = internal_data["state"]
 
         if action is None:
             # Inference mode
             output_td = self.forward_inference(value, logits)
 
             # Add the new recurrent state to the output so it can be stored.
-            if new_state is not None:
-                # Split the state back into h and c. It was concatenated on dim 1.
-                split_size = self.core_num_layers
-                lstm_h_new, lstm_c_new = new_state.split([split_size, split_size], dim=1)
-                output_td["lstm_h"] = lstm_h_new.detach()
-                output_td["lstm_c"] = lstm_c_new.detach()
-
+            if "lstm_h" in internal_data and "lstm_c" in internal_data:
+                lstm_h_new = internal_data["lstm_h"]
+                lstm_c_new = internal_data["lstm_c"]
+                if lstm_h_new is not None and lstm_c_new is not None:
+                    # The tensors are already detached in lstm.py
+                    output_td["lstm_h"] = lstm_h_new
+                    output_td["lstm_c"] = lstm_c_new
             return output_td
         else:
             # Training mode

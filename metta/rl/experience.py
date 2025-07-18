@@ -173,8 +173,11 @@ class Experience:
 
         minibatch_td["advantages"] = advantages[idx]
         minibatch_td["returns"] = advantages[idx] + minibatch_td["values"]
-        minibatch_td["indices"] = idx
-        minibatch_td["prio_weights"] = (self.segments * prio_probs[idx, None]) ** -prio_beta
+        # minibatch_td["indices"] = idx.view(-1, 1)
+        # minibatch_td["prio_weights"] = (self.segments * prio_probs[idx, None]) ** -prio_beta
+        minibatch_td["indices"] = idx.view(-1, 1).expand(-1, self.bptt_horizon)
+        prio_weights_val = (self.segments * prio_probs[idx, None]) ** -prio_beta
+        minibatch_td["prio_weights"] = prio_weights_val.expand(-1, self.bptt_horizon)
         return minibatch_td
 
     def update(self, indices: Tensor, data_td: TensorDict) -> None:

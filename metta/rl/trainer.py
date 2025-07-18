@@ -437,8 +437,8 @@ class MettaTrainer:
             # The policy doesn't know about env rewards/dones. Add them here.
             # The experience spec expects these, so the buffer has space for them.
             experience_td["rewards"] = r
-            experience_td["dones"] = d
-            experience_td["truncateds"] = t
+            experience_td["dones"] = d.float()
+            experience_td["truncateds"] = t.float()
 
             # Store experience - the returned TD has everything we need.
             experience.store(
