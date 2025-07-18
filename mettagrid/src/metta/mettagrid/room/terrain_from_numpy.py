@@ -198,12 +198,11 @@ class TerrainFromNumpy(Room):
         kernel[4, :] = 1
         kernel[:, 0] = 1
         kernel[:, 4] = 1
-        border_count = kernel.sum()  # should be 16
 
         # Convolve valid_mask with the kernel to find all top-left corners of valid 5x5 squares
         conv = convolve2d(valid_mask.astype(int), kernel, mode="valid")
         # Find all top-left corners where all border cells are valid
-        possible_squares = np.argwhere(conv == border_count)
+        possible_squares = np.argwhere(conv >= num_agents)
 
         if len(possible_squares) == 0:
             return []
@@ -284,6 +283,7 @@ class TerrainFromNumpy(Room):
             level[pos] = label
 
         # Convert to set for O(1) removal operations
+        valid_positions = self.get_valid_positions(level)
         valid_positions_set = set(valid_positions[num_agents:])
 
         for obj_name, count in self._objects.items():
