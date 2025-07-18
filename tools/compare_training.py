@@ -78,6 +78,7 @@ def run_hydra_training(run_name: str, run_dir: str, group: str) -> subprocess.Po
     env["RUN_NAME"] = run_name
     env["RUN_DIR"] = run_dir
     env["WANDB_GROUP"] = group
+    env["WANDB_PROJECT"] = "comparision_trainer"
     cmd = [
         sys.executable,
         "tools/train.py",
