@@ -3,11 +3,11 @@
 # Local navigation training script for use with tools/train.py
 
 python3 tools/train.py \
-run="$USER.navigation.ffa_test_4rooms_of_2_right_next_to_each_other_seed0.$(date +%m-%d)" \
+run="$USER.navigation.ffa_test_1rooms_of_1_right_next_to_each_other_seed0.$(date +%m-%d)" \
 trainer.curriculum=env/mettagrid/curriculum/navigation/random \
 ++trainer.env_overrides.special_reward_mode=ffa \
-++trainer.env_overrides.game.num_agents=8 \
-++trainer.env_overrides.game.map_builder.room.agents=2 \
+++trainer.env_overrides.game.num_agents=4 \
+++trainer.env_overrides.game.map_builder.room.agents=1 \
 ++trainer.env_overrides.game.map_builder.room.agent_cluster_type=right_next_to_each_other \
 ++trainer.env_overrides.game.map_builder.num_rooms=4 \
 seed=0 \
