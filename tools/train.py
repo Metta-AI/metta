@@ -6,7 +6,6 @@ from logging import Logger
 
 import hydra
 import torch
-import torch.distributed as dist
 from omegaconf import DictConfig, ListConfig, OmegaConf
 from torch.distributed.elastic.multiprocessing.errors import record
 
@@ -17,6 +16,7 @@ from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.script_decorators import get_metta_logger, metta_script
 from metta.common.util.stats_client_cfg import get_stats_client
 from metta.common.wandb.wandb_context import WandbContext, WandbRun
+from metta.rl.functions import setup_device_and_distributed
 from metta.sim.simulation_config import SimulationSuiteConfig
 from tools.sweep_config_utils import (
     load_train_job_config_with_overrides,
@@ -107,22 +107,22 @@ def main(cfg: DictConfig) -> int:
         + f"{os.environ.get('LOCAL_RANK', '0')} ({cfg.device})"
     )
 
-    if "LOCAL_RANK" in os.environ and cfg.device.startswith("cuda"):
-        logger.info(f"Initializing distributed training with {os.environ['LOCAL_RANK']} {cfg.device}")
-        local_rank = int(os.environ["LOCAL_RANK"])
-        cfg.device = f"{cfg.device}:{local_rank}"
-        dist.init_process_group(backend="nccl")
+    # Use shared distributed setup function
+    device, is_master, world_size, rank = setup_device_and_distributed(cfg.device)
+
+    # Update cfg.device to include the local rank if distributed
+    cfg.device = str(device)
 
     logger.info(f"Training {cfg.run} on {cfg.device}")
-    if os.environ.get("RANK", "0") == "0":
+    if is_master:
         logger.info(f"Train job config: {OmegaConf.to_yaml(cfg, resolve=True)}")
         with WandbContext(cfg.wandb, cfg) as wandb_run:
             train(cfg, wandb_run, logger)
     else:
         train(cfg, None, logger)
 
-    if dist.is_initialized():
-        dist.destroy_process_group()
+    if torch.distributed.is_initialized():
+        torch.distributed.destroy_process_group()
 
     return 0
 

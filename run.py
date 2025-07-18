@@ -42,7 +42,7 @@ from metta.rl.functions import (
     process_training_stats,
     run_policy_inference,
     save_policy_with_metadata,
-    setup_distributed_vars,
+    setup_device_and_distributed,
     should_run,
     validate_policy_environment_match,
     wrap_agent_distributed,
@@ -73,21 +73,8 @@ logger = logging.getLogger(__name__)
 # Set up directories
 dirs = setup_run_directories()
 
-# Set up distributed training like tools/train.py
-base_device = "cuda" if torch.cuda.is_available() else "cpu"
-if "LOCAL_RANK" in os.environ:
-    local_rank = int(os.environ["LOCAL_RANK"])
-    if base_device.startswith("cuda"):
-        device = torch.device(f"{base_device}:{local_rank}")
-        torch.distributed.init_process_group(backend="nccl")
-    else:
-        device = torch.device(base_device)
-        torch.distributed.init_process_group(backend="gloo")
-else:
-    device = torch.device(base_device)
-
-# Get distributed vars
-is_master, world_size, rank = setup_distributed_vars()
+# Set up device and distributed training
+device, is_master, world_size, rank = setup_device_and_distributed("cuda" if torch.cuda.is_available() else "cpu")
 
 # Configuration using individual component configs
 # Note: batch_size must be >= total_agents * bptt_horizon
@@ -207,6 +194,9 @@ env = Environment(
     vectorization="serial",  # Match the vectorization mode
 )
 metta_grid_env = env.driver_env  # type: ignore - vecenv attribute
+
+# Create curriculum object once for reuse
+curriculum_obj = curriculum_from_config_path(trainer_config.curriculum_or_env, DictConfig(trainer_config.env_overrides))
 
 # Agent will be created later after checking for checkpoint
 # Evaluation configuration
@@ -703,10 +693,11 @@ while agent_step < trainer_config.total_timesteps:
         )
 
         # Add training task to the suite
+        # Get curriculum object from config
         training_task_config = SingleEnvSimulationConfig(
             env="/env/mettagrid/mettagrid",
             num_episodes=1,
-            env_overrides=curriculum.get_task().env_cfg(),
+            env_overrides=curriculum_obj.get_task().env_cfg(),
         )
         extended_eval_config.simulations["eval/training_task"] = training_task_config
 
@@ -767,16 +758,11 @@ while agent_step < trainer_config.total_timesteps:
         if is_master and latest_saved_policy_record:
             logger.info(f"Generating replay at epoch {epoch}")
 
-            # Get curriculum from config
-            curriculum = curriculum_from_config_path(
-                trainer_config.curriculum_or_env, DictConfig(trainer_config.env_overrides)
-            )
-
             # Generate replay using the same function as trainer.py
             generate_replay(
                 policy_record=latest_saved_policy_record,
                 policy_store=policy_store,
-                curriculum=curriculum,
+                curriculum=curriculum_obj,
                 epoch=epoch,
                 device=device,
                 vectorization="serial",
