@@ -67,7 +67,7 @@ class CurriculumClient(Curriculum):
                 response.raise_for_status()
                 logger.info(f"CurriculumClient connected to: {self.server_url}")
                 return
-            except Exception as e:
+            except Exception:
                 time.sleep(1)
         logger.error(f"Failed to connect to curriculum server: {self.server_url}")
         raise RuntimeError(f"Failed to connect to curriculum server: {self.server_url}")
