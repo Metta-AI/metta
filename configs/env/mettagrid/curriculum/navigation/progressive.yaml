@@ -1,19 +1,22 @@
-# Inherit from base progressive configuration
-defaults:
-  - /env/mettagrid/curriculum/progressive@
-  - _self_
+# Navigation-specific progressive curriculum
+name: navigation_progressive
+algorithm:
+  type: progressive
+  params:
+    performance_threshold: 0.95
+    smoothing: 0.1
+    progression_rate: 0.001
+    progression_mode: "perf"
+    blending_smoothness: 0.5
+    blending_mode: "logistic"
 
 # Navigation-specific tasks
-tasks:
-  /env/mettagrid/navigation/training/small: 1
-  /env/mettagrid/navigation/training/medium: 1
-  /env/mettagrid/navigation/training/large: 1
+env_paths:
+  - /env/mettagrid/navigation/training/small
+  - /env/mettagrid/navigation/training/medium
+  - /env/mettagrid/navigation/training/large
 
-# Navigation-specific env_overrides (extends base env_overrides)
+# Navigation-specific env_overrides
 env_overrides:
   game:
     num_agents: 4
-
-# Navigation-specific progressive parameters (overrides base defaults)
-performance_threshold: 0.95
-progression_rate: 0.001

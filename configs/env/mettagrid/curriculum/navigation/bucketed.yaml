@@ -1,8 +1,10 @@
-_target_: metta.mettagrid.curriculum.bucketed.BucketedCurriculum
+name: navigation_bucketed
+algorithm: discrete_random
 
-env_cfg_template_path: /env/mettagrid/navigation/training/terrain_from_numpy
+env_paths:
+  - /env/mettagrid/navigation/training/terrain_from_numpy
 
-buckets:
+parameters:
   game.map_builder.room.dir:
     values:
       [

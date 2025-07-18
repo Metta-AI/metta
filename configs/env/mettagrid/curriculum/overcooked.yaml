@@ -1,6 +1,7 @@
-_target_: metta.mettagrid.curriculum.prioritize_regressed.PrioritizeRegressedCurriculum
+name: overcooked_curriculum
+algorithm: prioritize_regressed
 
-tasks:
-  /env/mettagrid/cooperation/experimental/central_table_layout_curriculum: 1
-  /env/mettagrid/cooperation/experimental/confined_room_coord_curriculum: 1
-  /env/mettagrid/cooperation/experimental/two_rooms_coord_curriculum: 1
+env_paths:
+  - /env/mettagrid/cooperation/experimental/central_table_layout_curriculum
+  - /env/mettagrid/cooperation/experimental/confined_room_coord_curriculum
+  - /env/mettagrid/cooperation/experimental/two_rooms_coord_curriculum

@@ -27,7 +27,6 @@ from metta.common.util.system_monitor import SystemMonitor
 from metta.common.wandb.wandb_context import WandbRun
 from metta.eval.eval_request_config import EvalRewardSummary
 from metta.eval.eval_service import evaluate_policy
-from metta.mettagrid.curriculum.util import curriculum_from_config_path
 from metta.mettagrid.mettagrid_config import PyPolicyGameConfig
 from metta.mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
 from metta.rl.experience import Experience
@@ -146,15 +145,24 @@ class MettaTrainer:
                 external_timer=self.timer,  # Pass trainer's timer for persistent elapsed time
             )
 
-        curriculum_config = trainer_cfg.curriculum_or_env
-        env_overrides = DictConfig(trainer_cfg.env_overrides)
-        self._curriculum = curriculum_from_config_path(curriculum_config, env_overrides)
+        # Create Curriculum from curriculum config, applying env_overrides
+        if trainer_cfg.curriculum:
+            env_overrides_cfg = DictConfig(trainer_cfg.env_overrides)
+            self._curriculum = trainer_cfg.curriculum.create(env_overrides_cfg)
+        elif trainer_cfg.env:
+            # Single env mode - create a simple Curriculum
+            from metta.mettagrid.curriculum import curriculum_from_config_path
+
+            env_overrides_cfg = DictConfig(trainer_cfg.env_overrides)
+            self._curriculum = curriculum_from_config_path(trainer_cfg.env, env_overrides_cfg)
+        else:
+            raise ValueError("Either curriculum or env must be set")
 
         # Add training task to the suite
         self._sim_suite_config.simulations["eval/training_task"] = SingleEnvSimulationConfig(
             env="/env/mettagrid/mettagrid",  # won't be used, dynamic `env_cfg()` should override all of it
             num_episodes=1,
-            env_overrides=self._curriculum.get_task().env_cfg(),
+            env_overrides=self._curriculum.sample().env_config,
         )
 
         self._make_vecenv()
@@ -963,8 +971,8 @@ class MettaTrainer:
     def _make_vecenv(self):
         """Create a vectorized environment."""
         trainer_cfg = self.trainer_cfg
-        task = self._curriculum.get_task()
-        env_cfg = task.env_cfg()
+        task = self._curriculum.sample()
+        env_cfg = task.env_config
 
         # TODO: relax someday when we support other observation shapes
         try:

@@ -328,7 +328,7 @@ class TestRealTypedConfigs:
                 assert 0 <= validated_config.ppo.gae_lambda <= 1
                 assert 0 < validated_config.optimizer.learning_rate <= 1
             except Exception as e:
-                print(f"Error loading config {config_name}: {e}")
+                print(f"Error loading confTheig {config_name}: {e}")
                 raise e
 
     def test_all_config_overrides_comprehensive(self):

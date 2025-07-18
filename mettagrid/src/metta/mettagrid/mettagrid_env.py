@@ -15,7 +15,7 @@ from pydantic import validate_call
 from typing_extensions import override
 
 from metta.common.profiling.stopwatch import Stopwatch, with_instance_timer
-from metta.mettagrid.curriculum.core import Curriculum
+from metta.mettagrid.curriculum import Curriculum
 from metta.mettagrid.level_builder import Level
 from metta.mettagrid.mettagrid_c import MettaGrid
 from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
@@ -77,7 +77,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
 
         self._render_mode = render_mode
         self._curriculum = curriculum
-        self._task = self._curriculum.get_task()
+        self._task = self._curriculum.sample()
         self._level = level
         self._renderer = None
         self._map_labels: list[str] = []
@@ -87,7 +87,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
         self._reset_at = datetime.datetime.now()
         self._current_seed: int = 0  # must be unsigned
 
-        self.labels: list[str] = self._task.env_cfg().get("labels", [])
+        self.labels: list[str] = self._task.env_config.get("labels", [])
         self._should_reset = False
 
         self._is_training = is_training
@@ -125,7 +125,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
             f"Number of agents {task_cfg.game.num_agents} does not match number of agents in map {level_agents}"
         )
 
-        game_config_dict = OmegaConf.to_container(task_cfg.game)
+        game_config_dict = OmegaConf.to_container(task_cfg.game, resolve=True)
         assert isinstance(game_config_dict, dict), "No valid game config dictionary in the environment config"
 
         # During training, we run a lot of envs in parallel, and it's better if they are not
@@ -140,15 +140,13 @@ class MettaGridEnv(PufferEnv, GymEnv):
         # Convert string array to list of strings for C++ compatibility
         # TODO: push the not-numpy-array higher up the stack, and consider pushing not-a-sparse-list lower.
         with self.timer("_initialize_c_env.make_c_env"):
-            c_cfg = None
             try:
                 c_cfg = from_mettagrid_config(game_config_dict)
+                self._c_env = MettaGrid(c_cfg, level.grid.tolist(), self._current_seed)
             except Exception as e:
                 logger.error(f"Error initializing C++ environment: {e}")
                 logger.error(f"Game config: {game_config_dict}")
                 raise e
-
-            self._c_env = MettaGrid(c_cfg, level.grid.tolist(), self._current_seed)
 
         self._grid_env = self._c_env
 
@@ -157,7 +155,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
     def reset(self, seed: int | None = None) -> tuple[np.ndarray, dict]:
         self.timer.stop("thread_idle")
 
-        self._task = self._curriculum.get_task()
+        self._task = self._curriculum.sample()
 
         self._initialize_c_env()
         self._steps = 0
@@ -215,12 +213,12 @@ class MettaGridEnv(PufferEnv, GymEnv):
         infos = {}
         if self.terminals.all() or self.truncations.all():
             # TODO: re-enable diversity bonus
-            # if self._task.env_cfg().game.diversity_bonus.enabled:
+            # if self._task.env_config.game.diversity_bonus.enabled:
             #     self.rewards *= calculate_diversity_bonus(
             #         self._c_env.get_episode_rewards(),
             #         self._c_env.get_agent_groups(),
-            #         self._task.env_cfg().game.diversity_bonus.similarity_coef,
-            #         self._task.env_cfg().game.diversity_bonus.diversity_coef,
+            #         self._task.env_config.game.diversity_bonus.similarity_coef,
+            #         self._task.env_config.game.diversity_bonus.diversity_coef,
             #     )
 
             self.process_episode_stats(infos)
@@ -228,7 +226,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
             self._task.complete(self._c_env.get_episode_rewards().mean())
 
             # Add curriculum task probabilities to infos for distributed logging
-            infos["curriculum_task_probs"] = self._curriculum.get_task_probs()
+            infos["curriculum_task_probs"] = self._curriculum.get_task_probabilities()
 
         self.timer.start("thread_idle")
         return self.observations, self.rewards, self.terminals, self.truncations, infos
@@ -292,7 +290,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
                 assert self._episode_id is not None, "Episode ID must be set before writing stats"
 
                 env_cfg_flattened: dict[str, str] = {}
-                env_cfg = OmegaConf.to_container(self._task.env_cfg(), resolve=False)
+                env_cfg = OmegaConf.to_container(self._task.env_config, resolve=False)
                 for k, v in unroll_nested_dict(cast(dict[str, Any], env_cfg)):
                     env_cfg_flattened[f"config.{str(k).replace('/', '.')}"] = str(v)
 
@@ -351,8 +349,8 @@ class MettaGridEnv(PufferEnv, GymEnv):
         task_init_time_msec = lap_times.get("_initialize_c_env", 0) * 1000
         infos.update(
             {
-                f"task_reward/{self._task.short_name()}/rewards.mean": episode_rewards_mean,
-                f"task_timing/{self._task.short_name()}/init_time_msec": task_init_time_msec,
+                f"task_reward/{self._task.name}/rewards.mean": episode_rewards_mean,
+                f"task_timing/{self._task.name}/init_time_msec": task_init_time_msec,
             }
         )
 

@@ -12,7 +12,7 @@ import pytest
 from omegaconf import OmegaConf
 
 from metta.mettagrid.char_encoder import CHAR_TO_NAME
-from metta.mettagrid.curriculum.core import SingleTaskCurriculum
+from metta.mettagrid.curriculum import single_task
 from metta.mettagrid.mettagrid_env import MettaGridEnv
 from metta.mettagrid.renderer.nethack import NethackRenderer
 from metta.mettagrid.util.hydra import get_cfg
@@ -225,7 +225,7 @@ class TestRendererIntegration:
             }
         )
 
-        curriculum = SingleTaskCurriculum("test", cfg)
+        curriculum = single_task("test", cfg)
         env = MettaGridEnv(curriculum, render_mode="human")
 
         # Reset and render
@@ -268,7 +268,7 @@ class TestRendererIntegration:
             }
         )
 
-        curriculum = SingleTaskCurriculum("test", cfg)
+        curriculum = single_task("test", cfg)
         env = MettaGridEnv(curriculum, render_mode="human")
 
         obs, info = env.reset()
@@ -309,7 +309,7 @@ class TestRendererIntegration:
             }
         )
 
-        curriculum = SingleTaskCurriculum("test", cfg)
+        curriculum = single_task("test", cfg)
 
         # The key: render_mode="human" enables NethackRenderer
         with patch("builtins.print"):

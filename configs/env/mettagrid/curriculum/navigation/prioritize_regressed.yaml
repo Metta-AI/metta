@@ -1,9 +1,10 @@
-_target_: metta.mettagrid.curriculum.prioritize_regressed.PrioritizeRegressedCurriculum
+name: navigation_prioritize_regressed
+algorithm: prioritize_regressed
 
-tasks:
-  /env/mettagrid/navigation/training/terrain_from_numpy: 1
-  /env/mettagrid/navigation/training/cylinder_world: 1
-  /env/mettagrid/navigation/training/varied_terrain_sparse: 1
-  /env/mettagrid/navigation/training/varied_terrain_balanced: 1
-  /env/mettagrid/navigation/training/varied_terrain_maze: 1
-  /env/mettagrid/navigation/training/varied_terrain_dense: 1
+env_paths:
+  - /env/mettagrid/navigation/training/terrain_from_numpy
+  - /env/mettagrid/navigation/training/cylinder_world
+  - /env/mettagrid/navigation/training/varied_terrain_sparse
+  - /env/mettagrid/navigation/training/varied_terrain_balanced
+  - /env/mettagrid/navigation/training/varied_terrain_maze
+  - /env/mettagrid/navigation/training/varied_terrain_dense

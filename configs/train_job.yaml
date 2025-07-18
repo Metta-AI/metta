@@ -13,6 +13,8 @@ train_job:
   evals: ${sim}
 
 trainer:
-  curriculum: /env/mettagrid/arena/basic_easy_shaped
+  curriculum:
+    defaults:
+      - /env/mettagrid/curriculum/arena/random
 
 cmd: train

@@ -5,7 +5,7 @@ import psutil
 import pytest
 from hydra import compose, initialize
 
-from metta.mettagrid.curriculum.core import SingleTaskCurriculum
+from metta.mettagrid.curriculum import single_task
 from metta.mettagrid.mettagrid_env import MettaGridEnv
 
 
@@ -20,14 +20,14 @@ def cfg():
 
 def test_mettagrid_env_init(cfg):
     """Test that the MettaGridEnv can be initialized properly."""
-    curriculum = SingleTaskCurriculum("test", cfg)
+    curriculum = single_task("test", cfg)
     env = MettaGridEnv(curriculum, render_mode=None)
     assert env is not None, "Failed to initialize MettaGridEnv"
 
 
 def test_mettagrid_env_reset(cfg):
     """Test that the MettaGridEnv can be reset multiple times without memory leaks."""
-    curriculum = SingleTaskCurriculum("test", cfg)
+    curriculum = single_task("test", cfg)
     env = MettaGridEnv(curriculum, render_mode=None)
     # Reset the environment multiple times
     for _ in range(10):
@@ -61,7 +61,7 @@ def test_mettagrid_env_no_memory_leaks(cfg):
 
     for i in range(num_iterations):
         # Create the environment
-        curriculum = SingleTaskCurriculum("test", cfg)
+        curriculum = single_task("test", cfg)
         env = MettaGridEnv(curriculum, render_mode=None)
 
         # Reset the environment multiple times
