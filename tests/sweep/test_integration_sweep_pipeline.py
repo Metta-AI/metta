@@ -368,7 +368,7 @@ class TestSweepPipelineIntegration:
 
     def test_multi_run_sweep_progression(self, base_sweep_config):
         """Test multiple runs in sequence to verify sweep progression."""
-        sweep_runs = []
+        sweep_names = []
         suggestions = []
 
         # Simulate multiple runs in a sweep
@@ -391,7 +391,7 @@ class TestSweepPipelineIntegration:
                 metta_protein.record_observation(objective, cost)
 
                 # Store run info
-                sweep_runs.append(
+                sweep_names.append(
                     {
                         "run_idx": run_idx,
                         "suggestion": suggestion,
@@ -421,7 +421,7 @@ class TestSweepPipelineIntegration:
         # Note: Early suggestions may be identical (search center) until protein learns from observations
 
         # Verify progression of objectives (with floating point tolerance)
-        objectives = [run["objective"] for run in sweep_runs]
+        objectives = [run["objective"] for run in sweep_names]
         expected = [0.7, 0.8, 0.9]
         for actual, exp in zip(objectives, expected, strict=False):
             assert abs(actual - exp) < 1e-10  # Should be improving with floating point tolerance
