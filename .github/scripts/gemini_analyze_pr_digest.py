@@ -329,7 +329,8 @@ class CollectionAnalyzer:
 
         selected_bonus_prompt = random.choice(bonus_prompts)
 
-        prompt = f"""You are creating an executive summary of development activity for {repository} from {date_range}.
+        prompt = f"""
+You are creating an executive summary of development activity for {repository} from {date_range}.
 
 {previous_context}
 
@@ -372,7 +373,7 @@ OUTPUT FORMAT:
 
 ## Summary of changes from {date_range}
 
-**Development Focus:** [What were the main development themes and priorities this period?]
+**Development Focus:** [In 2-3 concise sentences, describe what the team actually built or fixed this period. Be specific and direct - avoid abstract themes or philosophical descriptions. Lead with concrete work: "We shipped X, refactored Y, and fixed Z" rather than "This period was characterized by..." Vary your language across summaries.]
 
 **Key Achievements:** [What significant features, improvements, or fixes were delivered?]
 
