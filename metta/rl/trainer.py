@@ -11,7 +11,8 @@ import torch
 import torch.distributed
 import wandb
 from heavyball import ForeachMuon
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
+from pydantic import ValidationError
 
 from metta.agent.metta_agent import DistributedMettaAgent, make_policy
 from metta.agent.policy_metadata import PolicyMetadata
@@ -27,6 +28,7 @@ from metta.common.wandb.wandb_context import WandbRun
 from metta.eval.eval_request_config import EvalRewardSummary
 from metta.eval.eval_service import evaluate_policy
 from metta.mettagrid.curriculum.util import curriculum_from_config_path
+from metta.mettagrid.mettagrid_config import PyPolicyGameConfig
 from metta.mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
 from metta.rl.experience import Experience
 from metta.rl.functions import (
@@ -939,8 +941,28 @@ class MettaTrainer:
     def _make_vecenv(self):
         """Create a vectorized environment."""
         trainer_cfg = self.trainer_cfg
+        task = self._curriculum.get_task()
+        env_cfg = task.env_cfg()
 
-        num_agents = self._curriculum.get_task().env_cfg().game.num_agents
+        # TODO: relax someday when we support other observation shapes
+        try:
+            game_cfg_dict = OmegaConf.to_container(env_cfg.game, resolve=True)
+
+            if not isinstance(game_cfg_dict, dict) or not all(isinstance(k, str) for k in game_cfg_dict.keys()):
+                raise TypeError("env_cfg.game must be a dict with string keys")
+
+            # map_builder is currently in our game config but it is forbidden by the pydantic model. As we do in
+            # mettagrid, we will deal with this by removing it.
+            # See `mettagrid/src/metta/mettagrid/mettagrid_env.py:__initialize_c_env()` for details
+            if "map_builder" in game_cfg_dict:
+                del game_cfg_dict["map_builder"]
+
+            game_cfg = PyPolicyGameConfig(**game_cfg_dict)  # type: ignore[arg-type]
+
+        except ValidationError as e:
+            raise ValueError(f"env_cfg.game is not compatible with agent requirements: {e}") from e
+
+        num_agents = game_cfg.num_agents
 
         # Calculate batch sizes using helper function
         self.target_batch_size, self.batch_size, num_envs = calculate_batch_sizes(
