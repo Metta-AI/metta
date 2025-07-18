@@ -49,14 +49,15 @@ class LSTM(LayerBase):
     def _forward(self, td: TensorDict):
         x = td["x"]
         hidden = td[self._sources[0]["name"]]
-        # state = td["state"]
-        lstm_h = td["lstm_h"]
-        lstm_c = td["lstm_c"]
-
         state = None
-        if lstm_h is not None and lstm_c is not None:
-            # LSTM expects (num_layers, batch, features), so we permute
-            state = (lstm_h.permute(1, 0, 2), lstm_c.permute(1, 0, 2))
+
+        # lstm_h = td["lstm_h"]
+        # lstm_c = td["lstm_c"]
+
+        # state = None
+        # if lstm_h is not None and lstm_c is not None:
+        #     # LSTM expects (num_layers, batch, features), so we permute
+        #     state = (lstm_h.permute(1, 0, 2), lstm_c.permute(1, 0, 2))
 
         x_shape, space_shape = x.shape, self._obs_shape
         x_n, space_n = len(x_shape), len(space_shape)
@@ -64,8 +65,17 @@ class LSTM(LayerBase):
             raise ValueError("Invalid input tensor shape", x.shape)
 
         if x_n == space_n + 1:
+            # rollout mode, feed the cell state from the previous step
             B, TT = x_shape[0], 1
+            lstm_h = td["lstm_h"]
+            lstm_c = td["lstm_c"]
+            if lstm_h is not None and lstm_c is not None:
+                # LSTM expects (num_layers, batch, features), so we permute
+                state = (lstm_h.permute(1, 0, 2), lstm_c.permute(1, 0, 2))
+            else:
+                state = None
         elif x_n == space_n + 2:
+            # training mode. We feed a bptt number of observations. LSTM will handle cell state.
             B, TT = x_shape[:2]
         else:
             raise ValueError("Invalid input tensor shape", x.shape)

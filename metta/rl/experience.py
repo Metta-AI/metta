@@ -107,13 +107,12 @@ class Experience:
         """Check if buffer has enough data for training."""
         return self.full_rows >= self.segments
 
-    def store(self, data_td: TensorDict, env_id: slice, mask: Tensor) -> int:
+    def store(self, data_td: TensorDict, env_id: slice) -> None:
         """Store a batch of experience."""
         assert isinstance(env_id, slice), (
             f"TypeError: env_id expected to be a slice for segmented storage. Got {type(env_id).__name__} instead."
         )
 
-        num_steps = mask.sum().item()
         episode_length = self.ep_lengths[env_id.start].item()
         indices = self.ep_indices[env_id]
 
@@ -126,8 +125,6 @@ class Experience:
         # Check if episodes are complete and reset if needed
         if episode_length + 1 >= self.bptt_horizon:
             self._reset_completed_episodes(env_id)
-
-        return int(num_steps)
 
     def _reset_completed_episodes(self, env_id: slice) -> None:
         """Reset episode tracking for completed episodes."""

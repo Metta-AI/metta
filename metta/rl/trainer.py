@@ -444,7 +444,6 @@ class MettaTrainer:
             experience.store(
                 data_td=experience_td,
                 env_id=training_env_id,
-                mask=mask,
             )
 
             # Update the recurrent state for the next step
@@ -699,11 +698,6 @@ class MettaTrainer:
         result = self.policy_store.add_to_wandb_run(self.wandb_run.name, self.latest_saved_policy_record)
         logger.info(f"Uploaded policy to wandb at epoch {self.epoch}")
         return result
-
-    def _maybe_update_l2_weights(self, force=False):
-        """Update L2 init weights if on update interval"""
-        if self._should_run(self.cfg.agent.l2_init_weight_update_interval, force):
-            self.policy.update_l2_init_weight_copy()
 
     def _maybe_evaluate_policy(self, wandb_policy_name: str | None = None, force: bool = False):
         """Evaluate policy if on evaluation interval"""
