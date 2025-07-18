@@ -555,6 +555,9 @@ def format_github_review_body_for_asana(review_body, github_user, review_state, 
     header = f"<strong>{emoji} GitHub Review from @{github_user} (Review #{review_id})</strong><br/>"
     header += f"<em>Status: {review_state.replace('_', ' ').title()} | {github_timestamp}</em><br/><br/>"
 
+    header = f"<strong>GitHub Review from @{github_user} (Review #{review_id})</strong><br/>"
+    # header += f"<em>Status: {review_state.replace('_', ' ').title()} | {github_timestamp}</em><br/><br/>"
+
     # Convert basic markdown in body
     formatted_body = convert_basic_markdown(review_body) if review_body else "(No comment)"
 
@@ -773,7 +776,7 @@ def synchronize_comments_in_asana_as_multiple_blocks(
                 print(f"[s] Adding new comment for review {review_id}")
                 # Create new comment
                 url = f"{api_url}/stories"
-                payload = {"data": {"html_text": formatted_comment}}
+                payload = {"data": {"html_text": formatted_comment, "type": "comment"}}
                 print(payload)
 
                 try:
