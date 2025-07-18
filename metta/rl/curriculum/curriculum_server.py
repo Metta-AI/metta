@@ -10,6 +10,9 @@ from metta.mettagrid.curriculum.util import curriculum_from_config_path
 
 logger = logging.getLogger(__name__)
 
+# Disable werkzeug route logging (only show errors)
+logging.getLogger("werkzeug").setLevel(logging.ERROR)
+
 
 class CurriculumServer(Curriculum):
     """HTTP server that serves curriculum tasks to distributed environments."""
@@ -27,6 +30,10 @@ class CurriculumServer(Curriculum):
         self._app.add_url_rule("/tasks", "get_tasks", self._get_tasks, methods=["GET"])
         self._app.add_url_rule("/complete", "complete_task", self._complete_task, methods=["GET"])
         self._app.add_url_rule("/health", "health", self._health, methods=["GET"])
+
+        # Metrics
+        self._num_tasks_assigned = 0
+        self._num_tasks_completed = 0
 
     def _get_tasks(self) -> Dict[str, Any]:
         """Get one or more tasks from the curriculum."""
@@ -74,7 +81,7 @@ class CurriculumServer(Curriculum):
             self._server = make_server(self._host, self._port, self._app, threaded=True)
             self._server_thread = threading.Thread(target=self._server.serve_forever, daemon=True)
             self._server_thread.start()
-            logger.info(f"Curriculum server started at http://{self._host}:{self._port}")
+            logger.debug(f"Curriculum server started at http://{self._host}:{self._port}")
         else:
             # Run in foreground (blocking)
             self._app.run(host=self._host, port=self._port, threaded=True)
@@ -104,12 +111,17 @@ class CurriculumServer(Curriculum):
     # Implement the Curriculum interface
     def get_task(self) -> Task:
         task = self._curriculum.get_task()
-        logger.info(f"Assigning task: {task.name()}")
+        logger.debug(f"Assigning task: {task.name()}")
+        self._num_tasks_assigned += 1
         return task
 
     def complete_task(self, id: str, score: float):
-        logger.info(f"Completing task: {id} with score: {score}")
+        logger.debug(f"Completing task: {id} with score: {score}")
         self._curriculum.complete_task(id, score)
+        self._num_tasks_completed += 1
 
     def get_curriculum_stats(self) -> Dict[str, float]:
-        return self._curriculum.get_curriculum_stats()
+        return {
+            "tasks_assigned": self._num_tasks_assigned,
+            "tasks_completed": self._num_tasks_completed,
+        }
