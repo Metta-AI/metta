@@ -86,13 +86,23 @@ def _maybe_save_training_state(
     timer: Any,
     latest_saved_policy_uri: Optional[str],
     kickstarter: Any,
+    trainer_cfg: Any,
     is_master: bool = True,
+    force: bool = False,
 ) -> None:
     """Save training checkpoint state.
 
     Only master saves, but all ranks should call this for distributed sync.
     """
+    # Check interval for all ranks to ensure synchronization
+    if not force and trainer_cfg.checkpoint.checkpoint_interval:
+        if epoch % trainer_cfg.checkpoint.checkpoint_interval != 0:
+            return
+
+    # Now all ranks that should save are here
+    # Only master saves training state, but all ranks must participate in barrier
     if not is_master:
+        # Non-master ranks need to participate in the barrier below
         if torch.distributed.is_initialized():
             torch.distributed.barrier()
         return
@@ -112,6 +122,7 @@ def _maybe_save_training_state(
     checkpoint.save(checkpoint_dir)
     logger.info(f"Saved training state at epoch {epoch}")
 
+    # Synchronize all ranks to ensure the checkpoint is fully saved before continuing
     if torch.distributed.is_initialized():
         torch.distributed.barrier()
 
@@ -675,6 +686,7 @@ def train(
                 if state.latest_saved_policy_record
                 else None,
                 kickstarter=kickstarter,
+                trainer_cfg=trainer_cfg,
                 is_master=is_master,
             )
 
@@ -762,7 +774,9 @@ def train(
         timer=timer,
         latest_saved_policy_uri=state.latest_saved_policy_record.uri if state.latest_saved_policy_record else None,
         kickstarter=kickstarter,
+        trainer_cfg=trainer_cfg,
         is_master=is_master,
+        force=True,
     )
 
     if wandb_run and state.latest_saved_policy_record:
@@ -785,6 +799,8 @@ def create_training_components(
     stats_client: Optional[Any] = None,
 ) -> Tuple[Any, ...]:
     """Create training components individually, similar to run.py."""
+    from pathlib import Path
+
     from metta.agent.metta_agent import DistributedMettaAgent
     from metta.common.profiling.memory_monitor import MemoryMonitor
     from metta.common.profiling.stopwatch import Stopwatch
@@ -792,6 +808,13 @@ def create_training_components(
     from metta.rl.experience import Experience
 
     logger.info(f"run_dir = {cfg.run_dir}")
+
+    # Log recent checkpoints like the MettaTrainer did
+    checkpoints_dir = Path(cfg.run_dir) / "checkpoints"
+    if checkpoints_dir.exists():
+        files = sorted(os.listdir(checkpoints_dir))
+        recent_files = files[-3:] if len(files) >= 3 else files
+        logger.info(f"Recent checkpoints: {', '.join(recent_files)}")
 
     # Apply batch size scaling BEFORE creating trainer config
     # This matches the behavior in tools/train.py

@@ -10,10 +10,8 @@ source "$REPO_ROOT/devops/tools/common.sh"
 
 ensure_uv_setup
 
-# Run metta lint on staged files only
-if ! uv run metta lint --staged; then
-    echo "❌ Linting failed. Please fix the issues before committing."
-    echo "Consider running `metta lint --fix` to fix some issues automatically."
+
+if ! uv run metta run githooks pre-commit; then
     exit 1
 fi
 
