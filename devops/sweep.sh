@@ -46,7 +46,7 @@ EOF
 # and ensures the data is written to a local $SWEEP_DIR/metadata.yaml
 # TODO: I am 95% certain we should NOT pass a dist_cfg_path
 echo "[SWEEP:$sweep_name] Initializing sweep configuration..."
-cmd="tools/sweep_setup.py dist_cfg_path=$DIST_CFG_PATH $args"
+cmd="tools/sweep_setup.py dist_cfg_path=$DIST_CFG_PATH sweep_name=$sweep_name"
 echo "[SWEEP:$sweep_name] Running: $cmd"
 if ! $cmd; then
   echo "[ERROR] Sweep initialization failed: $sweep_name"
