@@ -1,16 +1,38 @@
+import { loadPapersWithUserContext } from "@/posts/data/papers";
+import { auth } from "@/lib/auth";
+import { redirect } from "next/navigation";
+import { MeView } from "@/components/MeView";
+
 /**
  * Me Page
  * 
- * This is a placeholder page for the Me/Profile view that will be accessible
- * via the sidebar navigation. Currently shows a simple message indicating
- * the feature is coming soon.
+ * This page displays the current user's profile and their starred/queued papers.
+ * Requires authentication - redirects to sign in if not authenticated.
  */
 
-export default function MePage() {
+export default async function MePage() {
+    // Get current user session
+    const session = await auth();
+    
+    if (!session?.user) {
+        redirect("/api/auth/signin");
+    }
+
+    // Load papers data with current user context
+    const { papers, users, interactions } = await loadPapersWithUserContext();
+
+    // Filter papers to only show starred and queued papers for current user
+    const starredPapers = papers.filter(paper => paper.isStarredByCurrentUser);
+    const queuedPapers = papers.filter(paper => paper.isQueuedByCurrentUser);
+
     return (
-        <div className="p-8">
-            <h1 className="text-2xl font-bold text-gray-900 mb-4">Me</h1>
-            <p className="text-gray-600">Profile view coming soon...</p>
-        </div>
+        <MeView 
+            user={session.user}
+            starredPapers={starredPapers}
+            queuedPapers={queuedPapers}
+            allPapers={papers}
+            users={users}
+            interactions={interactions}
+        />
     );
 } 
