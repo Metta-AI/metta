@@ -8,7 +8,7 @@ for seed in 0; do
     run=$USER.navigation.ffa_LONG_${agent_cluster_type}_${num_rooms}rooms_of_${num_agents_per_room}_seed${seed}.$(date +%m-%d) \
     trainer.curriculum=env/mettagrid/curriculum/navigation/random \
     --gpus=4 \
-    --nodes=8 \
+    --nodes=4 \
     --no-spot \
     +USER=greg \
     ++trainer.env_overrides.special_reward_mode=ffa \
