@@ -72,9 +72,9 @@ class CheckpointConfig(BaseModelWithForbidExtra):
 
 class SimulationConfig(BaseModelWithForbidExtra):
     # Evaluate interval: Type 2 arbitrary default
-    evaluate_interval: int = Field(default=300, ge=0)  # 0 to disable
+    evaluate_interval: int = Field(default=10, ge=0)  # 0 to disable
     # Replay interval: Type 2 arbitrary default
-    replay_interval: int = Field(default=300, ge=0)  # 0 to disable
+    replay_interval: int = Field(default=10, ge=0)  # 0 to disable
     replay_dir: str = Field(default="")
 
     @model_validator(mode="after")

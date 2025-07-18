@@ -67,7 +67,11 @@ class RoomList(Room):
             start_row = row * max_height + (max_height - room_height) // 2
             start_col = col * max_width + (max_width - room_width) // 2
 
+            # print(f"Room {i} num altars: "+str(int(np.count_nonzero(np.char.startswith(rooms[i], "altar"))))+
+            # " num_agents: "+str(int(np.count_nonzero(np.char.startswith(rooms[i], "agent"))))+
+            # " num_walls: "+str(int(np.count_nonzero(np.char.startswith(rooms[i], "wall")))))
+
             # Place room in centered position
             level[start_row : start_row + room_height, start_col : start_col + room_width] = rooms[i]
-
+        # print("\n")
         return level

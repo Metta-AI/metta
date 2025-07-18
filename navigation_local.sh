@@ -4,13 +4,13 @@
 
 python3 tools/train.py \
 run="$USER.navigation.frontier_heart_reward_only_more_rooms_test_ffa_SANDBOX.$(date +%m-%d)" \
-trainer.curriculum=env/mettagrid/curriculum/navigation/prioritize_regressed \
+trainer.curriculum=env/mettagrid/curriculum/navigation/random \
 ++trainer.env_overrides.special_reward_mode=ffa \
 ++trainer.env_overrides.game.num_agents=8 \
 ++trainer.env_overrides.game.map_builder.room.agents=2 \
 ++trainer.env_overrides.game.map_builder.num_rooms=4 \
+seed=1 \
 sim=navigation \
-seed=0 \
 +USER=greg \
 "$@"
 # ++trainer.env_overrides.game.num_agents=16 \

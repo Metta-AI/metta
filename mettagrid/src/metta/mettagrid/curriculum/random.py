@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import logging
-import random
 from typing import Dict
 
+import numpy as np
 from omegaconf import DictConfig, OmegaConf
 
 from metta.mettagrid.curriculum.core import Curriculum, Task
@@ -22,8 +22,11 @@ class RandomCurriculum(MultiTaskCurriculum):
         self._task_weights = tasks
         super().__init__(curricula)
 
-    def get_task(self) -> Task:
-        task_id = random.choices(list(self._curricula.keys()), weights=list(self._task_weights.values()))[0]
+    def get_task(self, random_task_number: int = 1) -> Task:
+        rng = np.random.RandomState(random_task_number)
+        task_ids = list(self._curricula.keys())
+        weights = list(self._task_weights.values())
+        task_id = rng.choice(task_ids, p=np.array(weights) / np.sum(weights))
         task = self._curricula[task_id].get_task()
         task.add_parent(self, task_id)
         logger.debug(f"Task selected: {task.name()}")

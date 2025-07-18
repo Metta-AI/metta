@@ -128,6 +128,8 @@ class MettaGridEnv(PufferEnv, GymEnv):
                 map_builder = instantiate(map_builder_config, _recursive_=True)
                 level = map_builder.build()
 
+        # print("Num altars: ", int(np.count_nonzero(np.char.startswith(level.grid, "altar"))))
+
         # Validate the level
         level_agents = np.count_nonzero(np.char.startswith(level.grid, "agent"))
         assert task.env_cfg().game.num_agents == level_agents, (
@@ -193,7 +195,10 @@ class MettaGridEnv(PufferEnv, GymEnv):
     def reset(self, seed: int | None = None) -> tuple[np.ndarray, dict]:
         self.timer.stop("thread_idle")
 
-        self._task = self._curriculum.get_task()
+        random_task_number = np.random.randint(0, 10001)
+        # print(f"Random task number: {random_task_number}")
+
+        self._task = self._curriculum.get_task(random_task_number)
 
         self._initialize_c_env()
         self._steps = 0
