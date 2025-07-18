@@ -96,7 +96,7 @@ class CurriculumServer(Curriculum):
         env_overrides = DictConfig(trainer_cfg.get("env_overrides", {}))
         curriculum = curriculum_from_config_path(curriculum_config, env_overrides)
 
-        server = CurriculumServer(curriculum=curriculum, host="localhost", port=trainer_cfg.curriculum_server.port)
+        server = CurriculumServer(curriculum=curriculum, port=trainer_cfg.curriculum_server.port)
         server.start(background=True)
         logger.info(f"Started curriculum server on port {server._port}")
         return server
