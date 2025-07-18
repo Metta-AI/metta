@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 class CurriculumServer(Curriculum):
     """HTTP server that serves curriculum tasks to distributed environments."""
 
-    def __init__(self, curriculum: Curriculum, host: str = "0.0.0.0", port: int = 5555):
+    def __init__(self, curriculum: Curriculum, host: str = "127.0.0.1", port: int = 5555):
         self._curriculum = curriculum
         self._host = host
         self._port = port
