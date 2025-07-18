@@ -73,6 +73,12 @@ export const post = pgTable("post", {
 	id: text().primaryKey().notNull(),
 	authorId: text().notNull(),
 	title: text().notNull(),
+	content: text(),
+	postType: text().default('user-post').notNull(),
+	likes: integer().default(0),
+	retweets: integer().default(0),
+	replies: integer().default(0),
+	paperId: text(),
 	createdAt: timestamp({ mode: 'string' }).defaultNow().notNull(),
 	updatedAt: timestamp({ mode: 'string' }).defaultNow().notNull(),
 }, (table) => [
@@ -80,6 +86,11 @@ export const post = pgTable("post", {
 			columns: [table.authorId],
 			foreignColumns: [user.id],
 			name: "post_authorId_user_id_fk"
+		}),
+	foreignKey({
+			columns: [table.paperId],
+			foreignColumns: [paper.id],
+			name: "post_paperId_paper_id_fk"
 		}),
 ]);
 
