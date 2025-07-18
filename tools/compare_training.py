@@ -57,6 +57,7 @@ def run_functional_training(run_name: str, run_dir: str, group: str) -> Tuple[su
         # Set environment variables for W&B project and group, and run name
         env = os.environ.copy()
         env["WANDB_PROJECT"] = "comparision_trainer"
+        env["WANDB_ENTITY"] = "metta-research"
         env["WANDB_GROUP"] = group
         env["RUN_NAME"] = run_name
         env["RUN_DIR"] = run_dir
@@ -82,8 +83,8 @@ def run_hydra_training(run_name: str, run_dir: str, group: str) -> subprocess.Po
     cmd = [
         sys.executable,
         "tools/train.py",
+        "--config-name=train_job_comparison",  # Use comparison-specific config
         f"+run={run_name}",
-        "trainer.curriculum=/env/mettagrid/curriculum/arena/learning_progress",
         "trainer.total_timesteps=200000000",
         "trainer.optimizer.type=muon",
         "trainer.optimizer.learning_rate=0.002",
