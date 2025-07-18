@@ -6,7 +6,6 @@
 # ]
 # ///
 
-import json
 import os
 import re
 import sys
@@ -15,6 +14,7 @@ from typing import Any, Dict, List
 
 import requests
 from github_asana_mapping import GithubAsanaMapping
+from pull_request import PullRequest
 
 ASANA_GITHUB_ATTACHMENT_ACTION_URL = "https://github.integrations.asana.plus/custom/v1/actions/widget"
 
@@ -309,19 +309,14 @@ def ensure_asana_task(
     pr_author_field_id: str,
     pr_author_asana: str | None,
     asana_attachment_secret: str,
+    asana_urls: list[str],
 ) -> str:
     """Ensure an Asana task exists with the given GitHub URL. Return existing or create new."""
 
     existing_task = None
-
-    # First, check if there are existing Asana URLs in the description. Doing this (vs using Asana search)
-    # avoids a race condition in Asana search indexing, and makes duplicate tasks less likely.
-    existing_asana_urls = extract_asana_urls_from_description(description)
-    if existing_asana_urls:
-        print(f"Found {len(existing_asana_urls)} Asana URLs in description: {existing_asana_urls}")
-
-        # Validate each URL to see if it's a valid task in our project
-        for asana_url in existing_asana_urls:
+    if asana_urls:
+        print(f"Found {len(asana_urls)} Asana URLs in description: {asana_urls}")
+        for asana_url in asana_urls:
             validated_task = validate_asana_task_url(
                 asana_url, project_id, github_url, github_url_field_id, asana_token
             )
@@ -329,7 +324,6 @@ def ensure_asana_task(
                 print(f"Using existing Asana task from description: {asana_url}")
                 existing_task = validated_task
                 break
-
         print("None of the existing Asana URLs in description are valid for this project")
 
     # If no valid existing URLs found in description, search for existing task with this GitHub URL. If we need
@@ -418,64 +412,6 @@ def ensure_github_url_in_asana_task(
     else:
         print(f"Asana API Error (ensure_github_url_in_asana_task): {response.status_code} - {response.text}")
         return None
-
-
-def get_pull_request_from_github(repo, pr_number, github_token):
-    """
-    Get pull request details from GitHub API
-
-    Args:
-        owner (str): Repository owner
-        repo (str): Repository name
-        pr_number (int): Pull request number
-        github_token (str): GitHub personal access token
-
-    Returns:
-        dict: Pull request data, including comments under the 'comments' key
-    """
-    url = f"https://api.github.com/repos/{repo}/pulls/{pr_number}"
-
-    headers = {
-        "Accept": "application/vnd.github+json",
-        "Authorization": f"Bearer {github_token}",
-        "X-GitHub-Api-Version": "2022-11-28",
-    }
-
-    response = requests.get(url, headers=headers)
-    response.raise_for_status()  # Raises an exception for bad status codes
-
-    d = response.json()
-
-    # Fetch PR comments (issue comments)
-    comments_url = f"https://api.github.com/repos/{repo}/issues/{pr_number}/comments"
-    comments_response = requests.get(comments_url, headers=headers)
-    if comments_response.status_code == 200:
-        d["retrieved_comments"] = comments_response.json()
-
-    else:
-        print(f"Failed to fetch PR comments: {comments_response.status_code} - {comments_response.text}")
-        d["retrieved_comments"] = []
-
-    # Fetch PR reviews
-    reviews_url = f"https://api.github.com/repos/{repo}/pulls/{pr_number}/reviews"
-    reviews_response = requests.get(reviews_url, headers=headers)
-    if reviews_response.status_code == 200:
-        d["retrieved_reviews"] = reviews_response.json()
-    else:
-        print(f"Failed to fetch PR reviews: {reviews_response.status_code} - {reviews_response.text}")
-        d["retrieved_reviews"] = []
-
-    # Fetch PR timeline
-    timeline_url = f"https://api.github.com/repos/{repo}/issues/{pr_number}/timeline"
-    timeline_response = requests.get(timeline_url, headers=headers)
-    if timeline_response.status_code == 200:
-        d["retrieved_timeline"] = timeline_response.json()
-    else:
-        print(f"Failed to fetch PR timeline: {timeline_response.status_code} - {timeline_response.text}")
-        d["retrieved_timeline"] = []
-
-    print(f"Pull request retrieved from GitHub: {json.dumps(d, indent=2)}")
-    return d
 
 
 def get_asana_task_comments(asana_token: str, task_id: str) -> List[Dict[str, Any]]:
@@ -606,72 +542,6 @@ def convert_basic_markdown(text):
     text = text.replace("\n", "<br/>")
 
     return text
-
-
-def synchronize_comments_in_asana_as_single_block(
-    asana_token: str, task_url: str, sync_comments: list[dict], events_str: str
-) -> None:
-    """
-    Synchronize review comments in Asana. If sync_comments is empty, add a comment with events_str and return.
-    Otherwise, update the first comment to events_str if needed, and delete any additional comments.
-    sync_comments is the set of comments already pulled from Asana that might match what we have pushed.
-    Args:
-        asana_token (str): Asana Personal Access Token
-        task_url (str): Asana task URL (permalink)
-        sync_comments (list[dict]): List of current review comments (id, text) already pulled from Asana
-        events_str (str): The string representing the current review events
-    """
-    if not (events_str):
-        return
-
-    task_gid = extract_asana_gid_from_url(task_url)
-    api_url = f"https://app.asana.com/api/1.0/tasks/{task_gid}"
-    headers = {"Authorization": f"Bearer {asana_token}", "Content-Type": "application/json"}
-
-    comment_body = f"GitHub Review Timeline:\n{events_str}" if events_str.strip() else ""
-    print(f"new comment body: {comment_body}")
-
-    if not sync_comments:
-        # No comments, add new
-        if comment_body:
-            url = f"{api_url}/stories"
-            payload = {"data": {"text": comment_body}}
-            try:
-                response = requests.post(url, headers=headers, json=payload)
-                response.raise_for_status()
-                print(f"Added review events comment to Asana: {comment_body}")
-            except requests.exceptions.RequestException as e:
-                print(f"Error adding review events comment to Asana: {e}")
-        return
-
-    # There is at least one comment
-    first_comment = sync_comments[0]
-    if first_comment["text"] != comment_body:
-        # Update the first comment to comment_body
-        story_id = first_comment["id"]
-        url = f"https://app.asana.com/api/1.0/stories/{story_id}"
-        payload = {"data": {"text": comment_body}}
-        try:
-            response = requests.put(url, headers=headers, json=payload)
-            if response.status_code == 200:
-                print(f"Updated first Asana comment {story_id} to: {comment_body}")
-            else:
-                print(f"Failed to update Asana comment {story_id}: {response.status_code} - {response.text}")
-        except requests.exceptions.RequestException as e:
-            print(f"Error updating Asana comment {story_id}: {e}")
-
-    # Delete any additional comments
-    for comment in sync_comments[1:]:
-        story_id = comment["id"]
-        del_url = f"https://app.asana.com/api/1.0/stories/{story_id}"
-        try:
-            response = requests.delete(del_url, headers=headers)
-            if response.status_code == 200:
-                print(f"Deleted duplicate Asana comment: {story_id}")
-            else:
-                print(f"Failed to delete Asana comment {story_id}: {response.status_code} - {response.text}")
-        except requests.exceptions.RequestException as e:
-            print(f"Error deleting Asana comment {story_id}: {e}")
 
 
 def synchronize_comments_in_asana_as_multiple_blocks(
@@ -828,13 +698,6 @@ def getenv_or_bust(key: str) -> str:
     return value
 
 
-def is_embedded_review_comment(key: str) -> bool:
-    """
-    Return True if the comment text is an embedded review comment (starts with 'GitHub Review Timeline:').
-    """
-    return key.lstrip().startswith("GitHub Review Timeline:")
-
-
 if __name__ == "__main__":
     import traceback
 
@@ -854,27 +717,15 @@ if __name__ == "__main__":
         github_repo = getenv_or_bust("INPUT_GITHUB_REPO")
         github_token = getenv_or_bust("INPUT_GITHUB_TOKEN")
 
-        pr = get_pull_request_from_github(github_repo, pr_number, github_token)
-        description = pr.get("body", "") or ""
-        title = pr.get("title", "") or ""
-        author = (pr.get("user", "") or {}).get("login", "") or ""
-        assignees = [assignee["login"] for assignee in pr.get("assignees", [])] or []
-
-        # designated assignee is not the author and also not random
+        pr = PullRequest(github_repo, pr_number, github_token)
+        description = pr.body
+        title = pr.title
+        author = pr.author
+        assignees = pr.assignees
         assignee = next((a for a in sorted(assignees) if a != author), author)
-
-        reviewers = [
-            review["user"]["login"]
-            for review in pr.get("retrieved_reviews", [])
-            if review.get("user") and review["user"].get("login")
-        ]
-        commenters = [
-            review["user"]["login"]
-            for review in pr.get("retrieved_comments", [])
-            if review.get("user") and review["user"].get("login")
-        ]
-
-        github_logins = set(assignees + reviewers + commenters + [author])
+        reviewers = pr.reviewers
+        commenters = pr.commenters
+        github_logins = pr.github_logins
         mapping = GithubAsanaMapping(
             github_logins,
             roster_project_id,
@@ -883,51 +734,13 @@ if __name__ == "__main__":
             asana_token,
         )
         github_login_to_asana_email = mapping.github_login_to_asana_email
-
-        retrieved_reviews = pr.get("retrieved_reviews", [])
-        retrieved_timeline = pr.get("retrieved_timeline", [])
-        reviews = [
-            {
-                "type": "review",
-                "timestamp": r["submitted_at"],
-                "user": r["user"]["login"],
-                "text": ": " + r["body"],
-                "action": r["state"].lower(),
-                "id": r["id"],
-            }
-            for r in retrieved_reviews
-            if r.get("state") in ["APPROVED", "CHANGES_REQUESTED"]
-        ]
-        review_requested = [
-            {
-                "type": "review_requested",
-                "timestamp": e["created_at"],
-                "user": e["actor"]["login"],
-                "requested_reviewer": e["requested_reviewer"]["login"],
-                "action": "re-requested",
-                "text": f" review from {e['requested_reviewer']['login']}",
-                "id": e["id"],
-            }
-            for e in retrieved_timeline
-            if e.get("event") == "review_requested"
-        ]
-        events = sorted(reviews + review_requested, key=lambda x: x["timestamp"])
-
-        seen_review_users = set()
-        filtered_events = []
-        for event in events:
-            if event["type"] == "review":
-                seen_review_users.add(event["user"])
-                filtered_events.append(event)
-            elif event["type"] == "review_requested" and event["requested_reviewer"] in seen_review_users:
-                filtered_events.append(event)
-        events = filtered_events
-
-        last_event = events[-1] if events else None
-
-        is_draft = pr.get("draft", False)
-        is_open = (pr.get("state", "") or "") == "open"
-        task_completed = not (is_open)
+        retrieved_reviews = pr.retrieved_reviews
+        retrieved_timeline = pr.retrieved_timeline
+        events = pr.events
+        last_event = pr.last_event
+        is_draft = pr.draft
+        is_open = pr.is_open
+        task_completed = pr.task_completed
 
         """
         asana task assignment (asana owner) should be the PR author or PR assignee dep who is responsible at this time
@@ -986,32 +799,14 @@ if __name__ == "__main__":
             pr_author_field_id,
             pr_author_asana,
             asana_attachment_secret,
+            pr.asana_urls,
         )
 
         comments = get_asana_task_comments(asana_token, extract_asana_gid_from_url(task_url))
         print(f"comments in asana: {comments}")
 
-        """
-        # Everything in one line per item
-
-        sync_comments = list(
-            [
-                {"id": comment["id"], "text": comment["text"]}
-                for comment in comments
-                if comment["author"]["email"] == "stemaidaemon@gmail.com"
-                and is_embedded_review_comment(comment["text"])
-            ]
-        )
-
-        events_str = "\n".join(
-            [f"At {item['timestamp']}, user {item['user']} {item['action']}: {item['text']}" for item in events]
-        )
-
-        synchronize_comments_in_asana_as_single_block(asana_token, task_url, sync_comments, events_str)
-        """
-
         asana_comments_with_links = list([comment for comment in comments if comment["review_id"] is not None])
-        comments_from_github = list([e for e in events if event["type"] == "review"])
+        comments_from_github = list([e for e in events if e["type"] == "review"])
 
         synchronize_comments_in_asana_as_multiple_blocks(
             asana_token, task_url, asana_comments_with_links, comments_from_github
