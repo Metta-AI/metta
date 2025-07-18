@@ -309,6 +309,7 @@ class VariedTerrain(Room):
         if len(valid_positions) < num_agents:
             valid_positions = self.get_valid_positions(level)
             # raise ValueError(f"vtNot enough valid positions found for {num_agents} agents")
+        random.shuffle(valid_positions)
         agent_positions = valid_positions[:num_agents]
 
         # Place agents.

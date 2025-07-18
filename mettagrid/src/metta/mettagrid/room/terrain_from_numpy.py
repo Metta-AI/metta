@@ -278,6 +278,7 @@ class TerrainFromNumpy(Room):
         if len(valid_positions) < num_agents:
             valid_positions = self.get_valid_positions(level)
             # raise ValueError(f"tfnp Not enough valid positions found for {num_agents} agents")
+        random.shuffle(valid_positions)
         agent_positions = valid_positions[:num_agents]
         for pos, label in zip(agent_positions, agent_labels, strict=False):
             level[pos] = label
