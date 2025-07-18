@@ -9,8 +9,13 @@ tasks:
   /env/mettagrid/communication/training/left_ising_corridor: 1
   /env/mettagrid/communication/training/right_ising_corridor_mirror: 1
   /env/mettagrid/communication/training/right_ising_corridor: 1
-  /env/mettagrid/navigation_sequence/experiments/mem_balanced: 1
-  /env/mettagrid/navigation_sequence/experiments/mem_dense: 1
-  /env/mettagrid/navigation_sequence/experiments/mem_sparse: 1
-  /env/mettagrid/curriculum/arena/learning_progress: 2
-  /env/mettagrid/curriculum/navigation/prioritize_regressed: 3
+  # /env/mettagrid/navigation_sequence/experiments/mem_balanced: 1
+  # /env/mettagrid/navigation_sequence/experiments/mem_dense: 1
+  # /env/mettagrid/navigation_sequence/experiments/mem_sparse: 1
+  # /env/mettagrid/curriculum/arena/learning_progress: 2
+  # /env/mettagrid/curriculum/navigation/prioritize_regressed: 3
+
+  # seems impossible to mix tasks with different numbers of agents...
+  # InstantiationException: Error in call to target 'metta.rl.trainer.MettaTrainer':
+  # InstantiationException("Error in call to target 'metta.mettagrid.curriculum.random.RandomCurriculum':\nAssertionError('Task /env/mettagrid/navigation_sequence/experiments/mem_balanced has num_agents 4, expected 24')\nfull_key: env.mettagrid.curriculum")
+  # full_key: trainer
