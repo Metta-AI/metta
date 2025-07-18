@@ -12,7 +12,7 @@ behavior, environment dynamics, and system performance.
 
 | Section | Description | Metric Count |
 |---------|-------------|--------------|
-| [`env_agent/`](./env_agent/) | Detailed agent behavior metrics including actions taken, items collected, combat outcomes,... | 1164 |
+| [`env_agent/`](./env_agent/) | Detailed agent behavior metrics including actions taken, items collected, combat outcomes,... | 1209 |
 | [`env_game/`](./env_game/) | Game object counts and token tracking | 214 |
 | [`env_timing_per_epoch/`](./env_timing_per_epoch/) | Performance profiling metrics measured per epoch. Useful for identifying bottlenecks and... | 42 |
 | [`eval_memory/`](./eval_memory/) | Metrics for eval memory | 26 |
@@ -38,7 +38,7 @@ behavior, environment dynamics, and system performance.
 | [`replays/`](./replays/) | Metrics for replays | 1 |
 | [`torch_traces/`](./torch_traces/) | Metrics for torch traces | 1 |
 
-**Total Metrics:** 1732
+**Total Metrics:** 1777
 
 ## Metric Aggregation Strategy
 

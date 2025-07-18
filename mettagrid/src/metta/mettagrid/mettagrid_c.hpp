@@ -61,6 +61,7 @@ struct GameConfig {
   GlobalObsConfig global_obs;
   std::map<std::string, std::shared_ptr<ActionConfig>> actions;
   std::map<std::string, std::shared_ptr<GridObjectConfig>> objects;
+  bool track_movement_metrics;
 };
 
 class METTAGRID_API MettaGrid {
@@ -147,6 +148,13 @@ private:
 
   std::mt19937 _rng;
   unsigned int _seed;
+
+  // Movement tracking
+  std::vector<Orientation> _previous_orientations;
+  std::vector<int> _sequential_rotations;  // Count of sequential rotations per agent
+  std::vector<bool> _last_action_was_rotation;  // Track if last action was a rotation
+  int _rotate_action_index;  // Index of the rotate action in _action_handlers
+  bool _track_movement_metrics;
 
   void init_action_handlers();
   void add_agent(Agent* agent);

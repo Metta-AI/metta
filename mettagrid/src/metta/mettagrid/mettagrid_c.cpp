@@ -40,7 +40,8 @@ MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int see
       episode_truncates(cfg.episode_truncates),
       inventory_item_names(cfg.inventory_item_names),
       _num_observation_tokens(cfg.num_observation_tokens),
-      _global_obs_config(cfg.global_obs) {
+      _global_obs_config(cfg.global_obs),
+      _track_movement_metrics(cfg.track_movement_metrics) {
   _seed = seed;
   _rng = std::mt19937(seed);
 
@@ -75,6 +76,8 @@ MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int see
 
   _action_success.resize(num_agents);
 
+  _rotate_action_index = -1;  // Initialize to invalid index
+
   for (const auto& [action_name, action_config] : cfg.actions) {
     std::string action_name_str = action_name;
 
@@ -87,6 +90,7 @@ MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int see
     } else if (action_name_str == "move") {
       _action_handlers.push_back(std::make_unique<Move>(*action_config));
     } else if (action_name_str == "rotate") {
+      _rotate_action_index = _action_handlers.size();  // Store index before adding
       _action_handlers.push_back(std::make_unique<Rotate>(*action_config));
     } else if (action_name_str == "attack") {
       const AttackActionConfig* attack_config = dynamic_cast<const AttackActionConfig*>(action_config.get());
@@ -198,6 +202,14 @@ MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int see
     }
 
     _group_rewards.resize(_group_sizes.size());
+  }
+
+  // Initialize movement tracking
+  _previous_orientations.resize(_agents.size());
+  _sequential_rotations.resize(_agents.size(), 0);
+  _last_action_was_rotation.resize(_agents.size(), false);
+  for (size_t i = 0; i < _agents.size(); ++i) {
+    _previous_orientations[i] = _agents[i]->orientation;
   }
 
   // Use wyhash for deterministic, high-performance grid fingerprinting across platforms
@@ -446,6 +458,60 @@ void MettaGrid::_step(py::array_t<ActionType, py::array::c_style> actions) {
     }
   }
 
+  // Track movement metrics
+  if (_track_movement_metrics) {
+    // Track sequential rotation behavior
+    for (size_t agent_idx = 0; agent_idx < _agents.size(); ++agent_idx) {
+      ActionType action = actions_view(agent_idx, 0);
+
+      // Check if this action was a rotation
+      bool is_rotation = (_rotate_action_index >= 0 && action == _rotate_action_index);
+
+      if (is_rotation) {
+        // Increment sequential rotation count
+        if (_last_action_was_rotation[agent_idx]) {
+          _sequential_rotations[agent_idx]++;
+        } else {
+          _sequential_rotations[agent_idx] = 1;  // First rotation in sequence
+        }
+        _last_action_was_rotation[agent_idx] = true;
+      } else {
+        // Not a rotation action - record sequential rotation count if there was one
+        if (_last_action_was_rotation[agent_idx] && _sequential_rotations[agent_idx] > 0) {
+          auto& agent = _agents[agent_idx];
+          agent->stats.add("movement/sequential_rotations", _sequential_rotations[agent_idx]);
+        }
+        _last_action_was_rotation[agent_idx] = false;
+        _sequential_rotations[agent_idx] = 0;
+      }
+    }
+
+    // Track direction distribution
+    for (size_t agent_idx = 0; agent_idx < _agents.size(); ++agent_idx) {
+      auto& agent = _agents[agent_idx];
+      Orientation current_orientation = agent->orientation;
+
+      // Track direction distribution
+      switch (current_orientation) {
+        case Orientation::Up:
+          agent->stats.incr("movement/facing/up");
+          break;
+        case Orientation::Down:
+          agent->stats.incr("movement/facing/down");
+          break;
+        case Orientation::Left:
+          agent->stats.incr("movement/facing/left");
+          break;
+        case Orientation::Right:
+          agent->stats.incr("movement/facing/right");
+          break;
+      }
+
+      // Update previous orientation for next step
+      _previous_orientations[agent_idx] = current_orientation;
+    }
+  }
+
   // Compute observations for next step
   _compute_observations(actions);
 
@@ -507,6 +573,17 @@ py::tuple MettaGrid::reset() {
             static_cast<ActionType*>(zero_actions.request().ptr) + zero_actions.size(),
             static_cast<ActionType>(0));
   _compute_observations(zero_actions);
+
+  // Update previous orientations after reset
+  for (size_t i = 0; i < _agents.size(); ++i) {
+    _previous_orientations[i] = _agents[i]->orientation;
+  }
+
+  // Reset movement tracking state
+  if (_track_movement_metrics) {
+    std::fill(_sequential_rotations.begin(), _sequential_rotations.end(), 0);
+    std::fill(_last_action_was_rotation.begin(), _last_action_was_rotation.end(), false);
+  }
 
   return py::make_tuple(_observations, py::dict());
 }
@@ -988,7 +1065,8 @@ PYBIND11_MODULE(mettagrid_c, m) {
                     unsigned int,
                     const GlobalObsConfig&,
                     const std::map<std::string, std::shared_ptr<ActionConfig>>&,
-                    const std::map<std::string, std::shared_ptr<GridObjectConfig>>&>(),
+                    const std::map<std::string, std::shared_ptr<GridObjectConfig>>&,
+                    bool>(),
            py::arg("num_agents"),
            py::arg("max_steps"),
            py::arg("episode_truncates"),
@@ -998,7 +1076,8 @@ PYBIND11_MODULE(mettagrid_c, m) {
            py::arg("num_observation_tokens"),
            py::arg("global_obs"),
            py::arg("actions"),
-           py::arg("objects"))
+           py::arg("objects"),
+           py::arg("track_movement_metrics"))
       .def_readwrite("num_agents", &GameConfig::num_agents)
       .def_readwrite("max_steps", &GameConfig::max_steps)
       .def_readwrite("episode_truncates", &GameConfig::episode_truncates)
@@ -1006,7 +1085,8 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def_readwrite("obs_height", &GameConfig::obs_height)
       .def_readwrite("inventory_item_names", &GameConfig::inventory_item_names)
       .def_readwrite("num_observation_tokens", &GameConfig::num_observation_tokens)
-      .def_readwrite("global_obs", &GameConfig::global_obs);
+      .def_readwrite("global_obs", &GameConfig::global_obs)
+      .def_readwrite("track_movement_metrics", &GameConfig::track_movement_metrics);
   // We don't expose these since they're copied on read, and this means that mutations
   // to the dictionaries don't impact the underlying cpp objects. This is confusing!
   // This can be fixed, but until we do that, we're not exposing these.
