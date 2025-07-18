@@ -866,12 +866,12 @@ class MettaTrainer:
             grad_stats=self.grad_stats,
             system_stats=self._system_monitor.stats() if hasattr(self, "_system_monitor") else {},
             memory_stats=self._memory_monitor.stats() if hasattr(self, "_memory_monitor") else {},
+            curriculum_stats=curriculum_stats,
             parameters=parameters,
             hyperparameters=self.hyperparameters,
             evals=self.evals,
             agent_step=self.agent_step,
             epoch=self.epoch,
-            **curriculum_stats,
         )
 
         self.wandb_run.log(
