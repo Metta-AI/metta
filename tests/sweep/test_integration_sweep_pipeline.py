@@ -245,7 +245,7 @@ class TestSweepPipelineIntegration:
             suggestion, _ = metta_protein.suggest()
 
             # Apply suggestion to config (simulate sweep_init.py behavior)
-            from tools.sweep_init import apply_protein_suggestion
+            from tools.sweep_prepare_run import apply_protein_suggestion
 
             # Create a copy of the base config for testing
             test_config = OmegaConf.create({"trainer": base_train_config.trainer})
@@ -285,7 +285,7 @@ class TestSweepPipelineIntegration:
 
             # Test that override application works (without full validation)
             # In real usage, only the complete final config gets validated, not partial overrides
-            from tools.sweep_init import apply_protein_suggestion
+            from tools.sweep_prepare_run import apply_protein_suggestion
 
             test_config = OmegaConf.create({"trainer": {"optimizer": {"learning_rate": 0.001}, "batch_size": 64}})
             apply_protein_suggestion(test_config, suggestion)
