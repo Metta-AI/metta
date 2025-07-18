@@ -460,55 +460,38 @@ void MettaGrid::_step(py::array_t<ActionType, py::array::c_style> actions) {
 
   // Track movement metrics
   if (_track_movement_metrics) {
-    // Track sequential rotation behavior
+    // OPTIMIZATION 1: Single loop over agents
     for (size_t agent_idx = 0; agent_idx < _agents.size(); ++agent_idx) {
+      auto& agent = _agents[agent_idx];
       ActionType action = actions_view(agent_idx, 0);
 
-      // Check if this action was a rotation
+      // OPTIMIZATION 2: Cache frequently accessed values
       bool is_rotation = (_rotate_action_index >= 0 && action == _rotate_action_index);
+      bool was_rotating = _last_action_was_rotation[agent_idx];
 
+      // Track sequential rotation behavior
       if (is_rotation) {
-        // Increment sequential rotation count
-        if (_last_action_was_rotation[agent_idx]) {
-          _sequential_rotations[agent_idx]++;
-        } else {
-          _sequential_rotations[agent_idx] = 1;  // First rotation in sequence
-        }
+        _sequential_rotations[agent_idx] = was_rotating ? _sequential_rotations[agent_idx] + 1 : 1;
         _last_action_was_rotation[agent_idx] = true;
       } else {
-        // Not a rotation action - record sequential rotation count if there was one
-        if (_last_action_was_rotation[agent_idx] && _sequential_rotations[agent_idx] > 0) {
-          auto& agent = _agents[agent_idx];
+        // Record sequence if ending
+        if (was_rotating && _sequential_rotations[agent_idx] > 0) {
           agent->stats.add("movement/sequential_rotations", _sequential_rotations[agent_idx]);
         }
         _last_action_was_rotation[agent_idx] = false;
         _sequential_rotations[agent_idx] = 0;
       }
-    }
 
-    // Track direction distribution
-    for (size_t agent_idx = 0; agent_idx < _agents.size(); ++agent_idx) {
-      auto& agent = _agents[agent_idx];
-      Orientation current_orientation = agent->orientation;
+      // OPTIMIZATION 3: Direct array indexing for orientation
+      // Instead of switch statement, use orientation as index
+      static const char* orientation_keys[4] = {
+        "movement/facing/up",
+        "movement/facing/down",
+        "movement/facing/left",
+        "movement/facing/right"
+      };
 
-      // Track direction distribution
-      switch (current_orientation) {
-        case Orientation::Up:
-          agent->stats.incr("movement/facing/up");
-          break;
-        case Orientation::Down:
-          agent->stats.incr("movement/facing/down");
-          break;
-        case Orientation::Left:
-          agent->stats.incr("movement/facing/left");
-          break;
-        case Orientation::Right:
-          agent->stats.incr("movement/facing/right");
-          break;
-      }
-
-      // Update previous orientation for next step
-      _previous_orientations[agent_idx] = current_orientation;
+      agent->stats.incr(orientation_keys[static_cast<int>(agent->orientation)]);
     }
   }
 
