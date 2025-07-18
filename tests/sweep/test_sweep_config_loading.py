@@ -151,7 +151,7 @@ class TestSweepConfigLoading:
 
     def test_protein_suggestion_application(self):
         """Test that protein suggestions can be applied to sweep config."""
-        from tools.sweep_init import apply_protein_suggestion
+        from tools.sweep_prepare_run import apply_protein_suggestion
 
         # Create a base config
         base_config = OmegaConf.create(
