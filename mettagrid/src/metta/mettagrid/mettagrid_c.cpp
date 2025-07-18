@@ -39,14 +39,13 @@ MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int see
       max_steps(cfg.max_steps),
       episode_truncates(cfg.episode_truncates),
       inventory_item_names(cfg.inventory_item_names),
-      _num_observation_tokens(cfg.num_observation_tokens),
-      _global_obs_config(cfg.global_obs) {
+      _global_obs_config(cfg.global_obs),
+      _num_observation_tokens(cfg.num_observation_tokens) {
   _seed = seed;
   _rng = std::mt19937(seed);
 
   // `map` is a list of lists of strings, which are the map cells.
-
-  unsigned int num_agents = cfg.num_agents;
+  size_t num_agents = cfg.num_agents;
 
   current_step = 0;
 
@@ -214,10 +213,11 @@ MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int see
 
     for (size_t i = 0; i < num_items; i++) {
       // Check if this item has a reward configured
-      if (agent->resource_rewards.count(i) && agent->resource_rewards[i] > 0) {
+      uint8_t item_key = static_cast<unsigned char>(i);
+      if (agent->resource_rewards.count(item_key) && agent->resource_rewards[item_key] > 0) {
         // Set bit at position (7 - i) to 1
         // Item 0 goes to bit 7, item 1 to bit 6, etc.
-        packed |= (1 << (7 - i));
+        packed |= (1 << (7 - item_key));
       }
     }
 
@@ -263,8 +263,6 @@ void MettaGrid::add_agent(Agent* agent) {
   agent->init(&_rewards.mutable_unchecked<1>()(_agents.size()));
   _agents.push_back(agent);
 }
-
-
 
 void MettaGrid::_compute_observation(GridCoord observer_row,
                                      GridCoord observer_col,
@@ -874,7 +872,8 @@ PYBIND11_MODULE(mettagrid_c, m) {
                     const std::map<InventoryItem, InventoryQuantity>&,
                     const std::map<InventoryItem, RewardType>&,
                     const std::map<InventoryItem, InventoryQuantity>&,
-                    float>(),
+                    float,
+                    int>(),
            py::arg("type_id"),
            py::arg("type_name") = "agent",
            py::arg("group_id"),
@@ -884,7 +883,8 @@ PYBIND11_MODULE(mettagrid_c, m) {
            py::arg("resource_limits") = std::map<InventoryItem, InventoryQuantity>(),
            py::arg("resource_rewards") = std::map<InventoryItem, RewardType>(),
            py::arg("resource_reward_max") = std::map<InventoryItem, InventoryQuantity>(),
-           py::arg("group_reward_pct") = 0)
+           py::arg("group_reward_pct") = 0,
+           py::arg("glyph") = 0)
       .def_readwrite("type_id", &AgentConfig::type_id)
       .def_readwrite("type_name", &AgentConfig::type_name)
       .def_readwrite("group_name", &AgentConfig::group_name)

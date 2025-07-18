@@ -11,7 +11,6 @@
 #include "constants.hpp"
 #include "types.hpp"
 
-// #MettagridConfig
 struct AgentConfig : public GridObjectConfig {
   AgentConfig(TypeId type_id,
               const std::string& type_name,
@@ -22,7 +21,8 @@ struct AgentConfig : public GridObjectConfig {
               const std::map<InventoryItem, InventoryQuantity>& resource_limits,
               const std::map<InventoryItem, RewardType>& resource_rewards,
               const std::map<InventoryItem, InventoryQuantity>& resource_reward_max,
-              float group_reward_pct)
+              float group_reward_pct,
+              ObservationType glyph)
       : GridObjectConfig(type_id, type_name),
         group_id(group_id),
         group_name(group_name),
@@ -31,7 +31,9 @@ struct AgentConfig : public GridObjectConfig {
         resource_limits(resource_limits),
         resource_rewards(resource_rewards),
         resource_reward_max(resource_reward_max),
-        group_reward_pct(group_reward_pct) {}
+        group_reward_pct(group_reward_pct),
+        glyph(glyph) {}
+
   unsigned char group_id;
   std::string group_name;
   short freeze_duration;
@@ -40,6 +42,7 @@ struct AgentConfig : public GridObjectConfig {
   std::map<InventoryItem, RewardType> resource_rewards;
   std::map<InventoryItem, InventoryQuantity> resource_reward_max;
   float group_reward_pct;
+  ObservationType glyph;
 };
 
 class Agent : public GridObject {
@@ -74,7 +77,7 @@ public:
         action_failure_penalty(config.action_failure_penalty),
         group_name(config.group_name),
         color(0),
-        glyph(0),
+        glyph(config.glyph),
         agent_id(0),
         stats(),  // default constructor
         current_resource_reward(0),

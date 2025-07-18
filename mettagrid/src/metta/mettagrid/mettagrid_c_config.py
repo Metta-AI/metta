@@ -36,6 +36,7 @@ def from_mettagrid_config(mettagrid_config_dict: dict[str, Any]) -> CppGameConfi
 
         agent_cpp_params = {
             "freeze_duration": agent_group_props["freeze_duration"],
+            "glyph": agent_group_props.get("glyph", 0),
             "group_id": group_config.id,
             "group_name": group_name,
             "action_failure_penalty": agent_group_props["action_failure_penalty"],
