@@ -33,11 +33,11 @@
 
 namespace py = pybind11;
 
-MettaGrid::MettaGrid(const GameConfig& cfg, py::list map, unsigned int seed)
-    : max_steps(cfg.max_steps),
-      episode_truncates(cfg.episode_truncates),
-      obs_width(cfg.obs_width),
+MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int seed)
+    : obs_width(cfg.obs_width),
       obs_height(cfg.obs_height),
+      max_steps(cfg.max_steps),
+      episode_truncates(cfg.episode_truncates),
       inventory_item_names(cfg.inventory_item_names),
       _num_observation_tokens(cfg.num_observation_tokens),
       _global_obs_config(cfg.global_obs) {
@@ -197,10 +197,33 @@ MettaGrid::MettaGrid(const GameConfig& cfg, py::list map, unsigned int seed)
       throw std::runtime_error("Unable to create object of type " + cell + " at (" + std::to_string(r) + ", " +
                                std::to_string(c) + ")");
     }
+
+    _group_rewards.resize(_group_sizes.size());
   }
 
   // Use wyhash for deterministic, high-performance grid fingerprinting across platforms
   initial_grid_hash = wyhash::hash_string(grid_hash_data);
+
+  // Compute inventory rewards for each agent (1 bit per item, up to 8 items)
+  _resource_rewards.resize(_agents.size(), 0);
+  for (size_t agent_idx = 0; agent_idx < _agents.size(); agent_idx++) {
+    auto& agent = _agents[agent_idx];
+    uint8_t packed = 0;
+
+    // Process up to 8 items (or all available items if fewer)
+    size_t num_items = std::min(inventory_item_names.size(), size_t(8));
+
+    for (size_t i = 0; i < num_items; i++) {
+      // Check if this item has a reward configured
+      if (agent->resource_rewards.count(i) && agent->resource_rewards[i] > 0) {
+        // Set bit at position (7 - i) to 1
+        // Item 0 goes to bit 7, item 1 to bit 6, etc.
+        packed |= (1 << (7 - i));
+      }
+    }
+
+    _resource_rewards[agent_idx] = packed;
+  }
 
   // Initialize buffers. The buffers are likely to be re-set by the user anyways,
   // so nothing above should depend on them before this point.
@@ -241,6 +264,8 @@ void MettaGrid::add_agent(Agent* agent) {
   agent->init(&_rewards.mutable_unchecked<1>()(_agents.size()));
   _agents.push_back(agent);
 }
+
+
 
 void MettaGrid::_compute_observation(GridCoord observer_row,
                                      GridCoord observer_col,
@@ -292,6 +317,11 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
     global_tokens.push_back({ObservationFeature::LastReward, reward_int});
   }
 
+  // Add inventory rewards for this agent
+  if (_global_obs_config.resource_rewards && !_resource_rewards.empty()) {
+    global_tokens.push_back({ObservationFeature::ResourceRewards, _resource_rewards[agent_idx]});
+  }
+
   // Global tokens are always at the center of the observation.
   uint8_t global_location =
       PackedCoordinate::pack(static_cast<uint8_t>(obs_height_radius), static_cast<uint8_t>(obs_width_radius));
@@ -337,12 +367,13 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
       }
     }
   }
+
   _stats->add("tokens_written", static_cast<float>(tokens_written));
   _stats->add("tokens_dropped", static_cast<float>(attempted_tokens_written - tokens_written));
   _stats->add("tokens_free_space", static_cast<float>(observation_view.shape(1) - tokens_written));
 }
 
-void MettaGrid::_compute_observations(py::array_t<ActionType, py::array::c_style> actions) {
+void MettaGrid::_compute_observations(const py::array_t<ActionType, py::array::c_style> actions) {
   auto actions_view = actions.unchecked<2>();
   // auto observation_view = _observations.mutable_unchecked<3>();
 
@@ -481,38 +512,38 @@ void MettaGrid::validate_buffers() {
   // We should validate once buffers and agents are set.
   // data types and contiguity are handled by pybind11. We still need to check
   // shape.
-  unsigned int num_agents = _agents.size();
+  auto num_agents = _agents.size();
   auto observation_info = _observations.request();
-  auto shape = observation_info.shape;
+  auto observation_shape = observation_info.shape;
   if (observation_info.ndim != 3) {
     std::stringstream ss;
     ss << "observations has " << observation_info.ndim << " dimensions but expected 3";
     throw std::runtime_error(ss.str());
   }
-  if (shape[0] != num_agents || shape[2] != 3) {
+  if (observation_shape[0] != static_cast<ssize_t>(num_agents) || observation_shape[2] != 3) {
     std::stringstream ss;
-    ss << "observations has shape [" << shape[0] << ", " << shape[1] << ", " << shape[2] << "] but expected ["
-       << num_agents << ", [something], 3]";
+    ss << "observations has shape [" << observation_shape[0] << ", " << observation_shape[1] << ", "
+       << observation_shape[2] << "] but expected [" << num_agents << ", [something], 3]";
     throw std::runtime_error(ss.str());
   }
   {
     auto terminals_info = _terminals.request();
-    auto shape = terminals_info.shape;
-    if (terminals_info.ndim != 1 || shape[0] != num_agents) {
+    auto terminals_shape = terminals_info.shape;
+    if (terminals_info.ndim != 1 || terminals_shape[0] != static_cast<ssize_t>(num_agents)) {
       throw std::runtime_error("terminals has the wrong shape");
     }
   }
   {
     auto truncations_info = _truncations.request();
-    auto shape = truncations_info.shape;
-    if (truncations_info.ndim != 1 || shape[0] != num_agents) {
+    auto truncations_shape = truncations_info.shape;
+    if (truncations_info.ndim != 1 || truncations_shape[0] != static_cast<ssize_t>(num_agents)) {
       throw std::runtime_error("truncations has the wrong shape");
     }
   }
   {
     auto rewards_info = _rewards.request();
-    auto shape = rewards_info.shape;
-    if (rewards_info.ndim != 1 || shape[0] != num_agents) {
+    auto rewards_shape = rewards_info.shape;
+    if (rewards_info.ndim != 1 || rewards_shape[0] != static_cast<ssize_t>(num_agents)) {
       throw std::runtime_error("rewards has the wrong shape");
     }
   }
@@ -535,35 +566,35 @@ void MettaGrid::set_buffers(const py::array_t<uint8_t, py::array::c_style>& obse
   validate_buffers();
 }
 
-py::tuple MettaGrid::step(py::array_t<ActionType, py::array::c_style> actions) {
+py::tuple MettaGrid::step(const py::array_t<ActionType, py::array::c_style> actions) {
   _step(actions);
 
   auto rewards_view = _rewards.mutable_unchecked<1>();
-  // Clear group rewards
 
-  // Handle group rewards
+  // Clear group rewards from previous step
+  std::fill(_group_rewards.begin(), _group_rewards.end(), 0.0f);
+
   bool share_rewards = false;
-  // TODO: We're creating this vector every time we step, even though reward
-  // should be sparse, and so we're unlikely to use it. We could decide to only
-  // create it if we need it, but that would increase complexity.
-  std::vector<double> group_rewards(_group_sizes.size());
+
   for (size_t agent_idx = 0; agent_idx < _agents.size(); agent_idx++) {
-    if (rewards_view(agent_idx) != 0) {
+    if (rewards_view(agent_idx) != 0.0f) {
       share_rewards = true;
       auto& agent = _agents[agent_idx];
-      unsigned int group_id = agent->group;
-      float group_reward = rewards_view(agent_idx) * _group_reward_pct[group_id];
-      rewards_view(agent_idx) -= group_reward;
-      group_rewards[group_id] += group_reward / _group_sizes[group_id];
+      auto group_id = agent->group;
+
+      RewardType agent_reward = rewards_view(agent_idx);
+      RewardType group_reward = agent_reward * _group_reward_pct[group_id];
+      rewards_view(agent_idx) = agent_reward - group_reward;
+
+      _group_rewards[group_id] += group_reward / static_cast<RewardType>(_group_sizes[group_id]);
     }
   }
 
   if (share_rewards) {
     for (size_t agent_idx = 0; agent_idx < _agents.size(); agent_idx++) {
       auto& agent = _agents[agent_idx];
-      unsigned int group_id = agent->group;
-      float group_reward = group_rewards[group_id];
-      rewards_view(agent_idx) += group_reward;
+      size_t group_id = static_cast<size_t>(agent->group);
+      rewards_view(agent_idx) += _group_rewards[group_id];
     }
   }
 
@@ -680,9 +711,9 @@ py::dict MettaGrid::get_episode_stats() {
     Converter* converter = dynamic_cast<Converter*>(obj);
     if (converter) {
       // Add metadata to the converter's stats tracker BEFORE converting to dict
-      converter->stats.set("type_id", static_cast<int>(converter->type_id));
-      converter->stats.set("location.r", static_cast<int>(converter->location.r));
-      converter->stats.set("location.c", static_cast<int>(converter->location.c));
+      converter->stats.set("type_id", static_cast<float>(converter->type_id));
+      converter->stats.set("location.r", static_cast<float>(converter->location.r));
+      converter->stats.set("location.c", static_cast<float>(converter->location.c));
 
       // Now convert to dict - all values will be floats
       py::dict converter_stat = py::cast(converter->stats.to_dict());
@@ -710,8 +741,9 @@ py::object MettaGrid::observation_space() {
   auto observation_info = _observations.request();
   auto shape = observation_info.shape;
   auto space_shape = py::tuple(observation_info.ndim - 1);
-  for (size_t i = 0; i < observation_info.ndim - 1; i++) {
-    space_shape[i] = shape[i + 1];
+
+  for (ssize_t i = 0; i < observation_info.ndim - 1; i++) {
+    space_shape[static_cast<size_t>(i)] = shape[static_cast<size_t>(i + 1)];
   }
 
   ObservationType min_value = std::numeric_limits<ObservationType>::min();  // 0
@@ -739,7 +771,7 @@ py::list MettaGrid::inventory_item_names_py() {
 }
 
 py::array_t<unsigned int> MettaGrid::get_agent_groups() const {
-  py::array_t<unsigned int> groups(_agents.size());
+  py::array_t<unsigned int> groups(static_cast<ssize_t>(_agents.size()));
   auto groups_view = groups.mutable_unchecked<1>();
   for (size_t i = 0; i < _agents.size(); i++) {
     groups_view(i) = _agents[i]->group;
@@ -927,16 +959,18 @@ PYBIND11_MODULE(mettagrid_c, m) {
 
   py::class_<GlobalObsConfig>(m, "GlobalObsConfig")
       .def(py::init<>())
-      .def(py::init<bool, bool, bool>(),
+      .def(py::init<bool, bool, bool, bool>(),
            py::arg("episode_completion_pct") = true,
            py::arg("last_action") = true,
-           py::arg("last_reward") = true)
+           py::arg("last_reward") = true,
+           py::arg("resource_rewards") = false)
       .def_readwrite("episode_completion_pct", &GlobalObsConfig::episode_completion_pct)
       .def_readwrite("last_action", &GlobalObsConfig::last_action)
-      .def_readwrite("last_reward", &GlobalObsConfig::last_reward);
+      .def_readwrite("last_reward", &GlobalObsConfig::last_reward)
+      .def_readwrite("resource_rewards", &GlobalObsConfig::resource_rewards);
 
   py::class_<GameConfig>(m, "GameConfig")
-      .def(py::init<int,
+      .def(py::init<unsigned int,
                     unsigned int,
                     bool,
                     unsigned short,
