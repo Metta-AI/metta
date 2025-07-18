@@ -1,6 +1,6 @@
 import math
 from abc import ABC, abstractmethod
-from typing import Callable, Dict, Optional
+from typing import Optional
 
 import hydra
 from omegaconf import DictConfig
@@ -62,14 +62,6 @@ class LogarithmicSchedule(BaseSchedule):
 
 
 class HyperparameterScheduler:
-    scheduler_registry: Dict[str, Callable[..., BaseSchedule]] = {
-        "constant": ConstantSchedule,
-        "linear": LinearSchedule,
-        "cosine": CosineSchedule,
-        "exponential": ExponentialSchedule,
-        "logarithmic": LogarithmicSchedule,
-    }
-
     def __init__(self, trainer_cfg: DictConfig, trainer, total_timesteps: int, logging):
         """Initialize the hyperparameter scheduler with configuration and total timesteps."""
         self.trainer_cfg = trainer_cfg
