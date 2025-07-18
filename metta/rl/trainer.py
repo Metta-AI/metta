@@ -360,23 +360,7 @@ class MettaTrainer:
             # Processing stats
             self._process_stats()
 
-            rollout_time = self.timer.get_last_elapsed("_rollout")
-            train_time = self.timer.get_last_elapsed("_train")
-            stats_time = self.timer.get_last_elapsed("_process_stats")
-            steps_calculated = self.agent_step - steps_before
-
-            total_time = train_time + rollout_time + stats_time
-            steps_per_sec = steps_calculated / total_time
-
-            train_pct = (train_time / total_time) * 100
-            rollout_pct = (rollout_time / total_time) * 100
-            stats_pct = (stats_time / total_time) * 100
-
-            logger.info(
-                f"Epoch {self.epoch}, Agent step {self.agent_step}/{trainer_cfg.total_timesteps} "
-                f"{steps_per_sec * self._world_size:.0f} steps/sec "
-                f"({train_pct:.0f}% train / {rollout_pct:.0f}% rollout / {stats_pct:.0f}% stats)"
-            )
+            self._log_status(steps_before)
 
             # Interval periodic tasks
             self._maybe_record_heartbeat()
@@ -406,6 +390,33 @@ class MettaTrainer:
 
     def _on_train_step(self):
         pass
+
+    def _log_status(self, steps_before: int):
+        if not self._master:
+            return
+
+        rollout_time = self.timer.get_last_elapsed("_rollout")
+        train_time = self.timer.get_last_elapsed("_train")
+        stats_time = self.timer.get_last_elapsed("_process_stats")
+        steps_calculated = self.agent_step - steps_before
+
+        total_time = train_time + rollout_time + stats_time
+        steps_per_sec = steps_calculated / total_time
+
+        train_pct = (train_time / total_time) * 100
+        rollout_pct = (rollout_time / total_time) * 100
+        stats_pct = (stats_time / total_time) * 100
+
+        curriculum_stats = self.curriculum.get_curriculum_stats()
+        tasks_completed = curriculum_stats.get("tasks_completed", 0)
+        tasks_per_sec = tasks_completed / total_time
+
+        logger.info(
+            f"Epoch {self.epoch}, Agent step {self.agent_step}/{self.trainer_cfg.total_timesteps} "
+            f"{steps_per_sec * self._world_size:.0f} steps/sec "
+            f"({train_pct:.0f}% train / {rollout_pct:.0f}% rollout / {stats_pct:.0f}% stats) "
+            f"({tasks_per_sec:.0f} tasks/sec)"
+        )
 
     @with_instance_timer("_rollout")
     def _rollout(self):
