@@ -12,7 +12,7 @@
 # +trainer.env_overrides.game.num_agents=4 \
 # sim=navigation \
 # "$@"
-agent_cluster_type=right_next_to_each_other
+agent_cluster_type=positions_in_same_area
 num_rooms=4
 num_agents_per_room=2
 for seed in 0 1 2 3 4; do
