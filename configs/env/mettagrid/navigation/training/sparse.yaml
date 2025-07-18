@@ -1,38 +1,46 @@
 defaults:
-  - /env/mettagrid/mettagrid@
-  - /env/mettagrid/game/objects/mines@game.objects
-  - /env/mettagrid/game/objects/generators@game.objects
-  - /env/mettagrid/game/objects/combat@game.objects
-  - /env/mettagrid/game/objects/advanced@game.objects
+  - /env/mettagrid/mettagrid@task_cfg_template
   - _self_
 
-sampling: 1
+_target_: metta.mettagrid.curriculum.sampling.SampledTaskCurriculum
 
-game:
-  num_agents: 4
-  actions:
-    attack:
-      enabled: false
-    swap:
-      enabled: false
-    change_color:
-      enabled: false
-    put_items:
-      enabled: false
-  agent:
-    default_resource_limit: 5
-  map_builder:
-    _target_: metta.map.mapgen.MapGen
-    instances: ${..num_agents}
-    width: ${sampling:60, 120, 70}
-    height: ${sampling:60, 120, 70}
-    root:
-      type: metta.map.scenes.random.Random
-      params:
-        agents: 1
-        objects:
-          altar: ${sampling:1, 10, 5}
-  objects:
-    altar:
-      initial_resource_count: 1
-      cooldown: 255
+task_id: sparse
+task_cfg_template:
+  game:
+    num_agents: 4
+    actions:
+      attack:
+        enabled: false
+      swap:
+        enabled: false
+      change_color:
+        enabled: false
+      put_items:
+        enabled: false
+    agent:
+      default_resource_limit: 5
+    map_builder:
+      _target_: metta.map.mapgen.MapGen
+      instances: ${..num_agents}
+      width: ???
+      height: ???
+      root:
+        type: metta.map.scenes.random.Random
+        params:
+          agents: 1
+          objects:
+            altar: ???
+    objects:
+      altar:
+        initial_resource_count: 1
+        cooldown: 255
+sampling_parameters:
+  game.map_builder.width:
+    range: [60, 120]
+    want_int: true
+  game.map_builder.height:
+    range: [60, 120]
+    want_int: true
+  game.map_builder.root.params.objects.altar:
+    range: [1, 10]
+    want_int: true
