@@ -1,16 +1,17 @@
+import { loadPapersWithUserContext } from "@/posts/data/papers";
+import { PapersView } from "@/components/PapersView";
+
 /**
  * Papers Page
  * 
- * This is a placeholder page for the Papers view that will be accessible
- * via the sidebar navigation. Currently shows a simple message indicating
- * the feature is coming soon.
+ * This page displays all papers from the database in a table format
+ * with sorting, filtering, and search capabilities.
+ * Includes current user context for star/queue interactions.
  */
 
-export default function PapersPage() {
-    return (
-        <div className="p-8">
-            <h1 className="text-2xl font-bold text-gray-900 mb-4">Papers</h1>
-            <p className="text-gray-600">Papers view coming soon...</p>
-        </div>
-    );
+export default async function PapersPage() {
+    // Load papers data from the database with current user context
+    const { papers, users, interactions } = await loadPapersWithUserContext();
+
+    return <PapersView papers={papers} users={users} interactions={interactions} />;
 } 
