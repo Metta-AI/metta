@@ -4,9 +4,10 @@ import subprocess
 import sys
 from pathlib import Path
 
-from metta.setup.utils import error, info, success
-from metta.setup.tools.local.load_policies import get_recent_runs, print_runs_with_artifacts, post_policies_to_stats
 import wandb
+
+from metta.setup.tools.local.load_policies import get_recent_runs, post_policies_to_stats, print_runs_with_artifacts
+from metta.setup.utils import error, info, success
 
 
 class LocalCommands:
@@ -73,8 +74,7 @@ class LocalCommands:
         """Load W&B artifacts as policies into stats database."""
         # Create parser for load-policies specific arguments
         parser = argparse.ArgumentParser(
-            prog="metta local load-policies",
-            description="Load W&B artifacts as policies into stats database"
+            prog="metta local load-policies", description="Load W&B artifacts as policies into stats database"
         )
         parser.add_argument("--entity", help="W&B entity name (default: from W&B auth)")
         parser.add_argument("--project", help="W&B project name (default: 'metta')")
@@ -92,7 +92,7 @@ class LocalCommands:
             sys.exit(0)
 
         args = parser.parse_args(unknown_args)
-        
+
         # Validate that stats-db-uri is provided when post-policies is used
         if args.post_policies and not args.stats_db_uri:
             parser.error("--stats-db-uri is required when using --post-policies")

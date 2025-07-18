@@ -526,7 +526,7 @@ Examples:
         # Local subcommands
         local_subparsers.add_parser("build-docker-img", help="Build local development Docker image")
         local_subparsers.add_parser("build-app-backend-img", help="Build local development app_backend Docker image")
-        
+
         # Add load-policies command
         local_subparsers.add_parser("load-policies", help="Load W&B artifacts as policies into stats database")
 
