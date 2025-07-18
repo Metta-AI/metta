@@ -102,4 +102,4 @@ kickstart:
 curriculum_server:
   host: localhost
   port: 5555 # Port for the curriculum server
-  batch_size: 100 # Number of tasks to fetch in each batch
+  batch_size: 5 # Number of tasks to fetch in each batch
