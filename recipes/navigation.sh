@@ -25,7 +25,7 @@ for seed in 0 1 2 3 4; do
     +USER=greg \
     ++trainer.env_overrides.special_reward_mode=ffa \
     ++trainer.env_overrides.game.map_builder.room.agent_cluster_type=${agent_cluster_type} \
-    ++trainer.env_overrides.game.num_agents=${$(num_agents_per_room * num_rooms)} \
+    ++trainer.env_overrides.game.num_agents=$((num_agents_per_room * num_rooms)) \
     ++trainer.env_overrides.game.map_builder.room.agents=${num_agents_per_room} \
     ++trainer.env_overrides.game.map_builder.num_rooms=${num_rooms} \
     seed=${seed} \
