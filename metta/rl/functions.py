@@ -122,6 +122,7 @@ def process_minibatch_update(
     minibatch: TensorDict,
     trainer_cfg: Any,
     indices: Tensor,
+    prio_weights: Tensor,
     kickstarter: Any,
     agent_step: int,
     losses: Losses,
@@ -154,7 +155,7 @@ def process_minibatch_update(
 
     # Normalize advantages with distributed support, then apply prioritized weights
     adv = normalize_advantage_distributed(adv, trainer_cfg.ppo.norm_adv)
-    adv = minibatch["prio_weights"] * adv
+    adv = prio_weights * adv
 
     # Compute losses
     pg_loss, v_loss, entropy_loss, approx_kl, clipfrac = compute_ppo_losses(
