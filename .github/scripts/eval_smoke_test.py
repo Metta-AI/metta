@@ -15,8 +15,8 @@ import sys
 import time
 from typing import Tuple
 
-# Add parent directory to path to import utils
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Add scripts directory to path to import utils
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from utils.benchmark import run_with_benchmark
 from utils.smoke_test import SmokeTest
 
@@ -40,13 +40,14 @@ class EvaluationSmokeTest(SmokeTest):
             "uv",
             "run",
             "./tools/sim.py",
-            "sim=navigation",
+            "sim=smoke_test",
             f"run=navigation_smoke_{attempt}",
             f"policy_uri=wandb://run/{self.policy}",
             "+eval_db_uri=wandb://artifacts/navigation_db",
             "seed=31415",
             "torch_deterministic=True",
             "device=cpu",
+            "wandb=off",
         ]
 
     def get_timeout(self) -> int:
