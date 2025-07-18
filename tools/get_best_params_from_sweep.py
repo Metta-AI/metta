@@ -2,18 +2,17 @@
 """Find the best hyperparameters from a sweep and generate config patches."""
 
 import argparse
+import logging
 import os
 import sys
-from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import hydra
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig
 
-from metta.common.util.logging_helpers import setup_mettagrid_logger
 from metta.sweep.wandb_utils import get_sweep_runs, sweep_id_from_name
 
-logger = setup_mettagrid_logger("sweep_best_params")
+logger = logging.getLogger(__name__)
 
 
 def extract_hyperparameters_from_run(run: Any) -> Dict[str, Any]:
@@ -69,27 +68,6 @@ def extract_hyperparameters_from_run(run: Any) -> Dict[str, Any]:
 
     # Ensure we return a dict
     return parsed if isinstance(parsed, dict) else {}
-
-
-def load_local_hyperparameters(sweep_run: str, run_id: str, data_dir: str) -> Dict[str, Any]:
-    """Load hyperparameters from local train_config_overrides.yaml."""
-    run_dir = Path(data_dir) / "sweep" / sweep_run / "runs" / run_id
-    override_path = run_dir / "train_config_overrides.yaml"
-
-    if override_path.exists():
-        cfg = OmegaConf.load(override_path)
-        container = OmegaConf.to_container(cfg)
-        # Extract just the trainer parameters
-        if isinstance(container, dict) and "trainer" in container:
-            return {"trainer": container["trainer"]}
-        elif isinstance(container, dict):
-            # Ensure all keys are strings
-            return {str(k): v for k, v in container.items()}
-        else:
-            return {}
-    else:
-        logger.warning(f"Local override file not found: {override_path}")
-        return {}
 
 
 def format_hyperparameters_yaml(params: Dict[str, Any], indent: int = 0) -> str:
@@ -167,7 +145,7 @@ def parse_args():
     if args.help:
         parser.print_help()
         print("\nHydra arguments:")
-        print("  sweep_run=<name>     Name of the sweep to analyze (required)")
+        print("  +sweep_name=<name>    Name of the sweep to analyze (required)")
         sys.exit(0)
 
     return args, remaining
@@ -183,9 +161,9 @@ def main(cfg: DictConfig) -> int:
     args = PARSED_ARGS
     assert args is not None, "Arguments should have been parsed before main()"
 
-    # The sweep name comes from cfg.sweep_run (set via command line: sweep_run=axel_remote_test_1)
-    if not hasattr(cfg, "sweep_run") or not cfg.sweep_run:
-        logger.error("No sweep_run specified. Use: sweep_run=<sweep_name>")
+    # The sweep name comes from cfg.sweep_name (set via command line: +sweep_name=axel_remote_test_1)
+    if not hasattr(cfg, "sweep_name") or not cfg.sweep_name:
+        logger.error("No sweep_name specified. Use: +sweep_name=<sweep_name>")
         return 1
 
     # Create output directory if generating patches
@@ -193,12 +171,12 @@ def main(cfg: DictConfig) -> int:
         os.makedirs(args.output_dir, exist_ok=True)
 
     # Always load from WandB
-    logger.info(f"Loading best parameters from WandB sweep: {cfg.sweep_run}")
+    logger.info(f"Loading best parameters from WandB sweep: {cfg.sweep_name}")
 
     # Get sweep ID
-    sweep_id = sweep_id_from_name(cfg.wandb.project, cfg.wandb.entity, cfg.sweep_run)
+    sweep_id = sweep_id_from_name(cfg.wandb.project, cfg.wandb.entity, cfg.sweep_name)
     if not sweep_id:
-        logger.error(f"Sweep not found: {cfg.sweep_run}")
+        logger.error(f"Sweep not found: {cfg.sweep_name}")
         return 1
 
     # Get runs
@@ -244,7 +222,7 @@ def main(cfg: DictConfig) -> int:
 
     # 2. Generate config patch file (if requested)
     if not args.no_patch:
-        patch_name = f"{cfg.sweep_run}_best.yaml"
+        patch_name = f"{cfg.sweep_name}_best.yaml"
         patch_path = os.path.join(args.output_dir, patch_name)
         generate_config_patch(params, patch_path)
 
@@ -260,7 +238,7 @@ def main(cfg: DictConfig) -> int:
     # 4. Generate a complete training command
     logger.info("\n4. Complete training command:")
     logger.info("-" * 40)
-    logger.info(f"./devops/train.sh run={cfg.sweep_run}_best " + " ".join(override_args))
+    logger.info(f"./devops/train.sh run={cfg.sweep_name}_best " + " ".join(override_args))
 
     # 5. If multiple top runs requested, show comparison
     if args.top_n > 1:

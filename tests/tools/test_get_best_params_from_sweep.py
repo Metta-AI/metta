@@ -1,107 +1,13 @@
-"""Tests for sweep_best_params.py tool."""
+"""Tests for get_best_params_from_sweep.py tool."""
 
 from unittest.mock import MagicMock, mock_open, patch
 
-from omegaconf import OmegaConf
-
-from tools.sweep_best_params import (
+from tools.get_best_params_from_sweep import (
     extract_hyperparameters_from_run,
     format_hyperparameters_yaml,
     generate_config_patch,
     generate_override_args,
-    get_sweep_runs,
-    load_local_hyperparameters,
 )
-
-
-class TestGetSweepRuns:
-    """Test sweep runs retrieval functionality."""
-
-    def test_get_sweep_runs_success(self):
-        """Test successful retrieval of sweep runs."""
-        mock_api = MagicMock()
-        mock_sweep = MagicMock()
-
-        run1 = MagicMock()
-        run1.summary = {"protein.state": "success", "score": 0.5}
-        run1.config = {"trainer": {"learning_rate": 0.001}}
-        run1.name = "run1"
-        run1.id = "run1_id"
-
-        run2 = MagicMock()
-        run2.summary = {"protein.state": "success", "score": 0.8}
-        run2.config = {"trainer": {"learning_rate": 0.0005}}
-        run2.name = "run2"
-        run2.id = "run2_id"
-
-        # Add a failed run that should be filtered out
-        run3 = MagicMock()
-        run3.summary = {"protein.state": "failed", "score": 0.3}
-        run3.config = {"trainer": {"learning_rate": 0.002}}
-        run3.name = "run3"
-        run3.id = "run3_id"
-
-        mock_sweep.runs = [run1, run2, run3]
-        mock_api.sweep.return_value = mock_sweep
-
-        with patch("wandb.Api", return_value=mock_api):
-            runs = get_sweep_runs("sweep123", "test_entity", "test_project")
-
-        assert len(runs) == 2  # Only successful runs
-        assert runs[0].name == "run2"  # Sorted by score descending
-        assert runs[1].name == "run1"
-
-    def test_get_sweep_runs_empty(self):
-        """Test handling of sweep with no runs."""
-        mock_api = MagicMock()
-        mock_sweep = MagicMock()
-        mock_sweep.runs = []
-        mock_api.sweep.return_value = mock_sweep
-
-        with patch("wandb.Api", return_value=mock_api):
-            runs = get_sweep_runs("sweep123", "test_entity", "test_project")
-
-        assert runs == []
-
-    def test_get_sweep_runs_no_successful(self):
-        """Test handling of sweep with no successful runs."""
-        mock_api = MagicMock()
-        mock_sweep = MagicMock()
-
-        run1 = MagicMock()
-        run1.summary = {"protein.state": "failed", "score": 0.5}
-        run1.name = "run1"
-
-        run2 = MagicMock()
-        run2.summary = {"protein.state": "running"}  # No score
-        run2.name = "run2"
-
-        mock_sweep.runs = [run1, run2]
-        mock_api.sweep.return_value = mock_sweep
-
-        with patch("wandb.Api", return_value=mock_api):
-            runs = get_sweep_runs("sweep123", "test_entity", "test_project")
-
-        assert runs == []
-
-    def test_get_sweep_runs_with_protein_objective(self):
-        """Test handling runs that use protein.objective instead of score."""
-        mock_api = MagicMock()
-        mock_sweep = MagicMock()
-
-        run1 = MagicMock()
-        run1.summary = {"protein.state": "success", "protein.objective": 0.7}
-        run1.config = {"trainer": {"learning_rate": 0.001}}
-        run1.name = "run1"
-
-        mock_sweep.runs = [run1]
-        mock_api.sweep.return_value = mock_sweep
-
-        with patch("wandb.Api", return_value=mock_api):
-            runs = get_sweep_runs("sweep123", "test_entity", "test_project")
-
-        assert len(runs) == 1
-        assert runs[0].name == "run1"
 
 
 class TestExtractHyperparametersFromRun:
@@ -143,34 +49,6 @@ class TestExtractHyperparametersFromRun:
 
         # Should fallback to config
         assert params == {"trainer": {"learning_rate": 0.001}}
-
-
-class TestLoadLocalHyperparameters:
-    """Test loading hyperparameters from local files."""
-
-    @patch("pathlib.Path.exists")
-    @patch("omegaconf.OmegaConf.load")
-    def test_load_local_hyperparameters_success(self, mock_load, mock_exists):
-        """Test successful loading from local file."""
-        mock_exists.return_value = True
-        mock_load.return_value = OmegaConf.create({"trainer": {"learning_rate": 0.001, "batch_size": 64}})
-
-        params = load_local_hyperparameters("test_sweep", "test_sweep.r.0", "/data")
-
-        assert params == {"trainer": {"learning_rate": 0.001, "batch_size": 64}}
-
-        # Verify the correct path was used
-        mock_load.assert_called_once()
-
-    @patch("pathlib.Path.exists")
-    def test_load_local_hyperparameters_file_not_found(self, mock_exists):
-        """Test handling of missing local file."""
-        mock_exists.return_value = False
-
-        params = load_local_hyperparameters("test_sweep", "test_sweep.r.0", "/data")
-
-        # Should return empty dict and log warning
-        assert params == {}
 
 
 class TestFormatHyperparametersYaml:
