@@ -774,6 +774,8 @@ def synchronize_comments_in_asana_as_multiple_blocks(
                 # Create new comment
                 url = f"{api_url}/stories"
                 payload = {"data": {"html_text": formatted_comment}}
+                print(payload)
+
                 try:
                     response = requests.post(url, headers=headers, json=payload)
                     response.raise_for_status()
