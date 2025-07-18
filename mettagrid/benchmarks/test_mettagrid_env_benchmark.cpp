@@ -27,7 +27,7 @@ namespace py = pybind11;
 // We'll know we've succeeded when this file has zero references to pybind11!
 
 // Helper functions for creating configuration and map
-GameConfig CreateBenchmarkConfig(unsigned int num_agents) {
+GameConfig CreateBenchmarkConfig(size_t num_agents) {
   std::vector<std::string> inventory_item_names = {"ore", "heart"};
 
   std::shared_ptr<ActionConfig> action_cfg = std::make_shared<ActionConfig>(
@@ -83,7 +83,8 @@ GameConfig CreateBenchmarkConfig(unsigned int num_agents) {
   global_obs_config.last_action = true;
   global_obs_config.last_reward = true;
 
-  return GameConfig(num_agents, 10000, false, 11, 11, inventory_item_names, 100, global_obs_config, actions_cfg, objects_cfg);
+  return GameConfig(
+      num_agents, 10000, false, 11, 11, inventory_item_names, 100, global_obs_config, actions_cfg, objects_cfg);
 }
 
 py::list CreateDefaultMap(size_t num_agents_per_team = 2) {
@@ -106,16 +107,16 @@ py::list CreateDefaultMap(size_t num_agents_per_team = 2) {
 
   // Place agents symmetrically
   size_t agents_placed = 0;
-  std::vector<std::pair<int, int>> positions = {{8, 8},   {8, 24},  {24, 8},  {24, 24}, {16, 8},  {16, 24}, {8, 16},
-                                                {24, 16}, {12, 12}, {12, 20}, {20, 12}, {20, 20}, {16, 16}, {16, 12},
-                                                {16, 20}, {12, 16}, {20, 16}, {10, 10}, {10, 22}, {22, 10}, {22, 22},
-                                                {14, 14}, {14, 18}, {18, 14}, {18, 18}};
+  std::vector<std::pair<size_t, size_t>> positions = {
+      {8, 8},   {8, 24},  {24, 8},  {24, 24}, {16, 8},  {16, 24}, {8, 16},  {24, 16}, {12, 12},
+      {12, 20}, {20, 12}, {20, 20}, {16, 16}, {16, 12}, {16, 20}, {12, 16}, {20, 16}, {10, 10},
+      {10, 22}, {22, 10}, {22, 22}, {14, 14}, {14, 18}, {18, 14}, {18, 18}};
 
   for (size_t i = 0; i < positions.size() && agents_placed < num_agents_per_team * 2; ++i) {
     auto [r, c] = positions[i];
     std::string team = (agents_placed % 2 == 0) ? "agent.team1" : "agent.team2";
-    py::list row = map[static_cast<size_t>(r)].cast<py::list>();
-    row[static_cast<size_t>(c)] = team;
+    py::list row = map[r].cast<py::list>();
+    row[c] = team;
     agents_placed++;
   }
 
@@ -126,7 +127,7 @@ py::list CreateDefaultMap(size_t num_agents_per_team = 2) {
 py::array_t<int> GenerateValidRandomActions(MettaGrid* env, size_t num_agents, std::mt19937* gen) {
   // Get the maximum argument values for each action type
   py::list max_args = env->max_action_args();
-  size_t num_actions = py::len(env->action_names());  // Change to size_t
+  size_t num_actions = py::len(env->action_names());
 
   // Create actions array
   std::vector<py::ssize_t> shape = {static_cast<py::ssize_t>(num_agents), 2};
@@ -176,7 +177,7 @@ std::vector<py::array_t<int>> PreGenerateActionSequence(MettaGrid* env, size_t n
 // Matching Python test_step_performance_no_reset
 static void BM_MettaGridStep(benchmark::State& state) {  // NOLINT(runtime/references)
   // Setup with default 4 agents (matching Python benchmark config)
-  unsigned int num_agents = 4;
+  size_t num_agents = 4;
   auto cfg = CreateBenchmarkConfig(num_agents);
   auto map = CreateDefaultMap(2);
 
@@ -184,7 +185,7 @@ static void BM_MettaGridStep(benchmark::State& state) {  // NOLINT(runtime/refer
   env->reset();
 
   // Verify agent count
-  if (static_cast<unsigned int>(env->num_agents()) != num_agents) {
+  if (env->num_agents() != num_agents) {
     state.SkipWithError("Agent count mismatch");
     return;
   }
