@@ -96,6 +96,9 @@ class HyperparameterScheduler:
             if schedule_cfg is not None:
                 self.logger.info(f"Initializing scheduler for: {param_name}")
                 self.schedulers[param_name] = hydra.utils.instantiate(schedule_cfg)
+            else:
+                initial_value = self.trainer.hyperparameters[param_name]
+                self.schedulers[param_name] = ConstantSchedule(initial_value)
 
     def _compute_scheduled_value(self, param_name: str, current_step: int) -> float:
         """Compute the scheduled value for a hyperparameter at the current step."""
