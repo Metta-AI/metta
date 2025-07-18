@@ -29,7 +29,7 @@ def _parse_filter_query(filter_query: str) -> str:
 
 # Request/Response Models for Episode Tagging
 class EpisodeTagRequest(BaseModel):
-    episode_ids: List[str]
+    episode_ids: List[uuid.UUID]
     tag: str
 
 
@@ -173,8 +173,7 @@ def create_episode_router(stats_repo: MettaRepo) -> APIRouter:
         """Add a tag to multiple episodes."""
         try:
             # Convert string UUIDs to UUID objects
-            episode_uuids = [uuid.UUID(episode_id) for episode_id in request.episode_ids]
-            episodes_affected = await stats_repo.add_episode_tags(episode_ids=episode_uuids, tag=request.tag)
+            episodes_affected = await stats_repo.add_episode_tags(episode_ids=request.episode_ids, tag=request.tag)
             return EpisodeTagResponse(episodes_affected=episodes_affected)
         except ValueError as e:
             raise HTTPException(status_code=400, detail="Invalid UUID format") from e
@@ -187,8 +186,7 @@ def create_episode_router(stats_repo: MettaRepo) -> APIRouter:
         """Remove a tag from multiple episodes."""
         try:
             # Convert string UUIDs to UUID objects
-            episode_uuids = [uuid.UUID(episode_id) for episode_id in request.episode_ids]
-            episodes_affected = await stats_repo.remove_episode_tags(episode_ids=episode_uuids, tag=request.tag)
+            episodes_affected = await stats_repo.remove_episode_tags(episode_ids=request.episode_ids, tag=request.tag)
             return EpisodeTagResponse(episodes_affected=episodes_affected)
         except ValueError as e:
             raise HTTPException(status_code=400, detail="Invalid UUID format") from e
@@ -198,13 +196,12 @@ def create_episode_router(stats_repo: MettaRepo) -> APIRouter:
     @router.get("/tags", response_model=EpisodeTagsResponse)
     @timed_route("get_episode_tags")
     async def get_episode_tags(
-        episode_ids: List[str] = Query(default=[]), user: str = user_or_token
+        episode_ids: List[uuid.UUID] = Query(default=[]), user: str = user_or_token
     ) -> EpisodeTagsResponse:
         """Get all tags for the given episode UUIDs."""
         try:
             # Convert string UUIDs to UUID objects
-            episode_uuids = [uuid.UUID(episode_id) for episode_id in episode_ids]
-            tags_by_episode = await stats_repo.get_episode_tags(episode_ids=episode_uuids)
+            tags_by_episode = await stats_repo.get_episode_tags(episode_ids=episode_ids)
             return EpisodeTagsResponse(tags_by_episode=tags_by_episode)
         except ValueError as e:
             raise HTTPException(status_code=400, detail="Invalid UUID format") from e

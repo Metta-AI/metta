@@ -197,8 +197,7 @@ class TestEpisodeTagRoutes:
             json={"episode_ids": ["invalid-uuid"], "tag": "test_tag"},
             headers=test_user_headers,
         )
-        assert response.status_code == 400
-        assert "Invalid UUID format" in response.json()["detail"]
+        assert response.status_code == 422
 
         # Remove tags with invalid UUID
         response = test_client.post(
@@ -206,8 +205,7 @@ class TestEpisodeTagRoutes:
             json={"episode_ids": ["invalid-uuid"], "tag": "test_tag"},
             headers=test_user_headers,
         )
-        assert response.status_code == 400
-        assert "Invalid UUID format" in response.json()["detail"]
+        assert response.status_code == 422
 
         # Get tags with invalid UUID
         response = test_client.get(
@@ -215,8 +213,7 @@ class TestEpisodeTagRoutes:
             params=[("episode_ids", "invalid-uuid")],
             headers=test_user_headers,
         )
-        assert response.status_code == 400
-        assert "Invalid UUID format" in response.json()["detail"]
+        assert response.status_code == 422
 
     def test_episode_tag_auth_required(self, test_client: TestClient):
         """Test that episode tag routes require authentication."""
