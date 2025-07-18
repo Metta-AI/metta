@@ -107,4 +107,4 @@ ignore:
 
 # GitHub integration settings
 github_checks:
-  annotations: true # Show coverage annotations in PR files view
+  annotations: false # hide coverage annotations in PR files view

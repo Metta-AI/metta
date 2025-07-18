@@ -91,7 +91,7 @@ private:
       if (this->inventory[item] == 0) {
         this->inventory.erase(item);
       }
-      stats.add(stats.inventory_item_name(item) + ".consumed", amount);
+      stats.add(stats.inventory_item_name(item) + ".consumed", static_cast<float>(amount));
     }
     // All the previous returns were "we don't start converting".
     // This one is us starting to convert.
@@ -124,10 +124,11 @@ public:
         conversion_ticks(cfg.conversion_ticks),
         cooldown(cfg.cooldown),
         color(cfg.color),
-        show_recipe_inputs(cfg.show_recipe_inputs) {
+        show_recipe_inputs(cfg.show_recipe_inputs),
+        event_manager(nullptr),
+        converting(false),
+        cooling_down(false) {
     GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c, GridLayer::ObjectLayer));
-    this->converting = false;
-    this->cooling_down = false;
 
     // Initialize inventory with initial_resource_count for all output types
     for (const auto& [item, _] : this->output_resources) {
@@ -135,8 +136,8 @@ public:
     }
   }
 
-  void set_event_manager(EventManager* event_manager) {
-    this->event_manager = event_manager;
+  void set_event_manager(EventManager* event_manager_ptr) {
+    this->event_manager = event_manager_ptr;
     this->maybe_start_converting();
   }
 
@@ -147,7 +148,7 @@ public:
     // Add output to inventory
     for (const auto& [item, amount] : this->output_resources) {
       HasInventory::update_inventory(item, static_cast<InventoryDelta>(amount));
-      stats.add(stats.inventory_item_name(item) + ".produced", amount);
+      stats.add(stats.inventory_item_name(item) + ".produced", static_cast<float>(amount));
     }
 
     if (this->cooldown > 0) {
@@ -184,11 +185,12 @@ public:
     return delta;
   }
 
-  vector<PartialObservationToken> obs_features() const override {
-    vector<PartialObservationToken> features;
+  std::vector<PartialObservationToken> obs_features() const override {
+    std::vector<PartialObservationToken> features;
 
     // Calculate the capacity needed
-    size_t capacity = 5 + this->inventory.size();
+    // We push 3 fixed features + inventory items + (optionally) recipe inputs
+    size_t capacity = 3 + this->inventory.size();
     if (this->show_recipe_inputs) {
       capacity += this->input_resources.size();
     }

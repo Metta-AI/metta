@@ -329,7 +329,8 @@ class CollectionAnalyzer:
 
         selected_bonus_prompt = random.choice(bonus_prompts)
 
-        prompt = f"""You are creating an executive summary of development activity for {repository} from {date_range}.
+        prompt = f"""
+You are creating an executive summary of development activity for {repository} from {date_range}.
 
 {previous_context}
 
@@ -360,6 +361,26 @@ QUALITY CRITERIA:
 - Use active voice and specific metrics when available
 - Maximum 1000 words
 
+Example of BAD Development Focus:
+"This period marks a significant acceleration in our development velocity, characterized by a strategic push to
+broaden the platform's applicability and appeal to the wider reinforcement learning community. While previous weeks
+focused on solidifying our internal architecture, the theme now is external integration and advanced capability
+expansion."
+
+Example of GOOD Development Focus:
+"We made MettaGrid compatible with Gymnasium, PettingZoo, and PufferLib (#1458), enabling use in standard RL
+pipelines. Added systematic exploration memory configs (#1460), refactored the policy evaluation API with a new
+client (#1488), and launched metta shell for interactive development (#1490). Codecov integration now tracks test
+coverage (#1510)."
+
+Why the GOOD Development Focus example is better:
+- Lists specific deliverables with PR numbers
+- Uses active voice and concrete verbs (made, added, refactored, launched)
+- No abstract themes or philosophical language
+- Every sentence contains actionable information
+- Readers immediately understand what was built
+- Avoids clichéd phrases like "this period" or "characterized by"
+
 SHOUT OUT GUIDELINES:
 - Only highlight truly exceptional work (1-3 maximum, or none if not warranted)
 - IMPORTANT: Review previous newsletters and avoid repeatedly recognizing the same contributors
@@ -372,7 +393,9 @@ OUTPUT FORMAT:
 
 ## Summary of changes from {date_range}
 
-**Development Focus:** [What were the main development themes and priorities this period?]
+**Development Focus:** [In 2-3 concise sentences, describe what the team actually built or fixed this period. Be
+specific and direct - avoid abstract themes or philosophical descriptions. Lead with concrete work rather than
+narrative descriptions. Vary your language across summaries.]
 
 **Key Achievements:** [What significant features, improvements, or fixes were delivered?]
 

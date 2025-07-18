@@ -6,7 +6,8 @@
       "description": "Debug build with tests",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
-        "BUILD_TESTS": "ON"
+        "BUILD_TESTS": "ON",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
       },
       "binaryDir": "${sourceDir}/build-debug"
     },
@@ -26,7 +27,8 @@
       "description": "Release build with tests",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
-        "BUILD_TESTS": "ON"
+        "BUILD_TESTS": "ON",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
       },
       "binaryDir": "${sourceDir}/build-release"
     },
@@ -35,7 +37,8 @@
       "description": "Release build without tests",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
-        "BUILD_TESTS": "OFF"
+        "BUILD_TESTS": "OFF",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
       },
       "binaryDir": "${sourceDir}/build-release"
     }

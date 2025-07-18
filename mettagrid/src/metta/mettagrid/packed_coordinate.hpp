@@ -1,5 +1,6 @@
 #ifndef PACKED_COORDINATE_HPP_
 #define PACKED_COORDINATE_HPP_
+#include <cmath>
 #include <cstdint>
 #include <optional>
 #include <stdexcept>
@@ -67,6 +68,77 @@ inline std::optional<std::pair<uint8_t, uint8_t>> unpack(uint8_t packed) {
 inline bool is_empty(uint8_t packed_data) {
   return packed_data == EmptyTokenByte;
 }
+
+struct ObservationPattern {
+  int height, width;
+
+  struct Iterator {
+    int d = 0;     // Current manhattan distance
+    int dr = 0;    // Current row offset
+    int step = 0;  // Step for dc symmetry: 0 = -dc, 1 = +dc
+    int emitted = 0;
+    const int max_emitted;
+    const int row_min, row_max, col_min, col_max;
+    std::pair<int, int> current;
+    bool done = false;
+
+    Iterator(int h, int w, bool is_end = false)
+        : max_emitted(h * w), row_min(-h / 2), row_max(h / 2), col_min(-w / 2), col_max(w / 2) {
+      if (is_end) {
+        done = true;
+      } else {
+        advance();
+      }
+    }
+
+    std::pair<int, int> operator*() const {
+      return current;
+    }
+
+    Iterator& operator++() {
+      advance();
+      return *this;
+    }
+
+    bool operator!=(const Iterator& /*other*/) const {
+      return !done;
+    }
+
+  private:
+    void advance() {
+      while (emitted < max_emitted) {
+        while (dr <= d) {
+          int dc = d - std::abs(dr);
+          while (step < (dc == 0 ? 1 : 2)) {
+            int r = dr;
+            int c = (step == 0 ? -dc : dc);
+
+            ++step;
+
+            if (r >= row_min && r <= row_max && c >= col_min && c <= col_max) {
+              current = {r, c};
+              ++emitted;
+              return;
+            }
+          }
+          ++dr;
+          step = 0;
+        }
+        ++d;
+        dr = -d;  // ✅ reset for the next Manhattan shell: iterate from -d to +d
+      }
+      done = true;
+    }
+  };
+
+  Iterator begin() const {
+    return Iterator(height, width);
+  }
+
+  Iterator end() const {
+    return Iterator(height, width, true);
+  }
+};
 
 }  // namespace PackedCoordinate
 #endif  // PACKED_COORDINATE_HPP_

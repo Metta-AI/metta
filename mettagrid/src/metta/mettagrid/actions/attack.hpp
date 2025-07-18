@@ -49,11 +49,11 @@ protected:
     //   A    (Agent position)
 
     // Column offsets to check: center, left, right
-    static constexpr int COL_OFFSETS[3] = {0, -1, 1};
+    static constexpr short COL_OFFSETS[3] = {0, -1, 1};
 
     // Scan the 9 squares in front of the agent (3x3 grid)
-    for (int distance = 1; distance <= 3; distance++) {
-      for (int offset : COL_OFFSETS) {
+    for (short distance = 1; distance <= 3; distance++) {
+      for (short offset : COL_OFFSETS) {
         GridLocation target_loc = _grid->relative_location(actor->location, actor->orientation, distance, offset);
         target_loc.layer = GridLayer::AgentLayer;
 
@@ -116,14 +116,15 @@ private:
 
   void _consume_defense_resources(Agent& target) {
     for (const auto& [item, amount] : _defense_resources) {
-      InventoryDelta used = std::abs(target.update_inventory(item, -static_cast<InventoryDelta>(amount)));
-      assert(used == static_cast<InventoryDelta>(amount));
+      InventoryDelta delta = target.update_inventory(item, -static_cast<InventoryDelta>(amount));
+      assert(delta == -amount);
     }
   }
 
   void _steal_resources(Agent& actor, Agent& target) {
     // Create snapshot to avoid iterator invalidation
     std::vector<std::pair<InventoryItem, InventoryQuantity>> snapshot;
+    snapshot.reserve(target.inventory.size());
     for (const auto& [item, amount] : target.inventory) {
       snapshot.emplace_back(item, amount);
     }
