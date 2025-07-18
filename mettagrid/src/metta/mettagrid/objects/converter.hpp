@@ -91,7 +91,7 @@ private:
       if (this->inventory[item] == 0) {
         this->inventory.erase(item);
       }
-      stats.add(stats.inventory_item_name(item) + ".consumed", amount);
+      stats.add(stats.inventory_item_name(item) + ".consumed", static_cast<float>(amount));
     }
     // All the previous returns were "we don't start converting".
     // This one is us starting to convert.
@@ -136,8 +136,8 @@ public:
     }
   }
 
-  void set_event_manager(EventManager* event_manager) {
-    this->event_manager = event_manager;
+  void set_event_manager(EventManager* event_manager_ptr) {
+    this->event_manager = event_manager_ptr;
     this->maybe_start_converting();
   }
 
@@ -148,7 +148,7 @@ public:
     // Add output to inventory
     for (const auto& [item, amount] : this->output_resources) {
       HasInventory::update_inventory(item, static_cast<InventoryDelta>(amount));
-      stats.add(stats.inventory_item_name(item) + ".produced", amount);
+      stats.add(stats.inventory_item_name(item) + ".produced", static_cast<float>(amount));
     }
 
     if (this->cooldown > 0) {
@@ -185,8 +185,8 @@ public:
     return delta;
   }
 
-  vector<PartialObservationToken> obs_features() const override {
-    vector<PartialObservationToken> features;
+  std::vector<PartialObservationToken> obs_features() const override {
+    std::vector<PartialObservationToken> features;
 
     // Calculate the capacity needed
     // We push 3 fixed features + inventory items + (optionally) recipe inputs
