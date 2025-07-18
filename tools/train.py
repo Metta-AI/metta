@@ -6,11 +6,11 @@ from logging import Logger
 
 import hydra
 import torch
+import torch.distributed as dist
 from omegaconf import DictConfig, ListConfig, OmegaConf
 from torch.distributed.elastic.multiprocessing.errors import record
 
 from metta.agent.policy_store import PolicyStore
-from metta.api.directories import setup_device_and_distributed
 from metta.app_backend.stats_client import StatsClient
 from metta.common.util.config import Config
 from metta.common.util.heartbeat import record_heartbeat
@@ -81,16 +81,17 @@ def train(cfg: DictConfig | ListConfig, wandb_run: WandbRun | None, logger: Logg
     if stats_client is not None:
         stats_client.validate_authenticated()
 
-    # Use the functional train interface directly
-    from metta.rl.trainer import train as functional_train
-
-    functional_train(
-        cfg=cfg,
+    # Instantiate the trainer directly with the typed config
+    trainer = hydra.utils.instantiate(
+        cfg.trainer,
+        cfg,
         wandb_run=wandb_run,
         policy_store=policy_store,
         sim_suite_config=train_job.evals,
         stats_client=stats_client,
     )
+    trainer.train()
+    trainer.close()
 
 
 @hydra.main(config_path="../configs", config_name="train_job", version_base=None)
@@ -107,22 +108,22 @@ def main(cfg: DictConfig) -> int:
         + f"{os.environ.get('LOCAL_RANK', '0')} ({cfg.device})"
     )
 
-    # Use shared distributed setup function
-    device, is_master, world_size, rank = setup_device_and_distributed(cfg.device)
-
-    # Update cfg.device to include the local rank if distributed
-    cfg.device = str(device)
+    if "LOCAL_RANK" in os.environ and cfg.device.startswith("cuda"):
+        logger.info(f"Initializing distributed training with {os.environ['LOCAL_RANK']} {cfg.device}")
+        local_rank = int(os.environ["LOCAL_RANK"])
+        cfg.device = f"{cfg.device}:{local_rank}"
+        dist.init_process_group(backend="nccl")
 
     logger.info(f"Training {cfg.run} on {cfg.device}")
-    if is_master:
+    if os.environ.get("RANK", "0") == "0":
         logger.info(f"Train job config: {OmegaConf.to_yaml(cfg, resolve=True)}")
         with WandbContext(cfg.wandb, cfg) as wandb_run:
             train(cfg, wandb_run, logger)
     else:
         train(cfg, None, logger)
 
-    if torch.distributed.is_initialized():
-        torch.distributed.destroy_process_group()
+    if dist.is_initialized():
+        dist.destroy_process_group()
 
     return 0
 
