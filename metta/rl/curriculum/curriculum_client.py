@@ -165,7 +165,9 @@ class CurriculumClient(Curriculum):
 
     @staticmethod
     def create(trainer_cfg: DictConfig) -> "CurriculumClient":
+        url = f"http://{trainer_cfg.curriculum_server.host}:{trainer_cfg.curriculum_server.port}"
+        logger.info(f"CurriculumClient created: {url}")
         return CurriculumClient(
-            server_url=f"http://{trainer_cfg.curriculum_server.host}:{trainer_cfg.curriculum_server.port}",
+            server_url=url,
             batch_size=trainer_cfg.curriculum_server.batch_size,
         )
