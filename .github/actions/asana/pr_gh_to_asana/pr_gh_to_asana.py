@@ -940,7 +940,7 @@ if __name__ == "__main__":
             project_id,
             workspace_id,
             github_url,
-            gh_login_field_id,
+            github_url_field_id,
             asana_token,
             pr_author_field_id,
             pr_author_asana,
