@@ -1,6 +1,6 @@
 import math
 from abc import ABC, abstractmethod
-from typing import Any, Callable, Dict, Optional
+from typing import Callable, Dict, Optional
 
 import hydra
 from omegaconf import DictConfig
@@ -96,18 +96,6 @@ class HyperparameterScheduler:
             if schedule_cfg is not None:
                 self.logger.info(f"Initializing scheduler for: {param_name}")
                 self.schedulers[param_name] = hydra.utils.instantiate(schedule_cfg)
-
-    def _get_schedule_config(self, cfg: DictConfig, schedule_key: str, default_type: str) -> Dict[str, Any]:
-        """Extract schedule configuration from trainer_cfg or return default."""
-        schedule = getattr(cfg, schedule_key, None)
-        if schedule is None:
-            return {"type": default_type}
-        return {
-            "type": schedule.get("type", default_type),
-            "min_value": schedule.get("min_value", None),
-            "max_value": schedule.get("max_value", None),
-            "decay_rate": schedule.get("decay_rate", 0.1),
-        }
 
     def _compute_scheduled_value(self, param_name: str, current_step: int) -> float:
         """Compute the scheduled value for a hyperparameter at the current step."""
