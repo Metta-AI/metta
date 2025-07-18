@@ -60,7 +60,7 @@ class StatefulCurriculum(Curriculum):
     def get_task_probs(self) -> dict[str, float]:
         return self.task_probs
 
-    def get_curriculum_stats(self) -> dict:
+    def stats(self) -> dict:
         avg_score = sum(s for _, s in self.completed_tasks) / len(self.completed_tasks) if self.completed_tasks else 0
         return {
             "total_tasks": self.task_count,
@@ -88,7 +88,7 @@ def test_server_client_with_stats(free_port):
             curriculum.complete_task(task.name(), 0.5 + i * 0.03)
 
         # Test client stats (should return empty dicts)
-        assert client.get_curriculum_stats() == {}
+        assert client.stats() == {}
 
         # Complete task (no-op on client)
 
@@ -219,7 +219,7 @@ def test_trainer_integration_simulation():
             curriculum_stats = {}
 
             # Get stats from server-side curriculum
-            raw_curriculum_stats = curriculum.get_curriculum_stats()
+            raw_curriculum_stats = curriculum.stats()
             for key, value in raw_curriculum_stats.items():
                 curriculum_stats[f"curriculum/{key}"] = value
 
