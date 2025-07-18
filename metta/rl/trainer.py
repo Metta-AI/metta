@@ -11,7 +11,8 @@ import torch.distributed
 import wandb
 from heavyball import ForeachMuon
 from omegaconf import DictConfig, OmegaConf
-from pydantic import ValidationError
+from rich.console import Console
+from rich.table import Table
 
 from metta.agent.metta_agent import DistributedMettaAgent, make_policy
 from metta.agent.policy_metadata import PolicyMetadata
@@ -28,6 +29,7 @@ from metta.eval.eval_request_config import EvalRewardSummary
 from metta.eval.eval_service import evaluate_policy
 from metta.mettagrid.curriculum.core import Curriculum
 from metta.mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
+from metta.rl.curriculum.curriculum_client import CurriculumClient
 from metta.rl.experience import Experience
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses
@@ -82,7 +84,7 @@ class MettaTrainer:
     def __init__(
         self,
         cfg: DictConfig,
-        curriculum: Curriculum,
+        curriculum_stats_provider: Curriculum | None,
         wandb_run: WandbRun | None = None,
         policy_store: PolicyStore | None = None,
         sim_suite_config: SimulationSuiteConfig | None = None,
@@ -144,8 +146,9 @@ class MettaTrainer:
                 auto_start=True,  # Start monitoring immediately
                 external_timer=self.timer,  # Pass trainer's timer for persistent elapsed time
             )
+            self._curriculum_stats_provider = curriculum_stats_provider
 
-        self._curriculum = curriculum
+        self._curriculum = CurriculumClient.create(self.trainer_cfg)
 
         # Add training task to the suite
         self._sim_suite_config.simulations["eval/training_task"] = SingleEnvSimulationConfig(
@@ -407,16 +410,41 @@ class MettaTrainer:
         rollout_pct = (rollout_time / total_time) * 100
         stats_pct = (stats_time / total_time) * 100
 
-        curriculum_stats = self.curriculum.get_curriculum_stats()
+        curriculum_stats = self._curriculum_stats_provider.get_curriculum_stats()
         tasks_completed = curriculum_stats.get("tasks_completed", 0)
         tasks_per_sec = tasks_completed / total_time
 
-        logger.info(
-            f"Epoch {self.epoch}, Agent step {self.agent_step}/{self.trainer_cfg.total_timesteps} "
-            f"{steps_per_sec * self._world_size:.0f} steps/sec "
-            f"({train_pct:.0f}% train / {rollout_pct:.0f}% rollout / {stats_pct:.0f}% stats) "
-            f"({tasks_per_sec:.0f} tasks/sec)"
+        # Create a rich console and table
+        console = Console()
+        table = Table(
+            title=f"[bold cyan]Training Progress - Epoch {self.epoch}[/bold cyan]",
+            show_header=True,
+            header_style="bold magenta",
         )
+
+        # Add columns
+        table.add_column("Metric", style="cyan", justify="left")
+        table.add_column("Progress", style="green", justify="right")
+        table.add_column("Rate", style="yellow", justify="left")
+
+        # Add rows
+        progress_pct = (self.agent_step / self.trainer_cfg.total_timesteps) * 100
+        table.add_row(
+            "Agent Steps",
+            f"{self.agent_step:,} / {self.trainer_cfg.total_timesteps:,} ({progress_pct:.1f}%)",
+            f"[dim]{steps_per_sec * self._world_size:.0f} steps/sec[/dim]",
+        )
+
+        table.add_row("Tasks", f"{tasks_completed:,}", f"[dim]{tasks_per_sec:.1f} tasks/sec[/dim]")
+
+        table.add_row(
+            "Epoch Time",
+            f"{total_time:.2f}s",
+            f"[dim]Train: {train_pct:.0f}% | Rollout: {rollout_pct:.0f}% | Stats: {stats_pct:.0f}%[/dim]",
+        )
+
+        # Log the table
+        console.print(table)
 
     @with_instance_timer("_rollout")
     def _rollout(self):
@@ -865,19 +893,23 @@ class MettaTrainer:
                 if k in self.stats:
                     processed_stats["overview"][v] = self.stats[k]
 
+<<<<<<< HEAD
         # Add hyperparameter values
 
         curriculum_stats = self._curriculum.get_curriculum_stats()
+=======
+        curriculum_stats = self._curriculum_stats_provider.get_curriculum_stats()
+>>>>>>> 03189c7c8 (cp)
 
         # Build complete stats dictionary for wandb
         all_stats = build_wandb_stats(
             processed_stats=processed_stats,
+            curriculum_stats=curriculum_stats,
             timing_info=timing_info,
             weight_stats=weight_stats,
             grad_stats=self.grad_stats,
             system_stats=self._system_monitor.stats() if hasattr(self, "_system_monitor") else {},
             memory_stats=self._memory_monitor.stats() if hasattr(self, "_memory_monitor") else {},
-            curriculum_stats=curriculum_stats,
             parameters=parameters,
             hyperparameters=self.hyperparameters,
             evals=self.evals,
