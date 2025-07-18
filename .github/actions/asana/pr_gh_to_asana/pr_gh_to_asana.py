@@ -555,12 +555,12 @@ def format_github_review_body_for_asana(review_body, github_user, review_state, 
     header = f"<strong>{emoji} GitHub Review from @{github_user} (Review #{review_id})</strong><br/>"
     header += f"<em>Status: {review_state.replace('_', ' ').title()} | {github_timestamp}</em><br/><br/>"
 
-    header = f"<strong>GitHub Review from @{github_user} (Review #{review_id})</strong>"
-    # header += f"<em>Status: {review_state.replace('_', ' ').title()} | {github_timestamp}</em><br/><br/>"
+    header = f"<strong>GitHub Review from @{github_user} ({review_id})</strong>"
+    header += f"\n<em>Status: {review_state.replace('_', ' ').title()} | {github_timestamp}</em><br/><br/>"
 
     # Convert basic markdown in body
     formatted_body = convert_basic_markdown(review_body) if review_body else "(No comment)"
-    formatted_body = review_body if review_body else "(No comment)"
+    # formatted_body = review_body if review_body else "(No comment)"
 
     return "<body>" + header + formatted_body + "</body>"
 
