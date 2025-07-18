@@ -8,6 +8,8 @@ import torch
 from pufferlib import _C  # noqa: F401 - Required for torch.ops.pufferlib
 from torch import Tensor
 
+from metta.rl import mps
+
 
 def compute_advantage(
     values: Tensor,
@@ -21,7 +23,7 @@ def compute_advantage(
     vtrace_c_clip: float,
     device: Union[torch.device, str],
 ) -> Tensor:
-    """CUDA kernel for puffer advantage with automatic CPU fallback.
+    """CUDA kernel for puffer advantage with automatic CPU & MPS fallback.
 
     This matches the trainer.py implementation exactly.
     """
@@ -29,6 +31,12 @@ def compute_advantage(
     device = torch.device(device) if isinstance(device, str) else device
 
     # Move tensors to device and compute advantage
+    if str(device) == "mps":
+        return mps.advantage(
+            values, rewards, dones, importance_sampling_ratio, vtrace_rho_clip, vtrace_c_clip, gamma, gae_lambda, device
+        )
+
+    # CUDA implementation using custom kernel
     tensors = [values, rewards, dones, importance_sampling_ratio, advantages]
     tensors = [t.to(device) for t in tensors]
     values, rewards, dones, importance_sampling_ratio, advantages = tensors
