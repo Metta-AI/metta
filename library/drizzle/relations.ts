@@ -35,6 +35,10 @@ export const postRelations = relations(post, ({one}) => ({
 		fields: [post.authorId],
 		references: [user.id]
 	}),
+	paper: one(paper, {
+		fields: [post.paperId],
+		references: [paper.id]
+	}),
 }));
 
 export const userPaperInteractionRelations = relations(userPaperInteraction, ({one}) => ({
@@ -50,4 +54,5 @@ export const userPaperInteractionRelations = relations(userPaperInteraction, ({o
 
 export const paperRelations = relations(paper, ({many}) => ({
 	userPaperInteractions: many(userPaperInteraction),
+	posts: many(post),
 }));
