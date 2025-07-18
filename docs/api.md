@@ -7,10 +7,12 @@ The Metta API (`metta.api`) provides a clean way to use Metta's training compone
 ```python
 #!/usr/bin/env -S uv run
 import torch
-from metta.api import (
-    Agent, Environment, Optimizer,
-    setup_device_and_distributed, setup_run_directories,
-    save_checkpoint, load_checkpoint, wrap_agent_distributed,
+from metta.api.agent import Agent
+from metta.api.environment import Environment
+from metta.api.directories import setup_run_directories
+from metta.rl.functions import (
+    setup_device_and_distributed,
+    wrap_agent_distributed,
 )
 from metta.agent.policy_store import PolicyStore
 from metta.rl.experience import Experience
@@ -67,7 +69,7 @@ optimizer.step(loss, epoch)
 ### Training Loop Functions
 
 ```python
-from metta.api import (
+from metta.rl.functions import (
     perform_rollout_step,
     accumulate_rollout_stats,
     compute_advantage,

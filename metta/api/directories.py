@@ -109,3 +109,51 @@ def save_experiment_config(
     config_path = os.path.join(dirs.run_dir, "config.yaml")
     OmegaConf.save(experiment_config, config_path)
     logger.info(f"Saved config to {config_path}")
+
+
+def setup_device_and_distributed(base_device: str = "cuda") -> tuple[torch.device, bool, int, int]:
+    """Set up device and distributed training, returning all needed information.
+
+    This combines device setup and distributed initialization into a single call,
+    matching the initialization pattern from tools/train.py.
+
+    Args:
+        base_device: Base device string ("cuda" or "cpu")
+
+    Returns:
+        Tuple of (device, is_master, world_size, rank)
+        - device: The torch.device to use for training
+        - is_master: True if this is the master process (rank 0)
+        - world_size: Total number of processes (1 if not distributed)
+        - rank: Current process rank (0 if not distributed)
+    """
+    import torch
+
+    # Check if we're in a distributed environment
+    if "LOCAL_RANK" in os.environ:
+        local_rank = int(os.environ["LOCAL_RANK"])
+
+        # For CUDA, use device with local rank
+        if base_device.startswith("cuda"):
+            device = torch.device(f"{base_device}:{local_rank}")
+            backend = "nccl"
+        else:
+            # For CPU, just use cpu device (no rank suffix)
+            device = torch.device(base_device)
+            backend = "gloo"
+
+        torch.distributed.init_process_group(backend=backend)
+
+        # Get distributed info after initialization
+        rank = torch.distributed.get_rank()
+        world_size = torch.distributed.get_world_size()
+        is_master = rank == 0
+    else:
+        # Single GPU or CPU
+        device = torch.device(base_device)
+        rank = 0
+        world_size = 1
+        is_master = True
+
+    logger.info(f"Using device: {device} (rank {rank}/{world_size})")
+    return device, is_master, world_size, rank
