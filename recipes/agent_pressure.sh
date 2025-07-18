@@ -2,7 +2,7 @@
 
 #no_clustering, right_next_to_each_other, positions_in_same_area
 
-agent_cluster_type=no_clustering
+agent_cluster_type=positions_in_same_area
 num_rooms=4
 num_agents_per_room=2
 for seed in 0; do
