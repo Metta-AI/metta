@@ -22,7 +22,7 @@ class BucketedCurriculum(PrioritizeRegressedCurriculum):
         buckets: Dict[str, Dict[str, Any]],
         env_overrides: Optional[DictConfig] = None,
         default_bins: int = 1,
-        moving_avg_decay_rate: float = 0.01,
+        **kwargs,
     ):
         expanded_buckets = _expand_buckets(buckets, default_bins)
 
@@ -36,7 +36,7 @@ class BucketedCurriculum(PrioritizeRegressedCurriculum):
                 curriculum_id, base_cfg, list(expanded_buckets.keys()), list(parameter_values)
             )
         tasks = {t: 1.0 for t in self._id_to_curriculum.keys()}
-        super().__init__(tasks=tasks, env_overrides=env_overrides, moving_avg_decay_rate=moving_avg_decay_rate)
+        super().__init__(tasks=tasks, env_overrides=env_overrides, **kwargs)
 
     def _curriculum_from_id(self, id: str) -> Curriculum:
         return self._id_to_curriculum[id]

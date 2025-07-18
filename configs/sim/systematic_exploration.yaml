@@ -1,0 +1,39 @@
+defaults:
+  - sim_suite
+  - _self_
+
+name: systematic_exploration_memory
+
+simulations:
+  systematic_exploration_memory/boxout:
+    env: env/mettagrid/systematic_exploration_memory/evals/boxout
+  systematic_exploration_memory/choose_wisely:
+    env: env/mettagrid/systematic_exploration_memory/evals/choose_wisely
+  systematic_exploration_memory/corners:
+    env: env/mettagrid/systematic_exploration_memory/evals/corners
+  systematic_exploration_memory/hall_of_mirrors:
+    env: env/mettagrid/systematic_exploration_memory/evals/hall_of_mirrors
+  systematic_exploration_memory/journey_home:
+    env: env/mettagrid/systematic_exploration_memory/evals/journey_home
+  systematic_exploration_memory/little_landmark_hard:
+    env: env/mettagrid/systematic_exploration_memory/evals/little_landmark_hard
+  systematic_exploration_memory/lobster_legs_cues:
+    env: env/mettagrid/systematic_exploration_memory/evals/lobster_legs_cues
+  systematic_exploration_memory/lobster_legs:
+    env: env/mettagrid/systematic_exploration_memory/evals/lobster_legs
+  systematic_exploration_memory/memory_swirls_hard:
+    env: env/mettagrid/systematic_exploration_memory/evals/memory_swirls_hard
+  systematic_exploration_memory/memory_swirls:
+    env: env/mettagrid/systematic_exploration_memory/evals/memory_swirls
+  systematic_exploration_memory/passing_things:
+    env: env/mettagrid/systematic_exploration_memory/evals/passing_things
+  systematic_exploration_memory/rooms:
+    env: env/mettagrid/systematic_exploration_memory/evals/rooms
+  systematic_exploration_memory/spacey_memory:
+    env: env/mettagrid/systematic_exploration_memory/evals/spacey_memory
+  systematic_exploration_memory/tease:
+    env: env/mettagrid/systematic_exploration_memory/evals/tease
+  systematic_exploration_memory/venture_out:
+    env: env/mettagrid/systematic_exploration_memory/evals/venture_out
+  systematic_exploration_memory/you_shall_not_pass:
+    env: env/mettagrid/systematic_exploration_memory/evals/you_shall_not_pass

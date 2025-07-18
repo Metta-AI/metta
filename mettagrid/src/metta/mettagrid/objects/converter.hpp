@@ -22,7 +22,8 @@ struct ConverterConfig : public GridObjectConfig {
                   unsigned short conversion_ticks,
                   unsigned short cooldown,
                   InventoryQuantity initial_resource_count,
-                  ObservationType color)
+                  ObservationType color,
+                  bool show_recipe_inputs = false)
       : GridObjectConfig(type_id, type_name),
         input_resources(input_resources),
         output_resources(output_resources),
@@ -30,7 +31,8 @@ struct ConverterConfig : public GridObjectConfig {
         conversion_ticks(conversion_ticks),
         cooldown(cooldown),
         initial_resource_count(initial_resource_count),
-        color(color) {}
+        color(color),
+        show_recipe_inputs(show_recipe_inputs) {}
 
   std::map<InventoryItem, InventoryQuantity> input_resources;
   std::map<InventoryItem, InventoryQuantity> output_resources;
@@ -39,6 +41,7 @@ struct ConverterConfig : public GridObjectConfig {
   unsigned short cooldown;
   InventoryQuantity initial_resource_count;
   ObservationType color;
+  bool show_recipe_inputs;
 };
 
 class Converter : public HasInventory {
@@ -110,6 +113,7 @@ public:
   bool converting;                  // Currently in production phase
   bool cooling_down;                // Currently in cooldown phase
   unsigned char color;
+  bool show_recipe_inputs;
   EventManager* event_manager;
   StatsTracker stats;
 
@@ -119,7 +123,8 @@ public:
         max_output(cfg.max_output),
         conversion_ticks(cfg.conversion_ticks),
         cooldown(cfg.cooldown),
-        color(cfg.color) {
+        color(cfg.color),
+        show_recipe_inputs(cfg.show_recipe_inputs) {
     GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c, GridLayer::ObjectLayer));
     this->converting = false;
     this->cooling_down = false;
@@ -181,17 +186,35 @@ public:
 
   vector<PartialObservationToken> obs_features() const override {
     vector<PartialObservationToken> features;
-    features.reserve(5 + this->inventory.size());
+
+    // Calculate the capacity needed
+    size_t capacity = 5 + this->inventory.size();
+    if (this->show_recipe_inputs) {
+      capacity += this->input_resources.size();
+    }
+    features.reserve(capacity);
+
     features.push_back({ObservationFeature::TypeId, static_cast<ObservationType>(this->type_id)});
     features.push_back({ObservationFeature::Color, static_cast<ObservationType>(this->color)});
     features.push_back({ObservationFeature::ConvertingOrCoolingDown,
                         static_cast<ObservationType>(this->converting || this->cooling_down)});
+
+    // Add current inventory
     for (const auto& [item, amount] : this->inventory) {
       // inventory should only contain non-zero amounts
       assert(amount > 0);
       features.push_back(
           {static_cast<ObservationType>(item + InventoryFeatureOffset), static_cast<ObservationType>(amount)});
     }
+
+    // Add recipe inputs if configured to do so
+    if (this->show_recipe_inputs) {
+      for (const auto& [item, amount] : this->input_resources) {
+        features.push_back(
+            {static_cast<ObservationType>(item + InventoryFeatureOffset), static_cast<ObservationType>(amount)});
+      }
+    }
+
     return features;
   }
 };

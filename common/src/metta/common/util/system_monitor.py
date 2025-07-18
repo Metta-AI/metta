@@ -24,6 +24,7 @@ class SystemMonitor:
         history_size: int = 100,
         logger: logging.Logger | None = None,
         auto_start: bool = True,
+        external_timer: Any | None = None,
     ):
         """Initialize the machine monitor.
 
@@ -32,6 +33,7 @@ class SystemMonitor:
             history_size: Number of samples to retain per metric
             logger: Optional logger instance
             auto_start: Whether to start monitoring immediately
+            external_timer: Optional external timer (e.g., trainer's Stopwatch) for elapsed time
         """
         self.logger = logger or logging.getLogger("SystemMonitor")
         self.sampling_interval_sec = sampling_interval_sec
@@ -46,6 +48,8 @@ class SystemMonitor:
         self._thread: Thread | None = None
         self._stop_flag = False
         self._lock = Lock()
+        self._start_time: float | None = None  # Track when monitoring started
+        self._external_timer = external_timer  # External timer for elapsed time
 
         # Metric storage
         self._metrics: dict[str, deque] = {}
@@ -95,6 +99,18 @@ class SystemMonitor:
         self._is_container = self._detect_container()
         if self._is_container:
             self.logger.info("Running in container environment")
+
+        # Check for cost env var
+        hourly_cost_str = os.environ.get("METTA_HOURLY_COST")
+        if hourly_cost_str:
+            try:
+                total_hourly_cost = float(hourly_cost_str)
+                self._metric_collectors["cost/hourly_total"] = lambda: total_hourly_cost
+                # Add accrued cost metric
+                self._metric_collectors["cost/accrued_total"] = lambda: self._calculate_accrued_cost(total_hourly_cost)
+                self.logger.info(f"Cost monitoring enabled: ${total_hourly_cost:.4f}/hr (total for all nodes)")
+            except (ValueError, TypeError):
+                self.logger.warning(f"Could not parse METTA_HOURLY_COST: {hourly_cost_str}")
 
         # GPU metrics - check multiple ways for compatibility
         self._has_gpu = False
@@ -441,6 +457,8 @@ class SystemMonitor:
                 return
 
             self._stop_flag = False
+            if self._start_time is None:  # Only set on first start
+                self._start_time = time.time()
             self._thread = Thread(target=self._monitor_loop, daemon=True)
             self._thread.start()
             self.logger.info("System monitoring started")
@@ -589,3 +607,30 @@ class SystemMonitor:
             if metric_data["latest"] is not None:
                 stats[f"monitor/{metric_name}"] = metric_data["latest"]
         return stats
+
+    def _calculate_accrued_cost(self, hourly_cost: float) -> float | None:
+        """Calculate the total accrued cost based on elapsed time.
+
+        Args:
+            hourly_cost: Cost per hour
+
+        Returns:
+            Total accrued cost or None if monitoring hasn't started
+        """
+        # Prefer external timer if available (e.g., trainer's timer that persists across restarts)
+        if self._external_timer is not None:
+            try:
+                # Assume the external timer has a get_elapsed() method
+                elapsed_seconds = self._external_timer.get_elapsed()
+                if elapsed_seconds is not None:
+                    elapsed_hours = elapsed_seconds / 3600.0
+                    return hourly_cost * elapsed_hours
+            except Exception as e:
+                self.logger.debug(f"Failed to get elapsed time from external timer: {e}")
+
+        # Fallback to internal start time
+        if self._start_time is None:
+            return None
+
+        elapsed_hours = (time.time() - self._start_time) / 3600.0
+        return hourly_cost * elapsed_hours

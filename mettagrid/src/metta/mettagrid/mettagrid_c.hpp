@@ -43,13 +43,21 @@ struct ChangeGlyphActionConfig;
 
 namespace py = pybind11;
 
+struct GlobalObsConfig {
+  bool episode_completion_pct = true;
+  bool last_action = true;  // Controls both last_action and last_action_arg
+  bool last_reward = true;
+};
+
 struct GameConfig {
   int num_agents;
   unsigned int max_steps;
+  bool episode_truncates;
   ObservationCoord obs_width;
   ObservationCoord obs_height;
   std::vector<std::string> inventory_item_names;
   unsigned int num_observation_tokens;
+  GlobalObsConfig global_obs;
   std::map<std::string, std::shared_ptr<ActionConfig>> actions;
   std::map<std::string, std::shared_ptr<GridObjectConfig>> objects;
 };
@@ -64,6 +72,7 @@ public:
 
   unsigned int current_step;
   unsigned int max_steps;
+  bool episode_truncates;
 
   std::vector<std::string> inventory_item_names;
   std::vector<std::string> object_type_names;
@@ -99,6 +108,7 @@ public:
 
 private:
   // Member variables
+  GlobalObsConfig _global_obs_config;
   std::map<unsigned int, float> _group_reward_pct;
   std::map<unsigned int, unsigned int> _group_sizes;
   std::unique_ptr<Grid> _grid;
