@@ -49,8 +49,6 @@ class PullRequest:
             print(f"Failed to fetch PR timeline: {timeline_response.status_code} - {timeline_response.text}")
             self.data["retrieved_timeline"] = []
 
-        print(f"Pull request retrieved from GitHub: {json.dumps(self.data, indent=2)}")
-
     def _parse_data(self):
         d = self.data
         self.body = d.get("body", "") or ""
@@ -118,6 +116,17 @@ class PullRequest:
     @property
     def last_event(self):
         return self.events[-1] if self.events else None
+
+    def print_debug_info(self):
+        print("Pull request JSON:")
+        print(json.dumps(self.data, indent=2))
+        print(f"assignees: {self.assignees}")
+        print(f"author: {self.author}")
+        print(f"reviewers: {self.reviewers}")
+        print(f"commenters: {self.commenters}")
+        print(f"github_logins: {self.github_logins}")
+        print(f"event stream: {self.events}")
+        print(f"last event: {self.last_event}")
 
     @staticmethod
     def _extract_asana_urls_from_description(description: str) -> list[str]:

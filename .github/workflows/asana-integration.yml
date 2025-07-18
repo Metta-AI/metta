@@ -25,15 +25,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Extract Assignees and Reviewers
-        id: extract-assignees-reviewers
-        run: |
-          assignees=$(echo '${{ toJSON(github.event.pull_request.assignees) }}' | jq -r '.[].login' | tr '\n' ',' | sed 's/,$//')
-          reviewers=$(echo '${{ toJSON(github.event.pull_request.requested_reviewers) }}' | jq -r '.[].login' | tr '\n' ',' | sed 's/,$//')
-
-          echo "assignees=$assignees" >> $GITHUB_OUTPUT
-          echo "reviewers=$reviewers" >> $GITHUB_OUTPUT
-
       - name: Sync PR Task (GH to Asana)
         id: ensure-asana-task
         uses: ./.github/actions/asana/pr_gh_to_asana
