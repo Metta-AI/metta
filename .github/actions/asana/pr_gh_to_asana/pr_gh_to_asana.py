@@ -685,7 +685,12 @@ def synchronize_comments_in_asana_as_multiple_blocks(
         asana_comments_with_links (list[dict]): List of current Asana comments that have review links
         comments_from_github (list[dict]): List of review comments from GitHub
     """
+    print("[synchronize_comments_in_asana_as_multiple_blocks] Starting with:")
+    print(f"  asana_comments_with_links: {len(asana_comments_with_links)} comments")
+    print(f"  comments_from_github: {len(comments_from_github)} reviews")
+
     if not comments_from_github:
+        print("[synchronize_comments_in_asana_as_multiple_blocks] No GitHub comments to process")
         return
 
     task_gid = extract_asana_gid_from_url(task_url)
@@ -696,6 +701,9 @@ def synchronize_comments_in_asana_as_multiple_blocks(
     existing_comments_by_review_id = {
         comment["review_id"]: comment for comment in asana_comments_with_links if comment["review_id"] is not None
     }
+    print(
+        f"[synchronize_comments_in_asana_as_multiple_blocks] Existing comments by review ID: {list(existing_comments_by_review_id.keys())}"
+    )
 
     # Process each GitHub review
     for github_review in comments_from_github:
@@ -705,15 +713,23 @@ def synchronize_comments_in_asana_as_multiple_blocks(
         review_state = github_review["action"]
         github_timestamp = github_review["timestamp"]
 
+        print(
+            f"[synchronize_comments_in_asana_as_multiple_blocks] Processing review {review_id} from {github_user} ({review_state})"
+        )
+
         # Format the review for Asana
         formatted_comment = format_github_review_body_for_asana(
             review_body, github_user, review_state, review_id, github_timestamp
         )
 
         if review_id in existing_comments_by_review_id:
+            print(f"[synchronize_comments_in_asana_as_multiple_blocks] Review {review_id} has existing Asana comment")
             # Update existing comment if content differs
             existing_comment = existing_comments_by_review_id[review_id]
             if existing_comment["text"] != formatted_comment:
+                print(
+                    f"[synchronize_comments_in_asana_as_multiple_blocks] Updating existing comment for review {review_id}"
+                )
                 story_id = existing_comment["id"]
                 url = f"https://app.asana.com/api/1.0/stories/{story_id}"
                 payload = {"data": {"html_text": formatted_comment}}
@@ -725,7 +741,12 @@ def synchronize_comments_in_asana_as_multiple_blocks(
                         print(f"Failed to update Asana comment {story_id}: {response.status_code} - {response.text}")
                 except requests.exceptions.RequestException as e:
                     print(f"Error updating Asana comment {story_id}: {e}")
+            else:
+                print(f"[synchronize_comments_in_asana_as_multiple_blocks] Review {review_id} comment is up to date")
         else:
+            print(
+                f"[synchronize_comments_in_asana_as_multiple_blocks] Review {review_id} has no existing Asana comment"
+            )
             # Check if we should add this comment (don't add out of order)
             should_add = True
             for existing_comment in asana_comments_with_links:
@@ -733,10 +754,14 @@ def synchronize_comments_in_asana_as_multiple_blocks(
                     # If we find an existing comment that matches a GitHub review,
                     # only add new comments after that point
                     if existing_comment["review_id"] in {r["id"] for r in comments_from_github}:
+                        print(
+                            f"[synchronize_comments_in_asana_as_multiple_blocks] Found existing comment with review ID {existing_comment['review_id']}, skipping addition of review {review_id}"
+                        )
                         should_add = False
                         break
 
             if should_add:
+                print(f"[synchronize_comments_in_asana_as_multiple_blocks] Adding new comment for review {review_id}")
                 # Create new comment
                 url = f"{api_url}/stories"
                 payload = {"data": {"text": formatted_comment}}
@@ -746,6 +771,10 @@ def synchronize_comments_in_asana_as_multiple_blocks(
                     print(f"Added new Asana comment for review {review_id}")
                 except requests.exceptions.RequestException as e:
                     print(f"Error adding Asana comment for review {review_id}: {e}")
+            else:
+                print(
+                    f"[synchronize_comments_in_asana_as_multiple_blocks] Skipped adding comment for review {review_id} due to ordering constraint"
+                )
 
     # Remove any existing comments that don't correspond to current GitHub reviews
     # current_review_ids = {review["id"] for review in comments_from_github}
@@ -970,7 +999,7 @@ if __name__ == "__main__":
         """
 
         asana_comments_with_links = list([comment for comment in comments if comment["review_id"] is not None])
-        comments_from_github = list([comment for comment in events if event["type"] == "review"])
+        comments_from_github = list([e for e in events if event["type"] == "review"])
 
         synchronize_comments_in_asana_as_multiple_blocks(
             asana_token, task_url, asana_comments_with_links, comments_from_github
