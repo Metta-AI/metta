@@ -4,14 +4,14 @@ defaults:
   - agent: fast
   - sim: sweep_eval
   - trainer: trainer
-  - sweep: quick
+  - sweep: full
   - _self_
 
 cmd: sweep
-sweep_run: ???  # Will be set via command line override
+sweep_name: ???  # Will be set via command line override
 
 trainer:
-  total_timesteps: 5_000_000   # 5M timesteps for proper RL training (was 50k - too short!)
+  total_timesteps: 10000   # 5M timesteps for proper RL training (was 50k - too short!)
   curriculum: /env/mettagrid/arena/basic_easy_shaped
   simulation:
     evaluate_interval: 0  # No evaluation during training for speed
@@ -20,14 +20,14 @@ trainer:
 sim:
   name: sweep_eval  # Required field
   num_episodes: 2
-  max_time_s: 60
+  max_time_s: 10
   env_overrides: {}
   simulations:
     simple:
       env: /env/mettagrid/arena/basic_easy_shaped
 
 wandb:
-  group: ${sweep_run}
+  group: ${sweep_name}
 
 sweep_job:
   sim: ${sim}
@@ -39,5 +39,5 @@ sweep_job:
   stats_server_uri: null # No logging to observatory for sweeps
 
 # TODO: Remove and update references.
-sweep_dir: "${.data_dir}/sweep/${.sweep_run}"
+sweep_dir: "${.data_dir}/sweep/${.sweep_name}"
 runs_dir: "${.sweep_dir}/runs"
