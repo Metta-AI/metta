@@ -3,12 +3,14 @@ import multiprocessing
 import os
 import sys
 from logging import Logger
+from pathlib import Path
 
 import hydra
 import torch
 import torch.distributed as dist
 from omegaconf import DictConfig, ListConfig, OmegaConf
 from torch.distributed.elastic.multiprocessing.errors import record
+import yaml
 
 from metta.agent.policy_store import PolicyStore
 from metta.app_backend.stats_client import StatsClient
@@ -29,6 +31,29 @@ class TrainJob(Config):
     __init__ = Config.__init__
     evals: SimulationSuiteConfig
     map_preview_uri: str | None = None
+
+
+def _get_default_run_name():
+    """Get the default run name from configure tool's config."""
+    config_file = Path("configs/user/.metta_tool_config.yaml")
+    if not config_file.exists():
+        return None
+    
+    try:
+        with open(config_file, "r") as f:
+            config = yaml.safe_load(f) or {}
+        
+        expression = config.get("train", {}).get("default_run_name")
+        if not expression:
+            return None
+        
+        # Import the configure tool to use its expression evaluation
+        from configure import MettaConfigureTool
+        tool = MettaConfigureTool()
+        return tool._evaluate_expression(expression)
+    except Exception:
+        # If anything fails, just return None
+        return None
 
 
 def _calculate_default_num_workers(is_serial: bool) -> int:
@@ -129,4 +154,12 @@ def main(cfg: DictConfig) -> int:
 
 
 if __name__ == "__main__":
+    # Check if run parameter is provided, if not use default
+    has_run_param = any(arg.startswith("run=") for arg in sys.argv[1:])
+    if not has_run_param:
+        default_run = _get_default_run_name()
+        if default_run:
+            print(f"Using default run name: {default_run}")
+            sys.argv.append(f"run={default_run}")
+    
     sys.exit(main())
