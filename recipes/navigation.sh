@@ -13,9 +13,10 @@
 # sim=navigation \
 # "$@"
 
+
 ./devops/skypilot/launch.py train \
 run=$USER.navigation.ffa_random_spawn_4rooms_of_2_seed0.$(date +%m-%d) \
-trainer.curriculum=env/mettagrid/curriculum/navigation/prioritize_regressed \
+trainer.curriculum=env/mettagrid/curriculum/navigation/random \
 --gpus=1 \
 --nodes=1 \
 --no-spot \

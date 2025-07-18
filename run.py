@@ -97,8 +97,8 @@ trainer_config = TrainerConfig(
         wandb_checkpoint_interval=0,
     ),
     simulation=SimulationConfig(
-        evaluate_interval=300,
-        replay_interval=300,
+        evaluate_interval=10,
+        replay_interval=10,
         replay_dir=dirs.replay_dir,
     ),
     profiler=TorchProfilerConfig(

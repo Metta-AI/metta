@@ -17,8 +17,8 @@ checkpoint:
   wandb_checkpoint_interval: 50
 
 simulation:
-  evaluate_interval: 200
-  replay_interval: 50
+  evaluate_interval: 20
+  replay_interval: 20
   replay_dir: s3://softmax-public/replays/${run}
 
 grad_mean_variance_interval: 0 # 0 to disable
