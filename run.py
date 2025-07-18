@@ -469,6 +469,7 @@ while agent_step < trainer_config.total_timesteps:
             system_stats=system_stats,
             memory_stats=memory_stats,
             parameters=parameters,
+            hyperparameters={},  # Hyperparameters not used in run.py
             evals=evaluation_scores.get(epoch, EvalRewardSummary()),
             agent_step=agent_step,
             epoch=epoch,
